@@ -100,6 +100,14 @@ class UnorderedLookupTreeStmTest {
 			this.tree.removeByOrderKey(this.valueIndex.get(recordId), recordId, this);
 			this.valueIndex.remove(recordId);
 		}
+
+		void markHead(int recordId) {
+			this.tree.markHead(this.valueIndex.get(recordId), recordId);
+		}
+
+		void unmarkHead(int recordId) {
+			this.tree.unmarkHead(this.valueIndex.get(recordId), recordId);
+		}
 	}
 
 	/**
@@ -356,6 +364,93 @@ class UnorderedLookupTreeStmTest {
 				},
 				(original, committed) -> assertEquals(0, committed.size())
 			);
+		}
+	}
+
+	@Nested
+	@DisplayName("Head tracking")
+	class HeadTrackingTest {
+
+		/**
+		 * Builds a freshly committed head-aware tree holding records `1000..1000+count` in logical order with the records
+		 * at `headPositions` marked as chain heads (all in the committed base).
+		 */
+		@Nonnull
+		private static TreeWithIndex committedHeadAwareTree(int count, @Nonnull int[] headPositions) {
+			final TreeWithIndex warmUp = new TreeWithIndex(
+				new UnorderedLookupTree(
+					UnorderedLookupTree.DEFAULT_BLOCK_SIZE - 1, UnorderedLookupTree.DEFAULT_ORDER_KEY_GAP, true)
+			);
+			for (int i = 0; i < count; i++) {
+				warmUp.addAtPosition(i, 1000 + i);
+			}
+			for (final int hp : headPositions) {
+				warmUp.markHead(1000 + hp);
+			}
+			return warmUp;
+		}
+
+		@Test
+		@DisplayName("commits head-mark changes so the merged copy reflects them while the committed view is unchanged")
+		void shouldCommitHeadMarkChanges() {
+			final TreeWithIndex driver = committedHeadAwareTree(6, new int[]{0, 3});
+
+			assertStateAfterCommit(
+				driver.tree,
+				tested -> {
+					driver.addAtPosition(6, 1006);   // append a fresh (non-head) record at the tail
+					driver.markHead(1006);           // mark it a head
+					driver.unmarkHead(1003);         // and drop the middle head
+				},
+				(original, committed) -> {
+					// the still-committed view keeps its original heads (0 -> 1000, 3 -> 1003)
+					assertEquals(2, original.headRank(5));
+					assertEquals(1000, (int) original.findHeadCovering(0));
+					assertEquals(1003, (int) original.findHeadCovering(3));
+
+					// the merged copy reflects the transactional head changes: 1003 unmarked, 1006 marked
+					assertEquals(7, committed.size());
+					assertEquals(1, committed.headRank(5));
+					assertEquals(2, committed.headRank(6));
+					assertEquals(1000, (int) committed.findHeadCovering(5));
+					assertEquals(1006, (int) committed.findHeadCovering(6));
+					assertConsistent(original);
+					assertConsistent(committed);
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("leaves committed head marks intact when the transaction is rolled back")
+		void shouldLeaveHeadMarksIntactOnRollback() {
+			final TreeWithIndex driver = committedHeadAwareTree(6, new int[]{0, 3});
+			final UnorderedLookupTree tree = driver.tree;
+
+			boolean threw = false;
+			try {
+				assertStateAfterCommit(
+					tree,
+					tested -> {
+						driver.markHead(1004);
+						driver.unmarkHead(1003);
+						driver.addAtPosition(0, 99);
+						throw new IllegalStateException("forced rollback");
+					},
+					(original, committed) -> {
+						// not reached
+					}
+				);
+			} catch (IllegalStateException ex) {
+				threw = true;
+			}
+
+			assertTrue(threw, "the forced rollback exception must propagate");
+			// the committed tree keeps exactly its pre-transaction head marks (0 -> 1000, 3 -> 1003)
+			assertEquals(6, tree.size());
+			assertEquals(2, tree.headRank(5));
+			assertEquals(1000, (int) tree.findHeadCovering(0));
+			assertEquals(1003, (int) tree.findHeadCovering(3));
+			assertConsistent(tree);
 		}
 	}
 

@@ -45,7 +45,9 @@ import io.evitadb.utils.CollectionUtils;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
+import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
@@ -533,9 +535,10 @@ public final class AttributeIndexLoader implements ComponentLoader {
 	}
 
 	/**
-	 * Restores a single CHAIN part (second pass) into `chainIndexes`. CHAIN has no owner/view split,
-	 * so the {@link ChainIndex} is always rebuilt standalone from its persisted chains and element
-	 * states.
+	 * Restores a single CHAIN part (second pass) into `chainIndexes`. CHAIN has no owner/view split, so the
+	 * {@link ChainIndex} is always rebuilt standalone in one of two shapes: PAGED, where the element tree's leaf pages are
+	 * read in ascending logical order and reassembled boundary-stable via {@link ChainIndex#fromPersistedPages} (chain
+	 * state / element order reconstructed from the reloaded pages), or SINGLE / legacy, restored from the full inline part.
 	 *
 	 * @param chainIndexes CHAIN target map
 	 * @param key          manifest key identifying the CHAIN part to fetch
@@ -560,15 +563,39 @@ public final class AttributeIndexLoader implements ComponentLoader {
 				" was not found in persistent storage!"
 		);
 		final AttributeIndexKey attributeIndexKey = part.getAttributeIndexKey();
-		chainIndexes.put(
-			attributeIndexKey,
-			new ChainIndex(
-				context.referenceKey(),
-				part.getAttributeIndexKey(),
-				part.getChains(),
-				part.getElementStates()
-			)
-		);
+		final ChainIndex chainIndex;
+		if (part.isPaged()) {
+			// PAGED: standalone chain index whose element tree was persisted as individual leaf pages. Resolve the
+			// CHAIN-typed stream id from the sub-index identity (registered at the first PAGED write) and read every listed
+			// leaf page in ascending logical order, then reassemble boundary-stable via ChainIndex.fromPersistedPages (one
+			// tree leaf per persisted page - so the first post-restart commit rewrites only genuinely-changed leaves).
+			final int streamId = service.getReadOnlyKeyCompressor().getId(
+				new LeafStreamKey(entityIndexId, new AttributeKeyWithIndexType(attributeIndexKey, AttributeIndexType.CHAIN))
+			);
+			final int[] orderedPageSequences = part.getPageSequencesOrThrowException();
+			final List<ChainIndexLeafPagePart> pages = new ArrayList<>(orderedPageSequences.length);
+			for (final int pageSequence : orderedPageSequences) {
+				final ChainIndexLeafPagePart leafPage = service.getStoragePart(
+					catalogVersion, AbstractLeafPagePart.computeUniquePartId(streamId, pageSequence),
+					ChainIndexLeafPagePart.class
+				);
+				isPremiseValid(
+					leafPage != null,
+					"Chain index leaf page " + pageSequence + " (stream " + streamId + ") for key " + key.attribute() +
+						" was not found in persistent storage!"
+				);
+				pages.add(leafPage);
+			}
+			chainIndex = ChainIndex.fromPersistedPages(
+				context.referenceKey(), attributeIndexKey, pages, part.getHighWaterPageSequence()
+			);
+		} else {
+			// SINGLE / legacy: standalone chain index restored from its full inline part (chains + element states)
+			chainIndex = new ChainIndex(
+				context.referenceKey(), attributeIndexKey, part.getChains(), part.getElementStates()
+			);
+		}
+		chainIndexes.put(attributeIndexKey, chainIndex);
 	}
 
 }

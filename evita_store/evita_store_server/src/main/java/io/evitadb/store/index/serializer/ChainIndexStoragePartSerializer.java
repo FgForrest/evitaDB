@@ -32,6 +32,7 @@ import io.evitadb.index.attribute.ChainIndex.ChainElementState;
 import io.evitadb.index.attribute.ChainIndex.ElementState;
 import io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.ChainIndexLeafPagePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.ChainIndexStoragePart;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
@@ -53,10 +54,18 @@ import java.util.Map;
  *   {@link ChainIndex#getConsistencyReport()} enforces);
  * - a non-head element's state is always {@link ElementState#SUCCESSOR}.
  *
- * On read the same fat {@link ChainElementState} map that {@link ChainIndex#createStoragePart(int)} produced is
+ * On read the same fat {@link ChainElementState} map that the live flush path ({@link ChainIndex#appendStorageParts}) produced is
  * reconstructed, so {@link ChainIndexStoragePart} and the load path (the four-arg {@link ChainIndex} constructor and
  * the attribute index loader) are untouched. The previous fat format is read by
  * {@link ChainIndexStoragePartSerializer_2026_1}.
+ *
+ * The wire is gated by a leading `paged` discriminator: a SINGLE part writes the slim per-chain payload above; a PAGED
+ * root (whose element data lives in separate
+ * {@link ChainIndexLeafPagePart} records) writes only the
+ * value tree's high-water page sequence and the ordered live leaf-page list — the chain state is reconstructed from the
+ * reloaded tree on load. The discriminator is an intra-dev format change: NO `serialVersionUID` bump and NO new
+ * backward-compatible reader (the released `_2026_1` / `_2025_5` readers stay untouched, dispatched by the stored
+ * serial-version-uid).
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
@@ -71,6 +80,18 @@ public class ChainIndexStoragePartSerializer extends Serializer<ChainIndexStorag
 		Assert.notNull(uniquePartId, "Unique part id should have been computed by now!");
 		output.writeVarLong(uniquePartId, true);
 		output.writeVarInt(this.keyCompressor.getId(chainIndex.getAttributeIndexKey()), true);
+
+		final boolean paged = chainIndex.isPaged();
+		output.writeBoolean(paged);
+		if (paged) {
+			// PAGED root: only the page-stream metadata (high-water + the ordered live leaf-page list). The chain runs
+			// and element states are NOT written - they are reconstructed from the leaf pages on load.
+			output.writeVarInt(chainIndex.getHighWaterPageSequence(), true);
+			final int[] pageSequences = chainIndex.getPageSequencesOrThrowException();
+			output.writeVarInt(pageSequences.length, true);
+			output.writeInts(pageSequences, 0, pageSequences.length);
+			return;
+		}
 
 		// the fat element-state map is still carried by the part on the heap; the slim wire derives the single
 		// non-redundant datum per chain (head predecessor + head state) from the head element's state entry
@@ -99,10 +120,22 @@ public class ChainIndexStoragePartSerializer extends Serializer<ChainIndexStorag
 		final long uniquePartId = input.readVarLong(true);
 		final AttributeIndexKey attributeKey = this.keyCompressor.getKeyForId(input.readVarInt(true));
 
+		final boolean paged = input.readBoolean();
+		if (paged) {
+			// PAGED root: the page-stream metadata. The chain state (runs + element states) lives in the leaf pages and
+			// is reconstructed from the reloaded tree, so the part carries empty inline chain data.
+			final int highWaterPageSequence = input.readVarInt(true);
+			final int leafPageCount = input.readVarInt(true);
+			final int[] pageSequences = input.readInts(leafPageCount);
+			return ChainIndexStoragePart.paged(
+				entityIndexPrimaryKey, attributeKey, highWaterPageSequence, pageSequences, uniquePartId
+			);
+		}
+
 		final int chainCount = input.readVarInt(true);
 		final int[][] chains = new int[chainCount][];
-		// the element-state map is rebuilt to be structurally identical (same content) to the one createStoragePart
-		// emitted, so the load path (ChainIndexStoragePart + the four-arg ChainIndex constructor) needs no change
+		// the element-state map is rebuilt to be structurally identical (same content) to the one the SINGLE flush
+		// path emitted, so the load path (ChainIndexStoragePart + the four-arg ChainIndex constructor) needs no change
 		final Map<Integer, ChainElementState> elementStates = CollectionUtils.createHashMap(chainCount << 1);
 		for (int i = 0; i < chainCount; i++) {
 			final int chainLength = input.readVarInt(true);

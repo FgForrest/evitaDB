@@ -255,6 +255,15 @@ public class IndexStoragePartConfigurer implements Consumer<Kryo> {
 			index++
 		);
 
+		// the granular ChainIndex value-tree leaf-page record — a brand-new record type with no backward-compatible
+		// reader (legacy / small chain catalogs keep the chain runs + element states inline on the monolithic root part
+		// instead). Appended last to keep the preceding registration ids stable.
+		kryo.register(
+			ChainIndexLeafPagePart.class,
+			new SerialVersionBasedSerializer<>(new ChainIndexLeafPagePartSerializer(), ChainIndexLeafPagePart.class),
+			index++
+		);
+
 		Assert.isPremiseValid(index < 700, "Index count overflow.");
 	}
 

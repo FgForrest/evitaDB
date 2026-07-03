@@ -30,6 +30,7 @@ import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.dataType.ConsistencySensitiveDataStructure;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.index.bPlusTree.PagedLeafHandle;
 import io.evitadb.index.reference.TransactionalReference;
 import lombok.Getter;
 
@@ -90,6 +91,13 @@ public class UnorderedLookupTree implements
 	 */
 	static final int DEFAULT_BLOCK_SIZE = 64;
 	/**
+	 * Leaf capacity used by a **paged** tree: one tree leaf holds up to this many record ids so that one leaf maps
+	 * exactly to one persisted page (see {@link io.evitadb.index.attribute.ChainIndex} granular persistence). Decoupled
+	 * from {@link #DEFAULT_BLOCK_SIZE} (the internal-node fan-out) so leaves can grow to page size while the routing
+	 * spine keeps its small, cache-friendly fan-out. 1024 records ≈ 4 KiB (SSD-page-aligned) per leaf page.
+	 */
+	public static final int PAGE_RECORDS = 1024;
+	/**
 	 * Default spacing between freshly assigned order-keys. Wide enough that gap subdivision practically never
 	 * exhausts before a tree of realistic height is built; exhaustion is nonetheless handled by re-spacing.
 	 */
@@ -137,6 +145,44 @@ public class UnorderedLookupTree implements
 	 */
 	private final int minChildren;
 	/**
+	 * When TRUE this tree maintains, per leaf container, a `long` head bitmask (bit `i` set ⇔ the record in slot `i`
+	 * is a chain head) and, per internal-node child, a head count — so {@link #findHeadCovering} locates the head of
+	 * the run covering a logical position in `O(log N)` (used by {@link io.evitadb.index.attribute.ChainIndex}). When
+	 * FALSE (the default, e.g. the SortIndex family) no head counts are allocated and the leaf masks stay `null`; the
+	 * head query / mutation methods must not be called. The per-container head mask is a `long[]` sized by
+	 * {@link #leafCapacity} (a leaf holds transiently up to `leafCapacity + 1` records), so head-awareness no longer
+	 * caps the fan-out.
+	 */
+	private final boolean headAware;
+	/**
+	 * Physical record capacity of a single leaf **container** (its `recordIds` / head-mask arrays are sized to
+	 * `leafCapacity + 1` to host the transient pre-split overflow slot). Decoupled from {@link #blockSize} (the
+	 * internal-node fan-out): a **paged** tree sizes its leaves to {@link #PAGE_RECORDS} while the routing spine keeps
+	 * the small {@link #blockSize} fan-out; a non-paged tree keeps the legacy {@link #DEFAULT_BLOCK_SIZE}-wide leaves so
+	 * the SortIndex family is byte-for-byte unaffected.
+	 */
+	private final int leafCapacity;
+	/**
+	 * Logical fill threshold at which a leaf container splits (and the bulk-load leaf-packing size). A **paged** tree
+	 * splits leaves at {@link #leafCapacity} (page-sized leaves); a non-paged tree keeps the legacy behaviour of
+	 * splitting at {@link #blockSize} (so small-fan-out tests still force frequent leaf splits). Always
+	 * `<= leafCapacity`, so the transient overflow occupancy (`+1`) fits the physical `leafCapacity + 1` array.
+	 */
+	private final int leafSplitThreshold;
+	/**
+	 * Number of 64-bit words in each leaf's head mask: `ceil((leafCapacity + 1) / 64)` on a head-aware tree (the `+1`
+	 * accommodates the transient overflow slot at index `leafCapacity`), or `0` (no mask array allocated) otherwise.
+	 */
+	private final int maskWords;
+	/**
+	 * When TRUE this tree participates in granular page-based persistence: each leaf carries a logical page sequence and
+	 * a dirty flag, and the tree exposes the {@link #leafPageHandles()} / {@link #collectChangedPages()} /
+	 * {@link #livePageSequences()} / {@link #forgetPageStream()} enumeration SPI. Also selects the page-sized leaf split
+	 * threshold ({@link #leafSplitThreshold}). FALSE (the default, e.g. the SortIndex family) means no page work at all —
+	 * the SPI methods throw and the per-leaf page bookkeeping, while present, is never consulted.
+	 */
+	private final boolean paged;
+	/**
 	 * Memoized flattened permutation (logical position → record id). Nullified on every mutation. Not transactional —
 	 * it is a pure read-cache derived from the current view and is recomputed lazily; only ever populated outside a
 	 * transaction (mutations inside a transaction never read it back, they always invalidate it on entry).
@@ -147,7 +193,7 @@ public class UnorderedLookupTree implements
 	 * Creates a new empty tree with the production fan-out and the default order-key gap.
 	 */
 	public UnorderedLookupTree() {
-		this(DEFAULT_BLOCK_SIZE, DEFAULT_ORDER_KEY_GAP);
+		this(DEFAULT_BLOCK_SIZE, DEFAULT_ORDER_KEY_GAP, false);
 	}
 
 	/**
@@ -155,7 +201,7 @@ public class UnorderedLookupTree implements
 	 * re-spacing path cheaply).
 	 */
 	UnorderedLookupTree(long orderKeyGap) {
-		this(DEFAULT_BLOCK_SIZE, orderKeyGap);
+		this(DEFAULT_BLOCK_SIZE, orderKeyGap, false);
 	}
 
 	/**
@@ -166,14 +212,55 @@ public class UnorderedLookupTree implements
 	 * @param orderKeyGap the order-key spacing
 	 */
 	UnorderedLookupTree(int blockSize, long orderKeyGap) {
+		this(blockSize, orderKeyGap, false);
+	}
+
+	/**
+	 * Creates a new empty tree with a custom logical {@link #blockSize}, order-key gap and head-awareness
+	 * ({@link #headAware}), using {@link #DEFAULT_BLOCK_SIZE}-wide (non-paged) leaves. A head-aware tree carries
+	 * per-container head bitmasks and per-child head counts.
+	 *
+	 * @param blockSize   internal fan-out / leaf split threshold; must be in `[3, DEFAULT_BLOCK_SIZE]`
+	 * @param orderKeyGap the order-key spacing
+	 * @param headAware   whether the tree maintains head bitmasks / head counts
+	 */
+	UnorderedLookupTree(int blockSize, long orderKeyGap, boolean headAware) {
+		this(blockSize, orderKeyGap, headAware, DEFAULT_BLOCK_SIZE, false);
+	}
+
+	/**
+	 * Creates a new empty tree with a custom logical {@link #blockSize} (internal fan-out), order-key gap,
+	 * head-awareness, per-leaf physical {@link #leafCapacity} and page participation ({@link #paged}). This is the
+	 * decoupled constructor: `blockSize` sizes the routing spine (fan-out / min-occupancy) while `leafCapacity` sizes
+	 * the leaf containers independently, so a paged {@link io.evitadb.index.attribute.ChainIndex} tree grows page-sized
+	 * leaves ({@link #PAGE_RECORDS}) over a small fan-out.
+	 *
+	 * @param blockSize    internal-node fan-out / min-occupancy driver; must be in `[3, DEFAULT_BLOCK_SIZE]`
+	 * @param orderKeyGap  the order-key spacing
+	 * @param headAware    whether the tree maintains head bitmasks / head counts
+	 * @param leafCapacity physical leaf record capacity; must be `>= blockSize`
+	 * @param paged        whether the tree tracks per-leaf page bookkeeping and exposes the page-enumeration SPI (a
+	 *                     paged tree splits leaves at `leafCapacity`; a non-paged tree splits at `blockSize`)
+	 */
+	UnorderedLookupTree(int blockSize, long orderKeyGap, boolean headAware, int leafCapacity, boolean paged) {
 		if (blockSize < 3 || blockSize > DEFAULT_BLOCK_SIZE) {
 			throw new GenericEvitaInternalError(
 				"Block size must be in [3, " + DEFAULT_BLOCK_SIZE + "], got " + blockSize + "!"
 			);
 		}
+		if (leafCapacity < blockSize) {
+			throw new GenericEvitaInternalError(
+				"Leaf capacity must be >= block size " + blockSize + ", got " + leafCapacity + "!"
+			);
+		}
 		this.blockSize = blockSize;
 		this.minChildren = Math.max(2, (blockSize + 1) / 2);
 		this.orderKeyGap = orderKeyGap;
+		this.headAware = headAware;
+		this.leafCapacity = leafCapacity;
+		this.leafSplitThreshold = paged ? leafCapacity : blockSize;
+		this.maskWords = headAware ? ((leafCapacity + 1 + 63) / 64) : 0;
+		this.paged = paged;
 		this.root = new TransactionalReference<>(null);
 		this.size = new TransactionalReference<>(0);
 	}
@@ -182,15 +269,23 @@ public class UnorderedLookupTree implements
 	 * Internal constructor used by {@link #createCopyWithMergedTransactionalMemory(Void, TransactionalLayerMaintainer)}
 	 * to rebuild a committed tree wrapping the already-merged root and size.
 	 *
-	 * @param blockSize   the logical fan-out to carry over
-	 * @param orderKeyGap the order-key spacing to carry over
-	 * @param root        the committed root node (or `null` for an empty tree)
-	 * @param size        the committed record count
+	 * @param blockSize    the logical fan-out to carry over
+	 * @param orderKeyGap  the order-key spacing to carry over
+	 * @param headAware    whether the tree maintains head bitmasks / head counts
+	 * @param leafCapacity the physical leaf record capacity to carry over
+	 * @param paged        whether the tree tracks per-leaf page bookkeeping
+	 * @param root         the committed root node (or `null` for an empty tree)
+	 * @param size         the committed record count
 	 */
-	private UnorderedLookupTree(int blockSize, long orderKeyGap, @Nullable Node<?> root, int size) {
+	private UnorderedLookupTree(int blockSize, long orderKeyGap, boolean headAware, int leafCapacity, boolean paged, @Nullable Node<?> root, int size) {
 		this.blockSize = blockSize;
 		this.minChildren = Math.max(2, (blockSize + 1) / 2);
 		this.orderKeyGap = orderKeyGap;
+		this.headAware = headAware;
+		this.leafCapacity = leafCapacity;
+		this.leafSplitThreshold = paged ? leafCapacity : blockSize;
+		this.maskWords = headAware ? ((leafCapacity + 1 + 63) / 64) : 0;
+		this.paged = paged;
 		this.root = new TransactionalReference<>(root);
 		this.size = new TransactionalReference<>(size);
 	}
@@ -218,6 +313,33 @@ public class UnorderedLookupTree implements
 	 * @param assignments callback receiving each `recordId → orderKey` assignment
 	 */
 	public void bulkLoad(@Nonnull int[] recordIds, @Nonnull OrderKeyConsumer assignments) {
+		bulkLoadInternal(recordIds, null, assignments);
+	}
+
+	/**
+	 * Head-aware bulk load: like {@link #bulkLoad} but additionally marks the records at `sortedHeadPositions`
+	 * (ascending logical positions) as chain heads, setting the per-container head masks and per-child head counts
+	 * during the same `O(N)` bottom-up build. Because the whole structure — head data included — is built in one pass
+	 * and published as the committed BASE, the head marks never land in a discardable transaction layer (unlike a
+	 * post-load {@code markHead} sequence). Requires a head-aware tree.
+	 *
+	 * @param recordIds           record ids in logical order (must be distinct)
+	 * @param sortedHeadPositions ascending logical positions of the head records (may be empty)
+	 * @param assignments         callback receiving each `recordId → orderKey` assignment
+	 */
+	public void bulkLoadWithHeads(@Nonnull int[] recordIds, @Nonnull int[] sortedHeadPositions, @Nonnull OrderKeyConsumer assignments) {
+		if (!this.headAware) {
+			throw new GenericEvitaInternalError("bulkLoadWithHeads requires a head-aware tree!");
+		}
+		bulkLoadInternal(recordIds, sortedHeadPositions, assignments);
+	}
+
+	/**
+	 * Shared bulk-load implementation. When `sortedHeadPositions` is non-null (head-aware tree) it additionally sets
+	 * the per-container head masks and per-child head counts during the build; when null the head structures stay clear
+	 * (a non-head-aware tree allocates none). `O(N)`.
+	 */
+	private void bulkLoadInternal(@Nonnull int[] recordIds, @Nullable int[] sortedHeadPositions, @Nonnull OrderKeyConsumer assignments) {
 		if (getRoot() != null) {
 			throw new GenericEvitaInternalError("Bulk-load is only allowed on an empty tree!");
 		}
@@ -225,22 +347,38 @@ public class UnorderedLookupTree implements
 		if (n == 0) {
 			return;
 		}
-		// 1. pack records into containers and report their order-keys
-		final int containerCount = (n + this.blockSize - 1) / this.blockSize;
+		// 1. pack records into leaf-sized containers (leafSplitThreshold, not the internal fan-out) and report keys
+		final int containerCount = (n + this.leafSplitThreshold - 1) / this.leafSplitThreshold;
 		Node<?>[] level = new Node<?>[containerCount];
 		long[] minKeys = new long[containerCount];
 		int[] counts = new int[containerCount];
+		int[] headCounts = this.headAware ? new int[containerCount] : null;
+		int headCursor = 0;
 		int pos = 0;
 		for (int c = 0; c < containerCount; c++) {
-			final LeafNode container = new LeafNode(true);
+			final LeafNode container = new LeafNode(true, this.leafCapacity, this.maskWords);
 			final long key = (long) c * this.orderKeyGap;
 			container.setOrderKey(key);
-			final int cnt = Math.min(this.blockSize, n - pos);
+			final int cnt = Math.min(this.leafSplitThreshold, n - pos);
 			final int[] containerRecordIds = container.getRecordIdsForUpdate();
 			System.arraycopy(recordIds, pos, containerRecordIds, 0, cnt);
 			container.setCount(cnt);
 			for (int i = 0; i < cnt; i++) {
 				assignments.accept(recordIds[pos + i], key);
+			}
+			if (this.headAware) {
+				// set head bits for the head positions falling in this container's [pos, pos + cnt) range
+				final long[] mask = container.getHeadMaskForUpdate();
+				int heads = 0;
+				if (sortedHeadPositions != null) {
+					while (headCursor < sortedHeadPositions.length && sortedHeadPositions[headCursor] < pos + cnt) {
+						final int offset = sortedHeadPositions[headCursor] - pos;
+						mask[offset >>> 6] |= 1L << (offset & 63);
+						heads++;
+						headCursor++;
+					}
+				}
+				headCounts[c] = heads;
 			}
 			level[c] = container;
 			minKeys[c] = key;
@@ -248,8 +386,26 @@ public class UnorderedLookupTree implements
 			pos += cnt;
 		}
 		setSize(n);
-		// 2. build internal levels bottom-up until a single root remains
-		int levelSize = containerCount;
+		// 2. build the internal routing spine over the packed leaf level and install the root
+		assembleSpineOverLeaves(level, minKeys, counts, headCounts);
+	}
+
+	/**
+	 * Builds the internal routing spine bottom-up over an already-built leaf level and installs the resulting root.
+	 * The leaf level is described by `level` (the leaf nodes in ascending logical order), `minKeys` (each leaf's
+	 * order-key, i.e. its subtree's minimum key), `counts` (each leaf's record count) and — on a head-aware tree —
+	 * `headCounts` (each leaf's head count). Shared by {@link #bulkLoadInternal} (repacked, fully-filled leaves) and
+	 * {@link #assembleFromLeafPages} (page-boundary-preserving leaves): the two differ only in HOW the leaf level is
+	 * produced, so this routing-spine construction — which never merges or splits the given leaves — is identical.
+	 *
+	 * @param level      the leaf (or, on subsequent iterations, internal) nodes of the current level, ascending
+	 * @param minKeys    each node's subtree-minimum order-key, aligned with `level`
+	 * @param counts     each node's subtree record count, aligned with `level`
+	 * @param headCounts each node's subtree head count (head-aware trees only), aligned with `level`, or `null`
+	 */
+	private void assembleSpineOverLeaves(@Nonnull Node<?>[] level, @Nonnull long[] minKeys, @Nonnull int[] counts, @Nullable int[] headCounts) {
+		int levelSize = level.length;
+		// build internal levels bottom-up until a single root remains
 		while (levelSize > 1) {
 			final int parentCount = (levelSize + this.blockSize - 1) / this.blockSize;
 			final int base = levelSize / parentCount;
@@ -257,20 +413,29 @@ public class UnorderedLookupTree implements
 			final Node<?>[] parents = new Node<?>[parentCount];
 			final long[] parentMinKeys = new long[parentCount];
 			final int[] parentCounts = new int[parentCount];
+			final int[] parentHeadCounts = this.headAware ? new int[parentCount] : null;
 			int childCursor = 0;
 			for (int p = 0; p < parentCount; p++) {
 				// distribute children evenly so the tail node never ends up with a single child
 				final int childN = base + (p < remainder ? 1 : 0);
-				final InternalNode internal = new InternalNode(true);
+				final InternalNode internal = new InternalNode(true, this.headAware);
 				final Node<?>[] internalChildren = internal.getChildrenForUpdate();
 				final int[] internalCounts = internal.getCountsForUpdate();
 				final long[] internalSeparators = internal.getSeparatorsForUpdate();
+				final int[] internalHeadCounts = this.headAware ? internal.getHeadCountsForUpdateOrThrow() : null;
+				// head-aware ⇒ the child head counts are mandatory; capture a non-null view (fail fast on breach)
+				final int[] childHeadCounts = this.headAware ? requireHeadCounts(headCounts) : null;
 				internal.setChildCount(childN);
 				int subtree = 0;
+				int subtreeHeads = 0;
 				for (int j = 0; j < childN; j++) {
 					internalChildren[j] = level[childCursor + j];
 					internalCounts[j] = counts[childCursor + j];
 					subtree += counts[childCursor + j];
+					if (this.headAware) {
+						internalHeadCounts[j] = childHeadCounts[childCursor + j];
+						subtreeHeads += childHeadCounts[childCursor + j];
+					}
 					if (j >= 1) {
 						internalSeparators[j - 1] = minKeys[childCursor + j];
 					}
@@ -278,15 +443,103 @@ public class UnorderedLookupTree implements
 				parents[p] = internal;
 				parentMinKeys[p] = minKeys[childCursor];
 				parentCounts[p] = subtree;
+				if (this.headAware) {
+					parentHeadCounts[p] = subtreeHeads;
+				}
 				childCursor += childN;
 			}
 			level = parents;
 			minKeys = parentMinKeys;
 			counts = parentCounts;
+			headCounts = parentHeadCounts;
 			levelSize = parentCount;
 		}
 		setRoot(level[0]);
 		invalidateMemoizedState();
+	}
+
+	/**
+	 * Boundary-stable reload: rebuilds an empty paged tree with **exactly one leaf per persisted page**, preserving
+	 * the persisted leaf boundaries verbatim (no repack). Each page supplies its `pageSequence`, its ordered
+	 * `recordIds` and — on a head-aware tree — its `headWords` (the leaf's head bitset, `bit i` ⇔ `recordIds[i]` is a
+	 * chain head). Unlike {@link #bulkLoad}, which packs records into fully-filled containers with different
+	 * boundaries than the split-history leaves that were persisted, this method keeps the given boundaries so a later
+	 * PARTIAL flush never interleaves pages with mismatched boundaries on disk (the one-leaf-per-page reload
+	 * correctness requirement). Order-keys are re-minted ephemerally (they are not persisted); each assembled leaf is
+	 * stamped with its `pageSequence` and left **`dirty = false`** so a first post-load flush emits nothing
+	 * (zero-emission). Requires an empty, paged tree (the pages MUST be supplied in ascending logical order — the
+	 * concatenation of their record ids IS the logical array).
+	 *
+	 * @param pages       the persisted leaf pages in ascending logical order (one tree leaf built per page)
+	 * @param assignments callback receiving each `recordId → orderKey` assignment (populates the value index)
+	 */
+	public void assembleFromLeafPages(@Nonnull List<LeafPageInput> pages, @Nonnull OrderKeyConsumer assignments) {
+		requirePaged();
+		if (getRoot() != null) {
+			throw new GenericEvitaInternalError("assembleFromLeafPages is only allowed on an empty tree!");
+		}
+		final int pageCount = pages.size();
+		if (pageCount == 0) {
+			return;
+		}
+		// 1. build one leaf per page with FIXED boundaries (no repack) - stamp pageSequence, leave dirty=false
+		final Node<?>[] level = new Node<?>[pageCount];
+		final long[] minKeys = new long[pageCount];
+		final int[] counts = new int[pageCount];
+		final int[] headCounts = this.headAware ? new int[pageCount] : null;
+		int total = 0;
+		for (int c = 0; c < pageCount; c++) {
+			final LeafPageInput page = pages.get(c);
+			final int[] pageRecordIds = page.recordIds();
+			final int cnt = pageRecordIds.length;
+			// the physical leaf array is leafCapacity+1 wide (transient overflow slot); copy the page records verbatim
+			final int[] leafRecordIds = new int[this.leafCapacity + 1];
+			System.arraycopy(pageRecordIds, 0, leafRecordIds, 0, cnt);
+			// re-mint an ephemeral order-key for this leaf (order-keys are not persisted, re-spaced by leaf index)
+			final long key = (long) c * this.orderKeyGap;
+			long[] leafMask = null;
+			int heads = 0;
+			if (this.headAware) {
+				// widen the persisted head words (ceil(cnt/64) wide) into the leaf's maskWords-wide head mask
+				leafMask = new long[this.maskWords];
+				final long[] pageHeadWords = page.headWords();
+				if (pageHeadWords != null) {
+					System.arraycopy(pageHeadWords, 0, leafMask, 0, pageHeadWords.length);
+					for (final long word : pageHeadWords) {
+						heads += Long.bitCount(word);
+					}
+				}
+			}
+			// build the leaf directly (dirty=false) so a first post-load flush emits nothing; participating node
+			// (transactionalLayer=true) so later transactions can layer changes over it
+			final LeafNode container = new LeafNode(key, leafRecordIds, cnt, leafMask, page.pageSequence(), false, true);
+			for (int i = 0; i < cnt; i++) {
+				assignments.accept(pageRecordIds[i], key);
+			}
+			level[c] = container;
+			minKeys[c] = key;
+			counts[c] = cnt;
+			if (this.headAware) {
+				headCounts[c] = heads;
+			}
+			total += cnt;
+		}
+		setSize(total);
+		// 2. build the internal routing spine over the fixed leaf level and install the root
+		assembleSpineOverLeaves(level, minKeys, counts, headCounts);
+	}
+
+	/**
+	 * Immutable input describing one persisted leaf page fed to {@link #assembleFromLeafPages}: the page's logical
+	 * sequence, its ordered record ids, and its head bitset (`bit i` ⇔ `recordIds[i]` is a chain head — `null` /
+	 * ignored on a non-head-aware tree). The `headWords` array is `ceil(recordIds.length / 64)` words wide (the
+	 * meaningful head-mask prefix); it is widened into the leaf's full mask at assembly time.
+	 *
+	 * @param pageSequence the persisted page sequence to stamp onto the assembled leaf
+	 * @param recordIds    the leaf's ordered record ids (copied into the leaf, not aliased)
+	 * @param headWords    the leaf's head bitset words, or `null` on a non-head-aware tree
+	 */
+	public record LeafPageInput(int pageSequence, @Nonnull int[] recordIds, @Nullable long[] headWords) {
 	}
 
 	/**
@@ -371,12 +624,198 @@ public class UnorderedLookupTree implements
 	}
 
 	/**
+	 * Returns the head of the run covering logical `position` — the head at the greatest head-position `<= position` —
+	 * packed into a `long` as `(headPosition << 32) | (recordId & 0xFFFFFFFF)`. Because logical position 0 is always a
+	 * head (the array is a concatenation of head-first runs) the covering head always exists for a valid position.
+	 * Requires a head-aware, non-empty tree. `O(log N)` (two order-statistic descents).
+	 *
+	 * @param position logical position in `[0, size())`
+	 * @return the covering head packed as `(headPosition << 32) | (recordId & 0xFFFFFFFF)`
+	 */
+	public long findHeadCovering(int position) {
+		requireHeadAware();
+		final int rank = headRank(position);
+		return selectHead(rank);
+	}
+
+	/**
+	 * Returns the number of chain heads at logical positions `[0, position]` (inclusive). Requires a head-aware tree.
+	 * Package-private for testing.
+	 */
+	int headRank(int position) {
+		requireHeadAware();
+		final Node<?> theRoot = getRoot();
+		if (position < 0 || position >= size() || theRoot == null) {
+			throw new GenericEvitaInternalError(
+				"Position " + position + " not found!",
+				"Unknown position in the array!"
+			);
+		}
+		Node<?> node = theRoot;
+		int remaining = position;
+		int rank = 0;
+		while (node instanceof final InternalNode internal) {
+			final int childCount = internal.getChildCount();
+			final int[] counts = internal.getCounts();
+			final int[] headCounts = internal.getHeadCountsOrThrow();
+			final Node<?>[] children = internal.getChildren();
+			int childIndex = 0;
+			// same descent as getRecordAt (>=): land in the container that holds `position`
+			while (childIndex < childCount - 1 && remaining >= counts[childIndex]) {
+				remaining -= counts[childIndex];
+				rank += headCounts[childIndex];
+				childIndex++;
+			}
+			node = children[childIndex];
+		}
+		final LeafNode leaf = (LeafNode) node;
+		// add the heads in slots [0, remaining] of the container across all mask words
+		return rank + headRankInLeaf(leaf.getHeadMaskOrThrow(), remaining);
+	}
+
+	/**
+	 * Returns the `rank`-th chain head (1-indexed) in logical order, packed into a `long` as
+	 * `(headPosition << 32) | (recordId & 0xFFFFFFFF)`. Requires a head-aware tree. Package-private for testing.
+	 */
+	long selectHead(int rank) {
+		requireHeadAware();
+		final Node<?> theRoot = getRoot();
+		if (theRoot == null || rank < 1) {
+			throw new GenericEvitaInternalError(
+				"Head rank " + rank + " out of range!",
+				"Inconsistent lookup state!"
+			);
+		}
+		Node<?> node = theRoot;
+		int remainingRank = rank;
+		int posPrefix = 0;
+		while (node instanceof final InternalNode internal) {
+			final int childCount = internal.getChildCount();
+			final int[] counts = internal.getCounts();
+			final int[] headCounts = internal.getHeadCountsOrThrow();
+			final Node<?>[] children = internal.getChildren();
+			int childIndex = 0;
+			// descend by head counts (1-indexed select): move right while the rank overshoots this child's heads
+			while (childIndex < childCount - 1 && remainingRank > headCounts[childIndex]) {
+				remainingRank -= headCounts[childIndex];
+				posPrefix += counts[childIndex];
+				childIndex++;
+			}
+			node = children[childIndex];
+		}
+		final LeafNode leaf = (LeafNode) node;
+		// locate the `remainingRank`-th set bit (1-indexed) across the container's mask words
+		final int localOffset = selectHeadInLeaf(leaf.getHeadMaskOrThrow(), remainingRank);
+		if (localOffset < 0) {
+			throw new GenericEvitaInternalError(
+				"Head rank " + rank + " not found!",
+				"Inconsistent lookup state!"
+			);
+		}
+		final int headPos = posPrefix + localOffset;
+		final int recordId = leaf.getRecordIds()[localOffset];
+		return ((long) headPos << 32) | (recordId & 0xFFFFFFFFL);
+	}
+
+	/**
+	 * Marks `recordId` (living in the container routed by `orderKey`) as a chain head. Idempotent: a no-op when the
+	 * record is already a head. Requires a head-aware tree.
+	 */
+	void markHead(long orderKey, int recordId) {
+		requireHeadAware();
+		final Cursor cursor = new Cursor();
+		final LeafNode container = descendByKey(orderKey, cursor);
+		final int offset = indexInContainer(container, recordId);
+		final int word = offset >>> 6;
+		final long bit = 1L << (offset & 63);
+		if ((container.getHeadMaskOrThrow()[word] & bit) == 0L) {
+			container.getHeadMaskForUpdate()[word] |= bit;
+			propagateHeadCountDelta(cursor, +1);
+		}
+	}
+
+	/**
+	 * Clears the chain-head mark of `recordId` (living in the container routed by `orderKey`). Idempotent: a no-op when
+	 * the record is not a head. Requires a head-aware tree.
+	 */
+	void unmarkHead(long orderKey, int recordId) {
+		requireHeadAware();
+		final Cursor cursor = new Cursor();
+		final LeafNode container = descendByKey(orderKey, cursor);
+		final int offset = indexInContainer(container, recordId);
+		final int word = offset >>> 6;
+		final long bit = 1L << (offset & 63);
+		if ((container.getHeadMaskOrThrow()[word] & bit) != 0L) {
+			container.getHeadMaskForUpdate()[word] &= ~bit;
+			propagateHeadCountDelta(cursor, -1);
+		}
+	}
+
+	/**
+	 * Throws when a head operation is attempted on a non-head-aware tree (a programming error — only
+	 * {@link io.evitadb.index.attribute.ChainIndex} enables head tracking).
+	 */
+	private void requireHeadAware() {
+		if (!this.headAware) {
+			throw new GenericEvitaInternalError(
+				"Head operations require a head-aware tree!",
+				"Inconsistent lookup state!"
+			);
+		}
+	}
+
+	/**
+	 * Throws when a page operation is attempted on a non-paged tree (a programming error — only paged trees carry the
+	 * per-leaf page bookkeeping the SPI enumerates).
+	 */
+	private void requirePaged() {
+		if (!this.paged) {
+			throw new GenericEvitaInternalError(
+				"Page operations require a paged tree!",
+				"Inconsistent lookup state!"
+			);
+		}
+	}
+
+	/**
+	 * Returns `headCounts` when present, throwing otherwise. Head-awareness is a whole-tree property, so on a head-aware
+	 * tree every internal node carries a non-`null` head-count array; a `null` here would mean the invariant was broken
+	 * (a head-count operation reached a non-head-aware node) and must fail fast instead of dereferencing to an NPE.
+	 */
+	@Nonnull
+	private static int[] requireHeadCounts(@Nullable int[] headCounts) {
+		if (headCounts == null) {
+			throw new GenericEvitaInternalError(
+				"Head counts requested on a non-head-aware node!",
+				"Inconsistent lookup state!"
+			);
+		}
+		return headCounts;
+	}
+
+	/**
+	 * Returns `headMask` when present, throwing otherwise. Head-awareness is a whole-tree property, so on a head-aware
+	 * tree every leaf carries a non-`null` head mask; a `null` here would mean the invariant was broken (a head-mask
+	 * operation reached a non-head-aware leaf) and must fail fast instead of dereferencing to an NPE.
+	 */
+	@Nonnull
+	private static long[] requireHeadMask(@Nullable long[] headMask) {
+		if (headMask == null) {
+			throw new GenericEvitaInternalError(
+				"Head mask requested on a non-head-aware leaf!",
+				"Inconsistent lookup state!"
+			);
+		}
+		return headMask;
+	}
+
+	/**
 	 * Inserts `recordId` at the logical `index` (descending by position to the proper container). Reports the
 	 * resulting `recordId → orderKey` assignment(s) through `assignments`.
 	 */
 	public void insertAtPosition(int index, int recordId, @Nonnull OrderKeyConsumer assignments) {
 		if (getRoot() == null) {
-			final LeafNode container = new LeafNode(true);
+			final LeafNode container = new LeafNode(true, this.leafCapacity, this.maskWords);
 			container.setOrderKey(0L);
 			container.getRecordIdsForUpdate()[0] = recordId;
 			container.setCount(1);
@@ -423,6 +862,15 @@ public class UnorderedLookupTree implements
 		final int[] recordIds = container.getRecordIdsForUpdate();
 		System.arraycopy(recordIds, offset + 1, recordIds, offset, count - offset - 1);
 		container.setCount(count - 1);
+		if (this.headAware) {
+			// a removed record leaving the tree also drops its head mark; decrement head counts iff it was a head
+			final long[] mask = container.getHeadMaskForUpdate();
+			final boolean removedHead = ((mask[offset >>> 6] >>> (offset & 63)) & 1L) != 0L;
+			removeHeadSlot(mask, offset);
+			if (removedHead) {
+				propagateHeadCountDelta(cursor, -1);
+			}
+		}
 		propagateCountDelta(cursor, -1);
 		setSize(size() - 1);
 		if (container.getCount() == 0) {
@@ -456,6 +904,124 @@ public class UnorderedLookupTree implements
 			this.memoizedArray = result;
 		}
 		return this.memoizedArray;
+	}
+
+	/*
+		PAGING SPI (paged trees only)
+	 */
+
+	/**
+	 * Returns whether the tree spans more than one leaf (its root is an internal node). The granular-persistence
+	 * predicate: a single-leaf tree is persisted inline (SINGLE), a multi-leaf tree as individual leaf pages (PAGED).
+	 *
+	 * @return true when the root is internal (≥ 2 leaves)
+	 */
+	public boolean isRootInternal() {
+		return getRoot() instanceof InternalNode;
+	}
+
+	/**
+	 * Returns one {@link LeafPageHandle} per leaf in ascending logical order — the page-emission view of a paged tree.
+	 * Each handle wraps a live leaf node (reached from the current, transaction-aware root), so stamping a page sequence
+	 * through it mutates the node the commit-merge carries forward, and the exposed record ids / head-mask words are
+	 * read-your-writes. Requires a paged tree.
+	 *
+	 * @return the ordered leaf-page handles (empty for an empty tree)
+	 */
+	@Nonnull
+	public List<LeafPageHandle> leafPageHandles() {
+		requirePaged();
+		final List<LeafNode> leaves = collectLeaves();
+		final List<LeafPageHandle> handles = new ArrayList<>(leaves.size());
+		for (final LeafNode leaf : leaves) {
+			handles.add(new LeafPageHandleImpl(leaf));
+		}
+		return handles;
+	}
+
+	/**
+	 * Returns the page handles of the leaves changed since the last flush (dirty leaves) in ascending logical order —
+	 * the pages the current commit must (re)write. Requires a paged tree.
+	 *
+	 * @return the changed (dirty) leaf-page handles in ascending order
+	 */
+	@Nonnull
+	public List<LeafPageHandle> collectChangedPages() {
+		requirePaged();
+		final List<LeafNode> leaves = collectLeaves();
+		final List<LeafPageHandle> changed = new ArrayList<>();
+		for (final LeafNode leaf : leaves) {
+			if (leaf.isDirty()) {
+				changed.add(new LeafPageHandleImpl(leaf));
+			}
+		}
+		return changed;
+	}
+
+	/**
+	 * Returns, in ascending logical order, the page sequences currently assigned to the tree's leaves (skipping
+	 * not-yet-paged leaves). Used to enumerate the live leaf pages before a PAGED->SINGLE collapse. Requires a paged tree.
+	 *
+	 * @return the assigned page sequences, or an empty array when no leaf has a page yet
+	 */
+	@Nonnull
+	public int[] livePageSequences() {
+		requirePaged();
+		final List<LeafNode> leaves = collectLeaves();
+		int assigned = 0;
+		for (final LeafNode leaf : leaves) {
+			if (leaf.getPageSequence() != PagedLeafHandle.UNASSIGNED_PAGE_SEQUENCE) {
+				assigned++;
+			}
+		}
+		final int[] result = new int[assigned];
+		int i = 0;
+		for (final LeafNode leaf : leaves) {
+			final int seq = leaf.getPageSequence();
+			if (seq != PagedLeafHandle.UNASSIGNED_PAGE_SEQUENCE) {
+				result[i++] = seq;
+			}
+		}
+		return result;
+	}
+
+	/**
+	 * Resets the page bookkeeping of every leaf — un-assigns the page sequence and clears the dirty flag — so the tree
+	 * starts from a clean baseline (e.g. after a PAGED->SINGLE collapse, the caller having already emitted removals for
+	 * the prior live pages via {@link #livePageSequences()}). Requires a paged tree.
+	 */
+	public void forgetPageStream() {
+		requirePaged();
+		for (final LeafNode leaf : collectLeaves()) {
+			leaf.setPageSequence(PagedLeafHandle.UNASSIGNED_PAGE_SEQUENCE);
+			leaf.clearDirty();
+		}
+	}
+
+	/**
+	 * A live, write-path handle over a single leaf page of a paged tree: the value-agnostic page bookkeeping
+	 * ({@link PagedLeafHandle}) plus the leaf's ordered record ids and head-mask words, from which the granular write
+	 * path materializes the persisted page payload. It wraps the live leaf node, so page-sequence stamps mutate the node
+	 * the commit-merge carries forward and the exposed content is read-your-writes.
+	 */
+	public interface LeafPageHandle extends PagedLeafHandle {
+
+		/**
+		 * Returns a copy of this leaf's record ids in logical order (only the valid slots).
+		 *
+		 * @return the leaf's ordered record ids
+		 */
+		@Nonnull
+		int[] recordIds();
+
+		/**
+		 * Returns a copy of this leaf's head-mask words (bit `i` ⇔ slot `i` is a chain head), or `null` on a
+		 * non-head-aware tree.
+		 *
+		 * @return the leaf's head-mask words, or `null`
+		 */
+		@Nullable
+		long[] headMask();
 	}
 
 	@Override
@@ -499,7 +1065,8 @@ public class UnorderedLookupTree implements
 			? null
 			: transactionalLayer.getStateCopyWithCommittedChanges(referencedRoot);
 		final int theSize = transactionalLayer.getStateCopyWithCommittedChanges(this.size).orElse(0);
-		return new UnorderedLookupTree(this.blockSize, this.orderKeyGap, theRoot, theSize);
+		return new UnorderedLookupTree(
+			this.blockSize, this.orderKeyGap, this.headAware, this.leafCapacity, this.paged, theRoot, theSize);
 	}
 
 	@Nonnull
@@ -515,7 +1082,8 @@ public class UnorderedLookupTree implements
 			final int[] leafDepth = new int[]{-1};
 			final long[] lastKey = new long[]{Long.MIN_VALUE};
 			final long[] recordCount = new long[1];
-			verifyConsistency(theRoot, 0, true, leafDepth, lastKey, errors, recordCount);
+			final long[] headCount = this.headAware ? new long[1] : null;
+			verifyConsistency(theRoot, 0, true, leafDepth, lastKey, errors, recordCount, headCount);
 			if (recordCount[0] != size()) {
 				errors.add("Tracked size " + size() + " does not match counted records " + recordCount[0] + "!");
 			}
@@ -533,14 +1101,16 @@ public class UnorderedLookupTree implements
 	 * Recursively verifies the subtree rooted at `node`: equal leaf depth (balance), non-root internal min-occupancy,
 	 * block-size bounds, per-child subtree-count augmentation, order-key separators (each separator equals the minimum
 	 * order-key of the child it borders) and global strict order-key monotonicity across containers in logical order.
-	 * Leaf containers are intentionally NOT checked for a minimum occupancy floor — the delete side only removes EMPTY
-	 * containers and never merges non-empty ones, so under-full containers are a legal (memory-only) state. Accumulates
-	 * the total record count into `recordCount` and returns the record count of `node`'s subtree.
+	 * On a head-aware tree (`headCount` non-null) it additionally verifies the per-child head-count augmentation and that
+	 * no container carries a head bit beyond its valid record slots, accumulating the subtree's head total into
+	 * `headCount`. Leaf containers are intentionally NOT checked for a minimum occupancy floor — the delete side only
+	 * removes EMPTY containers and never merges non-empty ones, so under-full containers are a legal (memory-only) state.
+	 * Accumulates the total record count into `recordCount` and returns the record count of `node`'s subtree.
 	 */
 	private int verifyConsistency(
 		@Nonnull Node<?> node, int depth, boolean isRoot,
 		@Nonnull int[] leafDepth, @Nonnull long[] lastKey,
-		@Nonnull List<String> errors, @Nonnull long[] recordCount
+		@Nonnull List<String> errors, @Nonnull long[] recordCount, @Nullable long[] headCount
 	) {
 		if (node instanceof final LeafNode leaf) {
 			if (leafDepth[0] == -1) {
@@ -552,8 +1122,8 @@ public class UnorderedLookupTree implements
 			if (!isRoot && count < 1) {
 				errors.add("Empty non-root container encountered!");
 			}
-			if (count > this.blockSize) {
-				errors.add("Container overflow: " + count + " > block size " + this.blockSize + "!");
+			if (count > this.leafSplitThreshold) {
+				errors.add("Container overflow: " + count + " > leaf split threshold " + this.leafSplitThreshold + "!");
 			}
 			final long key = leaf.getOrderKey();
 			if (lastKey[0] != Long.MIN_VALUE && key <= lastKey[0]) {
@@ -561,6 +1131,14 @@ public class UnorderedLookupTree implements
 			}
 			lastKey[0] = key;
 			recordCount[0] += count;
+			if (headCount != null) {
+				// no head bit may be set beyond the container's valid record slots
+				final long[] mask = leaf.getHeadMaskOrThrow();
+				if (anyBitSetFrom(mask, count)) {
+					errors.add("Container has head bits set beyond its record count " + count + "!");
+				}
+				headCount[0] += headBitCount(mask);
+			}
 			return count;
 		}
 		final InternalNode internal = (InternalNode) node;
@@ -577,6 +1155,7 @@ public class UnorderedLookupTree implements
 		}
 		final Node<?>[] children = internal.getChildren();
 		final int[] counts = internal.getCounts();
+		final int[] headCounts = internal.getHeadCounts();
 		final long[] separators = internal.getSeparators();
 		int sum = 0;
 		for (int i = 0; i < childCount; i++) {
@@ -586,9 +1165,16 @@ public class UnorderedLookupTree implements
 					errors.add("Separator[" + (i - 1) + "]=" + separators[i - 1] + " != child subtree min order-key " + childMin + "!");
 				}
 			}
-			final int childRecords = verifyConsistency(children[i], depth + 1, false, leafDepth, lastKey, errors, recordCount);
+			final long headBefore = headCount == null ? 0L : headCount[0];
+			final int childRecords = verifyConsistency(children[i], depth + 1, false, leafDepth, lastKey, errors, recordCount, headCount);
 			if (counts[i] != childRecords) {
 				errors.add("Stored subtree count " + counts[i] + " != actual " + childRecords + " at child " + i + "!");
+			}
+			if (headCount != null && headCounts != null) {
+				final long childHeads = headCount[0] - headBefore;
+				if (headCounts[i] != childHeads) {
+					errors.add("Stored head count " + headCounts[i] + " != actual " + childHeads + " at child " + i + "!");
+				}
 			}
 			sum += childRecords;
 		}
@@ -673,9 +1259,13 @@ public class UnorderedLookupTree implements
 		System.arraycopy(recordIds, offset, recordIds, offset + 1, count - offset);
 		recordIds[offset] = recordId;
 		container.setCount(count + 1);
+		if (this.headAware) {
+			// the freshly inserted record is never a head - open a clear bit at `offset` (no head-count change)
+			insertHeadSlot(container.getHeadMaskForUpdate(), offset);
+		}
 		propagateCountDelta(cursor, +1);
 		setSize(size() + 1);
-		if (container.getCount() > this.blockSize) {
+		if (container.getCount() > this.leafSplitThreshold) {
 			splitContainer(container, offset, recordId, cursor, assignments);
 		} else {
 			assignments.accept(recordId, container.getOrderKey());
@@ -761,6 +1351,179 @@ public class UnorderedLookupTree implements
 	}
 
 	/**
+	 * Adjusts the stored head counts of every internal node on the cursor path by `delta`. Only meaningful on a
+	 * head-aware tree (every path node then carries a non-null `headCounts`); a no-op guard tolerates a non-head-aware
+	 * node defensively.
+	 */
+	private static void propagateHeadCountDelta(@Nonnull Cursor cursor, int delta) {
+		for (int level = 0; level < cursor.depth; level++) {
+			final InternalNode node = cursor.path[level];
+			final int[] headCounts = node.getHeadCountsForUpdate();
+			if (headCounts != null) {
+				headCounts[cursor.idx[level]] += delta;
+			}
+		}
+	}
+
+	/**
+	 * In-place head-mask transform for inserting a NON-head slot at in-container `offset`: bits `[offset, ...)` shift up
+	 * one across the mask words (each word carries its old MSB into the next word's bit 0) and the freshly opened bit
+	 * `offset` stays clear. `offset` is at most `leafCapacity` (the transient overflow slot) and the mask has
+	 * `ceil((leafCapacity + 1) / 64)` words, so the top shifted bit never falls off the array.
+	 */
+	private static void insertHeadSlot(@Nonnull long[] mask, int offset) {
+		final int wordIndex = offset >>> 6;
+		final int bitIndex = offset & 63;
+		// shift the words strictly above `wordIndex` up by one bit, each receiving the previous word's OLD MSB into bit 0
+		for (int w = mask.length - 1; w > wordIndex; w--) {
+			mask[w] = (mask[w] << 1) | (mask[w - 1] >>> 63);
+		}
+		// within `wordIndex`: keep bits [0, bitIndex), shift bits [bitIndex, 62] up one, open a clear bit at `bitIndex`
+		// (its old MSB was already carried into wordIndex + 1 above, read before this rewrite)
+		final long low = (1L << bitIndex) - 1;
+		mask[wordIndex] = (mask[wordIndex] & low) | ((mask[wordIndex] & ~low) << 1);
+	}
+
+	/**
+	 * In-place head-mask transform for removing slot `offset`: drops its bit and shifts bits `(offset, ...]` down one
+	 * across the mask words (each higher word pulls the next word's bit 0 into its MSB). Guards the `>>> 64` no-op when
+	 * `offset` sits at the top bit (63) of its word.
+	 */
+	private static void removeHeadSlot(@Nonnull long[] mask, int offset) {
+		final int wordIndex = offset >>> 6;
+		final int bitIndex = offset & 63;
+		final long low = (1L << bitIndex) - 1;                    // bits [0, bitIndex)
+		// bits (bitIndex, 63] of `wordIndex` shift down to [bitIndex, 62]; bit 63 is filled from the next word's bit 0
+		final long high = bitIndex == 63 ? 0L : ((mask[wordIndex] >>> (bitIndex + 1)) << bitIndex);
+		final long carry = wordIndex + 1 < mask.length ? ((mask[wordIndex + 1] & 1L) << 63) : 0L;
+		mask[wordIndex] = (mask[wordIndex] & low) | high | carry;
+		// shift every higher word down by one bit, each pulling the next word's bit 0 into its MSB
+		for (int w = wordIndex + 1; w < mask.length; w++) {
+			final long nextCarry = (w + 1 < mask.length) ? ((mask[w + 1] & 1L) << 63) : 0L;
+			mask[w] = (mask[w] >>> 1) | nextCarry;
+		}
+	}
+
+	/**
+	 * Fills `dest` (a fresh right-container mask) with `src` shifted right by `shift` bits: `dest` bit `i` = `src` bit
+	 * `i + shift`. Multi-word capable (`shift` may exceed 64 when `leafCapacity` does). Guards the `<< 64` no-op.
+	 */
+	private static void shiftMaskRight(@Nonnull long[] src, int shift, @Nonnull long[] dest) {
+		final int wordShift = shift >>> 6;
+		final int bitShift = shift & 63;
+		for (int i = 0; i < dest.length; i++) {
+			final int srcLo = i + wordShift;
+			long value = srcLo < src.length ? (src[srcLo] >>> bitShift) : 0L;
+			if (bitShift != 0) {
+				final int srcHi = srcLo + 1;
+				if (srcHi < src.length) {
+					value |= src[srcHi] << (64 - bitShift);
+				}
+			}
+			dest[i] = value;
+		}
+	}
+
+	/**
+	 * Clears bits `[from, ...)` of `mask` in place (keeps bits `[0, from)`), used to trim the left container after a split.
+	 */
+	private static void clearMaskFrom(@Nonnull long[] mask, int from) {
+		final int wordIndex = from >>> 6;
+		final int bitIndex = from & 63;
+		if (wordIndex < mask.length) {
+			mask[wordIndex] &= (1L << bitIndex) - 1;
+			for (int w = wordIndex + 1; w < mask.length; w++) {
+				mask[w] = 0L;
+			}
+		}
+	}
+
+	/**
+	 * Returns the total number of set head bits across the mask words (the container's head count).
+	 */
+	private static int headBitCount(@Nonnull long[] mask) {
+		int count = 0;
+		for (final long word : mask) {
+			count += Long.bitCount(word);
+		}
+		return count;
+	}
+
+	/**
+	 * Returns the number of set head bits in slots `[0, inclusiveOffset]` across the mask words (the in-container head
+	 * rank). Guards the `1L << 64` no-op when `inclusiveOffset` sits at the top bit (63) of its word.
+	 */
+	private static int headRankInLeaf(@Nonnull long[] mask, int inclusiveOffset) {
+		final int fullWords = inclusiveOffset >>> 6;
+		int count = 0;
+		for (int w = 0; w < fullWords; w++) {
+			count += Long.bitCount(mask[w]);
+		}
+		final int bit = inclusiveOffset & 63;
+		final long inclusive = bit == 63 ? -1L : ((1L << (bit + 1)) - 1);
+		return count + Long.bitCount(mask[fullWords] & inclusive);
+	}
+
+	/**
+	 * Returns the in-container slot offset of the `rank`-th set head bit (1-indexed) across the mask words, or `-1` when
+	 * fewer than `rank` bits are set.
+	 */
+	private static int selectHeadInLeaf(@Nonnull long[] mask, int rank) {
+		int seen = 0;
+		for (int w = 0; w < mask.length; w++) {
+			long word = mask[w];
+			while (word != 0L) {
+				final int tz = Long.numberOfTrailingZeros(word);
+				seen++;
+				if (seen == rank) {
+					return (w << 6) + tz;
+				}
+				word &= word - 1;
+			}
+		}
+		return -1;
+	}
+
+	/**
+	 * Returns whether any head bit is set at slot `from` or above across the mask words (consistency check: no head bit
+	 * may sit beyond a container's valid record slots).
+	 */
+	private static boolean anyBitSetFrom(@Nonnull long[] mask, int from) {
+		final int wordIndex = from >>> 6;
+		if (wordIndex >= mask.length) {
+			return false;
+		}
+		final int bitIndex = from & 63;
+		if ((mask[wordIndex] & ~((1L << bitIndex) - 1)) != 0L) {
+			return true;
+		}
+		for (int w = wordIndex + 1; w < mask.length; w++) {
+			if (mask[w] != 0L) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * Returns the number of chain heads held in the subtree rooted at `node` (leaf: popcount of its head mask; internal:
+	 * sum of its per-child head counts). Only called on head-aware trees.
+	 */
+	private static int subtreeHeadCount(@Nonnull Node<?> node) {
+		if (node instanceof final LeafNode leaf) {
+			return headBitCount(leaf.getHeadMaskOrThrow());
+		}
+		final InternalNode internal = (InternalNode) node;
+		final int childCount = internal.getChildCount();
+		final int[] headCounts = internal.getHeadCountsOrThrow();
+		int sum = 0;
+		for (int i = 0; i < childCount; i++) {
+			sum += headCounts[i];
+		}
+		return sum;
+	}
+
+	/**
 	 * Splits an overflowing container into two, mints an order-key for the new right container, reports the affected
 	 * `recordId → orderKey` assignments (the newly inserted record plus the records moved to the right container) and
 	 * propagates the split up the cursor path.
@@ -775,7 +1538,7 @@ public class UnorderedLookupTree implements
 		final long rightKey = mintOrderKey(container, cursor, assignments);
 		// the offspring node participates in the transactional layer so that any later in-savepoint
 		// mutation routes through a snapshot-able layer and can be rolled back per-entity
-		final LeafNode right = new LeafNode(true);
+		final LeafNode right = new LeafNode(true, this.leafCapacity, this.maskWords);
 		right.setOrderKey(rightKey);
 		final int[] containerRecordIds = container.getRecordIdsForUpdate();
 		final int[] rightRecordIds = right.getRecordIdsForUpdate();
@@ -783,6 +1546,16 @@ public class UnorderedLookupTree implements
 		right.setCount(rightCount);
 		container.setCount(leftCount);
 		Arrays.fill(containerRecordIds, leftCount, total, 0);
+		// partition the head mask along the same split point: right gets bits [leftCount, total) shifted down to
+		// [0, rightCount); the container keeps bits [0, leftCount). Multi-word capable (leafCapacity may exceed 64).
+		int rightHeadCount = 0;
+		if (this.headAware) {
+			final long[] leftMask = container.getHeadMaskForUpdate();
+			final long[] rightMask = right.getHeadMaskForUpdate();
+			shiftMaskRight(leftMask, leftCount, rightMask);
+			clearMaskFrom(leftMask, leftCount);
+			rightHeadCount = headBitCount(rightMask);
+		}
 		// report the new record (in whichever half it landed) and every other record that moved to the right half
 		final long newRecordKey = newOffset < leftCount ? container.getOrderKey() : rightKey;
 		assignments.accept(newRecordId, newRecordKey);
@@ -792,7 +1565,7 @@ public class UnorderedLookupTree implements
 				assignments.accept(movedRecordId, rightKey);
 			}
 		}
-		propagateSplit(cursor, cursor.depth - 1, right, rightKey, rightCount);
+		propagateSplit(cursor, cursor.depth - 1, right, rightKey, rightCount, rightHeadCount);
 	}
 
 	/**
@@ -802,10 +1575,11 @@ public class UnorderedLookupTree implements
 	 * @throws GenericEvitaInternalError when the split reaches the top yet the root is missing (a split can only
 	 *                                   propagate up from an existing leaf)
 	 */
-	private void propagateSplit(@Nonnull Cursor cursor, int level, @Nonnull Node<?> newRight, long newRightMinKey, int newRightCount) {
+	private void propagateSplit(@Nonnull Cursor cursor, int level, @Nonnull Node<?> newRight, long newRightMinKey, int newRightCount, int newRightHeadCount) {
 		Node<?> right = newRight;
 		long rightMinKey = newRightMinKey;
 		int rightCount = newRightCount;
+		int rightHeadCount = newRightHeadCount;
 		while (true) {
 			if (level < 0) {
 				// the split reached the root - grow a new root above the two halves
@@ -817,7 +1591,7 @@ public class UnorderedLookupTree implements
 						"Inconsistent lookup state!"
 					);
 				}
-				final InternalNode newRoot = new InternalNode(true);
+				final InternalNode newRoot = new InternalNode(true, this.headAware);
 				final Node<?>[] children = newRoot.getChildrenForUpdate();
 				final int[] counts = newRoot.getCountsForUpdate();
 				final long[] separators = newRoot.getSeparatorsForUpdate();
@@ -826,6 +1600,11 @@ public class UnorderedLookupTree implements
 				counts[0] = subtreeCount(oldRoot);
 				counts[1] = rightCount;
 				separators[0] = rightMinKey;
+				if (this.headAware) {
+					final int[] headCounts = newRoot.getHeadCountsForUpdateOrThrow();
+					headCounts[0] = subtreeHeadCount(oldRoot);
+					headCounts[1] = rightHeadCount;
+				}
 				newRoot.setChildCount(2);
 				// the new root replaces the old one, but the old root remains its first child, so do NOT drop the
 				// old root's layer here - simply publish the new root reference
@@ -836,24 +1615,30 @@ public class UnorderedLookupTree implements
 			final int ci = cursor.idx[level];
 			// the existing child's stored count was already incremented for the inserted record; shed the moved part
 			parent.getCountsForUpdate()[ci] -= rightCount;
-			insertIntoInternal(parent, ci, right, rightMinKey, rightCount);
+			if (parent.getHeadCounts() != null) {
+				parent.getHeadCountsForUpdateOrThrow()[ci] -= rightHeadCount;
+			}
+			insertIntoInternal(parent, ci, right, rightMinKey, rightCount, rightHeadCount);
 			if (parent.getChildCount() <= this.blockSize) {
 				return;
 			}
 			// parent overflowed - split it and continue up the cursor
 			final long[] promotedKey = new long[1];
 			final int[] promotedCount = new int[1];
-			right = splitInternal(parent, promotedKey, promotedCount);
+			final int[] promotedHeadCount = new int[1];
+			right = splitInternal(parent, promotedKey, promotedCount, promotedHeadCount);
 			rightMinKey = promotedKey[0];
 			rightCount = promotedCount[0];
+			rightHeadCount = promotedHeadCount[0];
 			level--;
 		}
 	}
 
 	/**
-	 * Inserts `newChild` (separator `minKey`, subtree count `childCount`) into `parent` immediately after child `ci`.
+	 * Inserts `newChild` (separator `minKey`, subtree count `childCount`, head count `childHeadCount`) into `parent`
+	 * immediately after child `ci`. Head counts are mirrored only when `parent` carries them (head-aware tree).
 	 */
-	private static void insertIntoInternal(@Nonnull InternalNode parent, int ci, @Nonnull Node<?> newChild, long minKey, int childCount) {
+	private static void insertIntoInternal(@Nonnull InternalNode parent, int ci, @Nonnull Node<?> newChild, long minKey, int childCount, int childHeadCount) {
 		final int parentChildCount = parent.getChildCount();
 		final Node<?>[] children = parent.getChildrenForUpdate();
 		final int[] counts = parent.getCountsForUpdate();
@@ -866,25 +1651,33 @@ public class UnorderedLookupTree implements
 		children[target] = newChild;
 		counts[target] = childCount;
 		separators[ci] = minKey;
+		if (parent.getHeadCounts() != null) {
+			final int[] headCountsForUpdate = parent.getHeadCountsForUpdateOrThrow();
+			System.arraycopy(headCountsForUpdate, target, headCountsForUpdate, target + 1, parentChildCount - target);
+			headCountsForUpdate[target] = childHeadCount;
+		}
 		parent.setChildCount(parentChildCount + 1);
 	}
 
 	/**
 	 * Splits an overflowing internal node, returning the new right node and reporting (through the single-element
-	 * out-parameters) the promoted separator key and the right node's subtree count.
+	 * out-parameters) the promoted separator key, the right node's subtree count and (on a head-aware tree) the right
+	 * node's head count.
 	 */
 	@Nonnull
 	private static InternalNode splitInternal(
 		@Nonnull InternalNode node,
 		@Nonnull long[] promotedKey,
-		@Nonnull int[] promotedCount
+		@Nonnull int[] promotedCount,
+		@Nonnull int[] promotedHeadCount
 	) {
 		final int total = node.getChildCount();
 		final int leftCount = total / 2;
 		final int rightCount = total - leftCount;
+		final boolean headAware = node.getHeadCounts() != null;
 		// the offspring node participates in the transactional layer so that any later in-savepoint
 		// mutation routes through a snapshot-able layer and can be rolled back per-entity
-		final InternalNode right = new InternalNode(true);
+		final InternalNode right = new InternalNode(true, headAware);
 		final Node<?>[] nodeChildren = node.getChildrenForUpdate();
 		final int[] nodeCounts = node.getCountsForUpdate();
 		final long[] nodeSeparators = node.getSeparatorsForUpdate();
@@ -903,6 +1696,17 @@ public class UnorderedLookupTree implements
 			rightSubtreeCount += rightCounts[i];
 		}
 		promotedCount[0] = rightSubtreeCount;
+		int rightHeadCount = 0;
+		if (headAware) {
+			final int[] nodeHeadCounts = node.getHeadCountsForUpdateOrThrow();
+			final int[] rightHeadCounts = right.getHeadCountsForUpdateOrThrow();
+			System.arraycopy(nodeHeadCounts, leftCount, rightHeadCounts, 0, rightCount);
+			for (int i = 0; i < rightCount; i++) {
+				rightHeadCount += rightHeadCounts[i];
+			}
+			Arrays.fill(nodeHeadCounts, leftCount, total, 0);
+		}
+		promotedHeadCount[0] = rightHeadCount;
 		// clear the moved slots in the left node
 		Arrays.fill(nodeChildren, leftCount, total, null);
 		Arrays.fill(nodeCounts, leftCount, total, 0);
@@ -1175,6 +1979,17 @@ public class UnorderedLookupTree implements
 		final int[] gpCounts = grandParent.getCountsForUpdate();
 		gpCounts[gi - 1] -= movedCount;
 		gpCounts[gi] += movedCount;
+		// mirror the head counts through the same moves (head-aware tree only)
+		if (node.getHeadCounts() != null) {
+			final int movedHeadCount = left.getHeadCountsOrThrow()[lc - 1];
+			final int[] nodeHeadCounts = node.getHeadCountsForUpdateOrThrow();
+			System.arraycopy(nodeHeadCounts, 0, nodeHeadCounts, 1, nc);
+			nodeHeadCounts[0] = movedHeadCount;
+			left.getHeadCountsForUpdateOrThrow()[lc - 1] = 0;
+			final int[] gpHeadCounts = grandParent.getHeadCountsForUpdateOrThrow();
+			gpHeadCounts[gi - 1] -= movedHeadCount;
+			gpHeadCounts[gi] += movedHeadCount;
+		}
 	}
 
 	/**
@@ -1218,6 +2033,17 @@ public class UnorderedLookupTree implements
 		final int[] gpCounts = grandParent.getCountsForUpdate();
 		gpCounts[gi] += movedCount;
 		gpCounts[gi + 1] -= movedCount;
+		// mirror the head counts through the same moves (head-aware tree only)
+		if (node.getHeadCounts() != null) {
+			final int movedHeadCount = right.getHeadCountsOrThrow()[0];
+			node.getHeadCountsForUpdateOrThrow()[nc] = movedHeadCount;
+			final int[] rightHeadCounts = right.getHeadCountsForUpdateOrThrow();
+			System.arraycopy(rightHeadCounts, 1, rightHeadCounts, 0, rc - 1);
+			rightHeadCounts[rc - 1] = 0;
+			final int[] gpHeadCounts = grandParent.getHeadCountsForUpdateOrThrow();
+			gpHeadCounts[gi] += movedHeadCount;
+			gpHeadCounts[gi + 1] -= movedHeadCount;
+		}
 	}
 
 	/**
@@ -1263,6 +2089,16 @@ public class UnorderedLookupTree implements
 		gChildren[newGcc] = null;
 		gCounts[newGcc] = 0;
 		gSeparators[newGcc - 1] = 0L;
+		// mirror the head counts through the same fuse + unlink (head-aware tree only)
+		if (survivor.getHeadCounts() != null) {
+			final int absorbedHeadCount = grandParent.getHeadCountsOrThrow()[absorbedIndex];
+			final int[] sHeadCounts = survivor.getHeadCountsForUpdateOrThrow();
+			System.arraycopy(absorbed.getHeadCountsOrThrow(), 0, sHeadCounts, sc, ac);
+			final int[] gHeadCounts = grandParent.getHeadCountsForUpdateOrThrow();
+			gHeadCounts[absorbedIndex - 1] += absorbedHeadCount;
+			System.arraycopy(gHeadCounts, absorbedIndex + 1, gHeadCounts, absorbedIndex, gcc - absorbedIndex - 1);
+			gHeadCounts[newGcc] = 0;
+		}
 	}
 
 	/**
@@ -1300,6 +2136,12 @@ public class UnorderedLookupTree implements
 		counts[newChildCount] = 0;
 		if (newChildCount >= 1) {
 			separators[newChildCount - 1] = 0L;
+		}
+		// mirror the head counts through the same unlink (head-aware tree only)
+		if (internal.getHeadCounts() != null) {
+			final int[] headCounts = internal.getHeadCountsForUpdateOrThrow();
+			System.arraycopy(headCounts, ci + 1, headCounts, ci, childCount - ci - 1);
+			headCounts[newChildCount] = 0;
 		}
 	}
 
@@ -1359,6 +2201,80 @@ public class UnorderedLookupTree implements
 	 */
 	private void invalidateMemoizedState() {
 		this.memoizedArray = null;
+	}
+
+	/**
+	 * Collects the tree's leaf containers in ascending logical order (the page-emission order). `O(N / leafCapacity)`.
+	 */
+	@Nonnull
+	private List<LeafNode> collectLeaves() {
+		final List<LeafNode> leaves = new ArrayList<>();
+		final Node<?> theRoot = getRoot();
+		if (theRoot != null) {
+			collectLeavesInto(theRoot, leaves);
+		}
+		return leaves;
+	}
+
+	/**
+	 * Recursively appends the leaf containers under `node` to `leaves` in ascending logical order.
+	 */
+	private static void collectLeavesInto(@Nonnull Node<?> node, @Nonnull List<LeafNode> leaves) {
+		if (node instanceof final LeafNode leaf) {
+			leaves.add(leaf);
+		} else {
+			final InternalNode internal = (InternalNode) node;
+			final int childCount = internal.getChildCount();
+			final Node<?>[] children = internal.getChildren();
+			for (int i = 0; i < childCount; i++) {
+				collectLeavesInto(children[i], leaves);
+			}
+		}
+	}
+
+	/**
+	 * Default {@link LeafPageHandle} backed by a single live leaf node — reads the leaf's transaction-aware state so the
+	 * emitter sees read-your-writes content and stamps land on the node the commit-merge carries forward.
+	 */
+	private static final class LeafPageHandleImpl implements LeafPageHandle {
+		@Nonnull private final LeafNode leaf;
+
+		LeafPageHandleImpl(@Nonnull LeafNode leaf) {
+			this.leaf = leaf;
+		}
+
+		@Override
+		public int getPageSequence() {
+			return this.leaf.getPageSequence();
+		}
+
+		@Override
+		public boolean isDirty() {
+			return this.leaf.isDirty();
+		}
+
+		@Override
+		public void clearDirty() {
+			this.leaf.clearDirty();
+		}
+
+		@Override
+		public void setPageSequence(int pageSequence) {
+			this.leaf.setPageSequence(pageSequence);
+		}
+
+		@Nonnull
+		@Override
+		public int[] recordIds() {
+			return Arrays.copyOf(this.leaf.getRecordIds(), this.leaf.getCount());
+		}
+
+		@Nullable
+		@Override
+		public long[] headMask() {
+			final long[] mask = this.leaf.getHeadMask();
+			return mask == null ? null : mask.clone();
+		}
 	}
 
 	/**
@@ -1433,17 +2349,47 @@ public class UnorderedLookupTree implements
 		 * Number of valid record ids in this container.
 		 */
 		private int count;
+		/**
+		 * Head bitmask words: bit `i` (word `i >>> 6`, bit `i & 63`) is set ⇔ the record in slot `i` of
+		 * {@link #recordIds} is a chain head. Only allocated for head-aware trees (see
+		 * {@link UnorderedLookupTree#headAware}) — `null` (no allocation) otherwise, so the SortIndex family pays nothing.
+		 * Sized to `ceil((leafCapacity + 1) / 64)` words so the transient overflow slot at index `leafCapacity` fits.
+		 * Copied-on-write into the per-transaction layer via {@link #getHeadMaskForUpdate()} like {@link #recordIds}.
+		 */
+		@Nullable private long[] headMask;
+		/**
+		 * The logical persistence page this leaf occupies, or {@link PagedLeafHandle#UNASSIGNED_PAGE_SEQUENCE} until the
+		 * granular write path allocates one (a split-born or fresh leaf). Routed through the transactional layer like
+		 * {@link #orderKey} (value type) and carried across the commit-merge, so an in-place-rebuilt leaf reuses its page.
+		 * Only consulted on a paged tree ({@link UnorderedLookupTree#paged}); a savepoint snapshots it (unlike the
+		 * flush-time-only page registry).
+		 */
+		private int pageSequence;
+		/**
+		 * The granular-storage change-detection flag: `true` when this leaf's page content changed since the last flush.
+		 * Set by the content mutators ({@link #setCount}, {@link #getRecordIdsForUpdate()}, {@link #getHeadMaskForUpdate()})
+		 * — NOT by {@link #setOrderKey} (order-keys are ephemeral, re-minted at load, so a re-space must not re-emit every
+		 * page). Transaction-aware (routed through the layer) so a change made inside a transaction is visible at flush yet
+		 * isolated from concurrent readers; the emitter clears it once the page is collected. Only consulted on a paged tree.
+		 */
+		private boolean dirty;
 
 		/**
-		 * Creates a new empty container.
+		 * Creates a new empty container sized for `leafCapacity` records with `maskWords` head-mask words.
 		 *
 		 * @param transactionalLayer whether this node participates in the transactional memory layer
+		 * @param leafCapacity       physical record capacity (the `recordIds` array is `leafCapacity + 1` wide to host the
+		 *                           transient pre-split overflow slot)
+		 * @param maskWords          number of head-mask words to allocate (`0` ⇒ no mask array, non-head-aware tree)
 		 */
 		@SuppressWarnings("CheckForOutOfMemoryOnLargeArrayAllocation")
-		LeafNode(boolean transactionalLayer) {
-			this.recordIds = new int[DEFAULT_BLOCK_SIZE + 1];
+		LeafNode(boolean transactionalLayer, int leafCapacity, int maskWords) {
+			this.recordIds = new int[leafCapacity + 1];
 			this.count = 0;
 			this.orderKey = 0L;
+			this.headMask = maskWords > 0 ? new long[maskWords] : null;
+			this.pageSequence = PagedLeafHandle.UNASSIGNED_PAGE_SEQUENCE;
+			this.dirty = false;
 			this.transactionalLayer = transactionalLayer;
 		}
 
@@ -1453,12 +2399,18 @@ public class UnorderedLookupTree implements
 		 * @param orderKey           the container order-key
 		 * @param recordIds          the record id array (used directly, not copied)
 		 * @param count              the number of valid record ids
+		 * @param headMask           the head-mask words (`null` for a non-head-aware tree; used directly, not copied)
+		 * @param pageSequence       the logical persistence page sequence
+		 * @param dirty              the granular-storage change-detection flag
 		 * @param transactionalLayer whether this node participates in the transactional memory layer
 		 */
-		LeafNode(long orderKey, @Nonnull int[] recordIds, int count, boolean transactionalLayer) {
+		LeafNode(long orderKey, @Nonnull int[] recordIds, int count, @Nullable long[] headMask, int pageSequence, boolean dirty, boolean transactionalLayer) {
 			this.orderKey = orderKey;
 			this.recordIds = recordIds;
 			this.count = count;
+			this.headMask = headMask;
+			this.pageSequence = pageSequence;
+			this.dirty = dirty;
 			this.transactionalLayer = transactionalLayer;
 		}
 
@@ -1485,6 +2437,96 @@ public class UnorderedLookupTree implements
 		}
 
 		/**
+		 * Returns the head-mask words for READ-ONLY purposes (the layer copy when present), or `null` on a
+		 * non-head-aware tree. Callers must NOT mutate the returned array.
+		 */
+		@Nullable
+		long[] getHeadMask() {
+			final LeafNode layer = this.transactionalLayer ?
+				Transaction.getTransactionalMemoryLayerIfExists(this) : null;
+			return layer == null ? this.headMask : layer.headMask;
+		}
+
+		/**
+		 * Returns the head-mask words for READ-ONLY purposes, failing fast when this leaf is not head-aware (a broken
+		 * whole-tree invariant) rather than letting a caller dereference `null`. Callers must NOT mutate the array.
+		 */
+		@Nonnull
+		long[] getHeadMaskOrThrow() {
+			return requireHeadMask(getHeadMask());
+		}
+
+		/**
+		 * Returns the head-mask words for UPDATE, decoupling an independent copy into the transactional layer on first
+		 * write so the committed array stays untouched, and flagging the leaf dirty (a head mark/unmark changes the
+		 * persisted page). Only called on a head-aware tree (where the mask array is non-`null`).
+		 */
+		@Nonnull
+		long[] getHeadMaskForUpdate() {
+			final long[] currentMask = requireHeadMask(this.headMask);
+			final LeafNode layer = this.transactionalLayer ?
+				Transaction.getOrCreateTransactionalMemoryLayer(this) : null;
+			if (layer == null) {
+				this.dirty = true;
+				return currentMask;
+			} else {
+				//noinspection ArrayEquality
+				if (layer.headMask == currentMask) {
+					layer.headMask = currentMask.clone();
+				}
+				layer.dirty = true;
+				return requireHeadMask(layer.headMask);
+			}
+		}
+
+		/**
+		 * Returns this leaf's logical persistence page sequence (the layer value when present), or
+		 * {@link PagedLeafHandle#UNASSIGNED_PAGE_SEQUENCE} when none has been assigned yet.
+		 */
+		int getPageSequence() {
+			final LeafNode layer = this.transactionalLayer ?
+				Transaction.getTransactionalMemoryLayerIfExists(this) : null;
+			return layer == null ? this.pageSequence : layer.pageSequence;
+		}
+
+		/**
+		 * Stamps this leaf's logical persistence page sequence, decoupling into the transactional layer when present.
+		 * Structural bookkeeping only — does NOT flag the leaf dirty.
+		 */
+		void setPageSequence(int pageSequence) {
+			final LeafNode layer = this.transactionalLayer ?
+				Transaction.getOrCreateTransactionalMemoryLayer(this) : null;
+			if (layer == null) {
+				this.pageSequence = pageSequence;
+			} else {
+				layer.pageSequence = pageSequence;
+			}
+		}
+
+		/**
+		 * Returns whether this leaf's page content changed since the last flush (the layer value when present).
+		 */
+		boolean isDirty() {
+			final LeafNode layer = this.transactionalLayer ?
+				Transaction.getTransactionalMemoryLayerIfExists(this) : null;
+			return layer == null ? this.dirty : layer.dirty;
+		}
+
+		/**
+		 * Clears this leaf's dirty flag, decoupling into the transactional layer when present. Called by the page emitter
+		 * once the leaf's page has been collected for the current flush.
+		 */
+		void clearDirty() {
+			final LeafNode layer = this.transactionalLayer ?
+				Transaction.getOrCreateTransactionalMemoryLayer(this) : null;
+			if (layer == null) {
+				this.dirty = false;
+			} else {
+				layer.dirty = false;
+			}
+		}
+
+		/**
 		 * Returns the number of valid record ids (read-only view).
 		 */
 		int getCount() {
@@ -1501,8 +2543,10 @@ public class UnorderedLookupTree implements
 				Transaction.getOrCreateTransactionalMemoryLayer(this) : null;
 			if (layer == null) {
 				this.count = count;
+				this.dirty = true;
 			} else {
 				layer.count = count;
+				layer.dirty = true;
 			}
 		}
 
@@ -1525,6 +2569,7 @@ public class UnorderedLookupTree implements
 			final LeafNode layer = this.transactionalLayer ?
 				Transaction.getOrCreateTransactionalMemoryLayer(this) : null;
 			if (layer == null) {
+				this.dirty = true;
 				return this.recordIds;
 			} else {
 				//noinspection ArrayEquality
@@ -1532,13 +2577,14 @@ public class UnorderedLookupTree implements
 					layer.recordIds = new int[this.recordIds.length];
 					System.arraycopy(this.recordIds, 0, layer.recordIds, 0, this.recordIds.length);
 				}
+				layer.dirty = true;
 				return layer.recordIds;
 			}
 		}
 
 		@Override
 		public LeafNode createLayer() {
-			return new LeafNode(this.orderKey, this.recordIds, this.count, false);
+			return new LeafNode(this.orderKey, this.recordIds, this.count, this.headMask, this.pageSequence, this.dirty, false);
 		}
 
 		/**
@@ -1551,7 +2597,9 @@ public class UnorderedLookupTree implements
 		@Nonnull
 		@Override
 		public LeafNodeMemento snapshot() {
-			return new LeafNodeMemento(this.orderKey, this.recordIds.clone(), this.count);
+			return new LeafNodeMemento(
+				this.orderKey, this.recordIds.clone(), this.count,
+				this.headMask == null ? null : this.headMask.clone(), this.pageSequence, this.dirty);
 		}
 
 		/**
@@ -1565,6 +2613,9 @@ public class UnorderedLookupTree implements
 			this.orderKey = memento.orderKey();
 			this.recordIds = memento.recordIds().clone();
 			this.count = memento.count();
+			this.headMask = memento.headMask() == null ? null : memento.headMask().clone();
+			this.pageSequence = memento.pageSequence();
+			this.dirty = memento.dirty();
 		}
 
 		@Override
@@ -1581,23 +2632,32 @@ public class UnorderedLookupTree implements
 			final long theOrderKey;
 			final int[] theRecordIds;
 			final int theCount;
+			final long[] theHeadMask;
+			final int thePageSequence;
+			final boolean theDirty;
 			if (leafLayer == null) {
 				theOrderKey = this.orderKey;
 				theRecordIds = this.recordIds;
 				theCount = this.count;
+				theHeadMask = this.headMask;
+				thePageSequence = this.pageSequence;
+				theDirty = this.dirty;
 			} else {
 				theOrderKey = leafLayer.orderKey;
 				theRecordIds = leafLayer.recordIds;
 				theCount = leafLayer.count;
+				theHeadMask = leafLayer.headMask;
+				thePageSequence = leafLayer.pageSequence;
+				theDirty = leafLayer.dirty;
 			}
-			// primitive int record ids never carry their own transactional layer, so there is nothing to merge
+			// primitive int record ids / head-mask words never carry their own transactional layer, nothing to merge
 			if (leafLayer != null) {
-				return new LeafNode(theOrderKey, theRecordIds, theCount, true);
+				return new LeafNode(theOrderKey, theRecordIds, theCount, theHeadMask, thePageSequence, theDirty, true);
 			} else if (!this.transactionalLayer) {
 				// nodes created during splits are built with transactionalLayer=false so they do not allocate STM
 				// layers mid-transaction; on commit they must be rebuilt as participating (transactionalLayer=true)
 				// nodes so subsequent transactions can layer changes over them
-				return new LeafNode(theOrderKey, theRecordIds, theCount, true);
+				return new LeafNode(theOrderKey, theRecordIds, theCount, theHeadMask, thePageSequence, theDirty, true);
 			} else {
 				return this;
 			}
@@ -1620,17 +2680,24 @@ public class UnorderedLookupTree implements
 		}
 
 		/**
-		 * Immutable savepoint memento of a container's copy-on-write state. The record-id array is a private clone
-		 * owned by the memento (see {@link #snapshot}); the order-key and count are primitive value types.
+		 * Immutable savepoint memento of a container's copy-on-write state. The record-id array and (when present) the
+		 * head-mask words are private clones owned by the memento (see {@link #snapshot}); the order-key, count, page
+		 * sequence and dirty flag are primitive value types.
 		 *
-		 * @param orderKey  the container order-key
-		 * @param recordIds clone of the record-id array
-		 * @param count     the number of valid record ids
+		 * @param orderKey     the container order-key
+		 * @param recordIds    clone of the record-id array
+		 * @param count        the number of valid record ids
+		 * @param headMask     clone of the head-mask words, or `null` when not head-aware
+		 * @param pageSequence the logical persistence page sequence
+		 * @param dirty        the granular-storage change-detection flag
 		 */
 		record LeafNodeMemento(
 			long orderKey,
 			@Nonnull int[] recordIds,
-			int count
+			int count,
+			@Nullable long[] headMask,
+			int pageSequence,
+			boolean dirty
 		) {
 		}
 	}
@@ -1665,6 +2732,12 @@ public class UnorderedLookupTree implements
 		 */
 		private int[] counts;
 		/**
+		 * Head count of each child subtree, aligned with {@link #children}. Non-`null` only for head-aware trees (see
+		 * {@link UnorderedLookupTree#headAware}); `null` (never allocated) otherwise. When non-`null` it is maintained in
+		 * lock-step with {@link #counts} by every structural operation.
+		 */
+		@Nullable private int[] headCounts;
+		/**
 		 * Number of valid children.
 		 */
 		private int childCount;
@@ -1673,12 +2746,14 @@ public class UnorderedLookupTree implements
 		 * Creates a new empty internal node.
 		 *
 		 * @param transactionalLayer whether this node participates in the transactional memory layer
+		 * @param allocateHeadCounts whether to allocate the per-child head-count array (head-aware trees only)
 		 */
 		@SuppressWarnings("CheckForOutOfMemoryOnLargeArrayAllocation")
-		InternalNode(boolean transactionalLayer) {
+		InternalNode(boolean transactionalLayer, boolean allocateHeadCounts) {
 			this.children = new Node<?>[DEFAULT_BLOCK_SIZE + 1];
 			this.separators = new long[DEFAULT_BLOCK_SIZE];
 			this.counts = new int[DEFAULT_BLOCK_SIZE + 1];
+			this.headCounts = allocateHeadCounts ? new int[DEFAULT_BLOCK_SIZE + 1] : null;
 			this.childCount = 0;
 			this.transactionalLayer = transactionalLayer;
 		}
@@ -1689,13 +2764,15 @@ public class UnorderedLookupTree implements
 		 * @param children           the children array (used directly, not copied)
 		 * @param separators         the separators array (used directly, not copied)
 		 * @param counts             the per-child subtree counts array (used directly, not copied)
+		 * @param headCounts         the per-child head-count array (used directly, not copied), or `null` when not head-aware
 		 * @param childCount         the number of valid children
 		 * @param transactionalLayer whether this node participates in the transactional memory layer
 		 */
-		InternalNode(@Nonnull Node<?>[] children, @Nonnull long[] separators, @Nonnull int[] counts, int childCount, boolean transactionalLayer) {
+		InternalNode(@Nonnull Node<?>[] children, @Nonnull long[] separators, @Nonnull int[] counts, @Nullable int[] headCounts, int childCount, boolean transactionalLayer) {
 			this.children = children;
 			this.separators = separators;
 			this.counts = counts;
+			this.headCounts = headCounts;
 			this.childCount = childCount;
 			this.transactionalLayer = transactionalLayer;
 		}
@@ -1812,9 +2889,58 @@ public class UnorderedLookupTree implements
 			}
 		}
 
+		/**
+		 * Returns the per-child head-count array for READ-ONLY purposes (the layer copy when present), or `null` for a
+		 * non-head-aware node.
+		 */
+		@Nullable
+		int[] getHeadCounts() {
+			final InternalNode layer = this.transactionalLayer ?
+				Transaction.getTransactionalMemoryLayerIfExists(this) : null;
+			return layer == null ? this.headCounts : layer.headCounts;
+		}
+
+		/**
+		 * Returns the per-child head-count array for UPDATE, decoupling an independent copy into the transactional layer
+		 * on first write. Returns `null` for a non-head-aware node (that path is gated out by the caller).
+		 */
+		@Nullable
+		int[] getHeadCountsForUpdate() {
+			final InternalNode layer = this.transactionalLayer ?
+				Transaction.getOrCreateTransactionalMemoryLayer(this) : null;
+			if (layer == null) {
+				return this.headCounts;
+			} else {
+				//noinspection ArrayEquality
+				if (layer.headCounts != null && layer.headCounts == this.headCounts) {
+					layer.headCounts = new int[this.headCounts.length];
+					System.arraycopy(this.headCounts, 0, layer.headCounts, 0, this.headCounts.length);
+				}
+				return layer.headCounts;
+			}
+		}
+
+		/**
+		 * Returns the per-child head-count array for READ-ONLY purposes, failing fast when this node is not head-aware
+		 * (a broken whole-tree invariant) rather than letting a caller dereference `null`.
+		 */
+		@Nonnull
+		int[] getHeadCountsOrThrow() {
+			return requireHeadCounts(getHeadCounts());
+		}
+
+		/**
+		 * Returns the per-child head-count array for UPDATE, failing fast when this node is not head-aware (a broken
+		 * whole-tree invariant) rather than letting a caller dereference `null`.
+		 */
+		@Nonnull
+		int[] getHeadCountsForUpdateOrThrow() {
+			return requireHeadCounts(getHeadCountsForUpdate());
+		}
+
 		@Override
 		public InternalNode createLayer() {
-			return new InternalNode(this.children, this.separators, this.counts, this.childCount, false);
+			return new InternalNode(this.children, this.separators, this.counts, this.headCounts, this.childCount, false);
 		}
 
 		/**
@@ -1830,7 +2956,8 @@ public class UnorderedLookupTree implements
 		@Override
 		public InternalNodeMemento snapshot() {
 			return new InternalNodeMemento(
-				this.children.clone(), this.separators.clone(), this.counts.clone(), this.childCount);
+				this.children.clone(), this.separators.clone(), this.counts.clone(),
+				this.headCounts == null ? null : this.headCounts.clone(), this.childCount);
 		}
 
 		/**
@@ -1844,6 +2971,7 @@ public class UnorderedLookupTree implements
 			this.children = memento.children().clone();
 			this.separators = memento.separators().clone();
 			this.counts = memento.counts().clone();
+			this.headCounts = memento.headCounts() == null ? null : memento.headCounts().clone();
 			this.childCount = memento.childCount();
 		}
 
@@ -1861,16 +2989,19 @@ public class UnorderedLookupTree implements
 			final Node<?>[] theChildren;
 			final long[] theSeparators;
 			final int[] theCounts;
+			final int[] theHeadCounts;
 			final int theChildCount;
 			if (internalLayer == null) {
 				theChildren = this.children;
 				theSeparators = this.separators;
 				theCounts = this.counts;
+				theHeadCounts = this.headCounts;
 				theChildCount = this.childCount;
 			} else {
 				theChildren = internalLayer.children;
 				theSeparators = internalLayer.separators;
 				theCounts = internalLayer.counts;
+				theHeadCounts = internalLayer.headCounts;
 				theChildCount = internalLayer.childCount;
 			}
 
@@ -1889,14 +3020,14 @@ public class UnorderedLookupTree implements
 			}
 
 			if (newChildren != null) {
-				return new InternalNode(newChildren, theSeparators, theCounts, theChildCount, true);
+				return new InternalNode(newChildren, theSeparators, theCounts, theHeadCounts, theChildCount, true);
 			} else if (internalLayer != null) {
-				return new InternalNode(theChildren, theSeparators, theCounts, theChildCount, true);
+				return new InternalNode(theChildren, theSeparators, theCounts, theHeadCounts, theChildCount, true);
 			} else if (!this.transactionalLayer) {
 				// nodes created during splits are built with transactionalLayer=false so they do not allocate STM
 				// layers mid-transaction; on commit they must be rebuilt as participating (transactionalLayer=true)
 				// nodes so subsequent transactions can layer changes over them
-				return new InternalNode(theChildren, theSeparators, theCounts, theChildCount, true);
+				return new InternalNode(theChildren, theSeparators, theCounts, theHeadCounts, theChildCount, true);
 			} else {
 				return this;
 			}
@@ -1910,17 +3041,19 @@ public class UnorderedLookupTree implements
 		/**
 		 * Immutable savepoint memento of an internal node's copy-on-write array structure. The arrays are private
 		 * clones owned by the memento (see {@link #snapshot}); the child-node references they hold are shared by design
-		 * and the separators / counts are value types.
+		 * and the separators / counts / head-counts are value types.
 		 *
 		 * @param children   clone of the child-pointer array
 		 * @param separators clone of the separator-key array
 		 * @param counts     clone of the per-child subtree-count array
+		 * @param headCounts clone of the per-child head-count array, or `null` when not head-aware
 		 * @param childCount the number of valid children
 		 */
 		record InternalNodeMemento(
 			@Nonnull Node<?>[] children,
 			@Nonnull long[] separators,
 			@Nonnull int[] counts,
+			@Nullable int[] headCounts,
 			int childCount
 		) {
 		}

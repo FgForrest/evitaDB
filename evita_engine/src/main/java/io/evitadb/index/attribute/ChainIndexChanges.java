@@ -149,10 +149,17 @@ public class ChainIndexChanges
 	@Nonnull
 	public SortedRecordsSupplier getAscendingOrderRecordsSupplier() {
 		return ofNullable(this.recordIdToPositions).orElseGet(() -> {
+			// memoize the shared lookup + record-id bitmap so the descending supplier and repeat calls reuse them
+			// instead of rebuilding the whole O(N) stack; both are invalidated together by reset() on every mutation
 			final UnorderedLookup unorderedLookup = ofNullable(this.unorderedLookup)
 				.orElseGet(this.chainIndex::getUnorderedLookup);
+			this.unorderedLookup = unorderedLookup;
 			final Bitmap recordIds = ofNullable(this.recordIds)
 				.orElseGet(() -> new BaseBitmap(unorderedLookup.getRecordIds()));
+			this.recordIds = recordIds;
+			// NOTE: the ascending supplier is keyed by predecessors.getId() and the descending one by chainIndex.getId()
+			// (see below) - two distinct, stable per-instance ids so the two orderings never share a downstream cache
+			// slot. This deliberate asymmetry mirrors SortIndexChanges (asc = child id, desc = parent id).
 			this.recordIdToPositions = ofNullable(this.chainIndex.getReferenceKey())
 				.map(
 					referenceKey -> (SortedRecordsSupplier) new ReferenceSortedRecordsProvider(
@@ -184,10 +191,13 @@ public class ChainIndexChanges
 	@Nonnull
 	public SortedRecordsSupplier getDescendingOrderRecordsSupplier() {
 		return ofNullable(this.recordIdToPositionsReversed).orElseGet(() -> {
+			// reuse the shared lookup + record-id bitmap populated by either supplier (invalidated together by reset())
 			final UnorderedLookup unorderedLookup = ofNullable(this.unorderedLookup)
 				.orElseGet(this.chainIndex::getUnorderedLookup);
+			this.unorderedLookup = unorderedLookup;
 			final Bitmap recordIds = ofNullable(this.recordIds)
 				.orElseGet(() -> new BaseBitmap(unorderedLookup.getRecordIds()));
+			this.recordIds = recordIds;
 			this.recordIdToPositionsReversed = ofNullable(this.chainIndex.getReferenceKey())
 				.map(
 					referenceKey -> (SortedRecordsSupplier) new ReferenceSortedRecordsProvider(

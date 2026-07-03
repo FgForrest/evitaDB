@@ -30,6 +30,7 @@ import io.evitadb.test.duration.TimeArgumentProvider.GenerationalTestInput;
 import io.evitadb.test.duration.TimeBoundedTestSupport;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ArgumentsSource;
 
@@ -44,6 +45,7 @@ import static io.evitadb.test.TestTags.SLOW;
 import static io.evitadb.test.TestTags.TRANSACTION;
 import static io.evitadb.utils.AssertionUtils.assertSavepointCommitKeeps;
 import static io.evitadb.utils.AssertionUtils.assertSavepointRollbackRestores;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Generational randomized backfill proof that {@code ChainIndexChanges} — the derived-cache diff layer of
@@ -107,6 +109,41 @@ class LongRunningSavepointChainIndexTest implements TimeBoundedTestSupport {
 			);
 			return iteration + 1;
 		});
+	}
+
+	@Test
+	@DisplayName("Savepoint rollback/commit is exact over a large PAGED chain (per-leaf page state rides the tree memento)")
+	void shouldRollBackAndCommitPagedChainIndex() {
+		// > leaf capacity (1024) so the element tree is multi-leaf (PAGED): opening a savepoint must snapshot, and a
+		// rollback restore, each leaf node's per-leaf pageSequence / dirty (they ride the tree's own memento) alongside
+		// the chain order - the small (SINGLE) fuzz above never exercises the multi-leaf memento path
+		final int pagedSize = 1500;
+
+		final Random rollbackRandom = new Random(0xC0FFEEL);
+		final ChainState rollbackState = new ChainState(pagedSize);
+		assertTrue(rollbackState.index.elements.isRootInternal(), "the chain must be PAGED (multi-leaf) before the savepoint");
+		assertSavepointRollbackRestores(
+			rollbackState.index,
+			tested -> rollbackState.applyRandomMoves(rollbackRandom, 1 + rollbackRandom.nextInt(MAX_OPS)),
+			LongRunningSavepointChainIndexTest::chainContents,
+			tested -> {
+				rollbackState.forceReorder();
+				rollbackState.applyRandomMoves(rollbackRandom, 1 + rollbackRandom.nextInt(MAX_OPS));
+			}
+		);
+
+		final Random commitRandom = new Random(0xBEEFL);
+		final ChainState commitState = new ChainState(pagedSize);
+		assertTrue(commitState.index.elements.isRootInternal(), "the chain must be PAGED (multi-leaf) before the savepoint");
+		assertSavepointCommitKeeps(
+			commitState.index,
+			tested -> commitState.applyRandomMoves(commitRandom, 1 + commitRandom.nextInt(MAX_OPS)),
+			LongRunningSavepointChainIndexTest::chainContents,
+			tested -> {
+				commitState.forceReorder();
+				commitState.applyRandomMoves(commitRandom, 1 + commitRandom.nextInt(MAX_OPS));
+			}
+		);
 	}
 
 	/**

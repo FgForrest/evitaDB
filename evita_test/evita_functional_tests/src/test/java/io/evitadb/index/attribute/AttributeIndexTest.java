@@ -44,7 +44,10 @@ import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.invertedIndex.InvertedIndex;
+import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.ChainIndexLeafPageRemoval;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.ChainIndexStoragePart;
 import io.evitadb.test.duration.TimeBoundedTestSupport;
 import io.evitadb.utils.NamingConvention;
 import org.junit.jupiter.api.DisplayName;
@@ -55,15 +58,19 @@ import org.junit.jupiter.api.Test;
 import javax.annotation.Nonnull;
 import java.io.Serializable;
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
 import static io.evitadb.test.TestTags.ATTRIBUTE;
 import static io.evitadb.test.TestTags.INDEXING;
+import static io.evitadb.test.TestTags.STORAGE;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterRollback;
 import static org.junit.jupiter.api.Assertions.*;
@@ -1260,6 +1267,141 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 					null, decimalAttribute(2), ALLOWED_LOCALES, null, new BigDecimal("2.50"), 2
 				)
 			);
+		}
+	}
+
+	/**
+	 * Landmine G: a PAGED {@link ChainIndex} that is emptied and dropped from the sub-index map must still have its
+	 * on-disk leaf pages reclaimed. The dropped chain's own {@link ChainIndex#appendStorageParts} never runs again, so
+	 * {@link AttributeIndex#getModifiedStorageParts} diffs the last durable per-chain leaf-page snapshot against the
+	 * surviving chain key set and emits a {@link ChainIndexLeafPageRemoval} for every leaf page of a vanished key — else
+	 * those pages leak forever in the append-only OffsetIndex.
+	 */
+	@Nested
+	@DisplayName("landmine G: an empty-dropped PAGED chain reclaims its orphaned leaf pages")
+	@Tag(STORAGE)
+	class LandmineGEmptyDropReclaimTest {
+
+		/** Owning entity index pk used for the flush emission (arbitrary; only the CHAIN sub-index identity matters). */
+		private static final int ENTITY_INDEX_PK = 7;
+		/** > 3 leaf pages (leaf capacity 1024) so the chain pages out. */
+		private static final int CHAIN_SIZE = 3200;
+
+		@Test
+		@DisplayName("dropping the emptied chain emits one leaf-page removal per previously-live page (no leak)")
+		void shouldEmitRemovalForEveryLeafPageWhenPagedChainIsEmptyDropped() {
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
+			// build one consistent chain 1 -> 2 -> ... -> CHAIN_SIZE through the real predecessor-routing mutator
+			for (int pk = 1; pk <= CHAIN_SIZE; pk++) {
+				index.insertSortAttribute(
+					null, CHAIN_ORDER, ALLOWED_LOCALES, null,
+					pk == 1 ? Predecessor.HEAD : new Predecessor(pk - 1), pk
+				);
+			}
+
+			// first flush: the chain persists PAGED, staging its live leaf pages and refreshing the landmine-G snapshot
+			final List<StoragePart> firstFlush = flush(index);
+			final ChainIndexStoragePart root = chainRoot(firstFlush);
+			assertTrue(root.isPaged(), "a >1024-element chain must persist PAGED");
+			final int livePageCount = root.getPageSequencesOrThrowException().length;
+			assertTrue(livePageCount >= 3, "the chain must span at least three leaf pages");
+			assertTrue(leafRemovals(firstFlush).isEmpty(), "a first PAGED flush frees no pages");
+			index.resetDirty();
+
+			// empty the chain entirely: every predecessor removed drops the now-empty chain from the sub-index map
+			for (int pk = 1; pk <= CHAIN_SIZE; pk++) {
+				index.removeSortAttribute(
+					null, CHAIN_ORDER, ALLOWED_LOCALES, null,
+					pk == 1 ? Predecessor.HEAD : new Predecessor(pk - 1), pk
+				);
+			}
+			assertNull(
+				index.getChainIndex(new AttributeIndexKey(null, ATTRIBUTE_ORDER, null)),
+				"the emptied chain must be dropped from the sub-index map"
+			);
+
+			// second flush: the dropped chain's own appendStorageParts never runs again, so the PARENT must emit one
+			// removal per previously-live leaf page - otherwise those pages leak forever in the append-only OffsetIndex
+			final List<StoragePart> secondFlush = flush(index);
+			final List<ChainIndexLeafPageRemoval> removals = leafRemovals(secondFlush);
+			assertEquals(
+				livePageCount, removals.size(),
+				"every previously-live leaf page of the dropped chain must be removed (count equals the live-page count)"
+			);
+			assertFalse(hasChainRoot(secondFlush), "a dropped chain emits no root part");
+		}
+
+		@Test
+		@DisplayName("dropping an inline SINGLE chain emits no leaf-page removals (it never had leaf pages)")
+		void shouldEmitNoRemovalsWhenSingleChainIsEmptyDropped() {
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
+			// a tiny chain stays within a single leaf (the inline SINGLE shape - no leaf pages on disk)
+			for (int pk = 1; pk <= 5; pk++) {
+				index.insertSortAttribute(
+					null, CHAIN_ORDER, ALLOWED_LOCALES, null,
+					pk == 1 ? Predecessor.HEAD : new Predecessor(pk - 1), pk
+				);
+			}
+			final List<StoragePart> firstFlush = flush(index);
+			assertFalse(chainRoot(firstFlush).isPaged(), "a tiny chain must persist inline (SINGLE)");
+			index.resetDirty();
+
+			for (int pk = 1; pk <= 5; pk++) {
+				index.removeSortAttribute(
+					null, CHAIN_ORDER, ALLOWED_LOCALES, null,
+					pk == 1 ? Predecessor.HEAD : new Predecessor(pk - 1), pk
+				);
+			}
+			final List<StoragePart> secondFlush = flush(index);
+			assertTrue(
+				leafRemovals(secondFlush).isEmpty(),
+				"a dropped SINGLE chain never had leaf pages, so it must emit no leaf-page removals"
+			);
+		}
+
+		/**
+		 * Drains {@link AttributeIndex#getModifiedStorageParts} into a list keeping every emitted part.
+		 */
+		@Nonnull
+		private static List<StoragePart> flush(@Nonnull AttributeIndex index) {
+			final TrappedChanges trappedChanges = new TrappedChanges();
+			index.getModifiedStorageParts(ENTITY_INDEX_PK, trappedChanges);
+			final List<StoragePart> parts = new ArrayList<>();
+			final Iterator<StoragePart> iterator = trappedChanges.getTrappedChangesIterator();
+			while (iterator.hasNext()) {
+				parts.add(iterator.next());
+			}
+			return parts;
+		}
+
+		@Nonnull
+		private static List<ChainIndexLeafPageRemoval> leafRemovals(@Nonnull List<StoragePart> parts) {
+			final List<ChainIndexLeafPageRemoval> removals = new ArrayList<>();
+			for (final StoragePart part : parts) {
+				if (part instanceof ChainIndexLeafPageRemoval removal) {
+					removals.add(removal);
+				}
+			}
+			return removals;
+		}
+
+		@Nonnull
+		private static ChainIndexStoragePart chainRoot(@Nonnull List<StoragePart> parts) {
+			for (final StoragePart part : parts) {
+				if (part instanceof ChainIndexStoragePart root) {
+					return root;
+				}
+			}
+			throw new AssertionError("the emission carries no ChainIndexStoragePart root");
+		}
+
+		private static boolean hasChainRoot(@Nonnull List<StoragePart> parts) {
+			for (final StoragePart part : parts) {
+				if (part instanceof ChainIndexStoragePart) {
+					return true;
+				}
+			}
+			return false;
 		}
 	}
 }

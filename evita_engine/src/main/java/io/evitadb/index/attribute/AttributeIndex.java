@@ -61,6 +61,8 @@ import io.evitadb.index.range.RangeIndex;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStorageKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStoragePart.AttributeIndexType;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeKeyWithIndexType;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.ChainIndexLeafPageRemoval;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.FilterIndexStoragePart;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
@@ -198,6 +200,22 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 	 * view stays stateless and the range structure commits independently.
 	 */
 	@Nonnull private final PersistentTransactionalProducerMap<AttributeIndexKey, RangeIndex> sharedRangeIndex;
+	/**
+	 * Owner-resident snapshot of the leaf-page sequences each PAGED {@link ChainIndex} holds on disk (empty for a SINGLE
+	 * / never-paged chain, absent for a key with no chain). It is (re)built from the current chains at two points, both
+	 * on the single-writer flush/commit path: fresh from the committed chain sub-index map every time this index is built
+	 * from committed maps (the merge-copy of {@link #createCopyWithMergedTransactionalMemory} and cold load both go
+	 * through the from-maps constructor), and again at the end of every {@link #getModifiedStorageParts} so a reused
+	 * instance (warm-up flushes, or the same instance flushed repeatedly) stays current without a rebuild-from-copy.
+	 *
+	 * It exists solely to close landmine G: when an emptied chain is dropped from {@link #chainIndex}, the dropped
+	 * {@link ChainIndex}'s own {@link ChainIndex#appendStorageParts} never runs again, so this snapshot is the only
+	 * remaining record of its live leaf pages. {@link #getModifiedStorageParts} diffs it against the surviving chain key
+	 * set and emits a {@link ChainIndexLeafPageRemoval} for every page of a vanished key, or those pages would leak
+	 * forever in the append-only OffsetIndex. It lives OUTSIDE transactional memory (touched only by the single catalog
+	 * writer during flush/commit), mirroring the residency of the per-chain page-stream registry.
+	 */
+	@Nonnull private Map<AttributeIndexKey, int[]> persistedChainLeafPages;
 
 	/**
 	 * Verifies that a value of a localized attribute carries a locale and that the locale is among those permitted by
@@ -368,6 +386,32 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 	}
 
 	/**
+	 * Snapshots the on-disk leaf-page sequences of every PAGED {@link ChainIndex} in `chainIndex` into a fresh map, the
+	 * baseline {@link #getModifiedStorageParts} diffs to reclaim the leaf pages of an empty-dropped chain (landmine G).
+	 * SINGLE / never-paged chains (empty live-page set) are skipped so the map holds only keys that actually own leaf
+	 * pages on disk. The returned map is a plain, non-transactional {@link java.util.HashMap} (single-writer flush use).
+	 *
+	 * @param chainIndex the committed chain sub-index map (already published or restored from disk)
+	 * @return the per-key on-disk leaf-page snapshot, or an empty map when no chain is paged
+	 */
+	@Nonnull
+	private static Map<AttributeIndexKey, int[]> snapshotChainLeafPages(
+		@Nonnull Map<AttributeIndexKey, ChainIndex> chainIndex
+	) {
+		Map<AttributeIndexKey, int[]> snapshot = null;
+		for (final Entry<AttributeIndexKey, ChainIndex> entry : chainIndex.entrySet()) {
+			final int[] pages = entry.getValue().currentLeafPageSequences();
+			if (pages.length > 0) {
+				if (snapshot == null) {
+					snapshot = CollectionUtils.createHashMap(chainIndex.size());
+				}
+				snapshot.put(entry.getKey(), pages);
+			}
+		}
+		return snapshot == null ? Map.of() : snapshot;
+	}
+
+	/**
 	 * Rebuilds the {@link FilterIndex} VIEW map fresh over the committed shared trees. The view's `attributeType` is taken
 	 * from the matching entry of `previousViews` (the previous snapshot's / loaded views), which is the only carrier
 	 * of the attribute type once {@link FilterIndexStoragePart} has been consumed.
@@ -482,6 +526,8 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 		this.filterIndex = new TransactionalMap<>(CollectionUtils.createHashMap(32));
 		this.uniqueViewIndex = new TransactionalMap<>(
 			CollectionUtils.createHashMap(32), UniqueIndex.class, Function.identity());
+		// a fresh index has nothing on disk yet; the snapshot is rebuilt from committed chains at the next commit / load
+		this.persistedChainLeafPages = Map.of();
 	}
 
 	/**
@@ -522,6 +568,11 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 		this.uniqueIndex = new PersistentTransactionalProducerMap<>(
 			uniqueIndex, UniqueIndex.class, Function.identity());
 		this.chainIndex = new PersistentTransactionalProducerMap<>(chainIndex, ChainIndex.class, Function.identity());
+		// snapshot each committed PAGED chain's on-disk leaf pages BEFORE any mutation, so a later empty-drop of a chain
+		// can still reclaim its now-orphaned leaf pages (landmine G — see the field javadoc). The committed chains have
+		// already published their page streams (merge-copy) or been restored from disk (cold load), so their live-page
+		// sets mirror what is on disk at this instant.
+		this.persistedChainLeafPages = snapshotChainLeafPages(chainIndex);
 		// derive the SORT views bound to the committed shared trees: each view-mode index is carried forward by reference
 		// when its wrapped tree is identity-unchanged, or replaced by a fresh immutable copy (sharing the committed
 		// sorted-records façade) when the tree was replaced. Owner-mode indexes carry forward unchanged. Never mutated in
@@ -1117,10 +1168,36 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 		for (Entry<AttributeIndexKey, SortIndex> entry : this.sortIndex.entrySet()) {
 			entry.getValue().appendStorageParts(entityIndexPrimaryKey, trappedChanges);
 		}
-		for (Entry<AttributeIndexKey, ChainIndex> entry : this.chainIndex.entrySet()) {
-			ofNullable(entry.getValue().createStoragePart(entityIndexPrimaryKey))
-				.ifPresent(trappedChanges::addChangeToStore);
+		// CHAIN landmine G: a PAGED chain emptied and dropped from the map this commit still has its leaf pages on disk,
+		// but the dropped index's own appendStorageParts never runs again — so diff the last durable on-disk snapshot
+		// against the surviving chain keys and emit a removal for every leaf page of a vanished key, or the append-only
+		// OffsetIndex copies those orphaned pages forward on every compaction forever. The surviving chains reclaim their
+		// own freed pages through their appendStorageParts below; this only covers the whole-index drop the child can no
+		// longer see. NOTE: the sibling PAGED families (Filter / OwnerUnique / OwnerSort) share this latent empty-drop
+		// leak — the mechanism is fixed here for CHAIN only; the family-wide fix is a follow-up (see the field javadoc).
+		if (!this.persistedChainLeafPages.isEmpty()) {
+			for (final Entry<AttributeIndexKey, int[]> snapshot : this.persistedChainLeafPages.entrySet()) {
+				if (!this.chainIndex.containsKey(snapshot.getKey())) {
+					final AttributeKeyWithIndexType streamKey =
+						new AttributeKeyWithIndexType(snapshot.getKey(), AttributeIndexType.CHAIN);
+					for (final int freedPageSequence : snapshot.getValue()) {
+						trappedChanges.addChangeToStore(
+							new ChainIndexLeafPageRemoval(entityIndexPrimaryKey, streamKey, freedPageSequence)
+						);
+					}
+				}
+			}
 		}
+		// CHAIN parts: a small (single-leaf) chain index emits one inline SINGLE part; a large (multi-leaf) index emits
+		// granular PAGED leaf pages + a PAGED root - both go through appendStorageParts, mirroring the loops above.
+		for (Entry<AttributeIndexKey, ChainIndex> entry : this.chainIndex.entrySet()) {
+			entry.getValue().appendStorageParts(entityIndexPrimaryKey, trappedChanges);
+		}
+		// refresh the landmine-G snapshot from the surviving chains now that each has staged this commit's page set: a
+		// reused instance (warm-up / repeated flush) then diffs the next drop against the pages just written here, not a
+		// stale construction-time snapshot. Idempotent: re-running it (the baseline-capture pass) reproduces the same map,
+		// and on a transactional commit the pre-merge instance this mutates is discarded (the merge-copy rebuilds afresh).
+		this.persistedChainLeafPages = snapshotChainLeafPages(this.chainIndex);
 	}
 
 	@Nullable

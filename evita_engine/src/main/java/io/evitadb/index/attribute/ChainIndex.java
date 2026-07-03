@@ -23,7 +23,11 @@
 
 package io.evitadb.index.attribute;
 
+import com.carrotsearch.hppc.IntArrayDeque;
+import com.carrotsearch.hppc.IntArrayList;
+import com.carrotsearch.hppc.IntHashSet;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
+import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.query.sort.SortedRecordsSupplierFactory;
 import io.evitadb.core.transaction.Transaction;
@@ -33,16 +37,23 @@ import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.dataType.ChainableType;
 import io.evitadb.dataType.ConsistencySensitiveDataStructure;
 import io.evitadb.dataType.ReferencedEntityPredecessor;
-import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.AbstractReducedEntityIndex;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.IndexDataStructure;
 import io.evitadb.index.array.TransactionalUnorderedIntArray;
 import io.evitadb.index.array.UnorderedLookup;
+import io.evitadb.index.array.UnorderedLookupTree.LeafPageHandle;
+import io.evitadb.index.array.UnorderedLookupTree.LeafPageInput;
+import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.index.bool.TransactionalBoolean;
 import io.evitadb.index.map.TransactionalMap;
-import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
+import io.evitadb.index.page.PageEmission;
+import io.evitadb.index.page.PageStreamRegistry;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStoragePart.AttributeIndexType;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeKeyWithIndexType;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.ChainIndexLeafPagePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.ChainIndexLeafPageRemoval;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.ChainIndexStoragePart;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
@@ -58,6 +69,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.PrimitiveIterator.OfInt;
 import java.util.stream.Collectors;
 
 import static io.evitadb.dataType.ChainableType.HEAD_PK;
@@ -94,7 +106,7 @@ import static java.util.Optional.ofNullable;
  * A single-element relocation (`upsertPredecessor` on an existing element) therefore *detaches* the element from the
  * tree and *re-inserts* it right after its new predecessor, **without rewriting any neighbour's predecessor** - a
  * neighbour whose stored predecessor no longer equals its positional predecessor simply becomes the head of a new
- * (transient) run, created in `O(1)`. The {@link #collapse()} pass then re-merges runs whose head predecessor is the
+ * (transient) run, created in `O(1)`. The {@link #collapse(IntArrayList)} pass then re-merges runs whose head predecessor is the
  * tail of another run (relocating the shorter run when the two are not already physically adjacent), which restores the
  * eventually-consistent single chain.
  *
@@ -108,6 +120,12 @@ public class ChainIndex implements
 	Serializable
 {
 	@Serial private static final long serialVersionUID = 6633952268102524794L;
+	/**
+	 * Local stream key used with {@link #pageStreamRegistry}. A chain index owns exactly one page stream (its element
+	 * tree), so a single fixed key suffices; the persisted, globally-unique stream id is a separate concept resolved
+	 * store-side from the sub-index identity (see {@link ChainIndexLeafPagePart}), never this value.
+	 */
+	private static final int ELEMENTS_PAGE_STREAM = 0;
 	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 
 	/**
@@ -126,6 +144,14 @@ public class ChainIndex implements
 	 */
 	final TransactionalMap<Integer, Integer> predecessors;
 	/**
+	 * Materialized inverse of {@link #predecessors}: maps each predecessor primary key to the bitmap of every element
+	 * that declares it as its predecessor (excluding {@link ChainableType#HEAD_PK}). This lets the work-queue
+	 * {@link #collapse(IntArrayList)} find, in `O(1)`, the successor heads waiting on an element the moment that
+	 * element becomes present or becomes a run tail - replacing the former `O(C)` rescan of every chain descriptor on
+	 * each mutation. The map is kept as sparse as the at-rest chain set: a bucket is dropped the moment it empties.
+	 */
+	final TransactionalMap<Integer, TransactionalBitmap> successorsByPredecessor;
+	/**
 	 * This is internal flag that tracks whether the index contents became dirty and needs to be persisted.
 	 */
 	@Nonnull private final TransactionalBoolean dirty;
@@ -143,6 +169,16 @@ public class ChainIndex implements
 	 * bulk insertion or read only state where transaction are not used.
 	 */
 	@Nullable private ChainIndexChanges chainIndexChanges;
+	/**
+	 * Owner-resident page bookkeeping for the granular chain-index storage layout: the advance-only page-sequence
+	 * allocator, the explicit high-water and the live-page set of the {@link #elements} tree's persisted leaf pages. It
+	 * lives OUTSIDE transactional memory and is carried BY REFERENCE through
+	 * {@link #createCopyWithMergedTransactionalMemory} so the surviving committed owner keeps the allocator and live set
+	 * across commits (the discarded transactional copy never has its own). It is consulted only on the single-writer
+	 * flush/commit path and is therefore savepoint-exempt (the per-leaf page sequence / dirty flag ride the tree's own
+	 * mementos instead).
+	 */
+	@Nonnull private final PageStreamRegistry pageStreamRegistry;
 
 	public ChainIndex(@Nonnull AttributeIndexKey attributeIndexKey) {
 		this(null, attributeIndexKey);
@@ -152,9 +188,15 @@ public class ChainIndex implements
 		this.referenceKey = referenceKey;
 		this.attributeIndexKey = attributeIndexKey;
 		this.dirty = new TransactionalBoolean();
-		this.elements = new TransactionalUnorderedIntArray();
+		// head-aware: the element array tracks chain-head marks so findRun locates the covering run in O(log N)
+		this.elements = new TransactionalUnorderedIntArray(true);
 		this.chains = new TransactionalMap<>(CollectionUtils.createHashMap(32));
 		this.predecessors = new TransactionalMap<>(CollectionUtils.createHashMap(64));
+		// the value type + wrapper make the transactional map recurse into the bitmap values on merge / removeLayer
+		this.successorsByPredecessor = new TransactionalMap<>(
+			CollectionUtils.createHashMap(64), TransactionalBitmap.class, TransactionalBitmap::new
+		);
+		this.pageStreamRegistry = new PageStreamRegistry();
 	}
 
 	public ChainIndex(
@@ -182,12 +224,17 @@ public class ChainIndex implements
 		}
 		final int[] flattened = new int[total];
 		int offset = 0;
+		// each chain's head (chain[0]) lands at its concatenation offset - collect these ascending positions so the
+		// head-aware array marks them as chain heads during the O(N) bulk build (in the committed base)
+		final int[] headPositions = new int[chains.length];
+		int headCount = 0;
 		final Map<Integer, ChainDescriptor> descriptors = CollectionUtils.createHashMap(chains.length << 1);
 		for (final int[] chain : chains) {
 			if (chain.length == 0) {
 				continue;
 			}
 			System.arraycopy(chain, 0, flattened, offset, chain.length);
+			headPositions[headCount++] = offset;
 			offset += chain.length;
 			final int headPk = chain[0];
 			final ChainElementState headState = elementStates.get(headPk);
@@ -195,7 +242,7 @@ public class ChainIndex implements
 			final ElementState state = headState == null ? ElementState.SUCCESSOR : headState.state();
 			descriptors.put(headPk, new ChainDescriptor(chain.length, state));
 		}
-		this.elements = new TransactionalUnorderedIntArray(flattened);
+		this.elements = new TransactionalUnorderedIntArray(flattened, Arrays.copyOf(headPositions, headCount));
 		this.chains = new TransactionalMap<>(descriptors);
 
 		// mirror the per-element predecessor primary keys
@@ -204,6 +251,27 @@ public class ChainIndex implements
 			predecessorMap.put(entry.getKey(), entry.getValue().predecessorPrimaryKey());
 		}
 		this.predecessors = new TransactionalMap<>(predecessorMap);
+
+		// build the inverse of predecessors (predecessorPk -> declaring element pks) directly in the BASE state so the
+		// work-queue collapse can locate the successor heads waiting on any element in O(1). HEAD_PK predecessors are
+		// skipped (a true head never collapses via its predecessor). Every bitmap is constructed up-front from a plain
+		// int[] (no incremental transactional op), so the data lands in BASE even when the index is loaded mid-
+		// transaction - the same reason `predecessors` above is passed whole to the map constructor.
+		final Map<Integer, IntArrayList> successorAccumulator = CollectionUtils.createHashMap(predecessorMap.size());
+		for (final Entry<Integer, Integer> entry : predecessorMap.entrySet()) {
+			final int predecessorPk = entry.getValue();
+			if (predecessorPk != HEAD_PK) {
+				successorAccumulator.computeIfAbsent(predecessorPk, k -> new IntArrayList()).add(entry.getKey());
+			}
+		}
+		final Map<Integer, TransactionalBitmap> inverseMap = CollectionUtils.createHashMap(successorAccumulator.size());
+		for (final Entry<Integer, IntArrayList> entry : successorAccumulator.entrySet()) {
+			inverseMap.put(entry.getKey(), new TransactionalBitmap(entry.getValue().toArray()));
+		}
+		this.successorsByPredecessor = new TransactionalMap<>(
+			inverseMap, TransactionalBitmap.class, TransactionalBitmap::new
+		);
+		this.pageStreamRegistry = new PageStreamRegistry();
 	}
 
 	private ChainIndex(
@@ -211,7 +279,9 @@ public class ChainIndex implements
 		@Nonnull AttributeIndexKey attributeIndexKey,
 		@Nonnull TransactionalUnorderedIntArray elements,
 		@Nonnull Map<Integer, ChainDescriptor> chains,
-		@Nonnull Map<Integer, Integer> predecessors
+		@Nonnull Map<Integer, Integer> predecessors,
+		@Nonnull Map<Integer, TransactionalBitmap> successorsByPredecessor,
+		@Nonnull PageStreamRegistry pageStreamRegistry
 	) {
 		this.referenceKey = referenceKey;
 		this.attributeIndexKey = attributeIndexKey;
@@ -219,6 +289,189 @@ public class ChainIndex implements
 		this.elements = elements;
 		this.chains = new TransactionalMap<>(chains);
 		this.predecessors = new TransactionalMap<>(predecessors);
+		// the merged copy carries already-committed bitmap values - re-wrap each into a fresh transactional bitmap so
+		// subsequent mutations on the new instance stay isolated (mirrors the EntityIndex entityIdsByLanguage copy)
+		final Map<Integer, TransactionalBitmap> txSuccessorsByPredecessor =
+			CollectionUtils.createHashMap(successorsByPredecessor.size());
+		for (final Entry<Integer, TransactionalBitmap> entry : successorsByPredecessor.entrySet()) {
+			txSuccessorsByPredecessor.put(entry.getKey(), new TransactionalBitmap(entry.getValue()));
+		}
+		this.successorsByPredecessor = new TransactionalMap<>(
+			txSuccessorsByPredecessor, TransactionalBitmap.class, TransactionalBitmap::new
+		);
+		// the owner-resident page bookkeeping is carried BY REFERENCE (never re-wrapped): the surviving committed owner
+		// keeps the allocator + live set the just-completed flush populated; it lives outside transactional memory
+		this.pageStreamRegistry = pageStreamRegistry;
+	}
+
+	/**
+	 * Rebuilds a {@link ChainIndex} from its persisted granular leaf pages (the PAGED reload path). The pages MUST be
+	 * supplied in ascending logical (page-sequence-list) order — the order the PAGED root recorded them — because the
+	 * concatenation of their record ids IS the index's materialized order.
+	 *
+	 * The reconstruction follows the load-bearing order (rebuilding {@link #chains} before {@link #predecessors} would
+	 * trip {@link #computeHeadState}, which premise-fails on a missing predecessor entry):
+	 *
+	 * 1. assemble the {@link #elements} array 1:1 from the pages — one tree leaf per page, boundaries preserved,
+	 *    each leaf stamped with its page sequence and left non-dirty so a first post-load flush emits nothing;
+	 * 2. populate {@link #predecessors} over the fully-assembled global order — a HEAD record (its head bit set)
+	 *    takes its persisted head predecessor; a NON-head record takes the previous record in the global order (a
+	 *    page-boundary non-head takes the last record of the previous page — simply "the previous record globally");
+	 * 3. build {@link #chains} — each run length is the distance to the next head mark across the concatenated pages
+	 *    (the last run reaching to the end), and each head's {@link ElementState} is recomputed from its persisted
+	 *    predecessor (state / length are NOT persisted — they can be flipped by a mutation in another leaf);
+	 * 4. derive {@link #successorsByPredecessor} as the inverse of predecessors (the array-constructor logic).
+	 *
+	 * The head marks themselves ride in the assembled {@link #elements} leaves, so no explicit re-marking is needed.
+	 *
+	 * Finally the owner-resident {@link #pageStreamRegistry} is seeded from the reassembled leaves (page sequences
+	 * restored, dirty flags cleared) so the FIRST post-load flush suppresses every untouched leaf and re-emits nothing.
+	 *
+	 * @param referenceKey          reference-key discriminator of the owning reduced index, or `null` for the global index
+	 * @param attributeIndexKey     the attribute identity of this index
+	 * @param pages                 the persisted leaf pages in ascending logical order (empty ⇒ an empty index)
+	 * @param highWaterPageSequence the maximum page sequence ever allocated for the element-tree page stream (the value
+	 *                              persisted on the PAGED root); {@link PageStreamRegistry#NO_PAGE} for an empty index
+	 * @return the reconstructed chain index
+	 */
+	@Nonnull
+	public static ChainIndex fromPersistedPages(
+		@Nullable RepresentativeReferenceKey referenceKey,
+		@Nonnull AttributeIndexKey attributeIndexKey,
+		@Nonnull List<ChainIndexLeafPagePart> pages,
+		int highWaterPageSequence
+	) {
+		// 1. assemble the element array 1:1 from the pages (boundary-stable, one leaf per page, dirty=false)
+		final List<LeafPageInput> pageInputs = new ArrayList<>(pages.size());
+		for (final ChainIndexLeafPagePart page : pages) {
+			pageInputs.add(new LeafPageInput(page.getPageSequence(), page.getRecordIds(), page.getHeadWords()));
+		}
+		final TransactionalUnorderedIntArray elements = new TransactionalUnorderedIntArray(pageInputs);
+
+		// 2. populate predecessors over the concatenated global order; collect head positions / pks for step 3, and a
+		// record -> global-position lookup so the head state can be recomputed without a live index instance
+		final int totalSize = elements.getLength();
+		final Map<Integer, Integer> predecessorMap = CollectionUtils.createHashMap(Math.max(16, totalSize << 1));
+		final Map<Integer, Integer> recordPositions = CollectionUtils.createHashMap(Math.max(16, totalSize << 1));
+		final IntArrayList headPositions = new IntArrayList();
+		final IntArrayList headPks = new IntArrayList();
+		int globalPos = 0;
+		// the previous record in the global order across pages - a non-head takes this as its predecessor (position 0
+		// is always a chain head, so this sentinel is never consumed by a non-head)
+		int previousRecord = Integer.MIN_VALUE;
+		for (final ChainIndexLeafPagePart page : pages) {
+			final int[] recordIds = page.getRecordIds();
+			final long[] headWords = page.getHeadWords();
+			final int[] headPredecessorPks = page.getHeadPredecessorPks();
+			int headCursor = 0;
+			for (int i = 0; i < recordIds.length; i++) {
+				final int recordId = recordIds[i];
+				final boolean isHead = isHeadBit(headWords, i);
+				if (isHead) {
+					// a head takes its persisted head predecessor verbatim (aligned with the set head bits)
+					predecessorMap.put(recordId, headPredecessorPks[headCursor++]);
+					headPositions.add(globalPos);
+					headPks.add(recordId);
+				} else {
+					// a non-head takes the previous record in the global order (carries across the page boundary)
+					predecessorMap.put(recordId, previousRecord);
+				}
+				recordPositions.put(recordId, globalPos);
+				previousRecord = recordId;
+				globalPos++;
+			}
+		}
+
+		// 3. build chain descriptors: run length = distance to the next head mark (last run reaches the end); the head
+		// state is recomputed from the persisted head predecessor (state is NOT persisted - landmine A)
+		final int headCount = headPositions.size();
+		final Map<Integer, ChainDescriptor> descriptors = CollectionUtils.createHashMap(headCount << 1);
+		for (int h = 0; h < headCount; h++) {
+			final int headPos = headPositions.get(h);
+			final int nextHeadPos = h + 1 < headCount ? headPositions.get(h + 1) : totalSize;
+			final int length = nextHeadPos - headPos;
+			final int headPk = headPks.get(h);
+			final ElementState state = computeHeadStateForReload(headPk, headPos, length, predecessorMap, recordPositions);
+			descriptors.put(headPk, new ChainDescriptor(length, state));
+		}
+
+		// 4. derive the inverse of predecessors (predecessorPk -> declaring element pks), skipping HEAD_PK - the same
+		// BASE-state inverse the array constructor builds (bitmaps built up-front from int[], so the data lands in BASE)
+		final Map<Integer, IntArrayList> successorAccumulator = CollectionUtils.createHashMap(predecessorMap.size());
+		for (final Entry<Integer, Integer> entry : predecessorMap.entrySet()) {
+			final int predecessorPk = entry.getValue();
+			if (predecessorPk != HEAD_PK) {
+				successorAccumulator.computeIfAbsent(predecessorPk, k -> new IntArrayList()).add(entry.getKey());
+			}
+		}
+		final Map<Integer, TransactionalBitmap> inverseMap = CollectionUtils.createHashMap(successorAccumulator.size());
+		for (final Entry<Integer, IntArrayList> entry : successorAccumulator.entrySet()) {
+			inverseMap.put(entry.getKey(), new TransactionalBitmap(entry.getValue().toArray()));
+		}
+
+		// 5. seed the owner-resident page bookkeeping from the reassembled leaves: restore the live-page set + high-water
+		// and clear every leaf's dirty flag (the assembly's replaying inserts flag them dirty even though the leaves are
+		// byte-identical to disk), so the first post-load flush re-emits nothing until a genuine mutation touches a leaf
+		final PageStreamRegistry pageStreamRegistry = PageStreamRegistry.restoredFrom(
+			ELEMENTS_PAGE_STREAM, highWaterPageSequence, elements.leafPageHandles()
+		);
+
+		return new ChainIndex(
+			referenceKey, attributeIndexKey, elements, descriptors, predecessorMap, inverseMap, pageStreamRegistry
+		);
+	}
+
+	/**
+	 * Tests whether the head bit for the record at position `bitIndex` is set in the packed head-mask words.
+	 * `bitIndex >>> 6` selects the 64-bit word, `bitIndex & 63` the bit within that word.
+	 *
+	 * @param headWords packed head-mask words (one bit per record slot, least-significant bit first)
+	 * @param bitIndex  record slot to test
+	 * @return true when the record at `bitIndex` is marked as a chain head
+	 */
+	private static boolean isHeadBit(@Nonnull long[] headWords, int bitIndex) {
+		return ((headWords[bitIndex >>> 6] >>> (bitIndex & 63)) & 1L) != 0L;
+	}
+
+	/**
+	 * Recomputes the {@link ElementState} of a run head during a paged reload from the persisted head predecessor and a
+	 * record → global-position lookup. Mirrors {@link #computeHeadState} exactly (a head with no predecessor is
+	 * {@link ElementState#HEAD}, a head whose predecessor currently sits inside its own run is
+	 * {@link ElementState#CIRCULAR}, otherwise {@link ElementState#SUCCESSOR}) but reads from the reload-time maps
+	 * instead of the not-yet-constructed index instance.
+	 *
+	 * @param headPk          head primary key of the run
+	 * @param headPos         global position of the head record
+	 * @param length          length of the run
+	 * @param predecessors    the reload-time predecessor map
+	 * @param recordPositions the reload-time record → global-position lookup
+	 * @return the computed head state
+	 */
+	@Nonnull
+	private static ElementState computeHeadStateForReload(
+		int headPk,
+		int headPos,
+		int length,
+		@Nonnull Map<Integer, Integer> predecessors,
+		@Nonnull Map<Integer, Integer> recordPositions
+	) {
+		final Integer headPredecessorRef = predecessors.get(headPk);
+		isPremiseValid(
+			headPredecessorRef != null,
+			"Index damaged! The chain head `" + headPk + "` has no predecessor entry!"
+		);
+		final int headPredecessor = headPredecessorRef;
+		if (headPredecessor == HEAD_PK) {
+			return ElementState.HEAD;
+		}
+		final Integer predecessorPosRef = recordPositions.get(headPredecessor);
+		if (predecessorPosRef == null) {
+			return ElementState.SUCCESSOR;
+		}
+		final int predecessorPos = predecessorPosRef;
+		return predecessorPos >= headPos && predecessorPos < headPos + length
+			? ElementState.CIRCULAR
+			: ElementState.SUCCESSOR;
 	}
 
 	/**
@@ -259,14 +512,17 @@ public class ChainIndex implements
 			}
 		});
 
-		final int[] result = new int[this.elements.getLength()];
+		// flatten the whole element array ONCE - getSubArray would re-flatten it per chain (O(C*N)). Every run is then
+		// sliced out of this single snapshot into the freshly-allocated result, so the shared memoized array (returned
+		// by reference outside a transaction) is never aliased or mutated.
+		final int[] all = this.elements.getArray();
+		final int[] result = new int[all.length];
 		int offset = 0;
 		for (final Entry<Integer, ChainDescriptor> entry : orderedChains) {
 			final int headPos = this.elements.indexOf(entry.getKey());
 			final int length = entry.getValue().length();
-			final int[] run = this.elements.getSubArray(headPos, headPos + length);
-			System.arraycopy(run, 0, result, offset, run.length);
-			offset += run.length;
+			System.arraycopy(all, headPos, result, offset, length);
+			offset += length;
 		}
 
 		return new UnorderedLookup(result);
@@ -287,12 +543,17 @@ public class ChainIndex implements
 		if (existingPredecessor == null) {
 			// if existing state is not found - we need to insert new one
 			insertElement(primaryKey, predecessor);
+			// mirror the new predecessor link into the inverse map for the work-queue collapse
+			linkSuccessor(predecessor.predecessorPk(), primaryKey);
 		} else if (existingPredecessor == predecessor.predecessorPk()) {
 			// the predecessor is the same - nothing to do
 			return;
 		} else {
 			// otherwise we need to perform update (single-element relocation)
 			updateElement(primaryKey, predecessor);
+			// move the element between inverse buckets: drop it from the old predecessor, add it to the new one
+			unlinkSuccessor(existingPredecessor, primaryKey);
+			linkSuccessor(predecessor.predecessorPk(), primaryKey);
 		}
 		this.dirty.setToTrue();
 		getOrCreateChainIndexChanges().reset();
@@ -309,10 +570,59 @@ public class ChainIndex implements
 			existingPredecessor != null,
 			"Value `" + primaryKey + "` is not present in the chain element index!"
 		);
-		detachElement(primaryKey);
-		collapse();
+		// keep the inverse in lockstep with predecessors: the element no longer declares any predecessor
+		unlinkSuccessor(existingPredecessor, primaryKey);
+		final DetachOutcome detached = detachElement(primaryKey);
+		// the removed element is gone, so only what the detach exposed can create a new collapsible pair
+		final IntArrayList triggers = new IntArrayList(2);
+		addTrigger(triggers, detached.affectedHead());
+		addTrigger(triggers, detached.exposedTail());
+		collapse(triggers);
 		this.dirty.setToTrue();
 		getOrCreateChainIndexChanges().reset();
+	}
+
+	/**
+	 * Adds `primaryKey` to the inverse bucket of `predecessorPk` in {@link #successorsByPredecessor}, so the
+	 * work-queue {@link #collapse(IntArrayList)} can later find it as a successor waiting on `predecessorPk`.
+	 * {@link ChainableType#HEAD_PK} is skipped: a true head never collapses via its predecessor, so its inverse entry
+	 * would never be read.
+	 *
+	 * @param predecessorPk the predecessor primary key the element declares
+	 * @param primaryKey    the element declaring the predecessor
+	 */
+	private void linkSuccessor(int predecessorPk, int primaryKey) {
+		if (predecessorPk == HEAD_PK) {
+			return;
+		}
+		// the mapping function MUST be the lambda, not TransactionalBitmap::new - as a Function<Integer, ...> the
+		// method reference binds the TransactionalBitmap(int...) constructor and would seed the bucket with its own key
+		this.successorsByPredecessor
+			.computeIfAbsent(predecessorPk, p -> new TransactionalBitmap())
+			.add(primaryKey);
+	}
+
+	/**
+	 * Removes `primaryKey` from the inverse bucket of `predecessorPk` in {@link #successorsByPredecessor}, dropping the
+	 * bucket entirely (and releasing its transactional layer) once it empties so the map stays as sparse as the
+	 * at-rest chain set. {@link ChainableType#HEAD_PK} is skipped (never linked in the first place).
+	 *
+	 * @param predecessorPk the predecessor primary key the element used to declare
+	 * @param primaryKey    the element to unlink
+	 */
+	private void unlinkSuccessor(int predecessorPk, int primaryKey) {
+		if (predecessorPk == HEAD_PK) {
+			return;
+		}
+		final TransactionalBitmap successors = this.successorsByPredecessor.get(predecessorPk);
+		if (successors != null) {
+			successors.remove(primaryKey);
+			if (successors.isEmpty()) {
+				this.successorsByPredecessor.remove(predecessorPk);
+				// the bitmap was removed entirely - drop its changes container (mirrors EntityIndex.removeLanguage)
+				Transaction.removeTransactionalMemoryLayerIfExists(successors);
+			}
+		}
 	}
 
 	/**
@@ -343,6 +653,11 @@ public class ChainIndex implements
 	public ConsistencyReport getConsistencyReport() {
 		final StringBuilder errors = new StringBuilder(512);
 
+		// flatten the whole element array ONCE for the per-chain run slices below - getSubArray would re-flatten per
+		// chain (O(C*N)). The method is read-only, so this single snapshot stays valid for every use; each run is a
+		// copy sliced out of it, never an alias of the shared memoized array.
+		final int[] all = this.elements.getArray();
+
 		int overallCount = 0;
 		for (final Entry<Integer, ChainDescriptor> entry : this.chains.entrySet()) {
 			final int headPk = entry.getKey();
@@ -366,7 +681,7 @@ public class ChainIndex implements
 				continue;
 			}
 
-			final int[] run = this.elements.getSubArray(headPos, headPos + length);
+			final int[] run = Arrays.copyOfRange(all, headPos, headPos + length);
 			int previousElementId = headPk;
 			for (int i = 0; i < run.length; i++) {
 				final int elementId = run[i];
@@ -410,6 +725,39 @@ public class ChainIndex implements
 				"the number of elements in element states!");
 		}
 
+		// cross-check the successorsByPredecessor inverse against predecessors: the two must be exact inverses
+		// (excluding HEAD_PK). A desync here would let the work-queue collapse silently miss a mergeable pair.
+		for (final Entry<Integer, Integer> entry : this.predecessors.entrySet()) {
+			final int predecessorPk = entry.getValue();
+			if (predecessorPk != HEAD_PK) {
+				final TransactionalBitmap successors = this.successorsByPredecessor.get(predecessorPk);
+				if (successors == null || !successors.contains(entry.getKey())) {
+					errors.append("\nThe element `")
+						.append(entry.getKey())
+						.append("` declares predecessor `")
+						.append(predecessorPk)
+						.append("` but is missing from that predecessor's successor inverse!");
+				}
+			}
+		}
+		for (final Entry<Integer, TransactionalBitmap> entry : this.successorsByPredecessor.entrySet()) {
+			final int predecessorPk = entry.getKey();
+			final OfInt successorIt = entry.getValue().iterator();
+			while (successorIt.hasNext()) {
+				final int successorPk = successorIt.nextInt();
+				final Integer declaredPredecessor = this.predecessors.get(successorPk);
+				if (declaredPredecessor == null || declaredPredecessor != predecessorPk) {
+					errors.append("\nThe successor inverse maps `")
+						.append(successorPk)
+						.append("` under predecessor `")
+						.append(predecessorPk)
+						.append("` but its declared predecessor is `")
+						.append(declaredPredecessor)
+						.append("`!");
+				}
+			}
+		}
+
 		final ConsistencyState state;
 		if (!errors.isEmpty()) {
 			state = ConsistencyState.BROKEN;
@@ -449,68 +797,223 @@ public class ChainIndex implements
 	}
 
 	/**
-	 * Method creates container for storing chain index from memory to the persistent storage.
+	 * Emits this chain index's modified storage parts into `sink` on the commit/flush path — the granular persistence
+	 * entry point mirroring the UNIQUE/FILTER/SORT indexes (see {@link AttributeIndex#getModifiedStorageParts}). A clean
+	 * index emits nothing. A dirty index emits either the inline SINGLE {@link ChainIndexStoragePart} (a single-leaf
+	 * element tree, possibly just collapsed from PAGED) or the granular PAGED shape (one {@link ChainIndexLeafPagePart}
+	 * per changed leaf + one {@link ChainIndexLeafPageRemoval} per freed leaf + a PAGED {@link ChainIndexStoragePart}
+	 * root carrying only the page-stream metadata).
+	 *
+	 * @param entityIndexPrimaryKey the owning entity index primary key
+	 * @param sink                  the trapped-changes accumulator for this commit
 	 */
-	@Nullable
-	public StoragePart createStoragePart(int entityIndexPrimaryKey) {
-		// The fat element-state map below is materialized only transiently on the heap; the slim persisted format
-		// (see ChainIndexStoragePartSerializer) derives, per chain, just the run primary keys plus the head's
-		// predecessor and state and reconstructs this exact map on read, so this method and the load path are
-		// unchanged by the slimming.
+	public void appendStorageParts(int entityIndexPrimaryKey, @Nonnull TrappedChanges sink) {
 		if (this.dirty.isTrue()) {
 			// all data are persisted to disk - we may get rid of temporary, modification only helper container
 			this.chainIndexChanges = null;
+			doAppendStorageParts(entityIndexPrimaryKey, sink);
+		}
+	}
 
-			final int[][] chainArrays = new int[this.chains.size()][];
-			final Map<Integer, ChainElementState> elementStates = CollectionUtils.createHashMap(this.predecessors.size() << 1);
-			int chainIndex = 0;
-			for (final Entry<Integer, ChainDescriptor> entry : this.chains.entrySet()) {
-				final int headPk = entry.getKey();
-				final ChainDescriptor descriptor = entry.getValue();
-				final int headPos = this.elements.indexOf(headPk);
-				final int[] run = this.elements.getSubArray(headPos, headPos + descriptor.length());
-				chainArrays[chainIndex++] = run;
-				for (int i = 0; i < run.length; i++) {
-					final int elementId = run[i];
-					final Integer predecessor = this.predecessors.get(elementId);
+	/**
+	 * Returns the page sequences of every leaf page this chain index will have on disk once the in-flight commit is
+	 * durable (its element page-stream's staged set mid-flush, else its published live set), or an empty array when it
+	 * is inline (SINGLE) or has never paged. The owning {@link AttributeIndex} snapshots this so that when a PAGED chain
+	 * is later emptied and dropped from the sub-index map — after which THIS index's own {@link #appendStorageParts}
+	 * never runs again — the parent still knows the now-orphaned leaf pages and can emit a {@link ChainIndexLeafPageRemoval}
+	 * for each instead of leaking them forever in the append-only OffsetIndex (landmine G). Reading the staged set (not
+	 * merely the published one) keeps the snapshot correct even when taken right after this commit's flush staged a new
+	 * page set but before it was published.
+	 *
+	 * @return the current on-disk leaf-page sequences, or an empty array for a SINGLE / never-paged index
+	 */
+	@Nonnull
+	public int[] currentLeafPageSequences() {
+		return this.pageStreamRegistry.pendingLivePageSequences(ELEMENTS_PAGE_STREAM);
+	}
+
+	/**
+	 * Emits this (dirty) index's modified storage parts into `sink`. The SINGLE/PAGED decision mirrors
+	 * {@link OwnerSortIndex#doAppendStorageParts}: a multi-leaf element tree
+	 * ({@link TransactionalUnorderedIntArray#isRootInternal()}) persists granularly (one leaf page per changed leaf +
+	 * removals for freed leaves + a PAGED root), a single-leaf tree persists inline (the SINGLE root). A PAGED→SINGLE
+	 * collapse first removes every prior live leaf page and forgets the page stream (the registry AND the per-leaf
+	 * bookkeeping) so a later regrow into PAGED starts from a clean baseline and re-emits every leaf.
+	 *
+	 * @param entityIndexPrimaryKey the owning entity index primary key
+	 * @param sink                  the trapped-changes accumulator for this commit
+	 */
+	private void doAppendStorageParts(int entityIndexPrimaryKey, @Nonnull TrappedChanges sink) {
+		// every leaf page (and removal) carries the CHAIN-typed sub-index identity, so its stream id is disjoint from the
+		// FILTER / SORT streams of the same attribute and resolved store-side when the page's primary key is assigned
+		final AttributeKeyWithIndexType streamKey =
+			new AttributeKeyWithIndexType(this.attributeIndexKey, AttributeIndexType.CHAIN);
+		if (this.elements.isRootInternal()) {
+			// PAGED shape: emit one leaf page per CHANGED leaf, one removal per freed leaf, and a PAGED root carrying only
+			// the high-water + the ordered live leaf-page list (the chain state / element order are reconstructed from the
+			// reloaded leaf pages on load, so nothing else is written)
+			final List<LeafPageHandle> handles = this.elements.leafPageHandles();
+			final PageEmission<ChainLeafPage> emission = this.pageStreamRegistry.collectChangedPages(
+				ELEMENTS_PAGE_STREAM, handles, this::buildChainLeafPage
+			);
+			for (final ChainLeafPage page : emission.changedPages()) {
+				sink.addChangeToStore(
+					new ChainIndexLeafPagePart(
+						entityIndexPrimaryKey, streamKey, page.pageSequence(),
+						page.recordIds(), page.headWords(), page.headPredecessorPks()
+					)
+				);
+			}
+			// remove the leaf pages a merge/shrink dropped this commit so they don't leak (the append-only OffsetIndex
+			// never reclaims an unreferenced-but-never-removed record - page ids are advance-only and never re-keyed)
+			for (final int freedPageSequence : emission.freedPageSequences()) {
+				sink.addChangeToStore(new ChainIndexLeafPageRemoval(entityIndexPrimaryKey, streamKey, freedPageSequence));
+			}
+			sink.addChangeToStore(
+				ChainIndexStoragePart.paged(
+					entityIndexPrimaryKey, this.attributeIndexKey,
+					emission.highWaterPageSequence(), emission.orderedPageSequences()
+				)
+			);
+			return;
+		}
+		// SINGLE shape (possibly just collapsed from PAGED): remove every leaf page from its prior PAGED life (the SINGLE
+		// root no longer references them) BEFORE dropping the page bookkeeping, then forget the stream - both the registry
+		// live set / high-water AND the per-leaf page sequences + dirty flags - so a later regrow into PAGED starts from a
+		// clean baseline and re-emits every leaf
+		for (final int freedPageSequence : this.pageStreamRegistry.livePageSequences(ELEMENTS_PAGE_STREAM)) {
+			sink.addChangeToStore(new ChainIndexLeafPageRemoval(entityIndexPrimaryKey, streamKey, freedPageSequence));
+		}
+		this.pageStreamRegistry.forget(ELEMENTS_PAGE_STREAM);
+		this.elements.forgetPageStream();
+		sink.addChangeToStore(buildSingleStoragePart(entityIndexPrimaryKey));
+	}
+
+	/**
+	 * Materializes one persisted leaf page from a live element-tree leaf handle: the leaf's ordered record ids, its head
+	 * bitset sliced to the meaningful `ceil(recordIds.length / 64)`-word prefix, and — aligned with the set head bits, in
+	 * ascending bit-position order — each head's predecessor primary key read from the live {@link #predecessors} map.
+	 * NO chain state / run length is written (landmine A): a head's state / length can be flipped by a mutation in a
+	 * DIFFERENT leaf whose own leaf stays byte-clean, so any state stored here could go stale; both are recomputed at
+	 * load. The head predecessor IS dirty-safe (changing it always mutates the head's own leaf).
+	 *
+	 * @param pageSequence the stable page sequence assigned to this leaf
+	 * @param handle       the live leaf handle (record ids + head-mask words)
+	 * @return the materialized leaf page
+	 */
+	@Nonnull
+	private ChainLeafPage buildChainLeafPage(int pageSequence, @Nonnull LeafPageHandle handle) {
+		final int[] recordIds = handle.recordIds();
+		final long[] fullMask = handle.headMask();
+		isPremiseValid(
+			fullMask != null,
+			"Index damaged! A head-aware chain leaf must carry a head mask!"
+		);
+		// slice the wider in-memory mask (long[ceil((leafCapacity + 1) / 64)]) down to the meaningful prefix the
+		// persisted page carries (ceil(recordIds.length / 64) words)
+		final int wordCount = (recordIds.length + 63) >>> 6;
+		final long[] headWords = Arrays.copyOf(fullMask, wordCount);
+		// count the head bits so the predecessor column is allocated exactly (only bits at valid record slots are set)
+		int headCount = 0;
+		for (int i = 0; i < recordIds.length; i++) {
+			if (isHeadBit(headWords, i)) {
+				headCount++;
+			}
+		}
+		// one predecessor pk per set head bit, in ascending bit-position order (aligned with the reload's head cursor)
+		final int[] headPredecessorPks = new int[headCount];
+		int headCursor = 0;
+		for (int i = 0; i < recordIds.length; i++) {
+			if (isHeadBit(headWords, i)) {
+				final Integer predecessor = this.predecessors.get(recordIds[i]);
+				isPremiseValid(
+					predecessor != null,
+					"Index damaged! The chain head `" + recordIds[i] + "` has no predecessor entry!"
+				);
+				headPredecessorPks[headCursor++] = predecessor;
+			}
+		}
+		return new ChainLeafPage(pageSequence, recordIds, headWords, headPredecessorPks);
+	}
+
+	/**
+	 * One leaf page produced by the granular chain write path: its stable page sequence, the leaf's ordered record ids,
+	 * the head bitset (sliced to the meaningful prefix) and the per-head predecessor pks aligned with the set head bits.
+	 *
+	 * @param pageSequence        the leaf's stable page sequence
+	 * @param recordIds           the leaf's record ids in tree (chain) order
+	 * @param headWords           the head bitset (`ceil(recordIds.length / 64)` words)
+	 * @param headPredecessorPks  the head predecessor pks aligned with the set head bits
+	 */
+	private record ChainLeafPage(
+		int pageSequence, @Nonnull int[] recordIds, @Nonnull long[] headWords, @Nonnull int[] headPredecessorPks
+	) {
+	}
+
+	/**
+	 * Builds the inline SINGLE {@link ChainIndexStoragePart} carrying the whole chain state (the {@link #chains} runs
+	 * plus the fat per-element {@link ChainElementState} map). The fat map is materialized only transiently on the heap;
+	 * the slim persisted format (see `ChainIndexStoragePartSerializer`) derives, per chain, just the run primary keys plus
+	 * the head's predecessor and state and reconstructs this exact map on read, so this method and the load path are
+	 * unchanged by the slimming. Emitted by the SINGLE branch of {@link #doAppendStorageParts}.
+	 *
+	 * @param entityIndexPrimaryKey the owning entity index primary key
+	 * @return the inline SINGLE storage part
+	 */
+	@Nonnull
+	private ChainIndexStoragePart buildSingleStoragePart(int entityIndexPrimaryKey) {
+		final int[][] chainArrays = new int[this.chains.size()][];
+		final Map<Integer, ChainElementState> elementStates = CollectionUtils.createHashMap(this.predecessors.size() << 1);
+		// flatten the whole element array ONCE and slice each run out of it - getSubArray would re-flatten per chain
+		// (O(C*N) on the commit critical path). Every run MUST stay an independent copy: it is stored into the
+		// returned storage part and serialized, and `all` may be the shared memoized array (returned by reference
+		// outside a transaction) - handing it over or aliasing a slice would corrupt the live index.
+		final int[] all = this.elements.getArray();
+		int chainIndex = 0;
+		for (final Entry<Integer, ChainDescriptor> entry : this.chains.entrySet()) {
+			final int headPk = entry.getKey();
+			final ChainDescriptor descriptor = entry.getValue();
+			final int headPos = this.elements.indexOf(headPk);
+			final int[] run = Arrays.copyOfRange(all, headPos, headPos + descriptor.length());
+			chainArrays[chainIndex++] = run;
+			for (int i = 0; i < run.length; i++) {
+				final int elementId = run[i];
+				final Integer predecessor = this.predecessors.get(elementId);
+				isPremiseValid(
+					predecessor != null,
+					"Index damaged! The element `" + elementId + "` has no predecessor entry!"
+				);
+				// The slim persisted format (ChainIndexStoragePartSerializer) keeps only the head's predecessor and
+				// reconstructs every non-head element's predecessor as its positional predecessor - the previous
+				// element in the run. This is the same invariant getConsistencyReport() verifies; enforce it here at
+				// the persistence chokepoint so a damaged index fails loud instead of being silently "healed" on the
+				// next load. Heads (i == 0) are exempt: their (external / circular / HEAD_PK) predecessor is persisted
+				// verbatim. The check is guarded by `i > 0` so the message never dereferences run[i - 1] for a head.
+				if (i > 0) {
 					isPremiseValid(
-						predecessor != null,
-						"Index damaged! The element `" + elementId + "` has no predecessor entry!"
-					);
-					// The slim persisted format (ChainIndexStoragePartSerializer) keeps only the head's predecessor and
-					// reconstructs every non-head element's predecessor as its positional predecessor - the previous
-					// element in the run. This is the same invariant getConsistencyReport() verifies; enforce it here at
-					// the persistence chokepoint so a damaged index fails loud instead of being silently "healed" on the
-					// next load. Heads (i == 0) are exempt: their (external / circular / HEAD_PK) predecessor is persisted
-					// verbatim. The check is guarded by `i > 0` so the message never dereferences run[i - 1] for a head.
-					if (i > 0) {
-						isPremiseValid(
-							predecessor == run[i - 1],
-							"Index damaged! The non-head element `" + elementId + "` has stored predecessor `" +
-								predecessor + "` but its positional predecessor in the run is `" + run[i - 1] +
-								"` - the slim chain storage format cannot represent this state!"
-						);
-					}
-					elementStates.put(
-						elementId,
-						new ChainElementState(
-							headPk,
-							predecessor,
-							i == 0 ? descriptor.state() : ElementState.SUCCESSOR
-						)
+						predecessor == run[i - 1],
+						"Index damaged! The non-head element `" + elementId + "` has stored predecessor `" +
+							predecessor + "` but its positional predecessor in the run is `" + run[i - 1] +
+							"` - the slim chain storage format cannot represent this state!"
 					);
 				}
+				elementStates.put(
+					elementId,
+					new ChainElementState(
+						headPk,
+						predecessor,
+						i == 0 ? descriptor.state() : ElementState.SUCCESSOR
+					)
+				);
 			}
-
-			return new ChainIndexStoragePart(
-				entityIndexPrimaryKey,
-				this.attributeIndexKey,
-				elementStates,
-				chainArrays
-			);
-		} else {
-			return null;
 		}
+
+		return new ChainIndexStoragePart(
+			entityIndexPrimaryKey,
+			this.attributeIndexKey,
+			elementStates,
+			chainArrays
+		);
 	}
 
 	@Override
@@ -530,6 +1033,8 @@ public class ChainIndex implements
 		this.elements.removeLayer(transactionalLayer);
 		this.chains.removeLayer(transactionalLayer);
 		this.predecessors.removeLayer(transactionalLayer);
+		// one call recurses into the transactional bitmap values (the map was built with the value type + wrapper)
+		this.successorsByPredecessor.removeLayer(transactionalLayer);
 	}
 
 	@Nonnull
@@ -539,12 +1044,21 @@ public class ChainIndex implements
 		@Nonnull TransactionalLayerMaintainer transactionalLayer
 	) {
 		transactionalLayer.getStateCopyWithCommittedChanges(this.dirty);
+		// the merge runs only AFTER this commit's flush has durably written the changed leaf pages + root, so the live set
+		// staged by that flush now reflects what is on disk and may become the change-detection baseline for the next
+		// commit; publish it, then carry the registry BY REFERENCE into the committed copy so the surviving owner keeps it.
+		// A SINGLE flush stages nothing (it forgets the stream), so this is a no-op in that case. No discard counterpart is
+		// needed: a pre-flush abort never stages, a flush failure is fatal (restart rebuilds a clean registry) and a stale
+		// staged set is harmlessly replaced by the next commit's stage - mirrors InvertedIndex.
+		this.pageStreamRegistry.publishStaged();
 		return new ChainIndex(
 			this.referenceKey,
 			this.attributeIndexKey,
 			transactionalLayer.getStateCopyWithCommittedChanges(this.elements),
 			transactionalLayer.getStateCopyWithCommittedChanges(this.chains),
-			transactionalLayer.getStateCopyWithCommittedChanges(this.predecessors)
+			transactionalLayer.getStateCopyWithCommittedChanges(this.predecessors),
+			transactionalLayer.getStateCopyWithCommittedChanges(this.successorsByPredecessor),
+			this.pageStreamRegistry
 		);
 	}
 
@@ -552,10 +1066,12 @@ public class ChainIndex implements
 	public String toString() {
 		final List<Entry<Integer, ChainDescriptor>> orderedChains = new ArrayList<>(this.chains.entrySet());
 		orderedChains.sort(Comparator.comparingInt(o -> this.elements.indexOf(o.getKey())));
+		// flatten the whole element array ONCE and slice each run's copy out of it (getSubArray would re-flatten per chain)
+		final int[] all = this.elements.getArray();
 		final StringBuilder chainsDump = new StringBuilder(256);
 		for (final Entry<Integer, ChainDescriptor> entry : orderedChains) {
 			final int headPos = this.elements.indexOf(entry.getKey());
-			final int[] run = this.elements.getSubArray(headPos, headPos + entry.getValue().length());
+			final int[] run = Arrays.copyOfRange(all, headPos, headPos + entry.getValue().length());
 			chainsDump.append("\n      - ").append(Arrays.toString(run));
 		}
 		final List<Integer> orderedElements = new ArrayList<>(this.predecessors.keySet());
@@ -596,7 +1112,11 @@ public class ChainIndex implements
 	private void insertElement(int primaryKey, @Nonnull ChainableType predecessor) {
 		this.predecessors.put(primaryKey, predecessor.predecessorPk());
 		attachElement(primaryKey, predecessor);
-		collapse();
+		// the freshly attached element is the only new run tail (and possibly new orphan head) this op created;
+		// seeding collapse with it covers both its own follower candidacy and the successors waiting on it as a tail
+		final IntArrayList triggers = new IntArrayList(1);
+		triggers.add(primaryKey);
+		collapse(triggers);
 	}
 
 	/**
@@ -607,10 +1127,16 @@ public class ChainIndex implements
 	 * @param predecessor new predecessor pointer
 	 */
 	private void updateElement(int primaryKey, @Nonnull ChainableType predecessor) {
-		detachElement(primaryKey);
+		final DetachOutcome detached = detachElement(primaryKey);
 		this.predecessors.put(primaryKey, predecessor.predecessorPk());
 		attachElement(primaryKey, predecessor);
-		collapse();
+		// seed collapse with the re-attached element (its new predecessor may be a tail) plus whatever the detach
+		// exposed: a successor promoted to head, and a run tail newly uncovered by the removal
+		final IntArrayList triggers = new IntArrayList(3);
+		triggers.add(primaryKey);
+		addTrigger(triggers, detached.affectedHead());
+		addTrigger(triggers, detached.exposedTail());
+		collapse(triggers);
 	}
 
 	/**
@@ -627,6 +1153,7 @@ public class ChainIndex implements
 			// brand-new head: start a fresh run at the very end of the array
 			this.elements.addOnIndex(this.elements.getLength(), primaryKey);
 			this.chains.put(primaryKey, new ChainDescriptor(1, ElementState.HEAD));
+			this.elements.markAsHead(primaryKey);
 			return;
 		}
 		final int predecessorPk = predecessor.predecessorPk();
@@ -635,6 +1162,7 @@ public class ChainIndex implements
 			// the predecessor is not present yet - start a fresh orphan successor run at the end
 			this.elements.addOnIndex(this.elements.getLength(), primaryKey);
 			this.chains.put(primaryKey, new ChainDescriptor(1, ElementState.SUCCESSOR));
+			this.elements.markAsHead(primaryKey);
 			return;
 		}
 		final RunRef predecessorRun = findRun(predecessorPos);
@@ -656,6 +1184,7 @@ public class ChainIndex implements
 			// predecessor already has a successor - this element forms a separate (split) successor run
 			this.elements.addOnIndex(this.elements.getLength(), primaryKey);
 			this.chains.put(primaryKey, new ChainDescriptor(1, ElementState.SUCCESSOR));
+			this.elements.markAsHead(primaryKey);
 		}
 	}
 
@@ -667,8 +1196,11 @@ public class ChainIndex implements
 	 * overwrite or drop it).
 	 *
 	 * @param primaryKey primary key of the element to detach from the array
+	 * @return the collapse triggers exposed by the removal (a promoted head and/or a newly uncovered run tail),
+	 *         {@link Integer#MIN_VALUE} in a slot when that kind of trigger did not occur
 	 */
-	private void detachElement(int primaryKey) {
+	@Nonnull
+	private DetachOutcome detachElement(int primaryKey) {
 		final int position = this.elements.indexOf(primaryKey);
 		isPremiseValid(
 			position != Integer.MIN_VALUE,
@@ -682,68 +1214,137 @@ public class ChainIndex implements
 		this.elements.remove(primaryKey);
 
 		if (length == 1) {
-			// the element was the only member of its run - the run disappears entirely
+			// the element was the only member of its run - the run disappears entirely (nothing exposed)
 			this.chains.remove(headPk);
+			return new DetachOutcome(Integer.MIN_VALUE, Integer.MIN_VALUE);
 		} else if (position == headPos) {
 			// the element was the head - its successor (now at headPos) becomes the new head
 			final int newHead = this.elements.get(headPos);
 			this.chains.remove(headPk);
 			this.chains.put(newHead, new ChainDescriptor(length - 1, computeHeadState(newHead, length - 1)));
+			// the removed head's mark was auto-cleared by remove(); the promoted successor becomes a head
+			this.elements.markAsHead(newHead);
+			return new DetachOutcome(newHead, Integer.MIN_VALUE);
 		} else if (position == headPos + length - 1) {
-			// the element was the tail - just shrink the run (head state may stop being circular)
+			// the element was the tail - just shrink the run (head state may stop being circular); the element now at
+			// `position - 1` becomes the run's new tail and a successor may be waiting on it
 			this.chains.put(headPk, new ChainDescriptor(length - 1, computeHeadState(headPk, length - 1)));
+			return new DetachOutcome(headPk, this.elements.get(position - 1));
 		} else {
-			// the element was in the middle - split the run into a head-side run and an orphan successor run
+			// the element was in the middle - split the run into a head-side run and an orphan successor run; the
+			// head-side run's new tail is the element at `position - 1` (a successor may be waiting on it)
 			final int prefixLength = position - headPos;
 			final int suffixLength = length - prefixLength - 1;
 			final int suffixHead = this.elements.get(position);
 			this.chains.put(headPk, new ChainDescriptor(prefixLength, computeHeadState(headPk, prefixLength)));
 			this.chains.put(suffixHead, new ChainDescriptor(suffixLength, computeHeadState(suffixHead, suffixLength)));
+			// the element that shifted into `position` heads the new orphan suffix run
+			this.elements.markAsHead(suffixHead);
+			return new DetachOutcome(headPk, this.elements.get(position - 1));
 		}
 	}
 
 	/**
-	 * Repeatedly merges any successor/orphan run whose head predecessor is the tail of another run into that run, until
-	 * no more merges are possible. When the two runs to merge are not already physically adjacent, the shorter run is
-	 * relocated so they become adjacent (`O(min)` and only transient - the steady state is a single chain).
+	 * Drains the collapse work-queue to a fixpoint: for every seeded trigger, merges any successor/orphan run whose
+	 * head predecessor is the tail of another run into that run, cascading to the merged run's newly exposed tail after
+	 * each merge. Seeded only by the elements whose presence or tail-status changed in the triggering mutation (via
+	 * {@link #enqueueTrigger}), it reaches the same fixpoint as a full rescan of every chain but in `O(seeds + merges)`
+	 * work per mutation instead of the former `O(C)` scan - the decisive difference for a large, permanently
+	 * fragmented chain, where an at-rest mutation seeds `O(1)` instead of walking every descriptor. When the two runs
+	 * to merge are not already physically adjacent, the shorter run is relocated so they become adjacent (`O(min)` and
+	 * only transient - the steady state is a single chain).
+	 *
+	 * The merge decision always re-reads the authoritative {@link #predecessors} / {@link #elements} / {@link #chains}
+	 * state, so a queued head that is no longer a mergeable successor (already merged away, predecessor absent, circular
+	 * or a genuine head) is simply skipped - the queue is a candidate hint, never a source of truth.
+	 *
+	 * @param triggers the elements whose change may have created a collapsible pair (assembled at the call sites)
 	 */
-	private void collapse() {
-		boolean merged = true;
-		while (merged) {
-			merged = false;
-			for (final Integer headPk : new ArrayList<>(this.chains.keySet())) {
-				final ChainDescriptor descriptor = this.chains.get(headPk);
-				if (descriptor == null || descriptor.state() != ElementState.SUCCESSOR) {
-					// HEAD and CIRCULAR runs never follow another run
-					continue;
-				}
-				final Integer headPredecessorRef = this.predecessors.get(headPk);
-				isPremiseValid(
-					headPredecessorRef != null,
-					"Index damaged! The chain head `" + headPk + "` has no predecessor entry!"
-				);
-				final int headPredecessor = headPredecessorRef;
-				if (headPredecessor == HEAD_PK) {
-					continue;
-				}
-				final int predecessorPos = this.elements.indexOf(headPredecessor);
-				if (predecessorPos == Integer.MIN_VALUE) {
-					// predecessor not present yet - the run stays an orphan
-					continue;
-				}
-				final RunRef predecessorRun = findRun(predecessorPos);
-				if (predecessorRun.headPk() == headPk) {
-					// defensive: predecessor inside the same run would mean circular - handled by state, skip
-					continue;
-				}
-				final boolean predecessorIsTail =
-					predecessorPos == predecessorRun.headPos() + predecessorRun.length() - 1;
-				if (predecessorIsTail) {
-					mergeRunAfter(predecessorRun.headPk(), headPk);
-					merged = true;
-					break;
+	private void collapse(@Nonnull IntArrayList triggers) {
+		final IntArrayDeque queue = new IntArrayDeque();
+		// dedup: never queue the same head twice while it is pending; it is dropped from the set the moment it is
+		// polled, so a later cascade may legitimately re-queue it
+		final IntHashSet queued = new IntHashSet();
+		for (int i = 0; i < triggers.size(); i++) {
+			enqueueTrigger(queue, queued, triggers.get(i));
+		}
+		while (!queue.isEmpty()) {
+			final int headPk = queue.removeFirst();
+			queued.remove(headPk);
+			final ChainDescriptor descriptor = this.chains.get(headPk);
+			if (descriptor == null || descriptor.state() != ElementState.SUCCESSOR) {
+				// no longer a successor head - HEAD and CIRCULAR runs never follow another run
+				continue;
+			}
+			final Integer headPredecessorRef = this.predecessors.get(headPk);
+			isPremiseValid(
+				headPredecessorRef != null,
+				"Index damaged! The chain head `" + headPk + "` has no predecessor entry!"
+			);
+			final int headPredecessor = headPredecessorRef;
+			if (headPredecessor == HEAD_PK) {
+				continue;
+			}
+			final int predecessorPos = this.elements.indexOf(headPredecessor);
+			if (predecessorPos == Integer.MIN_VALUE) {
+				// predecessor not present yet - the run stays an orphan
+				continue;
+			}
+			final RunRef predecessorRun = findRun(predecessorPos);
+			if (predecessorRun.headPk() == headPk) {
+				// defensive: predecessor inside the same run would mean circular - handled by state, skip
+				continue;
+			}
+			final boolean predecessorIsTail =
+				predecessorPos == predecessorRun.headPos() + predecessorRun.length() - 1;
+			if (predecessorIsTail) {
+				// the follower's tail becomes the merged run's new tail; capture it before mergeRunAfter relocates the
+				// block, then cascade so any successor waiting on that newly exposed tail is re-examined
+				final int followerTailPk =
+					this.elements.get(this.elements.indexOf(headPk) + descriptor.length() - 1);
+				mergeRunAfter(predecessorRun.headPk(), headPk);
+				enqueueTrigger(queue, queued, followerTailPk);
+			}
+		}
+	}
+
+	/**
+	 * Seeds the collapse work-queue with `trigger` and every element that declares `trigger` as its predecessor. The
+	 * former covers `trigger` itself being a follower candidate (its own predecessor may have just become a tail); the
+	 * latter covers `trigger` having become a present run tail that pending successor heads can now merge onto - found
+	 * in `O(1)` via the {@link #successorsByPredecessor} inverse rather than by scanning every chain. A head is enqueued
+	 * at most once while it is pending (tracked in `queued`).
+	 *
+	 * @param queue   the work-queue being drained
+	 * @param queued  the set of currently-queued heads (dedup)
+	 * @param trigger the element whose presence / tail-status changed
+	 */
+	private void enqueueTrigger(@Nonnull IntArrayDeque queue, @Nonnull IntHashSet queued, int trigger) {
+		if (queued.add(trigger)) {
+			queue.addLast(trigger);
+		}
+		final TransactionalBitmap waiters = this.successorsByPredecessor.get(trigger);
+		if (waiters != null) {
+			final OfInt waiterIt = waiters.iterator();
+			while (waiterIt.hasNext()) {
+				final int waiter = waiterIt.nextInt();
+				if (queued.add(waiter)) {
+					queue.addLast(waiter);
 				}
 			}
+		}
+	}
+
+	/**
+	 * Appends `candidate` to `triggers` unless it is the {@link Integer#MIN_VALUE} "none" sentinel used by the
+	 * {@link DetachOutcome} slots.
+	 *
+	 * @param triggers  the trigger list being assembled for {@link #collapse(IntArrayList)}
+	 * @param candidate a possibly-absent trigger element
+	 */
+	private static void addTrigger(@Nonnull IntArrayList triggers, int candidate) {
+		if (candidate != Integer.MIN_VALUE) {
+			triggers.add(candidate);
 		}
 	}
 
@@ -783,6 +1384,11 @@ public class ChainIndex implements
 		this.chains.remove(followerHeadPk);
 		final int mergedLength = targetLength + followerLength;
 		this.chains.put(targetHeadPk, new ChainDescriptor(mergedLength, computeHeadState(targetHeadPk, mergedLength)));
+		// the merged run has a single head (the target); the follower stops being a head. Idempotent marks cover every
+		// branch uniformly - a relocate (remove + re-insert) resets a moved run's head to non-head, so re-assert the
+		// intended final state here regardless of which run (if any) was relocated.
+		this.elements.markAsHead(targetHeadPk);
+		this.elements.unmarkAsHead(followerHeadPk);
 	}
 
 	/**
@@ -831,23 +1437,23 @@ public class ChainIndex implements
 	}
 
 	/**
-	 * Finds the run (chain) that contains the element at the given array position.
+	 * Finds the run (chain) that contains the element at the given array position. The run head is the chain head at the
+	 * greatest head-position `<= position`, located in `O(log N)` by the head-aware element array (each chain head is
+	 * marked in the array), replacing the former `O(C·log N)` scan over every chain descriptor.
 	 *
 	 * @param position position in {@link #elements}
 	 * @return reference to the run containing the position
 	 */
 	@Nonnull
 	private RunRef findRun(int position) {
-		for (final Entry<Integer, ChainDescriptor> entry : this.chains.entrySet()) {
-			final int headPos = this.elements.indexOf(entry.getKey());
-			final int length = entry.getValue().length();
-			if (position >= headPos && position < headPos + length) {
-				return new RunRef(entry.getKey(), headPos, length);
-			}
-		}
-		throw new GenericEvitaInternalError(
-			"Index damaged! Position `" + position + "` is not covered by any chain!"
+		final TransactionalUnorderedIntArray.HeadLocation head = this.elements.findHeadCovering(position);
+		final int headPk = head.recordId();
+		final ChainDescriptor descriptor = this.chains.get(headPk);
+		isPremiseValid(
+			descriptor != null,
+			"Index damaged! The run head `" + headPk + "` located for position `" + position + "` has no descriptor!"
 		);
+		return new RunRef(headPk, head.headPosition(), descriptor.length());
 	}
 
 	/**
@@ -928,6 +1534,22 @@ public class ChainIndex implements
 	 * length.
 	 */
 	private record RunRef(int headPk, int headPos, int length) {
+	}
+
+	/**
+	 * Collapse triggers produced by {@link #detachElement(int)}. Each slot holds {@link Integer#MIN_VALUE} when that
+	 * kind of trigger did not occur:
+	 *
+	 * - `affectedHead` - a run head whose {@link ElementState} was recomputed by the detach (a promoted successor, or
+	 *   the head of a shrunk / split run). This matters because splitting a run can move a head's declared predecessor
+	 *   OUT of that head's run, flipping it from {@link ElementState#CIRCULAR} to {@link ElementState#SUCCESSOR} and
+	 *   making it collapsible - a transition the exposed-tail seed alone would miss.
+	 * - `exposedTail` - the element that became a run tail, onto which a pending successor may now merge.
+	 *
+	 * @param affectedHead a run head whose state was recomputed, or {@link Integer#MIN_VALUE}
+	 * @param exposedTail  the element that became a run tail, or {@link Integer#MIN_VALUE}
+	 */
+	private record DetachOutcome(int affectedHead, int exposedTail) {
 	}
 
 	/**

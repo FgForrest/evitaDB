@@ -35,6 +35,8 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStorageKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStoragePart.AttributeIndexType;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.ChainIndexLeafPagePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.ChainIndexStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIndexStoragePart;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -56,6 +58,7 @@ import java.util.Set;
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.MANAGEMENT;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
@@ -354,6 +357,58 @@ class EntityIndexManifestInvariantTest {
 			this.index.insertPrimaryKeyIfMissing(10);
 
 			assertManifestMatches(this.index, Collections.emptySet());
+		}
+
+		@Test
+		@DisplayName("a large PAGED chain is listed as a SINGLE CHAIN manifest key (its leaf pages never leak into the manifest)")
+		void shouldListPagedChainAsOneChainKeyAndNotLeakLeafPagesIntoManifest() {
+			final Set<Locale> noLocales = Collections.emptySet();
+			final AttributeSchemaContract orderSchema = createReferenceAttributeSchema("order", Predecessor.class);
+
+			// build one consistent chain 1 -> 2 -> ... -> 3200 so the chain pages out (leaf capacity 1024)
+			for (int pk = 1; pk <= 3200; pk++) {
+				this.index.insertPrimaryKeyIfMissing(pk);
+				this.index.insertSortAttribute(
+					null, orderSchema, noLocales, null,
+					pk == 1 ? Predecessor.HEAD : new Predecessor(pk - 1), pk
+				);
+			}
+
+			// flush once and inspect the emitted parts: the chain must actually be PAGED (leaf pages + a paged root),
+			// yet the manifest must still advertise the chain as exactly ONE CHAIN sub-index key
+			final TrappedChanges trapped = new TrappedChanges();
+			this.index.getModifiedStorageParts(trapped);
+			int leafPageCount = 0;
+			boolean pagedRoot = false;
+			EntityIndexStoragePart manifest = null;
+			final Iterator<StoragePart> iterator = trapped.getTrappedChangesIterator();
+			while (iterator.hasNext()) {
+				final StoragePart part = iterator.next();
+				if (part instanceof ChainIndexLeafPagePart) {
+					leafPageCount++;
+				} else if (part instanceof ChainIndexStoragePart root) {
+					pagedRoot = root.isPaged();
+				} else if (part instanceof EntityIndexStoragePart entityIndexManifest) {
+					manifest = entityIndexManifest;
+				}
+			}
+			assertTrue(leafPageCount >= 3, "the chain must page out into at least three leaf pages, got " + leafPageCount);
+			assertTrue(pagedRoot, "the chain root part must be PAGED");
+
+			assertNotNull(manifest, "a populated index must emit an EntityIndexStoragePart manifest");
+			// the manifest advertises sub-indexes, never leaf pages: exactly one CHAIN key for the whole paged chain
+			final Set<AttributeIndexStorageKey> chainKeys = new HashSet<>();
+			for (final AttributeIndexStorageKey key : manifest.getAttributeIndexes()) {
+				if (key.indexType() == AttributeIndexType.CHAIN) {
+					chainKeys.add(key);
+				}
+			}
+			assertEquals(
+				Set.of(new AttributeIndexStorageKey(this.index.getIndexKey(), AttributeIndexType.CHAIN,
+					this.index.getChainIndexes().iterator().next())),
+				chainKeys,
+				"a PAGED chain must be advertised by exactly one CHAIN manifest key; its leaf pages must not leak in"
+			);
 		}
 	}
 

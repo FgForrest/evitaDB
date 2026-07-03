@@ -400,10 +400,12 @@ class EntityIndexRoundTripTest {
 
 	/**
 	 * Reconstructs an [AttributeIndex] from the captured storage parts using the same
-	 * constructor wiring as the production `fetchUniqueIndex` / `fetchFilterIndex` /
-	 * `fetchSortIndex` / `fetchChainIndex` helpers in `DefaultEntityCollectionPersistenceService`.
-	 * The CARDINALITY parts are intentionally ignored here because they live outside [AttributeIndex]
-	 * — reduced/referenced indexes consume them via a separate map.
+	 * constructor wiring as the production `fetchUnique` / `fetchFilter` / `fetchSort` / `fetchChain`
+	 * helpers in [io.evitadb.index.component.loader.AttributeIndexLoader]. The CARDINALITY parts are
+	 * intentionally ignored here because they live outside [AttributeIndex] — reduced/referenced
+	 * indexes consume them via a separate map. The captured chains are small (single-leaf), so — like
+	 * the SORT branch below — only the inline SINGLE shape is reconstructed here; the granular PAGED
+	 * reload is covered by `AttributeIndexLoader.fetchChain` and its dedicated round-trip tests.
 	 *
 	 * The `referenceScoped` flag pins the structural subclass explicitly. It is required because
 	 * [io.evitadb.index.ReferencedTypeEntityIndex] passes a `null` representative key yet is

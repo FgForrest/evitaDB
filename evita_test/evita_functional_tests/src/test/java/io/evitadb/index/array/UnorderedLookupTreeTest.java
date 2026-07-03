@@ -28,6 +28,7 @@ import com.carrotsearch.hppc.IntLongMap;
 import io.evitadb.dataType.ConsistencySensitiveDataStructure.ConsistencyReport;
 import io.evitadb.dataType.ConsistencySensitiveDataStructure.ConsistencyState;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.index.bPlusTree.PagedLeafHandle;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
@@ -35,16 +36,14 @@ import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Random;
+import java.util.Set;
 
 import static io.evitadb.test.TestTags.DATA_TYPE;
 import static io.evitadb.test.TestTags.INDEXING;
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * This test verifies the contract of {@link UnorderedLookupTree} - the count-augmented, order-key-routed position
@@ -62,61 +61,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @Tag(DATA_TYPE)
 @DisplayName("UnorderedLookupTree")
 class UnorderedLookupTreeTest {
-
-	/**
-	 * Bundles the position tree with a stand-in value index (`recordId → orderKey`), mirroring the composite that
-	 * will drive the tree in production. Implements {@link OrderKeyConsumer} to keep the index coherent.
-	 */
-	private static final class TreeWithIndex implements OrderKeyConsumer {
-		@Nonnull final UnorderedLookupTree tree;
-		@Nonnull final IntLongMap valueIndex = new IntLongHashMap();
-
-		TreeWithIndex() {
-			this.tree = new UnorderedLookupTree();
-		}
-
-		TreeWithIndex(long orderKeyGap) {
-			this.tree = new UnorderedLookupTree(orderKeyGap);
-		}
-
-		TreeWithIndex(int blockSize, long orderKeyGap) {
-			this.tree = new UnorderedLookupTree(blockSize, orderKeyGap);
-		}
-
-		@Override
-		public void accept(int recordId, long orderKey) {
-			this.valueIndex.put(recordId, orderKey);
-		}
-
-		void bulkLoad(@Nonnull int[] recordIds) {
-			this.tree.bulkLoad(recordIds, this);
-		}
-
-		void addAtPosition(int index, int recordId) {
-			this.tree.insertAtPosition(index, recordId, this);
-		}
-
-		void addAfter(int previousRecordId, int recordId) {
-			this.tree.insertAfter(this.valueIndex.get(previousRecordId), previousRecordId, recordId, this);
-		}
-
-		void addAtHead(int recordId) {
-			this.tree.insertAtPosition(0, recordId, this);
-		}
-
-		void remove(int recordId) {
-			this.tree.removeByOrderKey(this.valueIndex.get(recordId), recordId, this);
-			this.valueIndex.remove(recordId);
-		}
-
-		int findPosition(int recordId) {
-			return this.tree.findPositionByOrderKey(this.valueIndex.get(recordId), recordId);
-		}
-
-		boolean contains(int recordId) {
-			return this.valueIndex.containsKey(recordId);
-		}
-	}
 
 	/**
 	 * Asserts that the tree's flattened state matches the oracle, that addressing every record by id (via the
@@ -152,6 +96,138 @@ class UnorderedLookupTreeTest {
 			ConsistencyState.CONSISTENT, report.state(),
 			"Tree reported structural inconsistency:\n" + report.report()
 		);
+	}
+
+	/**
+	 * Verifies every head query (headRank / selectHead / findHeadCovering) against a trivially-correct brute-force
+	 * oracle derived from the record order and the set of head record ids, so any divergence pins a real head-tracking
+	 * bug in the tree.
+	 */
+	private static void assertHeadQueriesMatchOracle(
+		@Nonnull TreeWithIndex tested, @Nonnull List<Integer> oracle, @Nonnull Set<Integer> heads
+	) {
+		final int size = oracle.size();
+		// brute-force head positions in ascending logical order
+		final List<Integer> headPositions = new ArrayList<>();
+		for (int p = 0; p < size; p++) {
+			if (heads.contains(oracle.get(p))) {
+				headPositions.add(p);
+			}
+		}
+		// headRank(p): number of heads at positions [0, p]
+		for (int p = 0; p < size; p++) {
+			int expectedRank = 0;
+			for (final int hp : headPositions) {
+				if (hp <= p) {
+					expectedRank++;
+				} else {
+					break;
+				}
+			}
+			assertEquals(expectedRank, tested.tree.headRank(p), "headRank mismatch at position " + p);
+		}
+		// selectHead(k): position + record id of the k-th head (1-indexed)
+		for (int k = 1; k <= headPositions.size(); k++) {
+			final int expectedPos = headPositions.get(k - 1);
+			final long packed = tested.tree.selectHead(k);
+			assertEquals(expectedPos, (int) (packed >> 32), "selectHead position mismatch at rank " + k);
+			assertEquals(
+				oracle.get(expectedPos).intValue(), (int) packed, "selectHead record id mismatch at rank " + k);
+		}
+		// findHeadCovering(p): the head at the greatest head-position <= p (only defined where such a head exists)
+		for (int p = 0; p < size; p++) {
+			int coverPos = -1;
+			for (final int hp : headPositions) {
+				if (hp <= p) {
+					coverPos = hp;
+				} else {
+					break;
+				}
+			}
+			if (coverPos >= 0) {
+				final long packed = tested.tree.findHeadCovering(p);
+				assertEquals(coverPos, (int) (packed >> 32), "findHeadCovering position mismatch at position " + p);
+				assertEquals(
+					oracle.get(coverPos).intValue(), (int) packed,
+					"findHeadCovering record id mismatch at position " + p
+				);
+			}
+		}
+	}
+
+	/**
+	 * Bundles the position tree with a stand-in value index (`recordId → orderKey`), mirroring the composite that
+	 * will drive the tree in production. Implements {@link OrderKeyConsumer} to keep the index coherent.
+	 */
+	private static final class TreeWithIndex implements OrderKeyConsumer {
+		@Nonnull final UnorderedLookupTree tree;
+		@Nonnull final IntLongMap valueIndex = new IntLongHashMap();
+
+		TreeWithIndex() {
+			this.tree = new UnorderedLookupTree();
+		}
+
+		TreeWithIndex(long orderKeyGap) {
+			this.tree = new UnorderedLookupTree(orderKeyGap);
+		}
+
+		TreeWithIndex(int blockSize, long orderKeyGap) {
+			this.tree = new UnorderedLookupTree(blockSize, orderKeyGap);
+		}
+
+		TreeWithIndex(int blockSize, long orderKeyGap, boolean headAware) {
+			this.tree = new UnorderedLookupTree(blockSize, orderKeyGap, headAware);
+		}
+
+		TreeWithIndex(@Nonnull UnorderedLookupTree tree) {
+			this.tree = tree;
+		}
+
+		@Override
+		public void accept(int recordId, long orderKey) {
+			this.valueIndex.put(recordId, orderKey);
+		}
+
+		void bulkLoad(@Nonnull int[] recordIds) {
+			this.tree.bulkLoad(recordIds, this);
+		}
+
+		void bulkLoadWithHeads(@Nonnull int[] recordIds, @Nonnull int[] sortedHeadPositions) {
+			this.tree.bulkLoadWithHeads(recordIds, sortedHeadPositions, this);
+		}
+
+		void markHead(int recordId) {
+			this.tree.markHead(this.valueIndex.get(recordId), recordId);
+		}
+
+		void unmarkHead(int recordId) {
+			this.tree.unmarkHead(this.valueIndex.get(recordId), recordId);
+		}
+
+		void addAtPosition(int index, int recordId) {
+			this.tree.insertAtPosition(index, recordId, this);
+		}
+
+		void addAfter(int previousRecordId, int recordId) {
+			this.tree.insertAfter(this.valueIndex.get(previousRecordId), previousRecordId, recordId, this);
+		}
+
+		void addAtHead(int recordId) {
+			this.tree.insertAtPosition(0, recordId, this);
+		}
+
+		void remove(int recordId) {
+			this.tree.removeByOrderKey(this.valueIndex.get(recordId), recordId, this);
+			this.valueIndex.remove(recordId);
+		}
+
+		int findPosition(int recordId) {
+			return this.tree.findPositionByOrderKey(this.valueIndex.get(recordId), recordId);
+		}
+
+		boolean contains(int recordId) {
+			return this.valueIndex.containsKey(recordId);
+		}
 	}
 
 	@Nested
@@ -594,7 +670,7 @@ class UnorderedLookupTreeTest {
 		 * logical position `p` is `p + 1`), asserting it is consistent before the deletion scenario starts.
 		 */
 		@Nonnull
-		private TreeWithIndex grownTree(int blockSize, int count, @Nonnull List<Integer> oracle) {
+		private static TreeWithIndex grownTree(int blockSize, int count, @Nonnull List<Integer> oracle) {
 			final TreeWithIndex tested = new TreeWithIndex(blockSize, UnorderedLookupTree.DEFAULT_ORDER_KEY_GAP);
 			for (int i = 0; i < count; i++) {
 				tested.addAtPosition(i, 1 + i);
@@ -610,7 +686,7 @@ class UnorderedLookupTreeTest {
 		 * the tree the perpetual underflow site — exercising steal-from-right and merge-with-right consolidation as well
 		 * as repeated root collapses as the height shrinks.
 		 */
-		private void drainFromHead(@Nonnull TreeWithIndex tested, @Nonnull List<Integer> oracle) {
+		private static void drainFromHead(@Nonnull TreeWithIndex tested, @Nonnull List<Integer> oracle) {
 			while (!oracle.isEmpty()) {
 				tested.remove(oracle.remove(0));
 				assertConsistent(tested);
@@ -623,7 +699,7 @@ class UnorderedLookupTreeTest {
 		 * removals empty the rightmost containers, making the right edge the perpetual underflow site — exercising
 		 * steal-from-left and merge-with-left consolidation and root collapses.
 		 */
-		private void drainFromTail(@Nonnull TreeWithIndex tested, @Nonnull List<Integer> oracle) {
+		private static void drainFromTail(@Nonnull TreeWithIndex tested, @Nonnull List<Integer> oracle) {
 			while (!oracle.isEmpty()) {
 				tested.remove(oracle.remove(oracle.size() - 1));
 				assertConsistent(tested);
@@ -718,7 +794,8 @@ class UnorderedLookupTreeTest {
 		 * asserting structural consistency after EVERY operation. This repeatedly grows the tree past several internal
 		 * levels and then shrinks it back down, hammering the split / steal / merge / root-collapse machinery.
 		 */
-		private void runDeletionHeavyChurn(int blockSize, long orderKeyGap, int highWaterMark, int operations, long seed) {
+		private static void runDeletionHeavyChurn(
+			int blockSize, long orderKeyGap, int highWaterMark, int operations, long seed) {
 			final TreeWithIndex tested = new TreeWithIndex(blockSize, orderKeyGap);
 			final List<Integer> oracle = new ArrayList<>();
 			final Random random = new Random(seed);
@@ -781,6 +858,347 @@ class UnorderedLookupTreeTest {
 				assertConsistent(tested);
 			}
 			assertConsistentWithOracle(tested, oracle);
+		}
+	}
+
+	@Nested
+	@DisplayName("Head tracking (chain-head bitmask augmentation)")
+	class HeadTrackingTest {
+
+		@Test
+		@DisplayName("accepts a head-aware tree at the full block size and rejects an over-sized fan-out")
+		void shouldAcceptFullBlockSizeHeadAwareTreeAndRejectOversizedFanOut() {
+			// the head mask is now a long[] sized by leafCapacity, so head-awareness no longer caps the fan-out: a
+			// head-aware tree at the full DEFAULT_BLOCK_SIZE fan-out is valid (would throw here if rejected)
+			new UnorderedLookupTree(
+				UnorderedLookupTree.DEFAULT_BLOCK_SIZE, UnorderedLookupTree.DEFAULT_ORDER_KEY_GAP, true);
+			// a fan-out above DEFAULT_BLOCK_SIZE is still rejected (the routing spine stays small)
+			assertThrows(
+				GenericEvitaInternalError.class,
+				() -> new UnorderedLookupTree(
+					UnorderedLookupTree.DEFAULT_BLOCK_SIZE + 1, UnorderedLookupTree.DEFAULT_ORDER_KEY_GAP, true
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("rejects head operations on a non-head-aware tree")
+		void shouldRejectHeadOperationsOnNonHeadAwareTree() {
+			final TreeWithIndex tested = new TreeWithIndex();
+			tested.bulkLoad(new int[]{1, 2, 3});
+			assertThrows(GenericEvitaInternalError.class, () -> tested.tree.findHeadCovering(0));
+			assertThrows(GenericEvitaInternalError.class, () -> tested.tree.headRank(0));
+			assertThrows(GenericEvitaInternalError.class, () -> tested.tree.selectHead(1));
+			assertThrows(GenericEvitaInternalError.class, () -> tested.markHead(1));
+			assertThrows(GenericEvitaInternalError.class, () -> tested.unmarkHead(1));
+			// no head structures are maintained, so the consistency report stays clean
+			assertConsistent(tested);
+		}
+
+		@Test
+		@DisplayName("marks and unmarks idempotently, mirrored by the head queries")
+		void shouldMarkAndUnmarkIdempotently() {
+			final TreeWithIndex tested = new TreeWithIndex(4, UnorderedLookupTree.DEFAULT_ORDER_KEY_GAP, true);
+			for (int i = 0; i < 10; i++) {
+				tested.addAtPosition(i, 100 + i);
+			}
+			tested.markHead(100);       // position 0
+			tested.markHead(100);       // idempotent - must not double-count
+			tested.markHead(105);       // position 5
+			assertConsistent(tested);
+			assertEquals(1, tested.tree.headRank(0));
+			assertEquals(2, tested.tree.headRank(9));
+			// unmarking twice is idempotent
+			tested.unmarkHead(105);
+			tested.unmarkHead(105);
+			assertConsistent(tested);
+			assertEquals(1, tested.tree.headRank(9));
+		}
+
+		@Test
+		@DisplayName("preserves a top-slot head through a full-container split at the production block size")
+		void shouldPreserveTopSlotHeadThroughFullContainerSplit() {
+			// fill a container to capacity at the head-aware production block size (63), mark the record in its TOP slot,
+			// then middle-insert to push it to 64 and force a split - the top-slot head must survive
+			final int blockSize = UnorderedLookupTree.DEFAULT_BLOCK_SIZE - 1;
+			final TreeWithIndex tested = new TreeWithIndex(blockSize, UnorderedLookupTree.DEFAULT_ORDER_KEY_GAP, true);
+			for (int i = 0; i < blockSize; i++) {
+				tested.addAtPosition(i, 1000 + i);
+			}
+			tested.markHead(1000);                    // position 0
+			tested.markHead(1000 + blockSize - 1);    // position 62 (top slot -> mask bit 62)
+			assertConsistent(tested);
+			// a middle insert pushes the container to 64 records and forces a split; the top-slot head shifts to position 63
+			tested.addAtPosition(30, 9999);
+			assertConsistent(tested);
+			final long covering = tested.tree.findHeadCovering(63);
+			assertEquals(63, (int) (covering >> 32), "top-slot head lost its position through the split");
+			assertEquals(1000 + blockSize - 1, (int) covering, "top-slot head lost its identity through the split");
+			assertEquals(2, tested.tree.headRank(63), "a head bit was dropped by the split");
+		}
+
+		@Test
+		@DisplayName("sets head marks during a head-aware bulk load")
+		void shouldBulkLoadWithHeadMarks() {
+			final TreeWithIndex tested = new TreeWithIndex(4, UnorderedLookupTree.DEFAULT_ORDER_KEY_GAP, true);
+			final int n = 50;
+			final int[] recordIds = new int[n];
+			final List<Integer> oracle = new ArrayList<>(n);
+			for (int i = 0; i < n; i++) {
+				recordIds[i] = 100 + i;
+				oracle.add(100 + i);
+			}
+			final int[] headPositions = {0, 5, 20, 33, 49};
+			tested.bulkLoadWithHeads(recordIds, headPositions);
+			assertConsistent(tested);
+			final Set<Integer> heads = new HashSet<>();
+			for (final int hp : headPositions) {
+				heads.add(100 + hp);
+			}
+			assertHeadQueriesMatchOracle(tested, oracle, heads);
+		}
+
+		@Test
+		@DisplayName("tracks heads against a brute-force oracle through randomized churn at a small block size")
+		void shouldTrackHeadsThroughRandomizedChurn() {
+			// a small block size forces frequent splits / steals / merges so the head mask + head counts are exercised
+			// through every structural operation; the brute-force oracle pins any desync
+			final Random random = new Random(20260702);
+			final TreeWithIndex tested = new TreeWithIndex(4, UnorderedLookupTree.DEFAULT_ORDER_KEY_GAP, true);
+			final List<Integer> oracle = new ArrayList<>();
+			final Set<Integer> heads = new HashSet<>();
+			int nextRecordId = 1;
+			for (int op = 0; op < 4_000; op++) {
+				final int size = oracle.size();
+				final int choice = random.nextInt(100);
+				if (size == 0 || choice < 45) {
+					// insert a fresh (non-head) record at a random position
+					final int index = random.nextInt(size + 1);
+					final int recordId = nextRecordId++;
+					tested.addAtPosition(index, recordId);
+					oracle.add(index, recordId);
+				} else if (choice < 70) {
+					// remove a random record (removal auto-clears its head mark)
+					final int index = random.nextInt(size);
+					final int removed = oracle.remove(index);
+					tested.remove(removed);
+					heads.remove(removed);
+				} else if (choice < 85) {
+					// mark a random record as a head
+					final int recordId = oracle.get(random.nextInt(size));
+					tested.markHead(recordId);
+					heads.add(recordId);
+				} else {
+					// unmark a random record
+					final int recordId = oracle.get(random.nextInt(size));
+					tested.unmarkHead(recordId);
+					heads.remove(recordId);
+				}
+				if (op % 25 == 0) {
+					assertConsistent(tested);
+					assertHeadQueriesMatchOracle(tested, oracle, heads);
+				}
+			}
+			assertConsistent(tested);
+			assertHeadQueriesMatchOracle(tested, oracle, heads);
+		}
+	}
+
+	@Nested
+	@DisplayName("Paging (page-sized leaves + granular page SPI)")
+	class PagingTest {
+
+		/**
+		 * Builds a paged, head-aware tree with the given leaf capacity (physical leaf array = leafCapacity + 1). The
+		 * internal fan-out is kept at `min(DEFAULT_BLOCK_SIZE, leafCapacity)` so tiny-leaf trees stay valid.
+		 */
+		@Nonnull
+		private static TreeWithIndex pagedTree(int leafCapacity) {
+			final int blockSize = Math.min(UnorderedLookupTree.DEFAULT_BLOCK_SIZE, leafCapacity);
+			return new TreeWithIndex(new UnorderedLookupTree(
+				blockSize, UnorderedLookupTree.DEFAULT_ORDER_KEY_GAP, true, leafCapacity, true));
+		}
+
+		@Test
+		@DisplayName("preserves order and multi-word head marks across a page-sized-leaf split (leafCapacity=1024)")
+		void shouldPreserveOrderAndMultiWordHeadMarksThroughPageSizedSplit() {
+			// leafCapacity=1024 -> ceil(1025/64)=17 mask words. Fill exactly one full leaf, mark >64 heads spanning all
+			// mask words (incl. the word boundaries 63/64, 127/128, 511/512 and the leaf-top 1023), then a single middle
+			// insert overflows the leaf (1025 > 1024): the head at 1023 rides insertHeadSlot into the transient top bit
+			// (word 15 -> 16) and then the multi-word split shift. Any bit-op bug shows up in the brute-force head oracle.
+			final TreeWithIndex tested = pagedTree(UnorderedLookupTree.PAGE_RECORDS);
+			final List<Integer> oracle = new ArrayList<>(UnorderedLookupTree.PAGE_RECORDS + 1);
+			for (int i = 0; i < UnorderedLookupTree.PAGE_RECORDS; i++) {
+				tested.addAtPosition(i, 1000 + i);
+				oracle.add(1000 + i);
+			}
+			assertFalse(tested.tree.isRootInternal(), "exactly leafCapacity records must still fit a single leaf");
+			// mark a dense, >64 head set spanning every mask word, plus the explicit word / leaf boundaries
+			final Set<Integer> headPositions = new HashSet<>();
+			for (int p = 0; p < UnorderedLookupTree.PAGE_RECORDS; p += 10) {
+				headPositions.add(p);
+			}
+			for (final int p : new int[]{63, 64, 127, 128, 511, 512, 1023}) {
+				headPositions.add(p);
+			}
+			assertTrue(headPositions.size() > 64, "the head set must exercise >= 2 mask words");
+			final Set<Integer> heads = new HashSet<>();
+			for (final int hp : headPositions) {
+				tested.markHead(1000 + hp);
+				heads.add(1000 + hp);
+			}
+			assertConsistent(tested);
+			assertHeadQueriesMatchOracle(tested, oracle, heads);
+			// one middle insert overflows the leaf and forces the multi-word split shift with real heads in many words
+			tested.addAtPosition(100, 90_000);
+			oracle.add(100, 90_000);
+			assertTrue(tested.tree.isRootInternal(), "the overflow must have split the leaf into >= 2 leaves");
+			assertConsistent(tested);
+			assertHeadQueriesMatchOracle(tested, oracle, heads);
+			// keep churning the middle so leaves split / grow repeatedly; the marks and order must ride every shift
+			for (int i = 0; i < 2_000; i++) {
+				final int index = (i * 131) % (oracle.size() + 1);
+				final int recordId = 200_000 + i;
+				tested.addAtPosition(index, recordId);
+				oracle.add(index, recordId);
+			}
+			assertConsistent(tested);
+			assertHeadQueriesMatchOracle(tested, oracle, heads);
+			assertConsistentWithOracle(tested, oracle);
+		}
+
+		@Test
+		@DisplayName("bulk-loads a paged head-aware tree past one page into multiple leaves with multi-word masks")
+		void shouldBulkLoadPagedTreePastOnePage() {
+			// this is the ChainIndex reload path (TransactionalUnorderedIntArray(delegate, headPositions)): pack > 1024
+			// records into page-sized leaves, marking heads spanning several mask words, and verify order + head queries
+			final TreeWithIndex tested = pagedTree(UnorderedLookupTree.PAGE_RECORDS);
+			final int n = UnorderedLookupTree.PAGE_RECORDS * 3 + 137;   // > 1 page -> multiple leaves
+			final int[] recordIds = new int[n];
+			final List<Integer> oracle = new ArrayList<>(n);
+			for (int i = 0; i < n; i++) {
+				recordIds[i] = 1_000 + i;
+				oracle.add(1_000 + i);
+			}
+			// heads every 7th position (spans all mask words of every leaf) plus the exact leaf boundaries
+			final List<Integer> headPositionList = new ArrayList<>();
+			for (int p = 0; p < n; p += 7) {
+				headPositionList.add(p);
+			}
+			// n is fixed at 3 pages + 137, so every boundary below is < n by construction; only guard against a
+			// duplicate (63 is a multiple of 7, so the loop above already added it)
+			for (final int p : new int[]{63, 64, 1023, 1024, 2047, 2048}) {
+				if (!headPositionList.contains(p)) {
+					headPositionList.add(p);
+				}
+			}
+			headPositionList.sort(Integer::compareTo);
+			final int[] headPositions = new int[headPositionList.size()];
+			for (int i = 0; i < headPositions.length; i++) {
+				headPositions[i] = headPositionList.get(i);
+			}
+			tested.bulkLoadWithHeads(recordIds, headPositions);
+			assertTrue(tested.tree.isRootInternal(), "a > 1-page bulk load must produce multiple leaves");
+			final Set<Integer> heads = new HashSet<>();
+			for (final int hp : headPositions) {
+				heads.add(1_000 + hp);
+			}
+			assertConsistent(tested);
+			assertHeadQueriesMatchOracle(tested, oracle, heads);
+		}
+
+		@Test
+		@DisplayName("enumerates dirty pages / live page sequences after mutations and resets on forgetPageStream")
+		void shouldEnumerateAndResetPages() {
+			final TreeWithIndex tested = pagedTree(4);   // tiny leaves -> many pages with few records
+			for (int i = 0; i < 20; i++) {
+				tested.addAtPosition(i, 100 + i);
+			}
+			assertTrue(tested.tree.isRootInternal(), "20 records at leafCapacity=4 must span multiple leaves");
+			final List<UnorderedLookupTree.LeafPageHandle> handles = tested.tree.leafPageHandles();
+			assertTrue(handles.size() >= 2, "expected multiple leaf pages");
+			// every freshly built leaf is dirty and not yet paged
+			assertEquals(handles.size(), tested.tree.collectChangedPages().size(), "all fresh leaves must be dirty");
+			for (final UnorderedLookupTree.LeafPageHandle handle : handles) {
+				assertEquals(PagedLeafHandle.UNASSIGNED_PAGE_SEQUENCE, handle.getPageSequence());
+			}
+			// simulate a flush: stamp a page sequence on every leaf and clear its dirty flag
+			int seq = 0;
+			for (final UnorderedLookupTree.LeafPageHandle handle : tested.tree.leafPageHandles()) {
+				handle.setPageSequence(seq++);
+				handle.clearDirty();
+			}
+			assertEquals(0, tested.tree.collectChangedPages().size(), "no leaf may be dirty after a simulated flush");
+			assertEquals(seq, tested.tree.livePageSequences().length, "every leaf must now carry a live page");
+			// a single insert touches only its holding leaf (and at most a split-born sibling) - never every page
+			tested.addAfter(105, 9_999);
+			final int dirtyAfterInsert = tested.tree.collectChangedPages().size();
+			assertTrue(dirtyAfterInsert >= 1 && dirtyAfterInsert <= 2, "one insert must dirty 1 leaf (2 on a split)");
+			assertTrue(dirtyAfterInsert < handles.size(), "one insert must NOT dirty every page (granular)");
+			// forgetPageStream resets the whole bookkeeping: no live pages, no dirty leaves
+			tested.tree.forgetPageStream();
+			assertEquals(0, tested.tree.livePageSequences().length, "forgetPageStream must un-assign every page");
+			assertEquals(0, tested.tree.collectChangedPages().size(), "forgetPageStream must clear every dirty flag");
+		}
+
+		@Test
+		@DisplayName("dirty discipline: setOrderKey does NOT dirty a leaf; a content mutation does")
+		void shouldNotDirtyOnOrderKeyButDirtyOnContentChange() {
+			// respaceOrderKeys re-stamps EVERY container via setOrderKey - it must not re-dirty (and re-emit) every page,
+			// so setOrderKey is proven not to set the flag while a content mutator (getRecordIdsForUpdate) does
+			final UnorderedLookupTree.LeafNode leaf = new UnorderedLookupTree.LeafNode(false, 4, 1);
+			leaf.getRecordIdsForUpdate()[0] = 1;
+			leaf.setCount(1);
+			assertTrue(leaf.isDirty(), "a content mutation must dirty the leaf");
+			leaf.clearDirty();
+			leaf.setOrderKey(123_456L);
+			assertFalse(leaf.isDirty(), "setOrderKey (order-key re-space) must NOT dirty the leaf");
+			leaf.getRecordIdsForUpdate();
+			assertTrue(leaf.isDirty(), "a content mutation must dirty the leaf");
+		}
+
+		@Test
+		@DisplayName("savepoint: pageSequence and dirty survive snapshot -> mutate -> restore")
+		void shouldRestorePageSequenceAndDirtyFromMemento() {
+			final UnorderedLookupTree.LeafNode leaf = new UnorderedLookupTree.LeafNode(false, 4, 1);
+			leaf.getRecordIdsForUpdate()[0] = 7;
+			leaf.setCount(1);          // dirty = true
+			leaf.setPageSequence(42);
+			final UnorderedLookupTree.LeafNode.LeafNodeMemento memento = leaf.snapshot();
+			// mutate away from the snapshot: re-page and clear the dirty flag
+			leaf.setPageSequence(99);
+			leaf.clearDirty();
+			assertFalse(leaf.isDirty());
+			assertEquals(99, leaf.getPageSequence());
+			// restore must revert BOTH page sequence and dirty flag
+			leaf.restore(memento);
+			assertTrue(leaf.isDirty(), "dirty must survive snapshot -> mutate -> restore");
+			assertEquals(42, leaf.getPageSequence(), "pageSequence must survive snapshot -> mutate -> restore");
+		}
+
+		@Test
+		@DisplayName("SortIndex-style tree stays zero-cost: 65-wide leaves, null head mask, non-paged")
+		void shouldKeepNonPagedNonHeadAwareTreeZeroCost() {
+			// the SortIndex family uses new LeafNode(true, DEFAULT_BLOCK_SIZE, 0): 65-slot record arrays, NO head-mask
+			// array allocated at all (null), while the paged head-aware ChainIndex tree grows page-sized leaves + mask
+			final UnorderedLookupTree.LeafNode sortLeaf =
+				new UnorderedLookupTree.LeafNode(false, UnorderedLookupTree.DEFAULT_BLOCK_SIZE, 0);
+			assertEquals(
+				UnorderedLookupTree.DEFAULT_BLOCK_SIZE + 1, sortLeaf.getRecordIds().length,
+				"SortIndex leaves stay DEFAULT_BLOCK_SIZE + 1 (65) slots wide"
+			);
+			assertNull(sortLeaf.getHeadMask(), "SortIndex leaves allocate no head-mask array (null - zero cost)");
+			final int maskWords = (UnorderedLookupTree.PAGE_RECORDS + 1 + 63) / 64;
+			final UnorderedLookupTree.LeafNode chainLeaf =
+				new UnorderedLookupTree.LeafNode(false, UnorderedLookupTree.PAGE_RECORDS, maskWords);
+			assertEquals(UnorderedLookupTree.PAGE_RECORDS + 1, chainLeaf.getRecordIds().length);
+			assertEquals(maskWords, chainLeaf.getHeadMask().length, "paged head-aware leaves carry a multi-word mask");
+			// the non-paged, non-head-aware tree rejects every page-SPI call (the SPI is gated behind `paged`)
+			final UnorderedLookupTree sortIndexStyle = new UnorderedLookupTree();
+			assertThrows(GenericEvitaInternalError.class, sortIndexStyle::leafPageHandles);
+			assertThrows(GenericEvitaInternalError.class, sortIndexStyle::collectChangedPages);
+			assertThrows(GenericEvitaInternalError.class, sortIndexStyle::livePageSequences);
+			assertThrows(GenericEvitaInternalError.class, sortIndexStyle::forgetPageStream);
 		}
 	}
 

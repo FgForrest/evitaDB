@@ -34,6 +34,7 @@ import io.evitadb.index.attribute.ChainIndex.ElementState;
 import io.evitadb.spi.store.catalog.persistence.storageParts.compressor.ReadWriteKeyCompressor;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.ChainIndexStoragePart;
+import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.store.index.IndexStoragePartConfigurer;
 import io.evitadb.store.shared.kryo.KryoFactory;
 import org.junit.jupiter.api.BeforeEach;
@@ -53,14 +54,16 @@ import static io.evitadb.test.TestTags.SERIALIZATION;
 import static io.evitadb.test.TestTags.STORAGE;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Round-trip and lazy-upgrade coverage for {@link ChainIndexStoragePartSerializer} (the slim per-chain format) and the
  * preserved {@link ChainIndexStoragePartSerializer_2026_1} (the 2026.1 released pre-slimming fat format). Besides
  * direct serializer round-trips, the suite flushes live {@link ChainIndex} instances through
- * {@link ChainIndex#createStoragePart(int)},
+ * {@link ChainIndex#appendStorageParts},
  * serializes the resulting part through the production dispatcher, reloads it via the four-arg {@link ChainIndex}
  * constructor and asserts the reconstructed chain matches the original on element order and consistency — including an
  * inconsistent multi-run chain and a circular chain, where the head's predecessor/state are the only non-derivable
@@ -115,6 +118,9 @@ class ChainIndexStoragePartSerializerTest {
 		assertEquals(expected.getEntityIndexPrimaryKey(), actual.getEntityIndexPrimaryKey());
 		assertEquals(expected.getStoragePartPK(), actual.getStoragePartPK());
 		assertEquals(expected.getAttributeIndexKey(), actual.getAttributeIndexKey());
+		assertEquals(expected.isPaged(), actual.isPaged(), "paged discriminator");
+		assertEquals(expected.getHighWaterPageSequence(), actual.getHighWaterPageSequence(), "high-water page sequence");
+		assertArrayEquals(expected.getPageSequences(), actual.getPageSequences(), "page sequences");
 		final int[][] expectedChains = expected.getChains();
 		final int[][] actualChains = actual.getChains();
 		assertEquals(expectedChains.length, actualChains.length, "chain count");
@@ -200,6 +206,68 @@ class ChainIndexStoragePartSerializerTest {
 	}
 
 	@Nested
+	@DisplayName("Paged discriminator round-trip")
+	class PagedRoundTrip {
+
+		@Test
+		@DisplayName("round-trips a PAGED root carrying only the page-stream metadata")
+		void shouldRoundTripPagedRoot() {
+			final int[] pageSequences = {0, 1, 4, 9};
+			final ChainIndexStoragePart original = ChainIndexStoragePart.paged(
+				1, ATTRIBUTE_KEY, 12, pageSequences, 7L
+			);
+
+			final ChainIndexStoragePart deserialized = StoragePartSerializerTestSupport.roundTrip(
+				ChainIndexStoragePartSerializerTest.this.kryo, original, ChainIndexStoragePart.class
+			);
+
+			assertPartEquals(original, deserialized);
+			assertTrue(deserialized.isPaged(), "the reconstructed root must stay PAGED");
+			assertEquals(12, deserialized.getHighWaterPageSequence());
+			assertArrayEquals(pageSequences, deserialized.getPageSequencesOrThrowException());
+			// a PAGED root carries no inline chain data - it is reconstructed from the leaf pages on load
+			assertEquals(0, deserialized.getChains().length, "a PAGED root carries no chain runs");
+			assertTrue(deserialized.getElementStates().isEmpty(), "a PAGED root carries no element states");
+		}
+
+		@Test
+		@DisplayName("round-trips a PAGED root with an empty live-leaf list")
+		void shouldRoundTripPagedRootWithNoLeaves() {
+			final ChainIndexStoragePart original = ChainIndexStoragePart.paged(
+				1, ATTRIBUTE_KEY, 0, new int[0], 7L
+			);
+
+			final ChainIndexStoragePart deserialized = StoragePartSerializerTestSupport.roundTrip(
+				ChainIndexStoragePartSerializerTest.this.kryo, original, ChainIndexStoragePart.class
+			);
+
+			assertPartEquals(original, deserialized);
+			assertTrue(deserialized.isPaged());
+			assertEquals(0, deserialized.getPageSequencesOrThrowException().length);
+		}
+
+		@Test
+		@DisplayName("a SINGLE root still reports paged == false and round-trips unchanged")
+		void shouldKeepSingleRootUnpaged() {
+			final int[][] chains = {{10, 20, 30}};
+			final Map<Integer, ChainElementState> states = Map.of(
+				10, new ChainElementState(10, ChainableType.HEAD_PK, ElementState.HEAD),
+				20, new ChainElementState(10, 10, ElementState.SUCCESSOR),
+				30, new ChainElementState(10, 20, ElementState.SUCCESSOR)
+			);
+			final ChainIndexStoragePart original = part(chains, states);
+			assertFalse(original.isPaged(), "a SINGLE root must report paged == false");
+
+			final ChainIndexStoragePart deserialized = StoragePartSerializerTestSupport.roundTrip(
+				ChainIndexStoragePartSerializerTest.this.kryo, original, ChainIndexStoragePart.class
+			);
+
+			assertPartEquals(original, deserialized);
+			assertFalse(deserialized.isPaged(), "the reconstructed SINGLE root must stay unpaged");
+		}
+	}
+
+	@Nested
 	@DisplayName("Lazy upgrade from the pre-slimming format")
 	class LazyUpgrade {
 
@@ -266,7 +334,7 @@ class ChainIndexStoragePartSerializerTest {
 	}
 
 	@Nested
-	@DisplayName("Flush via createStoragePart then reload")
+	@DisplayName("Flush via appendStorageParts then reload")
 	class FlushAndReload {
 
 		@Test
@@ -336,8 +404,14 @@ class ChainIndexStoragePartSerializerTest {
 		 */
 		@Nonnull
 		private ChainIndexStoragePart flushAndReload(@Nonnull ChainIndex index) {
-			final ChainIndexStoragePart part = (ChainIndexStoragePart) index.createStoragePart(1);
-			assertNotNull(part, "a dirty index must produce a storage part");
+			final TrappedChanges trappedChanges = new TrappedChanges();
+			index.appendStorageParts(1, trappedChanges);
+			assertEquals(
+				1, trappedChanges.getTrappedChangesCount(),
+				"a dirty single-leaf chain must emit exactly one SINGLE part"
+			);
+			final ChainIndexStoragePart part =
+				(ChainIndexStoragePart) trappedChanges.getTrappedChangesIterator().next();
 			part.setStoragePartPK(7L);
 
 			return StoragePartSerializerTestSupport.roundTrip(

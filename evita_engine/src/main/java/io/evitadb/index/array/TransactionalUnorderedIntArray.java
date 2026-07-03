@@ -43,6 +43,7 @@ import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
 import java.io.Serializable;
 import java.util.Arrays;
+import java.util.List;
 import java.util.OptionalLong;
 import java.util.PrimitiveIterator.OfInt;
 
@@ -89,7 +90,19 @@ public class TransactionalUnorderedIntArray
 	 * Creates an empty transactional unordered int array.
 	 */
 	public TransactionalUnorderedIntArray() {
-		this.positionTree = new UnorderedLookupTree();
+		this(false);
+	}
+
+	/**
+	 * Creates an empty transactional unordered int array, optionally head-aware. A head-aware array additionally
+	 * tracks per-record chain-head marks (see {@link UnorderedLookupTree}) so {@link #findHeadCovering} can locate the
+	 * head of the run covering a logical position in `O(log N)`; used by {@link io.evitadb.index.attribute.ChainIndex}.
+	 * A non-head-aware array (the default, e.g. the SortIndex family) allocates no head structures.
+	 *
+	 * @param headAware whether the array tracks chain-head marks
+	 */
+	public TransactionalUnorderedIntArray(boolean headAware) {
+		this.positionTree = createPositionTree(headAware);
 		this.valueIndex = new TransactionalIntToLongBPlusTree();
 	}
 
@@ -99,25 +112,119 @@ public class TransactionalUnorderedIntArray
 	 * @param delegate the initial unordered array of record ids
 	 */
 	public TransactionalUnorderedIntArray(@Nonnull int[] delegate) {
-		this.positionTree = new UnorderedLookupTree();
+		this.positionTree = createPositionTree(false);
 		this.valueIndex = new TransactionalIntToLongBPlusTree();
-		// A freshly-constructed array establishes its committed BASE state. If we happen to be inside a transaction
-		// (e.g. ChainIndex creating a new chain mid-transaction), the build must run OUTSIDE the transaction's
-		// awareness - otherwise the data would land in per-transaction layers of the two trees, and a later
-		// map.remove of this value (TransactionalMap delete-cleanup releases a removed producer's layer) would
-		// discard those layers and silently empty the array. Detaching the transaction for the duration of the build
-		// makes the data land in the base, exactly as the former plain UnorderedLookup delegate did.
-		final Transaction transaction = Transaction.getTransaction().orElse(null);
-		if (transaction != null) {
-			transaction.unbindTransactionFromThread();
-			try {
-				this.positionTree.bulkLoad(delegate, this);
-			} finally {
-				transaction.bindTransactionToThread();
-			}
-		} else {
-			// bulk-load the position tree (O(N)); the order-key consumer (this) populates the value index
+		bulkLoadInBase(delegate, null);
+	}
+
+	/**
+	 * Creates a head-aware transactional unordered int array from the given delegate (record ids in logical order),
+	 * marking the records at `sortedHeadPositions` (ascending logical positions) as chain heads during the bulk load.
+	 * Used by {@link io.evitadb.index.attribute.ChainIndex} to rebuild a chain index from its persisted chains in a
+	 * single `O(N)` pass, with the head marks landing in the committed base (never a discardable transaction layer).
+	 *
+	 * @param delegate            the initial unordered array of record ids
+	 * @param sortedHeadPositions ascending logical positions of the head records (may be empty)
+	 */
+	public TransactionalUnorderedIntArray(@Nonnull int[] delegate, @Nonnull int[] sortedHeadPositions) {
+		this.positionTree = createPositionTree(true);
+		this.valueIndex = new TransactionalIntToLongBPlusTree();
+		bulkLoadInBase(delegate, sortedHeadPositions);
+	}
+
+	/**
+	 * Boundary-stable reload: rebuilds a head-aware, paged array from its persisted leaf pages, building exactly one
+	 * tree leaf per page (the persisted boundaries preserved verbatim, no repack) with each leaf stamped by its page
+	 * sequence and left non-dirty so a first post-load flush emits nothing. Used by
+	 * {@link io.evitadb.index.attribute.ChainIndex} PAGED reload. The pages MUST be supplied in ascending logical
+	 * order — the concatenation of their record ids IS the array. The build runs OUTSIDE the transaction (like
+	 * {@link #bulkLoadInBase}) so the data lands in the committed BASE even when the index is loaded mid-transaction.
+	 *
+	 * @param pages the persisted leaf pages in ascending logical order
+	 */
+	public TransactionalUnorderedIntArray(@Nonnull List<UnorderedLookupTree.LeafPageInput> pages) {
+		this.positionTree = createPositionTree(true);
+		this.valueIndex = new TransactionalIntToLongBPlusTree();
+		assembleFromPagesInBase(pages);
+	}
+
+	/**
+	 * Assembles the position tree from the persisted leaf pages so the data establishes the committed BASE state.
+	 * Mirrors {@link #bulkLoadInBase}'s transaction-detach reasoning: were the build to run inside a transaction, the
+	 * data (head marks and page bookkeeping included) would land in per-transaction layers, and a later map.remove of
+	 * this value would discard those layers and silently empty the array. The order-key consumer ({@code this})
+	 * populates the value index.
+	 *
+	 * @param pages the persisted leaf pages in ascending logical order
+	 */
+	private void assembleFromPagesInBase(@Nonnull List<UnorderedLookupTree.LeafPageInput> pages) {
+		Transaction.getTransaction().ifPresentOrElse(
+			transaction -> {
+				// detach so the assembled data (head marks + page bookkeeping) lands in the committed BASE, not a
+				// discardable per-transaction layer (see the method javadoc)
+				transaction.unbindTransactionFromThread();
+				try {
+					this.positionTree.assembleFromLeafPages(pages, this);
+				} finally {
+					transaction.bindTransactionToThread();
+				}
+			},
+			() -> this.positionTree.assembleFromLeafPages(pages, this)
+		);
+	}
+
+	/**
+	 * Creates the backing position tree. The head-aware tree (used by {@link io.evitadb.index.attribute.ChainIndex}) is
+	 * also PAGED: its leaves grow to {@link UnorderedLookupTree#PAGE_RECORDS} (1024) records so one leaf maps to one
+	 * persisted page, while the routing spine keeps the {@link UnorderedLookupTree#DEFAULT_BLOCK_SIZE} fan-out. The
+	 * non-head-aware tree (the SortIndex family) keeps the legacy default: {@code DEFAULT_BLOCK_SIZE}-wide, non-paged
+	 * leaves and no head structures — byte-for-byte unaffected.
+	 */
+	@Nonnull
+	private static UnorderedLookupTree createPositionTree(boolean headAware) {
+		return headAware
+			? new UnorderedLookupTree(
+				UnorderedLookupTree.DEFAULT_BLOCK_SIZE, UnorderedLookupTree.DEFAULT_ORDER_KEY_GAP,
+				true, UnorderedLookupTree.PAGE_RECORDS, true)
+			: new UnorderedLookupTree();
+	}
+
+	/**
+	 * Bulk-loads the position tree so the data establishes the committed BASE state. If we happen to be inside a
+	 * transaction (e.g. ChainIndex creating a new chain mid-transaction), the build must run OUTSIDE the transaction's
+	 * awareness - otherwise the data (head marks included) would land in per-transaction layers of the two trees, and a
+	 * later map.remove of this value (TransactionalMap delete-cleanup releases a removed producer's layer) would discard
+	 * those layers and silently empty the array. Detaching the transaction for the duration of the build makes the data
+	 * land in the base, exactly as the former plain UnorderedLookup delegate did.
+	 *
+	 * @param delegate            record ids in logical order
+	 * @param sortedHeadPositions ascending head positions to mark (head-aware build), or `null` for a plain build
+	 */
+	private void bulkLoadInBase(@Nonnull int[] delegate, @Nullable int[] sortedHeadPositions) {
+		Transaction.getTransaction().ifPresentOrElse(
+			transaction -> {
+				// detach so the loaded data (head marks included) lands in the committed BASE, not a discardable
+				// per-transaction layer (see the method javadoc)
+				transaction.unbindTransactionFromThread();
+				try {
+					loadDelegate(delegate, sortedHeadPositions);
+				} finally {
+					transaction.bindTransactionToThread();
+				}
+			},
+			() -> loadDelegate(delegate, sortedHeadPositions)
+		);
+	}
+
+	/**
+	 * Bulk-loads the position tree (`O(N)`); the order-key consumer ({@code this}) populates the value index. When
+	 * `sortedHeadPositions` is non-null the head-aware build additionally sets the chain-head marks.
+	 */
+	private void loadDelegate(@Nonnull int[] delegate, @Nullable int[] sortedHeadPositions) {
+		if (sortedHeadPositions == null) {
 			this.positionTree.bulkLoad(delegate, this);
+		} else {
+			this.positionTree.bulkLoadWithHeads(delegate, sortedHeadPositions, this);
 		}
 	}
 
@@ -332,6 +439,106 @@ public class TransactionalUnorderedIntArray
 	 */
 	public boolean contains(int recordId) {
 		return this.valueIndex.search(recordId).isPresent();
+	}
+
+	/**
+	 * Marks `recordId` as a chain head (idempotent - a no-op when it is already a head). Requires a head-aware array.
+	 */
+	public void markAsHead(int recordId) {
+		this.positionTree.markHead(orderKeyOf(recordId), recordId);
+	}
+
+	/**
+	 * Clears the chain-head mark of `recordId` (idempotent - a no-op when it is not a head). Requires a head-aware array.
+	 */
+	public void unmarkAsHead(int recordId) {
+		this.positionTree.unmarkHead(orderKeyOf(recordId), recordId);
+	}
+
+	/**
+	 * Returns the {@link HeadLocation} of the chain head covering logical `position` - the head at the greatest
+	 * head-position `<= position`. Requires a head-aware, non-empty array. `O(log N)`.
+	 *
+	 * @param position logical position in `[0, getLength())`
+	 * @return the covering head's position and record id
+	 */
+	@Nonnull
+	public HeadLocation findHeadCovering(int position) {
+		final long packed = this.positionTree.findHeadCovering(position);
+		return new HeadLocation((int) (packed >> 32), (int) packed);
+	}
+
+	/**
+	 * Resolves the order-key of `recordId`, throwing when it is absent from the array.
+	 */
+	private long orderKeyOf(int recordId) {
+		return this.valueIndex.search(recordId).orElseThrow(
+			() -> new GenericEvitaInternalError(
+				"Record id " + recordId + " is not part of the array!",
+				"Record id is not part of the array."
+			)
+		);
+	}
+
+	/**
+	 * Immutable location of a chain head in the array: its logical position and its record id.
+	 *
+	 * @param headPosition the logical position of the head record
+	 * @param recordId     the head record id
+	 */
+	public record HeadLocation(int headPosition, int recordId) {
+	}
+
+	/*
+		PAGING SPI (paged arrays only; delegates to the position tree)
+	 */
+
+	/**
+	 * Returns whether the backing position tree spans more than one leaf (persisted as PAGED rather than SINGLE).
+	 *
+	 * @return true when the tree has an internal root (≥ 2 leaves)
+	 */
+	public boolean isRootInternal() {
+		return this.positionTree.isRootInternal();
+	}
+
+	/**
+	 * Returns one page handle per leaf of the backing tree in ascending logical order. Requires a paged array.
+	 *
+	 * @return the ordered leaf-page handles
+	 */
+	@Nonnull
+	public List<UnorderedLookupTree.LeafPageHandle> leafPageHandles() {
+		return this.positionTree.leafPageHandles();
+	}
+
+	/**
+	 * Returns the page handles of the leaves changed since the last flush, in ascending logical order. Requires a paged
+	 * array.
+	 *
+	 * @return the changed (dirty) leaf-page handles
+	 */
+	@Nonnull
+	public List<UnorderedLookupTree.LeafPageHandle> collectChangedPages() {
+		return this.positionTree.collectChangedPages();
+	}
+
+	/**
+	 * Returns, in ascending logical order, the page sequences currently assigned to the tree's leaves. Requires a paged
+	 * array.
+	 *
+	 * @return the assigned page sequences
+	 */
+	@Nonnull
+	public int[] livePageSequences() {
+		return this.positionTree.livePageSequences();
+	}
+
+	/**
+	 * Resets the page bookkeeping of every leaf (un-assigns page sequences, clears dirty flags). Requires a paged array.
+	 */
+	public void forgetPageStream() {
+		this.positionTree.forgetPageStream();
 	}
 
 	/**

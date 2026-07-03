@@ -23,6 +23,8 @@
 
 package io.evitadb.index.array;
 
+import com.carrotsearch.hppc.IntIntHashMap;
+import com.carrotsearch.hppc.IntIntMap;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.ArrayUtils.InsertionPosition;
@@ -31,6 +33,7 @@ import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
 import java.io.Serial;
 import java.io.Serializable;
@@ -76,7 +79,7 @@ public class UnorderedLookup implements Serializable {
 	 * {@link #positions} and {@link #recordIds} so that it doesn't
 	 * need to be computed repeatedly when nothing has changed.
 	 */
-	private int[] memoizedUnorderedArray;
+	@Nullable private int[] memoizedUnorderedArray;
 
 	/**
 	 * Returns ordered array of record ids in ascending order.
@@ -95,23 +98,32 @@ public class UnorderedLookup implements Serializable {
 	}
 
 	/**
-	 * Creates new instance.
+	 * Creates a lookup over the given record ids in their target ("unordered") order.
+	 *
+	 * @param unorderedArray record ids in the order this lookup serves; the ids must be
+	 *                       distinct - a duplicate would collapse two entries onto one
+	 *                       position and silently corrupt the lookup
 	 */
 	public UnorderedLookup(@Nonnull int[] unorderedArray) {
-		this.positions = new int[unorderedArray.length];
-		// init record ids in ascending order
-		this.recordIds = new int[unorderedArray.length];
-		// both arrays fill with recordId and associated position in original array
-		for (int i = 0; i < unorderedArray.length; i++) {
-			final int recordId = unorderedArray[i];
-			this.positions[i] = i;
-			this.recordIds[i] = recordId;
+		final int length = unorderedArray.length;
+		// map each record id to its position in the unordered array (primitive, no boxing)
+		final IntIntMap recordToPosition = new IntIntHashMap(length);
+		for (int position = 0; position < length; position++) {
+			recordToPosition.put(unorderedArray[position], position);
 		}
-		Arrays.sort(this.recordIds);
-		// now sort positions according to recordId value
-		new IntArrayWrapper(this.positions)
-			.sort(Comparator.comparing(o -> unorderedArray[o]));
-		// we may initialize the cached result
+		// record ids in ascending order
+		final int[] ascendingRecordIds = unorderedArray.clone();
+		Arrays.sort(ascendingRecordIds);
+		// positions[i] = position of the i-th smallest record id in the unordered array. Built via a primitive
+		// hash-map lookup instead of the former boxed AbstractList comparator sort (which boxed every element and every
+		// comparison key). Record ids are distinct by contract, so the map holds exactly one position per id.
+		final int[] orderedPositions = new int[length];
+		for (int i = 0; i < length; i++) {
+			orderedPositions[i] = recordToPosition.get(ascendingRecordIds[i]);
+		}
+		this.recordIds = ascendingRecordIds;
+		this.positions = orderedPositions;
+		// eagerly memoize the (unchanged) unordered array so getArray()/getLastRecordId() stay on their fast paths
 		this.memoizedUnorderedArray = unorderedArray;
 	}
 
@@ -183,25 +195,7 @@ public class UnorderedLookup implements Serializable {
 			);
 		}
 
-		// increment all positions that are same or equal to newPosition
-		// to maintain monotonic row of positions
-		for (int i = 0; i < this.positions.length; i++) {
-			if (this.positions[i] >= newPosition) {
-				this.positions[i]++;
-			}
-		}
-		// now place new record id into ordered array on proper place
-		this.recordIds = ArrayUtils.insertIntIntoArrayOnIndex(
-			recordId, this.recordIds,
-			leadingPosition.position()
-		);
-		// now place the new position into unordered array of positions
-		this.positions = ArrayUtils.insertIntIntoArrayOnIndex(
-			newPosition, this.positions,
-			leadingPosition.position()
-		);
-		// we have to reset memoized result - modification has occurred
-		this.memoizedUnorderedArray = null;
+		insertRecordWithPosition(recordId, newPosition, leadingPosition.position());
 	}
 
 	/**
@@ -221,23 +215,31 @@ public class UnorderedLookup implements Serializable {
 				recordId, this.recordIds
 			);
 
-		// increment all positions that are same or equal to index
+		insertRecordWithPosition(recordId, index, leadingPosition.position());
+	}
+
+	/**
+	 * Splices a new record into the backing arrays: shifts every existing position `>= newPosition` up by one to keep
+	 * the position row monotonic, inserts `recordId` into the ordered `recordIds` array and `newPosition` into the
+	 * unordered `positions` array (both at `orderedInsertIndex`), and invalidates the memoized unordered view. Shared by
+	 * {@link #addRecord(int, int)} and {@link #addRecordOnIndex(int, int)}.
+	 *
+	 * @param recordId           the record id being added
+	 * @param newPosition        the record's position in the unordered (logical) order
+	 * @param orderedInsertIndex the slot in the ordered `recordIds` array where the record id is spliced in
+	 */
+	private void insertRecordWithPosition(int recordId, int newPosition, int orderedInsertIndex) {
+		// increment all positions that are same or equal to newPosition
 		// to maintain monotonic row of positions
 		for (int i = 0; i < this.positions.length; i++) {
-			if (this.positions[i] >= index) {
+			if (this.positions[i] >= newPosition) {
 				this.positions[i]++;
 			}
 		}
 		// now place new record id into ordered array on proper place
-		this.recordIds = ArrayUtils.insertIntIntoArrayOnIndex(
-			recordId, this.recordIds,
-			leadingPosition.position()
-		);
+		this.recordIds = ArrayUtils.insertIntIntoArrayOnIndex(recordId, this.recordIds, orderedInsertIndex);
 		// now place the new position into unordered array of positions
-		this.positions = ArrayUtils.insertIntIntoArrayOnIndex(
-			index, this.positions,
-			leadingPosition.position()
-		);
+		this.positions = ArrayUtils.insertIntIntoArrayOnIndex(newPosition, this.positions, orderedInsertIndex);
 		// we have to reset memoized result - modification has occurred
 		this.memoizedUnorderedArray = null;
 	}

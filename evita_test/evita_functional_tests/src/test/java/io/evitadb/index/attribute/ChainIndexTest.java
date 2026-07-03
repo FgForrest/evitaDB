@@ -23,18 +23,27 @@
 
 package io.evitadb.index.attribute;
 
+import com.carrotsearch.hppc.IntArrayList;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
+import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.dataType.ChainableType;
 import io.evitadb.dataType.ConsistencySensitiveDataStructure.ConsistencyReport;
 import io.evitadb.dataType.ConsistencySensitiveDataStructure.ConsistencyState;
 import io.evitadb.dataType.Predecessor;
 import io.evitadb.dataType.ReferencedEntityPredecessor;
 import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.index.array.TransactionalUnorderedIntArray;
+import io.evitadb.index.array.UnorderedLookupTree;
+import io.evitadb.index.attribute.ChainIndex.ChainDescriptor;
 import io.evitadb.index.attribute.ChainIndex.ChainElementState;
 import io.evitadb.index.attribute.ChainIndex.ElementState;
+import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStoragePart.AttributeIndexType;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.ChainIndexLeafPagePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.ChainIndexLeafPageRemoval;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.ChainIndexStoragePart;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -45,11 +54,15 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Random;
 import java.util.Set;
 import java.util.TreeSet;
@@ -289,6 +302,141 @@ class ChainIndexTest {
 	}
 
 	/**
+	 * Cross-checks the element array's internal chain-head bitmask against the authoritative head set
+	 * ({@link ChainIndex#chains} keys): every chain head must be marked at its own position and no other position may
+	 * be marked. This is the one invariant the index's read paths cannot see - getUnorderedLookup and
+	 * getConsistencyReport resolve heads by {@code indexOf} and never consult the bitmask - so a missing or stray
+	 * {@code markAsHead}/{@code unmarkAsHead} at any mutation site would stay invisible until a later {@code findRun}
+	 * trips over it. Asserting it directly pins a head-mark desync to the operation that caused it. A single `O(N·log N)`
+	 * walk catches both directions: a missing mark makes {@code findHeadCovering} return an earlier head; a stray mark
+	 * makes it return the stray position.
+	 */
+	private static void assertHeadMarksMatchChains(@Nonnull ChainIndex index) {
+		final int length = index.elements.getLength();
+		if (length == 0) {
+			assertEquals(0, index.chains.size(), "Empty element array must carry no chain descriptors.");
+			return;
+		}
+		final boolean[] expectedHead = new boolean[length];
+		for (final Integer headPk : index.chains.keySet()) {
+			expectedHead[index.elements.indexOf(headPk)] = true;
+		}
+		assertTrue(expectedHead[0], "Logical position 0 must be a chain head.");
+		int expectedCovering = -1;
+		for (int p = 0; p < length; p++) {
+			if (expectedHead[p]) {
+				expectedCovering = p;
+			}
+			final TransactionalUnorderedIntArray.HeadLocation head = index.elements.findHeadCovering(p);
+			assertEquals(
+				expectedCovering, head.headPosition(),
+				"Head-mark bitmask disagrees with chains.keySet() at position " + p
+			);
+			assertEquals(
+				index.elements.get(expectedCovering), head.recordId(),
+				"Covering-head record id mismatch at position " + p
+			);
+		}
+	}
+
+	/**
+	 * Asserts the index is FULLY COLLAPSED: no successor head remains whose declared predecessor is present and is the
+	 * tail of a different run. This is exactly the merge condition the former full-rescan {@code collapse} drove to a
+	 * fixpoint, replicated here independently of the work-queue's seeds from the public / package-visible state. If the
+	 * seeded {@link ChainIndex#collapse(IntArrayList)} ever left such a pair, the old scan would
+	 * have merged it - so this oracle pins any under-collapse regression to the operation that caused it.
+	 */
+	private static void assertFullyCollapsed(@Nonnull ChainIndex index) {
+		final int length = index.elements.getLength();
+		for (final Entry<Integer, ChainDescriptor> entry : index.chains.entrySet()) {
+			final Integer headPk = entry.getKey();
+			final ChainIndex.ChainDescriptor descriptor = entry.getValue();
+			if (descriptor.state() != ElementState.SUCCESSOR) {
+				// only successor heads can follow another run
+				continue;
+			}
+			final Integer predecessorRef = index.predecessors.get(headPk);
+			assertNotNull(predecessorRef, () -> "Successor head " + headPk + " has no predecessor entry.");
+			final int predecessor = predecessorRef;
+			if (predecessor == ChainableType.HEAD_PK) {
+				continue;
+			}
+			final int predecessorPos = index.elements.indexOf(predecessor);
+			if (predecessorPos == Integer.MIN_VALUE) {
+				// predecessor absent - this run is legitimately a standing orphan
+				continue;
+			}
+			// the predecessor is a tail iff it is the array's last element or the next element starts a new run (the
+			// heads are exactly chains.keySet()); the old scan would have merged this run onto it unless it is the
+			// same run (a circular head, handled by state)
+			final boolean predecessorIsTail = predecessorPos == length - 1
+				|| index.chains.containsKey(index.elements.get(predecessorPos + 1));
+			final int headPos = index.elements.indexOf(headPk);
+			final boolean sameRun = predecessorPos >= headPos && predecessorPos < headPos + descriptor.length();
+			assertFalse(
+				predecessorIsTail && !sameRun,
+				() -> "Collapse left a mergeable pair: successor head " + headPk + " declares predecessor " +
+					predecessor + " which is the tail of another run - the work-queue under-collapsed."
+			);
+		}
+	}
+
+	/**
+	 * Asserts the {@link ChainIndex#successorsByPredecessor} inverse is an exact, sparse mirror of
+	 * {@link ChainIndex#predecessors}. This is strictly stronger than the cross-check inside
+	 * {@link ChainIndex#getConsistencyReport()}: the report only proves the two maps agree on the entries that exist,
+	 * whereas this oracle additionally pins the sparsity contract the report cannot see - an emptied bucket must be
+	 * dropped, and a true head must never link into the inverse - so a leaked or never-cleared bucket is caught at the
+	 * mutation that produced it. The whole inverse is re-derived from `predecessors` alone and compared bucket for
+	 * bucket:
+	 *
+	 * 1. no bucket key is {@link ChainableType#HEAD_PK} (heads never collapse via their predecessor),
+	 * 2. no bucket is empty (an emptied bucket must have been removed to keep the map as sparse as the chain set),
+	 * 3. the bucket key set equals exactly the set of present non-`HEAD_PK` predecessors declared in `predecessors`,
+	 * 4. each bucket holds exactly the elements that declare that predecessor.
+	 */
+	private static void assertInverseIsExactAndSparse(@Nonnull ChainIndex index) {
+		// re-derive the expected inverse purely from predecessors: each non-HEAD predecessor maps to the exact set of
+		// elements that declare it
+		final Map<Integer, Set<Integer>> expected = new HashMap<>();
+		for (final Entry<Integer, Integer> entry : index.predecessors.entrySet()) {
+			final int predecessorPk = entry.getValue();
+			if (predecessorPk != ChainableType.HEAD_PK) {
+				expected.computeIfAbsent(predecessorPk, p -> new TreeSet<>()).add(entry.getKey());
+			}
+		}
+		// (1) a true head never links into the inverse, so HEAD_PK must never be a bucket key
+		assertFalse(
+			index.successorsByPredecessor.containsKey(ChainableType.HEAD_PK),
+			"successorsByPredecessor must never carry a HEAD_PK bucket."
+		);
+		// (3) the bucket key set must be exactly the present non-HEAD predecessors - no stale, no missing bucket
+		assertEquals(
+			new TreeSet<>(expected.keySet()),
+			new TreeSet<>(index.successorsByPredecessor.keySet()),
+			"successorsByPredecessor key set must equal the set of declared non-HEAD predecessors."
+		);
+		for (final Entry<Integer, TransactionalBitmap> entry : index.successorsByPredecessor.entrySet()) {
+			final int predecessorPk = entry.getKey();
+			final TransactionalBitmap bucket = entry.getValue();
+			// (2) an emptied bucket must have been dropped, keeping the inverse as sparse as the chain set
+			assertFalse(
+				bucket.isEmpty(),
+				() -> "Inverse bucket for " + predecessorPk + " is empty and must have been dropped."
+			);
+			// (4) the bucket must equal the exact set of elements declaring that predecessor
+			final Set<Integer> actual = new TreeSet<>();
+			for (final int successorPk : bucket.getArray()) {
+				actual.add(successorPk);
+			}
+			assertEquals(
+				expected.get(predecessorPk), actual,
+				() -> "Inverse bucket for " + predecessorPk + " must equal its exact declaring set."
+			);
+		}
+	}
+
+	/**
 	 * Tests verifying construction and getter correctness for different ChainIndex constructors.
 	 */
 	@Nested
@@ -337,6 +485,7 @@ class ChainIndexTest {
 			assertTrue(idx.isConsistent());
 			assertArrayEquals(new int[]{10, 20, 30}, idx.getUnorderedLookup().getArray());
 			assertNull(idx.getReferenceKey());
+			assertHeadMarksMatchChains(idx);
 		}
 
 		@Test
@@ -363,6 +512,28 @@ class ChainIndexTest {
 
 			assertSame(refKey, idx.getReferenceKey());
 			assertArrayEquals(new int[]{1, 2}, idx.getUnorderedLookup().getArray());
+			assertHeadMarksMatchChains(idx);
+		}
+
+		@Test
+		@DisplayName("four-arg constructor marks every head when reloading all-singleton chains")
+		void shouldMarkEveryHeadWhenReloadingAllSingletonChains() {
+			// every run is a singleton head, so bulkLoadWithHeads must mark EVERY position as a head (dense case)
+			final AttributeIndexKey attrKey = new AttributeIndexKey(null, "order", null);
+			final int[][] chains = new int[][]{{7}, {8}, {9}};
+			final Map<Integer, ChainElementState> elementStates = new HashMap<>(6);
+			elementStates.put(7, new ChainElementState(7, ChainableType.HEAD_PK, ChainIndex.ElementState.HEAD));
+			elementStates.put(8, new ChainElementState(8, ChainableType.HEAD_PK, ChainIndex.ElementState.HEAD));
+			elementStates.put(9, new ChainElementState(9, ChainableType.HEAD_PK, ChainIndex.ElementState.HEAD));
+
+			final ChainIndex idx = new ChainIndex(attrKey, chains, elementStates);
+			assertEquals(3, idx.chains.size());
+			assertHeadMarksMatchChains(idx);
+
+			// the reloaded marks must be usable by findRun: repointing 8 at 7 merges two singletons into one run
+			idx.upsertPredecessor(new Predecessor(7), 8);
+			assertNotBroken(idx);
+			assertHeadMarksMatchChains(idx);
 		}
 	}
 
@@ -683,22 +854,25 @@ class ChainIndexTest {
 			ChainIndexTest.this.index.upsertPredecessor(new Predecessor(2), 5);
 			ChainIndexTest.this.index.upsertPredecessor(new Predecessor(1), 4);
 
+			// The four reordered elements form ONE circular chain (the directed cycle 1->4->2->3->1); which element
+			// heads that cycle is an implementation-defined rotation choice (see
+			// shouldDemoteCircularHeadWhenPerpetratorRemoved), so the contract is only that the index settles into a
+			// not-BROKEN, fully-collapsed, inconsistent state holding exactly {1..5} as a length-4 circular run plus
+			// the length-1 successor run [5] - not the exact physical rotation the former collapse happened to pick.
 			assertFalse(ChainIndexTest.this.index.isConsistent(), "Index is inconsistent.");
-			assertArrayEquals(new int[] {5, 2, 3, 1, 4}, ChainIndexTest.this.index.getUnorderedLookup().getArray());
-			assertEquals(
-				"""
-				ChainIndex:
-				   - chains:
-				      - [2, 3, 1, 4]
-				      - [5]
-				   - elementStates:
-				      - 1: SUCCESSOR of 3 🔗 2
-				      - 2: CIRCULAR of 4 🔗 2
-				      - 3: SUCCESSOR of 2 🔗 2
-				      - 4: SUCCESSOR of 1 🔗 2
-				      - 5: SUCCESSOR of 2 🔗 5""",
-				ChainIndexTest.this.index.toString()
-			);
+			assertNotBroken(ChainIndexTest.this.index);
+			assertFullyCollapsed(ChainIndexTest.this.index);
+			assertEquals(2, ChainIndexTest.this.index.chains.size(), "A circular run plus the orphan [5].");
+			final int[] snapshot = ChainIndexTest.this.index.getUnorderedLookup().getArray();
+			final int[] elementSet = snapshot.clone();
+			Arrays.sort(elementSet);
+			assertArrayEquals(new int[]{1, 2, 3, 4, 5}, elementSet, "The index must still hold exactly {1..5}.");
+			// [5] is the sole SUCCESSOR run (predecessor 2 is present but not a tail) and sorts ahead of the CIRCULAR
+			// run; the remaining four are the single circular chain over {1,2,3,4} in some rotation
+			assertEquals(5, snapshot[0], "The singleton successor run [5] sorts ahead of the circular run.");
+			final int[] cycle = Arrays.copyOfRange(snapshot, 1, snapshot.length);
+			Arrays.sort(cycle);
+			assertArrayEquals(new int[]{1, 2, 3, 4}, cycle, "The remaining four elements form the single circular chain.");
 
 			ChainIndexTest.this.index.upsertPredecessor(new Predecessor(), 3);
 
@@ -1111,6 +1285,8 @@ class ChainIndexTest {
 						ConsistencyState.CONSISTENT, committed.getConsistencyReport().state(),
 						() -> "committed result inconsistent: " + committed.getConsistencyReport()
 					);
+					// the transactional merge/re-wrap must preserve the exact, sparse inverse on the committed copy
+					assertInverseIsExactAndSparse(committed);
 				}
 			);
 		}
@@ -1352,6 +1528,123 @@ class ChainIndexTest {
 
 			assertSame(first, second);
 		}
+
+		@Test
+		@DisplayName("ascending and descending suppliers share the record-id bitmap and use distinct cache ids")
+		void shouldShareRecordDataAcrossDirectionsAndRevealMutations() {
+			populateStandardChain();
+
+			final SortedRecordsSupplier asc =
+				(SortedRecordsSupplier) ChainIndexTest.this.index.getAscendingOrderRecordsSupplier();
+			final SortedRecordsSupplier desc =
+				(SortedRecordsSupplier) ChainIndexTest.this.index.getDescendingOrderRecordsSupplier();
+
+			// the direction-independent record-id bitmap is built once and reused across both directions
+			assertSame(
+				asc.getAllRecords(), desc.getAllRecords(),
+				"Ascending and descending suppliers must reuse the same memoized record-id bitmap."
+			);
+			// the two orderings carry distinct, stable cache identities so they never collide downstream
+			assertNotEquals(
+				asc.getTransactionalId(), desc.getTransactionalId(),
+				"Ascending and descending suppliers must expose distinct transactional ids."
+			);
+			assertArrayEquals(EXPECTED_CHAIN, asc.getSortedRecordIds());
+			assertArrayEquals(new int[]{5, 4, 3, 2, 1}, desc.getSortedRecordIds());
+
+			// a mutation must invalidate the shared caches so both directions reflect the new state
+			ChainIndexTest.this.index.upsertPredecessor(new Predecessor(5), 6);
+
+			final SortedRecordsSupplier ascAfter =
+				(SortedRecordsSupplier) ChainIndexTest.this.index.getAscendingOrderRecordsSupplier();
+			final SortedRecordsSupplier descAfter =
+				(SortedRecordsSupplier) ChainIndexTest.this.index.getDescendingOrderRecordsSupplier();
+
+			assertNotSame(
+				asc.getAllRecords(), ascAfter.getAllRecords(),
+				"A mutation must drop the memoized record-id bitmap so it is rebuilt."
+			);
+			assertArrayEquals(new int[]{1, 2, 3, 4, 5, 6}, ascAfter.getSortedRecordIds());
+			assertArrayEquals(new int[]{6, 5, 4, 3, 2, 1}, descAfter.getSortedRecordIds());
+		}
+
+		@Test
+		@DisplayName("descending supplier requested first populates the shared caches for a later ascending read")
+		void shouldShareRecordDataWhenDescendingSupplierRequestedFirst() {
+			populateStandardChain();
+
+			// request the descending supplier FIRST so it is the one that builds and memoizes the shared
+			// forward lookup + record-id bitmap
+			final SortedRecordsSupplier desc =
+				(SortedRecordsSupplier) ChainIndexTest.this.index.getDescendingOrderRecordsSupplier();
+			final SortedRecordsSupplier asc =
+				(SortedRecordsSupplier) ChainIndexTest.this.index.getAscendingOrderRecordsSupplier();
+
+			// the ascending read must reuse the record-id bitmap the descending call memoized
+			assertSame(
+				desc.getAllRecords(), asc.getAllRecords(),
+				"Ascending supplier must reuse the record-id bitmap memoized by the descending call."
+			);
+			// the two orderings still carry distinct, stable cache identities
+			assertNotEquals(
+				asc.getTransactionalId(), desc.getTransactionalId(),
+				"Ascending and descending suppliers must expose distinct transactional ids."
+			);
+			// the descending call must have stored the FORWARD lookup, so the later ascending order is correct
+			assertArrayEquals(EXPECTED_CHAIN, asc.getSortedRecordIds());
+			assertArrayEquals(new int[]{5, 4, 3, 2, 1}, desc.getSortedRecordIds());
+		}
+
+		@Test
+		@DisplayName("suppliers reflect the new order after a transactional commit (memoized caches pre-warmed)")
+		void shouldRefreshSuppliersAfterTransactionalCommit() {
+			populateStandardChain();
+			// pre-warm the committed supplier caches so the memoized lookup/bitmap fields are live before the transaction
+			assertArrayEquals(
+				EXPECTED_CHAIN,
+				((SortedRecordsSupplier) ChainIndexTest.this.index.getAscendingOrderRecordsSupplier())
+					.getSortedRecordIds()
+			);
+
+			assertStateAfterCommit(
+				ChainIndexTest.this.index,
+				original -> original.upsertPredecessor(new Predecessor(5), 6),
+				(original, committed) -> {
+					final SortedRecordsSupplier asc =
+						(SortedRecordsSupplier) committed.getAscendingOrderRecordsSupplier();
+					final SortedRecordsSupplier desc =
+						(SortedRecordsSupplier) committed.getDescendingOrderRecordsSupplier();
+					assertArrayEquals(new int[]{1, 2, 3, 4, 5, 6}, asc.getSortedRecordIds());
+					assertArrayEquals(new int[]{6, 5, 4, 3, 2, 1}, desc.getSortedRecordIds());
+					// the shared record-id bitmap is still reused across directions on the merged copy
+					assertSame(asc.getAllRecords(), desc.getAllRecords());
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("suppliers on the original index are unchanged after a transactional rollback")
+		void shouldKeepSuppliersAfterTransactionalRollback() {
+			populateStandardChain();
+			// pre-warm the committed supplier caches so the memoized lookup/bitmap fields are live before the transaction
+			assertArrayEquals(
+				EXPECTED_CHAIN,
+				((SortedRecordsSupplier) ChainIndexTest.this.index.getAscendingOrderRecordsSupplier())
+					.getSortedRecordIds()
+			);
+
+			assertStateAfterRollback(
+				ChainIndexTest.this.index,
+				original -> original.upsertPredecessor(new Predecessor(5), 6),
+				(original, committed) -> {
+					assertNull(committed);
+					assertArrayEquals(
+						EXPECTED_CHAIN,
+						((SortedRecordsSupplier) original.getAscendingOrderRecordsSupplier()).getSortedRecordIds()
+					);
+				}
+			);
+		}
 	}
 
 	/**
@@ -1362,34 +1655,40 @@ class ChainIndexTest {
 	class DirtyFlagStoragePartTest {
 
 		@Test
-		@DisplayName("createStoragePart returns non-null after upsert")
-		void shouldReturnStoragePartAfterUpsert() {
+		@DisplayName("appendStorageParts emits a part after upsert")
+		void shouldEmitStoragePartAfterUpsert() {
 			ChainIndexTest.this.index.upsertPredecessor(new Predecessor(), 1);
 
-			final StoragePart part = ChainIndexTest.this.index.createStoragePart(1);
-			assertNotNull(part);
+			final TrappedChanges trappedChanges = new TrappedChanges();
+			ChainIndexTest.this.index.appendStorageParts(1, trappedChanges);
+			assertEquals(1, trappedChanges.getTrappedChangesCount());
+			final StoragePart part = trappedChanges.getTrappedChangesIterator().next();
 			assertInstanceOf(ChainIndexStoragePart.class, part);
 		}
 
 		@Test
-		@DisplayName("createStoragePart returns null on fresh (non-dirty) index")
-		void shouldReturnNullStoragePartOnFreshIndex() {
-			final StoragePart part = ChainIndexTest.this.index.createStoragePart(1);
-			assertNull(part);
+		@DisplayName("appendStorageParts emits nothing on a fresh (non-dirty) index")
+		void shouldEmitNothingOnFreshIndex() {
+			final TrappedChanges trappedChanges = new TrappedChanges();
+			ChainIndexTest.this.index.appendStorageParts(1, trappedChanges);
+			assertEquals(0, trappedChanges.getTrappedChangesCount());
 		}
 
 		@Test
-		@DisplayName("resetDirty makes createStoragePart return null")
-		void shouldReturnNullAfterResetDirty() {
+		@DisplayName("resetDirty makes appendStorageParts emit nothing")
+		void shouldEmitNothingAfterResetDirty() {
 			ChainIndexTest.this.index.upsertPredecessor(new Predecessor(), 1);
-			// consume the dirty state
-			final StoragePart firstPart = ChainIndexTest.this.index.createStoragePart(1);
-			assertNotNull(firstPart);
+			// a dirty index emits its part(s)
+			final TrappedChanges firstChanges = new TrappedChanges();
+			ChainIndexTest.this.index.appendStorageParts(1, firstChanges);
+			assertEquals(1, firstChanges.getTrappedChangesCount());
 
 			ChainIndexTest.this.index.resetDirty();
 
-			final StoragePart secondPart = ChainIndexTest.this.index.createStoragePart(1);
-			assertNull(secondPart);
+			// after resetDirty the (now clean) index emits nothing
+			final TrappedChanges secondChanges = new TrappedChanges();
+			ChainIndexTest.this.index.appendStorageParts(1, secondChanges);
+			assertEquals(0, secondChanges.getTrappedChangesCount());
 		}
 	}
 
@@ -1536,6 +1835,45 @@ class ChainIndexTest {
 				() -> "Report for `" + name + "` must list the detected errors."
 			);
 		}
+
+		@Test
+		@DisplayName("report is BROKEN when the successor inverse drops a declared successor")
+		void shouldReportBrokenWhenInverseMissesADeclaredSuccessor() {
+			final ChainIndex idx = new ChainIndex(new AttributeIndexKey(null, "inverse", null));
+			idx.upsertPredecessor(Predecessor.HEAD, 1);
+			idx.upsertPredecessor(new Predecessor(1), 2);
+			assertNotBroken(idx);
+
+			// desync ONLY the inverse: 2 still declares predecessor 1 in `predecessors`, but drop 2 from 1's
+			// successor bucket so the inverse no longer records the declared edge
+			idx.successorsByPredecessor.get(1).remove(2);
+
+			final ConsistencyReport report = idx.getConsistencyReport();
+			assertEquals(ConsistencyState.BROKEN, report.state());
+			assertTrue(
+				report.report().contains("missing from that predecessor's successor inverse"),
+				() -> "Report must flag the successor dropped from the inverse:\n" + report.report()
+			);
+		}
+
+		@Test
+		@DisplayName("report is BROKEN when the successor inverse holds a stray successor")
+		void shouldReportBrokenWhenInverseHoldsAStraySuccessor() {
+			final ChainIndex idx = new ChainIndex(new AttributeIndexKey(null, "inverse", null));
+			idx.upsertPredecessor(Predecessor.HEAD, 1);
+			idx.upsertPredecessor(new Predecessor(1), 2);
+			assertNotBroken(idx);
+
+			// inject a stray successor into 1's inverse bucket - 999 declares no predecessor at all in `predecessors`
+			idx.successorsByPredecessor.computeIfAbsent(1, p -> new TransactionalBitmap()).add(999);
+
+			final ConsistencyReport report = idx.getConsistencyReport();
+			assertEquals(ConsistencyState.BROKEN, report.state());
+			assertTrue(
+				report.report().contains("its declared predecessor is"),
+				() -> "Report must flag the stray successor in the inverse:\n" + report.report()
+			);
+		}
 	}
 
 	/**
@@ -1608,6 +1946,12 @@ class ChainIndexTest {
 				final int currentOp = op;
 				// invariant 1 - the internal structure is never corrupt
 				assertNotBroken(idx);
+				// invariant 1b - the tree head marks stay in sync with the chain head set at every mutation site
+				assertHeadMarksMatchChains(idx);
+				// invariant 1c - the seeded work-queue collapse leaves nothing the old full-rescan would have merged
+				assertFullyCollapsed(idx);
+				// invariant 1d - the successorsByPredecessor inverse stays an exact, sparse mirror of predecessors
+				assertInverseIsExactAndSparse(idx);
 				// invariant 2 - the index holds exactly the live set, each element exactly once
 				assertEquals(
 					liveSet(live, n), lookupSet(idx),
@@ -1622,6 +1966,7 @@ class ChainIndexTest {
 			}
 			assertTrue(idx.isConsistent(), "The index must be consistent after a clean rebuild.");
 			assertNotBroken(idx);
+			assertHeadMarksMatchChains(idx);
 			assertEquals(ConsistencyState.CONSISTENT, idx.getConsistencyReport().state());
 			assertArrayEquals(survivors, idx.getUnorderedLookup().getArray());
 		}
@@ -1711,6 +2056,770 @@ class ChainIndexTest {
 				}
 			}
 			return result;
+		}
+	}
+
+	/**
+	 * Targets the seeded work-queue {@link ChainIndex#collapse(IntArrayList)} directly: the
+	 * fork/star shape it must handle without spurious merges (and without the former `O(C)` rescan), the
+	 * absent-then-present cascade it must chase to a single chain, and a larger randomized differential that asserts -
+	 * after every mutation - the index is left with nothing the former full-rescan collapse would have merged
+	 * ({@link #assertFullyCollapsed}).
+	 */
+	@Nested
+	@DisplayName("Work-queue collapse")
+	class WorkQueueCollapseTest {
+
+		@Test
+		@DisplayName("fork/star declaring a present non-tail predecessor stays uncollapsed with no spurious merges")
+		void shouldNotMergeForkStarOnNonTailPredecessor() {
+			final ChainIndex idx = new ChainIndex(new AttributeIndexKey(null, "fork", null));
+			// chain [1, 2]: 1 is a head, 2 is its tail, so 1 is NOT a run tail
+			idx.upsertPredecessor(Predecessor.HEAD, 1);
+			idx.upsertPredecessor(new Predecessor(1), 2);
+			// a star of successors all declaring 1 (a present, non-tail element) - each must form its own orphan run
+			final int forks = 50;
+			for (int i = 0; i < forks; i++) {
+				idx.upsertPredecessor(new Predecessor(1), 100 + i);
+				// after every insert the work-queue must have found nothing mergeable (1 is not a tail)
+				assertFullyCollapsed(idx);
+				assertNotBroken(idx);
+			}
+			// [1,2] plus one run per fork - nothing collapsed onto the non-tail predecessor
+			assertEquals(forks + 1, idx.chains.size(), "Fork/star on a non-tail predecessor must not merge.");
+			assertHeadMarksMatchChains(idx);
+		}
+
+		@Test
+		@DisplayName("a fork collapses onto its predecessor only once that predecessor becomes a run tail")
+		void shouldCollapseForkOncePredecessorBecomesTail() {
+			final ChainIndex idx = new ChainIndex(new AttributeIndexKey(null, "fork", null));
+			idx.upsertPredecessor(Predecessor.HEAD, 1);
+			idx.upsertPredecessor(new Predecessor(1), 2);
+			idx.upsertPredecessor(new Predecessor(1), 10);
+			idx.upsertPredecessor(new Predecessor(1), 11);
+			// 1 is not a tail (2 follows it) - the two forks stand as orphans
+			assertEquals(3, idx.chains.size());
+			assertFullyCollapsed(idx);
+			// remove 2 so 1 becomes a run tail - exactly one waiting fork must now collapse onto it
+			idx.removePredecessor(2);
+			assertFullyCollapsed(idx);
+			assertNotBroken(idx);
+			assertHeadMarksMatchChains(idx);
+			// 1 can host a single positional successor; the other fork remains a standing orphan
+			assertEquals(2, idx.chains.size(), "Exactly one fork may merge onto the newly exposed tail.");
+		}
+
+		@Test
+		@DisplayName("absent-then-present predecessors cascade-collapse into a single consistent chain")
+		void shouldCascadeCollapseWhenPredecessorsArriveLate() {
+			final ChainIndex idx = new ChainIndex(new AttributeIndexKey(null, "cascade", null));
+			// declare 1 as head, then two successors whose (even) predecessors are not present yet
+			idx.upsertPredecessor(Predecessor.HEAD, 1);
+			idx.upsertPredecessor(new Predecessor(2), 3);
+			idx.upsertPredecessor(new Predecessor(4), 5);
+			assertFullyCollapsed(idx);
+			assertEquals(3, idx.chains.size(), "Absent predecessors leave three standing orphan runs.");
+			// now supply the missing members in order; each arrival is a new tail its waiting successor merges onto,
+			// cascading the chain forward
+			idx.upsertPredecessor(new Predecessor(1), 2);
+			assertFullyCollapsed(idx);
+			idx.upsertPredecessor(new Predecessor(3), 4);
+			assertFullyCollapsed(idx);
+			idx.upsertPredecessor(new Predecessor(5), 6);
+			assertFullyCollapsed(idx);
+			assertTrue(idx.isConsistent(), "All predecessors present - the chain must fully collapse.");
+			assertArrayEquals(new int[]{1, 2, 3, 4, 5, 6}, idx.getUnorderedLookup().getArray());
+			assertHeadMarksMatchChains(idx);
+		}
+
+		@Test
+		@DisplayName("one mutation drives a multi-run cascade collapse to a single chain in a single drain")
+		void shouldCascadeMultipleMergesInASingleMutation() {
+			final ChainIndex idx = new ChainIndex(new AttributeIndexKey(null, "cascade", null));
+			// present head run [1, 2, 3] whose tail is 3
+			idx.upsertPredecessor(Predecessor.HEAD, 1);
+			idx.upsertPredecessor(new Predecessor(1), 2);
+			idx.upsertPredecessor(new Predecessor(2), 3);
+			// two orphan successor runs stacked on absent predecessors: 10 waits on 20, 20 waits on the still-absent 30
+			idx.upsertPredecessor(new Predecessor(20), 10);
+			idx.upsertPredecessor(new Predecessor(30), 20);
+			assertFullyCollapsed(idx);
+			assertInverseIsExactAndSparse(idx);
+
+			// 30 arrives declaring the present tail 3, so a SINGLE upsert must drain the whole collapse work-queue to
+			// a fixpoint: the head run absorbs 30 and becomes longer, then every orphan run that (transitively) waited
+			// on 30 cascades onto the growing chain via the newly exposed tails - more than one run merges in this one
+			// mutation, which the seeded work-queue must chase without a full rescan
+			idx.upsertPredecessor(new Predecessor(3), 30);
+
+			assertFullyCollapsed(idx);
+			assertNotBroken(idx);
+			assertHeadMarksMatchChains(idx);
+			assertInverseIsExactAndSparse(idx);
+			assertEquals(1, idx.chains.size(), "The cascade must leave exactly one fully merged chain.");
+			// order beyond the set is implementation-defined; pin only that every element survives exactly once
+			final int[] elementSet = idx.getUnorderedLookup().getArray().clone();
+			Arrays.sort(elementSet);
+			assertArrayEquals(new int[]{1, 2, 3, 10, 20, 30}, elementSet);
+		}
+
+		@Test
+		@DisplayName("large randomized churn is left fully collapsed after every mutation")
+		void shouldLeaveIndexFullyCollapsedUnderLargeChurn() {
+			final int n = 40;
+			final ChainIndex idx = new ChainIndex(new AttributeIndexKey(null, "churn", null));
+			final boolean[] live = new boolean[n + 1];
+			final Random rnd = new Random(0x5EED1234L);
+			final int operations = 3_000;
+			for (int op = 0; op < operations; op++) {
+				final int pk = 1 + rnd.nextInt(n);
+				final int roll = rnd.nextInt(10);
+				if (roll < 3 && live[pk]) {
+					idx.removePredecessor(pk);
+					live[pk] = false;
+				} else {
+					// point at HEAD, or at another (possibly still-absent) element; never at itself
+					final int anchor = rnd.nextInt(n + 1);
+					final ChainableType predecessor = anchor == 0 || anchor == pk
+						? Predecessor.HEAD : new Predecessor(anchor);
+					idx.upsertPredecessor(predecessor, pk);
+					live[pk] = true;
+				}
+				// the decisive invariant: the seeded collapse reaches the same fixpoint as the old full rescan every
+				// single time (nothing mergeable left behind)
+				assertFullyCollapsed(idx);
+				assertNotBroken(idx);
+				assertHeadMarksMatchChains(idx);
+				assertInverseIsExactAndSparse(idx);
+			}
+		}
+	}
+
+	/**
+	 * Exercises the two non-adjacent {@link ChainIndex} run-merge relocate branches (the adjacent branch is the
+	 * ubiquitous default covered everywhere). A relocate (remove + re-insert) resets a moved run's head to non-head, so
+	 * these tests pin that {@code mergeRunAfter}'s idempotent {@code markAsHead(target)} / {@code unmarkAsHead(follower)}
+	 * restores the exact head-mark set - asserted directly via {@link #assertHeadMarksMatchChains}.
+	 */
+	@Nested
+	@DisplayName("Run merge relocation")
+	class RunMergeRelocationTest {
+
+		@Test
+		@DisplayName("relocates the shorter follower after the longer target when merging non-adjacent runs")
+		void shouldRelocateShorterFollowerAfterLongerTarget() {
+			final ChainIndex idx = new ChainIndex(new AttributeIndexKey(null, "order", null));
+			// follower orphan [20] (pred 2, absent), spacer orphan [50] (pred 88, absent), head [1]
+			idx.upsertPredecessor(new Predecessor(2), 20);
+			idx.upsertPredecessor(new Predecessor(88), 50);
+			idx.upsertPredecessor(new Predecessor(), 1);
+			// extending [1] with 2 makes 20's predecessor (2) present at a run tail; collapse merges [20] after [1,2].
+			// followerLength(1) <= targetLength(2) => the follower run [20] is the one relocated
+			idx.upsertPredecessor(new Predecessor(1), 2);
+
+			assertNotBroken(idx);
+			assertHeadMarksMatchChains(idx);
+			// the merged run [1,2,20] plus the still-orphan spacer [50] leaves exactly two chains
+			assertEquals(2, idx.chains.size());
+			assertSortedContentEquals(new int[]{1, 2, 20, 50}, idx);
+		}
+
+		@Test
+		@DisplayName("relocates the shorter target before the longer follower when merging non-adjacent runs")
+		void shouldRelocateShorterTargetBeforeLongerFollower() {
+			final ChainIndex idx = new ChainIndex(new AttributeIndexKey(null, "order", null));
+			// long follower orphan [20,21,22] (head 20 pred 2, absent), spacer orphan [50], short head [1]
+			idx.upsertPredecessor(new Predecessor(2), 20);
+			idx.upsertPredecessor(new Predecessor(20), 21);
+			idx.upsertPredecessor(new Predecessor(21), 22);
+			idx.upsertPredecessor(new Predecessor(88), 50);
+			idx.upsertPredecessor(new Predecessor(), 1);
+			// extending [1] with 2 makes 20's predecessor present; collapse merges [20,21,22] after [1,2].
+			// followerLength(3) > targetLength(2) => the target run [1,2] is relocated - its head mark is reset by the
+			// relocate and must be restored by mergeRunAfter's markAsHead(target)
+			idx.upsertPredecessor(new Predecessor(1), 2);
+
+			assertNotBroken(idx);
+			assertHeadMarksMatchChains(idx);
+			// the merged run [1,2,20,21,22] plus the still-orphan spacer [50] leaves exactly two chains
+			assertEquals(2, idx.chains.size());
+			assertSortedContentEquals(new int[]{1, 2, 20, 21, 22, 50}, idx);
+		}
+
+		/**
+		 * Asserts the index holds exactly the expected element set (order-independent).
+		 */
+		private static void assertSortedContentEquals(@Nonnull int[] expectedSorted, @Nonnull ChainIndex idx) {
+			final int[] actual = idx.getUnorderedLookup().getArray().clone();
+			Arrays.sort(actual);
+			assertArrayEquals(expectedSorted, actual);
+		}
+	}
+
+	/**
+	 * Verifies the boundary-stable PAGED reload path ({@link ChainIndex#fromPersistedPages}) WITHOUT going through the
+	 * storage-part loader: for a live index we manually harvest its persisted leaf pages straight from the element
+	 * array's {@code leafPageHandles()} (record ids + head mask, plus each head's predecessor read from the live
+	 * {@code predecessors} map), rebuild via {@code fromPersistedPages} and assert the reconstruction is IDENTICAL —
+	 * same physical element order, same chains, same predecessors, same successor inverse — and that the freshly
+	 * reloaded index emits NO pages on a first flush (the zero-emission proxy).
+	 */
+	@Nested
+	@DisplayName("PAGED reload round-trip (fromPersistedPages)")
+	class PagedReloadRoundTripTest {
+
+		@Test
+		@DisplayName("a single consistent chain spanning several pages reloads identically")
+		void shouldReloadSingleLongChainSpanningMultiplePages() {
+			final ChainIndex idx = new ChainIndex(new AttributeIndexKey(null, "reload-single", null));
+			// 3000 > 2*PAGE_RECORDS (1024) => at least 3 leaf pages; one consistent head-first chain 1 -> 2 -> ... -> 3000
+			for (int pk = 1; pk <= 3000; pk++) {
+				idx.upsertPredecessor(pk == 1 ? new Predecessor() : new Predecessor(pk - 1), pk);
+			}
+			assertTrue(idx.isConsistent());
+			final List<ChainIndexLeafPagePart> pages = harvestPages(idx);
+			assertTrue(pages.size() >= 3, "The chain must span at least three leaf pages.");
+			// the boundary-non-head case: every page after the first must begin with a NON-head body record whose
+			// predecessor is the last record of the previous page (reconstructed positionally across the boundary)
+			for (int p = 1; p < pages.size(); p++) {
+				final ChainIndexLeafPagePart page = pages.get(p);
+				assertEquals(0L, page.getHeadWords()[0] & 1L, "Page " + p + " must start with a non-head body record.");
+			}
+			assertReloadIdentical(idx, pages, "single long chain", true);
+		}
+
+		@Test
+		@DisplayName("thousands of disconnected singleton orphans reload identically")
+		void shouldReloadManySingletonOrphans() {
+			final ChainIndex idx = new ChainIndex(new AttributeIndexKey(null, "reload-orphans", null));
+			// each element points at a permanently-absent predecessor => a length-1 SUCCESSOR orphan run (no merges);
+			// 3000 orphans span >=3 pages and every position is a chain head (the head-at-page-boundary case)
+			for (int pk = 1; pk <= 3000; pk++) {
+				idx.upsertPredecessor(new Predecessor(pk + 1_000_000), pk);
+			}
+			assertFalse(idx.isConsistent());
+			assertEquals(3000, idx.chains.size());
+			final List<ChainIndexLeafPagePart> pages = harvestPages(idx);
+			assertTrue(pages.size() >= 3, "The orphans must span at least three leaf pages.");
+			// order among equal (state, length) runs is tie-broken by map iteration order => the semi-consistent lookup
+			// order is not a stable oracle here; the physical order + chains + predecessors + inverse still are
+			assertReloadIdentical(idx, pages, "singleton orphans", false);
+		}
+
+		@Test
+		@DisplayName("a run whose head sits in a later page with its body crossing the next boundary reloads identically")
+		void shouldReloadRunHeadInLaterPageWithBodyCrossingBoundary() {
+			// build a deterministic two-run inconsistent index via the deserialization (array) constructor so the leaf
+			// boundaries are the fully-filled 1024-record pages: run A = 1..1100 (fills page 0, spills into page 1),
+			// run B's head 1101 therefore lands at global position 1100 (page 1) with its body crossing into page 2
+			final int runALength = 1100;
+			final int runBLength = 1400;
+			final int[] runA = new int[runALength];
+			for (int i = 0; i < runALength; i++) {
+				runA[i] = i + 1;
+			}
+			final int[] runB = new int[runBLength];
+			for (int i = 0; i < runBLength; i++) {
+				runB[i] = runALength + 1 + i;
+			}
+			final Map<Integer, ChainElementState> states = new HashMap<>();
+			states.put(runA[0], head(runA[0]));
+			for (int i = 1; i < runALength; i++) {
+				states.put(runA[i], succ(runA[0], runA[i - 1]));
+			}
+			// run B's head points at a permanently-absent predecessor => a SUCCESSOR head (valid, un-collapsible)
+			states.put(runB[0], succ(runB[0], 9_999_999));
+			for (int i = 1; i < runBLength; i++) {
+				states.put(runB[i], succ(runB[0], runB[i - 1]));
+			}
+			final ChainIndex idx = new ChainIndex(
+				new AttributeIndexKey(null, "reload-two-run", null), new int[][]{runA, runB}, states
+			);
+			assertNotBroken(idx);
+			assertFalse(idx.isConsistent());
+
+			final List<ChainIndexLeafPagePart> pages = harvestPages(idx);
+			assertTrue(pages.size() >= 3, "The two runs must span at least three leaf pages.");
+			// run B's head must NOT be in the first page (its head bit falls in a later page) and page 1 must start
+			// with a non-head boundary body record from run A
+			assertEquals(0L, pages.get(1).getHeadWords()[0] & 1L, "Page 1 must start with run A's non-head body.");
+			assertReloadIdentical(idx, pages, "run head in later page", true);
+		}
+
+		@Test
+		@DisplayName("a run head whose predecessor is a present record in another run reloads as SUCCESSOR, not CIRCULAR")
+		void shouldReloadRunHeadWhosePredecessorIsPresentInAnotherRun() {
+			// two runs on a single page: run A = 1..5 (a genuine HEAD chain) and run B = 101..103 whose head declares its
+			// predecessor as record 2 - a record that IS present, but lives inside run A (not run B). Because record 2's
+			// global position sits OUTSIDE run B's own positional span, the head is a cross-run SUCCESSOR (a fork off
+			// record 2), never a CIRCULAR head - the reload must recompute this the same way the live index does
+			final int[] runA = {1, 2, 3, 4, 5};
+			final int[] runB = {101, 102, 103};
+			final int runBHead = runB[0];
+			final int presentExternalPredecessor = runA[1]; // record 2, a mid-run-A element that is present
+			final Map<Integer, ChainElementState> states = new HashMap<>();
+			states.put(runA[0], head(runA[0]));
+			for (int i = 1; i < runA.length; i++) {
+				states.put(runA[i], succ(runA[0], runA[i - 1]));
+			}
+			// run B's head points at the PRESENT record 2 (which belongs to run A); its body follows the head normally
+			states.put(runBHead, succ(runBHead, presentExternalPredecessor));
+			for (int i = 1; i < runB.length; i++) {
+				states.put(runB[i], succ(runBHead, runB[i - 1]));
+			}
+			final ChainIndex idx = new ChainIndex(
+				new AttributeIndexKey(null, "reload-cross-run-successor", null), new int[][]{runA, runB}, states
+			);
+			assertNotBroken(idx);
+			assertFalse(idx.isConsistent(), "two forked runs must leave the index inconsistent");
+			// guard the fixture: the live index classifies run B's head as a SUCCESSOR (present-but-external predecessor)
+			assertEquals(ElementState.SUCCESSOR, idx.getElementState(runBHead).state());
+
+			// the reload must RECOMPUTE run B's head from its persisted predecessor and land on SUCCESSOR (not CIRCULAR):
+			// predecessor 2's global position falls in run A, outside run B's own span, so no cycle is ever inferred
+			assertReloadIdentical(idx, harvestPages(idx), "successor head with present external predecessor", false);
+		}
+
+		@Test
+		@DisplayName("a circular chain reloads identically (CIRCULAR head state recomputed)")
+		void shouldReloadCircularChain() {
+			final ChainIndex idx = new ChainIndex(new AttributeIndexKey(null, "reload-circular", null));
+			// 1 -> 2 -> 3 with 3 closing back onto 1 forms one circular run headed by 1 (CIRCULAR)
+			idx.upsertPredecessor(new Predecessor(3), 1);
+			idx.upsertPredecessor(new Predecessor(1), 2);
+			idx.upsertPredecessor(new Predecessor(2), 3);
+			assertEquals(ElementState.CIRCULAR, idx.getElementState(1).state());
+			assertTrue(idx.isConsistent(), "A single circular run is a consistent (single-chain) index.");
+			assertReloadIdentical(idx, harvestPages(idx), "circular chain", true);
+		}
+
+		@Test
+		@DisplayName("an empty index reloads to an empty index emitting no pages")
+		void shouldReloadEmptyIndex() {
+			final ChainIndex idx = new ChainIndex(new AttributeIndexKey(null, "reload-empty", null));
+			final List<ChainIndexLeafPagePart> pages = harvestPages(idx);
+			assertTrue(pages.isEmpty(), "An empty index has no leaf pages.");
+			final ChainIndex reconstructed = ChainIndex.fromPersistedPages(
+				idx.getReferenceKey(), idx.getAttributeIndexKey(), pages, highWaterOf(pages)
+			);
+			assertEquals(0, reconstructed.elements.getLength());
+			assertEquals(0, reconstructed.chains.size());
+			assertEquals(0, reconstructed.predecessors.size());
+			assertTrue(reconstructed.elements.collectChangedPages().isEmpty(), "Empty reload must emit no pages.");
+		}
+
+		/**
+		 * Harvests the persisted leaf-page representation of a live index straight from the element array's page
+		 * handles, WITHOUT going through {@code appendStorageParts}: each handle yields the page's ordered record ids
+		 * and head-mask words; the per-head predecessor pk (aligned with the set head bits) is read from the live
+		 * {@code predecessors} map. The head-mask is sliced down to the {@code ceil(recordIds.length / 64)} meaningful
+		 * words the persisted page carries. Page sequences are synthesized `0, 1, 2, …` in leaf order (a never-flushed
+		 * live index leaves them {@code UNASSIGNED}), mirroring what a real first flush would allocate, so the reload's
+		 * page-stream registry restores from valid (non-negative) sequences.
+		 */
+		@Nonnull
+		private static List<ChainIndexLeafPagePart> harvestPages(@Nonnull ChainIndex index) {
+			final List<UnorderedLookupTree.LeafPageHandle> handles = index.elements.leafPageHandles();
+			final List<ChainIndexLeafPagePart> pages = new ArrayList<>(handles.size());
+			int pageSequence = 0;
+			for (final UnorderedLookupTree.LeafPageHandle handle : handles) {
+				final int[] recordIds = handle.recordIds();
+				final long[] fullMask = handle.headMask();
+				final int words = (recordIds.length + 63) / 64;
+				final long[] headWords = Arrays.copyOf(fullMask, words);
+				int headCount = 0;
+				for (int i = 0; i < recordIds.length; i++) {
+					if (((headWords[i >>> 6] >>> (i & 63)) & 1L) != 0L) {
+						headCount++;
+					}
+				}
+				final int[] headPredecessorPks = new int[headCount];
+				int cursor = 0;
+				for (int i = 0; i < recordIds.length; i++) {
+					if (((headWords[i >>> 6] >>> (i & 63)) & 1L) != 0L) {
+						headPredecessorPks[cursor++] = index.predecessors.get(recordIds[i]);
+					}
+				}
+				// read-path ctor: fromPersistedPages consumes only pageSequence / recordIds / headWords / predecessors
+				pages.add(new ChainIndexLeafPagePart(
+					0, pageSequence++, recordIds, headWords, headPredecessorPks, 0L
+				));
+			}
+			return pages;
+		}
+
+		/**
+		 * The page-stream high-water a real flush would persist for these harvested pages: the maximum assigned page
+		 * sequence, or `-1` (the `NO_PAGE` sentinel) when the index has no pages. Passed to
+		 * {@link ChainIndex#fromPersistedPages} so its registry restore sees a coherent high-water envelope.
+		 */
+		private static int highWaterOf(@Nonnull List<ChainIndexLeafPagePart> pages) {
+			int highWater = -1;
+			for (final ChainIndexLeafPagePart page : pages) {
+				highWater = Math.max(highWater, page.getPageSequence());
+			}
+			return highWater;
+		}
+
+		/**
+		 * Reloads `original` from the harvested `pages` and asserts the reconstruction is identical: same physical
+		 * element order (always deterministic), same chains (head set + each descriptor's length + state), same
+		 * predecessors, same successor inverse, not BROKEN, head marks coherent, and a first flush emits no pages. When
+		 * `deterministicLookupOrder` the semi-consistent {@code getUnorderedLookup} order is compared exactly; otherwise
+		 * (equal (state, length) ties make that order map-iteration-dependent) only the element multiset is compared.
+		 */
+		private static void assertReloadIdentical(
+			@Nonnull ChainIndex original,
+			@Nonnull List<ChainIndexLeafPagePart> pages,
+			@Nonnull String label,
+			boolean deterministicLookupOrder
+		) {
+			final ChainIndex reconstructed = ChainIndex.fromPersistedPages(
+				original.getReferenceKey(), original.getAttributeIndexKey(), pages, highWaterOf(pages)
+			);
+
+			assertNotBroken(reconstructed);
+			assertHeadMarksMatchChains(reconstructed);
+			assertEquals(original.isConsistent(), reconstructed.isConsistent(), label + ": consistency flag");
+
+			// physical element order is the core reconstruction guarantee - always deterministic and identical
+			assertArrayEquals(
+				original.elements.getArray(), reconstructed.elements.getArray(), label + ": physical element order"
+			);
+
+			// chains: identical head set, and identical (length, state) per head
+			assertEquals(original.chains.keySet(), reconstructed.chains.keySet(), label + ": chain head set");
+			for (final Entry<Integer, ChainDescriptor> entry : original.chains.entrySet()) {
+				final Integer headPk = entry.getKey();
+				final ChainDescriptor expected = entry.getValue();
+				final ChainDescriptor actual = reconstructed.chains.get(headPk);
+				assertEquals(expected, actual, label + ": descriptor for head " + headPk);
+			}
+
+			// predecessors: identical map
+			assertEquals(
+				original.predecessors.keySet(), reconstructed.predecessors.keySet(), label + ": predecessor key set"
+			);
+			for (final Entry<Integer, Integer> entry : original.predecessors.entrySet()) {
+				final Integer pk = entry.getKey();
+				assertEquals(
+					entry.getValue(), reconstructed.predecessors.get(pk), label + ": predecessor of " + pk
+				);
+			}
+
+			// successorsByPredecessor: identical inverse (key set + bitmap contents per key)
+			assertEquals(
+				original.successorsByPredecessor.keySet(), reconstructed.successorsByPredecessor.keySet(),
+				label + ": successor-inverse key set"
+			);
+			for (final Entry<Integer, TransactionalBitmap> entry : original.successorsByPredecessor.entrySet()) {
+				final Integer predPk = entry.getKey();
+				assertArrayEquals(
+					entry.getValue().getArray(),
+					reconstructed.successorsByPredecessor.get(predPk).getArray(),
+					label + ": successor inverse for predecessor " + predPk
+				);
+			}
+
+			// semi-consistent lookup order (exact only when tie-free)
+			final int[] originalLookup = original.getUnorderedLookup().getArray();
+			final int[] reconstructedLookup = reconstructed.getUnorderedLookup().getArray();
+			if (deterministicLookupOrder) {
+				assertArrayEquals(originalLookup, reconstructedLookup, label + ": semi-consistent lookup order");
+			} else {
+				final int[] originalSorted = originalLookup.clone();
+				final int[] reconstructedSorted = reconstructedLookup.clone();
+				Arrays.sort(originalSorted);
+				Arrays.sort(reconstructedSorted);
+				assertArrayEquals(originalSorted, reconstructedSorted, label + ": semi-consistent lookup element set");
+			}
+
+			// zero-emission proxy: the freshly reloaded index re-emits no pages on a first flush
+			assertTrue(
+				reconstructed.elements.collectChangedPages().isEmpty(),
+				label + ": a freshly reloaded index must emit no pages"
+			);
+		}
+	}
+
+	/**
+	 * Exercises the FULL granular flush + reload path through the real {@link ChainIndex#appendStorageParts} write seam
+	 * (not the hand-harvested pages of {@link PagedReloadRoundTripTest}): a multi-page index is flushed into an in-memory
+	 * {@link ChainStore} that models the append-only OffsetIndex (leaf pages superseded by page sequence, the SINGLE/PAGED
+	 * root superseded at its stable PK, freed pages removed), reloaded exactly as {@code AttributeIndexLoader.fetchChain}
+	 * would, and asserted identical.
+	 *
+	 * A "commit" is modeled by {@link ChainStore#reload}: the reloaded index restores its page-stream live baseline via
+	 * {@link ChainIndex#fromPersistedPages} (as a disk round-trip would), so the NEXT flush's freed-page / removal
+	 * bookkeeping is correct without the transactional commit-merge publish step — the same trick
+	 * {@code SortIndexOwnerPagingRoundTripTest} uses (reload-between-flushes). The tests prove: a large chain round-trips
+	 * identically and re-emits NOTHING on the first post-load flush (true zero-emission); a single-element mutation
+	 * re-emits only the touched leaf; and the SINGLE⇄PAGED transitions leak no pages (PAGED→SINGLE removes every prior leaf
+	 * page, SINGLE→PAGED supersedes the inline root).
+	 */
+	@Nested
+	@DisplayName("Granular flush + reload round-trip (appendStorageParts)")
+	class GranularFlushReloadRoundTripTest {
+
+		/** Owning entity index pk used for the flush emission (arbitrary; only the CHAIN sub-index identity matters). */
+		private static final int ENTITY_INDEX_PK = 42;
+
+		@Test
+		@DisplayName("a large multi-page chain flushes PAGED, reloads identically, and re-emits nothing on the next flush")
+		void shouldFlushReloadLargeChainAndReEmitNothing() {
+			final AttributeIndexKey key = new AttributeIndexKey(null, "flush-large", null);
+			final ChainIndex idx = new ChainIndex(key);
+			appendConsecutiveChain(idx, 1, 3200); // > 3 leaves (leafCapacity = 1024)
+			assertTrue(idx.isConsistent());
+
+			final ChainStore store = new ChainStore();
+			store.flush(idx);
+			assertTrue(store.root.isPaged(), "a >3-page chain must persist as PAGED");
+			final int livePages = store.root.getPageSequencesOrThrowException().length;
+			assertTrue(livePages >= 3, "the chain must span at least three live leaf pages");
+			assertEquals(livePages, store.lastLeafPageCount, "a first PAGED flush must emit every live leaf page");
+			assertEquals(0, store.lastRemovalCount, "a first PAGED flush frees no pages");
+
+			final ChainIndex reloaded = store.reload(idx.getReferenceKey(), key);
+			assertReloadMatches(idx, reloaded, "large chain");
+
+			// TRUE zero-emission: the freshly reloaded (clean) index emits NOTHING on its first flush - no leaf pages, no root
+			assertZeroEmission(reloaded);
+		}
+
+		@Test
+		@DisplayName("after reload a single-element mutation re-emits only the touched leaf, not the whole index")
+		void shouldReEmitOnlyTheTouchedLeafAfterReload() {
+			final AttributeIndexKey key = new AttributeIndexKey(null, "flush-incremental", null);
+			final ChainIndex idx = new ChainIndex(key);
+			appendConsecutiveChain(idx, 1, 3200);
+
+			final ChainStore store = new ChainStore();
+			store.flush(idx);
+			final int totalPages = store.root.getPageSequencesOrThrowException().length;
+			assertTrue(totalPages >= 3);
+
+			// commit = reload (restores the live-page baseline), then mutate one element (append a new tail into the last leaf)
+			final ChainIndex reloaded = store.reload(idx.getReferenceKey(), key);
+			reloaded.upsertPredecessor(new Predecessor(3200), 3201);
+
+			store.flush(reloaded);
+			assertTrue(store.root.isPaged(), "a still-large chain stays PAGED");
+			assertTrue(
+				store.lastLeafPageCount >= 1 && store.lastLeafPageCount < totalPages,
+				"a single-element mutation must re-emit only the touched leaf(s), far fewer than all " + totalPages + " pages"
+			);
+			assertEquals(0, store.lastRemovalCount, "a tail append frees no pages");
+
+			final ChainIndex reReloaded = store.reload(reloaded.getReferenceKey(), key);
+			assertReloadMatches(reloaded, reReloaded, "incremental");
+			assertZeroEmission(reReloaded);
+		}
+
+		@Test
+		@DisplayName("growing a SINGLE chain past one leaf flips to PAGED, superseding the inline root (no orphan)")
+		void shouldGrowFromSingleToPagedWithoutOrphan() {
+			final AttributeIndexKey key = new AttributeIndexKey(null, "grow", null);
+			final ChainIndex small = new ChainIndex(key);
+			appendConsecutiveChain(small, 1, 500); // < one leaf -> SINGLE
+			final ChainStore store = new ChainStore();
+			store.flush(small);
+			assertFalse(store.root.isPaged(), "a <1-page chain must persist SINGLE");
+			assertEquals(0, store.lastLeafPageCount, "a SINGLE flush emits no leaf pages");
+
+			// commit = reload the SINGLE root, then grow past one leaf so the tree flips to PAGED
+			final ChainIndex grown = store.reload(small.getReferenceKey(), key);
+			appendConsecutiveChain(grown, 501, 2500);
+			store.flush(grown);
+			assertTrue(store.root.isPaged(), "growing past one leaf must flip the root to PAGED");
+			// the PAGED root reuses the SINGLE root's storage-part PK (both a ChainIndexStoragePart of type CHAIN => an
+			// identical computeUniquePartId), so it SUPERSEDES the inline record - the store keeps a single root slot, no
+			// orphan remains
+			assertEquals(AttributeIndexType.CHAIN, store.root.getIndexType());
+
+			final ChainIndex reloaded = store.reload(grown.getReferenceKey(), key);
+			assertReloadMatches(grown, reloaded, "single->paged");
+			assertZeroEmission(reloaded);
+		}
+
+		@Test
+		@DisplayName("shrinking a PAGED chain below one leaf collapses to SINGLE, removing every prior leaf page")
+		void shouldCollapseFromPagedToSingleRemovingEveryPriorLeafPage() {
+			final AttributeIndexKey key = new AttributeIndexKey(null, "shrink", null);
+			final ChainIndex big = new ChainIndex(key);
+			appendConsecutiveChain(big, 1, 2500); // > two leaves -> PAGED
+			final ChainStore store = new ChainStore();
+			store.flush(big);
+			assertTrue(store.root.isPaged());
+			final int livePagesBeforeCollapse = store.root.getPageSequencesOrThrowException().length;
+			assertTrue(livePagesBeforeCollapse >= 2);
+
+			// commit = reload (restores the live-page baseline), then shrink from the TAIL so the chain stays consistent and
+			// every trailing leaf empties and is dropped, collapsing the tree to a single leaf (SINGLE)
+			final ChainIndex shrunk = store.reload(big.getReferenceKey(), key);
+			for (int pk = 2500; pk >= 201; pk--) {
+				shrunk.removePredecessor(pk);
+			}
+			store.flush(shrunk);
+			assertFalse(store.root.isPaged(), "shrinking below one leaf must collapse to the SINGLE root");
+			assertEquals(0, store.lastLeafPageCount, "a SINGLE collapse emits no leaf pages");
+			assertEquals(
+				livePagesBeforeCollapse, store.lastRemovalCount,
+				"a PAGED->SINGLE collapse must remove every previously-live leaf page (no leak)"
+			);
+
+			final ChainIndex reloaded = store.reload(shrunk.getReferenceKey(), key);
+			assertReloadMatches(shrunk, reloaded, "paged->single");
+			assertZeroEmission(reloaded);
+		}
+
+		@Test
+		@DisplayName("a mid-life shrink that frees a leaf but stays PAGED emits a leaf-page removal and keeps a PAGED root")
+		void shouldEmitLeafPageRemovalWhenMidLifeShrinkFreesLeafButStaysPaged() {
+			final AttributeIndexKey key = new AttributeIndexKey(null, "mid-life-shrink", null);
+			final ChainIndex big = new ChainIndex(key);
+			appendConsecutiveChain(big, 1, 3200); // > 3 leaves (leafCapacity = 1024)
+			final ChainStore store = new ChainStore();
+			store.flush(big);
+			assertTrue(store.root.isPaged(), "a >3-page chain must persist as PAGED");
+			final int livePagesBeforeShrink = store.root.getPageSequencesOrThrowException().length;
+			assertTrue(livePagesBeforeShrink >= 3, "the chain must span at least three live leaf pages");
+
+			// commit = reload (restores the live-page baseline), then shrink from the TAIL so the chain stays ONE
+			// consistent chain (1 -> 2 -> ... -> 1300) yet empties and drops its trailing leaf pages - a MID-LIFE shrink
+			// that stays comfortably above one leaf, so the root stays PAGED while at least one freed page is removed
+			final ChainIndex shrunk = store.reload(big.getReferenceKey(), key);
+			for (int pk = 3200; pk >= 1301; pk--) {
+				shrunk.removePredecessor(pk);
+			}
+			store.flush(shrunk);
+
+			assertTrue(store.root.isPaged(), "1300 elements still span more than one leaf, so the root stays PAGED");
+			final int livePagesAfterShrink = store.root.getPageSequencesOrThrowException().length;
+			assertTrue(livePagesAfterShrink >= 2, "1300 elements must still occupy at least two live leaf pages");
+			assertTrue(
+				livePagesAfterShrink < livePagesBeforeShrink, "the shrink must free at least one previously-live leaf page"
+			);
+			// rebalancing makes the exact removal count brittle - assert only that at least one freed page was removed and
+			// at least one surviving (touched) leaf was re-emitted, never exact counts
+			assertTrue(store.lastRemovalCount > 0, "a mid-life shrink that empties a trailing leaf must emit a removal");
+			assertTrue(store.lastLeafPageCount >= 1, "the touched surviving leaf(s) must be re-emitted");
+
+			final ChainIndex reloaded = store.reload(shrunk.getReferenceKey(), key);
+			assertReloadMatches(shrunk, reloaded, "mid-life shrink");
+			assertZeroEmission(reloaded);
+		}
+
+		/**
+		 * Appends a consecutive head-first chain `fromPk -> fromPk+1 -> … -> toPk` to `idx` (pk 1 is the head; every other
+		 * pk follows its immediate predecessor), one {@link ChainIndex#upsertPredecessor} per element.
+		 */
+		private static void appendConsecutiveChain(@Nonnull ChainIndex idx, int fromPk, int toPk) {
+			for (int pk = fromPk; pk <= toPk; pk++) {
+				idx.upsertPredecessor(pk == 1 ? new Predecessor() : new Predecessor(pk - 1), pk);
+			}
+		}
+
+		/**
+		 * Asserts `actual` (a reloaded index) matches `expected`: not BROKEN, same physical element order, same chain head
+		 * set and per-head descriptor, same predecessors and same consistency flag.
+		 */
+		private static void assertReloadMatches(
+			@Nonnull ChainIndex expected, @Nonnull ChainIndex actual, @Nonnull String label) {
+			assertNotBroken(actual);
+			assertArrayEquals(
+				expected.elements.getArray(), actual.elements.getArray(), label + ": physical element order"
+			);
+			assertEquals(expected.chains.keySet(), actual.chains.keySet(), label + ": chain head set");
+			for (final Entry<Integer, ChainDescriptor> entry : expected.chains.entrySet()) {
+				final Integer headPk = entry.getKey();
+				assertEquals(
+					entry.getValue(), actual.chains.get(headPk), label + ": descriptor for head " + headPk
+				);
+			}
+			assertEquals(expected.predecessors.keySet(), actual.predecessors.keySet(), label + ": predecessor key set");
+			for (final Entry<Integer, Integer> entry : expected.predecessors.entrySet()) {
+				final Integer pk = entry.getKey();
+				assertEquals(
+					entry.getValue(), actual.predecessors.get(pk), label + ": predecessor of " + pk
+				);
+			}
+			assertEquals(expected.isConsistent(), actual.isConsistent(), label + ": consistency flag");
+		}
+
+		/**
+		 * Asserts the freshly reloaded (clean) index emits ZERO storage parts on its first flush - no leaf pages, no root:
+		 * the load leaves the index non-dirty so the flush is suppressed entirely (true zero-emission).
+		 */
+		private static void assertZeroEmission(@Nonnull ChainIndex reloaded) {
+			final TrappedChanges sink = new TrappedChanges();
+			reloaded.appendStorageParts(ENTITY_INDEX_PK, sink);
+			assertEquals(
+				0, sink.getTrappedChangesCount(),
+				"a freshly reloaded index must emit zero storage parts on its first flush"
+			);
+		}
+
+		/**
+		 * In-memory model of the append-only OffsetIndex for one chain sub-index: leaf pages superseded by page sequence,
+		 * the SINGLE/PAGED root superseded at its stable PK (one slot). {@link #reload} rebuilds the index exactly as
+		 * {@code AttributeIndexLoader.fetchChain} would (PAGED via the root's ordered page list, else the inline SINGLE
+		 * part), and — being a real reload — restores the page-stream live baseline so a subsequent flush's freed-page
+		 * bookkeeping is correct.
+		 */
+		private static final class ChainStore {
+			private final Map<Integer, ChainIndexLeafPagePart> leafPages = new HashMap<>();
+			@Nullable private ChainIndexStoragePart root;
+			private int lastLeafPageCount;
+			private int lastRemovalCount;
+
+			/**
+			 * Flushes `idx` through {@link ChainIndex#appendStorageParts} and folds the emitted parts into this store,
+			 * mirroring the writer: leaf pages are stored (superseded) by page sequence, removals are counted and the
+			 * SINGLE/PAGED root replaces the prior root. Records this flush's leaf-page / removal counts for assertions.
+			 */
+			void flush(@Nonnull ChainIndex idx) {
+				final TrappedChanges sink = new TrappedChanges();
+				idx.appendStorageParts(ENTITY_INDEX_PK, sink);
+				this.lastLeafPageCount = 0;
+				this.lastRemovalCount = 0;
+				final Iterator<StoragePart> it = sink.getTrappedChangesIterator();
+				while (it.hasNext()) {
+					final StoragePart part = it.next();
+					if (part instanceof ChainIndexLeafPagePart leafPage) {
+						this.leafPages.put(leafPage.getPageSequence(), leafPage);
+						this.lastLeafPageCount++;
+					} else if (part instanceof ChainIndexLeafPageRemoval) {
+						this.lastRemovalCount++;
+					} else if (part instanceof ChainIndexStoragePart rootPart) {
+						this.root = rootPart;
+					}
+				}
+				idx.resetDirty();
+			}
+
+			/**
+			 * Reloads the stored state exactly as {@code AttributeIndexLoader.fetchChain} does: a PAGED root's ordered leaf
+			 * pages are looked up (each must be present) and handed to {@link ChainIndex#fromPersistedPages}; a SINGLE root is
+			 * rebuilt from its inline chains + element states.
+			 */
+			@Nonnull
+			ChainIndex reload(@Nullable RepresentativeReferenceKey refKey, @Nonnull AttributeIndexKey attrKey) {
+				final ChainIndexStoragePart rootPart = this.root;
+				assertNotNull(rootPart, "nothing has been flushed into the store yet");
+				if (rootPart.isPaged()) {
+					final int[] orderedPageSequences = rootPart.getPageSequencesOrThrowException();
+					final List<ChainIndexLeafPagePart> pages = new ArrayList<>(orderedPageSequences.length);
+					for (final int pageSequence : orderedPageSequences) {
+						final ChainIndexLeafPagePart page = this.leafPages.get(pageSequence);
+						assertNotNull(page, "live leaf page " + pageSequence + " must be present in the store");
+						pages.add(page);
+					}
+					return ChainIndex.fromPersistedPages(refKey, attrKey, pages, rootPart.getHighWaterPageSequence());
+				}
+				return new ChainIndex(refKey, attrKey, rootPart.getChains(), rootPart.getElementStates());
+			}
 		}
 	}
 

@@ -182,6 +182,35 @@ public class PageStreamRegistry implements Serializable {
 	}
 
 	/**
+	 * Returns the page sequences the given stream WILL have on disk once the in-flight flush is durable — its staged set
+	 * when a flush has already staged this commit, otherwise its published live set (and an empty array for an unknown /
+	 * page-less stream). Unlike {@link #livePageSequences(int)} (which always reads the published set and so lags behind
+	 * a flush that has staged but not yet published), this reflects the CURRENT tree shape at any point of the flush, so
+	 * an owner can snapshot "what disk holds after this commit" for a sub-index whose pages it must reclaim if the
+	 * sub-index is later dropped (landmine G).
+	 *
+	 * @param streamId the stream to inspect
+	 * @return the staged set when staged this commit, else the published live set, else an empty array
+	 */
+	@Nonnull
+	public int[] pendingLivePageSequences(int streamId) {
+		final PageStream stream = this.streams.get(streamId);
+		if (stream == null) {
+			return ArrayUtils.EMPTY_INT_ARRAY;
+		}
+		final Set<Integer> pending = stream.staged != null ? stream.staged : stream.live;
+		if (pending.isEmpty()) {
+			return ArrayUtils.EMPTY_INT_ARRAY;
+		}
+		final int[] result = new int[pending.size()];
+		int count = 0;
+		for (final Integer pageSequence : pending) {
+			result[count++] = pageSequence;
+		}
+		return result;
+	}
+
+	/**
 	 * Seeds a stream's state at cold load from its persisted root record: the explicit high-water and the published
 	 * live-page set (rebuilt by the caller from the persisted leaf-page sequence list). Replaces any existing state for
 	 * the stream.
