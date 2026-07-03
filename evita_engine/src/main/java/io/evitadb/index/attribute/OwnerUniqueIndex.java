@@ -311,7 +311,13 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 
 	@Override
 	public boolean isEmpty() {
-		return this.recordIds.isEmpty();
+		// emptiness MUST be value-based, not record-based: a `localized` + `uniqueGlobally` attribute has a locale-less
+		// unique key, so one record legitimately owns several values (one per locale) in this single index, registered
+		// and unregistered in separate per-locale calls. The `recordIds` bitmap drops a pk on the FIRST of its values
+		// removed (it is an eager denormalized cache), so a record-based check would report the index empty while sibling
+		// locale values are still present — and the caller would then drop a live index. The value tree is authoritative;
+		// `size()` is an O(1) counter, so the index is empty exactly when no value remains (for any record, any locale).
+		return this.tree.size() == 0;
 	}
 
 	/**
@@ -597,13 +603,12 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 		// are interchangeable; using the primitive expectedRecordId avoids unboxing the (provably non-null) Integer
 		assertUniqueKeyOwnership(key, expectedRecordId, existingRecordId);
 		this.tree.removeRecord(key, expectedRecordId);
-		// dropping the pk from the bitmap is unconditional here, yet safe for array-typed attributes where one pk owns
-		// several element keys: this single-value method is private and reached only from the array-dispatch entry point
-		// (which loops over EVERY element of the array) or the scalar path (one value per pk). The real mutation path
-		// always (un)registers the WHOLE attribute value atomically — executeAttributeUpsert/Removal pass the entire
-		// array, never a single element — so by the end of one public unregister call every value owned by the pk has
-		// left the tree and the bitmap correctly no longer contains it. A partial single-element unregister that strands
-		// a live sibling key is therefore unreachable.
+		// dropping the pk from the membership bitmap is eager: a pk that still owns sibling values in this index (an
+		// array element not yet processed, or another locale's value for a locale-less global-unique key) is transiently
+		// excluded from `recordIds` between the per-value unregister calls. This mirrors the historical (non-granular)
+		// UniqueIndex behaviour and is why emptiness is tracked value-side (see #isEmpty) rather than off this bitmap —
+		// the index must NOT be dropped while any value remains. Tracking exact per-pk membership would need a per-record
+		// cardinality counter; the eager bitmap is kept for parity and low memory, accepting the transient imprecision.
 		this.recordIds.remove(expectedRecordId);
 		return expectedRecordId;
 	}

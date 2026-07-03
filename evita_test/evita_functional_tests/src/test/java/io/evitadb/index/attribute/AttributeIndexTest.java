@@ -318,6 +318,53 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 	}
 
 	@Nested
+	@DisplayName("Standalone unique multi-locale removal")
+	class StandaloneUniqueMultiLocaleRemovalTest {
+
+		@Test
+		@DisplayName("removing one locale value keeps the index while a sibling-locale value remains")
+		void shouldNotDropStandaloneUniqueIndexWhileSiblingLocaleValueRemains() {
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
+			final Locale czech = new Locale("cs");
+
+			// a `localized` + (across-locale) `unique` attribute has a locale-less unique key, so ONE record legitimately
+			// owns a distinct value per locale in the SAME standalone unique index — registered in separate per-locale calls
+			index.insertUniqueAttribute(
+				null, GLOBAL_UNIQUE_LOCALIZED_CODE, ALLOWED_LOCALES, Scope.LIVE, Locale.ENGLISH, "EN_VALUE", 1
+			);
+			index.insertUniqueAttribute(
+				null, GLOBAL_UNIQUE_LOCALIZED_CODE, ALLOWED_LOCALES, Scope.LIVE, czech, "CS_VALUE", 1
+			);
+			assertEquals(1, index.getUniqueIndexes().size());
+
+			// removing the English value must NOT drop the index — the Czech value still lives in it. A record-based
+			// emptiness check would report the index empty here and drop it, orphaning the Czech value.
+			index.removeUniqueAttribute(
+				null, GLOBAL_UNIQUE_LOCALIZED_CODE, ALLOWED_LOCALES, Scope.LIVE, Locale.ENGLISH, "EN_VALUE", 1
+			);
+			assertEquals(
+				1, index.getUniqueIndexes().size(),
+				"unique index dropped while a sibling-locale value was still present"
+			);
+			final UniqueIndex survivor = index.getUniqueIndex(
+				null, GLOBAL_UNIQUE_LOCALIZED_CODE, Scope.LIVE, czech
+			);
+			assertNotNull(survivor);
+			assertFalse(survivor.isEmpty());
+			assertEquals(1, survivor.getRecordIdByUniqueValue("CS_VALUE"));
+
+			// removing the last (Czech) value now empties and drops the index cleanly — this used to throw
+			// `Unique index for attribute ... not found!` because the index had already been dropped above
+			assertDoesNotThrow(
+				() -> index.removeUniqueAttribute(
+					null, GLOBAL_UNIQUE_LOCALIZED_CODE, ALLOWED_LOCALES, Scope.LIVE, czech, "CS_VALUE", 1
+				)
+			);
+			assertTrue(index.getUniqueIndexes().isEmpty());
+		}
+	}
+
+	@Nested
 	@DisplayName("STM invariants")
 	class StmInvariantsTest {
 
