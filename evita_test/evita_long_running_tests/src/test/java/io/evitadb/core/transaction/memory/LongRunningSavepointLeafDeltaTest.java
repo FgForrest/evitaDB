@@ -23,6 +23,7 @@
 
 package io.evitadb.core.transaction.memory;
 
+import io.evitadb.core.transaction.Transaction;
 import io.evitadb.index.array.TransactionalComplexObjArray;
 import io.evitadb.index.array.TransactionalIntArray;
 import io.evitadb.index.array.TransactionalObjArray;
@@ -45,8 +46,10 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.ListIterator;
 import java.util.Random;
 import java.util.Set;
 
@@ -406,13 +409,52 @@ class LongRunningSavepointLeafDeltaTest implements TimeBoundedTestSupport {
 
 	private static void applyRandomSetOps(@Nonnull TransactionalSet<Integer> set, @Nonnull Random random, int count) {
 		for (int i = 0; i < count; i++) {
-			final int key = random.nextInt(KEY_SPACE);
-			if (random.nextInt(3) == 0) {
-				set.remove(key);
-			} else {
-				set.add(key);
+			// view-iterator / bulk-view ops (choices >= 2) mutate the diff layer through the merged iterator, so they
+			// require the layer to already exist; when it does not yet, fall back to the direct add/remove that creates
+			// it (this is the write path the maintainer's first-touch snapshotting relies on)
+			final boolean hasLayer = Transaction.getTransactionalMemoryLayerIfExists(set) != null;
+			switch (random.nextInt(hasLayer ? 5 : 2)) {
+				case 0 -> set.remove(random.nextInt(KEY_SPACE));
+				case 1 -> set.add(random.nextInt(KEY_SPACE));
+				case 2 -> removeOneViaIterator(set, random);              // Iterator#remove on the merged view
+				case 3 -> set.removeAll(randomKeySubset(random));         // AbstractSet#removeAll -> merged iterator remove
+				case 4 -> set.retainAll(randomKeySubset(random));         // AbstractSet#retainAll -> merged iterator remove
+				default -> throw new IllegalStateException("unreachable set op choice");
 			}
 		}
+	}
+
+	/**
+	 * Removes a single (randomly positioned) element from the set through its merged iterator, exercising the
+	 * collection-view removal path that bypasses the direct mutators.
+	 */
+	private static void removeOneViaIterator(@Nonnull TransactionalSet<Integer> set, @Nonnull Random random) {
+		final int size = set.size();
+		if (size == 0) {
+			return;
+		}
+		int target = random.nextInt(size);
+		final Iterator<Integer> it = set.iterator();
+		while (it.hasNext()) {
+			it.next();
+			if (target-- == 0) {
+				it.remove();
+				return;
+			}
+		}
+	}
+
+	/**
+	 * Builds a small random subset of the key space to drive {@code removeAll} / {@code retainAll} through the views.
+	 */
+	@Nonnull
+	private static Set<Integer> randomKeySubset(@Nonnull Random random) {
+		final Set<Integer> subset = new HashSet<>();
+		final int n = 1 + random.nextInt(4);
+		for (int i = 0; i < n; i++) {
+			subset.add(random.nextInt(KEY_SPACE));
+		}
+		return subset;
 	}
 
 	@Nonnull
@@ -427,12 +469,77 @@ class LongRunningSavepointLeafDeltaTest implements TimeBoundedTestSupport {
 
 	private static void applyRandomListOps(@Nonnull TransactionalList<Integer> list, @Nonnull Random random, int count) {
 		for (int i = 0; i < count; i++) {
-			if (!list.isEmpty() && random.nextInt(3) == 0) {
-				list.remove(random.nextInt(list.size()));
-			} else {
-				list.add(random.nextInt(KEY_SPACE));
+			// view-iterator / bulk-view ops (choices >= 2) mutate the diff layer through the list iterator, so they
+			// require the layer to already exist; when it does not yet, fall back to the direct add/remove that creates it
+			final boolean hasLayer = Transaction.getTransactionalMemoryLayerIfExists(list) != null;
+			switch (random.nextInt(hasLayer ? 6 : 2)) {
+				case 0 -> {
+					if (!list.isEmpty()) {
+						list.remove(random.nextInt(list.size()));
+					} else {
+						list.add(random.nextInt(KEY_SPACE));
+					}
+				}
+				case 1 -> list.add(random.nextInt(KEY_SPACE));
+				case 2 -> removeOneViaIterator(list, random);            // Iterator#remove on the merged view
+				case 3 -> setOneViaListIterator(list, random);           // ListIterator#set (in-place overwrite)
+				case 4 -> addViaListIterator(list, random);              // ListIterator#add (positional insert)
+				case 5 -> {
+					// AbstractCollection#removeAll / #retainAll both drive the list iterator's remove()
+					if (random.nextBoolean()) {
+						list.removeAll(randomKeySubset(random));
+					} else {
+						list.retainAll(randomKeySubset(random));
+					}
+				}
+				default -> throw new IllegalStateException("unreachable list op choice");
 			}
 		}
+	}
+
+	/**
+	 * Removes a single (randomly positioned) element from the list through its merged iterator, exercising the
+	 * collection-view removal path that bypasses the direct index mutators.
+	 */
+	private static void removeOneViaIterator(@Nonnull TransactionalList<Integer> list, @Nonnull Random random) {
+		final int size = list.size();
+		if (size == 0) {
+			return;
+		}
+		int target = random.nextInt(size);
+		final Iterator<Integer> it = list.iterator();
+		while (it.hasNext()) {
+			it.next();
+			if (target-- == 0) {
+				it.remove();
+				return;
+			}
+		}
+	}
+
+	/**
+	 * Overwrites a single (randomly positioned) element in place through the list iterator's {@code set}.
+	 */
+	private static void setOneViaListIterator(@Nonnull TransactionalList<Integer> list, @Nonnull Random random) {
+		final int size = list.size();
+		if (size == 0) {
+			return;
+		}
+		final int target = random.nextInt(size);
+		final ListIterator<Integer> it = list.listIterator();
+		for (int j = 0; j <= target; j++) {
+			it.next();
+		}
+		it.set(random.nextInt(KEY_SPACE));
+	}
+
+	/**
+	 * Inserts a value at a random position through the list iterator's {@code add}.
+	 */
+	private static void addViaListIterator(@Nonnull TransactionalList<Integer> list, @Nonnull Random random) {
+		final int pos = list.isEmpty() ? 0 : random.nextInt(list.size() + 1);
+		final ListIterator<Integer> it = list.listIterator(pos);
+		it.add(random.nextInt(KEY_SPACE));
 	}
 
 	@Nonnull

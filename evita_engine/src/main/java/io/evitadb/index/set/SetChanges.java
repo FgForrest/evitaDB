@@ -27,6 +27,7 @@ import io.evitadb.api.requestResponse.data.ContentComparator;
 import io.evitadb.core.transaction.memory.Snapshotable;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
+import io.evitadb.core.transaction.memory.UndoJournal;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
@@ -68,6 +69,14 @@ public class SetChanges<K> implements Serializable, Snapshotable<SetChanges.SetC
 	 * insertions.
 	 */
 	@Nullable private Set<K> createdKeys;
+	/**
+	 * Undo journal recording the inverse of every {@link #createdKeys} / {@link #removedKeys} mutation while a savepoint
+	 * is open, enabling an `O(1)` {@link #snapshot()} and an `O(intra-savepoint-ops)` {@link #restore(SetChangesMemento)}
+	 * instead of deep-copying the whole accumulated diff. Lazily allocated on the first {@link #snapshot()} (null for
+	 * non-savepoint transactions, so they pay nothing) and drained back to null when the savepoint commits (see
+	 * {@link #releaseMemento(SetChangesMemento)}).
+	 */
+	@Nullable private UndoJournal undoJournal;
 
 	public SetChanges(@Nonnull Set<K> setDelegate) {
 		this.setDelegate = setDelegate;
@@ -83,6 +92,8 @@ public class SetChanges<K> implements Serializable, Snapshotable<SetChanges.SetC
 	 * instance ends up in the committed snapshot.
 	 */
 	public boolean put(@Nonnull K key) {
+		// record the pre-mutation membership of this key so a savepoint rollback can undo whatever branch runs below
+		journalKey(key);
 		if (containsCreated(key)) {
 			// already in change layer - replace identity-equal entry if its content has diverged
 			replaceInCreatedIfContentDiffers(key);
@@ -287,6 +298,7 @@ public class SetChanges<K> implements Serializable, Snapshotable<SetChanges.SetC
 	 * Registers a removed entry.
 	 */
 	public void registerRemovedKey(@Nonnull K key) {
+		journalKey(key);
 		getOrCreateRemovedKeys().add(key);
 	}
 
@@ -294,6 +306,18 @@ public class SetChanges<K> implements Serializable, Snapshotable<SetChanges.SetC
 	 * Marks all delegate keys as removed and clears the created set.
 	 */
 	void clearAll() {
+		// bulk op: journal the pre-mutation membership of every key clearAll will touch (all created keys are dropped
+		// and every delegate key is tombstoned) so a savepoint rollback can rebuild the exact pre-clearAll diff
+		if (this.undoJournal != null) {
+			if (this.createdKeys != null) {
+				for (final K key : this.createdKeys) {
+					this.undoJournal.push(captureKeyInverse(key));
+				}
+			}
+			for (final K key : this.setDelegate) {
+				this.undoJournal.push(captureKeyInverse(key));
+			}
+		}
 		if (this.createdKeys != null) {
 			this.createdKeys.clear();
 		}
@@ -313,6 +337,7 @@ public class SetChanges<K> implements Serializable, Snapshotable<SetChanges.SetC
 	 * Removes a previously created key in this transactional diff.
 	 */
 	void removeCreatedKey(@Nonnull K key) {
+		journalKey(key);
 		if (this.createdKeys != null) {
 			this.createdKeys.remove(key);
 		}
@@ -386,9 +411,13 @@ public class SetChanges<K> implements Serializable, Snapshotable<SetChanges.SetC
 	@Nonnull
 	@Override
 	public SetChangesMemento<K> snapshot() {
+		if (this.undoJournal == null) {
+			this.undoJournal = new UndoJournal();
+		}
 		return new SetChangesMemento<>(
-			this.createdKeys == null ? null : new HashSet<>(this.createdKeys),
-			this.removedKeys == null ? null : new HashSet<>(this.removedKeys)
+			this.undoJournal.mark(),
+			this.createdKeys == null,
+			this.removedKeys == null
 		);
 	}
 
@@ -404,23 +433,121 @@ public class SetChanges<K> implements Serializable, Snapshotable<SetChanges.SetC
 	 */
 	@Override
 	public void restore(@Nonnull SetChangesMemento<K> memento) {
-		this.createdKeys = memento.created() == null ? null : new HashSet<>(memento.created());
-		this.removedKeys = memento.removed() == null ? null : new HashSet<>(memento.removed());
+		UndoJournal.assertRestorable(this.undoJournal, memento.mark());
+		if (this.undoJournal != null) {
+			this.undoJournal.rollbackTo(memento.mark());
+		}
+		// normalize the lazy container existence to the snapshot moment: a container the journal re-populated but that
+		// was null at snapshot time (all its entries were added during the window) is emptied back to null
+		if (memento.createdWasNull()) {
+			this.createdKeys = null;
+		}
+		if (memento.removedWasNull()) {
+			this.removedKeys = null;
+		}
 	}
 
 	/**
-	 * Immutable memento holding deep copies of the two lazily-allocated change sets of a
-	 * {@link SetChanges} layer. Both fields are nullable to faithfully preserve the layer's
-	 * null-vs-empty lazy-allocation invariant. The baseline {@link SetChanges#setDelegate} is shared and
-	 * immutable, so it is deliberately not part of the memento.
+	 * Releases a closed savepoint's memento (see {@link Snapshotable#releaseMemento(Object)}) - on commit the changes are kept,
+	 * on rollback {@link #restore} has already rewound them -
+	 * so the journal entries recorded since the mark are discarded (never replayed). When the journal drains empty it is
+	 * nulled out, restoring the allocation-free fast path for the rest of the transaction.
 	 *
-	 * @param created the created-keys change set, or `null` when none were recorded
-	 * @param removed the removed-keys change set, or `null` when none were recorded
-	 * @param <K>     the type of the keys tracked by the set
+	 * @param memento the committed memento previously produced by {@link #snapshot()}
+	 */
+	@Override
+	public void releaseMemento(@Nonnull SetChangesMemento<K> memento) {
+		if (this.undoJournal != null) {
+			this.undoJournal.releaseFrom(memento.mark());
+			if (this.undoJournal.isEmpty()) {
+				this.undoJournal = null;
+			}
+		}
+	}
+
+	/**
+	 * Records the inverse of a change about to be applied to {@link #createdKeys} / {@link #removedKeys} for the given
+	 * key, but only while a savepoint is open (i.e. the {@link #undoJournal} exists). No-op otherwise, so non-savepoint
+	 * transactions pay nothing beyond a null check.
+	 *
+	 * Package-private so that {@link TransactionalSet}'s merged iterator can capture the pre-mutation membership
+	 * before it removes a created key straight through the created-keys iterator (which bypasses the journaled
+	 * mutators of this layer).
+	 *
+	 * @param key the key whose membership in the two change sets is about to change
+	 */
+	void journalKey(@Nonnull K key) {
+		if (this.undoJournal != null) {
+			this.undoJournal.push(captureKeyInverse(key));
+		}
+	}
+
+	/**
+	 * Captures the current (pre-mutation) membership of {@code key} in both change sets and returns an inverse operation
+	 * that restores exactly that membership. The inverse is ABSOLUTE (it forces the captured state rather than reversing
+	 * a delta), so replaying several inverses for the same key in reverse order correctly lands on the earliest — i.e.
+	 * the pre-savepoint — state. For {@link ContentComparator} keys the actual stored instance is captured (not merely a
+	 * presence flag) so a same-key content substitution is reverted to the original instance.
+	 *
+	 * @param key the key whose pre-mutation membership is captured
+	 * @return an inverse restoring {@code key}'s captured membership in {@link #createdKeys} / {@link #removedKeys}
+	 */
+	@Nonnull
+	private Runnable captureKeyInverse(@Nonnull K key) {
+		final boolean wasInRemoved = this.removedKeys != null && this.removedKeys.contains(key);
+		final K createdInstance;
+		if (this.createdKeys == null) {
+			createdInstance = null;
+		} else if (key instanceof ContentComparator) {
+			// capture the exact stored instance so a content substitution reverts to the original one
+			createdInstance = findIdentityEqual(this.createdKeys, key);
+		} else {
+			createdInstance = this.createdKeys.contains(key) ? key : null;
+		}
+		return () -> restoreKeyMembership(key, createdInstance, wasInRemoved);
+	}
+
+	/**
+	 * Forces {@code key}'s membership in the two change sets back to the captured pre-mutation state. Container
+	 * existence (the lazy null-vs-set invariant) is normalized separately by {@link #restore(SetChangesMemento)} after
+	 * all per-key inverses have replayed.
+	 *
+	 * @param key             the key to restore
+	 * @param createdInstance the instance that was stored in {@link #createdKeys} for this key, or `null` if absent
+	 * @param wasInRemoved    whether the key was present in {@link #removedKeys}
+	 */
+	private void restoreKeyMembership(@Nonnull K key, @Nullable K createdInstance, boolean wasInRemoved) {
+		if (createdInstance == null) {
+			if (this.createdKeys != null) {
+				this.createdKeys.remove(key);
+			}
+		} else {
+			final Set<K> created = getOrCreateCreatedKeys();
+			created.remove(key);          // drop any identity-equal current instance
+			created.add(createdInstance); // reinstate the exact pre-mutation instance
+		}
+		if (wasInRemoved) {
+			getOrCreateRemovedKeys().add(key);
+		} else if (this.removedKeys != null) {
+			this.removedKeys.remove(key);
+		}
+	}
+
+	/**
+	 * Immutable, `O(1)` memento marking a {@link SetChanges} layer's diff state at a single point in time. It holds the
+	 * {@link #undoJournal} position to rewind to plus the two change sets' null-vs-set existence flags (to faithfully
+	 * preserve the lazy-allocation invariant on restore). The actual diff contents are rewound via the journal, not
+	 * copied here; the baseline {@link SetChanges#setDelegate} is shared and immutable and so is deliberately excluded.
+	 *
+	 * @param mark           the {@link UndoJournal#mark()} to rewind the layer to on restore
+	 * @param createdWasNull whether {@link SetChanges#createdKeys} was `null` (unallocated) at snapshot time
+	 * @param removedWasNull whether {@link SetChanges#removedKeys} was `null` (unallocated) at snapshot time
+	 * @param <K>            the type of the keys tracked by the set
 	 */
 	public record SetChangesMemento<K>(
-		@Nullable Set<K> created,
-		@Nullable Set<K> removed
+		int mark,
+		boolean createdWasNull,
+		boolean removedWasNull
 	) {
 	}
 

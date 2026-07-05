@@ -78,4 +78,23 @@ public interface Snapshotable<M> {
 	 */
 	void restore(@Nonnull M memento);
 
+	/**
+	 * Releases a memento whose savepoint has been CLOSED — either committed (the changes made while the savepoint was
+	 * open are kept) or rolled back (after {@link #restore(Object)} has already rewound the layer). In both cases any
+	 * state the layer stashed to support a potential {@link #restore(Object)} of this memento can be discarded. Called
+	 * by {@link TransactionalLayerMaintainer#commitSavepoint} and {@link TransactionalLayerMaintainer#rollbackSavepoint}
+	 * for every layer touched while the savepoint was open.
+	 *
+	 * The default is a no-op: it suits every implementation whose {@link #snapshot()} produces a fully self-contained
+	 * memento and keeps no per-savepoint scratch state on the layer. Implementations that keep such scratch state — e.g.
+	 * an undo journal recording inverse operations while the savepoint is open (see {@link UndoJournal}) — override this
+	 * to drain that state when the savepoint closes, so it does not accumulate for the rest of the transaction.
+	 *
+	 * @param memento a memento previously produced by {@link #snapshot()} on this same layer, whose savepoint is now
+	 *                closed
+	 */
+	default void releaseMemento(@Nonnull M memento) {
+		// no-op by default: a self-contained memento leaves no per-savepoint scratch state to drain
+	}
+
 }

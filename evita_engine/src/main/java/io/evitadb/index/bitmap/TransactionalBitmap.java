@@ -186,14 +186,13 @@ public class TransactionalBitmap
 			this.memoizedCardinality = -1;
 		} else {
 			BitmapChanges layer = getTransactionalMemoryLayerForWriteIfExists(this);
+			final OfInt it = recordIds.iterator();
 			if (layer != null) {
-				final OfInt it = recordIds.iterator();
 				while (it.hasNext()) {
 					layer.addRecordId(it.nextInt());
 				}
 			} else {
 				// defer layer creation until first actual change
-				final OfInt it = recordIds.iterator();
 				while (it.hasNext()) {
 					final int recordId = it.nextInt();
 					if (!this.roaringBitmap.contains(recordId)) {
@@ -283,14 +282,13 @@ public class TransactionalBitmap
 			this.memoizedCardinality = -1;
 		} else {
 			BitmapChanges layer = getTransactionalMemoryLayerForWriteIfExists(this);
+			final OfInt it = recordIds.iterator();
 			if (layer != null) {
-				final OfInt it = recordIds.iterator();
 				while (it.hasNext()) {
 					layer.removeRecordId(it.nextInt());
 				}
 			} else {
 				// defer layer creation until first actual change
-				final OfInt it = recordIds.iterator();
 				while (it.hasNext()) {
 					final int recordId = it.nextInt();
 					if (this.roaringBitmap.contains(recordId)) {

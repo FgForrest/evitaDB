@@ -38,8 +38,11 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.lang.reflect.Field;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Random;
 import java.util.Set;
 import java.util.TreeMap;
@@ -136,17 +139,84 @@ class LongRunningSavepointProducerMapTest implements TimeBoundedTestSupport {
 	 */
 	private static void applyRandomOps(@Nonnull PersistentTransactionalProducerMap<Integer, MapValue> map, @Nonnull Random random, int count) {
 		for (int i = 0; i < count; i++) {
-			final int key = random.nextInt(KEY_SPACE);
-			final int choice = random.nextInt(4);
-			if (choice == 0) {
-				map.remove(key);
-			} else if (choice == 1 && !map.isEmpty()) {
-				// mark an existing key's value as mutated in place (producer-only dirty-key path)
-				map.markValueMutated(pickKey(map, random));
-			} else {
-				map.put(key, new MapValue(key));
+			// view-iterator / bulk-view ops (choices >= 3) mutate the diff layer through the entry-set / key-set views,
+			// so they require the layer to already exist; when it does not yet, fall back to the direct put/remove/mark
+			// that creates it (this is the write path the maintainer's first-touch snapshotting relies on)
+			final boolean hasLayer = Transaction.getTransactionalMemoryLayerIfExists(map) != null;
+			switch (random.nextInt(hasLayer ? 6 : 3)) {
+				case 0 -> map.remove(random.nextInt(KEY_SPACE));
+				case 1 -> {
+					if (!map.isEmpty()) {
+						// mark an existing key's value as mutated in place (producer-only dirty-key path)
+						map.markValueMutated(pickKey(map, random));
+					} else {
+						final int key = random.nextInt(KEY_SPACE);
+						map.put(key, new MapValue(key));
+					}
+				}
+				case 2 -> {
+					final int key = random.nextInt(KEY_SPACE);
+					map.put(key, new MapValue(key));
+				}
+				case 3 -> removeOneViaEntryIterator(map, random);        // entrySet().iterator().remove()
+				case 4 -> setOneViaEntryIterator(map, random);           // entry.setValue() (in-place overwrite)
+				case 5 -> map.keySet().removeAll(randomKeySubset(random)); // AbstractSet#removeAll -> merged iterator remove
+				default -> throw new IllegalStateException("unreachable producer map op choice");
 			}
 		}
+	}
+
+	/**
+	 * Removes a single (randomly positioned) entry through the entry-set iterator, exercising the collection-view
+	 * removal path that bypasses the direct mutators.
+	 */
+	private static void removeOneViaEntryIterator(@Nonnull PersistentTransactionalProducerMap<Integer, MapValue> map, @Nonnull Random random) {
+		final int size = map.size();
+		if (size == 0) {
+			return;
+		}
+		int target = random.nextInt(size);
+		final Iterator<Entry<Integer, MapValue>> it = map.entrySet().iterator();
+		while (it.hasNext()) {
+			it.next();
+			if (target-- == 0) {
+				it.remove();
+				return;
+			}
+		}
+	}
+
+	/**
+	 * Overwrites a single (randomly positioned) entry's value in place through the entry-set view's setValue proxy.
+	 */
+	private static void setOneViaEntryIterator(@Nonnull PersistentTransactionalProducerMap<Integer, MapValue> map, @Nonnull Random random) {
+		final int size = map.size();
+		if (size == 0) {
+			return;
+		}
+		int target = random.nextInt(size);
+		final Iterator<Entry<Integer, MapValue>> it = map.entrySet().iterator();
+		while (it.hasNext()) {
+			final Entry<Integer, MapValue> entry = it.next();
+			if (target-- == 0) {
+				final int payload = random.nextInt(KEY_SPACE);
+				entry.setValue(new MapValue(payload));
+				return;
+			}
+		}
+	}
+
+	/**
+	 * Builds a small random subset of the key space to drive {@code keySet().removeAll} through the view.
+	 */
+	@Nonnull
+	private static Set<Integer> randomKeySubset(@Nonnull Random random) {
+		final Set<Integer> subset = new HashSet<>();
+		final int n = 1 + random.nextInt(4);
+		for (int i = 0; i < n; i++) {
+			subset.add(random.nextInt(KEY_SPACE));
+		}
+		return subset;
 	}
 
 	/**
@@ -170,7 +240,7 @@ class LongRunningSavepointProducerMapTest implements TimeBoundedTestSupport {
 			final Field field = ProducerMapChanges.class.getDeclaredField("valueMutatedKeys");
 			field.setAccessible(true);
 			final Set<?> keys = (Set<?>) field.get(layer);
-			return keys.stream().map(it -> (Integer) it).sorted().toList();
+			return keys.stream().map(Integer.class::cast).sorted().toList();
 		} catch (ReflectiveOperationException e) {
 			throw new IllegalStateException(e);
 		}

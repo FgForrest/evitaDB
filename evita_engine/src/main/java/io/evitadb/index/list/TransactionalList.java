@@ -176,7 +176,7 @@ public class TransactionalList<V> implements
 		if (layer == null) {
 			return this.listDelegate.iterator();
 		} else {
-			return new TransactionalMemoryEntryAbstractIterator<>(layer, 0);
+			return new TransactionalMemoryEntryAbstractIterator<>(layer, this, 0);
 		}
 	}
 
@@ -297,6 +297,7 @@ public class TransactionalList<V> implements
 		}
 	}
 
+	@Nullable
 	@Override
 	public V set(int index, V element) {
 		final ListChanges<V> layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
@@ -370,7 +371,7 @@ public class TransactionalList<V> implements
 		if (layer == null) {
 			return this.listDelegate.listIterator();
 		} else {
-			return new TransactionalMemoryEntryAbstractIterator<>(layer, 0);
+			return new TransactionalMemoryEntryAbstractIterator<>(layer, this, 0);
 		}
 	}
 
@@ -381,7 +382,7 @@ public class TransactionalList<V> implements
 		if (layer == null) {
 			return this.listDelegate.listIterator(index);
 		} else {
-			return new TransactionalMemoryEntryAbstractIterator<>(layer, index);
+			return new TransactionalMemoryEntryAbstractIterator<>(layer, this, index);
 		}
 	}
 
@@ -519,6 +520,7 @@ public class TransactionalList<V> implements
 	 */
 	private static class TransactionalMemoryEntryAbstractIterator<V> implements ListIterator<V> {
 		private final ListChanges<V> layer;
+		private final TransactionalLayerCreator<ListChanges<V>> layerCreator;
 		private int currentPosition;
 		private int previousPosition = -1;
 
@@ -526,11 +528,18 @@ public class TransactionalList<V> implements
 		 * Creates a new iterator starting at the given index within the transactional diff layer.
 		 *
 		 * @param layer        the diff layer providing the merged list view
+		 * @param layerCreator the creator owning the diff layer, used to register the write-touch with the maintainer
+		 *                     when {@link #remove()} / {@link #set(Object)} / {@link #add(Object)} mutate the layer
 		 * @param initialIndex the index at which iteration begins
 		 */
-		TransactionalMemoryEntryAbstractIterator(@Nonnull ListChanges<V> layer, int initialIndex) {
+		TransactionalMemoryEntryAbstractIterator(
+			@Nonnull ListChanges<V> layer,
+			@Nonnull TransactionalLayerCreator<ListChanges<V>> layerCreator,
+			int initialIndex
+		) {
 			this.currentPosition = initialIndex;
 			this.layer = layer;
+			this.layerCreator = layerCreator;
 		}
 
 		@Override
@@ -577,6 +586,10 @@ public class TransactionalList<V> implements
 		@Override
 		public void remove() {
 			if (this.previousPosition > -1) {
+				// register the write-touch with the maintainer FIRST: when a savepoint is open and this layer has not
+				// been touched inside it yet, this records the layer's pre-mutation snapshot (and activates its undo
+				// journal) BEFORE the removal below mutates the diff layer - otherwise it would be unrevertable
+				Transaction.getTransactionalMemoryLayerForWriteIfExists(this.layerCreator);
 				this.currentPosition = this.previousPosition;
 				this.layer.remove(this.previousPosition);
 				// reset to -1 to prevent a second consecutive remove() call (per ListIterator contract)
@@ -589,6 +602,9 @@ public class TransactionalList<V> implements
 		@Override
 		public void set(V v) {
 			if (this.currentPosition > 0) {
+				// register the write-touch with the maintainer FIRST (see remove() above) so the in-place set is
+				// captured for a per-entity savepoint rollback even when it is the layer's first touch in the savepoint
+				Transaction.getTransactionalMemoryLayerForWriteIfExists(this.layerCreator);
 				final int index = this.currentPosition - 1;
 				// remove element and add on the same index new value
 				this.layer.remove(index);
@@ -600,6 +616,9 @@ public class TransactionalList<V> implements
 
 		@Override
 		public void add(V v) {
+			// register the write-touch with the maintainer FIRST (see remove() above) so the insertion is captured for
+			// a per-entity savepoint rollback even when it is the layer's first touch in the savepoint
+			Transaction.getTransactionalMemoryLayerForWriteIfExists(this.layerCreator);
 			this.layer.add(this.currentPosition, v);
 		}
 

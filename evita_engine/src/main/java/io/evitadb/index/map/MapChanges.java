@@ -27,8 +27,8 @@ import io.evitadb.core.transaction.memory.Snapshotable;
 import io.evitadb.core.transaction.memory.TransactionalLayerCreator;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
+import io.evitadb.core.transaction.memory.UndoJournal;
 import io.evitadb.exception.GenericEvitaInternalError;
-import io.evitadb.index.map.ProducerMapChanges.ProducerMapChangesMemento;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
 
@@ -100,6 +100,17 @@ public class MapChanges<K, V>
 	 * to a {@link TransactionalLayerProducer} instance.
 	 */
 	private final Function<Object, V> transactionalLayerWrapper;
+	/**
+	 * Undo journal recording the inverse of every mutation of this layer's own diff containers ({@link #modifiedKeys},
+	 * {@link #removedKeys}, {@link #createdThenRemovedProducers}, and — for {@link ProducerMapChanges} — its
+	 * value-mutated-key set) while a savepoint is open. It enables an `O(1)` {@link #snapshot()} and an
+	 * `O(intra-savepoint-ops)` {@link #restore(MapChangesMemento)} instead of deep-copying the whole accumulated diff per
+	 * per-entity savepoint (the rollback cliff). Only this layer's OWN state is journaled — nested producer VALUES are
+	 * captured by reference and their layers are rolled back by their own {@link Snapshotable} at the maintainer level.
+	 * Lazily allocated on the first {@link #snapshot()} (null for non-savepoint transactions, which pay nothing) and
+	 * drained back to null when the savepoint commits (see {@link #releaseMemento(MapChangesMemento)}).
+	 */
+	@Nullable private UndoJournal undoJournal;
 
 	public MapChanges(@Nonnull Map<K, V> mapDelegate) {
 		this.mapDelegate = mapDelegate;
@@ -224,6 +235,8 @@ public class MapChanges<K, V>
 				registerCreatedKey(key, value);
 			}
 		}
+		// record the pending removed-key mutation so a savepoint rollback can reinstate it
+		journalRemovedKeyMembership(key);
 		if (this.removedKeys.remove(key)) {
 			// the key was removed earlier in this transaction and is now being re-inserted with a (potentially)
 			// different value — the original instance is discarded, so release its layer. The release is
@@ -327,7 +340,16 @@ public class MapChanges<K, V>
 		if (this.createdThenRemovedProducers == null) {
 			this.createdThenRemovedProducers = Collections.newSetFromMap(new IdentityHashMap<>(32));
 		}
-		this.createdThenRemovedProducers.add(producer);
+		final boolean added = this.createdThenRemovedProducers.add(producer);
+		if (added && this.undoJournal != null) {
+			// undo just this stash addition; the container's null-vs-set existence is normalized by restore() via the
+			// memento's createdThenRemovedWasNull flag
+			this.undoJournal.push(() -> {
+				if (this.createdThenRemovedProducers != null) {
+					this.createdThenRemovedProducers.remove(producer);
+				}
+			});
+		}
 	}
 
 	/**
@@ -446,7 +468,11 @@ public class MapChanges<K, V>
 	 */
 	@Nonnull
 	Iterator<Entry<K, V>> getCreatedOrModifiedValuesIterator() {
-		return this.modifiedKeys.entrySet().iterator();
+		// a caller that removes through this iterator (see TransactionalMap's entry-set iterator) mutates modifiedKeys
+		// directly, bypassing removeCreatedKey/removeModifiedKey - the wrapper journals such removals. It re-checks the
+		// journal at remove() time, so it stays correct even when the journal springs into existence only AFTER the
+		// iterator was obtained (a savepoint opening mid-iteration); read-only iterations pay one cheap wrapper object
+		return new JournalingModifiedIterator(this.modifiedKeys.entrySet().iterator());
 	}
 
 	/**
@@ -476,6 +502,7 @@ public class MapChanges<K, V>
 	 */
 	@Nullable
 	V registerCreatedKey(@Nonnull K key, @Nullable V value) {
+		journalModifiedEntry(key);
 		final V previous = this.modifiedKeys.put(key, value);
 		this.createdKeyCount++;
 		return previous;
@@ -486,6 +513,7 @@ public class MapChanges<K, V>
 	 */
 	@Nullable
 	V registerModifiedKey(@Nonnull K key, @Nullable V value) {
+		journalModifiedEntry(key);
 		return this.modifiedKeys.put(key, value);
 	}
 
@@ -493,6 +521,7 @@ public class MapChanges<K, V>
 	 * Registers a removed entry.
 	 */
 	void registerRemovedKey(@Nonnull K key) {
+		journalRemovedKeyMembership(key);
 		this.removedKeys.add(key);
 	}
 
@@ -501,6 +530,7 @@ public class MapChanges<K, V>
 	 */
 	@Nullable
 	V removeCreatedKey(@Nonnull K key) {
+		journalModifiedEntry(key);
 		final V previous = this.modifiedKeys.remove(key);
 		this.createdKeyCount--;
 		return previous;
@@ -511,6 +541,7 @@ public class MapChanges<K, V>
 	 */
 	@Nullable
 	V removeModifiedKey(@Nonnull K key) {
+		journalModifiedEntry(key);
 		return this.modifiedKeys.remove(key);
 	}
 
@@ -545,13 +576,15 @@ public class MapChanges<K, V>
 	@Nonnull
 	@Override
 	public MapChangesMemento<K, V> snapshot() {
+		if (this.undoJournal == null) {
+			this.undoJournal = new UndoJournal();
+		}
+		// O(1): mark the journal and copy only the value-typed scalars (the createdKeyCount and the lazy
+		// createdThenRemovedProducers null-vs-set existence). The unbounded containers are rewound via the journal.
 		return new BaseMapChangesMemento<>(
-			new HashSet<>(this.removedKeys),
-			new HashMap<>(this.modifiedKeys),
+			this.undoJournal.mark(),
 			this.createdKeyCount,
 			this.createdThenRemovedProducers == null
-				? null
-				: copyIdentitySet(this.createdThenRemovedProducers)
 		);
 	}
 
@@ -569,36 +602,141 @@ public class MapChanges<K, V>
 	@Override
 	public void restore(@Nonnull MapChangesMemento<K, V> memento) {
 		final BaseMapChangesMemento<K, V> baseState = baseStateOf(memento);
-		this.removedKeys.clear();
-		this.removedKeys.addAll(baseState.removedKeys());
-		this.modifiedKeys.clear();
-		this.modifiedKeys.putAll(baseState.modifiedKeys());
+		UndoJournal.assertRestorable(this.undoJournal, baseState.mark());
+		// replay the recorded inverse operations in reverse down to the mark, rewinding modifiedKeys / removedKeys /
+		// createdThenRemovedProducers (and, for the producer subclass, its value-mutated-key set) to the snapshot state
+		if (this.undoJournal != null) {
+			this.undoJournal.rollbackTo(baseState.mark());
+		}
+		// restore the value-typed scalars directly and normalize the lazy container existence to the snapshot moment
 		this.createdKeyCount = baseState.createdKeyCount();
-		this.createdThenRemovedProducers = baseState.createdThenRemovedProducers() == null
-			? null
-			: copyIdentitySet(baseState.createdThenRemovedProducers());
+		if (baseState.createdThenRemovedWasNull()) {
+			this.createdThenRemovedProducers = null;
+		}
 	}
 
 	/**
-	 * Resolves the {@link BaseMapChangesMemento} carrying the inherited diff state from a memento that may be either the
-	 * base memento itself or a {@link ProducerMapChanges.ProducerMapChangesMemento} wrapping it. This lets
-	 * {@link #restore(MapChangesMemento)} reset the inherited fields regardless of which concrete memento the
-	 * (possibly producer) subclass produced.
+	 * Releases a closed savepoint's memento (see {@link Snapshotable#releaseMemento(Object)}) - on commit the changes are kept,
+	 * on rollback {@link #restore} has already rewound them -
+	 * so the journal entries recorded since the mark are discarded (never replayed). When the journal drains empty it is
+	 * nulled out, restoring the allocation-free fast path for the rest of the transaction. Also covers
+	 * {@link ProducerMapChanges}, which shares this journal.
+	 *
+	 * @param memento the committed memento previously produced by {@link #snapshot()}
+	 */
+	@Override
+	public void releaseMemento(@Nonnull MapChangesMemento<K, V> memento) {
+		if (this.undoJournal != null) {
+			this.undoJournal.releaseFrom(baseStateOf(memento).mark());
+			if (this.undoJournal.isEmpty()) {
+				this.undoJournal = null;
+			}
+		}
+	}
+
+	/**
+	 * Records the inverse of a pending change to {@link #modifiedKeys} for the given key: captures the entry's current
+	 * (pre-mutation) presence and value and pushes an operation that restores exactly it. No-op unless a savepoint is
+	 * open. The inverse is ABSOLUTE, so several inverses for the same key replay correctly to the pre-savepoint value.
+	 *
+	 * @param key the key whose {@link #modifiedKeys} entry is about to change
+	 */
+	private void journalModifiedEntry(@Nonnull K key) {
+		if (this.undoJournal != null) {
+			final boolean present = this.modifiedKeys.containsKey(key);
+			final V previous = present ? this.modifiedKeys.get(key) : null;
+			this.undoJournal.push(() -> {
+				if (present) {
+					this.modifiedKeys.put(key, previous);
+				} else {
+					this.modifiedKeys.remove(key);
+				}
+			});
+		}
+	}
+
+	/**
+	 * Records the inverse of a pending change to {@link #removedKeys} for the given key. Convenience for
+	 * {@link #journalSetMembership(Set, Object)} on the removed-keys set.
+	 *
+	 * @param key the key whose {@link #removedKeys} membership is about to change
+	 */
+	private void journalRemovedKeyMembership(@Nonnull K key) {
+		journalSetMembership(this.removedKeys, key);
+	}
+
+	/**
+	 * Records the inverse of a pending membership change of {@code key} in {@code targetSet}: captures whether the key is
+	 * currently present and pushes an operation that forces exactly that membership back. No-op unless a savepoint is
+	 * open. Exposed to the producer subclass (see {@link ProducerMapChanges#markValueMutated}) so its own dirty-key set
+	 * shares the same journal.
+	 *
+	 * @param targetSet the set whose membership is about to change (mutated in place, never reassigned)
+	 * @param key       the key whose membership is about to change
+	 */
+	protected void journalSetMembership(@Nonnull Set<K> targetSet, @Nonnull K key) {
+		if (this.undoJournal != null) {
+			final boolean wasPresent = targetSet.contains(key);
+			this.undoJournal.push(() -> {
+				if (wasPresent) {
+					targetSet.add(key);
+				} else {
+					targetSet.remove(key);
+				}
+			});
+		}
+	}
+
+	/**
+	 * Resolves the {@link BaseMapChangesMemento} carrying the inherited diff state. Since {@link ProducerMapChanges} now
+	 * shares this layer's undo journal (its own dirty-key set is journaled through {@link #journalSetMembership}), the
+	 * producer subclass produces the same {@link BaseMapChangesMemento} - no wrapping memento is needed.
 	 *
 	 * @param memento the memento to unwrap
-	 * @return the base memento carrying the inherited diff state
+	 * @return the base memento carrying the diff state
 	 */
 	@Nonnull
 	protected BaseMapChangesMemento<K, V> baseStateOf(@Nonnull MapChangesMemento<K, V> memento) {
 		if (memento instanceof BaseMapChangesMemento<K, V> baseMemento) {
 			return baseMemento;
-		} else if (memento instanceof ProducerMapChangesMemento<K, V> producerMemento) {
-			// the producer memento wraps the inherited diff state produced by super.snapshot()
-			return baseStateOf(producerMemento.baseState());
 		} else {
 			throw new GenericEvitaInternalError(
 				"Unexpected MapChangesMemento implementation: " + memento.getClass().getName()
 			);
+		}
+	}
+
+	/**
+	 * Iterator wrapper that journals removals done through {@link #getCreatedOrModifiedValuesIterator()} while a
+	 * savepoint is open. A caller (see {@link io.evitadb.index.map.TransactionalMap}'s entry-set iterator) removes
+	 * directly from {@link #modifiedKeys}, bypassing the {@code remove*} primitives - this captures each removed entry's
+	 * inverse so a savepoint rollback reinstates it. The removal is journaled BEFORE it is applied.
+	 */
+	private final class JournalingModifiedIterator implements Iterator<Entry<K, V>> {
+		private final Iterator<Entry<K, V>> delegate;
+		@Nullable private Entry<K, V> current;
+
+		JournalingModifiedIterator(@Nonnull Iterator<Entry<K, V>> delegate) {
+			this.delegate = delegate;
+		}
+
+		@Override
+		public boolean hasNext() {
+			return this.delegate.hasNext();
+		}
+
+		@Override
+		public Entry<K, V> next() {
+			this.current = this.delegate.next();
+			return this.current;
+		}
+
+		@Override
+		public void remove() {
+			if (this.current != null) {
+				journalModifiedEntry(this.current.getKey());
+			}
+			this.delegate.remove();
 		}
 	}
 
@@ -622,6 +760,23 @@ public class MapChanges<K, V>
 	 * Clears all changes recorded in this diff layer.
 	 */
 	void cleanAll(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
+		if (this.undoJournal != null) {
+			// bulk op: capture this layer's own containers so a savepoint rollback can reinstate the pre-cleanAll diff
+			// wholesale (createdKeyCount is rewound separately from the memento). Nested producer layers released below
+			// are re-attached by the maintainer's savepoint machinery, exactly as for put/remove.
+			final Map<K, V> modifiedCopy = new HashMap<>(this.modifiedKeys);
+			final Set<K> removedCopy = new HashSet<>(this.removedKeys);
+			final Set<Object> stashCopy = this.createdThenRemovedProducers == null
+				? null
+				: copyIdentitySet(this.createdThenRemovedProducers);
+			this.undoJournal.push(() -> {
+				this.modifiedKeys.clear();
+				this.modifiedKeys.putAll(modifiedCopy);
+				this.removedKeys.clear();
+				this.removedKeys.addAll(removedCopy);
+				this.createdThenRemovedProducers = stashCopy == null ? null : copyIdentitySet(stashCopy);
+			});
+		}
 		this.createdKeyCount = 0;
 		final Iterator<Entry<K, V>> it = this.modifiedKeys.entrySet().iterator();
 		while (it.hasNext()) {
@@ -645,43 +800,41 @@ public class MapChanges<K, V>
 
 	/**
 	 * Opaque memento type produced by {@link MapChanges#snapshot()} and consumed by
-	 * {@link MapChanges#restore(MapChangesMemento)}. It is a sealed hierarchy so that the producer-valued subclass can
-	 * contribute its own memento ({@link ProducerMapChanges.ProducerMapChangesMemento}) while the inherited
-	 * {@link Snapshotable Snapshotable<MapChangesMemento>} contract remains a single, stable type binding — the
-	 * maintainer-level savepoint can therefore round-trip {@link Snapshotable#restore(Object) restore(snapshot())}
-	 * polymorphically without losing the subclass-specific state.
+	 * {@link MapChanges#restore(MapChangesMemento)}. Since {@link ProducerMapChanges} shares this layer's undo journal
+	 * (see {@link #journalSetMembership}), the producer subclass no longer needs a wrapping memento of its own and the
+	 * sealed hierarchy has collapsed to the single {@link BaseMapChangesMemento} implementation. The sealed interface
+	 * is kept as the stable {@link Snapshotable Snapshotable<MapChangesMemento>} type binding — the maintainer-level
+	 * savepoint round-trips {@link Snapshotable#restore(Object) restore(snapshot())} polymorphically against it.
 	 *
 	 * @param <K> key type
 	 * @param <V> value type
 	 */
 	public sealed interface MapChangesMemento<K, V>
-		permits BaseMapChangesMemento, ProducerMapChangesMemento {
+		permits BaseMapChangesMemento {
 	}
 
 	/**
-	 * Immutable memento capturing the mutable diff state of the (base) {@link MapChanges} layer at a single point in
-	 * time, used by {@link MapChanges#snapshot()} / {@link MapChanges#restore(MapChangesMemento)} to support savepoint
-	 * rollback.
+	 * Immutable, `O(1)` marker of the {@link MapChanges} layer's diff state at a single point in time, used by
+	 * {@link MapChanges#snapshot()} / {@link MapChanges#restore(MapChangesMemento)} (and the producer subclass, which
+	 * shares this layer's undo journal) to support savepoint rollback.
 	 *
-	 * The collection fields hold independent deep copies of the layer's containers (so a later layer mutation cannot
-	 * corrupt the memento); the producer **values** inside {@link #modifiedKeys} and the instances inside
-	 * {@link #createdThenRemovedProducers} are held BY REFERENCE only (their own nested layers are governed by their own
-	 * {@link Snapshotable}). The {@link #mapDelegate} baseline and the value wrapper are intentionally excluded — they
-	 * are shared-immutable and never change during a transaction.
+	 * It carries only value-typed scalars: the {@link UndoJournal#mark()} to rewind the layer's containers to, the
+	 * {@link MapChanges#createdKeyCount}, and whether {@link MapChanges#createdThenRemovedProducers} was `null`
+	 * (unallocated) at snapshot time (to preserve the lazy-allocation invariant). The unbounded containers are rewound
+	 * via the journal, not copied here; the {@link MapChanges#mapDelegate} baseline and the value wrapper are excluded
+	 * (shared-immutable). Nested producer VALUES are never touched — their own layers are governed by their own
+	 * {@link Snapshotable}.
 	 *
-	 * @param removedKeys                 deep copy of {@link MapChanges#removedKeys}
-	 * @param modifiedKeys                deep copy of {@link MapChanges#modifiedKeys} (values by reference)
-	 * @param createdKeyCount             value copy of {@link MapChanges#createdKeyCount}
-	 * @param createdThenRemovedProducers identity-backed copy of {@link MapChanges#createdThenRemovedProducers}, or
-	 *                                    `null` when the layer had none (the lazy-allocation invariant is preserved)
+	 * @param mark                      the {@link UndoJournal#mark()} to rewind the layer to on restore
+	 * @param createdKeyCount           value copy of {@link MapChanges#createdKeyCount}
+	 * @param createdThenRemovedWasNull whether {@link MapChanges#createdThenRemovedProducers} was `null` at snapshot time
 	 * @param <K> key type
 	 * @param <V> value type
 	 */
 	public record BaseMapChangesMemento<K, V>(
-		@Nonnull Set<K> removedKeys,
-		@Nonnull Map<K, V> modifiedKeys,
+		int mark,
 		int createdKeyCount,
-		@Nullable Set<Object> createdThenRemovedProducers
+		boolean createdThenRemovedWasNull
 	) implements MapChangesMemento<K, V> {
 	}
 

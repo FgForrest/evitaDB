@@ -10,5 +10,6 @@
  * Apache License 2.0. See the LICENSE, AUTHORS and NOTICE files in this module.
  */
 module evita.roaringbitmap {
+	requires jsr305;
 	exports io.evitadb.roaringbitmap;
 }
