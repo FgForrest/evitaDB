@@ -81,6 +81,7 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.index.FilterIndexSt
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.GroupCardinalityIndexStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.HierarchyIndexStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.HistogramIndexStorageKey;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.HistogramCardinalityStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.HistogramIndexStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.PriceListAndCurrencyRefIndexStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.PriceListAndCurrencySuperIndexStoragePart;
@@ -642,13 +643,19 @@ class EntityIndexRoundTripTest {
 		final Map<String, HistogramIndex> result = new HashMap<>(storage.histogramParts.size());
 		for (final HistogramIndexStoragePart part : storage.histogramParts) {
 			// the test only emits non-localized histograms; reconstruct a SimpleHistogramIndex using
-			// the same constructor signature as production fetchHistogramIndexes. The embedded
-			// cardinality index is re-built (rather than reused) so its dirty flag starts clean —
-			// mirrors what kryo deserialization produces on a real reload.
+			// the same constructor signature as production fetchHistogramIndexes. The cardinality index is now
+			// evicted to a sibling HistogramCardinalityStoragePart (matched by histogram name); it is re-built
+			// (rather than reused) so its dirty flag starts clean — mirrors kryo deserialization on a real reload.
 			@SuppressWarnings("unchecked")
 			final Class<? extends Serializable> valueType =
 				(Class<? extends Serializable>) part.getValueType();
-			final AttributeCardinalityIndex liveCardinality = part.getCardinalityIndex();
+			final AttributeCardinalityIndex liveCardinality = storage.histogramCardinalityParts.stream()
+				.filter(c -> c.getHistogramName().equals(part.getHistogramName()) && c.getLocale() == null)
+				.findFirst()
+				.map(HistogramCardinalityStoragePart::getCardinalityIndex)
+				.orElseThrow(() -> new IllegalStateException(
+					"No cardinality sibling emitted for histogram '" + part.getHistogramName() + "'!"
+				));
 			final AttributeCardinalityIndex freshCardinality = new AttributeCardinalityIndex(
 				liveCardinality.getValueType(), liveCardinality.getCardinalities()
 			);
@@ -1382,6 +1389,8 @@ class EntityIndexRoundTripTest {
 		@Nonnull private final List<StoragePart> priceParts = new ArrayList<>(4);
 		/** Histogram parts, one per (histogramName, locale) pair. */
 		@Nonnull private final List<HistogramIndexStoragePart> histogramParts = new ArrayList<>(4);
+		/** Histogram cardinality sibling parts, evicted out of the histogram root (one per histogram name + locale). */
+		@Nonnull private final List<HistogramCardinalityStoragePart> histogramCardinalityParts = new ArrayList<>(4);
 		/** Facet parts, one per reference name with non-empty facet data. */
 		@Nonnull private final List<FacetIndexStoragePart> facetParts = new ArrayList<>(4);
 		/** The single hierarchy part if hierarchy was populated, else null. */
@@ -1409,6 +1418,8 @@ class EntityIndexRoundTripTest {
 				this.attributeCardinalityParts.add(cardPart);
 			} else if (part instanceof AttributeIndexStoragePart attrPart) {
 				this.attributeParts.add(attrPart);
+			} else if (part instanceof HistogramCardinalityStoragePart histCardPart) {
+				this.histogramCardinalityParts.add(histCardPart);
 			} else if (part instanceof HistogramIndexStoragePart histPart) {
 				this.histogramParts.add(histPart);
 			} else if (part instanceof FacetIndexStoragePart facetPart) {

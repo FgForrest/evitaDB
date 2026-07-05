@@ -32,7 +32,6 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor;
 import io.evitadb.spi.store.catalog.persistence.storageParts.RecordWithCompressedId;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.utils.ArrayUtils;
-import io.evitadb.utils.Assert;
 import io.evitadb.utils.NumberUtils;
 import lombok.Getter;
 import lombok.Setter;
@@ -241,13 +240,10 @@ public class GlobalUniqueIndexStoragePart implements StoragePart, RecordWithComp
 	 */
 	@Override
 	public long computeUniquePartIdAndSet(@Nonnull KeyCompressor keyCompressor) {
-		final long computedUniquePartId = computeUniquePartId(getScope(), getAttributeKey(), keyCompressor);
-		final Long uniquePartId = getStoragePartPK();
-		if (uniquePartId == null) {
-			setStoragePartPK(computedUniquePartId);
-		} else {
-			Assert.isTrue(uniquePartId == computedUniquePartId, "Unique part ids must never differ!");
-		}
+		final long computedUniquePartId = StoragePart.verifyUniquePartId(
+			computeUniquePartId(getScope(), getAttributeKey(), keyCompressor), getStoragePartPK()
+		);
+		setStoragePartPK(computedUniquePartId);
 		return computedUniquePartId;
 	}
 

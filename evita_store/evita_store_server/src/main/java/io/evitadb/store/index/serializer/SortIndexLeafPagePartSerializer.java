@@ -32,13 +32,13 @@ import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AbstractLeafPagePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.SortIndexLeafPagePart;
 
+import javax.annotation.Nonnull;
 import java.io.Serializable;
 
 /**
  * This {@link Serializer} implementation reads/writes a {@link SortIndexLeafPagePart} — one leaf page of a granular
- * OWNER-mode sort index value tree — from/to binary format. The `(streamId, pageSequence)` pair fully determines the
- * storage-part primary key (via `pack`), so the key is recomputed on read rather than stored; only the identifying pair,
- * the comparator-base length and the leaf's buckets are written.
+ * OWNER-mode sort index value tree — from/to binary format. The `(streamId, pageSequence)` frame is owned by
+ * {@link AbstractLeafPagePartSerializer}; this payload adds the comparator-base length and the leaf's buckets.
  *
  * Unlike {@link FilterIndexLeafPagePartSerializer}, the bucket VALUE is NOT written self-describingly via
  * {@link Kryo#writeClassAndObject}: a compound owner stores a {@code ComparableArray}, which is registered NOWHERE in
@@ -50,12 +50,20 @@ import java.io.Serializable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
-public class SortIndexLeafPagePartSerializer extends Serializer<SortIndexLeafPagePart> {
+public class SortIndexLeafPagePartSerializer extends AbstractLeafPagePartSerializer<SortIndexLeafPagePart> {
 
 	@Override
-	public void write(Kryo kryo, Output output, SortIndexLeafPagePart page) {
-		output.writeVarInt(page.getStreamId(), true);
-		output.writeVarInt(page.getPageSequence(), true);
+	protected int streamId(@Nonnull SortIndexLeafPagePart page) {
+		return page.getStreamId();
+	}
+
+	@Override
+	protected int pageSequence(@Nonnull SortIndexLeafPagePart page) {
+		return page.getPageSequence();
+	}
+
+	@Override
+	protected void writePayload(@Nonnull Kryo kryo, @Nonnull Output output, @Nonnull SortIndexLeafPagePart page) {
 		final int comparatorBaseLength = page.getComparatorBaseLength();
 		output.writeVarInt(comparatorBaseLength, true);
 
@@ -68,10 +76,11 @@ public class SortIndexLeafPagePartSerializer extends Serializer<SortIndexLeafPag
 		}
 	}
 
+	@Nonnull
 	@Override
-	public SortIndexLeafPagePart read(Kryo kryo, Input input, Class<? extends SortIndexLeafPagePart> type) {
-		final int streamId = input.readVarInt(true);
-		final int pageSequence = input.readVarInt(true);
+	protected SortIndexLeafPagePart readPayload(
+		@Nonnull Kryo kryo, @Nonnull Input input, int streamId, int pageSequence
+	) {
 		final int comparatorBaseLength = input.readVarInt(true);
 
 		final int bucketCount = input.readVarInt(true);
@@ -82,7 +91,6 @@ public class SortIndexLeafPagePartSerializer extends Serializer<SortIndexLeafPag
 			buckets[i] = new ValueToRecordBitmap(value, recordIds);
 		}
 
-		// the key is derived from the identifying pair, never stored
 		return new SortIndexLeafPagePart(
 			streamId, pageSequence, buckets, comparatorBaseLength,
 			AbstractLeafPagePart.computeUniquePartId(streamId, pageSequence)

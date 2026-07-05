@@ -30,11 +30,12 @@ import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AbstractLeafPagePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.ChainIndexLeafPagePart;
 
+import javax.annotation.Nonnull;
+
 /**
  * This {@link Serializer} implementation reads/writes a {@link ChainIndexLeafPagePart} — one leaf page of a granular
- * {@link io.evitadb.index.attribute.ChainIndex} value tree — from/to binary format. The `(streamId, pageSequence)` pair
- * fully determines the storage-part primary key (via `pack`), so the key is recomputed on read rather than stored; only
- * the identifying pair and the non-derived page payload are written.
+ * {@link io.evitadb.index.attribute.ChainIndex} value tree — from/to binary format. The `(streamId, pageSequence)` frame
+ * is owned by {@link AbstractLeafPagePartSerializer}; this payload adds the non-derived page columns.
  *
  * The payload is the leaf's ordered {@link ChainIndexLeafPagePart#getRecordIds() recordIds} (raw fixed-width ints — they
  * are in tree order, NOT sorted, so a delta encoding would not help), the {@link ChainIndexLeafPagePart#getHeadWords()
@@ -44,13 +45,20 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.index.ChainIndexLea
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
-public class ChainIndexLeafPagePartSerializer extends Serializer<ChainIndexLeafPagePart> {
+public class ChainIndexLeafPagePartSerializer extends AbstractLeafPagePartSerializer<ChainIndexLeafPagePart> {
 
 	@Override
-	public void write(Kryo kryo, Output output, ChainIndexLeafPagePart page) {
-		output.writeVarInt(page.getStreamId(), true);
-		output.writeVarInt(page.getPageSequence(), true);
+	protected int streamId(@Nonnull ChainIndexLeafPagePart page) {
+		return page.getStreamId();
+	}
 
+	@Override
+	protected int pageSequence(@Nonnull ChainIndexLeafPagePart page) {
+		return page.getPageSequence();
+	}
+
+	@Override
+	protected void writePayload(@Nonnull Kryo kryo, @Nonnull Output output, @Nonnull ChainIndexLeafPagePart page) {
 		// the leaf's records in tree order - written raw (chain order is not sorted, so a delta encoding cannot help)
 		final int[] recordIds = page.getRecordIds();
 		final int recordCount = recordIds.length;
@@ -72,11 +80,11 @@ public class ChainIndexLeafPagePartSerializer extends Serializer<ChainIndexLeafP
 		output.writeInts(headPredecessorPks, 0, headPredecessorPks.length);
 	}
 
+	@Nonnull
 	@Override
-	public ChainIndexLeafPagePart read(Kryo kryo, Input input, Class<? extends ChainIndexLeafPagePart> type) {
-		final int streamId = input.readVarInt(true);
-		final int pageSequence = input.readVarInt(true);
-
+	protected ChainIndexLeafPagePart readPayload(
+		@Nonnull Kryo kryo, @Nonnull Input input, int streamId, int pageSequence
+	) {
 		final int recordCount = input.readVarInt(true);
 		final int[] recordIds = input.readInts(recordCount);
 
@@ -90,7 +98,6 @@ public class ChainIndexLeafPagePartSerializer extends Serializer<ChainIndexLeafP
 		final int headPredecessorCount = input.readVarInt(true);
 		final int[] headPredecessorPks = input.readInts(headPredecessorCount);
 
-		// the key is derived from the identifying pair, never stored
 		return new ChainIndexLeafPagePart(
 			streamId, pageSequence, recordIds, headWords, headPredecessorPks,
 			AbstractLeafPagePart.computeUniquePartId(streamId, pageSequence)

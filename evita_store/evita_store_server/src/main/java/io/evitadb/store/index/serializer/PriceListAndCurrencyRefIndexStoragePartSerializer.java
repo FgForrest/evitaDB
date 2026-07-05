@@ -27,13 +27,11 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
-import io.evitadb.index.price.model.PriceIndexKey;
-import io.evitadb.index.range.RangeIndex;
 import io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.PriceListAndCurrencyRefIndexStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.PriceListAndCurrencySuperIndexStoragePart;
+import io.evitadb.store.index.serializer.PriceIndexHeaderSerializer.PriceIndexHeader;
 import io.evitadb.store.index.serializer.util.SortedIntArrayCodec;
-import io.evitadb.utils.Assert;
 import lombok.RequiredArgsConstructor;
 
 /**
@@ -53,13 +51,7 @@ public class PriceListAndCurrencyRefIndexStoragePartSerializer extends Serialize
 
 	@Override
 	public void write(Kryo kryo, Output output, PriceListAndCurrencyRefIndexStoragePart priceIndex) {
-		output.writeInt(priceIndex.getEntityIndexPrimaryKey());
-		final Long uniquePartId = priceIndex.getStoragePartPK();
-		Assert.notNull(uniquePartId, "Unique part id should have been computed by now!");
-		output.writeVarLong(uniquePartId, true);
-		output.writeVarInt(this.keyCompressor.getId(priceIndex.getPriceIndexKey()), true);
-
-		kryo.writeObject(output, priceIndex.getValidityIndex());
+		PriceIndexHeaderSerializer.write(kryo, output, priceIndex, this.keyCompressor);
 
 		// the price ids are strictly ascending; route through the asserting codec (writes the count itself)
 		SortedIntArrayCodec.writeAscendingInts(output, priceIndex.getPriceIds());
@@ -67,15 +59,13 @@ public class PriceListAndCurrencyRefIndexStoragePartSerializer extends Serialize
 
 	@Override
 	public PriceListAndCurrencyRefIndexStoragePart read(Kryo kryo, Input input, Class<? extends PriceListAndCurrencyRefIndexStoragePart> type) {
-		final int entityIndexPrimaryKey = input.readInt();
-		final long uniquePartId = input.readVarLong(true);
-		final PriceIndexKey priceIndexKey = this.keyCompressor.getKeyForId(input.readVarInt(true));
-		final RangeIndex validityIndex = kryo.readObject(input, RangeIndex.class);
+		final PriceIndexHeader header = PriceIndexHeaderSerializer.read(kryo, input, this.keyCompressor);
 
 		final int[] priceIds = SortedIntArrayCodec.readAscendingInts(input);
 
 		return new PriceListAndCurrencyRefIndexStoragePart(
-			entityIndexPrimaryKey, priceIndexKey, validityIndex, priceIds, uniquePartId
+			header.entityIndexPrimaryKey(), header.priceIndexKey(), header.validityIndex(), priceIds,
+			header.uniquePartId()
 		);
 	}
 

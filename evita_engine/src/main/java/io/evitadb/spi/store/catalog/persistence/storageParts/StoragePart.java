@@ -93,4 +93,24 @@ public interface StoragePart extends Serializable {
 	 */
 	long computeUniquePartIdAndSet(@Nonnull KeyCompressor keyCompressor);
 
+	/**
+	 * Shared tail of the {@link #computeUniquePartIdAndSet(KeyCompressor)} implementation for every part whose identity
+	 * maps to a single stable primary key. Verifies that a freshly computed id is consistent with any id already
+	 * assigned to the part — the two must never differ — and returns it; the caller then stores the returned value into
+	 * its own `storagePartPK`. Storing an identical value on a part that was already assigned is a harmless no-op, so
+	 * this deliberately does not need to know how the caller writes the field. Centralising the assign-once /
+	 * assert-on-recompute invariant here means every part expresses it identically.
+	 *
+	 * @param computedUniquePartId the id freshly computed from the part identity
+	 * @param currentStoragePartPK the id already assigned to the part, or `null` when not yet assigned
+	 * @return the {@code computedUniquePartId}, guaranteed consistent with any previously assigned id
+	 */
+	static long verifyUniquePartId(long computedUniquePartId, @Nullable Long currentStoragePartPK) {
+		Assert.isTrue(
+			currentStoragePartPK == null || currentStoragePartPK == computedUniquePartId,
+			"Unique part ids must never differ!"
+		);
+		return computedUniquePartId;
+	}
+
 }

@@ -27,14 +27,12 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
-import io.evitadb.index.price.model.PriceIndexKey;
 import io.evitadb.index.price.model.priceRecord.PriceRecordContract;
-import io.evitadb.index.range.RangeIndex;
 import io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.PriceListAndCurrencySuperIndexStoragePart;
+import io.evitadb.store.index.serializer.PagedStreamMetadataSerializer.PagedStreamMetadata;
+import io.evitadb.store.index.serializer.PriceIndexHeaderSerializer.PriceIndexHeader;
 import io.evitadb.store.index.serializer.util.PriceRecordCodec;
-import io.evitadb.utils.ArrayUtils;
-import io.evitadb.utils.Assert;
 import lombok.RequiredArgsConstructor;
 
 /**
@@ -53,13 +51,7 @@ public class PriceListAndCurrencySuperIndexStoragePartSerializer extends Seriali
 
 	@Override
 	public void write(Kryo kryo, Output output, PriceListAndCurrencySuperIndexStoragePart priceIndex) {
-		output.writeInt(priceIndex.getEntityIndexPrimaryKey());
-		final Long uniquePartId = priceIndex.getStoragePartPK();
-		Assert.notNull(uniquePartId, "Unique part id should have been computed by now!");
-		output.writeVarLong(uniquePartId, true);
-		output.writeVarInt(this.keyCompressor.getId(priceIndex.getPriceIndexKey()), true);
-
-		kryo.writeObject(output, priceIndex.getValidityIndex());
+		PriceIndexHeaderSerializer.write(kryo, output, priceIndex, this.keyCompressor);
 
 		// SINGLE shape carries every record inline here; PAGED shape carries none (this writes count 0) — its records
 		// live in individual PriceListAndCurrencySuperIndexLeafPagePart leaf pages
@@ -68,46 +60,24 @@ public class PriceListAndCurrencySuperIndexStoragePartSerializer extends Seriali
 		// the SINGLE/PAGED discriminator + the PAGED page-stream metadata. Appended after the legacy fields so the
 		// SINGLE shape stays a superset of the prior (2026.1) layout (just a trailing `false`). The page-stream id is
 		// NOT persisted — it is recomputed at load from the sub-index identity.
-		final boolean paged = priceIndex.isPaged();
-		output.writeBoolean(paged);
-		if (paged) {
-			output.writeVarInt(priceIndex.getHighWaterPageSequence(), true);
-			final int[] leafPageSequences = priceIndex.getLeafPageSequences();
-			output.writeVarInt(leafPageSequences.length, true);
-			for (final int pageSequence : leafPageSequences) {
-				output.writeVarInt(pageSequence, true);
-			}
-		}
+		PagedStreamMetadataSerializer.writeOptional(
+			output, priceIndex.isPaged(), priceIndex.getHighWaterPageSequence(), priceIndex.getLeafPageSequences()
+		);
 	}
 
 	@Override
 	public PriceListAndCurrencySuperIndexStoragePart read(Kryo kryo, Input input, Class<? extends PriceListAndCurrencySuperIndexStoragePart> type) {
-		final int entityIndexPrimaryKey = input.readInt();
-		final long uniquePartId = input.readVarLong(true);
-		final PriceIndexKey priceIndexKey = this.keyCompressor.getKeyForId(input.readVarInt(true));
-
-		final RangeIndex validityIndex = kryo.readObject(input, RangeIndex.class);
+		final PriceIndexHeader header = PriceIndexHeaderSerializer.read(kryo, input, this.keyCompressor);
 
 		final PriceRecordContract[] priceRecords = PriceRecordCodec.readPriceRecords(input);
 
-		// the SINGLE/PAGED discriminator + the PAGED page-stream metadata
-		boolean paged = false;
-		int highWaterPageSequence = -1;
-		int[] leafPageSequences = ArrayUtils.EMPTY_INT_ARRAY;
-		if (input.readBoolean()) {
-			paged = true;
-			// the page-stream id is recomputed at load from the sub-index identity, not read here
-			highWaterPageSequence = input.readVarInt(true);
-			final int leafCount = input.readVarInt(true);
-			leafPageSequences = new int[leafCount];
-			for (int i = 0; i < leafCount; i++) {
-				leafPageSequences[i] = input.readVarInt(true);
-			}
-		}
+		// the SINGLE/PAGED discriminator + the PAGED page-stream metadata (the page-stream id is recomputed at load from
+		// the sub-index identity, not read here)
+		final PagedStreamMetadata metadata = PagedStreamMetadataSerializer.readOptional(input);
 
 		return new PriceListAndCurrencySuperIndexStoragePart(
-			entityIndexPrimaryKey, priceIndexKey, validityIndex, priceRecords,
-			paged, highWaterPageSequence, leafPageSequences, uniquePartId
+			header.entityIndexPrimaryKey(), header.priceIndexKey(), header.validityIndex(), priceRecords,
+			metadata.paged(), metadata.highWaterPageSequence(), metadata.leafPageSequences(), header.uniquePartId()
 		);
 	}
 

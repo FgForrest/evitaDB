@@ -47,14 +47,14 @@ public record HistogramIndexStorageKey(
 
 	/**
 	 * Computes the unique storage part primary key for this histogram index entry. Delegates to
-	 * {@link HistogramIndexStoragePart#computeUniquePartId(int, String, Locale, KeyCompressor)}.
+	 * {@link AbstractHistogramStoragePart#computeUniquePartId(int, String, Locale, KeyCompressor)}.
 	 *
 	 * @param entityIndexPrimaryKey integer primary key of the owning entity index
 	 * @param keyCompressor         the key compressor for translating the composite key into a compact integer id
 	 * @return a 64-bit storage part primary key
 	 */
 	public long computeUniquePartId(int entityIndexPrimaryKey, @Nonnull KeyCompressor keyCompressor) {
-		return HistogramIndexStoragePart.computeUniquePartId(
+		return AbstractHistogramStoragePart.computeUniquePartId(
 			entityIndexPrimaryKey, this.histogramName, this.locale, keyCompressor
 		);
 	}
@@ -78,9 +78,7 @@ public record HistogramIndexStorageKey(
 				return 1;
 			} else {
 				cmp = this.locale.toLanguageTag().compareTo(o.locale.toLanguageTag());
-				if (cmp != 0) {
-					return cmp;
-				}
+				return cmp;
 			}
 		}
 		return 0;

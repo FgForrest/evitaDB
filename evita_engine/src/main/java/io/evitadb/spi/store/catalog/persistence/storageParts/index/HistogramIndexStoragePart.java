@@ -23,52 +23,51 @@
 
 package io.evitadb.spi.store.catalog.persistence.storageParts.index;
 
-import io.evitadb.index.cardinality.AttributeCardinalityIndex;
 import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
 import io.evitadb.index.range.RangeIndex;
-import io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor;
-import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
-import io.evitadb.utils.Assert;
-import io.evitadb.utils.NumberUtils;
+import io.evitadb.utils.ArrayUtils;
 import lombok.Getter;
-import lombok.Setter;
 import lombok.ToString;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
 import java.io.Serial;
+import java.util.Locale;
 
 /**
- * Combined storage part for a single histogram index entry (one histogram name + locale pair). Bundles both the
- * bucketed filter data ({@link ValueToRecordBitmap} histogram points with optional {@link RangeIndex}) and the
- * cardinality tracking ({@link AttributeCardinalityIndex}) into a single persisted unit.
+ * Root storage part for a single histogram index entry (one histogram name + locale pair). Carries the bucketed filter
+ * data ({@link ValueToRecordBitmap} histogram points with optional {@link RangeIndex}) of the histogram's embedded
+ * {@code OwnerFilterIndex}. The cardinality tracking ({@link io.evitadb.index.cardinality.AttributeCardinalityIndex}) is
+ * NOT carried here — it is evicted to a sibling {@link HistogramCardinalityStoragePart} so it can be rewritten
+ * independently of the histogram buckets/range.
  *
- * Follows the same self-contained pattern as {@link FacetIndexStoragePart} — implements {@link StoragePart}
- * directly and computes its own storage part ID via {@link HistogramIndexKey} in the key compressor.
+ * Like {@link FilterIndexStoragePart}, the bucket and range data each have TWO shapes selected by an independent
+ * `PAGED`/`SINGLE` discriminator: a `SINGLE`-shaped axis carries its data inline (the whole bucket tree / range tree
+ * fits one record — the common, small-index case); a `PAGED`-shaped axis persists the tree as individual leaf pages
+ * ({@link HistogramIndexLeafPagePart} / {@link HistogramRangeIndexLeafPagePart}) and the root carries only the
+ * high-water `pageSequence` and the ordered live leaf-page list.
+ *
+ * Shares its identity — the owning entity index primary key plus the (histogramName, locale) pair, packed via
+ * {@link HistogramIndexKey} in the key compressor — with its cardinality sibling through the common
+ * {@link AbstractHistogramStoragePart} base; the two differ on disk only by their record type.
  *
  * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @NotThreadSafe
-@ToString(of = {"histogramName", "locale", "entityIndexPrimaryKey"})
-public class HistogramIndexStoragePart implements StoragePart {
+@ToString(callSuper = true)
+public class HistogramIndexStoragePart extends AbstractHistogramStoragePart {
 
-	@Serial private static final long serialVersionUID = 8204715639284710553L;
-
-	/**
-	 * Unique id that identifies the owning {@link io.evitadb.index.EntityIndex}.
-	 */
-	@Getter private final int entityIndexPrimaryKey;
+	@Serial private static final long serialVersionUID = 5083172946028471653L;
 
 	/**
-	 * Name of the histogram definition.
+	 * Empty leaf-page list shared by every `SINGLE`-shaped axis (no paged leaves).
 	 */
-	@Getter @Nonnull private final String histogramName;
-
+	private static final int[] NO_LEAF_PAGES = ArrayUtils.EMPTY_INT_ARRAY;
 	/**
-	 * Locale for localized histograms, or `null` for non-localized.
+	 * Empty inline-bucket array shared by every bucket-`PAGED`-shaped part (its buckets live in leaf pages).
 	 */
-	@Getter @Nullable private final java.util.Locale locale;
+	private static final ValueToRecordBitmap[] EMPTY_HISTOGRAM = new ValueToRecordBitmap[0];
 
 	/**
 	 * The plain numeric type of the attribute values stored in this histogram.
@@ -76,19 +75,18 @@ public class HistogramIndexStoragePart implements StoragePart {
 	@Getter @Nonnull private final Class<?> valueType;
 
 	/**
-	 * Bucketed histogram data mapping attribute values to owner entity primary keys.
+	 * Bucketed histogram data mapping attribute values to owner entity primary keys. For a `SINGLE`-shaped bucket axis
+	 * this holds every bucket inline; for a bucket-`PAGED` part the buckets live in {@link HistogramIndexLeafPagePart}
+	 * leaf pages instead and this array is empty.
 	 */
 	@Getter @Nonnull private final ValueToRecordBitmap[] histogramPoints;
 
 	/**
-	 * Optional range index for range-type attributes.
+	 * Optional range index for range-type attributes. Inline for a `SINGLE`/non-range-`PAGED` axis; `null` when
+	 * {@link #rangePaged} (the range leaves live in {@link HistogramRangeIndexLeafPagePart} pages) or when there is no
+	 * range companion at all.
 	 */
 	@Getter @Nullable private final RangeIndex rangeIndex;
-
-	/**
-	 * Cardinality index tracking how many references contribute each histogram value per owner entity.
-	 */
-	@Getter @Nonnull private final AttributeCardinalityIndex cardinalityIndex;
 
 	/**
 	 * The `indexedDecimalPlaces` scale frozen at histogram-creation time and persisted with the index. `BigDecimal`
@@ -100,108 +98,134 @@ public class HistogramIndexStoragePart implements StoragePart {
 	@Getter private final int indexedDecimalPlaces;
 
 	/**
-	 * Id used for lookups in persistent storage for this particular container.
+	 * The `PAGED`/`SINGLE` discriminator for the BUCKET axis. When `true` the bucket tree is persisted as individual
+	 * {@link HistogramIndexLeafPagePart} leaf pages keyed by `pack(streamId, pageSequence)` and {@link #histogramPoints}
+	 * is empty; when `false` every bucket lives inline. The page stream id is NOT persisted here — it is the
+	 * {@link HistogramLeafStreamKey}'s compressed id, recomputed at load from the sub-index identity.
 	 */
-	@Nullable @Getter @Setter private Long storagePartPK;
+	@Getter private final boolean paged;
+	/**
+	 * The high-water `pageSequence` of the bucket stream (the maximum `pageSequence` ever allocated) for a
+	 * bucket-`PAGED` part; `-1` otherwise. Persisted explicitly rather than derived as `max(pageSequence)` over live
+	 * pages, so a freed max page cannot let a reused id be handed out while an older catalog version still references it.
+	 */
+	@Getter private final int highWaterPageSequence;
+	/**
+	 * The bucket leaf pages of a bucket-`PAGED` part, in ascending key order — the order the load path reads them back
+	 * and reassembles the spine (the spine is NOT persisted). Empty for a bucket-`SINGLE` axis.
+	 */
+	@Getter @Nonnull private final int[] leafPageSequences;
+	/**
+	 * The `PAGED`/`SINGLE` discriminator for the RANGE axis, independent of the bucket axis. When `true` the range tree
+	 * is persisted as individual {@link HistogramRangeIndexLeafPagePart} leaf pages and {@link #rangeIndex} is `null`.
+	 */
+	@Getter private final boolean rangePaged;
+	/**
+	 * The high-water `pageSequence` of the range stream for a range-`PAGED` part; `-1` otherwise.
+	 */
+	@Getter private final int rangeHighWaterPageSequence;
+	/**
+	 * The range leaf pages of a range-`PAGED` part, in ascending threshold order. Empty unless {@link #rangePaged}.
+	 */
+	@Getter @Nonnull private final int[] rangeLeafPageSequences;
 
 	/**
-	 * Creates a fresh histogram index part whose storage part PK is not yet assigned (computed before persistence).
+	 * Creates a fresh `SINGLE`-shaped histogram root part whose storage part PK is not yet assigned (computed before
+	 * persistence). Both axes carry their data inline.
 	 *
 	 * @param entityIndexPrimaryKey primary key of the owning entity index
 	 * @param histogramName         name of the histogram definition
 	 * @param locale                locale for localized histograms, or `null`
 	 * @param valueType             plain numeric type of the stored histogram values
-	 * @param histogramPoints       bucketed histogram data
-	 * @param rangeIndex            optional range index for range-type attributes, or `null`
-	 * @param cardinalityIndex      cardinality tracking index
+	 * @param histogramPoints       bucketed histogram data (inline)
+	 * @param rangeIndex            optional range index for range-type attributes, or `null` (inline)
 	 * @param indexedDecimalPlaces  frozen decimal-places scale (0 for non-`BigDecimal` source types)
 	 */
 	public HistogramIndexStoragePart(
 		int entityIndexPrimaryKey,
 		@Nonnull String histogramName,
-		@Nullable java.util.Locale locale,
+		@Nullable Locale locale,
 		@Nonnull Class<?> valueType,
 		@Nonnull ValueToRecordBitmap[] histogramPoints,
 		@Nullable RangeIndex rangeIndex,
-		@Nonnull AttributeCardinalityIndex cardinalityIndex,
 		int indexedDecimalPlaces
 	) {
 		this(
-			entityIndexPrimaryKey, histogramName, locale, valueType, histogramPoints, rangeIndex,
-			cardinalityIndex, indexedDecimalPlaces, null
+			entityIndexPrimaryKey, histogramName, locale, valueType, histogramPoints, rangeIndex, indexedDecimalPlaces,
+			false, -1, NO_LEAF_PAGES, false, -1, NO_LEAF_PAGES, null
 		);
 	}
 
 	/**
-	 * Canonical constructor carrying every field, including the frozen `indexedDecimalPlaces` scale and the
-	 * already-assigned storage part PK.
+	 * Shared empty-bucket sentinel for a bucket-`PAGED` axis (its buckets live in leaf pages, so the inline array is
+	 * empty). Exposed for the emit path, which passes it for `histogramPoints` when the bucket axis is paged.
 	 *
-	 * @param entityIndexPrimaryKey primary key of the owning entity index
-	 * @param histogramName         name of the histogram definition
-	 * @param locale                locale for localized histograms, or `null`
-	 * @param valueType             plain numeric type of the stored histogram values
-	 * @param histogramPoints       bucketed histogram data
-	 * @param rangeIndex            optional range index for range-type attributes, or `null`
-	 * @param cardinalityIndex      cardinality tracking index
-	 * @param indexedDecimalPlaces  frozen decimal-places scale (0 for non-`BigDecimal` source types)
-	 * @param storagePartPK         the already-assigned storage part PK, or `null`
+	 * @return the shared empty {@link ValueToRecordBitmap} array
+	 */
+	@Nonnull
+	public static ValueToRecordBitmap[] emptyHistogram() {
+		return EMPTY_HISTOGRAM;
+	}
+
+	/**
+	 * Shared empty leaf-page list for a `SINGLE`-shaped axis (no paged leaves).
+	 *
+	 * @return the shared empty `int[]`
+	 */
+	@Nonnull
+	public static int[] noLeafPages() {
+		return NO_LEAF_PAGES;
+	}
+
+	/**
+	 * Canonical constructor carrying every field, including both independent page-stream axes — the bucket axis
+	 * (`paged`/`highWaterPageSequence`/`leafPageSequences`) and the range axis
+	 * (`rangePaged`/`rangeHighWaterPageSequence`/`rangeLeafPageSequences`) — and the already-assigned storage part PK.
+	 * When a bucket axis is `paged` the `histogramPoints` must be empty; when the range axis is `rangePaged` the
+	 * `rangeIndex` must be `null`.
+	 *
+	 * @param entityIndexPrimaryKey      primary key of the owning entity index
+	 * @param histogramName              name of the histogram definition
+	 * @param locale                     locale for localized histograms, or `null`
+	 * @param valueType                  plain numeric type of the stored histogram values
+	 * @param histogramPoints            inline bucketed histogram data (empty when bucket-paged)
+	 * @param rangeIndex                 inline range index (null when range-paged or absent)
+	 * @param indexedDecimalPlaces       frozen decimal-places scale
+	 * @param paged                      whether the bucket axis is paged
+	 * @param highWaterPageSequence      the maximum bucket `pageSequence` ever allocated; `-1` when not bucket-paged
+	 * @param leafPageSequences          the bucket leaf pages in ascending key order; empty when not bucket-paged
+	 * @param rangePaged                 whether the range axis is paged
+	 * @param rangeHighWaterPageSequence the maximum range `pageSequence` ever allocated; `-1` when not range-paged
+	 * @param rangeLeafPageSequences     the range leaf pages in ascending threshold order; empty when not range-paged
+	 * @param storagePartPK              the already-assigned storage part PK, or `null`
 	 */
 	public HistogramIndexStoragePart(
 		int entityIndexPrimaryKey,
 		@Nonnull String histogramName,
-		@Nullable java.util.Locale locale,
+		@Nullable Locale locale,
 		@Nonnull Class<?> valueType,
 		@Nonnull ValueToRecordBitmap[] histogramPoints,
 		@Nullable RangeIndex rangeIndex,
-		@Nonnull AttributeCardinalityIndex cardinalityIndex,
 		int indexedDecimalPlaces,
+		boolean paged,
+		int highWaterPageSequence,
+		@Nonnull int[] leafPageSequences,
+		boolean rangePaged,
+		int rangeHighWaterPageSequence,
+		@Nonnull int[] rangeLeafPageSequences,
 		@Nullable Long storagePartPK
 	) {
-		this.entityIndexPrimaryKey = entityIndexPrimaryKey;
-		this.histogramName = histogramName;
-		this.locale = locale;
+		super(entityIndexPrimaryKey, histogramName, locale, storagePartPK);
 		this.valueType = valueType;
 		this.histogramPoints = histogramPoints;
 		this.rangeIndex = rangeIndex;
-		this.cardinalityIndex = cardinalityIndex;
 		this.indexedDecimalPlaces = indexedDecimalPlaces;
-		this.storagePartPK = storagePartPK;
-	}
-
-	/**
-	 * Computes the unique storage part primary key by bit-joining the entity index primary key (high 32 bits) with
-	 * the compressed integer id for the (histogramName, locale) pair (low 32 bits).
-	 *
-	 * @param entityIndexPrimaryKey integer primary key of the owning entity index
-	 * @param histogramName         the name of the histogram definition
-	 * @param locale                the locale for localized histograms, or `null`
-	 * @param keyCompressor         the key compressor for translating the composite key into a compact integer id
-	 * @return a 64-bit storage part primary key
-	 */
-	public static long computeUniquePartId(
-		int entityIndexPrimaryKey,
-		@Nonnull String histogramName,
-		@Nullable java.util.Locale locale,
-		@Nonnull KeyCompressor keyCompressor
-	) {
-		return NumberUtils.pack(
-			entityIndexPrimaryKey,
-			keyCompressor.getId(new HistogramIndexKey(histogramName, locale))
-		);
-	}
-
-	@Override
-	public long computeUniquePartIdAndSet(@Nonnull KeyCompressor keyCompressor) {
-		final long computedUniquePartId = computeUniquePartId(
-			this.entityIndexPrimaryKey, this.histogramName, this.locale, keyCompressor
-		);
-		final Long theUniquePartId = getStoragePartPK();
-		if (theUniquePartId == null) {
-			setStoragePartPK(computedUniquePartId);
-		} else {
-			Assert.isTrue(theUniquePartId == computedUniquePartId, "Unique part ids must never differ!");
-		}
-		return computedUniquePartId;
+		this.paged = paged;
+		this.highWaterPageSequence = highWaterPageSequence;
+		this.leafPageSequences = leafPageSequences;
+		this.rangePaged = rangePaged;
+		this.rangeHighWaterPageSequence = rangeHighWaterPageSequence;
+		this.rangeLeafPageSequences = rangeLeafPageSequences;
 	}
 
 }

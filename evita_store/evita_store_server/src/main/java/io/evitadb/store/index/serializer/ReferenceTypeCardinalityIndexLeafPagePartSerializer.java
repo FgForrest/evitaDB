@@ -27,26 +27,38 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.AbstractLeafPagePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.ReferenceTypeCardinalityIndexLeafPagePart;
+
+import javax.annotation.Nonnull;
 
 /**
  * This {@link Serializer} implementation reads/writes a {@link ReferenceTypeCardinalityIndexLeafPagePart} — one leaf page
- * of a granular reference-type-cardinality bucket tree — from/to binary format. The `(streamId, pageSequence)` pair fully
- * determines the storage-part primary key (via `pack`), so the key is recomputed on read rather than stored; only the
- * identifying pair and the leaf's `(key, count)` columns are written. Each key is a composed signed `long` written with
- * the non-optimize-positive `writeVarLong(.., false)` form (keys are negative for per-reference counters); each count is a
- * small positive `int` written via `writeVarInt` (the in-memory column is `long`, but counts fit `int` by construction —
- * matching the inline SINGLE root format).
+ * of a granular reference-type-cardinality bucket tree — from/to binary format. The `(streamId, pageSequence)` frame is
+ * owned by {@link AbstractLeafPagePartSerializer}; this payload adds the leaf's `(key, count)` columns. Each key is a
+ * composed signed `long` written with the non-optimize-positive `writeVarLong(.., false)` form (keys are negative for
+ * per-reference counters); each count is a small positive `int` written via `writeVarInt` (the in-memory column is `long`,
+ * but counts fit `int` by construction — matching the inline SINGLE root format).
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
-public class ReferenceTypeCardinalityIndexLeafPagePartSerializer extends Serializer<ReferenceTypeCardinalityIndexLeafPagePart> {
+public class ReferenceTypeCardinalityIndexLeafPagePartSerializer
+	extends AbstractLeafPagePartSerializer<ReferenceTypeCardinalityIndexLeafPagePart> {
 
 	@Override
-	public void write(Kryo kryo, Output output, ReferenceTypeCardinalityIndexLeafPagePart page) {
-		output.writeVarInt(page.getStreamId(), true);
-		output.writeVarInt(page.getPageSequence(), true);
+	protected int streamId(@Nonnull ReferenceTypeCardinalityIndexLeafPagePart page) {
+		return page.getStreamId();
+	}
 
+	@Override
+	protected int pageSequence(@Nonnull ReferenceTypeCardinalityIndexLeafPagePart page) {
+		return page.getPageSequence();
+	}
+
+	@Override
+	protected void writePayload(
+		@Nonnull Kryo kryo, @Nonnull Output output, @Nonnull ReferenceTypeCardinalityIndexLeafPagePart page
+	) {
 		final long[] keys = page.getKeys();
 		final long[] payloads = page.getPayloads();
 		output.writeVarInt(keys.length, true);
@@ -56,11 +68,11 @@ public class ReferenceTypeCardinalityIndexLeafPagePartSerializer extends Seriali
 		}
 	}
 
+	@Nonnull
 	@Override
-	public ReferenceTypeCardinalityIndexLeafPagePart read(Kryo kryo, Input input, Class<? extends ReferenceTypeCardinalityIndexLeafPagePart> type) {
-		final int streamId = input.readVarInt(true);
-		final int pageSequence = input.readVarInt(true);
-
+	protected ReferenceTypeCardinalityIndexLeafPagePart readPayload(
+		@Nonnull Kryo kryo, @Nonnull Input input, int streamId, int pageSequence
+	) {
 		final int keyCount = input.readVarInt(true);
 		final long[] keys = new long[keyCount];
 		final long[] payloads = new long[keyCount];
@@ -69,10 +81,9 @@ public class ReferenceTypeCardinalityIndexLeafPagePartSerializer extends Seriali
 			payloads[i] = input.readVarInt(false);
 		}
 
-		// the key is derived from the identifying pair, never stored
 		return new ReferenceTypeCardinalityIndexLeafPagePart(
 			streamId, pageSequence, keys, payloads,
-			ReferenceTypeCardinalityIndexLeafPagePart.computeUniquePartId(streamId, pageSequence)
+			AbstractLeafPagePart.computeUniquePartId(streamId, pageSequence)
 		);
 	}
 

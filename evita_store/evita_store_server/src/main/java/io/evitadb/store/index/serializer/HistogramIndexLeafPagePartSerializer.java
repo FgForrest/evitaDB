@@ -25,44 +25,43 @@ package io.evitadb.store.index.serializer;
 
 import com.esotericsoftware.kryo.Serializer;
 import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.AbstractLeafPagePart;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.FilterIndexLeafPagePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.HistogramIndexLeafPagePart;
 
 import javax.annotation.Nonnull;
 
 /**
- * This {@link Serializer} implementation reads/writes a {@link FilterIndexLeafPagePart} — one leaf page of a granular
- * FilterIndex bucket tree — from/to binary format. The `(streamId, pageSequence)` pair fully determines the
- * storage-part primary key (via `join`), so the key is recomputed on read rather than stored; only the identifying
- * pair and the leaf's buckets are written. The bucket-page frame is defined once in {@link BucketLeafPagePartSerializer}.
+ * This {@link Serializer} implementation reads/writes a {@link HistogramIndexLeafPagePart} — one leaf page of a granular
+ * histogram bucket tree — from/to binary format. The `(streamId, pageSequence)` pair fully determines the storage-part
+ * primary key (via `pack`), so the key is recomputed on read rather than stored; only the identifying pair and the
+ * leaf's buckets are written. The bucket-page frame is defined once in {@link BucketLeafPagePartSerializer}.
  *
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+ * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
-public class FilterIndexLeafPagePartSerializer extends BucketLeafPagePartSerializer<FilterIndexLeafPagePart> {
+public class HistogramIndexLeafPagePartSerializer extends BucketLeafPagePartSerializer<HistogramIndexLeafPagePart> {
 
 	@Override
-	protected int streamId(@Nonnull FilterIndexLeafPagePart page) {
+	protected int streamId(@Nonnull HistogramIndexLeafPagePart page) {
 		return page.getStreamId();
 	}
 
 	@Override
-	protected int pageSequence(@Nonnull FilterIndexLeafPagePart page) {
+	protected int pageSequence(@Nonnull HistogramIndexLeafPagePart page) {
 		return page.getPageSequence();
 	}
 
 	@Nonnull
 	@Override
-	protected ValueToRecordBitmap[] buckets(@Nonnull FilterIndexLeafPagePart page) {
+	protected ValueToRecordBitmap[] buckets(@Nonnull HistogramIndexLeafPagePart page) {
 		return page.getBuckets();
 	}
 
 	@Nonnull
 	@Override
-	protected FilterIndexLeafPagePart create(
+	protected HistogramIndexLeafPagePart create(
 		int streamId, int pageSequence, @Nonnull ValueToRecordBitmap[] buckets
 	) {
-		return new FilterIndexLeafPagePart(
-			streamId, pageSequence, buckets, AbstractLeafPagePart.computeUniquePartId(streamId, pageSequence)
+		return new HistogramIndexLeafPagePart(
+			streamId, pageSequence, buckets, HistogramIndexLeafPagePart.computeUniquePartId(streamId, pageSequence)
 		);
 	}
 

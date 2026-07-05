@@ -206,6 +206,40 @@ public final class OwnerFilterIndex extends FilterIndex implements VoidTransacti
 		this.dirty = new TransactionalBoolean();
 	}
 
+	/**
+	 * Rebuilds a boundary-stable owner filter index from an already-reconstructed {@link InvertedIndex} and optional
+	 * {@link RangeIndex} — typically assembled from persisted leaf pages by a loader. Exposed as a public factory
+	 * because the histogram loader lives in a different package and cannot reach the package-private canonical
+	 * constructor; the comparator and normalizer are re-derived deterministically from the attribute identity, type and
+	 * scale, so the resulting index matches one built by the normal constructors.
+	 *
+	 * @param attributeIndexKey    key identifying the attribute
+	 * @param invertedIndex        the reconstructed value bucket tree (already boundary-stable)
+	 * @param rangeIndex           the reconstructed range companion, or `null`
+	 * @param attributeType        the declared attribute type (array-aware)
+	 * @param indexedDecimalPlaces decimal-places scale used to encode `BigDecimal` values (0 for other types)
+	 * @return the reconstructed owner filter index
+	 */
+	@Nonnull
+	public static OwnerFilterIndex fromPersistedPages(
+		@Nonnull AttributeIndexKey attributeIndexKey,
+		@Nonnull InvertedIndex invertedIndex,
+		@Nullable RangeIndex rangeIndex,
+		@Nonnull Class<?> attributeType,
+		int indexedDecimalPlaces
+	) {
+		final Class<?> plainType = plainTypeOf(attributeType);
+		return new OwnerFilterIndex(
+			attributeIndexKey,
+			attributeType,
+			indexedDecimalPlaces,
+			invertedIndex,
+			rangeIndex,
+			getComparator(attributeIndexKey, plainType),
+			getNormalizer(plainType, indexedDecimalPlaces)
+		);
+	}
+
 	@Override
 	public boolean isDirty() {
 		return this.dirty.isTrue();

@@ -27,26 +27,34 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.AbstractLeafPagePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.UniqueIndexLeafPagePart;
 
+import javax.annotation.Nonnull;
 import java.io.Serializable;
 
 /**
  * This {@link Serializer} implementation reads/writes a {@link UniqueIndexLeafPagePart} — one leaf page of a granular
- * standalone (OWNER) unique-index bucket tree — from/to binary format. The `(streamId, pageSequence)` pair fully
- * determines the storage-part primary key (via `join`), so the key is recomputed on read rather than stored; only the
- * identifying pair and the leaf's `(value, recordId)` columns are written. Each value is written via Kryo; each record
- * id is a zig-zag varint (record ids are primary keys, small magnitudes regardless of sign).
+ * standalone (OWNER) unique-index bucket tree — from/to binary format. The `(streamId, pageSequence)` frame is owned by
+ * {@link AbstractLeafPagePartSerializer}; this payload adds the leaf's `(value, recordId)` columns. Each value is written
+ * via Kryo; each record id is a zig-zag varint (record ids are primary keys, small magnitudes regardless of sign).
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
-public class UniqueIndexLeafPagePartSerializer extends Serializer<UniqueIndexLeafPagePart> {
+public class UniqueIndexLeafPagePartSerializer extends AbstractLeafPagePartSerializer<UniqueIndexLeafPagePart> {
 
 	@Override
-	public void write(Kryo kryo, Output output, UniqueIndexLeafPagePart page) {
-		output.writeVarInt(page.getStreamId(), true);
-		output.writeVarInt(page.getPageSequence(), true);
+	protected int streamId(@Nonnull UniqueIndexLeafPagePart page) {
+		return page.getStreamId();
+	}
 
+	@Override
+	protected int pageSequence(@Nonnull UniqueIndexLeafPagePart page) {
+		return page.getPageSequence();
+	}
+
+	@Override
+	protected void writePayload(@Nonnull Kryo kryo, @Nonnull Output output, @Nonnull UniqueIndexLeafPagePart page) {
 		final Serializable[] values = page.getValues();
 		final int[] recordIds = page.getRecordIds();
 		output.writeVarInt(values.length, true);
@@ -56,11 +64,11 @@ public class UniqueIndexLeafPagePartSerializer extends Serializer<UniqueIndexLea
 		}
 	}
 
+	@Nonnull
 	@Override
-	public UniqueIndexLeafPagePart read(Kryo kryo, Input input, Class<? extends UniqueIndexLeafPagePart> type) {
-		final int streamId = input.readVarInt(true);
-		final int pageSequence = input.readVarInt(true);
-
+	protected UniqueIndexLeafPagePart readPayload(
+		@Nonnull Kryo kryo, @Nonnull Input input, int streamId, int pageSequence
+	) {
 		final int valueCount = input.readVarInt(true);
 		final Serializable[] values = new Serializable[valueCount];
 		final int[] recordIds = new int[valueCount];
@@ -69,10 +77,9 @@ public class UniqueIndexLeafPagePartSerializer extends Serializer<UniqueIndexLea
 			recordIds[i] = input.readVarInt(false);
 		}
 
-		// the key is derived from the identifying pair, never stored
 		return new UniqueIndexLeafPagePart(
 			streamId, pageSequence, values, recordIds,
-			UniqueIndexLeafPagePart.computeUniquePartId(streamId, pageSequence)
+			AbstractLeafPagePart.computeUniquePartId(streamId, pageSequence)
 		);
 	}
 
