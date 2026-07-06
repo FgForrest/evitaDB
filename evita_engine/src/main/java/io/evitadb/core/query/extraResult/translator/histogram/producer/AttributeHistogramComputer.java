@@ -38,6 +38,7 @@ import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.invertedIndex.InvertedIndexSubSet;
 import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
 import io.evitadb.utils.ArrayUtils;
+import io.evitadb.utils.NumberUtils;
 import lombok.Getter;
 import net.openhft.hashing.LongHashFunction;
 
@@ -226,18 +227,16 @@ public class AttributeHistogramComputer implements CacheableEvitaResponseExtraRe
 				return converted;
 			};
 		} else if (BigDecimal.class.isAssignableFrom(effectiveType)) {
-			converter = value -> {
-				// mirror the Long branch's overflow guard and the documented int-range contract below:
-				// surface a clear error instead of silently wrapping an out-of-range scaled value
-				final long scaled = ((BigDecimal) value).stripTrailingZeros()
-					.scaleByPowerOfTen(histogramRequest.getDecimalPlaces())
-					.longValueExact();
-				final int converted = (int) scaled;
-				if (scaled != (long) converted) {
-					throw new ArithmeticException("int overflow: " + value);
-				}
-				return converted;
-			};
+			// round the value to the schema's indexed precision (HALF_UP) exactly like the sort/filter
+			// index encoding does — a scalar BigDecimal is stored verbatim (only trailing zeros stripped),
+			// so a value whose natural scale exceeds indexedDecimalPlaces must be rounded onto the indexed
+			// grid, not rejected. `convertToInt` still guards against int overflow via intValueExact(),
+			// preserving the int-range contract documented below. Reusing the canonical primitive keeps this
+			// path from drifting from `NumberUtils.convertToInt` (a hand-rolled longValueExact() variant
+			// threw `Rounding necessary` on any excess-scale scalar value).
+			converter = value -> NumberUtils.convertToInt(
+				(BigDecimal) value, histogramRequest.getDecimalPlaces()
+			);
 		} else {
 			throw new GenericEvitaInternalError(
 				"Unsupported histogram number type: " + schemaType +

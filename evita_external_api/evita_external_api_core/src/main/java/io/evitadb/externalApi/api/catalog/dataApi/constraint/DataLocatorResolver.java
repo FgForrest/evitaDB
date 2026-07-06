@@ -237,7 +237,7 @@ public class DataLocatorResolver {
 							parentDataLocator instanceof GenericDataLocator) {
 							yield parentDataLocator;
 						}
-						throw new ExternalApiInternalError("Reference constraints without classifier must be encapsulated in parent reference or entity containers.");
+						throw new ExternalApiInternalError("Reference constraints without classifier must be encapsulated in parent generic, reference or entity containers.");
 					} else if (constraintDescriptor.propertyType().equals(ConstraintPropertyType.HIERARCHY)) {
 						if (parentDataLocator instanceof HierarchyDataLocator) {
 							yield parentDataLocator;
