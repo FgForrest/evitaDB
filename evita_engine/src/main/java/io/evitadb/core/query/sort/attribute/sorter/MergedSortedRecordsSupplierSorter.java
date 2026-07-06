@@ -29,6 +29,7 @@ import io.evitadb.api.requestResponse.chunk.OffsetAndLimit;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.core.query.QueryExecutionContext;
+import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.ForcedSortResolution;
 import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.PositionResolution;
 import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedRecordsProvider;
 import io.evitadb.core.query.sort.Sorter;
@@ -209,6 +210,9 @@ public final class MergedSortedRecordsSupplierSorter implements Sorter, MergedSo
 			final int[] buffer = queryContext.borrowBuffer();
 			final int[] resolveBufferA = queryContext.borrowBuffer();
 			final int[] resolveBufferB = queryContext.borrowBuffer();
+			// debug override (or null for cost-based) + per-strategy telemetry tally (null when telemetry is off)
+			final ForcedSortResolution forcedResolution = SortResolutionStrategies.resolveForcedResolution(queryContext);
+			final int[] strategyTally = SortResolutionStrategies.newStrategyTally(queryContext);
 			try {
 				final int startIndex = sortingContext.recomputedStartIndex();
 				final int endIndex = sortingContext.recomputedEndIndex();
@@ -224,8 +228,9 @@ public final class MergedSortedRecordsSupplierSorter implements Sorter, MergedSo
 				for (int i = offsetAndLimit.offset(); i < offsetAndLimit.limit(); i++) {
 					final SortedRecordsProvider sortedRecordsProvider = this.sortedRecordsProviders[i];
 					final PositionResolution resolution = sortedRecordsProvider.resolvePositions(
-						recordsToSort, recordsToSortCount, resolveBufferA, resolveBufferB
+						recordsToSort, recordsToSortCount, resolveBufferA, resolveBufferB, forcedResolution
 					);
+					SortResolutionStrategies.tally(strategyTally, resolution);
 					final PartialSortResult currentResult = fetchSlice(
 						sortedRecordsProvider, resolution.mask(), alreadySortedRecordIds,
 						startIndex - skipped,
@@ -250,6 +255,7 @@ public final class MergedSortedRecordsSupplierSorter implements Sorter, MergedSo
 					skipped
 				);
 			} finally {
+				SortResolutionStrategies.report(queryContext, strategyTally);
 				queryContext.returnBuffer(buffer);
 				queryContext.returnBuffer(resolveBufferA);
 				queryContext.returnBuffer(resolveBufferB);

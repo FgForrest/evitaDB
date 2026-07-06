@@ -24,6 +24,7 @@
 package io.evitadb.core.query.sort.attribute.sorter;
 
 import io.evitadb.core.query.QueryExecutionContext;
+import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.ForcedSortResolution;
 import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.PositionResolution;
 import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedComparableForwardSeeker;
 import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedRecordsProvider;
@@ -81,6 +82,9 @@ public final class MergedComparableSortedRecordsSupplierSorter implements Sorter
 			final Bitmap selectedRecordIds = sortingContext.nonSortedKeys();
 			final int[] resolveBufferA = queryContext.borrowBuffer();
 			final int[] resolveBufferB = queryContext.borrowBuffer();
+			// debug override (or null for cost-based) + per-strategy telemetry tally (null when telemetry is off)
+			final ForcedSortResolution forcedResolution = SortResolutionStrategies.resolveForcedResolution(queryContext);
+			final int[] strategyTally = SortResolutionStrategies.newStrategyTally(queryContext);
 			try {
 				final int toRead = Math.min(endIndex - startIndex, result.length - peak);
 				int alreadyRead = 0;
@@ -96,8 +100,9 @@ public final class MergedComparableSortedRecordsSupplierSorter implements Sorter
 				if (this.sortedRecordsProviders.length == 1) {
 					final SortedRecordsProvider provider = this.sortedRecordsProviders[0];
 					final PositionResolution resolution = provider.resolvePositions(
-						recordsToSort, recordsToSortCount, resolveBufferA, resolveBufferB
+						recordsToSort, recordsToSortCount, resolveBufferA, resolveBufferB, forcedResolution
 					);
+					SortResolutionStrategies.tally(strategyTally, resolution);
 					final RoaringBatchIterator maskIterator = resolution.mask().getBatchIterator();
 					while ((toRead > alreadyRead || toSkip > 0) && maskIterator.hasNext()) {
 						final int batchPeak = maskIterator.nextBatch(resolveBufferB);
@@ -130,8 +135,9 @@ public final class MergedComparableSortedRecordsSupplierSorter implements Sorter
 				for (int i = 0; i < this.sortedRecordsProviders.length; i++) {
 					final SortedRecordsProvider sortedRecordsProvider = this.sortedRecordsProviders[++maskPeak];
 					final PositionResolution resolution = sortedRecordsProvider.resolvePositions(
-						recordsToSort, recordsToSortCount, resolveBufferA, resolveBufferB
+						recordsToSort, recordsToSortCount, resolveBufferA, resolveBufferB, forcedResolution
 					);
+					SortResolutionStrategies.tally(strategyTally, resolution);
 					maskResults[maskPeak] = resolution;
 					recordsToSort = resolution.notFoundRecords();
 					recordsToSortCount = resolution.notFoundRecordsCount();
@@ -219,6 +225,7 @@ public final class MergedComparableSortedRecordsSupplierSorter implements Sorter
 					startIndex - toSkip
 				);
 			} finally {
+				SortResolutionStrategies.report(queryContext, strategyTally);
 				queryContext.returnBuffer(resolveBufferA);
 				queryContext.returnBuffer(resolveBufferB);
 			}

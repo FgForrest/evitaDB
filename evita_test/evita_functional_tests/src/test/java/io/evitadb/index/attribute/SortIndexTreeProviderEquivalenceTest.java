@@ -23,7 +23,9 @@
 
 package io.evitadb.index.attribute;
 
+import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.ForcedSortResolution;
 import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.PositionResolution;
+import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortResolutionStrategy;
 import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedRecordsProvider;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
@@ -35,6 +37,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -215,6 +218,171 @@ class SortIndexTreeProviderEquivalenceTest {
 			}
 		}
 
+	}
+
+	/**
+	 * Verifies the debug-only forced-resolution override ({@link ForcedSortResolution}, mapped from
+	 * {@link io.evitadb.api.query.require.DebugMode#PREFER_TREE_SORT} / `PREFER_PRESORT_ARRAYS`): forcing the tree path
+	 * and forcing the array path must yield exactly the same mask / not-found hand-off as the cost-based path and the
+	 * oracle (the override changes only HOW positions are resolved, never WHAT they resolve to), while the reported
+	 * {@link SortResolutionStrategy} reflects the forced family - including forcing the tree over already-warm arrays and
+	 * forcing the array walk for a sparse cold selection, the two cases the cost-based selector would decide the other way.
+	 */
+	@Nested
+	@DisplayName("Forced resolution overrides (DebugMode PREFER_TREE_SORT / PREFER_PRESORT_ARRAYS)")
+	class ForcedResolutionOverrideTest {
+
+		@Test
+		@DisplayName("forcing TREE and forcing ARRAY resolve identically to the cost-based path and the oracle")
+		void shouldResolveIdenticallyRegardlessOfForcedResolution() {
+			final Fixture fixture = buildFixture(20250706L, RECORD_COUNT);
+			assertForcedOverridesAgree(fixture, false, fixture.ascendingOrder(), 3L);
+
+			final int[] descendingOrder = fixture.ascendingOrder().clone();
+			reverse(descendingOrder);
+			assertForcedOverridesAgree(fixture, true, descendingOrder, 5L);
+		}
+
+		@Test
+		@DisplayName("forcing TREE reports a tree strategy even when the provider's arrays are warm")
+		void shouldForceTreeStrategyOverWarmArrays() {
+			final Fixture fixture = buildFixture(20250706L, RECORD_COUNT);
+			// a DENSE selection (K * 64 > N) that the cost-based selector would send to the warm array merge-walk
+			final int[] denseSelection = pickDistinct(fixture.presentRecordIds(), RECORD_COUNT / 2, new Random(13L));
+			final PersistentRoaringBitmap selected =
+				RoaringBitmapBackedBitmap.getRoaringBitmap(new BaseBitmap(denseSelection));
+
+			// warm the provider so the cost-based dense path resolves via the array merge-walk
+			final SortedRecordsProvider warm = fixture.sortIndex().getAscendingOrderRecordsSupplier();
+			warm.getSortedRecordIds();
+			warm.getRecordPositions();
+			warm.getAllRecords();
+			assertEquals(
+				SortResolutionStrategy.ARRAY_MERGE_WALK,
+				warm.resolvePositions(selected, denseSelection.length, new int[512], new int[512]).strategy(),
+				"cost-based dense selection on a warm provider -> array merge-walk"
+			);
+			// forcing TREE on the SAME warm provider must stay on the tree (dense walk), not fall back to the warm arrays
+			assertEquals(
+				SortResolutionStrategy.TREE_DENSE_WALK,
+				warm.resolvePositions(
+					selected, denseSelection.length, new int[512], new int[512], ForcedSortResolution.TREE
+				).strategy(),
+				"forced TREE overrides the warm arrays -> dense tree walk"
+			);
+		}
+
+		@Test
+		@DisplayName("forcing ARRAY reports the array merge-walk even for a sparse selection on a cold provider")
+		void shouldForceArrayStrategyForSparseColdSelection() {
+			final Fixture fixture = buildFixture(20250706L, RECORD_COUNT);
+			// a SPARSE selection (K * 64 <= N) that the cost-based selector would send to the tree sparse probe
+			final int[] sparseSelection = pickDistinct(fixture.presentRecordIds(), 10, new Random(17L));
+			final PersistentRoaringBitmap selected =
+				RoaringBitmapBackedBitmap.getRoaringBitmap(new BaseBitmap(sparseSelection));
+
+			final SortedRecordsProvider cold = fixture.sortIndex().getAscendingOrderRecordsSupplier();
+			assertEquals(
+				SortResolutionStrategy.TREE_SPARSE_PROBE,
+				cold.resolvePositions(selected, sparseSelection.length, new int[512], new int[512]).strategy(),
+				"cost-based sparse selection -> tree sparse probe"
+			);
+			// forcing ARRAY materializes and merge-walks even though the selection is sparse and the provider was cold
+			final SortedRecordsProvider forcedArray = fixture.sortIndex().getAscendingOrderRecordsSupplier();
+			assertEquals(
+				SortResolutionStrategy.ARRAY_MERGE_WALK,
+				forcedArray.resolvePositions(
+					selected, sparseSelection.length, new int[512], new int[512], ForcedSortResolution.ARRAY
+				).strategy(),
+				"forced ARRAY on a sparse cold selection -> array merge-walk"
+			);
+		}
+
+	}
+
+	/**
+	 * For a spread of sparse and dense selection sizes, resolves each selection three ways on FRESH providers -
+	 * cost-based, forced {@link ForcedSortResolution#TREE} and forced {@link ForcedSortResolution#ARRAY} - and asserts
+	 * the mask, the not-found hand-off and the count are identical across all three (and match the oracle positions),
+	 * while the reported strategy matches the forced family: the tree probe for a sparse selection and the tree walk for
+	 * a dense one under {@link ForcedSortResolution#TREE}, and the array merge-walk under {@link ForcedSortResolution#ARRAY}.
+	 */
+	private static void assertForcedOverridesAgree(
+		@Nonnull Fixture fixture,
+		boolean descending,
+		@Nonnull int[] expectedOrder,
+		long selectionSeed
+	) {
+		final int recordCount = expectedOrder.length;
+		// recordId -> its position in the directional sorted order (record ids are 1..recordCount)
+		final int[] positionInOrder = new int[recordCount + 1];
+		for (int position = 0; position < recordCount; position++) {
+			positionInOrder[expectedOrder[position]] = position;
+		}
+
+		final Random random = new Random(selectionSeed);
+		for (final int selectionSize : mixedSelectionSizes(recordCount)) {
+			final int[] selectedPresent = pickDistinct(fixture.presentRecordIds(), selectionSize, random);
+			// two record ids guaranteed absent from the index (record ids are 1..N)
+			final int[] absent = {recordCount + 7, recordCount + 42};
+			final int[] selectedAll = concatSorted(selectedPresent, absent);
+			final PersistentRoaringBitmap selected =
+				RoaringBitmapBackedBitmap.getRoaringBitmap(new BaseBitmap(selectedAll));
+
+			// expected mask = the sorted set of oracle positions of the present selected records
+			final int[] expectedPositions = new int[selectedPresent.length];
+			for (int i = 0; i < selectedPresent.length; i++) {
+				expectedPositions[i] = positionInOrder[selectedPresent[i]];
+			}
+			Arrays.sort(expectedPositions);
+			// the cost-based selector treats the selection (padded by the 2 absent ids) as sparse iff K * 64 <= N
+			final boolean sparse = (long) selectedAll.length << 6 <= recordCount;
+
+			final PositionResolution costBased =
+				resolveFresh(fixture, descending, selected, selectedAll.length, null);
+			final PositionResolution forcedTree =
+				resolveFresh(fixture, descending, selected, selectedAll.length, ForcedSortResolution.TREE);
+			final PositionResolution forcedArray =
+				resolveFresh(fixture, descending, selected, selectedAll.length, ForcedSortResolution.ARRAY);
+
+			// all three resolve to the same mask, the same not-found ids and the same count
+			for (final PositionResolution resolution : new PositionResolution[]{costBased, forcedTree, forcedArray}) {
+				assertArrayEquals(
+					expectedPositions, new BaseBitmap(resolution.mask()).getArray(), "mask (K=" + selectionSize + ")"
+				);
+				assertArrayEquals(
+					absent, new BaseBitmap(resolution.notFoundRecords()).getArray(), "not-found (K=" + selectionSize + ")"
+				);
+				assertEquals(absent.length, resolution.notFoundRecordsCount(), "not-found count (K=" + selectionSize + ")");
+			}
+
+			// the reported strategy reflects the forced family
+			assertEquals(
+				SortResolutionStrategy.ARRAY_MERGE_WALK, forcedArray.strategy(),
+				"forced ARRAY strategy (K=" + selectionSize + ")"
+			);
+			assertEquals(
+				sparse ? SortResolutionStrategy.TREE_SPARSE_PROBE : SortResolutionStrategy.TREE_DENSE_WALK,
+				forcedTree.strategy(),
+				"forced TREE strategy (K=" + selectionSize + ")"
+			);
+		}
+	}
+
+	/**
+	 * Resolves `selected` through a FRESH (cold) directional provider with the given forced resolution (or `null` for
+	 * cost-based selection), so a previously-warmed provider's arrays never interfere with the strategy under test.
+	 */
+	@Nonnull
+	private static PositionResolution resolveFresh(
+		@Nonnull Fixture fixture,
+		boolean descending,
+		@Nonnull PersistentRoaringBitmap selected,
+		int selectedRecordCount,
+		@Nullable ForcedSortResolution forcedResolution
+	) {
+		final SortedRecordsProvider provider = freshDirectionalProvider(fixture, descending);
+		return provider.resolvePositions(selected, selectedRecordCount, new int[512], new int[512], forcedResolution);
 	}
 
 	/**

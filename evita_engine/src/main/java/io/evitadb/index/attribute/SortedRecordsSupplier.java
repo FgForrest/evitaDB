@@ -23,7 +23,9 @@
 
 package io.evitadb.index.attribute;
 
+import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.ForcedSortResolution;
 import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.PositionResolution;
+import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortResolutionStrategy;
 import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedComparableForwardSeeker;
 import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedRecordsProvider;
 import io.evitadb.index.array.TransactionalUnorderedIntArray;
@@ -251,19 +253,37 @@ public class SortedRecordsSupplier implements SortedRecordsProvider, Serializabl
 		@Nonnull PersistentRoaringBitmap selectedRecordIds,
 		int selectedRecordCount,
 		@Nonnull int[] bufferA,
-		@Nonnull int[] bufferB
+		@Nonnull int[] bufferB,
+		@Nullable ForcedSortResolution forcedResolution
 	) {
 		if (this.sortedRecords == null) {
 			// a purely array-backed supplier has no tree to walk -> array merge-walk over its materialized arrays
-			return SortedRecordsProvider.super.resolvePositions(selectedRecordIds, selectedRecordCount, bufferA, bufferB);
+			return SortedRecordsProvider.super.resolvePositions(
+				selectedRecordIds, selectedRecordCount, bufferA, bufferB, forcedResolution
+			);
 		}
-		if ((long) selectedRecordCount * TREE_PATH_SELECTIVITY_DIVISOR <= this.recordCount) {
-			// sparse selection: probe each selected id against the tree (K * O(log N)), no array materialization
+		if (forcedResolution == ForcedSortResolution.ARRAY) {
+			// debug override: take the array merge-walk (materializing the arrays if cold) regardless of selectivity
+			return SortedRecordsProvider.super.resolvePositions(
+				selectedRecordIds, selectedRecordCount, bufferA, bufferB, forcedResolution
+			);
+		}
+		// sparse selection: probe each selected id against the tree (K * O(log N)), no array materialization
+		final boolean sparse = (long) selectedRecordCount * TREE_PATH_SELECTIVITY_DIVISOR <= this.recordCount;
+		if (forcedResolution == ForcedSortResolution.TREE) {
+			// debug override: stay on the tree path even when warm arrays would otherwise win
+			return sparse
+				? resolvePositionsBySparseProbe(selectedRecordIds, selectedRecordCount, bufferA)
+				: resolvePositionsByDenseWalk(selectedRecordIds, selectedRecordCount);
+		}
+		if (sparse) {
 			return resolvePositionsBySparseProbe(selectedRecordIds, selectedRecordCount, bufferA);
 		}
 		if (this.recordPositions != null && this.allRecords != null) {
 			// dense selection but the arrays are already warm -> the tight O(N + K) merge-walk over them wins
-			return SortedRecordsProvider.super.resolvePositions(selectedRecordIds, selectedRecordCount, bufferA, bufferB);
+			return SortedRecordsProvider.super.resolvePositions(
+				selectedRecordIds, selectedRecordCount, bufferA, bufferB, forcedResolution
+			);
 		}
 		// dense selection on a cold supplier: one O(N) tree walk, no int[N] order / position materialization
 		return resolvePositionsByDenseWalk(selectedRecordIds, selectedRecordCount);
@@ -306,7 +326,9 @@ public class SortedRecordsSupplier implements SortedRecordsProvider, Serializabl
 				}
 			}
 		}
-		return new PositionResolution(mask.get(), notFound.get(), notFoundCount);
+		return new PositionResolution(
+			mask.get(), notFound.get(), notFoundCount, SortResolutionStrategy.TREE_SPARSE_PROBE
+		);
 	}
 
 	/**
@@ -344,7 +366,9 @@ public class SortedRecordsSupplier implements SortedRecordsProvider, Serializabl
 				matched++;
 			}
 		}
-		return new PositionResolution(mask.get(), notFound, selectedRecordCount - matched);
+		return new PositionResolution(
+			mask.get(), notFound, selectedRecordCount - matched, SortResolutionStrategy.TREE_DENSE_WALK
+		);
 	}
 
 }
