@@ -1,8 +1,6 @@
 package io.evitadb.roaringbitmap;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -14,50 +12,59 @@ import java.io.InputStream;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+
+/**
+ * Regression tests for {@link PersistentRoaringBitmap} deserialization of adversarial inputs,
+ * ported from the upstream RoaringBitmap test suite. They pin down that well-formed streams
+ * deserialize correctly while crash-prone, malformed inputs are rejected rather than crashing.
+ */
+@DisplayName("PersistentRoaringBitmap deserialization of adversarial inputs")
 public class TestAdversarialInputs {
 
-  public static Stream<Arguments> badFiles() {
-    return IntStream.rangeClosed(1, 7)
-        .mapToObj(i -> Arguments.of("/testdata/crashproneinput" + i + ".bin"));
-  }
+	public static Stream<Arguments> badFiles() {
+		return IntStream.rangeClosed(1, 7)
+			.mapToObj(i -> Arguments.of("/testdata/crashproneinput" + i + ".bin"));
+	}
 
-  // open a stream without copying files
-  public static InputStream openInputstream(String resourceName) throws IOException {
-    InputStream resourceAsStream = TestAdversarialInputs.class.getResourceAsStream(resourceName);
-    if (resourceAsStream == null) {
-      throw new IOException("Cannot get resource \"" + resourceName + "\".");
-    }
-    return resourceAsStream;
-  }
+	// open a stream without copying files
+	public static InputStream openInputstream(String resourceName) throws IOException {
+		InputStream resourceAsStream = TestAdversarialInputs.class.getResourceAsStream(resourceName);
+		if (resourceAsStream == null) {
+			throw new IOException("Cannot get resource \"" + resourceName + "\".");
+		}
+		return resourceAsStream;
+	}
 
-  @Test
-  public void testInputGoodFile1() throws IOException {
-    InputStream inputStream = openInputstream("/testdata/bitmapwithruns.bin");
-    PersistentRoaringBitmap rb = new PersistentRoaringBitmap();
-    // should not throw an exception
-    rb.deserialize(new DataInputStream(inputStream));
-    assertEquals(rb.getCardinality(), 200100);
-  }
+	@Test
+	public void testInputGoodFile1() throws IOException {
+		InputStream inputStream = openInputstream("/testdata/bitmapwithruns.bin");
+		PersistentRoaringBitmap rb = new PersistentRoaringBitmap();
+		// should not throw an exception
+		rb.deserialize(new DataInputStream(inputStream));
+		assertEquals(200100, rb.getCardinality());
+	}
 
-  @Test
-  public void testInputGoodFile2() throws IOException {
-    InputStream inputStream = openInputstream("/testdata/bitmapwithoutruns.bin");
-    PersistentRoaringBitmap rb = new PersistentRoaringBitmap();
-    // should not throw an exception
-    rb.deserialize(new DataInputStream(inputStream));
-    assertEquals(rb.getCardinality(), 200100);
-  }
+	@Test
+	public void testInputGoodFile2() throws IOException {
+		InputStream inputStream = openInputstream("/testdata/bitmapwithoutruns.bin");
+		PersistentRoaringBitmap rb = new PersistentRoaringBitmap();
+		// should not throw an exception
+		rb.deserialize(new DataInputStream(inputStream));
+		assertEquals(200100, rb.getCardinality());
+	}
 
-  @ParameterizedTest
-  @MethodSource("badFiles")
-  public void testInputBadFile8(String fileName) {
-    assertThrows(IOException.class, () -> deserialize(fileName));
-  }
+	@ParameterizedTest
+	@MethodSource("badFiles")
+	public void testInputBadFile8(String fileName) {
+		assertThrows(IOException.class, () -> deserialize(fileName));
+	}
 
-  private void deserialize(String fileName) throws IOException {
-    InputStream inputStream = openInputstream(fileName);
-    PersistentRoaringBitmap rb = new PersistentRoaringBitmap();
-    // should not work
-    rb.deserialize(new DataInputStream(inputStream));
-  }
+	private static void deserialize(String fileName) throws IOException {
+		InputStream inputStream = openInputstream(fileName);
+		PersistentRoaringBitmap rb = new PersistentRoaringBitmap();
+		// should not work
+		rb.deserialize(new DataInputStream(inputStream));
+	}
 }

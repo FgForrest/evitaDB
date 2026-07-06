@@ -4,7 +4,8 @@
  */
 
 /**
- * evitaDB's vendored RoaringBitmap core.
+ * evitaDB's vendored RoaringBitmap core - compressed bitmaps of unsigned 32-bit and 64-bit
+ * integers that serve as the building block for evitaDB's in-memory lookup and search indexes.
  *
  * Third-party code derived from the RoaringBitmap project
  * (https://github.com/RoaringBitmap/RoaringBitmap), Apache License 2.0, under evitaDB

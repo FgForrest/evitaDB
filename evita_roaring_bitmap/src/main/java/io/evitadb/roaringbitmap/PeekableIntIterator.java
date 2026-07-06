@@ -1,87 +1,68 @@
 package io.evitadb.roaringbitmap;
 
+import javax.annotation.Nonnull;
+
 /**
- * Simple extension to the IntIterator interface.
- * It allows you to "skip" values using the advanceIfNeeded
- * method, and to look at the value without advancing (peekNext).
- *
- * This richer interface enables efficient algorithms over
- * iterators of integers.
+ * {@link IntIterator} that also lets callers skip ahead with {@link #advanceIfNeeded} and inspect
+ * the upcoming value without consuming it via {@link #peekNext}. This richer protocol enables
+ * efficient merge and intersection algorithms over iterators of integers.
  */
 public interface PeekableIntIterator extends IntIterator {
-  /**
-   * If needed, advance as long as the next value is smaller than minval
-   *
-   *  The advanceIfNeeded method is used for performance reasons, to skip
-   *  over unnecessary repeated calls to next.
-   *
-   *  Suppose for example that you wish to compute the intersection between
-   *  an ordered list of integers (e.g., int[] x = {1,4,5}) and a
-   *  PeekableIntIterator.
-   *  You might do it as follows...
-   *     <pre><code>
-   *     PeekableIntIterator j = // get an iterator
-   *     int val = // first value from my other data structure
-   *     j.advanceIfNeeded(val);
-   *     while ( j.hasNext() ) {
-   *       if(j.next() == val) {
-   *         // ah! ah! val is in the intersection...
-   *         // do something here
-   *         val = // get next value?
-   *       }
-   *       j.advanceIfNeeded(val);
-   *     }
-   *     </code></pre>
-   *
-   *  The benefit of calling advanceIfNeeded is that each such call
-   *  can be much faster than repeated calls to "next". The underlying
-   *  implementation can "skip" over some data.
-   *
-   *
-   * @param minval threshold
-   */
-  public void advanceIfNeeded(int minval);
+	/**
+	 * Skips ahead while the next value is smaller than `minval`, unless the cursor is already at or
+	 * past it. This is a performance shortcut over repeated {@link #next()} calls: the implementation
+	 * can jump over intervening data rather than returning every value.
+	 *
+	 * A common use is intersecting this iterator with another ascending sequence — advance to each
+	 * probe value, test it, then advance to the next:
+	 *
+	 * ```java
+	 * PeekableIntIterator j = // get an iterator
+	 * int val = // first value from the other data structure
+	 * j.advanceIfNeeded(val);
+	 * while (j.hasNext()) {
+	 * if (j.next() == val) {
+	 * // val is in the intersection: do something, then fetch the next probe value
+	 * val = // next value
+	 * }
+	 * j.advanceIfNeeded(val);
+	 * }
+	 * ```
+	 *
+	 * @param minval the value to skip forward to (inclusive threshold)
+	 */
+	public void advanceIfNeeded(int minval);
 
-  /**
-   *
-   * Look at the next value without advancing
-   *
-   * The peek is useful when working with several iterators at once.
-   * Suppose that you have 100 iterators, and you want to compute
-   * their intersections without materializing the result.
-   * You might do it as follows...
-   *    <pre><code>
-   *    PriorityQueue pq = new PriorityQueue(100,
-   *      new Comparator&lt;PeekableIntIterator&gt;() {
-   *             public int compare(PeekableIntIterator a,
-   *                                PeekableIntIterator b) {
-   *                 return a.peek() - b.peek();
-   *             }
-   *         });
-   *
-   *    //...  populate pq
-   *
-   *    while(! pq.isEmpty() ) {
-   *      // get iterator with a smallest value
-   *      PeekableIntIterator pi = pq.poll();
-   *      int x = pi.next(); // advance
-   *      // do something with x
-   *      if(pi.hasNext()) pq.add(pi)
-   *    }
-   *    </code></pre>
-   *
-   * Notice how the peek method allows you to compare iterators in a way
-   * that the next method could not do.
-   *
-   * @return next value
-   */
-  public int peekNext();
+	/**
+	 * Returns the value {@link #next()} would return, without advancing the cursor.
+	 *
+	 * Peeking lets several iterators be ordered against one another without materialising their
+	 * output — for instance, keeping many iterators in a priority queue keyed on their next value to
+	 * merge them lazily:
+	 *
+	 * ```java
+	 * PriorityQueue pq = new PriorityQueue(100,
+	 * (PeekableIntIterator a, PeekableIntIterator b) -> a.peekNext() - b.peekNext());
+	 * // ... populate pq
+	 * while (!pq.isEmpty()) {
+	 * PeekableIntIterator pi = pq.poll(); // iterator with the smallest next value
+	 * int x = pi.next();                  // consume it
+	 * // do something with x
+	 * if (pi.hasNext()) pq.add(pi);
+	 * }
+	 * ```
+	 *
+	 * @return the next value, left in place
+	 */
+	public int peekNext();
 
-  /**
-   * Creates a copy of the iterator.
-   *
-   * @return a clone of the current iterator
-   */
-  @Override
-  PeekableIntIterator clone();
+	/**
+	 * Forks an independent cursor at the current position, narrowing the return type to
+	 * {@link PeekableIntIterator}.
+	 *
+	 * @return an independent copy of this iterator
+	 */
+	@Nonnull
+	@Override
+	PeekableIntIterator clone();
 }

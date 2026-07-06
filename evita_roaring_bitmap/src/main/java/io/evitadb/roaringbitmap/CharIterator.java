@@ -4,34 +4,51 @@
 
 package io.evitadb.roaringbitmap;
 
+import javax.annotation.Nonnull;
+
 /**
- * Iterator over short values.
+ * Primitive cursor over the `char` values stored inside a single container, visited in ascending
+ * order. Iterating with the primitive `char` avoids the per-element boxing a `Character`-based
+ * {@link java.util.Iterator} would incur.
+ *
+ * Implementations are {@link Cloneable}: {@link #clone()} forks an independent cursor that shares
+ * the same backing container. The traversal protocol mirrors {@link java.util.Iterator}.
  */
 public interface CharIterator extends Cloneable {
-  /**
-   * Creates a copy of the iterator.
-   *
-   * @return a clone of the current iterator
-   */
-  CharIterator clone();
+	/**
+	 * Forks an independent cursor at the current position. Cursor state is duplicated while the
+	 * backing container is shared, so the copy can be advanced without disturbing this iterator.
+	 *
+	 * @return an independent copy of this iterator
+	 */
+	@Nonnull
+	CharIterator clone();
 
-  /**
-   * @return whether there is another value
-   */
-  boolean hasNext();
+	/**
+	 * Tells whether another value remains, mirroring {@link java.util.Iterator#hasNext()}.
+	 *
+	 * @return `true` if {@link #next()} would return a further value
+	 */
+	boolean hasNext();
 
-  /**
-   * @return next char value
-   */
-  char next();
+	/**
+	 * Returns the next value and advances the cursor.
+	 *
+	 * @return the next `char` value
+	 */
+	char next();
 
-  /**
-   * @return next short value as int value (using the least significant 16 bits)
-   */
-  int nextAsInt();
+	/**
+	 * Returns the next value widened to `int` using its least significant 16 bits, i.e. zero-extended
+	 * to an unsigned value in the range `0`–`65535`, and advances the cursor.
+	 *
+	 * @return the next value as an unsigned `int`
+	 */
+	int nextAsInt();
 
-  /**
-   * If possible, remove the current value
-   */
-  void remove();
+	/**
+	 * Removes the current value from the backing container when the implementation supports removal,
+	 * mirroring the optional {@link java.util.Iterator#remove()}.
+	 */
+	void remove();
 }

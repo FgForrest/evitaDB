@@ -4,28 +4,23 @@
 package io.evitadb.roaringbitmap;
 
 /**
- * An LongConsumer receives the long values contained in a data structure. Each value is visited
- * once.
+ * Callback that receives the `long` values held by a 64-bit bitmap, one at a time.
  *
- * Usage:
+ * The 64-bit counterpart of {@link IntConsumer}, handed to the `forEach` traversals of
+ * {@link PersistentLongRoaringBitmap}; each value is visited exactly once, in the traversal order
+ * of the caller. Being a single-method interface, it is typically supplied as a lambda:
  *
- * <pre>
- * {@code
- *  bitmap.forEach(new LongConsumer() {
- *
- *    public void accept(long value) {
- *      // do something here
- *
- *    }});
- *   }
- * }
- * </pre>
+ * ```java
+ * bitmap.forEach(value -> {
+ * // do something with value
+ * });
+ * ```
  */
 public interface LongConsumer {
-  /**
-   * Receives the long
-   *
-   * @param value the long value
-   */
-  void accept(long value);
+	/**
+	 * Receives one value produced by the traversal.
+	 *
+	 * @param value the visited value
+	 */
+	void accept(long value);
 }

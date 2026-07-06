@@ -1,34 +1,56 @@
 package io.evitadb.roaringbitmap;
 
 /**
- * A consumer interface to process ranges of value contained in a bitmap using relative offsets.
- * <p>
- * All positions are relative offsets to a start position given as an argument to methods
- * that expect a range consumer. In other words, the bitmap global index for every position
- * in the methods provided by this interface is start + relativePos.
- * (For 64-bit bitmaps start may be a long and so would thus start + relativePos.)
- * <p>
- * A "present" value at a global position pos is one where bitmap.contains(pos) == true.
- * An "absent" value at a global position pos is one where bitmap.contains(pos) == false.
+ * Visitor over a contiguous range of a bitmap that reports both the values present and the values
+ * absent, addressed by *relative* offset rather than absolute bitmap index.
+ *
+ * A range consumer is handed to range traversals such as
+ * {@link PersistentRoaringBitmap#forAllInRange} together with a range start. Every offset the
+ * visitor is told about is relative to that start: the absolute bitmap index of a reported position
+ * is `start + relativePos`. Addressing positions relatively lets one consumer be reused for any
+ * range regardless of where it sits, and keeps the offsets within `int` range even for 64-bit
+ * bitmaps, where `start` may itself be a `long`.
+ *
+ * A value at absolute position `pos` is *present* when `bitmap.contains(pos)` is `true`, otherwise
+ * it is *absent*. Across a single traversal the four callbacks partition the whole requested range
+ * `[0, length)` exactly once - every relative offset is reported by exactly one call, either singly
+ * or as part of a run - so the consumer sees a complete, gap-free picture of the range.
+ *
+ * The bulk `acceptAll*` callbacks let the traversal collapse a long consecutive run into a single
+ * call instead of one call per value, which is the fast path for dense or empty stretches.
  */
 public interface RelativeRangeConsumer {
-  /**
-   * Consume a single present value at relativePos.
-   */
-  void acceptPresent(int relativePos);
+	/**
+	 * Reports a single present value at relative offset `relativePos` (absolute index
+	 * `start + relativePos`).
+	 *
+	 * @param relativePos offset from the range start of a value contained in the bitmap
+	 */
+	void acceptPresent(int relativePos);
 
-  /**
-   * Consume a single absent value at relativePos.
-   */
-  void acceptAbsent(int relativePos);
+	/**
+	 * Reports a single absent value at relative offset `relativePos` (absolute index
+	 * `start + relativePos`).
+	 *
+	 * @param relativePos offset from the range start of a value not contained in the bitmap
+	 */
+	void acceptAbsent(int relativePos);
 
-  /**
-   * Consume consecutive present values in the range [relativeFrom, relativeTo).
-   */
-  void acceptAllPresent(int relativeFrom, int relativeTo);
+	/**
+	 * Reports a consecutive run of present values covering the half-open relative range
+	 * `[relativeFrom, relativeTo)`.
+	 *
+	 * @param relativeFrom inclusive start offset of the run
+	 * @param relativeTo   exclusive end offset of the run
+	 */
+	void acceptAllPresent(int relativeFrom, int relativeTo);
 
-  /**
-   * Consume consecutive absent values in the range [relativeFrom, relativeTo).
-   */
-  void acceptAllAbsent(int relativeFrom, int relativeTo);
+	/**
+	 * Reports a consecutive run of absent values covering the half-open relative range
+	 * `[relativeFrom, relativeTo)`.
+	 *
+	 * @param relativeFrom inclusive start offset of the run
+	 * @param relativeTo   exclusive end offset of the run
+	 */
+	void acceptAllAbsent(int relativeFrom, int relativeTo);
 }

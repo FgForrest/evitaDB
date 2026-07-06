@@ -1,16 +1,26 @@
 package io.evitadb.roaringbitmap;
 
+import javax.annotation.Nonnull;
+
 /**
- * PeekableIntIterator that calculates the next value rank during iteration
+ * {@link PeekableIntIterator} that also exposes the rank of the upcoming value, maintained while
+ * iterating so callers obtain it without a separate scan.
  */
 public interface PeekableIntRankIterator extends PeekableIntIterator {
-  /**
-   * Look at rank of the next value without advancing
-   *
-   * @return rank of next value
-   */
-  int peekNextRank();
+	/**
+	 * Returns the rank of the value {@link #peekNext()} would return, without advancing the cursor.
+	 *
+	 * @return the rank of the next value
+	 */
+	int peekNextRank();
 
-  @Override
-  PeekableIntRankIterator clone();
+	/**
+	 * Forks an independent cursor at the current position, narrowing the return type to
+	 * {@link PeekableIntRankIterator}.
+	 *
+	 * @return an independent copy of this iterator
+	 */
+	@Nonnull
+	@Override
+	PeekableIntRankIterator clone();
 }

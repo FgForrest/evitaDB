@@ -4,27 +4,38 @@
 
 package io.evitadb.roaringbitmap;
 
+import javax.annotation.Nonnull;
+
 /**
- * A simple iterator over integer values.
- * Using an IntIterator instead of Java's Iterator&lt;Integer&gt;
- * avoids the overhead of the Interger class: on some tests,
- * IntIterator is nearly twice as fast as Iterator&lt;Integer&gt;.
+ * Primitive cursor over `int` values. Preferring an `IntIterator` to an `Integer`-based
+ * {@link java.util.Iterator} avoids per-element boxing; in some benchmarks it runs nearly twice as
+ * fast.
+ *
+ * Implementations are {@link Cloneable}: {@link #clone()} forks an independent cursor that shares
+ * the same backing data. The traversal protocol mirrors {@link java.util.Iterator}; the traversal
+ * order is fixed by the factory that produced the iterator, not by this interface.
  */
 public interface IntIterator extends Cloneable {
-  /**
-   * Creates a copy of the iterator.
-   *
-   * @return a clone of the current iterator
-   */
-  IntIterator clone();
+	/**
+	 * Forks an independent cursor at the current position. Cursor state is duplicated while the
+	 * backing data is shared, so the copy can be advanced without disturbing this iterator.
+	 *
+	 * @return an independent copy of this iterator
+	 */
+	@Nonnull
+	IntIterator clone();
 
-  /**
-   * @return whether there is another value
-   */
-  boolean hasNext();
+	/**
+	 * Tells whether another value remains, mirroring {@link java.util.Iterator#hasNext()}.
+	 *
+	 * @return `true` if {@link #next()} would return a further value
+	 */
+	boolean hasNext();
 
-  /**
-   * @return next integer value
-   */
-  int next();
+	/**
+	 * Returns the next value and advances the cursor.
+	 *
+	 * @return the next `int` value
+	 */
+	int next();
 }

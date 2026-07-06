@@ -8,6 +8,7 @@ import io.evitadb.roaringbitmap.art.ContainerIterator;
 import io.evitadb.roaringbitmap.art.Containers;
 
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.io.ByteArrayInputStream;
@@ -18,87 +19,99 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
+/**
+ * Tests for {@link Containers}, the container store addressed by ART container indices. They
+ * verify that containers can be added, retrieved, replaced and iterated (including in-place
+ * replacement during iteration), and that the store serializes and deserializes via both a
+ * stream and a `ByteBuffer`.
+ *
+ * Ported from the upstream RoaringBitmap test-suite and retained as a regression guard for
+ * the vendored `io.evitadb.roaringbitmap` module.
+ */
+@DisplayName("Container store (Containers)")
 public class ContainersTest {
 
-  @Test
-  public void test1() {
-    Containers containers = new Containers();
-    ArrayContainer arrayContainer = new ArrayContainer();
-    long cidx = containers.addContainer(arrayContainer);
-    long cidx0 = cidx;
-    Container container = containers.getContainer(cidx);
-    Assertions.assertTrue(container == arrayContainer);
-    BitmapContainer bitmapContainer = new BitmapContainer();
-    cidx = containers.addContainer(bitmapContainer);
-    long cidx1 = cidx;
-    container = containers.getContainer(cidx);
-    Assertions.assertTrue(container == bitmapContainer);
-    RunContainer runContainer = new RunContainer();
-    cidx = containers.addContainer(runContainer);
-    container = containers.getContainer(cidx);
-    Assertions.assertTrue(container == runContainer);
-    long containerSize = containers.getContainerSize();
-    Assertions.assertTrue(containerSize == 3);
-    ArrayContainer anotherArrayContainer = new ArrayContainer();
-    containers.replace(cidx, anotherArrayContainer);
-    container = containers.getContainer(cidx);
-    Assertions.assertTrue(container != arrayContainer);
-    Assertions.assertTrue(container == anotherArrayContainer);
-    ContainerIterator containerIterator = containers.iterator();
-    int i = 0;
-    while (containerIterator.hasNext()) {
-      containerIterator.next();
-      if (i == 0) {
-        long currentContainerIdx = containerIterator.getCurrentContainerIdx();
-        Assertions.assertEquals(cidx0, currentContainerIdx);
-        RunContainer rc = new RunContainer(new char[] {23, 24}, 1);
-        containerIterator.replace(rc);
-      }
-      i++;
-    }
-    Assertions.assertTrue(i == 3);
-    Container replacedContainer = containers.getContainer(cidx0);
-    Assertions.assertEquals(23, replacedContainer.select(0));
-    ArrayContainer arrayContainer1 = new ArrayContainer(new char[] {10, 20, 30});
-    containers.replace(cidx1, arrayContainer1);
-    replacedContainer = containers.getContainer(cidx1);
-    Assertions.assertTrue(replacedContainer == arrayContainer1);
-  }
+	@DisplayName("Containers store, retrieve, replace and iterate containers")
+	@Test
+	public void test1() {
+		Containers containers = new Containers();
+		ArrayContainer arrayContainer = new ArrayContainer();
+		long cidx = containers.addContainer(arrayContainer);
+		long cidx0 = cidx;
+		Container container = containers.getContainer(cidx);
+		Assertions.assertTrue(container == arrayContainer);
+		BitmapContainer bitmapContainer = new BitmapContainer();
+		cidx = containers.addContainer(bitmapContainer);
+		long cidx1 = cidx;
+		container = containers.getContainer(cidx);
+		Assertions.assertTrue(container == bitmapContainer);
+		RunContainer runContainer = new RunContainer();
+		cidx = containers.addContainer(runContainer);
+		container = containers.getContainer(cidx);
+		Assertions.assertTrue(container == runContainer);
+		long containerSize = containers.getContainerSize();
+		Assertions.assertTrue(containerSize == 3);
+		ArrayContainer anotherArrayContainer = new ArrayContainer();
+		containers.replace(cidx, anotherArrayContainer);
+		container = containers.getContainer(cidx);
+		Assertions.assertTrue(container != arrayContainer);
+		Assertions.assertTrue(container == anotherArrayContainer);
+		ContainerIterator containerIterator = containers.iterator();
+		int i = 0;
+		while (containerIterator.hasNext()) {
+			containerIterator.next();
+			if (i == 0) {
+				long currentContainerIdx = containerIterator.getCurrentContainerIdx();
+				Assertions.assertEquals(cidx0, currentContainerIdx);
+				RunContainer rc = new RunContainer(new char[]{23, 24}, 1);
+				containerIterator.replace(rc);
+			}
+			i++;
+		}
+		Assertions.assertTrue(i == 3);
+		Container replacedContainer = containers.getContainer(cidx0);
+		Assertions.assertEquals(23, replacedContainer.select(0));
+		ArrayContainer arrayContainer1 = new ArrayContainer(new char[]{10, 20, 30});
+		containers.replace(cidx1, arrayContainer1);
+		replacedContainer = containers.getContainer(cidx1);
+		Assertions.assertTrue(replacedContainer == arrayContainer1);
+	}
 
-  @Test
-  public void test2() throws IOException {
-    Containers containers = new Containers();
-    ArrayContainer arrayContainer = new ArrayContainer();
-    for (int i = 0; i < 20; i++) {
-      arrayContainer.add((char) i);
-    }
-    long containerIdx = containers.addContainer(arrayContainer);
-    long sizeInBytesL = containers.serializedSizeInBytes();
-    int sizeInBytes = (int) sizeInBytesL;
-    ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream(sizeInBytes);
-    DataOutputStream dataOutputStream = new DataOutputStream(byteArrayOutputStream);
-    containers.serialize(dataOutputStream);
-    Containers deseredOne = new Containers();
-    ByteArrayInputStream byteArrayInputStream =
-        new ByteArrayInputStream(byteArrayOutputStream.toByteArray());
-    DataInputStream dataInputStream = new DataInputStream(byteArrayInputStream);
-    deseredOne.deserialize(dataInputStream);
-    long containerSize = deseredOne.getContainerSize();
-    Assertions.assertEquals(1, containerSize);
-    Container container = containers.getContainer(containerIdx);
-    Assertions.assertTrue(container instanceof ArrayContainer);
-    ArrayContainer deseredArrayContainer = (ArrayContainer) container;
-    Assertions.assertEquals(20, deseredArrayContainer.getCardinality());
+	@DisplayName("Containers serialize and deserialize via stream and ByteBuffer")
+	@Test
+	public void test2() throws IOException {
+		Containers containers = new Containers();
+		ArrayContainer arrayContainer = new ArrayContainer();
+		for (int i = 0; i < 20; i++) {
+			arrayContainer.add((char) i);
+		}
+		long containerIdx = containers.addContainer(arrayContainer);
+		long sizeInBytesL = containers.serializedSizeInBytes();
+		int sizeInBytes = (int) sizeInBytesL;
+		ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream(sizeInBytes);
+		DataOutputStream dataOutputStream = new DataOutputStream(byteArrayOutputStream);
+		containers.serialize(dataOutputStream);
+		Containers deseredOne = new Containers();
+		ByteArrayInputStream byteArrayInputStream =
+			new ByteArrayInputStream(byteArrayOutputStream.toByteArray());
+		DataInputStream dataInputStream = new DataInputStream(byteArrayInputStream);
+		deseredOne.deserialize(dataInputStream);
+		long containerSize = deseredOne.getContainerSize();
+		Assertions.assertEquals(1, containerSize);
+		Container container = containers.getContainer(containerIdx);
+		Assertions.assertTrue(container instanceof ArrayContainer);
+		ArrayContainer deseredArrayContainer = (ArrayContainer) container;
+		Assertions.assertEquals(20, deseredArrayContainer.getCardinality());
 
-    ByteBuffer byteBuffer = ByteBuffer.allocate(sizeInBytes).order(ByteOrder.LITTLE_ENDIAN);
-    containers.serialize(byteBuffer);
-    byteBuffer.flip();
-    Containers deserBBOne = new Containers();
-    deserBBOne.deserialize(byteBuffer);
-    containerSize = deserBBOne.getContainerSize();
-    Assertions.assertEquals(1, containerSize);
-    container = deserBBOne.getContainer(containerIdx);
-    Assertions.assertTrue(container instanceof ArrayContainer);
-    Assertions.assertEquals(20, container.getCardinality());
-  }
+		ByteBuffer byteBuffer = ByteBuffer.allocate(sizeInBytes).order(ByteOrder.LITTLE_ENDIAN);
+		containers.serialize(byteBuffer);
+		byteBuffer.flip();
+		Containers deserBBOne = new Containers();
+		deserBBOne.deserialize(byteBuffer);
+		containerSize = deserBBOne.getContainerSize();
+		Assertions.assertEquals(1, containerSize);
+		container = deserBBOne.getContainer(containerIdx);
+		Assertions.assertTrue(container instanceof ArrayContainer);
+		Assertions.assertEquals(20, container.getCardinality());
+	}
 }

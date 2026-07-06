@@ -1,5 +1,7 @@
 package io.evitadb.roaringbitmap;
 
+import javax.annotation.Nonnull;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -7,6 +9,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import com.google.common.primitives.Ints;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
@@ -17,312 +21,343 @@ import java.util.List;
 import java.util.Random;
 import java.util.stream.Collectors;
 
+/**
+ * Regression tests for the iterators exposed by {@link PersistentRoaringBitmap} and the container
+ * `CharIterator`s, ported from the upstream RoaringBitmap test suite. They cover forward, reverse
+ * and signed iteration as well as `advanceIfNeeded` skipping across gaps, dense bitmaps and run
+ * containers.
+ */
+@DisplayName("PersistentRoaringBitmap iterators")
 public class TestIterators {
-  private static List<Integer> asList(IntIterator ints) {
-    int[] values = new int[10];
-    int size = 0;
-    while (ints.hasNext()) {
-      if (!(size < values.length)) {
-        values = Arrays.copyOf(values, values.length * 2);
-      }
-      values[size++] = ints.next();
-    }
-    return Ints.asList(Arrays.copyOf(values, size));
-  }
+	private static List<Integer> asList(IntIterator ints) {
+		int[] values = new int[10];
+		int size = 0;
+		while (ints.hasNext()) {
+			if (!(size < values.length)) {
+				values = Arrays.copyOf(values, values.length * 2);
+			}
+			values[size++] = ints.next();
+		}
+		return Ints.asList(Arrays.copyOf(values, size));
+	}
 
-  private static List<Integer> asList(final CharIterator shorts) {
-    return asList(
-        new IntIterator() {
-          @Override
-          public IntIterator clone() {
-            throw new UnsupportedOperationException();
-          }
+	private static List<Integer> asList(final CharIterator shorts) {
+		return asList(
+			new IntIterator() {
+				@Nonnull
+				@Override
+				public IntIterator clone() {
+					throw new UnsupportedOperationException();
+				}
 
-          @Override
-          public boolean hasNext() {
-            return shorts.hasNext();
-          }
+				@Override
+				public boolean hasNext() {
+					return shorts.hasNext();
+				}
 
-          @Override
-          public int next() {
-            return shorts.next();
-          }
-        });
-  }
+				@Override
+				public int next() {
+					return shorts.next();
+				}
+			});
+	}
 
-  private static int[] takeSortedAndDistinct(
-      Random source, int count, Comparator<Integer> comparator) {
-    HashSet<Integer> ints = new HashSet<Integer>(count);
-    for (int size = 0; size < count; size++) {
-      int next;
-      do {
-        next = source.nextInt();
-      } while (!ints.add(next));
-    }
-    ArrayList<Integer> list = new ArrayList<Integer>(ints);
-    list.sort(comparator);
-    return Ints.toArray(list);
-  }
+	private static int[] takeSortedAndDistinct(
+		Random source, int count, Comparator<Integer> comparator) {
+		HashSet<Integer> ints = new HashSet<Integer>(count);
+		for (int size = 0; size < count; size++) {
+			int next;
+			do {
+				next = source.nextInt();
+			} while (!ints.add(next));
+		}
+		ArrayList<Integer> list = new ArrayList<Integer>(ints);
+		list.sort(comparator);
+		return Ints.toArray(list);
+	}
 
-  @Test
-  public void testBitmapIteration() {
-    final BitmapContainer bits = new BitmapContainer(new long[] {0x1l, 1l << 63}, 2);
+	@Nested
+	@DisplayName("Iteration")
+	class Iteration {
 
-    assertEquals(asList(bits.getCharIterator()), ImmutableList.of(0, 127));
-    assertEquals(asList(bits.getReverseCharIterator()), ImmutableList.of(127, 0));
-  }
+		@Test
+		@DisplayName("Bitmap container iterates forward and in reverse")
+		public void testBitmapIteration() {
+			final BitmapContainer bits = new BitmapContainer(new long[]{0x1l, 1l << 63}, 2);
 
-  @Test
-  public void testEmptyIteration() {
-    assertFalse(PersistentRoaringBitmap.bitmapOf().iterator().hasNext());
-    assertFalse(PersistentRoaringBitmap.bitmapOf().getIntIterator().hasNext());
-    assertFalse(PersistentRoaringBitmap.bitmapOf().getSignedIntIterator().hasNext());
-    assertFalse(PersistentRoaringBitmap.bitmapOf().getReverseIntIterator().hasNext());
-  }
+			assertEquals(asList(bits.getCharIterator()), ImmutableList.of(0, 127));
+			assertEquals(asList(bits.getReverseCharIterator()), ImmutableList.of(127, 0));
+		}
 
-  @Test
-  public void testIteration() {
-    final Random source = new Random(0xcb000a2b9b5bdfb6l);
-    final int[] data = takeSortedAndDistinct(source, 450000, Integer::compareUnsigned);
-    PersistentRoaringBitmap bitmap = PersistentRoaringBitmap.bitmapOf(data);
+		@Test
+		@DisplayName("Empty bitmap iterators report no elements")
+		public void testEmptyIteration() {
+			assertFalse(PersistentRoaringBitmap.bitmapOf().iterator().hasNext());
+			assertFalse(PersistentRoaringBitmap.bitmapOf().getIntIterator().hasNext());
+			assertFalse(PersistentRoaringBitmap.bitmapOf().getSignedIntIterator().hasNext());
+			assertFalse(PersistentRoaringBitmap.bitmapOf().getReverseIntIterator().hasNext());
+		}
 
-    final List<Integer> iteratorCopy = ImmutableList.copyOf(bitmap.iterator());
-    final List<Integer> intIteratorCopy = asList(bitmap.getIntIterator());
-    final List<Integer> signedIntIteratorCopy = asList(bitmap.getSignedIntIterator());
-    final List<Integer> reverseIntIteratorCopy = asList(bitmap.getReverseIntIterator());
+		@Test
+		@DisplayName("All iterator flavours reproduce a large random bitmap")
+		public void testIteration() {
+			final Random source = new Random(0xcb000a2b9b5bdfb6l);
+			final int[] data = takeSortedAndDistinct(source, 450000, Integer::compareUnsigned);
+			PersistentRoaringBitmap bitmap = PersistentRoaringBitmap.bitmapOf(data);
 
-    assertEquals(bitmap.getCardinality(), iteratorCopy.size());
-    assertEquals(bitmap.getCardinality(), intIteratorCopy.size());
-    assertEquals(bitmap.getCardinality(), signedIntIteratorCopy.size());
-    assertEquals(bitmap.getCardinality(), reverseIntIteratorCopy.size());
-    assertEquals(Ints.asList(data), iteratorCopy);
-    assertEquals(Ints.asList(data), intIteratorCopy);
-    assertEquals(
-        Ints.asList(data).stream().sorted().collect(Collectors.toList()), signedIntIteratorCopy);
-    assertEquals(Lists.reverse(Ints.asList(data)), reverseIntIteratorCopy);
-  }
+			final List<Integer> iteratorCopy = ImmutableList.copyOf(bitmap.iterator());
+			final List<Integer> intIteratorCopy = asList(bitmap.getIntIterator());
+			final List<Integer> signedIntIteratorCopy = asList(bitmap.getSignedIntIterator());
+			final List<Integer> reverseIntIteratorCopy = asList(bitmap.getReverseIntIterator());
 
-  @Test
-  public void testSmallIteration() {
-    PersistentRoaringBitmap bitmap = PersistentRoaringBitmap.bitmapOf(0, 1, 2, 3, -1, 2147483647, -2147483648);
+			assertEquals(bitmap.getCardinality(), iteratorCopy.size());
+			assertEquals(bitmap.getCardinality(), intIteratorCopy.size());
+			assertEquals(bitmap.getCardinality(), signedIntIteratorCopy.size());
+			assertEquals(bitmap.getCardinality(), reverseIntIteratorCopy.size());
+			assertEquals(Ints.asList(data), iteratorCopy);
+			assertEquals(Ints.asList(data), intIteratorCopy);
+			assertEquals(
+				Ints.asList(data).stream().sorted().collect(Collectors.toList()), signedIntIteratorCopy);
+			assertEquals(Lists.reverse(Ints.asList(data)), reverseIntIteratorCopy);
+		}
 
-    final List<Integer> iteratorCopy = ImmutableList.copyOf(bitmap.iterator());
-    final List<Integer> intIteratorCopy = asList(bitmap.getIntIterator());
-    final List<Integer> signedIntIteratorCopy = asList(bitmap.getSignedIntIterator());
-    final List<Integer> reverseIntIteratorCopy = asList(bitmap.getReverseIntIterator());
+		@Test
+		@DisplayName("Signed and reverse iterators order boundary values correctly")
+		public void testSmallIteration() {
+			PersistentRoaringBitmap bitmap = PersistentRoaringBitmap.bitmapOf(0, 1, 2, 3, -1, 2147483647, -2147483648);
 
-    assertEquals(ImmutableList.of(0, 1, 2, 3, 2147483647, -2147483648, -1), iteratorCopy);
-    assertEquals(ImmutableList.of(0, 1, 2, 3, 2147483647, -2147483648, -1), intIteratorCopy);
-    assertEquals(ImmutableList.of(-2147483648, -1, 0, 1, 2, 3, 2147483647), signedIntIteratorCopy);
-    assertEquals(ImmutableList.of(-1, -2147483648, 2147483647, 3, 2, 1, 0), reverseIntIteratorCopy);
-  }
+			final List<Integer> iteratorCopy = ImmutableList.copyOf(bitmap.iterator());
+			final List<Integer> intIteratorCopy = asList(bitmap.getIntIterator());
+			final List<Integer> signedIntIteratorCopy = asList(bitmap.getSignedIntIterator());
+			final List<Integer> reverseIntIteratorCopy = asList(bitmap.getReverseIntIterator());
 
-  @Test
-  public void testSkips() {
-    final Random source = new Random(0xcb000a2b9b5bdfb6L);
-    final int[] data = takeSortedAndDistinct(source, 45000, Integer::compareUnsigned);
-    PersistentRoaringBitmap bitmap = PersistentRoaringBitmap.bitmapOf(data);
-    PeekableIntIterator pii = bitmap.getIntIterator();
-    for (int i = 0; i < data.length; ++i) {
-      pii.advanceIfNeeded(data[i]);
-      assertEquals(data[i], pii.peekNext());
-    }
-    pii = bitmap.getIntIterator();
-    for (int i = 0; i < data.length; ++i) {
-      pii.advanceIfNeeded(data[i]);
-      assertEquals(data[i], pii.next());
-    }
-    pii = bitmap.getIntIterator();
-    for (int i = 1; i < data.length; ++i) {
-      pii.advanceIfNeeded(data[i - 1]);
-      pii.next();
-      assertEquals(data[i], pii.peekNext());
-    }
-    bitmap.getIntIterator().advanceIfNeeded(-1); // should not crash
-  }
+			assertEquals(ImmutableList.of(0, 1, 2, 3, 2147483647, -2147483648, -1), iteratorCopy);
+			assertEquals(ImmutableList.of(0, 1, 2, 3, 2147483647, -2147483648, -1), intIteratorCopy);
+			assertEquals(ImmutableList.of(-2147483648, -1, 0, 1, 2, 3, 2147483647), signedIntIteratorCopy);
+			assertEquals(ImmutableList.of(-1, -2147483648, 2147483647, 3, 2, 1, 0), reverseIntIteratorCopy);
+		}
+	}
 
-  @Test
-  public void testSkipsSignedIterator() {
-    final Random source = new Random(0xcb000a2b9b5bdfb6L);
-    int[] data = takeSortedAndDistinct(source, 45000, Integer::compare);
-    PersistentRoaringBitmap bitmap = PersistentRoaringBitmap.bitmapOf(data);
+	@Nested
+	@DisplayName("Skipping and advancing via advanceIfNeeded")
+	class SkippingAndAdvancing {
 
-    PeekableIntIterator pii = bitmap.getSignedIntIterator();
-    for (int i = 0; i < data.length; ++i) {
-      pii.advanceIfNeeded(data[i]);
-      assertEquals(data[i], pii.peekNext());
-    }
-    pii = bitmap.getSignedIntIterator();
-    for (int i = data.length - 1; i >= 0; --i) { // no backward advancing
-      pii.advanceIfNeeded(data[i]);
-      assertEquals(data[data.length - 1], pii.peekNext());
-    }
-    pii = bitmap.getSignedIntIterator();
-    for (int i = 0; i < data.length; ++i) {
-      pii.advanceIfNeeded(data[i]);
-      assertEquals(data[i], pii.next());
-    }
-    pii = bitmap.getSignedIntIterator();
-    for (int i = 1; i < data.length; ++i) {
-      pii.advanceIfNeeded(data[i - 1]);
-      pii.next();
-      assertEquals(data[i], pii.peekNext());
-    }
-  }
+		@Test
+		@DisplayName("advanceIfNeeded positions the int iterator on each value")
+		public void testSkips() {
+			final Random source = new Random(0xcb000a2b9b5bdfb6L);
+			final int[] data = takeSortedAndDistinct(source, 45000, Integer::compareUnsigned);
+			PersistentRoaringBitmap bitmap = PersistentRoaringBitmap.bitmapOf(data);
+			PeekableIntIterator pii = bitmap.getIntIterator();
+			for (int i = 0; i < data.length; ++i) {
+				pii.advanceIfNeeded(data[i]);
+				assertEquals(data[i], pii.peekNext());
+			}
+			pii = bitmap.getIntIterator();
+			for (int i = 0; i < data.length; ++i) {
+				pii.advanceIfNeeded(data[i]);
+				assertEquals(data[i], pii.next());
+			}
+			pii = bitmap.getIntIterator();
+			for (int i = 1; i < data.length; ++i) {
+				pii.advanceIfNeeded(data[i - 1]);
+				pii.next();
+				assertEquals(data[i], pii.peekNext());
+			}
+			bitmap.getIntIterator().advanceIfNeeded(-1); // should not crash
+		}
 
-  @Test
-  public void testSkipsDense() {
-    PersistentRoaringBitmap bitmap = new PersistentRoaringBitmap();
-    int N = 100000;
-    for (int i = 0; i < N; ++i) {
-      bitmap.add(2 * i);
-    }
-    for (int i = 0; i < N; ++i) {
-      PeekableIntIterator pii = bitmap.getIntIterator();
-      pii.advanceIfNeeded(2 * i);
-      assertEquals(pii.peekNext(), 2 * i);
-      assertEquals(pii.next(), 2 * i);
-    }
-  }
+		@Test
+		@DisplayName("advanceIfNeeded positions the signed iterator and never moves backward")
+		public void testSkipsSignedIterator() {
+			final Random source = new Random(0xcb000a2b9b5bdfb6L);
+			int[] data = takeSortedAndDistinct(source, 45000, Integer::compare);
+			PersistentRoaringBitmap bitmap = PersistentRoaringBitmap.bitmapOf(data);
 
-  // https://github.com/RoaringBitmap/RoaringBitmap/issues/475
-  @Test
-  public void testCorruptionInfiniteLoop() {
-    PersistentRoaringBitmap bitmap = new PersistentRoaringBitmap();
-    bitmap.add(Integer.MAX_VALUE - 0);
-    bitmap.add(Integer.MAX_VALUE - 1);
-    bitmap.add(Integer.MAX_VALUE - 2);
-    // Adding this one leads to the issue
-    bitmap.add(Integer.MAX_VALUE - 3);
-    bitmap.forEach(
-        (io.evitadb.roaringbitmap.IntConsumer)
-            e -> {
-              if (!bitmap.contains(e)) {
-                throw new IllegalStateException("Not expecting to find: " + e);
-              }
-            });
+			PeekableIntIterator pii = bitmap.getSignedIntIterator();
+			for (int i = 0; i < data.length; ++i) {
+				pii.advanceIfNeeded(data[i]);
+				assertEquals(data[i], pii.peekNext());
+			}
+			pii = bitmap.getSignedIntIterator();
+			for (int i = data.length - 1; i >= 0; --i) { // no backward advancing
+				pii.advanceIfNeeded(data[i]);
+				assertEquals(data[data.length - 1], pii.peekNext());
+			}
+			pii = bitmap.getSignedIntIterator();
+			for (int i = 0; i < data.length; ++i) {
+				pii.advanceIfNeeded(data[i]);
+				assertEquals(data[i], pii.next());
+			}
+			pii = bitmap.getSignedIntIterator();
+			for (int i = 1; i < data.length; ++i) {
+				pii.advanceIfNeeded(data[i - 1]);
+				pii.next();
+				assertEquals(data[i], pii.peekNext());
+			}
+		}
 
-    bitmap.runOptimize(); // This is the line causing the issue
-    bitmap.forEach(
-        (io.evitadb.roaringbitmap.IntConsumer)
-            e -> {
-              if (!bitmap.contains(e)) {
-                throw new IllegalStateException("Not expecting to find: " + e);
-              }
-            });
-  }
+		@Test
+		@DisplayName("advanceIfNeeded lands on each value of a dense bitmap")
+		public void testSkipsDense() {
+			PersistentRoaringBitmap bitmap = new PersistentRoaringBitmap();
+			int N = 100000;
+			for (int i = 0; i < N; ++i) {
+				bitmap.add(2 * i);
+			}
+			for (int i = 0; i < N; ++i) {
+				PeekableIntIterator pii = bitmap.getIntIterator();
+				pii.advanceIfNeeded(2 * i);
+				assertEquals(pii.peekNext(), 2 * i);
+				assertEquals(pii.next(), 2 * i);
+			}
+		}
 
-  @Test
-  public void testSkipsRun() {
-    PersistentRoaringBitmap bitmap = new PersistentRoaringBitmap();
-    bitmap.add(4L, 100000L);
-    bitmap.runOptimize();
-    for (int i = 4; i < 100000; ++i) {
-      PeekableIntIterator pii = bitmap.getIntIterator();
-      pii.advanceIfNeeded(i);
-      assertEquals(pii.peekNext(), i);
-      assertEquals(pii.next(), i);
-    }
-  }
+		@Test
+		@DisplayName("advanceIfNeeded lands on each value across a run container")
+		public void testSkipsRun() {
+			PersistentRoaringBitmap bitmap = new PersistentRoaringBitmap();
+			bitmap.add(4L, 100000L);
+			bitmap.runOptimize();
+			for (int i = 4; i < 100000; ++i) {
+				PeekableIntIterator pii = bitmap.getIntIterator();
+				pii.advanceIfNeeded(i);
+				assertEquals(pii.peekNext(), i);
+				assertEquals(pii.next(), i);
+			}
+		}
 
-  @Test
-  public void testIndexIterator4() throws Exception {
-    PersistentRoaringBitmap b = new PersistentRoaringBitmap();
-    for (int i = 0; i < 4096; i++) {
-      b.add(i);
-    }
-    PeekableIntIterator it = b.getIntIterator();
-    it.advanceIfNeeded(4096);
-    while (it.hasNext()) {
-      it.next();
-    }
-  }
+		@Test
+		@DisplayName("advanceIfNeeded beyond a full container leaves nothing to iterate")
+		public void testIndexIterator4() throws Exception {
+			PersistentRoaringBitmap b = new PersistentRoaringBitmap();
+			for (int i = 0; i < 4096; i++) {
+				b.add(i);
+			}
+			PeekableIntIterator it = b.getIntIterator();
+			it.advanceIfNeeded(4096);
+			while (it.hasNext()) {
+				it.next();
+			}
+		}
 
-  @Test
-  public void testEmptySkips() {
-    PersistentRoaringBitmap bitmap = new PersistentRoaringBitmap();
-    PeekableIntIterator it = bitmap.getIntIterator();
-    it.advanceIfNeeded(0);
-  }
+		@Test
+		@DisplayName("advanceIfNeeded on an empty bitmap does not fail")
+		public void testEmptySkips() {
+			PersistentRoaringBitmap bitmap = new PersistentRoaringBitmap();
+			PeekableIntIterator it = bitmap.getIntIterator();
+			it.advanceIfNeeded(0);
+		}
 
-  @Test
-  public void testSkipIntoGaps() {
-    PersistentRoaringBitmap bitset = new PersistentRoaringBitmap();
+		@Test
+		@DisplayName("advanceIfNeeded into a gap lands on the next present value")
+		public void testSkipIntoGaps() {
+			PersistentRoaringBitmap bitset = new PersistentRoaringBitmap();
 
-    bitset.add(2000000L, 2200000L);
-    bitset.add(4000000L, 4300000L);
+			bitset.add(2000000L, 2200000L);
+			bitset.add(4000000L, 4300000L);
 
-    PeekableIntIterator bitIt = bitset.getIntIterator();
+			PeekableIntIterator bitIt = bitset.getIntIterator();
 
-    assertEquals(2000000, bitIt.peekNext());
-    assertEquals(2000000, bitIt.next());
+			assertEquals(2000000, bitIt.peekNext());
+			assertEquals(2000000, bitIt.next());
 
-    assertTrue(bitset.contains(2100000));
-    bitIt.advanceIfNeeded(2100000);
-    assertEquals(2100000, bitIt.peekNext());
-    assertEquals(2100000, bitIt.next());
+			assertTrue(bitset.contains(2100000));
+			bitIt.advanceIfNeeded(2100000);
+			assertEquals(2100000, bitIt.peekNext());
+			assertEquals(2100000, bitIt.next());
 
-    // advancing to a value not in either range should go to the first value of second range
-    assertFalse(bitset.contains(2300000));
-    bitIt.advanceIfNeeded(2300000);
+			// advancing to a value not in either range should go to the first value of second range
+			assertFalse(bitset.contains(2300000));
+			bitIt.advanceIfNeeded(2300000);
 
-    assertEquals(4000000, bitIt.peekNext());
+			assertEquals(4000000, bitIt.peekNext());
 
-    assertTrue(bitset.contains(4000000));
-    bitIt.advanceIfNeeded(4000000);
-    assertEquals(4000000, bitIt.peekNext());
-    assertEquals(4000000, bitIt.next());
-  }
+			assertTrue(bitset.contains(4000000));
+			bitIt.advanceIfNeeded(4000000);
+			assertEquals(4000000, bitIt.peekNext());
+			assertEquals(4000000, bitIt.next());
+		}
 
-  @Test
-  public void testSkipIntoFarAwayGaps() {
-    PersistentRoaringBitmap bitset = new PersistentRoaringBitmap();
+		@Test
+		@DisplayName("advanceIfNeeded across far-away gaps lands on the next present value")
+		public void testSkipIntoFarAwayGaps() {
+			PersistentRoaringBitmap bitset = new PersistentRoaringBitmap();
 
-    bitset.add(2000000L, 2200000L);
-    bitset.add(4000000L, 4300000L);
-    bitset.add(6000000L, 6400000L);
+			bitset.add(2000000L, 2200000L);
+			bitset.add(4000000L, 4300000L);
+			bitset.add(6000000L, 6400000L);
 
-    PeekableIntIterator bitIt = bitset.getIntIterator();
+			PeekableIntIterator bitIt = bitset.getIntIterator();
 
-    assertEquals(2000000, bitIt.peekNext());
-    assertEquals(2000000, bitIt.next());
+			assertEquals(2000000, bitIt.peekNext());
+			assertEquals(2000000, bitIt.next());
 
-    assertTrue(bitset.contains(2100000));
-    bitIt.advanceIfNeeded(2100000);
-    assertEquals(2100000, bitIt.peekNext());
-    assertEquals(2100000, bitIt.next());
+			assertTrue(bitset.contains(2100000));
+			bitIt.advanceIfNeeded(2100000);
+			assertEquals(2100000, bitIt.peekNext());
+			assertEquals(2100000, bitIt.next());
 
-    // advancing to a value not in any range but beyond second range
-    // should go to the first value of third range
-    assertFalse(bitset.contains(4325376 - 5)); // same container
-    bitIt.advanceIfNeeded(4325376 - 5);
+			// advancing to a value not in any range but beyond second range
+			// should go to the first value of third range
+			assertFalse(bitset.contains(4325376 - 5)); // same container
+			bitIt.advanceIfNeeded(4325376 - 5);
 
-    assertEquals(6000000, bitIt.peekNext());
+			assertEquals(6000000, bitIt.peekNext());
 
-    assertTrue(bitset.contains(6000000));
-    bitIt.advanceIfNeeded(6000000);
-    assertEquals(6000000, bitIt.peekNext());
-    assertEquals(6000000, bitIt.next());
+			assertTrue(bitset.contains(6000000));
+			bitIt.advanceIfNeeded(6000000);
+			assertEquals(6000000, bitIt.peekNext());
+			assertEquals(6000000, bitIt.next());
 
-    // reset
-    bitIt = bitset.getIntIterator();
+			// reset
+			bitIt = bitset.getIntIterator();
 
-    assertEquals(2000000, bitIt.peekNext());
-    assertEquals(2000000, bitIt.next());
+			assertEquals(2000000, bitIt.peekNext());
+			assertEquals(2000000, bitIt.next());
 
-    bitIt.advanceIfNeeded(2100000);
-    assertEquals(2100000, bitIt.peekNext());
-    assertEquals(2100000, bitIt.next());
+			bitIt.advanceIfNeeded(2100000);
+			assertEquals(2100000, bitIt.peekNext());
+			assertEquals(2100000, bitIt.next());
 
-    // advancing to a value not in any range but beyond second range
-    // should go to the first value of third range
-    assertFalse(bitset.contains(4325376 + 5)); // next container
-    bitIt.advanceIfNeeded(4325376 + 5);
+			// advancing to a value not in any range but beyond second range
+			// should go to the first value of third range
+			assertFalse(bitset.contains(4325376 + 5)); // next container
+			bitIt.advanceIfNeeded(4325376 + 5);
 
-    assertEquals(6000000, bitIt.peekNext());
+			assertEquals(6000000, bitIt.peekNext());
 
-    bitIt.advanceIfNeeded(6000000);
-    assertEquals(6000000, bitIt.peekNext());
-    assertEquals(6000000, bitIt.next());
-  }
+			bitIt.advanceIfNeeded(6000000);
+			assertEquals(6000000, bitIt.peekNext());
+			assertEquals(6000000, bitIt.next());
+		}
+	}
+
+	// https://github.com/RoaringBitmap/RoaringBitmap/issues/475
+	@Test
+	@DisplayName("forEach visits only present values after run optimization")
+	public void testCorruptionInfiniteLoop() {
+		PersistentRoaringBitmap bitmap = new PersistentRoaringBitmap();
+		bitmap.add(Integer.MAX_VALUE - 0);
+		bitmap.add(Integer.MAX_VALUE - 1);
+		bitmap.add(Integer.MAX_VALUE - 2);
+		// Adding this one leads to the issue
+		bitmap.add(Integer.MAX_VALUE - 3);
+		bitmap.forEach(
+			(io.evitadb.roaringbitmap.IntConsumer)
+				e -> {
+					if (!bitmap.contains(e)) {
+						throw new IllegalStateException("Not expecting to find: " + e);
+					}
+				});
+
+		bitmap.runOptimize(); // This is the line causing the issue
+		bitmap.forEach(
+			(io.evitadb.roaringbitmap.IntConsumer)
+				e -> {
+					if (!bitmap.contains(e)) {
+						throw new IllegalStateException("Not expecting to find: " + e);
+					}
+				});
+	}
 }

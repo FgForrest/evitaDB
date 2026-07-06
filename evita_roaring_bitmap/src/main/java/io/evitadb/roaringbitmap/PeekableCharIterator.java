@@ -3,37 +3,43 @@
  */
 package io.evitadb.roaringbitmap;
 
+import javax.annotation.Nonnull;
+
 /**
- * Simple extension to the CharIterator interface
- *
+ * {@link CharIterator} that also lets callers skip ahead with {@link #advanceIfNeeded} and inspect
+ * the upcoming value without consuming it via {@link #peekNext}. These operations enable efficient
+ * merge and intersection algorithms across several iterators at once.
  */
 public interface PeekableCharIterator extends CharIterator {
-  /**
-   * If needed,
-   * when iterating forward through the chars it will
-   * advance as long as the next value is smaller than val (as an unsigned
-   * short)
-   * when iterating in reverse through the chars it will
-   * advance as long as the next value is larger than val (as an unsigned
-   * short)
-   *
-   * @param thresholdVal threshold
-   */
-  public void advanceIfNeeded(char thresholdVal);
+	/**
+	 * Skips ahead to the first value on the correct side of `thresholdVal`, unless already there:
+	 *
+	 * - a forward iterator advances while the next value is smaller than `thresholdVal`
+	 * - a reverse iterator advances while the next value is larger than `thresholdVal`
+	 *
+	 * Values are compared as unsigned 16-bit shorts. Skipping is a performance shortcut over repeated
+	 * {@link #next()} calls, letting the implementation jump over intervening data.
+	 *
+	 * @param thresholdVal the value to skip toward (inclusive threshold)
+	 */
+	public void advanceIfNeeded(char thresholdVal);
 
-  /**
-   *
-   * Look at the next value without advancing
-   *
-   * @return next value
-   */
-  public char peekNext();
+	/**
+	 * Returns the value {@link #next()} would return, without advancing the cursor. Useful for
+	 * ordering several iterators against one another (e.g. in a priority queue) before deciding which
+	 * one to advance.
+	 *
+	 * @return the next value, left in place
+	 */
+	public char peekNext();
 
-  /**
-   * Creates a copy of the iterator.
-   *
-   * @return a clone of the current iterator
-   */
-  @Override
-  PeekableCharIterator clone();
+	/**
+	 * Forks an independent cursor at the current position, narrowing the return type to
+	 * {@link PeekableCharIterator}.
+	 *
+	 * @return an independent copy of this iterator
+	 */
+	@Nonnull
+	@Override
+	PeekableCharIterator clone();
 }
