@@ -8,18 +8,18 @@ POST /rest/evita/Product/query
     "referenceSummary" : {
       "requirements" : [
         {
-            "entityFetch" : {
-              "attributeContent" : [
-                "code"
-              ]
-            }
+          "entityFetch" : {
+            "attributeContent" : [
+              "code"
+            ]
+          }
         },
         {
-            "entityGroupFetch" : {
-              "attributeContent" : [
-                "code"
-              ]
-            }
+          "entityGroupFetch" : {
+            "attributeContent" : [
+              "code"
+            ]
+          }
         }
       ]
     }
