@@ -344,6 +344,93 @@ public class ReferenceRangeHistogramFunctionalTest extends AbstractReferenceSumm
 	}
 
 	@Test
+	@DisplayName("should round a scalar BigDecimal histogram value whose scale exceeds the schema indexed scale")
+	void shouldRoundScalarBigDecimalHistogramValueWhenValueScaleExceedsIndexedScale() {
+		// Scalar sibling of shouldRenderBigDecimalRangeHistogramAtSchemaScaleWhenValueScaleIsLower: a referenced
+		// entity carries a plain (non-range) `BigDecimal` attribute declared with `indexDecimalPlaces(1)`, but the
+		// seeded values have a HIGHER natural scale (8.25, 9.45 → scale 2). The scalar histogram-index path stores
+		// the value verbatim (NumberUtils.normalizeForIndexing only strips trailing zeros for scalar BigDecimals),
+		// so the histogram value→int converter in AttributeHistogramComputer receives a value whose scale exceeds
+		// indexedDecimalPlaces. It must round to the indexed grid (HALF_UP), exactly like the sort/filter index
+		// encoding (NumberUtils.convertToInt) — not throw `ArithmeticException: Rounding necessary` from
+		// longValueExact(). Reproduces the crash reported on #1156's referenceSummaryOfReferenceWithHistograms path.
+		final int indexedDecimalPlaces = 1;
+		final String scalarAttribute = "unitValue";
+		final String scalarHistogram = "bigDecimalScalarBucket";
+		runWithInlineSchema(
+			"bigDecimalScalarHistogramScale",
+			session -> {
+				session.defineEntitySchema(ENTITY_PARAMETER)
+					.updateVia(session);
+				session.defineEntitySchema(ENTITY_PARAMETER_VALUE)
+					.withAttribute(
+						scalarAttribute, BigDecimal.class,
+						whichIs -> whichIs.filterable().indexDecimalPlaces(indexedDecimalPlaces).nullable()
+					)
+					.updateVia(session);
+				session.defineEntitySchema(ENTITY_PRODUCT)
+					.withReferenceToEntity(
+						REF_PARAM_VALUES, ENTITY_PARAMETER_VALUE, Cardinality.ZERO_OR_MORE,
+						whichIs -> whichIs
+							.indexedForFilteringAndPartitioning()
+							.indexedWithComponents(ReferenceIndexedComponents.values())
+							.faceted()
+							.withGroupTypeRelatedToEntity(ENTITY_PARAMETER)
+							.bucketed(
+								scalarHistogram,
+								ExpressionFactory.parse(
+									"$reference.referencedEntity?.attributes['" + scalarAttribute + "']"
+								)
+							)
+					)
+					.updateVia(session);
+			},
+			session -> {
+				session.createNewEntity(ENTITY_PARAMETER, RANGE_GROUP_PK)
+					.upsertVia(session);
+				// scale-2 values above the schema's indexDecimalPlaces(1): 8.25 → 8.3, 9.45 → 9.5 once rounded.
+				// The pre-fix converter throws on the leftover fractional digit instead of rounding.
+				createParameterValueWithScalarBigDecimal(session, 1, scalarAttribute, "8.25");
+				createParameterValueWithScalarBigDecimal(session, 2, scalarAttribute, "9.45");
+				session.createNewEntity(ENTITY_PRODUCT, 100)
+					.setReference(
+						REF_PARAM_VALUES, 1,
+						whichIs -> whichIs.setGroup(ENTITY_PARAMETER, RANGE_GROUP_PK)
+					)
+					.upsertVia(session);
+				session.createNewEntity(ENTITY_PRODUCT, 101)
+					.setReference(
+						REF_PARAM_VALUES, 2,
+						whichIs -> whichIs.setGroup(ENTITY_PARAMETER, RANGE_GROUP_PK)
+					)
+					.upsertVia(session);
+			},
+			evita -> evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					// Before the fix this throws `ArithmeticException: Rounding necessary` inside
+					// AttributeHistogramComputer.createNumberToIntegerConverter for the scale-2 scalar value.
+					final HistogramContract histogram =
+						queryGroupHistogram(session, scalarHistogram, 10);
+					final Bucket[] buckets = histogram.getBuckets();
+					assertTrue(buckets.length > 0, "Scalar histogram must produce at least one bucket");
+					// exact HALF_UP grid values pin the rounding mode: 8.25 → 8.3, 9.45 → 9.5 at
+					// indexDecimalPlaces(1). Loose bounds would also pass under FLOOR (8.2 / 9.4), so
+					// assert exact equality (compareTo == 0 to ignore trailing-zero scale differences)
+					assertEquals(
+						0, histogram.getMin().compareTo(new BigDecimal("8.3")),
+						"min " + histogram.getMin() + " must be 8.3 (8.25 rounded HALF_UP to indexDecimalPlaces(1))"
+					);
+					assertEquals(
+						0, histogram.getMax().compareTo(new BigDecimal("9.5")),
+						"max " + histogram.getMax() + " must be 9.5 (9.45 rounded HALF_UP to indexDecimalPlaces(1))"
+					);
+				}
+			)
+		);
+	}
+
+	@Test
 	@DisplayName("should drop a BigDecimalNumberRange histogram entry on removal despite a lower value scale")
 	void shouldRemoveBigDecimalRangeHistogramEntryAtSchemaScaleWhenValueScaleIsLower() {
 		// Removal-path companion to shouldRenderBigDecimalRangeHistogramAtSchemaScaleWhenValueScaleIsLower.
@@ -572,6 +659,22 @@ public class ReferenceRangeHistogramFunctionalTest extends AbstractReferenceSumm
 				attributeName,
 				BigDecimalNumberRange.between(new BigDecimal(from), new BigDecimal(to))
 			)
+			.upsertVia(session);
+	}
+
+	/**
+	 * Creates a single `parameterValue` entity carrying a scalar `BigDecimal` attribute parsed from the
+	 * supplied decimal string. The value is intentionally given at a scale HIGHER than the schema's
+	 * `indexDecimalPlaces`, exercising the histogram value→int rounding contract on the scalar path.
+	 */
+	private static void createParameterValueWithScalarBigDecimal(
+		@Nonnull EvitaSessionContract session,
+		int pk,
+		@Nonnull String attributeName,
+		@Nonnull String value
+	) {
+		session.createNewEntity(ENTITY_PARAMETER_VALUE, pk)
+			.setAttribute(attributeName, new BigDecimal(value))
 			.upsertVia(session);
 	}
 

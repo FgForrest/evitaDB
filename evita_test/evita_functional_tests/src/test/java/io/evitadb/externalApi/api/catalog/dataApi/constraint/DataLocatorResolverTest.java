@@ -36,6 +36,7 @@ import io.evitadb.api.query.filter.PriceBetween;
 import io.evitadb.api.query.filter.ReferenceHaving;
 import io.evitadb.api.query.require.AssociatedDataContent;
 import io.evitadb.api.query.require.FacetGroupsConjunction;
+import io.evitadb.api.query.require.ReferenceSummary;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
@@ -235,6 +236,16 @@ public class DataLocatorResolverTest {
 				ConstraintDescriptorProvider.getConstraint(FacetGroupsConjunction.class),
 				Entities.PARAMETER,
 				new FacetDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT), Entities.PARAMETER)
+			),
+			// classifier-less REFERENCE constraint (e.g. `referenceSummary`) at the require root must keep
+			// the generic domain — mirrors the FACET case above. Guards the GenericDataLocator branch in
+			// DataLocatorResolver#resolveConstraintDataLocator (regression from the FacetSummary ->
+			// ReferenceSummary rename, see #1156).
+			Arguments.of(
+				new GenericDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT)),
+				ConstraintDescriptorProvider.getConstraint(ReferenceSummary.class),
+				null,
+				new GenericDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT))
 			),
 			Arguments.of(
 				new SegmentDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT)),
