@@ -414,15 +414,16 @@ public class ReferenceRangeHistogramFunctionalTest extends AbstractReferenceSumm
 						queryGroupHistogram(session, scalarHistogram, 10);
 					final Bucket[] buckets = histogram.getBuckets();
 					assertTrue(buckets.length > 0, "Scalar histogram must produce at least one bucket");
-					// values rounded to indexDecimalPlaces(1) land in [8.3, 9.5]; assert the whole span stays
-					// within the rounded band so the test fails on both the crash and any scale drift
-					assertTrue(
-						histogram.getMin().compareTo(new BigDecimal("8.2")) >= 0,
-						"min " + histogram.getMin() + " must be >= 8.2 (rounded lower value 8.3)"
+					// exact HALF_UP grid values pin the rounding mode: 8.25 → 8.3, 9.45 → 9.5 at
+					// indexDecimalPlaces(1). Loose bounds would also pass under FLOOR (8.2 / 9.4), so
+					// assert exact equality (compareTo == 0 to ignore trailing-zero scale differences)
+					assertEquals(
+						0, histogram.getMin().compareTo(new BigDecimal("8.3")),
+						"min " + histogram.getMin() + " must be 8.3 (8.25 rounded HALF_UP to indexDecimalPlaces(1))"
 					);
-					assertTrue(
-						histogram.getMax().compareTo(new BigDecimal("9.5")) <= 0,
-						"max " + histogram.getMax() + " must be <= 9.5 (rounded upper value 9.5)"
+					assertEquals(
+						0, histogram.getMax().compareTo(new BigDecimal("9.5")),
+						"max " + histogram.getMax() + " must be 9.5 (9.45 rounded HALF_UP to indexDecimalPlaces(1))"
 					);
 				}
 			)
