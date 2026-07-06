@@ -42,22 +42,18 @@ POST /rest/evita/Product/query
     },
     "referenceParameterValuesSummaryWithHistograms" : {
       "statisticsDepth" : "NONE",
-      "entityFetch" : {
-        "entityFetch" : {
-          "attributeContent" : [
-            "code"
-          ]
-        }
-      },
-      "entityGroupFetch" : {
-        "entityGroupFetch" : {
-          "attributeContent" : [
-            "code"
-          ]
-        }
-      },
-      "histogramStatistics" : [
+      "requirements" : [
         {
+          "entityFetch" : {
+            "attributeContent" : [
+              "code"
+            ]
+          },
+          "entityGroupFetch" : {
+            "attributeContent" : [
+              "code"
+            ]
+          },
           "histogramStatistics" : {
             "requestedBucketCount" : 20,
             "indexNames" : [

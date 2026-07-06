@@ -12,18 +12,22 @@ POST /rest/evita/Product/query
   },
   "require" : {
     "referenceSummary" : {
-      "requirements" : {
-        "entityFetch" : {
-          "attributeContent" : [
-            "name"
-          ]
+      "requirements" : [
+        {
+          "entityFetch" : {
+            "attributeContent" : [
+              "name"
+            ]
+          }
         },
-        "entityGroupFetch" : {
-          "attributeContent" : [
-            "name"
-          ]
+        {
+          "entityGroupFetch" : {
+            "attributeContent" : [
+              "name"
+            ]
+          }
         }
-      }
+      ]
     }
   }
 }
