@@ -30,6 +30,7 @@ import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
@@ -49,8 +50,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * Verifies that the tree-backed {@link SortedRecordsProvider} (the default provider handed out by {@link SortIndex}
  * since the positional-SPI change) resolves positions identically to the legacy array path and to an independent
- * brute-force oracle, across selections that exercise BOTH the tree path (`K <= N / 64`) and the array fallback
- * (`K > N / 64`), in ascending and descending order.
+ * brute-force oracle, across selections that exercise every {@link SortedRecordsProvider#resolvePositions} regime -
+ * the sparse tree probe (`K <= N / 64`), the cold dense tree walk and the warm array merge-walk (both `K > N / 64`) -
+ * in ascending and descending order.
  *
  * The three cross-checked sources are:
  *
@@ -115,6 +117,17 @@ class SortIndexTreeProviderEquivalenceTest {
 	}
 
 	@Test
+	@DisplayName("dense selections resolve via the cold tree walk and match the warm array path and the oracle")
+	void shouldResolveDenseSelectionsViaColdTreeWalk() {
+		final Fixture fixture = buildFixture(20250706L, RECORD_COUNT);
+		verifyDenseColdPath(fixture, false, fixture.ascendingOrder(), 7L);
+
+		final int[] descendingOrder = fixture.ascendingOrder().clone();
+		reverse(descendingOrder);
+		verifyDenseColdPath(fixture, true, descendingOrder, 11L);
+	}
+
+	@Test
 	@Tag(SLOW)
 	@DisplayName("tree-path resolution spanning many leaves and multiple bitmap containers matches array and oracle")
 	void shouldMatchAcrossMultipleLeavesAndContainers() {
@@ -133,6 +146,75 @@ class SortIndexTreeProviderEquivalenceTest {
 		final SortedRecordsProvider descending = fixture.sortIndex().getDescendingOrderRecordsSupplier();
 		verifyProvider(descending, descendingOrder, fixture.presentRecordIds(), treePathSizes, 99L);
 		assertMaskSpansBothContainers(descending, descendingOrder.length);
+	}
+
+	/**
+	 * Covers the dense cold-walk not-found endpoints that {@link #shouldResolveDenseSelectionsViaColdTreeWalk} never
+	 * reaches because it always mixes exactly two absent ids into every selection: a fully-present selection (the
+	 * not-found hand-off ends empty, and a variant excluding the record at the last sorted position makes every id
+	 * match strictly before the walk end so the `matched == selectedRecordCount` early break fires), a fully-absent
+	 * selection (the whole selection is returned as not-found via the zero-removal clone path, walk running to the end)
+	 * and an empty provider (a dense selection resolved entirely as not-found).
+	 */
+	@Nested
+	@DisplayName("Dense cold-walk not-found endpoints")
+	class DenseColdWalkNotFoundEndpointsTest {
+
+		@Test
+		@DisplayName("fully-present dense selection resolves with an empty not-found hand-off, ascending and descending")
+		void shouldEmitEmptyNotFoundWhenDenseSelectionFullyPresent() {
+			final Fixture fixture = buildFixture(20250706L, RECORD_COUNT);
+			// K = RECORD_COUNT / 2 -> K * 64 > RECORD_COUNT, so a fresh (cold) provider takes the dense tree walk
+			final int[] halfSelection = pickDistinct(fixture.presentRecordIds(), RECORD_COUNT / 2, new Random(7L));
+			assertDensePresentSelectionResolvesWithEmptyNotFound(fixture, false, halfSelection);
+			assertDensePresentSelectionResolvesWithEmptyNotFound(fixture, true, halfSelection);
+
+			// variant: exclude the record seated at the LAST sorted position, so every selected id is matched strictly
+			// before the walk reaches the final position -> the matched == selectedRecordCount early break fires
+			final int[] ascendingOrder = fixture.ascendingOrder();
+			final int[] ascExceptLast = presentIdsExcept(RECORD_COUNT, ascendingOrder[RECORD_COUNT - 1]);
+			assertDensePresentSelectionResolvesWithEmptyNotFound(fixture, false, ascExceptLast);
+
+			final int[] descendingOrder = ascendingOrder.clone();
+			reverse(descendingOrder);
+			final int[] descExceptLast = presentIdsExcept(RECORD_COUNT, descendingOrder[RECORD_COUNT - 1]);
+			assertDensePresentSelectionResolvesWithEmptyNotFound(fixture, true, descExceptLast);
+		}
+
+		@Test
+		@DisplayName("fully-absent dense selection is returned whole as not-found, ascending and descending")
+		void shouldReturnWholeSelectionAsNotFoundWhenDenseSelectionFullyAbsent() {
+			final Fixture fixture = buildFixture(20250706L, RECORD_COUNT);
+			assertDenseAbsentSelectionResolvesAsAllNotFound(fixture, false);
+			assertDenseAbsentSelectionResolvesAsAllNotFound(fixture, true);
+		}
+
+		@Test
+		@DisplayName("empty provider resolves a dense selection entirely as not-found")
+		void shouldResolveEmptyProviderDenseSelectionAsAllNotFound() {
+			final Fixture fixture = buildFixture(20250706L, 0);
+			final int[] selection = {1, 2, 3};
+			final PersistentRoaringBitmap selected =
+				RoaringBitmapBackedBitmap.getRoaringBitmap(new BaseBitmap(selection));
+
+			final SortedRecordsProvider provider = fixture.sortIndex().getAscendingOrderRecordsSupplier();
+			final PositionResolution resolution =
+				provider.resolvePositions(selected, selection.length, new int[512], new int[512]);
+
+			assertEquals(0, new BaseBitmap(resolution.mask()).getArray().length, "empty provider yields an empty mask");
+			assertArrayEquals(
+				selection, new BaseBitmap(resolution.notFoundRecords()).getArray(),
+				"the whole selection is not-found"
+			);
+			assertEquals(selection.length, resolution.notFoundRecordsCount(), "not-found count == selection size");
+			for (final int recordId : selection) {
+				assertEquals(
+					SortedRecordsProvider.POSITION_NOT_FOUND, provider.positionOf(recordId),
+					"positionOf absent id " + recordId
+				);
+			}
+		}
+
 	}
 
 	/**
@@ -208,6 +290,203 @@ class SortIndexTreeProviderEquivalenceTest {
 			assertArrayEquals(absent, new BaseBitmap(resolution.notFoundRecords()).getArray(), "not-found ids");
 			assertEquals(absent.length, resolution.notFoundRecordsCount(), "not-found count");
 		}
+	}
+
+	/**
+	 * Drives DENSE selections (`(K + 2) * 64 > recordCount`) through a FRESH provider so `resolvePositions` takes the
+	 * cold `O(N)` tree walk (a fresh supplier's own materialized-array fields are null), and asserts its mask / emitted
+	 * order / not-found hand-off match the oracle. Each selection is then re-resolved through a deliberately WARMED
+	 * provider (the array merge-walk branch) and the two resolutions are asserted identical, proving the cold tree walk
+	 * and the warm array path agree on the dense regime the small-`N` {@link #verifyProvider} covers only when warm.
+	 */
+	private static void verifyDenseColdPath(
+		@Nonnull Fixture fixture,
+		boolean descending,
+		@Nonnull int[] expectedOrder,
+		long selectionSeed
+	) {
+		final int recordCount = expectedOrder.length;
+		// recordId -> its position in the directional sorted order (record ids are 1..recordCount)
+		final int[] positionInOrder = new int[recordCount + 1];
+		for (int position = 0; position < recordCount; position++) {
+			positionInOrder[expectedOrder[position]] = position;
+		}
+
+		// dense selection sizes: all satisfy (K + 2) * 64 > recordCount, so a cold provider takes the dense tree walk
+		final int[] denseSizes = {recordCount / 32, recordCount / 8, recordCount / 2, recordCount};
+		final int[] bufferA = new int[512];
+		final int[] bufferB = new int[512];
+		final Random random = new Random(selectionSeed);
+		for (final int selectionSize : denseSizes) {
+			final int[] selectedPresent = pickDistinct(fixture.presentRecordIds(), selectionSize, random);
+			// two record ids guaranteed absent from the index (record ids are 1..N)
+			final int[] absent = {recordCount + 7, recordCount + 42};
+			final int[] selectedAll = concatSorted(selectedPresent, absent);
+			final PersistentRoaringBitmap selected =
+				RoaringBitmapBackedBitmap.getRoaringBitmap(new BaseBitmap(selectedAll));
+
+			// a FRESH supplier is cold (its own materialized-array fields are null), so this dense selection resolves via
+			// the O(N) tree walk - NOT the array merge-walk (the warm cross-check below exercises that branch instead)
+			final SortedRecordsProvider coldProvider = descending
+				? fixture.sortIndex().getDescendingOrderRecordsSupplier()
+				: fixture.sortIndex().getAscendingOrderRecordsSupplier();
+			final PositionResolution treeResolution =
+				coldProvider.resolvePositions(selected, selectedAll.length, bufferA, bufferB);
+
+			// expected mask = the sorted set of oracle positions of the present selected records
+			final int[] expectedPositions = new int[selectedPresent.length];
+			for (int i = 0; i < selectedPresent.length; i++) {
+				expectedPositions[i] = positionInOrder[selectedPresent[i]];
+			}
+			Arrays.sort(expectedPositions);
+			final int[] treeMask = new BaseBitmap(treeResolution.mask()).getArray();
+			assertArrayEquals(expectedPositions, treeMask, "cold tree-walk mask (K=" + selectionSize + ")");
+
+			// emitting the mask positions in ascending order reproduces the present selection in sorted order
+			final int[] emitted = new int[treeMask.length];
+			for (int i = 0; i < treeMask.length; i++) {
+				emitted[i] = coldProvider.recordAt(treeMask[i]);
+			}
+			assertArrayEquals(
+				sortedByOrder(selectedPresent, expectedOrder), emitted,
+				"cold tree-walk emitted order (K=" + selectionSize + ")"
+			);
+
+			// the not-found hand-off is exactly the absent record ids
+			assertArrayEquals(
+				absent, new BaseBitmap(treeResolution.notFoundRecords()).getArray(),
+				"cold tree-walk not-found ids (K=" + selectionSize + ")"
+			);
+			assertEquals(absent.length, treeResolution.notFoundRecordsCount(), "cold tree-walk not-found count");
+
+			// cross-check: the same dense selection through a WARMED provider (array merge-walk) is bit-for-bit identical
+			final SortedRecordsProvider warmProvider = descending
+				? fixture.sortIndex().getDescendingOrderRecordsSupplier()
+				: fixture.sortIndex().getAscendingOrderRecordsSupplier();
+			// force materialization so resolvePositions takes the warm-array branch rather than the tree walk
+			warmProvider.getSortedRecordIds();
+			warmProvider.getRecordPositions();
+			warmProvider.getAllRecords();
+			final PositionResolution arrayResolution =
+				warmProvider.resolvePositions(selected, selectedAll.length, bufferA, bufferB);
+			assertArrayEquals(
+				new BaseBitmap(arrayResolution.mask()).getArray(), treeMask,
+				"cold tree-walk vs warm array mask (K=" + selectionSize + ")"
+			);
+			assertArrayEquals(
+				new BaseBitmap(arrayResolution.notFoundRecords()).getArray(),
+				new BaseBitmap(treeResolution.notFoundRecords()).getArray(),
+				"cold tree-walk vs warm array not-found (K=" + selectionSize + ")"
+			);
+			assertEquals(
+				arrayResolution.notFoundRecordsCount(), treeResolution.notFoundRecordsCount(),
+				"cold tree-walk vs warm array not-found count (K=" + selectionSize + ")"
+			);
+		}
+	}
+
+	/**
+	 * Resolves a DENSE, fully-present `selectedPresent` selection (no absent ids) through a FRESH cold provider so
+	 * `resolvePositions` takes the `O(N)` dense tree walk, and asserts the mask equals the sorted set of the selected
+	 * records' positions in the directional order, the emitted order reproduces the selection in sorted order and the
+	 * not-found hand-off is empty (every selected id is present).
+	 */
+	private static void assertDensePresentSelectionResolvesWithEmptyNotFound(
+		@Nonnull Fixture fixture,
+		boolean descending,
+		@Nonnull int[] selectedPresent
+	) {
+		final int[] order = fixture.ascendingOrder().clone();
+		if (descending) {
+			reverse(order);
+		}
+		final int recordCount = order.length;
+		// recordId -> its position in the directional sorted order (record ids are 1..recordCount)
+		final int[] positionInOrder = new int[recordCount + 1];
+		for (int position = 0; position < recordCount; position++) {
+			positionInOrder[order[position]] = position;
+		}
+
+		final PersistentRoaringBitmap selected =
+			RoaringBitmapBackedBitmap.getRoaringBitmap(new BaseBitmap(selectedPresent));
+		final SortedRecordsProvider provider = freshDirectionalProvider(fixture, descending);
+		final PositionResolution resolution =
+			provider.resolvePositions(selected, selectedPresent.length, new int[512], new int[512]);
+
+		// expected mask = the sorted set of positions of the selected records in the directional order
+		final int[] expectedPositions = new int[selectedPresent.length];
+		for (int i = 0; i < selectedPresent.length; i++) {
+			expectedPositions[i] = positionInOrder[selectedPresent[i]];
+		}
+		Arrays.sort(expectedPositions);
+		final int[] mask = new BaseBitmap(resolution.mask()).getArray();
+		assertArrayEquals(expectedPositions, mask, "dense fully-present mask");
+
+		// emitting the mask positions in ascending order reproduces the selection in sorted order
+		final int[] emitted = new int[mask.length];
+		for (int i = 0; i < mask.length; i++) {
+			emitted[i] = provider.recordAt(mask[i]);
+		}
+		assertArrayEquals(sortedByOrder(selectedPresent, order), emitted, "dense fully-present emitted order");
+
+		// every selected id is present -> the not-found hand-off is empty
+		assertEquals(0, new BaseBitmap(resolution.notFoundRecords()).getArray().length, "empty not-found ids");
+		assertEquals(0, resolution.notFoundRecordsCount(), "zero not-found count");
+	}
+
+	/**
+	 * Resolves a DENSE selection of ids all guaranteed absent (`> RECORD_COUNT`) through a FRESH cold provider so the
+	 * dense tree walk removes nothing from its clone-and-remove not-found set (the walk runs to completion), and asserts
+	 * the mask is empty and the whole selection is returned as not-found.
+	 */
+	private static void assertDenseAbsentSelectionResolvesAsAllNotFound(
+		@Nonnull Fixture fixture,
+		boolean descending
+	) {
+		// K absent ids (all > RECORD_COUNT), sized so K * 64 > RECORD_COUNT forces the dense regime
+		final int selectionSize = RECORD_COUNT / 8;
+		final int[] absentSelection = new int[selectionSize];
+		for (int i = 0; i < selectionSize; i++) {
+			absentSelection[i] = RECORD_COUNT + 1 + i;
+		}
+		final PersistentRoaringBitmap selected =
+			RoaringBitmapBackedBitmap.getRoaringBitmap(new BaseBitmap(absentSelection));
+		final SortedRecordsProvider provider = freshDirectionalProvider(fixture, descending);
+		final PositionResolution resolution =
+			provider.resolvePositions(selected, absentSelection.length, new int[512], new int[512]);
+
+		assertEquals(0, new BaseBitmap(resolution.mask()).getArray().length, "empty mask for a fully-absent selection");
+		assertArrayEquals(
+			absentSelection, new BaseBitmap(resolution.notFoundRecords()).getArray(),
+			"the whole selection is not-found"
+		);
+		assertEquals(absentSelection.length, resolution.notFoundRecordsCount(), "not-found count == selection size");
+	}
+
+	/**
+	 * Returns a FRESH (cold) provider for the requested direction; a freshly built supplier's materialized-array fields
+	 * are null, so a dense `resolvePositions` takes the `O(N)` tree walk rather than the warm array merge-walk.
+	 */
+	@Nonnull
+	private static SortedRecordsProvider freshDirectionalProvider(@Nonnull Fixture fixture, boolean descending) {
+		return descending
+			? fixture.sortIndex().getDescendingOrderRecordsSupplier()
+			: fixture.sortIndex().getAscendingOrderRecordsSupplier();
+	}
+
+	/**
+	 * Returns all present record ids (`1..recordCount`) except `excludedRecordId`, ascending.
+	 */
+	@Nonnull
+	private static int[] presentIdsExcept(int recordCount, int excludedRecordId) {
+		final int[] result = new int[recordCount - 1];
+		int peak = 0;
+		for (int recordId = 1; recordId <= recordCount; recordId++) {
+			if (recordId != excludedRecordId) {
+				result[peak++] = recordId;
+			}
+		}
+		return result;
 	}
 
 	/**

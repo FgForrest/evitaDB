@@ -312,6 +312,33 @@ public class TransactionalUnorderedIntArray
 	}
 
 	/**
+	 * Creates a forward cursor over the logical order (ascending positions), emitting the record id at each position in
+	 * amortized `O(1)` for a monotonically non-decreasing run of positions - the allocation-free alternative to calling
+	 * {@link #get(int)} once per position (`O(log N)` each) when whole ranges are scanned in order. The cursor reads the
+	 * same live position tree as {@link #get(int)} / {@link #indexOf(int)}, so it is transaction-consistent by the same
+	 * argument and must be consumed within a single query / transaction scope with no interleaved mutation.
+	 *
+	 * @return a forward {@link UnorderedLookupTree.PositionCursor} over the logical order
+	 */
+	@Nonnull
+	public UnorderedLookupTree.PositionCursor forwardPositionCursor() {
+		return this.positionTree.forwardPositionCursor();
+	}
+
+	/**
+	 * Creates a reverse cursor over the logical order: emit index `d` resolves to the record at logical position
+	 * `size() - 1 - d`, so a forward scan of emit indices walks the array back-to-front without materializing a reversed
+	 * copy. Same amortized `O(1)` per emit and the same single-scope / transaction-consistency contract as
+	 * {@link #forwardPositionCursor()}.
+	 *
+	 * @return a reverse {@link UnorderedLookupTree.PositionCursor} over the logical order
+	 */
+	@Nonnull
+	public UnorderedLookupTree.PositionCursor reversePositionCursor() {
+		return this.positionTree.reversePositionCursor();
+	}
+
+	/**
 	 * Method adds new record to the array, just after the record specified as `previousRecordId`
 	 * ({@link Integer#MIN_VALUE} adds it to the head).
 	 */

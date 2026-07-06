@@ -27,6 +27,7 @@ import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.PositionResolutio
 import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedComparableForwardSeeker;
 import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedRecordsProvider;
 import io.evitadb.index.array.TransactionalUnorderedIntArray;
+import io.evitadb.index.array.UnorderedLookupTree.PositionCursor;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.roaringbitmap.BatchIterator;
@@ -52,20 +53,26 @@ import java.util.function.Supplier;
  *   tree (e.g. the chain index) and for the large-selection array path.
  * - **tree-backed** (the tree constructor): the record-id order / positions / bitmap are NOT materialized; instead the
  *   positional {@link SortedRecordsProvider} operations ({@link #recordAt(int)}, {@link #positionOf(int)},
- *   {@link #resolvePositions}) resolve straight from the live {@link TransactionalUnorderedIntArray} in `O(log N)`,
- *   avoiding the per-query materialization and its resident memory. The materialized arrays are still exposed lazily
- *   (via the supplied warm-memo accessors) for the array fallback taken on large selections.
+ *   {@link #resolvePositions}) resolve straight from the live {@link TransactionalUnorderedIntArray} - sparse selections
+ *   by per-record `O(log N)` look-ups, dense selections on a cold supplier by a single `O(N)` cursor walk - avoiding the
+ *   per-query materialization and its resident memory. The materialized arrays are still exposed lazily (via the
+ *   supplied warm-memo accessors) and reused by the array merge-walk once they are warm.
  */
 public class SortedRecordsSupplier implements SortedRecordsProvider, Serializable {
 	@Serial private static final long serialVersionUID = 6606884166778706442L;
 
 	/**
-	 * Selectivity threshold for the tree-vs-array path pick in {@link #resolvePositions}: the tree path (per-record
-	 * `O(log N)` look-ups, no materialization) is taken while the selected count `K <= N / DIVISOR`; above it the array
-	 * merge-walk over the (warm) materialized arrays wins. `SortIndexTreeDirectSortBenchmark` (N=100k) measures the
-	 * crossover at roughly `K ~ N/78` (tree ~11x faster at K=100, ~1.4x at K=1000, losing by K~5000); `64` keeps the
-	 * tree path within its clear-win band with margin. Constant for now — a future revision may expose it as
-	 * a configuration knob, or make it adaptive in `N` since the true crossover scales with `N / log N`.
+	 * Selectivity threshold that splits {@link #resolvePositions} into its sparse and dense regimes: while the selected
+	 * count `K <= N / DIVISOR` the sparse tree path (per-record `O(log N)` look-ups, no materialization) is taken; above
+	 * it the selection is dense. `SortIndexTreeDirectSortBenchmark` (N=100k) measures the sparse-probe crossover at
+	 * roughly `K ~ N/78` (tree ~11x faster at K=100, ~1.4x at K=1000, losing by K~5000); `64` keeps the sparse probe
+	 * within its clear-win band with margin. Constant for now — a future revision may expose it as a configuration knob,
+	 * or make it adaptive in `N` since the true crossover scales with `N / log N`.
+	 *
+	 * In the dense regime the path is chosen by whether the materialized arrays are already warm: a warm supplier reuses
+	 * the tight `O(N + K)` merge-walk over its arrays, while a cold supplier takes the `O(N)` dense tree walk
+	 * ({@link #resolvePositionsByDenseWalk}) that never materializes the `int[N]` order / position arrays (nor pays the
+	 * `O(N log N)` id-order sort {@link #getAllRecords()} would).
 	 */
 	private static final int TREE_PATH_SELECTIVITY_DIVISOR = 64;
 
@@ -246,23 +253,50 @@ public class SortedRecordsSupplier implements SortedRecordsProvider, Serializabl
 		@Nonnull int[] bufferA,
 		@Nonnull int[] bufferB
 	) {
-		// array-backed supplier, or a selection large enough that the O(N) warm-array walk beats K * O(log N) tree
-		// look-ups -> fall back to the array merge-walk (which materializes / reuses the warm arrays lazily)
-		if (this.sortedRecords == null
-			|| (long) selectedRecordCount * TREE_PATH_SELECTIVITY_DIVISOR > this.recordCount) {
+		if (this.sortedRecords == null) {
+			// a purely array-backed supplier has no tree to walk -> array merge-walk over its materialized arrays
 			return SortedRecordsProvider.super.resolvePositions(selectedRecordIds, selectedRecordCount, bufferA, bufferB);
 		}
-		// tree path: resolve each selected record's position straight from the tree, no array materialization
+		if ((long) selectedRecordCount * TREE_PATH_SELECTIVITY_DIVISOR <= this.recordCount) {
+			// sparse selection: probe each selected id against the tree (K * O(log N)), no array materialization
+			return resolvePositionsBySparseProbe(selectedRecordIds, selectedRecordCount, bufferA);
+		}
+		if (this.recordPositions != null && this.allRecords != null) {
+			// dense selection but the arrays are already warm -> the tight O(N + K) merge-walk over them wins
+			return SortedRecordsProvider.super.resolvePositions(selectedRecordIds, selectedRecordCount, bufferA, bufferB);
+		}
+		// dense selection on a cold supplier: one O(N) tree walk, no int[N] order / position materialization
+		return resolvePositionsByDenseWalk(selectedRecordIds, selectedRecordCount);
+	}
+
+	/**
+	 * Sparse-selection tree resolution: iterates the `selectedRecordIds` and resolves each one's sorted position with a
+	 * single `O(log N)` tree look-up (`K * O(log N)` overall), touching no materialized array. Records absent from the
+	 * tree are collected into the not-found hand-off. Wins while the selection is a small fraction of the order (see
+	 * {@link #TREE_PATH_SELECTIVITY_DIVISOR}).
+	 *
+	 * @param selectedRecordIds   the record ids to locate, in ascending id order
+	 * @param selectedRecordCount the count of selected record ids
+	 * @param buffer              scratch buffer for batch iteration over the selection
+	 * @return the ascending position mask, the not-found record ids and their count
+	 */
+	@Nonnull
+	private PositionResolution resolvePositionsBySparseProbe(
+		@Nonnull PersistentRoaringBitmap selectedRecordIds,
+		int selectedRecordCount,
+		@Nonnull int[] buffer
+	) {
 		final RoaringBitmapWriter<PersistentRoaringBitmap> mask = RoaringBitmapBackedBitmap.buildWriter();
 		final RoaringBitmapWriter<PersistentRoaringBitmap> notFound = RoaringBitmapBackedBitmap.buildWriter();
 		final int lastPosition = this.recordCount - 1;
+		final TransactionalUnorderedIntArray theSortedRecords = Objects.requireNonNull(this.sortedRecords);
 		int notFoundCount = 0;
 		final BatchIterator selectedIt = selectedRecordIds.getBatchIterator();
 		int read;
-		while ((read = selectedIt.nextBatch(bufferA)) > 0) {
+		while ((read = selectedIt.nextBatch(buffer)) > 0) {
 			for (int i = 0; i < read; i++) {
-				final int recordId = bufferA[i];
-				final int ascendingPosition = this.sortedRecords.indexOf(recordId);
+				final int recordId = buffer[i];
+				final int ascendingPosition = theSortedRecords.indexOf(recordId);
 				if (ascendingPosition < 0) {
 					notFound.add(recordId);
 					notFoundCount++;
@@ -273,6 +307,44 @@ public class SortedRecordsSupplier implements SortedRecordsProvider, Serializabl
 			}
 		}
 		return new PositionResolution(mask.get(), notFound.get(), notFoundCount);
+	}
+
+	/**
+	 * Dense-selection tree resolution: walks the sorted order once via an amortized-`O(1)` position cursor (reverse for
+	 * the descending direction, so mask positions are emitted ascending in both cases) and keeps every visited record
+	 * that the selection contains - an `O(N)` pass that materializes neither the `int[N]` order / position arrays nor the
+	 * id-order bitmap the array merge-walk would (skipping its `O(N log N)` sort). Because the walk only ever sees records
+	 * present in the order, the not-found hand-off is derived by clone-and-remove: start from the full selection and drop
+	 * each located record, leaving exactly the ids this provider does not contain.
+	 *
+	 * @param selectedRecordIds   the record ids to locate, in ascending id order (not mutated - cloned for the hand-off)
+	 * @param selectedRecordCount the count of selected record ids (walk stops once all are located)
+	 * @return the ascending position mask, the not-found record ids and their count
+	 */
+	@Nonnull
+	private PositionResolution resolvePositionsByDenseWalk(
+		@Nonnull PersistentRoaringBitmap selectedRecordIds,
+		int selectedRecordCount
+	) {
+		final RoaringBitmapWriter<PersistentRoaringBitmap> mask = RoaringBitmapBackedBitmap.buildWriter();
+		// the not-found set starts as the whole selection; every located record is removed, leaving the absent ids
+		final PersistentRoaringBitmap notFound = selectedRecordIds.clone();
+		final TransactionalUnorderedIntArray theSortedRecords = Objects.requireNonNull(this.sortedRecords);
+		// emit direction: the reverse cursor maps descending position d to ascending logical position N-1-d, so both
+		// directions add positions to the mask in ascending order and stay on the writer's append fast path
+		final PositionCursor cursor = this.descending
+			? theSortedRecords.reversePositionCursor()
+			: theSortedRecords.forwardPositionCursor();
+		int matched = 0;
+		for (int position = 0; position < this.recordCount && matched < selectedRecordCount; position++) {
+			final int recordId = cursor.recordAt(position);
+			if (selectedRecordIds.contains(recordId)) {
+				mask.add(position);
+				notFound.remove(recordId);
+				matched++;
+			}
+		}
+		return new PositionResolution(mask.get(), notFound, selectedRecordCount - matched);
 	}
 
 }
