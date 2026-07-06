@@ -28,6 +28,7 @@ import io.evitadb.api.query.AttributeConstraint;
 import io.evitadb.api.query.EntityConstraint;
 import io.evitadb.api.query.FacetConstraint;
 import io.evitadb.api.query.GenericConstraint;
+import io.evitadb.api.query.GroupConstraint;
 import io.evitadb.api.query.HierarchyConstraint;
 import io.evitadb.api.query.PriceConstraint;
 import io.evitadb.api.query.PropertyTypeDefiningConstraint;
@@ -281,7 +282,29 @@ public enum ConstraintPropertyType {
 	 * and color C, and tell me how many products match each brand/category/color combination." Facets are references
 	 * marked as faceted in the schema.
 	 */
-	FACET(FacetConstraint.class);
+	FACET(FacetConstraint.class),
+	/**
+	 * Property type for constraints that operate on the group entity of a faceted reference.
+	 *
+	 * **Accessible Properties:**
+	 * - Group entity primary key
+	 * - Group entity attributes
+	 * - Group entity type
+	 * - Group entity locale
+	 *
+	 * **Typical Constraints:**
+	 * - Filtering: `groupHaving` - filters facets by properties of their group entity
+	 *
+	 * **Marker Interface:**
+	 * Conforms to `{@link GroupConstraint}`.
+	 *
+	 * **Usage Context:**
+	 * Faceted references can be organized into groups (e.g. a `parameterValue` reference grouped by its parent
+	 * `parameter` entity). This property type targets constraints that scope their evaluation to the group entity
+	 * itself rather than the facet reference, enabling expressions such as "show only facets whose group has
+	 * attribute X equal to Y".
+	 */
+	GROUP(GroupConstraint.class);
 
 	@SuppressWarnings("rawtypes")
 	private final Class<? extends PropertyTypeDefiningConstraint> representingInterface;

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -56,6 +56,7 @@ public class ConstraintProcessingUtils {
 	private static final String REFERENCE_PREFIX = "reference";
 	private static final String HIERARCHY_PREFIX = "hierarchy";
 	private static final String FACET_PREFIX = "facet";
+	private static final String GROUP_PREFIX = "group";
 
 	private static final Map<ConstraintPropertyType, String> PROPERTY_TYPE_TO_PREFIX = Map.of(
 		ConstraintPropertyType.GENERIC, GENERIC_PREFIX,
@@ -65,7 +66,8 @@ public class ConstraintProcessingUtils {
 		ConstraintPropertyType.PRICE, PRICE_PREFIX,
 		ConstraintPropertyType.REFERENCE, REFERENCE_PREFIX,
 		ConstraintPropertyType.HIERARCHY, HIERARCHY_PREFIX,
-		ConstraintPropertyType.FACET, FACET_PREFIX
+		ConstraintPropertyType.FACET, FACET_PREFIX,
+		ConstraintPropertyType.GROUP, GROUP_PREFIX
 	);
 
 	private static final Map<String, ConstraintPropertyType> PREFIX_TO_PROPERTY_TYPE = Map.of(
@@ -75,7 +77,8 @@ public class ConstraintProcessingUtils {
 		PRICE_PREFIX, ConstraintPropertyType.PRICE,
 		REFERENCE_PREFIX, ConstraintPropertyType.REFERENCE,
 		HIERARCHY_PREFIX, ConstraintPropertyType.HIERARCHY,
-		FACET_PREFIX, ConstraintPropertyType.FACET
+		FACET_PREFIX, ConstraintPropertyType.FACET,
+		GROUP_PREFIX, ConstraintPropertyType.GROUP
 	);
 
 	private static final Map<ConstraintDomain, ConstraintPropertyType> DOMAIN_TO_PROPERTY_TYPE = Map.of(
@@ -85,7 +88,8 @@ public class ConstraintProcessingUtils {
 		ConstraintDomain.INLINE_REFERENCE, ConstraintPropertyType.REFERENCE,
 		ConstraintDomain.HIERARCHY, ConstraintPropertyType.HIERARCHY,
 		ConstraintDomain.FACET, ConstraintPropertyType.FACET,
-		ConstraintDomain.SEGMENT, ConstraintPropertyType.GENERIC
+		ConstraintDomain.SEGMENT, ConstraintPropertyType.GENERIC,
+		ConstraintDomain.GROUP_ENTITY, ConstraintPropertyType.GROUP
 	);
 
 	private static final Map<ConstraintPropertyType, ConstraintDomain> PROPERTY_TYPE_TO_DOMAIN = Map.of(
@@ -96,7 +100,8 @@ public class ConstraintProcessingUtils {
 		ConstraintPropertyType.PRICE, ConstraintDomain.GENERIC, // this property type doesn't currently have its own domain, generic domain is used as safe fallback
 		ConstraintPropertyType.REFERENCE, ConstraintDomain.REFERENCE,
 		ConstraintPropertyType.HIERARCHY, ConstraintDomain.HIERARCHY,
-		ConstraintPropertyType.FACET, ConstraintDomain.FACET
+		ConstraintPropertyType.FACET, ConstraintDomain.FACET,
+		ConstraintPropertyType.GROUP, ConstraintDomain.GROUP_ENTITY
 	);
 
 	/**

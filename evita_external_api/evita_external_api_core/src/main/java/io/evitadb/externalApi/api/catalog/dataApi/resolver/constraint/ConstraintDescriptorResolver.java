@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -56,14 +56,13 @@ import static io.evitadb.externalApi.api.ExternalApiNamingConventions.CLASSIFIER
 /**
  * Used to parse input constraint key in {@link ConstraintResolver} to find corresponding {@link ConstraintDescriptor} for it.
  *
- * <h3>Formats</h3>
- * This parser supports following key formats
+ * ### Formats
+ *
  * Key can have one of 3 formats depending on descriptor data:
- * <ul>
- *     <li>`{fullName}` - if it's generic constraint without classifier</li>
- *     <li>`{propertyType}{fullName}` - if it's not generic constraint and doesn't have classifier</li>
- *     <li>`{propertyType}{classifier}{fullName}` - if it's not generic constraint and has classifier</li>
- * </ul>
+ *
+ * - `{fullName}` - if it's generic constraint without classifier
+ * - `{propertyType}{fullName}` - if it's not generic constraint and doesn't have classifier
+ * - `{propertyType}{classifier}{fullName}` - if it's not generic constraint and has classifier
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
@@ -94,7 +93,8 @@ class ConstraintDescriptorResolver {
 		// parse prefix into property type first
 		final Entry<String, ConstraintPropertyType> foundPropertyType = ConstraintProcessingUtils.getPropertyTypeFromPrefix(key);
 		derivedPropertyType = foundPropertyType.getValue();
-		final String remainingKey = key.substring(foundPropertyType.getKey().length());
+		final String prefixPart = foundPropertyType.getKey();
+		final String remainingKey = key.substring(prefixPart.length());
 
 		// parse remains of key into classifier and full constraint name
 		final Deque<String> classifierWords = new LinkedList<>();
