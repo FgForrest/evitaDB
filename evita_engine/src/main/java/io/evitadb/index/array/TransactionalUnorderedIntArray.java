@@ -428,10 +428,13 @@ public class TransactionalUnorderedIntArray
 	 * @return {@link Integer#MIN_VALUE} when the record is not found, the position otherwise
 	 */
 	public int indexOf(int recordId) {
-		final OptionalLong orderKey = this.valueIndex.search(recordId);
-		return orderKey.isEmpty()
+		// order-keys minted by the position tree are always non-negative (the first container is 0 and every mint is
+		// additive), so Long.MIN_VALUE is a collision-proof "absent" sentinel that lets us skip the OptionalLong
+		// allocation search(int) would incur on this hot sort-position lookup path
+		final long orderKey = this.valueIndex.searchOrDefault(recordId, Long.MIN_VALUE);
+		return orderKey == Long.MIN_VALUE
 			? Integer.MIN_VALUE
-			: this.positionTree.findPositionByOrderKey(orderKey.getAsLong(), recordId);
+			: this.positionTree.findPositionByOrderKey(orderKey, recordId);
 	}
 
 	/**

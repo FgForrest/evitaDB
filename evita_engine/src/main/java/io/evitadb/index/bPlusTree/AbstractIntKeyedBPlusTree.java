@@ -257,6 +257,25 @@ abstract class AbstractIntKeyedBPlusTree extends AbstractTransactionalBPlusTree
 	}
 
 	/**
+	 * Allocation-free leaf descent for READ-ONLY lookups: walks the root-to-leaf spine choosing each child by the same
+	 * {@link AbstractIntKeyedInternalNode#searchIndex(int)} rule {@link #createCursor(int)} uses, but WITHOUT capturing
+	 * the cursor path (no {@link CursorLevel} list, no {@link Cursor}). Reads resolve the transaction-aware child links
+	 * exactly like the cursor descent. Splits / deletes still need the full {@link #createCursor(int)} (they mutate the
+	 * captured path); this is purely the fast path for {@code search}-style probes on the query hot loop.
+	 *
+	 * @param key the key whose responsible leaf is located
+	 * @return the leaf node that should hold the key (it may not actually contain it)
+	 */
+	@Nonnull
+	protected BPlusTreeNode<?> findLeafNode(int key) {
+		BPlusTreeNode<?> node = this.getRoot();
+		while (node instanceof AbstractIntKeyedInternalNode<?> internalNode) {
+			node = internalNode.getChildren()[internalNode.searchIndex(key)];
+		}
+		return node;
+	}
+
+	/**
 	 * Replaces a node in its parent with two new nodes produced by a split, refreshing the parent's separator keys and
 	 * cascading the split upward if the parent overflows in turn.
 	 *

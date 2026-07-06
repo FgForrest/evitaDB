@@ -27,11 +27,13 @@ package io.evitadb.index.attribute;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedComparableForwardSeeker;
+import io.evitadb.index.array.TransactionalUnorderedIntArray;
 import io.evitadb.index.bitmap.Bitmap;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
+import java.util.function.Supplier;
 
 /**
  * This class is a specialized version of {@link SortedRecordsSupplier} that provides access to a {@link ReferenceKey}
@@ -52,6 +54,28 @@ public class ReferenceSortedRecordsProvider extends SortedRecordsSupplier {
 		@Nonnull RepresentativeReferenceKey referenceKey
 	) {
 		super(transactionalId, sortedRecordIds, recordPositions, allRecords, sortedComparableForwardSeeker);
+		this.referenceKey = referenceKey;
+	}
+
+	/**
+	 * Tree-backed counterpart resolving positions straight from the live positional tree (see the tree-backed
+	 * constructor of {@link SortedRecordsSupplier}), carrying the reference key so reference sorts still detect it.
+	 */
+	public ReferenceSortedRecordsProvider(
+		long transactionalId,
+		@Nonnull TransactionalUnorderedIntArray sortedRecords,
+		boolean descending,
+		int recordCount,
+		@Nonnull Supplier<int[]> sortedRecordIdsSupplier,
+		@Nonnull Supplier<int[]> recordPositionsSupplier,
+		@Nonnull Supplier<Bitmap> allRecordsSupplier,
+		@Nonnull SortedComparableForwardSeeker sortedComparableForwardSeeker,
+		@Nonnull RepresentativeReferenceKey referenceKey
+	) {
+		super(
+			transactionalId, sortedRecords, descending, recordCount,
+			sortedRecordIdsSupplier, recordPositionsSupplier, allRecordsSupplier, sortedComparableForwardSeeker
+		);
 		this.referenceKey = referenceKey;
 	}
 }

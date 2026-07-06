@@ -24,7 +24,6 @@
 
 package io.evitadb.core.query.sort.attribute.comparator;
 
-import com.carrotsearch.hppc.IntIntHashMap;
 import com.carrotsearch.hppc.IntIntMap;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.query.order.TraverseByEntityProperty;
@@ -38,7 +37,6 @@ import io.evitadb.core.query.sort.EntityReferenceSensitiveComparator;
 import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedRecordsProvider;
 import io.evitadb.core.query.sort.attribute.sorter.PreSortedRecordsSorter.MergeMode;
 import io.evitadb.dataType.array.CompositeObjectArray;
-import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
@@ -51,10 +49,11 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
-import static io.evitadb.core.query.sort.attribute.comparator.PredecessorAttributeComparator.computeIfAbsent;
+import static io.evitadb.core.query.sort.attribute.comparator.PredecessorAttributeComparator.comparePositionsAcrossProviders;
 import static io.evitadb.core.query.sort.attribute.sorter.MergedSortedRecordsSupplierSorter.createSortedRecordsOffsets;
 
 /**
@@ -76,6 +75,12 @@ public class TraverseReferencePredecessorAttributeComparator
 	 * Initialized predicate function that relates to the {@link ReferenceSchema}.
 	 */
 	private final Predicate<ReferenceContract> pickerPredicate;
+	/**
+	 * Sink appending an entity that no provider could place to the inherited {@code nonSortedEntities} container
+	 * (created on first use). Allocated once so {@code comparePositionsAcrossProviders} can hand off unsortable
+	 * entities without allocating a capturing lambda on the comparison hot path.
+	 */
+	private final Consumer<EntityContract> unsortedCollector = this::addUnsorted;
 	/**
 	 * The id of the referenced entity that is being traversed.
 	 */
@@ -120,14 +125,14 @@ public class TraverseReferencePredecessorAttributeComparator
 						);
 				}
 				final Set<RepresentativeReferenceKey> sortedRRKs = Objects.requireNonNull(this.sortedRecordsOffsets)
-				                                                          .keySet();
+					.keySet();
 				for (RepresentativeReferenceKey referenceKey : sortedRRKs) {
 					if (
 						referenceKey.referenceKey().equalsInGeneral(reference.getReferenceKey()) &&
-						Arrays.equals(
-							referenceKey.representativeAttributeValues(),
-							rad.getRepresentativeValues(reference)
-						)
+							Arrays.equals(
+								referenceKey.representativeAttributeValues(),
+								rad.getRepresentativeValues(reference)
+							)
 					) {
 						return true;
 					}
@@ -188,70 +193,18 @@ public class TraverseReferencePredecessorAttributeComparator
 			final OffsetAndLimit offsetAndLimit = this.sortedRecordsOffsets == null ?
 				null : this.sortedRecordsOffsets.get(attribute1.referencedKey());
 			if (offsetAndLimit != null) {
-				int result = 0;
-				int o1FoundInProvider = -1;
-				int o2FoundInProvider = -1;
-				for (int i = offsetAndLimit.offset(); i < offsetAndLimit.limit(); i++) {
-					final SortedRecordsProvider sortedRecordsProvider = this.sortedRecordsProviders[i];
-					if (this.cache[i] == null) {
-						// let's create the cache with estimated size multiply 5 expected steps for binary search
-						//noinspection ObjectAllocationInLoop,ObjectInstantiationInEqualsHashCode
-						this.cache[i] = new IntIntHashMap(this.estimatedCount * 5);
-					}
-					// and try to find primary keys of both entities in each provider
-					final Bitmap allRecords = sortedRecordsProvider.getAllRecords();
-					// predicates are used sort out the providers that are not relevant for the given entity
-					final int o1Index = o1FoundInProvider > -1 ? -1 : computeIfAbsent(
-						this.cache[i], o1.getPrimaryKeyOrThrowException(), allRecords::indexOf);
-					final int o2Index = o2FoundInProvider > -1 ? -1 : computeIfAbsent(
-						this.cache[i], o2.getPrimaryKeyOrThrowException(), allRecords::indexOf);
-					// if both entities are found in the same provider, compare their positions
-					if (o1Index >= 0 && o2Index >= 0) {
-						result = Integer.compare(
-							sortedRecordsProvider.getRecordPositions()[o1Index],
-							sortedRecordsProvider.getRecordPositions()[o2Index]
-						);
-						o1FoundInProvider = i;
-						o2FoundInProvider = i;
-					} else if (o1Index >= 0) {
-						// if only one entity is found, it is considered to be smaller than the other one
-						result = result == 0 ? 1 : result;
-						o1FoundInProvider = i;
-					} else if (o2Index >= 0) {
-						// if only one entity is found, it is considered to be smaller than the other one
-						result = result == 0 ? -1 : result;
-						o2FoundInProvider = i;
-					}
-					// if both entities are found, we can stop searching
-					if (o1FoundInProvider > -1 && o2FoundInProvider > -1) {
-						break;
-					}
-				}
-				if (o1FoundInProvider == -1 || o2FoundInProvider == -1 && this.nonSortedEntities == null) {
-					// if any of the entities is not found, and we don't have the container to store them, create it
-					//noinspection ObjectInstantiationInEqualsHashCode
-					this.nonSortedEntities = new CompositeObjectArray<>(EntityContract.class);
-				}
-				// if any of the entities is not found, store it in the container
-				if (o1FoundInProvider == -1) {
-					this.nonSortedEntities.add(o1);
-				}
-				if (o2FoundInProvider == -1) {
-					this.nonSortedEntities.add(o2);
-				}
-				// when both entities are not found in the same provider, the result is invalid
-				if (o1FoundInProvider != o2FoundInProvider) {
-					// we need to prefer the provider that was found first
-					result = Integer.compare(o1FoundInProvider, o2FoundInProvider);
-				}
-				// return the result
-				return result;
+				// scan only the providers belonging to the shared reference key
+				return comparePositionsAcrossProviders(
+					this.sortedRecordsProviders, this.cache,
+					offsetAndLimit.offset(), offsetAndLimit.limit(),
+					this.estimatedCount, o1, o2, this.unsortedCollector
+				);
 			} else {
 				// if they don't share a ref-key we compare them by position of their sorted record providers
-				final OffsetAndLimit offsetAndLimit1 = this.sortedRecordsOffsets == null ?
-					null : this.sortedRecordsOffsets.get(attribute1.referencedKey());
-				final OffsetAndLimit offsetAndLimit2 = this.sortedRecordsOffsets == null ?
-					null : this.sortedRecordsOffsets.get(attribute2.referencedKey());
+				final OffsetAndLimit offsetAndLimit1 = this.sortedRecordsOffsets == null
+					? null : this.sortedRecordsOffsets.get(attribute1.referencedKey());
+				final OffsetAndLimit offsetAndLimit2 = this.sortedRecordsOffsets == null
+					? null : this.sortedRecordsOffsets.get(attribute2.referencedKey());
 				if (offsetAndLimit1 != null && offsetAndLimit2 != null) {
 					return Integer.compare(offsetAndLimit1.offset(), offsetAndLimit2.offset());
 				}
@@ -269,6 +222,19 @@ public class TraverseReferencePredecessorAttributeComparator
 		} else {
 			return 0;
 		}
+	}
+
+	/**
+	 * Appends an entity that none of the scanned providers could place to the inherited {@code nonSortedEntities}
+	 * container, lazily creating it on first use.
+	 *
+	 * @param entity the entity to park at the end of the sorted result
+	 */
+	private void addUnsorted(@Nonnull EntityContract entity) {
+		if (this.nonSortedEntities == null) {
+			this.nonSortedEntities = new CompositeObjectArray<>(EntityContract.class);
+		}
+		this.nonSortedEntities.add(entity);
 	}
 
 }

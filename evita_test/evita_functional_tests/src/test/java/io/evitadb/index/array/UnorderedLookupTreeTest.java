@@ -1202,4 +1202,191 @@ class UnorderedLookupTreeTest {
 		}
 	}
 
+	@Nested
+	@DisplayName("Position cursor (forward / reverse leaf-walking emit)")
+	class PositionCursorTest {
+
+		/**
+		 * Builds a distinct 1..n record set in a fixed-seed random logical order (Fisher-Yates), the shape the cursor
+		 * walks in production.
+		 *
+		 * @param n    number of distinct records
+		 * @param seed random seed for reproducibility
+		 * @return the record ids in their logical (unordered) sequence
+		 */
+		@Nonnull
+		private static int[] distinctShuffle(int n, long seed) {
+			final int[] records = new int[n];
+			for (int i = 0; i < n; i++) {
+				records[i] = i + 1;
+			}
+			final Random random = new Random(seed);
+			for (int i = n - 1; i > 0; i--) {
+				final int j = random.nextInt(i + 1);
+				final int tmp = records[i];
+				records[i] = records[j];
+				records[j] = tmp;
+			}
+			return records;
+		}
+
+		@Test
+		@DisplayName("forward cursor emits the full logical array in ascending order across many leaves")
+		void shouldEmitFullArrayForward() {
+			final int[] records = distinctShuffle(500, 20250706L);
+			final TreeWithIndex tested = new TreeWithIndex(3, UnorderedLookupTree.DEFAULT_ORDER_KEY_GAP);
+			tested.bulkLoad(records);
+			final UnorderedLookupTree.PositionCursor cursor = tested.tree.forwardPositionCursor();
+			for (int position = 0; position < records.length; position++) {
+				assertEquals(records[position], cursor.recordAt(position), "forward mismatch at position " + position);
+			}
+		}
+
+		@Test
+		@DisplayName("reverse cursor emits the logical array in descending order across many leaves")
+		void shouldEmitFullArrayReverse() {
+			final int[] records = distinctShuffle(500, 987654321L);
+			final TreeWithIndex tested = new TreeWithIndex(3, UnorderedLookupTree.DEFAULT_ORDER_KEY_GAP);
+			tested.bulkLoad(records);
+			final UnorderedLookupTree.PositionCursor cursor = tested.tree.reversePositionCursor();
+			final int n = records.length;
+			for (int emitIndex = 0; emitIndex < n; emitIndex++) {
+				assertEquals(records[n - 1 - emitIndex], cursor.recordAt(emitIndex), "reverse mismatch at " + emitIndex);
+			}
+		}
+
+		@Test
+		@DisplayName("forward cursor resolves a sparse ascending subset exactly like getRecordAt")
+		void shouldEmitSparseSubsetForward() {
+			final int[] records = distinctShuffle(1000, 424242L);
+			final TreeWithIndex tested = new TreeWithIndex(4, UnorderedLookupTree.DEFAULT_ORDER_KEY_GAP);
+			tested.bulkLoad(records);
+			final UnorderedLookupTree.PositionCursor cursor = tested.tree.forwardPositionCursor();
+			for (int position = 3; position < records.length; position += 37) {
+				assertEquals(
+					tested.tree.getRecordAt(position), cursor.recordAt(position), "sparse forward mismatch at " + position);
+			}
+		}
+
+		@Test
+		@DisplayName("reverse cursor resolves a sparse ascending emit index like mirrored getRecordAt")
+		void shouldEmitSparseSubsetReverse() {
+			final int[] records = distinctShuffle(1000, 555L);
+			final TreeWithIndex tested = new TreeWithIndex(4, UnorderedLookupTree.DEFAULT_ORDER_KEY_GAP);
+			tested.bulkLoad(records);
+			final UnorderedLookupTree.PositionCursor cursor = tested.tree.reversePositionCursor();
+			final int n = records.length;
+			for (int emitIndex = 1; emitIndex < n; emitIndex += 29) {
+				assertEquals(
+					tested.tree.getRecordAt(n - 1 - emitIndex), cursor.recordAt(emitIndex),
+					"sparse reverse mismatch at emit index " + emitIndex
+				);
+			}
+		}
+
+		@Test
+		@DisplayName("both cursors serve a single-leaf (root-is-leaf) tree")
+		void shouldHandleSingleLeaf() {
+			final TreeWithIndex tested = new TreeWithIndex();
+			tested.bulkLoad(new int[]{7, 3, 9});
+			final UnorderedLookupTree.PositionCursor forward = tested.tree.forwardPositionCursor();
+			assertEquals(7, forward.recordAt(0));
+			assertEquals(3, forward.recordAt(1));
+			assertEquals(9, forward.recordAt(2));
+			final UnorderedLookupTree.PositionCursor reverse = tested.tree.reversePositionCursor();
+			assertEquals(9, reverse.recordAt(0));
+			assertEquals(3, reverse.recordAt(1));
+			assertEquals(7, reverse.recordAt(2));
+		}
+
+		@Test
+		@DisplayName("forward cursor rejects an out-of-bounds emit index")
+		void shouldRejectOutOfBoundsForward() {
+			final TreeWithIndex tested = new TreeWithIndex();
+			tested.bulkLoad(new int[]{7, 3, 9});
+			final UnorderedLookupTree.PositionCursor cursor = tested.tree.forwardPositionCursor();
+			assertThrows(GenericEvitaInternalError.class, () -> cursor.recordAt(3));
+			assertThrows(GenericEvitaInternalError.class, () -> cursor.recordAt(-1));
+		}
+
+		@Test
+		@DisplayName("forward cursor rejects a non-monotonic (backward) emit index")
+		void shouldRejectBackwardForward() {
+			final int[] records = distinctShuffle(200, 13L);
+			final TreeWithIndex tested = new TreeWithIndex(3, UnorderedLookupTree.DEFAULT_ORDER_KEY_GAP);
+			tested.bulkLoad(records);
+			final UnorderedLookupTree.PositionCursor cursor = tested.tree.forwardPositionCursor();
+			cursor.recordAt(100);
+			assertThrows(GenericEvitaInternalError.class, () -> cursor.recordAt(50));
+		}
+
+		@Test
+		@DisplayName("both cursors reject any emit on an empty tree")
+		void shouldRejectAnyEmitOnEmptyForwardAndReverseCursor() {
+			final TreeWithIndex tested = new TreeWithIndex();
+			assertTrue(tested.tree.isEmpty());
+			// an empty tree has no position 0 to serve in either direction
+			final UnorderedLookupTree.PositionCursor forward = tested.tree.forwardPositionCursor();
+			assertThrows(GenericEvitaInternalError.class, () -> forward.recordAt(0));
+			final UnorderedLookupTree.PositionCursor reverse = tested.tree.reversePositionCursor();
+			assertThrows(GenericEvitaInternalError.class, () -> reverse.recordAt(0));
+		}
+
+		@Test
+		@DisplayName("both cursors serve a true single-element tree and reject the position past it")
+		void shouldServeSingleElementTreeForwardAndReverse() {
+			final TreeWithIndex tested = new TreeWithIndex();
+			tested.bulkLoad(new int[]{42});
+			assertEquals(1, tested.tree.size());
+
+			final UnorderedLookupTree.PositionCursor forward = tested.tree.forwardPositionCursor();
+			assertEquals(42, forward.recordAt(0), "the forward cursor serves the sole record at emit 0");
+			assertThrows(GenericEvitaInternalError.class, () -> forward.recordAt(1), "emit index 1 is past the single element");
+
+			final UnorderedLookupTree.PositionCursor reverse = tested.tree.reversePositionCursor();
+			assertEquals(42, reverse.recordAt(0), "the reverse cursor serves the sole record at emit 0");
+			assertThrows(GenericEvitaInternalError.class, () -> reverse.recordAt(1), "emit index 1 is past the single element");
+		}
+
+		@Test
+		@DisplayName("re-querying the same emit index returns the same record without tripping the rewind guard")
+		void shouldReturnSameRecordWhenReQueryingSameEmitIndex() {
+			final int[] records = distinctShuffle(500, 20260706L);
+			final TreeWithIndex tested = new TreeWithIndex(3, UnorderedLookupTree.DEFAULT_ORDER_KEY_GAP);
+			tested.bulkLoad(records);
+
+			// re-reading the identical emit index is allowed (the guard rejects only a strictly smaller one)
+			final UnorderedLookupTree.PositionCursor forward = tested.tree.forwardPositionCursor();
+			final int forwardFirst = forward.recordAt(250);
+			assertEquals(records[250], forwardFirst, "the forward emit index is the ascending logical position");
+			assertEquals(forwardFirst, forward.recordAt(250), "re-querying the same forward emit index must be stable");
+
+			final UnorderedLookupTree.PositionCursor reverse = tested.tree.reversePositionCursor();
+			final int reverseFirst = reverse.recordAt(250);
+			assertEquals(records[records.length - 1 - 250], reverseFirst, "the reverse emit index mirrors the logical position");
+			assertEquals(reverseFirst, reverse.recordAt(250), "re-querying the same reverse emit index must be stable");
+		}
+
+		@Test
+		@DisplayName("reverse cursor rejects a non-monotonic (backward) emit index")
+		void shouldRejectBackwardReverse() {
+			final int[] records = distinctShuffle(200, 17L);
+			final TreeWithIndex tested = new TreeWithIndex(3, UnorderedLookupTree.DEFAULT_ORDER_KEY_GAP);
+			tested.bulkLoad(records);
+			final UnorderedLookupTree.PositionCursor cursor = tested.tree.reversePositionCursor();
+			cursor.recordAt(100);
+			assertThrows(GenericEvitaInternalError.class, () -> cursor.recordAt(50));
+		}
+
+		@Test
+		@DisplayName("reverse cursor rejects an out-of-bounds emit index")
+		void shouldRejectOutOfBoundsReverse() {
+			final TreeWithIndex tested = new TreeWithIndex();
+			tested.bulkLoad(new int[]{7, 3, 9});
+			final UnorderedLookupTree.PositionCursor cursor = tested.tree.reversePositionCursor();
+			assertThrows(GenericEvitaInternalError.class, () -> cursor.recordAt(3));
+			assertThrows(GenericEvitaInternalError.class, () -> cursor.recordAt(-1));
+		}
+	}
+
 }

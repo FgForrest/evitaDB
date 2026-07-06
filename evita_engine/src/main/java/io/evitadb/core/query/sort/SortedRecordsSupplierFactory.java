@@ -25,6 +25,10 @@ package io.evitadb.core.query.sort;
 
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
+import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
+import io.evitadb.roaringbitmap.BatchIterator;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
+import io.evitadb.roaringbitmap.RoaringBitmapWriter;
 import io.evitadb.utils.ArrayUtils;
 
 import javax.annotation.Nonnull;
@@ -124,6 +128,123 @@ public interface SortedRecordsSupplierFactory {
 		@Nonnull
 		SortedComparableForwardSeeker getSortedComparableForwardSeeker();
 
+		/**
+		 * Sentinel returned by {@link #positionOf(int)} when the record id is not present in this provider's sorted
+		 * order. Deliberately `-1` (not {@link Integer#MIN_VALUE}) so it stays distinct from the position-0 remapping
+		 * used by the predecessor comparators' position caches, while still being an impossible real position.
+		 */
+		int POSITION_NOT_FOUND = -1;
+
+		/**
+		 * Returns the record id occupying the given position in this provider's sorted order. The default is a direct
+		 * index into {@link #getSortedRecordIds()}; a tree-backed provider overrides this to resolve the record straight
+		 * from its ordered structure, avoiding materialization of the flattened array.
+		 *
+		 * @param position the position in `[0, getRecordCount())`
+		 * @return the record id at the given sorted position
+		 */
+		default int recordAt(int position) {
+			return getSortedRecordIds()[position];
+		}
+
+		/**
+		 * Returns the sorted position of the given record id, or {@link #POSITION_NOT_FOUND} when the record is absent
+		 * from this provider. The default composes the two materialized arrays ({@link #getAllRecords()} index →
+		 * {@link #getRecordPositions()}); a tree-backed provider overrides this with a single `O(log N)` lookup that
+		 * touches no materialized array.
+		 *
+		 * @param recordId the record id whose sorted position is requested
+		 * @return the sorted position, or {@link #POSITION_NOT_FOUND} when the record is not in this provider
+		 */
+		default int positionOf(int recordId) {
+			final int indexInAllRecords = getAllRecords().indexOf(recordId);
+			return indexInAllRecords < 0 ? POSITION_NOT_FOUND : getRecordPositions()[indexInAllRecords];
+		}
+
+		/**
+		 * Resolves, for the set of `selectedRecordIds`, the mask of their positions in this provider's sorted order and
+		 * the subset that this provider does not contain (handed to the next provider / sorter). This is the positional
+		 * core the merged sorters consume in place of a raw scan of {@link #getSortedRecordIds()}.
+		 *
+		 * The default is the array merge-walk (`O(N + K)`): it batch-iterates {@link #getAllRecords()} against the
+		 * selected ids and maps every match through {@link #getRecordPositions()}. A tree-backed provider overrides this
+		 * with a per-record `O(K log N)` lookup that never materializes the position array. Both fill an ascending mask
+		 * bitmap of positions (so the caller can emit in sorted order) and a bitmap of the not-found record ids.
+		 *
+		 * The two scratch buffers are supplied by the caller (typically borrowed from the query buffer pool) purely as an
+		 * allocation aid for the array walk; the tree-backed override ignores them.
+		 *
+		 * @param selectedRecordIds   the record ids to locate, in ascending id order
+		 * @param selectedRecordCount the count of selected record ids (walk terminates once all are matched)
+		 * @param bufferA             scratch buffer for batch iteration (array default only)
+		 * @param bufferB             scratch buffer for batch iteration (array default only)
+		 * @return the position mask, the not-found record ids and their count
+		 */
+		@Nonnull
+		default PositionResolution resolvePositions(
+			@Nonnull PersistentRoaringBitmap selectedRecordIds,
+			int selectedRecordCount,
+			@Nonnull int[] bufferA,
+			@Nonnull int[] bufferB
+		) {
+			final Bitmap unsortedRecordIds = getAllRecords();
+			final int[] recordPositions = getRecordPositions();
+
+			final RoaringBitmapWriter<PersistentRoaringBitmap> mask = RoaringBitmapBackedBitmap.buildWriter();
+			final RoaringBitmapWriter<PersistentRoaringBitmap> notFound = RoaringBitmapBackedBitmap.buildWriter();
+
+			final BatchIterator unsortedRecordIdsIt = RoaringBitmapBackedBitmap.getRoaringBitmap(unsortedRecordIds).getBatchIterator();
+			final BatchIterator selectedRecordIdsIt = selectedRecordIds.getBatchIterator();
+
+			int matchesFound = 0;
+			int notFoundCount = 0;
+			int unsortedRecordsPeak = -1;
+			int unsortedRecordsRead = -1;
+			int selectedRecordsPeak = -1;
+			int selectedRecordsRead = -1;
+			int unsortedRecordsAcc = 1;
+			do {
+				if (unsortedRecordsPeak == unsortedRecordsRead && unsortedRecordsRead != 0) {
+					unsortedRecordsAcc += unsortedRecordsRead;
+					unsortedRecordsRead = unsortedRecordIdsIt.nextBatch(bufferA);
+					unsortedRecordsPeak = 0;
+				}
+				if (selectedRecordsPeak == selectedRecordsRead) {
+					selectedRecordsRead = selectedRecordIdsIt.nextBatch(bufferB);
+					selectedRecordsPeak = 0;
+				}
+				if (unsortedRecordsPeak < unsortedRecordsRead && bufferA[unsortedRecordsPeak] == bufferB[selectedRecordsPeak]) {
+					mask.add(recordPositions[unsortedRecordsAcc + unsortedRecordsPeak]);
+					matchesFound++;
+					selectedRecordsPeak++;
+					unsortedRecordsPeak++;
+				} else if (selectedRecordsPeak < selectedRecordsRead && (unsortedRecordsPeak >= unsortedRecordsRead || bufferA[unsortedRecordsPeak] > bufferB[selectedRecordsPeak])) {
+					notFound.add(bufferB[selectedRecordsPeak]);
+					notFoundCount++;
+					selectedRecordsPeak++;
+				} else {
+					unsortedRecordsPeak++;
+				}
+			} while (matchesFound < selectedRecordCount && selectedRecordsRead > 0);
+
+			return new PositionResolution(mask.get(), notFound.get(), notFoundCount);
+		}
+
+	}
+
+	/**
+	 * Result of {@link SortedRecordsProvider#resolvePositions}: the ascending mask of matched positions in the sorted
+	 * order, plus the record ids that the provider did not contain (and their count) for hand-off to the next provider.
+	 *
+	 * @param mask                 bitmap of positions (into the sorted order) of the matched record ids, ascending
+	 * @param notFoundRecords      bitmap of the selected record ids absent from this provider
+	 * @param notFoundRecordsCount cardinality of `notFoundRecords`
+	 */
+	record PositionResolution(
+		@Nonnull PersistentRoaringBitmap mask,
+		@Nonnull PersistentRoaringBitmap notFoundRecords,
+		int notFoundRecordsCount
+	) {
 	}
 
 	/**

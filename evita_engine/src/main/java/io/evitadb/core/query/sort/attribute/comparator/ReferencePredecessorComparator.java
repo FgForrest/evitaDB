@@ -242,8 +242,10 @@ public class ReferencePredecessorComparator implements ReferenceComparator, Refe
 		if (position == -1) {
 			final ChainIndex chainIndex = this.referenceOrderByVisitor.getChainIndex(this.entityPrimaryKey, representativeReferenceKey, this.attributeKey).orElse(null);
 			final SortedRecordsProvider sortedRecordsSupplier = chainIndex == null ? SortedRecordsProvider.EMPTY : this.sortedRecordsSupplierProvider.apply(chainIndex);
-			final int index = sortedRecordsSupplier.getAllRecords().indexOf(pkToLookup);
-			final int computedPosition = index < 0 ? -2 : sortedRecordsSupplier.getRecordPositions()[index];
+			// resolve the position directly (tree-direct or array-backed); -1 (not cached) is reserved by this cache,
+			// so an absent record (POSITION_NOT_FOUND == -1) is stored as -2
+			final int resolvedPosition = sortedRecordsSupplier.positionOf(pkToLookup);
+			final int computedPosition = resolvedPosition == SortedRecordsProvider.POSITION_NOT_FOUND ? -2 : resolvedPosition;
 			this.pkToRecordPositionCache.put(pkToLookup, computedPosition);
 			return computedPosition;
 		} else {

@@ -471,6 +471,45 @@ class TransactionalIntToLongBPlusTreeTest {
 			assertEquals(420L, tree.search(42).orElseThrow());
 		}
 
+		@Test
+		@DisplayName("returns missing sentinel on empty tree via allocation-free searchOrDefault")
+		void shouldReturnMissingSentinelWhenSearchingOrDefaultInEmptyTree() {
+			final TransactionalIntToLongBPlusTree tree = new TransactionalIntToLongBPlusTree(3);
+			assertEquals(Long.MIN_VALUE, tree.searchOrDefault(42, Long.MIN_VALUE));
+		}
+
+		@Test
+		@DisplayName("returns missing sentinel for non-existent key via allocation-free searchOrDefault")
+		void shouldReturnMissingSentinelForNonExistentKeyWithSearchOrDefault() {
+			final TreeTuple testTree = prepareRandomTree(42, 50);
+			assertEquals(-1L, testTree.bPlusTree().searchOrDefault(99999, -1L));
+		}
+
+		@Test
+		@DisplayName("finds single inserted element via allocation-free searchOrDefault")
+		void shouldFindValueWithSearchOrDefault() {
+			final TransactionalIntToLongBPlusTree tree = new TransactionalIntToLongBPlusTree(3);
+			tree.insert(42, 420L);
+			assertEquals(420L, tree.searchOrDefault(42, Long.MIN_VALUE));
+		}
+
+		@Test
+		@DisplayName("searchOrDefault agrees with search across a randomized tree")
+		void shouldMatchSearchAcrossRandomizedTree() {
+			final TreeTuple testTree = prepareRandomTree(42, 200);
+			final TransactionalIntToLongBPlusTree tree = testTree.bPlusTree();
+			// present keys resolve to the same value both ways
+			for (final int key : testTree.plainArray()) {
+				assertEquals(tree.search(key).orElseThrow(), tree.searchOrDefault(key, Long.MIN_VALUE));
+			}
+			// absent keys resolve to the caller-supplied sentinel
+			for (int key = -5; key < (testTree.totalElements() << 1) + 5; key++) {
+				if (tree.search(key).isEmpty()) {
+					assertEquals(Long.MIN_VALUE, tree.searchOrDefault(key, Long.MIN_VALUE));
+				}
+			}
+		}
+
 	}
 
 	@Nested
@@ -1356,8 +1395,8 @@ class TransactionalIntToLongBPlusTreeTest {
 			assertTrue(insertionPosition.alreadyPresent());
 			final int startPos = insertionPosition.position();
 			final int[] partialCopy = new int[plainFullArray.length - startPos];
-			for (int i = startPos; i < plainFullArray.length; i++) {
-				partialCopy[i - startPos] = plainFullArray[i];
+			if (plainFullArray.length - startPos >= 0) {
+				System.arraycopy(plainFullArray, startPos, partialCopy, 0, plainFullArray.length - startPos);
 			}
 
 			final int[] reconstructedArray = new int[partialCopy.length];
@@ -1651,9 +1690,7 @@ class TransactionalIntToLongBPlusTreeTest {
 				ArrayUtils.computeInsertPositionOfIntInOrderedArray(39, plainFullArray);
 
 			assertFalse(insertionPosition.alreadyPresent());
-			final int thePosition = insertionPosition.alreadyPresent()
-				? insertionPosition.position() + 1
-				: insertionPosition.position();
+			final int thePosition = insertionPosition.position();
 			final long[] partialCopy = new long[thePosition];
 			for (int i = partialCopy.length - 1; i >= 0; i--) {
 				partialCopy[thePosition - i - 1] = valueOf(plainFullArray[i]);

@@ -153,6 +153,19 @@ class TransactionalUnorderedIntArrayTest {
 			assertTrue(recordIds.contains(7));
 		}
 
+		@Test
+		@DisplayName("indexOf returns Integer.MIN_VALUE for an absent record without transaction")
+		void shouldReturnIntegerMinValueWhenIndexingAbsentRecord() {
+			final TransactionalUnorderedIntArray array = new TransactionalUnorderedIntArray(new int[]{7, 3, 5});
+
+			// a record id that is not part of the array resolves to the "absent" sentinel
+			assertEquals(Integer.MIN_VALUE, array.indexOf(999));
+			// present records still resolve to their live positions
+			assertEquals(0, array.indexOf(7));
+			assertEquals(1, array.indexOf(3));
+			assertEquals(2, array.indexOf(5));
+		}
+
 	}
 
 	/**
@@ -799,6 +812,29 @@ class TransactionalUnorderedIntArrayTest {
 				},
 				(original, committed) -> {
 					assertArrayEquals(new int[]{9, 7, 3, 6, 5}, committed.getArray());
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("indexOf returns Integer.MIN_VALUE for an absent record inside a transaction")
+		void shouldReturnIntegerMinValueWhenIndexingAbsentRecordWithinTransaction() {
+			final TransactionalUnorderedIntArray array = new TransactionalUnorderedIntArray(new int[]{7, 3, 5});
+
+			assertStateAfterCommit(
+				array,
+				original -> {
+					// mutate within the transaction so the transaction-aware lookup path resolves the miss
+					original.add(5, 8);
+
+					// the absent record still resolves to the "absent" sentinel through the transactional layer
+					assertEquals(Integer.MIN_VALUE, original.indexOf(999));
+					// present records resolve to their live transactional positions
+					assertEquals(0, original.indexOf(7));
+					assertEquals(3, original.indexOf(8));
+				},
+				(original, committed) -> {
+					assertArrayEquals(new int[]{7, 3, 5, 8}, committed.getArray());
 				}
 			);
 		}
