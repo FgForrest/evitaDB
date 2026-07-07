@@ -24,6 +24,7 @@
 package io.evitadb.index.hierarchy;
 
 import io.evitadb.dataType.array.CompositeIntArray;
+import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.test.duration.TimeArgumentProvider;
 import io.evitadb.test.duration.TimeArgumentProvider.GenerationalTestInput;
 import io.evitadb.test.duration.TimeBoundedTestSupport;
@@ -34,6 +35,9 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ArgumentsSource;
 
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -43,30 +47,41 @@ import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.OptionalInt;
+import java.util.Random;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static io.evitadb.test.TestTags.HIERARCHY;
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.SLOW;
+import static io.evitadb.test.TestTags.TRANSACTION;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
+import static io.evitadb.utils.AssertionUtils.assertStateAfterRollback;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.fail;
 
 /**
- * Long-running generational randomized proof test for {@link HierarchyIndex}.
+ * Long-running generational randomized proof test for {@link HierarchyIndex}. Besides the forward commit proof it also
+ * drives the transactional-discard rollback path against a value oracle (Ref: #569); the per-entity savepoint rollback
+ * (Ref: #1252) is exercised by the sibling {@code LongRunningSavepointHierarchyIndexTest}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @Tag(INDEXING)
 @Tag(HIERARCHY)
 class LongRunningHierarchyIndexTest implements TimeBoundedTestSupport {
+	/**
+	 * Upper bound on the number of nodes a single generation may grow the hierarchy to.
+	 */
+	private static final int MAX_NODES = 50;
 
 	@ParameterizedTest(name = "HierarchyIndex should survive generational randomized test applying modifications on it")
 	@Tag(SLOW)
 	@ArgumentsSource(TimeArgumentProvider.class)
 	void generationalProofTest(GenerationalTestInput input) {
-		final int maxNodes = 50;
 		final TestHierarchyNode testHierarchyNode = new TestHierarchyNode();
 
 		runFor(
@@ -94,83 +109,7 @@ class LongRunningHierarchyIndexTest implements TimeBoundedTestSupport {
 
 				assertStateAfterCommit(
 					hierarchyIndex,
-					original -> {
-						final int operationsInTransaction = random.nextInt(10);
-						for (int i = 0; i < operationsInTransaction; i++) {
-							final int length = hierarchyIndex.getHierarchySizeIncludingOrphans();
-							final int operation = random.nextInt(3);
-							if (length < maxNodes && (operation == 0 || length < 10)) {
-								// insert new item
-								int newNodeId;
-								do {
-									newNodeId = random.nextInt(maxNodes * 2);
-								} while (testHierarchyNode.contains(newNodeId));
-
-								final int[] childrenIds = testHierarchyNode.getChildrenIds();
-								int parentNodeId;
-								do {
-									final int rndForParent = random.nextInt(childrenIds.length + 1);
-									if (rndForParent == 0) {
-										parentNodeId = Integer.MIN_VALUE;
-									} else {
-										parentNodeId = childrenIds[rndForParent - 1];
-									}
-								} while (newNodeId == parentNodeId);
-
-								codeBuffer.append("setHierarchyFor(hierarchyIndex, testRoot, ")
-									.append(newNodeId).append(",")
-									.append(parentNodeId == Integer.MIN_VALUE ? "null" : parentNodeId)
-									.append(");\n");
-
-								try {
-									setHierarchyFor(hierarchyIndex, testHierarchyNode, newNodeId, parentNodeId == Integer.MIN_VALUE ? null : parentNodeId);
-								} catch (Exception ex) {
-									fail(ex.getMessage() + "\n" + codeBuffer, ex);
-								}
-							} else if (operation == 1) {
-								// move existing item
-								final int[] childrenIds = testHierarchyNode.getChildrenIds();
-								final int rndNo = random.nextInt(childrenIds.length);
-								final int nodeIdToMove = childrenIds[rndNo];
-
-								int parentNodeId;
-								do {
-									final int rndForParent = random.nextInt(childrenIds.length + 1);
-									if (rndForParent == 0) {
-										parentNodeId = Integer.MIN_VALUE;
-									} else {
-										parentNodeId = childrenIds[rndForParent - 1];
-									}
-								} while (nodeIdToMove == parentNodeId);
-
-								codeBuffer.append("setHierarchyFor(hierarchyIndex, testRoot, ")
-									.append(nodeIdToMove).append(",")
-									.append(parentNodeId == Integer.MIN_VALUE ? "null" : parentNodeId)
-									.append(");\n");
-
-								try {
-									setHierarchyFor(hierarchyIndex, testHierarchyNode, nodeIdToMove, parentNodeId == Integer.MIN_VALUE ? null : parentNodeId);
-								} catch (Exception ex) {
-									fail(ex.getMessage() + "\n" + codeBuffer, ex);
-								}
-							} else {
-								// remove existing item
-								final int[] childrenIds = testHierarchyNode.getChildrenIds();
-								final int rndNo = random.nextInt(childrenIds.length);
-								final int nodeIdToRemove = childrenIds[rndNo];
-
-								codeBuffer.append("removeHierarchyFor(hierarchyIndex, testRoot, ")
-									.append(nodeIdToRemove)
-									.append(");\n");
-
-								try {
-									removeHierarchyFor(hierarchyIndex, testHierarchyNode, nodeIdToRemove);
-								} catch (Exception ex) {
-									fail(ex.getMessage() + "\n" + codeBuffer, ex);
-								}
-							}
-						}
-					},
+					original -> applyRandomBatch(random, hierarchyIndex, testHierarchyNode, codeBuffer),
 					(original, committed) -> {
 						testHierarchyNode.assertIdentical(
 							committed,
@@ -190,7 +129,158 @@ class LongRunningHierarchyIndexTest implements TimeBoundedTestSupport {
 		);
 	}
 
-	private void setHierarchyFor(HierarchyIndex hierarchyIndex, TestHierarchyNode testRoot, int entityPrimaryKey, Integer parent) {
+	/**
+	 * Generational proof that a **rolled-back** transaction discards every in-transaction mutation and leaves the base
+	 * index intact — the atomic-rollback contract of Ref: #569. Each generation rebuilds a fresh index from the
+	 * (random-walking) reference model, captures a value oracle of that base, applies a random batch of
+	 * insert/move/remove mutations inside a transaction that is then rolled back, and asserts the base index is unchanged
+	 * and no committed value was published.
+	 */
+	@ParameterizedTest(name = "HierarchyIndex rollback discards every in-transaction mutation and leaves the base intact")
+	@Tag(SLOW)
+	@Tag(TRANSACTION)
+	@ArgumentsSource(TimeArgumentProvider.class)
+	void generationalRollbackProofTest(GenerationalTestInput input) {
+		final TestHierarchyNode testHierarchyNode = new TestHierarchyNode();
+		runFor(
+			input,
+			1_000,
+			0,
+			(random, iteration) -> {
+				final StringBuilder codeBuffer = new StringBuilder(512);
+				// rebuild a fresh base index from the (random-walking) reference model
+				final HierarchyIndex hierarchyIndex = buildIndexFromModel(testHierarchyNode, codeBuffer);
+				codeBuffer.append("Ops:\n");
+				// value oracle of the base state that the rollback must return to
+				final HierarchySnapshot beforeRollback = snapshot(hierarchyIndex);
+
+				assertStateAfterRollback(
+					hierarchyIndex,
+					original -> applyRandomBatch(random, original, testHierarchyNode, codeBuffer),
+					(original, committed) -> {
+						assertNull(committed,
+							"A rolled-back transaction must not publish a committed value!\n" + codeBuffer);
+						assertEquals(beforeRollback, snapshot(original),
+							"HierarchyIndex changed after rollback — atomic rollback leaked!\n" + codeBuffer);
+					}
+				);
+
+				// the reference model reflects the attempted (rolled-back) batch, so the next generation rebuilds a
+				// different live base index — a random walk that keeps the proof exploring fresh base indexes
+				return iteration + 1;
+			}
+		);
+	}
+
+	/**
+	 * Applies a random batch of up to nine insert/move/remove hierarchy operations to `hierarchyIndex`, mirroring each
+	 * mutation into the `testHierarchyNode` reference model so the two stay in lockstep. Shared by the commit and rollback
+	 * proofs so both drive the identical random-draw sequence.
+	 */
+	private static void applyRandomBatch(
+		@Nonnull Random random,
+		@Nonnull HierarchyIndex hierarchyIndex,
+		@Nonnull TestHierarchyNode testHierarchyNode,
+		@Nonnull StringBuilder codeBuffer
+	) {
+		final int operationsInTransaction = random.nextInt(10);
+		for (int i = 0; i < operationsInTransaction; i++) {
+			final int length = hierarchyIndex.getHierarchySizeIncludingOrphans();
+			final int operation = random.nextInt(3);
+			if (length < MAX_NODES && (operation == 0 || length < 10)) {
+				// insert new item
+				int newNodeId;
+				do {
+					newNodeId = random.nextInt(MAX_NODES * 2);
+				} while (testHierarchyNode.contains(newNodeId));
+
+				final int[] childrenIds = testHierarchyNode.getChildrenIds();
+				int parentNodeId;
+				do {
+					final int rndForParent = random.nextInt(childrenIds.length + 1);
+					if (rndForParent == 0) {
+						parentNodeId = Integer.MIN_VALUE;
+					} else {
+						parentNodeId = childrenIds[rndForParent - 1];
+					}
+				} while (newNodeId == parentNodeId);
+
+				codeBuffer.append("setHierarchyFor(hierarchyIndex, testRoot, ")
+					.append(newNodeId).append(",")
+					.append(parentNodeId == Integer.MIN_VALUE ? "null" : parentNodeId)
+					.append(");\n");
+
+				try {
+					setHierarchyFor(hierarchyIndex, testHierarchyNode, newNodeId, parentNodeId == Integer.MIN_VALUE ? null : parentNodeId);
+				} catch (Exception ex) {
+					fail(ex.getMessage() + "\n" + codeBuffer, ex);
+				}
+			} else if (operation == 1) {
+				// move existing item
+				final int[] childrenIds = testHierarchyNode.getChildrenIds();
+				final int rndNo = random.nextInt(childrenIds.length);
+				final int nodeIdToMove = childrenIds[rndNo];
+
+				int parentNodeId;
+				do {
+					final int rndForParent = random.nextInt(childrenIds.length + 1);
+					if (rndForParent == 0) {
+						parentNodeId = Integer.MIN_VALUE;
+					} else {
+						parentNodeId = childrenIds[rndForParent - 1];
+					}
+				} while (nodeIdToMove == parentNodeId);
+
+				codeBuffer.append("setHierarchyFor(hierarchyIndex, testRoot, ")
+					.append(nodeIdToMove).append(",")
+					.append(parentNodeId == Integer.MIN_VALUE ? "null" : parentNodeId)
+					.append(");\n");
+
+				try {
+					setHierarchyFor(hierarchyIndex, testHierarchyNode, nodeIdToMove, parentNodeId == Integer.MIN_VALUE ? null : parentNodeId);
+				} catch (Exception ex) {
+					fail(ex.getMessage() + "\n" + codeBuffer, ex);
+				}
+			} else {
+				// remove existing item
+				final int[] childrenIds = testHierarchyNode.getChildrenIds();
+				final int rndNo = random.nextInt(childrenIds.length);
+				final int nodeIdToRemove = childrenIds[rndNo];
+
+				codeBuffer.append("removeHierarchyFor(hierarchyIndex, testRoot, ")
+					.append(nodeIdToRemove)
+					.append(");\n");
+
+				try {
+					removeHierarchyFor(hierarchyIndex, testHierarchyNode, nodeIdToRemove);
+				} catch (Exception ex) {
+					fail(ex.getMessage() + "\n" + codeBuffer, ex);
+				}
+			}
+		}
+	}
+
+	/**
+	 * Rebuilds a fresh {@link HierarchyIndex} from the (random-walking) reference model by replaying every node's
+	 * placement via {@link HierarchyIndex#addNode(int, Integer)}. `addNode` tolerates out-of-order insertion (a child
+	 * indexed before its parent waits in the orphan set until the parent arrives), so the replay order is irrelevant and
+	 * the rebuilt index reproduces the model's exact roots / level-index / orphan split.
+	 */
+	@Nonnull
+	private static HierarchyIndex buildIndexFromModel(@Nonnull TestHierarchyNode testHierarchyNode, @Nonnull StringBuilder codeBuffer) {
+		codeBuffer.append("final HierarchyIndex hierarchyIndex = new HierarchyIndex();\n");
+		final HierarchyIndex hierarchyIndex = new HierarchyIndex();
+		for (final TestHierarchyNode node : testHierarchyNode.getAllChildren()) {
+			final int parentId = node.getParentId();
+			final Integer parent = parentId == Integer.MIN_VALUE ? null : parentId;
+			codeBuffer.append("hierarchyIndex.addNode(").append(node.getId()).append(", ")
+				.append(parent == null ? "null" : parent).append(");\n");
+			hierarchyIndex.addNode(node.getId(), parent);
+		}
+		return hierarchyIndex;
+	}
+
+	private static void setHierarchyFor(@Nonnull HierarchyIndex hierarchyIndex, @Nonnull TestHierarchyNode testRoot, int entityPrimaryKey, @Nullable Integer parent) {
 		hierarchyIndex.addNode(entityPrimaryKey, parent);
 		// first remove the node if already exists
 		if (testRoot.find(entityPrimaryKey, testRoot) != null) {
@@ -209,9 +299,48 @@ class LongRunningHierarchyIndexTest implements TimeBoundedTestSupport {
 		}
 	}
 
-	private void removeHierarchyFor(HierarchyIndex hierarchyIndex, TestHierarchyNode testRoot, int entityPrimaryKey) {
+	private static void removeHierarchyFor(@Nonnull HierarchyIndex hierarchyIndex, @Nonnull TestHierarchyNode testRoot, int entityPrimaryKey) {
 		hierarchyIndex.removeNode(entityPrimaryKey);
 		testRoot.removeNode(entityPrimaryKey, testRoot);
+	}
+
+	/**
+	 * Reads the full logical content of the index into a value-comparable snapshot — root ids, orphan ids, each node's
+	 * parent reference and each reachable node's direct children — so two snapshots taken before and after a rollback can
+	 * be compared with `.equals` to prove exact restoration. All bitmaps are converted to sorted `List<Integer>`; index
+	 * object identity is never compared.
+	 */
+	@Nonnull
+	static HierarchySnapshot snapshot(@Nonnull HierarchyIndex index) {
+		final List<Integer> roots = toList(index.getRootHierarchyNodes());
+		final List<Integer> orphans = toList(index.getOrphanHierarchyNodes());
+		final Map<Integer, Integer> parentByNode = new HashMap<>();
+		final Map<Integer, List<Integer>> childrenByParent = new HashMap<>();
+		// every node reachable from the roots: record its direct children and its parent reference
+		for (final int nodeId : index.listHierarchyNodesFromRoot().getArray()) {
+			childrenByParent.put(nodeId, toList(index.listHierarchyNodesFromParentDownTo(nodeId, 0)));
+			final OptionalInt parent = index.getParentNode(nodeId);
+			parentByNode.put(nodeId, parent.isPresent() ? parent.getAsInt() : null);
+		}
+		// orphans are not reachable from the roots, but their (dangling) parent reference is still part of the state
+		for (final int orphanId : orphans) {
+			final OptionalInt parent = index.getParentNode(orphanId);
+			parentByNode.put(orphanId, parent.isPresent() ? parent.getAsInt() : null);
+		}
+		return new HierarchySnapshot(roots, orphans, parentByNode, childrenByParent);
+	}
+
+	/**
+	 * Converts a bitmap into an ascending list of its record ids (a value type with deep `.equals`).
+	 */
+	@Nonnull
+	private static List<Integer> toList(@Nonnull Bitmap bitmap) {
+		final int[] array = bitmap.getArray();
+		final List<Integer> list = new ArrayList<>(array.length);
+		for (final int value : array) {
+			list.add(value);
+		}
+		return list;
 	}
 
 	@RequiredArgsConstructor
@@ -381,6 +510,19 @@ class LongRunningHierarchyIndexTest implements TimeBoundedTestSupport {
 	private record TestState(
 		StringBuilder code,
 		HierarchyIndex initialState
+	) {
+	}
+
+	/**
+	 * Value-comparable snapshot of a {@link HierarchyIndex}: sorted root ids, sorted orphan ids, each node's parent
+	 * reference (`null` for a root) and each reachable node's sorted direct children. Record equality gives deep
+	 * structural comparison, so two snapshots match iff the indexes hold the exact same logical tree.
+	 */
+	record HierarchySnapshot(
+		@Nonnull List<Integer> roots,
+		@Nonnull List<Integer> orphans,
+		@Nonnull Map<Integer, Integer> parentByNode,
+		@Nonnull Map<Integer, List<Integer>> childrenByParent
 	) {
 	}
 

@@ -33,7 +33,7 @@ import java.util.stream.StreamSupport;
 
 /**
  * Bitmap represents a sorted set of unique integers that represent record ids. Internal representation
- * may use a more efficient data structure (e.g. {@link org.roaringbitmap.RoaringBitmap}) but can always
+ * may use a more efficient data structure (e.g. {@link io.evitadb.roaringbitmap.PersistentRoaringBitmap}) but can always
  * produce a sorted array of integers (record ids) on demand.
  *
  * Bitmaps always contain a sorted sequence of unique integer values - duplicates are never stored.

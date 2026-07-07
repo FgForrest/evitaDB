@@ -31,8 +31,8 @@ import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.utils.ArrayUtils;
 import lombok.RequiredArgsConstructor;
-import org.roaringbitmap.RoaringBitmap;
-import org.roaringbitmap.RoaringBitmapWriter;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
+import io.evitadb.roaringbitmap.RoaringBitmapWriter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -69,7 +69,7 @@ public class HierarchySet {
 	 * Adds all {@link LevelInfo#entity()} primary keys to the `writer` traversing them recursively so that all entities
 	 * from the output tree are registered.
 	 */
-	private static void collect(@Nonnull List<LevelInfo> unsortedResult, @Nonnull RoaringBitmapWriter<RoaringBitmap> writer) {
+	private static void collect(@Nonnull List<LevelInfo> unsortedResult, @Nonnull RoaringBitmapWriter<PersistentRoaringBitmap> writer) {
 		for (LevelInfo levelInfo : unsortedResult) {
 			writer.add(levelInfo.entity().getPrimaryKeyOrThrowException());
 			collect(levelInfo.children(), writer);
@@ -140,11 +140,11 @@ public class HierarchySet {
 			);
 		// if the sorter is defined, sort them
 		if (this.sorter != null) {
-			final RoaringBitmapWriter<RoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
+			final RoaringBitmapWriter<PersistentRoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
 			// collect all entity primary keys
 			unsortedResult.values().forEach(it -> collect(it, writer));
 			// create sorted array using the sorter
-			final RoaringBitmap bitmap = writer.get();
+			final PersistentRoaringBitmap bitmap = writer.get();
 			// replace the output with the sorted one
 			final int[] normalizedSortedResult = this.sorter.sortAndSlice(
 				bitmap.isEmpty() ? EmptyBitmap.INSTANCE : new BaseBitmap(bitmap)

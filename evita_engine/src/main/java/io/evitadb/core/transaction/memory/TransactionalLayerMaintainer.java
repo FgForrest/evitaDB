@@ -359,7 +359,25 @@ public class TransactionalLayerMaintainer {
 			this.currentSavepoint == savepoint,
 			"The committed savepoint is not the currently open one!"
 		);
+		// deactivate the savepoint first so the releaseMemento() operations below do not re-record into it
 		this.currentSavepoint = null;
+		for (final Entry<TransactionalLayerCreatorKey, Object> entry : savepoint.mementos.entrySet()) {
+			final Object memento = entry.getValue();
+			if (memento == CREATED_IN_SAVEPOINT || memento instanceof RemovedLayer) {
+				// a layer created inside the savepoint was never snapshotted (nothing to release); a layer removed
+				// inside the savepoint is already detached from the transactional memory - neither keeps drainable
+				// per-savepoint scratch state on a still-attached layer
+				continue;
+			}
+			// a plain memento is only ever recorded for a layer that still exists (a removal upgrades it to a
+			// RemovedLayer), so the wrapper must be present - a missing one would be a programming error
+			final TransactionalLayerWrapper<?> wrapper = this.transactionalLayer.get(entry.getKey());
+			Assert.isPremiseValid(
+				wrapper != null,
+				"A snapshotted layer disappeared from the transactional memory without being recorded as removed!"
+			);
+			releaseLayerMemento(wrapper.getItem(), memento);
+		}
 	}
 
 	/**
@@ -386,6 +404,9 @@ public class TransactionalLayerMaintainer {
 				// dropped during a split/merge) - re-attach the original wrapper and restore its pre-savepoint state
 				this.transactionalLayer.put(entry.getKey(), removed.wrapper());
 				restoreLayer(removed.wrapper().getItem(), removed.memento());
+				// the savepoint is closed - let the layer drop its per-savepoint scratch state (the restore above has
+				// already rewound it), so post-rollback mutations stop paying the savepoint bookkeeping cost
+				releaseLayerMemento(removed.wrapper().getItem(), removed.memento());
 			} else {
 				final TransactionalLayerWrapper<?> wrapper = this.transactionalLayer.get(entry.getKey());
 				// a plain memento is only ever recorded for a layer that still exists - a removal upgrades the
@@ -396,6 +417,9 @@ public class TransactionalLayerMaintainer {
 					"A snapshotted layer disappeared from the transactional memory without being recorded as removed!"
 				);
 				restoreLayer(wrapper.getItem(), memento);
+				// the savepoint is closed - let the layer drop its per-savepoint scratch state (the restore above has
+				// already rewound it), so post-rollback mutations stop paying the savepoint bookkeeping cost
+				releaseLayerMemento(wrapper.getItem(), memento);
 			}
 		}
 	}
@@ -410,6 +434,18 @@ public class TransactionalLayerMaintainer {
 	private static void restoreLayer(@Nonnull Object item, @Nonnull Object memento) {
 		@SuppressWarnings("unchecked") final Snapshotable<Object> snapshotable = (Snapshotable<Object>) item;
 		snapshotable.restore(memento);
+	}
+
+	/**
+	 * Releases a single layer's memento on savepoint commit (see {@link Snapshotable#releaseMemento(Object)}). The item
+	 * was recorded in the savepoint only because it implements {@link Snapshotable}, so the cast is safe.
+	 *
+	 * @param item    the diff-layer item whose committed memento is released
+	 * @param memento the memento previously captured for it
+	 */
+	private static void releaseLayerMemento(@Nonnull Object item, @Nonnull Object memento) {
+		@SuppressWarnings("unchecked") final Snapshotable<Object> snapshotable = (Snapshotable<Object>) item;
+		snapshotable.releaseMemento(memento);
 	}
 
 	/**

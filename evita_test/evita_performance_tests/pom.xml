@@ -57,6 +57,16 @@
 			<version>${jmh.version}</version>
 			<scope>provided</scope>
 		</dependency>
+		<!--
+			Benchmarks compare evitaDB's vendored bitmap against upstream RoaringBitmap variants
+			(FastRankRoaringBitmap, buffer.MutableRoaringBitmap) that are intentionally NOT vendored
+			into evita_roaring_bitmap, so this module keeps the original upstream dependency.
+		-->
+		<dependency>
+			<groupId>org.roaringbitmap</groupId>
+			<artifactId>RoaringBitmap</artifactId>
+			<version>${roaringbitmap.version}</version>
+		</dependency>
 		<dependency>
 			<groupId>${project.groupId}</groupId>
 			<artifactId>evita_api</artifactId>

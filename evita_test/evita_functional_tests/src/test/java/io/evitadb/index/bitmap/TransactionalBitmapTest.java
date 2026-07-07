@@ -31,7 +31,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
-import org.roaringbitmap.RoaringBitmap;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 
 import java.util.NoSuchElementException;
 import java.util.PrimitiveIterator.OfInt;
@@ -87,7 +87,7 @@ class TransactionalBitmapTest {
 		}
 
 		@Test
-		@DisplayName("should create bitmap from non-RoaringBitmap implementation")
+		@DisplayName("should create bitmap from non-PersistentRoaringBitmap implementation")
 		void shouldCreateBitmapFromNonRoaringBitmap() {
 			// ArrayBitmap does not implement RoaringBitmapBackedBitmap,
 			// so this exercises the else branch in the Bitmap constructor
@@ -691,7 +691,7 @@ class TransactionalBitmapTest {
 
 			// freshly created layer should reflect the baseline (no changes)
 			assertNotNull(layer);
-			final RoaringBitmap merged = layer.getMergedBitmap();
+			final PersistentRoaringBitmap merged = layer.getMergedBitmap();
 			assertArrayEquals(
 				new int[]{1, 5, 10}, merged.toArray(),
 				"Layer with no changes should reflect original bitmap"
@@ -1003,7 +1003,7 @@ class TransactionalBitmapTest {
 		void shouldReturnBaselineRoaringBitmapOutsideTransaction() {
 			final TransactionalBitmap bitmap = new TransactionalBitmap(1, 5, 10);
 
-			final RoaringBitmap roaring = bitmap.getRoaringBitmap();
+			final PersistentRoaringBitmap roaring = bitmap.getRoaringBitmap();
 
 			assertNotNull(roaring);
 			assertArrayEquals(new int[]{1, 5, 10}, roaring.toArray());
@@ -1020,7 +1020,7 @@ class TransactionalBitmapTest {
 					original.add(3);
 					original.remove(5);
 
-					final RoaringBitmap roaring = original.getRoaringBitmap();
+					final PersistentRoaringBitmap roaring = original.getRoaringBitmap();
 					assertNotNull(roaring);
 					assertArrayEquals(
 						new int[]{1, 3, 10}, roaring.toArray()
@@ -1055,7 +1055,7 @@ class TransactionalBitmapTest {
 		void shouldHandleGetFirstThrowsOnEmptyBitmap() {
 			final TransactionalBitmap bitmap = new TransactionalBitmap();
 
-			// RoaringBitmap.first() throws NoSuchElementException on empty
+			// PersistentRoaringBitmap.first() throws NoSuchElementException on empty
 			assertThrows(
 				NoSuchElementException.class,
 				bitmap::getFirst
@@ -1067,7 +1067,7 @@ class TransactionalBitmapTest {
 		void shouldHandleGetLastThrowsOnEmptyBitmap() {
 			final TransactionalBitmap bitmap = new TransactionalBitmap();
 
-			// RoaringBitmap.last() throws NoSuchElementException on empty
+			// PersistentRoaringBitmap.last() throws NoSuchElementException on empty
 			assertThrows(
 				NoSuchElementException.class,
 				bitmap::getLast
@@ -1079,7 +1079,7 @@ class TransactionalBitmapTest {
 		void shouldHandleGetThrowsOnOutOfBoundsIndex() {
 			final TransactionalBitmap bitmap = new TransactionalBitmap(1, 5, 10);
 
-			// RoaringBitmap.select() throws IllegalArgumentException on OOB
+			// PersistentRoaringBitmap.select() throws IllegalArgumentException on OOB
 			assertThrows(
 				IllegalArgumentException.class,
 				() -> bitmap.get(100)
@@ -1221,13 +1221,13 @@ class TransactionalBitmapTest {
 		@Test
 		@DisplayName("should not invalidate memoized bitmap when addRecordId is a no-op")
 		void shouldNotInvalidateMemoWhenAddRecordIdIsNoOp() {
-			final RoaringBitmap original = new RoaringBitmap();
+			final PersistentRoaringBitmap original = new PersistentRoaringBitmap();
 			original.add(1, 5, 10);
 			final BitmapChanges changes = new BitmapChanges(original);
 
 			// make a real change so memoizedMergedBitmap gets populated
 			changes.addRecordId(20);
-			final RoaringBitmap firstMerged = changes.getMergedBitmap();
+			final PersistentRoaringBitmap firstMerged = changes.getMergedBitmap();
 			assertArrayEquals(
 				new int[]{1, 5, 10, 20}, firstMerged.toArray()
 			);
@@ -1237,7 +1237,7 @@ class TransactionalBitmapTest {
 			assertFalse(result, "Adding an already-present record should return false");
 
 			// the memoized bitmap should be preserved (same identity)
-			final RoaringBitmap secondMerged = changes.getMergedBitmap();
+			final PersistentRoaringBitmap secondMerged = changes.getMergedBitmap();
 			assertSame(
 				firstMerged, secondMerged,
 				"No-op addRecordId should not invalidate the memoized merged bitmap"
@@ -1247,20 +1247,20 @@ class TransactionalBitmapTest {
 		@Test
 		@DisplayName("should not invalidate memoized bitmap when removeRecordId is a no-op")
 		void shouldNotInvalidateMemoWhenRemoveRecordIdIsNoOp() {
-			final RoaringBitmap original = new RoaringBitmap();
+			final PersistentRoaringBitmap original = new PersistentRoaringBitmap();
 			original.add(1, 5, 10);
 			final BitmapChanges changes = new BitmapChanges(original);
 
 			// prime the memoized merged bitmap by adding a record first
 			changes.addRecordId(20);
-			final RoaringBitmap firstMerged = changes.getMergedBitmap();
+			final PersistentRoaringBitmap firstMerged = changes.getMergedBitmap();
 
 			// remove a record that doesn't exist -- this is a no-op
 			final boolean result = changes.removeRecordId(99);
 			assertFalse(result, "Removing a non-present record should return false");
 
 			// the memoized bitmap should be preserved (same identity)
-			final RoaringBitmap secondMerged = changes.getMergedBitmap();
+			final PersistentRoaringBitmap secondMerged = changes.getMergedBitmap();
 			assertSame(
 				firstMerged, secondMerged,
 				"No-op removeRecordId should not invalidate the memoized merged bitmap"

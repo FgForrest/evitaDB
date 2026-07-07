@@ -513,8 +513,8 @@ public class UnorderedLookupTree implements
 			// build the leaf directly (dirty=false) so a first post-load flush emits nothing; participating node
 			// (transactionalLayer=true) so later transactions can layer changes over it
 			final LeafNode container = new LeafNode(key, leafRecordIds, cnt, leafMask, page.pageSequence(), false, true);
-			for (int i = 0; i < cnt; i++) {
-				assignments.accept(pageRecordIds[i], key);
+			for (final int pageRecordId : pageRecordIds) {
+				assignments.accept(pageRecordId, key);
 			}
 			level[c] = container;
 			minKeys[c] = key;
@@ -904,6 +904,36 @@ public class UnorderedLookupTree implements
 			this.memoizedArray = result;
 		}
 		return this.memoizedArray;
+	}
+
+	/**
+	 * Creates a forward {@link PositionCursor} over the tree's logical positions in ascending order. Resolving a run of
+	 * ascending positions through the cursor costs amortized `O(1)` per emit (it walks leaf-to-leaf, staying inside the
+	 * current leaf while the requested position falls in its range), instead of the `O(log N)` root descent that a
+	 * per-position {@link #getRecordAt(int)} would pay. Serves sparse mask emits, skip-consumers and full scans without
+	 * materialising the flattened array.
+	 *
+	 * The cursor reads the live (transaction-aware) tree, so it must be created and fully consumed within a single
+	 * query / transaction scope with no interleaved mutation of this tree.
+	 *
+	 * @return a forward position cursor
+	 */
+	@Nonnull
+	public PositionCursor forwardPositionCursor() {
+		return new PositionCursor(false);
+	}
+
+	/**
+	 * Creates a reverse {@link PositionCursor} that emits the logical array in descending order: emit index `d` resolves
+	 * to the record at logical position `size() - 1 - d`. Mirrors the ascending tree leaf-to-leaf from the right without
+	 * materialising a reversed copy (the descending counterpart of {@link #forwardPositionCursor()}); same amortized
+	 * `O(1)` per emit and same single-scope consumption constraint.
+	 *
+	 * @return a reverse position cursor
+	 */
+	@Nonnull
+	public PositionCursor reversePositionCursor() {
+		return new PositionCursor(true);
 	}
 
 	/*
@@ -1494,7 +1524,8 @@ public class UnorderedLookupTree implements
 			return false;
 		}
 		final int bitIndex = from & 63;
-		if ((mask[wordIndex] & ~((1L << bitIndex) - 1)) != 0L) {
+		// high-bits mask (all bits at bitIndex and above): -(1L << bitIndex) == ~((1L << bitIndex) - 1)
+		if ((mask[wordIndex] & -(1L << bitIndex)) != 0L) {
 			return true;
 		}
 		for (int w = wordIndex + 1; w < mask.length; w++) {
@@ -2278,6 +2309,212 @@ public class UnorderedLookupTree implements
 	}
 
 	/**
+	 * Stateful, forward-only cursor over the tree's logical positions, created via {@link #forwardPositionCursor()}
+	 * (ascending) or {@link #reversePositionCursor()} (descending). Resolving a monotonically non-decreasing sequence of
+	 * emit indices costs amortized `O(1)` per emit: the cursor keeps the current leaf and its logical base position and
+	 * only walks to the in-order successor (forward) / predecessor (reverse) leaf when the requested position leaves the
+	 * current leaf's window - each tree edge is crossed at most once across a full traversal.
+	 *
+	 * Emit indices passed to {@link #recordAt(int)} must be non-decreasing and within `[0, size())`; the cursor cannot
+	 * move backwards. It reads the live (transaction-aware) tree and must be consumed within a single query / transaction
+	 * scope with no interleaved mutation.
+	 */
+	public final class PositionCursor {
+		/**
+		 * Descent path to the current leaf (internal nodes + the child index taken at each level).
+		 */
+		@Nonnull private final Cursor cursor = new Cursor();
+		/**
+		 * When TRUE emit index `d` resolves to the record at logical position `size() - 1 - d` (descending emit); the
+		 * cursor then walks leaves right-to-left. When FALSE the emit index IS the ascending logical position.
+		 */
+		private final boolean descending;
+		/**
+		 * The leaf currently under the cursor (`null` only for an empty tree).
+		 */
+		@Nullable private LeafNode leaf;
+		/**
+		 * Ascending logical position of slot 0 of {@link #leaf}.
+		 */
+		private int leafBase;
+		/**
+		 * Record count of {@link #leaf} (the leaf spans ascending positions `[leafBase, leafBase + leafCount)`).
+		 */
+		private int leafCount;
+		/**
+		 * Highest emit index served so far, guarding the non-decreasing contract (`-1` before the first call).
+		 */
+		private int lastEmitIndex = -1;
+
+		/**
+		 * Positions the cursor at the leftmost (forward) or rightmost (reverse) leaf of the tree.
+		 *
+		 * @param descending whether the cursor emits in descending logical order
+		 */
+		private PositionCursor(boolean descending) {
+			this.descending = descending;
+			final Node<?> theRoot = getRoot();
+			if (theRoot == null) {
+				this.leaf = null;
+				this.leafBase = 0;
+				this.leafCount = 0;
+			} else if (descending) {
+				this.leaf = descendRightmost(theRoot);
+				this.leafCount = this.leaf.getCount();
+				this.leafBase = size() - this.leafCount;
+			} else {
+				this.leaf = descendLeftmost(theRoot);
+				this.leafBase = 0;
+				this.leafCount = this.leaf.getCount();
+			}
+		}
+
+		/**
+		 * Returns the record id at the given emit index - the ascending logical position for a forward cursor, or
+		 * `size() - 1 - emitIndex` for a reverse cursor. Emit indices must be supplied in non-decreasing order.
+		 *
+		 * @param emitIndex the emit index in `[0, size())`, non-decreasing across calls
+		 * @return the record id at the resolved logical position
+		 * @throws GenericEvitaInternalError when the index is out of bounds or violates the non-decreasing contract
+		 */
+		public int recordAt(int emitIndex) {
+			final int total = size();
+			if (emitIndex < 0 || emitIndex >= total) {
+				throw new GenericEvitaInternalError(
+					"Position " + emitIndex + " not found!",
+					"Unknown position in the array!"
+				);
+			}
+			if (emitIndex < this.lastEmitIndex) {
+				// a forward-only cursor cannot rewind - a decreasing emit index is a caller programming error
+				throw new GenericEvitaInternalError(
+					"Position cursor cannot move backwards (from " + this.lastEmitIndex + " to " + emitIndex + ")!",
+					"Inconsistent lookup state!"
+				);
+			}
+			this.lastEmitIndex = emitIndex;
+			final int ascendingPos = this.descending ? total - 1 - emitIndex : emitIndex;
+			if (this.descending) {
+				// ascending position is non-increasing as emitIndex grows - walk to earlier leaves
+				while (ascendingPos < this.leafBase) {
+					advanceToPreviousLeaf();
+				}
+			} else {
+				// ascending position is non-decreasing - walk to later leaves
+				while (ascendingPos >= this.leafBase + this.leafCount) {
+					advanceToNextLeaf();
+				}
+			}
+			//noinspection ConstantConditions - a valid in-bounds emit index always resolves onto a non-null leaf
+			return this.leaf.getRecordIds()[ascendingPos - this.leafBase];
+		}
+
+		/**
+		 * Descends to the leftmost leaf of the subtree rooted at `node`, recording the path in {@link #cursor}.
+		 */
+		@Nonnull
+		private LeafNode descendLeftmost(@Nonnull Node<?> node) {
+			this.cursor.depth = 0;
+			Node<?> current = node;
+			while (current instanceof final InternalNode internal) {
+				this.cursor.push(internal, 0);
+				current = internal.getChildren()[0];
+			}
+			return (LeafNode) current;
+		}
+
+		/**
+		 * Descends to the rightmost leaf of the subtree rooted at `node`, recording the path in {@link #cursor}.
+		 */
+		@Nonnull
+		private LeafNode descendRightmost(@Nonnull Node<?> node) {
+			this.cursor.depth = 0;
+			Node<?> current = node;
+			while (current instanceof final InternalNode internal) {
+				final int lastChild = internal.getChildCount() - 1;
+				this.cursor.push(internal, lastChild);
+				current = internal.getChildren()[lastChild];
+			}
+			return (LeafNode) current;
+		}
+
+		/**
+		 * Advances the cursor to the in-order successor leaf (the next leaf to the right) and updates the leaf window.
+		 *
+		 * @throws GenericEvitaInternalError when there is no next leaf (an in-bounds emit index never triggers this)
+		 */
+		private void advanceToNextLeaf() {
+			this.leafBase += this.leafCount;
+			// ascend to the first level that still has a right sibling
+			int level = this.cursor.depth - 1;
+			while (level >= 0 && this.cursor.idx[level] >= this.cursor.path[level].getChildCount() - 1) {
+				level--;
+			}
+			if (level < 0) {
+				throw new GenericEvitaInternalError(
+					"No next leaf while walking positions!",
+					"Inconsistent lookup state!"
+				);
+			}
+			this.cursor.idx[level]++;
+			this.cursor.depth = level + 1;
+			this.leaf = descendLeftmostFromChild(level);
+			this.leafCount = this.leaf.getCount();
+		}
+
+		/**
+		 * Advances the cursor to the in-order predecessor leaf (the next leaf to the left) and updates the leaf window.
+		 *
+		 * @throws GenericEvitaInternalError when there is no previous leaf (an in-bounds emit index never triggers this)
+		 */
+		private void advanceToPreviousLeaf() {
+			// ascend to the first level that still has a left sibling
+			int level = this.cursor.depth - 1;
+			while (level >= 0 && this.cursor.idx[level] == 0) {
+				level--;
+			}
+			if (level < 0) {
+				throw new GenericEvitaInternalError(
+					"No previous leaf while walking positions!",
+					"Inconsistent lookup state!"
+				);
+			}
+			this.cursor.idx[level]--;
+			this.cursor.depth = level + 1;
+			this.leaf = descendRightmostFromChild(level);
+			this.leafCount = this.leaf.getCount();
+			this.leafBase -= this.leafCount;
+		}
+
+		/**
+		 * Descends to the leftmost leaf under the child currently selected at `level`, pushing the intermediate levels.
+		 */
+		@Nonnull
+		private LeafNode descendLeftmostFromChild(int level) {
+			Node<?> node = this.cursor.path[level].getChildren()[this.cursor.idx[level]];
+			while (node instanceof final InternalNode internal) {
+				this.cursor.push(internal, 0);
+				node = internal.getChildren()[0];
+			}
+			return (LeafNode) node;
+		}
+
+		/**
+		 * Descends to the rightmost leaf under the child currently selected at `level`, pushing the intermediate levels.
+		 */
+		@Nonnull
+		private LeafNode descendRightmostFromChild(int level) {
+			Node<?> node = this.cursor.path[level].getChildren()[this.cursor.idx[level]];
+			while (node instanceof final InternalNode internal) {
+				final int lastChild = internal.getChildCount() - 1;
+				this.cursor.push(internal, lastChild);
+				node = internal.getChildren()[lastChild];
+			}
+			return (LeafNode) node;
+		}
+	}
+
+	/**
 	 * Mutable descent cursor capturing the internal-node path from the root to a leaf (plus the in-container offset
 	 * for positional descents). Reused per operation; never escapes the structure.
 	 */
@@ -2382,7 +2619,6 @@ public class UnorderedLookupTree implements
 		 *                           transient pre-split overflow slot)
 		 * @param maskWords          number of head-mask words to allocate (`0` ⇒ no mask array, non-head-aware tree)
 		 */
-		@SuppressWarnings("CheckForOutOfMemoryOnLargeArrayAllocation")
 		LeafNode(boolean transactionalLayer, int leafCapacity, int maskWords) {
 			this.recordIds = new int[leafCapacity + 1];
 			this.count = 0;

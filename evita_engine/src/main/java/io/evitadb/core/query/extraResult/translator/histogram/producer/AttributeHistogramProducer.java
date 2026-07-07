@@ -53,7 +53,7 @@ import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.Functions;
-import org.roaringbitmap.RoaringBitmap;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -116,7 +116,7 @@ public class AttributeHistogramProducer implements ExtraResultProducer {
 			return new ValueToRecordBitmap[0];
 		}
 
-		final RoaringBitmap filteredRecordIds;
+		final PersistentRoaringBitmap filteredRecordIds;
 		if (filteringFormula == null) {
 			filteredRecordIds = null;
 		} else {
@@ -195,17 +195,17 @@ public class AttributeHistogramProducer implements ExtraResultProducer {
 	 * `filteredRecordIds` is `null` the combined OR result is used as-is).
 	 */
 	private static void addBucket(
-		@Nullable RoaringBitmap filteredRecordIds,
+		@Nullable PersistentRoaringBitmap filteredRecordIds,
 		@Nonnull CompositeObjectArray<ValueToRecordBitmap> finalBuckets,
 		@Nonnull ValueToRecordBitmap[] theBucket
 	) {
-		final RoaringBitmap[] bucketBitmaps = new RoaringBitmap[theBucket.length];
+		final PersistentRoaringBitmap[] bucketBitmaps = new PersistentRoaringBitmap[theBucket.length];
 		for (int i = 0; i < theBucket.length; i++) {
 			bucketBitmaps[i] = RoaringBitmapBackedBitmap.getRoaringBitmap(theBucket[i].getRecordIds());
 		}
-		final RoaringBitmap combined = RoaringBitmap.or(bucketBitmaps);
+		final PersistentRoaringBitmap combined = PersistentRoaringBitmap.or(bucketBitmaps);
 		final BaseBitmap recordIds = new BaseBitmap(
-			filteredRecordIds == null ? combined : RoaringBitmap.and(filteredRecordIds, combined)
+			filteredRecordIds == null ? combined : PersistentRoaringBitmap.and(filteredRecordIds, combined)
 		);
 		if (!recordIds.isEmpty()) {
 			finalBuckets.add(
@@ -222,14 +222,14 @@ public class AttributeHistogramProducer implements ExtraResultProducer {
 	 * produces new bucket with filtered data.
 	 */
 	private static void addBucket(
-		@Nullable RoaringBitmap filteredRecordIds,
+		@Nullable PersistentRoaringBitmap filteredRecordIds,
 		@Nonnull CompositeObjectArray<ValueToRecordBitmap> finalBuckets,
 		@Nonnull ValueToRecordBitmap theBucket
 	) {
 		final Bitmap recordIds = filteredRecordIds == null ?
 			theBucket.getRecordIds() :
 			new BaseBitmap(
-				RoaringBitmap.and(
+				PersistentRoaringBitmap.and(
 					filteredRecordIds,
 					RoaringBitmapBackedBitmap.getRoaringBitmap(theBucket.getRecordIds())
 				)

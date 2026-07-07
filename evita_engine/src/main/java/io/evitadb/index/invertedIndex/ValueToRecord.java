@@ -40,11 +40,11 @@ import java.io.Serializable;
  * (exactly one record per value). The two implementations of this interface let the representation degrade *per
  * bucket*:
  *
- * - {@link ValueToRecordBitmap} - the multi-record, {@link org.roaringbitmap.RoaringBitmap}-backed bucket. It is
+ * - {@link ValueToRecordBitmap} - the multi-record, {@link io.evitadb.roaringbitmap.PersistentRoaringBitmap}-backed bucket. It is
  *   *mutable*: record ids are added / removed in place, isolated transactionally by the inner
  *   {@link TransactionalBitmap}.
  * - {@link ValueToRecordPrimitive} - the single-record bucket. It stores the lone record id as a bare `int` (no
- *   {@code RoaringBitmap}, no inner transactional bitmap) and is therefore *immutable*: any change produces a brand-new
+ *   {@code PersistentRoaringBitmap}, no inner transactional bitmap) and is therefore *immutable*: any change produces a brand-new
  *   instance.
  *
  * This hierarchy is **not** how the buckets are stored. They live columnar-ly in a
@@ -68,7 +68,7 @@ public interface ValueToRecord
 
 	/**
 	 * Returns the record ids assigned to {@link #getValue()} as an ordered, distinct {@link Bitmap}. For a
-	 * {@link ValueToRecordPrimitive} this is a cheap single-element view that allocates no {@code RoaringBitmap}.
+	 * {@link ValueToRecordPrimitive} this is a cheap single-element view that allocates no {@code PersistentRoaringBitmap}.
 	 */
 	@Nonnull
 	Bitmap getRecordIds();

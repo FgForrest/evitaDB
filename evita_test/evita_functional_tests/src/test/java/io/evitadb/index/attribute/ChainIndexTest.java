@@ -1515,8 +1515,8 @@ class ChainIndexTest {
 		}
 
 		@Test
-		@DisplayName("cached supplier on repeated call without modification returns same instance")
-		void shouldReturnCachedSupplier() {
+		@DisplayName("repeated supplier requests return fresh, equivalent instances (no cross-call caching)")
+		void shouldReturnFreshEquivalentSupplierPerCall() {
 			populateStandardChain();
 
 			final SortedRecordsSupplier first =
@@ -1526,12 +1526,16 @@ class ChainIndexTest {
 				(SortedRecordsSupplier) ChainIndexTest.this.index
 					.getAscendingOrderRecordsSupplier();
 
-			assertSame(first, second);
+			// a consistent chain is served straight from the live element tree, so each call builds a fresh
+			// lightweight wrapper rather than memoizing one instance across calls
+			assertNotSame(first, second);
+			assertArrayEquals(first.getSortedRecordIds(), second.getSortedRecordIds());
+			assertArrayEquals(EXPECTED_CHAIN, second.getSortedRecordIds());
 		}
 
 		@Test
-		@DisplayName("ascending and descending suppliers share the record-id bitmap and use distinct cache ids")
-		void shouldShareRecordDataAcrossDirectionsAndRevealMutations() {
+		@DisplayName("ascending and descending suppliers expose the same record ids, distinct cache ids, and reveal mutations")
+		void shouldExposeDistinctIdsAndRevealMutationsAcrossDirections() {
 			populateStandardChain();
 
 			final SortedRecordsSupplier asc =
@@ -1539,10 +1543,10 @@ class ChainIndexTest {
 			final SortedRecordsSupplier desc =
 				(SortedRecordsSupplier) ChainIndexTest.this.index.getDescendingOrderRecordsSupplier();
 
-			// the direction-independent record-id bitmap is built once and reused across both directions
-			assertSame(
-				asc.getAllRecords(), desc.getAllRecords(),
-				"Ascending and descending suppliers must reuse the same memoized record-id bitmap."
+			// both directions expose the same direction-independent record-id set, each read from the element tree
+			assertArrayEquals(
+				asc.getAllRecords().getArray(), desc.getAllRecords().getArray(),
+				"Ascending and descending suppliers must expose the same record-id set."
 			);
 			// the two orderings carry distinct, stable cache identities so they never collide downstream
 			assertNotEquals(
@@ -1552,7 +1556,7 @@ class ChainIndexTest {
 			assertArrayEquals(EXPECTED_CHAIN, asc.getSortedRecordIds());
 			assertArrayEquals(new int[]{5, 4, 3, 2, 1}, desc.getSortedRecordIds());
 
-			// a mutation must invalidate the shared caches so both directions reflect the new state
+			// a mutation must be reflected by freshly requested suppliers (they read the live element tree)
 			ChainIndexTest.this.index.upsertPredecessor(new Predecessor(5), 6);
 
 			final SortedRecordsSupplier ascAfter =
@@ -1560,46 +1564,41 @@ class ChainIndexTest {
 			final SortedRecordsSupplier descAfter =
 				(SortedRecordsSupplier) ChainIndexTest.this.index.getDescendingOrderRecordsSupplier();
 
-			assertNotSame(
-				asc.getAllRecords(), ascAfter.getAllRecords(),
-				"A mutation must drop the memoized record-id bitmap so it is rebuilt."
-			);
 			assertArrayEquals(new int[]{1, 2, 3, 4, 5, 6}, ascAfter.getSortedRecordIds());
 			assertArrayEquals(new int[]{6, 5, 4, 3, 2, 1}, descAfter.getSortedRecordIds());
 		}
 
 		@Test
-		@DisplayName("descending supplier requested first populates the shared caches for a later ascending read")
-		void shouldShareRecordDataWhenDescendingSupplierRequestedFirst() {
+		@DisplayName("descending supplier requested first still yields the correct ascending order for a later read")
+		void shouldYieldCorrectOrderWhenDescendingSupplierRequestedFirst() {
 			populateStandardChain();
 
-			// request the descending supplier FIRST so it is the one that builds and memoizes the shared
-			// forward lookup + record-id bitmap
+			// request the descending supplier FIRST so any request-order dependency would surface
 			final SortedRecordsSupplier desc =
 				(SortedRecordsSupplier) ChainIndexTest.this.index.getDescendingOrderRecordsSupplier();
 			final SortedRecordsSupplier asc =
 				(SortedRecordsSupplier) ChainIndexTest.this.index.getAscendingOrderRecordsSupplier();
 
-			// the ascending read must reuse the record-id bitmap the descending call memoized
-			assertSame(
-				desc.getAllRecords(), asc.getAllRecords(),
-				"Ascending supplier must reuse the record-id bitmap memoized by the descending call."
+			// both directions expose the same record-id set regardless of which was requested first
+			assertArrayEquals(
+				desc.getAllRecords().getArray(), asc.getAllRecords().getArray(),
+				"Ascending and descending suppliers must expose the same record-id set."
 			);
 			// the two orderings still carry distinct, stable cache identities
 			assertNotEquals(
 				asc.getTransactionalId(), desc.getTransactionalId(),
 				"Ascending and descending suppliers must expose distinct transactional ids."
 			);
-			// the descending call must have stored the FORWARD lookup, so the later ascending order is correct
+			// the ascending order is correct even though the descending supplier was requested first
 			assertArrayEquals(EXPECTED_CHAIN, asc.getSortedRecordIds());
 			assertArrayEquals(new int[]{5, 4, 3, 2, 1}, desc.getSortedRecordIds());
 		}
 
 		@Test
-		@DisplayName("suppliers reflect the new order after a transactional commit (memoized caches pre-warmed)")
+		@DisplayName("suppliers reflect the new order after a transactional commit")
 		void shouldRefreshSuppliersAfterTransactionalCommit() {
 			populateStandardChain();
-			// pre-warm the committed supplier caches so the memoized lookup/bitmap fields are live before the transaction
+			// read the committed supplier order before the transaction
 			assertArrayEquals(
 				EXPECTED_CHAIN,
 				((SortedRecordsSupplier) ChainIndexTest.this.index.getAscendingOrderRecordsSupplier())
@@ -1616,8 +1615,8 @@ class ChainIndexTest {
 						(SortedRecordsSupplier) committed.getDescendingOrderRecordsSupplier();
 					assertArrayEquals(new int[]{1, 2, 3, 4, 5, 6}, asc.getSortedRecordIds());
 					assertArrayEquals(new int[]{6, 5, 4, 3, 2, 1}, desc.getSortedRecordIds());
-					// the shared record-id bitmap is still reused across directions on the merged copy
-					assertSame(asc.getAllRecords(), desc.getAllRecords());
+					// both directions expose the same record-id set on the merged copy
+					assertArrayEquals(asc.getAllRecords().getArray(), desc.getAllRecords().getArray());
 				}
 			);
 		}

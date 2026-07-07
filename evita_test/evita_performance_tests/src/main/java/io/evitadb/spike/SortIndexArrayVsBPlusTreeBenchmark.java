@@ -43,7 +43,7 @@ import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
 import org.openjdk.jmh.infra.Blackhole;
 
-import org.roaringbitmap.RoaringBitmap;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 
 import javax.annotation.Nonnull;
 import java.io.Serializable;
@@ -199,7 +199,7 @@ public class SortIndexArrayVsBPlusTreeBenchmark {
 	// query-result records in sorted order":
 	//
 	//  - orderByMergeJoinFatTree (candidate): walk the shared value→ValueToRecord tree in sort order,
-	//    intersect each bucket's bitmap with the query-result bitmap (RoaringBitmap AND), emit matches
+	//    intersect each bucket's bitmap with the query-result bitmap (PersistentRoaringBitmap AND), emit matches
 	//    in order. No flat arrays, no positions, no size(). Pageable in production (omitted here so we
 	//    measure the full-sort case — the one UNFAVOURABLE to merge-join, since it walks every bucket).
 	//  - orderByPositionMaskArray (baseline): today's MergedSortedRecordsSupplierSorter shape — map each
@@ -211,16 +211,16 @@ public class SortIndexArrayVsBPlusTreeBenchmark {
 
 	@Benchmark
 	public void orderByMergeJoinFatTree(MergeJoinState state, Blackhole bh) {
-		final RoaringBitmap queryResult = state.queryResult;
+		final PersistentRoaringBitmap queryResult = state.queryResult;
 		@SuppressWarnings("rawtypes")
 		final EntryCursor cursor = state.fatTree.entryCursor();
 		while (cursor.hasNext()) {
 			cursor.next();
 			final ValueToRecord bucket = (ValueToRecord) cursor.value();
-			final RoaringBitmap matched = RoaringBitmap.and(
+			final PersistentRoaringBitmap matched = PersistentRoaringBitmap.and(
 				queryResult, RoaringBitmapBackedBitmap.getRoaringBitmap(bucket.getRecordIds())
 			);
-			final org.roaringbitmap.IntIterator it = matched.getIntIterator();
+			final io.evitadb.roaringbitmap.IntIterator it = matched.getIntIterator();
 			while (it.hasNext()) {
 				bh.consume(it.next());
 			}
@@ -232,13 +232,13 @@ public class SortIndexArrayVsBPlusTreeBenchmark {
 		final int[] recordPositions = state.recordPositions;
 		final int[] sortedRecordIds = state.sortedRecordIds;
 		// build the position mask for the query-result records (the getMask step)
-		final RoaringBitmap positions = new RoaringBitmap();
-		final org.roaringbitmap.IntIterator queryIt = state.queryResult.getIntIterator();
+		final PersistentRoaringBitmap positions = new PersistentRoaringBitmap();
+		final io.evitadb.roaringbitmap.IntIterator queryIt = state.queryResult.getIntIterator();
 		while (queryIt.hasNext()) {
 			positions.add(recordPositions[queryIt.next()]);
 		}
 		// resolve positions back to record ids in ascending sorted order (the fetchSlice step)
-		final org.roaringbitmap.IntIterator posIt = positions.getIntIterator();
+		final io.evitadb.roaringbitmap.IntIterator posIt = positions.getIntIterator();
 		while (posIt.hasNext()) {
 			bh.consume(sortedRecordIds[posIt.next()]);
 		}
@@ -450,7 +450,7 @@ public class SortIndexArrayVsBPlusTreeBenchmark {
 		public TransactionalObjectBPlusTree fatTree;
 		public int[] sortedRecordIds;
 		public int[] recordPositions;
-		public RoaringBitmap queryResult;
+		public PersistentRoaringBitmap queryResult;
 
 		@Setup(Level.Trial)
 		@SuppressWarnings({"rawtypes", "unchecked"})
@@ -498,7 +498,7 @@ public class SortIndexArrayVsBPlusTreeBenchmark {
 			this.fatTree = theFatTree;
 
 			// query-result bitmap: selectivityPercent% of records, deterministic
-			this.queryResult = new RoaringBitmap();
+			this.queryResult = new PersistentRoaringBitmap();
 			final Random sel = new Random(7);
 			for (int id = 0; id < n; id++) {
 				if (sel.nextInt(100) < this.selectivityPercent) {

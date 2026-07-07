@@ -24,6 +24,8 @@
 package io.evitadb.core.query.sort.attribute.sorter;
 
 import io.evitadb.core.query.QueryExecutionContext;
+import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.ForcedSortResolution;
+import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.PositionResolution;
 import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedComparableForwardSeeker;
 import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedRecordsProvider;
 import io.evitadb.core.query.sort.Sorter;
@@ -37,10 +39,8 @@ import io.evitadb.utils.ArrayUtils.InsertionPosition;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
-import org.roaringbitmap.BatchIterator;
-import org.roaringbitmap.RoaringBatchIterator;
-import org.roaringbitmap.RoaringBitmap;
-import org.roaringbitmap.RoaringBitmapWriter;
+import io.evitadb.roaringbitmap.RoaringBatchIterator;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -67,67 +67,6 @@ public final class MergedComparableSortedRecordsSupplierSorter implements Sorter
 	 */
 	@Getter private final SortedRecordsProvider[] sortedRecordsProviders;
 
-	/**
-	 * Returns mask of the positions in the presorted array that matched the computational result
-	 * Mask also contains record ids not found in presorted record index.
-	 */
-	@Nonnull
-	private static MaskResult getMask(
-		@Nonnull QueryExecutionContext queryContext,
-		@Nonnull SortedRecordsProvider sortedRecordsProvider,
-		@Nonnull RoaringBitmap selectedRecordIds,
-		int selectedRecordCount
-	) {
-		final int[] unsortedRecordsBuffer = queryContext.borrowBuffer();
-		final int[] selectedRecordsBuffer = queryContext.borrowBuffer();
-		try {
-			final Bitmap unsortedRecordIds = sortedRecordsProvider.getAllRecords();
-			final int[] recordPositions = sortedRecordsProvider.getRecordPositions();
-
-			final RoaringBitmapWriter<RoaringBitmap> mask = RoaringBitmapBackedBitmap.buildWriter();
-			final RoaringBitmapWriter<RoaringBitmap> notFound = RoaringBitmapBackedBitmap.buildWriter();
-
-			final BatchIterator unsortedRecordIdsIt = RoaringBitmapBackedBitmap.getRoaringBitmap(unsortedRecordIds).getBatchIterator();
-			final BatchIterator selectedRecordIdsIt = selectedRecordIds.getBatchIterator();
-
-			int matchesFound = 0;
-			int notFoundCount = 0;
-			int unsortedRecordsPeak = -1;
-			int unsortedRecordsRead = -1;
-			int selectedRecordsPeak = -1;
-			int selectedRecordsRead = -1;
-			int unsortedRecordsAcc = 1;
-			do {
-				if (unsortedRecordsPeak == unsortedRecordsRead && unsortedRecordsRead != 0) {
-					unsortedRecordsAcc += unsortedRecordsRead;
-					unsortedRecordsRead = unsortedRecordIdsIt.nextBatch(unsortedRecordsBuffer);
-					unsortedRecordsPeak = 0;
-				}
-				if (selectedRecordsPeak == selectedRecordsRead) {
-					selectedRecordsRead = selectedRecordIdsIt.nextBatch(selectedRecordsBuffer);
-					selectedRecordsPeak = 0;
-				}
-				if (unsortedRecordsPeak < unsortedRecordsRead && unsortedRecordsBuffer[unsortedRecordsPeak] == selectedRecordsBuffer[selectedRecordsPeak]) {
-					mask.add(recordPositions[unsortedRecordsAcc + unsortedRecordsPeak]);
-					matchesFound++;
-					selectedRecordsPeak++;
-					unsortedRecordsPeak++;
-				} else if (selectedRecordsPeak < selectedRecordsRead && (unsortedRecordsPeak >= unsortedRecordsRead || unsortedRecordsBuffer[unsortedRecordsPeak] > selectedRecordsBuffer[selectedRecordsPeak])) {
-					notFound.add(selectedRecordsBuffer[selectedRecordsPeak]);
-					notFoundCount++;
-					selectedRecordsPeak++;
-				} else {
-					unsortedRecordsPeak++;
-				}
-			} while (matchesFound < selectedRecordCount && selectedRecordsRead > 0);
-
-			return new MaskResult(mask.get(), notFound.get(), notFoundCount);
-		} finally {
-			queryContext.returnBuffer(unsortedRecordsBuffer);
-			queryContext.returnBuffer(selectedRecordsBuffer);
-		}
-	}
-
 	@Nonnull
 	@Override
 	public SortingContext sortAndSlice(
@@ -141,26 +80,67 @@ public final class MergedComparableSortedRecordsSupplierSorter implements Sorter
 			final int endIndex = sortingContext.recomputedEndIndex();
 			final int peak = sortingContext.peak();
 			final Bitmap selectedRecordIds = sortingContext.nonSortedKeys();
-			final int[] buffer = queryContext.borrowBuffer();
+			final int[] resolveBufferA = queryContext.borrowBuffer();
+			final int[] resolveBufferB = queryContext.borrowBuffer();
+			// debug override (or null for cost-based) + per-strategy telemetry tally (null when telemetry is off)
+			final ForcedSortResolution forcedResolution = SortResolutionStrategies.resolveForcedResolution(queryContext);
+			final int[] strategyTally = SortResolutionStrategies.newStrategyTally(queryContext);
 			try {
 				final int toRead = Math.min(endIndex - startIndex, result.length - peak);
 				int alreadyRead = 0;
 				int toSkip = startIndex;
 
-				RoaringBitmap recordsToSort = RoaringBitmapBackedBitmap.getRoaringBitmap(selectedRecordIds);
+				PersistentRoaringBitmap recordsToSort = RoaringBitmapBackedBitmap.getRoaringBitmap(selectedRecordIds);
 				int recordsToSortCount = selectedRecordIds.size();
 
+				// single-provider short-circuit: with one provider the mask positions are already in value-then-pk
+				// order (position == the record's rank in the sorted order), so we can emit them directly and skip the
+				// per-record seeker value lookup that the K-way merge below would otherwise pay (the dominant cost for
+				// sparse selections - see the middle-ground reference/category listings)
+				if (this.sortedRecordsProviders.length == 1) {
+					final SortedRecordsProvider provider = this.sortedRecordsProviders[0];
+					final PositionResolution resolution = provider.resolvePositions(
+						recordsToSort, recordsToSortCount, resolveBufferA, resolveBufferB, forcedResolution
+					);
+					SortResolutionStrategies.tally(strategyTally, resolution);
+					final RoaringBatchIterator maskIterator = resolution.mask().getBatchIterator();
+					while ((toRead > alreadyRead || toSkip > 0) && maskIterator.hasNext()) {
+						final int batchPeak = maskIterator.nextBatch(resolveBufferB);
+						if (batchPeak == 0) {
+							break;
+						}
+						for (int i = 0; i < batchPeak && (toRead > alreadyRead || toSkip > 0); i++) {
+							final int recordId = provider.recordAt(resolveBufferB[i]);
+							if (toSkip > 0) {
+								toSkip--;
+								if (skippedRecordsConsumer != null) {
+									skippedRecordsConsumer.accept(recordId);
+								}
+							} else {
+								result[peak + alreadyRead++] = recordId;
+							}
+						}
+					}
+					final PersistentRoaringBitmap notFound = resolution.notFoundRecords();
+					return sortingContext.createResultContext(
+						notFound.isEmpty() ? EmptyBitmap.INSTANCE : new BaseBitmap(notFound),
+						alreadyRead,
+						startIndex - toSkip
+					);
+				}
+
 				// first we need to create masks for all selected record ids using provided sorted record providers
-				final MaskResult[] maskResults = new MaskResult[this.sortedRecordsProviders.length];
+				final PositionResolution[] maskResults = new PositionResolution[this.sortedRecordsProviders.length];
 				int maskPeak = -1;
 				for (int i = 0; i < this.sortedRecordsProviders.length; i++) {
 					final SortedRecordsProvider sortedRecordsProvider = this.sortedRecordsProviders[++maskPeak];
-					final MaskResult maskResult = getMask(
-						queryContext, sortedRecordsProvider, recordsToSort, recordsToSortCount
+					final PositionResolution resolution = sortedRecordsProvider.resolvePositions(
+						recordsToSort, recordsToSortCount, resolveBufferA, resolveBufferB, forcedResolution
 					);
-					maskResults[maskPeak] = maskResult;
-					recordsToSort = maskResult.notFoundRecords();
-					recordsToSortCount = maskResult.notFoundRecordsCount();
+					SortResolutionStrategies.tally(strategyTally, resolution);
+					maskResults[maskPeak] = resolution;
+					recordsToSort = resolution.notFoundRecords();
+					recordsToSortCount = resolution.notFoundRecordsCount();
 					if (recordsToSortCount == 0) {
 						break;
 					}
@@ -171,10 +151,10 @@ public final class MergedComparableSortedRecordsSupplierSorter implements Sorter
 				int sortedRecordsProviderBufferPeak = 0;
 				// init first values
 				for (int i = 0; i <= maskPeak; i++) {
-					final MaskResult maskResult = maskResults[i];
+					final PositionResolution resolution = maskResults[i];
 					final SortedRecordsProvider sortedRecordsProvider = this.sortedRecordsProviders[i];
 					final SortedRecordsProviderBuffer sortedRecordsProviderBuffer = new SortedRecordsProviderBuffer(
-						this.comparator, sortedRecordsProvider, maskResult.mask(), queryContext
+						this.comparator, sortedRecordsProvider, resolution.mask(), queryContext
 					);
 					if (sortedRecordsProviderBuffer.fetchNext()) {
 						sortedRecordsProviderBuffers[sortedRecordsProviderBufferPeak++] = sortedRecordsProviderBuffer;
@@ -245,25 +225,13 @@ public final class MergedComparableSortedRecordsSupplierSorter implements Sorter
 					startIndex - toSkip
 				);
 			} finally {
-				queryContext.returnBuffer(buffer);
+				SortResolutionStrategies.report(queryContext, strategyTally);
+				queryContext.returnBuffer(resolveBufferA);
+				queryContext.returnBuffer(resolveBufferB);
 			}
 		} else {
 			return sortingContext;
 		}
-	}
-
-	/**
-	 * Mask result of the positions in the presorted array that matched the computational result.
-	 *
-	 * @param mask                 IntegerBitmap of positions of record ids in presorted set.
-	 * @param notFoundRecords      IntegerBitmap of record ids not found in presorted set at all.
-	 * @param notFoundRecordsCount Count of records not found in presorted set at all.
-	 */
-	private record MaskResult(
-		@Nonnull RoaringBitmap mask,
-		@Nonnull RoaringBitmap notFoundRecords,
-		int notFoundRecordsCount
-	) {
 	}
 
 	/**
@@ -288,9 +256,11 @@ public final class MergedComparableSortedRecordsSupplierSorter implements Sorter
 		 */
 		private final RoaringBatchIterator maskIterator;
 		/**
-		 * Array of record IDs in sorted order provided by the associated {@link SortedRecordsProvider}.
+		 * The provider whose sorted order this buffer walks; the record id at a mask position is read positionally via
+		 * {@link SortedRecordsProvider#recordAt(int)} (tree-direct or array-backed, per the provider) rather than through
+		 * a materialized `int[]`.
 		 */
-		private final int[] sortedRecordIds;
+		private final SortedRecordsProvider sortedRecordsProvider;
 		/**
 		 * Seeker for extracting comparable values from the sorted records array at specific positions.
 		 * Used to compare records during sorting.
@@ -331,12 +301,12 @@ public final class MergedComparableSortedRecordsSupplierSorter implements Sorter
 		public SortedRecordsProviderBuffer(
 			@SuppressWarnings("rawtypes") @Nonnull Comparator comparator,
 			@Nonnull SortedRecordsProvider sortedRecordsProvider,
-			@Nonnull RoaringBitmap mask,
+			@Nonnull PersistentRoaringBitmap mask,
 			@Nonnull QueryExecutionContext queryContext
 		) {
 			this.comparator = comparator;
 			this.maskIterator = mask.getBatchIterator();
-			this.sortedRecordIds = sortedRecordsProvider.getSortedRecordIds();
+			this.sortedRecordsProvider = sortedRecordsProvider;
 			this.sortedComparableForwardSeeker = sortedRecordsProvider.getSortedComparableForwardSeeker();
 			this.sortedComparableForwardSeeker.reset();
 			this.queryContext = queryContext;
@@ -363,7 +333,7 @@ public final class MergedComparableSortedRecordsSupplierSorter implements Sorter
 			}
 			if (this.usable) {
 				final int position = this.buffer[this.maskBufferIndex++];
-				this.primaryKey = this.sortedRecordIds[position];
+				this.primaryKey = this.sortedRecordsProvider.recordAt(position);
 				this.valueToCompare = this.sortedComparableForwardSeeker.getValueToCompareOn(position);
 				return true;
 			} else {

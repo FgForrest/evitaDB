@@ -24,13 +24,16 @@
 package io.evitadb.index.array;
 
 import io.evitadb.dataType.array.CompositeIntArray;
+import io.evitadb.exception.GenericEvitaInternalError;
 import org.apache.commons.lang3.ArrayUtils;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
+import javax.annotation.Nonnull;
 import java.util.Arrays;
+import java.util.Random;
 import java.util.stream.Collectors;
 
 import static io.evitadb.test.TestTags.DATA_TYPE;
@@ -151,6 +154,19 @@ class TransactionalUnorderedIntArrayTest {
 			assertTrue(recordIds.contains(3));
 			assertTrue(recordIds.contains(5));
 			assertTrue(recordIds.contains(7));
+		}
+
+		@Test
+		@DisplayName("indexOf returns Integer.MIN_VALUE for an absent record without transaction")
+		void shouldReturnIntegerMinValueWhenIndexingAbsentRecord() {
+			final TransactionalUnorderedIntArray array = new TransactionalUnorderedIntArray(new int[]{7, 3, 5});
+
+			// a record id that is not part of the array resolves to the "absent" sentinel
+			assertEquals(Integer.MIN_VALUE, array.indexOf(999));
+			// present records still resolve to their live positions
+			assertEquals(0, array.indexOf(7));
+			assertEquals(1, array.indexOf(3));
+			assertEquals(2, array.indexOf(5));
 		}
 
 	}
@@ -803,6 +819,29 @@ class TransactionalUnorderedIntArrayTest {
 			);
 		}
 
+		@Test
+		@DisplayName("indexOf returns Integer.MIN_VALUE for an absent record inside a transaction")
+		void shouldReturnIntegerMinValueWhenIndexingAbsentRecordWithinTransaction() {
+			final TransactionalUnorderedIntArray array = new TransactionalUnorderedIntArray(new int[]{7, 3, 5});
+
+			assertStateAfterCommit(
+				array,
+				original -> {
+					// mutate within the transaction so the transaction-aware lookup path resolves the miss
+					original.add(5, 8);
+
+					// the absent record still resolves to the "absent" sentinel through the transactional layer
+					assertEquals(Integer.MIN_VALUE, original.indexOf(999));
+					// present records resolve to their live transactional positions
+					assertEquals(0, original.indexOf(7));
+					assertEquals(3, original.indexOf(8));
+				},
+				(original, committed) -> {
+					assertArrayEquals(new int[]{7, 3, 5, 8}, committed.getArray());
+				}
+			);
+		}
+
 	}
 
 	/**
@@ -1426,6 +1465,100 @@ class TransactionalUnorderedIntArrayTest {
 
 	}
 
+	/**
+	 * Tests for the forward / reverse {@link UnorderedLookupTree.PositionCursor} accessors that the façade exposes by
+	 * delegating straight to its private backing {@link UnorderedLookupTree}. They assert the façade hands back a
+	 * working cursor over its own live order: bounds are enforced, a single element resolves in both directions, and a
+	 * multi-leaf walk reproduces {@link TransactionalUnorderedIntArray#getArray()} /
+	 * {@link TransactionalUnorderedIntArray#get(int)} forward and its reversal backward.
+	 */
+	@Nested
+	@DisplayName("Position cursor delegation")
+	class PositionCursorDelegationTest {
 
+		@Test
+		@DisplayName("both cursors reject an emit on an empty array")
+		void shouldRejectEmitOnEmptyArrayForwardAndReverse() {
+			final TransactionalUnorderedIntArray array = new TransactionalUnorderedIntArray(new int[0]);
+
+			assertThrows(GenericEvitaInternalError.class, () -> array.forwardPositionCursor().recordAt(0));
+			assertThrows(GenericEvitaInternalError.class, () -> array.reversePositionCursor().recordAt(0));
+		}
+
+		@Test
+		@DisplayName("both cursors serve the sole element at emit 0 and reject emit 1")
+		void shouldServeSingleElementForwardAndReverse() {
+			final TransactionalUnorderedIntArray array = new TransactionalUnorderedIntArray(new int[]{42});
+
+			final UnorderedLookupTree.PositionCursor forward = array.forwardPositionCursor();
+			assertEquals(42, forward.recordAt(0));
+			assertThrows(GenericEvitaInternalError.class, () -> forward.recordAt(1));
+
+			final UnorderedLookupTree.PositionCursor reverse = array.reversePositionCursor();
+			assertEquals(42, reverse.recordAt(0));
+			assertThrows(GenericEvitaInternalError.class, () -> reverse.recordAt(1));
+		}
+
+		@Test
+		@DisplayName("forward cursor walks a multi-leaf array matching get() and getArray()")
+		void shouldWalkFullArrayForwardMatchingGetArray() {
+			// a length above the leaf split threshold guarantees a multi-leaf tree the cursor must walk across
+			final int length = UnorderedLookupTree.DEFAULT_BLOCK_SIZE * 3;
+			final TransactionalUnorderedIntArray array =
+				new TransactionalUnorderedIntArray(shuffledDistinctIds(length, 424242L));
+
+			final int[] flattened = array.getArray();
+			final UnorderedLookupTree.PositionCursor cursor = array.forwardPositionCursor();
+			for (int position = 0; position < length; position++) {
+				final int expected = flattened[position];
+				assertEquals(expected, cursor.recordAt(position), "cursor.recordAt at " + position);
+				assertEquals(expected, array.get(position), "array.get at " + position);
+			}
+		}
+
+		@Test
+		@DisplayName("reverse cursor walks a multi-leaf array matching the reversed getArray()")
+		void shouldWalkFullArrayReverseMatchingReversedGetArray() {
+			// a length above the leaf split threshold guarantees a multi-leaf tree the cursor must walk across
+			final int length = UnorderedLookupTree.DEFAULT_BLOCK_SIZE * 3;
+			final TransactionalUnorderedIntArray array =
+				new TransactionalUnorderedIntArray(shuffledDistinctIds(length, 424242L));
+
+			final int[] flattened = array.getArray();
+			final UnorderedLookupTree.PositionCursor cursor = array.reversePositionCursor();
+			for (int emitIndex = 0; emitIndex < length; emitIndex++) {
+				// emit index d resolves to the record at logical position length - 1 - d
+				assertEquals(
+					flattened[length - 1 - emitIndex], cursor.recordAt(emitIndex),
+					"reverse recordAt at " + emitIndex
+				);
+			}
+		}
+
+	}
+
+	/**
+	 * Builds an array of `length` distinct record ids (`1..length`) shuffled with a fixed seed, so a
+	 * {@link TransactionalUnorderedIntArray} built from it spans several tree leaves in a non-trivial logical order.
+	 *
+	 * @param length number of distinct record ids to produce
+	 * @param seed   fixed seed making the shuffle deterministic
+	 * @return the shuffled distinct record ids
+	 */
+	@Nonnull
+	private static int[] shuffledDistinctIds(int length, long seed) {
+		final int[] ids = new int[length];
+		for (int i = 0; i < length; i++) {
+			ids[i] = i + 1;
+		}
+		final Random random = new Random(seed);
+		for (int i = length - 1; i > 0; i--) {
+			final int j = random.nextInt(i + 1);
+			final int tmp = ids[i];
+			ids[i] = ids[j];
+			ids[j] = tmp;
+		}
+		return ids;
+	}
 
 }

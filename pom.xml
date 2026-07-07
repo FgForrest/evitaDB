@@ -161,6 +161,7 @@
 	-->
 	<modules>
 		<module>evita_common</module>
+		<module>evita_roaring_bitmap</module>
 		<module>evita_api</module>
 		<module>evita_query</module>
 		<module>evita_engine</module>

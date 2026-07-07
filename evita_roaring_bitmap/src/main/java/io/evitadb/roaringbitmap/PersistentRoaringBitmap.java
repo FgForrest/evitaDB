@@ -1,0 +1,4003 @@
+/*
+ * (c) the authors Licensed under the Apache License, Version 2.0.
+ */
+
+package io.evitadb.roaringbitmap;
+
+import io.evitadb.roaringbitmap.longlong.LongUtils;
+
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import java.io.DataInput;
+import java.io.DataOutput;
+import java.io.Externalizable;
+import java.io.IOException;
+import java.io.ObjectInput;
+import java.io.ObjectOutput;
+import java.io.Serial;
+import java.io.Serializable;
+import java.nio.ByteBuffer;
+import java.util.Arrays;
+import java.util.Iterator;
+
+import static io.evitadb.roaringbitmap.RoaringBitmapWriter.writer;
+import static io.evitadb.roaringbitmap.Util.lowbitsAsInteger;
+
+/**
+ * A compressed, memory-frugal alternative to `java.util.BitSet` for sets of 32-bit integers. Values
+ * are treated as **unsigned** and ordered per {@link Integer#compareUnsigned}
+ * (`0, 1, ..., 2147483647, -2147483648, ..., -1`); up to 2^32 (4 294 967 296) distinct values fit.
+ *
+ * The value space is partitioned into 2^16 chunks of 65536 consecutive integers. Each non-empty
+ * chunk is stored as a {@link Container} keyed by the value's high 16 bits, and the containers are
+ * held in ascending key order inside {@link #highLowContainer}; the low 16 bits address a bit
+ * within a container. Containers pick the densest of three encodings (array / bitmap / run), so
+ * memory tracks the data shape rather than the value range.
+ *
+ * ```java
+ * import io.evitadb.roaringbitmap.*;
+ *
+ * //...
+ *
+ * PersistentRoaringBitmap rr = PersistentRoaringBitmap.bitmapOf(1,2,3,1000);
+ * PersistentRoaringBitmap rr2 = new PersistentRoaringBitmap();
+ * for(int k = 4000; k<4255;++k) rr2.add(k);
+ * PersistentRoaringBitmap rror = PersistentRoaringBitmap.or(rr, rr2);
+ *
+ * //...
+ * DataOutputStream wheretoserialize = ...
+ * rr.runOptimize(); // can help compression
+ * rr.serialize(wheretoserialize);
+ * ```
+ *
+ * **Copy-on-write / structure sharing (the reason this fork exists).** Unlike upstream
+ * `RoaringBitmap`, the static binary operations
+ * {@link #or(PersistentRoaringBitmap, PersistentRoaringBitmap) or},
+ * {@link #xor(PersistentRoaringBitmap, PersistentRoaringBitmap) xor} and
+ * {@link #andNot(PersistentRoaringBitmap, PersistentRoaringBitmap) andNot}, together with
+ * {@link #clone()} and the in-place {@link #or(PersistentRoaringBitmap) or}/
+ * {@link #xor(PersistentRoaringBitmap) xor}, do **not** deep-copy the containers they carry over
+ * unchanged: the result *aliases* those `Container` instances with its inputs. Every borrowed slot
+ * is flagged in the parallel {@link #shared} array, and the first in-place mutation of such a slot
+ * clones it just-in-time (see `copyIfShared`) before writing, so no bitmap ever observes another's
+ * data change underneath it. A static op leaves its operands logically unchanged but raises their
+ * `shared[]` flags too, since they now co-own the carried-over containers.
+ * {@link #and(PersistentRoaringBitmap, PersistentRoaringBitmap) and} shares nothing — an
+ * intersection only ever produces freshly computed containers. This trades one boolean flag per
+ * chunk for avoiding a full container copy, sharply cutting allocation and GC pressure when
+ * operands have little key overlap.
+ *
+ * Thread-safety: because a static op writes `shared[]` flags on its operands as a side effect, it
+ * must not run concurrently with any other access to those operands, and a shared result must be
+ * safely published before another thread mutates it.
+ *
+ * Credits: derived from the RoaringBitmap project
+ * (https://github.com/RoaringBitmap/RoaringBitmap) by Daniel Lemire et al., Apache License 2.0.
+ * Vendored into evitaDB and reshaped by FG Forrest, a.s.; the copy-on-write behavior was prototyped
+ * upstream as `CopyOnWriteRoaringBitmapV2` and folded into this single class. Synced from upstream
+ * v1.6.12 (fork commit `f27cd538`). See the module `LICENSE`, `AUTHORS` and `NOTICE` files.
+ */
+public class PersistentRoaringBitmap
+	implements Cloneable,
+	Serializable,
+	Iterable<Integer>,
+	Externalizable,
+	ImmutableBitmapDataProvider,
+	BitmapDataProvider,
+	AppendableStorage<Container> {
+
+	@Serial private static final long serialVersionUID = 6L;
+	/**
+	 * Sorted map from a value's high 16 bits (the chunk key) to the {@link Container} holding that
+	 * chunk's low-16-bit members — the backbone of the bitmap. Kept in ascending key order so every
+	 * binary operation runs as a linear merge. Containers here may be aliased with other bitmaps under
+	 * copy-on-write; see {@link #shared}.
+	 */
+	@Nonnull RoaringArray highLowContainer;
+	/**
+	 * Copy-on-write flags parallel to `highLowContainer.values[]`: `shared[i] == true` means the
+	 * container at index `i` is a borrowed reference co-owned by another bitmap and MUST be cloned
+	 * before any in-place mutation.
+	 *
+	 * May be shorter than the container array: static/lazy builders that produce fully owned results
+	 * append containers directly to `highLowContainer` and leave `shared[]` lagging. Any index beyond
+	 * `shared.length` is therefore treated as owned (`false`), which is why the shift/remove helpers
+	 * tolerate an undersized array rather than assuming a strict parallel length.
+	 */
+	@Nonnull boolean[] shared;
+
+	/**
+	 * Generate a copy of the provided bitmap, but with
+	 * all its values incremented by offset.
+	 * The parameter offset can be
+	 * negative. Values that would fall outside
+	 * of the valid 32-bit range are discarded
+	 * so that the result can have lower cardinality.
+	 *
+	 * This method can be relatively expensive when
+	 * offset is not divisible by 65536. Use sparingly.
+	 *
+	 * @param x      source bitmap
+	 * @param offset increment
+	 * @return a new bitmap
+	 */
+	@Nonnull
+	public static PersistentRoaringBitmap addOffset(@Nonnull final PersistentRoaringBitmap x, long offset) {
+		// we need "offset" to be a long because we want to support values
+		// between -0xFFFFFFFF up to +-0xFFFFFFFF
+		long container_offset_long =
+			offset < 0 ? (offset - (1 << 16) + 1) / (1 << 16) : offset / (1 << 16);
+		if ((container_offset_long < -(1 << 16)) || (container_offset_long >= (1 << 16))) {
+			return new PersistentRoaringBitmap(); // it is necessarily going to be empty
+		}
+		// next cast is necessarily safe, the result is between -0xFFFF and 0xFFFF
+		int container_offset = (int) container_offset_long;
+		// next case is safe
+		int in_container_offset = (int) (offset - container_offset_long * (1L << 16));
+		if (in_container_offset == 0) {
+			PersistentRoaringBitmap answer = new PersistentRoaringBitmap();
+			for (int pos = 0; pos < x.highLowContainer.size(); pos++) {
+				int key = (x.highLowContainer.getKeyAtIndex(pos));
+				key += container_offset;
+				answer.highLowContainer.append(
+					(char) key, x.highLowContainer.getContainerAtIndex(pos).clone());
+			}
+			return answer;
+		} else {
+			PersistentRoaringBitmap answer = new PersistentRoaringBitmap();
+			for (int pos = 0; pos < x.highLowContainer.size(); pos++) {
+				int key = (x.highLowContainer.getKeyAtIndex(pos));
+				key += container_offset;
+				if (key + 1 < 0 || key > 0xFFFF) {
+					continue;
+				}
+				Container c = x.highLowContainer.getContainerAtIndex(pos);
+				Container[] offsetted = Util.addOffset(c, (char) in_container_offset);
+				boolean keyok = key >= 0;
+				boolean keypok = key + 1 <= 0xFFFF;
+				if (!offsetted[0].isEmpty() && keyok) {
+					int current_size = answer.highLowContainer.size();
+					int lastkey = 0;
+					if (current_size > 0) {
+						lastkey = (answer.highLowContainer.getKeyAtIndex(current_size - 1));
+					}
+					if ((current_size > 0) && (lastkey == key)) {
+						Container prev = answer.highLowContainer.getContainerAtIndex(current_size - 1);
+						Container orresult = prev.ior(offsetted[0]);
+						answer.highLowContainer.setContainerAtIndex(current_size - 1, orresult);
+					} else {
+						answer.highLowContainer.append((char) key, offsetted[0]);
+					}
+				}
+				if (!offsetted[1].isEmpty() && keypok) {
+					answer.highLowContainer.append((char) (key + 1), offsetted[1]);
+				}
+			}
+			answer.repairAfterLazy();
+			return answer;
+		}
+	}
+
+	/**
+	 * Generate a new bitmap with all integers in [rangeStart,rangeEnd) added.
+	 *
+	 * @param rb         initial bitmap (will not be modified)
+	 * @param rangeStart inclusive beginning of range
+	 * @param rangeEnd   exclusive ending of range
+	 * @return new bitmap
+	 */
+	@Nonnull
+	public static PersistentRoaringBitmap add(
+		@Nonnull final PersistentRoaringBitmap rb, final long rangeStart, final long rangeEnd) {
+		rangeSanityCheck(rangeStart, rangeEnd);
+		if (rangeStart >= rangeEnd) {
+			return rb.clone(); // empty range
+		}
+
+		final int hbStart = (Util.highbits(rangeStart));
+		final int lbStart = (Util.lowbits(rangeStart));
+		final int hbLast = (Util.highbits(rangeEnd - 1));
+		final int lbLast = (Util.lowbits(rangeEnd - 1));
+
+		PersistentRoaringBitmap answer = new PersistentRoaringBitmap();
+		answer.highLowContainer.appendCopiesUntil(rb.highLowContainer, (char) hbStart);
+
+		if (hbStart == hbLast) {
+			final int i = rb.highLowContainer.getIndex((char) hbStart);
+			final Container c =
+				i >= 0
+					? rb.highLowContainer.getContainerAtIndex(i).add(lbStart, lbLast + 1)
+					: Container.rangeOfOnes(lbStart, lbLast + 1);
+			answer.highLowContainer.append((char) hbStart, c);
+			answer.highLowContainer.appendCopiesAfter(rb.highLowContainer, (char) hbLast);
+			return answer;
+		}
+		int ifirst = rb.highLowContainer.getIndex((char) hbStart);
+		int ilast = rb.highLowContainer.getIndex((char) hbLast);
+
+		{
+			final Container c =
+				ifirst >= 0
+					? rb.highLowContainer
+					.getContainerAtIndex(ifirst)
+					.add(lbStart, Util.maxLowBitAsInteger() + 1)
+					: Container.rangeOfOnes(lbStart, Util.maxLowBitAsInteger() + 1);
+			answer.highLowContainer.append((char) hbStart, c);
+		}
+		for (int hb = hbStart + 1; hb < hbLast; ++hb) {
+			Container c = Container.rangeOfOnes(0, Util.maxLowBitAsInteger() + 1);
+			answer.highLowContainer.append((char) hb, c);
+		}
+		{
+			final Container c =
+				ilast >= 0
+					? rb.highLowContainer.getContainerAtIndex(ilast).add(0, lbLast + 1)
+					: Container.rangeOfOnes(0, lbLast + 1);
+			answer.highLowContainer.append((char) hbLast, c);
+		}
+		answer.highLowContainer.appendCopiesAfter(rb.highLowContainer, (char) hbLast);
+		return answer;
+	}
+
+	/**
+	 *
+	 * Generate a new bitmap with all integers in [rangeStart,rangeEnd) added.
+	 *
+	 * @param rb         initial bitmap (will not be modified)
+	 * @param rangeStart inclusive beginning of range
+	 * @param rangeEnd   exclusive ending of range
+	 * @return new bitmap
+	 * @deprecated use the version where longs specify the range
+	 */
+	@Nonnull
+	@Deprecated
+	public static PersistentRoaringBitmap add(
+		@Nonnull final PersistentRoaringBitmap rb, final int rangeStart, final int rangeEnd) {
+		if (rangeStart >= 0) {
+			return add(rb, (long) rangeStart, (long) rangeEnd);
+		}
+		// rangeStart being -ve and rangeEnd being positive is not expected)
+		// so assume both -ve
+		return add(rb, rangeStart & 0xFFFFFFFFL, rangeEnd & 0xFFFFFFFFL);
+	}
+
+	/**
+	 * Bitwise AND (intersection) operation. The provided bitmaps are *not* modified. This operation
+	 * is thread-safe as long as the provided bitmaps remain unchanged.
+	 *
+	 * The result owns all of its containers and shares nothing with the inputs: an intersection only
+	 * ever yields freshly computed containers.
+	 *
+	 * If you have more than 2 bitmaps, consider using the FastAggregation class.
+	 *
+	 * @param x1 first bitmap
+	 * @param x2 other bitmap
+	 * @return a new intersection bitmap with fully owned containers
+	 * @see FastAggregation#and(PersistentRoaringBitmap...)
+	 */
+	@Nonnull
+	public static PersistentRoaringBitmap and(
+		@Nonnull final PersistentRoaringBitmap x1, @Nonnull final PersistentRoaringBitmap x2) {
+		// intersection produces only freshly-computed containers, so no structural sharing
+		final RoaringArray answer = new RoaringArray();
+		final int length1 = x1.highLowContainer.size(), length2 = x2.highLowContainer.size();
+		int pos1 = 0, pos2 = 0;
+
+		while (pos1 < length1 && pos2 < length2) {
+			final char s1 = x1.highLowContainer.getKeyAtIndex(pos1);
+			final char s2 = x2.highLowContainer.getKeyAtIndex(pos2);
+			if (s1 == s2) {
+				final Container c1 = x1.highLowContainer.getContainerAtIndex(pos1);
+				final Container c2 = x2.highLowContainer.getContainerAtIndex(pos2);
+				final Container c = c1.and(c2);
+				if (!c.isEmpty()) {
+					answer.append(s1, c);
+				}
+				++pos1;
+				++pos2;
+			} else if (s1 < s2) {
+				pos1 = x1.highLowContainer.advanceUntil(s2, pos1);
+			} else {
+				pos2 = x2.highLowContainer.advanceUntil(s1, pos2);
+			}
+		}
+		return new PersistentRoaringBitmap(answer, new boolean[answer.size()]);
+	}
+
+	/**
+	 * Cardinality of Bitwise AND (intersection) operation. The provided bitmaps are *not* modified.
+	 * This operation is thread-safe as long as the provided bitmaps remain unchanged.
+	 *
+	 * @param x1 first bitmap
+	 * @param x2 other bitmap
+	 * @return as if you did and(x2,x2).getCardinality()
+	 * @see FastAggregation#and(PersistentRoaringBitmap...)
+	 */
+	public static int andCardinality(
+		@Nonnull final PersistentRoaringBitmap x1, @Nonnull final PersistentRoaringBitmap x2) {
+		int answer = 0;
+		final int length1 = x1.highLowContainer.size(), length2 = x2.highLowContainer.size();
+		int pos1 = 0, pos2 = 0;
+
+		while (pos1 < length1 && pos2 < length2) {
+			final char s1 = x1.highLowContainer.getKeyAtIndex(pos1);
+			final char s2 = x2.highLowContainer.getKeyAtIndex(pos2);
+			if (s1 == s2) {
+				final Container c1 = x1.highLowContainer.getContainerAtIndex(pos1);
+				final Container c2 = x2.highLowContainer.getContainerAtIndex(pos2);
+				answer += c1.andCardinality(c2);
+				++pos1;
+				++pos2;
+			} else if (s1 < s2) {
+				pos1 = x1.highLowContainer.advanceUntil(s2, pos1);
+			} else {
+				pos2 = x2.highLowContainer.advanceUntil(s1, pos2);
+			}
+		}
+		return answer;
+	}
+
+	/**
+	 * Bitwise ANDNOT (difference) operation. The provided bitmaps are *not* modified. This operation
+	 * is thread-safe as long as the provided bitmaps remain unchanged.
+	 *
+	 * Containers of `x1` that have no counterpart in `x2` are carried into the result by structural
+	 * sharing (copy-on-write): the result aliases them and `x1`'s `shared[]` flags are raised. Chunks
+	 * present in both inputs are recomputed and owned. See the class-level copy-on-write note.
+	 *
+	 * @param x1 first bitmap
+	 * @param x2 other bitmap
+	 * @return result of the operation, sharing carried-over containers with `x1`
+	 */
+	@Nonnull
+	public static PersistentRoaringBitmap andNot(
+		@Nonnull final PersistentRoaringBitmap x1, @Nonnull final PersistentRoaringBitmap x2) {
+		// non-overlapping containers from x1 are shared by reference with the result
+		markAllShared(x1);
+
+		final RoaringArray answer = new RoaringArray();
+		int pos1 = 0, pos2 = 0;
+		final int length1 = x1.highLowContainer.size(), length2 = x2.highLowContainer.size();
+
+		while (pos1 < length1 && pos2 < length2) {
+			final char s1 = x1.highLowContainer.getKeyAtIndex(pos1);
+			final char s2 = x2.highLowContainer.getKeyAtIndex(pos2);
+			if (s1 == s2) {
+				final Container c1 = x1.highLowContainer.getContainerAtIndex(pos1);
+				final Container c2 = x2.highLowContainer.getContainerAtIndex(pos2);
+				final Container c = c1.andNot(c2);
+				if (!c.isEmpty()) {
+					answer.append(s1, c);
+				}
+				++pos1;
+				++pos2;
+			} else if (s1 < s2) {
+				final int nextPos1 = x1.highLowContainer.advanceUntil(s2, pos1);
+				answer.append(x1.highLowContainer, pos1, nextPos1);
+				pos1 = nextPos1;
+			} else {
+				pos2 = x2.highLowContainer.advanceUntil(s1, pos2);
+			}
+		}
+		if (pos2 == length2) {
+			answer.append(x1.highLowContainer, pos1, length1);
+		}
+
+		return newAllSharedResult(answer);
+	}
+
+	/**
+	 * Generate a bitmap with the specified values set to true. The provided integers values don't
+	 * have to be in sorted order, but it may be preferable to sort them from a performance point of
+	 * view.
+	 *
+	 * @param dat set values
+	 * @return a new bitmap
+	 */
+	@Nonnull
+	public static PersistentRoaringBitmap bitmapOf(@Nonnull final int... dat) {
+		final PersistentRoaringBitmap ans = new PersistentRoaringBitmap();
+		ans.add(dat);
+		return ans;
+	}
+
+	/**
+	 * Efficiently builds a PersistentRoaringBitmap from unordered data
+	 *
+	 * @param data unsorted data
+	 * @return a new bitmap
+	 */
+	@Nonnull
+	public static PersistentRoaringBitmap bitmapOfUnordered(@Nonnull final int... data) {
+		RoaringBitmapWriter<PersistentRoaringBitmap> writer =
+			writer().constantMemory().doPartialRadixSort().get();
+		writer.addMany(data);
+		writer.flush();
+		return writer.getUnderlying();
+	}
+
+	/**
+	 * @see #add(long, long)
+	 */
+	@Nonnull
+	public static PersistentRoaringBitmap bitmapOfRange(long min, long max) {
+		rangeSanityCheck(min, max);
+		if (min >= max) {
+			return new PersistentRoaringBitmap();
+		}
+		final int hbStart = Util.highbits(min);
+		final int lbStart = Util.lowbits(min);
+		final int hbLast = Util.highbits(max - 1);
+		final int lbLast = Util.lowbits(max - 1);
+
+		RoaringArray array = new RoaringArray(hbLast - hbStart + 1);
+		PersistentRoaringBitmap bitmap = new PersistentRoaringBitmap(array);
+
+		int firstEnd = hbStart < hbLast ? 1 << 16 : lbLast + 1;
+		Container firstContainer = Container.rangeOfOnes(lbStart, firstEnd);
+		bitmap.append((char) hbStart, firstContainer);
+		if (hbStart < hbLast) {
+			int i = hbStart + 1;
+			while (i < hbLast) {
+				Container runContainer = Container.rangeOfOnes(0, 1 << 16);
+				bitmap.append((char) i, runContainer);
+				i++;
+			}
+			Container lastContainer = Container.rangeOfOnes(0, lbLast + 1);
+			bitmap.append((char) hbLast, lastContainer);
+		}
+		return bitmap;
+	}
+
+	/**
+	 * Complements the bits in the given range, from rangeStart (inclusive) rangeEnd (exclusive). The
+	 * given bitmap is unchanged.
+	 *
+	 * @param bm         bitmap being negated
+	 * @param rangeStart inclusive beginning of range, in [0, 0xffffffff]
+	 * @param rangeEnd   exclusive ending of range, in [0, 0xffffffff + 1]
+	 * @return a new Bitmap
+	 */
+	@Nonnull
+	public static PersistentRoaringBitmap flip(
+		@Nonnull final PersistentRoaringBitmap bm, final long rangeStart, final long rangeEnd) {
+		rangeSanityCheck(rangeStart, rangeEnd);
+		if (rangeStart >= rangeEnd) {
+			return bm.clone();
+		}
+		PersistentRoaringBitmap answer = new PersistentRoaringBitmap();
+		final int hbStart = (Util.highbits(rangeStart));
+		final int lbStart = (Util.lowbits(rangeStart));
+		final int hbLast = (Util.highbits(rangeEnd - 1));
+		final int lbLast = (Util.lowbits(rangeEnd - 1));
+
+		// copy the containers before the active area
+		answer.highLowContainer.appendCopiesUntil(bm.highLowContainer, (char) hbStart);
+
+		for (int hb = hbStart; hb <= hbLast; ++hb) {
+			final int containerStart = (hb == hbStart) ? lbStart : 0;
+			final int containerLast = (hb == hbLast) ? lbLast : Util.maxLowBitAsInteger();
+
+			final int i = bm.highLowContainer.getIndex((char) hb);
+			final int j = answer.highLowContainer.getIndex((char) hb);
+			assert j < 0;
+
+			if (i >= 0) {
+				Container c =
+					bm.highLowContainer.getContainerAtIndex(i).not(containerStart, containerLast + 1);
+				if (!c.isEmpty()) {
+					answer.highLowContainer.insertNewKeyValueAt(-j - 1, (char) hb, c);
+				}
+
+			} else { // *think* the range of ones must never be
+				// empty.
+				answer.highLowContainer.insertNewKeyValueAt(
+					-j - 1, (char) hb, Container.rangeOfOnes(containerStart, containerLast + 1));
+			}
+		}
+		// copy the containers after the active area.
+		answer.highLowContainer.appendCopiesAfter(bm.highLowContainer, (char) hbLast);
+		return answer;
+	}
+
+	/**
+	 * Complements the bits in the given range, from rangeStart (inclusive) rangeEnd (exclusive). The
+	 * given bitmap is unchanged.
+	 *
+	 * @param rb         bitmap being negated
+	 * @param rangeStart inclusive beginning of range, in [0, 0xffffffff]
+	 * @param rangeEnd   exclusive ending of range, in [0, 0xffffffff + 1]
+	 * @return a new Bitmap
+	 * @deprecated use the version where longs specify the range
+	 */
+	@Nonnull
+	@Deprecated
+	public static PersistentRoaringBitmap flip(
+		@Nonnull final PersistentRoaringBitmap rb, final int rangeStart, final int rangeEnd) {
+		if (rangeStart >= 0) {
+			return flip(rb, (long) rangeStart, (long) rangeEnd);
+		}
+		// rangeStart being -ve and rangeEnd being positive is not expected)
+		// so assume both -ve
+		return flip(rb, rangeStart & 0xFFFFFFFFL, rangeEnd & 0xFFFFFFFFL);
+	}
+
+	/**
+	 * Checks whether the two bitmaps intersect. This can be much faster than calling "and" and
+	 * checking the cardinality of the result.
+	 *
+	 * @param x1 first bitmap
+	 * @param x2 other bitmap
+	 * @return true if they intersect
+	 */
+	public static boolean intersects(
+		@Nonnull final PersistentRoaringBitmap x1, @Nonnull final PersistentRoaringBitmap x2) {
+		final int length1 = x1.highLowContainer.size(), length2 = x2.highLowContainer.size();
+		int pos1 = 0, pos2 = 0;
+
+		while (pos1 < length1 && pos2 < length2) {
+			final char s1 = x1.highLowContainer.getKeyAtIndex(pos1);
+			final char s2 = x2.highLowContainer.getKeyAtIndex(pos2);
+			if (s1 == s2) {
+				final Container c1 = x1.highLowContainer.getContainerAtIndex(pos1);
+				final Container c2 = x2.highLowContainer.getContainerAtIndex(pos2);
+				if (c1.intersects(c2)) {
+					return true;
+				}
+				++pos1;
+				++pos2;
+			} else if (s1 < s2) {
+				pos1 = x1.highLowContainer.advanceUntil(s2, pos1);
+			} else {
+				pos2 = x2.highLowContainer.advanceUntil(s1, pos2);
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * Compute overall OR between bitmaps.
+	 *
+	 * (Effectively calls {@link FastAggregation#or})
+	 *
+	 * @param bitmaps input bitmaps
+	 * @return aggregated bitmap
+	 */
+	@Nonnull
+	public static PersistentRoaringBitmap or(@Nonnull final Iterator<? extends PersistentRoaringBitmap> bitmaps) {
+		return FastAggregation.or(bitmaps);
+	}
+
+	/**
+	 * Compute overall OR between bitmaps.
+	 *
+	 * (Effectively calls {@link FastAggregation#or})
+	 *
+	 * @param bitmaps input bitmaps
+	 * @return aggregated bitmap
+	 */
+	@Nonnull
+	public static PersistentRoaringBitmap or(@Nonnull final PersistentRoaringBitmap... bitmaps) {
+		return FastAggregation.or(bitmaps);
+	}
+
+	/**
+	 * Bitwise OR (union) operation. The provided bitmaps are *not* modified. This operation is
+	 * thread-safe as long as the provided bitmaps remain unchanged.
+	 *
+	 * Chunks present in only one input are carried into the result by structural sharing
+	 * (copy-on-write): the result aliases those containers and the source's `shared[]` flags are
+	 * raised. Chunks present in both inputs are merged into freshly owned containers. See the
+	 * class-level copy-on-write note.
+	 *
+	 * If you have more than 2 bitmaps, consider using the FastAggregation class.
+	 *
+	 * @param x1 first bitmap
+	 * @param x2 other bitmap
+	 * @return result of the operation, sharing non-overlapping containers with the inputs
+	 * @see FastAggregation#or(PersistentRoaringBitmap...)
+	 * @see FastAggregation#horizontal_or(PersistentRoaringBitmap...)
+	 */
+	@Nonnull
+	public static PersistentRoaringBitmap or(
+		@Nonnull final PersistentRoaringBitmap x1, @Nonnull final PersistentRoaringBitmap x2) {
+		// non-overlapping containers are shared by reference with the result
+		markAllShared(x1);
+		markAllShared(x2);
+
+		final RoaringArray answer = new RoaringArray();
+		int pos1 = 0, pos2 = 0;
+		final int length1 = x1.highLowContainer.size(), length2 = x2.highLowContainer.size();
+		main:
+		if (pos1 < length1 && pos2 < length2) {
+			char s1 = x1.highLowContainer.getKeyAtIndex(pos1);
+			char s2 = x2.highLowContainer.getKeyAtIndex(pos2);
+
+			while (true) {
+				if (s1 == s2) {
+					answer.append(
+						s1,
+						x1.highLowContainer
+							.getContainerAtIndex(pos1)
+							.or(x2.highLowContainer.getContainerAtIndex(pos2))
+					);
+					pos1++;
+					pos2++;
+					if ((pos1 == length1) || (pos2 == length2)) {
+						break main;
+					}
+					s1 = x1.highLowContainer.getKeyAtIndex(pos1);
+					s2 = x2.highLowContainer.getKeyAtIndex(pos2);
+				} else if (s1 < s2) {
+					answer.append(s1, x1.highLowContainer.getContainerAtIndex(pos1));
+					pos1++;
+					if (pos1 == length1) {
+						break main;
+					}
+					s1 = x1.highLowContainer.getKeyAtIndex(pos1);
+				} else {
+					answer.append(s2, x2.highLowContainer.getContainerAtIndex(pos2));
+					pos2++;
+					if (pos2 == length2) {
+						break main;
+					}
+					s2 = x2.highLowContainer.getKeyAtIndex(pos2);
+				}
+			}
+		}
+		if (pos1 == length1) {
+			answer.append(x2.highLowContainer, pos2, length2);
+		} else if (pos2 == length2) {
+			answer.append(x1.highLowContainer, pos1, length1);
+		}
+
+		return newAllSharedResult(answer);
+	}
+
+	/**
+	 * Cardinality of the bitwise OR (union) operation. The provided bitmaps are *not* modified. This
+	 * operation is thread-safe as long as the provided bitmaps remain unchanged.
+	 *
+	 * If you have more than 2 bitmaps, consider using the FastAggregation class.
+	 *
+	 * @param x1 first bitmap
+	 * @param x2 other bitmap
+	 * @return cardinality of the union
+	 * @see FastAggregation#or(PersistentRoaringBitmap...)
+	 * @see FastAggregation#horizontal_or(PersistentRoaringBitmap...)
+	 */
+	public static int orCardinality(
+		@Nonnull final PersistentRoaringBitmap x1, @Nonnull final PersistentRoaringBitmap x2) {
+		// we use the fact that the cardinality of the bitmaps is known so that
+		// the union is just the total cardinality minus the intersection
+		return x1.getCardinality() + x2.getCardinality() - andCardinality(x1, x2);
+	}
+
+	/**
+	 * Cardinality of the bitwise XOR (symmetric difference) operation.
+	 * The provided bitmaps are *not* modified. This operation is thread-safe
+	 * as long as the provided bitmaps remain unchanged.
+	 *
+	 * @param x1 first bitmap
+	 * @param x2 other bitmap
+	 * @return cardinality of the symmetric difference
+	 */
+	public static int xorCardinality(
+		@Nonnull final PersistentRoaringBitmap x1, @Nonnull final PersistentRoaringBitmap x2) {
+		return x1.getCardinality() + x2.getCardinality() - 2 * andCardinality(x1, x2);
+	}
+
+	/**
+	 * Cardinality of the bitwise ANDNOT (left difference) operation.
+	 * The provided bitmaps are *not* modified. This operation is thread-safe
+	 * as long as the provided bitmaps remain unchanged.
+	 *
+	 * @param x1 first bitmap
+	 * @param x2 other bitmap
+	 * @return cardinality of the left difference
+	 */
+	public static int andNotCardinality(
+		@Nonnull final PersistentRoaringBitmap x1, @Nonnull final PersistentRoaringBitmap x2) {
+		final int length1 = x1.highLowContainer.size(), length2 = x2.highLowContainer.size();
+
+		if (length2 > 4 * length1) {
+			// if x1 is much smaller than x2, this can be much faster
+			return x1.getCardinality() - andCardinality(x1, x2);
+		}
+
+		long cardinality = 0L;
+		int pos1 = 0, pos2 = 0;
+
+		while (pos1 < length1 && pos2 < length2) {
+			char s1 = x1.highLowContainer.getKeyAtIndex(pos1);
+			char s2 = x2.highLowContainer.getKeyAtIndex(pos2);
+			if (s1 == s2) {
+				final Container c1 = x1.highLowContainer.getContainerAtIndex(pos1);
+				final Container c2 = x2.highLowContainer.getContainerAtIndex(pos2);
+				cardinality += c1.getCardinality() - c1.andCardinality(c2);
+				++pos1;
+				++pos2;
+			} else if (s1 < s2) {
+				while (s1 < s2 && pos1 < length1) {
+					cardinality += x1.highLowContainer.getContainerAtIndex(pos1).getCardinality();
+					++pos1;
+					// If executed in the last digit, the array will be out of bounds
+					if (pos1 == length1) {
+						break;
+					}
+					s1 = x1.highLowContainer.getKeyAtIndex(pos1);
+				}
+			} else {
+				pos2 = x2.highLowContainer.advanceUntil(s1, pos2);
+			}
+		}
+		if (pos2 == length2) {
+			while (pos1 < length1) {
+				cardinality += x1.highLowContainer.getContainerAtIndex(pos1).getCardinality();
+				++pos1;
+			}
+		}
+		return (int) cardinality;
+	}
+
+	/**
+	 * Generate a new bitmap with all integers in [rangeStart,rangeEnd) removed.
+	 *
+	 * @param rb         initial bitmap (will not be modified)
+	 * @param rangeStart inclusive beginning of range
+	 * @param rangeEnd   exclusive ending of range
+	 * @return new bitmap
+	 */
+	@Nonnull
+	public static PersistentRoaringBitmap remove(
+		@Nonnull final PersistentRoaringBitmap rb, final long rangeStart, final long rangeEnd) {
+		rangeSanityCheck(rangeStart, rangeEnd);
+		if (rangeStart >= rangeEnd) {
+			return rb.clone(); // empty range
+		}
+
+		final int hbStart = (Util.highbits(rangeStart));
+		final int lbStart = (Util.lowbits(rangeStart));
+		final int hbLast = (Util.highbits(rangeEnd - 1));
+		final int lbLast = (Util.lowbits(rangeEnd - 1));
+		PersistentRoaringBitmap answer = new PersistentRoaringBitmap();
+		answer.highLowContainer.appendCopiesUntil(rb.highLowContainer, (char) hbStart);
+
+		if (hbStart == hbLast) {
+			final int i = rb.highLowContainer.getIndex((char) hbStart);
+			if (i >= 0) {
+				final Container c = rb.highLowContainer.getContainerAtIndex(i).remove(lbStart, lbLast + 1);
+				if (!c.isEmpty()) {
+					answer.highLowContainer.append((char) hbStart, c);
+				}
+			}
+			answer.highLowContainer.appendCopiesAfter(rb.highLowContainer, (char) hbLast);
+			return answer;
+		}
+		int ifirst = rb.highLowContainer.getIndex((char) hbStart);
+		int ilast = rb.highLowContainer.getIndex((char) hbLast);
+		if ((ifirst >= 0) && (lbStart != 0)) {
+			final Container c =
+				rb.highLowContainer
+					.getContainerAtIndex(ifirst)
+					.remove(lbStart, Util.maxLowBitAsInteger() + 1);
+			if (!c.isEmpty()) {
+				answer.highLowContainer.append((char) hbStart, c);
+			}
+		}
+		if ((ilast >= 0) && (lbLast != Util.maxLowBitAsInteger())) {
+			final Container c = rb.highLowContainer.getContainerAtIndex(ilast).remove(0, lbLast + 1);
+			if (!c.isEmpty()) {
+				answer.highLowContainer.append((char) hbLast, c);
+			}
+		}
+		answer.highLowContainer.appendCopiesAfter(rb.highLowContainer, (char) hbLast);
+		return answer;
+	}
+
+	/**
+	 * Generate a new bitmap with all integers in [rangeStart,rangeEnd) removed.
+	 *
+	 * @param rb         initial bitmap (will not be modified)
+	 * @param rangeStart inclusive beginning of range
+	 * @param rangeEnd   exclusive ending of range
+	 * @return new bitmap
+	 * @deprecated use the version where longs specify the range
+	 */
+	@Nonnull
+	@Deprecated
+	public static PersistentRoaringBitmap remove(
+		@Nonnull final PersistentRoaringBitmap rb, final int rangeStart, final int rangeEnd) {
+		if (rangeStart >= 0) {
+			return remove(rb, (long) rangeStart, (long) rangeEnd);
+		}
+		// rangeStart being -ve and rangeEnd being positive is not expected)
+		// so assume both -ve
+		return remove(rb, rangeStart & 0xFFFFFFFFL, rangeEnd & 0xFFFFFFFFL);
+	}
+
+	/**
+	 * Bitwise XOR (symmetric difference) operation. The provided bitmaps are *not* modified. This
+	 * operation is thread-safe as long as the provided bitmaps remain unchanged.
+	 *
+	 * Chunks present in only one input are carried into the result by structural sharing
+	 * (copy-on-write): the result aliases those containers and the source's `shared[]` flags are
+	 * raised. Chunks present in both inputs are recomputed and owned. See the class-level
+	 * copy-on-write note.
+	 *
+	 * If you have more than 2 bitmaps, consider using the FastAggregation class.
+	 *
+	 * @param x1 first bitmap
+	 * @param x2 other bitmap
+	 * @return result of the operation, sharing non-overlapping containers with the inputs
+	 * @see FastAggregation#xor(PersistentRoaringBitmap...)
+	 * @see FastAggregation#horizontal_xor(PersistentRoaringBitmap...)
+	 */
+	@Nonnull
+	public static PersistentRoaringBitmap xor(
+		@Nonnull final PersistentRoaringBitmap x1, @Nonnull final PersistentRoaringBitmap x2) {
+		// non-overlapping containers from both inputs are shared by reference with the result
+		markAllShared(x1);
+		markAllShared(x2);
+
+		final RoaringArray answer = new RoaringArray();
+		int pos1 = 0, pos2 = 0;
+		final int length1 = x1.highLowContainer.size(), length2 = x2.highLowContainer.size();
+
+		main:
+		if (pos1 < length1 && pos2 < length2) {
+			char s1 = x1.highLowContainer.getKeyAtIndex(pos1);
+			char s2 = x2.highLowContainer.getKeyAtIndex(pos2);
+
+			while (true) {
+				if (s1 == s2) {
+					final Container c =
+						x1.highLowContainer
+							.getContainerAtIndex(pos1)
+							.xor(x2.highLowContainer.getContainerAtIndex(pos2));
+					if (!c.isEmpty()) {
+						answer.append(s1, c);
+					}
+					pos1++;
+					pos2++;
+					if ((pos1 == length1) || (pos2 == length2)) {
+						break main;
+					}
+					s1 = x1.highLowContainer.getKeyAtIndex(pos1);
+					s2 = x2.highLowContainer.getKeyAtIndex(pos2);
+				} else if (s1 < s2) {
+					answer.append(s1, x1.highLowContainer.getContainerAtIndex(pos1));
+					pos1++;
+					if (pos1 == length1) {
+						break main;
+					}
+					s1 = x1.highLowContainer.getKeyAtIndex(pos1);
+				} else {
+					answer.append(s2, x2.highLowContainer.getContainerAtIndex(pos2));
+					pos2++;
+					if (pos2 == length2) {
+						break main;
+					}
+					s2 = x2.highLowContainer.getKeyAtIndex(pos2);
+				}
+			}
+		}
+		if (pos1 == length1) {
+			answer.append(x2.highLowContainer, pos2, length2);
+		} else if (pos2 == length2) {
+			answer.append(x1.highLowContainer, pos1, length1);
+		}
+
+		return newAllSharedResult(answer);
+	}
+
+	/**
+	 * Creates a PersistentRoaringBitmap from an existing bitmap, cloning every container
+	 * to produce a fully independent copy (no sharing with the source).
+	 *
+	 * @param source the bitmap to copy from
+	 * @return a new independent PersistentRoaringBitmap
+	 */
+	@Nonnull
+	public static PersistentRoaringBitmap fromBitmap(@Nonnull final PersistentRoaringBitmap source) {
+		final RoaringArray src = source.highLowContainer;
+		final RoaringArray dst = new RoaringArray(src.size);
+		for (int i = 0; i < src.size(); i++) {
+			dst.append(src.getKeyAtIndex(i), src.getContainerAtIndex(i).clone());
+		}
+		return new PersistentRoaringBitmap(dst, new boolean[dst.size]);
+	}
+
+	/**
+	 * Computes AND between input bitmaps in the given range, from rangeStart (inclusive) to rangeEnd
+	 * (exclusive)
+	 *
+	 * @param bitmaps    input bitmaps, these are not modified
+	 * @param rangeStart inclusive beginning of range
+	 * @param rangeEnd   exclusive ending of range
+	 * @return new result bitmap
+	 */
+	@Nonnull
+	public static PersistentRoaringBitmap and(
+		@Nonnull final Iterator<? extends PersistentRoaringBitmap> bitmaps, final long rangeStart,
+		final long rangeEnd
+	) {
+		rangeSanityCheck(rangeStart, rangeEnd);
+
+		Iterator<PersistentRoaringBitmap> bitmapsIterator;
+		bitmapsIterator = selectRangeWithoutCopy(bitmaps, rangeStart, rangeEnd);
+		return FastAggregation.and(bitmapsIterator);
+	}
+
+	/**
+	 * Computes AND between input bitmaps in the given range, from rangeStart (inclusive) to rangeEnd
+	 * (exclusive)
+	 *
+	 * @param bitmaps    input bitmaps, these are not modified
+	 * @param rangeStart inclusive beginning of range
+	 * @param rangeEnd   exclusive ending of range
+	 * @return new result bitmap
+	 * @deprecated use the version where longs specify the range. Negative range end are illegal.
+	 */
+	@Nonnull
+	@Deprecated
+	public static PersistentRoaringBitmap and(
+		@Nonnull final Iterator<? extends PersistentRoaringBitmap> bitmaps, final int rangeStart, final int rangeEnd) {
+		return and(bitmaps, (long) rangeStart, (long) rangeEnd);
+	}
+
+	/**
+	 * Bitwise ANDNOT (difference) operation for the given range, rangeStart (inclusive) and rangeEnd
+	 * (exclusive). The provided bitmaps are *not* modified. This operation is thread-safe as long as
+	 * the provided bitmaps remain unchanged.
+	 *
+	 * @param x1         first bitmap
+	 * @param x2         other bitmap
+	 * @param rangeStart starting point of the range (inclusive)
+	 * @param rangeEnd   end point of the range (exclusive)
+	 * @return result of the operation
+	 */
+	@Nonnull
+	public static PersistentRoaringBitmap andNot(
+		@Nonnull final PersistentRoaringBitmap x1, @Nonnull final PersistentRoaringBitmap x2, long rangeStart,
+		long rangeEnd
+	) {
+		rangeSanityCheck(rangeStart, rangeEnd);
+
+		PersistentRoaringBitmap rb1 = selectRangeWithoutCopy(x1, rangeStart, rangeEnd);
+		PersistentRoaringBitmap rb2 = selectRangeWithoutCopy(x2, rangeStart, rangeEnd);
+		return andNot(rb1, rb2);
+	}
+
+	/**
+	 * Bitwise ANDNOT (difference) operation for the given range, rangeStart (inclusive) and rangeEnd
+	 * (exclusive). The provided bitmaps are *not* modified. This operation is thread-safe as long as
+	 * the provided bitmaps remain unchanged.
+	 *
+	 * @param x1         first bitmap
+	 * @param x2         other bitmap
+	 * @param rangeStart starting point of the range (inclusive)
+	 * @param rangeEnd   end point of the range (exclusive)
+	 * @return result of the operation
+	 * @deprecated use the version where longs specify the range. Negative values for range
+	 * endpoints are not allowed.
+	 */
+	@Nonnull
+	@Deprecated
+	public static PersistentRoaringBitmap andNot(
+		@Nonnull final PersistentRoaringBitmap x1, @Nonnull final PersistentRoaringBitmap x2, final int rangeStart,
+		final int rangeEnd
+	) {
+		return andNot(x1, x2, (long) rangeStart, (long) rangeEnd);
+	}
+
+	/**
+	 * Bitwise ORNOT operation over the range `[0, rangeEnd)`, i.e. `x1 OR (NOT x2)` restricted to that
+	 * range. The provided bitmaps are *not* modified. This operation is thread-safe as long as the
+	 * provided bitmaps remain unchanged.
+	 *
+	 * The result owns all of its containers (the complement forces fresh containers; chunks of `x1`
+	 * beyond `rangeEnd` are carried over as clones), so nothing is shared with the inputs.
+	 *
+	 * @param x1       first bitmap
+	 * @param x2       other bitmap
+	 * @param rangeEnd end point of the range (exclusive)
+	 * @return a new bitmap with fully owned containers
+	 */
+	@Nonnull
+	public static PersistentRoaringBitmap orNot(
+		@Nonnull final PersistentRoaringBitmap x1, @Nonnull final PersistentRoaringBitmap x2, long rangeEnd) {
+		rangeSanityCheck(0, rangeEnd);
+		int maxKey = (int) ((rangeEnd - 1) >>> 16);
+		int lastRun = (rangeEnd & 0xFFFF) == 0 ? 0x10000 : (int) (rangeEnd & 0xFFFF);
+		int size = 0;
+		int pos1 = 0, pos2 = 0;
+		int length1 = x1.highLowContainer.size(), length2 = x2.highLowContainer.size();
+		int s1 = length1 > 0 ? x1.highLowContainer.getKeyAtIndex(pos1) : maxKey + 1;
+		int s2 = length2 > 0 ? x2.highLowContainer.getKeyAtIndex(pos2) : maxKey + 1;
+		int remainder = 0;
+		for (int i = x1.highLowContainer.size - 1;
+		     i >= 0 && x1.highLowContainer.keys[i] > maxKey;
+		     --i) {
+			++remainder;
+		}
+		int correction = 0;
+		for (int i = 0; i < x2.highLowContainer.size - remainder; ++i) {
+			correction += x2.highLowContainer.getContainerAtIndex(i).isFull() ? 1 : 0;
+			if (x2.highLowContainer.getKeyAtIndex(i) >= maxKey) {
+				break;
+			}
+		}
+		// it's almost certain that the bitmap will grow, so make a conservative overestimate,
+		// this avoids temporary allocation, and can trim afterwards
+		int maxSize = Math.min(maxKey + 1 + remainder - correction + x1.highLowContainer.size, 0x10000);
+		if (maxSize == 0) {
+			return new PersistentRoaringBitmap();
+		}
+		char[] newKeys = new char[maxSize];
+		Container[] newValues = new Container[maxSize];
+		for (int key = 0; key <= maxKey && size < maxSize; ++key) {
+			if (key == s1 && key == s2) { // actually need to do an or not
+				newValues[size] =
+					x1.highLowContainer
+						.getContainerAtIndex(pos1)
+						.orNot(
+							x2.highLowContainer.getContainerAtIndex(pos2),
+							key == maxKey ? lastRun : 0x10000
+						);
+				++pos1;
+				++pos2;
+				s1 = pos1 < length1 ? x1.highLowContainer.getKeyAtIndex(pos1) : maxKey + 1;
+				s2 = pos2 < length2 ? x2.highLowContainer.getKeyAtIndex(pos2) : maxKey + 1;
+			} else if (key == s1) { // or in a hole
+				newValues[size] =
+					key == maxKey
+						// clone before the in-place ior: the result must own this container, and x1's
+						// container may be shared copy-on-write with a co-owner. Mutating it directly
+						// (as pristine upstream does) would corrupt the input bitmap and any co-owner.
+						? x1.highLowContainer
+						.getContainerAtIndex(pos1)
+						.clone()
+						.ior(Container.rangeOfOnes(0, lastRun))
+						: RunContainer.full();
+				++pos1;
+				s1 = pos1 < length1 ? x1.highLowContainer.getKeyAtIndex(pos1) : maxKey + 1;
+			} else if (key == s2) { // insert the complement
+				newValues[size] =
+					x2.highLowContainer.getContainerAtIndex(pos2).not(0, key == maxKey ? lastRun : 0x10000);
+				++pos2;
+				s2 = pos2 < length2 ? x2.highLowContainer.getKeyAtIndex(pos2) : maxKey + 1;
+			} else { // key missing from both
+				newValues[size] =
+					key == maxKey ? Container.rangeOfOnes(0, lastRun) : RunContainer.full();
+			}
+			// might have appended an empty container (rare case)
+			if (newValues[size].isEmpty()) {
+				newValues[size] = null;
+			} else {
+				newKeys[size++] = (char) key;
+			}
+		}
+		// copy over everything which will remain without being complemented
+		if (remainder > 0) {
+			System.arraycopy(
+				x1.highLowContainer.keys, x1.highLowContainer.size - remainder, newKeys, size, remainder);
+			System.arraycopy(
+				x1.highLowContainer.values,
+				x1.highLowContainer.size - remainder,
+				newValues,
+				size,
+				remainder
+			);
+			for (int i = size; i < size + remainder; ++i) {
+				newValues[i] = newValues[i].clone();
+			}
+		}
+		PersistentRoaringBitmap result = new PersistentRoaringBitmap();
+		result.highLowContainer.keys = newKeys;
+		result.highLowContainer.values = newValues;
+		result.highLowContainer.size = size + remainder;
+		return result;
+	}
+
+	/**
+	 * Computes OR between input bitmaps in the given range, from rangeStart (inclusive) to rangeEnd
+	 * (exclusive)
+	 *
+	 * @param bitmaps    input bitmaps, these are not modified
+	 * @param rangeStart inclusive beginning of range
+	 * @param rangeEnd   exclusive ending of range
+	 * @return new result bitmap
+	 */
+	@Nonnull
+	public static PersistentRoaringBitmap or(
+		@Nonnull final Iterator<? extends PersistentRoaringBitmap> bitmaps, final long rangeStart,
+		final long rangeEnd
+	) {
+		rangeSanityCheck(rangeStart, rangeEnd);
+
+		Iterator<PersistentRoaringBitmap> bitmapsIterator;
+		bitmapsIterator = selectRangeWithoutCopy(bitmaps, rangeStart, rangeEnd);
+		return or(bitmapsIterator);
+	}
+
+	/**
+	 * Computes OR between input bitmaps in the given range, from rangeStart (inclusive) to rangeEnd
+	 * (exclusive)
+	 *
+	 * @param bitmaps    input bitmaps, these are not modified
+	 * @param rangeStart inclusive beginning of range
+	 * @param rangeEnd   exclusive ending of range
+	 * @return new result bitmap
+	 * @deprecated use the version where longs specify the range.
+	 * Negative range points are forbidden.
+	 */
+	@Nonnull
+	@Deprecated
+	public static PersistentRoaringBitmap or(
+		@Nonnull final Iterator<? extends PersistentRoaringBitmap> bitmaps, final int rangeStart, final int rangeEnd) {
+		return or(bitmaps, (long) rangeStart, (long) rangeEnd);
+	}
+
+	/**
+	 * Assume that one wants to store "cardinality" integers in [0, universe_size), this function
+	 * returns an upper bound on the serialized size in bytes.
+	 *
+	 * @param cardinality   maximal cardinality
+	 * @param universe_size maximal value
+	 * @return upper bound on the serialized size in bytes of the bitmap
+	 */
+	public static long maximumSerializedSize(long cardinality, long universe_size) {
+		long contnbr = (universe_size + 65535) / 65536;
+		if (contnbr > cardinality) {
+			contnbr = cardinality;
+			// we can't have more containers than we have values
+		}
+		final long headermax = Math.max(8, 4 + (contnbr + 7) / 8) + 8 * contnbr;
+		final long valsarray = 2 * cardinality;
+		final long valsbitmap = contnbr * 8192;
+		final long valsbest = Math.min(valsarray, valsbitmap);
+		return valsbest + headermax;
+	}
+
+	/**
+	 * Computes XOR between input bitmaps in the given range, from rangeStart (inclusive) to rangeEnd
+	 * (exclusive)
+	 *
+	 * @param bitmaps    input bitmaps, these are not modified
+	 * @param rangeStart inclusive beginning of range
+	 * @param rangeEnd   exclusive ending of range
+	 * @return new result bitmap
+	 */
+	@Nonnull
+	public static PersistentRoaringBitmap xor(
+		@Nonnull final Iterator<? extends PersistentRoaringBitmap> bitmaps, final long rangeStart,
+		final long rangeEnd
+	) {
+		rangeSanityCheck(rangeStart, rangeEnd);
+		Iterator<PersistentRoaringBitmap> bitmapsIterator;
+		bitmapsIterator = selectRangeWithoutCopy(bitmaps, rangeStart, rangeEnd);
+		return FastAggregation.xor(bitmapsIterator);
+	}
+
+	/**
+	 * Computes XOR between input bitmaps in the given range, from rangeStart (inclusive) to rangeEnd
+	 * (exclusive)
+	 *
+	 * @param bitmaps    input bitmaps, these are not modified
+	 * @param rangeStart inclusive beginning of range
+	 * @param rangeEnd   exclusive ending of range
+	 * @return new result bi
+	 * @deprecated use the version where longs specify the range.
+	 * Negative values not allowed for rangeStart and rangeEnd
+	 */
+	@Nonnull
+	@Deprecated
+	public static PersistentRoaringBitmap xor(
+		@Nonnull final Iterator<? extends PersistentRoaringBitmap> bitmaps, final int rangeStart, final int rangeEnd) {
+		return xor(bitmaps, (long) rangeStart, (long) rangeEnd);
+	}
+
+	/**
+	 * Lazy union used by {@link FastAggregation}: like
+	 * {@link #or(PersistentRoaringBitmap, PersistentRoaringBitmap) or} but leaves overlapping
+	 * containers in a denormalized "lazy" state (cardinalities not yet recomputed) so a long fold of
+	 * bitmaps stays cheap. Non-overlapping chunks are deep-copied, so the result shares nothing with
+	 * the inputs.
+	 *
+	 * The caller MUST run {@link #repairAfterLazy()} on the result before using it, and neither input
+	 * may itself have been produced lazily.
+	 *
+	 * @param x1 first bitmap
+	 * @param x2 other bitmap
+	 * @return a lazily unioned bitmap awaiting {@link #repairAfterLazy()}
+	 */
+	@Nonnull
+	protected static PersistentRoaringBitmap lazyor(
+		@Nonnull final PersistentRoaringBitmap x1, @Nonnull final PersistentRoaringBitmap x2) {
+		final PersistentRoaringBitmap answer = new PersistentRoaringBitmap();
+		int pos1 = 0, pos2 = 0;
+		final int length1 = x1.highLowContainer.size(), length2 = x2.highLowContainer.size();
+		main:
+		if (pos1 < length1 && pos2 < length2) {
+			char s1 = x1.highLowContainer.getKeyAtIndex(pos1);
+			char s2 = x2.highLowContainer.getKeyAtIndex(pos2);
+
+			while (true) {
+				if (s1 == s2) {
+					answer.highLowContainer.append(
+						s1,
+						x1.highLowContainer
+							.getContainerAtIndex(pos1)
+							.lazyOR(x2.highLowContainer.getContainerAtIndex(pos2))
+					);
+					pos1++;
+					pos2++;
+					if ((pos1 == length1) || (pos2 == length2)) {
+						break main;
+					}
+					s1 = x1.highLowContainer.getKeyAtIndex(pos1);
+					s2 = x2.highLowContainer.getKeyAtIndex(pos2);
+				} else if (s1 < s2) {
+					answer.highLowContainer.appendCopy(x1.highLowContainer, pos1);
+					pos1++;
+					if (pos1 == length1) {
+						break main;
+					}
+					s1 = x1.highLowContainer.getKeyAtIndex(pos1);
+				} else {
+					answer.highLowContainer.appendCopy(x2.highLowContainer, pos2);
+					pos2++;
+					if (pos2 == length2) {
+						break main;
+					}
+					s2 = x2.highLowContainer.getKeyAtIndex(pos2);
+				}
+			}
+		}
+		if (pos1 == length1) {
+			answer.highLowContainer.appendCopy(x2.highLowContainer, pos2, length2);
+		} else if (pos2 == length2) {
+			answer.highLowContainer.appendCopy(x1.highLowContainer, pos1, length1);
+		}
+		return answer;
+	}
+
+	// -----------------------------------------------------------------------
+	// Structural-sharing / copy-on-write infrastructure
+	// -----------------------------------------------------------------------
+
+	/**
+	 * Lazy union of two already-lazy operands, used internally by {@link FastAggregation} while
+	 * folding many bitmaps. Chunks unique to one side are adopted **by reference without raising
+	 * copy-on-write flags**, so both inputs are effectively consumed: they MUST NOT be reused, and the
+	 * result MUST be passed through {@link #repairAfterLazy()} before use.
+	 *
+	 * @param x1 first (lazy) bitmap, consumed by this call
+	 * @param x2 other (lazy) bitmap, consumed by this call
+	 * @return a lazily unioned bitmap awaiting {@link #repairAfterLazy()}
+	 */
+	@Nonnull
+	protected static PersistentRoaringBitmap lazyorfromlazyinputs(
+		@Nonnull final PersistentRoaringBitmap x1, @Nonnull final PersistentRoaringBitmap x2) {
+		final PersistentRoaringBitmap answer = new PersistentRoaringBitmap();
+		int pos1 = 0, pos2 = 0;
+		final int length1 = x1.highLowContainer.size(), length2 = x2.highLowContainer.size();
+		main:
+		if (pos1 < length1 && pos2 < length2) {
+			char s1 = x1.highLowContainer.getKeyAtIndex(pos1);
+			char s2 = x2.highLowContainer.getKeyAtIndex(pos2);
+
+			while (true) {
+				if (s1 == s2) {
+					Container c1 = x1.highLowContainer.getContainerAtIndex(pos1);
+					Container c2 = x2.highLowContainer.getContainerAtIndex(pos2);
+					if ((c2 instanceof BitmapContainer) && (!(c1 instanceof BitmapContainer))) {
+						Container tmp = c1;
+						c1 = c2;
+						c2 = tmp;
+					}
+					answer.highLowContainer.append(s1, c1.lazyIOR(c2));
+					pos1++;
+					pos2++;
+					if ((pos1 == length1) || (pos2 == length2)) {
+						break main;
+					}
+					s1 = x1.highLowContainer.getKeyAtIndex(pos1);
+					s2 = x2.highLowContainer.getKeyAtIndex(pos2);
+				} else if (s1 < s2) {
+					Container c1 = x1.highLowContainer.getContainerAtIndex(pos1);
+					answer.highLowContainer.append(s1, c1);
+					pos1++;
+					if (pos1 == length1) {
+						break main;
+					}
+					s1 = x1.highLowContainer.getKeyAtIndex(pos1);
+				} else {
+					Container c2 = x2.highLowContainer.getContainerAtIndex(pos2);
+					answer.highLowContainer.append(s2, c2);
+					pos2++;
+					if (pos2 == length2) {
+						break main;
+					}
+					s2 = x2.highLowContainer.getKeyAtIndex(pos2);
+				}
+			}
+		}
+		if (pos1 == length1) {
+			answer.highLowContainer.append(x2.highLowContainer, pos2, length2);
+		} else if (pos2 == length2) {
+			answer.highLowContainer.append(x1.highLowContainer, pos1, length1);
+		}
+		return answer;
+	}
+
+	private static void rangeSanityCheck(final long rangeStart, final long rangeEnd) {
+		if (rangeStart < 0 || rangeStart > (1L << 32) - 1) {
+			throw new IllegalArgumentException(
+				"rangeStart=" + rangeStart + " should be in [0, 0xffffffff]");
+		}
+		if (rangeEnd > (1L << 32) || rangeEnd < 0) {
+			throw new IllegalArgumentException(
+				"rangeEnd=" + rangeEnd + " should be in [0, 0xffffffff + 1]");
+		}
+	}
+
+	/**
+	 * Marks ALL containers in a bitmap as shared.
+	 */
+	private static void markAllShared(@Nonnull final PersistentRoaringBitmap bitmap) {
+		final int size = bitmap.highLowContainer.size();
+		bitmap.ensureSharedCapacity(size);
+		Arrays.fill(bitmap.shared, 0, size, true);
+	}
+
+	/**
+	 * Creates a new PersistentRoaringBitmap from a RoaringArray with all containers
+	 * marked as shared. Used by static binary operations that produce shared results.
+	 */
+	@Nonnull
+	private static PersistentRoaringBitmap newAllSharedResult(@Nonnull final RoaringArray answer) {
+		final boolean[] resultShared = new boolean[answer.size()];
+		Arrays.fill(resultShared, true);
+		return new PersistentRoaringBitmap(answer, resultShared);
+	}
+
+	/**
+	 * Return new iterator with only values from rangeStart (inclusive) to rangeEnd (exclusive)
+	 *
+	 * @param bitmaps    bitmaps iterator
+	 * @param rangeStart inclusive
+	 * @param rangeEnd   exclusive
+	 * @return new iterator of bitmaps
+	 */
+	@Nonnull
+	private static Iterator<PersistentRoaringBitmap> selectRangeWithoutCopy(
+		@Nonnull final Iterator<? extends PersistentRoaringBitmap> bitmaps, final long rangeStart,
+		final long rangeEnd
+	) {
+		Iterator<PersistentRoaringBitmap> bitmapsIterator;
+		bitmapsIterator =
+			new Iterator<>() {
+				@Override
+				public boolean hasNext() {
+					return bitmaps.hasNext();
+				}
+
+				@Nonnull
+				@Override
+				public PersistentRoaringBitmap next() {
+					PersistentRoaringBitmap next = bitmaps.next();
+					return selectRangeWithoutCopy(next, rangeStart, rangeEnd);
+				}
+
+				@Override
+				public void remove() {
+					throw new UnsupportedOperationException("Remove not supported");
+				}
+			};
+		return bitmapsIterator;
+	}
+
+	/**
+	 *
+	 * Extracts the values in the specified range, rangeStart (inclusive) and rangeEnd (exclusive)
+	 * while avoiding copies as much as possible.
+	 *
+	 * @param rb         input bitmap
+	 * @param rangeStart inclusive
+	 * @param rangeEnd   exclusive
+	 * @return new bitmap
+	 */
+	@Nonnull
+	private static PersistentRoaringBitmap selectRangeWithoutCopy(
+		@Nonnull final PersistentRoaringBitmap rb, final long rangeStart, final long rangeEnd) {
+		final int hbStart = (Util.highbits(rangeStart));
+		final int lbStart = (Util.lowbits(rangeStart));
+		final int hbLast = (Util.highbits(rangeEnd - 1));
+		final int lbLast = (Util.lowbits(rangeEnd - 1));
+		PersistentRoaringBitmap answer = new PersistentRoaringBitmap();
+
+		assert (rangeStart >= 0 && rangeEnd >= 0);
+
+		if (rangeEnd <= rangeStart) {
+			return answer;
+		}
+
+		if (hbStart == hbLast) {
+			final int i = rb.highLowContainer.getIndex((char) hbStart);
+			if (i >= 0) {
+				final Container c =
+					rb.highLowContainer
+						.getContainerAtIndex(i)
+						.remove(0, lbStart)
+						.iremove(lbLast + 1, Util.maxLowBitAsInteger() + 1);
+				if (!c.isEmpty()) {
+					answer.highLowContainer.append((char) hbStart, c);
+				}
+			}
+			return answer;
+		}
+		int ifirst = rb.highLowContainer.getIndex((char) hbStart);
+		int ilast = rb.highLowContainer.getIndex((char) hbLast);
+		if (ifirst >= 0) {
+			final Container c = rb.highLowContainer.getContainerAtIndex(ifirst).remove(0, lbStart);
+			if (!c.isEmpty()) {
+				answer.highLowContainer.append((char) hbStart, c);
+			}
+		}
+
+		// revised to loop on ints
+		for (int hb = hbStart + 1; hb <= hbLast - 1; ++hb) {
+			final int i = rb.highLowContainer.getIndex((char) hb);
+			final int j = answer.highLowContainer.getIndex((char) hb);
+			assert j < 0;
+
+			if (i >= 0) {
+				final Container c = rb.highLowContainer.getContainerAtIndex(i);
+				// A fully-included middle chunk is carried over by reference, so the source and the
+				// extracted answer co-own it. Raise the copy-on-write flag on both: the source clones
+				// before a later in-place mutation, and the answer stays consistent for whichever
+				// aggregation consumes it. Boundary chunks above go through remove()/iremove(), which
+				// always allocate, so they are owned and need no flag.
+				final int insertAt = -j - 1;
+				answer.highLowContainer.insertNewKeyValueAt(insertAt, (char) hb, c);
+				answer.sharedInsertAt(insertAt, true);
+				rb.ensureSharedCapacity(i + 1);
+				rb.shared[i] = true;
+			}
+		}
+
+		if (ilast >= 0) {
+			final Container c =
+				rb.highLowContainer
+					.getContainerAtIndex(ilast)
+					.remove(lbLast + 1, Util.maxLowBitAsInteger() + 1);
+			if (!c.isEmpty()) {
+				answer.highLowContainer.append((char) hbLast, c);
+			}
+		}
+		return answer;
+	}
+
+	/**
+	 * Create an empty bitmap
+	 */
+	public PersistentRoaringBitmap() {
+		this.highLowContainer = new RoaringArray();
+		this.shared = new boolean[RoaringArray.INITIAL_CAPACITY];
+	}
+
+	/**
+	 * Wrap an existing high low container. No containers are shared.
+	 */
+	PersistentRoaringBitmap(@Nonnull final RoaringArray highLowContainer) {
+		this.highLowContainer = highLowContainer;
+		this.shared = new boolean[highLowContainer.size()];
+	}
+
+	/**
+	 * Package-private constructor: wraps an existing RoaringArray and shared flags.
+	 * Used by static binary ops to construct results that share containers with the inputs.
+	 */
+	PersistentRoaringBitmap(@Nonnull final RoaringArray highLowContainer, @Nonnull final boolean[] shared) {
+		this.highLowContainer = highLowContainer;
+		this.shared = shared;
+	}
+
+	/**
+	 * Validate the content of the bitmap. Useful after deserialization.
+	 *
+	 * @return true if the content is valid.
+	 */
+	@Nonnull
+	public Boolean validate() {
+		return this.highLowContainer.validate();
+	}
+
+	/**
+	 * Set all the specified values to true. This can be expected to be slightly
+	 * faster than calling "add" repeatedly. The provided integers values don't
+	 * have to be in sorted order, but it may be preferable to sort them from a performance point of
+	 * view.
+	 *
+	 * @param dat set values
+	 */
+	public void add(@Nonnull final int... dat) {
+		this.addN(dat, 0, dat.length);
+	}
+
+	/**
+	 * Set the specified values to true, within given boundaries. This can be expected to be slightly
+	 * faster than calling "add" repeatedly on the values dat[offset], dat[offset+1],...,
+	 * dat[offset+n-1].
+	 * The provided integers values don't have to be in sorted order, but it may be preferable
+	 * to sort them from a performance point of view.
+	 *
+	 * @param dat    set values
+	 * @param offset from which index the values should be set to true
+	 * @param n      how many values should be set to true
+	 */
+	public void addN(@Nonnull final int[] dat, final int offset, final int n) {
+		if ((n < 0) || (offset < 0)) {
+			throw new IllegalArgumentException("Negative values do not make sense.");
+		}
+		if (n == 0) {
+			return;
+		}
+		if (offset + n > dat.length) {
+			throw new IllegalArgumentException("Data source is too small.");
+		}
+		Container currentcont;
+		int j = 0;
+		int val = dat[j + offset];
+		char currenthb = Util.highbits(val);
+		int currentcontainerindex = this.highLowContainer.getIndex(currenthb);
+		if (currentcontainerindex >= 0) {
+			copyIfShared(currentcontainerindex);
+			currentcont = this.highLowContainer.getContainerAtIndex(currentcontainerindex);
+			final Container newcont = currentcont.add(Util.lowbits(val));
+			if (newcont != currentcont) {
+				this.highLowContainer.setContainerAtIndex(currentcontainerindex, newcont);
+				currentcont = newcont;
+			}
+		} else {
+			currentcontainerindex = -currentcontainerindex - 1;
+			final ArrayContainer newac = new ArrayContainer();
+			currentcont = newac.add(Util.lowbits(val));
+			this.highLowContainer.insertNewKeyValueAt(currentcontainerindex, currenthb, currentcont);
+			sharedInsertAt(currentcontainerindex);
+		}
+		j++;
+		for (; j < n; ++j) {
+			val = dat[j + offset];
+			final char newhb = Util.highbits(val);
+			if (currenthb == newhb) {
+				final Container newcont = currentcont.add(Util.lowbits(val));
+				if (newcont != currentcont) {
+					this.highLowContainer.setContainerAtIndex(currentcontainerindex, newcont);
+					currentcont = newcont;
+				}
+			} else {
+				currenthb = newhb;
+				currentcontainerindex = this.highLowContainer.getIndex(currenthb);
+				if (currentcontainerindex >= 0) {
+					copyIfShared(currentcontainerindex);
+					currentcont = this.highLowContainer.getContainerAtIndex(currentcontainerindex);
+					final Container newcont = currentcont.add(Util.lowbits(val));
+					if (newcont != currentcont) {
+						this.highLowContainer.setContainerAtIndex(currentcontainerindex, newcont);
+						currentcont = newcont;
+					}
+				} else {
+					currentcontainerindex = -currentcontainerindex - 1;
+					final ArrayContainer newac = new ArrayContainer();
+					currentcont = newac.add(Util.lowbits(val));
+					this.highLowContainer.insertNewKeyValueAt(currentcontainerindex, currenthb, currentcont);
+					sharedInsertAt(currentcontainerindex);
+				}
+			}
+		}
+	}
+
+	/**
+	 * Add the value to the container (set the value to "true"), whether it already appears or not.
+	 *
+	 * Java lacks native unsigned integers but the x argument is considered to be unsigned.
+	 * Within bitmaps, numbers are ordered according to{@link Integer#compareUnsigned}.
+	 * We order the numbers like 0, 1, ..., 2147483647, -2147483648, -2147483647,..., -1.
+	 *
+	 * @param x integer value
+	 */
+	@Override
+	public void add(final int x) {
+		final char hb = Util.highbits(x);
+		final int i = this.highLowContainer.getIndex(hb);
+		if (i >= 0) {
+			copyIfShared(i);
+			this.highLowContainer.setContainerAtIndex(
+				i, this.highLowContainer.getContainerAtIndex(i).add(Util.lowbits(x)));
+		} else {
+			final ArrayContainer newac = new ArrayContainer();
+			this.highLowContainer.insertNewKeyValueAt(-i - 1, hb, newac.add(Util.lowbits(x)));
+			sharedInsertAt(-i - 1);
+		}
+	}
+
+	/**
+	 * Add to the current bitmap all integers in [rangeStart,rangeEnd).
+	 *
+	 * @param rangeStart inclusive beginning of range
+	 * @param rangeEnd   exclusive ending of range
+	 */
+	public void add(final long rangeStart, final long rangeEnd) {
+		rangeSanityCheck(rangeStart, rangeEnd);
+		if (rangeStart >= rangeEnd) {
+			return; // empty range
+		}
+
+		final int hbStart = (Util.highbits(rangeStart));
+		final int lbStart = (Util.lowbits(rangeStart));
+		final int hbLast = (Util.highbits(rangeEnd - 1));
+		final int lbLast = (Util.lowbits(rangeEnd - 1));
+		for (int hb = hbStart; hb <= hbLast; ++hb) {
+
+			// first container may contain partial range
+			final int containerStart = (hb == hbStart) ? lbStart : 0;
+			// last container may contain partial range
+			final int containerLast = (hb == hbLast) ? lbLast : Util.maxLowBitAsInteger();
+			final int i = this.highLowContainer.getIndex((char) hb);
+
+			if (i >= 0) {
+				copyIfShared(i);
+				final Container c =
+					this.highLowContainer.getContainerAtIndex(i).iadd(containerStart, containerLast + 1);
+				this.highLowContainer.setContainerAtIndex(i, c);
+			} else {
+				this.highLowContainer.insertNewKeyValueAt(
+					-i - 1, (char) hb, Container.rangeOfOnes(containerStart, containerLast + 1));
+				sharedInsertAt(-i - 1);
+			}
+		}
+	}
+
+	/**
+	 * If present remove the specified integer (effectively, sets its bit value to false)
+	 *
+	 * @param x integer value representing the index in a bitmap
+	 */
+	@Override
+	public void remove(final int x) {
+		final char hb = Util.highbits(x);
+		final int i = this.highLowContainer.getIndex(hb);
+		if (i < 0) {
+			return;
+		}
+		copyIfShared(i);
+		this.highLowContainer.setContainerAtIndex(
+			i, this.highLowContainer.getContainerAtIndex(i).remove(Util.lowbits(x)));
+		if (this.highLowContainer.getContainerAtIndex(i).isEmpty()) {
+			this.highLowContainer.removeAtIndex(i);
+			sharedRemoveAt(i);
+		}
+	}
+
+	/**
+	 * Recover allocated but unused memory.
+	 */
+	@Override
+	public void trim() {
+		this.highLowContainer.trim();
+		this.shared = Arrays.copyOf(this.shared, this.highLowContainer.size());
+	}
+
+	/**
+	 * Add to the current bitmap all integers in [rangeStart,rangeEnd).
+	 *
+	 * @param rangeStart inclusive beginning of range
+	 * @param rangeEnd   exclusive ending of range
+	 * @deprecated use the version where longs specify the range
+	 */
+	@Deprecated
+	public void add(final int rangeStart, final int rangeEnd) {
+		if (rangeStart >= 0) {
+			add((long) rangeStart, (long) rangeEnd);
+		}
+		// rangeStart being -ve and rangeEnd being positive is not expected)
+		// so assume both -ve
+		add(rangeStart & 0xFFFFFFFFL, rangeEnd & 0xFFFFFFFFL);
+	}
+
+	/**
+	 * Checks if the range intersects with the bitmap.
+	 *
+	 * @param minimum  the inclusive unsigned lower bound of the range
+	 * @param supremum the exclusive unsigned upper bound of the range
+	 * @return whether the bitmap intersects with the range
+	 */
+	public boolean intersects(long minimum, long supremum) {
+		rangeSanityCheck(minimum, supremum);
+		if (supremum <= minimum) {
+			return false;
+		}
+		int minKey = (int) (minimum >>> 16);
+		int supKey = (int) (supremum >>> 16);
+		int length = this.highLowContainer.size;
+		char[] keys = this.highLowContainer.keys;
+		int limit = lowbitsAsInteger(supremum);
+		int index = Util.unsignedBinarySearch(keys, 0, length, (char) minKey);
+		int pos = index >= 0 ? index : -index - 1;
+		int offset = index >= 0 ? lowbitsAsInteger(minimum) : 0;
+		if (pos < length && supKey == (keys[pos])) {
+			if (supKey > minKey) {
+				offset = 0;
+			}
+			return this.highLowContainer.getContainerAtIndex(pos).intersects(offset, limit);
+		}
+		while (pos < length && supKey > (keys[pos])) {
+			Container container = this.highLowContainer.getContainerAtIndex(pos);
+			if (container.intersects(offset, 1 << 16)) {
+				return true;
+			}
+			offset = 0;
+			++pos;
+		}
+		return pos < length
+			&& supKey == keys[pos]
+			&& this.highLowContainer.getContainerAtIndex(pos).intersects(offset, limit);
+	}
+
+	/**
+	 * In-place bitwise AND (intersection) operation. The current bitmap is modified.
+	 *
+	 * @param x2 other bitmap
+	 */
+	public void and(@Nonnull final PersistentRoaringBitmap x2) {
+		if (x2 == this) {
+			return;
+		}
+		int pos1 = 0, pos2 = 0, intersectionSize = 0;
+		final int length1 = this.highLowContainer.size(), length2 = x2.highLowContainer.size();
+		final boolean[] newShared = new boolean[length1];
+
+		while (pos1 < length1 && pos2 < length2) {
+			final char s1 = this.highLowContainer.getKeyAtIndex(pos1);
+			final char s2 = x2.highLowContainer.getKeyAtIndex(pos2);
+			if (s1 == s2) {
+				copyIfShared(pos1);
+				final Container c1 = this.highLowContainer.getContainerAtIndex(pos1);
+				final Container c2 = x2.highLowContainer.getContainerAtIndex(pos2);
+				final Container c = c1.iand(c2);
+				if (!c.isEmpty()) {
+					this.highLowContainer.replaceKeyAndContainerAtIndex(intersectionSize++, s1, c);
+				}
+				++pos1;
+				++pos2;
+			} else if (s1 < s2) {
+				pos1 = this.highLowContainer.advanceUntil(s2, pos1);
+			} else {
+				pos2 = x2.highLowContainer.advanceUntil(s1, pos2);
+			}
+		}
+		this.highLowContainer.resize(intersectionSize);
+		this.shared = newShared;
+	}
+
+	/**
+	 * In-place bitwise ANDNOT (difference) operation. The current bitmap is modified.
+	 *
+	 * @param x2 other bitmap
+	 */
+	public void andNot(@Nonnull final PersistentRoaringBitmap x2) {
+		if (x2 == this) {
+			clear();
+			return;
+		}
+		int pos1 = 0, pos2 = 0, intersectionSize = 0;
+		final int length1 = this.highLowContainer.size(), length2 = x2.highLowContainer.size();
+		final boolean[] newShared = new boolean[length1];
+		// All-owned static builders (flip, add(range), addOffset) can leave shared[] shorter than the
+		// container array; entries beyond shared.length are owned (false). Grow it so the raw index
+		// reads below stay in bounds, matching sharedRemoveAt's tolerance of an undersized shared[].
+		ensureSharedCapacity(length1);
+
+		while (pos1 < length1 && pos2 < length2) {
+			final char s1 = this.highLowContainer.getKeyAtIndex(pos1);
+			final char s2 = x2.highLowContainer.getKeyAtIndex(pos2);
+			if (s1 == s2) {
+				copyIfShared(pos1);
+				final Container c1 = this.highLowContainer.getContainerAtIndex(pos1);
+				final Container c2 = x2.highLowContainer.getContainerAtIndex(pos2);
+				final Container c = c1.iandNot(c2);
+				if (!c.isEmpty()) {
+					this.highLowContainer.replaceKeyAndContainerAtIndex(intersectionSize++, s1, c);
+				}
+				++pos1;
+				++pos2;
+			} else if (s1 < s2) {
+				if (pos1 != intersectionSize) {
+					final Container c1 = this.highLowContainer.getContainerAtIndex(pos1);
+					this.highLowContainer.replaceKeyAndContainerAtIndex(intersectionSize, s1, c1);
+				}
+				newShared[intersectionSize] = this.shared[pos1];
+				++intersectionSize;
+				++pos1;
+			} else {
+				pos2 = x2.highLowContainer.advanceUntil(s1, pos2);
+			}
+		}
+		if (pos1 < length1) {
+			this.highLowContainer.copyRange(pos1, length1, intersectionSize);
+			System.arraycopy(this.shared, pos1, newShared, intersectionSize, length1 - pos1);
+			intersectionSize += length1 - pos1;
+		}
+		this.highLowContainer.resize(intersectionSize);
+		this.shared = newShared;
+	}
+
+	/*
+	 *     In testing, original int-range code failed an assertion with some negative ranges
+	 *     so presumably nobody relies on negative ranges. rangeEnd=0 also failed.
+	 */
+
+	/**
+	 * In-place bitwise ORNOT operation. The current bitmap is modified.
+	 *
+	 * @param other    the other bitmap
+	 * @param rangeEnd end point of the range (exclusive).
+	 */
+	public void orNot(@Nonnull final PersistentRoaringBitmap other, long rangeEnd) {
+		if (other == this) {
+			throw new UnsupportedOperationException("orNot between a bitmap and itself?");
+		}
+		rangeSanityCheck(0, rangeEnd);
+		final int maxKey = (int) ((rangeEnd - 1) >>> 16);
+		final int lastRun = (rangeEnd & 0xFFFF) == 0 ? 0x10000 : (int) (rangeEnd & 0xFFFF);
+		int size = 0;
+		int pos1 = 0, pos2 = 0;
+		final int length1 = this.highLowContainer.size(), length2 = other.highLowContainer.size();
+		int s1 = length1 > 0 ? this.highLowContainer.getKeyAtIndex(pos1) : maxKey + 1;
+		int s2 = length2 > 0 ? other.highLowContainer.getKeyAtIndex(pos2) : maxKey + 1;
+		int remainder = 0;
+		for (int i = this.highLowContainer.size - 1; i >= 0 && this.highLowContainer.keys[i] > maxKey; --i) {
+			++remainder;
+		}
+		int correction = 0;
+		for (int i = 0; i < other.highLowContainer.size - remainder; ++i) {
+			correction += other.highLowContainer.getContainerAtIndex(i).isFull() ? 1 : 0;
+			if (other.highLowContainer.getKeyAtIndex(i) >= maxKey) {
+				break;
+			}
+		}
+		// it's almost certain that the bitmap will grow, so make a conservative overestimate,
+		// this avoids temporary allocation, and can trim afterwards
+		final int maxSize =
+			Math.min(maxKey + 1 + remainder - correction + this.highLowContainer.size, 0x10000);
+		if (maxSize == 0) {
+			return;
+		}
+		final char[] newKeys = new char[maxSize];
+		final Container[] newValues = new Container[maxSize];
+		final boolean[] newShared = new boolean[maxSize];
+		for (int key = 0; key <= maxKey && size < maxSize; ++key) {
+			if (key == s1 && key == s2) { // actually need to do an or not
+				copyIfShared(pos1);
+				newValues[size] =
+					this.highLowContainer
+						.getContainerAtIndex(pos1)
+						.iorNot(
+							other.highLowContainer.getContainerAtIndex(pos2),
+							key == maxKey ? lastRun : 0x10000
+						);
+				++pos1;
+				++pos2;
+				s1 = pos1 < length1 ? this.highLowContainer.getKeyAtIndex(pos1) : maxKey + 1;
+				s2 = pos2 < length2 ? other.highLowContainer.getKeyAtIndex(pos2) : maxKey + 1;
+			} else if (key == s1) { // or in a hole
+				if (key == maxKey) {
+					copyIfShared(pos1);
+					newValues[size] =
+						this.highLowContainer
+							.getContainerAtIndex(pos1)
+							.ior(Container.rangeOfOnes(0, lastRun));
+				} else {
+					newValues[size] = RunContainer.full();
+				}
+				++pos1;
+				s1 = pos1 < length1 ? this.highLowContainer.getKeyAtIndex(pos1) : maxKey + 1;
+			} else if (key == s2) { // insert the complement
+				newValues[size] =
+					other
+						.highLowContainer
+						.getContainerAtIndex(pos2)
+						.not(0, key == maxKey ? lastRun : 0x10000);
+				++pos2;
+				s2 = pos2 < length2 ? other.highLowContainer.getKeyAtIndex(pos2) : maxKey + 1;
+			} else { // key missing from both
+				newValues[size] =
+					key == maxKey ? Container.rangeOfOnes(0, lastRun) : RunContainer.full();
+			}
+			// might have appended an empty container (rare case)
+			if (newValues[size].isEmpty()) {
+				newValues[size] = null;
+			} else {
+				newKeys[size] = (char) key;
+				++size;
+			}
+		}
+		// copy over everything which will remain without being complemented
+		if (remainder > 0) {
+			final int srcOffset = this.highLowContainer.size - remainder;
+			// All-owned static builders can leave shared[] shorter than the container array; entries
+			// beyond shared.length are owned (false). Grow it so the raw-index copy below stays in
+			// bounds, matching sharedRemoveAt's tolerance of an undersized shared[].
+			ensureSharedCapacity(this.highLowContainer.size);
+			System.arraycopy(this.highLowContainer.keys, srcOffset, newKeys, size, remainder);
+			System.arraycopy(this.highLowContainer.values, srcOffset, newValues, size, remainder);
+			System.arraycopy(this.shared, srcOffset, newShared, size, remainder);
+		}
+		this.highLowContainer.keys = newKeys;
+		this.highLowContainer.values = newValues;
+		this.highLowContainer.size = size + remainder;
+		this.shared = newShared;
+	}
+
+	/**
+	 * Add the value to the container (set the value to "true"), whether it already appears or not.
+	 *
+	 * @param x integer value
+	 * @return true if the added int wasn't already contained in the bitmap. False otherwise.
+	 */
+	public boolean checkedAdd(final int x) {
+		final char hb = Util.highbits(x);
+		final int i = this.highLowContainer.getIndex(hb);
+		if (i >= 0) {
+			copyIfShared(i);
+			final Container c = this.highLowContainer.getContainerAtIndex(i);
+			if (c instanceof RunContainer) {
+				if (!c.contains(Util.lowbits(x))) {
+					this.highLowContainer.setContainerAtIndex(i, c.add(Util.lowbits(x)));
+					return true;
+				}
+			} else {
+				final int oldCard = c.getCardinality();
+				final Container newCont = c.add(Util.lowbits(x));
+				this.highLowContainer.setContainerAtIndex(i, newCont);
+				if (newCont.getCardinality() > oldCard) {
+					return true;
+				}
+			}
+		} else {
+			final ArrayContainer newac = new ArrayContainer();
+			this.highLowContainer.insertNewKeyValueAt(-i - 1, hb, newac.add(Util.lowbits(x)));
+			sharedInsertAt(-i - 1);
+			return true;
+		}
+		return false;
+	}
+
+	/**
+	 * If present remove the specified integer (effectively, sets its bit value to false)
+	 *
+	 * @param x integer value representing the index in a bitmap
+	 * @return true if the unset bit was already in the bitmap
+	 */
+	public boolean checkedRemove(final int x) {
+		final char hb = Util.highbits(x);
+		final char lb = Util.lowbits(x);
+		final int i = this.highLowContainer.getIndex(hb);
+		if (i < 0) {
+			return false;
+		}
+		copyIfShared(i);
+		Container container = this.highLowContainer.getContainerAtIndex(i);
+		final boolean containerNotEmpty;
+		if (container instanceof RunContainer) {
+			if (container.contains(lb)) {
+				container = container.remove(lb);
+				containerNotEmpty = !container.isEmpty();
+			} else {
+				return false;
+			}
+		} else {
+			final int oldCard = container.getCardinality();
+			container = container.remove(lb);
+			final int newCard = container.getCardinality();
+			if (newCard == oldCard) {
+				return false;
+			}
+			containerNotEmpty = newCard > 0;
+		}
+		if (containerNotEmpty) {
+			this.highLowContainer.setContainerAtIndex(i, container);
+		} else {
+			this.highLowContainer.removeAtIndex(i);
+			sharedRemoveAt(i);
+		}
+		return true;
+	}
+
+	/**
+	 * reset to an empty bitmap; result occupies as much space a newly created bitmap.
+	 */
+	public void clear() {
+		this.highLowContainer = new RoaringArray(); // lose references
+		this.shared = new boolean[RoaringArray.INITIAL_CAPACITY];
+	}
+
+	/**
+	 * Checks whether the value is included, which is equivalent to checking if the corresponding bit
+	 * is set (get in BitSet class).
+	 *
+	 * @param x integer value
+	 * @return whether the integer value is included.
+	 */
+	@Override
+	public boolean contains(final int x) {
+		final char hb = Util.highbits(x);
+		int index = this.highLowContainer.getContainerIndex(hb);
+		if (index < 0) {
+			return false;
+		}
+		final Container c = this.highLowContainer.getContainerAtIndex(index);
+		return c.contains(Util.lowbits(x));
+	}
+
+	/**
+	 * Cardinality as an `int`; truncates past `Integer.MAX_VALUE`, so use {@link #getLongCardinality()}
+	 * for the full unsigned range.
+	 */
+	@Override
+	public int getCardinality() {
+		return (int) getLongCardinality();
+	}
+
+	/**
+	 * Returns the number of distinct integers added to the bitmap (e.g., number of bits set).
+	 *
+	 * @return the cardinality
+	 */
+	@Override
+	public long getLongCardinality() {
+		long size = 0;
+		for (int i = 0; i < this.highLowContainer.size(); i++) {
+			size += this.highLowContainer.getContainerAtIndex(i).getCardinality();
+		}
+		return size;
+	}
+
+	/**
+	 * Feeds every set value to the consumer in ascending unsigned order.
+	 */
+	@Override
+	public void forEach(@Nonnull final IntConsumer ic) {
+		for (int i = 0; i < this.highLowContainer.size(); i++) {
+			this.highLowContainer.getContainerAtIndex(i).forEach(this.highLowContainer.keys[i], ic);
+		}
+	}
+
+	/**
+	 *
+	 * For better performance, consider using the {@link #forEach forEach} method.
+	 *
+	 * @return a custom iterator over set bits, the bits are traversed in unsigned integer ascending
+	 * sorted order
+	 */
+	@Nonnull
+	@Override
+	public PeekableIntIterator getIntIterator() {
+		return new RoaringIntIterator();
+	}
+
+	/**
+	 * @return a custom iterator over set bits, the bits are traversed in signed integer ascending
+	 * sorted order
+	 */
+	@Nonnull
+	@Override
+	public PeekableIntIterator getSignedIntIterator() {
+		return new RoaringSignedIntIterator();
+	}
+
+	/**
+	 * @return a custom iterator over set bits, the bits are traversed in descending sorted order
+	 */
+	@Nonnull
+	@Override
+	public IntIterator getReverseIntIterator() {
+		return new RoaringReverseIntIterator();
+	}
+
+	/**
+	 * @return a batch iterator that bulk-copies runs of set bits into a caller-supplied buffer,
+	 * cheaper than value-at-a-time iteration for large scans
+	 */
+	@Nonnull
+	@Override
+	public RoaringBatchIterator getBatchIterator() {
+		return new RoaringBatchIterator(this.highLowContainer);
+	}
+
+	/**
+	 * Estimate of the memory usage of this data structure. This can be expected to be within 1% of
+	 * the true memory usage in common usage scenarios.
+	 * If exact measures are needed, we recommend using dedicated libraries
+	 * such as ehcache-sizeofengine.
+	 *
+	 * In adversarial cases, this estimate may be 10x the actual memory usage. For example, if
+	 * you insert a single random value in a bitmap, then over a 100 bytes may be used by the JVM
+	 * whereas this function may return an estimate of 32 bytes.
+	 *
+	 * The same will be true in the "sparse" scenario where you have a small set of
+	 * random-looking integers spanning a wide range of values.
+	 *
+	 * These are considered adversarial cases because, as a general rule,
+	 * if your data looks like a set
+	 * of random integers, Roaring bitmaps are probably not the right data structure.
+	 *
+	 * Note that you can serialize your Roaring Bitmaps to disk and then construct
+	 * ImmutableRoaringBitmap instances from a ByteBuffer. In such cases, the Java heap
+	 * usage will be significantly less than
+	 * what is reported.
+	 *
+	 * If your main goal is to compress arrays of integers, there are other libraries
+	 * that are maybe more appropriate
+	 * such as JavaFastPFOR.
+	 *
+	 * Note, however, that in general, random integers (as produced by random number
+	 * generators or hash functions) are not compressible.
+	 * Trying to compress random data is an adversarial use case.
+	 *
+	 * For array-compression alternatives see [JavaFastPFOR](https://github.com/lemire/JavaFastPFOR).
+	 *
+	 * @return estimated memory usage.
+	 */
+	@Override
+	public int getSizeInBytes() {
+		return (int) getLongSizeInBytes();
+	}
+
+	/**
+	 * Estimate of the memory usage of this data structure. This can be expected to be within 1% of
+	 * the true memory usage in common usage scenarios.
+	 * If exact measures are needed, we recommend using dedicated libraries
+	 * such as ehcache-sizeofengine.
+	 *
+	 * In adversarial cases, this estimate may be 10x the actual memory usage. For example, if
+	 * you insert a single random value in a bitmap, then over a 100 bytes may be used by the JVM
+	 * whereas this function may return an estimate of 32 bytes.
+	 *
+	 * The same will be true in the "sparse" scenario where you have a small set of
+	 * random-looking integers spanning a wide range of values.
+	 *
+	 * These are considered adversarial cases because, as a general rule,
+	 * if your data looks like a set
+	 * of random integers, Roaring bitmaps are probably not the right data structure.
+	 *
+	 * Note that you can serialize your Roaring Bitmaps to disk and then construct
+	 * ImmutableRoaringBitmap instances from a ByteBuffer. In such cases, the Java heap
+	 * usage will be significantly less than
+	 * what is reported.
+	 *
+	 * If your main goal is to compress arrays of integers, there are other libraries
+	 * that are maybe more appropriate
+	 * such as JavaFastPFOR.
+	 *
+	 * Note, however, that in general, random integers (as produced by random number
+	 * generators or hash functions) are not compressible.
+	 * Trying to compress random data is an adversarial use case.
+	 *
+	 * For array-compression alternatives see [JavaFastPFOR](https://github.com/lemire/JavaFastPFOR).
+	 *
+	 * @return estimated memory usage.
+	 */
+	@Override
+	public long getLongSizeInBytes() {
+		long size = 8;
+		for (int i = 0; i < this.highLowContainer.size(); i++) {
+			final Container c = this.highLowContainer.getContainerAtIndex(i);
+			size += 2 + c.getSizeInBytes();
+		}
+		return size;
+	}
+
+	/**
+	 * Checks whether the bitmap is empty.
+	 *
+	 * @return true if this bitmap contains no set bit
+	 */
+	@Override
+	public boolean isEmpty() {
+		return this.highLowContainer.size() == 0;
+	}
+
+	/**
+	 * Create a new Roaring bitmap containing at most maxcardinality integers.
+	 *
+	 * @param maxcardinality maximal cardinality
+	 * @return a new bitmap with cardinality no more than maxcardinality
+	 */
+	@Nonnull
+	@Override
+	public PersistentRoaringBitmap limit(int maxcardinality) {
+		PersistentRoaringBitmap answer = new PersistentRoaringBitmap();
+		int currentcardinality = 0;
+		for (int i = 0;
+		     (currentcardinality < maxcardinality) && (i < this.highLowContainer.size());
+		     i++) {
+			Container c = this.highLowContainer.getContainerAtIndex(i);
+			if (c.getCardinality() + currentcardinality <= maxcardinality) {
+				answer.highLowContainer.appendCopy(this.highLowContainer, i);
+				currentcardinality += c.getCardinality();
+			} else {
+				int leftover = maxcardinality - currentcardinality;
+				Container limited = c.limit(leftover);
+				answer.highLowContainer.append(this.highLowContainer.getKeyAtIndex(i), limited);
+				break;
+			}
+		}
+		return answer;
+	}
+
+	/**
+	 * Rank as an `int`; see {@link #rankLong(int)} for the exact (unsigned) count.
+	 */
+	@Override
+	public int rank(int x) {
+		return (int) rankLong(x);
+	}
+
+	/**
+	 * Rank returns the number of integers that are smaller or equal to x (Rank(infinity) would be
+	 * GetCardinality()).  If you provide the smallest value as a parameter, this function will
+	 * return 1. If provide a value smaller than the smallest value, it will return 0.
+	 *
+	 * See [Ranking in statistics](https://en.wikipedia.org/wiki/Ranking#Ranking_in_statistics)
+	 * for the underlying definition.
+	 *
+	 * @param x upper limit
+	 * @return the rank
+	 */
+	@Override
+	public long rankLong(int x) {
+		long size = 0;
+		char xhigh = Util.highbits(x);
+
+		for (int i = 0; i < this.highLowContainer.size(); i++) {
+			char key = this.highLowContainer.getKeyAtIndex(i);
+			if (key < xhigh) {
+				size += this.highLowContainer.getContainerAtIndex(i).getCardinality();
+			} else if (key == xhigh) {
+				return size + this.highLowContainer.getContainerAtIndex(i).rank(Util.lowbits(x));
+			} else {
+				break;
+			}
+		}
+		return size;
+	}
+
+	/**
+	 * Counts set values in the unsigned range `[start, end)`.
+	 *
+	 * @param start inclusive lower bound (unsigned)
+	 * @param end   exclusive upper bound (unsigned)
+	 * @return number of set values in the range, or 0 when `end <= start`
+	 */
+	@Override
+	public long rangeCardinality(long start, long end) {
+		if (Long.compareUnsigned(start, end) >= 0) {
+			return 0;
+		}
+		long size = 0;
+		int startIndex = this.highLowContainer.getIndex(Util.highbits(start));
+		if (startIndex < 0) {
+			startIndex = -startIndex - 1;
+		} else {
+			int inContainerStart = (Util.lowbits(start));
+			if (inContainerStart != 0) {
+				size -=
+					this.highLowContainer
+						.getContainerAtIndex(startIndex)
+						.rank((char) (inContainerStart - 1));
+			}
+		}
+		char xhigh = Util.highbits(end - 1);
+		for (int i = startIndex; i < this.highLowContainer.size(); i++) {
+			char key = this.highLowContainer.getKeyAtIndex(i);
+			if (key < xhigh) {
+				size += this.highLowContainer.getContainerAtIndex(i).getCardinality();
+			} else if (key == xhigh) {
+				return size
+					+ this.highLowContainer.getContainerAtIndex(i).rank(Util.lowbits((int) (end - 1)));
+			} else {
+				break;
+			}
+		}
+		return size;
+	}
+
+	/**
+	 * Return the jth value stored in this bitmap. The provided value
+	 * needs to be smaller than the cardinality otherwise an
+	 * IllegalArgumentException
+	 * exception is thrown.  The smallest value is at index 0.
+	 * Note that this function differs in convention from the rank function which
+	 * returns 1 when ranking the smallest value.
+	 *
+	 * See [Selection algorithm](https://en.wikipedia.org/wiki/Selection_algorithm) for background.
+	 *
+	 * @param j index of the value
+	 * @return the value
+	 */
+	@Override
+	public int select(int j) {
+		long leftover = Util.toUnsignedLong(j);
+		for (int i = 0; i < this.highLowContainer.size(); i++) {
+			Container c = this.highLowContainer.getContainerAtIndex(i);
+			int thiscard = c.getCardinality();
+			if (thiscard > leftover) {
+				int keycontrib = this.highLowContainer.getKeyAtIndex(i) << 16;
+				int lowcontrib = (c.select((int) leftover));
+				return lowcontrib + keycontrib;
+			}
+			leftover -= thiscard;
+		}
+		throw new IllegalArgumentException(
+			"You are trying to select the "
+				+ j
+				+ "th value when the cardinality is "
+				+ this.getCardinality()
+				+ ".");
+	}
+
+	/**
+	 * @return the smallest value in unsigned order
+	 * @throws java.util.NoSuchElementException if the bitmap is empty
+	 */
+	@Override
+	public int first() {
+		return this.highLowContainer.first();
+	}
+
+	/**
+	 * @return the largest value in unsigned order
+	 * @throws java.util.NoSuchElementException if the bitmap is empty
+	 */
+	@Override
+	public int last() {
+		return this.highLowContainer.last();
+	}
+
+	/**
+	 * @return the smallest value in signed order (negative values, stored in the top chunks, sort
+	 * first)
+	 * @throws java.util.NoSuchElementException if the bitmap is empty
+	 */
+	@Override
+	public int firstSigned() {
+		return this.highLowContainer.firstSigned();
+	}
+
+	/**
+	 * @return the largest value in signed order
+	 * @throws java.util.NoSuchElementException if the bitmap is empty
+	 */
+	@Override
+	public int lastSigned() {
+		return this.highLowContainer.lastSigned();
+	}
+
+	/**
+	 * @param fromValue inclusive lower bound (unsigned)
+	 * @return the smallest present value at or above `fromValue` as an unsigned `long`, or `-1L` if
+	 * none exists
+	 */
+	@Override
+	public long nextValue(int fromValue) {
+		char key = Util.highbits(fromValue);
+		int containerIndex = this.highLowContainer.advanceUntil(key, -1);
+		long nextSetBit = -1L;
+		while (containerIndex < this.highLowContainer.size() && nextSetBit == -1L) {
+			char containerKey = this.highLowContainer.getKeyAtIndex(containerIndex);
+			Container container = this.highLowContainer.getContainerAtIndex(containerIndex);
+			int bit =
+				(containerKey - key > 0
+					? container.first()
+					: container.nextValue(Util.lowbits(fromValue)));
+			nextSetBit = bit == -1 ? -1L : Util.toUnsignedLong((containerKey << 16) | bit);
+			++containerIndex;
+		}
+		assert nextSetBit <= 0xFFFFFFFFL;
+		assert nextSetBit == -1L || nextSetBit >= Util.toUnsignedLong(fromValue);
+		return nextSetBit;
+	}
+
+	/**
+	 * @param fromValue inclusive upper bound (unsigned)
+	 * @return the largest present value at or below `fromValue` as an unsigned `long`, or `-1L` if
+	 * none exists
+	 */
+	@Override
+	public long previousValue(int fromValue) {
+		if (isEmpty()) {
+			return -1L;
+		}
+		char key = Util.highbits(fromValue);
+		int containerIndex = this.highLowContainer.advanceUntil(key, -1);
+		if (containerIndex == this.highLowContainer.size()) {
+			return Util.toUnsignedLong(last());
+		}
+		if (this.highLowContainer.getKeyAtIndex(containerIndex) > key) {
+			// target absent, key of first container after target too high
+			--containerIndex;
+		}
+		long prevSetBit = -1L;
+		while (containerIndex != -1 && prevSetBit == -1L) {
+			char containerKey = this.highLowContainer.getKeyAtIndex(containerIndex);
+			Container container = this.highLowContainer.getContainerAtIndex(containerIndex);
+			int bit =
+				(containerKey < key
+					? container.last()
+					: container.previousValue(Util.lowbits(fromValue)));
+			prevSetBit = bit == -1 ? -1L : Util.toUnsignedLong((containerKey << 16) | bit);
+			--containerIndex;
+		}
+		assert prevSetBit <= 0xFFFFFFFFL;
+		assert prevSetBit <= Util.toUnsignedLong(fromValue);
+		return prevSetBit;
+	}
+
+	/**
+	 * @param fromValue inclusive lower bound (unsigned)
+	 * @return the smallest unset value at or above `fromValue` as an unsigned `long`, or `-1L` if the
+	 * whole range up to 2^32 is full
+	 */
+	@Override
+	public long nextAbsentValue(int fromValue) {
+		// computeNextAbsentValue returns the just-past-the-end sentinel 2^32 when everything is set
+		long nextAbsentBit = computeNextAbsentValue(fromValue);
+		if (nextAbsentBit == 0x100000000L) {
+			return -1L;
+		}
+		return nextAbsentBit;
+	}
+
+	/**
+	 * @param fromValue inclusive upper bound (unsigned)
+	 * @return the largest unset value at or below `fromValue` as an unsigned `long`, or `-1L` if none
+	 * exists
+	 */
+	@Override
+	public long previousAbsentValue(int fromValue) {
+		long prevAbsentBit = computePreviousAbsentValue(fromValue);
+		assert prevAbsentBit <= 0xFFFFFFFFL;
+		assert prevAbsentBit <= Util.toUnsignedLong(fromValue);
+		assert !contains((int) prevAbsentBit);
+		return prevAbsentBit;
+	}
+
+	/**
+	 * Serialize this bitmap.
+	 *
+	 * See format specification at https://github.com/RoaringBitmap/RoaringFormatSpec
+	 *
+	 * Consider calling {@link #runOptimize} before serialization to improve compression.
+	 *
+	 * The current bitmap is not modified.
+	 *
+	 * There is a distinct and dedicated method to serialize to a ByteBuffer.
+	 *
+	 * Note: Java's data structures are in big endian format. Roaring serializes to a little endian
+	 * format, so the bytes are flipped by the library during serialization to ensure that what is
+	 * stored is in little endian---despite Java's big endianness. You can defeat this process by
+	 * reflipping the bytes again in a custom DataOutput which could lead to serialized Roaring
+	 * objects with an incorrect byte order.
+	 *
+	 * @param out the DataOutput stream
+	 * @throws IOException Signals that an I/O exception has occurred.
+	 */
+	@Override
+	public void serialize(@Nonnull final DataOutput out) throws IOException {
+		this.highLowContainer.serialize(out);
+	}
+
+	/**
+	 * Serializes this bitmap into the buffer in the little-endian Roaring format (the `ByteBuffer`
+	 * counterpart of {@link #serialize(DataOutput)}). The current bitmap is not modified.
+	 *
+	 * @param buffer the target byte buffer, which must have enough remaining capacity
+	 */
+	@Override
+	public void serialize(@Nonnull final ByteBuffer buffer) {
+		this.highLowContainer.serialize(buffer);
+	}
+
+	/**
+	 * Report the number of bytes required to serialize this bitmap. This is the number of bytes
+	 * written out when using the serialize method. When using the writeExternal method, the count
+	 * will be higher due to the overhead of Java serialization.
+	 *
+	 * @return the size in bytes
+	 */
+	@Override
+	public int serializedSizeInBytes() {
+		return this.highLowContainer.serializedSizeInBytes();
+	}
+
+	/**
+	 * Return the set values as an array, if the cardinality is smaller than 2147483648.
+	 * The integer values are in sorted order.
+	 *
+	 * @return array representing the set values.
+	 */
+	@Nonnull
+	@Override
+	public int[] toArray() {
+		final int[] array = new int[this.getCardinality()];
+		int pos = 0, pos2 = 0;
+		while (pos < this.highLowContainer.size()) {
+			final int hs = this.highLowContainer.getKeyAtIndex(pos) << 16;
+			Container c = this.highLowContainer.getContainerAtIndex(pos++);
+			c.fillLeastSignificant16bits(array, pos2, hs);
+			pos2 += c.getCardinality();
+		}
+		return array;
+	}
+
+	/**
+	 * Returns the number of containers in the bitmap.
+	 *
+	 * @return the number of containers
+	 */
+	@Override
+	public int getContainerCount() {
+		return this.highLowContainer.size();
+	}
+
+	/**
+	 * Checks if the bitmap contains the range.
+	 *
+	 * @param minimum  the inclusive lower bound of the range
+	 * @param supremum the exclusive upper bound of the range
+	 * @return whether the bitmap contains the range
+	 */
+	public boolean contains(long minimum, long supremum) {
+		rangeSanityCheck(minimum, supremum);
+		if (supremum <= minimum) {
+			return false;
+		}
+		char firstKey = Util.highbits(minimum);
+		char lastKey = Util.highbits(supremum);
+		int span = lastKey - firstKey;
+		int len = this.highLowContainer.size;
+		if (len < span) {
+			return false;
+		}
+		int begin = this.highLowContainer.getIndex(firstKey);
+		int end = this.highLowContainer.getIndex(lastKey);
+		end = end < 0 ? -end - 1 : end;
+		if (begin < 0 || end - begin != span) {
+			return false;
+		}
+		int min = (char) minimum;
+		int sup = (char) supremum;
+		if (firstKey == lastKey) {
+			return this.highLowContainer
+				.getContainerAtIndex(begin)
+				.contains(min, (supremum & 0xFFFF) == 0 ? 0x10000 : sup);
+		}
+		if (!this.highLowContainer.getContainerAtIndex(begin).contains(min, 1 << 16)) {
+			return false;
+		}
+		if (sup != 0 && end < len && !this.highLowContainer.getContainerAtIndex(end).contains(0, sup)) {
+			return false;
+		}
+		for (int i = begin + 1; i < end; ++i) {
+			if (this.highLowContainer.getContainerAtIndex(i).getCardinality() != 1 << 16) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	/**
+	 * Deserialize (retrieve) this bitmap. See format specification at
+	 * https://github.com/RoaringBitmap/RoaringFormatSpec
+	 *
+	 * The current bitmap is overwritten.
+	 *
+	 * When deserializing from untrusted source, we recommend calling 'validate()'
+	 * after deserialization to ensure that the result is a valid bitmap. Furthermore,
+	 * we recommend using hashing to ensure that the bitmap has not been tampered with.
+	 *
+	 * @param in     the DataInput stream
+	 * @param buffer The buffer gets overwritten with data during deserialization. You can pass a NULL
+	 *               reference as a buffer. A buffer containing at least 8192 bytes might be ideal for
+	 *               performance. It is recommended to reuse the buffer between calls to deserialize (in a
+	 *               single-threaded context) for best performance.
+	 * @throws IOException Signals that an I/O exception has occurred.
+	 */
+	public void deserialize(@Nonnull final DataInput in, @Nullable final byte[] buffer) throws IOException {
+		try {
+			this.highLowContainer.deserialize(in, buffer);
+		} catch (InvalidRoaringFormat cookie) {
+			throw cookie.toIOException(); // we convert it to an IOException
+		}
+		this.shared = new boolean[this.highLowContainer.size()];
+	}
+
+	/**
+	 * Deserialize (retrieve) this bitmap.
+	 * See format specification at https://github.com/RoaringBitmap/RoaringFormatSpec
+	 *
+	 * The current bitmap is overwritten.
+	 *
+	 * @param in the DataInput stream
+	 * @throws IOException Signals that an I/O exception has occurred.
+	 */
+	public void deserialize(@Nonnull final DataInput in) throws IOException {
+		try {
+			this.highLowContainer.deserialize(in);
+		} catch (InvalidRoaringFormat cookie) {
+			throw cookie.toIOException(); // we convert it to an IOException
+		}
+		this.shared = new boolean[this.highLowContainer.size()];
+	}
+
+	/**
+	 * Deserialize (retrieve) this bitmap.
+	 * See format specification at https://github.com/RoaringBitmap/RoaringFormatSpec
+	 *
+	 * The current bitmap is overwritten.
+	 *
+	 * It is not necessary that limit() on the input ByteBuffer indicates the end of the serialized
+	 * data.
+	 *
+	 * After loading this PersistentRoaringBitmap, you can advance to the rest of the data (if there
+	 * is more) by setting bbf.position(bbf.position() + bitmap.serializedSizeInBytes());
+	 *
+	 * Note that the input ByteBuffer is effectively copied (with the slice operation) so you should
+	 * expect the provided ByteBuffer to remain unchanged.
+	 *
+	 * @param bbf the byte buffer (can be mapped, direct, array backed etc.
+	 * @throws IOException Signals that an I/O exception has occurred.
+	 */
+	public void deserialize(@Nonnull final ByteBuffer bbf) throws IOException {
+		try {
+			this.highLowContainer.deserialize(bbf);
+		} catch (InvalidRoaringFormat cookie) {
+			throw cookie.toIOException(); // we convert it to an IOException
+		}
+		this.shared = new boolean[this.highLowContainer.size()];
+	}
+
+	/**
+	 * Returns true if the other bitmap has no more than tolerance bits
+	 * differing from this bitmap. The other may be transformed into a bitmap equal
+	 * to this bitmap in no more than tolerance bit flips if this method returns true.
+	 *
+	 * @param other     the bitmap to compare to
+	 * @param tolerance the maximum number of bits that may differ
+	 * @return true if the number of differing bits is smaller than tolerance
+	 */
+	public boolean isHammingSimilar(@Nonnull final PersistentRoaringBitmap other, int tolerance) {
+		final int size1 = this.highLowContainer.size();
+		final int size2 = other.highLowContainer.size();
+		int pos1 = 0;
+		int pos2 = 0;
+		int budget = tolerance;
+		while (budget >= 0 && pos1 < size1 && pos2 < size2) {
+			final char key1 = this.highLowContainer.getKeyAtIndex(pos1);
+			final char key2 = other.highLowContainer.getKeyAtIndex(pos2);
+			Container left = this.highLowContainer.getContainerAtIndex(pos1);
+			Container right = other.highLowContainer.getContainerAtIndex(pos2);
+			if (key1 == key2) {
+				budget -= left.xorCardinality(right);
+				++pos1;
+				++pos2;
+			} else if (key1 < key2) {
+				budget -= left.getCardinality();
+				++pos1;
+			} else {
+				budget -= right.getCardinality();
+				++pos2;
+			}
+		}
+		while (budget >= 0 && pos1 < size1) {
+			Container container = this.highLowContainer.getContainerAtIndex(pos1++);
+			budget -= container.getCardinality();
+		}
+		while (budget >= 0 && pos2 < size2) {
+			Container container = other.highLowContainer.getContainerAtIndex(pos2++);
+			budget -= container.getCardinality();
+		}
+		return budget >= 0;
+	}
+
+	/**
+	 * Add the value if it is not already present, otherwise remove it.
+	 *
+	 * @param x integer value
+	 */
+	public void flip(final int x) {
+		final char hb = Util.highbits(x);
+		final int i = this.highLowContainer.getIndex(hb);
+		if (i >= 0) {
+			copyIfShared(i);
+			final Container c = this.highLowContainer.getContainerAtIndex(i).flip(Util.lowbits(x));
+			if (!c.isEmpty()) {
+				this.highLowContainer.setContainerAtIndex(i, c);
+			} else {
+				this.highLowContainer.removeAtIndex(i);
+				sharedRemoveAt(i);
+			}
+		} else {
+			final ArrayContainer newac = new ArrayContainer();
+			this.highLowContainer.insertNewKeyValueAt(-i - 1, hb, newac.add(Util.lowbits(x)));
+			sharedInsertAt(-i - 1);
+		}
+	}
+
+	/**
+	 * Modifies the current bitmap by complementing the bits in the given range, from rangeStart
+	 * (inclusive) rangeEnd (exclusive).
+	 *
+	 * @param rangeStart inclusive beginning of range
+	 * @param rangeEnd   exclusive ending of range
+	 */
+	public void flip(final long rangeStart, final long rangeEnd) {
+		rangeSanityCheck(rangeStart, rangeEnd);
+		if (rangeStart >= rangeEnd) {
+			return; // empty range
+		}
+
+		final int hbStart = (Util.highbits(rangeStart));
+		final int lbStart = (Util.lowbits(rangeStart));
+		final int hbLast = (Util.highbits(rangeEnd - 1));
+		final int lbLast = (Util.lowbits(rangeEnd - 1));
+
+		// this can be accelerated considerably
+		for (int hb = hbStart; hb <= hbLast; ++hb) {
+			// first container may contain partial range
+			final int containerStart = (hb == hbStart) ? lbStart : 0;
+			// last container may contain partial range
+			final int containerLast = (hb == hbLast) ? lbLast : Util.maxLowBitAsInteger();
+			final int i = this.highLowContainer.getIndex((char) hb);
+
+			if (i >= 0) {
+				copyIfShared(i);
+				final Container c =
+					this.highLowContainer.getContainerAtIndex(i).inot(containerStart, containerLast + 1);
+				if (!c.isEmpty()) {
+					this.highLowContainer.setContainerAtIndex(i, c);
+				} else {
+					this.highLowContainer.removeAtIndex(i);
+					sharedRemoveAt(i);
+				}
+			} else {
+				this.highLowContainer.insertNewKeyValueAt(
+					-i - 1, (char) hb, Container.rangeOfOnes(containerStart, containerLast + 1));
+				sharedInsertAt(-i - 1);
+			}
+		}
+	}
+
+	/**
+	 * Modifies the current bitmap by complementing the bits in the given range, from rangeStart
+	 * (inclusive) rangeEnd (exclusive).
+	 *
+	 * @param rangeStart inclusive beginning of range
+	 * @param rangeEnd   exclusive ending of range
+	 * @deprecated use the version where longs specify the range
+	 */
+	@Deprecated
+	public void flip(final int rangeStart, final int rangeEnd) {
+		if (rangeStart >= 0) {
+			flip((long) rangeStart, (long) rangeEnd);
+		} else {
+			// rangeStart being -ve and rangeEnd being positive is not expected)
+			// so assume both -ve
+			flip(rangeStart & 0xFFFFFFFFL, rangeEnd & 0xFFFFFFFFL);
+		}
+	}
+
+	/**
+	 * Returns true if the bitmap's cardinality exceeds the threshold.
+	 *
+	 * @param threshold threshold
+	 * @return true if the cardinality exceeds the threshold.
+	 */
+	public boolean cardinalityExceeds(long threshold) {
+		long size = 0;
+		for (int i = 0; i < this.highLowContainer.size(); i++) {
+			size += this.highLowContainer.getContainerAtIndex(i).getCardinality();
+			if (size > threshold) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * Consume presence information for all values in the range [start, start + length).
+	 *
+	 * @param uStart Lower bound of values to consume.
+	 * @param length Maximum number of values to consume.
+	 * @param rrc    Code to be executed for each present or absent value.
+	 */
+	public void forAllInRange(int uStart, int length, @Nonnull final RelativeRangeConsumer rrc) {
+		if (length < 0) {
+			throw new IllegalArgumentException("length must be >= 0 but was " + length);
+		} else if (length == 0) {
+			// Nothing to do.
+			return;
+		}
+		final char startHigh = Util.highbits(uStart);
+		final long startL = Integer.toUnsignedLong(uStart);
+		final long endInclusiveL = startL + (long) (length - 1);
+		if (endInclusiveL > LongUtils.MAX_UNSIGNED_INT) {
+			final long remainingLength = LongUtils.MAX_UNSIGNED_INT - startL + 1L;
+			throw new IllegalArgumentException(
+				"Cannot read past the end of the unsigned integer range. "
+					+ remainingLength
+					+ " values remaining; requested "
+					+ length);
+		}
+		final int uEndInclusive = (int) endInclusiveL;
+		final char endHigh = Util.highbits(uEndInclusive);
+		int startIndex = this.highLowContainer.getContainerIndex(startHigh);
+		startIndex = startIndex < 0 ? -startIndex - 1 : startIndex;
+
+		int uFilledUntil = uStart;
+		for (int containerIndex = startIndex;
+		     containerIndex < this.highLowContainer.size();
+		     containerIndex++) {
+			if (Integer.compareUnsigned(uEndInclusive, uFilledUntil) < 0) {
+				// We are done, no need to look at the next container.
+				return;
+			}
+			final char containerKey = this.highLowContainer.getKeyAtIndex(containerIndex);
+			final int uContainerStart = containerKey << 16;
+			final int uContainerEndInclusive = uContainerStart + (BitmapContainer.MAX_CAPACITY - 1);
+			if (endHigh < containerKey) {
+				if (Integer.compareUnsigned(uFilledUntil, uContainerStart) < 0) {
+					// Fill missing values until end.
+					final int fillFromRelative = uFilledUntil - uStart;
+					// This should always result in a non-negative number, since unsigned
+					// `uFilledUntil >= uStart`.
+					assert (fillFromRelative >= 0);
+					rrc.acceptAllAbsent(fillFromRelative, length);
+				}
+				return;
+			}
+			// Fill missing values until start of container.
+			if (Integer.compareUnsigned(uFilledUntil, uContainerStart) < 0) {
+				final int fillFromRelative = uFilledUntil - uStart;
+				final int fillToRelative = uContainerStart - uStart;
+				// These should always result in a non-negative number, since unsigned
+				// `uFilledUntil >= uStart`.
+				assert (fillFromRelative >= 0);
+				assert (fillToRelative >= 0);
+				rrc.acceptAllAbsent(fillFromRelative, fillToRelative);
+				uFilledUntil = uContainerStart;
+			}
+			// Inspect Container
+			Container container = this.highLowContainer.getContainerAtIndex(containerIndex);
+			final int containerRangeStartOffset = uFilledUntil - uStart;
+			// These should always result in a non-negative number, since unsigned
+			// `uFilledUntil >= uStart`.
+			assert (containerRangeStartOffset >= 0);
+
+			final boolean startInContainer = Integer.compareUnsigned(uContainerStart, uStart) < 0;
+			final boolean endInContainer =
+				Integer.compareUnsigned(uEndInclusive, uContainerEndInclusive) < 0;
+
+			if (startInContainer && endInContainer) {
+				// Only the range is entirely within this container.
+				final char containerRangeStart = LongUtils.lowPart(uStart);
+				final int uEndExclusive = uEndInclusive + 1;
+				// This block should only be entered when this addition is legal.
+				assert (Integer.compareUnsigned(uEndInclusive, uEndExclusive) < 0);
+				final char containerRangeEnd = LongUtils.lowPart(uEndExclusive);
+				container.forAllInRange(containerRangeStart, containerRangeEnd, rrc);
+				return;
+			} else if (startInContainer) { //  && !endInContainer
+				// Range begins within the container.
+				final char containerRangeStart = LongUtils.lowPart(uStart);
+				container.forAllFrom(containerRangeStart, rrc);
+				final int numValuesAdded = BitmapContainer.MAX_CAPACITY - (int) containerRangeStart;
+				// Must be non-negative, since both are basically char-sized values.
+				assert (numValuesAdded >= 0);
+				final int uOldFilledUntil = uFilledUntil;
+				uFilledUntil += numValuesAdded;
+				if (Integer.compareUnsigned(uFilledUntil, uOldFilledUntil) < 0) {
+					// Wrapped the fill counter, so we must have completed the filling.
+					return;
+				}
+			} else if (endInContainer) { // && !startInContainer
+				// Range ends within the container.
+				final int uEndExclusive = uEndInclusive + 1;
+				// This block should only be entered when this addition is legal.
+				assert (Integer.compareUnsigned(uEndInclusive, uEndExclusive) < 0);
+				final char containerRangeEnd = LongUtils.lowPart(uEndExclusive);
+				container.forAllUntil(containerRangeStartOffset, containerRangeEnd, rrc);
+				return;
+			} else {
+				// The entire container is within range.
+				container.forAll(containerRangeStartOffset, rrc);
+				final int uOldFilledUntil = uFilledUntil;
+				uFilledUntil += BitmapContainer.MAX_CAPACITY;
+				if (Integer.compareUnsigned(uFilledUntil, uOldFilledUntil) < 0) {
+					// Wrapped the fill counter, so we must have completed the filling.
+					return;
+				}
+			}
+		}
+		// No more containers, but there may be missing values in between.
+		if (Integer.compareUnsigned(uFilledUntil, uEndInclusive) <= 0) {
+			final int fillFromRelative = uFilledUntil - uStart;
+			// These should always result in a non-negative number, since unsigned
+			// `uFilledUntil >= uStart`.
+			assert (fillFromRelative >= 0);
+			rrc.acceptAllAbsent(fillFromRelative, length);
+		}
+	}
+
+	/**
+	 * Consume each value present in the range [start, start + length).
+	 *
+	 * @param start  Lower bound of values to consume.
+	 * @param length Maximum number of values to consume.
+	 * @param ic     Code to be executed for each present value.
+	 */
+	public void forEachInRange(int start, int length, @Nonnull final IntConsumer ic) {
+		forAllInRange(start, length, new IntConsumerRelativeRangeAdapter(start, ic));
+	}
+
+	/**
+	 * Return a low-level container pointer that can be used to access the underlying data structure.
+	 *
+	 * @return container pointer
+	 */
+	@Nonnull
+	public ContainerPointer getContainerPointer() {
+		return this.highLowContainer.getContainerPointer();
+	}
+
+	/**
+	 * Compute the hashCode() of this bitmap.
+	 *
+	 * For performance reasons, this method deliberately violates the
+	 * Java contract regarding hashCode/equals in the following manner:
+	 * If the two bitmaps are equal *and* they have the same
+	 * hasRunCompression() result, then they have the same hashCode().
+	 *
+	 * Thus, for the Java contract to be satisfied, you should either
+	 * call runOptimize() on all your bitmaps, or on none of your bitmaps.
+	 *
+	 * @return the hash code
+	 */
+	// highLowContainer is mutable by design (COW container array); hashing it here is intentional
+	@SuppressWarnings("NonFinalFieldReferencedInHashCode")
+	@Override
+	public int hashCode() {
+		return this.highLowContainer.hashCode();
+	}
+
+	/**
+	 * Two bitmaps are equal iff they hold the same set of values, independent of container encoding
+	 * (a run-compressed bitmap can equal a non-compressed one). Note that {@link #hashCode()} is
+	 * deliberately *not* encoding-independent — see its contract caveat.
+	 */
+	// highLowContainer is mutable by design (COW container array); comparing it here is intentional
+	@SuppressWarnings("NonFinalFieldReferenceInEquals")
+	@Override
+	public boolean equals(@Nullable final Object o) {
+		if (o instanceof PersistentRoaringBitmap srb) {
+			return srb.highLowContainer.equals(this.highLowContainer);
+		}
+		return false;
+	}
+
+	/**
+	 * Shallow clone: shares all containers between this and the clone via copy-on-write.
+	 * Both sides mark everything as shared, so the first mutator on either side clones
+	 * only the affected container.
+	 */
+	// COW clone deliberately builds an independent copy with shared-flag bookkeeping, not super.clone()
+	@SuppressWarnings("CloneDoesntCallSuperClone")
+	@Nonnull
+	@Override
+	public PersistentRoaringBitmap clone() {
+		final int size = this.highLowContainer.size();
+		final char[] newKeys = Arrays.copyOf(this.highLowContainer.keys, size);
+		final Container[] newValues = Arrays.copyOf(this.highLowContainer.values, size);
+		final RoaringArray clonedArray = new RoaringArray(newKeys, newValues, size);
+
+		// mark everything shared in both this and the clone
+		ensureSharedCapacity(size);
+		Arrays.fill(this.shared, 0, size, true);
+		final boolean[] cloneShared = new boolean[size];
+		Arrays.fill(cloneShared, true);
+
+		return new PersistentRoaringBitmap(clonedArray, cloneShared);
+	}
+
+	/**
+	 * A string describing the bitmap.
+	 *
+	 * @return the string
+	 */
+	@Nonnull
+	@Override
+	public String toString() {
+		final StringBuilder answer = new StringBuilder("{}".length() + "-123456789,".length() * 256);
+		final IntIterator i = this.getIntIterator();
+		answer.append('{');
+		if (i.hasNext()) {
+			answer.append(i.next() & 0xFFFFFFFFL);
+		}
+		while (i.hasNext()) {
+			answer.append(',');
+			// to avoid using too much memory, we limit the size
+			if (answer.length() > 0x80000) {
+				answer.append('.').append('.').append('.');
+				break;
+			}
+			answer.append(i.next() & 0xFFFFFFFFL);
+		}
+		answer.append('}');
+		return answer.toString();
+	}
+
+	/**
+	 * Check whether this bitmap has had its runs compressed.
+	 *
+	 * @return whether this bitmap has run compression
+	 */
+	public boolean hasRunCompression() {
+		for (int i = 0; i < this.highLowContainer.size(); i++) {
+			Container c = this.highLowContainer.getContainerAtIndex(i);
+			if (c instanceof RunContainer) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * iterate over the positions of the true values.
+	 *
+	 * @return the iterator
+	 */
+	@Nonnull
+	@Override
+	public Iterator<Integer> iterator() {
+		return new Iterator<Integer>() {
+			private int hs = 0;
+
+			private CharIterator iter;
+
+			private int pos = 0;
+
+			private int x;
+
+			@Override
+			public boolean hasNext() {
+				return this.pos < PersistentRoaringBitmap.this.highLowContainer.size();
+			}
+
+			@Nonnull
+			@Override
+			public Integer next() {
+				this.x = this.iter.nextAsInt() | this.hs;
+				if (!this.iter.hasNext()) {
+					++this.pos;
+					init();
+				}
+				return this.x;
+			}
+
+			@Override
+			public void remove() {
+				// todo: implement
+				throw new UnsupportedOperationException();
+			}
+
+			@Nonnull
+			private Iterator<Integer> init() {
+				if (this.pos < PersistentRoaringBitmap.this.highLowContainer.size()) {
+					this.iter = PersistentRoaringBitmap.this.highLowContainer.getContainerAtIndex(this.pos)
+						.getCharIterator();
+					this.hs = PersistentRoaringBitmap.this.highLowContainer.getKeyAtIndex(this.pos) << 16;
+				}
+				return this;
+			}
+		}.init();
+	}
+
+	/**
+	 * In-place bitwise OR (union) operation. The current bitmap is modified.
+	 *
+	 * Chunks that exist only in `x2` are borrowed into this bitmap by structural sharing rather than
+	 * copied; both bitmaps flag those slots shared, so a later mutation on either side clones the
+	 * affected container on demand. `x2` itself is not modified apart from its `shared[]` flags.
+	 *
+	 * @param x2 other bitmap
+	 */
+	public void or(@Nonnull final PersistentRoaringBitmap x2) {
+		if (this == x2) {
+			return;
+		}
+		int pos1 = 0, pos2 = 0;
+		int length1 = this.highLowContainer.size();
+		final int length2 = x2.highLowContainer.size();
+		main:
+		if (pos1 < length1 && pos2 < length2) {
+			char s1 = this.highLowContainer.getKeyAtIndex(pos1);
+			char s2 = x2.highLowContainer.getKeyAtIndex(pos2);
+
+			while (true) {
+				if (s1 == s2) {
+					copyIfShared(pos1);
+					this.highLowContainer.setContainerAtIndex(
+						pos1,
+						this.highLowContainer
+							.getContainerAtIndex(pos1)
+							.ior(x2.highLowContainer.getContainerAtIndex(pos2))
+					);
+					pos1++;
+					pos2++;
+					if ((pos1 == length1) || (pos2 == length2)) {
+						break main;
+					}
+					s1 = this.highLowContainer.getKeyAtIndex(pos1);
+					s2 = x2.highLowContainer.getKeyAtIndex(pos2);
+				} else if (s1 < s2) {
+					pos1++;
+					if (pos1 == length1) {
+						break main;
+					}
+					s1 = this.highLowContainer.getKeyAtIndex(pos1);
+				} else {
+					borrowAndInsert(pos1, s2, x2, pos2, length2);
+					pos1++;
+					length1++;
+					pos2++;
+					if (pos2 == length2) {
+						break main;
+					}
+					s2 = x2.highLowContainer.getKeyAtIndex(pos2);
+				}
+			}
+		}
+		if (pos1 == length1) {
+			appendTailWithSharing(x2, pos2, length2);
+		}
+	}
+
+	/**
+	 * Remove from the current bitmap all integers in [rangeStart,rangeEnd).
+	 *
+	 * @param rangeStart inclusive beginning of range
+	 * @param rangeEnd   exclusive ending of range
+	 */
+	public void remove(final long rangeStart, final long rangeEnd) {
+
+		rangeSanityCheck(rangeStart, rangeEnd);
+
+		if (rangeStart >= rangeEnd) {
+			return; // empty range
+		}
+
+		final int hbStart = (Util.highbits(rangeStart));
+		final int lbStart = (Util.lowbits(rangeStart));
+		final int hbLast = (Util.highbits(rangeEnd - 1));
+		final int lbLast = (Util.lowbits(rangeEnd - 1));
+		if (hbStart == hbLast) {
+			final int i = this.highLowContainer.getIndex((char) hbStart);
+			if (i < 0) {
+				return;
+			}
+			copyIfShared(i);
+			final Container c = this.highLowContainer.getContainerAtIndex(i).iremove(lbStart, lbLast + 1);
+			if (!c.isEmpty()) {
+				this.highLowContainer.setContainerAtIndex(i, c);
+			} else {
+				this.highLowContainer.removeAtIndex(i);
+				sharedRemoveAt(i);
+			}
+			return;
+		}
+		int ifirst = this.highLowContainer.getIndex((char) hbStart);
+		int ilast = this.highLowContainer.getIndex((char) hbLast);
+		if (ifirst >= 0) {
+			if (lbStart != 0) {
+				copyIfShared(ifirst);
+				final Container c =
+					this.highLowContainer
+						.getContainerAtIndex(ifirst)
+						.iremove(lbStart, Util.maxLowBitAsInteger() + 1);
+				if (!c.isEmpty()) {
+					this.highLowContainer.setContainerAtIndex(ifirst, c);
+					ifirst++;
+				}
+			}
+		} else {
+			ifirst = -ifirst - 1;
+		}
+		if (ilast >= 0) {
+			if (lbLast != Util.maxLowBitAsInteger()) {
+				copyIfShared(ilast);
+				final Container c = this.highLowContainer.getContainerAtIndex(ilast).iremove(0, lbLast + 1);
+				if (!c.isEmpty()) {
+					this.highLowContainer.setContainerAtIndex(ilast, c);
+				} else {
+					ilast++;
+				}
+			} else {
+				ilast++;
+			}
+		} else {
+			ilast = -ilast - 1;
+		}
+		this.highLowContainer.removeIndexRange(ifirst, ilast);
+		sharedRemoveRange(ifirst, ilast);
+	}
+
+	/**
+	 * Remove from the current bitmap all integers in [rangeStart,rangeEnd).
+	 *
+	 * @param rangeStart inclusive beginning of range
+	 * @param rangeEnd   exclusive ending of range
+	 * @deprecated use the version where longs specify the range
+	 */
+	@Deprecated
+	public void remove(final int rangeStart, final int rangeEnd) {
+		if (rangeStart >= 0) {
+			remove((long) rangeStart, (long) rangeEnd);
+		}
+		// rangeStart being -ve and rangeEnd being positive is not expected)
+		// so assume both -ve
+		remove(rangeStart & 0xFFFFFFFFL, rangeEnd & 0xFFFFFFFFL);
+	}
+
+	/**
+	 * Remove run-length encoding even when it is more space efficient
+	 *
+	 * @return whether a change was applied
+	 */
+	public boolean removeRunCompression() {
+		boolean answer = false;
+		for (int i = 0; i < this.highLowContainer.size(); i++) {
+			Container c = this.highLowContainer.getContainerAtIndex(i);
+			if (c instanceof RunContainer) {
+				Container newc = ((RunContainer) c).toBitmapOrArrayContainer(c.getCardinality());
+				this.highLowContainer.setContainerAtIndex(i, newc);
+				answer = true;
+			}
+		}
+		return answer;
+	}
+
+	/**
+	 * Use a run-length encoding where it is more space efficient
+	 *
+	 * @return whether a change was applied
+	 */
+	public boolean runOptimize() {
+		boolean answer = false;
+		for (int i = 0; i < this.highLowContainer.size(); i++) {
+			Container c = this.highLowContainer.getContainerAtIndex(i).runOptimize();
+			if (c instanceof RunContainer) {
+				answer = true;
+			}
+			this.highLowContainer.setContainerAtIndex(i, c);
+		}
+		return answer;
+	}
+
+	/**
+	 * Checks whether the parameter is a subset of this PersistentRoaringBitmap or not
+	 *
+	 * @param subset the potential subset
+	 * @return true if the parameter is a subset of this PersistentRoaringBitmap
+	 */
+	public boolean contains(@Nonnull final PersistentRoaringBitmap subset) {
+		final int length1 = this.highLowContainer.size;
+		final int length2 = subset.highLowContainer.size;
+		int pos1 = 0, pos2 = 0;
+		while (pos1 < length1 && pos2 < length2) {
+			final char s1 = this.highLowContainer.getKeyAtIndex(pos1);
+			final char s2 = subset.highLowContainer.getKeyAtIndex(pos2);
+			if (s1 == s2) {
+				Container c1 = this.highLowContainer.getContainerAtIndex(pos1);
+				Container c2 = subset.highLowContainer.getContainerAtIndex(pos2);
+				if (!c1.contains(c2)) {
+					return false;
+				}
+				++pos1;
+				++pos2;
+			} else if (s1 - s2 > 0) {
+				return false;
+			} else {
+				pos1 = subset.highLowContainer.advanceUntil(s2, pos1);
+			}
+		}
+		return pos2 == length2;
+	}
+
+	/**
+	 * Creates a copy of the bitmap, limited to the values in the specified range,
+	 * rangeStart (inclusive) and rangeEnd (exclusive).
+	 *
+	 * @param rangeStart inclusive
+	 * @param rangeEnd   exclusive
+	 * @return new bitmap
+	 */
+	@Nonnull
+	public PersistentRoaringBitmap selectRange(final long rangeStart, final long rangeEnd) {
+		final int hbStart = (Util.highbits(rangeStart));
+		final int lbStart = (Util.lowbits(rangeStart));
+		final int hbLast = (Util.highbits(rangeEnd - 1));
+		final int lbLast = (Util.lowbits(rangeEnd - 1));
+		PersistentRoaringBitmap answer = new PersistentRoaringBitmap();
+
+		assert (rangeStart >= 0 && rangeEnd >= 0);
+
+		if (rangeEnd <= rangeStart) {
+			return answer;
+		}
+
+		if (hbStart == hbLast) {
+			final int i = this.highLowContainer.getIndex((char) hbStart);
+			if (i >= 0) {
+				final Container c =
+					this.highLowContainer
+						.getContainerAtIndex(i)
+						.remove(0, lbStart)
+						.iremove(lbLast + 1, Util.maxLowBitAsInteger() + 1);
+				if (!c.isEmpty()) {
+					answer.highLowContainer.append((char) hbStart, c);
+				}
+			}
+			return answer;
+		}
+		int ifirst = this.highLowContainer.getIndex((char) hbStart);
+		int ilast = this.highLowContainer.getIndex((char) hbLast);
+		if (ifirst >= 0) {
+			final Container c = this.highLowContainer.getContainerAtIndex(ifirst).remove(0, lbStart);
+			if (!c.isEmpty()) {
+				answer.highLowContainer.append((char) hbStart, c.clone());
+			}
+		}
+
+		// revised to loop on ints
+		for (int hb = hbStart + 1; hb <= hbLast - 1; ++hb) {
+			final int i = this.highLowContainer.getIndex((char) hb);
+			final int j = answer.highLowContainer.getIndex((char) hb);
+			assert j < 0;
+
+			if (i >= 0) {
+				final Container c = this.highLowContainer.getContainerAtIndex(i);
+				answer.highLowContainer.insertNewKeyValueAt(-j - 1, (char) hb, c.clone());
+			}
+		}
+
+		if (ilast >= 0) {
+			final Container c =
+				this.highLowContainer
+					.getContainerAtIndex(ilast)
+					.remove(lbLast + 1, Util.maxLowBitAsInteger() + 1);
+			if (!c.isEmpty()) {
+				answer.highLowContainer.append((char) hbLast, c);
+			}
+		}
+		return answer;
+	}
+
+	/**
+	 * Appends the container by reference (no clone) and grows the parallel `shared[]` to match; the
+	 * new slot is left owned (`shared == false`), so the caller must not retain and mutate the passed
+	 * container independently.
+	 */
+	@Override
+	public void append(char key, @Nonnull final Container container) {
+		this.highLowContainer.append(key, container);
+		ensureSharedCapacity(this.highLowContainer.size());
+	}
+
+	/**
+	 * {@link Externalizable} hook that writes the bitmap in the Roaring wire format (adds Java
+	 * serialization framing over {@link #serialize(DataOutput)}).
+	 */
+	@Override
+	public void writeExternal(ObjectOutput out) throws IOException {
+		this.highLowContainer.writeExternal(out);
+	}
+
+	/**
+	 * {@link Externalizable} hook that overwrites this bitmap from the wire and resets `shared[]` to
+	 * a fresh all-owned array (deserialized containers are never shared).
+	 */
+	@Override
+	public void readExternal(ObjectInput in) throws IOException {
+		this.highLowContainer.readExternal(in);
+		this.shared = new boolean[this.highLowContainer.size()];
+	}
+
+	/**
+	 * In-place bitwise XOR (symmetric difference) operation. The current bitmap is modified.
+	 *
+	 * Chunks that exist only in `x2` are borrowed into this bitmap by structural sharing rather than
+	 * copied; both bitmaps flag those slots shared, so a later mutation on either side clones the
+	 * affected container on demand. `x2` itself is not modified apart from its `shared[]` flags.
+	 *
+	 * @param x2 other bitmap
+	 */
+	public void xor(@Nonnull final PersistentRoaringBitmap x2) {
+		if (x2 == this) {
+			clear();
+			return;
+		}
+		int pos1 = 0, pos2 = 0;
+		int length1 = this.highLowContainer.size();
+		final int length2 = x2.highLowContainer.size();
+
+		main:
+		if (pos1 < length1 && pos2 < length2) {
+			char s1 = this.highLowContainer.getKeyAtIndex(pos1);
+			char s2 = x2.highLowContainer.getKeyAtIndex(pos2);
+
+			while (true) {
+				if (s1 == s2) {
+					copyIfShared(pos1);
+					final Container c =
+						this.highLowContainer
+							.getContainerAtIndex(pos1)
+							.ixor(x2.highLowContainer.getContainerAtIndex(pos2));
+					if (!c.isEmpty()) {
+						this.highLowContainer.setContainerAtIndex(pos1, c);
+						pos1++;
+					} else {
+						this.highLowContainer.removeAtIndex(pos1);
+						sharedRemoveAt(pos1);
+						--length1;
+					}
+					pos2++;
+					if ((pos1 == length1) || (pos2 == length2)) {
+						break main;
+					}
+					s1 = this.highLowContainer.getKeyAtIndex(pos1);
+					s2 = x2.highLowContainer.getKeyAtIndex(pos2);
+				} else if (s1 < s2) {
+					pos1++;
+					if (pos1 == length1) {
+						break main;
+					}
+					s1 = this.highLowContainer.getKeyAtIndex(pos1);
+				} else {
+					borrowAndInsert(pos1, s2, x2, pos2, length2);
+					pos1++;
+					length1++;
+					pos2++;
+					if (pos2 == length2) {
+						break main;
+					}
+					s2 = x2.highLowContainer.getKeyAtIndex(pos2);
+				}
+			}
+		}
+		if (pos1 == length1) {
+			appendTailWithSharing(x2, pos2, length2);
+		}
+	}
+
+	/**
+	 * In-place lazy union used by {@link FastAggregation}: like {@link #or(PersistentRoaringBitmap)
+	 * or} but leaves overlapping containers denormalized (cardinalities not yet recomputed) so a long
+	 * fold stays cheap. Chunks unique to `x2` are borrowed by structural sharing (copy-on-write).
+	 *
+	 * Run {@link #repairAfterLazy()} before using this bitmap, and do not pass an `x2` that was itself
+	 * computed lazily.
+	 *
+	 * @param x2 other bitmap
+	 */
+	protected void lazyor(@Nonnull final PersistentRoaringBitmap x2) {
+		if (this == x2) {
+			return;
+		}
+		int pos1 = 0, pos2 = 0;
+		int length1 = this.highLowContainer.size();
+		final int length2 = x2.highLowContainer.size();
+		main:
+		if (pos1 < length1 && pos2 < length2) {
+			char s1 = this.highLowContainer.getKeyAtIndex(pos1);
+			char s2 = x2.highLowContainer.getKeyAtIndex(pos2);
+
+			while (true) {
+				if (s1 == s2) {
+					copyIfShared(pos1);
+					this.highLowContainer.setContainerAtIndex(
+						pos1,
+						this.highLowContainer
+							.getContainerAtIndex(pos1)
+							.lazyIOR(x2.highLowContainer.getContainerAtIndex(pos2))
+					);
+					pos1++;
+					pos2++;
+					if ((pos1 == length1) || (pos2 == length2)) {
+						break main;
+					}
+					s1 = this.highLowContainer.getKeyAtIndex(pos1);
+					s2 = x2.highLowContainer.getKeyAtIndex(pos2);
+				} else if (s1 < s2) {
+					pos1++;
+					if (pos1 == length1) {
+						break main;
+					}
+					s1 = this.highLowContainer.getKeyAtIndex(pos1);
+				} else {
+					borrowAndInsert(pos1, s2, x2, pos2, length2);
+					pos1++;
+					length1++;
+					pos2++;
+					if (pos2 == length2) {
+						break main;
+					}
+					s2 = x2.highLowContainer.getKeyAtIndex(pos2);
+				}
+			}
+		}
+		if (pos1 == length1) {
+			appendTailWithSharing(x2, pos2, length2);
+		}
+	}
+
+	/**
+	 * In-place lazy union like {@link #lazyor(PersistentRoaringBitmap)}, except each overlapping
+	 * container of this bitmap is first promoted to a {@link BitmapContainer} — a denser accumulator
+	 * that pays off when unioning many bitmaps. Chunks unique to `x2` are borrowed by structural
+	 * sharing (copy-on-write).
+	 *
+	 * Run {@link #repairAfterLazy()} before using this bitmap, and do not pass an `x2` that was itself
+	 * computed lazily.
+	 *
+	 * @param x2 other bitmap
+	 */
+	protected void naivelazyor(@Nonnull final PersistentRoaringBitmap x2) {
+		if (this == x2) {
+			return;
+		}
+		int pos1 = 0, pos2 = 0;
+		int length1 = this.highLowContainer.size();
+		final int length2 = x2.highLowContainer.size();
+		main:
+		if (pos1 < length1 && pos2 < length2) {
+			char s1 = this.highLowContainer.getKeyAtIndex(pos1);
+			char s2 = x2.highLowContainer.getKeyAtIndex(pos2);
+
+			while (true) {
+				if (s1 == s2) {
+					copyIfShared(pos1);
+					final BitmapContainer c1 =
+						this.highLowContainer.getContainerAtIndex(pos1).toBitmapContainer();
+					this.highLowContainer.setContainerAtIndex(
+						pos1, c1.lazyIOR(x2.highLowContainer.getContainerAtIndex(pos2)));
+					pos1++;
+					pos2++;
+					if ((pos1 == length1) || (pos2 == length2)) {
+						break main;
+					}
+					s1 = this.highLowContainer.getKeyAtIndex(pos1);
+					s2 = x2.highLowContainer.getKeyAtIndex(pos2);
+				} else if (s1 < s2) {
+					pos1++;
+					if (pos1 == length1) {
+						break main;
+					}
+					s1 = this.highLowContainer.getKeyAtIndex(pos1);
+				} else {
+					borrowAndInsert(pos1, s2, x2, pos2, length2);
+					pos1++;
+					length1++;
+					pos2++;
+					if (pos2 == length2) {
+						break main;
+					}
+					s2 = x2.highLowContainer.getKeyAtIndex(pos2);
+				}
+			}
+		}
+		if (pos1 == length1) {
+			appendTailWithSharing(x2, pos2, length2);
+		}
+	}
+
+	/**
+	 * Normalizes every container after a lazy union, recomputing the cardinalities left stale by
+	 * {@link #lazyor(PersistentRoaringBitmap)} / {@link #naivelazyor(PersistentRoaringBitmap)} and
+	 * downgrading each container to its most compact encoding. Copy-on-write is honored: a shared
+	 * container is cloned before it is repaired in place.
+	 */
+	protected void repairAfterLazy() {
+		for (int k = 0; k < this.highLowContainer.size(); ++k) {
+			copyIfShared(k);
+			final Container c = this.highLowContainer.getContainerAtIndex(k);
+			this.highLowContainer.setContainerAtIndex(k, c.repairAfterLazy());
+		}
+	}
+
+	/**
+	 * Returns the container at the given index. Package-private for testing structural sharing.
+	 */
+	@Nonnull
+	Container getContainerAtIndex(int i) {
+		return this.highLowContainer.getContainerAtIndex(i);
+	}
+
+	/**
+	 * Returns the key at the given index. Package-private for testing.
+	 */
+	char getKeyAtIndex(int i) {
+		return this.highLowContainer.getKeyAtIndex(i);
+	}
+
+	/**
+	 * Returns whether the container at the given index is marked as shared.
+	 * Package-private for testing.
+	 */
+	boolean isShared(int i) {
+		return i < this.shared.length && this.shared[i];
+	}
+
+	/**
+	 * Grows `shared[]` to at least `minCapacity`. New slots default to false.
+	 */
+	private void ensureSharedCapacity(int minCapacity) {
+		if (this.shared.length < minCapacity) {
+			this.shared = Arrays.copyOf(this.shared, Math.max(minCapacity, this.shared.length << 1));
+		}
+	}
+
+	/**
+	 * If the container at index i is shared, clones it and marks it unshared.
+	 * This is the COW guard -- must be called BEFORE any in-place mutation.
+	 */
+	private void copyIfShared(int i) {
+		if (i < this.shared.length && this.shared[i]) {
+			this.highLowContainer.setContainerAtIndex(
+				i,
+				this.highLowContainer.getContainerAtIndex(i).clone()
+			);
+			this.shared[i] = false;
+		}
+	}
+
+	/**
+	 * After `highLowContainer.insertNewKeyValueAt(i, ...)` shifted arrays right,
+	 * shifts the `shared[]` array right too. The newly inserted slot is marked unshared.
+	 */
+	private void sharedInsertAt(int i) {
+		sharedInsertAt(i, false);
+	}
+
+	/**
+	 * Shifts `shared[]` right to mirror an insertion at index `i`, marking the new slot `isShared`.
+	 */
+	private void sharedInsertAt(int i, boolean isShared) {
+		final int size = this.highLowContainer.size(); // already incremented
+		ensureSharedCapacity(size);
+		System.arraycopy(this.shared, i, this.shared, i + 1, size - i - 1);
+		this.shared[i] = isShared;
+	}
+
+	/**
+	 * After `highLowContainer.removeAtIndex(i)` shifted arrays left,
+	 * shifts the `shared[]` array left too.
+	 */
+	private void sharedRemoveAt(int i) {
+		final int size = this.highLowContainer.size(); // already decremented
+		// Static/lazy builders that produce all-owned results (e.g. flip, orNot, addOffset) populate
+		// highLowContainer via RoaringArray-level appends and may leave shared[] shorter than the
+		// container array. Every container beyond shared.length is necessarily owned (only the three
+		// sharing paths create shared containers, and all of them grow shared[] to cover their slots),
+		// so growing here and treating absent entries as false is correct, not just crash-safe.
+		ensureSharedCapacity(size + 1);
+		System.arraycopy(this.shared, i + 1, this.shared, i, size - i);
+		this.shared[size] = false;
+	}
+
+	/**
+	 * After `highLowContainer.removeIndexRange(begin, end)` shifted arrays left,
+	 * shifts the `shared[]` array left too.
+	 */
+	private void sharedRemoveRange(int begin, int end) {
+		if (end <= begin) {
+			return;
+		}
+		final int newSize = this.highLowContainer.size(); // already decremented
+		// See sharedRemoveAt: tolerate an undersized shared[] left by all-owned builders; the old
+		// size was newSize + (end - begin), and entries beyond shared.length are owned (false).
+		ensureSharedCapacity(newSize + (end - begin));
+		System.arraycopy(this.shared, end, this.shared, begin, newSize - begin);
+		Arrays.fill(this.shared, newSize, newSize + (end - begin), false);
+	}
+
+	/**
+	 * Borrows a container from x2 at pos2 by structural sharing, inserts it into this bitmap
+	 * at pos1, and updates both bitmaps' shared[] tracking arrays.
+	 *
+	 * @param pos1    insertion index in this bitmap
+	 * @param s2      the key to insert
+	 * @param x2      the source bitmap
+	 * @param pos2    the container index in x2
+	 * @param length2 the size of x2's container array (used for ensureSharedCapacity)
+	 */
+	private void borrowAndInsert(
+		int pos1, char s2, @Nonnull final PersistentRoaringBitmap x2, int pos2,
+		int length2
+	) {
+		final Container c = x2.highLowContainer.getContainerAtIndex(pos2);
+		x2.ensureSharedCapacity(length2);
+		x2.shared[pos2] = true;
+		this.highLowContainer.insertNewKeyValueAt(pos1, s2, c);
+		sharedInsertAt(pos1, true);
+	}
+
+	/**
+	 * Appends all remaining containers from x2 (from pos2 to length2) to this bitmap using
+	 * structural sharing. Called after the main merge loop when this bitmap's keys are exhausted.
+	 *
+	 * @param x2      the source bitmap
+	 * @param pos2    starting index in x2
+	 * @param length2 ending index (exclusive) in x2
+	 */
+	private void appendTailWithSharing(@Nonnull final PersistentRoaringBitmap x2, int pos2, int length2) {
+		final int startSize = this.highLowContainer.size();
+		this.highLowContainer.append(x2.highLowContainer, pos2, length2);
+		final int newSize = this.highLowContainer.size();
+		ensureSharedCapacity(newSize);
+		Arrays.fill(this.shared, startSize, newSize, true);
+		x2.ensureSharedCapacity(length2);
+		Arrays.fill(x2.shared, pos2, length2, true);
+	}
+
+	/**
+	 * Scans forward for the first unset value at or above `fromValue` (unsigned). Returns the
+	 * past-the-end sentinel `2^32` (`0x100000000L`) when every value up to the maximum is set; the
+	 * public {@link #nextAbsentValue(int)} translates that sentinel to `-1L`.
+	 */
+	private long computeNextAbsentValue(int fromValue) {
+		char key = Util.highbits(fromValue);
+		int containerIndex = this.highLowContainer.advanceUntil(key, -1);
+
+		int size = this.highLowContainer.size();
+		if (containerIndex == size) {
+			return Util.toUnsignedLong(fromValue);
+		}
+		char containerKey = this.highLowContainer.getKeyAtIndex(containerIndex);
+		if (fromValue < containerKey << 16) {
+			return Util.toUnsignedLong(fromValue);
+		}
+		Container container = this.highLowContainer.getContainerAtIndex(containerIndex);
+		int bit = container.nextAbsentValue(Util.lowbits(fromValue));
+		while (true) {
+			if (bit != 1 << 16) {
+				return Util.toUnsignedLong((containerKey << 16) | bit);
+			}
+			assert container.last() == (1 << 16) - 1;
+			if (containerIndex == size - 1) {
+				return Util.toUnsignedLong(this.highLowContainer.last()) + 1;
+			}
+
+			containerIndex += 1;
+			char nextContainerKey = this.highLowContainer.getKeyAtIndex(containerIndex);
+			if (containerKey + 1 < nextContainerKey) {
+				return Util.toUnsignedLong((containerKey + 1) << 16);
+			}
+			containerKey = nextContainerKey;
+			container = this.highLowContainer.getContainerAtIndex(containerIndex);
+			bit = container.nextAbsentValue((char) 0);
+		}
+	}
+
+	/**
+	 * Scans backward for the largest unset value at or below `fromValue` (unsigned), returning `-1L`
+	 * when every value down to `0` is set.
+	 */
+	private long computePreviousAbsentValue(int fromValue) {
+		char key = Util.highbits(fromValue);
+		int containerIndex = this.highLowContainer.advanceUntil(key, -1);
+
+		if (containerIndex == this.highLowContainer.size()) {
+			return Util.toUnsignedLong(fromValue);
+		}
+		char containerKey = this.highLowContainer.getKeyAtIndex(containerIndex);
+		if (fromValue < containerKey << 16) {
+			return Util.toUnsignedLong(fromValue);
+		}
+		Container container = this.highLowContainer.getContainerAtIndex(containerIndex);
+		int bit = container.previousAbsentValue(Util.lowbits(fromValue));
+
+		while (true) {
+			if (bit != -1) {
+				return Util.toUnsignedLong((containerKey << 16) | bit);
+			}
+			assert container.first() == 0;
+			if (containerIndex == 0) {
+				return Util.toUnsignedLong(this.highLowContainer.first()) - 1;
+			}
+
+			containerIndex -= 1;
+			char nextContainerKey = this.highLowContainer.getKeyAtIndex(containerIndex);
+			if (nextContainerKey < containerKey - 1) {
+				return Util.toUnsignedLong((containerKey << 16)) - 1;
+			}
+			containerKey = nextContainerKey;
+			container = this.highLowContainer.getContainerAtIndex(containerIndex);
+			bit = container.previousAbsentValue((char) ((1 << 16) - 1));
+		}
+	}
+
+	/**
+	 * Forward {@link PeekableIntIterator} over set values in ascending unsigned order. Container
+	 * traversal begins at {@link #findStartingContainerIndex()} and wraps around, letting subclasses
+	 * reorder the walk (e.g. signed order) without duplicating the iteration logic.
+	 */
+	private class RoaringIntIterator implements PeekableIntIterator {
+		private final char startingContainerIndex;
+		private int hs = 0;
+
+		private PeekableCharIterator iter;
+
+		private int pos = 0;
+
+		public RoaringIntIterator() {
+			this.startingContainerIndex = findStartingContainerIndex();
+			nextContainer();
+		}
+
+		@Nonnull
+		@Override
+		public PeekableIntIterator clone() {
+			try {
+				RoaringIntIterator x = (RoaringIntIterator) super.clone();
+				if (this.iter != null) {
+					x.iter = this.iter.clone();
+				}
+				return x;
+			} catch (CloneNotSupportedException e) {
+				throw new IllegalStateException(e); // unreachable, this iterator implements Cloneable
+			}
+		}
+
+		@Override
+		public boolean hasNext() {
+			return this.pos < PersistentRoaringBitmap.this.highLowContainer.size();
+		}
+
+		@Override
+		public int next() {
+			final int x = this.iter.nextAsInt() | this.hs;
+			if (!this.iter.hasNext()) {
+				++this.pos;
+				nextContainer();
+			}
+			return x;
+		}
+
+		@Override
+		public void advanceIfNeeded(int minval) {
+			while (hasNext() && shouldAdvanceContainer(this.hs, minval)) {
+				++this.pos;
+				nextContainer();
+			}
+			if (hasNext() && ((this.hs >>> 16) == (minval >>> 16))) {
+				this.iter.advanceIfNeeded(Util.lowbits(minval));
+				if (!this.iter.hasNext()) {
+					++this.pos;
+					nextContainer();
+				}
+			}
+		}
+
+		@Override
+		public int peekNext() {
+			return (this.iter.peekNext()) | this.hs;
+		}
+
+		char findStartingContainerIndex() {
+			return 0;
+		}
+
+		boolean shouldAdvanceContainer(final int hs, final int minval) {
+			return (hs >>> 16) < (minval >>> 16);
+		}
+
+		private void nextContainer() {
+			final int containerSize = PersistentRoaringBitmap.this.highLowContainer.size();
+			if (this.pos < containerSize) {
+				final int index = (this.pos + this.startingContainerIndex) % containerSize;
+				this.iter = PersistentRoaringBitmap.this.highLowContainer.getContainerAtIndex(index).getCharIterator();
+				this.hs = PersistentRoaringBitmap.this.highLowContainer.getKeyAtIndex(index) << 16;
+			}
+		}
+	}
+
+	/**
+	 * {@link RoaringIntIterator} variant that yields values in signed ascending order by starting the
+	 * wrapping walk at the first chunk holding negative values.
+	 */
+	private final class RoaringSignedIntIterator extends RoaringIntIterator {
+
+		@Override
+		char findStartingContainerIndex() {
+			// skip to starting at negative signed integers
+			char index = (char) PersistentRoaringBitmap.this.highLowContainer.advanceUntil((char) (1 << 15), -1);
+			if (index == PersistentRoaringBitmap.this.highLowContainer.size()) {
+				index = 0;
+			}
+			return index;
+		}
+
+		@Override
+		boolean shouldAdvanceContainer(final int hs, final int minval) {
+			return (hs >> 16) < (minval >> 16);
+		}
+	}
+
+	/**
+	 * {@link IntIterator} over set values in descending unsigned order.
+	 */
+	private final class RoaringReverseIntIterator implements IntIterator {
+
+		int hs = 0;
+
+		CharIterator iter;
+
+		int pos = PersistentRoaringBitmap.this.highLowContainer.size() - 1;
+
+		private RoaringReverseIntIterator() {
+			nextContainer();
+		}
+
+		@Nonnull
+		@Override
+		public IntIterator clone() {
+			try {
+				RoaringReverseIntIterator clone = (RoaringReverseIntIterator) super.clone();
+				if (this.iter != null) {
+					clone.iter = this.iter.clone();
+				}
+				return clone;
+			} catch (CloneNotSupportedException e) {
+				throw new IllegalStateException(e); // unreachable, this iterator implements Cloneable
+			}
+		}
+
+		@Override
+		public boolean hasNext() {
+			return this.pos >= 0;
+		}
+
+		@Override
+		public int next() {
+			final int x = this.iter.nextAsInt() | this.hs;
+			if (!this.iter.hasNext()) {
+				--this.pos;
+				nextContainer();
+			}
+			return x;
+		}
+
+		private void nextContainer() {
+			if (this.pos >= 0) {
+				this.iter =
+					PersistentRoaringBitmap.this.highLowContainer.getContainerAtIndex(this.pos)
+						.getReverseCharIterator();
+				this.hs = PersistentRoaringBitmap.this.highLowContainer.getKeyAtIndex(this.pos) << 16;
+			}
+		}
+	}
+}

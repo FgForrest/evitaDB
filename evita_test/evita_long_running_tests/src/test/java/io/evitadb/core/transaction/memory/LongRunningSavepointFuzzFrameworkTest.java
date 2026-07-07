@@ -23,6 +23,7 @@
 
 package io.evitadb.core.transaction.memory;
 
+import io.evitadb.core.transaction.Transaction;
 import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.index.map.TransactionalMap;
 import io.evitadb.test.duration.TimeArgumentProvider;
@@ -36,9 +37,13 @@ import org.junit.jupiter.params.provider.ArgumentsSource;
 import javax.annotation.Nonnull;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Random;
+import java.util.Set;
 
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.SLOW;
@@ -174,13 +179,71 @@ class LongRunningSavepointFuzzFrameworkTest implements TimeBoundedTestSupport {
 	 */
 	private static void applyRandomMapOps(@Nonnull TransactionalMap<Integer, Integer> map, @Nonnull Random random, int count) {
 		for (int i = 0; i < count; i++) {
-			final int key = random.nextInt(KEY_SPACE);
-			if (random.nextInt(3) == 0) {
-				map.remove(key);
-			} else {
-				map.put(key, random.nextInt());
+			// view-iterator / bulk-view ops (choices >= 2) mutate the diff layer through the entry-set / key-set views,
+			// so they require the layer to already exist; when it does not yet, fall back to the direct put/remove that
+			// creates it (this is the write path the maintainer's first-touch snapshotting relies on)
+			final boolean hasLayer = Transaction.getTransactionalMemoryLayerIfExists(map) != null;
+			switch (random.nextInt(hasLayer ? 5 : 2)) {
+				case 0 -> map.remove(random.nextInt(KEY_SPACE));
+				case 1 -> map.put(random.nextInt(KEY_SPACE), random.nextInt());
+				case 2 -> removeOneViaEntryIterator(map, random);        // entrySet().iterator().remove()
+				case 3 -> setOneViaEntryIterator(map, random);           // entry.setValue() (in-place overwrite)
+				case 4 -> map.keySet().removeAll(randomKeySubset(random)); // AbstractSet#removeAll -> merged iterator remove
+				default -> throw new IllegalStateException("unreachable map op choice");
 			}
 		}
+	}
+
+	/**
+	 * Removes a single (randomly positioned) entry through the entry-set iterator, exercising the collection-view
+	 * removal path that bypasses the direct mutators.
+	 */
+	private static void removeOneViaEntryIterator(@Nonnull TransactionalMap<Integer, Integer> map, @Nonnull Random random) {
+		final int size = map.size();
+		if (size == 0) {
+			return;
+		}
+		int target = random.nextInt(size);
+		final Iterator<Entry<Integer, Integer>> it = map.entrySet().iterator();
+		while (it.hasNext()) {
+			it.next();
+			if (target-- == 0) {
+				it.remove();
+				return;
+			}
+		}
+	}
+
+	/**
+	 * Overwrites a single (randomly positioned) entry's value in place through the entry-set view's setValue proxy.
+	 */
+	private static void setOneViaEntryIterator(@Nonnull TransactionalMap<Integer, Integer> map, @Nonnull Random random) {
+		final int size = map.size();
+		if (size == 0) {
+			return;
+		}
+		int target = random.nextInt(size);
+		final Iterator<Entry<Integer, Integer>> it = map.entrySet().iterator();
+		while (it.hasNext()) {
+			final Entry<Integer, Integer> entry = it.next();
+			if (target-- == 0) {
+				entry.setValue(random.nextInt());
+				return;
+			}
+		}
+	}
+
+	/**
+	 * Builds a small random subset of the key space to drive {@code keySet().removeAll} through the view.
+	 */
+	@Nonnull
+	private static Set<Integer> randomKeySubset(@Nonnull Random random) {
+		final Set<Integer> subset = new HashSet<>();
+		final int n = 1 + random.nextInt(4);
+		for (int i = 0; i < n; i++) {
+			subset.add(random.nextInt(KEY_SPACE));
+		}
+		return subset;
 	}
 
 	/**

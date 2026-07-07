@@ -117,8 +117,8 @@ import io.evitadb.utils.CollectionUtils;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.experimental.Delegate;
-import org.roaringbitmap.RoaringBitmap;
-import org.roaringbitmap.RoaringBitmapWriter;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
+import io.evitadb.roaringbitmap.RoaringBitmapWriter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -924,7 +924,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 		}
 
 		// translate reduced-group-index PKs back to group entity PKs via the type-level cardinality index
-		final RoaringBitmapWriter<RoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
+		final RoaringBitmapWriter<PersistentRoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
 		for (Scope scope : scopes) {
 			final EntityIndexKey groupTypeKey = new EntityIndexKey(
 				EntityIndexType.REFERENCED_GROUP_ENTITY_TYPE, scope, referenceName
@@ -937,7 +937,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 				groupPks.forEach(writer::add);
 			}
 		}
-		final RoaringBitmap bitmap = writer.get();
+		final PersistentRoaringBitmap bitmap = writer.get();
 		return bitmap.isEmpty() ? EmptyBitmap.INSTANCE : new BaseBitmap(bitmap);
 	}
 
@@ -984,12 +984,12 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 			THROWING_MISSING_RTEI_SUPPLIER
 		);
 		// we need to translate entity index primary keys to referenced entity primary keys
-		final RoaringBitmapWriter<RoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
+		final RoaringBitmapWriter<PersistentRoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
 		for (Integer indexPk : reducedEntityIndexPrimaryKeys.compute()) {
 			final ReducedEntityIndex reducedIndex = this.getEntityIndexByPrimaryKey(indexPk, ReducedEntityIndex.class);
 			writer.add(reducedIndex.getReferenceKey().primaryKey());
 		}
-		final RoaringBitmap bitmap = writer.get();
+		final PersistentRoaringBitmap bitmap = writer.get();
 		return bitmap.isEmpty() ? EmptyFormula.INSTANCE : new ConstantFormula(new BaseBitmap(bitmap));
 	}
 

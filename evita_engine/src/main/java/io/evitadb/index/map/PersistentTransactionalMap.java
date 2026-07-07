@@ -283,7 +283,7 @@ public class PersistentTransactionalMap<K, V> implements Map<K, V>,
 		final MapChanges<K, V> layer = getTransactionalMemoryLayerIfExists(this);
 		return layer == null ?
 			this.state.keySet() :
-			new TransactionalMemoryKeySet<>(layer, getTransactionalLayerMaintainer());
+			new TransactionalMemoryKeySet<>(layer, this, getTransactionalLayerMaintainer());
 	}
 
 	@Nonnull
@@ -292,7 +292,7 @@ public class PersistentTransactionalMap<K, V> implements Map<K, V>,
 		final MapChanges<K, V> layer = getTransactionalMemoryLayerIfExists(this);
 		return layer == null ?
 			this.state.values() :
-			new TransactionalMemoryValues<>(layer, getTransactionalLayerMaintainer());
+			new TransactionalMemoryValues<>(layer, this, getTransactionalLayerMaintainer());
 	}
 
 	@Nonnull
@@ -301,7 +301,7 @@ public class PersistentTransactionalMap<K, V> implements Map<K, V>,
 		final MapChanges<K, V> layer = getTransactionalMemoryLayerIfExists(this);
 		return layer == null ?
 			this.state.entrySet() :
-			new TransactionalMemoryEntrySet<>(layer);
+			new TransactionalMemoryEntrySet<>(layer, this);
 	}
 
 	/* ===========================================================================================

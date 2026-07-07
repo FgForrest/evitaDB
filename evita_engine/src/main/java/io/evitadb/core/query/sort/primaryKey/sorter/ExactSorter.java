@@ -29,8 +29,8 @@ import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.utils.ArrayUtils;
-import org.roaringbitmap.RoaringBitmap;
-import org.roaringbitmap.RoaringBitmapWriter;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
+import io.evitadb.roaringbitmap.RoaringBitmapWriter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -86,12 +86,12 @@ public class ExactSorter implements Sorter {
 			);
 		} else {
 			// otherwise, collect the not sorted record ids
-			final RoaringBitmapWriter<RoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
+			final RoaringBitmapWriter<PersistentRoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
 			for (int i = lastSortedItem; i < filteredRecordIds.length; i++) {
 				writer.add(filteredRecordIds[i]);
 			}
 
-			final RoaringBitmap outputBitmap = writer.get();
+			final PersistentRoaringBitmap outputBitmap = writer.get();
 			return sortingContext.createResultContext(
 				outputBitmap.isEmpty() ?
 					EmptyBitmap.INSTANCE : new BaseBitmap(outputBitmap),

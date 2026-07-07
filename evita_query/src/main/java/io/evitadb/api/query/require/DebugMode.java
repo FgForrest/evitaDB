@@ -41,6 +41,10 @@ import io.evitadb.dataType.SupportedEnum;
  * - `PREFER_PREFETCHING` — overrides the cost-based strategy selector and unconditionally uses the prefetch
  *   strategy whenever the query's filter constraints make prefetching feasible. Used to exercise the prefetch
  *   code path that would otherwise be skipped for large datasets where the index scan is cheaper.
+ * - `PREFER_TREE_SORT` — overrides the cost-based sort selector and resolves sorted pages straight from the
+ *   pre-sort B+tree even when the materialized pre-sort arrays would be preferred. Exercises the tree-direct path.
+ * - `PREFER_PRESORT_ARRAYS` — the mirror of `PREFER_TREE_SORT`: forces the materialized pre-sort array merge-walk
+ *   even when the selection is sparse enough that the tree-direct path would be preferred.
  */
 @SupportedEnum
 public enum DebugMode {
@@ -63,6 +67,19 @@ public enum DebugMode {
 	 * This option always selects prefetching strategy if it's possible to use it (depends on the query filter by
 	 * constraints).
 	 */
-	PREFER_PREFETCHING
+	PREFER_PREFETCHING,
+	/**
+	 * This option forces the sorted-page resolution onto the tree-direct path (per-record `O(log N)` tree probes for a
+	 * sparse selection, or a single `O(N)` tree walk for a dense one) even when the pre-sorted arrays are already
+	 * materialized and the cost-based selector would prefer the array merge-walk. Used to exercise the tree-direct path
+	 * deterministically regardless of selectivity or warm-array state.
+	 */
+	PREFER_TREE_SORT,
+	/**
+	 * This option forces the sorted-page resolution onto the pre-sorted array merge-walk (materializing the arrays on a
+	 * cold index if necessary) even when the selection is sparse enough that the cost-based selector would prefer the
+	 * tree-direct path. Used to exercise the array path deterministically regardless of selectivity.
+	 */
+	PREFER_PRESORT_ARRAYS
 
 }

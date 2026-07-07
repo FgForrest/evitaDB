@@ -46,8 +46,11 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
+import java.util.ListIterator;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
@@ -56,10 +59,7 @@ import java.util.function.Consumer;
 
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.TRANSACTION;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertInstanceOf;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Verifies the savepoint mechanism on {@link TransactionalLayerMaintainer} together with the {@link Snapshotable}
@@ -258,6 +258,59 @@ class TransactionalLayerMaintainerSavepointTest {
 	}
 
 	@Test
+	@DisplayName("TransactionalSet: an undo-journal memento can be restored repeatedly and stays faithful")
+	void shouldSupportRepeatRestoreForSet() {
+		final Set<String> delegate = new HashSet<>();
+		delegate.add("a");
+		final TransactionalSet<String> set = new TransactionalSet<>(delegate);
+		assertRepeatRestoreSafe(
+			set,
+			it -> it.add("b"),
+			it -> {
+				it.add("c");
+				it.remove("a");
+				it.add("d");
+			},
+			Objects::equals
+		);
+	}
+
+	@Test
+	@DisplayName("TransactionalMap: an undo-journal memento can be restored repeatedly and stays faithful")
+	void shouldSupportRepeatRestoreForMap() {
+		final Map<String, Integer> delegate = new HashMap<>();
+		delegate.put("a", 1);
+		final TransactionalMap<String, Integer> map = new TransactionalMap<>(delegate);
+		assertRepeatRestoreSafe(
+			map,
+			it -> it.put("b", 2),
+			it -> {
+				it.put("c", 3);
+				it.remove("a");
+				it.put("b", 20);
+			},
+			Objects::equals
+		);
+	}
+
+	@Test
+	@DisplayName("TransactionalList: an undo-journal memento can be restored repeatedly and stays faithful")
+	void shouldSupportRepeatRestoreForList() {
+		final List<String> delegate = new ArrayList<>();
+		delegate.add("a");
+		final TransactionalList<String> list = new TransactionalList<>(delegate);
+		assertRepeatRestoreSafe(
+			list,
+			it -> it.add(1, "b"),
+			it -> {
+				it.add(2, "c");
+				it.remove("a");
+			},
+			Objects::equals
+		);
+	}
+
+	@Test
 	@DisplayName("IntArrayChanges: a memento can be restored repeatedly and stays faithful (no aliasing)")
 	void shouldSupportRepeatRestoreForIntArray() {
 		// 50 and 60 both sort into the same gap (between 1 and 100), so the second add reuses the existing
@@ -269,6 +322,303 @@ class TransactionalLayerMaintainerSavepointTest {
 			it -> it.add(60),
 			Arrays::equals
 		);
+	}
+
+	@Test
+	@DisplayName("TransactionalSet: rollbackSavepoint reverts a removeAll of a created key made in the savepoint")
+	void shouldRollbackSavepointForSetRemoveAllOfCreatedKey() {
+		final Set<String> delegate = new HashSet<>();
+		delegate.add("a");
+		final TransactionalSet<String> set = new TransactionalSet<>(delegate);
+		assertSavepointRollbackRestores(
+			set,
+			it -> it.add("b"),
+			// removeAll drives the merged iterator's remove(), which drops the created key straight from the diff
+			// layer's created-keys set — the rollback must reinstate it exactly like a plain remove("b") would
+			it -> it.removeAll(Set.of("b")),
+			Objects::equals
+		);
+	}
+
+	@Test
+	@DisplayName("TransactionalSet: iterator removal as the first savepoint touch is reverted on rollback")
+	void shouldRollbackSavepointForSetIteratorRemoveAsFirstSavepointTouch() {
+		final Set<String> delegate = new HashSet<>();
+		delegate.add("a");
+		final TransactionalSet<String> set = new TransactionalSet<>(delegate);
+		runInTransaction(() -> {
+			final TransactionalLayerMaintainer maintainer = Transaction.getTransactionalLayerMaintainer();
+			// the diff layer exists before the savepoint opens
+			set.add("b");
+			final Set<String> before = maintainer.getStateCopyWithCommittedChangesWithoutDiscardingState(set);
+
+			final Savepoint savepoint = maintainer.openSavepoint();
+			// the FIRST (and only) layer touch inside the savepoint is a removal through the merged iterator
+			final Iterator<String> it = set.iterator();
+			while (it.hasNext()) {
+				if ("a".equals(it.next())) {
+					it.remove();
+					break;
+				}
+			}
+			final Set<String> during = maintainer.getStateCopyWithCommittedChangesWithoutDiscardingState(set);
+			assertNotEquals(
+				before, during,
+				"Savepoint mutation should have changed the visible state - the test would be vacuous otherwise."
+			);
+
+			maintainer.rollbackSavepoint(savepoint);
+			final Set<String> after = maintainer.getStateCopyWithCommittedChangesWithoutDiscardingState(set);
+			assertEquals(
+				before, after,
+				"a removal made solely through the merged iterator must be reverted by rollbackSavepoint"
+			);
+		});
+	}
+
+	@Test
+	@DisplayName("TransactionalMap: a removal through an entry iterator obtained before the savepoint is reverted")
+	void shouldRollbackSavepointForMapIteratorRemoveWhenIteratorPredatesSavepoint() {
+		final Map<String, Integer> delegate = new HashMap<>();
+		delegate.put("a", 1);
+		final TransactionalMap<String, Integer> map = new TransactionalMap<>(delegate);
+		runInTransaction(() -> {
+			final TransactionalLayerMaintainer maintainer = Transaction.getTransactionalLayerMaintainer();
+			map.put("x", 9);
+			map.put("b", 2);
+			final Map<String, Integer> before = maintainer.getStateCopyWithCommittedChangesWithoutDiscardingState(map);
+
+			// the entry iterator is obtained BEFORE the savepoint opens (the layer exists, no journal is active yet)
+			// and positioned on the created key "b"
+			final Iterator<Entry<String, Integer>> it = map.entrySet().iterator();
+			Entry<String, Integer> current = null;
+			while (it.hasNext()) {
+				current = it.next();
+				if ("b".equals(current.getKey())) {
+					break;
+				}
+			}
+			assertNotNull(current);
+
+			final Savepoint savepoint = maintainer.openSavepoint();
+			// write-touch inside the savepoint: records the layer snapshot and activates its journal; the put only
+			// overwrites an existing diff entry, so the iterator held above stays structurally valid
+			map.put("x", 10);
+			// ... and the pre-savepoint iterator now removes "b" from the diff layer
+			it.remove();
+			final Map<String, Integer> during = maintainer.getStateCopyWithCommittedChangesWithoutDiscardingState(map);
+			assertNotEquals(
+				before, during,
+				"Savepoint mutation should have changed the visible state - the test would be vacuous otherwise."
+			);
+
+			maintainer.rollbackSavepoint(savepoint);
+			final Map<String, Integer> after = maintainer.getStateCopyWithCommittedChangesWithoutDiscardingState(map);
+			assertEquals(
+				before, after,
+				"a removal made through a pre-savepoint entry iterator must be reverted by rollbackSavepoint"
+			);
+		});
+	}
+
+	@Test
+	@DisplayName("TransactionalList: iterator removal as the first savepoint touch is reverted on rollback")
+	void shouldRollbackSavepointForListIteratorRemoveAsFirstSavepointTouch() {
+		final List<String> delegate = new ArrayList<>();
+		delegate.add("a");
+		final TransactionalList<String> list = new TransactionalList<>(delegate);
+		runInTransaction(() -> {
+			final TransactionalLayerMaintainer maintainer = Transaction.getTransactionalLayerMaintainer();
+			// the diff layer exists before the savepoint opens
+			list.add("b");
+			final List<String> before = maintainer.getStateCopyWithCommittedChangesWithoutDiscardingState(list);
+
+			final Savepoint savepoint = maintainer.openSavepoint();
+			// the FIRST (and only) layer touch inside the savepoint is a removal through the merged list iterator
+			final Iterator<String> it = list.iterator();
+			while (it.hasNext()) {
+				if ("a".equals(it.next())) {
+					it.remove();
+					break;
+				}
+			}
+			final List<String> during = maintainer.getStateCopyWithCommittedChangesWithoutDiscardingState(list);
+			assertNotEquals(
+				before, during,
+				"Savepoint mutation should have changed the visible state - the test would be vacuous otherwise."
+			);
+
+			maintainer.rollbackSavepoint(savepoint);
+			final List<String> after = maintainer.getStateCopyWithCommittedChangesWithoutDiscardingState(list);
+			assertEquals(
+				before, after,
+				"a removal made solely through the list iterator must be reverted by rollbackSavepoint"
+			);
+		});
+	}
+
+	@Test
+	@DisplayName("TransactionalList: listIterator set as the first savepoint touch is reverted on rollback")
+	void shouldRollbackSavepointForListIteratorSetAsFirstSavepointTouch() {
+		final List<String> delegate = new ArrayList<>();
+		delegate.add("a");
+		final TransactionalList<String> list = new TransactionalList<>(delegate);
+		runInTransaction(() -> {
+			final TransactionalLayerMaintainer maintainer = Transaction.getTransactionalLayerMaintainer();
+			list.add("b");
+			final List<String> before = maintainer.getStateCopyWithCommittedChangesWithoutDiscardingState(list);
+
+			final Savepoint savepoint = maintainer.openSavepoint();
+			// the FIRST layer touch inside the savepoint is an in-place set through the list iterator
+			final ListIterator<String> it = list.listIterator();
+			it.next();
+			it.set("z");
+			final List<String> during = maintainer.getStateCopyWithCommittedChangesWithoutDiscardingState(list);
+			assertNotEquals(
+				before, during,
+				"Savepoint mutation should have changed the visible state - the test would be vacuous otherwise."
+			);
+
+			maintainer.rollbackSavepoint(savepoint);
+			final List<String> after = maintainer.getStateCopyWithCommittedChangesWithoutDiscardingState(list);
+			assertEquals(
+				before, after,
+				"an in-place set made solely through the list iterator must be reverted by rollbackSavepoint"
+			);
+		});
+	}
+
+	@Test
+	@DisplayName("TransactionalList: listIterator add as the first savepoint touch is reverted on rollback")
+	void shouldRollbackSavepointForListIteratorAddAsFirstSavepointTouch() {
+		final List<String> delegate = new ArrayList<>();
+		delegate.add("a");
+		final TransactionalList<String> list = new TransactionalList<>(delegate);
+		runInTransaction(() -> {
+			final TransactionalLayerMaintainer maintainer = Transaction.getTransactionalLayerMaintainer();
+			list.add("b");
+			final List<String> before = maintainer.getStateCopyWithCommittedChangesWithoutDiscardingState(list);
+
+			final Savepoint savepoint = maintainer.openSavepoint();
+			// the FIRST layer touch inside the savepoint is an insertion through the list iterator
+			final ListIterator<String> it = list.listIterator();
+			it.add("z");
+			final List<String> during = maintainer.getStateCopyWithCommittedChangesWithoutDiscardingState(list);
+			assertNotEquals(
+				before, during,
+				"Savepoint mutation should have changed the visible state - the test would be vacuous otherwise."
+			);
+
+			maintainer.rollbackSavepoint(savepoint);
+			final List<String> after = maintainer.getStateCopyWithCommittedChangesWithoutDiscardingState(list);
+			assertEquals(
+				before, after,
+				"an insertion made solely through the list iterator must be reverted by rollbackSavepoint"
+			);
+		});
+	}
+
+	@Test
+	@DisplayName("TransactionalMap: entry setValue as the first savepoint touch is reverted on rollback")
+	void shouldRollbackSavepointForMapEntrySetValueAsFirstSavepointTouch() {
+		final Map<String, Integer> delegate = new HashMap<>();
+		delegate.put("a", 1);
+		final TransactionalMap<String, Integer> map = new TransactionalMap<>(delegate);
+		runInTransaction(() -> {
+			final TransactionalLayerMaintainer maintainer = Transaction.getTransactionalLayerMaintainer();
+			// the diff layer exists before the savepoint opens
+			map.put("b", 2);
+			final Map<String, Integer> before = maintainer.getStateCopyWithCommittedChangesWithoutDiscardingState(map);
+
+			final Savepoint savepoint = maintainer.openSavepoint();
+			// the FIRST layer touch inside the savepoint overwrites an existing entry's value in place through the
+			// entry-set view's setValue proxy
+			for (final Entry<String, Integer> entry : map.entrySet()) {
+				if ("a".equals(entry.getKey())) {
+					entry.setValue(99);
+					break;
+				}
+			}
+			final Map<String, Integer> during = maintainer.getStateCopyWithCommittedChangesWithoutDiscardingState(map);
+			assertNotEquals(
+				before, during,
+				"Savepoint mutation should have changed the visible state - the test would be vacuous otherwise."
+			);
+
+			maintainer.rollbackSavepoint(savepoint);
+			final Map<String, Integer> after = maintainer.getStateCopyWithCommittedChangesWithoutDiscardingState(map);
+			assertEquals(
+				before, after,
+				"an in-place entry.setValue must be reverted by rollbackSavepoint"
+			);
+		});
+	}
+
+	@Test
+	@DisplayName("TransactionalMap: entry setValue on a created (layer) entry is reverted on rollback")
+	void shouldRollbackSavepointForMapEntrySetValueOnCreatedEntry() {
+		// empty delegate: the key put below lives only in the diff layer, so the entry-set iterator yields it as a raw
+		// modifiedKeys entry (not a delegate wrapper) - the setValue path that mutates the layer map in place
+		final TransactionalMap<String, Integer> map = new TransactionalMap<>(new HashMap<>());
+		runInTransaction(() -> {
+			final TransactionalLayerMaintainer maintainer = Transaction.getTransactionalLayerMaintainer();
+			// "a" is a created key held in the diff layer (modifiedKeys), not in the delegate
+			map.put("a", 1);
+			final Map<String, Integer> before = maintainer.getStateCopyWithCommittedChangesWithoutDiscardingState(map);
+
+			final Savepoint savepoint = maintainer.openSavepoint();
+			// marker write-touch: records the layer snapshot and activates its undo journal for this savepoint
+			map.put("m", 9);
+			// overwrite the created entry's value in place through the entry-set view's setValue proxy
+			for (final Entry<String, Integer> entry : map.entrySet()) {
+				if ("a".equals(entry.getKey())) {
+					entry.setValue(99);
+					break;
+				}
+			}
+			final Map<String, Integer> during = maintainer.getStateCopyWithCommittedChangesWithoutDiscardingState(map);
+			assertNotEquals(
+				before, during,
+				"Savepoint mutation should have changed the visible state - the test would be vacuous otherwise."
+			);
+
+			maintainer.rollbackSavepoint(savepoint);
+			final Map<String, Integer> after = maintainer.getStateCopyWithCommittedChangesWithoutDiscardingState(map);
+			assertEquals(
+				before, after,
+				"an in-place setValue on a created (layer) entry must be reverted by rollbackSavepoint"
+			);
+		});
+	}
+
+	@Test
+	@DisplayName("TransactionalMap: keySet().clear() as the first savepoint touch is reverted on rollback")
+	void shouldRollbackSavepointForMapKeySetClearAsFirstSavepointTouch() {
+		final Map<String, Integer> delegate = new HashMap<>();
+		delegate.put("a", 1);
+		final TransactionalMap<String, Integer> map = new TransactionalMap<>(delegate);
+		runInTransaction(() -> {
+			final TransactionalLayerMaintainer maintainer = Transaction.getTransactionalLayerMaintainer();
+			map.put("b", 2);
+			final Map<String, Integer> before = maintainer.getStateCopyWithCommittedChangesWithoutDiscardingState(map);
+
+			final Savepoint savepoint = maintainer.openSavepoint();
+			// the FIRST layer touch inside the savepoint clears the whole map through its key-set view, which forwards
+			// to MapChanges#cleanAll without going through the maintainer's write-touch hook
+			map.keySet().clear();
+			final Map<String, Integer> during = maintainer.getStateCopyWithCommittedChangesWithoutDiscardingState(map);
+			assertNotEquals(
+				before, during,
+				"Savepoint mutation should have changed the visible state - the test would be vacuous otherwise."
+			);
+
+			maintainer.rollbackSavepoint(savepoint);
+			final Map<String, Integer> after = maintainer.getStateCopyWithCommittedChangesWithoutDiscardingState(map);
+			assertEquals(
+				before, after,
+				"a clear() through the key-set view must be reverted by rollbackSavepoint"
+			);
+		});
 	}
 
 	/**

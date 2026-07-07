@@ -27,6 +27,7 @@ import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.core.query.sort.SortedRecordsSupplierFactory;
 import io.evitadb.core.transaction.memory.Snapshotable;
 import io.evitadb.dataType.bPlusTree.CumulativeWeightBPlusTree;
+import io.evitadb.index.array.TransactionalUnorderedIntArray;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.ArrayUtils.InsertionPosition;
@@ -38,6 +39,7 @@ import java.io.Serial;
 import java.io.Serializable;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.function.Supplier;
 
 import static io.evitadb.index.attribute.SortIndex.invert;
 
@@ -115,7 +117,7 @@ public class SortIndexChanges
 	 */
 	@Nonnull
 	public SortedRecordsSupplier getAscendingOrderRecordsSupplier() {
-		return buildSupplier(getAscendingArrays(), this.sortIndex.createSortedComparableForwardSeeker());
+		return buildSupplier(false, this.sortIndex.createSortedComparableForwardSeeker());
 	}
 
 	/**
@@ -126,29 +128,49 @@ public class SortIndexChanges
 	 */
 	@Nonnull
 	public SortedRecordsSupplier getDescendingOrderRecordsSupplier() {
-		return buildSupplier(getDescendingArrays(), this.sortIndex.createReversedSortedComparableForwardSeeker());
+		return buildSupplier(true, this.sortIndex.createReversedSortedComparableForwardSeeker());
 	}
 
 	/**
-	 * Wraps the memoized direction-specific {@code arrays} and the caller-supplied {@code seeker} in a provider:
-	 * a {@link ReferenceSortedRecordsProvider} when the owning index carries a reference key, otherwise a plain
-	 * {@link SortedRecordsSupplier}. The seeker is built fresh by the caller and passed in per request — it is a
+	 * Builds a tree-backed {@link SortedRecordsSupplier} resolving positions straight from the owning index's live
+	 * `sortedRecords` (`O(log N)`, no materialization). The expensive materialized arrays are exposed only lazily, via
+	 * the direction-appropriate warm-memo accessors ({@link #getAscendingArrays()} / {@link #getDescendingArrays()}),
+	 * so they are (re)built solely when a large-selection query falls back to the array merge-walk. A
+	 * {@link ReferenceSortedRecordsProvider} is produced when the owning index carries a reference key, otherwise a
+	 * plain {@link SortedRecordsSupplier}. The seeker is built fresh by the caller and passed in per request — it is a
 	 * stateful, monotonic cursor and MUST NOT be memoized or shared between concurrent queries.
+	 *
+	 * @param descending whether the descending order is requested
+	 * @param seeker     the freshly built value seeker for this direction
 	 */
 	@Nonnull
 	private SortedRecordsSupplier buildSupplier(
-		@Nonnull MaterializedSortRecords arrays,
+		boolean descending,
 		@Nonnull SortedRecordsSupplierFactory.SortedComparableForwardSeeker seeker
 	) {
 		final RepresentativeReferenceKey referenceKey = this.sortIndex.getReferenceKey();
+		final TransactionalUnorderedIntArray sortedRecords = this.sortIndex.sortedRecords;
+		final int recordCount = sortedRecords.getLength();
+		// identity mirrors the former per-direction MaterializedSortRecords id
+		final long transactionalId = descending ? this.sortIndex.getId() : sortedRecords.getId();
+		// lazy, direction-appropriate warm-memo accessors used only by the array fallback (large selections)
+		final Supplier<int[]> sortedRecordIdsSupplier = descending
+			? () -> getDescendingArrays().sortedRecordIds()
+			: () -> getAscendingArrays().sortedRecordIds();
+		final Supplier<int[]> recordPositionsSupplier = descending
+			? () -> getDescendingArrays().recordPositions()
+			: () -> getAscendingArrays().recordPositions();
+		final Supplier<Bitmap> allRecordsSupplier = descending
+			? () -> getDescendingArrays().allRecords()
+			: () -> getAscendingArrays().allRecords();
 		return referenceKey != null
 			? new ReferenceSortedRecordsProvider(
-				arrays.id(), arrays.sortedRecordIds(), arrays.recordPositions(), arrays.allRecords(),
-				seeker, referenceKey
+				transactionalId, sortedRecords, descending, recordCount,
+				sortedRecordIdsSupplier, recordPositionsSupplier, allRecordsSupplier, seeker, referenceKey
 			)
 			: new SortedRecordsSupplier(
-				arrays.id(), arrays.sortedRecordIds(), arrays.recordPositions(), arrays.allRecords(),
-				seeker
+				transactionalId, sortedRecords, descending, recordCount,
+				sortedRecordIdsSupplier, recordPositionsSupplier, allRecordsSupplier, seeker
 			);
 	}
 
@@ -316,8 +338,8 @@ public class SortIndexChanges
 
 	/**
 	 * Returns the start offset of `value`'s record-id block within {@link SortIndex#sortedRecords} — the cumulative
-	 * weight (rank) of all strictly-smaller values. Used by {@link SortIndex#getRecordsEqualToInternal(Serializable)} to slice the
-	 * records associated with a value.
+	 * weight (rank) of all strictly-smaller values. Used by {@link SortIndex#getRecordsEqualToInternal(Serializable)}
+	 * to slice the records associated with a value.
 	 *
 	 * @param value the value whose block start offset is computed
 	 * @return the block start offset (`0` when `value` sorts before every present value)

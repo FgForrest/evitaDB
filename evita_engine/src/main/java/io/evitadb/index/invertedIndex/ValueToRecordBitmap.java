@@ -34,7 +34,7 @@ import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.utils.Assert;
-import org.roaringbitmap.RoaringBitmap;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -47,7 +47,7 @@ import java.util.PrimitiveIterator.OfInt;
 /**
  * Histogram point represents single "bucket" in {@link InvertedIndex} representing single {@link Comparable} {@link #value}
  * and bitmap (ordered and distinct) of record ids. This is the multi-record {@link ValueToRecord} representation - the
- * record set is backed by a mutable {@link TransactionalBitmap} (a {@link RoaringBitmap}). The
+ * record set is backed by a mutable {@link TransactionalBitmap} (a {@link PersistentRoaringBitmap}). The
  * single-record case is served by the immutable {@link ValueToRecordPrimitive} instead.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2019
@@ -188,7 +188,7 @@ public class ValueToRecordBitmap implements ValueToRecord,
 		final Bitmap otherRecordIds = other.getRecordIds();
 		if (otherRecordIds instanceof final RoaringBitmapBackedBitmap roaringOther) {
 			// fast path - the overwhelmingly common multi-record-vs-multi-record case: both record sets are
-			// RoaringBitmap-backed, so RoaringBitmap#equals does a bulk, cardinality-short-circuiting comparison far
+			// PersistentRoaringBitmap-backed, so PersistentRoaringBitmap#equals does a bulk, cardinality-short-circuiting comparison far
 			// cheaper than walking every id. getRoaringBitmap() returns the transaction-aware (merged) bitmap, matching
 			// the view that recordSetHashCode iterates.
 			return this.recordIds.getRoaringBitmap().equals(roaringOther.getRoaringBitmap());
@@ -211,14 +211,14 @@ public class ValueToRecordBitmap implements ValueToRecord,
 	@Override
 	public int recordSetHashCode() {
 		// getRoaringBitmap() returns the transaction-aware (merged) bitmap, matching the view recordSetEquals compares
-		final RoaringBitmap roaringBitmap = this.recordIds.getRoaringBitmap();
+		final PersistentRoaringBitmap roaringBitmap = this.recordIds.getRoaringBitmap();
 		if (roaringBitmap.getCardinality() == 1) {
 			// single-record case - the only cardinality at which a primitive can ever be equal, so it must hash
 			// identically to ValueToRecordPrimitive: result = 31 * 1 + id (the canonical single-record hash). A
-			// primitive has no RoaringBitmap to delegate to, so this exact value, not RoaringBitmap#hashCode, is shared.
+			// primitive has no PersistentRoaringBitmap to delegate to, so this exact value, not PersistentRoaringBitmap#hashCode, is shared.
 			return 31 + roaringBitmap.first();
 		}
-		// fast path for every other cardinality - delegate to RoaringBitmap's bulk hashCode, which folds the packed
+		// fast path for every other cardinality - delegate to PersistentRoaringBitmap's bulk hashCode, which folds the packed
 		// containers far cheaper than walking each id through the tx-aware iterator. No primitive is ever multi-record,
 		// so cross-representation consistency is irrelevant here; only bitmap-vs-bitmap equality matters and both sides
 		// hash via this same path.

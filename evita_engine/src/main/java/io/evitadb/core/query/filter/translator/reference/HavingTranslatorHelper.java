@@ -59,7 +59,7 @@ import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.utils.NumberUtils;
-import org.roaringbitmap.RoaringBitmap;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -345,11 +345,11 @@ class HavingTranslatorHelper {
 										nestedResult.globalIndex(),
 										nestedResult.filter(),
 										it -> {
-											final RoaringBitmap combinedResult = RoaringBitmap.or(
+											final PersistentRoaringBitmap combinedResult = PersistentRoaringBitmap.or(
 												reducedIndexLookup.lookup(entitySchema, referenceSchema, it)
 													.map(EntityIndex::getAllPrimaryKeys)
 													.map(RoaringBitmapBackedBitmap::getRoaringBitmap)
-													.toArray(RoaringBitmap[]::new)
+													.toArray(PersistentRoaringBitmap[]::new)
 											);
 											return combinedResult.isEmpty() ?
 												EmptyBitmap.INSTANCE : new BaseBitmap(combinedResult);

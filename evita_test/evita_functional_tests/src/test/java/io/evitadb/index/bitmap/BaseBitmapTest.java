@@ -29,9 +29,11 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
-import org.roaringbitmap.RoaringBitmap;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 
+import java.util.Arrays;
 import java.util.PrimitiveIterator.OfInt;
+import java.util.Random;
 import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -82,12 +84,148 @@ class BaseBitmapTest {
 		}
 
 		@Test
-		@DisplayName("should create bitmap from RoaringBitmap")
+		@DisplayName("should create bitmap from PersistentRoaringBitmap")
 		void shouldCreateBitmapFromRoaringBitmap() {
-			final RoaringBitmap roaring = RoaringBitmap.bitmapOf(10, 20, 30);
+			final PersistentRoaringBitmap roaring = PersistentRoaringBitmap.bitmapOf(10, 20, 30);
 			final BaseBitmap bitmap = new BaseBitmap(roaring);
 			assertEquals(3, bitmap.size());
 			assertArrayEquals(new int[]{10, 20, 30}, bitmap.getArray());
+		}
+	}
+
+	@Nested
+	@DisplayName("Adaptive construction from int[]")
+	class AdaptiveConstructionEquivalenceTest {
+
+		/**
+		 * Asserts that {@link BaseBitmap#BaseBitmap(int...)} — whichever internal build path its density dispatch
+		 * selects (incremental append vs. the constant-memory writer) — yields a bitmap holding exactly the
+		 * sorted-distinct input, and that it is {@link Object#equals(Object) equal} (and hash-equal) to the same ids
+		 * built through the reference incremental path. This pins the invariant the optimization relies on: the writer
+		 * path can never diverge from incremental in container type or content, so bitmap equality (used by formula
+		 * caching) is preserved regardless of which path built a given id set.
+		 */
+		private void assertConstructsEquivalently(int[] ids) {
+			// reference: the always-incremental build (fresh bitmap + add), wrapped without a further rebuild
+			final PersistentRoaringBitmap reference = new PersistentRoaringBitmap();
+			reference.add(ids);
+			final BaseBitmap referenceBitmap = new BaseBitmap(reference);
+
+			// the adaptive constructor under test — may internally route to the writer for large, dense inputs
+			final BaseBitmap adaptive = new BaseBitmap(ids);
+
+			final int[] expected = sortedDistinct(ids);
+			assertArrayEquals(expected, adaptive.getArray());
+			assertEquals(expected.length, adaptive.size());
+			assertEquals(referenceBitmap, adaptive, "adaptive build must equal the incremental build");
+			assertEquals(referenceBitmap.hashCode(), adaptive.hashCode(), "equal bitmaps must share a hash code");
+			for (int id : ids) {
+				assertTrue(adaptive.contains(id), () -> "missing id after adaptive build");
+			}
+		}
+
+		/**
+		 * Returns the ascending, duplicate-free form of the input — the exact contents a {@link BaseBitmap} must hold.
+		 */
+		private int[] sortedDistinct(int[] ids) {
+			final int[] copy = Arrays.copyOf(ids, ids.length);
+			Arrays.sort(copy);
+			int write = 0;
+			for (int read = 0; read < copy.length; read++) {
+				if (write == 0 || copy[read] != copy[write - 1]) {
+					copy[write++] = copy[read];
+				}
+			}
+			return Arrays.copyOf(copy, write);
+		}
+
+		/**
+		 * Contiguous ids `[1, size]` — a single (or few) densely packed containers, the realistic entity-primary-key
+		 * shape that drives the writer path above the dispatch threshold.
+		 */
+		private int[] dense(int size) {
+			final int[] ids = new int[size];
+			for (int i = 0; i < size; i++) {
+				ids[i] = 1 + i;
+			}
+			return ids;
+		}
+
+		/**
+		 * Ids strided by 700 — ≈93 per container, spread across many containers, the sparse layout the dispatch must
+		 * keep on the incremental path.
+		 */
+		private int[] sparse(int size) {
+			final int[] ids = new int[size];
+			for (int i = 0; i < size; i++) {
+				ids[i] = 1 + i * 700;
+			}
+			return ids;
+		}
+
+		/**
+		 * Deterministically permutes a copy of the input so the density probe sees non-ascending ends.
+		 */
+		private int[] shuffled(int[] ids, long seed) {
+			final int[] copy = Arrays.copyOf(ids, ids.length);
+			final Random random = new Random(seed);
+			for (int i = copy.length - 1; i > 0; i--) {
+				final int j = random.nextInt(i + 1);
+				final int swap = copy[i];
+				copy[i] = copy[j];
+				copy[j] = swap;
+			}
+			return copy;
+		}
+
+		@Test
+		@DisplayName("should build a small input via the incremental path")
+		void shouldBuildSmallInput() {
+			assertConstructsEquivalently(dense(64));
+		}
+
+		@Test
+		@DisplayName("should build just below the dispatch threshold via the incremental path")
+		void shouldBuildJustBelowThreshold() {
+			assertConstructsEquivalently(dense(4095));
+		}
+
+		@Test
+		@DisplayName("should build at the exact threshold identically to the incremental path")
+		void shouldBuildAtThreshold() {
+			assertConstructsEquivalently(dense(4096));
+		}
+
+		@Test
+		@DisplayName("should build a large dense input via the writer path, content-identical to incremental")
+		void shouldBuildLargeDenseSorted() {
+			assertConstructsEquivalently(dense(16384));
+		}
+
+		@Test
+		@DisplayName("should build a large sparse input via the incremental path, content-identical to incremental")
+		void shouldBuildLargeSparseSorted() {
+			assertConstructsEquivalently(sparse(16384));
+		}
+
+		@Test
+		@DisplayName("should build a multi-container input mixing bitmap and array containers, identically to incremental")
+		void shouldBuildMultiContainerMixedTypes() {
+			// 200 000 contiguous ids: containers 0–2 hold 65 536 ids each (bitmap), the tail holds 3 393 (array) —
+			// both build paths must agree on every container's type for the bitmaps to compare equal
+			assertConstructsEquivalently(dense(200_000));
+		}
+
+		@Test
+		@DisplayName("should sort an unsorted large dense input regardless of build path")
+		void shouldSortUnsortedLargeDense() {
+			assertConstructsEquivalently(shuffled(dense(16384), 42L));
+		}
+
+		@Test
+		@DisplayName("should sort an unsorted large sparse input regardless of build path")
+		void shouldSortUnsortedLargeSparse() {
+			assertConstructsEquivalently(shuffled(sparse(16384), 7L));
 		}
 	}
 
@@ -198,10 +336,10 @@ class BaseBitmapTest {
 		}
 
 		@Test
-		@DisplayName("should expose RoaringBitmap")
+		@DisplayName("should expose PersistentRoaringBitmap")
 		void shouldExposeRoaringBitmap() {
 			final BaseBitmap tested = new BaseBitmap(1, 2, 3);
-			final RoaringBitmap roaringBitmap = tested.getRoaringBitmap();
+			final PersistentRoaringBitmap roaringBitmap = tested.getRoaringBitmap();
 			assertNotNull(roaringBitmap);
 			assertEquals(3, roaringBitmap.getCardinality());
 		}
@@ -294,7 +432,7 @@ class BaseBitmapTest {
 		}
 
 		@Test
-		@DisplayName("should removeAll from non-RoaringBitmap Bitmap instance")
+		@DisplayName("should removeAll from non-PersistentRoaringBitmap Bitmap instance")
 		void shouldRemoveAllFromNonRoaringBitmapInstance() {
 			final BaseBitmap tested = new BaseBitmap(1, 2, 3, 4, 5);
 			// ArrayBitmap is not a RoaringBitmapBackedBitmap, so the iteration path is used
@@ -987,7 +1125,7 @@ class BaseBitmapTest {
 
 	/**
 	 * Guards the `removeAll` / `retainAll` predicate paths against regressions tied to the
-	 * container-boundary transitions of the underlying `RoaringBitmap`. The chosen sizes
+	 * container-boundary transitions of the underlying `PersistentRoaringBitmap`. The chosen sizes
 	 * straddle the critical thresholds: 16 lives in the small/array container range, 64 sits
 	 * right at the array→bitmap container flip, and 1024 is solidly inside the bitmap
 	 * container. The fine-grained 63/64/65 cadence is already covered by dedicated tests
@@ -1045,7 +1183,7 @@ class BaseBitmapTest {
 	}
 
 	/**
-	 * Signed-ordering contract around `Integer.MIN_VALUE` / `Integer.MAX_VALUE`. `RoaringBitmap`
+	 * Signed-ordering contract around `Integer.MIN_VALUE` / `Integer.MAX_VALUE`. `PersistentRoaringBitmap`
 	 * internally uses unsigned 32-bit container keys, so a naive `toArray()` would place negative
 	 * values after positives. `BaseBitmap.getArray()` must expose a strictly signed (arithmetic)
 	 * ordering — these tests pin that contract at the extremes so any regression in sign
@@ -1102,7 +1240,7 @@ class BaseBitmapTest {
 		@Test
 		@DisplayName("should order the -1/0 pair negative-before-positive (unsigned order would invert it)")
 		void shouldOrderNegativeOneBeforeZero() {
-			// In the native RoaringBitmap unsigned ordering -1 (0xFFFFFFFF) would sort AFTER 0;
+			// In the native PersistentRoaringBitmap unsigned ordering -1 (0xFFFFFFFF) would sort AFTER 0;
 			// signed ordering must place -1 before 0.
 			final BaseBitmap bitmap = new BaseBitmap(-1, 0);
 

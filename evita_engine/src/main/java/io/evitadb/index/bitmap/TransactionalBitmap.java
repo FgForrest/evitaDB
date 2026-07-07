@@ -28,8 +28,8 @@ import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import lombok.Getter;
-import org.roaringbitmap.PeekableIntIterator;
-import org.roaringbitmap.RoaringBitmap;
+import io.evitadb.roaringbitmap.PeekableIntIterator;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -60,14 +60,14 @@ public class TransactionalBitmap
 	Serializable {
 	@Serial private static final long serialVersionUID = -6212206620911046989L;
 	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
-	private final RoaringBitmap roaringBitmap;
+	private final PersistentRoaringBitmap roaringBitmap;
 	private volatile int memoizedCardinality;
 
 	/**
 	 * Creates a new empty transactional bitmap.
 	 */
 	public TransactionalBitmap() {
-		this.roaringBitmap = new RoaringBitmap();
+		this.roaringBitmap = new PersistentRoaringBitmap();
 		this.memoizedCardinality = 0;
 	}
 
@@ -77,7 +77,7 @@ public class TransactionalBitmap
 	 * @param recordIds initial record ids to add
 	 */
 	public TransactionalBitmap(@Nonnull int... recordIds) {
-		this.roaringBitmap = new RoaringBitmap();
+		this.roaringBitmap = new PersistentRoaringBitmap();
 		this.roaringBitmap.add(recordIds);
 		this.memoizedCardinality = this.roaringBitmap.getCardinality();
 	}
@@ -88,7 +88,7 @@ public class TransactionalBitmap
 	 * @param bitmap source bitmap to copy
 	 */
 	public TransactionalBitmap(@Nonnull Bitmap bitmap) {
-		final RoaringBitmap theRoaringBitmap;
+		final PersistentRoaringBitmap theRoaringBitmap;
 		if (bitmap instanceof RoaringBitmapBackedBitmap) {
 			theRoaringBitmap = ((RoaringBitmapBackedBitmap) bitmap).getRoaringBitmap().clone();
 		} else {
@@ -122,7 +122,7 @@ public class TransactionalBitmap
 
 	@Nonnull
 	@Override
-	public RoaringBitmap getRoaringBitmap() {
+	public PersistentRoaringBitmap getRoaringBitmap() {
 		final BitmapChanges layer = getTransactionalMemoryLayerIfExists(this);
 		if (layer == null) {
 			return this.roaringBitmap;
@@ -186,14 +186,13 @@ public class TransactionalBitmap
 			this.memoizedCardinality = -1;
 		} else {
 			BitmapChanges layer = getTransactionalMemoryLayerForWriteIfExists(this);
+			final OfInt it = recordIds.iterator();
 			if (layer != null) {
-				final OfInt it = recordIds.iterator();
 				while (it.hasNext()) {
 					layer.addRecordId(it.nextInt());
 				}
 			} else {
 				// defer layer creation until first actual change
-				final OfInt it = recordIds.iterator();
 				while (it.hasNext()) {
 					final int recordId = it.nextInt();
 					if (!this.roaringBitmap.contains(recordId)) {
@@ -283,14 +282,13 @@ public class TransactionalBitmap
 			this.memoizedCardinality = -1;
 		} else {
 			BitmapChanges layer = getTransactionalMemoryLayerForWriteIfExists(this);
+			final OfInt it = recordIds.iterator();
 			if (layer != null) {
-				final OfInt it = recordIds.iterator();
 				while (it.hasNext()) {
 					layer.removeRecordId(it.nextInt());
 				}
 			} else {
 				// defer layer creation until first actual change
-				final OfInt it = recordIds.iterator();
 				while (it.hasNext()) {
 					final int recordId = it.nextInt();
 					if (this.roaringBitmap.contains(recordId)) {
@@ -346,7 +344,7 @@ public class TransactionalBitmap
 
 	@Override
 	public int[] getRange(int start, int end) {
-		final RoaringBitmap theBitmap = getTheCurrentBitmap();
+		final PersistentRoaringBitmap theBitmap = getTheCurrentBitmap();
 		try {
 			final int length = end - start;
 			final int[] result = new int[length];
@@ -372,13 +370,13 @@ public class TransactionalBitmap
 
 	@Override
 	public int getFirst() {
-		final RoaringBitmap theBitmap = getTheCurrentBitmap();
+		final PersistentRoaringBitmap theBitmap = getTheCurrentBitmap();
 		return theBitmap.first();
 	}
 
 	@Override
 	public int getLast() {
-		final RoaringBitmap theBitmap = getTheCurrentBitmap();
+		final PersistentRoaringBitmap theBitmap = getTheCurrentBitmap();
 		return theBitmap.last();
 	}
 
@@ -390,7 +388,7 @@ public class TransactionalBitmap
 	@Nonnull
 	@Override
 	public OfInt iterator() {
-		final RoaringBitmap theBitmap = getTheCurrentBitmap();
+		final PersistentRoaringBitmap theBitmap = getTheCurrentBitmap();
 		return new RoaringBitmapBackedBitmap.RoaringIntIteratorAdapter(theBitmap.getIntIterator());
 	}
 
@@ -432,12 +430,12 @@ public class TransactionalBitmap
 
 	@Override
 	public String toString() {
-		final RoaringBitmap theBitmap = getTheCurrentBitmap();
+		final PersistentRoaringBitmap theBitmap = getTheCurrentBitmap();
 		return Arrays.toString(theBitmap.toArray());
 	}
 
 	@Nonnull
-	private RoaringBitmap getTheCurrentBitmap() {
+	private PersistentRoaringBitmap getTheCurrentBitmap() {
 		final BitmapChanges layer = getTransactionalMemoryLayerIfExists(this);
 		if (layer == null) {
 			return this.roaringBitmap;

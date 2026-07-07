@@ -32,6 +32,7 @@ import com.carrotsearch.hppc.cursors.LongObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.core.transaction.memory.Snapshotable;
+import io.evitadb.core.transaction.memory.UndoJournal;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.Index;
 import io.evitadb.index.IndexKey;
@@ -86,6 +87,14 @@ public class DataStoreChanges implements Snapshotable<DataStoreChanges.DataStore
 	 * Contains reference to the I/O service, that allows reading/writing records to the persistent storage.
 	 */
 	@Nonnull private StoragePartPersistenceService<StorageDescriptor> persistenceService;
+	/**
+	 * Undo journal recording the inverse of every dirty-index mutation ({@link #dirtyEntityIndexes} /
+	 * {@link #dirtyEntityIndexesByPk}) while a savepoint is open, so {@link #snapshot()} is `O(1)` (a journal mark)
+	 * instead of deep-copying the whole catalog/collection-wide accumulated dirty-index maps per per-entity savepoint —
+	 * the rollback cliff. Lazily allocated on the first {@link #snapshot()} (null for non-savepoint mutations, which pay
+	 * nothing) and drained back to null when the savepoint commits (see {@link #releaseMemento(DataStoreChangesMemento)}).
+	 */
+	@Nullable private UndoJournal undoJournal;
 
 	public DataStoreChanges(@Nonnull StoragePartPersistenceService<StorageDescriptor> persistenceService) {
 		this.persistenceService = persistenceService;
@@ -120,25 +129,49 @@ public class DataStoreChanges implements Snapshotable<DataStoreChanges.DataStore
 	@Nonnull
 	@Override
 	public DataStoreChangesMemento snapshot() {
+		if (this.undoJournal == null) {
+			this.undoJournal = new UndoJournal();
+		}
+		// the dirty-index maps are rewound via the journal (O(1) snapshot); only the trapped-changes cache — which per
+		// this method's contract is not written while a savepoint is open, and is null/small in practice — is copied
 		return new DataStoreChangesMemento(
-			new HashMap<>(this.dirtyEntityIndexes),
-			new IntObjectHashMap<>(this.dirtyEntityIndexesByPk),
+			this.undoJournal.mark(),
 			copyTrappedChanges(this.trappedChanges)
 		);
 	}
 
 	/**
 	 * Restores the revertable in-memory state captured by {@link #snapshot()}, discarding any dirty-index tracking and
-	 * trapped storage-part changes made since the snapshot was taken. Fresh copies of the memento's maps are installed
-	 * so the memento stays reusable for a repeated restore.
+	 * trapped storage-part changes made since the snapshot was taken. The dirty-index maps are rewound by replaying the
+	 * journal down to the captured mark; the trapped-changes cache is reinstated from a fresh copy of the memento's
+	 * (independent) copy, so the memento stays reusable for a repeated restore.
 	 *
 	 * @param memento the state previously captured by {@link #snapshot()}
 	 */
 	@Override
 	public void restore(@Nonnull DataStoreChangesMemento memento) {
-		this.dirtyEntityIndexes = new HashMap<>(memento.dirtyEntityIndexes());
-		this.dirtyEntityIndexesByPk = new IntObjectHashMap<>(memento.dirtyEntityIndexesByPk());
+		UndoJournal.assertRestorable(this.undoJournal, memento.mark());
+		if (this.undoJournal != null) {
+			this.undoJournal.rollbackTo(memento.mark());
+		}
 		this.trappedChanges = copyTrappedChanges(memento.trappedChanges());
+	}
+
+	/**
+	 * Releases a closed savepoint's memento (see {@link Snapshotable#releaseMemento(Object)}) - on commit the dirty-index
+	 * changes are kept, so the journal entries recorded since the mark are discarded (never replayed). When the journal
+	 * drains empty it is nulled out, restoring the allocation-free fast path for the rest of the transaction.
+	 *
+	 * @param memento the committed memento previously produced by {@link #snapshot()}
+	 */
+	@Override
+	public void releaseMemento(@Nonnull DataStoreChangesMemento memento) {
+		if (this.undoJournal != null) {
+			this.undoJournal.releaseFrom(memento.mark());
+			if (this.undoJournal.isEmpty()) {
+				this.undoJournal = null;
+			}
+		}
 	}
 
 	/**
@@ -356,17 +389,43 @@ public class DataStoreChanges implements Snapshotable<DataStoreChanges.DataStore
 	 */
 	@Nonnull
 	public <IK extends IndexKey, I extends Index<IK>> I getOrCreateIndexForModification(@Nonnull IK indexKey, @Nonnull Function<IK, I> accessorWhenMissing) {
-		// noinspection unchecked
-		return (I) this.dirtyEntityIndexes.computeIfAbsent(
-			indexKey,
-			ik -> {
-				final Index<? extends IndexKey> index = accessorWhenMissing.apply(indexKey);
-				if (index instanceof EntityIndex entityIndex) {
-					this.dirtyEntityIndexesByPk.put(entityIndex.getPrimaryKey(), entityIndex);
-				}
-				return index;
-			}
+		//noinspection unchecked
+		final I existingIndex = (I) this.dirtyEntityIndexes.get(indexKey);
+		if (existingIndex != null) {
+			return existingIndex;
+		}
+		final I createdIndex = accessorWhenMissing.apply(indexKey);
+		Assert.isPremiseValid(
+			createdIndex != null,
+			() -> "Index for key " + indexKey + " was not found in the persistent storage and cannot be registered for modification."
 		);
+		if (this.undoJournal != null) {
+			// capture the exact pre-mutation state of both maps ABSOLUTELY: the by-pk entry may already exist even
+			// though the by-key one does not (removeIndex drops only the by-key entry), and the put below overwrites
+			// it - a plain by-pk remove on rollback would then lose the pre-savepoint entry
+			final boolean touchesByPk = createdIndex instanceof EntityIndex;
+			final int pk = createdIndex instanceof EntityIndex entityIndex
+				? entityIndex.getPrimaryKey()
+				: Integer.MIN_VALUE;
+			final Index<? extends IndexKey> previousByPk = touchesByPk
+				? this.dirtyEntityIndexesByPk.get(pk)
+				: null;
+			this.undoJournal.push(() -> {
+				this.dirtyEntityIndexes.remove(indexKey);
+				if (touchesByPk) {
+					if (previousByPk == null) {
+						this.dirtyEntityIndexesByPk.remove(pk);
+					} else {
+						this.dirtyEntityIndexesByPk.put(pk, previousByPk);
+					}
+				}
+			});
+		}
+		this.dirtyEntityIndexes.put(indexKey, createdIndex);
+		if (createdIndex instanceof EntityIndex entityIndex) {
+			this.dirtyEntityIndexesByPk.put(entityIndex.getPrimaryKey(), entityIndex);
+		}
+		return createdIndex;
 	}
 
 	/**
@@ -388,7 +447,30 @@ public class DataStoreChanges implements Snapshotable<DataStoreChanges.DataStore
 			index != null,
 			() -> "Index with primary key " + indexPrimaryKey + " was not found in the persistent storage and cannot be registered for modification."
 		);
-		this.dirtyEntityIndexes.put(index.getIndexKey(), index);
+		final IndexKey addedKey = index.getIndexKey();
+		if (this.undoJournal != null) {
+			// capture the exact pre-mutation entries of both maps for the keys this put touches, so a savepoint rollback
+			// restores them absolutely (handles the rare case where a mapping already existed under either key)
+			final Index<? extends IndexKey> previousByKey = this.dirtyEntityIndexes.get(addedKey);
+			final int pk = index instanceof EntityIndex entityIndex ? entityIndex.getPrimaryKey() : Integer.MIN_VALUE;
+			final boolean touchesByPk = index instanceof EntityIndex;
+			final Index<? extends IndexKey> previousByPk = touchesByPk ? this.dirtyEntityIndexesByPk.get(pk) : null;
+			this.undoJournal.push(() -> {
+				if (previousByKey == null) {
+					this.dirtyEntityIndexes.remove(addedKey);
+				} else {
+					this.dirtyEntityIndexes.put(addedKey, previousByKey);
+				}
+				if (touchesByPk) {
+					if (previousByPk == null) {
+						this.dirtyEntityIndexesByPk.remove(pk);
+					} else {
+						this.dirtyEntityIndexesByPk.put(pk, previousByPk);
+					}
+				}
+			});
+		}
+		this.dirtyEntityIndexes.put(addedKey, index);
 		if (index instanceof EntityIndex entityIndex) {
 			this.dirtyEntityIndexesByPk.put(entityIndex.getPrimaryKey(), index);
 		}
@@ -422,9 +504,16 @@ public class DataStoreChanges implements Snapshotable<DataStoreChanges.DataStore
 	 * `removalPropagation` function is called to propagate deletion to the origin collection.
 	 */
 	@Nonnull
-	public <IK extends IndexKey, I extends Index<IK>> I removeIndex(@Nonnull IK entityIndexKey, @Nonnull Function<IK, I> removalPropagation) {
+	public <IK extends IndexKey, I extends Index<IK>> I removeIndex(
+		@Nonnull IK entityIndexKey,
+		@Nonnull Function<IK, I> removalPropagation
+	) {
 		//noinspection unchecked
 		final I dirtyIndexesRemoval = (I) this.dirtyEntityIndexes.remove(entityIndexKey);
+		if (dirtyIndexesRemoval != null && this.undoJournal != null) {
+			// removeIndex only drops the by-key entry (never the by-pk one); a savepoint rollback re-inserts exactly it
+			this.undoJournal.push(() -> this.dirtyEntityIndexes.put(entityIndexKey, dirtyIndexesRemoval));
+		}
 		final I baseIndexesRemoval = removalPropagation.apply(entityIndexKey);
 		return ofNullable(dirtyIndexesRemoval).orElse(baseIndexesRemoval);
 	}
@@ -477,18 +566,17 @@ public class DataStoreChanges implements Snapshotable<DataStoreChanges.DataStore
 	}
 
 	/**
-	 * Immutable snapshot of the revertable in-memory state of {@link DataStoreChanges}, captured by
-	 * {@link #snapshot()} and reinstated by {@link #restore(DataStoreChangesMemento)} on a per-entity savepoint
-	 * rollback. The maps are private copies owned by the memento; see {@link #snapshot()} for what is and is not
-	 * captured.
+	 * Immutable, `O(1)` marker of the revertable in-memory state of {@link DataStoreChanges} at a single point in time,
+	 * captured by {@link #snapshot()} and reinstated by {@link #restore(DataStoreChangesMemento)} on a per-entity
+	 * savepoint rollback. The dirty-index maps are rewound via the {@link #undoJournal} (only its {@link #mark} is held
+	 * here, not a copy); the trapped-changes cache is an independent copy owned by the memento. See {@link #snapshot()}
+	 * for what is and is not captured.
 	 *
-	 * @param dirtyEntityIndexes     copy of the dirty-index map keyed by {@link IndexKey}
-	 * @param dirtyEntityIndexesByPk copy of the dirty-index map keyed by index primary key
-	 * @param trappedChanges         independent copy of the trapped storage-part cache, or {@code null}
+	 * @param mark           the {@link UndoJournal#mark()} to rewind the dirty-index maps to on restore
+	 * @param trappedChanges independent copy of the trapped storage-part cache, or {@code null}
 	 */
 	public record DataStoreChangesMemento(
-		@Nonnull Map<IndexKey, Index<? extends IndexKey>> dirtyEntityIndexes,
-		@Nonnull IntObjectMap<Index<? extends IndexKey>> dirtyEntityIndexesByPk,
+		int mark,
 		@Nullable Map<Class<? extends StoragePart>, LongObjectMap<StoragePart>> trappedChanges
 	) {
 	}

@@ -133,6 +133,9 @@ class PreSortedRecordsSorterTest {
 		final QueryPlanningContext planningContext = Mockito.mock(QueryPlanningContext.class);
 		final QueryExecutionContext executionContext = Mockito.mock(QueryExecutionContext.class);
 		when(planningContext.createExecutionContext()).thenReturn(executionContext);
+		// the sorter reads the planning context for the debug sort override / telemetry; the unstubbed mock returns
+		// false for isDebugModeEnabled and null for getCurrentStep -> cost-based selection with telemetry off
+		when(executionContext.getQueryContext()).thenReturn(planningContext);
 		when(executionContext.getPrefetchedEntities()).thenReturn(null);
 		Mockito.doAnswer(invocation -> SharedBufferPool.INSTANCE.obtain()).when(executionContext).borrowBuffer();
 		Mockito.doNothing().when(executionContext).returnBuffer(any());
@@ -244,6 +247,9 @@ class PreSortedRecordsSorterTest {
 			() -> new SortedRecordsProvider[]{sortedRecordsSupplier}
 		);
 		final QueryExecutionContext queryContext = Mockito.mock(QueryExecutionContext.class);
+		// the sorter reads the planning context for the debug sort override / telemetry; the unstubbed mock returns
+		// false for isDebugModeEnabled and null for getCurrentStep -> cost-based selection with telemetry off
+		when(queryContext.getQueryContext()).thenReturn(Mockito.mock(QueryPlanningContext.class));
 		when(queryContext.getPrefetchedEntities()).thenReturn(null);
 		Mockito.doAnswer(invocation -> SharedBufferPool.INSTANCE.obtain()).when(queryContext).borrowBuffer();
 		Mockito.doNothing().when(queryContext).returnBuffer(any());

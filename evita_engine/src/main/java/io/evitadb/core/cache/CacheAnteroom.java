@@ -43,8 +43,6 @@ import io.evitadb.core.query.extraResult.EvitaResponseExtraResultComputer;
 import io.evitadb.core.query.response.ServerBinaryEntityDecorator;
 import io.evitadb.core.query.response.ServerEntityDecorator;
 import io.evitadb.core.query.response.TransactionalDataRelatedStructure;
-import io.evitadb.core.query.sort.CacheableSorter;
-import io.evitadb.core.query.sort.Sorter;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.IOUtils;
 import lombok.extern.slf4j.Slf4j;
@@ -76,7 +74,6 @@ import java.util.function.UnaryOperator;
  * The key entry-points of this class are:
  *
  * - {@link #register(EvitaSessionContract, String, Formula, FormulaCacheVisitor)}
- * - {@link #register(EvitaSessionContract, String, CacheableSorter)}
  * - {@link #register(EvitaSessionContract, String, CacheableEvitaResponseExtraResultComputer)}
  * - {@link #register(EvitaSessionContract, int, Serializable, EntityFetch, Supplier)}
  * - {@link #evaluateAssociates(boolean)}
@@ -220,32 +217,6 @@ public class CacheAnteroom implements Closeable {
 				recordUsageAndReturnInstrumentedCopyIfNotYetSeen(computer, recordHash) : cachedResult;
 		} else {
 			return computer;
-		}
-	}
-
-	/**
-	 * Method examines `cacheableSorter`, whether the computation seems expensive and whether cacheableSorter claims that it
-	 * supports caching of its results. If so, it's checked for existing cached result in {@link CacheEden} and return
-	 * it immediately. If no cached result is found it registers the formula to {@link #cacheAdepts} and returns a clone
-	 * that records the detailed information on first computation.
-	 */
-	@SuppressWarnings("ClassEscapesDefinedScope")
-	@Nonnull
-	public Sorter register(
-		@Nonnull EvitaSessionContract evitaSession,
-		@Nonnull String entityType,
-		@Nonnull CacheableSorter cacheableSorter
-	) {
-		if (cacheableSorter.getEstimatedCost() > this.minimalComplexityThreshold) {
-			final String catalogName = evitaSession.getCatalogName();
-			final long recordHash = computeDataStructureHash(catalogName, entityType, cacheableSorter);
-			final Sorter cachedResult = this.cacheEden.getCachedRecord(
-				evitaSession, catalogName, entityType, cacheableSorter, Sorter.class, recordHash
-			);
-			return cachedResult == null ?
-				recordUsageAndReturnInstrumentedCopyIfNotYetSeen(cacheableSorter, recordHash) : cachedResult;
-		} else {
-			return cacheableSorter;
 		}
 	}
 
@@ -526,36 +497,6 @@ public class CacheAnteroom implements Closeable {
 		} else {
 			cacheRecordAdept.used();
 			return extraResult;
-		}
-	}
-
-	/**
-	 * Method will check whether the `extraResult` is already registered in {@link #cacheAdepts} and if so, it's immediately
-	 * returned. If not - new clone is created and {@link #recordDataOnComputationCompletion(CacheRecordType, long, int, long)}
-	 * is introduced to it so that critical information are filled in on first result computation.
-	 *
-	 * If new cache adept is created it's checked whether the number of adepts exceeds {@link #maxRecordCount} and if
-	 * so, the {@link #evaluateAssociatesAsynchronously()} process is executed.
-	 */
-	@Nonnull
-	private Sorter recordUsageAndReturnInstrumentedCopyIfNotYetSeen(
-		@Nonnull CacheableSorter cacheableSorter,
-		long extraResultHash
-	) {
-		final ConcurrentHashMap<Long, CacheRecordAdept> currentCacheAdepts = this.cacheAdepts.get();
-		final CacheRecordAdept cacheRecordAdept = currentCacheAdepts.get(extraResultHash);
-		if (cacheRecordAdept == null) {
-			return cacheableSorter.getCloneWithComputationCallback(
-				self -> recordDataOnComputationCompletion(
-					CacheRecordType.SORTED_RESULT,
-					extraResultHash,
-					self.getSerializableResultSizeEstimate(),
-					self.getCostToPerformanceRatio()
-				)
-			);
-		} else {
-			cacheRecordAdept.used();
-			return cacheableSorter;
 		}
 	}
 

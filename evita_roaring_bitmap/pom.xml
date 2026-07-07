@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+	<artifactId>evita_roaring_bitmap</artifactId>
+	<packaging>jar</packaging>
+	<name>evitaDB - Vendored RoaringBitmap (persistent/structure-sharing)</name>
+	<description>Vendored subset of RoaringBitmap (Apache-2.0) reshaped into a single persistent bitmap per data type
+		(PersistentRoaringBitmap / PersistentLongRoaringBitmap). See NOTICE for attribution and synced upstream commit.</description>
+	<parent>
+		<groupId>io.evitadb</groupId>
+		<artifactId>evita_root</artifactId>
+		<version>2026.2-SNAPSHOT</version>
+	</parent>
+	<dependencies>
+		<!--
+			Test-scope dependencies required by the vendored upstream test suite.
+			Versions are managed by the root POM's dependencyManagement.
+			These never leak into the produced jar (test scope only); JUnit is inherited
+			from the root POM's shared <dependencies> block.
+		-->
+		<dependency>
+			<groupId>com.google.guava</groupId>
+			<artifactId>guava</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.apache.commons</groupId>
+			<artifactId>commons-lang3</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>com.fasterxml.jackson.core</groupId>
+			<artifactId>jackson-databind</artifactId>
+			<scope>test</scope>
+		</dependency>
+	</dependencies>
+</project>

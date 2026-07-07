@@ -30,6 +30,7 @@ import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.attribute.GlobalUniqueIndex;
+import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.test.duration.TimeArgumentProvider;
 import io.evitadb.test.duration.TimeArgumentProvider.GenerationalTestInput;
 import io.evitadb.test.duration.TimeBoundedTestSupport;
@@ -39,15 +40,19 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ArgumentsSource;
 
 import javax.annotation.Nonnull;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Random;
 
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.MANAGEMENT;
 import static io.evitadb.test.TestTags.SLOW;
+import static io.evitadb.test.TestTags.TRANSACTION;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
+import static io.evitadb.utils.AssertionUtils.assertStateAfterRollback;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -70,8 +75,15 @@ import static org.mockito.Mockito.when;
 @Tag(MANAGEMENT)
 class LongRunningCatalogIndexTest implements TimeBoundedTestSupport {
 
-	private static final String ENTITY_TYPE = "Product";
+	static final String ENTITY_TYPE = "Product";
 	private static final int ENTITY_TYPE_PK = 1;
+
+	/**
+	 * The fixed set of unique-attribute names the generational operations draw from; also the exact set the
+	 * {@link #snapshot} oracle probes. Shared with the sibling {@code LongRunningSavepointCatalogIndexTest} so both agree
+	 * on which attributes may exist.
+	 */
+	static final String[] ATTR_NAMES = {"code", "url", "sku", "ean"};
 
 	/**
 	 * Creates a mock {@link Catalog} that resolves the given entity type name to
@@ -198,65 +210,11 @@ class LongRunningCatalogIndexTest implements TimeBoundedTestSupport {
 			state.reference();
 		final int[] nextId = {state.nextRecordId()};
 
-		// pick a random attribute name
-		final String[] attrNames = {"code", "url", "sku", "ean"};
-		final String attrName =
-			attrNames[random.nextInt(attrNames.length)];
-		final GlobalAttributeSchemaContract attrSchema =
-			createNonLocalizedAttributeSchema(attrName, String.class);
-		final EntitySchemaContract entitySchema =
-			createEntitySchema(ENTITY_TYPE);
-		final AttributeKey attrKey = new AttributeKey(attrName);
-
 		final CatalogIndex[] committedHolder = new CatalogIndex[1];
 
 		assertStateAfterCommit(
 			index,
-			original -> {
-				// decide: insert or remove
-				final HashMap<Object, Integer> existing =
-					reference.getOrDefault(attrKey, new HashMap<>());
-				final boolean shouldInsert =
-					existing.isEmpty() || random.nextBoolean();
-
-				if (shouldInsert) {
-					// generate a unique value
-					final String value =
-						attrName + "-" + nextId[0];
-					final int recordId = nextId[0]++;
-
-					original.insertUniqueAttribute(
-						entitySchema, attrSchema,
-						Collections.emptySet(), null,
-						value, recordId
-					);
-
-					// update reference
-					reference.computeIfAbsent(
-						attrKey, k -> new HashMap<>()
-					).put(value, recordId);
-				} else {
-					// remove a random existing entry
-					final Object[] keys =
-						existing.keySet().toArray();
-					final Object keyToRemove =
-						keys[random.nextInt(keys.length)];
-					final int recordId =
-						existing.get(keyToRemove);
-
-					original.removeUniqueAttribute(
-						entitySchema, attrSchema,
-						Collections.emptySet(), null,
-						keyToRemove, recordId
-					);
-
-					// update reference
-					existing.remove(keyToRemove);
-					if (existing.isEmpty()) {
-						reference.remove(attrKey);
-					}
-				}
-			},
+			original -> applyRandomBatch(random, original, reference, nextId),
 			(original, committed) -> {
 				committedHolder[0] = committed;
 
@@ -292,7 +250,7 @@ class LongRunningCatalogIndexTest implements TimeBoundedTestSupport {
 
 				// verify: attributes NOT in reference should not
 				// have a GlobalUniqueIndex
-				for (String name : attrNames) {
+				for (String name : ATTR_NAMES) {
 					if (!reference.containsKey(
 						new AttributeKey(name))
 					) {
@@ -320,5 +278,185 @@ class LongRunningCatalogIndexTest implements TimeBoundedTestSupport {
 		);
 
 		return new TestState(committed, reference, nextId[0]);
+	}
+
+	/**
+	 * Applies one random unique-attribute operation — insert a fresh value or remove a random existing one — to `index`,
+	 * mirroring it into the `reference` model so the two stay in lockstep. Shared by the commit and rollback proofs so
+	 * both drive the identical random-draw sequence.
+	 *
+	 * @param random    the random source for this operation
+	 * @param index     the CatalogIndex to mutate (the in-transaction instance)
+	 * @param reference the reference map kept in lockstep with the index
+	 * @param nextId    single-element holder of the next record id to assign (advanced on insert)
+	 */
+	private static void applyRandomBatch(
+		@Nonnull Random random,
+		@Nonnull CatalogIndex index,
+		@Nonnull HashMap<AttributeKey, HashMap<Object, Integer>> reference,
+		@Nonnull int[] nextId
+	) {
+		// pick a random attribute name
+		final String attrName = ATTR_NAMES[random.nextInt(ATTR_NAMES.length)];
+		final GlobalAttributeSchemaContract attrSchema =
+			createNonLocalizedAttributeSchema(attrName, String.class);
+		final EntitySchemaContract entitySchema = createEntitySchema(ENTITY_TYPE);
+		final AttributeKey attrKey = new AttributeKey(attrName);
+
+		// decide: insert or remove
+		final HashMap<Object, Integer> existing = reference.getOrDefault(attrKey, new HashMap<>());
+		final boolean shouldInsert = existing.isEmpty() || random.nextBoolean();
+
+		if (shouldInsert) {
+			// generate a unique value
+			final String value = attrName + "-" + nextId[0];
+			final int recordId = nextId[0]++;
+
+			index.insertUniqueAttribute(
+				entitySchema, attrSchema,
+				Collections.emptySet(), null,
+				value, recordId
+			);
+
+			// update reference
+			reference.computeIfAbsent(attrKey, k -> new HashMap<>()).put(value, recordId);
+		} else {
+			// remove a random existing entry
+			final Object[] keys = existing.keySet().toArray();
+			final Object keyToRemove = keys[random.nextInt(keys.length)];
+			final int recordId = existing.get(keyToRemove);
+
+			index.removeUniqueAttribute(
+				entitySchema, attrSchema,
+				Collections.emptySet(), null,
+				keyToRemove, recordId
+			);
+
+			// update reference
+			existing.remove(keyToRemove);
+			if (existing.isEmpty()) {
+				reference.remove(attrKey);
+			}
+		}
+	}
+
+	/**
+	 * Generational proof that a **rolled-back** transaction discards every in-transaction mutation and leaves the base
+	 * index intact — the atomic-rollback contract of Ref: #569. Each generation rebuilds a fresh committed base index
+	 * from the (random-walking) reference model, captures a value oracle of that base, applies a random unique-attribute
+	 * mutation inside a transaction that is then rolled back, and asserts the base index is unchanged and no committed
+	 * value was published.
+	 */
+	@Tag(SLOW)
+	@Tag(TRANSACTION)
+	@DisplayName(
+		"rollback discards every in-transaction unique-attribute mutation and leaves the base intact"
+	)
+	@ParameterizedTest(name = "seed={0}")
+	@ArgumentsSource(TimeArgumentProvider.class)
+	void generationalRollbackProofTest(@Nonnull GenerationalTestInput input) {
+		runFor(
+			input,
+			1000,
+			new TestState(createLiveCatalogIndex(), new HashMap<>(), 1),
+			(random, state) -> {
+				final HashMap<AttributeKey, HashMap<Object, Integer>> reference = state.reference();
+				final int[] nextId = {state.nextRecordId()};
+				// rebuild a fresh committed base index from the (random-walking) reference model
+				final CatalogIndex index = buildCatalogIndex(reference);
+				final CatalogSnapshot beforeRollback = snapshot(index);
+
+				assertStateAfterRollback(
+					index,
+					original -> applyRandomBatch(random, original, reference, nextId),
+					(original, committed) -> {
+						assertNull(committed,
+							"A rolled-back transaction must not publish a committed value!");
+						assertEquals(beforeRollback, snapshot(original),
+							"CatalogIndex changed after rollback — atomic rollback leaked!");
+					}
+				);
+
+				// the reference model reflects the attempted (rolled-back) batch, so the next generation rebuilds a
+				// different live base index — a random walk that keeps the proof exploring fresh base indexes
+				return new TestState(index, reference, nextId[0]);
+			}
+		);
+	}
+
+	/**
+	 * Rebuilds a fresh {@link CatalogIndex} (attached to a mock catalog) from the (random-walking) reference model by
+	 * replaying every `(attribute, value, recordId)` tuple via {@link CatalogIndex#insertUniqueAttribute}. Values within
+	 * an attribute are distinct by construction, so no unique violation can occur during the replay.
+	 */
+	@Nonnull
+	private static CatalogIndex buildCatalogIndex(
+		@Nonnull HashMap<AttributeKey, HashMap<Object, Integer>> reference
+	) {
+		final CatalogIndex index = createLiveCatalogIndex();
+		final EntitySchemaContract entitySchema = createEntitySchema(ENTITY_TYPE);
+		for (final Map.Entry<AttributeKey, HashMap<Object, Integer>> attributeEntry : reference.entrySet()) {
+			final String attributeName = attributeEntry.getKey().attributeName();
+			final GlobalAttributeSchemaContract attributeSchema =
+				createNonLocalizedAttributeSchema(attributeName, String.class);
+			for (final Map.Entry<Object, Integer> valueEntry : attributeEntry.getValue().entrySet()) {
+				index.insertUniqueAttribute(
+					entitySchema, attributeSchema,
+					Collections.emptySet(), null,
+					valueEntry.getKey(), valueEntry.getValue()
+				);
+			}
+		}
+		return index;
+	}
+
+	/**
+	 * Reads the full logical content of the index into a value-comparable snapshot: per unique-attribute name, the sorted
+	 * record ids indexed for {@link #ENTITY_TYPE} and the number of unique keys held. Both reads are transaction-aware, so
+	 * two snapshots taken before and after a rollback can be compared with `.equals` to prove exact restoration; index
+	 * object identity is never compared.
+	 */
+	@Nonnull
+	static CatalogSnapshot snapshot(@Nonnull CatalogIndex index) {
+		final Map<String, List<Integer>> recordIdsByAttribute = new HashMap<>();
+		final Map<String, Integer> sizeByAttribute = new HashMap<>();
+		for (final String attributeName : ATTR_NAMES) {
+			final GlobalAttributeSchemaContract attributeSchema =
+				createNonLocalizedAttributeSchema(attributeName, String.class);
+			final GlobalUniqueIndex globalUniqueIndex = index.getGlobalUniqueIndex(attributeSchema, null);
+			if (globalUniqueIndex != null) {
+				recordIdsByAttribute.put(attributeName, toList(globalUniqueIndex.getRecordIds(ENTITY_TYPE)));
+				sizeByAttribute.put(attributeName, globalUniqueIndex.size());
+			}
+		}
+		return new CatalogSnapshot(recordIdsByAttribute, sizeByAttribute);
+	}
+
+	/**
+	 * Converts a bitmap into an ascending list of its record ids (a value type with deep `.equals`).
+	 */
+	@Nonnull
+	private static List<Integer> toList(@Nonnull Bitmap bitmap) {
+		final int[] array = bitmap.getArray();
+		final List<Integer> list = new ArrayList<>(array.length);
+		for (final int value : array) {
+			list.add(value);
+		}
+		return list;
+	}
+
+	/**
+	 * Value-comparable snapshot of a {@link CatalogIndex}: per attribute name the sorted record ids for
+	 * {@link #ENTITY_TYPE} (the per-type bitmap of each {@link GlobalUniqueIndex}) and the count of unique keys it holds
+	 * (its value tree). Record equality gives deep structural comparison, so two snapshots match iff the indexes hold the
+	 * exact same unique-attribute content.
+	 *
+	 * @param recordIdsByAttribute attribute name to sorted indexed record ids
+	 * @param sizeByAttribute      attribute name to number of unique keys held
+	 */
+	record CatalogSnapshot(
+		@Nonnull Map<String, List<Integer>> recordIdsByAttribute,
+		@Nonnull Map<String, Integer> sizeByAttribute
+	) {
 	}
 }

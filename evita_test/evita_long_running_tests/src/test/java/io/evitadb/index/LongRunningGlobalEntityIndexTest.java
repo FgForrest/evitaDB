@@ -36,9 +36,11 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ArgumentsSource;
 
 import javax.annotation.Nonnull;
+import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Random;
@@ -48,9 +50,12 @@ import java.util.concurrent.atomic.AtomicReference;
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.MANAGEMENT;
 import static io.evitadb.test.TestTags.SLOW;
+import static io.evitadb.test.TestTags.TRANSACTION;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
+import static io.evitadb.utils.AssertionUtils.assertStateAfterRollback;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -114,14 +119,9 @@ class LongRunningGlobalEntityIndexTest implements TimeBoundedTestSupport {
 
 				assertStateAfterCommit(
 					tested,
-					original -> {
-						final int ops = random.nextInt(5) + 1;
-						for (int i = 0; i < ops; i++) {
-							executeRandomOperation(
-								random, original, referencePks, referenceLocales, schema
-							);
-						}
-					},
+					original -> applyRandomBatch(
+						random, original, referencePks, referenceLocales, schema
+					),
 					(original, committed) -> {
 						assertNotNull(committed);
 						verifyState(committed, referencePks, referenceLocales);
@@ -138,6 +138,146 @@ class LongRunningGlobalEntityIndexTest implements TimeBoundedTestSupport {
 				System.out.println("Failed state - Locales: " + state.expectedLocales());
 			}
 		);
+	}
+
+	/**
+	 * Generational proof that a **rolled-back** transaction discards every in-transaction mutation and leaves the base
+	 * index byte-for-byte intact — the atomic-rollback contract of Ref: #569. Each generation rebuilds a fresh index
+	 * from the (random-walking) reference model, captures a value oracle of that base, applies a random batch of
+	 * insert/remove mutations inside a transaction that is then rolled back, and asserts the base index is unchanged and
+	 * no committed value was published.
+	 */
+	@DisplayName("rollback leaves the base index intact")
+	@ParameterizedTest(name = "GlobalEntityIndex rollback discards every in-transaction mutation and leaves the base intact")
+	@Tag(SLOW)
+	@Tag(TRANSACTION)
+	@ArgumentsSource(TimeArgumentProvider.class)
+	void generationalRollbackProofTest(GenerationalTestInput input) {
+		final EntitySchemaContract schema = createEvolvingSchema();
+
+		runFor(
+			input,
+			50_000,
+			new RollbackModel(new HashSet<>(), new HashMap<>()),
+			(random, model) -> {
+				final Set<Integer> referencePks = new HashSet<>(model.expectedPks());
+				final Map<Locale, Set<Integer>> referenceLocales =
+					deepCopyLocaleMap(model.expectedLocales());
+				// rebuild a fresh base index from the (random-walking) reference model each generation
+				final GlobalEntityIndex tested = buildIndexFromModel(
+					referencePks, referenceLocales, schema
+				);
+				// value oracle of the base state that the rollback must return to
+				final GlobalSnapshot beforeRollback = snapshot(tested);
+
+				assertStateAfterRollback(
+					tested,
+					original -> applyRandomBatch(
+						random, original, referencePks, referenceLocales, schema
+					),
+					(original, committed) -> {
+						assertNull(committed,
+							"A rolled-back transaction must not publish a committed value!"
+						);
+						assertEquals(beforeRollback, snapshot(original),
+							"GlobalEntityIndex changed after rollback — atomic rollback leaked!"
+						);
+					}
+				);
+
+				// the reference model reflects the attempted (rolled-back) batch, so the next generation rebuilds from a
+				// different live state — a random walk that keeps the proof exploring fresh base indexes
+				return new RollbackModel(referencePks, referenceLocales);
+			},
+			(model, exc) -> {
+				System.out.println("Failed model - PKs: " + model.expectedPks());
+				System.out.println("Failed model - Locales: " + model.expectedLocales());
+			}
+		);
+	}
+
+	/**
+	 * Applies a random batch of 1–5 insert/remove operations to `index`, mirroring each into the reference model so the
+	 * two stay in lockstep. Shared by the commit and rollback proofs so both drive the identical random-draw sequence.
+	 *
+	 * @param random           source of randomness
+	 * @param index            the index being mutated
+	 * @param referencePks     the reference model for primary keys
+	 * @param referenceLocales the reference model for locale-to-PK mapping
+	 * @param schema           the entity schema allowing locale evolution
+	 */
+	private static void applyRandomBatch(
+		@Nonnull Random random,
+		@Nonnull GlobalEntityIndex index,
+		@Nonnull Set<Integer> referencePks,
+		@Nonnull Map<Locale, Set<Integer>> referenceLocales,
+		@Nonnull EntitySchemaContract schema
+	) {
+		final int ops = random.nextInt(5) + 1;
+		for (int i = 0; i < ops; i++) {
+			executeRandomOperation(random, index, referencePks, referenceLocales, schema);
+		}
+	}
+
+	/**
+	 * Builds a fresh {@link GlobalEntityIndex} whose logical content exactly matches the reference model, so a snapshot
+	 * taken right after the build equals the model. Used to seed each rollback generation from the walking model.
+	 *
+	 * @param referencePks     the reference primary keys to insert
+	 * @param referenceLocales the reference locale-to-PK mapping to replay
+	 * @param schema           the entity schema allowing locale evolution
+	 * @return a freshly built index materialising the reference model
+	 */
+	@Nonnull
+	private static GlobalEntityIndex buildIndexFromModel(
+		@Nonnull Set<Integer> referencePks,
+		@Nonnull Map<Locale, Set<Integer>> referenceLocales,
+		@Nonnull EntitySchemaContract schema
+	) {
+		final GlobalEntityIndex index = createInstance();
+		for (final int pk : referencePks) {
+			index.insertPrimaryKeyIfMissing(pk);
+		}
+		for (final Map.Entry<Locale, Set<Integer>> entry : referenceLocales.entrySet()) {
+			for (final int pk : entry.getValue()) {
+				index.upsertLanguage(entry.getKey(), pk, schema);
+			}
+		}
+		return index;
+	}
+
+	/**
+	 * Reads the full logical content of the index into a value-comparable snapshot (primary keys plus per-locale record
+	 * ids), so two snapshots taken before and after a rollback can be compared with `.equals` to prove exact
+	 * restoration.
+	 *
+	 * @param index the index to snapshot
+	 * @return a deeply `.equals`-comparable value snapshot of the index content
+	 */
+	@Nonnull
+	static GlobalSnapshot snapshot(@Nonnull GlobalEntityIndex index) {
+		final List<Integer> pks = toList(index.getAllPrimaryKeys());
+		final Map<Locale, List<Integer>> locales = new HashMap<>();
+		for (final Locale locale : index.getLanguages()) {
+			locales.put(locale, toList(index.getRecordsWithLanguageFormula(locale).compute()));
+		}
+		return new GlobalSnapshot(pks, locales);
+	}
+
+	/**
+	 * Converts a bitmap into an ascending list of its record ids (a value type with deep `.equals`).
+	 *
+	 * @param bitmap the bitmap to convert
+	 * @return an ascending list of the bitmap's record ids
+	 */
+	@Nonnull
+	private static List<Integer> toList(@Nonnull Bitmap bitmap) {
+		final int[] array = bitmap.getArray();
+		final List<Integer> list = new ArrayList<>(array.length);
+		for (final int value : array) {
+			list.add(value);
+		}
+		return list;
 	}
 
 	/**
@@ -265,5 +405,29 @@ class LongRunningGlobalEntityIndexTest implements TimeBoundedTestSupport {
 		@Nonnull Set<Integer> expectedPks,
 		@Nonnull Map<Locale, Set<Integer>> expectedLocales,
 		@Nonnull GlobalEntityIndex index
+	) {}
+
+	/**
+	 * Reference model carried between generations of the rollback proof: the expected primary keys and locale-to-PK
+	 * mapping. The base index is rebuilt fresh from this model at the start of each generation.
+	 *
+	 * @param expectedPks     the expected set of primary keys
+	 * @param expectedLocales the expected locale-to-PK mapping
+	 */
+	private record RollbackModel(
+		@Nonnull Set<Integer> expectedPks,
+		@Nonnull Map<Locale, Set<Integer>> expectedLocales
+	) {}
+
+	/**
+	 * Value-comparable snapshot of a {@link GlobalEntityIndex}: the sorted primary keys and, per locale, the sorted
+	 * record ids. Record equality gives deep structural comparison.
+	 *
+	 * @param pks     sorted primary keys held by the index
+	 * @param locales per-locale sorted record ids
+	 */
+	record GlobalSnapshot(
+		@Nonnull List<Integer> pks,
+		@Nonnull Map<Locale, List<Integer>> locales
 	) {}
 }

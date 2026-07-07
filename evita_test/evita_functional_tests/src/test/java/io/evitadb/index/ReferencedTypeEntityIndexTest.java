@@ -41,7 +41,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
-import org.roaringbitmap.RoaringBitmap;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 
 import javax.annotation.Nonnull;
 import java.io.Serializable;
@@ -399,7 +399,7 @@ class ReferencedTypeEntityIndexTest extends AbstractEntityIndexTest<ReferencedTy
 	 * Tests for reference lookup methods:
 	 * {@link ReferencedTypeEntityIndex#getAllReferenceIndexes(int)},
 	 * {@link ReferencedTypeEntityIndex#getReferencedPrimaryKeysForIndexPks(Bitmap)},
-	 * and {@link ReferencedTypeEntityIndex#getIndexPrimaryKeys(RoaringBitmap)}.
+	 * and {@link ReferencedTypeEntityIndex#getIndexPrimaryKeys(PersistentRoaringBitmap)}.
 	 */
 	@Nested
 	@DisplayName("Reference lookup")
@@ -473,7 +473,7 @@ class ReferencedTypeEntityIndexTest extends AbstractEntityIndexTest<ReferencedTy
 			ReferencedTypeEntityIndexTest.this.index.insertPrimaryKeyIfMissing(10, 5);
 			ReferencedTypeEntityIndexTest.this.index.insertPrimaryKeyIfMissing(20, 6);
 
-			final RoaringBitmap referencedPks = RoaringBitmap.bitmapOf(5, 6);
+			final PersistentRoaringBitmap referencedPks = PersistentRoaringBitmap.bitmapOf(5, 6);
 			final Bitmap result = ReferencedTypeEntityIndexTest.this.index.getIndexPrimaryKeys(referencedPks);
 
 			assertEquals(2, result.size());
@@ -484,7 +484,7 @@ class ReferencedTypeEntityIndexTest extends AbstractEntityIndexTest<ReferencedTy
 		@Test
 		@DisplayName("should return empty bitmap for empty referenced PK input")
 		void shouldReturnEmptyForEmptyReferencedPkInput() {
-			final Bitmap result = ReferencedTypeEntityIndexTest.this.index.getIndexPrimaryKeys(new RoaringBitmap());
+			final Bitmap result = ReferencedTypeEntityIndexTest.this.index.getIndexPrimaryKeys(new PersistentRoaringBitmap());
 
 			assertSame(EmptyBitmap.INSTANCE, result);
 		}
@@ -497,7 +497,7 @@ class ReferencedTypeEntityIndexTest extends AbstractEntityIndexTest<ReferencedTy
 
 			// only ask for referenced entity 5
 			final Bitmap result = ReferencedTypeEntityIndexTest.this.index.getIndexPrimaryKeys(
-				RoaringBitmap.bitmapOf(5)
+				PersistentRoaringBitmap.bitmapOf(5)
 			);
 
 			assertEquals(1, result.size());

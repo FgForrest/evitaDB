@@ -37,7 +37,7 @@ import javax.annotation.Nonnull;
 @RequiredArgsConstructor
 public enum CacheRecordType {
 
-	FORMULA((byte) 7), SORTED_RESULT((byte) 6), EXTRA_RESULT((byte) 5), ENTITY((byte) 4);
+	FORMULA((byte) 7), EXTRA_RESULT((byte) 5), ENTITY((byte) 4);
 
 	/**
 	 * Offset of the flat in bitmask.

@@ -26,6 +26,7 @@ package io.evitadb.index.list;
 import io.evitadb.core.transaction.memory.Snapshotable;
 import io.evitadb.core.transaction.memory.TransactionalLayerCreator;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
+import io.evitadb.core.transaction.memory.UndoJournal;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -73,6 +74,15 @@ class ListChanges<V> implements Serializable, Snapshotable<ListChanges.ListChang
 	 * Map of added items on certain indexes.
 	 */
 	@Getter private final Map<Integer, V> addedItems = new TreeMap<>();
+	/**
+	 * Undo journal recording the inverse of every {@link #add}/{@link #remove}/{@link #cleanAll} while a savepoint is
+	 * open, enabling an `O(1)` {@link #snapshot()} and an `O(intra-savepoint-ops)` {@link #restore(ListChangesMemento)}
+	 * instead of deep-copying the whole accumulated diff. Because the index-shift helpers re-key many entries per op,
+	 * each inverse precisely reverses its op; replayed in strict reverse order they exactly rewind the `+1 / -1`
+	 * re-keying. Lazily allocated on the first {@link #snapshot()} (null for non-savepoint transactions, which pay
+	 * nothing) and drained back to null when the savepoint commits (see {@link #releaseMemento(ListChangesMemento)}).
+	 */
+	@Nullable private UndoJournal undoJournal;
 
 	/**
 	 * Returns count of elements in the list with applied changes.
@@ -112,6 +122,13 @@ class ListChanges<V> implements Serializable, Snapshotable<ListChanges.ListChang
 		if (index > size()) {
 			throw new IndexOutOfBoundsException("Index: " + index + ", Size: " + size());
 		}
+		if (this.undoJournal != null) {
+			// inverse of (increase >= index; put index): drop the inserted entry and un-shift the entries after it
+			this.undoJournal.push(() -> {
+				this.addedItems.remove(index);
+				lowerIndexesGreaterThan(index);
+			});
+		}
 		// increase indexes of all existing insertions after the modified index
 		increaseIndexesGreaterThanOrEquals(index);
 		// and add new element at specified index
@@ -150,13 +167,31 @@ class ListChanges<V> implements Serializable, Snapshotable<ListChanges.ListChang
 			return false;
 		} else if (indexToRemove == null || (addedNewPosition != null && addedNewPosition < indexToRemove)) {
 			// added item was found first - just replace it on specified position
-			this.addedItems.remove(addedNewPosition);
-			lowerIndexesGreaterThan(addedNewPosition);
+			final int position = addedNewPosition;
+			final V removedValue = this.addedItems.get(position);
+			if (this.undoJournal != null) {
+				// inverse of (remove position; lower > position): un-shift, then reinstate the dropped insertion
+				this.undoJournal.push(() -> {
+					increaseIndexesGreaterThanOrEquals(position);
+					this.addedItems.put(position, removedValue);
+				});
+			}
+			this.addedItems.remove(position);
+			lowerIndexesGreaterThan(position);
 			return true;
 		} else {
 			// existing item was found first - add the proper position to removed and lower insertion indexes of new items after it
-			this.removedItems.add(removedExistingPosition);
-			lowerIndexesGreaterThan(indexToRemove);
+			final int tombstonedDelegateIndex = removedExistingPosition;
+			final int loweredFrom = indexToRemove;
+			if (this.undoJournal != null) {
+				// inverse of (add tombstone; lower > indexToRemove): un-shift, then drop the tombstone
+				this.undoJournal.push(() -> {
+					increaseIndexesGreaterThanOrEquals(loweredFrom);
+					this.removedItems.remove(tombstonedDelegateIndex);
+				});
+			}
+			this.removedItems.add(tombstonedDelegateIndex);
+			lowerIndexesGreaterThan(loweredFrom);
 			return true;
 		}
 	}
@@ -207,6 +242,13 @@ class ListChanges<V> implements Serializable, Snapshotable<ListChanges.ListChang
 		if (this.addedItems.containsKey(index)) {
 			// if found remove it and lower indexes of all following new elements
 			final V result = this.addedItems.remove(index);
+			if (this.undoJournal != null) {
+				// inverse of (remove index; lower > index): un-shift, then reinstate the dropped insertion
+				this.undoJournal.push(() -> {
+					increaseIndexesGreaterThanOrEquals(index);
+					this.addedItems.put(index, result);
+				});
+			}
 			lowerIndexesGreaterThan(index);
 			return result;
 		}
@@ -224,6 +266,14 @@ class ListChanges<V> implements Serializable, Snapshotable<ListChanges.ListChang
 			// if index was found (should be)
 			if (j == index) {
 				// add the index of the underlying delegate list to the set of removed indexes
+				final int tombstonedDelegateIndex = examinedIndex;
+				if (this.undoJournal != null) {
+					// inverse of (add tombstone; lower > index): un-shift, then drop the tombstone
+					this.undoJournal.push(() -> {
+						increaseIndexesGreaterThanOrEquals(index);
+						this.removedItems.remove(tombstonedDelegateIndex);
+					});
+				}
 				this.removedItems.add(examinedIndex);
 				final V result = this.listDelegate.get(examinedIndex);
 				// lower all indexes of newly added elements greater than the new index
@@ -239,6 +289,17 @@ class ListChanges<V> implements Serializable, Snapshotable<ListChanges.ListChang
 	 * Clears all changes recorded in this diff layer.
 	 */
 	void cleanAll(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
+		if (this.undoJournal != null) {
+			// bulk op: capture both containers so a savepoint rollback can reinstate the pre-cleanAll diff wholesale
+			final TreeMap<Integer, V> addedCopy = new TreeMap<>(this.addedItems);
+			final TreeSet<Integer> removedCopy = new TreeSet<>(this.removedItems);
+			this.undoJournal.push(() -> {
+				this.addedItems.clear();
+				this.addedItems.putAll(addedCopy);
+				this.removedItems.clear();
+				this.removedItems.addAll(removedCopy);
+			});
+		}
 		// remove all added elements
 		final Iterator<Entry<Integer, V>> it = this.addedItems.entrySet().iterator();
 		while (it.hasNext()) {
@@ -307,10 +368,10 @@ class ListChanges<V> implements Serializable, Snapshotable<ListChanges.ListChang
 	@Nonnull
 	@Override
 	public ListChangesMemento<V> snapshot() {
-		return new ListChangesMemento<>(
-			new TreeSet<>(this.removedItems),
-			new TreeMap<>(this.addedItems)
-		);
+		if (this.undoJournal == null) {
+			this.undoJournal = new UndoJournal();
+		}
+		return new ListChangesMemento<>(this.undoJournal.mark());
 	}
 
 	/**
@@ -324,30 +385,44 @@ class ListChanges<V> implements Serializable, Snapshotable<ListChanges.ListChang
 	 */
 	@Override
 	public void restore(@Nonnull ListChangesMemento<V> memento) {
-		// restore the tombstoned delegate indexes and inserted elements as a consistent pair
-		this.removedItems.clear();
-		this.removedItems.addAll(memento.removedItems());
-		this.addedItems.clear();
-		this.addedItems.putAll(memento.addedItems());
+		UndoJournal.assertRestorable(this.undoJournal, memento.mark());
+		// replay the recorded inverse operations in reverse down to the mark; the tombstoned delegate indexes and
+		// inserted elements are rewound together as a consistent pair, so the +1 / -1 re-keying stays intact
+		if (this.undoJournal != null) {
+			this.undoJournal.rollbackTo(memento.mark());
+		}
 	}
 
 	/**
-	 * Immutable carrier of a {@link ListChanges} diff snapshot. Holds independent copies of the per-transaction
-	 * removedItems and addedItems deltas captured at {@link #snapshot()} time. It intentionally does not carry the
-	 * immutable {@code listDelegate} baseline (shared read-only source).
+	 * Releases a closed savepoint's memento (see {@link Snapshotable#releaseMemento(Object)}) - on commit the changes are kept,
+	 * on rollback {@link #restore} has already rewound them -
+	 * so the journal entries recorded since the mark are discarded (never replayed). When the journal drains empty it is
+	 * nulled out, restoring the allocation-free fast path for the rest of the transaction.
 	 *
-	 * The {@code addedItems} keys are logical merged-view indexes while {@code removedItems} are delegate-relative
-	 * indexes; both must be captured and restored together as a consistent pair so the {@code +1 / -1} re-keying
-	 * invariant the index-shift helpers rely on stays intact. Element references held as map values are copied by
-	 * reference only (identity is preserved on purpose, so nested producer layers stay correctly associated).
+	 * @param memento the committed memento previously produced by {@link #snapshot()}
+	 */
+	@Override
+	public void releaseMemento(@Nonnull ListChangesMemento<V> memento) {
+		if (this.undoJournal != null) {
+			this.undoJournal.releaseFrom(memento.mark());
+			if (this.undoJournal.isEmpty()) {
+				this.undoJournal = null;
+			}
+		}
+	}
+
+	/**
+	 * Immutable, `O(1)` marker of a {@link ListChanges} diff snapshot: it holds only the {@link UndoJournal#mark()} to
+	 * rewind the layer to on restore. The actual removedItems / addedItems deltas are rewound by replaying the journal's
+	 * inverse operations, not copied here; the immutable {@code listDelegate} baseline (shared read-only source) is
+	 * likewise not carried. Element references inside {@code addedItems} are never touched — a nested producer element
+	 * owns its own diff layer, rolled back by its own {@link Snapshotable} at the maintainer level.
 	 *
-	 * @param removedItems copy of the original delegate indexes tombstoned this transaction
-	 * @param addedItems   copy of the elements inserted this transaction, keyed by logical merged-view index
-	 * @param <V>          the element type of the underlying list
+	 * @param mark the {@link UndoJournal#mark()} to rewind the layer to on restore
+	 * @param <V>  the element type of the underlying list
 	 */
 	public record ListChangesMemento<V>(
-		@Nonnull TreeSet<Integer> removedItems,
-		@Nonnull TreeMap<Integer, V> addedItems
+		int mark
 	) {
 	}
 

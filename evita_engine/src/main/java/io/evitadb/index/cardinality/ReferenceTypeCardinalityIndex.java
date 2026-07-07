@@ -56,8 +56,8 @@ import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.NumberUtils;
 import lombok.Getter;
-import org.roaringbitmap.RoaringBitmap;
-import org.roaringbitmap.RoaringBitmapWriter;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
+import io.evitadb.roaringbitmap.RoaringBitmapWriter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -145,7 +145,7 @@ public class ReferenceTypeCardinalityIndex
 	 * Helper bitmap that contains all referenced entity primary keys that are present in keys of
 	 * {@link #referencedPrimaryKeysIndex}.
 	 */
-	@Nullable private volatile RoaringBitmap memoizedAllReferencedPrimaryKeys;
+	@Nullable private volatile PersistentRoaringBitmap memoizedAllReferencedPrimaryKeys;
 
 	/**
 	 * Creates a fresh, empty cardinality bucket tree (single-`long` payload column holding the count) ordered by natural
@@ -399,13 +399,13 @@ public class ReferenceTypeCardinalityIndex
 
 	/**
 	 * Returns all tracked referenced entity primary keys as a {@link Bitmap}. Outside of a transactional
-	 * context the underlying {@link RoaringBitmap} is memoized so repeated query-time calls (histogram
+	 * context the underlying {@link PersistentRoaringBitmap} is memoized so repeated query-time calls (histogram
 	 * boundary resolution iterates this set for every surviving histogram) do not rebuild it.
 	 *
 	 * **Read-only contract** — the returned bitmap aliases the memoized snapshot; callers must not
 	 * mutate it. All production call sites (see
 	 * {@code ReferenceHistogramAccumulator.collectGroupedPending} for iteration and
-	 * {@code ReferenceHistogramAccumulator.pickBoundaryPk} for `RoaringBitmap.and` intersection) treat
+	 * {@code ReferenceHistogramAccumulator.pickBoundaryPk} for `PersistentRoaringBitmap.and` intersection) treat
 	 * it as immutable. A defensive copy on every call would negate the memoization benefit.
 	 *
 	 * @return bitmap of referenced entity primary keys, may be {@link EmptyBitmap#INSTANCE}
@@ -418,7 +418,7 @@ public class ReferenceTypeCardinalityIndex
 		if (Transaction.isTransactionAvailable()) {
 			return new BaseBitmap(buildReferencedPrimaryKeysBitmap());
 		}
-		RoaringBitmap result = this.memoizedAllReferencedPrimaryKeys;
+		PersistentRoaringBitmap result = this.memoizedAllReferencedPrimaryKeys;
 		if (result == null) {
 			result = buildReferencedPrimaryKeysBitmap();
 			this.memoizedAllReferencedPrimaryKeys = result;
@@ -427,16 +427,16 @@ public class ReferenceTypeCardinalityIndex
 	}
 
 	/**
-	 * Builds a fresh {@link RoaringBitmap} snapshot from all keys currently present in
+	 * Builds a fresh {@link PersistentRoaringBitmap} snapshot from all keys currently present in
 	 * {@link #referencedPrimaryKeysIndex}. Called either to populate {@link #memoizedAllReferencedPrimaryKeys}
 	 * (outside a transaction) or to produce a one-shot bitmap within a transaction (where memoization is skipped
 	 * because the index contents may change before the bitmap is consumed).
 	 *
-	 * @return a new {@link RoaringBitmap} containing all referenced entity primary keys tracked by this index
+	 * @return a new {@link PersistentRoaringBitmap} containing all referenced entity primary keys tracked by this index
 	 */
 	@Nonnull
-	private RoaringBitmap buildReferencedPrimaryKeysBitmap() {
-		final RoaringBitmapWriter<RoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
+	private PersistentRoaringBitmap buildReferencedPrimaryKeysBitmap() {
+		final RoaringBitmapWriter<PersistentRoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
 		for (final Integer referencedEntityId : this.referencedPrimaryKeysIndex.keySet()) {
 			writer.add(referencedEntityId);
 		}
@@ -459,7 +459,7 @@ public class ReferenceTypeCardinalityIndex
 	 * Returns the set of referenced entity primary keys (i.e., the keys of the forward mapping) whose
 	 * index primary key bitmaps have a non-empty intersection with the given set of index primary keys.
 	 *
-	 * This is the **reverse** of {@link #getIndexPrimaryKeys(RoaringBitmap)}: given a bitmap of
+	 * This is the **reverse** of {@link #getIndexPrimaryKeys(PersistentRoaringBitmap)}: given a bitmap of
 	 * reduced-index PKs, it identifies which referenced entity PKs are associated with them.
 	 *
 	 * @param indexPrimaryKeys bitmap of reduced-index primary keys to look up
@@ -471,11 +471,11 @@ public class ReferenceTypeCardinalityIndex
 		if (indexPrimaryKeys.isEmpty()) {
 			return EmptyBitmap.INSTANCE;
 		}
-		final RoaringBitmap indexPksBitmap = RoaringBitmapBackedBitmap.getRoaringBitmap(indexPrimaryKeys);
-		final RoaringBitmapWriter<RoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
+		final PersistentRoaringBitmap indexPksBitmap = RoaringBitmapBackedBitmap.getRoaringBitmap(indexPrimaryKeys);
+		final RoaringBitmapWriter<PersistentRoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
 		for (Map.Entry<Integer, TransactionalBitmap> entry : this.referencedPrimaryKeysIndex.entrySet()) {
 			if (
-				RoaringBitmap.intersects(
+				PersistentRoaringBitmap.intersects(
 					indexPksBitmap,
 					RoaringBitmapBackedBitmap.getRoaringBitmap(entry.getValue())
 				)
@@ -483,7 +483,7 @@ public class ReferenceTypeCardinalityIndex
 				writer.add(entry.getKey());
 			}
 		}
-		final RoaringBitmap result = writer.get();
+		final PersistentRoaringBitmap result = writer.get();
 		return result.isEmpty() ? EmptyBitmap.INSTANCE : new BaseBitmap(result);
 	}
 
@@ -497,13 +497,13 @@ public class ReferenceTypeCardinalityIndex
 	 *         the input array is empty
 	 */
 	@Nonnull
-	public Bitmap getIndexPrimaryKeys(@Nonnull RoaringBitmap referencedEntityPrimaryKeys) {
+	public Bitmap getIndexPrimaryKeys(@Nonnull PersistentRoaringBitmap referencedEntityPrimaryKeys) {
 		if (referencedEntityPrimaryKeys.isEmpty()) {
 			return EmptyBitmap.INSTANCE;
 		} else {
-			RoaringBitmap allReferencedPrimaryKeys;
+			PersistentRoaringBitmap allReferencedPrimaryKeys;
 			if (Transaction.isTransactionAvailable()) {
-				final RoaringBitmapWriter<RoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
+				final RoaringBitmapWriter<PersistentRoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
 				for (Integer referencedEntityId : this.referencedPrimaryKeysIndex.keySet()) {
 					writer.add(referencedEntityId);
 				}
@@ -511,7 +511,7 @@ public class ReferenceTypeCardinalityIndex
 			} else {
 				allReferencedPrimaryKeys = this.memoizedAllReferencedPrimaryKeys;
 				if (allReferencedPrimaryKeys == null) {
-					final RoaringBitmapWriter<RoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
+					final RoaringBitmapWriter<PersistentRoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
 					for (Integer referencedEntityId : this.referencedPrimaryKeysIndex.keySet()) {
 						writer.add(referencedEntityId);
 					}
@@ -519,11 +519,11 @@ public class ReferenceTypeCardinalityIndex
 					this.memoizedAllReferencedPrimaryKeys = allReferencedPrimaryKeys;
 				}
 			}
-			final RoaringBitmap matchingReferencedEntityPks = RoaringBitmap.and(
+			final PersistentRoaringBitmap matchingReferencedEntityPks = PersistentRoaringBitmap.and(
 				allReferencedPrimaryKeys,
 				referencedEntityPrimaryKeys
 			);
-			final RoaringBitmapWriter<RoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
+			final RoaringBitmapWriter<PersistentRoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
 			for (Integer matchingReferencedEntityPk : matchingReferencedEntityPks) {
 				final TransactionalBitmap indexIds = Objects.requireNonNull(
 					this.referencedPrimaryKeysIndex.get(matchingReferencedEntityPk)

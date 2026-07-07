@@ -263,6 +263,21 @@ public class TransactionalIntToLongBPlusTree extends AbstractIntKeyedBPlusTree i
 	}
 
 	/**
+	 * Allocation-free variant of {@link #search(int)}: returns the primitive value associated with the given key, or
+	 * the caller-supplied `missing` sentinel when the key is absent. Avoids the per-call {@link OptionalLong} wrapper
+	 * that {@link #search(int)} allocates, which matters on hot lookup paths (e.g. resolving a record's sort position).
+	 * The caller must choose a `missing` value that can never be a legitimate stored value.
+	 *
+	 * @param key     the key to search for within the B+ tree
+	 * @param missing the value to return when the key is not present in the tree
+	 * @return the value associated with the key, or `missing` when the key is absent
+	 */
+	public long searchOrDefault(int key, long missing) {
+		// allocation-free leaf descent (no Cursor / CursorLevel path) - this is the query hot lookup path
+		return ((BPlusLeafTreeNode) findLeafNode(key)).getValueOrDefault(key, missing);
+	}
+
+	/**
 	 * Returns an iterator that traverses the B+ tree keys from left to right.
 	 *
 	 * @return an iterator that traverses the B+ tree keys from left to right
@@ -996,6 +1011,21 @@ public class TransactionalIntToLongBPlusTree extends AbstractIntKeyedBPlusTree i
 				computeInsertPositionOfIntInOrderedArray(key, current.keys, 0, current.peek + 1);
 			return insertionPosition.alreadyPresent() ?
 				OptionalLong.of(current.values[insertionPosition.position()]) : OptionalLong.empty();
+		}
+
+		/**
+		 * Allocation-free variant of {@link #getValue(int)}: returns the value stored for the given key, or the
+		 * caller-supplied `missing` sentinel when the key is absent in this leaf. No {@link OptionalLong} is allocated.
+		 *
+		 * @param key     the key to search for in the leaf node
+		 * @param missing the value to return when the key is not present
+		 * @return the value associated with the specified key, or `missing` when the key is absent
+		 */
+		public long getValueOrDefault(int key, long missing) {
+			final BPlusLeafTreeNode current = currentState();
+			final InsertionPosition insertionPosition =
+				computeInsertPositionOfIntInOrderedArray(key, current.keys, 0, current.peek + 1);
+			return insertionPosition.alreadyPresent() ? current.values[insertionPosition.position()] : missing;
 		}
 
 		/**

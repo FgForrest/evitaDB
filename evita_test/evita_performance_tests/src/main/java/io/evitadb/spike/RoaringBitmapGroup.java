@@ -34,10 +34,10 @@ import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Threads;
 import org.openjdk.jmh.infra.Blackhole;
-import org.roaringbitmap.IntConsumer;
-import org.roaringbitmap.IntIterator;
-import org.roaringbitmap.RoaringBitmap;
-import org.roaringbitmap.RoaringBitmapWriter;
+import io.evitadb.roaringbitmap.IntConsumer;
+import io.evitadb.roaringbitmap.IntIterator;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
+import io.evitadb.roaringbitmap.RoaringBitmapWriter;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -173,7 +173,7 @@ public class RoaringBitmapGroup {
 		 * Randomized collection of sets of integer.
 		 */
 		@Getter
-		private RoaringBitmap allPrimaryKeys;
+		private PersistentRoaringBitmap allPrimaryKeys;
 
 		/**
 		 * Random values that keep repeating in unsorted order but with same cardinality as all primary keys.
@@ -185,7 +185,7 @@ public class RoaringBitmapGroup {
 		 * Randomized collection of sets of integer.
 		 */
 		@Getter
-		private RoaringBitmap filteredKeys;
+		private PersistentRoaringBitmap filteredKeys;
 
 		/**
 		 * This setup is called once for each `valueCount`.
@@ -194,14 +194,14 @@ public class RoaringBitmapGroup {
 		public void setUp() {
 			final int valueCount = getValueCount();
 			final int setSize = valueCount + (random.nextBoolean() ? 1 : -1) * random.nextInt((int) (valueCount * DEVIATION));
-			final RoaringBitmapWriter<RoaringBitmap> set = RoaringBitmapWriter.writer().constantMemory().runCompress(false).get();
+			final RoaringBitmapWriter<PersistentRoaringBitmap> set = RoaringBitmapWriter.writer().constantMemory().runCompress(false).get();
 			int primaryKey = random.nextInt((int) (valueCount * random.nextFloat()));
 			for (int i = 0; i < setSize; i++) {
 				primaryKey += random.nextInt(PK_MAX_DISTANCE);
 				set.add(primaryKey);
 			}
 
-			final RoaringBitmap roaringBitmap = set.get();
+			final PersistentRoaringBitmap roaringBitmap = set.get();
 			roaringBitmap.runOptimize();
 			this.allPrimaryKeys = roaringBitmap;
 
@@ -212,7 +212,7 @@ public class RoaringBitmapGroup {
 				this.unsortedMappedKeys[i] = id;
 			}
 
-			final RoaringBitmapWriter<RoaringBitmap> filteredSet = RoaringBitmapWriter.writer().constantMemory().runCompress(false).get();
+			final RoaringBitmapWriter<PersistentRoaringBitmap> filteredSet = RoaringBitmapWriter.writer().constantMemory().runCompress(false).get();
 			final int filteredCount = (int) (getFilteredKeysShare() * getAllPrimaryKeys().getCardinality());
 			for (int i = 0; i < filteredCount; i++) {
 				final int position = random.nextInt((int) (FUNNEL * valueCount));
@@ -233,8 +233,8 @@ public class RoaringBitmapGroup {
 	@Threads(1)
 	@BenchmarkMode({Mode.Throughput})
 	public void roaringBitmapGroup(DataState generatedSets, Blackhole blackhole) {
-		final RoaringBitmap allKeys = generatedSets.getAllPrimaryKeys();
-		final RoaringBitmap filteredKeys = generatedSets.getFilteredKeys();
+		final PersistentRoaringBitmap allKeys = generatedSets.getAllPrimaryKeys();
+		final PersistentRoaringBitmap filteredKeys = generatedSets.getFilteredKeys();
 		final int[] unsortedMappedKeys = generatedSets.getUnsortedMappedKeys();
 		final int[] unsortedDistinctResult = new int[filteredKeys.getCardinality()];
 		final DistinctUnsortedIntConsumer consumer = new DistinctUnsortedIntConsumer(
@@ -251,7 +251,7 @@ public class RoaringBitmapGroup {
 
 	private static class DistinctUnsortedIntConsumer implements IntConsumer {
 		private final IntIterator allIt;
-		private final RoaringBitmap allKeys;
+		private final PersistentRoaringBitmap allKeys;
 		private final int[] unsortedMappedKeys;
 		private final int[] unsortedDistinctResult;
 		private int position;
@@ -259,7 +259,7 @@ public class RoaringBitmapGroup {
 		private final Set<Integer> distinctizer;
 		private final Map<Integer, List<Integer>> swallowMap;
 
-		public DistinctUnsortedIntConsumer(RoaringBitmap allKeys, int[] unsortedMappedKeys, int[] unsortedDistinctResult) {
+		public DistinctUnsortedIntConsumer(PersistentRoaringBitmap allKeys, int[] unsortedMappedKeys, int[] unsortedDistinctResult) {
 			this.allKeys = allKeys;
 			this.allIt = allKeys.getBatchIterator().asIntIterator(new int[8192]);
 			this.unsortedMappedKeys = unsortedMappedKeys;

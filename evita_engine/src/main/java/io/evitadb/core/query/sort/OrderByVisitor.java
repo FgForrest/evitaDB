@@ -30,12 +30,10 @@ import io.evitadb.api.query.ConstraintVisitor;
 import io.evitadb.api.query.OrderConstraint;
 import io.evitadb.api.query.order.*;
 import io.evitadb.api.query.order.Random;
-import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.NamedSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
-import io.evitadb.core.cache.CacheSupervisor;
 import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.core.query.AttributeSchemaAccessor;
 import io.evitadb.core.query.AttributeSchemaAccessor.AttributeTrait;
@@ -267,23 +265,13 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 		if (currentSorters.isEmpty()) {
 			return List.of(NoSorter.INSTANCE);
 		} else {
-			boolean canUseCache = !this.queryContext.isDebugModeEnabled(DebugMode.VERIFY_POSSIBLE_CACHING_TREES) &&
-				this.queryContext.isEntityTypeKnown();
-
-			final CacheSupervisor cacheSupervisor = this.queryContext.getCacheSupervisor();
 			final List<Sorter> sorters = new ArrayList<>(currentSorters.size() + 1);
 			boolean defaultSorterPresent = false;
 			for (Sorter nextSorter : currentSorters) {
 				if (nextSorter instanceof NoSorter) {
 					defaultSorterPresent = true;
 				}
-				final Sorter possiblyCachedSorter = canUseCache && nextSorter instanceof CacheableSorter cacheableSorter ?
-					cacheSupervisor.analyse(
-						this.queryContext.getEvitaSession(),
-						this.queryContext.getSchema().getName(),
-						cacheableSorter
-					) : nextSorter;
-				sorters.add(possiblyCachedSorter);
+				sorters.add(nextSorter);
 			}
 			if (!defaultSorterPresent) {
 				// if there is no default sorter, we need to add it to the end of the list

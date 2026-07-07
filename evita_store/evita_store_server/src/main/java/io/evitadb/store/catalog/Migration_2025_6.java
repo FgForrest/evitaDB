@@ -69,8 +69,8 @@ import io.evitadb.utils.ConsoleWriter.ConsoleColor;
 import io.evitadb.utils.ConsoleWriter.ConsoleDecoration;
 import io.evitadb.utils.NumberUtils;
 import lombok.RequiredArgsConstructor;
-import org.roaringbitmap.RoaringBitmap;
-import org.roaringbitmap.RoaringBitmapWriter;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
+import io.evitadb.roaringbitmap.RoaringBitmapWriter;
 
 import javax.annotation.Nonnull;
 import java.io.Serializable;
@@ -573,7 +573,7 @@ public interface Migration_2025_6 {
 		@Nonnull Bitmap recordIds,
 		@Nonnull IntIntMap referencedEntityToIndexIdMap
 	) {
-		final RoaringBitmapWriter<RoaringBitmap> migratedBitmapWriter = RoaringBitmapBackedBitmap.buildWriter();
+		final RoaringBitmapWriter<PersistentRoaringBitmap> migratedBitmapWriter = RoaringBitmapBackedBitmap.buildWriter();
 		final OfInt it = recordIds.iterator();
 		while (it.hasNext()) {
 			migratedBitmapWriter.add(referencedEntityToIndexIdMap.get(it.nextInt()));

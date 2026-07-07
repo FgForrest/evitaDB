@@ -35,7 +35,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
-import org.roaringbitmap.RoaringBitmap;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 
 import javax.annotation.Nonnull;
 import java.util.Collections;
@@ -339,7 +339,7 @@ class ReferenceTypeCardinalityIndexTest {
 				new ReferenceTypeCardinalityIndex();
 			index.addRecord(1, 100);
 			final Bitmap result = index.getIndexPrimaryKeys(
-				RoaringBitmap.bitmapOf()
+				PersistentRoaringBitmap.bitmapOf()
 			);
 			assertTrue(result.isEmpty());
 		}
@@ -354,7 +354,7 @@ class ReferenceTypeCardinalityIndexTest {
 			index.addRecord(1, 100);
 			index.addRecord(2, 100);
 			final Bitmap result = index.getIndexPrimaryKeys(
-				RoaringBitmap.bitmapOf(100)
+				PersistentRoaringBitmap.bitmapOf(100)
 			);
 			assertEquals(2, result.size());
 			assertTrue(result.contains(1));
@@ -372,7 +372,7 @@ class ReferenceTypeCardinalityIndexTest {
 			index.addRecord(2, 200);
 			index.addRecord(3, 300);
 			final Bitmap result = index.getIndexPrimaryKeys(
-				RoaringBitmap.bitmapOf(100, 300)
+				PersistentRoaringBitmap.bitmapOf(100, 300)
 			);
 			assertEquals(2, result.size());
 			assertTrue(result.contains(1));
@@ -388,7 +388,7 @@ class ReferenceTypeCardinalityIndexTest {
 				new ReferenceTypeCardinalityIndex();
 			index.addRecord(1, 100);
 			final Bitmap result = index.getIndexPrimaryKeys(
-				RoaringBitmap.bitmapOf(999)
+				PersistentRoaringBitmap.bitmapOf(999)
 			);
 			assertTrue(result.isEmpty());
 		}
@@ -407,8 +407,8 @@ class ReferenceTypeCardinalityIndexTest {
 				new ReferenceTypeCardinalityIndex();
 			index.addRecord(1, 100);
 
-			final RoaringBitmap query =
-				RoaringBitmap.bitmapOf(100);
+			final PersistentRoaringBitmap query =
+				PersistentRoaringBitmap.bitmapOf(100);
 			final Bitmap first = index.getIndexPrimaryKeys(query);
 			final Bitmap second = index.getIndexPrimaryKeys(query);
 			assertEquals(first.size(), second.size());
@@ -427,7 +427,7 @@ class ReferenceTypeCardinalityIndexTest {
 
 			// populate cache
 			final Bitmap first = index.getIndexPrimaryKeys(
-				RoaringBitmap.bitmapOf(100)
+				PersistentRoaringBitmap.bitmapOf(100)
 			);
 			assertEquals(1, first.size());
 
@@ -436,7 +436,7 @@ class ReferenceTypeCardinalityIndexTest {
 
 			// cache should be invalidated
 			final Bitmap result = index.getIndexPrimaryKeys(
-				RoaringBitmap.bitmapOf(200)
+				PersistentRoaringBitmap.bitmapOf(200)
 			);
 			assertEquals(1, result.size());
 			assertTrue(result.contains(2));
@@ -452,7 +452,7 @@ class ReferenceTypeCardinalityIndexTest {
 
 			// populate cache
 			index.getIndexPrimaryKeys(
-				RoaringBitmap.bitmapOf(100, 200)
+				PersistentRoaringBitmap.bitmapOf(100, 200)
 			);
 
 			// remove
@@ -460,7 +460,7 @@ class ReferenceTypeCardinalityIndexTest {
 
 			// cache should be invalidated
 			final Bitmap result = index.getIndexPrimaryKeys(
-				RoaringBitmap.bitmapOf(200)
+				PersistentRoaringBitmap.bitmapOf(200)
 			);
 			assertTrue(result.isEmpty());
 		}

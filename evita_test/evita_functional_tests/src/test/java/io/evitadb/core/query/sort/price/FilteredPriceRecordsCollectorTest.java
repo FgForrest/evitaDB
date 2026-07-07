@@ -29,7 +29,7 @@ import io.evitadb.core.query.algebra.price.FilteredPriceRecordsLookupResult;
 import io.evitadb.index.price.model.priceRecord.PriceRecord;
 import io.evitadb.index.price.model.priceRecord.PriceRecordContract;
 import org.junit.jupiter.api.Test;
-import org.roaringbitmap.RoaringBitmap;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 
 import javax.annotation.Nonnull;
 import java.util.Collection;
@@ -65,7 +65,7 @@ class FilteredPriceRecordsCollectorTest {
 				createPriceRecord(4)
 			}
 		);
-		final PriceRecordContract[] combinedRecords = tested.combineResultWithAndReturnPriceRecords(new RoaringBitmap());
+		final PriceRecordContract[] combinedRecords = tested.combineResultWithAndReturnPriceRecords(new PersistentRoaringBitmap());
 		assertArrayEquals(
 			new PriceRecord[]{
 				createPriceRecord(1),
@@ -90,7 +90,7 @@ class FilteredPriceRecordsCollectorTest {
 				createPriceRecord(4)
 			}
 		);
-		final PriceRecordContract[] combinedRecords = tested.combineResultWithAndReturnPriceRecords(new RoaringBitmap());
+		final PriceRecordContract[] combinedRecords = tested.combineResultWithAndReturnPriceRecords(new PersistentRoaringBitmap());
 		assertArrayEquals(
 			new PriceRecord[]{
 				createPriceRecord(1),
@@ -112,7 +112,7 @@ class FilteredPriceRecordsCollectorTest {
 				createPriceRecord(4)
 			}
 		);
-		final PriceRecordContract[] combinedRecords = tested.combineResultWithAndReturnPriceRecords(new RoaringBitmap());
+		final PriceRecordContract[] combinedRecords = tested.combineResultWithAndReturnPriceRecords(new PersistentRoaringBitmap());
 		assertArrayEquals(
 			new PriceRecord[]{
 				createPriceRecord(1),
@@ -139,7 +139,7 @@ class FilteredPriceRecordsCollectorTest {
 		@Nonnull
 		@Override
 		protected FilteredPriceRecordsLookupResult computeResult(
-			@Nonnull RoaringBitmap filteredResults,
+			@Nonnull PersistentRoaringBitmap filteredResults,
 			@Nonnull Collection<FilteredPriceRecordAccessor> filteredPriceRecordAccessors,
 			@Nonnull QueryExecutionContext context
 		) {

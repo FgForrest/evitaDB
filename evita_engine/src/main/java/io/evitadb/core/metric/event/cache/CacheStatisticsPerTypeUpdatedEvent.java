@@ -45,7 +45,7 @@ import javax.annotation.Nonnull;
 @Getter
 public class CacheStatisticsPerTypeUpdatedEvent extends AbstractCacheEvent {
 	@Label("Type of record.")
-	@Description("One of the cached record types: FORMULA, SORTED_RESULT, EXTRA_RESULT, or ENTITY")
+	@Description("One of the cached record types: FORMULA, EXTRA_RESULT, or ENTITY")
 	@ExportMetricLabel("Record type")
 	private final String type;
 

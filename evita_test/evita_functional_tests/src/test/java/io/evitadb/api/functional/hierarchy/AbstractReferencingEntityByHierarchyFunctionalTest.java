@@ -56,7 +56,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
-import org.roaringbitmap.RoaringBitmap;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 
 import javax.annotation.Nonnull;
 import java.math.BigDecimal;
@@ -2963,7 +2963,7 @@ public abstract class AbstractReferencingEntityByHierarchyFunctionalTest extends
 				.forEach(it -> this.itemCardinality.merge(
 					it, new BaseBitmap(productIds),
 					(pIds, pIds2) -> new BaseBitmap(
-						RoaringBitmap.or(
+						PersistentRoaringBitmap.or(
 							RoaringBitmapBackedBitmap.getRoaringBitmap(pIds),
 							RoaringBitmapBackedBitmap.getRoaringBitmap(pIds2)
 						)

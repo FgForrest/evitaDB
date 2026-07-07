@@ -35,7 +35,7 @@ import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import lombok.Getter;
 import net.openhft.hashing.LongHashFunction;
-import org.roaringbitmap.RoaringBitmap;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -151,13 +151,13 @@ public class PriceFilteringEnvelopeContainer extends AbstractCacheableFormula {
 	@Override
 	protected Bitmap computeInternal() {
 		final Bitmap theResult;
-		final RoaringBitmap[] theBitmaps = getRoaringBitmaps();
+		final PersistentRoaringBitmap[] theBitmaps = getRoaringBitmaps();
 		if (theBitmaps.length == 0) {
 			theResult = EmptyBitmap.INSTANCE;
 		} else if (theBitmaps.length == 1) {
 			theResult = new BaseBitmap(theBitmaps[0]);
 		} else {
-			theResult = new BaseBitmap(RoaringBitmap.or(theBitmaps));
+			theResult = new BaseBitmap(PersistentRoaringBitmap.or(theBitmaps));
 		}
 		return theResult.isEmpty() ? EmptyBitmap.INSTANCE : theResult;
 	}
@@ -176,9 +176,9 @@ public class PriceFilteringEnvelopeContainer extends AbstractCacheableFormula {
 	 */
 
 	@Nonnull
-	private RoaringBitmap[] getRoaringBitmaps() {
+	private PersistentRoaringBitmap[] getRoaringBitmaps() {
 		final Formula[] formulas = getInnerFormulas();
-		final RoaringBitmap[] bitmaps = new RoaringBitmap[formulas.length];
+		final PersistentRoaringBitmap[] bitmaps = new PersistentRoaringBitmap[formulas.length];
 		for (int i = 0; i < formulas.length; i++) {
 			bitmaps[i] = RoaringBitmapBackedBitmap.getRoaringBitmap(formulas[i].compute());
 		}

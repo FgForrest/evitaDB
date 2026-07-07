@@ -330,7 +330,7 @@ public class TransactionalMap<K, V> implements Map<K, V>,
 		if (layer == null) {
 			return this.mapDelegate.keySet();
 		} else {
-			return new TransactionalMemoryKeySet<>(layer, getTransactionalLayerMaintainer());
+			return new TransactionalMemoryKeySet<>(layer, this, getTransactionalLayerMaintainer());
 		}
 	}
 
@@ -341,7 +341,7 @@ public class TransactionalMap<K, V> implements Map<K, V>,
 		if (layer == null) {
 			return this.mapDelegate.values();
 		} else {
-			return new TransactionalMemoryValues<>(layer, getTransactionalLayerMaintainer());
+			return new TransactionalMemoryValues<>(layer, this, getTransactionalLayerMaintainer());
 		}
 	}
 
@@ -352,7 +352,7 @@ public class TransactionalMap<K, V> implements Map<K, V>,
 		if (layer == null) {
 			return this.mapDelegate.entrySet();
 		} else {
-			return new TransactionalMemoryEntrySet<>(layer);
+			return new TransactionalMemoryEntrySet<>(layer, this);
 		}
 	}
 
@@ -459,6 +459,7 @@ public class TransactionalMap<K, V> implements Map<K, V>,
 	 */
 	private static class TransactionalMemoryEntryAbstractIterator<K, V> implements Iterator<Entry<K, V>> {
 		private final MapChanges<K, V> layer;
+		private final TransactionalLayerCreator<MapChanges<K, V>> layerCreator;
 		private final Iterator<Entry<K, V>> layerIt;
 		private final Iterator<Entry<K, V>> stateIt;
 
@@ -469,10 +470,16 @@ public class TransactionalMap<K, V> implements Map<K, V>,
 		/**
 		 * Creates a new iterator over the merged view of the given diff layer and its delegate map.
 		 *
-		 * @param layer the transactional diff layer to iterate over
+		 * @param layer        the transactional diff layer to iterate over
+		 * @param layerCreator the creator owning the diff layer, used to register the write-touch with the
+		 *                     maintainer when {@link #remove()} mutates the layer
 		 */
-		TransactionalMemoryEntryAbstractIterator(@Nonnull MapChanges<K, V> layer) {
+		TransactionalMemoryEntryAbstractIterator(
+			@Nonnull MapChanges<K, V> layer,
+			@Nonnull TransactionalLayerCreator<MapChanges<K, V>> layerCreator
+		) {
 			this.layer = layer;
+			this.layerCreator = layerCreator;
 			this.layerIt = layer.getCreatedOrModifiedValuesIterator();
 			this.stateIt = layer.getMapDelegate().entrySet().iterator();
 		}
@@ -504,6 +511,11 @@ public class TransactionalMap<K, V> implements Map<K, V>,
 			if (this.currentValue == null) {
 				throw new GenericEvitaInternalError("Value unexpectedly not found!");
 			}
+
+			// register the write-touch with the maintainer FIRST: when a savepoint is open and this layer has not
+			// been touched inside it yet, this records the layer's pre-mutation snapshot (and activates its undo
+			// journal) BEFORE the removal below mutates the diff layer - otherwise the removal would be unrevertable
+			Transaction.getTransactionalMemoryLayerForWriteIfExists(this.layerCreator);
 
 			final K key = this.currentValue.getKey();
 			final boolean existing = this.layer.getMapDelegate().containsKey(key);
@@ -544,7 +556,10 @@ public class TransactionalMap<K, V> implements Map<K, V>,
 				return null;
 			}
 			if (this.layerIt.hasNext()) {
-				return this.layerIt.next();
+				// wrap the raw diff-layer entry so an in-place setValue journals + registers the write-touch instead of
+				// mutating the layer map directly (which would escape a per-entity savepoint rollback); the wrapper is
+				// deliberately NOT a TransactionalMemoryEntryWrapper, so remove() still routes it through layerIt.remove()
+				return new TransactionalMemoryLayerEntryWrapper<>(this.layer, this.layerCreator, this.layerIt.next());
 			} else if (this.stateIt.hasNext()) {
 				Entry<K, V> adept;
 				do {
@@ -555,7 +570,7 @@ public class TransactionalMap<K, V> implements Map<K, V>,
 					}
 				} while (this.layer.containsRemoved(adept.getKey()) ||
 				this.layer.containsCreatedOrModified(adept.getKey()));
-				return new TransactionalMemoryEntryWrapper<>(this.layer, adept);
+				return new TransactionalMemoryEntryWrapper<>(this.layer, this.layerCreator, adept);
 			} else {
 				return endOfData();
 			}
@@ -570,6 +585,7 @@ public class TransactionalMap<K, V> implements Map<K, V>,
 	@RequiredArgsConstructor
 	private static class TransactionalMemoryEntryWrapper<K, V> implements Entry<K, V> {
 		private final MapChanges<K, V> layer;
+		private final TransactionalLayerCreator<MapChanges<K, V>> layerCreator;
 		private final Entry<K, V> delegate;
 
 		@Override
@@ -585,6 +601,10 @@ public class TransactionalMap<K, V> implements Map<K, V>,
 		@Nullable
 		@Override
 		public V setValue(V value) {
+			// register the write-touch with the maintainer FIRST: when a savepoint is open and this layer has not been
+			// touched inside it yet, this records the layer's pre-mutation snapshot (and activates its undo journal)
+			// BEFORE registerModifiedKey mutates the diff layer - otherwise the in-place overwrite would be unrevertable
+			Transaction.getTransactionalMemoryLayerForWriteIfExists(this.layerCreator);
 			return this.layer.registerModifiedKey(this.delegate.getKey(), value);
 		}
 
@@ -617,6 +637,56 @@ public class TransactionalMap<K, V> implements Map<K, V>,
 	}
 
 	/**
+	 * Wraps a raw diff-layer entry (a created / modified key held in {@link MapChanges}'s own {@code modifiedKeys} map)
+	 * so an in-place {@link Entry#setValue(Object)} is journaled through {@link MapChanges#registerModifiedKey} and
+	 * registers the maintainer write-touch, instead of mutating the layer map directly - a raw {@code Entry#setValue}
+	 * would escape a per-entity savepoint rollback. It is deliberately NOT a {@link TransactionalMemoryEntryWrapper}, so
+	 * the entry iterator's {@code remove()} still classifies it as a layer entry and drops it via the layer iterator.
+	 * All read operations delegate to the wrapped entry, which is a live view of the layer value.
+	 */
+	@RequiredArgsConstructor
+	private static class TransactionalMemoryLayerEntryWrapper<K, V> implements Entry<K, V> {
+		private final MapChanges<K, V> layer;
+		private final TransactionalLayerCreator<MapChanges<K, V>> layerCreator;
+		private final Entry<K, V> delegate;
+
+		@Override
+		public K getKey() {
+			return this.delegate.getKey();
+		}
+
+		@Override
+		public V getValue() {
+			return this.delegate.getValue();
+		}
+
+		@Nullable
+		@Override
+		public V setValue(V value) {
+			// register the write-touch with the maintainer FIRST (see TransactionalMemoryEntryWrapper#setValue), then
+			// route the overwrite through registerModifiedKey so it is journaled - a raw Entry#setValue on the layer map
+			// would be unrevertable on a per-entity savepoint rollback
+			Transaction.getTransactionalMemoryLayerForWriteIfExists(this.layerCreator);
+			return this.layer.registerModifiedKey(this.delegate.getKey(), value);
+		}
+
+		@Override
+		public int hashCode() {
+			return this.delegate.hashCode();
+		}
+
+		@Override
+		public boolean equals(@Nullable Object obj) {
+			return this.delegate.equals(obj);
+		}
+
+		@Override
+		public String toString() {
+			return this.delegate.toString();
+		}
+	}
+
+	/**
 	 * Represents the key set view of a transactional map. Iterator is delegated to
 	 * {@link TransactionalMemoryEntryAbstractIterator}.
 	 *
@@ -626,13 +696,16 @@ public class TransactionalMap<K, V> implements Map<K, V>,
 	@RequiredArgsConstructor
 	static class TransactionalMemoryKeySet<K, V> extends AbstractSet<K> {
 		private final MapChanges<K, V> layer;
+		private final TransactionalLayerCreator<MapChanges<K, V>> layerCreator;
 		private final TransactionalLayerMaintainer maintainer;
 
 		@Nonnull
 		@Override
 		public Iterator<K> iterator() {
 			return new Iterator<>() {
-				private final Iterator<Entry<K, V>> i = new TransactionalMemoryEntrySet<>(TransactionalMemoryKeySet.this.layer).iterator();
+				private final Iterator<Entry<K, V>> i = new TransactionalMemoryEntrySet<>(
+					TransactionalMemoryKeySet.this.layer, TransactionalMemoryKeySet.this.layerCreator
+				).iterator();
 
 				@Override
 				public boolean hasNext() {
@@ -668,6 +741,11 @@ public class TransactionalMap<K, V> implements Map<K, V>,
 
 		@Override
 		public void clear() {
+			// register the write-touch with the maintainer FIRST: clearing through a collection view forwards straight
+			// to MapChanges#cleanAll, bypassing the getOrCreate hook that map.clear() uses - so when a savepoint is open
+			// and this is the layer's first touch inside it, record the pre-clear snapshot (and activate the undo
+			// journal) before cleanAll wipes the diff, otherwise the clear would be unrevertable on rollback
+			Transaction.getTransactionalMemoryLayerForWriteIfExists(this.layerCreator);
 			this.layer.cleanAll(this.maintainer);
 		}
 	}
@@ -682,13 +760,16 @@ public class TransactionalMap<K, V> implements Map<K, V>,
 	@RequiredArgsConstructor
 	static class TransactionalMemoryValues<K, V> extends AbstractCollection<V> {
 		private final MapChanges<K, V> layer;
+		private final TransactionalLayerCreator<MapChanges<K, V>> layerCreator;
 		private final TransactionalLayerMaintainer maintainer;
 
 		@Nonnull
 		@Override
 		public Iterator<V> iterator() {
 			return new Iterator<>() {
-				private final Iterator<Entry<K, V>> i = new TransactionalMemoryEntrySet<>(TransactionalMemoryValues.this.layer).iterator();
+				private final Iterator<Entry<K, V>> i = new TransactionalMemoryEntrySet<>(
+					TransactionalMemoryValues.this.layer, TransactionalMemoryValues.this.layerCreator
+				).iterator();
 
 				@Override
 				public boolean hasNext() {
@@ -724,6 +805,11 @@ public class TransactionalMap<K, V> implements Map<K, V>,
 
 		@Override
 		public void clear() {
+			// register the write-touch with the maintainer FIRST: clearing through a collection view forwards straight
+			// to MapChanges#cleanAll, bypassing the getOrCreate hook that map.clear() uses - so when a savepoint is open
+			// and this is the layer's first touch inside it, record the pre-clear snapshot (and activate the undo
+			// journal) before cleanAll wipes the diff, otherwise the clear would be unrevertable on rollback
+			Transaction.getTransactionalMemoryLayerForWriteIfExists(this.layerCreator);
 			this.layer.cleanAll(this.maintainer);
 		}
 
@@ -738,15 +824,20 @@ public class TransactionalMap<K, V> implements Map<K, V>,
 	 */
 	static class TransactionalMemoryEntrySet<K, V> extends AbstractSet<Entry<K, V>> {
 		private final MapChanges<K, V> layer;
+		private final TransactionalLayerCreator<MapChanges<K, V>> layerCreator;
 
-		public TransactionalMemoryEntrySet(@Nonnull MapChanges<K, V> layer) {
+		public TransactionalMemoryEntrySet(
+			@Nonnull MapChanges<K, V> layer,
+			@Nonnull TransactionalLayerCreator<MapChanges<K, V>> layerCreator
+		) {
 			this.layer = layer;
+			this.layerCreator = layerCreator;
 		}
 
 		@Nonnull
 		@Override
 		public Iterator<Entry<K, V>> iterator() {
-			return new TransactionalMemoryEntryAbstractIterator<>(this.layer);
+			return new TransactionalMemoryEntryAbstractIterator<>(this.layer, this.layerCreator);
 		}
 
 		@Override

@@ -39,8 +39,8 @@ import io.evitadb.dataType.Predecessor;
 import io.evitadb.dataType.ReferencedEntityPredecessor;
 import io.evitadb.utils.CollectionUtils;
 import lombok.Getter;
-import org.roaringbitmap.RoaringBitmap;
-import org.roaringbitmap.RoaringBitmapWriter;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
+import io.evitadb.roaringbitmap.RoaringBitmapWriter;
 
 import javax.annotation.Nonnull;
 import java.io.Serializable;
@@ -72,7 +72,7 @@ class ReferenceBlock<T> {
 	/**
 	 * The bitmap of all referenced entity primary keys.
 	 */
-	@Getter private final RoaringBitmap referencedPrimaryKeys;
+	@Getter private final PersistentRoaringBitmap referencedPrimaryKeys;
 	/**
 	 * The provider for fetching reference attribute values.
 	 */
@@ -125,8 +125,8 @@ class ReferenceBlock<T> {
 		@Nonnull ReflectedReferenceAttributeValueProvider<T> attributeValueProvider
 	) {
 		this.attributeValueProvider = attributeValueProvider;
-		// first build the RoaringBitmap with all referenced primary keys
-		final RoaringBitmapWriter<RoaringBitmap> writer = buildWriter();
+		// first build the PersistentRoaringBitmap with all referenced primary keys
+		final RoaringBitmapWriter<PersistentRoaringBitmap> writer = buildWriter();
 		attributeValueProvider.getReferenceCarriers()
 			.mapToInt(attributeValueProvider::getReferencedEntityPrimaryKey)
 			.forEach(writer::add);

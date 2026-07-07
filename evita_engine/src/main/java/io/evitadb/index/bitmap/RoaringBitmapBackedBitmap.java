@@ -24,10 +24,10 @@
 package io.evitadb.index.bitmap;
 
 import io.evitadb.utils.ArrayUtils;
-import org.roaringbitmap.ImmutableBitmapDataProvider;
-import org.roaringbitmap.PeekableIntIterator;
-import org.roaringbitmap.RoaringBitmap;
-import org.roaringbitmap.RoaringBitmapWriter;
+import io.evitadb.roaringbitmap.ImmutableBitmapDataProvider;
+import io.evitadb.roaringbitmap.PeekableIntIterator;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
+import io.evitadb.roaringbitmap.RoaringBitmapWriter;
 
 import javax.annotation.Nonnull;
 import java.util.ArrayList;
@@ -35,24 +35,24 @@ import java.util.List;
 import java.util.PrimitiveIterator;
 
 /**
- * Implementations of this interface are backed with some form of {@link RoaringBitmap} and can produce it when asked.
- * This interface allows to optimize Immutable -> Mutable -> Immutable versions of RoaringBitmap roundtrips by allowing
- * to access internal representation of the RoaringBitmap.
+ * Implementations of this interface are backed with some form of {@link PersistentRoaringBitmap} and can produce it when asked.
+ * This interface allows to optimize Immutable -> Mutable -> Immutable versions of PersistentRoaringBitmap roundtrips by allowing
+ * to access internal representation of the PersistentRoaringBitmap.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public interface RoaringBitmapBackedBitmap extends Bitmap {
 
 	/**
-	 * Creates {@link RoaringBitmap} from the array of integers. Providing a sorted array in
+	 * Creates {@link PersistentRoaringBitmap} from the array of integers. Providing a sorted array in
 	 * ascending order is preferred for performance, but unsorted input is also handled correctly.
 	 */
 	@Nonnull
-	static RoaringBitmap fromArray(@Nonnull int... array) {
+	static PersistentRoaringBitmap fromArray(@Nonnull int... array) {
 		if (ArrayUtils.isEmpty(array)) {
-			return new RoaringBitmap();
+			return new PersistentRoaringBitmap();
 		} else {
-			final RoaringBitmapWriter<RoaringBitmap> writer = RoaringBitmapWriter
+			final RoaringBitmapWriter<PersistentRoaringBitmap> writer = RoaringBitmapWriter
 				.writer()
 				.constantMemory()
 				.runCompress(false)
@@ -63,13 +63,13 @@ public interface RoaringBitmapBackedBitmap extends Bitmap {
 	}
 
 	/**
-	 * Returns {@link RoaringBitmap} from any bitmap in the argument. For
+	 * Returns {@link PersistentRoaringBitmap} from any bitmap in the argument. For
 	 * {@link RoaringBitmapBackedBitmap} implementations, returns the internal bitmap reference
 	 * directly (not a copy). For other {@link Bitmap} implementations, creates a new
-	 * {@link RoaringBitmap} from the bitmap's array.
+	 * {@link PersistentRoaringBitmap} from the bitmap's array.
 	 */
 	@Nonnull
-	static RoaringBitmap getRoaringBitmap(@Nonnull Bitmap bitmap) {
+	static PersistentRoaringBitmap getRoaringBitmap(@Nonnull Bitmap bitmap) {
 		if (bitmap instanceof RoaringBitmapBackedBitmap) {
 			return ((RoaringBitmapBackedBitmap) bitmap).getRoaringBitmap();
 		} else {
@@ -78,13 +78,13 @@ public interface RoaringBitmapBackedBitmap extends Bitmap {
 	}
 
 	/**
-	 * Returns a cloned {@link RoaringBitmap} from any bitmap in the argument. For
+	 * Returns a cloned {@link PersistentRoaringBitmap} from any bitmap in the argument. For
 	 * {@link RoaringBitmapBackedBitmap} implementations, clones the internal bitmap. For other
-	 * {@link Bitmap} implementations, creates a new {@link RoaringBitmap} from the bitmap's array.
+	 * {@link Bitmap} implementations, creates a new {@link PersistentRoaringBitmap} from the bitmap's array.
 	 * The returned bitmap is always safe to modify without affecting the original.
 	 */
 	@Nonnull
-	static RoaringBitmap getRoaringBitmapClone(@Nonnull Bitmap bitmap) {
+	static PersistentRoaringBitmap getRoaringBitmapClone(@Nonnull Bitmap bitmap) {
 		if (bitmap instanceof RoaringBitmapBackedBitmap) {
 			return (((RoaringBitmapBackedBitmap) bitmap).getRoaringBitmap()).clone();
 		} else {
@@ -93,7 +93,7 @@ public interface RoaringBitmapBackedBitmap extends Bitmap {
 	}
 
 	/**
-	 * Returns index of the record inside {@link RoaringBitmap}. The method follows the same
+	 * Returns index of the record inside {@link PersistentRoaringBitmap}. The method follows the same
 	 * contract as {@link java.util.Arrays#binarySearch(int[], int)} - when the record id is found,
 	 * returns its zero-based index; when not found, returns `-(insertion point) - 1` where
 	 * the insertion point is the index at which the record id would be inserted.
@@ -109,16 +109,16 @@ public interface RoaringBitmapBackedBitmap extends Bitmap {
 	}
 
 	/**
-	 * Extracts contents of the passed {@link RoaringBitmap} as an `int[]` ordered by signed
-	 * integer value. {@link RoaringBitmap} stores ints as unsigned 32-bit values, so negatives
-	 * appear at the tail of {@link RoaringBitmap#toArray()}. This helper rotates that tail to
+	 * Extracts contents of the passed {@link PersistentRoaringBitmap} as an `int[]` ordered by signed
+	 * integer value. {@link PersistentRoaringBitmap} stores ints as unsigned 32-bit values, so negatives
+	 * appear at the tail of {@link PersistentRoaringBitmap#toArray()}. This helper rotates that tail to
 	 * the front, producing an array sorted by {@link Integer#compare}.
 	 *
 	 * The rotation is performed via two {@link System#arraycopy} calls with no extra iteration
 	 * when the bitmap is empty or purely positive / purely negative.
 	 */
 	@Nonnull
-	static int[] toSignedArray(@Nonnull RoaringBitmap roaringBitmap) {
+	static int[] toSignedArray(@Nonnull PersistentRoaringBitmap roaringBitmap) {
 		final int[] array = roaringBitmap.toArray();
 		// shortcut: empty or purely non-negative — already in signed order
 		if (array.length == 0 || array[array.length - 1] >= 0) {
@@ -140,10 +140,10 @@ public interface RoaringBitmapBackedBitmap extends Bitmap {
 	}
 
 	/**
-	 * Method creates {@link RoaringBitmap} builder that is optimized for fast and memory efficient bitmap construction.
+	 * Method creates {@link PersistentRoaringBitmap} builder that is optimized for fast and memory efficient bitmap construction.
 	 */
 	@Nonnull
-	static RoaringBitmapWriter<RoaringBitmap> buildWriter() {
+	static RoaringBitmapWriter<PersistentRoaringBitmap> buildWriter() {
 		return RoaringBitmapWriter
 			.writer()
 			.constantMemory()
@@ -156,15 +156,15 @@ public interface RoaringBitmapBackedBitmap extends Bitmap {
 	 * in an optimal way. Returns {@link EmptyBitmap#INSTANCE} when the input array is empty or when
 	 * any of the bitmaps is empty (since the intersection must be empty). Returns a {@link BaseBitmap}
 	 * wrapping the single element when the array has exactly one bitmap. Bitmaps containing negative
-	 * record ids are handled separately due to {@link RoaringBitmap} treating integers as unsigned.
+	 * record ids are handled separately due to {@link PersistentRoaringBitmap} treating integers as unsigned.
 	 */
 	@Nonnull
-	static Bitmap and(@Nonnull RoaringBitmap[] theBitmaps) {
+	static Bitmap and(@Nonnull PersistentRoaringBitmap[] theBitmaps) {
 		if (theBitmaps.length == 0) {
 			return EmptyBitmap.INSTANCE;
 		}
 		// early exit if any bitmap is empty — intersection must be empty
-		for (final RoaringBitmap theBitmap : theBitmaps) {
+		for (final PersistentRoaringBitmap theBitmap : theBitmaps) {
 			if (theBitmap.isEmpty()) {
 				return EmptyBitmap.INSTANCE;
 			}
@@ -174,9 +174,9 @@ public interface RoaringBitmapBackedBitmap extends Bitmap {
 		} else {
 			long min = Integer.MAX_VALUE;
 			long max = 0L;
-			final List<RoaringBitmap> roaringBitmaps = new ArrayList<>(theBitmaps.length);
-			final List<RoaringBitmap> negativeRoaringBitmaps = new ArrayList<>(theBitmaps.length);
-			for (final RoaringBitmap theBitmap : theBitmaps) {
+			final List<PersistentRoaringBitmap> roaringBitmaps = new ArrayList<>(theBitmaps.length);
+			final List<PersistentRoaringBitmap> negativeRoaringBitmaps = new ArrayList<>(theBitmaps.length);
+			for (final PersistentRoaringBitmap theBitmap : theBitmaps) {
 				final int first = theBitmap.first();
 				final int last = theBitmap.last();
 				final int leftBound = Math.min(first, last);
@@ -190,32 +190,32 @@ public interface RoaringBitmapBackedBitmap extends Bitmap {
 				}
 			}
 
-			RoaringBitmap intermediateResult;
+			PersistentRoaringBitmap intermediateResult;
 			if (roaringBitmaps.isEmpty()) {
 				intermediateResult = negativeRoaringBitmaps.get(0);
 			} else if (roaringBitmaps.size() == 1) {
 				intermediateResult = roaringBitmaps.get(0);
 			} else {
-				intermediateResult = RoaringBitmap.and(roaringBitmaps.iterator(), min, max + 1);
+				intermediateResult = PersistentRoaringBitmap.and(roaringBitmaps.iterator(), min, max + 1);
 			}
-			for (final RoaringBitmap theBitmap : negativeRoaringBitmaps) {
-				intermediateResult = RoaringBitmap.and(theBitmap, intermediateResult);
+			for (final PersistentRoaringBitmap theBitmap : negativeRoaringBitmaps) {
+				intermediateResult = PersistentRoaringBitmap.and(theBitmap, intermediateResult);
 			}
 			return new BaseBitmap(intermediateResult);
 		}
 	}
 
 	/**
-	 * Returns the internal {@link RoaringBitmap} instance backing this bitmap. The returned bitmap
+	 * Returns the internal {@link PersistentRoaringBitmap} instance backing this bitmap. The returned bitmap
 	 * is **not** a copy - modifications to it will affect this bitmap directly. Use
 	 * {@link #getRoaringBitmapClone(Bitmap)} when an independent copy is needed.
 	 */
 	@Nonnull
-	RoaringBitmap getRoaringBitmap();
+	PersistentRoaringBitmap getRoaringBitmap();
 
 	/**
 	 * Thin adapter that wraps {@link PeekableIntIterator} as {@link PrimitiveIterator.OfInt}
-	 * without the allocation overhead of `RoaringBitmap.stream().iterator()`.
+	 * without the allocation overhead of `PersistentRoaringBitmap.stream().iterator()`.
 	 */
 	class RoaringIntIteratorAdapter implements PrimitiveIterator.OfInt {
 		private final PeekableIntIterator delegate;

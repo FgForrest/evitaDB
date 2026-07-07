@@ -33,8 +33,6 @@ import io.evitadb.core.query.extraResult.EvitaResponseExtraResultComputer;
 import io.evitadb.core.query.response.ServerBinaryEntityDecorator;
 import io.evitadb.core.query.response.ServerEntityDecorator;
 import io.evitadb.core.query.response.TransactionalDataRelatedStructure;
-import io.evitadb.core.query.sort.CacheableSorter;
-import io.evitadb.core.query.sort.Sorter;
 import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
@@ -105,20 +103,6 @@ public interface CacheSupervisor extends Closeable {
 		@Nonnull EvitaSessionContract evitaSession,
 		@Nonnull String entityType,
 		@Nonnull T extraResultComputer
-	);
-
-	/**
-	 * Method examines whether `sortedRecordsProvider` is "expensive" enough and when it is, it computes hash and checks
-	 * whether the sortedRecordsProvider has cached counterpart. If so the computer is exchanged with
-	 * the {@link CachedRecord} that has the result already memoized. The cost (expensiveness) of the computer are based
-	 * on {@link TransactionalDataRelatedStructure#getEstimatedCost()}  that is the only way how to guess the cost
-	 * without really computing the result.
-	 */
-	@Nonnull
-	Sorter analyse(
-		@Nonnull EvitaSessionContract evitaSession,
-		@Nonnull String entityType,
-		@Nonnull CacheableSorter sortedRecordsProvider
 	);
 
 	/**

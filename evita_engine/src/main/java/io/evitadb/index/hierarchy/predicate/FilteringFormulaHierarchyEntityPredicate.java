@@ -46,7 +46,7 @@ import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.index.hierarchy.predicate.HierarchyTraversalPredicate.SelfTraversingPredicate;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
-import org.roaringbitmap.RoaringBitmap;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -238,7 +238,7 @@ public class FilteringFormulaHierarchyEntityPredicate implements HierarchyFilter
 							if (theFormula != null && theAnyChildFormula != null) {
 								return new BaseBitmap(
 									RoaringBitmapBackedBitmap.and(
-										new RoaringBitmap[] {
+										new PersistentRoaringBitmap[] {
 											getRoaringBitmap(theFormulaResult),
 											getRoaringBitmap(theAnyChildFormulaResult)
 										}

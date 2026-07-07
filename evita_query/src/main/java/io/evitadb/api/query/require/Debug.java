@@ -46,6 +46,10 @@ import java.util.EnumSet;
  *   verifies that cached and non-cached paths agree on their results.
  * - {@link DebugMode#PREFER_PREFETCHING} — always selects the prefetch strategy when the query allows it, bypassing
  *   the cost-based strategy selector; used to exercise the prefetch code path in integration tests.
+ * - {@link DebugMode#PREFER_TREE_SORT} — forces sorted-page resolution onto the tree-direct path, bypassing the
+ *   cost-based sort selector; used to exercise the tree-direct path in integration tests.
+ * - {@link DebugMode#PREFER_PRESORT_ARRAYS} — forces sorted-page resolution onto the pre-sorted array merge-walk;
+ *   the mirror of `PREFER_TREE_SORT`.
  *
  * This class has no `@ConstraintDefinition` annotation because it is excluded from schema-driven API generation.
  *

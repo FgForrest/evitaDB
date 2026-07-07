@@ -43,7 +43,7 @@ module evita.store.traffic {
 	requires org.slf4j;
 	requires com.esotericsoftware.kryo;
 	requires com.carrotsearch.hppc;
-	requires roaringbitmap;
+	requires evita.roaringbitmap;
 	requires jdk.jfr;
 
 }
