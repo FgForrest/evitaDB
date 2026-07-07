@@ -31,6 +31,7 @@ import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.ReferenceNameKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.ReferenceTypeCardinalityIndexStoragePart;
+import io.evitadb.store.index.serializer.PagedStreamMetadataSerializer.PagedStreamMetadata;
 import io.evitadb.utils.CollectionUtils;
 import lombok.RequiredArgsConstructor;
 
@@ -63,12 +64,10 @@ public class ReferenceTypeCardinalityIndexStoragePartSerializer extends Serializ
 		final boolean paged = storagePart.isPaged();
 		output.writeBoolean(paged);
 		if (paged) {
-			output.writeVarInt(storagePart.getHighWaterPageSequence(), true);
-			final int[] leafPageSequences = Objects.requireNonNull(storagePart.getLeafPageSequences());
-			output.writeVarInt(leafPageSequences.length, true);
-			for (final int leafPageSequence : leafPageSequences) {
-				output.writeVarInt(leafPageSequence, true);
-			}
+			PagedStreamMetadataSerializer.writeBody(
+				output, storagePart.getHighWaterPageSequence(),
+				Objects.requireNonNull(storagePart.getLeafPageSequences())
+			);
 		} else {
 			final long[] keys = Objects.requireNonNull(storagePart.getKeys());
 			final long[] payloads = Objects.requireNonNull(storagePart.getPayloads());
@@ -99,12 +98,9 @@ public class ReferenceTypeCardinalityIndexStoragePartSerializer extends Serializ
 		long[] keys = null;
 		long[] payloads = null;
 		if (paged) {
-			highWaterPageSequence = input.readVarInt(true);
-			final int leafPageCount = input.readVarInt(true);
-			leafPageSequences = new int[leafPageCount];
-			for (int i = 0; i < leafPageCount; i++) {
-				leafPageSequences[i] = input.readVarInt(true);
-			}
+			final PagedStreamMetadata metadata = PagedStreamMetadataSerializer.readBody(input);
+			highWaterPageSequence = metadata.highWaterPageSequence();
+			leafPageSequences = metadata.leafPageSequences();
 		} else {
 			final int cardinalityCount = input.readVarInt(true);
 			keys = new long[cardinalityCount];

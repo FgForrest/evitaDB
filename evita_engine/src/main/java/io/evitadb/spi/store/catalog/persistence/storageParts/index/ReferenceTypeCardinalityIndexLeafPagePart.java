@@ -24,11 +24,9 @@
 package io.evitadb.spi.store.catalog.persistence.storageParts.index;
 
 import io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor;
-import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.NumberUtils;
 import lombok.Getter;
-import lombok.Setter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -47,46 +45,31 @@ import java.io.Serial;
  * carries a primitive `long[]` key column (the keys are composed longs, not heterogeneous attribute values) rather than a
  * Kryo-serialized `Serializable[]` value column.
  *
- * Identity is the pair `(streamId, pageSequence)`, packed into the storage-part primary key via {@link NumberUtils#pack}.
- * `streamId` is the {@link KeyCompressor} id of the sub-index's {@link ReferenceTypeCardinalityLeafStreamKey} (one
- * dictionary entry per persisted cardinality sub-index, distinguished by `(entityIndexPrimaryKey, referenceName)`);
- * `pageSequence` is the advance-only, never-reused page sequence within that stream.
+ * The `(streamId, pageSequence)` identity, primary-key packing and two-phase stream-id resolution are inherited from
+ * {@link AbstractLeafPagePart}. This page's `streamId` is the {@link KeyCompressor} id of the sub-index's
+ * {@link ReferenceTypeCardinalityLeafStreamKey} (one dictionary entry per persisted cardinality sub-index, distinguished
+ * by `(entityIndexPrimaryKey, referenceName)`).
  *
  * Mirroring {@link GlobalUniqueIndexLeafPagePart}: a write-path page carries the sub-index
  * `(entityIndexPrimaryKey, referenceName)` identity and resolves (and caches) `streamId` store-side in
- * {@link #computeUniquePartIdAndSet} (the engine that emits the page has no compressor); a read-path page (rehydrated by
- * the serializer) carries the already-known `streamId` and PK and leaves the identity null/zero.
+ * {@link #resolveStreamId} (the engine that emits the page has no compressor); a read-path page (rehydrated by the
+ * serializer) carries the already-known `streamId` and PK and leaves the identity null.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
-public class ReferenceTypeCardinalityIndexLeafPagePart implements StoragePart {
+public class ReferenceTypeCardinalityIndexLeafPagePart extends AbstractLeafPagePart {
 	@Serial private static final long serialVersionUID = -2734061857204619833L;
 
 	/**
-	 * Sentinel for a `streamId` not yet resolved (a write-path page before {@link #computeUniquePartIdAndSet}).
-	 */
-	public static final int UNRESOLVED_STREAM_ID = -1;
-
-	/**
-	 * Primary key of the owning {@link io.evitadb.index.EntityIndex} — write-path identity used to resolve
-	 * {@link #streamId} store-side; `null` on a rehydrated (read-path) page.
+	 * Primary key of the owning {@link io.evitadb.index.EntityIndex} — write-path identity used to resolve the stream id
+	 * store-side; `null` on a rehydrated (read-path) page.
 	 */
 	@Nullable @Getter private final Integer entityIndexPrimaryKey;
 	/**
-	 * The reference name of the sub-index — write-path identity used to resolve {@link #streamId} store-side; `null` on a
+	 * The reference name of the sub-index — write-path identity used to resolve the stream id store-side; `null` on a
 	 * rehydrated (read-path) page.
 	 */
 	@Nullable @Getter private final String referenceName;
-	/**
-	 * The {@link KeyCompressor} id of the sub-index stream this page belongs to. {@link #UNRESOLVED_STREAM_ID} on a
-	 * write-path page until {@link #computeUniquePartIdAndSet} resolves it from the identity; already known on a
-	 * rehydrated (read-path) page.
-	 */
-	@Getter private int streamId;
-	/**
-	 * The advance-only, never-reused page sequence of this leaf within its stream.
-	 */
-	@Getter private final int pageSequence;
 	/**
 	 * The leaf's composed signed `long` keys in ascending key order, positionally aligned with {@link #payloads}.
 	 */
@@ -95,14 +78,11 @@ public class ReferenceTypeCardinalityIndexLeafPagePart implements StoragePart {
 	 * The cardinality count (widened to `long`) owning each key, positionally aligned with {@link #keys}.
 	 */
 	@Nonnull @Getter private final long[] payloads;
-	/**
-	 * The storage-part primary key `pack(streamId, pageSequence)`; `null` until assigned by
-	 * {@link #computeUniquePartIdAndSet(KeyCompressor)} (write path) or supplied at rehydration (read path).
-	 */
-	@Nullable @Getter @Setter private Long storagePartPK;
 
 	/**
-	 * Computes the storage-part primary key for a leaf page from its resolved identifying pair.
+	 * Computes the storage-part primary key for a leaf page from its resolved identifying pair. Retained for callers that
+	 * address it through this concrete type; it delegates to {@link AbstractLeafPagePart#computeUniquePartId} via
+	 * {@link NumberUtils#pack}.
 	 *
 	 * @param streamId     the resolved stream id
 	 * @param pageSequence the page sequence within the stream
@@ -129,14 +109,12 @@ public class ReferenceTypeCardinalityIndexLeafPagePart implements StoragePart {
 		@Nonnull long[] keys,
 		@Nonnull long[] payloads
 	) {
+		super(pageSequence);
 		Assert.isPremiseValid(keys.length == payloads.length, "Keys and payloads must be positionally aligned!");
 		this.entityIndexPrimaryKey = entityIndexPrimaryKey;
 		this.referenceName = referenceName;
-		this.streamId = UNRESOLVED_STREAM_ID;
-		this.pageSequence = pageSequence;
 		this.keys = keys;
 		this.payloads = payloads;
-		this.storagePartPK = null;
 	}
 
 	/**
@@ -156,35 +134,23 @@ public class ReferenceTypeCardinalityIndexLeafPagePart implements StoragePart {
 		@Nonnull long[] payloads,
 		@Nonnull Long storagePartPK
 	) {
+		super(streamId, pageSequence, storagePartPK);
 		Assert.isPremiseValid(keys.length == payloads.length, "Keys and payloads must be positionally aligned!");
 		this.entityIndexPrimaryKey = null;
 		this.referenceName = null;
-		this.streamId = streamId;
-		this.pageSequence = pageSequence;
 		this.keys = keys;
 		this.payloads = payloads;
-		this.storagePartPK = storagePartPK;
 	}
 
 	@Override
-	public long computeUniquePartIdAndSet(@Nonnull KeyCompressor keyCompressor) {
-		if (this.streamId == UNRESOLVED_STREAM_ID) {
-			// write path: resolve the stream id from the sub-index identity via the writable compressor (allocates a
-			// dictionary entry on the first PAGED write of this sub-index, returns the stable id thereafter)
-			Assert.isPremiseValid(
-				this.entityIndexPrimaryKey != null && this.referenceName != null,
-				"A leaf page must carry its sub-index identity to resolve the stream id!"
-			);
-			this.streamId = keyCompressor.getId(
-				new ReferenceTypeCardinalityLeafStreamKey(this.entityIndexPrimaryKey, this.referenceName)
-			);
-		}
-		final long computedUniquePartId = computeUniquePartId(this.streamId, this.pageSequence);
-		if (this.storagePartPK == null) {
-			this.storagePartPK = computedUniquePartId;
-		} else {
-			Assert.isTrue(this.storagePartPK == computedUniquePartId, "Unique part ids must never differ!");
-		}
-		return computedUniquePartId;
+	protected int resolveStreamId(@Nonnull KeyCompressor keyCompressor) {
+		// write path: resolve the stream id from the sub-index identity via the writable compressor
+		Assert.isPremiseValid(
+			this.entityIndexPrimaryKey != null && this.referenceName != null,
+			"A leaf page must carry its sub-index identity to resolve the stream id!"
+		);
+		return keyCompressor.getId(
+			new ReferenceTypeCardinalityLeafStreamKey(this.entityIndexPrimaryKey, this.referenceName)
+		);
 	}
 }

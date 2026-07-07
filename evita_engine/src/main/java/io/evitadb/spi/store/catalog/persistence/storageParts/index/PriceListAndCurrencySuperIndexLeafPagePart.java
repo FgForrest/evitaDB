@@ -26,11 +26,9 @@ package io.evitadb.spi.store.catalog.persistence.storageParts.index;
 import io.evitadb.index.price.model.PriceIndexKey;
 import io.evitadb.index.price.model.priceRecord.PriceRecordContract;
 import io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor;
-import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.NumberUtils;
 import lombok.Getter;
-import lombok.Setter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -46,61 +44,39 @@ import java.io.Serial;
  * {@link PriceListAndCurrencySuperIndexStoragePart} uses) in ascending internal-price-id order; the routing spine that
  * orders the leaves is NOT persisted (it is reconstructed on load), and a leaf page stores no separators.
  *
- * Identity is the pair `(streamId, pageSequence)`, packed into the storage-part primary key via {@link NumberUtils#pack}.
- * `streamId` is the {@link KeyCompressor} id of the sub-index's {@link PriceLeafStreamKey} (one dictionary entry per
- * persisted super price index); `pageSequence` is the advance-only, never-reused page sequence within that stream.
- *
- * **Why the part carries the sub-index IDENTITY rather than a pre-resolved `streamId`.** The writable
- * {@link KeyCompressor} that allocates the `streamId` lives store-side and is only reached at PK-assignment time (the
- * persistence service calls {@link #computeUniquePartIdAndSet(KeyCompressor)} just before writing). The engine that emits
- * this page has no compressor, so it cannot know `streamId` at creation — exactly as the monolithic
- * {@link PriceListAndCurrencySuperIndexStoragePart} cannot know its own compressed id at creation. A write-path page is
- * therefore built with its `(entityIndexPrimaryKey, priceIndexKey)` identity and resolves (and caches) `streamId`
- * store-side in {@link #computeUniquePartIdAndSet}. A read-path page (rehydrated by the serializer) instead carries the
- * already-known `streamId` and PK and leaves the identity null.
+ * The `(streamId, pageSequence)` identity, primary-key packing and two-phase stream-id resolution are inherited from
+ * {@link AbstractLeafPagePart}. This page's `streamId` is the {@link KeyCompressor} id of the sub-index's
+ * {@link PriceLeafStreamKey} (one dictionary entry per persisted super price index). The writable {@link KeyCompressor}
+ * that allocates the `streamId` lives store-side and is only reached at PK-assignment time (the persistence service calls
+ * {@link #computeUniquePartIdAndSet(KeyCompressor)} just before writing); the engine that emits this page has no
+ * compressor, so a write-path page is built with its `(entityIndexPrimaryKey, priceIndexKey)` identity and resolves (and
+ * caches) `streamId` store-side in {@link #resolveStreamId}. A read-path page (rehydrated by the serializer) instead
+ * carries the already-known `streamId` and PK and leaves the identity null.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
-public class PriceListAndCurrencySuperIndexLeafPagePart implements StoragePart {
+public class PriceListAndCurrencySuperIndexLeafPagePart extends AbstractLeafPagePart {
 	@Serial private static final long serialVersionUID = 6028471950384716253L;
 
 	/**
-	 * Sentinel for a `streamId` not yet resolved (a write-path page before {@link #computeUniquePartIdAndSet}).
-	 */
-	public static final int UNRESOLVED_STREAM_ID = -1;
-
-	/**
-	 * Primary key of the owning entity index — write-path identity used to resolve {@link #streamId} store-side; `null`
+	 * Primary key of the owning entity index — write-path identity used to resolve the stream id store-side; `null`
 	 * on a rehydrated (read-path) page.
 	 */
 	@Nullable @Getter private final Integer entityIndexPrimaryKey;
 	/**
-	 * The price list and currency identity of the sub-index — write-path identity used to resolve {@link #streamId}
+	 * The price list and currency identity of the sub-index — write-path identity used to resolve the stream id
 	 * store-side; `null` on a rehydrated (read-path) page.
 	 */
 	@Nullable @Getter private final PriceIndexKey priceIndexKey;
 	/**
-	 * The {@link KeyCompressor} id of the sub-index stream this page belongs to. {@link #UNRESOLVED_STREAM_ID} on a
-	 * write-path page until {@link #computeUniquePartIdAndSet} resolves it from the identity; already known on a
-	 * rehydrated (read-path) page.
-	 */
-	@Getter private int streamId;
-	/**
-	 * The advance-only, never-reused page sequence of this leaf within its stream.
-	 */
-	@Getter private final int pageSequence;
-	/**
 	 * The leaf's price records in ascending internal-price-id order.
 	 */
 	@Nonnull @Getter private final PriceRecordContract[] priceRecords;
-	/**
-	 * The storage-part primary key `pack(streamId, pageSequence)`; `null` until assigned by
-	 * {@link #computeUniquePartIdAndSet(KeyCompressor)} (write path) or supplied at rehydration (read path).
-	 */
-	@Nullable @Getter @Setter private Long storagePartPK;
 
 	/**
-	 * Computes the storage-part primary key for a leaf page from its resolved identifying pair.
+	 * Computes the storage-part primary key for a leaf page from its resolved identifying pair. Retained for callers that
+	 * address it through this concrete type; it delegates to {@link AbstractLeafPagePart#computeUniquePartId} via
+	 * {@link NumberUtils#pack}.
 	 *
 	 * @param streamId     the resolved stream id
 	 * @param pageSequence the page sequence within the stream
@@ -125,12 +101,10 @@ public class PriceListAndCurrencySuperIndexLeafPagePart implements StoragePart {
 		int pageSequence,
 		@Nonnull PriceRecordContract[] priceRecords
 	) {
+		super(pageSequence);
 		this.entityIndexPrimaryKey = entityIndexPrimaryKey;
 		this.priceIndexKey = priceIndexKey;
-		this.streamId = UNRESOLVED_STREAM_ID;
-		this.pageSequence = pageSequence;
 		this.priceRecords = priceRecords;
-		this.storagePartPK = null;
 	}
 
 	/**
@@ -145,31 +119,19 @@ public class PriceListAndCurrencySuperIndexLeafPagePart implements StoragePart {
 	public PriceListAndCurrencySuperIndexLeafPagePart(
 		int streamId, int pageSequence, @Nonnull PriceRecordContract[] priceRecords, @Nonnull Long storagePartPK
 	) {
+		super(streamId, pageSequence, storagePartPK);
 		this.entityIndexPrimaryKey = null;
 		this.priceIndexKey = null;
-		this.streamId = streamId;
-		this.pageSequence = pageSequence;
 		this.priceRecords = priceRecords;
-		this.storagePartPK = storagePartPK;
 	}
 
 	@Override
-	public long computeUniquePartIdAndSet(@Nonnull KeyCompressor keyCompressor) {
-		if (this.streamId == UNRESOLVED_STREAM_ID) {
-			// write path: resolve the stream id from the sub-index identity via the writable compressor (allocates a
-			// dictionary entry on the first PAGED write of this sub-index, returns the stable id thereafter)
-			Assert.isPremiseValid(
-				this.entityIndexPrimaryKey != null && this.priceIndexKey != null,
-				"A leaf page must carry its sub-index identity to resolve the stream id!"
-			);
-			this.streamId = keyCompressor.getId(new PriceLeafStreamKey(this.entityIndexPrimaryKey, this.priceIndexKey));
-		}
-		final long computedUniquePartId = computeUniquePartId(this.streamId, this.pageSequence);
-		if (this.storagePartPK == null) {
-			this.storagePartPK = computedUniquePartId;
-		} else {
-			Assert.isTrue(this.storagePartPK == computedUniquePartId, "Unique part ids must never differ!");
-		}
-		return computedUniquePartId;
+	protected int resolveStreamId(@Nonnull KeyCompressor keyCompressor) {
+		// write path: resolve the stream id from the sub-index identity via the writable compressor
+		Assert.isPremiseValid(
+			this.entityIndexPrimaryKey != null && this.priceIndexKey != null,
+			"A leaf page must carry its sub-index identity to resolve the stream id!"
+		);
+		return keyCompressor.getId(new PriceLeafStreamKey(this.entityIndexPrimaryKey, this.priceIndexKey));
 	}
 }

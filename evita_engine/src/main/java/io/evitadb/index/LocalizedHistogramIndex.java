@@ -33,7 +33,6 @@ import io.evitadb.index.map.TransactionalMap;
 import io.evitadb.index.result.CardinalityChange;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.HistogramIndexStorageKey;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.HistogramIndexStoragePart;
 import io.evitadb.utils.CollectionUtils;
 
 import javax.annotation.Nonnull;
@@ -47,6 +46,7 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.function.Function;
 
 import static io.evitadb.core.transaction.Transaction.getTransactionalLayerMaintainer;
@@ -308,22 +308,26 @@ public class LocalizedHistogramIndex extends HistogramIndex {
 		int entityIndexPrimaryKey,
 		@Nonnull TrappedChanges trappedChanges
 	) {
-		final String histogramName = getHistogramName();
 		for (Entry<Locale, OwnerFilterIndex> filterEntry : this.filterIndexes.entrySet()) {
 			final Locale locale = filterEntry.getKey();
 			final OwnerFilterIndex filterIndex = filterEntry.getValue();
 			final AttributeCardinalityIndex cardinalityIndex = this.cardinalities.get(locale);
-			if (filterIndex.isDirty() || (cardinalityIndex != null && cardinalityIndex.isDirty())) {
-				trappedChanges.addChangeToStore(
-					new HistogramIndexStoragePart(
-						entityIndexPrimaryKey, histogramName, locale, getValueType(),
-						filterIndex.getInvertedIndex().getValueToRecordBitmap(),
-						filterIndex.getRangeIndex(),
-						cardinalityIndex != null ? cardinalityIndex : new AttributeCardinalityIndex(getValueType()),
-						getIndexedDecimalPlaces()
-					)
-				);
-			}
+			// filterIndexes and cardinalities always share their locale key set (a locale gains/loses both together),
+			// so cardinalityIndex is non-null here; fall back defensively to a fresh empty one just in case
+			appendHistogramStorageParts(
+				entityIndexPrimaryKey, locale, filterIndex,
+				cardinalityIndex != null ? cardinalityIndex : new AttributeCardinalityIndex(getValueType()),
+				trappedChanges
+			);
+		}
+	}
+
+	@Override
+	public void collectPersistedLeafPages(@Nonnull Consumer<PersistedHistogramLeafPages> sink) {
+		// one entry per live locale — mirrors collectStorageKeys (which lists filterIndexes.keySet()), so a locale still
+		// present here is never mistaken for a drop while a pruned locale correctly falls out of the snapshot
+		for (final Entry<Locale, OwnerFilterIndex> entry : this.filterIndexes.entrySet()) {
+			sink.accept(persistedLeafPagesOf(entry.getKey(), entry.getValue()));
 		}
 	}
 

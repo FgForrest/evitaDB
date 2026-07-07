@@ -24,10 +24,8 @@
 package io.evitadb.spi.store.catalog.persistence.storageParts.index;
 
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
-import io.evitadb.index.EntityIndex;
 import io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
-import io.evitadb.utils.Assert;
 import io.evitadb.utils.NumberUtils;
 
 import javax.annotation.Nonnull;
@@ -96,13 +94,11 @@ public interface AttributeIndexStoragePart extends StoragePart {
 	 */
 	@Override
 	default long computeUniquePartIdAndSet(@Nonnull KeyCompressor keyCompressor) {
-		final long computedUniquePartId = computeUniquePartId(getEntityIndexPrimaryKey(), getIndexType(), getAttributeIndexKey(), keyCompressor);
-		final Long uniquePartId = getStoragePartPK();
-		if (uniquePartId == null) {
-			setStoragePartPK(computedUniquePartId);
-		} else {
-			Assert.isTrue(uniquePartId == computedUniquePartId, "Unique part ids must never differ!");
-		}
+		final long computedUniquePartId = StoragePart.verifyUniquePartId(
+			computeUniquePartId(getEntityIndexPrimaryKey(), getIndexType(), getAttributeIndexKey(), keyCompressor),
+			getStoragePartPK()
+		);
+		setStoragePartPK(computedUniquePartId);
 		return computedUniquePartId;
 	}
 

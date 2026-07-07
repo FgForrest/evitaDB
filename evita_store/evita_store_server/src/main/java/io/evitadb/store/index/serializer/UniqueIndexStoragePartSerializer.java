@@ -30,6 +30,7 @@ import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.UniqueIndexStoragePart;
+import io.evitadb.store.index.serializer.PagedStreamMetadataSerializer.PagedStreamMetadata;
 import io.evitadb.utils.Assert;
 import lombok.RequiredArgsConstructor;
 
@@ -78,12 +79,9 @@ public class UniqueIndexStoragePartSerializer extends Serializer<UniqueIndexStor
 			final boolean paged = uniqueIndex.isPaged();
 			output.writeBoolean(paged);
 			if (paged) {
-				output.writeVarInt(uniqueIndex.getHighWaterPageSequence(), true);
-				final int[] leafPageSequences = uniqueIndex.getLeafPageSequences();
-				output.writeVarInt(leafPageSequences.length, true);
-				for (final int leafPageSequence : leafPageSequences) {
-					output.writeVarInt(leafPageSequence, true);
-				}
+				PagedStreamMetadataSerializer.writeBody(
+					output, uniqueIndex.getHighWaterPageSequence(), uniqueIndex.getLeafPageSequences()
+				);
 			} else {
 				// the record-id bitmap is redundant: it always equals the set of the payload record ids (see
 				// OwnerUniqueIndex) and is reconstructed from them on read, so it is no longer persisted. The inline
@@ -114,15 +112,10 @@ public class UniqueIndexStoragePartSerializer extends Serializer<UniqueIndexStor
 			// PAGED/SINGLE discriminator nested under dataPresent (only OWNER parts can be paged)
 			final boolean paged = input.readBoolean();
 			if (paged) {
-				final int highWaterPageSequence = input.readVarInt(true);
-				final int leafPageCount = input.readVarInt(true);
-				final int[] leafPageSequences = new int[leafPageCount];
-				for (int i = 0; i < leafPageCount; i++) {
-					leafPageSequences[i] = input.readVarInt(true);
-				}
+				final PagedStreamMetadata metadata = PagedStreamMetadataSerializer.readBody(input);
 				return UniqueIndexStoragePart.paged(
 					entityIndexPrimaryKey, attributeIndexKey, attributeType,
-					highWaterPageSequence, leafPageSequences, uniquePartId
+					metadata.highWaterPageSequence(), metadata.leafPageSequences(), uniquePartId
 				);
 			}
 			final int uniqueValueCount = input.readVarInt(true);

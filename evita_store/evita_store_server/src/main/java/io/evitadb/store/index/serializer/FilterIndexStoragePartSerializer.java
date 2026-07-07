@@ -28,12 +28,11 @@ import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.index.attribute.FilterIndex;
-import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
-import io.evitadb.index.range.RangeIndex;
 import io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.FilterIndexStoragePart;
-import io.evitadb.utils.ArrayUtils;
+import io.evitadb.store.index.serializer.FilterIndexPayloadSerializer.FilterIndexPayload;
+import io.evitadb.store.index.serializer.PagedStreamMetadataSerializer.PagedStreamMetadata;
 import io.evitadb.utils.Assert;
 import lombok.RequiredArgsConstructor;
 
@@ -55,51 +54,16 @@ public class FilterIndexStoragePartSerializer extends Serializer<FilterIndexStor
 		output.writeVarInt(this.keyCompressor.getId(filterIndex.getAttributeIndexKey()), true);
 		kryo.writeClass(output, filterIndex.getAttributeType());
 
-		// SINGLE shape carries every bucket inline here; PAGED shape carries none (this writes length 0) — its buckets
-		// live in individual FilterIndexLeafPagePart leaf pages.
-		final ValueToRecordBitmap[] points = filterIndex.getHistogramPoints();
-		output.writeInt(points.length);
-		for (ValueToRecordBitmap range : points) {
-			kryo.writeObject(output, range);
-		}
-
-		// the inline range companion: present only when the range is NOT paged (a range-PAGED part writes its threshold
-		// tree as individual RangeIndexLeafPagePart leaf pages instead, and carries a null inline range)
-		final boolean rangeIndex = filterIndex.getRangeIndex() != null;
-		output.writeBoolean(rangeIndex);
-		if (rangeIndex) {
-			kryo.writeObject(output, filterIndex.getRangeIndex());
-		}
-
-		// the frozen `indexedDecimalPlaces` scale (0 for non-BigDecimal attributes)
-		output.writeVarInt(filterIndex.getIndexedDecimalPlaces(), true);
-
-		// the bucket SINGLE/PAGED discriminator + the PAGED page-stream metadata. Appended after the legacy fields
-		// so the SINGLE shape stays a superset of the prior layout (just a trailing `false`).
-		final boolean paged = filterIndex.isPaged();
-		output.writeBoolean(paged);
-		if (paged) {
-			// the page-stream id is NOT persisted — it is recomputed at load from the sub-index identity
-			output.writeVarInt(filterIndex.getHighWaterPageSequence(), true);
-			final int[] leafPageSequences = filterIndex.getLeafPageSequences();
-			output.writeVarInt(leafPageSequences.length, true);
-			for (final int pageSequence : leafPageSequences) {
-				output.writeVarInt(pageSequence, true);
-			}
-		}
-
-		// the RANGE SINGLE/PAGED discriminator + the range page-stream metadata, independent of the
-		// bucket axis. Appended last; the range stream id is recomputed at load with StreamKind.RANGE.
-		final boolean rangePaged = filterIndex.isRangePaged();
-		output.writeBoolean(rangePaged);
-		if (rangePaged) {
-			output.writeVarInt(filterIndex.getRangeHighWaterPageSequence(), true);
-			final int[] rangeLeafPageSequences = filterIndex.getRangeLeafPageSequences();
-			output.writeVarInt(rangeLeafPageSequences.length, true);
-			for (final int pageSequence : rangeLeafPageSequences) {
-				output.writeVarInt(pageSequence, true);
-			}
-		}
+		// the shared filter payload: inline buckets, optional inline range, frozen scale and the two independent bucket /
+		// range page-stream metadata axes. Appended after the legacy fields so the SINGLE shape stays a superset of the
+		// prior layout. Shared verbatim with HistogramIndexStoragePartSerializer, which embeds an OwnerFilterIndex.
+		FilterIndexPayloadSerializer.write(
+			kryo, output,
+			filterIndex.getHistogramPoints(), filterIndex.getRangeIndex(), filterIndex.getIndexedDecimalPlaces(),
+			filterIndex.isPaged(), filterIndex.getHighWaterPageSequence(), filterIndex.getLeafPageSequences(),
+			filterIndex.isRangePaged(), filterIndex.getRangeHighWaterPageSequence(),
+			filterIndex.getRangeLeafPageSequences()
+		);
 	}
 
 	@Override
@@ -109,50 +73,17 @@ public class FilterIndexStoragePartSerializer extends Serializer<FilterIndexStor
 		final AttributeIndexKey attributeKey = this.keyCompressor.getKeyForId(input.readVarInt(true));
 		final Class<?> attributeType = kryo.readClass(input).getType();
 
-		final int pointCount = input.readInt();
-		final ValueToRecordBitmap[] points = new ValueToRecordBitmap[pointCount];
-		for (int i = 0; i < pointCount; i++) {
-			points[i] = kryo.readObject(input, ValueToRecordBitmap.class);
-		}
-
-		final boolean hasRangeIndex = input.readBoolean();
-		final RangeIndex intRangeIndex = hasRangeIndex ? kryo.readObject(input, RangeIndex.class) : null;
-
-		// the frozen `indexedDecimalPlaces` scale (0 for non-BigDecimal attributes)
-		final int indexedDecimalPlaces = input.readVarInt(true);
-
-		// the bucket SINGLE/PAGED discriminator + the PAGED page-stream metadata
-		boolean paged = false;
-		int highWaterPageSequence = -1;
-		int[] leafPageSequences = ArrayUtils.EMPTY_INT_ARRAY;
-		if (input.readBoolean()) {
-			paged = true;
-			// the page-stream id is recomputed at load from the sub-index identity, not read here
-			highWaterPageSequence = input.readVarInt(true);
-			final int leafCount = input.readVarInt(true);
-			leafPageSequences = new int[leafCount];
-			for (int i = 0; i < leafCount; i++) {
-				leafPageSequences[i] = input.readVarInt(true);
-			}
-		}
-
-		// the RANGE SINGLE/PAGED discriminator + the range page-stream metadata
-		boolean rangePaged = false;
-		int rangeHighWaterPageSequence = -1;
-		int[] rangeLeafPageSequences = ArrayUtils.EMPTY_INT_ARRAY;
-		if (input.readBoolean()) {
-			rangePaged = true;
-			rangeHighWaterPageSequence = input.readVarInt(true);
-			final int rangeLeafCount = input.readVarInt(true);
-			rangeLeafPageSequences = new int[rangeLeafCount];
-			for (int i = 0; i < rangeLeafCount; i++) {
-				rangeLeafPageSequences[i] = input.readVarInt(true);
-			}
-		}
+		// the shared filter payload tail (buckets + optional range + frozen scale + both page-stream metadata axes); the
+		// page-stream ids are recomputed at load from the sub-index identity, not read here
+		final FilterIndexPayload payload = FilterIndexPayloadSerializer.read(kryo, input);
+		final PagedStreamMetadata bucketMetadata = payload.bucketMetadata();
+		final PagedStreamMetadata rangeMetadata = payload.rangeMetadata();
 
 		return new FilterIndexStoragePart(
-			entityIndexPrimaryKey, attributeKey, attributeType, points, intRangeIndex, indexedDecimalPlaces,
-			paged, highWaterPageSequence, leafPageSequences, rangePaged, rangeHighWaterPageSequence, rangeLeafPageSequences, uniquePartId
+			entityIndexPrimaryKey, attributeKey, attributeType, payload.points(), payload.rangeIndex(),
+			payload.indexedDecimalPlaces(),
+			bucketMetadata.paged(), bucketMetadata.highWaterPageSequence(), bucketMetadata.leafPageSequences(),
+			rangeMetadata.paged(), rangeMetadata.highWaterPageSequence(), rangeMetadata.leafPageSequences(), uniquePartId
 		);
 	}
 

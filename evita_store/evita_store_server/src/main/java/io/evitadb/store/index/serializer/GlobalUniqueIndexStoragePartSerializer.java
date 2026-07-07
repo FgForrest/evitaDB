@@ -32,6 +32,7 @@ import io.evitadb.dataType.Scope;
 import io.evitadb.index.attribute.GlobalUniqueIndex;
 import io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.GlobalUniqueIndexStoragePart;
+import io.evitadb.store.index.serializer.PagedStreamMetadataSerializer.PagedStreamMetadata;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import lombok.RequiredArgsConstructor;
@@ -69,12 +70,9 @@ public class GlobalUniqueIndexStoragePartSerializer extends Serializer<GlobalUni
 		final boolean paged = uniqueIndex.isPaged();
 		output.writeBoolean(paged);
 		if (paged) {
-			output.writeVarInt(uniqueIndex.getHighWaterPageSequence(), true);
-			final int[] leafPageSequences = uniqueIndex.getLeafPageSequences();
-			output.writeVarInt(leafPageSequences.length, true);
-			for (final int leafPageSequence : leafPageSequences) {
-				output.writeVarInt(leafPageSequence, true);
-			}
+			PagedStreamMetadataSerializer.writeBody(
+				output, uniqueIndex.getHighWaterPageSequence(), uniqueIndex.getLeafPageSequences()
+			);
 		} else {
 			final Serializable[] values = Objects.requireNonNull(
 				uniqueIndex.getValues(), "A SINGLE global unique part must carry the inline value column!"
@@ -110,12 +108,9 @@ public class GlobalUniqueIndexStoragePartSerializer extends Serializer<GlobalUni
 		final Serializable[] values;
 		final long[] payloads;
 		if (paged) {
-			highWaterPageSequence = input.readVarInt(true);
-			final int leafPageCount = input.readVarInt(true);
-			leafPageSequences = new int[leafPageCount];
-			for (int i = 0; i < leafPageCount; i++) {
-				leafPageSequences[i] = input.readVarInt(true);
-			}
+			final PagedStreamMetadata metadata = PagedStreamMetadataSerializer.readBody(input);
+			highWaterPageSequence = metadata.highWaterPageSequence();
+			leafPageSequences = metadata.leafPageSequences();
 			values = null;
 			payloads = null;
 		} else {

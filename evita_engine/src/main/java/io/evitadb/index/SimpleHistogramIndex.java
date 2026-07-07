@@ -31,7 +31,6 @@ import io.evitadb.index.cardinality.AttributeCardinalityIndex;
 import io.evitadb.index.result.CardinalityChange;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.HistogramIndexStorageKey;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.HistogramIndexStoragePart;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -40,6 +39,7 @@ import java.io.Serializable;
 import java.util.Locale;
 import java.util.Set;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 /**
  * Histogram index for non-localized attributes. Holds a single {@link FilterIndex} and a single
@@ -167,16 +167,15 @@ public class SimpleHistogramIndex extends HistogramIndex {
 		int entityIndexPrimaryKey,
 		@Nonnull TrappedChanges trappedChanges
 	) {
-		if (this.filterIndex.isDirty() || this.cardinality.isDirty()) {
-			trappedChanges.addChangeToStore(
-				new HistogramIndexStoragePart(
-					entityIndexPrimaryKey, getHistogramName(), null, getValueType(),
-					this.filterIndex.getInvertedIndex().getValueToRecordBitmap(),
-					this.filterIndex.getRangeIndex(),
-					this.cardinality,
-					getIndexedDecimalPlaces()
-				)
-			);
+		appendHistogramStorageParts(entityIndexPrimaryKey, null, this.filterIndex, this.cardinality, trappedChanges);
+	}
+
+	@Override
+	public void collectPersistedLeafPages(@Nonnull Consumer<PersistedHistogramLeafPages> sink) {
+		// mirror collectStorageKeys's liveness predicate exactly: a persisted sub-index MUST be reported so the drop diff
+		// never mistakes a live histogram for a dropped one and reclaims its pages
+		if (!this.filterIndex.isEmpty() || !this.cardinality.isEmpty()) {
+			sink.accept(persistedLeafPagesOf(null, this.filterIndex));
 		}
 	}
 

@@ -61,7 +61,7 @@ import java.io.Serial;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
-public class ChainIndexLeafPagePart extends AbstractLeafPagePart {
+public class ChainIndexLeafPagePart extends AbstractAttributeLeafPagePart {
 	@Serial private static final long serialVersionUID = 3810572946183740265L;
 
 	/**

@@ -264,6 +264,32 @@ public class IndexStoragePartConfigurer implements Consumer<Kryo> {
 			index++
 		);
 
+		// the granular histogram bucket value-tree leaf-page record — a brand-new record type with no
+		// backward-compatible reader (the bucketed-histogram feature is unreleased). Appended last to keep the preceding
+		// registration ids stable.
+		kryo.register(
+			HistogramIndexLeafPagePart.class,
+			new SerialVersionBasedSerializer<>(new HistogramIndexLeafPagePartSerializer(), HistogramIndexLeafPagePart.class),
+			index++
+		);
+
+		// the granular histogram range-tree leaf-page record — a brand-new record type with no backward-compatible
+		// reader. Appended last to keep the preceding registration ids stable.
+		kryo.register(
+			HistogramRangeIndexLeafPagePart.class,
+			new SerialVersionBasedSerializer<>(new HistogramRangeIndexLeafPagePartSerializer(), HistogramRangeIndexLeafPagePart.class),
+			index++
+		);
+
+		// the histogram cardinality index evicted out of HistogramIndexStoragePart into its own sibling record — a
+		// brand-new record type with no backward-compatible reader (the histogram feature is unreleased). Appended last
+		// to keep the preceding registration ids stable.
+		kryo.register(
+			HistogramCardinalityStoragePart.class,
+			new SerialVersionBasedSerializer<>(new HistogramCardinalityStoragePartSerializer(this.keyCompressor), HistogramCardinalityStoragePart.class),
+			index++
+		);
+
 		Assert.isPremiseValid(index < 700, "Index count overflow.");
 	}
 

@@ -27,22 +27,20 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
-import io.evitadb.index.cardinality.AttributeCardinalityIndex;
-import io.evitadb.index.cardinality.AttributeCardinalityIndex.AttributeCardinalityKey;
-import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
-import io.evitadb.index.range.RangeIndex;
 import io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.HistogramIndexStoragePart;
-import io.evitadb.utils.CollectionUtils;
+import io.evitadb.store.index.serializer.FilterIndexPayloadSerializer.FilterIndexPayload;
+import io.evitadb.store.index.serializer.HistogramIdentitySerializer.HistogramIdentity;
+import io.evitadb.store.index.serializer.PagedStreamMetadataSerializer.PagedStreamMetadata;
 import lombok.RequiredArgsConstructor;
 
 import java.io.Serializable;
-import java.util.Locale;
-import java.util.Map;
 
 /**
- * Kryo {@link Serializer} for {@link HistogramIndexStoragePart}. Serializes both the filter data (histogram points
- * and optional range index) and the cardinality data into a single binary blob.
+ * Kryo {@link Serializer} for the {@link HistogramIndexStoragePart} root. Serializes the bucketed filter data — inline
+ * for a `SINGLE`-shaped axis, or the page-stream metadata (high-water + ordered leaf-page list) for a `PAGED`-shaped
+ * bucket / range axis — mirroring {@link FilterIndexStoragePartSerializer}. The cardinality data is NOT written here: it
+ * lives in the sibling {@link io.evitadb.spi.store.catalog.persistence.storageParts.index.HistogramCardinalityStoragePart}.
  *
  * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -53,81 +51,38 @@ public class HistogramIndexStoragePartSerializer extends Serializer<HistogramInd
 
 	@Override
 	public void write(Kryo kryo, Output output, HistogramIndexStoragePart part) {
-		output.writeInt(part.getEntityIndexPrimaryKey());
-		output.writeVarLong(
-			part.computeUniquePartIdAndSet(this.keyCompressor),
-			true
-		);
-		output.writeString(part.getHistogramName());
-		kryo.writeObjectOrNull(output, part.getLocale(), Locale.class);
-
-		// filter data
+		HistogramIdentitySerializer.write(kryo, output, part, this.keyCompressor);
 		kryo.writeClass(output, part.getValueType());
-		final ValueToRecordBitmap[] histogramPoints = part.getHistogramPoints();
-		output.writeInt(histogramPoints.length);
-		for (ValueToRecordBitmap point : histogramPoints) {
-			kryo.writeObject(output, point);
-		}
-		output.writeBoolean(part.getRangeIndex() != null);
-		if (part.getRangeIndex() != null) {
-			kryo.writeObject(output, part.getRangeIndex());
-		}
 
-		// the frozen `indexedDecimalPlaces` scale (0 for non-BigDecimal source types)
-		output.writeVarInt(part.getIndexedDecimalPlaces(), true);
-
-		// cardinality data
-		final AttributeCardinalityIndex cardinalityIndex = part.getCardinalityIndex();
-		final Map<AttributeCardinalityKey, Integer> cardinalities = cardinalityIndex.getCardinalities();
-		output.writeVarInt(cardinalities.size(), true);
-		for (Map.Entry<AttributeCardinalityKey, Integer> entry : cardinalities.entrySet()) {
-			// the key value is self-describing: a BigDecimal value type stores an order-preserving scaled
-			// Integer here, so the concrete runtime type is written alongside the value
-			kryo.writeClassAndObject(output, entry.getKey().value());
-			output.writeVarInt(entry.getKey().recordId(), false);
-			output.writeVarInt(entry.getValue(), true);
-		}
+		// the shared filter payload: inline buckets, optional inline range, frozen scale and the two independent bucket /
+		// range page-stream metadata axes. Identical to FilterIndexStoragePartSerializer — the histogram root embeds an
+		// OwnerFilterIndex and persists its exact shape.
+		FilterIndexPayloadSerializer.write(
+			kryo, output,
+			part.getHistogramPoints(), part.getRangeIndex(), part.getIndexedDecimalPlaces(),
+			part.isPaged(), part.getHighWaterPageSequence(), part.getLeafPageSequences(),
+			part.isRangePaged(), part.getRangeHighWaterPageSequence(), part.getRangeLeafPageSequences()
+		);
 	}
 
 	@SuppressWarnings("unchecked")
 	@Override
 	public HistogramIndexStoragePart read(Kryo kryo, Input input, Class<? extends HistogramIndexStoragePart> type) {
-		final int entityIndexPrimaryKey = input.readInt();
-		final long uniquePartId = input.readVarLong(true);
-		final String histogramName = input.readString();
-		final Locale locale = kryo.readObjectOrNull(input, Locale.class);
-
-		// filter data
+		final HistogramIdentity identity = HistogramIdentitySerializer.read(kryo, input);
 		final Class<? extends Serializable> valueType =
 			(Class<? extends Serializable>) kryo.readClass(input).getType();
-		final int pointCount = input.readInt();
-		final ValueToRecordBitmap[] histogramPoints = new ValueToRecordBitmap[pointCount];
-		for (int i = 0; i < pointCount; i++) {
-			histogramPoints[i] = kryo.readObject(input, ValueToRecordBitmap.class);
-		}
-		final boolean hasRangeIndex = input.readBoolean();
-		final RangeIndex rangeIndex = hasRangeIndex ? kryo.readObject(input, RangeIndex.class) : null;
 
-		// the frozen `indexedDecimalPlaces` scale (0 for non-BigDecimal source types)
-		final int indexedDecimalPlaces = input.readVarInt(true);
-
-		// cardinality data
-		final int cardinalityCount = input.readVarInt(true);
-		final Map<AttributeCardinalityKey, Integer> cardinalities =
-			CollectionUtils.createHashMap(cardinalityCount);
-		for (int i = 0; i < cardinalityCount; i++) {
-			final Serializable value = (Serializable) kryo.readClassAndObject(input);
-			final int recordId = input.readVarInt(false);
-			final int cardinality = input.readVarInt(true);
-			cardinalities.put(new AttributeCardinalityKey(recordId, value), cardinality);
-		}
+		// the shared filter payload tail (buckets + optional range + frozen scale + both page-stream metadata axes)
+		final FilterIndexPayload payload = FilterIndexPayloadSerializer.read(kryo, input);
+		final PagedStreamMetadata bucketMetadata = payload.bucketMetadata();
+		final PagedStreamMetadata rangeMetadata = payload.rangeMetadata();
 
 		return new HistogramIndexStoragePart(
-			entityIndexPrimaryKey, histogramName, locale, valueType,
-			histogramPoints, rangeIndex,
-			new AttributeCardinalityIndex(valueType, cardinalities),
-			indexedDecimalPlaces,
-			uniquePartId
+			identity.entityIndexPrimaryKey(), identity.histogramName(), identity.locale(), valueType,
+			payload.points(), payload.rangeIndex(), payload.indexedDecimalPlaces(),
+			bucketMetadata.paged(), bucketMetadata.highWaterPageSequence(), bucketMetadata.leafPageSequences(),
+			rangeMetadata.paged(), rangeMetadata.highWaterPageSequence(), rangeMetadata.leafPageSequences(),
+			identity.uniquePartId()
 		);
 	}
 
