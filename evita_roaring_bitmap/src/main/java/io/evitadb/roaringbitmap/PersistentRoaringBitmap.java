@@ -2545,6 +2545,56 @@ public class PersistentRoaringBitmap
 	}
 
 	/**
+	 * Returns the set values as an `int[]` sorted in **signed** ascending order (`Integer.compare`),
+	 * i.e. negative values first, then non-negative ones.
+	 *
+	 * Unlike {@link #toArray()} — which yields unsigned order and therefore places negative values
+	 * (which carry the high bit) at the tail — this method emits the two key ranges in signed order
+	 * in a single fill pass. Because the container array is already sorted in unsigned key order and
+	 * every container with key `>= 0x8000` (a negative value) forms a contiguous tail, the split point
+	 * is located with a single {@link RoaringArray#advanceUntil(char, int)} and each value is written
+	 * exactly once. There is no rotation step and no second array allocation on top of the result
+	 * array — the previous caller-side fixup (toArray + arraycopy rotation) is no longer needed.
+	 *
+	 * The common no-negative case (the norm for positive record ids) takes an O(1) fast path: since
+	 * container keys are unsigned-sorted, the bitmap holds a negative value iff the last container's
+	 * key is `>= 0x8000`, and when none exist unsigned order already equals signed order, so this
+	 * method delegates directly to {@link #toArray()} without locating a split point.
+	 *
+	 * @return array representing the set values in signed ascending order.
+	 */
+	@Nonnull
+	public int[] toSignedArray() {
+		final int containerCount = this.highLowContainer.size();
+		// fast path: no negative values exist (last container key < 0x8000) — unsigned order already
+		// equals signed order, so reuse the single-pass toArray() fill without locating a split point
+		if (containerCount == 0
+			|| this.highLowContainer.getKeyAtIndex(containerCount - 1) < (char) (1 << 15)) {
+			return this.toArray();
+		}
+		// negatives present: allocate once and fill containers in signed order (negatives first),
+		// each value written exactly once — no rotation, no second array
+		final int[] array = new int[this.getCardinality()];
+		final int firstNegative = this.highLowContainer.advanceUntil((char) (1 << 15), -1);
+		int pos = 0;
+		// negative values first: containers [firstNegative, containerCount)
+		for (int i = firstNegative; i < containerCount; i++) {
+			final int hs = this.highLowContainer.getKeyAtIndex(i) << 16;
+			final Container c = this.highLowContainer.getContainerAtIndex(i);
+			c.fillLeastSignificant16bits(array, pos, hs);
+			pos += c.getCardinality();
+		}
+		// then non-negative values: containers [0, firstNegative)
+		for (int i = 0; i < firstNegative; i++) {
+			final int hs = this.highLowContainer.getKeyAtIndex(i) << 16;
+			final Container c = this.highLowContainer.getContainerAtIndex(i);
+			c.fillLeastSignificant16bits(array, pos, hs);
+			pos += c.getCardinality();
+		}
+		return array;
+	}
+
+	/**
 	 * Returns the number of containers in the bitmap.
 	 *
 	 * @return the number of containers

@@ -110,33 +110,14 @@ public interface RoaringBitmapBackedBitmap extends Bitmap {
 
 	/**
 	 * Extracts contents of the passed {@link PersistentRoaringBitmap} as an `int[]` ordered by signed
-	 * integer value. {@link PersistentRoaringBitmap} stores ints as unsigned 32-bit values, so negatives
-	 * appear at the tail of {@link PersistentRoaringBitmap#toArray()}. This helper rotates that tail to
-	 * the front, producing an array sorted by {@link Integer#compare}.
-	 *
-	 * The rotation is performed via two {@link System#arraycopy} calls with no extra iteration
-	 * when the bitmap is empty or purely positive / purely negative.
+	 * integer value. Delegates to {@link PersistentRoaringBitmap#toSignedArray()}, where the logic now
+	 * lives (co-located with the bitmap now that RoaringBitmap is vendored rather than an external
+	 * library). That implementation fills the result in signed order in a single pass — no rotation
+	 * step and no second array allocation on top of the result array.
 	 */
 	@Nonnull
 	static int[] toSignedArray(@Nonnull PersistentRoaringBitmap roaringBitmap) {
-		final int[] array = roaringBitmap.toArray();
-		// shortcut: empty or purely non-negative — already in signed order
-		if (array.length == 0 || array[array.length - 1] >= 0) {
-			return array;
-		}
-		int firstNegative = array.length - 1;
-		while (firstNegative > 0 && array[firstNegative - 1] < 0) {
-			firstNegative--;
-		}
-		// shortcut: purely negative — already in signed order
-		if (firstNegative == 0) {
-			return array;
-		}
-		final int[] signedOrder = new int[array.length];
-		final int negativeCount = array.length - firstNegative;
-		System.arraycopy(array, firstNegative, signedOrder, 0, negativeCount);
-		System.arraycopy(array, 0, signedOrder, negativeCount, firstNegative);
-		return signedOrder;
+		return roaringBitmap.toSignedArray();
 	}
 
 	/**

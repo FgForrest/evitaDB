@@ -21,6 +21,7 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Random;
@@ -2956,6 +2957,87 @@ public class TestPersistentRoaringBitmap {
 	// -----------------------------------------------------------------------
 	// Helpers
 	// -----------------------------------------------------------------------
+
+	@Nested
+	@DisplayName("toSignedArray emits values in signed ascending order")
+	class SignedArrayOrder {
+
+		@Test
+		public void shouldEmitEmptyArrayWhenBitmapEmpty() {
+			assertArrayEquals(new int[0], new PersistentRoaringBitmap().toSignedArray());
+		}
+
+		@Test
+		public void shouldEmitMixedSignsInSignedOrder() {
+			// values chosen to straddle 0 and the 0x80000000 unsigned boundary, where negatives
+			// (high bit set) would otherwise land at the tail of toArray()
+			final int[] values = {
+				0, 1, 5, 100, Integer.MAX_VALUE,
+				-1, -2, -100, Integer.MIN_VALUE, Short.MIN_VALUE
+			};
+			final PersistentRoaringBitmap rb = new PersistentRoaringBitmap();
+			for (final int v : values) {
+				rb.add(v);
+			}
+			final int[] expected = values.clone();
+			Arrays.sort(expected);
+			assertArrayEquals(expected, rb.toSignedArray());
+			// and it must differ from unsigned toArray() order whenever both signs are present
+			assertFalse(Arrays.equals(rb.toArray(), rb.toSignedArray()));
+		}
+
+		@Test
+		public void shouldEqualToArrayWhenPurelyNonNegative() {
+			final PersistentRoaringBitmap rb = new PersistentRoaringBitmap();
+			for (final int v : new int[] {0, 1, 2, 1000, Integer.MAX_VALUE}) {
+				rb.add(v);
+			}
+			assertArrayEquals(rb.toArray(), rb.toSignedArray());
+		}
+
+		@Test
+		public void shouldEqualSortedToArrayWhenPurelyNegative() {
+			final PersistentRoaringBitmap rb = new PersistentRoaringBitmap();
+			for (final int v : new int[] {Integer.MIN_VALUE, -500, -3, -1}) {
+				rb.add(v);
+			}
+			final int[] expected = rb.toArray();
+			Arrays.sort(expected);
+			assertArrayEquals(expected, rb.toSignedArray());
+		}
+
+		@Test
+		public void shouldPlaceNegativeBoundaryRightBeforeZero() {
+			// MIN_VALUE (0x80000000) and -1 must precede 0 and MAX_VALUE in signed order,
+			// exercising the container split exactly at key 0x8000
+			final PersistentRoaringBitmap rb = new PersistentRoaringBitmap();
+			rb.add(Integer.MAX_VALUE);
+			rb.add(0);
+			rb.add(-1);
+			rb.add(Integer.MIN_VALUE);
+			assertArrayEquals(
+				new int[] {Integer.MIN_VALUE, -1, 0, Integer.MAX_VALUE},
+				rb.toSignedArray()
+			);
+		}
+
+		@Test
+		public void shouldMatchSortedToArrayForRandomValues() {
+			final Random rng = new Random(0xC0FFEE);
+			for (int trial = 0; trial < 500; trial++) {
+				final PersistentRoaringBitmap rb = new PersistentRoaringBitmap();
+				final int count = rng.nextInt(1000);
+				for (int i = 0; i < count; i++) {
+					rb.add(rng.nextInt());
+				}
+				// oracle: toArray() is deduplicated + unsigned-sorted; Arrays.sort re-sorts it signed
+				final int[] expected = rb.toArray();
+				Arrays.sort(expected);
+				assertArrayEquals(expected, rb.toSignedArray(), "trial " + trial);
+			}
+		}
+
+	}
 
 	private static PersistentRoaringBitmap buildMultiContainerBitmap(int startKey, int endKey, int seed) {
 		Random random = new Random(seed);
