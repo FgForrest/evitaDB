@@ -29,7 +29,9 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.dataType.Scope;
+import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.test.duration.TimeArgumentProvider;
 import io.evitadb.test.duration.TimeArgumentProvider.GenerationalTestInput;
 import io.evitadb.test.duration.TimeBoundedTestSupport;
@@ -40,9 +42,11 @@ import org.junit.jupiter.params.provider.ArgumentsSource;
 
 import javax.annotation.Nonnull;
 import java.io.Serializable;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Random;
@@ -52,9 +56,12 @@ import java.util.concurrent.atomic.AtomicReference;
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.MANAGEMENT;
 import static io.evitadb.test.TestTags.SLOW;
+import static io.evitadb.test.TestTags.TRANSACTION;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
+import static io.evitadb.utils.AssertionUtils.assertStateAfterRollback;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 
@@ -83,7 +90,7 @@ class LongRunningReducedGroupEntityIndexTest implements TimeBoundedTestSupport {
 	 */
 	@Nonnull
 	@SuppressWarnings("SameParameterValue")
-	private static ReducedGroupEntityIndex createIndex(int groupPk) {
+	static ReducedGroupEntityIndex createIndex(int groupPk) {
 		final RepresentativeReferenceKey rrk = new RepresentativeReferenceKey(
 			new ReferenceKey(REFERENCE_NAME, groupPk)
 		);
@@ -101,7 +108,7 @@ class LongRunningReducedGroupEntityIndexTest implements TimeBoundedTestSupport {
 	 * @return a new attribute schema
 	 */
 	@Nonnull
-	private static AttributeSchemaContract createFilterableAttributeSchema(
+	static AttributeSchemaContract createFilterableAttributeSchema(
 		@Nonnull String name, @Nonnull Class<? extends Serializable> type
 	) {
 		return AttributeSchema._internalBuild(
@@ -148,15 +155,10 @@ class LongRunningReducedGroupEntityIndexTest implements TimeBoundedTestSupport {
 
 				assertStateAfterCommit(
 					tested,
-					original -> {
-						final int ops = random.nextInt(5) + 1;
-						for (int i = 0; i < ops; i++) {
-							executeRandomOperation(
-								random, original, refPkPairs,
-								refAttributes, refSchema, attrSchema, noLocales
-							);
-						}
-					},
+					original -> applyRandomBatch(
+						random, original, refPkPairs,
+						refAttributes, refSchema, attrSchema, noLocales
+					),
 					(original, committed) -> {
 						assertNotNull(committed);
 						final ReducedGroupEntityIndex typed =
@@ -179,6 +181,108 @@ class LongRunningReducedGroupEntityIndexTest implements TimeBoundedTestSupport {
 				);
 			}
 		);
+	}
+
+	/**
+	 * Generational proof that a **rolled-back** transaction discards every in-transaction mutation and leaves the base
+	 * index byte-for-byte intact — the atomic-rollback contract of Ref: #569. Each generation rebuilds a fresh index
+	 * from the (random-walking) reference model, captures a value oracle of that base, applies a random batch of
+	 * PK-pair / filter-attribute add-remove mutations inside a transaction that is then rolled back, and asserts the
+	 * base index is unchanged and no committed value was published.
+	 */
+	@DisplayName("rollback discards every in-transaction mutation and leaves the base intact")
+	@ParameterizedTest(
+		name = "ReducedGroupEntityIndex rollback discards every in-transaction mutation and leaves the base intact"
+	)
+	@Tag(SLOW)
+	@Tag(TRANSACTION)
+	@ArgumentsSource(TimeArgumentProvider.class)
+	void generationalRollbackProofTest(GenerationalTestInput input) {
+		final ReferenceSchemaContract refSchema = mock(ReferenceSchemaContract.class);
+		final AttributeSchemaContract attrSchema = createFilterableAttributeSchema(
+			"code", String.class
+		);
+		final Set<Locale> noLocales = Collections.emptySet();
+
+		runFor(
+			input,
+			50_000,
+			new GenerationalState(
+				new HashMap<>(16),
+				new HashSet<>(16),
+				createIndex(100)
+			),
+			(random, state) -> {
+				// the model random-walks across generations; use it in place (no defensive copy) so the
+				// attempted (rolled-back) batch keeps exploring fresh base indexes on the next generation
+				final Map<Integer, Set<Integer>> refPkPairs = state.expectedPkPairs();
+				final Set<String> refAttributes = state.expectedAttributes();
+				// rebuild a fresh base index from the current reference model
+				final ReducedGroupEntityIndex index = buildIndex(
+					refPkPairs, refAttributes, refSchema, attrSchema, noLocales
+				);
+				// value oracle of the base state that the rollback must return to
+				final GroupIndexSnapshot beforeRollback = snapshot(index);
+
+				assertStateAfterRollback(
+					index,
+					original -> applyRandomBatch(
+						random, original, refPkPairs,
+						refAttributes, refSchema, attrSchema, noLocales
+					),
+					(original, committed) -> {
+						assertNull(
+							committed,
+							"A rolled-back transaction must not publish a committed value!"
+						);
+						assertEquals(
+							beforeRollback, snapshot(original),
+							"ReducedGroupEntityIndex changed after rollback — atomic rollback leaked!"
+						);
+					}
+				);
+
+				return new GenerationalState(refPkPairs, refAttributes, index);
+			},
+			(state, exc) -> {
+				System.out.println(
+					"Failed state - PK pairs: " + state.expectedPkPairs()
+				);
+				System.out.println(
+					"Failed state - Attributes: " + state.expectedAttributes()
+				);
+			}
+		);
+	}
+
+	/**
+	 * Applies a random batch of 1–5 add/remove PK-pair / filter-attribute mutations to `idx`, mirroring each mutation
+	 * into the `refPkPairs` / `refAttributes` reference model so the two stay in lockstep. Shared by the commit and
+	 * rollback proofs so both drive the identical random-draw sequence.
+	 *
+	 * @param random        source of randomness
+	 * @param idx           the index being mutated
+	 * @param refPkPairs    the reference model for `(entityPk, referencedPk)` pairs
+	 * @param refAttributes the reference model for `value:recordId` filter-attribute entries
+	 * @param refSchema     the reference schema stub
+	 * @param attrSchema    the filterable attribute schema
+	 * @param noLocales     the empty allowed-locale set
+	 */
+	private static void applyRandomBatch(
+		@Nonnull Random random,
+		@Nonnull ReducedGroupEntityIndex idx,
+		@Nonnull Map<Integer, Set<Integer>> refPkPairs,
+		@Nonnull Set<String> refAttributes,
+		@Nonnull ReferenceSchemaContract refSchema,
+		@Nonnull AttributeSchemaContract attrSchema,
+		@Nonnull Set<Locale> noLocales
+	) {
+		final int ops = random.nextInt(5) + 1;
+		for (int i = 0; i < ops; i++) {
+			executeRandomOperation(
+				random, idx, refPkPairs, refAttributes, refSchema, attrSchema, noLocales
+			);
+		}
 	}
 
 	/**
@@ -272,6 +376,86 @@ class LongRunningReducedGroupEntityIndexTest implements TimeBoundedTestSupport {
 	}
 
 	/**
+	 * Rebuilds a fresh {@link ReducedGroupEntityIndex} from the reference model outside any transaction, replaying
+	 * every `(entityPk, referencedPk)` pair and each `value:recordId` filter-attribute entry. Used by the rollback
+	 * proof to reconstruct the base index the rollback must return to.
+	 *
+	 * @param refPkPairs    the `(entityPk, referencedPk)` pairs to insert
+	 * @param refAttributes the `value:recordId` filter-attribute entries to insert
+	 * @param refSchema     the reference schema stub
+	 * @param attrSchema    the filterable attribute schema
+	 * @param noLocales     the empty allowed-locale set
+	 * @return a freshly built index matching the reference model
+	 */
+	@Nonnull
+	private static ReducedGroupEntityIndex buildIndex(
+		@Nonnull Map<Integer, Set<Integer>> refPkPairs,
+		@Nonnull Set<String> refAttributes,
+		@Nonnull ReferenceSchemaContract refSchema,
+		@Nonnull AttributeSchemaContract attrSchema,
+		@Nonnull Set<Locale> noLocales
+	) {
+		final ReducedGroupEntityIndex index = createIndex(100);
+		for (final Map.Entry<Integer, Set<Integer>> entry : refPkPairs.entrySet()) {
+			final int entityPk = entry.getKey();
+			for (final int referencedPk : entry.getValue()) {
+				index.insertPrimaryKeyIfMissing(entityPk, referencedPk);
+			}
+		}
+		for (final String entry : refAttributes) {
+			final String[] parts = entry.split(":");
+			final String value = parts[0];
+			final int recordId = Integer.parseInt(parts[1]);
+			index.insertFilterAttribute(refSchema, attrSchema, noLocales, null, value, recordId, false);
+		}
+		return index;
+	}
+
+	/**
+	 * Reads the full logical content of the index into a value-comparable snapshot: all primary keys, the
+	 * referenced-entity → owner-PK mapping, and each filter index's records. Every bitmap is converted to a sorted
+	 * `List<Integer>`, so two snapshots taken before and after a rollback can be compared with `.equals` to prove
+	 * exact restoration. Shared as the oracle reader by the sibling savepoint test.
+	 *
+	 * @param index the index to snapshot
+	 * @return a deeply `.equals`-comparable snapshot of the index content
+	 */
+	@Nonnull
+	static GroupIndexSnapshot snapshot(@Nonnull ReducedGroupEntityIndex index) {
+		final List<Integer> primaryKeys = toList(index.getAllPrimaryKeys());
+		final Map<Integer, List<Integer>> referencedEntities = new HashMap<>();
+		for (final int referencedPk : index.getReferencedEntityPrimaryKeys()) {
+			final Bitmap owners = index.getOwnerPKsForReferencedEntity(referencedPk);
+			referencedEntities.put(referencedPk, owners == null ? List.of() : toList(owners));
+		}
+		final Map<String, List<Integer>> filterAttributes = new HashMap<>();
+		for (final AttributeIndexKey key : index.getFilterIndexes()) {
+			final FilterIndex filterIndex = index.getFilterIndex(key);
+			filterAttributes.put(
+				key.toString(),
+				filterIndex == null ? List.of() : toList(filterIndex.getAllRecords())
+			);
+		}
+		return new GroupIndexSnapshot(primaryKeys, referencedEntities, filterAttributes);
+	}
+
+	/**
+	 * Converts a bitmap into an ascending list of its record ids (a value type with deep `.equals`).
+	 *
+	 * @param bitmap the bitmap to convert
+	 * @return the bitmap's record ids in ascending order
+	 */
+	@Nonnull
+	private static List<Integer> toList(@Nonnull Bitmap bitmap) {
+		final int[] array = bitmap.getArray();
+		final List<Integer> list = new ArrayList<>(array.length);
+		for (final int value : array) {
+			list.add(value);
+		}
+		return list;
+	}
+
+	/**
 	 * State carried between generations in the generational proof test.
 	 *
 	 * @param expectedPkPairs    maps entityPk to set of referencedPks (each unique pair = 1 cardinality)
@@ -282,5 +466,20 @@ class LongRunningReducedGroupEntityIndexTest implements TimeBoundedTestSupport {
 		@Nonnull Map<Integer, Set<Integer>> expectedPkPairs,
 		@Nonnull Set<String> expectedAttributes,
 		@Nonnull ReducedGroupEntityIndex index
+	) {}
+
+	/**
+	 * Value-comparable snapshot of a {@link ReducedGroupEntityIndex}: all primary keys (sorted), the
+	 * referenced-entity → sorted owner-PK mapping, and each filter index key → its sorted records. Record equality
+	 * gives deep structural comparison.
+	 *
+	 * @param primaryKeys        all indexed primary keys in ascending order
+	 * @param referencedEntities referenced entity PK → sorted owner entity PKs
+	 * @param filterAttributes   filter index key (string form) → sorted record ids
+	 */
+	record GroupIndexSnapshot(
+		@Nonnull List<Integer> primaryKeys,
+		@Nonnull Map<Integer, List<Integer>> referencedEntities,
+		@Nonnull Map<String, List<Integer>> filterAttributes
 	) {}
 }

@@ -38,9 +38,11 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ArgumentsSource;
 
 import javax.annotation.Nonnull;
+import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Random;
@@ -50,9 +52,12 @@ import java.util.concurrent.atomic.AtomicReference;
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.MANAGEMENT;
 import static io.evitadb.test.TestTags.SLOW;
+import static io.evitadb.test.TestTags.TRANSACTION;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
+import static io.evitadb.utils.AssertionUtils.assertStateAfterRollback;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -79,7 +84,7 @@ class LongRunningReducedEntityIndexTest implements TimeBoundedTestSupport {
 	};
 
 	@Nonnull
-	private static ReducedEntityIndex createInstance() {
+	static ReducedEntityIndex createInstance() {
 		final RepresentativeReferenceKey rrk = new RepresentativeReferenceKey(
 			new ReferenceKey(REFERENCE_NAME, REFERENCED_PK)
 		);
@@ -91,7 +96,7 @@ class LongRunningReducedEntityIndexTest implements TimeBoundedTestSupport {
 	}
 
 	@Nonnull
-	private static EntitySchemaContract createEvolvingSchema() {
+	static EntitySchemaContract createEvolvingSchema() {
 		final EntitySchemaContract schema = mock(EntitySchemaContract.class);
 		when(schema.getLocales()).thenReturn(Set.of());
 		when(schema.getEvolutionMode()).thenReturn(EnumSet.of(EvolutionMode.ADDING_LOCALES));
@@ -122,14 +127,9 @@ class LongRunningReducedEntityIndexTest implements TimeBoundedTestSupport {
 
 				assertStateAfterCommit(
 					tested,
-					original -> {
-						final int ops = random.nextInt(5) + 1;
-						for (int i = 0; i < ops; i++) {
-							executeRandomOperation(
-								random, original, referencePks, referenceLocales, schema
-							);
-						}
-					},
+					original -> applyRandomBatch(
+						random, original, referencePks, referenceLocales, schema
+					),
 					(original, committed) -> {
 						assertNotNull(committed);
 						final ReducedEntityIndex typed =
@@ -148,6 +148,91 @@ class LongRunningReducedEntityIndexTest implements TimeBoundedTestSupport {
 				System.out.println("Failed state - Locales: " + state.expectedLocales());
 			}
 		);
+	}
+
+	/**
+	 * Generational proof that a **rolled-back** transaction discards every in-transaction mutation and leaves the base
+	 * index byte-for-byte intact — the atomic-rollback contract of Ref: #569. Each generation rebuilds a fresh index
+	 * from the (random-walking) reference model, captures a value oracle of that base, applies a random batch of
+	 * PK / locale add-remove mutations inside a transaction that is then rolled back, and asserts the base index is
+	 * unchanged and no committed value was published.
+	 */
+	@DisplayName("rollback discards every in-transaction mutation and leaves the base intact")
+	@ParameterizedTest(
+		name = "ReducedEntityIndex rollback discards every in-transaction mutation and leaves the base intact"
+	)
+	@Tag(SLOW)
+	@Tag(TRANSACTION)
+	@ArgumentsSource(TimeArgumentProvider.class)
+	void generationalRollbackProofTest(GenerationalTestInput input) {
+		final EntitySchemaContract schema = createEvolvingSchema();
+
+		runFor(
+			input,
+			50_000,
+			new GenerationalState(
+				new HashSet<>(),
+				new HashMap<>(),
+				createInstance()
+			),
+			(random, state) -> {
+				// the model random-walks across generations; use it in place (no defensive copy) so the
+				// attempted (rolled-back) batch keeps exploring fresh base indexes on the next generation
+				final Set<Integer> referencePks = state.expectedPks();
+				final Map<Locale, Set<Integer>> referenceLocales = state.expectedLocales();
+				// rebuild a fresh base index from the current reference model
+				final ReducedEntityIndex index = buildIndex(referencePks, referenceLocales, schema);
+				// value oracle of the base state that the rollback must return to
+				final ReducedIndexSnapshot beforeRollback = snapshot(index);
+
+				assertStateAfterRollback(
+					index,
+					original -> applyRandomBatch(
+						random, original, referencePks, referenceLocales, schema
+					),
+					(original, committed) -> {
+						assertNull(
+							committed,
+							"A rolled-back transaction must not publish a committed value!"
+						);
+						assertEquals(
+							beforeRollback, snapshot(original),
+							"ReducedEntityIndex changed after rollback — atomic rollback leaked!"
+						);
+					}
+				);
+
+				return new GenerationalState(referencePks, referenceLocales, index);
+			},
+			(state, exc) -> {
+				System.out.println("Failed state - PKs: " + state.expectedPks());
+				System.out.println("Failed state - Locales: " + state.expectedLocales());
+			}
+		);
+	}
+
+	/**
+	 * Applies a random batch of 1–5 add/remove PK / locale mutations to `index`, mirroring each mutation into the
+	 * `referencePks` / `referenceLocales` reference model so the two stay in lockstep. Shared by the commit and
+	 * rollback proofs so both drive the identical random-draw sequence.
+	 *
+	 * @param random           source of randomness
+	 * @param index            the index being mutated
+	 * @param referencePks     the reference model for primary keys
+	 * @param referenceLocales the reference model for locale-to-PK mapping
+	 * @param schema           the entity schema allowing locale evolution
+	 */
+	private static void applyRandomBatch(
+		@Nonnull Random random,
+		@Nonnull ReducedEntityIndex index,
+		@Nonnull Set<Integer> referencePks,
+		@Nonnull Map<Locale, Set<Integer>> referenceLocales,
+		@Nonnull EntitySchemaContract schema
+	) {
+		final int ops = random.nextInt(5) + 1;
+		for (int i = 0; i < ops; i++) {
+			executeRandomOperation(random, index, referencePks, referenceLocales, schema);
+		}
 	}
 
 	/**
@@ -270,6 +355,72 @@ class LongRunningReducedEntityIndexTest implements TimeBoundedTestSupport {
 	}
 
 	/**
+	 * Rebuilds a fresh {@link ReducedEntityIndex} from the reference model outside any transaction, replaying every
+	 * primary key and locale-to-PK entry. Used by the rollback proof to reconstruct the base index the rollback must
+	 * return to.
+	 *
+	 * @param referencePks     the primary keys to insert
+	 * @param referenceLocales the locale-to-PK mapping to upsert
+	 * @param schema           the entity schema allowing locale evolution
+	 * @return a freshly built index matching the reference model
+	 */
+	@Nonnull
+	private static ReducedEntityIndex buildIndex(
+		@Nonnull Set<Integer> referencePks,
+		@Nonnull Map<Locale, Set<Integer>> referenceLocales,
+		@Nonnull EntitySchemaContract schema
+	) {
+		final ReducedEntityIndex index = createInstance();
+		for (final int pk : referencePks) {
+			index.insertPrimaryKeyIfMissing(pk);
+		}
+		for (final Map.Entry<Locale, Set<Integer>> entry : referenceLocales.entrySet()) {
+			for (final int pk : entry.getValue()) {
+				index.upsertLanguage(entry.getKey(), pk, schema);
+			}
+		}
+		return index;
+	}
+
+	/**
+	 * Reads the full logical content of the index into a value-comparable snapshot (all primary keys plus, per
+	 * language tag, the sorted primary keys carrying that locale), so two snapshots taken before and after a rollback
+	 * can be compared with `.equals` to prove exact restoration. Shared as the oracle reader by the sibling savepoint
+	 * test.
+	 *
+	 * @param index the index to snapshot
+	 * @return a deeply `.equals`-comparable snapshot of the index content
+	 */
+	@Nonnull
+	static ReducedIndexSnapshot snapshot(@Nonnull ReducedEntityIndex index) {
+		final List<Integer> primaryKeys = toList(index.getAllPrimaryKeys());
+		final Map<String, List<Integer>> localePks = new HashMap<>();
+		for (final Locale locale : index.getLanguages()) {
+			localePks.put(
+				locale.toLanguageTag(),
+				toList(index.getRecordsWithLanguageFormula(locale).compute())
+			);
+		}
+		return new ReducedIndexSnapshot(primaryKeys, localePks);
+	}
+
+	/**
+	 * Converts a bitmap into an ascending list of its record ids (a value type with deep `.equals`).
+	 *
+	 * @param bitmap the bitmap to convert
+	 * @return the bitmap's record ids in ascending order
+	 */
+	@Nonnull
+	private static List<Integer> toList(@Nonnull Bitmap bitmap) {
+		final int[] array = bitmap.getArray();
+		final List<Integer> list = new ArrayList<>(array.length);
+		for (final int value : array) {
+			list.add(value);
+		}
+		return list;
+	}
+
+	/**
 	 * State carried between generations in the generational proof test.
 	 *
 	 * @param expectedPks     the expected set of primary keys
@@ -280,5 +431,17 @@ class LongRunningReducedEntityIndexTest implements TimeBoundedTestSupport {
 		@Nonnull Set<Integer> expectedPks,
 		@Nonnull Map<Locale, Set<Integer>> expectedLocales,
 		@Nonnull ReducedEntityIndex index
+	) {}
+
+	/**
+	 * Value-comparable snapshot of a {@link ReducedEntityIndex}: all primary keys (sorted) and the per-language-tag
+	 * sorted primary keys carrying that locale. Record equality gives deep structural comparison.
+	 *
+	 * @param primaryKeys all indexed primary keys in ascending order
+	 * @param localePks   language tag → sorted primary keys carrying that locale
+	 */
+	record ReducedIndexSnapshot(
+		@Nonnull List<Integer> primaryKeys,
+		@Nonnull Map<String, List<Integer>> localePks
 	) {}
 }
