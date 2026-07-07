@@ -4649,7 +4649,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 				"""
 					{
 						"require": {
-							"referenceParameterSummary": {
+							"referenceParameterSummaryWithHistograms": {
 								"statisticsDepth":"COUNTS",
 								"requirements": [
 									{
@@ -4725,7 +4725,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 				"""
 					{
 						"require": {
-							"referenceParameterSummary": {
+							"referenceParameterSummaryWithHistograms": {
 								"statisticsDepth":"COUNTS",
 								"requirements": [
 									{
@@ -4872,7 +4872,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 								"number": 1,
 								"size": %d
 							},
-							"referenceParameterSummary": {
+							"referenceParameterSummaryWithHistograms": {
 								"statisticsDepth": "COUNTS",
 								"requirements": [
 									{

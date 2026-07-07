@@ -130,9 +130,11 @@ public class HistogramHaving extends AbstractFilterConstraintContainer
 	 * @param from            the inclusive lower bound of the range (nullable if {@code to} is non-null)
 	 * @param to              the inclusive upper bound of the range (nullable if {@code from} is non-null)
 	 * @param groupHaving     optional single {@link GroupHaving} constraint selecting the group entity for grouped
-	 *                        histograms; must be null for non-grouped slots
-	 * @throws io.evitadb.exception.EvitaInvalidUsageException when both bounds are null or when
-	 *                                                        {@code from.compareTo(to) > 0}
+	 *                        histograms; must be null for non-grouped slots; resolved against the group-entity
+	 *                        domain (`ConstraintDomain.GROUP_ENTITY`)
+	 * @throws io.evitadb.exception.EvitaInvalidUsageException when both bounds are null, when
+	 *                                                        {@code from.compareTo(to) > 0}, or when
+	 *                                                        {@code groupHaving} is not a single child
 	 */
 	@Creator
 	public HistogramHaving(
@@ -140,7 +142,7 @@ public class HistogramHaving extends AbstractFilterConstraintContainer
 		@Nullable String histogramName,
 		@Nullable BigDecimal from,
 		@Nullable BigDecimal to,
-		@Nullable @Child GroupHaving groupHaving
+		@Nullable @Child(domain = ConstraintDomain.GROUP_ENTITY) GroupHaving groupHaving
 	) {
 		super(
 			buildArguments(referenceName, histogramName, from, to),

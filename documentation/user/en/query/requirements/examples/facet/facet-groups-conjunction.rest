@@ -17,13 +17,15 @@ POST /rest/evita/Product/query
   "require" : {
     "referenceGroupsSummary" : {
       "statisticsDepth" : "IMPACT",
-      "requirements" : {
-        "entityFetch" : {
-          "attributeContent" : [
-            "code"
-          ]
+      "requirements" : [
+        {
+          "entityFetch" : {
+            "attributeContent" : [
+              "code"
+            ]
+          }
         }
-      }
+      ]
     },
     "facetGroupsGroupsConjunction" : { }
   }

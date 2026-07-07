@@ -257,10 +257,8 @@ class FilterConstraintResolverTest extends AbstractConstraintResolverTest {
 	void shouldResolveHistogramHavingFullArityWithGroupSelector() {
 		// full-arity histogramHaving with a groupHaving child — the `@Child GroupHaving groupHaving`
 		// parameter is single-variant, so the GraphQL/REST schema flattens the field name to the
-		// parameter name `groupHaving`, and the inner constraint key simplifies to `groupHaving`
-		// (since GroupHaving's domain matches HistogramHaving's parent domain — see
-		// ConstraintKeyBuilder.build's simplification rule). The resolver finds the value via the
-		// simplified constraint key.
+		// parameter name `groupHaving`, and the inner constraint key is `groupHaving` (the `group`
+		// property-type prefix combined with GroupHaving's fullName `having`, mirroring EntityHaving).
 		assertEquals(
 			histogramHaving(
 				"CATEGORY",
@@ -281,6 +279,53 @@ class FilterConstraintResolverTest extends AbstractConstraintResolverTest {
 							.e("attributeNameEquals", "height"))
 						.build()
 				)
+			)
+		);
+	}
+
+	@Test
+	void shouldResolveGroupHavingNestedAttributeOnGroupSchema() {
+		// inside groupHaving, the data locator switches to the `categoryGroup` group entity — the
+		// `NAME` attribute exists there (defined in AbstractConstraintResolverTest), so the nested
+		// attributeEquals must resolve and produce the corresponding constraint
+		assertEquals(
+			histogramHaving(
+				"CATEGORY",
+				50,
+				120,
+				groupHaving(attributeEquals("NAME", "height"))
+			),
+			QueryPurifierVisitor.purify(
+				this.resolver.resolve(
+					Entities.PRODUCT,
+					"referenceCategoryHistogramHaving",
+					map()
+						.e("from", 50)
+						.e("to", 120)
+						.e("groupHaving", map()
+							.e("attributeNameEquals", "height"))
+						.build()
+				)
+			)
+		);
+	}
+
+	@Test
+	void shouldRejectGroupHavingNestedAttributeNotOnGroupSchema() {
+		// `CODE` exists on Product and on the Category reference attributes but NOT on the
+		// `categoryGroup` entity — once the locator switches to GROUP_ENTITY, attribute lookup
+		// must fail; the resolver throws an internal error naming the missing classifier
+		assertThrows(
+			EvitaInternalError.class,
+			() -> this.resolver.resolve(
+				Entities.PRODUCT,
+				"referenceCategoryHistogramHaving",
+				map()
+					.e("from", 50)
+					.e("to", 120)
+					.e("groupHaving", map()
+						.e("attributeCodeEquals", "x"))
+					.build()
 			)
 		);
 	}

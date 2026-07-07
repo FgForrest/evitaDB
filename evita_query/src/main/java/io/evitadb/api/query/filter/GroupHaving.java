@@ -24,8 +24,8 @@
 package io.evitadb.api.query.filter;
 
 import io.evitadb.api.query.Constraint;
-import io.evitadb.api.query.EntityConstraint;
 import io.evitadb.api.query.FilterConstraint;
+import io.evitadb.api.query.GroupConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
@@ -47,9 +47,10 @@ import java.io.Serializable;
  * This constraint requires the reference schema to have the `REFERENCED_GROUP_ENTITY` component enabled in its indexed
  * components configuration and a group type defined.
  *
- * This constraint is an {@link EntityConstraint} and {@link SeparateEntityScopeContainer}, declaring that it defines
- * a filtering context for a different entity type than the query's primary collection. It is supported in the
- * {@code REFERENCE}, {@code INLINE_REFERENCE}, {@code FACET}, and {@code SEGMENT} constraint domains.
+ * This constraint is a {@link GroupConstraint} (it targets the group entity of a faceted reference) and
+ * {@link SeparateEntityScopeContainer} (declaring a separate filtering context for a different entity type than
+ * the query's primary collection). It is supported in the {@code REFERENCE}, {@code INLINE_REFERENCE},
+ * {@code FACET}, and {@code SEGMENT} constraint domains.
  *
  * ## Basic Usage
  *
@@ -119,14 +120,14 @@ import java.io.Serializable;
  * @author Jan Novotný, FG Forrest a.s. (c) 2026
  */
 @ConstraintDefinition(
-	name = "groupHaving",
+	name = "having",
 	shortDescription = "The container that shifts the filtering scope to the group entity of the reference, " +
 		"allowing to filter by its attributes and other properties rather than by the reference relation " +
 		"or referenced entity attributes.",
 	userDocsLink = "/documentation/query/filtering/references#group-having",
 	supportedIn = { ConstraintDomain.REFERENCE, ConstraintDomain.INLINE_REFERENCE, ConstraintDomain.FACET, ConstraintDomain.SEGMENT }
 )
-public class GroupHaving extends AbstractFilterConstraintContainer implements EntityConstraint<FilterConstraint>, SeparateEntityScopeContainer {
+public class GroupHaving extends AbstractFilterConstraintContainer implements GroupConstraint<FilterConstraint>, SeparateEntityScopeContainer {
 	@Serial private static final long serialVersionUID = 5484727724544395858L;
 
 	private GroupHaving() {}

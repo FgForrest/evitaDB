@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -82,7 +82,7 @@ public abstract class ConstraintToJsonConverter {
 	@Nonnull private final DataLocatorResolver dataLocatorResolver;
 	@Nonnull private final ConstraintDescriptorResolver constraintDescriptorResolver;
 
-		/**
+	/**
 	 * Map of additional resolvers for cross-resolving constraints of different constraint types.
 	 */
 	@Nonnull private final Map<ConstraintType, AtomicReference<? extends ConstraintToJsonConverter>> additionalConverters;
@@ -277,11 +277,21 @@ public abstract class ConstraintToJsonConverter {
 			if (parameterValue.isEmpty()) {
 				return Optional.empty();
 			}
-			// concrete (single-variant) child types are flattened in the GraphQL/REST schema to use
-			// the parameter name as the wrapper key — see GraphQLConstraintSchemaBuilder's
-			// buildChildConstraintValue and the matching ConstraintResolver flattening branch. Mirror
-			// that here so the JSON the converter produces round-trips through the resolver: the
-			// inner constraint's key→value pair is nested under `parameterDescriptor.name()`.
+			// Non-abstract concrete @Child parameters whose target class has a single `@Creator`
+			// variant are wrapped under `parameterDescriptor.name()` across all three sides of the
+			// constraint pipeline:
+			//   - schema builders (GraphQLConstraintSchemaBuilder, OpenApiConstraintSchemaBuilder) emit
+			//     the wrapper field under this name in `buildWrapperObjectConstraintValue`,
+			//   - the resolver (`ConstraintResolver.extractChildParameterFromValue`) looks up the
+			//     wrapper field under this name in its single-variant branch,
+			//   - this converter mirrors them so the JSON it produces round-trips back through the
+			//     resolver. The inner constraint's key→value pair is then nested under
+			//     `parameterDescriptor.name()`.
+			// Multi-variant concrete @Child types (e.g. `AttributeContent` with both plain and
+			// `withAttributes` creators) are handled by the multi-variant resolver branch which keys
+			// the wrapper field by constraint key; this converter does not currently emit those —
+			// callers feed it values produced by the Java DSL where the variant is known by argument
+			// shape.
 			final Optional<JsonConstraint> innerResult = convert(
 				childConvertContext, (Constraint<?>) parameterValue.get()
 			);
@@ -321,8 +331,7 @@ public abstract class ConstraintToJsonConverter {
 
 				final List<JsonConstraint> convertedChildren = children
 					.map(it -> convert(childDataLocator.get(), it))
-					.filter(Optional::isPresent)
-					.map(Optional::get)
+					.flatMap(Optional::stream)
 					.toList();
 				if (convertedChildren.isEmpty()) {
 					// if there are no children we don't want to render array with empty wrapper containers

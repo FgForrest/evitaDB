@@ -12,13 +12,15 @@ POST /rest/evita/Product/query
   },
   "require" : {
     "referenceBrandSummary" : {
-      "requirements" : {
-        "entityFetch" : {
-          "attributeContent" : [
-            "name"
-          ]
+      "requirements" : [
+        {
+          "entityFetch" : {
+            "attributeContent" : [
+              "name"
+            ]
+          }
         }
-      },
+      ],
       "orderBy" : [
         {
           "attributeNameNatural" : "ASC"
@@ -26,18 +28,22 @@ POST /rest/evita/Product/query
       ]
     },
     "referenceParameterValuesSummary" : {
-      "requirements" : {
-        "entityFetch" : {
-          "attributeContent" : [
-            "name"
-          ]
+      "requirements" : [
+        {
+          "entityFetch" : {
+            "attributeContent" : [
+              "name"
+            ]
+          }
         },
-        "entityGroupFetch" : {
-          "attributeContent" : [
-            "name"
-          ]
+        {
+          "entityGroupFetch" : {
+            "attributeContent" : [
+              "name"
+            ]
+          }
         }
-      },
+      ],
       "filterGroupBy" : {
         "attributeIsVisibleInFilterEquals" : true
       },

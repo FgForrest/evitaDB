@@ -38,6 +38,7 @@ import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.invertedIndex.InvertedIndexSubSet;
 import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
 import io.evitadb.utils.ArrayUtils;
+import io.evitadb.utils.NumberUtils;
 import lombok.Getter;
 import net.openhft.hashing.LongHashFunction;
 
@@ -229,22 +230,17 @@ public class AttributeHistogramComputer implements CacheableEvitaResponseExtraRe
 			// the filter index now stores `BigDecimal` attribute values as a scaled `int` (the magnitude
 			// `BigDecimal.valueOf(scaledInt, indexedDecimalPlaces)` restores), so the bucket value handed to
 			// the converter is already an `Integer` in the integer domain — use it as identity. A genuine
-			// `BigDecimal` is still accepted defensively (e.g. an externally-built probe) and scaled here.
+			// `BigDecimal` is still accepted defensively (e.g. an externally-built probe): it is rounded to
+			// the schema's indexed precision (HALF_UP) onto the indexed grid via the canonical
+			// `NumberUtils.convertToInt` — the same primitive the sort/filter index encoding uses — rather
+			// than rejected when its natural scale exceeds indexedDecimalPlaces. `convertToInt` still guards
+			// against int overflow via `intValueExact()`, preserving the int-range contract documented below.
 			final int places = histogramRequest.getDecimalPlaces();
 			converter = value -> {
 				if (value instanceof Integer scaledInt) {
 					return scaledInt;
 				}
-				// mirror the Long branch's overflow guard and the documented int-range contract below:
-				// surface a clear error instead of silently wrapping an out-of-range scaled value
-				final long scaled = ((BigDecimal) value).stripTrailingZeros()
-					.scaleByPowerOfTen(places)
-					.longValueExact();
-				final int converted = (int) scaled;
-				if (scaled != (long) converted) {
-					throw new ArithmeticException("int overflow: " + value);
-				}
-				return converted;
+				return NumberUtils.convertToInt((BigDecimal) value, places);
 			};
 		} else {
 			throw new GenericEvitaInternalError(

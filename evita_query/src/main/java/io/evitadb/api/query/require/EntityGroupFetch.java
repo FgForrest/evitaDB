@@ -89,7 +89,7 @@ import java.util.stream.Stream;
 	name = "groupFetch",
 	shortDescription = "The constraint triggers loading full group entity bodies instead of just primary key references inside reference content contexts.",
 	userDocsLink = "/documentation/query/requirements/fetching#entity-group-fetch",
-	supportedIn = {ConstraintDomain.FACET}
+	supportedIn = {ConstraintDomain.FACET, ConstraintDomain.REFERENCE}
 )
 public class EntityGroupFetch extends AbstractRequireConstraintContainer implements EntityFetchRequire {
 

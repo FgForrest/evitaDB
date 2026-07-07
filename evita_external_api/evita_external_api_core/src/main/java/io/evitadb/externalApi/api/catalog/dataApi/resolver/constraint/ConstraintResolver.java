@@ -69,14 +69,16 @@ import java.util.stream.Stream;
  * <p>
  * If needed, an implementation can alter the process of resolving altogether.
  *
- * <h3>Resolving process</h3>
+ * ### Resolving process
+ *
  * The resolving process begin with parsing of JSON field key to determine original {@link Constraint} and {@link ConstraintDescriptor}
  * for that constraint is found. After that, constraint creator corresponding to JSON field key is found and
  * from its parameters it is determined how to resolve JSON field value (none, primitive, child, or wrapper object).
  * Using these parameters constraint instantiation arguments are reconstructed from that JSON field value.
  * Finally, original constraint is instantiated using the built instantiation arguments and returned.
  *
- * <h3>Children resolving</h3>
+ * ### Children resolving
+ *
  * Resolving of container children is a bit tricky because JSON objects don't have named constructors or factory methods,
  * and thus constraint names are placed in keys instead of actual objects. Therefore, if constraint expects child (or children)
  * all the possible constraints have to be listed in arbitrary object as unique fields. This is fine in case of one concrete
@@ -89,13 +91,13 @@ import java.util.stream.Stream;
  * expects that its children are unique to each other, then no `default` constraint container is needed, inner constraints
  * are simply put as array directly into the parent container.
  *
- * <h3>Constraint key formats</h3>
+ * ### Constraint key formats
+ *
  * Key can have one of 3 formats depending on descriptor data:
- * <ul>
- *     <li>`{fullName}` - if it's generic constraint without classifier</li>
- *     <li>`{propertyType}{fullName}` - if it's not generic constraint and doesn't have classifier</li>
- *     <li>`{propertyType}{classifier}{fullName}` - if it's not generic constraint and has classifier</li>
- * </ul>
+ *
+ * - `{fullName}` - if it's generic constraint without classifier
+ * - `{propertyType}{fullName}` - if it's not generic constraint and doesn't have classifier
+ * - `{propertyType}{classifier}{fullName}` - if it's not generic constraint and has classifier
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
@@ -551,22 +553,19 @@ public abstract class ConstraintResolver<C extends Constraint<?>> {
 			if (!childParameterType.isArray() && !ClassUtils.isAbstract(childParameterType) && Constraint.class.isAssignableFrom(childParameterType)) {
 				//noinspection unchecked
 				final Set<ConstraintDescriptor> constraints = ConstraintDescriptorProvider.getConstraints((Class<Constraint<?>>) childParameterType);
+				// Schema builders (GraphQL/REST) emit:
+				//   - single-variant concrete @Child types: wrapper field keyed by parameter name
+				//     (e.g. HistogramHaving.@Child GroupHaving groupHaving,
+				//      ReferenceHistogramStatistics.@Child EntityFetch entityFetch),
+				//   - multi-variant types: one wrapper field per variant keyed by constraint key
+				//     (e.g. ReferenceContent.@Child AttributeContent attributeContent — plain + withAttributes).
+				// Mirror both cases here. argumentName is always set to the canonical constraint key
+				// so downstream resolve(...) routes by constraint key, not parameter name.
 				if (constraints.size() == 1) {
-					// schema-side flattening (GraphQLConstraintSchemaBuilder, OpenApiConstraintSchemaBuilder):
-					// when there's exactly one valid constraint variant, the wrapper field name is the
-					// parameter name (not the constraint key). Mirror that here so the value is found, but
-					// propagate the constraint key as `argumentName` so downstream `resolve(...)` looks up
-					// the right constraint. This fallback is required for cases where the inner-key
-					// simplification in ConstraintKeyBuilder does NOT collapse the prefix — e.g. when a
-					// classifier-bearing parent (HistogramHaving on a reference) puts the resolver into a
-					// REFERENCE-domain context while the @Child has a different property type (GroupHaving
-					// is an EntityConstraint), so the prefix `entity` stays on the constraint key and would
-					// not match the schema-flattened wrapper field name.
 					final ConstraintDescriptor constraint = constraints.iterator().next();
-					final String expectedConstraintKey = this.keyBuilder.build(resolveContext, constraint, null);
 					final Object possibleValue = extractChildArgumentFromWrapperObject(parsedConstraintDescriptor, value, parameterDescriptor.name());
 					if (possibleValue != null) {
-						argumentName = expectedConstraintKey;
+						argumentName = this.keyBuilder.build(resolveContext, constraint, null);
 						argument = possibleValue;
 					}
 				} else {
