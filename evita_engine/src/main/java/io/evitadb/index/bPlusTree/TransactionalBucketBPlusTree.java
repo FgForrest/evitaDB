@@ -79,10 +79,16 @@ import static io.evitadb.utils.ArrayUtils.*;
  *
  * **Promotion / demotion** live inside the leaf mutation (mirroring `InvertedIndex.addRecord/removeRecord`):
  * an absent value inserts a single record; a second distinct record promotes the bucket to a {@link TransactionalBitmap}
- * (allocating the overflow column lazily); removing the last record deletes the bucket. A reduced multi bucket is **not**
- * demoted back to a single (a demoted singleton stays a bitmap). When a multi bucket is deleted, its bitmap's
- * transactional diff layer is explicitly released via {@code discardRemovedValueLayer} so it is not left ALIVE and
- * detected as stale during commit.
+ * (allocating the overflow column lazily); removing the last record deletes the bucket. Promotion happens eagerly at
+ * mutation time; **demotion is deferred to the leaf commit-merge** — a multi bucket reduced back to a single record is
+ * not demoted mid-transaction (a bucket oscillating across the 1/2 boundary within one transaction would otherwise
+ * allocate and free its bitmap on every crossing). At commit, {@link BPlusLeafTreeNode#createCopyWithMergedTransactionalMemory}
+ * reads each overflow bitmap's committed cardinality and, when it has settled at one, reverts the bucket to the
+ * primitive single-record form (writing the sole surviving id into the records column, nulled overflow slot); at most
+ * one promote-alloc and one demote-free therefore occur per bucket per transaction. When a multi bucket is deleted, its
+ * bitmap's transactional diff layer is explicitly released via {@code discardRemovedValueLayer} so it is not left ALIVE
+ * and detected as stale during commit; a demoted bitmap needs no such release because the commit-merge consumes its
+ * layer via {@code getStateCopyWithCommittedChanges} (the same call every kept-multi bucket uses).
  *
  * The tree participates fully in the MVCC framework as a {@link TransactionalLayerProducer}. It depends only on the
  * {@link io.evitadb.index.bitmap} layer and emits a NEUTRAL {@link BucketCursor} so a later task can adapt it to the
@@ -808,7 +814,8 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	 * Removes one or multiple record ids from the bucket with the specified `value`. If no such bucket exists, or it
 	 * contains none of the passed ids, nothing happens. A single-record bucket is deleted when its sole id is removed.
 	 * A bitmap bucket has the ids removed in place; when it drops to zero records the bucket is deleted (and its
-	 * bitmap's transactional layer released). A reduced bitmap is **not** demoted back to a single record.
+	 * bitmap's transactional layer released). A bitmap reduced to exactly one record is not demoted mid-transaction;
+	 * it is reverted to the primitive single form at the leaf commit-merge (see the class javadoc).
 	 *
 	 * @param value the value identifying the bucket
 	 * @param pks   the record ids to remove; must be non-empty (may contain negative ids)
@@ -3763,8 +3770,14 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				thePeek = layer.peek;
 			}
 
-			// commit-wrap runs ONLY on the overflow column (producer bitmaps); keys/records are plain references
+			// commit-wrap runs ONLY on the overflow column (producer bitmaps); keys/records are plain references, EXCEPT
+			// that a multi bucket drained to a single record is DEMOTED here to the primitive single-record form: the
+			// sole surviving id (read from the committed bitmap, never from records[i] which is don't-care
+			// post-promotion) is written into a copy-on-write records column and the overflow slot is nulled. Demotion is
+			// deferred to commit (never mid-transaction) so a bucket oscillating across the 1/2 boundary within one
+			// transaction allocates its bitmap at most once — see the class javadoc.
 			TransactionalBitmap[] newOverflow = null;
+			RecordColumn newRecords = null;
 			if (theOverflow != null) {
 				for (int i = 0; i < thePeek + 1; i++) {
 					final TransactionalBitmap original = theOverflow[i];
@@ -3774,24 +3787,50 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 						}
 						continue;
 					}
-					final TransactionalBitmap committed = wrapOverflow(
-						transactionalLayer.getStateCopyWithCommittedChanges(original)
-					);
-					if (newOverflow == null && committed != original) {
-						newOverflow = new TransactionalBitmap[theOverflow.length];
-						System.arraycopy(theOverflow, 0, newOverflow, 0, i);
-					}
-					if (newOverflow != null) {
-						newOverflow[i] = committed;
+					final Bitmap committedBitmap = transactionalLayer.getStateCopyWithCommittedChanges(original);
+					final int committedCardinality = committedBitmap.size();
+					if (committedCardinality == 1) {
+						// DEMOTE: revert the multi bucket to the primitive single-record form
+						if (newOverflow == null) {
+							newOverflow = new TransactionalBitmap[theOverflow.length];
+							System.arraycopy(theOverflow, 0, newOverflow, 0, i);
+						}
+						newOverflow[i] = null;
+						if (newRecords == null) {
+							newRecords = theRecords.duplicate();
+						}
+						newRecords.setAt(i, committedBitmap.getFirst());
+					} else if (committedCardinality == 0) {
+						// a present overflow slot can never be empty — a bucket drained to zero is deleted at mutation time
+						throw new GenericEvitaInternalError(
+							"Empty overflow bucket at index " + i + " — a drained-to-zero bucket must be deleted, not left!"
+						);
+					} else {
+						// keep the multi bucket: re-wrap the committed state as a TransactionalBitmap
+						final TransactionalBitmap committed = wrapOverflow(committedBitmap);
+						if (newOverflow == null && committed != original) {
+							newOverflow = new TransactionalBitmap[theOverflow.length];
+							System.arraycopy(theOverflow, 0, newOverflow, 0, i);
+						}
+						if (newOverflow != null) {
+							newOverflow[i] = committed;
+						}
 					}
 				}
 			}
 
+			// a demotion (newRecords != null) always nulls its overflow slot, so it implies newOverflow != null; the
+			// other rebuild branches are reached only when no overflow slot changed and thus keep the original records
+			final RecordColumn theMergedRecords = newRecords != null ? newRecords : theRecords;
+			Assert.isPremiseValid(
+				newRecords == null || newOverflow != null,
+				"A records-column demotion must always be accompanied by an overflow-column change!"
+			);
 			final BPlusLeafTreeNode<M> result;
 			if (newOverflow != null) {
 				result = new BPlusLeafTreeNode<>(
 					theKeys,
-					theRecords,
+					theMergedRecords,
 					newOverflow,
 					thePeek,
 					this.comparator,
@@ -3800,7 +3839,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			} else if (layer != null) {
 				result = new BPlusLeafTreeNode<>(
 					theKeys,
-					theRecords,
+					theMergedRecords,
 					theOverflow,
 					thePeek,
 					this.comparator,
@@ -3812,7 +3851,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				// nodes so subsequent transactions can layer changes over them
 				result = new BPlusLeafTreeNode<>(
 					theKeys,
-					theRecords,
+					theMergedRecords,
 					theOverflow,
 					thePeek,
 					this.comparator,
@@ -4107,7 +4146,10 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 
 		/**
 		 * Removes records from the bucket at `index`. A matching single bucket is deleted; a multi bucket has the ids
-		 * removed in place and is deleted (with its bitmap layer released) when it drops to zero records.
+		 * removed in place and is deleted (with its bitmap layer released) when it drops to zero records. A multi bucket
+		 * reduced to exactly one record is **not** demoted here — it stays a bitmap until the leaf commit-merge reverts
+		 * it to the primitive single form (see the class javadoc), so a bucket never thrashes its representation within
+		 * one transaction.
 		 *
 		 * @param index the bucket index
 		 * @param pks   the record ids to remove; must be non-empty

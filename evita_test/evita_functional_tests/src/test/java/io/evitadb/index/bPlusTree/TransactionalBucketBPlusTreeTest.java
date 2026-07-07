@@ -480,16 +480,18 @@ class TransactionalBucketBPlusTreeTest {
 		}
 
 		@Test
-		@DisplayName("does not demote a reduced multi bucket back to single")
-		void shouldNotDemoteReducedMultiBucket() {
+		@DisplayName("does not demote mid-operation on a non-transactional remove (demotion is deferred to commit)")
+		void shouldNotDemoteOnNonTransactionalRemove() {
 			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(3, Integer.class);
 			tree.addRecord(5, 100, 200);
 			tree.removeRecord(5, 200);
 			assertEquals(1, tree.cardinalityOf(5));
-			// a demoted singleton stays a bitmap, NOT a SingleRecordBitmap
+			// the non-transactional (in-place) remove path keeps the bitmap; demotion to the primitive single form is
+			// decided once at commit (see BitmapDemotionAtCommitTest), never mid-operation, so a bucket oscillating
+			// across the 1/2 boundary within one transaction allocates its bitmap at most once
 			assertFalse(
 				tree.getRecordsEqualTo(5) instanceof SingleRecordBitmap,
-				"A reduced multi bucket must stay a bitmap, not demote to a single!"
+				"A non-transactional remove keeps the multi bitmap; demotion is deferred to commit!"
 			);
 		}
 
@@ -540,6 +542,213 @@ class TransactionalBucketBPlusTreeTest {
 				},
 				(original, committed) -> {
 					verifyTreeConsistency(committed, keys.get().stream().mapToInt(Integer::intValue).toArray());
+				}
+			);
+		}
+	}
+
+	@Nested
+	@DisplayName("Bitmap demotion at commit (multi drained to single reverts to the primitive form)")
+	class BitmapDemotionAtCommitTest {
+
+		@Test
+		@DisplayName("demotes a multi bucket drained to a single record back to the primitive single form at commit")
+		void shouldDemoteMultiBucketDrainedToSingleAtCommit() {
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(9, Integer.class);
+			assertStateAfterCommit(
+				tree,
+				tested -> {
+					tested.addRecord(5, 100, 200, 300);
+					tested.removeRecord(5, 200, 300);
+				},
+				(original, committed) -> {
+					assertEquals(1, committed.cardinalityOf(5));
+					assertInstanceOf(
+						SingleRecordBitmap.class, committed.getRecordsEqualTo(5),
+						"A multi bucket drained to a single record must demote to the primitive single form at commit!"
+					);
+					assertArrayEquals(new int[]{100}, recordsOf(committed, 5));
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("demotes keeping the surviving record, not the first promoted one")
+		void shouldDemoteKeepingTheSurvivingRecordNotTheFirstPromotedOne() {
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(9, Integer.class);
+			assertStateAfterCommit(
+				tree,
+				tested -> {
+					// promotion seeds the bitmap with records[i]=100 (the first id); records[i] is don't-care afterwards
+					tested.addRecord(5, 100);
+					tested.addRecord(5, 200);
+					// remove the first id so the survivor is 200, distinct from the stale records[i]=100
+					tested.removeRecord(5, 100);
+				},
+				(original, committed) -> {
+					assertEquals(1, committed.cardinalityOf(5));
+					assertInstanceOf(SingleRecordBitmap.class, committed.getRecordsEqualTo(5));
+					// the surviving id must be read from the committed bitmap (getFirst()==200), never from records[i]
+					assertArrayEquals(new int[]{200}, recordsOf(committed, 5));
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("demotes at most once even when the bucket oscillates across the 1/2 boundary within a transaction")
+		void shouldNotOscillateWhenCrossingBoundaryRepeatedlyWithinTransaction() {
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(9, Integer.class);
+			assertStateAfterCommit(
+				tree,
+				tested -> {
+					tested.addRecord(5, 100);
+					// cross the 1/2 boundary twice: promote, drain, promote, drain
+					tested.addRecord(5, 200);
+					tested.removeRecord(5, 200);
+					tested.addRecord(5, 300);
+					tested.removeRecord(5, 300);
+				},
+				(original, committed) -> {
+					// the deferred-to-commit decision yields the final cardinality-1 state as a primitive single;
+					// the sweep inside assertStateAfterCommit proves no bitmap layer was left stale
+					assertEquals(1, committed.cardinalityOf(5));
+					assertInstanceOf(SingleRecordBitmap.class, committed.getRecordsEqualTo(5));
+					assertArrayEquals(new int[]{100}, recordsOf(committed, 5));
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("demotes several buckets and keeps a multi bucket co-located in the same leaf")
+		void shouldDemoteMultipleBucketsAndKeepAMultiBucketInSameLeaf() {
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(9, Integer.class);
+			assertStateAfterCommit(
+				tree,
+				tested -> {
+					// three multi buckets co-located in one leaf (block size 8)
+					tested.addRecord(1, 10, 20);
+					tested.addRecord(2, 30, 40);
+					tested.addRecord(3, 50, 60);
+					// drain buckets 1 and 2 down to a single record each; leave bucket 3 multi
+					tested.removeRecord(1, 20);
+					tested.removeRecord(2, 30);
+				},
+				(original, committed) -> {
+					// bucket 1: survivor 10, demoted
+					assertInstanceOf(SingleRecordBitmap.class, committed.getRecordsEqualTo(1));
+					assertArrayEquals(new int[]{10}, recordsOf(committed, 1));
+					// bucket 2: survivor 40, demoted
+					assertInstanceOf(SingleRecordBitmap.class, committed.getRecordsEqualTo(2));
+					assertArrayEquals(new int[]{40}, recordsOf(committed, 2));
+					// bucket 3: stays multi
+					assertEquals(2, committed.cardinalityOf(3));
+					assertFalse(committed.getRecordsEqualTo(3) instanceof SingleRecordBitmap);
+					assertArrayEquals(new int[]{50, 60}, recordsOf(committed, 3));
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("keeps a multi bucket that is reduced but not drained to a single record")
+		void shouldKeepMultiBucketWhenNotDrainedToSingle() {
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(9, Integer.class);
+			assertStateAfterCommit(
+				tree,
+				tested -> {
+					tested.addRecord(5, 100, 200, 300);
+					tested.removeRecord(5, 200);
+				},
+				(original, committed) -> {
+					assertEquals(2, committed.cardinalityOf(5));
+					assertFalse(
+						committed.getRecordsEqualTo(5) instanceof SingleRecordBitmap,
+						"A multi bucket reduced but not drained to one must stay a multi bitmap!"
+					);
+					assertArrayEquals(new int[]{100, 300}, recordsOf(committed, 5));
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("demotes a leftover cardinality-1 multi bitmap on a leaf touched for another bucket")
+		void shouldDemoteLeftoverSingleBitmapOnTouchedLeaf() {
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(9, Integer.class);
+			// establish a cardinality-1 MULTI bitmap out-of-transaction: the non-transactional remove keeps the bitmap
+			// (demotion is a commit-time concern), so bucket 1 holds a size-1 bitmap {10}, NOT a primitive single
+			tree.addRecord(1, 10, 20);
+			tree.removeRecord(1, 20);
+			assertEquals(1, tree.cardinalityOf(1));
+			assertFalse(
+				tree.getRecordsEqualTo(1) instanceof SingleRecordBitmap,
+				"Pre-condition: bucket 1 must be a size-1 bitmap, not yet demoted!"
+			);
+			// now touch the same leaf for a different bucket in a committing transaction: the bitmap of bucket 1 was not
+			// mutated this transaction (no layer of its own), yet the leaf commit-merge must still demote it — proving
+			// demotion of an unlayered bitmap neither leaks its (absent) layer nor is skipped
+			assertStateAfterCommit(
+				tree,
+				tested -> tested.addRecord(2, 70),
+				(original, committed) -> {
+					assertInstanceOf(SingleRecordBitmap.class, committed.getRecordsEqualTo(1));
+					assertArrayEquals(new int[]{10}, recordsOf(committed, 1));
+					assertInstanceOf(SingleRecordBitmap.class, committed.getRecordsEqualTo(2));
+					assertArrayEquals(new int[]{70}, recordsOf(committed, 2));
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("demotes when the surviving record is a negative primary key (setAt narrowing boundary)")
+		void shouldDemoteWhenSurvivingRecordIsANegativePrimaryKey() {
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(9, Integer.class);
+			assertStateAfterCommit(
+				tree,
+				tested -> {
+					// promote with the boundary negative id plus a positive one, then leave the negative survivor
+					tested.addRecord(5, Integer.MIN_VALUE, 100);
+					tested.removeRecord(5, 100);
+				},
+				(original, committed) -> {
+					assertInstanceOf(SingleRecordBitmap.class, committed.getRecordsEqualTo(5));
+					// setAt narrows the survivor sign-preservingly; the demoted id is read from the committed bitmap
+					assertArrayEquals(new int[]{Integer.MIN_VALUE}, recordsOf(committed, 5));
+				}
+			);
+			// a realistic externally-assigned negative pk as the survivor
+			final TransactionalBucketBPlusTree<Integer> tree2 = new TransactionalBucketBPlusTree<>(9, Integer.class);
+			assertStateAfterCommit(
+				tree2,
+				tested -> {
+					tested.addRecord(7, -1, 200);
+					tested.removeRecord(7, 200);
+				},
+				(original, committed) -> {
+					assertInstanceOf(SingleRecordBitmap.class, committed.getRecordsEqualTo(7));
+					assertArrayEquals(new int[]{-1}, recordsOf(committed, 7));
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("demotes a drained bucket on a leaf that also splits in the same transaction")
+		void shouldDemoteWhenLeafSplitsInSameTransaction() {
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(3, Integer.class);
+			// base: a full leaf (3 buckets) carrying a multi bucket; the transaction both drains it and splits the leaf
+			tree.addRecord(1, 10, 11);
+			tree.addRecord(2, 20);
+			tree.addRecord(3, 30);
+			assertStateAfterCommit(
+				tree,
+				tested -> {
+					// drain the multi bucket to a size-1 bitmap, then insert a 4th bucket to split the full leaf
+					tested.removeRecord(1, 11);
+					tested.addRecord(4, 40);
+				},
+				(original, committed) -> {
+					// the drained bucket demotes to the primitive single form on the split-born leaf
+					assertInstanceOf(SingleRecordBitmap.class, committed.getRecordsEqualTo(1));
+					assertArrayEquals(new int[]{10}, recordsOf(committed, 1));
+					verifyTreeConsistency(committed, 1, 2, 3, 4);
 				}
 			);
 		}
@@ -2044,7 +2253,7 @@ class TransactionalBucketBPlusTreeTest {
 
 	/**
 	 * Verifies the per-leaf version token exposed by {@link BucketCursor#currentLeafId()} — the foundation of the
-	 * leaf-granular formula-cache staleness id (issue #760). The contract that must hold: after a commit, the leaf that
+	 * leaf-granular formula-cache staleness mechanism. The contract that must hold: after a commit, the leaf that
 	 * a mutation touched carries a FRESH id (so a cached read that crossed it is invalidated), while every leaf the
 	 * mutation did NOT touch keeps its id (so cached reads over untouched value ranges stay valid). If untouched leaves
 	 * did not keep their id the token would still be correct but useless — it would invalidate everything on any write.

@@ -86,6 +86,11 @@ final class IntRecordColumn implements RecordColumn {
 	}
 
 	@Override
+	public void setAt(int index, long value) {
+		this.records[index] = (int) value;
+	}
+
+	@Override
 	public void removeAt(int index) {
 		System.arraycopy(this.records, index + 1, this.records, index, this.records.length - index - 1);
 	}

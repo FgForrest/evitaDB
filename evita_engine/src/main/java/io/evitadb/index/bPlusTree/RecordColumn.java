@@ -107,6 +107,17 @@ sealed interface RecordColumn permits IntRecordColumn, LongRecordColumn {
 	void insertAt(int index, long value);
 
 	/**
+	 * Overwrites the record at the given occupied {@code index} in place, without shifting the tail (the leaf's
+	 * {@code peek} is unchanged). Used by the commit-merge to demote a multi bucket — drained to a single record —
+	 * back to the primitive single form: the sole surviving id is written over the don't-care slot. An
+	 * {@link IntRecordColumn} narrows {@code value} to {@code int}. Allocation-free.
+	 *
+	 * @param index the occupied slot to overwrite
+	 * @param value the record to store (widened {@code int} or a packed {@code long})
+	 */
+	void setAt(int index, long value);
+
+	/**
 	 * Removes the record at {@code index}, shifting the tail one slot to the left (the leaf clears the freed last slot
 	 * via {@link #clearAt} and shrinks {@code peek} afterwards).
 	 *

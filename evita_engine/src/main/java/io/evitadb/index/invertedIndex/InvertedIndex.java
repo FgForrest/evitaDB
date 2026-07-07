@@ -48,6 +48,7 @@ import io.evitadb.index.bitmap.SingleRecordBitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.index.bool.TransactionalBoolean;
 import io.evitadb.index.invertedIndex.suppliers.HistogramBitmapSupplier;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
@@ -81,11 +82,12 @@ import java.util.function.Predicate;
  * instead of reallocating the whole structure - this is the key write-latency improvement of this representation.
  *
  * The tree stores each bucket in a columnar leaf: the value is the tree key, single-record buckets keep their lone id
- * in a primitive `int` column (no {@link io.evitadb.roaringbitmap.PersistentRoaringBitmap}), and multi-record buckets keep a mutable
- * {@link io.evitadb.index.bitmap.TransactionalBitmap} in a sparse overflow column. A single-record bucket promotes to a
- * bitmap when a second distinct record id is added; there is no demotion back. The {@link ValueToRecord} hierarchy
- * survives only as a transient flyweight materialized on demand (serializer DTO + iterator bridge); the tree never
- * stores a per-bucket {@link ValueToRecord} object.
+ * in a primitive `int` column (no {@link PersistentRoaringBitmap}), and multi-record buckets keep a mutable
+ * {@link TransactionalBitmap} in a sparse overflow column. A single-record bucket promotes to a
+ * bitmap when a second distinct record id is added; the reverse demotion (a multi bucket churned back down to a single
+ * record) is deferred to the leaf commit-merge so a bucket never thrashes its representation within one transaction.
+ * The {@link ValueToRecord} hierarchy survives only as a transient flyweight materialized on demand (serializer DTO +
+ * iterator bridge); the tree never stores a per-bucket {@link ValueToRecord} object.
  *
  * Histogram MUST NOT contain same record id in multiple buckets. This prerequisite is not checked internally by this
  * data structure and client code must this ensure by its internal logic! If this prerequisite is not met, histogram
@@ -237,7 +239,7 @@ public class InvertedIndex implements
 	/**
 	 * Materializes the bucket at the cursor's CURRENT position into a transient {@link ValueToRecord} flyweight. A
 	 * single-record bucket becomes a compact {@link ValueToRecordPrimitive}; a multi-record bucket becomes a
-	 * {@link ValueToRecordBitmap} sharing the very same {@link io.evitadb.index.bitmap.TransactionalBitmap} instance
+	 * {@link ValueToRecordBitmap} sharing the very same {@link TransactionalBitmap} instance
 	 * (no copy), which preserves the record-set hash/equals parity the formula cache relies on. Valid only after a
 	 * {@link BucketCursor#next()} that returned true.
 	 *
@@ -294,7 +296,7 @@ public class InvertedIndex implements
 	 * Representation-independent equality of the record sets at the two cursors' CURRENT positions: a single `{5}` bucket
 	 * and a multi `{5}` bucket compare equal. Allocation-free for the single/single case (a bare int compare); the mixed
 	 * / multi case delegates to the flyweight {@link ValueToRecord#recordSetEquals}, which compares the transaction-aware
-	 * (merged) bitmap views and is representation-independent (a direct {@link io.evitadb.index.bitmap.TransactionalBitmap}
+	 * (merged) bitmap views and is representation-independent (a direct {@link TransactionalBitmap}
 	 * equals is unusable here - it is type-sensitive and ignores in-flight transactional changes).
 	 *
 	 * @param a the first cursor (positioned at a bucket)
