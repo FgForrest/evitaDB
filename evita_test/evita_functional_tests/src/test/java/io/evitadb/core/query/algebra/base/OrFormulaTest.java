@@ -26,19 +26,20 @@ package io.evitadb.core.query.algebra.base;
 import io.evitadb.core.query.algebra.CacheableFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.dataType.array.CompositeIntArray;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.bitmap.ArrayBitmap;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
-import org.junit.jupiter.api.Tag;
 
-import static org.junit.jupiter.api.Assertions.*;
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.QUERY;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Tests for {@link OrFormula} verifying boolean disjunction (OR) computation, memoization,
@@ -365,6 +366,47 @@ class OrFormulaTest {
 			);
 
 			assertInstanceOf(CacheableFormula.class, formula);
+		}
+	}
+
+	@Nested
+	@DisplayName("High-cardinality staleness guard (issue #37)")
+	class HighCardinalityStalenessGuardTest {
+
+		/**
+		 * Builds `count` distinct single-element bitmaps so the formula crosses the high-cardinality threshold and takes
+		 * the transactional-id fallback branch.
+		 *
+		 * @param count the number of bitmaps to create
+		 * @return the bitmap array
+		 */
+		@Nonnull
+		private static Bitmap[] distinctBitmaps(int count) {
+			final Bitmap[] bitmaps = new Bitmap[count];
+			for (int i = 0; i < count; i++) {
+				bitmaps[i] = new BaseBitmap(i + 1);
+			}
+			return bitmaps;
+		}
+
+		@Test
+		@DisplayName("A high-cardinality formula with an EMPTY transactional-id set is rejected")
+		void shouldRejectEmptyTransactionalIdSetAboveThreshold() {
+			// above EXCESSIVE_HIGH_CARDINALITY (100) the formula keys staleness solely on the transactional-id set; an
+			// empty set would make the cached result impossible to invalidate (issue #37), so construction must fail fast
+			final Bitmap[] bitmaps = distinctBitmaps(101);
+			assertThrows(
+				GenericEvitaInternalError.class,
+				() -> new OrFormula(new long[0], bitmaps)
+			);
+		}
+
+		@Test
+		@DisplayName("A high-cardinality formula with a non-empty transactional-id set is accepted")
+		void shouldAcceptNonEmptyTransactionalIdSetAboveThreshold() {
+			final Bitmap[] bitmaps = distinctBitmaps(101);
+			// a non-empty token (here a two-leaf version set) is the well-formed case and must construct cleanly
+			assertDoesNotThrow(() -> new OrFormula(new long[]{42L, 43L}, bitmaps));
 		}
 	}
 

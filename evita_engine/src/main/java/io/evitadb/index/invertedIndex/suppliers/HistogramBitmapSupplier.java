@@ -26,6 +26,7 @@ package io.evitadb.index.invertedIndex.suppliers;
 import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.deferred.BitmapSupplier;
 import io.evitadb.core.query.algebra.deferred.DeferredFormula;
+import io.evitadb.core.query.response.TransactionalDataRelatedStructure;
 import io.evitadb.dataType.array.CompositeIntArray;
 import io.evitadb.index.bitmap.ArrayBitmap;
 import io.evitadb.index.bitmap.Bitmap;
@@ -48,11 +49,13 @@ import java.util.Arrays;
  * - **lookup hash** ({@link #getHash()}) - the strong 64-bit content hash of the ordered bucket *values* (each value
  *   folded through the {@link ValueHashStrategy} resolved once from the uniform bucket value type), so two
  *   suppliers over different value ranges of the same field never collide in the cache.
- * - **staleness** ({@link #gatherTransactionalIds()}) - driven by the single field-level `indexTransactionId` of the
- *   owning {@link InvertedIndex}. This is deliberately coarse: any commit that touches the field invalidates every
- *   cached histogram range of that field at once.
+ * - **staleness** ({@link #gatherTransactionalIds()}) - the set of version ids of the leaf pages the histogram slice
+ *   crossed. A commit that mutates a crossed page mints a fresh id for that page, invalidating exactly the cached
+ *   ranges that read it; ranges over untouched pages stay valid. Slices spanning more than
+ *   {@link TransactionalDataRelatedStructure#EXCESSIVE_HIGH_CARDINALITY} leaves collapse
+ *   to the single whole-index id to bound the footprint.
  *
- * `HASH_FUNCTION` is inherited from {@link io.evitadb.core.query.response.TransactionalDataRelatedStructure}.
+ * `HASH_FUNCTION` is inherited from {@link TransactionalDataRelatedStructure}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
@@ -98,16 +101,31 @@ public class HistogramBitmapSupplier implements BitmapSupplier {
 	private final Long transactionalIdHash;
 
 	/**
-	 * @param indexTransactionId the owning {@link InvertedIndex}'s field-level transactional id, the sole staleness
-	 *                           version of every histogram range over that field
+	 * Convenience constructor for a single whole-index staleness id — delegates to the leaf-granular
+	 * {@link #HistogramBitmapSupplier(long[], ValueToRecord[])} with the one-element set `{indexTransactionId}`.
+	 *
+	 * @param indexTransactionId the owning {@link InvertedIndex}'s field-level transactional id, used as the sole
+	 *                           staleness version of this histogram range
 	 * @param histogramBuckets   the ordered bucket slice whose values form the lookup key and whose record sets
 	 *                           {@link #get()} unions
 	 */
 	public HistogramBitmapSupplier(long indexTransactionId, @Nonnull ValueToRecord[] histogramBuckets) {
+		this(new long[] {indexTransactionId}, histogramBuckets);
+	}
+
+	/**
+	 * @param indexTransactionIds the canonical (sorted, deduplicated) set of version ids of the leaf pages this
+	 *                            histogram slice crossed — so a cached range survives writes to other pages — or the
+	 *                            single whole-index id when the slice spans too many leaves. This is the staleness
+	 *                            version of the cached histogram range.
+	 * @param histogramBuckets    the ordered bucket slice whose values form the lookup key and whose record sets
+	 *                            {@link #get()} unions
+	 */
+	public HistogramBitmapSupplier(@Nonnull long[] indexTransactionIds, @Nonnull ValueToRecord[] histogramBuckets) {
 		this.histogramBuckets = histogramBuckets;
 		// LOOKUP key: CLASS_ID followed by a strong 64-bit content hash of EVERY bucket value, in bucket order.
 		// Bucket order is already monotonic and is part of the cache identity, so it is kept (no sorting). This is the
-		// sole per-bucket disambiguator between cached ranges of the same field now that staleness is field-coarse.
+		// sole per-bucket disambiguator between cached ranges of the same field.
 		final long[] hashInput = new long[histogramBuckets.length + 1];
 		hashInput[0] = CLASS_ID;
 		if (histogramBuckets.length > 0) {
@@ -129,10 +147,11 @@ public class HistogramBitmapSupplier implements BitmapSupplier {
 		this.estimatedCost = this.estimatedCardinality * getOperationCost();
 		this.cost = this.estimatedCost;
 		this.costToPerformance = getCost() / (get().size() * getOperationCost());
-		// STALENESS version: the field-level transactional id of the owning InvertedIndex. Any commit that mutates the
-		// field mints a fresh id, invalidating every cached histogram range of that field at once (accepted coarseness).
-		this.transactionalIds = new long[] {indexTransactionId};
-		this.transactionalIdHash = HASH_FUNCTION.hashLong(indexTransactionId);
+		// STALENESS version: the set of leaf-page version ids the slice crossed. A commit that mutates a crossed page
+		// mints a fresh id for that page, invalidating exactly the cached ranges that read it; ranges over untouched
+		// pages stay valid. The set is capped to the single whole-index id for slices spanning too many leaves.
+		this.transactionalIds = indexTransactionIds;
+		this.transactionalIdHash = HASH_FUNCTION.hashLongs(indexTransactionIds);
 	}
 
 	@Override

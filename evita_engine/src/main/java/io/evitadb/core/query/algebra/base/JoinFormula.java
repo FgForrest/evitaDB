@@ -247,6 +247,14 @@ public class JoinFormula extends AbstractFormula {
 	@Override
 	public long[] gatherBitmapIdsInternal() {
 		if (this.bitmaps.length > EXCESSIVE_HIGH_CARDINALITY) {
+			// the high-cardinality fallback substitutes the index/leaf-page transactional id set for the per-bitmap
+			// ids; a null OR EMPTY set would leave this cacheable formula with no staleness dependency and make it
+			// impossible to ever invalidate. Fail fast instead.
+			Assert.isPremiseValid(
+				this.indexTransactionId != null && this.indexTransactionId.length > 0,
+				"High-cardinality bitmaps require a non-empty indexTransactionId (else the cached result could never " +
+					"be invalidated)!"
+			);
 			return this.indexTransactionId;
 		} else {
 			int count = 0;

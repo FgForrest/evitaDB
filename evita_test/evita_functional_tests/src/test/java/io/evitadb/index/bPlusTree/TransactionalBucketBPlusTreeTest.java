@@ -48,12 +48,14 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Map.Entry;
 import java.util.Random;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static io.evitadb.test.TestTags.CACHE;
 import static io.evitadb.test.TestTags.DATA_TYPE;
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.SERIALIZATION;
@@ -2037,6 +2039,99 @@ class TransactionalBucketBPlusTreeTest {
 				}
 			}
 			return owner;
+		}
+	}
+
+	/**
+	 * Verifies the per-leaf version token exposed by {@link BucketCursor#currentLeafId()} — the foundation of the
+	 * leaf-granular formula-cache staleness id (issue #760). The contract that must hold: after a commit, the leaf that
+	 * a mutation touched carries a FRESH id (so a cached read that crossed it is invalidated), while every leaf the
+	 * mutation did NOT touch keeps its id (so cached reads over untouched value ranges stay valid). If untouched leaves
+	 * did not keep their id the token would still be correct but useless — it would invalidate everything on any write.
+	 */
+	@Nested
+	@DisplayName("Leaf version token (currentLeafId)")
+	@Tag(CACHE)
+	class LeafVersionTokenTest {
+
+		/**
+		 * Walks the whole tree forward and maps each bucket value to the version id of the leaf it lives in.
+		 *
+		 * @param tree the tree to snapshot
+		 * @return a value → leaf-version-id map in ascending value order
+		 */
+		@Nonnull
+		private static TreeMap<Integer, Long> snapshotValueToLeafId(@Nonnull TransactionalBucketBPlusTree<Integer> tree) {
+			final TreeMap<Integer, Long> result = new TreeMap<>();
+			final BucketCursor<Integer> cursor = tree.cursor();
+			while (cursor.next()) {
+				result.put(cursor.value(), cursor.currentLeafId());
+			}
+			return result;
+		}
+
+		@Test
+		@DisplayName("mutating one bucket re-mints only its leaf's id; sibling leaves keep theirs")
+		void mutationChangesOnlyTouchedLeafVersion() {
+			// small block size -> a handful of buckets already spans several leaves
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(3, Integer.class);
+			for (int value = 10; value <= 120; value += 10) {
+				tree.addRecord(value, value * 100);
+			}
+
+			final TreeMap<Integer, Long> before = snapshotValueToLeafId(tree);
+			// precondition: the fixture actually spans more than one leaf, otherwise the sibling-stability half is vacuous
+			assertTrue(new TreeSet<>(before.values()).size() > 1, "Fixture must span multiple leaves!");
+
+			final int mutatedValue = 60;
+			final long touchedLeafIdBefore = before.get(mutatedValue);
+
+			assertStateAfterCommit(
+				tree,
+				// promote bucket 60 single -> multi: an in-leaf change (no split/merge), so ONLY leaf(60) is rebuilt
+				tested -> tested.addRecord(mutatedValue, 999_999),
+				(original, committed) -> {
+					final TreeMap<Integer, Long> after = snapshotValueToLeafId(committed);
+					assertEquals(before.keySet(), after.keySet(), "Commit must not change the set of bucket values!");
+
+					final long touchedLeafIdAfter = after.get(mutatedValue);
+					// the touched leaf must carry a fresh version id
+					assertNotEquals(touchedLeafIdBefore, touchedLeafIdAfter, "Touched leaf must get a fresh id!");
+
+					boolean sawUntouchedSibling = false;
+					for (final Entry<Integer, Long> entry : before.entrySet()) {
+						final Integer value = entry.getKey();
+						if (entry.getValue() == touchedLeafIdBefore) {
+							// values that shared the touched leaf all move to the new leaf id together
+							assertEquals(
+								touchedLeafIdAfter, (long) after.get(value),
+								"Bucket " + value + " shared the touched leaf and must follow its new id!"
+							);
+						} else {
+							// values on any other leaf must keep their id verbatim (no over-invalidation)
+							assertEquals(
+								entry.getValue(), after.get(value),
+								"Untouched sibling bucket " + value + " must keep its leaf id!"
+							);
+							sawUntouchedSibling = true;
+						}
+					}
+					assertTrue(sawUntouchedSibling, "Test must exercise at least one untouched sibling leaf!");
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("currentLeafId before the first positioning fails fast")
+		void currentLeafIdBeforePositioningThrows() {
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(3, Integer.class);
+			tree.addRecord(10, 100);
+			tree.addRecord(20, 200);
+
+			// a freshly obtained cursor has not advanced onto a bucket yet (next() never returned true), so the
+			// leaf-version accessor has nothing to report and must fail fast rather than expose a stale/garbage leaf id
+			final BucketCursor<Integer> cursor = tree.cursor();
+			assertThrows(GenericEvitaInternalError.class, cursor::currentLeafId);
 		}
 	}
 }

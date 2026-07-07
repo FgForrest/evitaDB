@@ -29,6 +29,7 @@ import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.base.OrFormula;
 import io.evitadb.core.query.algebra.deferred.DeferredFormula;
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
+import io.evitadb.core.query.response.TransactionalDataRelatedStructure;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
@@ -57,6 +58,7 @@ import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
 import java.io.Serializable;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
@@ -126,13 +128,13 @@ public class InvertedIndex implements
 	/**
 	 * This lambda lay out records by {@link ValueToRecord#getValue()} one after another.
 	 */
-	private static final BiFunction<Long, ValueToRecord[], Formula> UNSORTED_AGGREGATION_LAMBDA = (indexTransactionId, histogramBuckets) -> new DeferredFormula(
-		new HistogramBitmapSupplier(indexTransactionId, histogramBuckets)
+	private static final BiFunction<long[], ValueToRecord[], Formula> UNSORTED_AGGREGATION_LAMBDA = (indexTransactionIds, histogramBuckets) -> new DeferredFormula(
+		new HistogramBitmapSupplier(indexTransactionIds, histogramBuckets)
 	);
 	/**
 	 * This lambda lay out records in natural ascending order.
 	 */
-	private static final BiFunction<Long, ValueToRecord[], Formula> SORTED_AGGREGATION_LAMBDA = (indexTransactionId, histogramBuckets) -> {
+	private static final BiFunction<long[], ValueToRecord[], Formula> SORTED_AGGREGATION_LAMBDA = (indexTransactionIds, histogramBuckets) -> {
 		final Bitmap[] bitmaps = new Bitmap[histogramBuckets.length];
 		for (int i = 0; i < histogramBuckets.length; i++) {
 			bitmaps[i] = histogramBuckets[i].getRecordIds();
@@ -142,7 +144,7 @@ public class InvertedIndex implements
 		} else if (bitmaps.length == 1) {
 			return new ConstantFormula(bitmaps[0]);
 		} else {
-			return new OrFormula(new long[]{indexTransactionId}, bitmaps);
+			return new OrFormula(indexTransactionIds, bitmaps);
 		}
 	};
 	/**
@@ -722,8 +724,7 @@ public class InvertedIndex implements
 	 * @see #getRecords()
 	 */
 	public InvertedIndexSubSet getRecords(@Nullable Serializable moreThanEq, @Nullable Serializable lessThanEq) {
-		final ValueToRecord[] records = getRecordsInternal(moreThanEq, lessThanEq, BoundsHandling.INCLUSIVE);
-		return convertToUnSortedResult(records);
+		return convertToUnSortedResult(getRecordsInternal(moreThanEq, lessThanEq, BoundsHandling.INCLUSIVE));
 	}
 
 	/**
@@ -750,8 +751,7 @@ public class InvertedIndex implements
 	 */
 	@Nonnull
 	public InvertedIndexSubSet getSortedRecords(@Nullable Serializable moreThanEq, @Nullable Serializable lessThanEq) {
-		final ValueToRecord[] records = getRecordsInternal(moreThanEq, lessThanEq, BoundsHandling.INCLUSIVE);
-		return convertToSortedResult(records);
+		return convertToSortedResult(getRecordsInternal(moreThanEq, lessThanEq, BoundsHandling.INCLUSIVE));
 	}
 
 	/**
@@ -763,8 +763,7 @@ public class InvertedIndex implements
 	@Nonnull
 	public InvertedIndexSubSet getSortedRecordsExclusive(
 		@Nullable Serializable moreThan, @Nullable Serializable lessThan) {
-		final ValueToRecord[] records = getRecordsInternal(moreThan, lessThan, BoundsHandling.EXCLUSIVE);
-		return convertToSortedResult(records);
+		return convertToSortedResult(getRecordsInternal(moreThan, lessThan, BoundsHandling.EXCLUSIVE));
 	}
 
 	/**
@@ -776,19 +775,23 @@ public class InvertedIndex implements
 	 * buckets - the allocation-lean equivalent of the former `getSortedRecordsMatching(predicate).getFormula()` path.
 	 *
 	 * @param valuePredicate tests each (already-normalized) bucket value; a bucket is included when it returns true
-	 * @return OR formula of the matched buckets' record ids (the index id seeds the formula's transactional identity)
+	 * @return OR formula of the matched buckets' record ids, seeded with the leaf-version token set of the leaves the
+	 * matched buckets live in so the formula cache keys on the pages actually read
 	 */
 	@Nonnull
 	public Formula getRecordsMatchingFormula(@Nonnull Predicate<Serializable> valuePredicate) {
 		final List<Bitmap> bitmaps = new ArrayList<>(64);
+		final LeafVersionAccumulator leafVersions = new LeafVersionAccumulator();
 		final BucketCursor cursor = this.buckets.cursor();
 		while (cursor.next()) {
 			if (valuePredicate.test((Serializable) cursor.value())) {
+				// record the leaf of each matched bucket so the folded formula keys on the leaves it actually read
+				leafVersions.accept(cursor.currentLeafId());
 				// read the record set straight off the cursor - no ValueToRecord flyweight is materialized
 				bitmaps.add(cursor.records());
 			}
 		}
-		return toSortedOrFormula(bitmaps);
+		return toSortedOrFormula(bitmaps, leafVersions.toTokenSet());
 	}
 
 	/**
@@ -829,19 +832,21 @@ public class InvertedIndex implements
 	 * Folds the collected record-set bitmaps into a single disjunction that orders its record ids by natural ascending
 	 * value - the same shape the {@link #SORTED_AGGREGATION_LAMBDA} produces: an empty list yields
 	 * {@link EmptyFormula#INSTANCE}, a single bitmap a bare {@link ConstantFormula}, and several bitmaps an
-	 * {@link OrFormula} seeded with this index's id so the formula cache keys on the tree's transactional identity.
+	 * {@link OrFormula} seeded with the leaf-version token set so the formula cache keys on the leaf pages the match
+	 * actually read (collapsing to the whole-index id past the leaf cap - see {@link LeafVersionAccumulator}).
 	 *
-	 * @param bitmaps the matched buckets' record-set bitmaps, in ascending bucket-value order
+	 * @param bitmaps        the matched buckets' record-set bitmaps, in ascending bucket-value order
+	 * @param leafVersionIds the canonical leaf-version token set of the leaves the matched buckets live in
 	 * @return the disjunction formula over the bitmaps
 	 */
 	@Nonnull
-	private Formula toSortedOrFormula(@Nonnull List<Bitmap> bitmaps) {
+	private Formula toSortedOrFormula(@Nonnull List<Bitmap> bitmaps, @Nonnull long[] leafVersionIds) {
 		if (bitmaps.isEmpty()) {
 			return EmptyFormula.INSTANCE;
 		} else if (bitmaps.size() == 1) {
 			return new ConstantFormula(bitmaps.get(0));
 		} else {
-			return new OrFormula(new long[]{getId()}, bitmaps.toArray(Bitmap[]::new));
+			return new OrFormula(leafVersionIds, bitmaps.toArray(Bitmap[]::new));
 		}
 	}
 
@@ -1109,32 +1114,37 @@ public class InvertedIndex implements
 
 	/**
 	 * Returns subset that aggregates inner record ids by {@link ValueToRecord#getValue()} and thus the result may
-	 * look unsorted on first look.
+	 * look unsorted on first look. Threads the slice's leaf-version token set into the produced
+	 * {@link InvertedIndexSubSet} so a cached formula keys on the leaf pages the slice actually read.
 	 */
 	@Nonnull
-	private InvertedIndexSubSet convertToUnSortedResult(@Nonnull ValueToRecord[] records) {
+	private static InvertedIndexSubSet convertToUnSortedResult(@Nonnull HistogramSlice slice) {
 		return new InvertedIndexSubSet(
-			getId(),
-			records,
+			slice.leafVersionIds(),
+			slice.buckets(),
 			UNSORTED_AGGREGATION_LAMBDA
 		);
 	}
 
 	/**
-	 * Returns subset that aggregates inner record ids by natural ascending ordering.
+	 * Returns subset that aggregates inner record ids by natural ascending ordering. Threads the slice's leaf-version
+	 * token set into the produced {@link InvertedIndexSubSet} so a cached formula keys on the leaf pages the slice
+	 * actually read.
 	 */
 	@Nonnull
-	private InvertedIndexSubSet convertToSortedResult(@Nonnull ValueToRecord[] records) {
+	private static InvertedIndexSubSet convertToSortedResult(@Nonnull HistogramSlice slice) {
 		return new InvertedIndexSubSet(
-			getId(),
-			records,
+			slice.leafVersionIds(),
+			slice.buckets(),
 			SORTED_AGGREGATION_LAMBDA
 		);
 	}
 
 	/**
 	 * Searches histogram and select all buckets that fulfill the between `moreThanEq` and `lessThanEq` constraints.
-	 * Returns array of all {@link ValueToRecord} in the range.
+	 * Returns a {@link HistogramSlice} pairing the in-range buckets (ascending value order) with the canonical
+	 * leaf-version token set of the leaves the slice crossed (collected via {@link LeafVersionAccumulator}, capped to
+	 * the whole-index id on overflow).
 	 *
 	 * The bounds are reproduced as key-bounded tree iteration (only the queried slice is streamed) instead of a binary
 	 * search over a materialized array. The {@link BoundsHandling#INCLUSIVE} mode keeps buckets equal to a bound while
@@ -1146,7 +1156,7 @@ public class InvertedIndex implements
 	 * inclusive mode, greater than or equal for the exclusive mode.
 	 */
 	@Nonnull
-	private ValueToRecord[] getRecordsInternal(
+	private HistogramSlice getRecordsInternal(
 		@Nullable Serializable moreThanEq,
 		@Nullable Serializable lessThanEq,
 		@Nonnull BoundsHandling boundsHandling
@@ -1161,6 +1171,7 @@ public class InvertedIndex implements
 		);
 
 		final List<ValueToRecord> result = new ArrayList<>(64);
+		final LeafVersionAccumulator leafVersions = new LeafVersionAccumulator();
 		// anchor the forward cursor at the first bucket >= lower bound (or at the very start when unbounded)
 		final BucketCursor cursor = normalizedMoreThanEq == null
 			? this.buckets.cursor()
@@ -1182,9 +1193,73 @@ public class InvertedIndex implements
 					break;
 				}
 			}
+			// record the leaf this in-range bucket lives in; skipped buckets above never reach here
+			leafVersions.accept(cursor.currentLeafId());
 			result.add(materializeBucket(cursor));
 		}
-		return result.toArray(ValueToRecord[]::new);
+		return new HistogramSlice(result.toArray(ValueToRecord[]::new), leafVersions.toTokenSet());
+	}
+
+	/**
+	 * A slice of the histogram returned by {@link #getRecordsInternal}: the selected buckets in ascending value order,
+	 * paired with the canonical leaf-version token set of the leaf pages the slice crossed (see
+	 * {@link LeafVersionAccumulator}). The token set is what makes a cached formula over an untouched value range
+	 * survive writes to other pages.
+	 *
+	 * @param buckets        the selected buckets in ascending value order
+	 * @param leafVersionIds the canonical (sorted, deduplicated) leaf-version token set for the slice
+	 */
+	private record HistogramSlice(@Nonnull ValueToRecord[] buckets, @Nonnull long[] leafVersionIds) {
+	}
+
+	/**
+	 * Accumulates the distinct version ids of the leaf pages a slice/scan crosses, in ascending traversal order, and
+	 * caps the set at {@link TransactionalDataRelatedStructure#EXCESSIVE_HIGH_CARDINALITY} leaves. A forward
+	 * {@link BucketCursor} visits every bucket of a leaf consecutively, so accepting an id only when it differs from the
+	 * previous one (a consecutive-dedup) yields the distinct leaf set without a hash set. {@link #toTokenSet()} folds
+	 * the gathered ids into the canonical staleness token, collapsing to the single whole-index id when the cap
+	 * overflowed or no leaf was crossed (an empty slice, whose formula never reads the token).
+	 */
+	private final class LeafVersionAccumulator {
+		private final long[] leafIds = new long[TransactionalDataRelatedStructure.EXCESSIVE_HIGH_CARDINALITY];
+		private int leafCount;
+		private boolean overflow;
+		private long lastLeafId;
+		private boolean haveLast;
+
+		/**
+		 * Records the id of the leaf the cursor is currently positioned in. Cheap to call once per in-range bucket:
+		 * ids repeat within a leaf and are dropped by the consecutive-dedup; the {@code EXCESSIVE_HIGH_CARDINALITY + 1}
+		 * distinct leaf flips this accumulator to overflow and stops further collection.
+		 *
+		 * @param leafId the current bucket's leaf version id ({@link BucketCursor#currentLeafId()})
+		 */
+		void accept(long leafId) {
+			if (this.overflow || (this.haveLast && leafId == this.lastLeafId)) {
+				return;
+			}
+			this.lastLeafId = leafId;
+			this.haveLast = true;
+			if (this.leafCount == this.leafIds.length) {
+				this.overflow = true;
+			} else {
+				this.leafIds[this.leafCount++] = leafId;
+			}
+		}
+
+		/**
+		 * @return the canonical (sorted, deduplicated) leaf-version token set, or the single whole-index id when the
+		 * leaf cap overflowed or no leaf was crossed
+		 */
+		@Nonnull
+		long[] toTokenSet() {
+			if (this.overflow || this.leafCount == 0) {
+				return new long[]{getId()};
+			}
+			final long[] tokenSet = Arrays.copyOf(this.leafIds, this.leafCount);
+			Arrays.sort(tokenSet);
+			return tokenSet;
+		}
 	}
 
 	/**

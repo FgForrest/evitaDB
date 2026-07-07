@@ -34,6 +34,7 @@ import io.evitadb.core.query.algebra.base.OrFormula;
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.transaction.Transaction;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
+import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.bPlusTree.TransactionalLongBPlusTree;
@@ -127,6 +128,19 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 	 */
 	private static final Predicate<TransactionalRangePoint> INT_RANGE_POINT_OBSOLETE_CHECKER =
 		point -> point.getThreshold() != Long.MIN_VALUE && point.getThreshold() != Long.MAX_VALUE && point.getStarts().isEmpty() && point.getEnds().isEmpty();
+
+	/**
+	 * Unique transactional id for this index instance. Overrides the {@link VoidTransactionMemoryProducer} default
+	 * (the constant `1L`) so that a formula-cache token seeded from this id — the `indexTransactionId` of the
+	 * {@link JoinFormula}/{@link DisentangleFormula} built by this index's range queries — is UNIQUE per index yet
+	 * STABLE across commits that did not touch it: an untouched index is carried forward by reference from
+	 * {@link #createCopyWithMergedTransactionalMemory} (preserving its id), while a mutated index becomes a fresh
+	 * instance with a fresh id (correctly invalidating dependent cached formulas). With the constant `1L` default the
+	 * token never changed across commits, so a cached result over a `> EXCESSIVE_HIGH_CARDINALITY`-bucket range was
+	 * never invalidated — the stale-read defect tracked as issue #37. This is a runtime-only field, regenerated on
+	 * load — it is never persisted (the persisted form carries no id).
+	 */
+	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 
 	/**
 	 * Contains range information keyed by {@link RangePoint#getThreshold()} in ascending order. At least two points are

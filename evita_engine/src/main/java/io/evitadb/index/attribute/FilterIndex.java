@@ -119,8 +119,8 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 	 * `recordIds` is the correct distinct-union aggregator. Empty / single-bucket inputs short-circuit to avoid
 	 * spurious formula tree allocations.
 	 */
-	private static final BiFunction<Long, ValueToRecord[], Formula> RANGE_HISTOGRAM_AGGREGATION_LAMBDA =
-		(indexTransactionId, histogramBuckets) -> {
+	private static final BiFunction<long[], ValueToRecord[], Formula> RANGE_HISTOGRAM_AGGREGATION_LAMBDA =
+		(indexTransactionIds, histogramBuckets) -> {
 			if (histogramBuckets.length == 0) {
 				return EmptyFormula.INSTANCE;
 			}
@@ -133,7 +133,7 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 					? EmptyFormula.INSTANCE
 					: new ConstantFormula(bitmaps[0]);
 			}
-			return new OrFormula(new long[]{indexTransactionId}, bitmaps);
+			return new OrFormula(indexTransactionIds, bitmaps);
 		};
 
 	/**
@@ -892,8 +892,11 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 			}
 		}
 		final ValueToRecordBitmap[] bucketArray = buckets.toArray(new ValueToRecordBitmap[0]);
+		// range-histogram staleness stays whole-index coarse: the buckets are assembled from the RangeIndex point
+		// sweep above (not from InvertedIndex leaf pages), so there are no leaf-version tokens to key on here.
+		// getId() already mints a fresh id on any mutation, which invalidates any cached formula over this subset.
 		final InvertedIndexSubSet result = new InvertedIndexSubSet(
-			getId(),
+			new long[]{getId()},
 			bucketArray,
 			RANGE_HISTOGRAM_AGGREGATION_LAMBDA
 		);

@@ -27,7 +27,6 @@ import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.base.OrFormula;
 import io.evitadb.index.bitmap.Bitmap;
-import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
@@ -52,14 +51,14 @@ class InvertedIndexSubTest {
 	 * Buckets: value=1 → records [1, 2], value=5 → records [8, 9].
 	 */
 	private final InvertedIndexSubSet tested = new InvertedIndexSubSet(
-		1L,
+		new long[]{1L},
 		new ValueToRecordBitmap[]{
 			new ValueToRecordBitmap(1, 1, 2),
 			new ValueToRecordBitmap(5, 8, 9),
 		},
-		(indexTransactionId, histogramBuckets) -> new OrFormula(
-			new long[]{indexTransactionId},
-			Arrays.stream(histogramBuckets).map(ValueToRecord::getRecordIds).toArray(RoaringBitmapBackedBitmap[]::new)
+		(indexTransactionIds, histogramBuckets) -> new OrFormula(
+			indexTransactionIds,
+			Arrays.stream(histogramBuckets).map(ValueToRecord::getRecordIds).toArray(Bitmap[]::new)
 		)
 	);
 
@@ -68,9 +67,9 @@ class InvertedIndexSubTest {
 	class EmptySubSetTest {
 
 		private final InvertedIndexSubSet empty = new InvertedIndexSubSet(
-			1L,
+			new long[]{1L},
 			new ValueToRecordBitmap[0],
-			(indexTransactionId, histogramBuckets) -> EmptyFormula.INSTANCE
+			(indexTransactionIds, histogramBuckets) -> EmptyFormula.INSTANCE
 		);
 
 		@Test
@@ -189,10 +188,10 @@ class InvertedIndexSubTest {
 		 * representations; these tests read only the buckets, so the lambda is never invoked.
 		 */
 		private final InvertedIndexSubSet subset = new InvertedIndexSubSet(
-			1L,
+			new long[]{1L},
 			this.mixedBackingArray,
-			(indexTransactionId, histogramBuckets) -> new OrFormula(
-				new long[]{indexTransactionId},
+			(indexTransactionIds, histogramBuckets) -> new OrFormula(
+				indexTransactionIds,
 				Arrays.stream(histogramBuckets).map(ValueToRecord::getRecordIds).toArray(Bitmap[]::new)
 			)
 		);

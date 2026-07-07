@@ -1196,6 +1196,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		@Nonnull private final RecordColumn records;
 		@Nullable private final TransactionalBitmap[] overflow;
 		private final int peek;
+		private final long leafId;
 		private int currentIndex = -1;
 		private boolean positioned;
 
@@ -1204,6 +1205,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			this.records = leaf.getRecords();
 			this.overflow = leaf.getOverflow();
 			this.peek = leaf.getPeek();
+			this.leafId = leaf.getId();
 		}
 
 		@Override
@@ -1259,6 +1261,12 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				return this.overflow[this.currentIndex].size();
 			}
 			return 1;
+		}
+
+		@Override
+		public long currentLeafId() {
+			Assert.isPremiseValid(this.positioned, "Cursor is not positioned at a bucket!");
+			return this.leafId;
 		}
 	}
 
@@ -2087,6 +2095,19 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		 * @return the current bucket's cardinality
 		 */
 		int size();
+
+		/**
+		 * Returns the version id of the leaf node the current bucket lives in. Valid only after a {@link #next()} that
+		 * returned true. The leaf id is a per-page version token: an untouched leaf keeps its id across a commit (the
+		 * commit-merge returns the same instance) while a leaf whose content changed becomes a fresh instance with a
+		 * fresh id (see {@code BPlusLeafTreeNode.createCopyWithMergedTransactionalMemory}). Consumers use it to build a
+		 * leaf-granular formula-cache staleness token — a cached read over a value range is invalidated only when a leaf
+		 * it actually crossed changes, instead of on any write to the whole index.
+		 *
+		 * @return the current bucket's leaf version id
+		 * @throws GenericEvitaInternalError if called before a {@link #next()} that returned true
+		 */
+		long currentLeafId();
 	}
 
 	/**
@@ -4275,6 +4296,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		private RecordColumn leafRecords;
 		@Nullable private TransactionalBitmap[] leafOverflow;
 		private int leafPeek;
+		private long leafId;
 
 		ForwardBucketCursor(@Nonnull Cursor<M> cursor) {
 			final List<CursorLevel<M>> cursorPath = cursor.path();
@@ -4384,6 +4406,12 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			return 1;
 		}
 
+		@Override
+		public long currentLeafId() {
+			Assert.isPremiseValid(this.positioned, "Cursor is not positioned at a bucket!");
+			return this.leafId;
+		}
+
 		private void loadCurrentLeaf() {
 			//noinspection unchecked
 			final BPlusLeafTreeNode<M> leaf =
@@ -4392,6 +4420,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			this.leafRecords = leaf.getRecords();
 			this.leafOverflow = leaf.getOverflow();
 			this.leafPeek = leaf.getPeek();
+			this.leafId = leaf.getId();
 		}
 
 		private boolean moveToNextLeaf() {
@@ -4436,6 +4465,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		private RecordColumn leafRecords;
 		@Nullable private TransactionalBitmap[] leafOverflow;
 		private int leafPeek;
+		private long leafId;
 
 		ReverseBucketCursor(@Nonnull Cursor<M> cursor) {
 			final List<CursorLevel<M>> cursorPath = cursor.path();
@@ -4520,6 +4550,12 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			return 1;
 		}
 
+		@Override
+		public long currentLeafId() {
+			Assert.isPremiseValid(this.positioned, "Cursor is not positioned at a bucket!");
+			return this.leafId;
+		}
+
 		private void loadCurrentLeaf() {
 			//noinspection unchecked
 			final BPlusLeafTreeNode<M> leaf =
@@ -4528,6 +4564,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			this.leafRecords = leaf.getRecords();
 			this.leafOverflow = leaf.getOverflow();
 			this.leafPeek = leaf.getPeek();
+			this.leafId = leaf.getId();
 		}
 
 		private boolean moveToPrevLeaf() {

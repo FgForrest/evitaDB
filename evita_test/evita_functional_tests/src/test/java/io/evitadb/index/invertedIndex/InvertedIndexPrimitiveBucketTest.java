@@ -26,6 +26,9 @@ package io.evitadb.index.invertedIndex;
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
+import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.query.algebra.base.EmptyFormula;
+import io.evitadb.core.query.response.TransactionalDataRelatedStructure;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.bitmap.TransactionalBitmap;
@@ -40,7 +43,10 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
+import java.io.Serializable;
+import java.util.Arrays;
 import java.util.Comparator;
+import java.util.function.Predicate;
 
 import static io.evitadb.test.TestTags.ATTRIBUTE;
 import static io.evitadb.test.TestTags.CACHE;
@@ -53,6 +59,7 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -540,6 +547,208 @@ class InvertedIndexPrimitiveBucketTest {
 			// equal value compares as equal whatever the representation (record ids are not part of ordering)
 			assertEquals(0, lowerPrimitive.compareTo(new ValueToRecordPrimitive(5, 99)));
 			assertEquals(0, lowerPrimitive.compareTo(new ValueToRecordBitmap(5, 99)));
+		}
+	}
+
+	@Nested
+	@DisplayName("Leaf-granular formula-cache staleness (issue #760)")
+	@Tag(CACHE)
+	class LeafGranularStalenessTest {
+
+		/**
+		 * Number of distinct single-record buckets whose slice provably overflows the leaf cap. The bucket tree's leaf
+		 * capacity is 256 values, so a slice of `N` buckets spans at least `⌈N/256⌉` leaves; 26 000 buckets therefore
+		 * span at least `⌈26000/256⌉ = 102` leaves — past the
+		 * {@link TransactionalDataRelatedStructure#EXCESSIVE_HIGH_CARDINALITY} (100) leaf cap, so the leaf-version token
+		 * collapses to the single whole-index id.
+		 */
+		private static final int OVERFLOW_BUCKET_COUNT = 26_000;
+		/**
+		 * Number of distinct single-record buckets that span several leaves yet stay well under the leaf cap. 800 buckets
+		 * over a 256-value leaf capacity occupy between `⌈800/256⌉ = 4` (leaves at max fill) and `⌈800/127⌉ = 7` (leaves
+		 * at the 127 min-fill floor) leaves, so the slice folds to a handful of leaf-version ids without collapsing to the
+		 * coarse whole-index id.
+		 */
+		private static final int MULTI_LEAF_BUCKET_COUNT = 800;
+
+		/**
+		 * Builds an index with `count` distinct single-record buckets `v -> v`. With `count` well above the leaf block
+		 * size the buckets span several leaf pages, so a narrow low slice and a far-away high value provably live in
+		 * different leaves.
+		 *
+		 * @param count the number of distinct buckets to create
+		 * @return the populated index
+		 */
+		@Nonnull
+		private static InvertedIndex denseIndex(int count) {
+			final InvertedIndex index = emptyIndex();
+			for (int v = 1; v <= count; v++) {
+				index.addRecord(v, v);
+			}
+			return index;
+		}
+
+		/**
+		 * Transactional-id hash of the sorted-records formula over the `[from, to]` value slice — the leaf-granular
+		 * staleness token under test.
+		 *
+		 * @param index the index to slice
+		 * @param from  inclusive lower value bound
+		 * @param to    inclusive upper value bound
+		 * @return the slice formula's transactional-id hash
+		 */
+		private static long tokenHash(@Nonnull InvertedIndex index, int from, int to) {
+			return index.getSortedRecords(from, to).getFormula().getTransactionalIdHash();
+		}
+
+		@Test
+		@DisplayName("A wide slice's token survives a commit that mutates a leaf it does not cross")
+		void wideSliceTokenSurvivesUncrossedLeafMutation() {
+			final InvertedIndex index = denseIndex(800);
+			// the slice must exceed the per-bucket cardinality threshold so the formula keys on LEAF version ids (the
+			// > EXCESSIVE_HIGH_CARDINALITY fallback) rather than on the individual per-bucket bitmap ids
+			assertTrue(
+				index.getSortedRecords(1, 150).getBuckets().length > TransactionalDataRelatedStructure.EXCESSIVE_HIGH_CARDINALITY,
+				"Slice must exceed the high-cardinality threshold to exercise the leaf-id fallback!"
+			);
+			final long before = tokenHash(index, 1, 150);
+
+			assertStateAfterCommit(
+				index,
+				// mutate value 800 - far above the [1,150] slice, so it lives in a leaf the slice never crosses
+				tested -> tested.addRecord(800, 999_999),
+				(original, committed) -> {
+					// the commit genuinely changed the index identity: a whole-index-coarse token (the old #37
+					// behaviour) WOULD invalidate the cached slice here
+					assertNotEquals(original.getId(), committed.getId());
+					// but the slice only crossed untouched leaves, so its leaf-version token - and its hash - is
+					// unchanged: the cached formula over this range stays valid across the unrelated write
+					assertEquals(before, tokenHash(committed, 1, 150));
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("A wide slice's token changes when a commit mutates a leaf it crosses")
+		void wideSliceTokenChangesOnCrossedLeafMutation() {
+			final InvertedIndex index = denseIndex(800);
+			final long before = tokenHash(index, 1, 150);
+
+			assertStateAfterCommit(
+				index,
+				// mutate value 50 - inside the [1,150] slice, so its leaf is one the slice crosses
+				tested -> tested.addRecord(50, 999_999),
+				(original, committed) ->
+					// the crossed leaf was re-minted on commit, so the slice's token must change (stale read avoided)
+					assertNotEquals(before, tokenHash(committed, 1, 150))
+			);
+		}
+
+		@Test
+		@DisplayName("A slice crossing more than the leaf cap collapses to the single whole-index token")
+		void overflowSliceCollapsesToWholeIndexTokenAboveLeafCap() {
+			final InvertedIndex index = denseIndex(OVERFLOW_BUCKET_COUNT);
+			final InvertedIndexSubSet slice = index.getSortedRecords(1, OVERFLOW_BUCKET_COUNT);
+
+			// the whole-index slice spans far more than the 100-leaf cap, so the per-leaf accumulator overflows and the
+			// leaf-version token collapses to the single whole-index id: gatherTransactionalIds() is exactly {getId()}
+			assertTrue(slice.getBuckets().length > TransactionalDataRelatedStructure.EXCESSIVE_HIGH_CARDINALITY);
+			final long[] coarseToken = slice.getFormula().gatherTransactionalIds();
+			assertArrayEquals(new long[]{index.getId()}, coarseToken);
+
+			// a mutating commit re-mints the whole-index id, so the recomputed coarse token differs: an overflowing
+			// slice is still invalidated across the write, only coarsely (whole-index rather than per-leaf)
+			assertStateAfterCommit(
+				index,
+				// a brand-new bucket far above the slice; the slice still overflows the leaf cap after the commit
+				tested -> tested.addRecord(OVERFLOW_BUCKET_COUNT + 10_000, 999_999),
+				(original, committed) -> {
+					final long[] recomputed =
+						committed.getSortedRecords(1, OVERFLOW_BUCKET_COUNT).getFormula().gatherTransactionalIds();
+					assertArrayEquals(new long[]{committed.getId()}, recomputed);
+					assertFalse(Arrays.equals(coarseToken, recomputed));
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("A multi-leaf slice folds many buckets into a handful of leaf-version tokens")
+		void multiLeafSliceCollapsesManyBucketsToFewLeafTokens() {
+			final InvertedIndex index = denseIndex(MULTI_LEAF_BUCKET_COUNT);
+			// the fixture must genuinely span multiple leaves for a per-leaf token to be observable at all
+			assertTrue(index.isPaged(), "Fixture must span more than one leaf!");
+
+			final InvertedIndexSubSet slice = index.getSortedRecords(1, MULTI_LEAF_BUCKET_COUNT);
+			// more than the high-cardinality threshold of buckets, so the folded OR formula keys on the leaf-version
+			// token set rather than on the per-bucket bitmap ids
+			assertTrue(slice.getBuckets().length > TransactionalDataRelatedStructure.EXCESSIVE_HIGH_CARDINALITY);
+
+			final long[] token = slice.getFormula().gatherTransactionalIds();
+			// 800 buckets over a 256-value leaf capacity occupy >= 4 leaves (max fill) and <= 7 leaves (127 min-fill
+			// floor), so the token is a small multi-leaf set - never a single coarse whole-index id
+			assertTrue(token.length >= 2, "A multi-leaf slice must carry at least two leaf-version ids!");
+			assertTrue(token.length <= 8, "800 buckets fold to at most ~7 leaf-version ids (well under the leaf cap)!");
+			assertTrue(token.length < TransactionalDataRelatedStructure.EXCESSIVE_HIGH_CARDINALITY);
+			// hundreds of buckets collapse to a handful of leaf tokens - proof of per-leaf (not per-bucket) folding
+			assertTrue(token.length < slice.getBuckets().length);
+			// and it did NOT collapse all the way to the coarse whole-index id
+			assertFalse(Arrays.equals(new long[]{index.getId()}, token));
+		}
+
+		@Test
+		@DisplayName("An empty slice yields the empty formula and consumes no leaf-version token")
+		void emptySliceYieldsEmptyFormulaAndConsumesNoLeafToken() {
+			final InvertedIndex index = denseIndex(MULTI_LEAF_BUCKET_COUNT);
+			// a value range entirely above every bucket (the maximum value is MULTI_LEAF_BUCKET_COUNT) matches nothing
+			final InvertedIndexSubSet slice = index.getSortedRecords(
+				MULTI_LEAF_BUCKET_COUNT + 1_000, MULTI_LEAF_BUCKET_COUNT + 2_000
+			);
+
+			assertEquals(0, slice.getBuckets().length);
+			// an empty slice crosses no leaf, so it folds to the canonical empty formula (its token is never read)
+			assertSame(EmptyFormula.INSTANCE, slice.getFormula());
+		}
+
+		@Test
+		@DisplayName("The predicate-matching formula token is leaf-granular across a commit")
+		void matchingFormulaTokenIsLeafGranularAcrossCommit() {
+			final Predicate<Serializable> lowSlice = value -> ((Integer) value) <= 150;
+
+			// an uncrossed-leaf write leaves the matched slice's leaf-version token - and its hash - unchanged
+			final InvertedIndex uncrossed = denseIndex(MULTI_LEAF_BUCKET_COUNT);
+			final Formula uncrossedMatch = uncrossed.getRecordsMatchingFormula(lowSlice);
+			// precondition: the predicate matches more than the high-cardinality threshold of buckets. Each bucket holds
+			// one record, so the record count equals the matched-bucket count; above the threshold the folded OR keys on
+			// the leaf-version token set rather than the per-bucket bitmap ids
+			assertTrue(
+				uncrossedMatch.compute().size() > TransactionalDataRelatedStructure.EXCESSIVE_HIGH_CARDINALITY,
+				"Predicate must match more than the high-cardinality threshold of buckets!"
+			);
+			final long beforeUncrossed = uncrossedMatch.getTransactionalIdHash();
+			assertStateAfterCommit(
+				uncrossed,
+				// value MULTI_LEAF_BUCKET_COUNT lives in a leaf the [1, 150] match never crosses
+				tested -> tested.addRecord(MULTI_LEAF_BUCKET_COUNT, 999_999),
+				(original, committed) -> assertEquals(
+					beforeUncrossed,
+					committed.getRecordsMatchingFormula(lowSlice).getTransactionalIdHash(),
+					"An uncrossed-leaf write must not change the matched slice's leaf-version token!"
+				)
+			);
+
+			// a crossed-leaf write re-mints the leaf the match read, so its token - and its hash - must change
+			final InvertedIndex crossed = denseIndex(MULTI_LEAF_BUCKET_COUNT);
+			final long beforeCrossed = crossed.getRecordsMatchingFormula(lowSlice).getTransactionalIdHash();
+			assertStateAfterCommit(
+				crossed,
+				// value 50 is inside the [1, 150] match, so its leaf is one the match crosses
+				tested -> tested.addRecord(50, 999_999),
+				(original, committed) -> assertNotEquals(
+					beforeCrossed,
+					committed.getRecordsMatchingFormula(lowSlice).getTransactionalIdHash(),
+					"A crossed-leaf write must change the matched slice's leaf-version token!"
+				)
+			);
 		}
 	}
 }

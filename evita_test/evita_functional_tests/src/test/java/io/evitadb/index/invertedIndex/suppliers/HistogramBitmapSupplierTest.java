@@ -239,7 +239,9 @@ class HistogramBitmapSupplierTest {
 			);
 
 			assertArrayEquals(new long[]{77L}, supplier.gatherTransactionalIds());
-			assertEquals(HASH_FUNCTION.hashLong(77L), supplier.getTransactionalIdHash());
+			// the scalar convenience ctor now folds to the one-element leaf-version set {77L}; its hash is the
+			// canonical multi-id hash over that set (hashLongs), not the single-scalar hashLong
+			assertEquals(HASH_FUNCTION.hashLongs(new long[]{77L}), supplier.getTransactionalIdHash());
 		}
 
 		@Test
@@ -254,6 +256,28 @@ class HistogramBitmapSupplierTest {
 			);
 
 			assertEquals(4, supplier.getEstimatedCardinality());
+		}
+
+		@Test
+		@DisplayName("A multi-leaf staleness set is carried verbatim and hashed as a multi-id set")
+		void shouldHashMultiLeafTransactionalIdSetViaHashLongs() {
+			final ValueToRecord[] buckets = {
+				new ValueToRecordPrimitive(5, 1),
+				new ValueToRecordBitmap(10, 2, 3)
+			};
+
+			// a slice that crossed two leaves carries their two version ids; the leaf-granular constructor keeps the set
+			// verbatim (no sort/dedup here - the index already hands it canonical) and hashes it via hashLongs
+			final HistogramBitmapSupplier multiLeaf = new HistogramBitmapSupplier(new long[]{7L, 9L}, buckets);
+			assertArrayEquals(new long[]{7L, 9L}, multiLeaf.gatherTransactionalIds());
+			assertEquals(HASH_FUNCTION.hashLongs(new long[]{7L, 9L}), multiLeaf.getTransactionalIdHash());
+
+			// the same buckets over a single-leaf set produce a DIFFERENT staleness hash: a two-leaf slice is not
+			// interchangeable in the cache with a one-leaf slice, even over the same value range
+			final HistogramBitmapSupplier singleLeaf = new HistogramBitmapSupplier(new long[]{7L}, buckets);
+			assertNotEquals(multiLeaf.getTransactionalIdHash(), singleLeaf.getTransactionalIdHash());
+			// the value-content lookup hash is independent of the leaf-version set, so it stays identical
+			assertEquals(multiLeaf.getHash(), singleLeaf.getHash());
 		}
 	}
 }
