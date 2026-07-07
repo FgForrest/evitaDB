@@ -35,6 +35,10 @@ the test and its results stay discoverable from either side.
 - [`SortIndexArrayVsBPlusTreeBenchmark/`](SortIndexArrayVsBPlusTreeBenchmark/README.md) — `SortIndex` distinct-values
   backing: contiguous array vs. consolidated `TransactionalObjectBPlusTree`. Drove `SortIndex.VALUE_BLOCK_SIZE = 256`
   plus the leaf-array-caching and software-prefetch optimizations in `TransactionalObjectBPlusTree`.
+- [`BucketBPlusTreePayloadBenchmark/`](BucketBPlusTreePayloadBenchmark/README.md) — neutrality A/B for generalizing the
+  `TransactionalBucketBPlusTree` single-record column from raw `int[]` to the pluggable `RecordColumn` SPI
+  (`IntRecordColumn` / `LongRecordColumn`). Proved allocation- and time-neutral (deterministic `gc.alloc.rate.norm`
+  byte-identical per op; sole cost is a ~16 B wrapper per leaf on construction).
 
 ## Adding a new result
 
