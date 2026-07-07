@@ -1008,7 +1008,8 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 	/**
 	 * Method used to close currently used session by calling {@link EvitaSessionContract#close()}.
 	 *
-	 * @param request          empty request
+	 * @param request          the close request; carries the commit behaviour and the client's rollback signal
+	 *                         (when `rollback` is set the transaction is discarded instead of committed)
 	 * @param responseObserver observer on which errors might be thrown and result returned
 	 */
 	@Override
@@ -1016,6 +1017,12 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 		executeWithClientContext(
 			session -> {
 				if (session != null) {
+					if (request.getRollback()) {
+						// the client asks to discard the whole transaction (an exception escaped the transaction block
+						// uncaught) — mark it rollback-only so the close below rolls back instead of committing the
+						// surviving mutations, exactly as an embedded session would on an uncaught block failure
+						session.setRollbackOnly();
+					}
 					final CommitProgress commitProgress = session.closeNowWithProgress();
 					final CommitBehavior commitBehavior = toCommitBehavior(request.getCommitBehaviour());
 					commitProgress
@@ -1072,7 +1079,8 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 	 * Method used to close currently used session by calling {@link EvitaSessionContract#close()} and return a stream
 	 * that is updated with progress of the commit.
 	 *
-	 * @param request          empty request
+	 * @param request          the close request; carries the client's rollback signal (when `rollback` is set the
+	 *                         transaction is discarded instead of committed)
 	 * @param responseObserver observer on which errors might be thrown and result returned
 	 */
 	@Override
@@ -1083,6 +1091,12 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 		executeWithClientContext(
 			session -> {
 				if (session != null) {
+					if (request.getRollback()) {
+						// the client asks to discard the whole transaction (an exception escaped the transaction block
+						// uncaught) — mark it rollback-only so the close below rolls back instead of committing the
+						// surviving mutations, exactly as an embedded session would on an uncaught block failure
+						session.setRollbackOnly();
+					}
 					final CommitProgress commitProgress = session.closeNowWithProgress();
 					commitProgress.onConflictResolved()
 						.whenComplete(

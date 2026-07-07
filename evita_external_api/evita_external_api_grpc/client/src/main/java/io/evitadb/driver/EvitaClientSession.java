@@ -260,6 +260,14 @@ public class EvitaClientSession implements EvitaSessionContract {
 	 */
 	private final AtomicReference<EvitaClientTransaction> transactionAccessor = new AtomicReference<>();
 	/**
+	 * Contains the number of nested session calls, mirroring the embedded session. The root-level frame (level `1`)
+	 * represents the client's transaction block (`updateCatalog` / {@link #execute(Function)}); individual operations
+	 * invoked inside it run nested (level `2`) and therefore do not mark the transaction rollback-only when they fail.
+	 * Only an exception that escapes the root frame uncaught flips the transaction to rollback-only, which the client
+	 * then propagates to the server at close time — making a remote session behave 1:1 with an embedded one.
+	 */
+	private int nestLevel;
+	/**
 	 * Contains reference to the proxy factory that is used to create proxies for the entities.
 	 */
 	@Getter private final ProxyFactory proxyFactory;
@@ -557,6 +565,9 @@ public class EvitaClientSession implements EvitaSessionContract {
 	@Override
 	public CompletionStage<CommitVersions> closeNow(@Nonnull CommitBehavior commitBehaviour) {
 		if (isActive()) {
+			// capture the rollback decision while the session is still active — closeInternally() sets closedFuture
+			// (flipping isActive() to false), after which isRollbackOnly() would fail its assertActive() check
+			final boolean rollback = isRollbackOnly();
 			final CompletableFuture<CommitVersions> result = closeInternally();
 			final Duration timeout = this.streamingTimeout;
 
@@ -602,6 +613,8 @@ public class EvitaClientSession implements EvitaSessionContract {
 							GrpcCloseRequest.newBuilder()
 								.setCatalogName(this.catalogName)
 								.setCommitBehaviour(EvitaEnumConverter.toGrpcCommitBehavior(commitBehaviour))
+								// discard the transaction on the server when the block failed uncaught (1:1 embedded)
+								.setRollback(rollback)
 								.build(),
 							observer
 						);
@@ -664,6 +677,9 @@ public class EvitaClientSession implements EvitaSessionContract {
 	@Override
 	public CommitProgress closeNowWithProgress() {
 		if (isActive()) {
+			// capture the rollback decision while the session is still active — closeInternally() sets closedFuture
+			// (flipping isActive() to false), after which isRollbackOnly() would fail its assertActive() check
+			final boolean rollback = isRollbackOnly();
 			final CompletableFuture<CommitVersions> result = closeInternally();
 			this.commitProgress = new CommitProgressRecord(
 				(commitVersions, throwable) -> {
@@ -723,6 +739,8 @@ public class EvitaClientSession implements EvitaSessionContract {
 						evitaSessionService.closeWithProgress(
 							GrpcCloseWithProgressRequest.newBuilder()
 								.setCatalogName(this.catalogName)
+								// discard the transaction on the server when the block failed uncaught (1:1 embedded)
+								.setRollback(rollback)
 								.build(),
 							observer
 						);
@@ -2800,24 +2818,97 @@ public class EvitaClientSession implements EvitaSessionContract {
 		if (this.transactionAccessor.get() == null && getCatalogState() == CatalogState.ALIVE) {
 			//noinspection unused
 			try (final EvitaClientTransaction newTransaction = createAndInitTransaction()) {
+				increaseNestLevel();
 				try {
 					return logic.apply(this);
 				} catch (Throwable ex) {
-					ofNullable(this.transactionAccessor.get())
-						.ifPresent(EvitaClientTransaction::setRollbackOnly);
+					markRollbackOnlyIfRootLevel();
 					throw ex;
+				} finally {
+					decreaseNestLevel();
 				}
 			}
 		} else {
 			// the transaction might already exist
+			increaseNestLevel();
 			try {
 				return logic.apply(this);
 			} catch (Throwable ex) {
-				ofNullable(this.transactionAccessor.get())
-					.ifPresent(EvitaClientTransaction::setRollbackOnly);
+				markRollbackOnlyIfRootLevel();
 				throw ex;
+			} finally {
+				decreaseNestLevel();
 			}
 		}
+	}
+
+	/**
+	 * Marks the current transaction rollback-only, but only when the failing call is the root-level frame — i.e. an
+	 * exception escaped the outermost `updateCatalog` / {@link #execute(Function)} block uncaught. Nested per-operation
+	 * failures (which the caller is expected to catch) must not poison the transaction, mirroring the embedded session
+	 * so that a single caught mutation exception doesn't discard the surrounding transaction.
+	 */
+	private void markRollbackOnlyIfRootLevel() {
+		if (isRootLevelExecution()) {
+			ofNullable(this.transactionAccessor.get())
+				.ifPresent(EvitaClientTransaction::setRollbackOnly);
+		}
+	}
+
+	/**
+	 * Returns true when the current execution is at the outermost (root) transaction frame.
+	 *
+	 * @return true if this is the root-level execution
+	 */
+	private boolean isRootLevelExecution() {
+		return this.nestLevel == 1;
+	}
+
+	/**
+	 * Increases the nesting level of session calls and returns the previous value.
+	 *
+	 * @return the nesting level before the increment
+	 */
+	private int increaseNestLevel() {
+		return this.nestLevel++;
+	}
+
+	/**
+	 * Decreases the nesting level of session calls and returns the previous value.
+	 *
+	 * @return the nesting level before the decrement
+	 */
+	private int decreaseNestLevel() {
+		return this.nestLevel--;
+	}
+
+	/**
+	 * Executes the passed logic within the root-level transaction frame of this session. This is the client-side
+	 * counterpart of the embedded `session.execute(...)` block: it establishes the unit of atomicity so that
+	 * individual operations invoked inside `logic` run nested and a single caught failure does not discard the
+	 * surrounding transaction. It is used by `EvitaClient.updateCatalog(...)` to run the client-supplied updater.
+	 *
+	 * @param logic the logic to execute, must not be null
+	 * @param <T>   the type of the result
+	 * @return the result of the logic
+	 */
+	public <T> T execute(@Nonnull Function<EvitaSessionContract, T> logic) {
+		return executeInTransactionIfPossible(logic);
+	}
+
+	/**
+	 * Executes the passed logic within the root-level transaction frame of this session. This is the client-side
+	 * counterpart of the embedded `session.execute(...)` block (see {@link #execute(Function)}).
+	 *
+	 * @param logic the logic to execute, must not be null
+	 */
+	public void execute(@Nonnull Consumer<EvitaSessionContract> logic) {
+		executeInTransactionIfPossible(
+			session -> {
+				logic.accept(session);
+				return null;
+			}
+		);
 	}
 
 	/**

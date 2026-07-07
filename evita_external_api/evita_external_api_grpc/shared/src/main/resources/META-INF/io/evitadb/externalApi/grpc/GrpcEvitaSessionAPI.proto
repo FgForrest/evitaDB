@@ -375,6 +375,10 @@ message GrpcCloseRequest {
   GrpcCommitBehavior commitBehaviour = 1;
   // Name of the catalog to which the session relates.
   string catalogName = 2;
+  // When true, the session's transaction is discarded (rolled back) instead of committed. The client sets this when
+  // an exception escaped the transaction block uncaught, so the server rolls back exactly as an embedded session
+  // would. When false (the default) the surviving changes are committed.
+  bool rollback = 3;
 }
 
 // Response for Close request that commits or rollbacks the changes in the session.
@@ -391,6 +395,10 @@ message GrpcCloseResponse {
 message GrpcCloseWithProgressRequest {
   // Name of the catalog to which the session relates.
   string catalogName = 1;
+  // When true, the session's transaction is discarded (rolled back) instead of committed. The client sets this when
+  // an exception escaped the transaction block uncaught, so the server rolls back exactly as an embedded session
+  // would. When false (the default) the surviving changes are committed.
+  bool rollback = 2;
 }
 
 // Response for CloseGrpcCloseWithProgress request that commits or rollbacks the changes in the session.

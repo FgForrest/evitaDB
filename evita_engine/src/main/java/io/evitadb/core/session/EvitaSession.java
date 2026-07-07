@@ -236,6 +236,12 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	private long lastCall = System.currentTimeMillis();
 	/**
 	 * Contains a number of nested session calls.
+	 *
+	 * For sessions whose transaction is controlled by an external client
+	 * ({@link SessionTraits#isTransactionControlledExternally()}) the base value is pinned to `1` in the constructor,
+	 * so that every individual operation invoked over the wire runs as a *nested* call (level `2`) and never counts as
+	 * a root-level execution. This defers the commit-or-rollback decision to the external client and prevents a single
+	 * recoverable operation failure from poisoning the whole transaction.
 	 */
 	private int nestLevel;
 	/**
@@ -366,6 +372,13 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 			(commitVersions, throwable) -> executeTerminationSteps(throwable, catalog)
 		);
 		this.catalogConsumerControl = catalogConsumerControl;
+		// when the transaction is controlled by an external client (e.g. the gRPC driver), pin the base nesting level
+		// to 1 so that every individual operation runs as a nested call — a recoverable per-operation failure is then
+		// reverted by the savepoint without marking the whole transaction rollback-only, and the external client
+		// decides at close time whether to commit the survivors or discard the transaction (1:1 with embedded)
+		if (sessionTraits.isTransactionControlledExternally()) {
+			this.nestLevel = 1;
+		}
 		if (catalog.supportsTransaction() && sessionTraits.isReadWrite()) {
 			this.transactionAccessor.set(createAndInitTransaction());
 		}
