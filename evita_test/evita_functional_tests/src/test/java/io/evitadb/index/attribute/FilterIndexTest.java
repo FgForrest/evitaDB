@@ -38,7 +38,7 @@ import io.evitadb.dataType.NumberRange;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.invertedIndex.InvertedIndexSubSet;
-import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
+import io.evitadb.index.invertedIndex.ValueToRecord;
 import io.evitadb.index.range.RangePoint;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
@@ -1380,7 +1380,7 @@ class FilterIndexTest {
 
 			final InvertedIndexSubSet subset = index.getRangeHistogramOfAllRecords(Integer.class, 0);
 
-			assertEquals(0, subset.getHistogramBuckets().length);
+			assertEquals(0, subset.getBuckets().length);
 		}
 
 		@Test
@@ -1394,7 +1394,7 @@ class FilterIndexTest {
 			index.addRecord(3, IntegerNumberRange.between(20, 30));
 
 			final InvertedIndexSubSet subset = index.getRangeHistogramOfAllRecords(Integer.class, 0);
-			final ValueToRecordBitmap[] buckets = subset.getHistogramBuckets();
+			final ValueToRecord[] buckets = subset.getBuckets();
 
 			// RangeIndex consolidates same-threshold start/end into one point — so the five distinct
 			// thresholds 10, 15, 20, 25, 30 produce five buckets. At threshold 20, record 3 starts
@@ -1421,9 +1421,9 @@ class FilterIndexTest {
 			index.addRecord(1, IntegerNumberRange.between(7, 7));
 			index.addRecord(2, IntegerNumberRange.between(3, 7));
 
-			final ValueToRecordBitmap[] buckets = index
+			final ValueToRecord[] buckets = index
 				.getRangeHistogramOfAllRecords(Integer.class, 0)
-				.getHistogramBuckets();
+				.getBuckets();
 
 			// distinct thresholds: 3 (record 2 starts) and 7 (record 1 starts and ends, record 2 ends)
 			final Integer[] keys = new Integer[buckets.length];
@@ -1446,9 +1446,9 @@ class FilterIndexTest {
 			);
 			longIndex.addRecord(1, LongNumberRange.between(1_000_000_000_000L, 2_000_000_000_000L));
 
-			final ValueToRecordBitmap[] longBuckets = longIndex
+			final ValueToRecord[] longBuckets = longIndex
 				.getRangeHistogramOfAllRecords(Long.class, 0)
-				.getHistogramBuckets();
+				.getBuckets();
 			assertEquals(2, longBuckets.length);
 			assertEquals(1_000_000_000_000L, longBuckets[0].getValue());
 			assertEquals(2_000_000_000_000L, longBuckets[1].getValue());
@@ -1469,9 +1469,9 @@ class FilterIndexTest {
 				new BigDecimal("10.50"), new BigDecimal("20.75"), 2
 			));
 
-			final ValueToRecordBitmap[] buckets = bdIndex
+			final ValueToRecord[] buckets = bdIndex
 				.getRangeHistogramOfAllRecords(BigDecimal.class, 2)
-				.getHistogramBuckets();
+				.getBuckets();
 			assertEquals(2, buckets.length);
 			// `BigDecimal.valueOf(threshold, 2)` yields a scale-2 decimal; `compareTo` is required because
 			// BigDecimal equality is scale-sensitive
@@ -1496,7 +1496,7 @@ class FilterIndexTest {
 			index.addRecord(2, IntegerNumberRange.between(5, 30));
 			final InvertedIndexSubSet third = index.getRangeHistogramOfAllRecords(Integer.class, 0);
 			assertNotSame(first, third);
-			assertEquals(4, third.getHistogramBuckets().length);
+			assertEquals(4, third.getBuckets().length);
 		}
 
 		@Test
@@ -1524,9 +1524,9 @@ class FilterIndexTest {
 			index.addRecord(2, IntegerNumberRange.between(20, 80));
 			index.addRecord(3, IntegerNumberRange.between(60, 100));
 
-			final ValueToRecordBitmap[] buckets = index
+			final ValueToRecord[] buckets = index
 				.getRangeHistogramOfAllRecords(Integer.class, 0)
-				.getHistogramBuckets();
+				.getBuckets();
 
 			final Integer[] keys = new Integer[buckets.length];
 			for (int i = 0; i < buckets.length; i++) {
@@ -1556,9 +1556,9 @@ class FilterIndexTest {
 			index.addRecord(2, IntegerNumberRange.between(20, 80));
 			index.addRecord(3, IntegerNumberRange.between(10, 30));
 
-			final ValueToRecordBitmap[] buckets = index
+			final ValueToRecord[] buckets = index
 				.getRangeHistogramOfAllRecords(Integer.class, 0)
-				.getHistogramBuckets();
+				.getBuckets();
 
 			final Integer[] keys = new Integer[buckets.length];
 			for (int i = 0; i < buckets.length; i++) {

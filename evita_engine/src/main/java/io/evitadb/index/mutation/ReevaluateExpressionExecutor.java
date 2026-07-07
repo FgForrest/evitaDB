@@ -56,7 +56,7 @@ import io.evitadb.index.facet.FacetGroupIndex;
 import io.evitadb.index.facet.FacetIdIndex;
 import io.evitadb.index.facet.FacetReferenceIndex;
 import io.evitadb.index.hierarchy.predicate.HierarchyFilteringPredicate;
-import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
+import io.evitadb.index.invertedIndex.ValueToRecord;
 import io.evitadb.index.mutation.local.ReferenceIndexMutator;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.utils.Assert;
@@ -756,9 +756,9 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 		if (sourceFilterIndex != null) {
 			final boolean rangeSource = resolution.innerNumericType() != null;
 			final Class<? extends Serializable> plainType = resolution.plainType();
-			final ValueToRecordBitmap[] buckets = sourceFilterIndex.getHistogramOfAllRecords().getHistogramBuckets();
+			final ValueToRecord[] buckets = sourceFilterIndex.getHistogramOfAllRecords().getBuckets();
 			List<Serializable> result = null;
-			for (final ValueToRecordBitmap bucket : buckets) {
+			for (final ValueToRecord bucket : buckets) {
 				if (bucket.getRecordIds().contains(refEntityPK)) {
 					final Serializable emittedValue = resolveEmittedBucketValue(
 						bucket.getValue(), rangeSource, plainType, resolution.sourceAttributeName()
@@ -906,12 +906,12 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 			final boolean rangeSource = resolution.innerNumericType() != null;
 			final PersistentRoaringBitmap shouldBeIndexedBitmap =
 				getRoaringBitmap(histogramShouldBeIndexed);
-			final ValueToRecordBitmap[] sourceBuckets =
-				sourceFilterIndex.getHistogramOfAllRecords().getHistogramBuckets();
+			final ValueToRecord[] sourceBuckets =
+				sourceFilterIndex.getHistogramOfAllRecords().getBuckets();
 			// Track which referenced entity PKs were matched in at least one bucket so that defaults can be applied.
 			final RoaringBitmapWriter<PersistentRoaringBitmap> encounteredRefPKsWriter = buildWriter();
 
-			for (final ValueToRecordBitmap sourceBucket : sourceBuckets) {
+			for (final ValueToRecord sourceBucket : sourceBuckets) {
 				final Serializable emittedValue = resolveEmittedBucketValue(
 					sourceBucket.getValue(), rangeSource, plainType, resolution.sourceAttributeName()
 				);
@@ -1136,10 +1136,10 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 				}
 			}
 		} else {
-			final ValueToRecordBitmap[] buckets = filterIndex.getHistogramOfAllRecords().getHistogramBuckets();
+			final ValueToRecord[] buckets = filterIndex.getHistogramOfAllRecords().getBuckets();
 			final PersistentRoaringBitmap encountered = new PersistentRoaringBitmap();
 
-			for (final ValueToRecordBitmap bucket : buckets) {
+			for (final ValueToRecord bucket : buckets) {
 				final Serializable emittedValue = resolveEmittedBucketValue(
 					bucket.getValue(), rangeSource, plainType, resolution.sourceAttributeName()
 				);
@@ -1312,11 +1312,12 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 	 * the histogram index is null, the FilterIndex for the locale is null, or the specific value bucket
 	 * does not contain the ownerPK.
 	 *
-	 * Comparison uses `Object.equals` on the bucket value — `Range` subtypes implement value-based equality
-	 * over both bounds (and inner numeric type), so the lookup is symmetric for both scalar `Number` values
-	 * and range-typed bucket values. The probe `value` is canonicalized through the histogram index's own
-	 * normalizer (the same key form the bucket stores — e.g. a scaled `Integer` for a `BigDecimal` value
-	 * type) before comparing, so a raw probe matches its scaled / re-encoded stored counterpart.
+	 * Membership is resolved by a direct single-bucket lookup —
+	 * `getInvertedIndex().getRecordsEqualTo(normalizedValue)` fetches only the bucket keyed by the probe
+	 * value (an empty bitmap on miss) instead of scanning every bucket. The probe `value` is first
+	 * canonicalized through the histogram index's own normalizer (the same key form the bucket stores —
+	 * e.g. a scaled `Integer` for a `BigDecimal` value type), so a raw probe matches its scaled /
+	 * re-encoded stored counterpart.
 	 */
 	private static boolean histogramContainsOwner(
 		@Nullable HistogramIndex histogramIndex,
@@ -1332,15 +1333,11 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 			return false;
 		}
 		// buckets store the canonicalized key (e.g. a scaled Integer for a BigDecimal value type), so the raw
-		// probe must be normalized through the same path before comparing
+		// probe must be normalized through the same path before the lookup
 		final Serializable normalizedValue = histogramIndex.normalizeValue(value);
-		final ValueToRecordBitmap[] buckets = filterIndex.getHistogramOfAllRecords().getHistogramBuckets();
-		for (final ValueToRecordBitmap bucket : buckets) {
-			if (bucket.getValue().equals(normalizedValue)) {
-				return bucket.getRecordIds().contains(ownerPK);
-			}
-		}
-		return false;
+		// direct O(log n) tree lookup for the single bucket keyed by the normalized value - avoids materializing the
+		// entire histogram just to test membership in one bucket (getRecordsEqualTo returns an empty bitmap on miss)
+		return filterIndex.getInvertedIndex().getRecordsEqualTo(normalizedValue).contains(ownerPK);
 	}
 
 	/**

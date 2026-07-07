@@ -40,7 +40,7 @@ import io.evitadb.index.EntityIndex;
 import io.evitadb.index.ReducedGroupEntityIndex;
 import io.evitadb.index.ReferencedTypeEntityIndex;
 import io.evitadb.index.attribute.FilterIndex;
-import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
+import io.evitadb.index.invertedIndex.ValueToRecord;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.test.EvitaTestSupport.TestPaths;
 import io.evitadb.test.duration.TimeArgumentProvider;
@@ -2306,10 +2306,10 @@ class EvitaConditionalBucketGenerationalTest implements EvitaTestSupport, TimeBo
 		if (filterIndex == null) {
 			return Map.of();
 		}
-		final ValueToRecordBitmap[] buckets =
-			filterIndex.getHistogramOfAllRecords().getHistogramBuckets();
+		final ValueToRecord[] buckets =
+			filterIndex.getHistogramOfAllRecords().getBuckets();
 		final Map<Serializable, Set<Integer>> result = new HashMap<>(buckets.length);
-		for (ValueToRecordBitmap bucket : buckets) {
+		for (ValueToRecord bucket : buckets) {
 			final Set<Integer> pks = new HashSet<>();
 			bucket.getRecordIds().forEach(pks::add);
 			if (!pks.isEmpty()) {

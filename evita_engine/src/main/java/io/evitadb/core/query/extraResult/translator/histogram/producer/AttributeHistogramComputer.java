@@ -36,6 +36,7 @@ import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.invertedIndex.InvertedIndexSubSet;
+import io.evitadb.index.invertedIndex.ValueToRecord;
 import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.NumberUtils;
@@ -500,7 +501,7 @@ public class AttributeHistogramComputer implements CacheableEvitaResponseExtraRe
 			);
 			final int retainedDecimalPlaces = request.getDecimalPlaces();
 			final List<FilterIndex> attributeIndexList = histogramComputer.getAttributeIndexes();
-			final ValueToRecordBitmap[][] attributeIndexes = new ValueToRecordBitmap[attributeIndexList.size()][];
+			final ValueToRecord[][] attributeIndexes = new ValueToRecord[attributeIndexList.size()][];
 			for (int i = 0; i < attributeIndexList.size(); i++) {
 				final FilterIndex fi = attributeIndexList.get(i);
 				final InvertedIndexSubSet subset;
@@ -517,7 +518,7 @@ public class AttributeHistogramComputer implements CacheableEvitaResponseExtraRe
 				} else {
 					subset = fi.getHistogramOfAllRecords();
 				}
-				attributeIndexes[i] = subset.getHistogramBuckets();
+				attributeIndexes[i] = subset.getBuckets();
 			}
 
 			this.memoizedNarrowedBuckets = AttributeHistogramProducer.getCombinedAndFilteredBucketArray(

@@ -61,7 +61,6 @@ import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.facet.FacetGroupIndex;
 import io.evitadb.index.facet.FacetIdIndex;
 import io.evitadb.index.facet.FacetReferenceIndex;
-import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
 import io.evitadb.index.mutation.local.EntityIndexLocalMutationExecutor.RepresentativeReferenceKeys;
 import io.evitadb.index.mutation.local.dataAccess.ExistingAttributeValueSupplier;
 import io.evitadb.index.mutation.local.dataAccess.ExistingDataSupplierFactory;
@@ -2956,12 +2955,13 @@ public interface ReferenceIndexMutator {
 	 * when the histogram index is null, the FilterIndex for the locale is null, or the specific value
 	 * bucket does not contain the ownerPK.
 	 *
-	 * This is an O(B) point lookup where B is the number of distinct values (typically 10-200 for
-	 * e-commerce histograms). RoaringBitmap `contains()` is O(1).
+	 * This is an O(log n) point lookup: `getInvertedIndex().getRecordsEqualTo(normalizedValue)` fetches
+	 * only the bucket keyed by the probe value (an empty bitmap on miss) rather than scanning every
+	 * bucket, and RoaringBitmap `contains()` is O(1).
 	 *
 	 * The stored bucket values are canonicalized (e.g. a scaled `Integer` for a `BigDecimal` value type)
 	 * at the histogram-index write boundary, so the probe `value` is canonicalized through the histogram
-	 * index's own normalizer before the equality lookup — otherwise a raw `BigDecimal`/`BigDecimalNumberRange`
+	 * index's own normalizer before the lookup — otherwise a raw `BigDecimal`/`BigDecimalNumberRange`
 	 * would never match its stored (scaled / re-encoded) counterpart and the guard would suppress a valid
 	 * removal.
 	 *
@@ -2988,15 +2988,11 @@ public interface ReferenceIndexMutator {
 			return false;
 		}
 		// buckets store the canonicalized key (e.g. a scaled Integer for a BigDecimal value type), so the raw
-		// probe must be normalized through the same path before comparing
+		// probe must be normalized through the same path before the lookup
 		final Serializable normalizedValue = histogramIndex.normalizeValue(value);
-		final ValueToRecordBitmap[] buckets = filterIndex.getHistogramOfAllRecords().getHistogramBuckets();
-		for (final ValueToRecordBitmap bucket : buckets) {
-			if (bucket.getValue().equals(normalizedValue)) {
-				return bucket.getRecordIds().contains(ownerPK);
-			}
-		}
-		return false;
+		// direct O(log n) tree lookup for the single bucket keyed by the normalized value - avoids materializing the
+		// entire histogram just to test membership in one bucket (getRecordsEqualTo returns an empty bitmap on miss)
+		return filterIndex.getInvertedIndex().getRecordsEqualTo(normalizedValue).contains(ownerPK);
 	}
 
 	/**

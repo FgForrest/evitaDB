@@ -26,6 +26,7 @@ package io.evitadb.index.invertedIndex;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.base.OrFormula;
+import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -103,9 +104,9 @@ class InvertedIndexSubTest {
 		}
 
 		@Test
-		@DisplayName("getHistogramBuckets returns empty array for empty subset")
+		@DisplayName("getBuckets returns empty array for empty subset")
 		void shouldReturnEmptyBucketsArray() {
-			assertEquals(0, this.empty.getHistogramBuckets().length);
+			assertEquals(0, this.empty.getBuckets().length);
 		}
 	}
 
@@ -138,9 +139,9 @@ class InvertedIndexSubTest {
 		}
 
 		@Test
-		@DisplayName("getHistogramBuckets returns the underlying bucket array with correct length")
+		@DisplayName("getBuckets returns the underlying bucket array with correct length")
 		void shouldReturnHistogramBuckets() {
-			final ValueToRecordBitmap[] buckets = InvertedIndexSubTest.this.tested.getHistogramBuckets();
+			final ValueToRecord[] buckets = InvertedIndexSubTest.this.tested.getBuckets();
 
 			assertEquals(2, buckets.length);
 			assertEquals(1, buckets[0].getValue());
@@ -163,6 +164,57 @@ class InvertedIndexSubTest {
 			final int[] second = InvertedIndexSubTest.this.tested.getRecordIds().getArray();
 
 			assertArrayEquals(first, second);
+		}
+	}
+
+	@Nested
+	@DisplayName("Zero-copy bucket read-out")
+	class ZeroCopyBucketReadOutTest {
+		/**
+		 * The compact single-record primitive bucket (value=1 → record 7), kept first in the mixed backing array so a
+		 * test can assert it is handed back unchanged, not promoted to a bitmap-backed bucket.
+		 */
+		private final ValueToRecordPrimitive primitiveBucket = new ValueToRecordPrimitive(1, 7);
+		/**
+		 * Mixed backing array blending the compact single-record primitive with a multi-record bitmap bucket
+		 * (value=5 → records [8, 9]). Held as a field so a test can assert the subset exposes this very array instance.
+		 */
+		private final ValueToRecord[] mixedBackingArray = new ValueToRecord[]{
+			this.primitiveBucket,
+			new ValueToRecordBitmap(5, 8, 9),
+		};
+		/**
+		 * Subset over the mixed backing array. The aggregation lambda folds the polymorphic
+		 * {@link ValueToRecord#getRecordIds()} views (typed as {@link Bitmap}) so it tolerates both bucket
+		 * representations; these tests read only the buckets, so the lambda is never invoked.
+		 */
+		private final InvertedIndexSubSet subset = new InvertedIndexSubSet(
+			1L,
+			this.mixedBackingArray,
+			(indexTransactionId, histogramBuckets) -> new OrFormula(
+				new long[]{indexTransactionId},
+				Arrays.stream(histogramBuckets).map(ValueToRecord::getRecordIds).toArray(Bitmap[]::new)
+			)
+		);
+
+		@Test
+		@DisplayName("getBuckets returns a single-record primitive bucket without materializing it to a bitmap")
+		void shouldReturnPrimitiveBucketUnmaterializedWhenReadingBuckets() {
+			final ValueToRecord[] buckets = this.subset.getBuckets();
+
+			final ValueToRecordPrimitive firstBucket = assertInstanceOf(
+				ValueToRecordPrimitive.class, buckets[0]
+			);
+			assertSame(this.primitiveBucket, firstBucket);
+			assertEquals(1, firstBucket.getValue());
+			assertArrayEquals(new int[]{7}, firstBucket.getRecordIds().getArray());
+		}
+
+		@Test
+		@DisplayName("getBuckets returns the subset's internal backing array reference")
+		void shouldReturnSameBackingArrayInstanceFromGetBuckets() {
+			assertSame(this.mixedBackingArray, this.subset.getBuckets());
+			assertSame(this.subset.getBuckets(), this.subset.getBuckets());
 		}
 	}
 }

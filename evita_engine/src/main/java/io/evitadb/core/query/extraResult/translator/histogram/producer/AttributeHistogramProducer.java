@@ -49,6 +49,7 @@ import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
+import io.evitadb.index.invertedIndex.ValueToRecord;
 import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.CollectionUtils;
@@ -99,9 +100,9 @@ public class AttributeHistogramProducer implements ExtraResultProducer {
 	private final Map<String, AttributeHistogramRequest> histogramRequests;
 
 	/**
-	 * Method combines arrays of {@link ValueToRecordBitmap} (i.e. two-dimensional matrix) together so that in the output
-	 * array the buckets are flattened to one-dimensional representation containing only distinct {@link ValueToRecordBitmap#getValue()}
-	 * in a way that two or more {@link ValueToRecordBitmap} sharing same {@link ValueToRecordBitmap#getValue()} are combined
+	 * Method combines arrays of {@link ValueToRecord} (i.e. two-dimensional matrix) together so that in the output
+	 * array the buckets are flattened to one-dimensional representation containing only distinct {@link ValueToRecord#getValue()}
+	 * in a way that two or more {@link ValueToRecord} sharing same {@link ValueToRecord#getValue()} are combined
 	 * into a single bucket.
 	 *
 	 * The bucket record ids are also filtered to match `filteringFormula` output (i.e. the bucket will not contain a
@@ -109,7 +110,7 @@ public class AttributeHistogramProducer implements ExtraResultProducer {
 	 */
 	static ValueToRecordBitmap[] getCombinedAndFilteredBucketArray(
 		@Nullable Formula filteringFormula,
-		@Nonnull ValueToRecordBitmap[][] histogramBitmaps,
+		@Nonnull ValueToRecord[][] histogramBitmaps,
 		@SuppressWarnings("rawtypes") @Nonnull Comparator comparator
 	) {
 		if (ArrayUtils.isEmpty(histogramBitmaps)) {
@@ -130,7 +131,7 @@ public class AttributeHistogramProducer implements ExtraResultProducer {
 			// positions in `indexes` that must advance after the current iteration
 			final int[] incIndexes = new int[histogramBitmaps.length];
 			// buckets sharing the current minimum value, to be merged into one output bucket
-			final ValueToRecordBitmap[] combinationPack = new ValueToRecordBitmap[histogramBitmaps.length];
+			final ValueToRecord[] combinationPack = new ValueToRecord[histogramBitmaps.length];
 
 			do {
 				// last filled position in combinationPack / incIndexes
@@ -139,7 +140,7 @@ public class AttributeHistogramProducer implements ExtraResultProducer {
 				for (int i = 0; i < indexes.length; i++) {
 					int index = indexes[i];
 					if (index > -1) {
-						final ValueToRecordBitmap examinedBucket = histogramBitmaps[i][index];
+						final ValueToRecord examinedBucket = histogramBitmaps[i][index];
 						final Serializable histogramValue = examinedBucket.getValue();
 
 						//noinspection unchecked
@@ -169,7 +170,7 @@ public class AttributeHistogramProducer implements ExtraResultProducer {
 			} while (endNotReached(indexes));
 		} else if (histogramBitmaps.length == 1) {
 			// single input — no merging needed
-			for (ValueToRecordBitmap bucket : histogramBitmaps[0]) {
+			for (ValueToRecord bucket : histogramBitmaps[0]) {
 				addBucket(filteredRecordIds, finalBuckets, bucket);
 			}
 		}
@@ -190,14 +191,14 @@ public class AttributeHistogramProducer implements ExtraResultProducer {
 	}
 
 	/**
-	 * Method combines all `theBucket` into a single bucket with shared distinct {@link ValueToRecordBitmap#getValue()}.
+	 * Method combines all `theBucket` into a single bucket with shared distinct {@link ValueToRecord#getValue()}.
 	 * Record ids are combined by OR relation and then filtered by AND relation with `filteredRecordIds` (when
 	 * `filteredRecordIds` is `null` the combined OR result is used as-is).
 	 */
 	private static void addBucket(
 		@Nullable PersistentRoaringBitmap filteredRecordIds,
 		@Nonnull CompositeObjectArray<ValueToRecordBitmap> finalBuckets,
-		@Nonnull ValueToRecordBitmap[] theBucket
+		@Nonnull ValueToRecord[] theBucket
 	) {
 		final PersistentRoaringBitmap[] bucketBitmaps = new PersistentRoaringBitmap[theBucket.length];
 		for (int i = 0; i < theBucket.length; i++) {
@@ -218,13 +219,13 @@ public class AttributeHistogramProducer implements ExtraResultProducer {
 	}
 
 	/**
-	 * Method filters out record ids of the {@link ValueToRecordBitmap} that are not part of `filteredRecordIds` and
+	 * Method filters out record ids of the {@link ValueToRecord} that are not part of `filteredRecordIds` and
 	 * produces new bucket with filtered data.
 	 */
 	private static void addBucket(
 		@Nullable PersistentRoaringBitmap filteredRecordIds,
 		@Nonnull CompositeObjectArray<ValueToRecordBitmap> finalBuckets,
-		@Nonnull ValueToRecordBitmap theBucket
+		@Nonnull ValueToRecord theBucket
 	) {
 		final Bitmap recordIds = filteredRecordIds == null ?
 			theBucket.getRecordIds() :
@@ -250,7 +251,7 @@ public class AttributeHistogramProducer implements ExtraResultProducer {
 	 * the number of elements in respective `histogramBitmap`, the index is set to -1 which marks end of the stream.
 	 */
 	private static void incrementBitmapIndex(
-		@Nonnull ValueToRecordBitmap[][] histogramBitmaps,
+		@Nonnull ValueToRecord[][] histogramBitmaps,
 		@Nonnull int[] indexes,
 		@Nonnull int[] bitmapIndexes
 	) {
@@ -264,7 +265,7 @@ public class AttributeHistogramProducer implements ExtraResultProducer {
 	 * of available records in `histogramBitmap` on `bitmapIndex`, the index is set to -1 which marks end of the stream.
 	 */
 	private static void incrementBitmapIndex(
-		@Nonnull ValueToRecordBitmap[][] histogramBitmaps,
+		@Nonnull ValueToRecord[][] histogramBitmaps,
 		@Nonnull int[] indexes,
 		int bitmapIndex
 	) {

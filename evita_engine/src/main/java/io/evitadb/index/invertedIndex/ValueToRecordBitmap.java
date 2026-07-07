@@ -26,7 +26,6 @@ package io.evitadb.index.invertedIndex;
 import io.evitadb.core.transaction.memory.TransactionalCreatorMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerCreator;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
-import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.array.TransactionalObject;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
@@ -83,30 +82,6 @@ public class ValueToRecordBitmap implements ValueToRecord,
 	public ValueToRecordBitmap(@Nonnull Serializable value, @Nonnull int... recordIds) {
 		this.value = value;
 		this.recordIds = new TransactionalBitmap(new BaseBitmap(recordIds));
-	}
-
-	/**
-	 * Materializes any {@link ValueToRecord} bucket into its {@link ValueToRecordBitmap} form. A bucket that already
-	 * is a {@link ValueToRecordBitmap} is returned unchanged; a compact single-record {@link ValueToRecordPrimitive}
-	 * is expanded into a fresh single-record bitmap. This is the single conversion point used at the serialization /
-	 * external-consumer boundary where the concrete bitmap type is required.
-	 *
-	 * TODO JNO #760 - THIS METHOD SHOULD BE REMOVED ONCE SERIALIZATION IS IMPLEMENTED
-	 *
-	 * @param bucket the bucket to materialize
-	 * @return the bucket in its {@link ValueToRecordBitmap} form
-	 */
-	@Nonnull
-	static ValueToRecordBitmap materialize(@Nonnull ValueToRecord bucket) {
-		if (bucket instanceof final ValueToRecordBitmap bitmapBucket) {
-			return bitmapBucket;
-		} else if (bucket instanceof final ValueToRecordPrimitive primitiveBucket) {
-			return new ValueToRecordBitmap(primitiveBucket.getValue(), primitiveBucket.getRecordId());
-		} else {
-			throw new GenericEvitaInternalError(
-				"Unexpected ValueToRecord implementation: " + bucket.getClass()
-			);
-		}
 	}
 
 	/**

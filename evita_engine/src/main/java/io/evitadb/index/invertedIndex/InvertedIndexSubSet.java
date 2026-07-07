@@ -61,7 +61,7 @@ public class InvertedIndexSubSet {
 	 * The selected slice of buckets in their polymorphic form, ordered by ascending {@link ValueToRecord#getValue()}
 	 * with no duplicate or gap relative to the source index. Each element may be either the multi-record
 	 * {@link ValueToRecordBitmap} or the compact single-record {@link ValueToRecordPrimitive}; see
-	 * {@link #getHistogramBuckets()} for the materialized read-out.
+	 * {@link #getBuckets()} for the read-out.
 	 */
 	private final ValueToRecord[] histogramBuckets;
 	/**
@@ -77,19 +77,21 @@ public class InvertedIndexSubSet {
 	private Formula memoizedResult;
 
 	/**
-	 * Returns the buckets of this subset in their {@link ValueToRecordBitmap} form. Compact single-record
-	 * {@link ValueToRecordPrimitive} buckets are materialized to a fresh single-record bitmap on the fly - this is the
-	 * read-out boundary for the transient query-time consumers that still operate on the concrete bitmap type. The
-	 * conversion is allocation-bearing but cache-neutral: these consumers key their own staleness on the index-level
-	 * transactional id, not on per-bucket bitmap ids.
+	 * Returns the buckets of this subset in their polymorphic {@link ValueToRecord} form - each element is either a
+	 * multi-record {@link ValueToRecordBitmap} or a compact single-record {@link ValueToRecordPrimitive}, exactly as
+	 * held by the source index. No materialization happens: a single-record bucket stays a bare-`int` primitive and
+	 * only allocates its lightweight {@link io.evitadb.index.bitmap.SingleRecordBitmap} view on demand if a consumer
+	 * actually reads {@link ValueToRecord#getRecordIds()}. Consumers read this slice through the read-only
+	 * {@link ValueToRecord} surface ({@link ValueToRecord#getValue()}, {@link ValueToRecord#getRecordIds()},
+	 * {@link ValueToRecord#size()}); they key their own staleness on the index-level transactional id, not on
+	 * per-bucket bitmap ids.
+	 *
+	 * The returned array is the subset's internal, ascending-by-value backing array - it must be treated as
+	 * read-only (never reordered or mutated), which is safe because this subset is a short-lived, single-query value.
 	 */
 	@Nonnull
-	public ValueToRecordBitmap[] getHistogramBuckets() {
-		final ValueToRecordBitmap[] result = new ValueToRecordBitmap[this.histogramBuckets.length];
-		for (int i = 0; i < this.histogramBuckets.length; i++) {
-			result[i] = ValueToRecordBitmap.materialize(this.histogramBuckets[i]);
-		}
-		return result;
+	public ValueToRecord[] getBuckets() {
+		return this.histogramBuckets;
 	}
 
 	/**
