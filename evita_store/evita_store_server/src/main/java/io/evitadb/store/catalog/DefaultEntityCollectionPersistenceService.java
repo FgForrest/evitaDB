@@ -214,6 +214,14 @@ public class DefaultEntityCollectionPersistenceService
 	 * Contains information about the time the non-flushed block was reported.
 	 */
 	private long lastReportTimestamp;
+	/**
+	 * Wall-clock time (epoch millis) at which this instance was created. Because a compacted collection is always
+	 * replaced by a brand-new {@link DefaultEntityCollectionPersistenceService} instance
+	 * ({@link DefaultCatalogPersistenceService#flush}), this value doubles as "time of the last compaction" for the
+	 * {@code minCompactionIntervalMilliseconds} cadence gate without needing to be updated anywhere else.
+	 */
+	@Getter
+	private final long lastCompactionAtMillis;
 
 	@Nonnull
 	private static Optional<EntityWithFetchCount> toEntity(
@@ -492,6 +500,7 @@ public class DefaultEntityCollectionPersistenceService
 		this.entityCollectionHeader = entityTypeHeader;
 		this.offsetIndexRecordTypeRegistry = offsetIndexRecordTypeRegistry;
 		this.observableOutputKeeper = observableOutputKeeper;
+		this.lastCompactionAtMillis = DefaultCatalogPersistenceService.getNowEpochMillis();
 		final WriteOnlyFileHandle writeHandle = new WriteOnlyFileHandle(
 			catalogName,
 			FileType.ENTITY_COLLECTION,

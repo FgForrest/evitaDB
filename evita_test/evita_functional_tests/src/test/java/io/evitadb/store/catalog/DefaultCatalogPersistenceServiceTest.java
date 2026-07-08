@@ -39,6 +39,7 @@ import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.mutation.EngineMutation;
 import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
+import io.evitadb.api.requestResponse.mutation.infrastructure.TransactionMutation;
 import io.evitadb.api.requestResponse.progress.ProgressRecord;
 import io.evitadb.api.requestResponse.progress.ProgressingFuture;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
@@ -55,7 +56,6 @@ import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchema
 import io.evitadb.api.requestResponse.schema.mutation.engine.ModifyCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.system.MaterializedVersionBlock;
 import io.evitadb.api.requestResponse.system.TimeFlow;
-import io.evitadb.api.requestResponse.mutation.infrastructure.TransactionMutation;
 import io.evitadb.core.Evita;
 import io.evitadb.core.buffer.WarmUpDataStoreMemoryBuffer;
 import io.evitadb.core.cache.NoCacheSupervisor;
@@ -100,14 +100,15 @@ import io.evitadb.test.Entities;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.test.TestConstants;
 import io.evitadb.test.generator.DataGenerator;
+import io.evitadb.test.utils.ReflectionUtils;
 import io.evitadb.utils.NamingConvention;
 import io.evitadb.utils.UUIDUtil;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
-import io.evitadb.test.utils.ReflectionUtils;
 
 import javax.annotation.Nonnull;
 import java.io.File;
@@ -127,7 +128,6 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
@@ -140,14 +140,14 @@ import static io.evitadb.store.catalog.DefaultCatalogPersistenceService.getFirst
 import static io.evitadb.store.catalog.DefaultIsolatedWalServiceTest.DATA_MUTATION_EXAMPLE;
 import static io.evitadb.store.catalog.DefaultIsolatedWalServiceTest.SCHEMA_MUTATION_EXAMPLE;
 import static io.evitadb.test.Assertions.assertExactlyEquals;
+import static io.evitadb.test.TestTags.MANAGEMENT;
+import static io.evitadb.test.TestTags.STORAGE;
 import static java.util.Optional.empty;
 import static java.util.Optional.of;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
-import static io.evitadb.test.TestTags.STORAGE;
-import static io.evitadb.test.TestTags.MANAGEMENT;
 
 /**
  * This test verifies contract of {@link CatalogPersistenceService}.
@@ -664,6 +664,43 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			final CatalogBootstrap m4 = getCatalogBootstrapForSpecificMoment(catalogName, storageSettings, startTime.plusHours(15));
 			assertNotNull(m4);
 			assertEquals(13, m4.catalogVersion());
+		}
+	}
+
+	@Test
+	void shouldInitializeCompactionCadenceTimestampsAtConstructionTime() {
+		// gate 6 (timestamp lifecycle): both the catalog-file and entity-collection compaction-cadence clocks must
+		// be seeded from the (test-overridable) construction-time clock, since a compacted file is always replaced
+		// by a brand-new persistence service instance rather than having its timestamp mutated in place
+		final String catalogName = SEALED_CATALOG_SCHEMA.getName();
+		final long fixedNow = Instant.now().minusSeconds(3_600L).toEpochMilli();
+		DefaultCatalogPersistenceService.CURRENT_TIME_MILLIS = () -> fixedNow;
+		try (
+			final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
+				catalogName,
+				getStorageOptions(),
+				getTransactionOptions(),
+				Mockito.mock(Scheduler.class),
+				Mockito.mock(ExportFileService.class)
+			)
+		) {
+			assertEquals(fixedNow, ioService.getLastCatalogCompactionAtMillis());
+
+			ioService.storeHeader(
+				UUIDUtil.randomUUID(),
+				CatalogState.ALIVE,
+				0L,
+				1,
+				null,
+				Collections.emptyList(),
+				new WarmUpDataStoreMemoryBuffer(ioService.getStoragePartPersistenceService(0L))
+			);
+
+			final DefaultEntityCollectionPersistenceService entityCollectionPersistenceService =
+				ioService.getOrCreateEntityCollectionPersistenceService(0L, "product", 1);
+			assertEquals(fixedNow, entityCollectionPersistenceService.getLastCompactionAtMillis());
+		} finally {
+			DefaultCatalogPersistenceService.CURRENT_TIME_MILLIS = System::currentTimeMillis;
 		}
 	}
 

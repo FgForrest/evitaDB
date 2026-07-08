@@ -55,6 +55,8 @@ storage:                                          # [see Storage configuration](
   minimalActiveRecordShare: 0.5
   fileSizeCompactionThresholdBytes: 100MB
   timeTravelEnabled: false
+  minCompactionIntervalMilliseconds: 1m
+  maxWasteActiveShare: 0.1
 
 export:                                           # [see Export configuration](#export-configuration)
   fileSystem:
@@ -625,6 +627,28 @@ This section contains configuration options for the storage layer of the databas
         as there is history available in the WAL log. This allows a snapshot of the database to be taken at any point
         in the history covered by the WAL log. From the snapshot, the database can be restored to the exact point in
         time with all the data available at that time.</p>
+    </dd>
+    <dt>minCompactionIntervalMilliseconds</dt>
+    <dd>
+        <p>**Default:** `1m` (60000 ms)</p>
+        <p>Minimal wall-clock time that must elapse since a data file's last compaction before it may be compacted
+            again merely for being below `minimalActiveRecordShare`. Compacting a data file more often than this
+            makes no practical sense - the I/O cost of a full-file rewrite dwarfs any savings. A file is compacted
+            no earlier than this interval **unless** its active-record share drops below `maxWasteActiveShare`, in
+            which case it is compacted immediately regardless of the interval. A value of `0` disables the gate
+            entirely, meaning compaction happens as soon as the file is worth compacting
+            (`minimalActiveRecordShare` and `fileSizeCompactionThresholdBytes` alone decide, matching pre-2026.2
+            behavior). Only takes effect when `maxWasteActiveShare` is set below `minimalActiveRecordShare` -
+            otherwise the interval has an empty window to defer within and is effectively a no-op.</p>
+    </dd>
+    <dt>maxWasteActiveShare</dt>
+    <dd>
+        <p>**Default:** `0.1` (90% waste)</p>
+        <p>Active-record share below which compaction is forced immediately, regardless of
+            `minCompactionIntervalMilliseconds`. This is the "emergency" waste ceiling - it must be set lower than
+            `minimalActiveRecordShare` for `minCompactionIntervalMilliseconds` to have any effect. The default of
+            `0.1` keeps the 1-minute interval above meaningfully active out of the box, instead of the override
+            always subsuming it.</p>
     </dd>
 </dl>
 

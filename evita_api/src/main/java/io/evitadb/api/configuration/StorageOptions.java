@@ -78,8 +78,28 @@ import static java.util.Optional.ofNullable;
  *                                           This allows a snapshot of the database to be taken at any point in
  *                                           the history covered by the WAL log. From the snapshot, the database can be
  *                                           restored to the exact point in time with all the data available at that time.
+ * @param minCompactionIntervalMilliseconds  Minimal wall-clock time (in milliseconds) that must elapse since a data file's
+ *                                           last compaction before it may be compacted again for being merely below
+ *                                           `minimalActiveRecordShare`. Defaults to `60000` (1 minute) - compacting
+ *                                           a data file more often than that makes no practical sense (the I/O cost
+ *                                           of a full-file rewrite dwarfs any savings). A value of `0` disables the
+ *                                           gate entirely, meaning compaction happens as soon as the file is worth
+ *                                           compacting (pre-2026.2 behavior). Regardless of this interval, a file is
+ *                                           always compacted immediately once its active record share drops below
+ *                                           `maxWasteActiveShare`.
+ * @param maxWasteActiveShare                Active record share below which compaction is forced immediately,
+ *                                           regardless of `minCompactionIntervalMilliseconds`. Defaults to `0.1`
+ *                                           (90% waste), so that the 1-minute default interval above actually binds
+ *                                           instead of being an inert no-op. Must be lower than
+ *                                           `minimalActiveRecordShare` for the interval to have any effect - if set
+ *                                           equal to or higher, it is self-defeating (an "emergency" override
+ *                                           stricter than the ordinary "worthwhile" threshold makes no sense), so
+ *                                           the constructor clamps it to at most `minimalActiveRecordShare` and logs
+ *                                           a warning when `minCompactionIntervalMilliseconds` is set (the interval
+ *                                           would otherwise silently never bind).
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
+@Slf4j
 public record StorageOptions(
 	@Nonnull Path storageDirectory,
 	@Nonnull Path workDirectory,
@@ -92,7 +112,9 @@ public record StorageOptions(
 	boolean computeCRC32C,
 	double minimalActiveRecordShare,
 	long fileSizeCompactionThresholdBytes,
-	boolean timeTravelEnabled
+	boolean timeTravelEnabled,
+	long minCompactionIntervalMilliseconds,
+	double maxWasteActiveShare
 ) {
 
 	public static final int DEFAULT_OUTPUT_BUFFER_SIZE = 2_097_152; // 2MB
@@ -107,6 +129,12 @@ public record StorageOptions(
 	public static final double DEFAULT_MINIMAL_ACTIVE_RECORD_SHARE = 0.5;
 	public static final long DEFAULT_MINIMAL_FILE_SIZE_COMPACTION_THRESHOLD = 104_857_600L; // 100MB
 	public static final boolean DEFAULT_TIME_TRAVEL_ENABLED = false;
+	// 1 minute - compacting a data file more often than this makes no sense: the I/O cost of a full-file rewrite
+	// dwarfs any savings, and doing it in a tight loop can starve the server of disk bandwidth.
+	public static final long DEFAULT_MIN_COMPACTION_INTERVAL_MILLISECONDS = 60_000L;
+	// 10% active / 90% waste - the emergency override that still binds by default so the interval above isn't inert;
+	// matches the I/O sweet spot identified for compaction waste targets (compaction I/O negligible vs append volume).
+	public static final double DEFAULT_MAX_WASTE_ACTIVE_SHARE = 0.1;
 
 	/**
 	 * Builder method is planned to be used only in tests.
@@ -187,6 +215,72 @@ public record StorageOptions(
 	 * @param minimalActiveRecordShare       minimal share of active records
 	 * @param fileSizeCompactionThresholdBytes file size threshold for compaction
 	 * @param timeTravelEnabled              whether time travel is enabled
+	 * @param minCompactionIntervalMilliseconds   minimal wall-clock time between two compactions of the same file
+	 * @param maxWasteActiveShare            active record share below which compaction is forced immediately
+	 */
+	public StorageOptions(
+		@Nullable Path storageDirectory,
+		@Nullable Path workDirectory,
+		int lockTimeoutSeconds,
+		int waitOnCloseSeconds,
+		int outputBufferSize,
+		@Nullable Integer maxOpenedReadHandles,
+		boolean syncWrites,
+		boolean compress,
+		boolean computeCRC32C,
+		double minimalActiveRecordShare,
+		long fileSizeCompactionThresholdBytes,
+		boolean timeTravelEnabled,
+		long minCompactionIntervalMilliseconds,
+		double maxWasteActiveShare
+	) {
+		this.storageDirectory = ofNullable(storageDirectory).orElse(DEFAULT_DATA_DIRECTORY);
+		this.workDirectory = ofNullable(workDirectory).orElseGet(() -> randomize(DEFAULT_WORK_DIRECTORY));
+		this.lockTimeoutSeconds = lockTimeoutSeconds;
+		this.waitOnCloseSeconds = waitOnCloseSeconds;
+		this.outputBufferSize = outputBufferSize;
+		this.maxOpenedReadHandles = ofNullable(maxOpenedReadHandles).orElse(DEFAULT_MAX_OPENED_READ_HANDLES);
+		this.syncWrites = syncWrites;
+		this.compress = compress;
+		this.computeCRC32C = computeCRC32C;
+		this.minimalActiveRecordShare = minimalActiveRecordShare;
+		this.fileSizeCompactionThresholdBytes = fileSizeCompactionThresholdBytes;
+		this.timeTravelEnabled = timeTravelEnabled;
+		this.minCompactionIntervalMilliseconds = minCompactionIntervalMilliseconds;
+		// maxWasteActiveShare above minimalActiveRecordShare is semantically degenerate (the override is meant to be
+		// a *stricter* emergency threshold) and would otherwise make compaction fire MORE eagerly than
+		// minimalActiveRecordShare alone once minCompactionIntervalMilliseconds is 0 - clamp it so every construction
+		// path (builder, YAML, previous-arity delegating constructor) preserves the old `active < A` behavior by default
+		if (maxWasteActiveShare > minimalActiveRecordShare && minCompactionIntervalMilliseconds > 0) {
+			log.warn(
+				"maxWasteActiveShare ({}) is higher than minimalActiveRecordShare ({}) while " +
+					"minCompactionIntervalMilliseconds ({}) is set - clamping maxWasteActiveShare down to " +
+					"minimalActiveRecordShare, which means minCompactionIntervalMilliseconds will never bind " +
+					"(compaction will behave as if it were disabled). Set maxWasteActiveShare lower than " +
+					"minimalActiveRecordShare for the interval to have any effect.",
+				maxWasteActiveShare, minimalActiveRecordShare, minCompactionIntervalMilliseconds
+			);
+		}
+		this.maxWasteActiveShare = Math.min(maxWasteActiveShare, minimalActiveRecordShare);
+	}
+
+	/**
+	 * Previous-arity constructor kept for binary/source compatibility with callers compiled against the
+	 * pre-{@code minCompactionIntervalMilliseconds}/{@code maxWasteActiveShare} signature. Delegates to the canonical
+	 * constructor with defaults that reproduce the original compaction trigger exactly.
+	 *
+	 * @param storageDirectory               the storage directory path
+	 * @param workDirectory                  the work directory path
+	 * @param lockTimeoutSeconds             timeout for lock acquisition
+	 * @param waitOnCloseSeconds             timeout for waiting on close
+	 * @param outputBufferSize               size of output buffer
+	 * @param maxOpenedReadHandles           maximum number of read handles
+	 * @param syncWrites                     whether to sync writes
+	 * @param compress                       whether to compress data
+	 * @param computeCRC32C                  whether to compute CRC32C checksums
+	 * @param minimalActiveRecordShare       minimal share of active records
+	 * @param fileSizeCompactionThresholdBytes file size threshold for compaction
+	 * @param timeTravelEnabled              whether time travel is enabled
 	 */
 	public StorageOptions(
 		@Nullable Path storageDirectory,
@@ -202,18 +296,12 @@ public record StorageOptions(
 		long fileSizeCompactionThresholdBytes,
 		boolean timeTravelEnabled
 	) {
-		this.storageDirectory = ofNullable(storageDirectory).orElse(DEFAULT_DATA_DIRECTORY);
-		this.workDirectory = ofNullable(workDirectory).orElseGet(() -> randomize(DEFAULT_WORK_DIRECTORY));
-		this.lockTimeoutSeconds = lockTimeoutSeconds;
-		this.waitOnCloseSeconds = waitOnCloseSeconds;
-		this.outputBufferSize = outputBufferSize;
-		this.maxOpenedReadHandles = ofNullable(maxOpenedReadHandles).orElse(DEFAULT_MAX_OPENED_READ_HANDLES);
-		this.syncWrites = syncWrites;
-		this.compress = compress;
-		this.computeCRC32C = computeCRC32C;
-		this.minimalActiveRecordShare = minimalActiveRecordShare;
-		this.fileSizeCompactionThresholdBytes = fileSizeCompactionThresholdBytes;
-		this.timeTravelEnabled = timeTravelEnabled;
+		this(
+			storageDirectory, workDirectory, lockTimeoutSeconds, waitOnCloseSeconds, outputBufferSize,
+			maxOpenedReadHandles, syncWrites, compress, computeCRC32C, minimalActiveRecordShare,
+			fileSizeCompactionThresholdBytes, timeTravelEnabled,
+			DEFAULT_MIN_COMPACTION_INTERVAL_MILLISECONDS, DEFAULT_MAX_WASTE_ACTIVE_SHARE
+		);
 	}
 
 	/**
@@ -245,6 +333,8 @@ public record StorageOptions(
 		private double minimalActiveRecordShare = DEFAULT_MINIMAL_ACTIVE_RECORD_SHARE;
 		private long fileSizeCompactionThresholdBytes = DEFAULT_MINIMAL_FILE_SIZE_COMPACTION_THRESHOLD;
 		private boolean timeTravelEnabled = DEFAULT_TIME_TRAVEL_ENABLED;
+		private long minCompactionIntervalMilliseconds = DEFAULT_MIN_COMPACTION_INTERVAL_MILLISECONDS;
+		private double maxWasteActiveShare = DEFAULT_MAX_WASTE_ACTIVE_SHARE;
 
 		Builder() {
 		}
@@ -262,6 +352,8 @@ public record StorageOptions(
 			this.minimalActiveRecordShare = storageOptions.minimalActiveRecordShare;
 			this.fileSizeCompactionThresholdBytes = storageOptions.fileSizeCompactionThresholdBytes;
 			this.timeTravelEnabled = storageOptions.timeTravelEnabled;
+			this.minCompactionIntervalMilliseconds = storageOptions.minCompactionIntervalMilliseconds;
+			this.maxWasteActiveShare = storageOptions.maxWasteActiveShare;
 		}
 
 		@Nonnull
@@ -339,6 +431,18 @@ public record StorageOptions(
 		}
 
 		@Nonnull
+		public Builder minCompactionIntervalMilliseconds(long minCompactionIntervalMilliseconds) {
+			this.minCompactionIntervalMilliseconds = minCompactionIntervalMilliseconds;
+			return this;
+		}
+
+		@Nonnull
+		public Builder maxWasteActiveShare(double maxWasteActiveShare) {
+			this.maxWasteActiveShare = maxWasteActiveShare;
+			return this;
+		}
+
+		@Nonnull
 		public StorageOptions build() {
 			return new StorageOptions(
 				this.storageDirectory,
@@ -352,7 +456,9 @@ public record StorageOptions(
 				this.computeCRC32C,
 				this.minimalActiveRecordShare,
 				this.fileSizeCompactionThresholdBytes,
-				this.timeTravelEnabled
+				this.timeTravelEnabled,
+				this.minCompactionIntervalMilliseconds,
+				this.maxWasteActiveShare
 			);
 		}
 

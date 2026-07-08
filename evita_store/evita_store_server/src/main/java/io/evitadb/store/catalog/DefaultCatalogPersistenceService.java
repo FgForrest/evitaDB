@@ -144,6 +144,7 @@ import io.evitadb.utils.FileUtils;
 import io.evitadb.utils.IOUtils;
 import io.evitadb.utils.IOUtils.ExceptionThrowingRunnable;
 import io.evitadb.utils.NamingConvention;
+import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
@@ -286,6 +287,13 @@ public class DefaultCatalogPersistenceService
 	 */
 	@Nonnull
 	private final StorageSettings bootstrapStorageSettings;
+	/**
+	 * Wall-clock time (epoch millis, {@link #CURRENT_TIME_MILLIS}) at which the catalog data file was last compacted.
+	 * Backs the {@code minCompactionIntervalMilliseconds} cadence gate for the catalog-file compaction trigger in
+	 * {@link #recordBootstrap(long, String, int, long, DataStoreMemoryBuffer)}.
+	 */
+	@Getter(AccessLevel.PACKAGE)
+	private long lastCatalogCompactionAtMillis = getNowEpochMillis();
 	/**
 	 * The map contains index of already created {@link EntityCollectionPersistenceService entity collection services}.
 	 * Instances of these services are costly and also contain references to the state, so that they must be kept as
@@ -926,12 +934,68 @@ public class DefaultCatalogPersistenceService
 	}
 
 	/**
-	 * Returns current date & time in epoch milliseconds.
+	 * Returns current date & time in epoch milliseconds. Package-visible so that
+	 * {@link DefaultEntityCollectionPersistenceService} can share the same test-overridable clock ({@link #CURRENT_TIME_MILLIS})
+	 * for its own compaction-interval gate.
 	 *
 	 * @return current date & time in epoch milliseconds
 	 */
-	private static long getNowEpochMillis() {
+	static long getNowEpochMillis() {
 		return CURRENT_TIME_MILLIS.getAsLong();
+	}
+
+	/**
+	 * Tells whether at least {@code minCompactionIntervalMillis} have elapsed since {@code lastCompactionAtMillis}.
+	 * A {@code minCompactionIntervalMillis} of `0` (the backward-compatible default) always returns `true`, i.e.
+	 * the gate is disabled and imposes no minimum interval.
+	 *
+	 * @param nowMillis                   current wall-clock time in epoch milliseconds
+	 * @param lastCompactionAtMillis      wall-clock time of the file's last compaction, in epoch milliseconds
+	 * @param minCompactionIntervalMillis configured minimal interval between compactions, in milliseconds
+	 * @return `true` if the minimal interval has elapsed (or is disabled)
+	 */
+	static boolean isCompactionIntervalElapsed(
+		long nowMillis,
+		long lastCompactionAtMillis,
+		long minCompactionIntervalMillis
+	) {
+		return (nowMillis - lastCompactionAtMillis) >= minCompactionIntervalMillis;
+	}
+
+	/**
+	 * Decides whether a data file should be compacted now. This is the single decision function shared by both
+	 * compaction trigger sites (entity-collection flush and catalog-file bootstrap) - see
+	 * `docs/plans/optimizations/compaction-waste-threshold-auto-tuning.md` §3.1.
+	 *
+	 * The file is compacted when it exceeds `fileSizeCompactionThresholdBytes` (`fileBigEnough`) AND either:
+	 * (a) its active record share has fallen below `maxWasteActiveShare` - a hard override that forces compaction
+	 *     immediately, regardless of the minimal interval, or
+	 * (b) its active record share is below `minimalActiveRecordShare` (worthwhile to compact) AND the minimal
+	 *     compaction interval has elapsed.
+	 *
+	 * With the backward-compatible defaults (`minCompactionIntervalMilliseconds = 0`, `maxWasteActiveShare =
+	 * minimalActiveRecordShare`), `intervalElapsed` is always `true` and branch (a) subsumes branch (b), so this
+	 * collapses to the original `fileBigEnough && activeRecordShare < minimalActiveRecordShare` condition exactly.
+	 *
+	 * @param fileBigEnough             `true` when the file size exceeds `fileSizeCompactionThresholdBytes`
+	 * @param activeRecordShare         the file's current active (non-wasted) record share
+	 * @param minimalActiveRecordShare  the "worthwhile waste" threshold (`A`)
+	 * @param maxWasteActiveShare       the hard override threshold - compaction is forced below this share
+	 * @param minCompactionIntervalElapsed `true` when at least `minCompactionIntervalMilliseconds` have elapsed since
+	 *                                      the file's last compaction (see {@link #isCompactionIntervalElapsed})
+	 * @return `true` if the file should be compacted now
+	 */
+	static boolean shouldCompact(
+		boolean fileBigEnough,
+		double activeRecordShare,
+		double minimalActiveRecordShare,
+		double maxWasteActiveShare,
+		boolean minCompactionIntervalElapsed
+	) {
+		return fileBigEnough && (
+			activeRecordShare < maxWasteActiveShare ||
+				(activeRecordShare < minimalActiveRecordShare && minCompactionIntervalElapsed)
+		);
 	}
 
 	/**
@@ -1791,10 +1855,18 @@ public class DefaultCatalogPersistenceService
 			final long previousVersion = entityCollectionPersistenceService.getEntityCollectionHeader().version();
 			final OffsetIndexDescriptor newDescriptor = entityCollectionPersistenceService.flush(
 				catalogVersion, headerInfoSupplier);
-			if (newDescriptor.version() > previousVersion &&
-				newDescriptor.getActiveRecordShare() < this.storageSettings.minimalActiveRecordShare() &&
-				newDescriptor.getFileSize() > this.storageSettings.fileSizeCompactionThresholdBytes()
-			) {
+			final boolean intervalElapsed = isCompactionIntervalElapsed(
+				getNowEpochMillis(), entityCollectionPersistenceService.getLastCompactionAtMillis(),
+				this.storageSettings.minCompactionIntervalMilliseconds()
+			);
+			final boolean shouldCompact = shouldCompact(
+				newDescriptor.getFileSize() > this.storageSettings.fileSizeCompactionThresholdBytes(),
+				newDescriptor.getActiveRecordShare(),
+				this.storageSettings.minimalActiveRecordShare(),
+				this.storageSettings.maxWasteActiveShare(),
+				intervalElapsed
+			);
+			if (newDescriptor.version() > previousVersion && shouldCompact) {
 				log.info(
 					"Compacting catalog `{}` entity collection `{}`, size exceeds threshold `{}` and active record share is `{}`%, " +
 						"entity collection files on disk consume `{}` bytes.",
@@ -2989,8 +3061,16 @@ public class DefaultCatalogPersistenceService
 			catalogVersion);
 		final OffsetIndexDescriptor flushedDescriptor = storagePartPersistenceService.flush(catalogVersion);
 		final CatalogBootstrap bootstrapRecord;
-		if (flushedDescriptor.getActiveRecordShare() < this.storageSettings.minimalActiveRecordShare() &&
-			flushedDescriptor.getFileSize() > this.storageSettings.fileSizeCompactionThresholdBytes()) {
+		final boolean catalogIntervalElapsed = isCompactionIntervalElapsed(
+			getNowEpochMillis(), this.lastCatalogCompactionAtMillis, this.storageSettings.minCompactionIntervalMilliseconds()
+		);
+		if (shouldCompact(
+			flushedDescriptor.getFileSize() > this.storageSettings.fileSizeCompactionThresholdBytes(),
+			flushedDescriptor.getActiveRecordShare(),
+			this.storageSettings.minimalActiveRecordShare(),
+			this.storageSettings.maxWasteActiveShare(),
+			catalogIntervalElapsed
+		)) {
 
 			final DataFileCompactEvent event = new DataFileCompactEvent(
 				this.catalogName,
@@ -3078,6 +3158,8 @@ public class DefaultCatalogPersistenceService
 					this.cpsvLock.unlock();
 				}
 			}
+
+			this.lastCatalogCompactionAtMillis = getNowEpochMillis();
 
 			// emit the event
 			event.finish().commit();
