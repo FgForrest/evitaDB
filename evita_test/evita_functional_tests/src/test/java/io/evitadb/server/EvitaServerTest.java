@@ -865,6 +865,31 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 	}
 
 	@Test
+	void shouldResolveMillisecondNamedPropertiesFromBundledDefaultsCorrectly() {
+		// regression guard: SpecialConfigInputFormatsHandler must scale the seconds-based TIME_FORMAT shorthand
+		// (e.g. "1m") to milliseconds for properties whose name ends in Millis/Milliseconds. Before the fix,
+		// the bundled default `trafficFlushIntervalInMilliseconds: 1m` silently resolved to `60` (60 milliseconds)
+		// instead of the intended `60000` (1 minute) - a 1000x more frequent flush than intended whenever traffic
+		// recording is enabled with the shipped default.
+		final EvitaServer evitaServer = new EvitaServer(
+			getPathInTargetDirectory(DIR_EVITA_SERVER_TEST),
+			constructTestArguments()
+		);
+		try {
+			evitaServer.run();
+
+			final Evita evita = evitaServer.getEvita();
+			assertEquals(5_000L, evita.getConfiguration().server().queryTimeoutInMilliseconds());
+			assertEquals(300_000L, evita.getConfiguration().server().transactionTimeoutInMilliseconds());
+			assertEquals(60_000L, evita.getConfiguration().server().trafficRecording().trafficFlushIntervalInMilliseconds());
+		} catch (Exception ex) {
+			fail(ex);
+		} finally {
+			closeServerAndEvita(evitaServer);
+		}
+	}
+
+	@Test
 	void shouldMergeMultipleYamlConfigurationTogether() {
 		EvitaTestSupport.bootstrapEvitaServerConfigurationFileFrom(
 			DIR_EVITA_SERVER_TEST,

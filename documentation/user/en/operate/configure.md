@@ -29,7 +29,7 @@ server:                                           # [see Server configuration](#
     threadPriority: 5
     queueSize: 100
   queryTimeoutInMilliseconds: 5s
-  transactionTimeoutInMilliseconds: 5M
+  transactionTimeoutInMilliseconds: 5m
   closeSessionsAfterSecondsOfInactivity: 60
   readOnly: false
   quiet: false

@@ -26,6 +26,7 @@ package io.evitadb.server.yaml;
 import com.fasterxml.jackson.databind.DeserializationContext;
 import com.fasterxml.jackson.databind.deser.DeserializationProblemHandler;
 
+import javax.annotation.Nonnull;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.util.regex.Matcher;
@@ -57,9 +58,16 @@ import java.util.regex.Pattern;
  * 1w -> 604 800 secs (week)
  * 1y -> 7 257 600 secs (year)
  *
+ * The time format base unit is seconds - except for properties whose name ends in `Millis` or
+ * `Milliseconds`, where the result is additionally multiplied by 1000 so that e.g. `queryTimeoutInMilliseconds: 5s`
+ * resolves to `5000`, matching the unit the property name promises, instead of `5`.
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public class SpecialConfigInputFormatsHandler extends DeserializationProblemHandler {
+	private static final String MILLIS_SUFFIX = "Millis";
+	private static final String MILLISECONDS_SUFFIX = "Milliseconds";
+
 	private final Pattern SIZE_FORMAT = Pattern.compile("(\\d+(\\.\\d+)?)(KB|MB|GB|TB)");
 	private final Pattern NUMBER_FORMAT = Pattern.compile("([\\d_]+(\\.\\d+)?)([KMGT])");
 	private final Pattern TIME_FORMAT = Pattern.compile("([\\d_]+(\\.\\d+)?)([smhdwy])");
@@ -109,7 +117,7 @@ public class SpecialConfigInputFormatsHandler extends DeserializationProblemHand
 		if (timeMatcher.matches()) {
 			final String magnitude = timeMatcher.group(3);
 			final BigDecimal time = new BigDecimal(timeMatcher.group(1).replaceAll("_", ""));
-			final BigDecimal resultValue = switch (magnitude) {
+			final BigDecimal secondsValue = switch (magnitude) {
 				case "s" -> time.multiply(new BigDecimal(1L));
 				case "m" -> time.multiply(new BigDecimal(60L));
 				case "h" -> time.multiply(new BigDecimal(3_600L));
@@ -118,6 +126,8 @@ public class SpecialConfigInputFormatsHandler extends DeserializationProblemHand
 				case "y" -> time.multiply(new BigDecimal(31_556_926L));
 				default -> time;
 			};
+			final BigDecimal resultValue = isMillisecondBasedProperty(ctxt) ?
+				secondsValue.multiply(new BigDecimal(1_000L)) : secondsValue;
 			if (targetType.equals(int.class) || targetType.equals(Integer.class)) {
 				return resultValue.intValueExact();
 			} else if (targetType.equals(long.class) || targetType.equals(Long.class)) {
@@ -127,5 +137,23 @@ public class SpecialConfigInputFormatsHandler extends DeserializationProblemHand
 			}
 		}
 		return super.handleWeirdStringValue(ctxt, targetType, valueToConvert, failureMsg);
+	}
+
+	/**
+	 * Tells whether the property currently being deserialized is named so that it promises a millisecond unit
+	 * (`...Millis` or `...Milliseconds`), in which case the seconds-based {@link #TIME_FORMAT} shorthand result
+	 * must be scaled up by 1000 to match what the property name promises - e.g. `queryTimeoutInMilliseconds: 5s`
+	 * must resolve to `5000`, not `5`.
+	 *
+	 * @param ctxt the deserialization context, used to read the name of the property currently being parsed
+	 * @return `true` if the current property name ends in `Millis` or `Milliseconds`
+	 */
+	private static boolean isMillisecondBasedProperty(@Nonnull DeserializationContext ctxt) throws IOException {
+		if (ctxt.getParser() == null) {
+			return false;
+		}
+		final String propertyName = ctxt.getParser().currentName();
+		return propertyName != null &&
+			(propertyName.endsWith(MILLISECONDS_SUFFIX) || propertyName.endsWith(MILLIS_SUFFIX));
 	}
 }
