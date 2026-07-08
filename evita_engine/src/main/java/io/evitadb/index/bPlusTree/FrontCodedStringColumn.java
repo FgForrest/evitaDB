@@ -60,14 +60,22 @@ import static io.evitadb.utils.ArrayUtils.EMPTY_INT_ARRAY;
  * {@code int[]} record column. A variable-length blob honours that contract by tracking a live entry count
  * ({@link #size}, always equal to the leaf's {@code peek + 1}) and emulating each array-slot operation
  * ({@link #insertKeyAt} / {@link #removeKeyAt} / {@link #copyRangeTo} / {@link #fillEmpty} / {@link #clearAt}) by
- * decoding the affected entries to a transient {@code String[]}, applying the exact {@code System.arraycopy} slot
- * semantics, and re-encoding a fresh dense blob. The {@code String[]} scratch lives only for the duration of the
+ * decoding the affected entries to a transient {@code byte[][]}, applying the exact {@code System.arraycopy} slot
+ * semantics, and re-encoding a fresh dense blob. That transient decode array lives only for the duration of the
  * operation, so the column's retained footprint is just the trimmed blob plus the sparse restart index. A mutation is
  * therefore {@code O(size)} — the same asymptotic cost as the boxed column's reference {@code System.arraycopy}, and
  * {@code size} is bounded by the leaf block size — so no hot path regresses asymptotically. The only added cost is the
  * transient {@link String} allocated per decoded candidate on the search path; this trades a small amount of transient
  * allocation for a large retained-heap reduction, which is the explicit goal here (the query algebra already allocates
  * {@code RoaringBitmap}s). A zero-allocation scratch-{@code CharSequence} compare is a possible future refinement.
+ *
+ * **Scratch contract.** The per-hop decode buffer and the encode buffer are reused across calls via a
+ * {@link ThreadLocal} {@link DecodeScratch} (grown on demand, never shrunk) so the high-frequency search path allocates
+ * no per-call {@code byte[]}. The reuse is safe because nothing thread-local ever escapes: {@link #decodeAt} copies its
+ * result into a fresh {@link String}, {@link #decodeAllBytes} copies each entry into a caller-owned {@code byte[]}, and
+ * {@link #encode} always trims the scratch buffer into a freshly allocated {@link #data} blob — so no retained column
+ * state aliases the scratch, and a mutation on one column (or one MVCC transaction layer) cannot leak into another that
+ * later reuses the same thread's scratch.
  *
  * Selected by {@link ValueColumnFactory#forKey} for every {@link String} attribute, localized or not.
  *
@@ -113,6 +121,31 @@ final class FrontCodedStringColumn<M extends Comparable<M>> implements ValueColu
 	 */
 	private static final String CORRUPT_BLOB_MESSAGE =
 		"Front-coded blob is corrupt: shared prefix exceeds decoded predecessor length!";
+
+	/**
+	 * Per-thread scratch buffers reused across every decode/encode on the calling thread. Holding them in a
+	 * {@link ThreadLocal} removes the per-call {@code byte[]} the search path ({@link #decodeAt}, invoked on every
+	 * binary-search hop of every mutation) and the encode path would otherwise allocate — the dominant young-gen churn
+	 * on the high-cardinality string warmup path.
+	 *
+	 * The reuse is safe because nothing thread-local ever escapes: {@link #decodeAt} copies its result into a fresh
+	 * {@link String}, {@link #decodeAllBytes} copies each entry into a caller-owned {@code byte[]}, and {@link #encode}
+	 * always trims {@link #encodeBuf} into a freshly allocated {@link #data} blob — so no retained column state aliases
+	 * the scratch, and a mutation on one column (or one MVCC transaction layer) cannot leak into another that later
+	 * reuses the same thread's scratch. Both buffers grow on demand (doubling), are never shrunk, and there is exactly
+	 * one holder per thread, so a 32-thread commit pool retains at most 32 holders (kilobytes each).
+	 */
+	private static final class DecodeScratch {
+		/** Decode buffer reused across the forward hops of one {@link #decodeAt} / {@link #decodeAllBytes} decode. */
+		byte[] cur = new byte[DECODE_SCRATCH_BYTES];
+		/** Encode buffer the front-coded blob is assembled into before it is trimmed into a fresh {@link #data}. */
+		byte[] encodeBuf = EMPTY_BYTES;
+	}
+
+	/**
+	 * Thread-local {@link DecodeScratch} holder. See {@link DecodeScratch} for the reuse and non-aliasing contract.
+	 */
+	private static final ThreadLocal<DecodeScratch> SCRATCH = ThreadLocal.withInitial(DecodeScratch::new);
 
 	/**
 	 * The fixed leaf block size — the value returned by {@link #capacity()}. The blob itself is variable-length and
@@ -313,11 +346,14 @@ final class FrontCodedStringColumn<M extends Comparable<M>> implements ValueColu
 		final int restart = index / RESTART_INTERVAL;
 		final int base = restart * RESTART_INTERVAL;
 		int pos = this.restartOffsets[restart];
-		// one scratch buffer reused across every forward hop: front-coding shares each entry's prefix with its physical
-		// predecessor (shared <= the length we just decoded), so the first `shared` bytes are already present in `cur`
-		// from the previous hop - only the suffix from offset `shared` onward is overwritten. No per-hop byte[] and no
-		// per-hop prefix copy. The varint-read loop stays inlined (a shared helper would force a per-call holder).
-		byte[] cur = new byte[DECODE_SCRATCH_BYTES];
+		// one scratch buffer reused across every forward hop AND across calls (thread-local): front-coding shares each
+		// entry's prefix with its physical predecessor (shared <= the length we just decoded), so the first `shared`
+		// bytes are already present in `cur` from the previous hop - only the suffix from offset `shared` onward is
+		// overwritten. No per-hop byte[] and no per-hop prefix copy; borrowing the thread-local scratch also removes the
+		// per-call allocation that dominated the search-path churn. The varint-read loop stays inlined (a shared helper
+		// would force a per-call holder).
+		final DecodeScratch scratch = SCRATCH.get();
+		byte[] cur = scratch.cur;
 		int curLen = 0;
 		for (int j = base; j <= index; j++) {
 			// read varint sharedPrefixLength
@@ -350,6 +386,8 @@ final class FrontCodedStringColumn<M extends Comparable<M>> implements ValueColu
 			pos += suffixLen;
 			curLen = total;
 		}
+		// write the (possibly grown) buffer back so the growth is reused by the next call on this thread
+		scratch.cur = cur;
 		// the explicit length is load-bearing: it stops a shorter entry from leaking stale tail bytes left in the reused
 		// scratch by a longer predecessor
 		return new String(cur, 0, curLen, StandardCharsets.UTF_8);
@@ -370,10 +408,11 @@ final class FrontCodedStringColumn<M extends Comparable<M>> implements ValueColu
 	private byte[][] decodeAllBytes() {
 		final byte[][] out = new byte[this.size][];
 		int pos = 0;
-		// one scratch buffer reused across every entry: each entry shares its prefix with the previous one, so the first
-		// `shared` bytes already sit in `cur`; only the suffix is overwritten. Each out[i] is a fresh copy, so it never
-		// aliases the scratch.
-		byte[] cur = new byte[DECODE_SCRATCH_BYTES];
+		// one scratch buffer reused across every entry AND across calls (thread-local): each entry shares its prefix
+		// with the previous one, so the first `shared` bytes already sit in `cur`; only the suffix is overwritten. Each
+		// out[i] is a fresh copy, so it never aliases the scratch and nothing thread-local escapes this method.
+		final DecodeScratch scratch = SCRATCH.get();
+		byte[] cur = scratch.cur;
 		int curLen = 0;
 		for (int i = 0; i < this.size; i++) {
 			int shared = 0;
@@ -402,6 +441,8 @@ final class FrontCodedStringColumn<M extends Comparable<M>> implements ValueColu
 			out[i] = Arrays.copyOf(cur, total);
 			curLen = total;
 		}
+		// write the (possibly grown) buffer back so the growth is reused by the next call on this thread
+		scratch.cur = cur;
 		return out;
 	}
 
@@ -441,7 +482,9 @@ final class FrontCodedStringColumn<M extends Comparable<M>> implements ValueColu
 			return;
 		}
 		final int[] restarts = new int[(n + RESTART_INTERVAL - 1) / RESTART_INTERVAL];
-		byte[] buf = new byte[Math.max(MIN_BUFFER_BYTES, n * BYTES_PER_ENTRY_ESTIMATE)];
+		// borrow the thread-local encode buffer (grown on demand) instead of allocating a fresh one per encode
+		final DecodeScratch scratch = SCRATCH.get();
+		byte[] buf = ensureCapacity(scratch.encodeBuf, Math.max(MIN_BUFFER_BYTES, n * BYTES_PER_ENTRY_ESTIMATE));
 		int len = 0;
 		byte[] prev = EMPTY_BYTES;
 		for (int i = 0; i < n; i++) {
@@ -461,8 +504,13 @@ final class FrontCodedStringColumn<M extends Comparable<M>> implements ValueColu
 			len += suffixLen;
 			prev = keyBytes;
 		}
-		// trim to the exact live length so the retained footprint is minimal
-		this.data = len == buf.length ? buf : Arrays.copyOf(buf, len);
+		// write the (possibly grown) buffer back so the growth is reused by the next encode on this thread
+		scratch.encodeBuf = buf;
+		// `buf` is shared thread-local scratch, so ALWAYS copy out a fresh trimmed blob - never adopt `buf` into `data`,
+		// or retained column state would alias the scratch and the next encode on this thread would corrupt it. This
+		// copy trims to the exact live length (minimal retained footprint) and is the load-bearing invariant that keeps
+		// the thread-local reuse MVCC-safe.
+		this.data = Arrays.copyOf(buf, len);
 		this.dataLength = len;
 		this.restartOffsets = restarts;
 		this.size = n;

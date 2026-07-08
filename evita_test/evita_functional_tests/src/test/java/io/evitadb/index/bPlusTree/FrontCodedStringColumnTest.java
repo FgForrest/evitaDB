@@ -464,6 +464,151 @@ class FrontCodedStringColumnTest {
 			assertEquals("fresh", column.keyAt(0));
 		}
 
+		@Test
+		@DisplayName("interleaved mutations on two columns sharing the thread-local scratch stay independent")
+		@SuppressWarnings("unchecked")
+		void shouldNotBleedScratchBetweenColumnsSharingTheThread() {
+			// the decode/encode scratch is a single thread-local reused by EVERY column on the thread; mutating two
+			// columns alternately means each op overwrites the scratch the other column just used. Distinct per-column
+			// key prefixes make any scratch bleed (or an encode buffer wrongly adopted into `data`) surface as the wrong
+			// column's prefix, and every op re-asserts BOTH columns against their own boxed oracle.
+			final int cap = 32;
+			final ValueColumn<String>[] front = new ValueColumn[]{
+				new FrontCodedStringColumn<>(cap), new FrontCodedStringColumn<>(cap)
+			};
+			final ValueColumn<String>[] boxed = new ValueColumn[]{
+				new BoxedObjectColumn<>(String.class, cap), new BoxedObjectColumn<>(String.class, cap)
+			};
+			final String[] prefix = {"aaa-", "zzzzz-"};
+			final int[] size = new int[2];
+			final Random rnd = new Random(4242L);
+			for (int op = 0; op < 3_000; op++) {
+				final int c = rnd.nextInt(2);
+				final boolean insert = size[c] == 0 || (size[c] < cap && rnd.nextInt(100) < 60);
+				if (insert) {
+					final int pos = rnd.nextInt(size[c] + 1);
+					final String key = prefix[c] + rnd.nextInt(1_000);
+					front[c].insertKeyAt(pos, key);
+					boxed[c].insertKeyAt(pos, key);
+					size[c]++;
+				} else {
+					final int pos = rnd.nextInt(size[c]);
+					front[c].removeKeyAt(pos);
+					boxed[c].removeKeyAt(pos);
+					size[c]--;
+					front[c].clearAt(size[c]);
+					boxed[c].clearAt(size[c]);
+				}
+				// both columns must always match their own oracle, regardless of which one was just mutated
+				for (int k = 0; k < 2; k++) {
+					for (int i = 0; i < size[k]; i++) {
+						assertEquals(boxed[k].keyAt(i), front[k].keyAt(i),
+							"column " + k + " slot " + i + " diverged after op " + op);
+					}
+				}
+			}
+		}
+
+		@Test
+		@DisplayName("randomized insert/remove workload matches the boxed column across restart blocks and long keys")
+		void shouldMatchBoxedColumnUnderRandomizedMutations() {
+			// capacity 64 crosses the 16-entry restart interval; the stress keys mix the empty string, > 255-byte keys
+			// (multi-byte varint), short keys (long->short scratch-reuse transitions) and multi-byte UTF-8
+			assertRandomizedMutationParity(20_260_708L, 64, 5_000);
+		}
+
+		@Test
+		@DisplayName("thread-local scratch stays isolated across concurrent columns on different threads")
+		void shouldKeepScratchIsolatedAcrossThreads() throws InterruptedException {
+			// each thread churns its own column against its own oracle; a shared decode/encode buffer that was NOT
+			// truly thread-local (e.g. demoted to a plain static field by a later edit) would cross-corrupt and one of
+			// the threads would observe a mismatch
+			final int threadCount = 8;
+			final List<Throwable> failures = Collections.synchronizedList(new ArrayList<>());
+			final Thread[] pool = new Thread[threadCount];
+			for (int t = 0; t < threadCount; t++) {
+				final long seed = 1_000L + t;
+				pool[t] = new Thread(() -> {
+					try {
+						assertRandomizedMutationParity(seed, 64, 2_000);
+					} catch (Throwable ex) {
+						failures.add(ex);
+					}
+				}, "fc-scratch-" + t);
+			}
+			for (final Thread thread : pool) {
+				thread.start();
+			}
+			for (final Thread thread : pool) {
+				thread.join();
+			}
+			assertTrue(failures.isEmpty(), () -> "concurrent parity failures: " + failures);
+		}
+
+		/**
+		 * Runs a seeded randomized insert/remove workload on a fresh {@link FrontCodedStringColumn} and an equivalent
+		 * {@link BoxedObjectColumn} oracle, asserting every live slot matches after every mutation. Throws an
+		 * {@link AssertionError} carrying the seed / op / slot on the first divergence so a concurrent failure is
+		 * reproducible.
+		 *
+		 * @param seed     the RNG seed (also the reproduction handle)
+		 * @param capacity the column block size (use {@code >= 64} to cross the restart interval)
+		 * @param ops      the number of mutations to apply
+		 */
+		private static void assertRandomizedMutationParity(long seed, int capacity, int ops) {
+			final ValueColumn<String> front = new FrontCodedStringColumn<>(capacity);
+			final ValueColumn<String> boxed = new BoxedObjectColumn<>(String.class, capacity);
+			final Random rnd = new Random(seed);
+			int size = 0;
+			for (int op = 0; op < ops; op++) {
+				final boolean insert = size == 0 || (size < capacity && rnd.nextInt(100) < 60);
+				if (insert) {
+					final int pos = rnd.nextInt(size + 1);
+					final String key = stressKey(rnd, op);
+					front.insertKeyAt(pos, key);
+					boxed.insertKeyAt(pos, key);
+					size++;
+				} else {
+					final int pos = rnd.nextInt(size);
+					front.removeKeyAt(pos);
+					boxed.removeKeyAt(pos);
+					size--;
+					front.clearAt(size);
+					boxed.clearAt(size);
+				}
+				for (int i = 0; i < size; i++) {
+					final String expected = boxed.keyAt(i);
+					final String actual = front.keyAt(i);
+					if (!expected.equals(actual)) {
+						throw new AssertionError(
+							"seed=" + seed + " op=" + op + " slot=" + i + " expected=[" + expected
+								+ "] actual=[" + actual + "]");
+					}
+				}
+			}
+		}
+
+		/**
+		 * Produces a stress key spanning the corner cases of the front-coded encoder: the empty string, a long shared
+		 * prefix, a suffix beyond the single-byte varint limit, a short key that forces a long-to-short scratch-reuse
+		 * transition, and multi-byte UTF-8.
+		 *
+		 * @param rnd  the RNG
+		 * @param salt an op-unique salt so long keys stay distinct
+		 * @return the generated key
+		 */
+		@Nonnull
+		private static String stressKey(@Nonnull Random rnd, int salt) {
+			return switch (rnd.nextInt(6)) {
+				case 0 -> "";
+				case 1 -> "shared-prefix-" + String.format("%05d", rnd.nextInt(1_000));
+				case 2 -> "x".repeat(260 + rnd.nextInt(60)) + salt; // > 255-byte suffix -> multi-byte varint
+				case 3 -> "s" + rnd.nextInt(100);                   // short, forces long->short transitions
+				case 4 -> "café-" + rnd.nextInt(100);               // multi-byte UTF-8
+				default -> "code-" + String.format("%03d", rnd.nextInt(500));
+			};
+		}
+
 		/**
 		 * Asserts the two columns hold the same decoded keys in `[0, size)` and share the same capacity.
 		 *
