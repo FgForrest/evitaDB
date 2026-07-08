@@ -90,6 +90,30 @@ final class RoaringArray implements Cloneable, Externalizable, AppendableStorage
 	int size = 0;
 
 	/**
+	 * Copy-on-write flag for `keys`/`values` themselves (as opposed to the containers they hold —
+	 * see the class comment). When `true`, both arrays are co-owned by another `RoaringArray`
+	 * (created by {@link PersistentRoaringBitmap#clone()}) and MUST NOT be written to in place —
+	 * {@link #defrost()} must run first. Lets `clone()` share the backing arrays instead of copying
+	 * them, deferring the O(size) copy to the first structural write, which in the hot MVCC commit
+	 * path never comes (the cloned bitmap is read-only for the rest of its lifetime).
+	 */
+	boolean frozen = false;
+
+	/**
+	 * The array-level copy-on-write guard: if {@link #frozen}, replaces `keys`/`values` with private
+	 * copies before the caller writes to them, mirroring `copyIfShared` in
+	 * {@link PersistentRoaringBitmap} which does the same for individual containers. Must be called
+	 * at the head of every method that writes into `keys[]`/`values[]` in place.
+	 */
+	private void defrost() {
+		if (this.frozen) {
+			this.keys = Arrays.copyOf(this.keys, this.size);
+			this.values = Arrays.copyOf(this.values, this.size);
+			this.frozen = false;
+		}
+	}
+
+	/**
 	 * Creates an empty store with the default backing capacity ({@link #INITIAL_CAPACITY}).
 	 */
 	RoaringArray() {
@@ -177,6 +201,7 @@ final class RoaringArray implements Cloneable, Externalizable, AppendableStorage
 
 	@Override
 	public void append(final char key, @Nonnull final Container value) {
+		defrost();
 		if (this.size > 0 && key < this.keys[this.size - 1]) {
 			throw new IllegalArgumentException("append only: " + (key) + " < " + (this.keys[this.size - 1]));
 		}
@@ -194,6 +219,7 @@ final class RoaringArray implements Cloneable, Externalizable, AppendableStorage
 	 * @param roaringArray source whose entries are appended
 	 */
 	void append(@Nonnull final RoaringArray roaringArray) {
+		defrost();
 		assert this.size == 0 || roaringArray.size == 0 || this.keys[this.size - 1] < roaringArray.keys[0];
 		if (roaringArray.size != 0 && this.size != 0) {
 			this.keys = Arrays.copyOf(this.keys, this.size + roaringArray.size);
@@ -215,6 +241,7 @@ final class RoaringArray implements Cloneable, Externalizable, AppendableStorage
 	 * @param beforeStart given key is the largest key that we won't copy
 	 */
 	void appendCopiesAfter(@Nonnull final RoaringArray sa, final char beforeStart) {
+		defrost();
 		int startLocation = sa.getIndex(beforeStart);
 		if (startLocation >= 0) {
 			startLocation++;
@@ -237,6 +264,7 @@ final class RoaringArray implements Cloneable, Externalizable, AppendableStorage
 	 * @param stoppingKey any equal or larger key in other array will terminate copying
 	 */
 	void appendCopiesUntil(@Nonnull final RoaringArray sourceArray, final char stoppingKey) {
+		defrost();
 		for (int i = 0; i < sourceArray.size; ++i) {
 			if (sourceArray.keys[i] >= stoppingKey) {
 				break;
@@ -255,6 +283,7 @@ final class RoaringArray implements Cloneable, Externalizable, AppendableStorage
 	 * @param index index in the other array
 	 */
 	void appendCopy(@Nonnull final RoaringArray sa, final int index) {
+		defrost();
 		extendArray(1);
 		this.keys[this.size] = sa.keys[index];
 		this.values[this.size] = sa.values[index].clone();
@@ -269,6 +298,7 @@ final class RoaringArray implements Cloneable, Externalizable, AppendableStorage
 	 * @param end           endingIndex (exclusive) in the other array
 	 */
 	void appendCopy(@Nonnull final RoaringArray sa, final int startingIndex, final int end) {
+		defrost();
 		extendArray(end - startingIndex);
 		for (int i = startingIndex; i < end; ++i) {
 			this.keys[this.size] = sa.keys[i];
@@ -285,6 +315,7 @@ final class RoaringArray implements Cloneable, Externalizable, AppendableStorage
 	 * @param end           endingIndex (exclusive) in the other array
 	 */
 	void append(@Nonnull final RoaringArray sa, final int startingIndex, final int end) {
+		defrost();
 		extendArray(end - startingIndex);
 		for (int i = startingIndex; i < end; ++i) {
 			this.keys[this.size] = sa.keys[i];
@@ -312,6 +343,7 @@ final class RoaringArray implements Cloneable, Externalizable, AppendableStorage
 	 * If possible, recover wasted memory.
 	 */
 	public void trim() {
+		defrost();
 		this.keys = Arrays.copyOf(this.keys, this.size);
 		this.values = Arrays.copyOf(this.values, this.size);
 		for (final Container c : this.values) {
@@ -349,6 +381,7 @@ final class RoaringArray implements Cloneable, Externalizable, AppendableStorage
 	 * @param newBegin destination start index
 	 */
 	void copyRange(final int begin, final int end, final int newBegin) {
+		defrost();
 		// assuming begin <= end and newBegin < begin
 		final int range = end - begin;
 		System.arraycopy(this.keys, begin, this.keys, newBegin, range);
@@ -379,9 +412,10 @@ final class RoaringArray implements Cloneable, Externalizable, AppendableStorage
 		if (this.size > (1 << 16)) {
 			throw new InvalidRoaringFormat("Size too large");
 		}
-		if ((this.keys == null) || (this.keys.length < this.size)) {
+		if ((this.keys == null) || (this.keys.length < this.size) || this.frozen) {
 			this.keys = new char[this.size];
 			this.values = new Container[this.size];
+			this.frozen = false;
 		}
 
 		byte[] bitmapOfRunContainers = null;
@@ -475,9 +509,10 @@ final class RoaringArray implements Cloneable, Externalizable, AppendableStorage
 		if (this.size > (1 << 16)) {
 			throw new InvalidRoaringFormat("Size too large");
 		}
-		if ((this.keys == null) || (this.keys.length < this.size)) {
+		if ((this.keys == null) || (this.keys.length < this.size) || this.frozen) {
 			this.keys = new char[this.size];
 			this.values = new Container[this.size];
+			this.frozen = false;
 		}
 
 		byte[] bitmapOfRunContainers = null;
@@ -655,9 +690,10 @@ final class RoaringArray implements Cloneable, Externalizable, AppendableStorage
 		if (this.size > (1 << 16)) {
 			throw new InvalidRoaringFormat("Size too large");
 		}
-		if ((this.keys == null) || (this.keys.length < this.size)) {
+		if ((this.keys == null) || (this.keys.length < this.size) || this.frozen) {
 			this.keys = new char[this.size];
 			this.values = new Container[this.size];
+			this.frozen = false;
 		}
 
 		byte[] bitmapOfRunContainers = null;
@@ -739,6 +775,7 @@ final class RoaringArray implements Cloneable, Externalizable, AppendableStorage
 
 	// make sure there is capacity for at least k more elements
 	void extendArray(final int k) {
+		defrost();
 		// size + 1 could overflow
 		if (this.size + k > this.keys.length) {
 			int newCapacity;
@@ -944,6 +981,7 @@ final class RoaringArray implements Cloneable, Externalizable, AppendableStorage
 
 	// insert a new key, it is assumed that it does not exist
 	void insertNewKeyValueAt(final int i, final char key, @Nonnull final Container value) {
+		defrost();
 		extendArray(1);
 		System.arraycopy(this.keys, i, this.keys, i + 1, this.size - i);
 		this.keys[i] = key;
@@ -964,6 +1002,7 @@ final class RoaringArray implements Cloneable, Externalizable, AppendableStorage
 	 * @param i live slot index to remove
 	 */
 	void removeAtIndex(final int i) {
+		defrost();
 		System.arraycopy(this.keys, i + 1, this.keys, i, this.size - i - 1);
 		this.keys[this.size - 1] = 0;
 		System.arraycopy(this.values, i + 1, this.values, i, this.size - i - 1);
@@ -982,6 +1021,7 @@ final class RoaringArray implements Cloneable, Externalizable, AppendableStorage
 		if (end <= begin) {
 			return;
 		}
+		defrost();
 		final int range = end - begin;
 		System.arraycopy(this.keys, end, this.keys, begin, this.size - end);
 		System.arraycopy(this.values, end, this.values, begin, this.size - end);
@@ -1001,6 +1041,7 @@ final class RoaringArray implements Cloneable, Externalizable, AppendableStorage
 	 * @param c   replacement container
 	 */
 	void replaceKeyAndContainerAtIndex(final int i, final char key, @Nonnull final Container c) {
+		defrost();
 		this.keys[i] = key;
 		this.values[i] = c;
 	}
@@ -1012,6 +1053,7 @@ final class RoaringArray implements Cloneable, Externalizable, AppendableStorage
 	 * @param newLength new live-entry count
 	 */
 	void resize(final int newLength) {
+		defrost();
 		Arrays.fill(this.keys, newLength, this.size, (char) 0);
 		Arrays.fill(this.values, newLength, this.size, null);
 		this.size = newLength;
@@ -1136,6 +1178,7 @@ final class RoaringArray implements Cloneable, Externalizable, AppendableStorage
 	 * @param c replacement container
 	 */
 	void setContainerAtIndex(final int i, @Nonnull final Container c) {
+		defrost();
 		this.values[i] = c;
 	}
 

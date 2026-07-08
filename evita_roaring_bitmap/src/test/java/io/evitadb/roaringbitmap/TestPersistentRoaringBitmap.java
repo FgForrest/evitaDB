@@ -1896,6 +1896,249 @@ public class TestPersistentRoaringBitmap {
 	}
 
 	/**
+	 * Regression guards for the array-level copy-on-write introduced to make {@code clone()}
+	 * near-O(1): {@code highLowContainer.keys}/{@code values} are shared (not copied) between the
+	 * source and the clone, both sides marked {@code frozen}, and only defrosted into a private copy
+	 * on the first structural write. These tests pin the allocation elimination itself and the
+	 * defrost lifecycle across the operations that write into {@code RoaringArray} — on top of (not
+	 * a replacement for) the pre-existing container-level ({@code shared[]}) isolation tests above.
+	 */
+	@Nested
+	@DisplayName("Array-level copy-on-write (frozen backing arrays)")
+	class FrozenBackingArrayIsolation {
+
+		@Test
+		public void cloneSharesBackingArraysAndFreezesBothSides() {
+			PersistentRoaringBitmap original = PersistentRoaringBitmap.fromBitmap(
+				buildMultiContainerBitmap(0, 10, 42));
+
+			PersistentRoaringBitmap cloned = original.clone();
+
+			// The regression guard for the primary optimization: clone() must share keys[]/values[]
+			// by reference instead of copying them (no char[]/Container[] allocation per clone).
+			assertSame(
+				original.highLowContainer.keys, cloned.highLowContainer.keys,
+				"clone() must share keys[] by reference, not copy it"
+			);
+			assertSame(
+				original.highLowContainer.values, cloned.highLowContainer.values,
+				"clone() must share values[] by reference, not copy it"
+			);
+			assertTrue(original.highLowContainer.frozen, "source must be frozen after clone()");
+			assertTrue(cloned.highLowContainer.frozen, "clone must be frozen after clone()");
+		}
+
+		@Test
+		public void cloneThenAddToExistingContainerDefrosts() {
+			PersistentRoaringBitmap original = PersistentRoaringBitmap.fromBitmap(
+				buildMultiContainerBitmap(0, 5, 42));
+			PersistentRoaringBitmap cloned = original.clone();
+			int[] originalBefore = original.toArray();
+			final char[] originalKeysBefore = original.highLowContainer.keys;
+			final Container[] originalValuesBefore = original.highLowContainer.values;
+
+			// falls into the already-present container for key 2 -- setContainerAtIndex path
+			cloned.add(2 << 16 | 60000);
+
+			assertNotSame(
+				original.highLowContainer.keys, cloned.highLowContainer.keys,
+				"clone's keys[] must be defrosted to a private copy after mutating an existing container"
+			);
+			assertFalse(cloned.highLowContainer.frozen, "clone's frozen flag must clear after defrost");
+			assertArrayEquals(
+				originalBefore, original.toArray(),
+				"original must be unaffected by add on the clone (existing container)"
+			);
+			// the discriminating case: an in-place container mutation on the clone's side must never
+			// touch the source's still-frozen backing arrays -- neither reference nor content may change
+			assertSame(
+				originalKeysBefore, original.highLowContainer.keys,
+				"source's keys[] identity must be untouched by mutating the clone's existing container"
+			);
+			assertSame(
+				originalValuesBefore, original.highLowContainer.values,
+				"source's values[] identity must be untouched by mutating the clone's existing container"
+			);
+			assertTrue(original.highLowContainer.frozen, "source must remain frozen -- it was never written to");
+		}
+
+		@Test
+		public void cloneThenAddNewChunkDefrosts() {
+			PersistentRoaringBitmap original = PersistentRoaringBitmap.fromBitmap(
+				buildMultiContainerBitmap(0, 5, 42));   // keys 0..4
+			PersistentRoaringBitmap cloned = original.clone();
+			int[] originalBefore = original.toArray();
+
+			// key 10 is absent from the source -- insertNewKeyValueAt path (structural insert)
+			cloned.add(10 << 16 | 1);
+
+			assertNotSame(
+				original.highLowContainer.keys, cloned.highLowContainer.keys,
+				"clone's keys[] must be defrosted to a private copy after inserting a new chunk"
+			);
+			assertFalse(cloned.highLowContainer.frozen, "clone's frozen flag must clear after defrost");
+			assertEquals(6, cloned.getContainerCount());
+			assertArrayEquals(
+				originalBefore, original.toArray(),
+				"original must be unaffected by inserting a new chunk into the clone"
+			);
+		}
+
+		@Test
+		public void cloneThenRemoveEmptyingContainerDefrosts() {
+			PersistentRoaringBitmap rb = new PersistentRoaringBitmap();
+			rb.add(0 << 16 | 1);
+			rb.add(1 << 16 | 1);
+			PersistentRoaringBitmap original = PersistentRoaringBitmap.fromBitmap(rb);
+			PersistentRoaringBitmap cloned = original.clone();
+			int[] originalBefore = original.toArray();
+
+			// the only value in key 0's container -- removeAtIndex path (structural removal)
+			cloned.remove(0 << 16 | 1);
+
+			assertNotSame(
+				original.highLowContainer.keys, cloned.highLowContainer.keys,
+				"clone's keys[] must be defrosted to a private copy after removeAtIndex"
+			);
+			assertEquals(1, cloned.getContainerCount());
+			assertArrayEquals(
+				originalBefore, original.toArray(),
+				"original must be unaffected by remove on the clone"
+			);
+		}
+
+		@Test
+		public void cloneThenClearDoesNotTouchSharedArrays() {
+			PersistentRoaringBitmap original = PersistentRoaringBitmap.fromBitmap(
+				buildMultiContainerBitmap(0, 5, 42));
+			PersistentRoaringBitmap cloned = original.clone();
+			int[] originalBefore = original.toArray();
+
+			// clear() replaces highLowContainer wholesale; it must not write into the still-frozen,
+			// shared arrays
+			cloned.clear();
+
+			assertTrue(cloned.isEmpty());
+			assertArrayEquals(
+				originalBefore, original.toArray(),
+				"original must read correctly after clone.clear()"
+			);
+		}
+
+		@Test
+		public void cloneThenInPlaceOrDoesNotCorruptSource() {
+			PersistentRoaringBitmap original = PersistentRoaringBitmap.fromBitmap(
+				buildMultiContainerBitmap(0, 5, 42));
+			PersistentRoaringBitmap cloned = original.clone();
+			int[] originalBefore = original.toArray();
+
+			cloned.or(buildMultiContainerBitmap(2, 4, 99));
+
+			assertArrayEquals(
+				originalBefore, original.toArray(),
+				"original must be unaffected by in-place or on the clone"
+			);
+		}
+
+		@Test
+		public void cloneThenInPlaceAndDoesNotCorruptSource() {
+			PersistentRoaringBitmap original = PersistentRoaringBitmap.fromBitmap(
+				buildMultiContainerBitmap(0, 5, 42));
+			PersistentRoaringBitmap cloned = original.clone();
+			int[] originalBefore = original.toArray();
+
+			cloned.and(buildMultiContainerBitmap(2, 4, 99));
+
+			assertArrayEquals(
+				originalBefore, original.toArray(),
+				"original must be unaffected by in-place and on the clone"
+			);
+		}
+
+		@Test
+		public void cloneThenInPlaceXorDoesNotCorruptSource() {
+			PersistentRoaringBitmap original = PersistentRoaringBitmap.fromBitmap(
+				buildMultiContainerBitmap(0, 5, 42));
+			PersistentRoaringBitmap cloned = original.clone();
+			int[] originalBefore = original.toArray();
+
+			cloned.xor(buildMultiContainerBitmap(2, 4, 99));
+
+			assertArrayEquals(
+				originalBefore, original.toArray(),
+				"original must be unaffected by in-place xor on the clone"
+			);
+		}
+
+		@Test
+		public void cloneThenInPlaceAndNotDoesNotCorruptSource() {
+			PersistentRoaringBitmap original = PersistentRoaringBitmap.fromBitmap(
+				buildMultiContainerBitmap(0, 5, 42));
+			PersistentRoaringBitmap cloned = original.clone();
+			int[] originalBefore = original.toArray();
+
+			cloned.andNot(buildMultiContainerBitmap(2, 4, 99));
+
+			assertArrayEquals(
+				originalBefore, original.toArray(),
+				"original must be unaffected by in-place andNot on the clone"
+			);
+		}
+
+		@Test
+		public void cloneThenTrimDefrostsWithoutShrinkingSource() {
+			PersistentRoaringBitmap original = PersistentRoaringBitmap.fromBitmap(
+				buildMultiContainerBitmap(0, 5, 42));
+			PersistentRoaringBitmap cloned = original.clone();
+			int originalKeysLength = original.highLowContainer.keys.length;
+			int[] originalBefore = original.toArray();
+
+			cloned.trim();
+
+			assertNotSame(
+				original.highLowContainer.keys, cloned.highLowContainer.keys,
+				"clone's keys[] must be defrosted (privately copied) before trim shrinks it"
+			);
+			assertEquals(
+				originalKeysLength, original.highLowContainer.keys.length,
+				"source's backing array length must be untouched by trim on the clone"
+			);
+			assertArrayEquals(
+				originalBefore, original.toArray(),
+				"original must be unaffected by trim on the clone"
+			);
+		}
+
+		@Test
+		public void doubleCloneChainSharesArraysAndIsolatesAllLevels() {
+			PersistentRoaringBitmap a = PersistentRoaringBitmap.fromBitmap(
+				buildMultiContainerBitmap(0, 5, 42));
+			PersistentRoaringBitmap b = a.clone();
+			PersistentRoaringBitmap c = b.clone();
+			int[] aOriginal = a.toArray();
+			int[] bOriginal = b.toArray();
+
+			// nothing has mutated b yet, so a, b and c still share the very same backing arrays
+			assertSame(a.highLowContainer.keys, b.highLowContainer.keys);
+			assertSame(b.highLowContainer.keys, c.highLowContainer.keys);
+			assertTrue(b.highLowContainer.frozen);
+			assertTrue(c.highLowContainer.frozen);
+
+			// mutate c only -- one new chunk, one existing chunk
+			c.add(10 << 16 | 1);
+			c.add(2 << 16 | 60000);
+
+			assertNotSame(
+				a.highLowContainer.keys, c.highLowContainer.keys,
+				"c's keys[] must be defrosted to a private copy"
+			);
+			assertArrayEquals(aOriginal, a.toArray(), "a corrupted by mutation on c (double-clone chain)");
+			assertArrayEquals(bOriginal, b.toArray(), "b corrupted by mutation on c (double-clone chain)");
+		}
+
+	}
+
+	/**
 	 * Static builders such as flip / add(range) / addOffset construct their result by appending
 	 * freshly-owned containers, so the result's internal shared[] flag array can be left shorter
 	 * than the container array. A later in-place mutation that shifts or drops containers must grow

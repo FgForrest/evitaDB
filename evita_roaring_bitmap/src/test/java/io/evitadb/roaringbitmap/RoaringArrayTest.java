@@ -2,6 +2,7 @@ package io.evitadb.roaringbitmap;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -12,6 +13,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -321,7 +323,7 @@ public class RoaringArrayTest {
 		/**
 		 * Asserts the live key prefix of {@code array} equals the given unsigned keys, in order.
 		 */
-		private void assertArrayKeys(final RoaringArray array, final int... expected) {
+		private static void assertArrayKeys(final RoaringArray array, final int... expected) {
 			final char[] actual = new char[expected.length];
 			final char[] want = new char[expected.length];
 			for (int i = 0; i < expected.length; i++) {
@@ -329,6 +331,272 @@ public class RoaringArrayTest {
 				want[i] = (char) expected[i];
 			}
 			assertArrayEquals(want, actual);
+		}
+	}
+
+	/**
+	 * Regression guards for the array-level copy-on-write (`frozen` + `defrost()`) that lets
+	 * {@link PersistentRoaringBitmap#clone()} share {@code keys[]}/{@code values[]} instead of
+	 * copying them. Every method that writes into these backing arrays must defrost (privately
+	 * copy) a frozen array before writing, so a co-owner reference is never mutated in place. Each
+	 * test freezes an array, captures the pre-call arrays by reference (not content), runs the write
+	 * method, then asserts (a) `array.keys`/`array.values` were reassigned to new objects and (b) the
+	 * abandoned original objects still hold their pre-call content -- proof the write landed on a
+	 * private copy, not the frozen original.
+	 */
+	@Nested
+	@DisplayName("Frozen backing arrays are defrosted, never mutated in place")
+	class FrozenArrayDefrost {
+
+		/**
+		 * Builds a single-value container (cardinality 1) holding the low-16 value {@code v}.
+		 */
+		private Container container(final int v) {
+			return new ArrayContainer(v, v + 1);
+		}
+
+		/**
+		 * Builds a store whose entries carry the given ascending keys, each with a 1-bit container.
+		 */
+		private RoaringArray arrayOf(final int... keys) {
+			final RoaringArray array = new RoaringArray(Math.max(keys.length, 1));
+			for (final int key : keys) {
+				array.append((char) key, container(key));
+			}
+			return array;
+		}
+
+		/**
+		 * Freezes {@code array}, runs {@code mutate}, then asserts the frozen backing arrays were
+		 * replaced (not written into) and that the abandoned originals still hold their pre-freeze
+		 * content -- the array-level copy-on-write guard ({@code defrost()}) protecting a co-owner.
+		 */
+		private void assertDefrostsWithoutCorruptingCoOwner(
+			final RoaringArray array, final Runnable mutate
+		) {
+			array.frozen = true;
+			final char[] keysRef = array.keys;
+			final Container[] valuesRef = array.values;
+			final char[] keysSnapshot = keysRef.clone();
+			final Container[] valuesSnapshot = valuesRef.clone();
+
+			mutate.run();
+
+			assertNotSame(keysRef, array.keys, "keys[] must be defrosted to a private copy");
+			assertNotSame(valuesRef, array.values, "values[] must be defrosted to a private copy");
+			assertArrayEquals(keysSnapshot, keysRef, "frozen keys[] co-owner must not be mutated in place");
+			assertArrayEquals(
+				valuesSnapshot, valuesRef, "frozen values[] co-owner must not be mutated in place"
+			);
+		}
+
+		@Test
+		@DisplayName("append(char, Container) defrosts before writing")
+		void appendCharContainer() {
+			final RoaringArray array = arrayOf(1, 3, 5);
+			assertDefrostsWithoutCorruptingCoOwner(array, () -> array.append((char) 7, container(7)));
+		}
+
+		@Test
+		@DisplayName("append(RoaringArray) defrosts before writing")
+		void appendRoaringArray() {
+			final RoaringArray array = arrayOf(1, 2, 3);
+			final RoaringArray other = arrayOf(10, 11);
+			assertDefrostsWithoutCorruptingCoOwner(array, () -> array.append(other));
+		}
+
+		@Test
+		@DisplayName("appendCopiesAfter defrosts before writing")
+		void appendCopiesAfterTest() {
+			final RoaringArray array = arrayOf(1, 2, 3);
+			final RoaringArray other = arrayOf(10, 20, 30, 40, 50);
+			assertDefrostsWithoutCorruptingCoOwner(array, () -> array.appendCopiesAfter(other, (char) 20));
+		}
+
+		@Test
+		@DisplayName("appendCopiesUntil defrosts before writing")
+		void appendCopiesUntilTest() {
+			final RoaringArray array = arrayOf(1, 2, 3);
+			final RoaringArray other = arrayOf(10, 20, 30, 40, 50);
+			assertDefrostsWithoutCorruptingCoOwner(array, () -> array.appendCopiesUntil(other, (char) 30));
+		}
+
+		@Test
+		@DisplayName("appendCopy(sa, index) defrosts before writing")
+		void appendCopySingle() {
+			final RoaringArray array = arrayOf(1, 2, 3);
+			final RoaringArray other = arrayOf(100);
+			assertDefrostsWithoutCorruptingCoOwner(array, () -> array.appendCopy(other, 0));
+		}
+
+		@Test
+		@DisplayName("appendCopy(sa, start, end) defrosts before writing")
+		void appendCopyRange() {
+			final RoaringArray array = arrayOf(1, 2, 3);
+			final RoaringArray other = arrayOf(100, 200, 300);
+			assertDefrostsWithoutCorruptingCoOwner(array, () -> array.appendCopy(other, 0, 2));
+		}
+
+		@Test
+		@DisplayName("append(sa, start, end) defrosts before writing")
+		void appendRangeNoCopy() {
+			final RoaringArray array = arrayOf(1, 2, 3);
+			final RoaringArray other = arrayOf(100, 200, 300);
+			assertDefrostsWithoutCorruptingCoOwner(array, () -> array.append(other, 0, 2));
+		}
+
+		@Test
+		@DisplayName("copyRange defrosts before shifting in place")
+		void copyRangeTest() {
+			final RoaringArray array = arrayOf(10, 20, 30, 40);
+			assertDefrostsWithoutCorruptingCoOwner(array, () -> array.copyRange(2, 4, 1));
+		}
+
+		@Test
+		@DisplayName("extendArray defrosts before growing")
+		void extendArrayTest() {
+			final RoaringArray array = arrayOf(1);
+			assertDefrostsWithoutCorruptingCoOwner(array, () -> array.extendArray(1));
+		}
+
+		@Test
+		@DisplayName("insertNewKeyValueAt defrosts before shifting in place")
+		void insertNewKeyValueAtTest() {
+			final RoaringArray array = arrayOf(1, 3, 5);
+			assertDefrostsWithoutCorruptingCoOwner(
+				array, () -> array.insertNewKeyValueAt(1, (char) 2, container(2))
+			);
+		}
+
+		@Test
+		@DisplayName("removeAtIndex defrosts before shifting in place")
+		void removeAtIndexTest() {
+			final RoaringArray array = arrayOf(1, 2, 3);
+			assertDefrostsWithoutCorruptingCoOwner(array, () -> array.removeAtIndex(1));
+		}
+
+		@Test
+		@DisplayName("removeIndexRange defrosts before shifting in place")
+		void removeIndexRangeTest() {
+			final RoaringArray array = arrayOf(1, 2, 3, 4, 5);
+			assertDefrostsWithoutCorruptingCoOwner(array, () -> array.removeIndexRange(1, 4));
+		}
+
+		@Test
+		@DisplayName("replaceKeyAndContainerAtIndex defrosts before overwriting")
+		void replaceKeyAndContainerAtIndexTest() {
+			final RoaringArray array = arrayOf(1, 2, 3);
+			assertDefrostsWithoutCorruptingCoOwner(
+				array, () -> array.replaceKeyAndContainerAtIndex(1, (char) 2, container(99))
+			);
+		}
+
+		@Test
+		@DisplayName("resize defrosts before truncating")
+		void resizeTest() {
+			final RoaringArray array = arrayOf(1, 2, 3, 4, 5);
+			assertDefrostsWithoutCorruptingCoOwner(array, () -> array.resize(2));
+		}
+
+		@Test
+		@DisplayName("setContainerAtIndex defrosts before overwriting")
+		void setContainerAtIndexTest() {
+			final RoaringArray array = arrayOf(1, 2, 3);
+			assertDefrostsWithoutCorruptingCoOwner(array, () -> array.setContainerAtIndex(1, container(99)));
+		}
+
+		@Test
+		@DisplayName("trim defrosts before shrinking")
+		void trimTest() {
+			final RoaringArray array = arrayOf(1, 2, 3);
+			assertDefrostsWithoutCorruptingCoOwner(array, array::trim);
+		}
+
+		@Test
+		@DisplayName("deserialize(DataInput) forces reallocation instead of overwriting a frozen array")
+		void deserializeDataInputIntoFrozenArray() throws IOException {
+			final RoaringArray source = arrayOf(1, 2, 3);
+			final ByteArrayOutputStream bos = new ByteArrayOutputStream(source.serializedSizeInBytes());
+			try (DataOutputStream out = new DataOutputStream(bos)) {
+				source.serialize(out);
+			}
+			final byte[] bytes = bos.toByteArray();
+
+			final RoaringArray target = new RoaringArray(10);
+			assertDefrostsWithoutCorruptingCoOwnerViaReallocation(target, () -> {
+				try (DataInputStream in = new DataInputStream(new ByteArrayInputStream(bytes))) {
+					target.deserialize(in);
+				} catch (final IOException e) {
+					throw new java.io.UncheckedIOException(e);
+				}
+			});
+			assertEquals(source, target);
+			assertTrue(target.validate());
+		}
+
+		@Test
+		@DisplayName(
+			"deserialize(DataInput, byte[]) forces reallocation instead of overwriting a frozen array"
+		)
+		void deserializeDataInputWithBufferIntoFrozenArray() throws IOException {
+			final RoaringArray source = arrayOf(1, 2, 3);
+			final ByteArrayOutputStream bos = new ByteArrayOutputStream(source.serializedSizeInBytes());
+			try (DataOutputStream out = new DataOutputStream(bos)) {
+				source.serialize(out);
+			}
+			final byte[] bytes = bos.toByteArray();
+
+			final RoaringArray target = new RoaringArray(10);
+			assertDefrostsWithoutCorruptingCoOwnerViaReallocation(target, () -> {
+				try (DataInputStream in = new DataInputStream(new ByteArrayInputStream(bytes))) {
+					target.deserialize(in, null);
+				} catch (final IOException e) {
+					throw new java.io.UncheckedIOException(e);
+				}
+			});
+			assertEquals(source, target);
+			assertTrue(target.validate());
+		}
+
+		@Test
+		@DisplayName("deserialize(ByteBuffer) forces reallocation instead of overwriting a frozen array")
+		void deserializeByteBufferIntoFrozenArray() throws IOException {
+			final RoaringArray source = arrayOf(1, 2, 3);
+			final ByteArrayOutputStream bos = new ByteArrayOutputStream(source.serializedSizeInBytes());
+			try (DataOutputStream out = new DataOutputStream(bos)) {
+				source.serialize(out);
+			}
+			final ByteBuffer buffer = ByteBuffer.wrap(bos.toByteArray());
+
+			final RoaringArray target = new RoaringArray(10);
+			assertDefrostsWithoutCorruptingCoOwnerViaReallocation(target, () -> target.deserialize(buffer));
+			assertEquals(source, target);
+			assertTrue(target.validate());
+		}
+
+		/**
+		 * Same guard as {@link #assertDefrostsWithoutCorruptingCoOwner}, but for the `deserialize`
+		 * overloads: those force a fresh reallocation (not a `defrost()` call) when frozen, per the
+		 * plan's §3.2 special case, so the `frozen` flag is asserted cleared afterward too.
+		 */
+		private void assertDefrostsWithoutCorruptingCoOwnerViaReallocation(
+			final RoaringArray array, final Runnable mutate
+		) {
+			array.frozen = true;
+			final char[] keysRef = array.keys;
+			final Container[] valuesRef = array.values;
+			final char[] keysSnapshot = keysRef.clone();
+			final Container[] valuesSnapshot = valuesRef.clone();
+
+			mutate.run();
+
+			assertNotSame(keysRef, array.keys, "keys[] must be reallocated, not overwritten in place");
+			assertNotSame(valuesRef, array.values, "values[] must be reallocated, not overwritten in place");
+			assertFalse(array.frozen, "frozen flag must clear after forced reallocation");
+			assertArrayEquals(keysSnapshot, keysRef, "frozen keys[] co-owner must not be mutated in place");
+			assertArrayEquals(
+				valuesSnapshot, valuesRef, "frozen values[] co-owner must not be mutated in place"
+			);
 		}
 	}
 }

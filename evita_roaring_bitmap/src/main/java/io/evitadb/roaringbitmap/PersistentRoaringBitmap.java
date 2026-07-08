@@ -67,9 +67,16 @@ import static io.evitadb.roaringbitmap.Util.lowbitsAsInteger;
  * chunk for avoiding a full container copy, sharply cutting allocation and GC pressure when
  * operands have little key overlap.
  *
+ * `clone()` adds a second, array-level COW: the {@link #highLowContainer}'s `keys[]`/`values[]`
+ * backing arrays are shared (not copied) between the source and the clone, each side's
+ * `RoaringArray` marked `frozen` so that the first structural write (append/insert/remove/resize)
+ * defrosts into a private copy (`RoaringArray.defrost()`, mirroring `copyIfShared` one level up).
+ * In the transactional MVCC commit path — clone at commit, read-only for the rest of the version's
+ * life — no structural write ever happens, so the clone never pays the O(containers) array copy.
+ *
  * Thread-safety: because a static op writes `shared[]` flags on its operands as a side effect, it
  * must not run concurrently with any other access to those operands, and a shared result must be
- * safely published before another thread mutates it.
+ * safely published before another thread mutates it. The `frozen` flag has the same constraint.
  *
  * Credits: derived from the RoaringBitmap project
  * (https://github.com/RoaringBitmap/RoaringBitmap) by Daniel Lemire et al., Apache License 2.0.
@@ -3050,9 +3057,12 @@ public class PersistentRoaringBitmap
 	}
 
 	/**
-	 * Shallow clone: shares all containers between this and the clone via copy-on-write.
-	 * Both sides mark everything as shared, so the first mutator on either side clones
-	 * only the affected container.
+	 * Shallow clone, COW at two levels. Containers are shared by reference: both sides mark
+	 * everything as shared, so the first mutator on either side clones only the affected container
+	 * (see {@link #shared}). The `keys[]`/`values[]` backing arrays of {@link #highLowContainer} are
+	 * themselves shared too: both sides' `RoaringArray` are marked {@code frozen}, so the arrays are
+	 * only copied on the first structural write (`RoaringArray.defrost()`) — in the transactional MVCC
+	 * commit path that never happens, making this clone effectively O(1) instead of O(containers).
 	 */
 	// COW clone deliberately builds an independent copy with shared-flag bookkeeping, not super.clone()
 	@SuppressWarnings("CloneDoesntCallSuperClone")
@@ -3060,11 +3070,14 @@ public class PersistentRoaringBitmap
 	@Override
 	public PersistentRoaringBitmap clone() {
 		final int size = this.highLowContainer.size();
-		final char[] newKeys = Arrays.copyOf(this.highLowContainer.keys, size);
-		final Container[] newValues = Arrays.copyOf(this.highLowContainer.values, size);
-		final RoaringArray clonedArray = new RoaringArray(newKeys, newValues, size);
+		// Array-level COW: share keys[]/values[] instead of copying them; freeze both sides so the
+		// first structural write (append/insert/remove/resize/...) defrosts into a private copy.
+		this.highLowContainer.frozen = true;
+		final RoaringArray clonedArray =
+			new RoaringArray(this.highLowContainer.keys, this.highLowContainer.values, size);
+		clonedArray.frozen = true;
 
-		// mark everything shared in both this and the clone
+		// Container-level COW (unchanged): mark everything shared in both this and the clone.
 		ensureSharedCapacity(size);
 		Arrays.fill(this.shared, 0, size, true);
 		final boolean[] cloneShared = new boolean[size];
