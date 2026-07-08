@@ -631,6 +631,36 @@ class Crc32CWrapperTest {
 	}
 
 	@Test
+	@DisplayName("Should match a direct CRC32C of the concatenation across a spread of lengths")
+	void shouldMatchDirectCrcAcrossLengthSpread() {
+		// Exercises the GF(2) doubling-ladder combine over many distinct len2 bit patterns:
+		// powers of two, powers-minus-one, primes and a few large values — the boundaries most likely
+		// to expose a rung-selection or bit-walk error. Each length is combined against a fixed
+		// first chunk and cross-checked against java.util.zip.CRC32C of the real concatenation.
+		final byte[] chunk1 = "prefix-payload-of-some-length".getBytes(StandardCharsets.UTF_8);
+		final long crc1 = crc32c(chunk1);
+		final int[] lengths = {
+			1, 2, 3, 4, 5, 7, 8, 15, 16, 17, 31, 32, 33, 44, 63, 64, 65, 84, 127, 128, 129,
+			255, 256, 257, 511, 512, 1000, 1024, 4096, 9973, 65535, 65536, 65537, 1 << 20
+		};
+		for (final int len2 : lengths) {
+			final byte[] chunk2 = new byte[len2];
+			for (int i = 0; i < len2; i++) {
+				// deterministic, non-trivial content so the checksum actually depends on the bytes
+				chunk2[i] = (byte) (i * 31 + 7);
+			}
+			final long crc2 = crc32c(chunk2);
+			final long combined = Crc32CWrapper.combine(crc1, crc2, len2);
+
+			final byte[] all = new byte[chunk1.length + len2];
+			System.arraycopy(chunk1, 0, all, 0, chunk1.length);
+			System.arraycopy(chunk2, 0, all, chunk1.length, len2);
+
+			assertEquals(crc32c(all), combined, "combine mismatch for len2=" + len2);
+		}
+	}
+
+	@Test
 	@DisplayName("Should chain multiple CRC values when three chunks are combined")
 	void shouldChainMultipleCrcValuesWhenThreeChunksAreCombined() {
 		byte[] c1 = "chunk-1|".getBytes();
