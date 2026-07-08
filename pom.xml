@@ -130,7 +130,7 @@
 		<jackson.annotations.version>2.21</jackson.annotations.version>
 		<snakeyaml.version>2.6</snakeyaml.version>
 		<roaringbitmap.version>1.6.12</roaringbitmap.version>
-		<junit.jupiter.version>6.1.0-RC1</junit.jupiter.version>
+		<junit.jupiter.version>6.1.1</junit.jupiter.version>
 		<mockito.junit.version>5.22.0</mockito.junit.version>
 		<assertj.version>3.27.7</assertj.version>
 		<maven.compiler.version>3.15.0</maven.compiler.version>
@@ -295,24 +295,19 @@
 				<version>3.20.0</version>
 			</dependency>
 			<!--
-				Pin junit-platform-* to the same version as junit-jupiter so that
-				transitive deps (e.g. s3mock-junit5) cannot drag in a different
-				platform release alongside the jupiter line.
+				Import the JUnit BOM so every junit-jupiter-* and junit-platform-*
+				artifact (api, params, engine, commons, launcher, ...) is locked to
+				a single version. Without this, transitive deps such as
+				mockito-junit-jupiter drag in an older junit-jupiter-api (e.g.
+				5.13.4) and Surefire's JUnit Platform alignment check then refuses
+				to fork the test JVM (wrapped NoClassDefFoundError).
 			-->
 			<dependency>
-				<groupId>org.junit.platform</groupId>
-				<artifactId>junit-platform-commons</artifactId>
+				<groupId>org.junit</groupId>
+				<artifactId>junit-bom</artifactId>
 				<version>${junit.jupiter.version}</version>
-			</dependency>
-			<dependency>
-				<groupId>org.junit.platform</groupId>
-				<artifactId>junit-platform-engine</artifactId>
-				<version>${junit.jupiter.version}</version>
-			</dependency>
-			<dependency>
-				<groupId>org.junit.platform</groupId>
-				<artifactId>junit-platform-launcher</artifactId>
-				<version>${junit.jupiter.version}</version>
+				<type>pom</type>
+				<scope>import</scope>
 			</dependency>
 			<!--
 				Force Bouncy Castle to ${bouncyCastle.version} across all modules.
