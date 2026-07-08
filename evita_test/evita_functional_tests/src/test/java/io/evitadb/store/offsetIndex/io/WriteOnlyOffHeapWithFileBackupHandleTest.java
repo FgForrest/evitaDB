@@ -28,6 +28,7 @@ import io.evitadb.core.executor.Scheduler;
 import io.evitadb.store.checksum.ChecksumFactory;
 import io.evitadb.store.checksum.Crc32CChecksumFactory;
 import io.evitadb.store.compression.CompressionFactory;
+import io.evitadb.store.kryo.ObservableOutput;
 import io.evitadb.store.kryo.ObservableOutputKeeper;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.utils.Crc32CWrapper;
@@ -39,12 +40,19 @@ import org.mockito.Mockito;
 
 import javax.annotation.Nonnull;
 import java.io.IOException;
+import java.lang.reflect.Field;
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.concurrent.ConcurrentLinkedDeque;
 import org.junit.jupiter.api.Tag;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static io.evitadb.test.TestTags.STORAGE;
 import static io.evitadb.test.TestTags.MANAGEMENT;
 
@@ -305,6 +313,208 @@ class WriteOnlyOffHeapWithFileBackupHandleTest implements EvitaTestSupport {
 			assertEquals(expectedChecksum, actualChecksum,
 				"Checksum for off-heap-only writes should match manual calculation");
 		}
+	}
+
+	@Test
+	@DisplayName("Should recycle the off-heap ObservableOutput instance for reuse by the next transaction")
+	void shouldRecycleObservableOutputInstanceAcrossTransactions() throws NoSuchFieldException, IllegalAccessException {
+		try (
+			final CatalogOffHeapMemoryManager memoryManager = new CatalogOffHeapMemoryManager(
+				TEST_CATALOG, 1024, 2, ChecksumFactory.NO_OP)
+		) {
+			assertEquals(0, getFreeOffHeapOutputCount());
+
+			final ObservableOutput<?> instanceFromA;
+			try (final WriteOnlyOffHeapWithFileBackupHandle handleA = createWriteHandle(memoryManager)) {
+				handleA.checkAndExecuteAndSync(
+					"write", () -> {}, output -> output.writeString("Transaction A data")
+				);
+				instanceFromA = getOffHeapMemoryOutput(handleA);
+				assertNotNull(instanceFromA, "Handle A should have borrowed an off-heap output");
+
+				// closing the reference (not the handle) is what triggers the recycle
+				handleA.toReadOffHeapWithFileBackupReference().close();
+			}
+
+			assertEquals(1, getFreeOffHeapOutputCount(), "A's released instance must sit in the free-list");
+
+			try (final WriteOnlyOffHeapWithFileBackupHandle handleB = createWriteHandle(memoryManager)) {
+				handleB.checkAndExecuteAndSync(
+					"write", () -> {}, output -> output.writeString("Transaction B data")
+				);
+				assertSame(
+					instanceFromA, getOffHeapMemoryOutput(handleB),
+					"B must have reused the instance recycled by A instead of allocating a new one"
+				);
+				assertEquals(0, getFreeOffHeapOutputCount(), "B's borrow must have drained the free-list");
+
+				try (final ReadOnlyHandle readOnlyHandle = handleB.toReadOnlyHandle()) {
+					readOnlyHandle.execute(
+						input -> {
+							assertEquals("Transaction B data", input.readString());
+							return null;
+						}
+					);
+				}
+			}
+		}
+	}
+
+	@Test
+	@DisplayName("Should re-arm the cumulative checksum when a recycled output is reused by the next transaction")
+	void shouldReArmChecksumWhenReusingRecycledOutputForNextTransaction() throws NoSuchFieldException, IllegalAccessException {
+		try (
+			// large region so each payload fits off-heap; two regions so B can reuse A's recycled instance
+			final CatalogOffHeapMemoryManager memoryManager = new CatalogOffHeapMemoryManager(
+				TEST_CATALOG, 1024, 2, Crc32CChecksumFactory.INSTANCE)
+		) {
+			final byte[] bytesA = "Transaction A payload".getBytes(StandardCharsets.UTF_8);
+			final byte[] bytesB = "Different B payload!!".getBytes(StandardCharsets.UTF_8);
+
+			// transaction A writes known bytes so its cumulative checksum becomes non-zero, then recycles
+			final ObservableOutput<?> instanceFromA;
+			try (final WriteOnlyOffHeapWithFileBackupHandle handleA = createWriteHandle(memoryManager)) {
+				handleA.checkAndExecuteAndSync("write A", () -> {}, output -> output.writeBytes(bytesA));
+				instanceFromA = getOffHeapMemoryOutput(handleA);
+				// closing the reference (not the handle) recycles A's instance back to the free-list
+				handleA.toReadOffHeapWithFileBackupReference().close();
+			}
+			assertEquals(1, getFreeOffHeapOutputCount(), "A's instance must have been recycled");
+
+			// transaction B reuses A's recycled instance and writes different bytes
+			try (final WriteOnlyOffHeapWithFileBackupHandle handleB = createWriteHandle(memoryManager)) {
+				handleB.checkAndExecuteAndSync("write B", () -> {}, output -> output.writeBytes(bytesB));
+				assertSame(
+					instanceFromA, getOffHeapMemoryOutput(handleB),
+					"B must have reused A's recycled instance for this scenario to be meaningful"
+				);
+
+				final OffHeapWithFileBackupReference reference = handleB.toReadOffHeapWithFileBackupReference();
+				final long expectedChecksum = new Crc32CWrapper().withByteArray(bytesB).getValue();
+				assertEquals(
+					expectedChecksum, reference.getChecksum(),
+					"B's checksum must cover only B's bytes - A's cumulative checksum must not leak through the recycled instance"
+				);
+			}
+		}
+	}
+
+	@Test
+	@DisplayName("Should not corrupt an open reference's off-heap region while another transaction recycles/reuses an ObservableOutput")
+	void shouldNotCorruptOpenReferenceWhenAnotherTransactionRecyclesAndReuses() throws NoSuchFieldException, IllegalAccessException {
+		try (
+			final CatalogOffHeapMemoryManager memoryManager = new CatalogOffHeapMemoryManager(
+				TEST_CATALOG, 1023, 3, ChecksumFactory.NO_OP)
+		) {
+			// prime the free-list so that handle A below is likely to borrow a recycled instance
+			try (final WriteOnlyOffHeapWithFileBackupHandle warmUpHandle = createWriteHandle(memoryManager)) {
+				warmUpHandle.checkAndExecuteAndSync("write", () -> {}, output -> output.writeString("Warm-up data"));
+				warmUpHandle.toReadOffHeapWithFileBackupReference().close();
+			}
+			assertEquals(1, getFreeOffHeapOutputCount());
+
+			final WriteOnlyOffHeapWithFileBackupHandle handleA = createWriteHandle(memoryManager);
+			handleA.checkAndExecuteAndSync("write", () -> {}, output -> output.writeString("Transaction A data"));
+			final OffHeapWithFileBackupReference referenceA = handleA.toReadOffHeapWithFileBackupReference();
+			assertEquals(0, getFreeOffHeapOutputCount(), "A must have taken the only recycled instance, leaving none behind");
+
+			final ByteBuffer bufferA = referenceA.getBuffer().orElseThrow();
+			final byte[] snapshotBeforeB = snapshot(bufferA, referenceA.getContentLength());
+
+			// run a second, independent transaction to completion while A's reference is still open
+			try (final WriteOnlyOffHeapWithFileBackupHandle handleB = createWriteHandle(memoryManager)) {
+				handleB.checkAndExecuteAndSync("write", () -> {}, output -> output.writeString("Transaction B data"));
+				try (final ReadOnlyHandle readOnlyHandle = handleB.toReadOnlyHandle()) {
+					readOnlyHandle.execute(
+						input -> {
+							assertEquals("Transaction B data", input.readString());
+							return null;
+						}
+					);
+				}
+			}
+			assertEquals(1, getFreeOffHeapOutputCount(), "B's own instance must have been recycled on handle close");
+
+			final byte[] snapshotAfterB = snapshot(bufferA, referenceA.getContentLength());
+			assertArrayEquals(
+				snapshotBeforeB, snapshotAfterB,
+				"A's off-heap region bytes must be unaffected by B's independent borrow/recycle activity"
+			);
+
+			// closing the still-open reference now recycles A's instance; closing the handle afterward must no-op
+			assertDoesNotThrow(referenceA::close);
+			assertDoesNotThrow(handleA::close);
+			assertEquals(2, getFreeOffHeapOutputCount(), "both A's and B's instances must be recycled exactly once");
+		}
+	}
+
+	@Test
+	@DisplayName("Should drop (not recycle) the off-heap ObservableOutput when overflow switches to file backup")
+	void shouldNotRecycleOffHeapOutputOnOverflow() throws NoSuchFieldException, IllegalAccessException {
+		try (
+			final CatalogOffHeapMemoryManager memoryManager = new CatalogOffHeapMemoryManager(
+				TEST_CATALOG, 32, 1, ChecksumFactory.NO_OP);
+			final WriteOnlyOffHeapWithFileBackupHandle writeHandle = createWriteHandle(memoryManager)
+		) {
+			assertEquals(0, getFreeOffHeapOutputCount());
+
+			for (int i = 0; i < 5; i++) {
+				final int index = i;
+				writeHandle.checkAndExecuteAndSync(
+					"write some data", () -> {}, output -> output.writeString("Data " + index + ".")
+				);
+			}
+
+			// the small 32-byte region overflowed and the write switched to file backup - the half-written
+			// off-heap ObservableOutput instance must be dropped, not handed back to the free-list
+			assertEquals(0, getFreeOffHeapOutputCount(), "overflowed instance must not be recycled");
+
+			try (final ReadOnlyHandle readOnlyHandle = writeHandle.toReadOnlyHandle()) {
+				assertEquals(35, readOnlyHandle.getLastWrittenPosition());
+				readOnlyHandle.execute(
+					input -> {
+						for (int i = 0; i < 5; i++) {
+							assertEquals("Data " + i + ".", input.readString());
+						}
+						return null;
+					}
+				);
+			}
+		}
+	}
+
+	/**
+	 * Copies {@code length} bytes starting at position 0 of {@code buffer} without disturbing its position/limit.
+	 */
+	@Nonnull
+	private static byte[] snapshot(@Nonnull ByteBuffer buffer, int length) {
+		final byte[] result = new byte[length];
+		final ByteBuffer duplicate = buffer.duplicate();
+		duplicate.position(0);
+		duplicate.get(result, 0, length);
+		return result;
+	}
+
+	/**
+	 * Reflects into the handle's private off-heap output field for pool-identity assertions.
+	 */
+	@Nonnull
+	private static ObservableOutput<?> getOffHeapMemoryOutput(
+		@Nonnull WriteOnlyOffHeapWithFileBackupHandle handle
+	) throws NoSuchFieldException, IllegalAccessException {
+		final Field field = WriteOnlyOffHeapWithFileBackupHandle.class.getDeclaredField("offHeapMemoryOutput");
+		field.setAccessible(true);
+		return (ObservableOutput<?>) field.get(handle);
+	}
+
+	/**
+	 * Reflects into the shared keeper's free-list for size assertions.
+	 */
+	private int getFreeOffHeapOutputCount() throws NoSuchFieldException, IllegalAccessException {
+		final Field field = ObservableOutputKeeper.class.getDeclaredField("freeOffHeapOutputs");
+		field.setAccessible(true);
+		final ConcurrentLinkedDeque<?> deque = (ConcurrentLinkedDeque<?>) field.get(this.outputKeeper);
+		return deque.size();
 	}
 
 	/**

@@ -28,7 +28,9 @@ import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.core.executor.DelayedAsyncTask;
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.core.metric.event.storage.ObservableOutputChangeEvent;
+import io.evitadb.store.offsetIndex.io.OffHeapMemoryOutputStream;
 import io.evitadb.store.offsetIndex.io.WriteOnlyFileHandle;
+import io.evitadb.store.offsetIndex.io.WriteOnlyOffHeapWithFileBackupHandle;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.IOUtils;
@@ -42,9 +44,12 @@ import java.io.FileOutputStream;
 import java.nio.file.Path;
 import java.util.Iterator;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 import static java.util.Optional.ofNullable;
 
@@ -56,6 +61,11 @@ import static java.util.Optional.ofNullable;
  * The need is determined by the number of opened read write {@link EvitaSessionContract} to the catalog. If there
  * is at least one opened read-write session we need to keep those outputs around. When there are only read sessions we
  * don't need the outputs.
+ *
+ * Besides that path-keyed cache, this instance also maintains a keyless free-list of recyclable off-heap WAL
+ * {@link ObservableOutput} instances ({@link #freeOffHeapOutputs}) via {@link #borrowOffHeapOutput} /
+ * {@link #recycleOffHeapOutput}, whose buffers are reclaimed in bulk on inactivity ({@link #cutOutputCache}) and on
+ * {@link #close()} - i.e. its lifecycle is timer-driven rather than tied to the read-write-session count described above.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
@@ -100,6 +110,23 @@ public class ObservableOutputKeeper implements AutoCloseable {
 	 * improve performance by avoiding repeated creation and closing of streams.
 	 */
 	private final ConcurrentHashMap<Path, OpenedOutputToFile> cachedOutputToFiles = CollectionUtils.createConcurrentHashMap(512);
+	/**
+	 * Free-list of recyclable off-heap WAL outputs. Unlike {@link #cachedOutputToFiles}, this pool is
+	 * keyless: off-heap WAL outputs are created and released by per-transaction
+	 * {@link WriteOnlyOffHeapWithFileBackupHandle} instances whose target file path is unique per
+	 * transaction, so a path-keyed cache would never hit. Instances are recycled here instead - each
+	 * still owns its (potentially large) heap buffer, so reusing it avoids re-allocating that buffer
+	 * for every transaction.
+	 */
+	private final ConcurrentLinkedDeque<ObservableOutput<OffHeapMemoryOutputStream>> freeOffHeapOutputs = new ConcurrentLinkedDeque<>();
+	/**
+	 * Timestamp of the last {@link #borrowOffHeapOutput(OffHeapMemoryOutputStream, Supplier)} or
+	 * {@link #recycleOffHeapOutput(ObservableOutput)} call. The free-list is keyless, so unlike
+	 * {@link #cachedOutputToFiles} it has no per-instance touch time to compare against the inactivity
+	 * threshold - this single timestamp stands in for "the whole off-heap pool was touched this
+	 * recently".
+	 */
+	private final AtomicLong lastOffHeapActivityTime = new AtomicLong(System.currentTimeMillis());
 
 	/**
 	 * Method allowing to access {@link StorageOptions} internal settings so that we can pass only {@link ObservableOutputKeeper}
@@ -206,6 +233,46 @@ public class ObservableOutputKeeper implements AutoCloseable {
 	}
 
 	/**
+	 * Borrows a recyclable off-heap {@link ObservableOutput} rebound to {@code stream}, or builds one via
+	 * {@code createFct} when the free-list is empty. The returned output has fresh per-record and
+	 * cumulative-checksum state - either because {@code createFct} armed it, or because
+	 * {@link ObservableOutput#setOutputStream(java.io.OutputStream)} reset it and this method re-armed the
+	 * cumulative checksum for the new stream.
+	 *
+	 * @param stream    the off-heap region stream the borrowed output should write to
+	 * @param createFct builds a new, fully armed instance when the free-list has nothing to offer
+	 * @return a ready-to-use off-heap {@link ObservableOutput}, either recycled or freshly created
+	 */
+	@Nonnull
+	public ObservableOutput<OffHeapMemoryOutputStream> borrowOffHeapOutput(
+		@Nonnull OffHeapMemoryOutputStream stream,
+		@Nonnull Supplier<ObservableOutput<OffHeapMemoryOutputStream>> createFct
+	) {
+		this.cutTask.schedule();
+		this.lastOffHeapActivityTime.set(System.currentTimeMillis());
+		final ObservableOutput<OffHeapMemoryOutputStream> recycled = this.freeOffHeapOutputs.pollFirst();
+		if (recycled == null) {
+			return createFct.get();
+		} else {
+			recycled.setOutputStream(stream);
+			recycled.markCumulativeChecksumStart();
+			return recycled;
+		}
+	}
+
+	/**
+	 * Returns a cleanly-released off-heap {@link ObservableOutput} to the free-list for reuse by a future
+	 * transaction. The instance must not be leased or aliased by any other reference at the time of the call -
+	 * its off-heap region must already be closed/released by the caller.
+	 *
+	 * @param output the off-heap output to recycle
+	 */
+	public void recycleOffHeapOutput(@Nonnull ObservableOutput<OffHeapMemoryOutputStream> output) {
+		this.lastOffHeapActivityTime.set(System.currentTimeMillis());
+		this.freeOffHeapOutputs.offerFirst(output);
+	}
+
+	/**
 	 * Method drops {@link ObservableOutput} for the target file (closes stream and releases reference).
 	 */
 	public void close(@Nonnull Path targetFile) {
@@ -221,6 +288,8 @@ public class ObservableOutputKeeper implements AutoCloseable {
 		final long start = System.currentTimeMillis();
 		try {
 			IOUtils.closeQuietly(this.cutTask::close);
+			// recycled off-heap outputs are plain, already-released heap buffers - GC reclaims them, nothing to close
+			this.freeOffHeapOutputs.clear();
 			int attempts = 0;
 			do {
 				final Iterator<OpenedOutputToFile> iterator = this.cachedOutputToFiles.values().iterator();
@@ -245,19 +314,7 @@ public class ObservableOutputKeeper implements AutoCloseable {
 					System.currentTimeMillis() - start < this.waitOnCloseSeconds * 1000L
 			);
 
-			// emit event
-			if (this.catalogName == null) {
-				new ObservableOutputChangeEvent(
-					this.cachedOutputToFiles.size(),
-					(long) this.cachedOutputToFiles.size() * this.outputBufferSize
-				).commit();
-			} else {
-				new ObservableOutputChangeEvent(
-					this.catalogName,
-					this.cachedOutputToFiles.size(),
-					(long) this.cachedOutputToFiles.size() * this.outputBufferSize
-				).commit();
-			}
+			emitOutputChangeEvent();
 		} catch (RuntimeException ex) {
 			log.error("Failed to close all cached outputs in {} seconds, {} outputs left",
 				this.waitOnCloseSeconds,
@@ -291,11 +348,40 @@ public class ObservableOutputKeeper implements AutoCloseable {
 	}
 
 	/**
+	 * Emits an {@link ObservableOutputChangeEvent} reflecting the current number of cached outputs and the total
+	 * memory they hold. The two-argument constructor is used for the catalog-less keeper, otherwise the
+	 * catalog-scoped three-argument constructor is used.
+	 */
+	private void emitOutputChangeEvent() {
+		final int size = this.cachedOutputToFiles.size();
+		if (this.catalogName == null) {
+			new ObservableOutputChangeEvent(
+				size,
+				(long) size * this.outputBufferSize
+			).commit();
+		} else {
+			new ObservableOutputChangeEvent(
+				this.catalogName,
+				size,
+				(long) size * this.outputBufferSize
+			).commit();
+		}
+	}
+
+	/**
 	 * Check the cached output entries whether they should be cut because of long inactivity or left intact.
 	 * This method also re-plans the next cache cut if the cache is not empty.
 	 */
 	private long cutOutputCache() {
 		final long threshold = System.currentTimeMillis() - CUT_OUTPUTS_AFTER_INACTIVITY_MS;
+		// the free-list is keyless, so unlike the file cache below there is no per-instance touch
+		// time to compare against the threshold - it's dropped in bulk once the whole pool has been
+		// untouched (no borrow/recycle) for the inactivity window; while active, borrow/recycle keep
+		// re-arming lastOffHeapActivityTime
+		final long lastOffHeapActivity = this.lastOffHeapActivityTime.get();
+		if (!this.freeOffHeapOutputs.isEmpty() && lastOffHeapActivity < threshold) {
+			this.freeOffHeapOutputs.clear();
+		}
 		long oldestNotCutEntryTouchTime = -1L;
 		final Iterator<OpenedOutputToFile> iterator = this.cachedOutputToFiles.values().iterator();
 		while (iterator.hasNext()) {
@@ -313,19 +399,7 @@ public class ObservableOutputKeeper implements AutoCloseable {
 			}
 		}
 
-		// emit event
-		if (this.catalogName == null) {
-			new ObservableOutputChangeEvent(
-				this.cachedOutputToFiles.size(),
-				(long) this.cachedOutputToFiles.size() * this.outputBufferSize
-			).commit();
-		} else {
-			new ObservableOutputChangeEvent(
-				this.catalogName,
-				this.cachedOutputToFiles.size(),
-				(long) this.cachedOutputToFiles.size() * this.outputBufferSize
-			).commit();
-		}
+		emitOutputChangeEvent();
 
 		// re-plan the scheduled cut to the moment when the next entry should be cut down
 		return oldestNotCutEntryTouchTime > -1L ? (oldestNotCutEntryTouchTime - threshold) + 1 : -1L;
