@@ -81,6 +81,8 @@ import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService;
 import io.evitadb.spi.store.catalog.persistence.CatalogStoragePartPersistenceService;
 import io.evitadb.spi.store.catalog.persistence.EntityCollectionPersistenceService;
 import io.evitadb.spi.store.catalog.persistence.PersistenceService;
+import io.evitadb.core.buffer.DataStoreChanges.RemovedStoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.DeferredRemovalStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.CatalogIndexStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.GlobalUniqueIndexLeafPagePart;
@@ -2850,7 +2852,27 @@ public class DefaultCatalogPersistenceService
 			catalogVersion);
 		final Iterator<StoragePart> it = trappedChanges.getTrappedChangesIterator();
 		while (it.hasNext()) {
-			storagePartPersistenceService.putStoragePart(catalogVersion, it.next());
+			final StoragePart storagePart = it.next();
+			if (storagePart instanceof RemovedStoragePart removedStoragePart) {
+				storagePartPersistenceService.removeStoragePart(
+					catalogVersion,
+					removedStoragePart.getStoragePartPKOrElseThrowException(),
+					removedStoragePart.containerType()
+				);
+			} else if (storagePart instanceof DeferredRemovalStoragePart deferredRemoval) {
+				// a removal whose primary key can only be resolved store-side (e.g. a freed granular
+				// GlobalUniqueIndex leaf page whose streamId is a compressor dictionary id) — resolve it against the
+				// live compressor and remove it. The read-only view suffices: the stream was registered when the page
+				// was first written. Mirrors the entity-collection flush drain.
+				final long removedPartPK = deferredRemoval.computeUniquePartIdAndSet(
+					storagePartPersistenceService.getReadOnlyKeyCompressor()
+				);
+				storagePartPersistenceService.removeStoragePart(
+					catalogVersion, removedPartPK, deferredRemoval.removedContainerType()
+				);
+			} else {
+				storagePartPersistenceService.putStoragePart(catalogVersion, storagePart);
+			}
 
 			// Increment the counter and update progress every X items
 			if (++counter[0] % division == 0) {
