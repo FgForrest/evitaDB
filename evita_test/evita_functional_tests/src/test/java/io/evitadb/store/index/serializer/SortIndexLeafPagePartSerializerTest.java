@@ -27,7 +27,9 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.index.attribute.SortIndex.ComparableArray;
+import io.evitadb.index.invertedIndex.ValueToRecord;
 import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
+import io.evitadb.index.invertedIndex.ValueToRecordPrimitive;
 import io.evitadb.spi.store.catalog.persistence.storageParts.compressor.ReadWriteKeyCompressor;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStoragePart.AttributeIndexType;
@@ -48,8 +50,7 @@ import java.util.Collections;
 
 import static io.evitadb.test.TestTags.SERIALIZATION;
 import static io.evitadb.test.TestTags.STORAGE;
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Verifies {@link SortIndexLeafPagePartSerializer} — the Kryo (de)serialization of one granular leaf page of an
@@ -88,7 +89,7 @@ class SortIndexLeafPagePartSerializerTest {
 	 */
 	@Nonnull
 	private SortIndexLeafPagePart page(
-		int entityIndexPrimaryKey, int pageSequence, int comparatorBaseLength, @Nonnull ValueToRecordBitmap[] buckets
+		int entityIndexPrimaryKey, int pageSequence, int comparatorBaseLength, @Nonnull ValueToRecord[] buckets
 	) {
 		final SortIndexLeafPagePart page = new SortIndexLeafPagePart(
 			entityIndexPrimaryKey, SORT_KEY, pageSequence, buckets, comparatorBaseLength
@@ -126,10 +127,14 @@ class SortIndexLeafPagePartSerializerTest {
 			expected.getComparatorBaseLength(), actual.getComparatorBaseLength(),
 			"Comparator-base length must survive the round-trip."
 		);
-		final ValueToRecordBitmap[] expectedBuckets = expected.getBuckets();
-		final ValueToRecordBitmap[] actualBuckets = actual.getBuckets();
+		final ValueToRecord[] expectedBuckets = expected.getBuckets();
+		final ValueToRecord[] actualBuckets = actual.getBuckets();
 		assertEquals(expectedBuckets.length, actualBuckets.length, "Bucket count must survive the round-trip.");
 		for (int i = 0; i < expectedBuckets.length; i++) {
+			assertSame(
+				expectedBuckets[i].getClass(), actualBuckets[i].getClass(),
+				"Bucket representation " + i + " must match."
+			);
 			assertEquals(expectedBuckets[i].getValue(), actualBuckets[i].getValue(), "Bucket value " + i + " must match.");
 			assertArrayEquals(
 				expectedBuckets[i].getRecordIds().getArray(), actualBuckets[i].getRecordIds().getArray(),
@@ -177,6 +182,54 @@ class SortIndexLeafPagePartSerializerTest {
 			final SortIndexLeafPagePart page = page(9, 1, 1, buckets);
 			assertSamePage(page, roundTrip(page));
 		}
+
+		@Test
+		@DisplayName("round-trips compact single-record ValueToRecordPrimitive buckets, preserving their representation")
+		@Tag(STORAGE)
+		@Tag(SERIALIZATION)
+		void shouldRoundTripPrimitiveBuckets() {
+			final ValueToRecord[] buckets = {
+				new ValueToRecordPrimitive("apple", 7),
+				new ValueToRecordPrimitive("banana", 42)
+			};
+			final SortIndexLeafPagePart page = page(42, 3, 1, buckets);
+			final SortIndexLeafPagePart deserialized = roundTrip(page);
+			assertSamePage(page, deserialized);
+			for (final ValueToRecord bucket : deserialized.getBuckets()) {
+				assertInstanceOf(ValueToRecordPrimitive.class, bucket, "A single-record bucket must deserialize as the compact primitive representation.");
+			}
+		}
+
+		@Test
+		@DisplayName("round-trips a leaf page mixing primitive single-record and bitmap multi-record buckets")
+		@Tag(STORAGE)
+		@Tag(SERIALIZATION)
+		void shouldRoundTripMixedPrimitiveAndBitmapBuckets() {
+			final ValueToRecord[] buckets = {
+				new ValueToRecordPrimitive("apple", 7),
+				new ValueToRecordBitmap("banana", 1, 2, 3),
+				new ValueToRecordPrimitive("cherry", 300_000_000)
+			};
+			final SortIndexLeafPagePart page = page(42, 3, 1, buckets);
+			final SortIndexLeafPagePart deserialized = roundTrip(page);
+			assertSamePage(page, deserialized);
+			assertInstanceOf(ValueToRecordPrimitive.class, deserialized.getBuckets()[0]);
+			assertInstanceOf(ValueToRecordBitmap.class, deserialized.getBuckets()[1]);
+			assertInstanceOf(ValueToRecordPrimitive.class, deserialized.getBuckets()[2]);
+		}
+
+		@Test
+		@DisplayName("the primitive encoding of a single-record bucket is smaller on the wire than the bitmap encoding")
+		@Tag(STORAGE)
+		@Tag(SERIALIZATION)
+		void shouldEncodePrimitiveBucketMoreCompactlyThanBitmapBucket() {
+			final SortIndexLeafPagePart primitivePage = page(9, 1, 1, new ValueToRecord[]{new ValueToRecordPrimitive("apple", 7)});
+			final SortIndexLeafPagePart bitmapPage = page(9, 1, 1, new ValueToRecord[]{new ValueToRecordBitmap("apple", 7)});
+			assertTrue(
+				serialize(primitivePage).length < serialize(bitmapPage).length,
+				"A single-record ValueToRecordPrimitive bucket must serialize smaller than the equivalent ValueToRecordBitmap bucket."
+			);
+		}
 	}
 
 	@Nested
@@ -213,6 +266,29 @@ class SortIndexLeafPagePartSerializerTest {
 			final SortIndexLeafPagePart page = page(3, 0, 2, buckets);
 			final SortIndexLeafPagePart deserialized = roundTrip(page);
 			assertEquals(value, deserialized.getBuckets()[0].getValue(), "Compound value with a null component must rebuild equal.");
+		}
+
+		@Test
+		@DisplayName("round-trips a compound single-record bucket as the compact ValueToRecordPrimitive")
+		@Tag(STORAGE)
+		@Tag(SERIALIZATION)
+		void shouldRoundTripCompoundPrimitiveBuckets() {
+			// a unique compound value combination collapses to a single-record bucket - the primitive branch must unwrap
+			// and rebuild a compound ComparableArray exactly as the bitmap branch does, since both share the same
+			// component-wise value codec (writeComparableValue / readComparableValue)
+			final ComparableArray first = new ComparableArray(new Serializable[]{"a", 1});
+			final ComparableArray second = new ComparableArray(new Serializable[]{"b", 2});
+			final ValueToRecord[] buckets = {
+				new ValueToRecordPrimitive(first, 4),
+				new ValueToRecordBitmap(second, 9, 10)
+			};
+			final SortIndexLeafPagePart page = page(9, 2, 2, buckets);
+			final SortIndexLeafPagePart deserialized = roundTrip(page);
+			assertSamePage(page, deserialized);
+			assertInstanceOf(ValueToRecordPrimitive.class, deserialized.getBuckets()[0], "A single-record compound bucket must deserialize as the compact primitive representation.");
+			assertEquals(first, deserialized.getBuckets()[0].getValue(), "Compound primitive value must rebuild equal.");
+			assertInstanceOf(ValueToRecordBitmap.class, deserialized.getBuckets()[1]);
+			assertEquals(second, deserialized.getBuckets()[1].getValue(), "Compound bitmap value must rebuild equal.");
 		}
 	}
 

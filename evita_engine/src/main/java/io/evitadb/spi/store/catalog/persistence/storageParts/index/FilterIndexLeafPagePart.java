@@ -23,7 +23,9 @@
 
 package io.evitadb.spi.store.catalog.persistence.storageParts.index;
 
+import io.evitadb.index.invertedIndex.ValueToRecord;
 import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
+import io.evitadb.index.invertedIndex.ValueToRecordPrimitive;
 import io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor;
 import lombok.Getter;
 
@@ -35,9 +37,10 @@ import java.io.Serial;
  * leaf of the {@code TransactionalBucketBPlusTree} backing an {@code InvertedIndex} is stored as its own record, so a
  * transaction (re)writes only the leaf pages it actually changed instead of re-materializing the whole bucket array.
  *
- * The page carries the leaf's buckets as a {@link ValueToRecordBitmap} array — the same (value, record-set) element
- * shape the monolithic {@code FilterIndexStoragePart} uses — in ascending value order; the routing spine that orders
- * the leaves is NOT persisted (it is reconstructed on load), and a leaf page stores no separators.
+ * The page carries the leaf's buckets as a {@link ValueToRecord} array — each element either the multi-record
+ * {@link ValueToRecordBitmap} or the compact single-record {@link ValueToRecordPrimitive}, mirroring the same split
+ * the query-side read path already uses — in ascending value order; the routing spine that orders the leaves is NOT
+ * persisted (it is reconstructed on load), and a leaf page stores no separators.
  *
  * Identity is the pair `(streamId, pageSequence)`, packed into the storage-part primary key via
  * {@link AbstractLeafPagePart#computeUniquePartId}.
@@ -61,7 +64,7 @@ public class FilterIndexLeafPagePart extends AbstractAttributeLeafPagePart {
 	/**
 	 * The leaf's buckets in ascending value order — (value, record-set) pairs.
 	 */
-	@Nonnull @Getter private final ValueToRecordBitmap[] buckets;
+	@Nonnull @Getter private final ValueToRecord[] buckets;
 
 	/**
 	 * Creates a WRITE-PATH leaf page carrying the sub-index identity; its `streamId` and primary key are resolved
@@ -76,7 +79,7 @@ public class FilterIndexLeafPagePart extends AbstractAttributeLeafPagePart {
 		int entityIndexPrimaryKey,
 		@Nonnull AttributeKeyWithIndexType attributeKey,
 		int pageSequence,
-		@Nonnull ValueToRecordBitmap[] buckets
+		@Nonnull ValueToRecord[] buckets
 	) {
 		super(entityIndexPrimaryKey, attributeKey, pageSequence);
 		this.buckets = buckets;
@@ -92,7 +95,7 @@ public class FilterIndexLeafPagePart extends AbstractAttributeLeafPagePart {
 	 * @param storagePartPK the precomputed primary key
 	 */
 	public FilterIndexLeafPagePart(
-		int streamId, int pageSequence, @Nonnull ValueToRecordBitmap[] buckets, @Nonnull Long storagePartPK
+		int streamId, int pageSequence, @Nonnull ValueToRecord[] buckets, @Nonnull Long storagePartPK
 	) {
 		super(streamId, pageSequence, storagePartPK);
 		this.buckets = buckets;

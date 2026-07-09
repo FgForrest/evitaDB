@@ -26,15 +26,22 @@ package io.evitadb.store.index.serializer;
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
+import io.evitadb.index.invertedIndex.ValueToRecord;
 import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
+import io.evitadb.index.invertedIndex.ValueToRecordPrimitive;
 
 import javax.annotation.Nonnull;
+import java.io.Serializable;
 
 /**
- * Shared base for the Kryo serializers of `ValueToRecordBitmap`-backed leaf pages. On top of the `(streamId,
+ * Shared base for the Kryo serializers of `ValueToRecord`-backed leaf pages. On top of the `(streamId,
  * pageSequence)` frame owned by {@link AbstractLeafPagePartSerializer}, a bucket-shaped leaf page carries a
- * length-prefixed run of `ValueToRecordBitmap` buckets serialized through their already-registered Kryo serializer —
- * framed identically across the indexes that use it.
+ * length-prefixed run of buckets, each led by a discriminator byte that picks its wire shape: `0` for the compact
+ * single-record {@link ValueToRecordPrimitive} (its value plus a bare record-id varint - no bitmap framing at all),
+ * `1` for the multi-record {@link ValueToRecordBitmap} (delegated to its already-registered Kryo serializer). This
+ * mirrors the query-side read path's {@code materializeBucket} split - a leaf page never force-builds a
+ * {@code PersistentRoaringBitmap} tower for a bucket that holds exactly one record - and, as a side effect, also
+ * shrinks the on-disk footprint of a single-record bucket versus the always-bitmap encoding this class used before.
  *
  * Concrete subclasses supply only the hooks that vary by page type: the two identity accessors (inherited abstract), the
  * bucket-array accessor, and the factory that rehydrates a page of the concrete type from the wire data. This keeps a
@@ -45,12 +52,28 @@ import javax.annotation.Nonnull;
  */
 public abstract class BucketLeafPagePartSerializer<T> extends AbstractLeafPagePartSerializer<T> {
 
+	/**
+	 * Discriminator byte marking a wire-encoded {@link ValueToRecordPrimitive} bucket.
+	 */
+	private static final byte BUCKET_KIND_PRIMITIVE = 0;
+	/**
+	 * Discriminator byte marking a wire-encoded {@link ValueToRecordBitmap} bucket.
+	 */
+	private static final byte BUCKET_KIND_BITMAP = 1;
+
 	@Override
 	protected void writePayload(@Nonnull Kryo kryo, @Nonnull Output output, @Nonnull T page) {
-		final ValueToRecordBitmap[] buckets = buckets(page);
+		final ValueToRecord[] buckets = buckets(page);
 		output.writeVarInt(buckets.length, true);
-		for (final ValueToRecordBitmap bucket : buckets) {
-			kryo.writeObject(output, bucket);
+		for (final ValueToRecord bucket : buckets) {
+			if (bucket instanceof final ValueToRecordPrimitive primitive) {
+				output.writeByte(BUCKET_KIND_PRIMITIVE);
+				kryo.writeClassAndObject(output, primitive.getValue());
+				output.writeVarInt(primitive.getRecordId(), true);
+			} else {
+				output.writeByte(BUCKET_KIND_BITMAP);
+				kryo.writeObject(output, (ValueToRecordBitmap) bucket);
+			}
 		}
 	}
 
@@ -58,9 +81,16 @@ public abstract class BucketLeafPagePartSerializer<T> extends AbstractLeafPagePa
 	@Override
 	protected T readPayload(@Nonnull Kryo kryo, @Nonnull Input input, int streamId, int pageSequence) {
 		final int bucketCount = input.readVarInt(true);
-		final ValueToRecordBitmap[] buckets = new ValueToRecordBitmap[bucketCount];
+		final ValueToRecord[] buckets = new ValueToRecord[bucketCount];
 		for (int i = 0; i < bucketCount; i++) {
-			buckets[i] = kryo.readObject(input, ValueToRecordBitmap.class);
+			final byte bucketKind = input.readByte();
+			if (bucketKind == BUCKET_KIND_PRIMITIVE) {
+				final Serializable value = (Serializable) kryo.readClassAndObject(input);
+				final int recordId = input.readVarInt(true);
+				buckets[i] = new ValueToRecordPrimitive(value, recordId);
+			} else {
+				buckets[i] = kryo.readObject(input, ValueToRecordBitmap.class);
+			}
 		}
 		return create(streamId, pageSequence, buckets);
 	}
@@ -70,7 +100,7 @@ public abstract class BucketLeafPagePartSerializer<T> extends AbstractLeafPagePa
 	 * @return the page's buckets, in the order they must be persisted
 	 */
 	@Nonnull
-	protected abstract ValueToRecordBitmap[] buckets(@Nonnull T page);
+	protected abstract ValueToRecord[] buckets(@Nonnull T page);
 
 	/**
 	 * Rehydrates a leaf page of the concrete type from its wire data. The implementation is expected to recompute the
@@ -82,6 +112,6 @@ public abstract class BucketLeafPagePartSerializer<T> extends AbstractLeafPagePa
 	 * @return the rehydrated leaf page
 	 */
 	@Nonnull
-	protected abstract T create(int streamId, int pageSequence, @Nonnull ValueToRecordBitmap[] buckets);
+	protected abstract T create(int streamId, int pageSequence, @Nonnull ValueToRecord[] buckets);
 
 }

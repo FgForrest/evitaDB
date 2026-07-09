@@ -1500,13 +1500,13 @@ class InvertedIndexTest implements TimeBoundedTestSupport {
 			);
 
 			// concatenating the leaf pages in ordered page-sequence order must equal the whole-tree materialization
-			final Map<Integer, ValueToRecordBitmap[]> byPageSequence = new HashMap<>();
+			final Map<Integer, ValueToRecord[]> byPageSequence = new HashMap<>();
 			for (final InvertedIndex.LeafPage page : emission.changedPages()) {
 				byPageSequence.put(page.pageSequence(), page.buckets());
 			}
-			final List<ValueToRecordBitmap> reconstructed = new ArrayList<>();
+			final List<ValueToRecord> reconstructed = new ArrayList<>();
 			for (final int pageSequence : ordered) {
-				final ValueToRecordBitmap[] pageBuckets = byPageSequence.get(pageSequence);
+				final ValueToRecord[] pageBuckets = byPageSequence.get(pageSequence);
 				assertNotNull(pageBuckets, "Every ordered page must have been emitted.");
 				Collections.addAll(reconstructed, pageBuckets);
 			}
@@ -1520,6 +1520,35 @@ class InvertedIndexTest implements TimeBoundedTestSupport {
 					"record set @ " + i
 				);
 			}
+		}
+
+		@Test
+		@Tag(INDEXING)
+		@Tag(ATTRIBUTE)
+		@DisplayName("collectChangedPages materializes single-record buckets as the compact ValueToRecordPrimitive and multi-record buckets as ValueToRecordBitmap")
+		void shouldSplitCollectedBucketsBySingleVersusMultiRecordCardinality() {
+			final InvertedIndex index = new InvertedIndex(FilterIndex.NO_NORMALIZATION, Comparator.naturalOrder());
+			index.addRecord(1, 100);            // single-record bucket
+			index.addRecord(2, 200);
+			index.addRecord(2, 201);            // multi-record bucket
+			index.addRecord(3, 300);            // single-record bucket
+
+			final PageEmission<InvertedIndex.LeafPage> emission = index.collectChangedPages();
+			assertEquals(1, emission.changedPages().size(), "A small index must be a single leaf page.");
+			final ValueToRecord[] buckets = emission.changedPages().get(0).buckets();
+			assertEquals(3, buckets.length, "Every distinct value must yield exactly one bucket.");
+
+			assertInstanceOf(ValueToRecordPrimitive.class, buckets[0], "A single-record bucket must be the compact primitive.");
+			assertEquals(1, buckets[0].getValue(), "value @ 0");
+			assertEquals(100, ((ValueToRecordPrimitive) buckets[0]).getRecordId(), "record id @ 0");
+
+			assertInstanceOf(ValueToRecordBitmap.class, buckets[1], "A multi-record bucket must be the bitmap representation.");
+			assertEquals(2, buckets[1].getValue(), "value @ 1");
+			assertArrayEquals(new int[]{200, 201}, buckets[1].getRecordIds().getArray(), "record set @ 1");
+
+			assertInstanceOf(ValueToRecordPrimitive.class, buckets[2], "A single-record bucket must be the compact primitive.");
+			assertEquals(3, buckets[2].getValue(), "value @ 2");
+			assertEquals(300, ((ValueToRecordPrimitive) buckets[2]).getRecordId(), "record id @ 2");
 		}
 
 		@Test
@@ -1625,11 +1654,11 @@ class InvertedIndexTest implements TimeBoundedTestSupport {
 			final int[] orderedPageSequences = emission.orderedPageSequences();
 			final int highWater = emission.highWaterPageSequence();
 			// the first emission writes every leaf, so reconstruct the per-page buckets in page order from it
-			final Map<Integer, ValueToRecordBitmap[]> byPageSequence = new HashMap<>();
+			final Map<Integer, ValueToRecord[]> byPageSequence = new HashMap<>();
 			for (final InvertedIndex.LeafPage page : emission.changedPages()) {
 				byPageSequence.put(page.pageSequence(), page.buckets());
 			}
-			final ValueToRecordBitmap[][] perPageBuckets = new ValueToRecordBitmap[orderedPageSequences.length][];
+			final ValueToRecord[][] perPageBuckets = new ValueToRecord[orderedPageSequences.length][];
 			for (int i = 0; i < orderedPageSequences.length; i++) {
 				perPageBuckets[i] = byPageSequence.get(orderedPageSequences[i]);
 			}

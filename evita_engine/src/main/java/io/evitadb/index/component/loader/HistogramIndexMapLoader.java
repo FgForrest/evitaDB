@@ -33,7 +33,7 @@ import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.attribute.OwnerFilterIndex;
 import io.evitadb.index.cardinality.AttributeCardinalityIndex;
 import io.evitadb.index.invertedIndex.InvertedIndex;
-import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
+import io.evitadb.index.invertedIndex.ValueToRecord;
 import io.evitadb.index.range.RangeIndex;
 import io.evitadb.index.range.TransactionalRangePoint;
 import io.evitadb.spi.store.catalog.persistence.StoragePartPersistenceService;
@@ -218,7 +218,7 @@ public final class HistogramIndexMapLoader implements ComponentLoader {
 				new HistogramLeafStreamKey(entityIndexId, histogramName, locale, StreamKind.BUCKET)
 			);
 			final int[] orderedPageSequences = part.getLeafPageSequences();
-			final ValueToRecordBitmap[][] perPageBuckets = new ValueToRecordBitmap[orderedPageSequences.length][];
+			final ValueToRecord[][] perPageBuckets = new ValueToRecord[orderedPageSequences.length][];
 			for (int i = 0; i < orderedPageSequences.length; i++) {
 				final int pageSequence = orderedPageSequences[i];
 				final HistogramIndexLeafPagePart leafPage = service.getStoragePart(

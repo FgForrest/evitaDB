@@ -36,7 +36,6 @@ import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.array.TransactionalUnorderedIntArray;
 import io.evitadb.index.invertedIndex.InvertedIndex;
 import io.evitadb.index.invertedIndex.ValueToRecord;
-import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
 import io.evitadb.index.page.PageEmission;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStoragePart.AttributeIndexType;
@@ -194,7 +193,7 @@ public final class OwnerSortIndex extends SortIndex {
 		@Nonnull AttributeIndexKey attributeIndexKey,
 		int indexedDecimalPlaces,
 		@Nonnull int[] orderedPageSequences,
-		@Nonnull ValueToRecordBitmap[][] perPageBuckets,
+		@Nonnull ValueToRecord[][] perPageBuckets,
 		int highWaterPageSequence
 	) {
 		// the combined comparator (direction + NULL handling) is derived exactly as the SortIndex base derives its own

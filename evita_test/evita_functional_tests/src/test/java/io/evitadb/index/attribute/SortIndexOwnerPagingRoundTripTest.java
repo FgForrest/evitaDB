@@ -31,7 +31,7 @@ import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.function.Functions;
 import io.evitadb.index.attribute.SortIndex.ComparatorSource;
-import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
+import io.evitadb.index.invertedIndex.ValueToRecord;
 import io.evitadb.spi.store.catalog.persistence.storageParts.DeferredRemovalStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AbstractLeafPagePart;
@@ -778,7 +778,7 @@ class SortIndexOwnerPagingRoundTripTest implements EvitaTestSupport {
 	) {
 		final int streamId = streamId(offsetIndex);
 		final int[] orderedPageSequences = root.getLeafPageSequences();
-		final ValueToRecordBitmap[][] perPageBuckets = new ValueToRecordBitmap[orderedPageSequences.length][];
+		final ValueToRecord[][] perPageBuckets = new ValueToRecord[orderedPageSequences.length][];
 		for (int i = 0; i < orderedPageSequences.length; i++) {
 			final SortIndexLeafPagePart leafPage = offsetIndex.get(
 				catalogVersion, AbstractLeafPagePart.computeUniquePartId(streamId, orderedPageSequences[i]),

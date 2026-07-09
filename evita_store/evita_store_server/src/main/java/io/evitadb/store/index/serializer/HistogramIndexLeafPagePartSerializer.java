@@ -24,7 +24,7 @@
 package io.evitadb.store.index.serializer;
 
 import com.esotericsoftware.kryo.Serializer;
-import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
+import io.evitadb.index.invertedIndex.ValueToRecord;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.HistogramIndexLeafPagePart;
 
 import javax.annotation.Nonnull;
@@ -51,14 +51,14 @@ public class HistogramIndexLeafPagePartSerializer extends BucketLeafPagePartSeri
 
 	@Nonnull
 	@Override
-	protected ValueToRecordBitmap[] buckets(@Nonnull HistogramIndexLeafPagePart page) {
+	protected ValueToRecord[] buckets(@Nonnull HistogramIndexLeafPagePart page) {
 		return page.getBuckets();
 	}
 
 	@Nonnull
 	@Override
 	protected HistogramIndexLeafPagePart create(
-		int streamId, int pageSequence, @Nonnull ValueToRecordBitmap[] buckets
+		int streamId, int pageSequence, @Nonnull ValueToRecord[] buckets
 	) {
 		return new HistogramIndexLeafPagePart(
 			streamId, pageSequence, buckets, HistogramIndexLeafPagePart.computeUniquePartId(streamId, pageSequence)

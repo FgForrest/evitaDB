@@ -30,10 +30,7 @@ import io.evitadb.index.invertedIndex.ValueToRecord;
 import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
 import io.evitadb.index.invertedIndex.ValueToRecordPrimitive;
 import io.evitadb.spi.store.catalog.persistence.storageParts.compressor.ReadWriteKeyCompressor;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.AbstractLeafPagePart;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStoragePart.AttributeIndexType;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeKeyWithIndexType;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.FilterIndexLeafPagePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.HistogramIndexLeafPagePart;
 import io.evitadb.store.index.IndexStoragePartConfigurer;
 import io.evitadb.store.shared.kryo.KryoFactory;
 import org.junit.jupiter.api.BeforeEach;
@@ -43,67 +40,61 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.ByteArrayOutputStream;
 import java.util.Collections;
+import java.util.Locale;
 
 import static io.evitadb.test.TestTags.SERIALIZATION;
 import static io.evitadb.test.TestTags.STORAGE;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Verifies {@link FilterIndexLeafPagePartSerializer} — the Kryo (de)serialization of a granular FilterIndex leaf page
- *. A write-path page carries its sub-index identity and resolves the `streamId` store-side through the
+ * Verifies {@link HistogramIndexLeafPagePartSerializer} — the Kryo (de)serialization of a granular histogram bucket
+ * leaf page. A write-path page carries its sub-index identity and resolves the `streamId` store-side through the
  * {@link ReadWriteKeyCompressor} when its primary key is assigned; the serializer then writes the resolved
- * `(streamId, pageSequence)` pair and the leaf's buckets, recomputing the join-derived primary key on read. Exercises single-
- * and multi-record buckets, an empty leaf, identity-driven stream-id resolution, and the registered-type round-trip
- * through {@link IndexStoragePartConfigurer} (proving the new record type and its serializer are wired into the index
- * Kryo).
+ * `(streamId, pageSequence)` pair and the leaf's buckets, recomputing the join-derived primary key on read. Shares its
+ * bucket payload framing with {@link FilterIndexLeafPagePartSerializer} via {@link BucketLeafPagePartSerializer}, so
+ * this mirrors that test's coverage (single-record, multi-record, mixed and empty leaves) scoped to the histogram
+ * identity.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
-@DisplayName("Filter index leaf-page serializer")
+@DisplayName("Histogram index leaf-page serializer")
 @Tag(STORAGE)
 @Tag(SERIALIZATION)
-class FilterIndexLeafPagePartSerializerTest {
+class HistogramIndexLeafPagePartSerializerTest {
 
 	private Kryo kryo;
-	private FilterIndexLeafPagePartSerializer serializer;
+	private HistogramIndexLeafPagePartSerializer serializer;
 	private ReadWriteKeyCompressor keyCompressor;
 
 	@BeforeEach
 	void setUp() {
 		this.keyCompressor = new ReadWriteKeyCompressor(Collections.emptyMap());
-		this.serializer = new FilterIndexLeafPagePartSerializer();
+		this.serializer = new HistogramIndexLeafPagePartSerializer();
 		this.kryo = KryoFactory.createKryo(new IndexStoragePartConfigurer(this.keyCompressor));
 	}
 
 	/**
-	 * Builds a write-path leaf page for the entity-scoped attribute `attr` and resolves its primary key (hence its
+	 * Builds a write-path leaf page for the given histogram sub-index identity and resolves its primary key (hence its
 	 * stream id) through the test compressor — exactly the store-side sequence the persistence service performs before
 	 * writing.
-	 *
-	 * @param entityIndexPrimaryKey the owning entity index pk
-	 * @param attr                  the (entity-scoped, non-localized) attribute name
-	 * @param pageSequence               the page sequence
-	 * @param buckets               the leaf buckets
-	 * @return the key-assigned write-path page
 	 */
 	@Nonnull
-	private FilterIndexLeafPagePart page(
-		int entityIndexPrimaryKey, @Nonnull String attr, int pageSequence, @Nonnull ValueToRecord... buckets
+	private HistogramIndexLeafPagePart page(
+		int entityIndexPrimaryKey, @Nonnull String histogramName, @Nullable Locale locale, int pageSequence,
+		@Nonnull ValueToRecord... buckets
 	) {
-		final FilterIndexLeafPagePart page = new FilterIndexLeafPagePart(
-			entityIndexPrimaryKey,
-			new AttributeKeyWithIndexType(null, attr, null, AttributeIndexType.FILTER),
-			pageSequence,
-			buckets
+		final HistogramIndexLeafPagePart page = new HistogramIndexLeafPagePart(
+			entityIndexPrimaryKey, histogramName, locale, pageSequence, buckets
 		);
 		page.computeUniquePartIdAndSet(this.keyCompressor);
 		return page;
 	}
 
 	@Nonnull
-	private byte[] serialize(@Nonnull FilterIndexLeafPagePart part) {
+	private byte[] serialize(@Nonnull HistogramIndexLeafPagePart part) {
 		final ByteArrayOutputStream os = new ByteArrayOutputStream(4_096);
 		try (final Output output = new Output(os, 4_096)) {
 			this.serializer.write(this.kryo, output, part);
@@ -112,20 +103,18 @@ class FilterIndexLeafPagePartSerializerTest {
 	}
 
 	@Nonnull
-	private FilterIndexLeafPagePart roundTrip(@Nonnull FilterIndexLeafPagePart part) {
+	private HistogramIndexLeafPagePart roundTrip(@Nonnull HistogramIndexLeafPagePart part) {
 		try (final Input input = new Input(serialize(part))) {
-			return this.serializer.read(this.kryo, input, FilterIndexLeafPagePart.class);
+			return this.serializer.read(this.kryo, input, HistogramIndexLeafPagePart.class);
 		}
 	}
 
 	/**
-	 * Asserts the two leaf pages hold the same stream id, page sequence, primary key, and bucket contents.
-	 *
-	 * @param expected the original page
-	 * @param actual   the deserialized page
+	 * Asserts the two leaf pages hold the same stream id, page sequence, primary key, and bucket contents (including
+	 * each bucket's representation - primitive vs. bitmap).
 	 */
 	private static void assertSamePage(
-		@Nonnull FilterIndexLeafPagePart expected, @Nonnull FilterIndexLeafPagePart actual
+		@Nonnull HistogramIndexLeafPagePart expected, @Nonnull HistogramIndexLeafPagePart actual
 	) {
 		assertEquals(expected.getStreamId(), actual.getStreamId(), "Stream id must survive the round-trip.");
 		assertEquals(expected.getPageSequence(), actual.getPageSequence(), "Page sequence must survive the round-trip.");
@@ -148,15 +137,15 @@ class FilterIndexLeafPagePartSerializerTest {
 	class ContentRoundTrip {
 
 		@Test
-		@DisplayName("round-trips single- and multi-record buckets")
+		@DisplayName("round-trips single- and multi-record bitmap buckets")
 		@Tag(STORAGE)
 		@Tag(SERIALIZATION)
 		void shouldRoundTripSingleAndMultiRecordBuckets() {
-			final FilterIndexLeafPagePart page = page(
-				7, "code", 3,
-				new ValueToRecordBitmap(10, 100),              // single
-				new ValueToRecordBitmap(20, 200, 201, 202),    // multi
-				new ValueToRecordBitmap(30, 300, 305)          // multi
+			final HistogramIndexLeafPagePart page = page(
+				7, "price", null, 3,
+				new ValueToRecordBitmap(10, 100),
+				new ValueToRecordBitmap(20, 200, 201, 202),
+				new ValueToRecordBitmap(30, 300, 305)
 			);
 			assertSamePage(page, roundTrip(page));
 		}
@@ -166,7 +155,7 @@ class FilterIndexLeafPagePartSerializerTest {
 		@Tag(STORAGE)
 		@Tag(SERIALIZATION)
 		void shouldRoundTripEmptyLeafPage() {
-			final FilterIndexLeafPagePart page = page(1, "name", 0);
+			final HistogramIndexLeafPagePart page = page(1, "price", null, 0);
 			assertSamePage(page, roundTrip(page));
 		}
 
@@ -175,12 +164,12 @@ class FilterIndexLeafPagePartSerializerTest {
 		@Tag(STORAGE)
 		@Tag(SERIALIZATION)
 		void shouldRoundTripPrimitiveBuckets() {
-			final FilterIndexLeafPagePart page = page(
-				7, "code", 3,
+			final HistogramIndexLeafPagePart page = page(
+				7, "price", null, 3,
 				new ValueToRecordPrimitive(10, 100),
 				new ValueToRecordPrimitive(20, 200)
 			);
-			final FilterIndexLeafPagePart deserialized = roundTrip(page);
+			final HistogramIndexLeafPagePart deserialized = roundTrip(page);
 			assertSamePage(page, deserialized);
 			for (final ValueToRecord bucket : deserialized.getBuckets()) {
 				assertInstanceOf(ValueToRecordPrimitive.class, bucket, "A single-record bucket must deserialize as the compact primitive representation.");
@@ -192,13 +181,13 @@ class FilterIndexLeafPagePartSerializerTest {
 		@Tag(STORAGE)
 		@Tag(SERIALIZATION)
 		void shouldRoundTripMixedPrimitiveAndBitmapBuckets() {
-			final FilterIndexLeafPagePart page = page(
-				7, "code", 3,
+			final HistogramIndexLeafPagePart page = page(
+				7, "price", null, 3,
 				new ValueToRecordPrimitive(10, 100),
 				new ValueToRecordBitmap(20, 200, 201, 202),
 				new ValueToRecordPrimitive(30, 300)
 			);
-			final FilterIndexLeafPagePart deserialized = roundTrip(page);
+			final HistogramIndexLeafPagePart deserialized = roundTrip(page);
 			assertSamePage(page, deserialized);
 			assertInstanceOf(ValueToRecordPrimitive.class, deserialized.getBuckets()[0]);
 			assertInstanceOf(ValueToRecordBitmap.class, deserialized.getBuckets()[1]);
@@ -210,12 +199,23 @@ class FilterIndexLeafPagePartSerializerTest {
 		@Tag(STORAGE)
 		@Tag(SERIALIZATION)
 		void shouldEncodePrimitiveBucketMoreCompactlyThanBitmapBucket() {
-			final FilterIndexLeafPagePart primitivePage = page(7, "code", 3, new ValueToRecordPrimitive(10, 100));
-			final FilterIndexLeafPagePart bitmapPage = page(7, "code", 3, new ValueToRecordBitmap(10, 100));
+			final HistogramIndexLeafPagePart primitivePage = page(7, "price", null, 3, new ValueToRecordPrimitive(10, 100));
+			final HistogramIndexLeafPagePart bitmapPage = page(7, "price", null, 3, new ValueToRecordBitmap(10, 100));
 			assertTrue(
 				serialize(primitivePage).length < serialize(bitmapPage).length,
 				"A single-record ValueToRecordPrimitive bucket must serialize smaller than the equivalent ValueToRecordBitmap bucket."
 			);
+		}
+
+		@Test
+		@DisplayName("round-trips a localized histogram bucket leaf page")
+		@Tag(STORAGE)
+		@Tag(SERIALIZATION)
+		void shouldRoundTripLocalizedHistogram() {
+			final HistogramIndexLeafPagePart page = page(
+				7, "weight", Locale.GERMAN, 3, new ValueToRecordPrimitive(10, 100)
+			);
+			assertSamePage(page, roundTrip(page));
 		}
 	}
 
@@ -228,33 +228,22 @@ class FilterIndexLeafPagePartSerializerTest {
 		@Tag(STORAGE)
 		@Tag(SERIALIZATION)
 		void shouldResolveStreamIdAndDeriveJoinedPrimaryKey() {
-			final FilterIndexLeafPagePart page = page(42, "code", 5, new ValueToRecordBitmap(1, 1));
+			final HistogramIndexLeafPagePart page = page(42, "price", null, 5, new ValueToRecordPrimitive(1, 1));
 			final int resolvedStreamId = page.getStreamId();
-			final long expected = AbstractLeafPagePart.computeUniquePartId(resolvedStreamId, 5);
+			final long expected = HistogramIndexLeafPagePart.computeUniquePartId(resolvedStreamId, 5);
 			assertEquals(Long.valueOf(expected), page.getStoragePartPK(), "Computed key must join (streamId, pageSequence).");
-			// re-resolving the same identity is idempotent: same stream id, same key, no premise failure
-			assertEquals(
-				expected,
-				page.computeUniquePartIdAndSet(FilterIndexLeafPagePartSerializerTest.this.keyCompressor),
-				"Re-resolution must be idempotent."
-			);
-			assertEquals(resolvedStreamId, page.getStreamId(), "Re-resolution must yield the same stream id.");
 		}
 
 		@Test
-		@DisplayName("the same attribute in different entity indexes resolves to different streams")
+		@DisplayName("the same histogram in different locales resolves to different streams")
 		@Tag(STORAGE)
 		@Tag(SERIALIZATION)
-		void shouldDistinguishStreamsByEntityIndex() {
-			final FilterIndexLeafPagePart inIndex1 = page(1, "name", 0, new ValueToRecordBitmap(1, 1));
-			final FilterIndexLeafPagePart inIndex2 = page(2, "name", 0, new ValueToRecordBitmap(1, 1));
+		void shouldDistinguishStreamsByLocale() {
+			final HistogramIndexLeafPagePart inEnglish = page(1, "weight", Locale.ENGLISH, 0, new ValueToRecordPrimitive(1, 1));
+			final HistogramIndexLeafPagePart inGerman = page(1, "weight", Locale.GERMAN, 0, new ValueToRecordPrimitive(1, 1));
 			assertNotEquals(
-				inIndex1.getStreamId(), inIndex2.getStreamId(),
-				"The same attribute in different entity indexes must be distinct streams."
-			);
-			assertNotEquals(
-				inIndex1.getStoragePartPK(), inIndex2.getStoragePartPK(),
-				"Distinct streams with the same page sequence must have distinct primary keys."
+				inEnglish.getStreamId(), inGerman.getStreamId(),
+				"The same histogram in different locales must be distinct streams."
 			);
 		}
 
@@ -263,8 +252,8 @@ class FilterIndexLeafPagePartSerializerTest {
 		@Tag(STORAGE)
 		@Tag(SERIALIZATION)
 		void shouldRecomputePrimaryKeyOnRead() {
-			final FilterIndexLeafPagePart page = page(42, "code", 5, new ValueToRecordBitmap(1, 1));
-			final FilterIndexLeafPagePart deserialized = roundTrip(page);
+			final HistogramIndexLeafPagePart page = page(42, "price", null, 5, new ValueToRecordPrimitive(1, 1));
+			final HistogramIndexLeafPagePart deserialized = roundTrip(page);
 			assertEquals(
 				page.getStoragePartPK(), deserialized.getStoragePartPK(),
 				"Read must derive the key from the (streamId, pageSequence) pair."
@@ -281,19 +270,19 @@ class FilterIndexLeafPagePartSerializerTest {
 		@Tag(STORAGE)
 		@Tag(SERIALIZATION)
 		void shouldRoundTripViaRegisteredKryo() {
-			final FilterIndexLeafPagePart page = page(
-				9, "ean", 2,
-				new ValueToRecordBitmap(11, 1),
+			final HistogramIndexLeafPagePart page = page(
+				9, "price", null, 2,
+				new ValueToRecordPrimitive(11, 1),
 				new ValueToRecordBitmap(22, 2, 3)
 			);
 
 			final ByteArrayOutputStream os = new ByteArrayOutputStream(4_096);
 			try (final Output output = new Output(os, 4_096)) {
-				FilterIndexLeafPagePartSerializerTest.this.kryo.writeObject(output, page);
+				HistogramIndexLeafPagePartSerializerTest.this.kryo.writeObject(output, page);
 			}
-			final FilterIndexLeafPagePart deserialized;
+			final HistogramIndexLeafPagePart deserialized;
 			try (final Input input = new Input(os.toByteArray())) {
-				deserialized = FilterIndexLeafPagePartSerializerTest.this.kryo.readObject(input, FilterIndexLeafPagePart.class);
+				deserialized = HistogramIndexLeafPagePartSerializerTest.this.kryo.readObject(input, HistogramIndexLeafPagePart.class);
 			}
 			assertSamePage(page, deserialized);
 		}

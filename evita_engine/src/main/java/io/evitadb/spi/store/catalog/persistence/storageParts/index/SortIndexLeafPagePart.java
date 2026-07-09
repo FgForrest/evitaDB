@@ -23,7 +23,9 @@
 
 package io.evitadb.spi.store.catalog.persistence.storageParts.index;
 
+import io.evitadb.index.invertedIndex.ValueToRecord;
 import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
+import io.evitadb.index.invertedIndex.ValueToRecordPrimitive;
 import io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor;
 import lombok.Getter;
 
@@ -37,8 +39,9 @@ import java.io.Serial;
  * only the leaf pages it actually changed instead of re-materializing the whole flat `sortedRecords` int array plus the
  * distinct value column on every commit.
  *
- * The page carries the leaf's buckets as a {@link ValueToRecordBitmap} array — the same (value, record-set) element shape
- * the {@code FilterIndex} leaf page uses — in ascending value order; the routing spine that orders the leaves is NOT
+ * The page carries the leaf's buckets as a {@link ValueToRecord} array — each element either the multi-record
+ * {@link ValueToRecordBitmap} or the compact single-record {@link ValueToRecordPrimitive} — the same split the
+ * {@code FilterIndex} leaf page uses — in ascending value order; the routing spine that orders the leaves is NOT
  * persisted (it is reconstructed on load), and a leaf page stores no separators. The flat positional `sortedRecords`
  * façade is NOT persisted either: it is reconstructed by concatenating the reloaded tree's buckets on load.
  *
@@ -67,7 +70,7 @@ public class SortIndexLeafPagePart extends AbstractAttributeLeafPagePart {
 	/**
 	 * The leaf's buckets in ascending value order — (value, record-set) pairs.
 	 */
-	@Nonnull @Getter private final ValueToRecordBitmap[] buckets;
+	@Nonnull @Getter private final ValueToRecord[] buckets;
 	/**
 	 * The number of comparator-base components of the owning sort index (1 == scalar, &gt;1 == compound). Drives the
 	 * bespoke serializer's per-bucket value (un)wrapping; carried on the page because Kryo serializers are stateless.
@@ -88,7 +91,7 @@ public class SortIndexLeafPagePart extends AbstractAttributeLeafPagePart {
 		int entityIndexPrimaryKey,
 		@Nonnull AttributeKeyWithIndexType attributeKey,
 		int pageSequence,
-		@Nonnull ValueToRecordBitmap[] buckets,
+		@Nonnull ValueToRecord[] buckets,
 		int comparatorBaseLength
 	) {
 		super(entityIndexPrimaryKey, attributeKey, pageSequence);
@@ -109,7 +112,7 @@ public class SortIndexLeafPagePart extends AbstractAttributeLeafPagePart {
 	public SortIndexLeafPagePart(
 		int streamId,
 		int pageSequence,
-		@Nonnull ValueToRecordBitmap[] buckets,
+		@Nonnull ValueToRecord[] buckets,
 		int comparatorBaseLength,
 		@Nonnull Long storagePartPK
 	) {

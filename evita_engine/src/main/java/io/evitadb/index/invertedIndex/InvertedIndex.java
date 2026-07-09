@@ -487,7 +487,7 @@ public class InvertedIndex implements
 	public static InvertedIndex fromPersistedPages(
 		@Nonnull Class<?> plainType,
 		@Nonnull int[] orderedPageSequences,
-		@Nonnull ValueToRecordBitmap[][] perPageBuckets,
+		@Nonnull ValueToRecord[][] perPageBuckets,
 		int highWaterPageSequence,
 		@Nonnull Function<Object, Serializable> normalizer,
 		@Nonnull Comparator comparator,
@@ -500,10 +500,10 @@ public class InvertedIndex implements
 		Assert.isPremiseValid(orderedPageSequences.length > 0, "A paged inverted index must have at least one leaf page.");
 		final List<TransactionalBucketBPlusTree> pageTrees = new ArrayList<>(orderedPageSequences.length);
 		for (int i = 0; i < orderedPageSequences.length; i++) {
-			final ValueToRecordBitmap[] buckets = perPageBuckets[i];
+			final ValueToRecord[] buckets = perPageBuckets[i];
 			// build a single-leaf tree from this page's buckets — a page never exceeds a leaf's capacity, so no split
 			final TransactionalBucketBPlusTree pageTree = createEmptyTree(plainType, comparator);
-			for (final ValueToRecordBitmap bucket : buckets) {
+			for (final ValueToRecord bucket : buckets) {
 				final Bitmap recordIds = bucket.getRecordIds();
 				final Comparable value = (Comparable) bucket.getValue();
 				if (recordIds.size() == 1) {
@@ -985,16 +985,16 @@ public class InvertedIndex implements
 			BUCKET_PAGE_STREAM, handles,
 			(pageSequence, handle) -> {
 				final BucketCursor cursor = handle.cursor();
-				final List<ValueToRecordBitmap> pageBuckets = new ArrayList<>();
+				final List<ValueToRecord> pageBuckets = new ArrayList<>();
 				while (cursor.next()) {
 					final Serializable value = (Serializable) cursor.value();
 					pageBuckets.add(
 						cursor.isSingle()
-							? new ValueToRecordBitmap(value, cursor.singleRecordId())
+							? new ValueToRecordPrimitive(value, cursor.singleRecordId())
 							: new ValueToRecordBitmap(value, (TransactionalBitmap) cursor.records())
 					);
 				}
-				return new LeafPage(pageSequence, pageBuckets.toArray(ValueToRecordBitmap[]::new));
+				return new LeafPage(pageSequence, pageBuckets.toArray(ValueToRecord[]::new));
 			}
 		);
 	}
@@ -1033,7 +1033,7 @@ public class InvertedIndex implements
 	 * @param pageSequence the leaf's stable page sequence
 	 * @param buckets the leaf's buckets in ascending value order
 	 */
-	public record LeafPage(int pageSequence, @Nonnull ValueToRecordBitmap[] buckets) {
+	public record LeafPage(int pageSequence, @Nonnull ValueToRecord[] buckets) {
 	}
 
 	/**

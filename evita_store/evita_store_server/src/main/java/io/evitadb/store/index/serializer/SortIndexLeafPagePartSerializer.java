@@ -28,7 +28,9 @@ import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.index.bitmap.TransactionalBitmap;
+import io.evitadb.index.invertedIndex.ValueToRecord;
 import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
+import io.evitadb.index.invertedIndex.ValueToRecordPrimitive;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AbstractLeafPagePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.SortIndexLeafPagePart;
 
@@ -45,12 +47,25 @@ import java.io.Serializable;
  * Kryo, so {@code writeClassAndObject} would garble it. The value is instead unwrapped component-by-component via the same
  * {@link SortIndexStoragePartSerializer#writeComparableValue} / {@link SortIndexStoragePartSerializer#readComparableValue}
  * convention the monolithic root serializer uses, driven by the page's `comparatorBaseLength` (Kryo serializers are
- * stateless, so the length must travel with the page). The record-set bitmap is written exactly as
+ * stateless, so the length must travel with the page).
+ *
+ * A leading discriminator byte per bucket picks the record-set wire shape, mirroring
+ * {@link BucketLeafPagePartSerializer}: a compact single-record {@link ValueToRecordPrimitive} writes its record id as
+ * a bare varint (no bitmap framing); a multi-record {@link ValueToRecordBitmap} writes its record-set exactly as
  * {@link ValueToRecordBitmapSerializer} writes it.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 public class SortIndexLeafPagePartSerializer extends AbstractLeafPagePartSerializer<SortIndexLeafPagePart> {
+
+	/**
+	 * Discriminator byte marking a wire-encoded {@link ValueToRecordPrimitive} bucket.
+	 */
+	private static final byte BUCKET_KIND_PRIMITIVE = 0;
+	/**
+	 * Discriminator byte marking a wire-encoded {@link ValueToRecordBitmap} bucket.
+	 */
+	private static final byte BUCKET_KIND_BITMAP = 1;
 
 	@Override
 	protected int streamId(@Nonnull SortIndexLeafPagePart page) {
@@ -67,12 +82,20 @@ public class SortIndexLeafPagePartSerializer extends AbstractLeafPagePartSeriali
 		final int comparatorBaseLength = page.getComparatorBaseLength();
 		output.writeVarInt(comparatorBaseLength, true);
 
-		final ValueToRecordBitmap[] buckets = page.getBuckets();
+		final ValueToRecord[] buckets = page.getBuckets();
 		output.writeVarInt(buckets.length, true);
-		for (final ValueToRecordBitmap bucket : buckets) {
-			// unwrap the (possibly compound) sort value component-by-component, then write its record-set bitmap
-			SortIndexStoragePartSerializer.writeComparableValue(kryo, output, bucket.getValue(), comparatorBaseLength);
-			kryo.writeObject(output, bucket.getRecordIds());
+		for (final ValueToRecord bucket : buckets) {
+			if (bucket instanceof final ValueToRecordPrimitive primitive) {
+				output.writeByte(BUCKET_KIND_PRIMITIVE);
+				// unwrap the (possibly compound) sort value component-by-component, then write the bare record id
+				SortIndexStoragePartSerializer.writeComparableValue(kryo, output, primitive.getValue(), comparatorBaseLength);
+				output.writeVarInt(primitive.getRecordId(), true);
+			} else {
+				output.writeByte(BUCKET_KIND_BITMAP);
+				final ValueToRecordBitmap bitmapBucket = (ValueToRecordBitmap) bucket;
+				SortIndexStoragePartSerializer.writeComparableValue(kryo, output, bitmapBucket.getValue(), comparatorBaseLength);
+				kryo.writeObject(output, bitmapBucket.getRecordIds());
+			}
 		}
 	}
 
@@ -84,11 +107,17 @@ public class SortIndexLeafPagePartSerializer extends AbstractLeafPagePartSeriali
 		final int comparatorBaseLength = input.readVarInt(true);
 
 		final int bucketCount = input.readVarInt(true);
-		final ValueToRecordBitmap[] buckets = new ValueToRecordBitmap[bucketCount];
+		final ValueToRecord[] buckets = new ValueToRecord[bucketCount];
 		for (int i = 0; i < bucketCount; i++) {
+			final byte bucketKind = input.readByte();
 			final Serializable value = SortIndexStoragePartSerializer.readComparableValue(kryo, input, comparatorBaseLength);
-			final TransactionalBitmap recordIds = kryo.readObject(input, TransactionalBitmap.class);
-			buckets[i] = new ValueToRecordBitmap(value, recordIds);
+			if (bucketKind == BUCKET_KIND_PRIMITIVE) {
+				final int recordId = input.readVarInt(true);
+				buckets[i] = new ValueToRecordPrimitive(value, recordId);
+			} else {
+				final TransactionalBitmap recordIds = kryo.readObject(input, TransactionalBitmap.class);
+				buckets[i] = new ValueToRecordBitmap(value, recordIds);
+			}
 		}
 
 		return new SortIndexLeafPagePart(

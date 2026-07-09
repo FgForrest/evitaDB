@@ -23,7 +23,9 @@
 
 package io.evitadb.spi.store.catalog.persistence.storageParts.index;
 
+import io.evitadb.index.invertedIndex.ValueToRecord;
 import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
+import io.evitadb.index.invertedIndex.ValueToRecordPrimitive;
 import io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.HistogramLeafStreamKey.StreamKind;
 import io.evitadb.utils.Assert;
@@ -41,9 +43,10 @@ import java.util.Locale;
  * {@code InvertedIndex} is stored as its own record, so a transaction (re)writes only the leaf pages it actually changed
  * instead of re-materializing the whole bucket array.
  *
- * The page carries the leaf's buckets as a {@link ValueToRecordBitmap} array — the same (value, record-set) element
- * shape the monolithic {@code HistogramIndexStoragePart} uses — in ascending value order; the routing spine that orders
- * the leaves is NOT persisted (it is reconstructed on load), and a leaf page stores no separators.
+ * The page carries the leaf's buckets as a {@link ValueToRecord} array — each element either the multi-record
+ * {@link ValueToRecordBitmap} or the compact single-record {@link ValueToRecordPrimitive}, mirroring the same split
+ * the query-side read path already uses — in ascending value order; the routing spine that orders the leaves is NOT
+ * persisted (it is reconstructed on load), and a leaf page stores no separators.
  *
  * The `(streamId, pageSequence)` identity, primary-key packing and two-phase stream-id resolution are inherited from
  * {@link AbstractLeafPagePart}. This page's `streamId` is the {@link KeyCompressor} id of the sub-index's
@@ -75,7 +78,7 @@ public class HistogramIndexLeafPagePart extends AbstractLeafPagePart {
 	/**
 	 * The leaf's buckets in ascending value order — (value, record-set) pairs.
 	 */
-	@Nonnull @Getter private final ValueToRecordBitmap[] buckets;
+	@Nonnull @Getter private final ValueToRecord[] buckets;
 
 	/**
 	 * Computes the storage-part primary key for a leaf page from its resolved identifying pair. Retained for callers that
@@ -105,7 +108,7 @@ public class HistogramIndexLeafPagePart extends AbstractLeafPagePart {
 		@Nonnull String histogramName,
 		@Nullable Locale locale,
 		int pageSequence,
-		@Nonnull ValueToRecordBitmap[] buckets
+		@Nonnull ValueToRecord[] buckets
 	) {
 		super(pageSequence);
 		this.entityIndexPrimaryKey = entityIndexPrimaryKey;
@@ -124,7 +127,7 @@ public class HistogramIndexLeafPagePart extends AbstractLeafPagePart {
 	 * @param storagePartPK the precomputed primary key
 	 */
 	public HistogramIndexLeafPagePart(
-		int streamId, int pageSequence, @Nonnull ValueToRecordBitmap[] buckets, @Nonnull Long storagePartPK
+		int streamId, int pageSequence, @Nonnull ValueToRecord[] buckets, @Nonnull Long storagePartPK
 	) {
 		super(streamId, pageSequence, storagePartPK);
 		this.entityIndexPrimaryKey = null;

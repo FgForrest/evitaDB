@@ -33,7 +33,7 @@ import io.evitadb.index.attribute.SortIndex;
 import io.evitadb.index.attribute.SortIndexView;
 import io.evitadb.index.attribute.UniqueIndex;
 import io.evitadb.index.invertedIndex.InvertedIndex;
-import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
+import io.evitadb.index.invertedIndex.ValueToRecord;
 import io.evitadb.index.range.RangeIndex;
 import io.evitadb.index.range.TransactionalRangePoint;
 import io.evitadb.spi.store.catalog.persistence.StoragePartPersistenceService;
@@ -369,7 +369,7 @@ public final class AttributeIndexLoader implements ComponentLoader {
 			new LeafStreamKey(entityIndexId, new AttributeKeyWithIndexType(attributeIndexKey, AttributeIndexType.FILTER))
 		);
 		final int[] orderedPageSequences = part.getLeafPageSequences();
-		final ValueToRecordBitmap[][] perPageBuckets = new ValueToRecordBitmap[orderedPageSequences.length][];
+		final ValueToRecord[][] perPageBuckets = new ValueToRecord[orderedPageSequences.length][];
 		for (int i = 0; i < orderedPageSequences.length; i++) {
 			final int pageSequence = orderedPageSequences[i];
 			final FilterIndexLeafPagePart leafPage = service.getStoragePart(
@@ -504,7 +504,7 @@ public final class AttributeIndexLoader implements ComponentLoader {
 				new LeafStreamKey(entityIndexId, new AttributeKeyWithIndexType(attributeIndexKey, AttributeIndexType.SORT))
 			);
 			final int[] orderedPageSequences = part.getLeafPageSequencesOrThrowException();
-			final ValueToRecordBitmap[][] perPageBuckets = new ValueToRecordBitmap[orderedPageSequences.length][];
+			final ValueToRecord[][] perPageBuckets = new ValueToRecord[orderedPageSequences.length][];
 			for (int i = 0; i < orderedPageSequences.length; i++) {
 				final int pageSequence = orderedPageSequences[i];
 				final SortIndexLeafPagePart leafPage = service.getStoragePart(
