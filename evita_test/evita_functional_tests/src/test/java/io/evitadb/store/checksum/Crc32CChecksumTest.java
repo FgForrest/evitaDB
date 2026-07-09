@@ -270,6 +270,24 @@ class Crc32CChecksumTest {
 	}
 
 	@Test
+	@DisplayName("Should transition from a zero value-mode value to stream mode identically to a forceValue(0)-seeded legacy wrapper")
+	void shouldTransitionFromZeroValueModeToStreamModeIdenticallyToForceValueSeededWrapper() {
+		// enterStreamMode() special-cases value == 0 to call the cheap Crc32CWrapper#reset() rather than
+		// Crc32CWrapper#reset(0)/forceValue(0) - both must lead to the identical live register state, since
+		// getValue() is a bijection of the CRC32C register: the one state that yields 0 is the same state
+		// whether reached by a genuine reset or by forceValue(0). Cross-check directly against the legacy
+		// forceValue(0)-seeded constructor path, not just a never-forced fresh wrapper.
+		final byte[] suffix = "suffix-bytes-after-a-zero-cumulative-value".getBytes(StandardCharsets.UTF_8);
+
+		final Checksum checksum = new Crc32CChecksum(0L);
+		checksum.update(suffix);
+
+		final long legacyForceValueZeroSeeded = new Crc32CWrapper(0L).withByteArray(suffix).getValue();
+
+		assertEquals(legacyForceValueZeroSeeded, checksum.getValue());
+	}
+
+	@Test
 	@DisplayName("Should match the legacy live-object implementation across a large randomized operation sequence")
 	void shouldMatchLegacyImplementationAcrossRandomizedOperationSequence() {
 		final Random random = new Random(2026_07_09L);
