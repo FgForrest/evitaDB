@@ -59,7 +59,10 @@ public interface ValueColumnFactory<M extends Comparable<M>> {
 	 * {@link String} keys (localized or not) select the front-coded {@link FrontCodedStringColumn} first, regardless of
 	 * the comparator: front-coding is order-agnostic — the column stores values in whatever physical order the tree
 	 * imposes and {@link FrontCodedStringColumn#findKeyPosition} decodes each candidate back to a {@link String} and
-	 * compares it through the supplied comparator (natural codepoint order or locale collation).
+	 * compares it through the supplied comparator (natural codepoint order or locale collation). Under natural order,
+	 * when both the stored corpus and the probe are BMP-only, the comparison instead runs directly over raw UTF-8
+	 * bytes, skipping the per-candidate {@link String} allocation; see {@link FrontCodedStringColumn}'s "BMP-safe
+	 * byte-compare fast path" section.
 	 *
 	 * A primitive column is chosen only when the comparator is natural order. Temporal keys (normalized type
 	 * {@link Instant}, i.e. declared {@code OffsetDateTime} / {@code Instant}) select the parallel-array
@@ -82,9 +85,13 @@ public interface ValueColumnFactory<M extends Comparable<M>> {
 		if (String.class.isAssignableFrom(plainType)) {
 			// String keys (localized or not) are prefix-compressed into a front-coded byte block. Front-coding is
 			// orthogonal to the key order — the column stores values in whatever physical order the tree imposes and
-			// findKeyPosition decodes each candidate back to a String and compares it through the supplied comparator —
-			// so this column is selected regardless of the comparator (natural codepoint order vs. locale collation).
-			return (ValueColumnFactory) FrontCodedStringColumn::new;
+			// findKeyPosition usually decodes each candidate back to a String and compares it through the supplied
+			// comparator — so this column is selected regardless of the comparator (natural codepoint order vs.
+			// locale collation).
+			// naturalOrderSafe is captured once, here, from the same comparator every subsequent findKeyPosition
+			// call on this column will receive — see FrontCodedStringColumn's BMP-safe byte-compare fast path.
+			final boolean naturalOrderSafe = isNaturalOrder(comparator);
+			return (ValueColumnFactory) capacity -> new FrontCodedStringColumn(capacity, naturalOrderSafe);
 		}
 		if (isNaturalOrder(comparator)) {
 			if (normalizedType == Instant.class) {
@@ -127,12 +134,13 @@ public interface ValueColumnFactory<M extends Comparable<M>> {
 	/**
 	 * Returns whether the comparator imposes natural order (the {@code null} default or the
 	 * {@link Comparator#naturalOrder()} singleton). Only then is the monotonic {@link LongKeyCodec} encoding guaranteed
-	 * to match the tree ordering.
+	 * to match the tree ordering, and only then is {@link FrontCodedStringColumn}'s BMP-safe byte-compare fast path
+	 * (package-visible reuse of this same identity check) safe to take.
 	 *
 	 * @param comparator the comparator to test, or {@code null}
 	 * @return {@code true} when the order is natural
 	 */
-	private static boolean isNaturalOrder(@Nullable Comparator<?> comparator) {
+	static boolean isNaturalOrder(@Nullable Comparator<?> comparator) {
 		return comparator == null || comparator == Comparator.naturalOrder();
 	}
 }

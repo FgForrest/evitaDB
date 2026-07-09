@@ -44,6 +44,7 @@ import java.util.TreeSet;
 import static io.evitadb.index.bPlusTree.ValueColumnTestSupport.assertTreeMatchesOracle;
 import static io.evitadb.index.bPlusTree.ValueColumnTestSupport.verifyConsistent;
 import static io.evitadb.test.TestTags.ATTRIBUTE;
+import static io.evitadb.test.TestTags.COMPARATOR;
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.TRANSACTION;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
@@ -84,7 +85,7 @@ class FrontCodedStringColumnTest {
 		@Test
 		@DisplayName("insert / remove / findKeyPosition / duplicate / copyRangeTo match the boxed column")
 		void shouldBehaveLikeBoxedColumn() {
-			final ValueColumn<String> frontCoded = new FrontCodedStringColumn<>(BLOCK_SIZE);
+			final ValueColumn<String> frontCoded = new FrontCodedStringColumn<>(BLOCK_SIZE, true);
 			final ValueColumn<String> boxed = new BoxedObjectColumn<>(String.class, BLOCK_SIZE);
 
 			// build the same ordered prefix in both columns (shared "code-" prefix exercises prefix compression)
@@ -136,7 +137,7 @@ class FrontCodedStringColumnTest {
 			// from the direction the parity test above does not cover — mutating the ORIGINAL after duplicating must
 			// leave the DUPLICATE observing its pre-mutation snapshot, proving encode() never edits the shared arrays
 			// in place
-			final ValueColumn<String> original = new FrontCodedStringColumn<>(BLOCK_SIZE);
+			final ValueColumn<String> original = new FrontCodedStringColumn<>(BLOCK_SIZE, true);
 			final String[] keys = {"alpha", "alpine", "beta", "betard"};
 			for (int i = 0; i < keys.length; i++) {
 				original.insertKeyAt(i, keys[i]);
@@ -161,7 +162,7 @@ class FrontCodedStringColumnTest {
 		@Test
 		@DisplayName("copyRangeTo / fillEmpty / appendKey / asBoxedArray match the boxed column")
 		void shouldCopyRangeAndClearLikeBoxedColumn() {
-			final ValueColumn<String> srcFront = new FrontCodedStringColumn<>(BLOCK_SIZE);
+			final ValueColumn<String> srcFront = new FrontCodedStringColumn<>(BLOCK_SIZE, true);
 			final ValueColumn<String> srcBoxed = new BoxedObjectColumn<>(String.class, BLOCK_SIZE);
 			final String[] keys = {"alpha", "alpine", "beta", "betard"};
 			for (int i = 0; i < keys.length; i++) {
@@ -210,7 +211,7 @@ class FrontCodedStringColumnTest {
 			// so this exercises the restart-seek-then-walk decode that a leaf smaller than the restart interval cannot
 			final int capacity = 64;
 			final int count = 40;
-			final ValueColumn<String> column = new FrontCodedStringColumn<>(capacity);
+			final ValueColumn<String> column = new FrontCodedStringColumn<>(capacity, true);
 			final String[] expected = new String[count];
 			for (int i = 0; i < count; i++) {
 				// zero-padded so natural order == insertion order and every key shares the long "K00" prefix
@@ -241,7 +242,7 @@ class FrontCodedStringColumnTest {
 		void shouldRoundTripVarintBoundaryKeys() {
 			// length fields are varint-encoded, so a shared prefix and a suffix that each exceed the single-byte length
 			// limit (255 bytes) must both round-trip correctly
-			final ValueColumn<String> column = new FrontCodedStringColumn<>(BLOCK_SIZE);
+			final ValueColumn<String> column = new FrontCodedStringColumn<>(BLOCK_SIZE, true);
 			final String longPrefix = "a".repeat(300);
 			final String[] keys = {longPrefix + "1", longPrefix + "2", "z".repeat(400)};
 			for (int i = 0; i < keys.length; i++) {
@@ -263,7 +264,7 @@ class FrontCodedStringColumnTest {
 			// predecessor in the same restart block must be truncated to its real length, never echoing the
 			// predecessor's trailing bytes left in the shared scratch. The 60-byte key also exceeds the initial scratch
 			// size, so this also exercises the grow-then-reuse path.
-			final ValueColumn<String> column = new FrontCodedStringColumn<>(BLOCK_SIZE);
+			final ValueColumn<String> column = new FrontCodedStringColumn<>(BLOCK_SIZE, true);
 			final String longKey = "abc" + "x".repeat(57); // 60 bytes, forces the scratch to grow past its seed
 			final String[] keys = {"aaa", longKey, "abd", "abe" + "y".repeat(40)};
 			for (int i = 0; i < keys.length; i++) {
@@ -294,7 +295,7 @@ class FrontCodedStringColumnTest {
 			// trailing key reuses the scratch already filled with the 300-byte predecessor, so the shared==0 branch must
 			// overwrite the suffix from offset 0 and truncate to the real length - never echoing the predecessor's tail.
 			// The 300-byte key also forces the decode scratch to grow past its initial capacity, exercising grow-then-reuse.
-			final ValueColumn<String> column = new FrontCodedStringColumn<>(BLOCK_SIZE);
+			final ValueColumn<String> column = new FrontCodedStringColumn<>(BLOCK_SIZE, true);
 			final String[] keys = {"", "m".repeat(300), "z"};
 			for (int i = 0; i < keys.length; i++) {
 				column.insertKeyAt(i, keys[i]);
@@ -327,7 +328,7 @@ class FrontCodedStringColumnTest {
 		@DisplayName("round-trips multi-byte UTF-8 keys, the empty string and a single entry")
 		void shouldRoundTripUtf8AndDegenerateKeys() {
 			// empty string and single entry
-			final ValueColumn<String> single = new FrontCodedStringColumn<>(BLOCK_SIZE);
+			final ValueColumn<String> single = new FrontCodedStringColumn<>(BLOCK_SIZE, true);
 			single.insertKeyAt(0, "");
 			assertEquals("", single.keyAt(0));
 			single.insertKeyAt(1, "x");
@@ -335,7 +336,7 @@ class FrontCodedStringColumnTest {
 			assertEquals("x", single.keyAt(1));
 
 			// multi-byte UTF-8 (accents, Cyrillic, CJK, supplementary-plane emoji), inserted in natural order
-			final ValueColumn<String> column = new FrontCodedStringColumn<>(BLOCK_SIZE);
+			final ValueColumn<String> column = new FrontCodedStringColumn<>(BLOCK_SIZE, true);
 			final String[] utf8 = {"café", "naïve", "Москва", "日本語", "😀smile"};
 			Arrays.sort(utf8);
 			for (int i = 0; i < utf8.length; i++) {
@@ -349,7 +350,7 @@ class FrontCodedStringColumnTest {
 		@Test
 		@DisplayName("removing every entry resets the blob to empty and re-growing rebuilds it cleanly")
 		void shouldRemoveDownToEmptyThenRegrow() {
-			final ValueColumn<String> column = new FrontCodedStringColumn<>(BLOCK_SIZE);
+			final ValueColumn<String> column = new FrontCodedStringColumn<>(BLOCK_SIZE, true);
 			final String[] keys = {"code-10", "code-20", "code-30", "code-40"};
 			for (int i = 0; i < keys.length; i++) {
 				column.insertKeyAt(i, keys[i]);
@@ -384,7 +385,7 @@ class FrontCodedStringColumnTest {
 		void shouldClearLiveSlotViaClearAt() {
 			// the leaf calls clearAt on a slot below size when a downward setPeek frees a still-live tail; the boxed
 			// column nulls that slot, the front-coded column truncates the live prefix to it — both observe size == index
-			final ValueColumn<String> column = new FrontCodedStringColumn<>(BLOCK_SIZE);
+			final ValueColumn<String> column = new FrontCodedStringColumn<>(BLOCK_SIZE, true);
 			final String[] keys = {"alpha", "alpine", "beta", "betard", "gamma"};
 			for (int i = 0; i < keys.length; i++) {
 				column.insertKeyAt(i, keys[i]);
@@ -413,7 +414,7 @@ class FrontCodedStringColumnTest {
 			final String[] keys = {"a1", "a2", "a3", "a4", "a5", "a6"};
 
 			// right shift (dstPos > srcPos), the stealFromLeft shape
-			final ValueColumn<String> rightFront = new FrontCodedStringColumn<>(BLOCK_SIZE);
+			final ValueColumn<String> rightFront = new FrontCodedStringColumn<>(BLOCK_SIZE, true);
 			final ValueColumn<String> rightBoxed = new BoxedObjectColumn<>(String.class, BLOCK_SIZE);
 			for (int i = 0; i < keys.length; i++) {
 				rightFront.insertKeyAt(i, keys[i]);
@@ -424,7 +425,7 @@ class FrontCodedStringColumnTest {
 			assertColumnsEqual(rightFront, rightBoxed, keys.length);
 
 			// left shift (dstPos < srcPos)
-			final ValueColumn<String> leftFront = new FrontCodedStringColumn<>(BLOCK_SIZE);
+			final ValueColumn<String> leftFront = new FrontCodedStringColumn<>(BLOCK_SIZE, true);
 			final ValueColumn<String> leftBoxed = new BoxedObjectColumn<>(String.class, BLOCK_SIZE);
 			for (int i = 0; i < keys.length; i++) {
 				leftFront.insertKeyAt(i, keys[i]);
@@ -447,9 +448,9 @@ class FrontCodedStringColumnTest {
 			final int thisSize = thisKeys.length;
 			final int leftSize = leftKeys.length;
 
-			final ValueColumn<String> front = new FrontCodedStringColumn<>(BLOCK_SIZE);
+			final ValueColumn<String> front = new FrontCodedStringColumn<>(BLOCK_SIZE, true);
 			final ValueColumn<String> boxed = new BoxedObjectColumn<>(String.class, BLOCK_SIZE);
-			final ValueColumn<String> leftFront = new FrontCodedStringColumn<>(BLOCK_SIZE);
+			final ValueColumn<String> leftFront = new FrontCodedStringColumn<>(BLOCK_SIZE, true);
 			final ValueColumn<String> leftBoxed = new BoxedObjectColumn<>(String.class, BLOCK_SIZE);
 			for (int i = 0; i < thisSize; i++) {
 				front.insertKeyAt(i, thisKeys[i]);
@@ -488,7 +489,7 @@ class FrontCodedStringColumnTest {
 
 			// dst == this, right shift: src [10, 22) straddles restart 16; dst [25, 37) straddles restart 32
 			{
-				final ValueColumn<String> front = new FrontCodedStringColumn<>(capacity);
+				final ValueColumn<String> front = new FrontCodedStringColumn<>(capacity, true);
 				final ValueColumn<String> boxed = new BoxedObjectColumn<>(String.class, capacity);
 				for (int i = 0; i < count; i++) {
 					front.insertKeyAt(i, keys[i]);
@@ -501,7 +502,7 @@ class FrontCodedStringColumnTest {
 
 			// dst == this, left shift: src [25, 37) straddles restart 32; dst [8, 20) straddles restart 16
 			{
-				final ValueColumn<String> front = new FrontCodedStringColumn<>(capacity);
+				final ValueColumn<String> front = new FrontCodedStringColumn<>(capacity, true);
 				final ValueColumn<String> boxed = new BoxedObjectColumn<>(String.class, capacity);
 				for (int i = 0; i < count; i++) {
 					front.insertKeyAt(i, keys[i]);
@@ -514,7 +515,7 @@ class FrontCodedStringColumnTest {
 
 			// dst != this, cross-leaf into an empty column: src [12, 34) straddles both restart 16 and restart 32
 			{
-				final ValueColumn<String> srcFront = new FrontCodedStringColumn<>(capacity);
+				final ValueColumn<String> srcFront = new FrontCodedStringColumn<>(capacity, true);
 				final ValueColumn<String> srcBoxed = new BoxedObjectColumn<>(String.class, capacity);
 				for (int i = 0; i < count; i++) {
 					srcFront.insertKeyAt(i, keys[i]);
@@ -531,9 +532,9 @@ class FrontCodedStringColumnTest {
 			// (dst already holds 40 keys under a different prefix, so this also proves the assembly buffer isn't
 			// confused between the two columns' distinct key spaces)
 			{
-				final ValueColumn<String> srcFront = new FrontCodedStringColumn<>(capacity);
+				final ValueColumn<String> srcFront = new FrontCodedStringColumn<>(capacity, true);
 				final ValueColumn<String> srcBoxed = new BoxedObjectColumn<>(String.class, capacity);
-				final ValueColumn<String> dstFront = new FrontCodedStringColumn<>(capacity);
+				final ValueColumn<String> dstFront = new FrontCodedStringColumn<>(capacity, true);
 				final ValueColumn<String> dstBoxed = new BoxedObjectColumn<>(String.class, capacity);
 				for (int i = 0; i < count; i++) {
 					srcFront.insertKeyAt(i, keys[i]);
@@ -553,7 +554,7 @@ class FrontCodedStringColumnTest {
 		@Test
 		@DisplayName("fillEmpty is a no-op at the size boundary and truncates to empty from zero")
 		void shouldHandleFillEmptyBoundaries() {
-			final ValueColumn<String> column = new FrontCodedStringColumn<>(BLOCK_SIZE);
+			final ValueColumn<String> column = new FrontCodedStringColumn<>(BLOCK_SIZE, true);
 			final String[] keys = {"item-1", "item-2", "item-3", "item-4"};
 			for (int i = 0; i < keys.length; i++) {
 				column.insertKeyAt(i, keys[i]);
@@ -585,7 +586,7 @@ class FrontCodedStringColumnTest {
 			// column's prefix, and every op re-asserts BOTH columns against their own boxed oracle.
 			final int cap = 32;
 			final ValueColumn<String>[] front = new ValueColumn[]{
-				new FrontCodedStringColumn<>(cap), new FrontCodedStringColumn<>(cap)
+				new FrontCodedStringColumn<>(cap, true), new FrontCodedStringColumn<>(cap, true)
 			};
 			final ValueColumn<String>[] boxed = new ValueColumn[]{
 				new BoxedObjectColumn<>(String.class, cap), new BoxedObjectColumn<>(String.class, cap)
@@ -667,7 +668,7 @@ class FrontCodedStringColumnTest {
 		 * @param ops      the number of mutations to apply
 		 */
 		private static void assertRandomizedMutationParity(long seed, int capacity, int ops) {
-			final ValueColumn<String> front = new FrontCodedStringColumn<>(capacity);
+			final ValueColumn<String> front = new FrontCodedStringColumn<>(capacity, true);
 			final ValueColumn<String> boxed = new BoxedObjectColumn<>(String.class, capacity);
 			final Random rnd = new Random(seed);
 			int size = 0;
@@ -854,7 +855,7 @@ class FrontCodedStringColumnTest {
 			final String[] collated = words.clone();
 			Arrays.sort(collated, collator);
 
-			final ValueColumn<String> frontCoded = new FrontCodedStringColumn<>(BLOCK_SIZE);
+			final ValueColumn<String> frontCoded = new FrontCodedStringColumn<>(BLOCK_SIZE, true);
 			final ValueColumn<String> boxed = new BoxedObjectColumn<>(String.class, BLOCK_SIZE);
 			for (int i = 0; i < collated.length; i++) {
 				frontCoded.insertKeyAt(i, collated[i]);
@@ -1036,6 +1037,299 @@ class FrontCodedStringColumnTest {
 					verifyConsistent(original);
 				}
 			);
+		}
+	}
+
+	/**
+	 * Verifies the BMP-safe byte-compare fast path {@link FrontCodedStringColumn#findKeyPosition} takes when the
+	 * corpus, the tree's comparator, and the probe are all provably BMP-only, and that anything outside that
+	 * predicate (a supplementary character anywhere, a localized comparator) correctly falls back to the always-
+	 * correct {@link String} comparison path.
+	 */
+	@Nested
+	@DisplayName("BMP-safe byte-compare fast path")
+	@Tag(COMPARATOR)
+	class BmpSafeByteCompareTest {
+
+		@Test
+		@DisplayName("a corpus containing a supplementary-plane key falls back to String order, not raw UTF-8 byte order")
+		void shouldFallBackToStringOrderWhenCorpusHasSupplementaryCharacter() {
+			// U+E000 (private-use, BMP) vs U+10000 (supplementary): String.compareTo compares UTF-16 code UNITS, so
+			// U+E000 (a single char 0xE000) sorts AFTER U+10000's high surrogate (0xD800) - String order puts the
+			// supplementary character first. Raw UTF-8 byte order disagrees: U+E000 encodes to EE 80 80, U+10000
+			// encodes to F0 90 80 80 - 0xEE < 0xF0, so byte order would put the private-use character first. A column
+			// that used byte order here would return the wrong slot for either key; this is the exact case the
+			// BMP-safe guard (no suffix byte >= 0xF0) exists to prevent.
+			final String privateUse = "";
+			final String supplementary = "𐀀"; // U+10000
+			assertTrue(supplementary.compareTo(privateUse) < 0,
+				"precondition: String order must put the supplementary character first");
+
+			final ValueColumn<String> front = new FrontCodedStringColumn<>(BLOCK_SIZE, true);
+			final ValueColumn<String> boxed = new BoxedObjectColumn<>(String.class, BLOCK_SIZE);
+			// insert in String.compareTo order, exactly as a real tree's findKeyPosition-driven insert would place them
+			front.insertKeyAt(0, supplementary);
+			front.insertKeyAt(1, privateUse);
+			boxed.insertKeyAt(0, supplementary);
+			boxed.insertKeyAt(1, privateUse);
+
+			for (final String key : new String[]{supplementary, privateUse}) {
+				final InsertionPosition frontPos = front.findKeyPosition(key, 0, 2, null);
+				final InsertionPosition boxedPos = boxed.findKeyPosition(key, 0, 2, null);
+				assertTrue(frontPos.alreadyPresent(), "Key U+" + Integer.toHexString(key.codePointAt(0)) + " must be found");
+				assertEquals(boxedPos.position(), frontPos.position(),
+					"Slot mismatch for U+" + Integer.toHexString(key.codePointAt(0)));
+			}
+		}
+
+		@Test
+		@DisplayName("an all-BMP accented-Latin corpus under natural order matches the boxed column")
+		void shouldMatchBoxedColumnForAccentedBmpCorpusUnderNaturalOrder() {
+			final String[] keys = {"abricot", "ananas", "café", "éclair", "zèbre"};
+			final String[] sorted = keys.clone();
+			Arrays.sort(sorted); // natural (codepoint) order - what the fast path's gate requires
+			final ValueColumn<String> front = new FrontCodedStringColumn<>(BLOCK_SIZE, true);
+			final ValueColumn<String> boxed = new BoxedObjectColumn<>(String.class, BLOCK_SIZE);
+			for (int i = 0; i < sorted.length; i++) {
+				front.insertKeyAt(i, sorted[i]);
+				boxed.insertKeyAt(i, sorted[i]);
+			}
+			for (final String key : keys) {
+				final InsertionPosition frontPos = front.findKeyPosition(key, 0, sorted.length, null);
+				final InsertionPosition boxedPos = boxed.findKeyPosition(key, 0, sorted.length, null);
+				assertTrue(frontPos.alreadyPresent());
+				assertEquals(boxedPos.position(), frontPos.position());
+			}
+			final InsertionPosition frontMiss = front.findKeyPosition("bergamote", 0, sorted.length, null);
+			final InsertionPosition boxedMiss = boxed.findKeyPosition("bergamote", 0, sorted.length, null);
+			assertEquals(boxedMiss.alreadyPresent(), frontMiss.alreadyPresent());
+			assertEquals(boxedMiss.position(), frontMiss.position());
+		}
+
+		@Test
+		@DisplayName("a probe that is a full byte-prefix of another key resolves via the shorter-key length tiebreak")
+		void shouldResolveSharedPrefixDifferentLengthProbesViaTheFastPath() {
+			// "cafe"'s entire encoded byte sequence is also "cafeteria"'s leading prefix, so comparing the two exhausts
+			// the shared min-length run without a byte difference and falls through to compareUnsignedBytes's
+			// `aLen - bLen` tiebreak — this pins that branch directly, both probing the shorter key against the corpus
+			// holding the longer one and vice versa
+			final String[] keys = {"cafe", "cafeteria"};
+			final ValueColumn<String> front = new FrontCodedStringColumn<>(BLOCK_SIZE, true);
+			final ValueColumn<String> boxed = new BoxedObjectColumn<>(String.class, BLOCK_SIZE);
+			for (int i = 0; i < keys.length; i++) {
+				front.insertKeyAt(i, keys[i]);
+				boxed.insertKeyAt(i, keys[i]);
+			}
+
+			for (final String probe : keys) {
+				final InsertionPosition frontPos = front.findKeyPosition(probe, 0, keys.length, null);
+				final InsertionPosition boxedPos = boxed.findKeyPosition(probe, 0, keys.length, null);
+				assertTrue(frontPos.alreadyPresent(), "Key '" + probe + "' must be found");
+				assertEquals(boxedPos.position(), frontPos.position(), "Slot mismatch for '" + probe + "'");
+			}
+
+			// an absent probe strictly between the two in length ("cafe" < "cafes" < "cafeteria") still resolves to the
+			// same slot as the boxed reference
+			final InsertionPosition frontMiss = front.findKeyPosition("cafes", 0, keys.length, null);
+			final InsertionPosition boxedMiss = boxed.findKeyPosition("cafes", 0, keys.length, null);
+			assertEquals(boxedMiss.alreadyPresent(), frontMiss.alreadyPresent());
+			assertEquals(boxedMiss.position(), frontMiss.position());
+		}
+
+		@Test
+		@DisplayName("a corpus containing the empty string resolves the empty and smallest non-empty probes correctly")
+		void shouldResolveEmptyStringKeyViaTheFastPath() {
+			// the empty string is a valid front-coded entry (zero-length suffix) and a valid probe (zero-length byte
+			// range) — this exercises isBmpSafe / compareUnsignedBytes with a genuinely empty range on both sides
+			final String[] keys = {"", "alpha", "bravo"};
+			final ValueColumn<String> front = new FrontCodedStringColumn<>(BLOCK_SIZE, true);
+			final ValueColumn<String> boxed = new BoxedObjectColumn<>(String.class, BLOCK_SIZE);
+			for (int i = 0; i < keys.length; i++) {
+				front.insertKeyAt(i, keys[i]);
+				boxed.insertKeyAt(i, keys[i]);
+			}
+
+			for (final String probe : new String[]{"", "alpha"}) {
+				final InsertionPosition frontPos = front.findKeyPosition(probe, 0, keys.length, null);
+				final InsertionPosition boxedPos = boxed.findKeyPosition(probe, 0, keys.length, null);
+				assertTrue(frontPos.alreadyPresent(), "Key '" + probe + "' must be found");
+				assertEquals(boxedPos.position(), frontPos.position(), "Slot mismatch for '" + probe + "'");
+			}
+		}
+
+		@Test
+		@DisplayName("a localized comparator tree never takes the byte-compare fast path, even for an all-BMP corpus")
+		@SuppressWarnings({"unchecked", "rawtypes"})
+		void shouldNeverTakeFastPathUnderLocalizedComparator() {
+			// "Zebre" (byte order starts 0x5A) vs "abricot" (0x61): raw byte order puts "Zebre" first (uppercase <
+			// lowercase in ASCII); French collation is case-insensitive and orders "abricot" first - if the fast path
+			// incorrectly fired here (naturalOrderSafe wrongly true, or the per-call comparator-identity check
+			// skipped), this would locate the wrong slot despite every key being BMP-safe
+			final Comparator<String> collator = new LocalizedStringComparator(Locale.FRENCH);
+			final String[] words = {"Zebre", "abricot", "éclair", "Mangue", "ananas"};
+			final String[] collated = words.clone();
+			Arrays.sort(collated, collator);
+
+			final ValueColumnFactory factory = ValueColumnFactory.forKey(String.class, collator);
+			final ValueColumn<String> front = factory.create(BLOCK_SIZE);
+			final ValueColumn<String> boxed = new BoxedObjectColumn<>(String.class, BLOCK_SIZE);
+			for (int i = 0; i < collated.length; i++) {
+				front.insertKeyAt(i, collated[i]);
+				boxed.insertKeyAt(i, collated[i]);
+			}
+			for (final String word : words) {
+				final InsertionPosition frontPos = front.findKeyPosition(word, 0, collated.length, collator);
+				final InsertionPosition boxedPos = boxed.findKeyPosition(word, 0, collated.length, collator);
+				assertTrue(frontPos.alreadyPresent());
+				assertEquals(boxedPos.position(), frontPos.position());
+			}
+		}
+
+		@Test
+		@DisplayName("a supplementary-plane probe against a BMP-safe corpus falls back to String order")
+		void shouldFallBackWhenProbeItselfIsSupplementary() {
+			// corpus is entirely BMP-safe (natural order == byte order here), but the PROBE carries a supplementary
+			// character - the fast path must reject it via the probe-side BMP check, not just the corpus-side one
+			final String[] keys = {"alpha", "bravo", "charlie", "delta", "echo"};
+			final ValueColumn<String> front = new FrontCodedStringColumn<>(BLOCK_SIZE, true);
+			final ValueColumn<String> boxed = new BoxedObjectColumn<>(String.class, BLOCK_SIZE);
+			for (int i = 0; i < keys.length; i++) {
+				front.insertKeyAt(i, keys[i]);
+				boxed.insertKeyAt(i, keys[i]);
+			}
+			final String supplementaryProbe = "delta-😀"; // shares "delta"'s prefix, sorts right after it
+			final InsertionPosition frontPos = front.findKeyPosition(supplementaryProbe, 0, keys.length, null);
+			final InsertionPosition boxedPos = boxed.findKeyPosition(supplementaryProbe, 0, keys.length, null);
+			assertEquals(boxedPos.alreadyPresent(), frontPos.alreadyPresent());
+			assertEquals(boxedPos.position(), frontPos.position());
+		}
+
+		@Test
+		@DisplayName("fires under the exact natural-order singleton production wires into every attribute tree")
+		@SuppressWarnings({"unchecked", "rawtypes"})
+		void shouldFireFastPathUnderTheNaturalOrderSingletonUsedByProduction() {
+			// production never passes a null comparator for a natural-order attribute tree - FilterIndex.DEFAULT_COMPARATOR
+			// and UniqueIndexBPlusTreeSupport.NATURAL_ORDER both wire the Comparator.naturalOrder() singleton itself, and
+			// the fast path's gate (ValueColumnFactory.isNaturalOrder) is an identity check against that very singleton -
+			// a null comparator alone (already covered elsewhere in this file) does not exercise that identity-check
+			// branch, so this drives it directly with the exact singleton instance production threads through
+			final Comparator<String> naturalOrder = Comparator.naturalOrder();
+			final String[] probeKeys = {"alpha", "bravo", "charlie", "delta", "echo"};
+			final ValueColumn<String> probeFront = new FrontCodedStringColumn<>(BLOCK_SIZE, true);
+			final ValueColumn<String> probeBoxed = new BoxedObjectColumn<>(String.class, BLOCK_SIZE);
+			for (int i = 0; i < probeKeys.length; i++) {
+				probeFront.insertKeyAt(i, probeKeys[i]);
+				probeBoxed.insertKeyAt(i, probeKeys[i]);
+			}
+			for (final String key : probeKeys) {
+				final InsertionPosition frontPos = probeFront.findKeyPosition(key, 0, probeKeys.length, naturalOrder);
+				final InsertionPosition boxedPos = probeBoxed.findKeyPosition(key, 0, probeKeys.length, naturalOrder);
+				assertTrue(frontPos.alreadyPresent(), "Key '" + key + "' must be found");
+				assertEquals(boxedPos.position(), frontPos.position(), "Slot mismatch for '" + key + "'");
+			}
+
+			final ValueColumnFactory factory = ValueColumnFactory.forKey(String.class, naturalOrder);
+			assertInstanceOf(FrontCodedStringColumn.class, factory.create(BLOCK_SIZE));
+			final TransactionalBucketBPlusTree<String> tree = new TransactionalBucketBPlusTree<>(
+				BLOCK_SIZE, 3, 7, 3, String.class, naturalOrder, factory
+			);
+
+			// well beyond one leaf's BLOCK_SIZE (8), so at least one split runs allocate()'s naturalOrderSafe threading
+			// through the newly created sibling leaves' columns too, not just the original root leaf's column
+			final TreeMap<String, TreeSet<Integer>> oracle = new TreeMap<>();
+			for (int i = 0; i < 40; i++) {
+				final String key = String.format("code-%03d", i);
+				tree.addRecord(key, i + 1_000);
+				oracle.computeIfAbsent(key, k -> new TreeSet<>()).add(i + 1_000);
+			}
+
+			assertTreeMatchesOracle(tree, oracle);
+			verifyConsistent(tree);
+		}
+
+		@Test
+		@DisplayName("randomized tree workload mixing occasional supplementary-plane keys matches a TreeMap oracle")
+		@SuppressWarnings({"unchecked", "rawtypes"})
+		void shouldMatchOracleWhenCorpusMixesSupplementaryPlaneKeys() {
+			// bmpSafe flips true/false across mutations as supplementary keys come and go (it self-heals on every
+			// re-encode) - this drives findKeyPosition through both the fast and fallback paths across one workload,
+			// the strongest general regression guard for the BMP-safe predicate
+			final ValueColumnFactory factory = ValueColumnFactory.forKey(String.class, null);
+			final TransactionalBucketBPlusTree<String> tree = new TransactionalBucketBPlusTree<>(
+				BLOCK_SIZE, 3, 7, 3, String.class, null, factory
+			);
+			final TreeMap<String, TreeSet<Integer>> oracle = new TreeMap<>();
+			final Random random = new Random(20260709L);
+			final int keyDomain = 60;
+
+			for (int op = 0; op < 8_000; op++) {
+				final String key = fuzzKeyMaybeSupplementary(random, keyDomain);
+				final int recordId = random.nextInt(1_000);
+				if (random.nextInt(100) < 65) {
+					tree.addRecord(key, recordId);
+					oracle.computeIfAbsent(key, k -> new TreeSet<>()).add(recordId);
+				} else {
+					final TreeSet<Integer> set = oracle.get(key);
+					if (set != null && set.contains(recordId)) {
+						tree.removeRecord(key, recordId);
+						set.remove(recordId);
+						if (set.isEmpty()) {
+							oracle.remove(key);
+						}
+					}
+				}
+				if (op % 200 == 0) {
+					assertTreeMatchesOracle(tree, oracle);
+				}
+			}
+			assertTreeMatchesOracle(tree, oracle);
+			verifyConsistent(tree);
+		}
+
+		@Test
+		@DisplayName("a lone unpaired-surrogate probe matches String order via the fallback path")
+		void shouldMatchStringOrderForLoneSurrogateProbeViaFallback() {
+			// a Java String may legally hold a lone (unpaired) UTF-16 surrogate code unit - String.compareTo (the tree's
+			// real natural order) compares it at its true numeric value (0xD800-0xDFFF), which sorts after every plain
+			// ASCII/BMP letter. The probe-side BMP check must reject the fast path for such a probe (scanning its UTF-16
+			// chars directly, not its post-encode UTF-8 bytes - getBytes(UTF_8) would silently substitute the lone
+			// surrogate with the replacement byte '?', which is BMP-range and would wrongly pass a byte-based check), so
+			// the search falls through to the always-correct String comparison and agrees with the boxed reference.
+			final String[] keys = {"Xa", "Xz"};
+			final ValueColumn<String> front = new FrontCodedStringColumn<>(BLOCK_SIZE, true);
+			final ValueColumn<String> boxed = new BoxedObjectColumn<>(String.class, BLOCK_SIZE);
+			for (int i = 0; i < keys.length; i++) {
+				front.insertKeyAt(i, keys[i]);
+				boxed.insertKeyAt(i, keys[i]);
+			}
+
+			final String probe = "X" + (char) 0xD800; // a lone high surrogate, unpaired
+			final InsertionPosition boxedPos = boxed.findKeyPosition(probe, 0, keys.length, null);
+			final InsertionPosition frontPos = front.findKeyPosition(probe, 0, keys.length, null);
+
+			assertEquals(boxedPos.alreadyPresent(), frontPos.alreadyPresent());
+			assertEquals(boxedPos.position(), frontPos.position());
+		}
+
+		/**
+		 * Produces a fuzz key that is usually BMP-safe (plain ASCII / 2-byte UTF-8 / BMP private-use) but sometimes
+		 * carries a genuine supplementary-plane character (4-byte UTF-8, {@code >= 0xF0} lead byte), so a randomized
+		 * workload exercises both {@link FrontCodedStringColumn#bmpSafe} states.
+		 *
+		 * @param rnd       the RNG
+		 * @param keyDomain the number of distinct numeric suffixes, bounding cardinality
+		 * @return the generated key
+		 */
+		@Nonnull
+		private static String fuzzKeyMaybeSupplementary(@Nonnull Random rnd, int keyDomain) {
+			final int bucket = rnd.nextInt(keyDomain);
+			return switch (rnd.nextInt(5)) {
+				case 0 -> "sku-" + String.format("%03d", bucket);   // plain ASCII, BMP-safe
+				case 1 -> "café-" + bucket;                         // 2-byte UTF-8, BMP-safe
+				case 2 -> "-" + bucket;                       // BMP private-use, BMP-safe
+				case 3 -> "😀-" + bucket;                 // supplementary U+1F600, NOT BMP-safe
+				default -> "𐀀-" + bucket;                // supplementary U+10000, NOT BMP-safe
+			};
 		}
 	}
 }

@@ -52,9 +52,11 @@ import static io.evitadb.utils.ArrayUtils.EMPTY_INT_ARRAY;
  *
  * **Order independence.** Front-coding is orthogonal to the tree's key order: the column stores values in whatever
  * physical order the leaf inserts them (natural codepoint order for a non-localized attribute, collation order for a
- * localized one), and {@link #findKeyPosition} decodes each candidate back to a real {@link String} and compares it
- * through the supplied comparator. The stored byte order never has to match the comparator, so a single implementation
- * serves both localized and non-localized string attributes — the factory selects it for every {@link String} key.
+ * localized one), and {@link #findKeyPosition} compares each candidate against the supplied comparator — decoding it
+ * back to a real {@link String} first in the general case, or comparing raw UTF-8 bytes without decoding for the
+ * BMP-safe/natural-order subset (see the "BMP-safe byte-compare fast path" section below). The stored byte order
+ * never has to match the comparator, so a single implementation serves both localized and non-localized string
+ * attributes — the factory selects it for every {@link String} key.
  *
  * **Slot contract.** The leaf drives every column as a fixed-capacity, slot-indexed array kept in lockstep with its
  * {@code int[]} record column. A variable-length blob honours that contract by tracking a live entry count
@@ -70,20 +72,40 @@ import static io.evitadb.utils.ArrayUtils.EMPTY_INT_ARRAY;
  * the transient decode state lives only for the duration of the
  * operation, so the column's retained footprint is just the trimmed blob plus the sparse restart index. A mutation is
  * therefore {@code O(size)} — the same asymptotic cost as the boxed column's reference {@code System.arraycopy}, and
- * {@code size} is bounded by the leaf block size — so no hot path regresses asymptotically. The only added cost is the
- * transient {@link String} allocated per decoded candidate on the search path; this trades a small amount of transient
- * allocation for a large retained-heap reduction, which is the explicit goal here (the query algebra already allocates
- * {@code RoaringBitmap}s). A zero-allocation scratch-{@code CharSequence} compare is a possible future refinement.
+ * {@code size} is bounded by the leaf block size — so no hot path regresses asymptotically. The transient {@link String}
+ * decoded per candidate on the search path is confined to the fallback comparison — a supplementary character, a
+ * localized comparator, or a non-natural-order tree; the BMP-safe/natural-order subset instead compares raw UTF-8
+ * bytes with zero allocation (see the "BMP-safe byte-compare fast path" section below). Where the fallback still
+ * applies, this trades a small amount of transient allocation for a large retained-heap reduction, which is the
+ * explicit goal here (the query algebra already allocates {@code RoaringBitmap}s).
  *
  * **Scratch contract.** The per-hop decode buffer, the three flat-buffer decode/assembly pairs and the encode
  * buffer are reused across calls via a {@link ThreadLocal} {@link DecodeScratch} (grown on demand, never shrunk) so
  * the high-frequency search and mutation paths allocate no per-call {@code byte[]}. The reuse is safe because
- * nothing thread-local ever escapes: {@link #decodeAt} copies its result into a fresh {@link String},
- * {@link #decodeAllBytes} copies each entry into a caller-owned {@code byte[]}, {@link #decodeAllToFlat} /
+ * nothing thread-local ever escapes: {@link #decodeAtString} copies its result into a fresh {@link String},
+ * {@link #decodeAtBytes}'s raw-byte fast path leaves its result in {@link DecodeScratch#cur} but only for the
+ * duration of the compare call that requested it and never retains a reference beyond it, {@link #decodeAllBytes}
+ * copies each entry into a caller-owned {@code byte[]}, {@link #decodeAllToFlat} /
  * {@link #decodeRangeToFlat} / {@link #copyRangeTo}'s assembly buffer are only ever read back by the very call that
  * produced them, and {@link #encode} always trims the scratch buffer into a freshly allocated {@link #data} blob —
  * so no retained column state aliases the scratch, and a mutation on one column (or one MVCC transaction layer)
  * cannot leak into another that later reuses the same thread's scratch.
+ *
+ * **BMP-safe byte-compare fast path.** {@link #findKeyPosition} normally decodes each candidate to a {@link String}
+ * and compares via the supplied comparator — correct for any comparator, but it pays a {@code new String(...)}
+ * allocation per binary-search hop. Raw UTF-8 byte order equals {@link String#compareTo} order **iff every operand
+ * is BMP-only** (no supplementary/surrogate codepoint). For the CORPUS side, a supplementary character is, in valid
+ * UTF-8, exactly a 4-byte sequence whose lead byte is {@code >= 0xF0}, so "no suffix byte {@code >= 0xF0}" is a
+ * single-threshold, allocation-free predicate that detects BMP-safety while {@link #encode} already scans every
+ * suffix byte once (see {@link #bmpSafe}). For the PROBE side, the check instead scans the original {@link String}'s
+ * UTF-16 chars for a surrogate code unit directly ({@link #isBmpSafe(String)}), rather than post-encoding it first:
+ * a byte-based check would miss a lone (unpaired) surrogate, which {@link String#getBytes(java.nio.charset.Charset)}
+ * silently replaces with an in-range replacement byte even though {@link String#compareTo} still compares it at its
+ * true, out-of-BMP-range code-unit value. When the column is BMP-safe, was constructed under natural order
+ * ({@link #naturalOrderSafe}), the caller's comparator is natural order too, and the probe itself is BMP-safe,
+ * {@link #findKeyPosition} skips the {@link String} entirely and compares raw UTF-8 bytes — same restart-walk, same
+ * scratch reuse, just no allocation on the compare. Any operand outside this predicate (a supplementary character, a
+ * localized comparator, a non-natural-order tree) falls through to the always-correct {@link String} path.
  *
  * Selected by {@link ValueColumnFactory#forKey} for every {@link String} attribute, localized or not.
  *
@@ -116,6 +138,11 @@ final class FrontCodedStringColumn<M extends Comparable<M>> implements ValueColu
 	 */
 	private static final int DECODE_SCRATCH_BYTES = 48;
 	/**
+	 * The lowest UTF-8 lead byte of a 4-byte (supplementary-plane) sequence. A suffix byte {@code >=} this threshold
+	 * proves the entry is not BMP-only; see the class javadoc "BMP-safe byte-compare fast path" section.
+	 */
+	private static final int SUPPLEMENTARY_LEAD_BYTE = 0xF0;
+	/**
 	 * Shared empty byte array used as the "no predecessor" sentinel at the start of a decode and for an empty key.
 	 */
 	private static final byte[] EMPTY_BYTES = EMPTY_BYTE_ARRAY;
@@ -132,14 +159,17 @@ final class FrontCodedStringColumn<M extends Comparable<M>> implements ValueColu
 
 	/**
 	 * Per-thread scratch buffers reused across every decode/encode on the calling thread. Holding them in a
-	 * {@link ThreadLocal} removes the per-call {@code byte[]} the search path ({@link #decodeAt}, invoked on every
+	 * {@link ThreadLocal} removes the per-call {@code byte[]} the search path ({@link #findKeyPosition}'s loop, which
+	 * fetches this scratch once and calls {@link #decodeAtString} / {@link #decodeAtBytes} directly on every
 	 * binary-search hop of every mutation) and the encode path would otherwise allocate — the dominant young-gen churn
 	 * on the high-cardinality string warmup path.
 	 *
-	 * The reuse is safe because nothing thread-local ever escapes: {@link #decodeAt} copies its result into a fresh
-	 * {@link String}, {@link #decodeAllBytes} copies each entry into a caller-owned {@code byte[]}, {@link #decodeAllToFlat}
-	 * / {@link #decodeRangeToFlat} are only ever read by the same call stack that produced them (never stored on the
-	 * column), and {@link #encode} always trims {@link #encodeBuf} into a freshly allocated {@link #data} blob — so no
+	 * The reuse is safe because nothing thread-local ever escapes: {@link #decodeAtString} copies its result into a
+	 * fresh {@link String}, {@link #decodeAtBytes}'s raw-byte fast path leaves its result in {@link DecodeScratch#cur}
+	 * but only for the duration of the compare call that requested it, {@link #decodeAllBytes} copies each entry into
+	 * a caller-owned {@code byte[]}, {@link #decodeAllToFlat}
+	 * / {@link #decodeRangeToFlat} are only ever read back by the same call stack that produced them (never stored on the
+	 * column), and {@link #encode} always trims {@link DecodeScratch#encodeBuf} into a freshly allocated {@link #data} blob — so no
 	 * retained column state aliases the scratch, and a mutation on one column (or one MVCC transaction layer) cannot leak
 	 * into another that later reuses the same thread's scratch. {@link #copyRangeTo} needs THREE independent flat/offset
 	 * pairs live at once ({@code this}'s moved slice, the destination's own entries, and the spliced assembly output) —
@@ -205,36 +235,55 @@ final class FrontCodedStringColumn<M extends Comparable<M>> implements ValueColu
 	 * is {@code ceil(size / RESTART_INTERVAL)}.
 	 */
 	@Nonnull private int[] restartOffsets;
+	/**
+	 * Whether every suffix byte in {@link #data} is {@code < 0xF0} (no supplementary-plane UTF-8 lead byte), i.e. every
+	 * live key is BMP-only. Recomputed from scratch by every {@link #encode} call (self-heals across mutations — see
+	 * the class javadoc "BMP-safe byte-compare fast path" section); {@code true} for an empty column.
+	 */
+	private boolean bmpSafe;
+	/**
+	 * Whether this column was constructed for a natural-order tree ({@link ValueColumnFactory#isNaturalOrder}
+	 * evaluated once, at construction, against the same comparator every {@link #findKeyPosition} call receives).
+	 * Immutable for the lifetime of the instance; carried forward by {@link #allocate} and {@link #duplicate}.
+	 */
+	private final boolean naturalOrderSafe;
 
 	/**
 	 * Creates an empty column for a leaf of the given block size.
 	 *
-	 * @param capacity the leaf block size (== {@link #capacity()})
+	 * @param capacity         the leaf block size (== {@link #capacity()})
+	 * @param naturalOrderSafe whether this column's tree orders keys naturally (see {@link #naturalOrderSafe})
 	 */
-	FrontCodedStringColumn(int capacity) {
+	FrontCodedStringColumn(int capacity, boolean naturalOrderSafe) {
 		this.capacity = capacity;
+		this.naturalOrderSafe = naturalOrderSafe;
 		this.size = 0;
 		this.dataLength = 0;
 		this.data = EMPTY_BYTES;
 		this.restartOffsets = EMPTY_OFFSETS;
+		this.bmpSafe = true;
 	}
 
 	/**
 	 * Internal constructor adopting pre-built state (duplicate path).
 	 *
-	 * @param capacity       the leaf block size
-	 * @param size           the live entry count
-	 * @param dataLength     the live byte length of {@code data}
-	 * @param data           the front-coded blob (adopted as-is, already trimmed)
-	 * @param restartOffsets the restart-offset index (adopted as-is)
+	 * @param capacity         the leaf block size
+	 * @param size             the live entry count
+	 * @param dataLength       the live byte length of {@code data}
+	 * @param data             the front-coded blob (adopted as-is, already trimmed)
+	 * @param restartOffsets   the restart-offset index (adopted as-is)
+	 * @param bmpSafe          whether every live key is BMP-only (adopted as-is)
+	 * @param naturalOrderSafe whether this column's tree orders keys naturally (adopted as-is)
 	 */
 	private FrontCodedStringColumn(int capacity, int size, int dataLength, @Nonnull byte[] data,
-	                               @Nonnull int[] restartOffsets) {
+	                               @Nonnull int[] restartOffsets, boolean bmpSafe, boolean naturalOrderSafe) {
 		this.capacity = capacity;
 		this.size = size;
 		this.dataLength = dataLength;
 		this.data = data;
 		this.restartOffsets = restartOffsets;
+		this.bmpSafe = bmpSafe;
+		this.naturalOrderSafe = naturalOrderSafe;
 	}
 
 	@Override
@@ -245,7 +294,7 @@ final class FrontCodedStringColumn<M extends Comparable<M>> implements ValueColu
 	@Nonnull
 	@Override
 	public ValueColumn<M> allocate(int capacity) {
-		return new FrontCodedStringColumn<>(capacity);
+		return new FrontCodedStringColumn<>(capacity, this.naturalOrderSafe);
 	}
 
 	@Nonnull
@@ -256,10 +305,12 @@ final class FrontCodedStringColumn<M extends Comparable<M>> implements ValueColu
 		// encode(), never edits their bytes in place - so the new layer and this column can never observe each
 		// other's writes even though they start out pointing at the same arrays. If a future in-place `data` edit
 		// ever lands (reusing slack instead of trimming on every encode), this share must become copy-on-first-write.
+		// bmpSafe / naturalOrderSafe are plain booleans, copied by value - nothing to alias.
 		return new FrontCodedStringColumn<>(
 			this.capacity, this.size, this.dataLength,
 			this.data,
-			this.restartOffsets
+			this.restartOffsets,
+			this.bmpSafe, this.naturalOrderSafe
 		);
 	}
 
@@ -411,14 +462,31 @@ final class FrontCodedStringColumn<M extends Comparable<M>> implements ValueColu
 		@Nullable Comparator<M> comparator
 	) {
 		final String probe = (String) key;
+		final DecodeScratch scratch = SCRATCH.get();
+		// BMP-safe byte-compare fast path: resolved ONCE, outside the loop (mirrors decodeRangeToFlatCore's
+		// `secondary` boolean) so the per-hop cost of choosing a strategy is zero. Non-null iff every operand -
+		// the corpus (bmpSafe), this column's tree order (naturalOrderSafe), this call's comparator, and the probe
+		// itself - is provably BMP-only; see the class javadoc. Falls through to the always-correct String path
+		// otherwise (a supplementary character anywhere, a localized comparator, or a non-natural-order tree).
+		byte[] probeBytes = null;
+		if (this.naturalOrderSafe && this.bmpSafe && ValueColumnFactory.isNaturalOrder(comparator)
+			&& isBmpSafe(probe)) {
+			probeBytes = probe.getBytes(StandardCharsets.UTF_8);
+		}
 		int lo = from;
 		int hi = to - 1;
 		while (lo <= hi) {
 			final int mid = (lo + hi) >>> 1;
-			final String candidate = decodeAt(mid);
-			final int cmp = comparator != null
-				? comparator.compare((M) candidate, key)
-				: candidate.compareTo(probe);
+			final int cmp;
+			if (probeBytes != null) {
+				final int candidateLen = decodeAtBytes(scratch, mid);
+				cmp = compareUnsignedBytes(scratch.cur, candidateLen, probeBytes, probeBytes.length);
+			} else {
+				final String candidate = decodeAtString(scratch, mid);
+				cmp = comparator != null
+					? comparator.compare((M) candidate, key)
+					: candidate.compareTo(probe);
+			}
 			if (cmp < 0) {
 				lo = mid + 1;
 			} else if (cmp > 0) {
@@ -454,6 +522,36 @@ final class FrontCodedStringColumn<M extends Comparable<M>> implements ValueColu
 	 */
 	@Nonnull
 	private String decodeAt(int index) {
+		return decodeAtString(SCRATCH.get(), index);
+	}
+
+	/**
+	 * Same as {@link #decodeAt(int)}, but takes an already-fetched {@link DecodeScratch} - used by
+	 * {@link #findKeyPosition}'s per-hop loop to avoid a repeated {@link ThreadLocal#get()} per binary-search hop.
+	 *
+	 * @param scratch the calling thread's scratch (already fetched by the caller)
+	 * @param index   the live slot to decode (must be {@code < size})
+	 * @return the decoded value
+	 */
+	@Nonnull
+	private String decodeAtString(@Nonnull DecodeScratch scratch, int index) {
+		final int len = decodeAtBytes(scratch, index);
+		// the explicit length is load-bearing: it stops a shorter entry from leaking stale tail bytes left in the
+		// reused scratch by a longer predecessor
+		return new String(scratch.cur, 0, len, StandardCharsets.UTF_8);
+	}
+
+	/**
+	 * Decodes the key at the given live index by seeking the enclosing restart point and walking forward, leaving the
+	 * result in {@link DecodeScratch#cur} instead of wrapping it in a {@link String}: {@link #decodeAtString} wraps
+	 * the result for the general case, while {@link #findKeyPosition}'s BMP-safe fast path calls this directly to
+	 * compare raw bytes without ever allocating a {@link String}.
+	 *
+	 * @param scratch the calling thread's scratch (already fetched by the caller)
+	 * @param index   the live slot to decode (must be {@code < size})
+	 * @return the decoded key's length within {@link DecodeScratch#cur}
+	 */
+	private int decodeAtBytes(@Nonnull DecodeScratch scratch, int index) {
 		final int restart = index / RESTART_INTERVAL;
 		final int base = restart * RESTART_INTERVAL;
 		int pos = this.restartOffsets[restart];
@@ -463,7 +561,6 @@ final class FrontCodedStringColumn<M extends Comparable<M>> implements ValueColu
 		// overwritten. No per-hop byte[] and no per-hop prefix copy; borrowing the thread-local scratch also removes the
 		// per-call allocation that dominated the search-path churn. The varint-read loop stays inlined (a shared helper
 		// would force a per-call holder).
-		final DecodeScratch scratch = SCRATCH.get();
 		byte[] cur = scratch.cur;
 		int curLen = 0;
 		for (int j = base; j <= index; j++) {
@@ -499,9 +596,7 @@ final class FrontCodedStringColumn<M extends Comparable<M>> implements ValueColu
 		}
 		// write the (possibly grown) buffer back so the growth is reused by the next call on this thread
 		scratch.cur = cur;
-		// the explicit length is load-bearing: it stops a shorter entry from leaking stale tail bytes left in the reused
-		// scratch by a longer predecessor
-		return new String(cur, 0, curLen, StandardCharsets.UTF_8);
+		return curLen;
 	}
 
 	/**
@@ -724,7 +819,8 @@ final class FrontCodedStringColumn<M extends Comparable<M>> implements ValueColu
 	 * offsets[i + 1])}, raw UTF-8 key bytes) into a fresh trimmed blob + restart index, replacing this column's
 	 * state. Called directly by every hot slot mutator ({@link #insertKeyAt} / {@link #removeKeyAt} /
 	 * {@link #copyRangeTo}) with their own flat/offsets scratch pair, and by the cold
-	 * {@link #encode(byte[][], int)} adapter after it flattens a {@code byte[][]}.
+	 * {@link #encode(byte[][], int)} adapter after it flattens a {@code byte[][]}. The same pass also determines
+	 * whether the re-encoded corpus is BMP-only, feeding {@link #bmpSafe} via {@link #finishEncode}.
 	 *
 	 * @param flat    the source key bytes, concatenated (at least {@code offsets[n]} bytes)
 	 * @param offsets the entry boundary table (at least {@code n + 1} entries)
@@ -741,6 +837,9 @@ final class FrontCodedStringColumn<M extends Comparable<M>> implements ValueColu
 		int len = 0;
 		int prevStart = 0;
 		int prevLen = 0;
+		// every suffix byte is a suffix byte of exactly one entry (a shared prefix traces back to the restart entry
+		// that first wrote it as its own suffix), so this single scan covers the whole corpus once - no separate pass
+		boolean bmpSafe = true;
 		for (int i = 0; i < n; i++) {
 			final int start = offsets[i];
 			final int keyLen = offsets[i + 1] - start;
@@ -756,11 +855,14 @@ final class FrontCodedStringColumn<M extends Comparable<M>> implements ValueColu
 			len = writeVarInt(buf, len, shared);
 			len = writeVarInt(buf, len, suffixLen);
 			System.arraycopy(flat, start + shared, buf, len, suffixLen);
+			if (bmpSafe) {
+				bmpSafe = isBmpSafe(flat, start + shared, suffixLen);
+			}
 			len += suffixLen;
 			prevStart = start;
 			prevLen = keyLen;
 		}
-		finishEncode(scratch, buf, len, restarts, n);
+		finishEncode(scratch, buf, len, restarts, n, bmpSafe);
 	}
 
 	/**
@@ -772,6 +874,7 @@ final class FrontCodedStringColumn<M extends Comparable<M>> implements ValueColu
 		this.dataLength = 0;
 		this.restartOffsets = EMPTY_OFFSETS;
 		this.size = 0;
+		this.bmpSafe = true;
 	}
 
 	/**
@@ -811,11 +914,13 @@ final class FrontCodedStringColumn<M extends Comparable<M>> implements ValueColu
 	 * @param len      the live length of the encoded blob within {@code buf}
 	 * @param restarts the restart-offset index built alongside the encode
 	 * @param n        the number of entries encoded
+	 * @param bmpSafe  whether every suffix byte scanned during this encode was BMP-safe (see {@link #bmpSafe})
 	 */
 	private void finishEncode(
-		@Nonnull DecodeScratch scratch, @Nonnull byte[] buf, int len, @Nonnull int[] restarts, int n
+		@Nonnull DecodeScratch scratch, @Nonnull byte[] buf, int len, @Nonnull int[] restarts, int n, boolean bmpSafe
 	) {
 		scratch.encodeBuf = buf;
+		this.bmpSafe = bmpSafe;
 		this.data = Arrays.copyOf(buf, len);
 		this.dataLength = len;
 		this.restartOffsets = restarts;
@@ -855,6 +960,76 @@ final class FrontCodedStringColumn<M extends Comparable<M>> implements ValueColu
 			i++;
 		}
 		return i;
+	}
+
+	/**
+	 * Returns whether {@code arr[start, start + len)} contains no supplementary-plane UTF-8 lead byte — see the class
+	 * javadoc "BMP-safe byte-compare fast path" section for why this single threshold is exact. Used for the
+	 * CORPUS side of the fast-path gate ({@link #encode} scans the already-stored suffix bytes it is about to
+	 * write): every corpus entry reaches {@code encode} only via bytes that were already produced by
+	 * {@link String#getBytes(java.nio.charset.Charset)} at {@link #insertKeyAt} time (or decoded back from such
+	 * bytes), so this byte-based scan and a char-based scan of the original {@link String} always agree here — there
+	 * is no separate original {@link String} left to consult once a key is part of the corpus.
+	 *
+	 * @param arr   the backing array
+	 * @param start the range's start offset
+	 * @param len   the range's length
+	 * @return {@code true} if every byte in the range is {@code < 0xF0}
+	 */
+	private static boolean isBmpSafe(@Nonnull byte[] arr, int start, int len) {
+		for (int i = start; i < start + len; i++) {
+			if ((arr[i] & 0xFF) >= SUPPLEMENTARY_LEAD_BYTE) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	/**
+	 * Returns whether {@code s} contains no UTF-16 surrogate code unit, paired or lone. Used for the PROBE side of
+	 * the fast-path gate in {@link #findKeyPosition}, where the original {@link String} is still available and
+	 * must be consulted directly rather than via {@link String#getBytes(java.nio.charset.Charset)}: a lone
+	 * (unpaired) surrogate is malformed input for UTF-8 encoding, and {@link String#getBytes(java.nio.charset.Charset)}
+	 * silently replaces it with the byte {@code 0x3F} (the ASCII {@code '?'}), which is {@code < 0xF0} and would
+	 * therefore incorrectly pass the byte-based {@link #isBmpSafe(byte[], int, int)} check — even though
+	 * {@link String#compareTo} (the always-correct fallback this fast path must agree with) still compares the
+	 * surrogate at its true code-unit value ({@code 0xD800-0xDFFF}), not at the replacement byte's value. Scanning
+	 * chars directly also means {@link String#getBytes(java.nio.charset.Charset)} is only called once the probe is
+	 * already confirmed surrogate-free, instead of encoding first and rescanning the result.
+	 *
+	 * @param s the probe string
+	 * @return {@code true} if every UTF-16 code unit in {@code s} is BMP (no surrogate, paired or lone)
+	 */
+	private static boolean isBmpSafe(@Nonnull String s) {
+		final int len = s.length();
+		for (int i = 0; i < len; i++) {
+			if (Character.isSurrogate(s.charAt(i))) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	/**
+	 * Unsigned byte-lexicographic comparison of {@code a[0, aLen)} vs {@code b[0, bLen)} — equals
+	 * {@link String#compareTo} order for two BMP-only UTF-8 encoded operands (see the class javadoc). Used by
+	 * {@link #findKeyPosition}'s fast path only.
+	 *
+	 * @param a    the first (candidate) range, from offset 0
+	 * @param aLen the first range's length
+	 * @param b    the second (probe) range, from offset 0
+	 * @param bLen the second range's length
+	 * @return negative / zero / positive matching {@link String#compareTo}'s contract
+	 */
+	private static int compareUnsignedBytes(@Nonnull byte[] a, int aLen, @Nonnull byte[] b, int bLen) {
+		final int min = Math.min(aLen, bLen);
+		for (int i = 0; i < min; i++) {
+			final int cmp = (a[i] & 0xFF) - (b[i] & 0xFF);
+			if (cmp != 0) {
+				return cmp;
+			}
+		}
+		return aLen - bLen;
 	}
 
 	/**
