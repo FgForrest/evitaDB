@@ -81,10 +81,13 @@ sealed interface ValueColumn<M extends Comparable<M>>
 	ValueColumn<M> allocate(int capacity);
 
 	/**
-	 * Creates a **deep** copy of this column (new backing array(s), new identity). Used to decouple a transactional
-	 * layer's key column from the shared base on first write.
+	 * Creates an independent, non-aliasing copy of this column (new identity) used to decouple a transactional
+	 * layer's key column from the shared base on first write. Most implementations deep-copy their backing array(s);
+	 * one that mutates exclusively by whole-reference replacement (never edits bytes/elements of a retained array in
+	 * place) may instead structurally share that backing state — see {@link FrontCodedStringColumn#duplicate()} for
+	 * the concrete example and the invariant that safety depends on.
 	 *
-	 * @return an independent deep copy of this column
+	 * @return an independent copy of this column, safe to mutate without affecting the source
 	 */
 	@Nonnull
 	ValueColumn<M> duplicate();

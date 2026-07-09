@@ -60,8 +60,12 @@ import static io.evitadb.utils.ArrayUtils.EMPTY_INT_ARRAY;
  * {@code int[]} record column. A variable-length blob honours that contract by tracking a live entry count
  * ({@link #size}, always equal to the leaf's {@code peek + 1}) and emulating each array-slot operation
  * ({@link #insertKeyAt} / {@link #removeKeyAt} / {@link #copyRangeTo} / {@link #fillEmpty} / {@link #clearAt}) by
- * decoding the affected entries to a transient {@code byte[][]}, applying the exact {@code System.arraycopy} slot
- * semantics, and re-encoding a fresh dense blob. That transient decode array lives only for the duration of the
+ * decoding the affected entries, applying the exact {@code System.arraycopy} slot semantics, and re-encoding a fresh
+ * dense blob. The hot single-slot mutators ({@link #insertKeyAt} / {@link #removeKeyAt} / {@link #copyRangeTo}) decode
+ * into the thread-local {@link DecodeScratch#flat} buffer ({@link #decodeAllToFlat}) — one reused {@code byte[]} +
+ * {@code int[]} offset table splice like an in-place array move, instead of allocating {@link #size} individual
+ * {@code byte[]} entries; the colder {@link #clearAt} / {@link #fillEmpty} (pure tail truncation) still go through
+ * {@link #decodeAllBytes}'s {@code byte[][]}. Either way the transient decode state lives only for the duration of the
  * operation, so the column's retained footprint is just the trimmed blob plus the sparse restart index. A mutation is
  * therefore {@code O(size)} — the same asymptotic cost as the boxed column's reference {@code System.arraycopy}, and
  * {@code size} is bounded by the leaf block size — so no hot path regresses asymptotically. The only added cost is the
@@ -69,13 +73,15 @@ import static io.evitadb.utils.ArrayUtils.EMPTY_INT_ARRAY;
  * allocation for a large retained-heap reduction, which is the explicit goal here (the query algebra already allocates
  * {@code RoaringBitmap}s). A zero-allocation scratch-{@code CharSequence} compare is a possible future refinement.
  *
- * **Scratch contract.** The per-hop decode buffer and the encode buffer are reused across calls via a
- * {@link ThreadLocal} {@link DecodeScratch} (grown on demand, never shrunk) so the high-frequency search path allocates
- * no per-call {@code byte[]}. The reuse is safe because nothing thread-local ever escapes: {@link #decodeAt} copies its
- * result into a fresh {@link String}, {@link #decodeAllBytes} copies each entry into a caller-owned {@code byte[]}, and
- * {@link #encode} always trims the scratch buffer into a freshly allocated {@link #data} blob — so no retained column
- * state aliases the scratch, and a mutation on one column (or one MVCC transaction layer) cannot leak into another that
- * later reuses the same thread's scratch.
+ * **Scratch contract.** The per-hop decode buffer, the flat-buffer decode pair and the encode buffer are reused
+ * across calls via a {@link ThreadLocal} {@link DecodeScratch} (grown on demand, never shrunk) so the high-frequency
+ * search and mutation paths allocate no per-call {@code byte[]}. The reuse is safe because nothing thread-local ever
+ * escapes: {@link #decodeAt} copies its result into a fresh {@link String}, {@link #decodeAllBytes} /
+ * {@link #decodeRangeBytes} copy each entry into a caller-owned {@code byte[]}, {@link #decodeAllToFlat}'s flat
+ * buffer is only ever read back by the very call that produced it, and {@link #encode} always trims the scratch
+ * buffer into a freshly allocated {@link #data} blob — so no retained column state aliases the scratch, and a
+ * mutation on one column (or one MVCC transaction layer) cannot leak into another that later reuses the same
+ * thread's scratch.
  *
  * Selected by {@link ValueColumnFactory#forKey} for every {@link String} attribute, localized or not.
  *
@@ -129,17 +135,26 @@ final class FrontCodedStringColumn<M extends Comparable<M>> implements ValueColu
 	 * on the high-cardinality string warmup path.
 	 *
 	 * The reuse is safe because nothing thread-local ever escapes: {@link #decodeAt} copies its result into a fresh
-	 * {@link String}, {@link #decodeAllBytes} copies each entry into a caller-owned {@code byte[]}, and {@link #encode}
-	 * always trims {@link #encodeBuf} into a freshly allocated {@link #data} blob — so no retained column state aliases
-	 * the scratch, and a mutation on one column (or one MVCC transaction layer) cannot leak into another that later
-	 * reuses the same thread's scratch. Both buffers grow on demand (doubling), are never shrunk, and there is exactly
-	 * one holder per thread, so a 32-thread commit pool retains at most 32 holders (kilobytes each).
+	 * {@link String}, {@link #decodeAllBytes} copies each entry into a caller-owned {@code byte[]}, {@link #decodeAllToFlat}
+	 * is only ever read by the same call stack that produced it (never stored on the column), and {@link #encode} always
+	 * trims {@link #encodeBuf} into a freshly allocated {@link #data} blob — so no retained column state aliases the
+	 * scratch, and a mutation on one column (or one MVCC transaction layer) cannot leak into another that later reuses
+	 * the same thread's scratch. All buffers grow on demand (doubling), are never shrunk, and there is exactly one
+	 * holder per thread, so a 32-thread commit pool retains at most 32 holders (kilobytes each).
 	 */
 	private static final class DecodeScratch {
 		/** Decode buffer reused across the forward hops of one {@link #decodeAt} / {@link #decodeAllBytes} decode. */
 		byte[] cur = new byte[DECODE_SCRATCH_BYTES];
 		/** Encode buffer the front-coded blob is assembled into before it is trimmed into a fresh {@link #data}. */
 		byte[] encodeBuf = EMPTY_BYTES;
+		/**
+		 * Concatenated full decoded key bytes reused by {@link #decodeAllToFlat}: entry {@code i} occupies
+		 * {@code flat[offsets[i] .. offsets[i + 1])}. Replaces a transient {@code byte[]} per entry with one reused
+		 * buffer for the slot mutators ({@link #insertKeyAt} / {@link #removeKeyAt} / {@link #copyRangeTo}).
+		 */
+		byte[] flat = EMPTY_BYTES;
+		/** Entry boundary table paired with {@link #flat}; length is always {@code >= size + 1}. */
+		int[] offsets = EMPTY_INT_ARRAY;
 	}
 
 	/**
@@ -177,10 +192,7 @@ final class FrontCodedStringColumn<M extends Comparable<M>> implements ValueColu
 	 */
 	FrontCodedStringColumn(int capacity) {
 		this.capacity = capacity;
-		this.size = 0;
-		this.dataLength = 0;
-		this.data = EMPTY_BYTES;
-		this.restartOffsets = EMPTY_OFFSETS;
+		resetToEmpty();
 	}
 
 	/**
@@ -215,10 +227,15 @@ final class FrontCodedStringColumn<M extends Comparable<M>> implements ValueColu
 	@Nonnull
 	@Override
 	public ValueColumn<M> duplicate() {
+		// structural share, not a copy: `data` / `restartOffsets` are safe to alias because every mutator
+		// (insertKeyAt / removeKeyAt / copyRangeTo / clearAt / fillEmpty) replaces both by WHOLE REFERENCE via
+		// encode(), never edits their bytes in place - so the new layer and this column can never observe each
+		// other's writes even though they start out pointing at the same arrays. If a future in-place `data` edit
+		// ever lands (reusing slack instead of trimming on every encode), this share must become copy-on-first-write.
 		return new FrontCodedStringColumn<>(
 			this.capacity, this.size, this.dataLength,
-			Arrays.copyOf(this.data, this.dataLength),
-			this.restartOffsets.clone()
+			this.data,
+			this.restartOffsets
 		);
 	}
 
@@ -232,22 +249,46 @@ final class FrontCodedStringColumn<M extends Comparable<M>> implements ValueColu
 
 	@Override
 	public void insertKeyAt(int index, @Nonnull M value) {
-		final byte[][] keys = decodeAllBytes();
-		final byte[][] grown = new byte[this.size + 1][];
-		System.arraycopy(keys, 0, grown, 0, index);
+		final DecodeScratch scratch = SCRATCH.get();
+		decodeAllToFlat(scratch);
+		final int n = this.size;
 		// the only key that has to be (re-)encoded from a String is the freshly inserted one
-		grown[index] = ((String) value).getBytes(StandardCharsets.UTF_8);
-		System.arraycopy(keys, index, grown, index + 1, this.size - index);
-		encode(grown, this.size + 1);
+		final byte[] newKeyBytes = ((String) value).getBytes(StandardCharsets.UTF_8);
+		final int[] offsets = ensureIntCapacity(scratch.offsets, n + 2);
+		final int insertOffset = offsets[index];
+		final int tailLen = offsets[n] - insertOffset;
+		byte[] flat = ensureCapacity(scratch.flat, offsets[n] + newKeyBytes.length);
+		// open a gap of newKeyBytes.length at insertOffset, shifting the tail right
+		System.arraycopy(flat, insertOffset, flat, insertOffset + newKeyBytes.length, tailLen);
+		System.arraycopy(newKeyBytes, 0, flat, insertOffset, newKeyBytes.length);
+		// shift the offset table right by one slot from `index` on, rebasing each shifted boundary by the new key's
+		// length; offsets[index] itself is untouched (it already points at the gap the new key now occupies)
+		for (int i = n; i >= index; i--) {
+			offsets[i + 1] = offsets[i] + newKeyBytes.length;
+		}
+		scratch.flat = flat;
+		scratch.offsets = offsets;
+		encode(flat, offsets, n + 1);
 	}
 
 	@Override
 	public void removeKeyAt(int index) {
-		final byte[][] keys = decodeAllBytes();
-		final byte[][] shrunk = new byte[this.size - 1][];
-		System.arraycopy(keys, 0, shrunk, 0, index);
-		System.arraycopy(keys, index + 1, shrunk, index, this.size - index - 1);
-		encode(shrunk, this.size - 1);
+		final DecodeScratch scratch = SCRATCH.get();
+		decodeAllToFlat(scratch);
+		final int n = this.size;
+		final int[] offsets = scratch.offsets;
+		final byte[] flat = scratch.flat;
+		final int removeStart = offsets[index];
+		final int removeLen = offsets[index + 1] - removeStart;
+		final int tailLen = offsets[n] - offsets[index + 1];
+		// close the gap left by the removed entry, shifting the tail left
+		System.arraycopy(flat, offsets[index + 1], flat, removeStart, tailLen);
+		// rebase every boundary from `index` on by the removed entry's length (reads offsets[i + 1] before it is
+		// itself overwritten, since the loop walks left to right)
+		for (int i = index; i < n; i++) {
+			offsets[i] = offsets[i + 1] - removeLen;
+		}
+		encode(flat, offsets, n - 1);
 	}
 
 	@Override
@@ -261,26 +302,62 @@ final class FrontCodedStringColumn<M extends Comparable<M>> implements ValueColu
 
 	@Override
 	public void copyRangeTo(int srcPos, @Nonnull ValueColumn<M> dst, int dstPos, int length) {
-		// snapshot the source range first (handles dst == this, including the overlapping right-shift in stealFromLeft)
-		final byte[][] srcAll = decodeAllBytes();
-		final byte[][] slice = new byte[length][];
-		System.arraycopy(srcAll, srcPos, slice, 0, length);
+		final DecodeScratch scratch = SCRATCH.get();
+		// snapshot the moved slice into a small, caller-owned array FIRST (handles dst == this, including the
+		// overlapping right-shift in stealFromLeft): the destination decode below reuses the same thread-local
+		// scratch this snapshot must survive
+		final byte[][] slice = decodeRangeBytes(scratch, srcPos, srcPos + length);
 
 		final FrontCodedStringColumn<M> target = asSameKind(dst);
-		// dst == this reuses the just-decoded array; otherwise decode the destination's own live entries
-		final byte[][] dstAll = target == this ? srcAll : target.decodeAllBytes();
-		final int newSize = Math.max(target.size, dstPos + length);
-		final byte[][] result = dstAll.length >= newSize ? dstAll : Arrays.copyOf(dstAll, newSize);
-		System.arraycopy(slice, 0, result, dstPos, length);
-		// A right-shift (dstPos > target.size, used by the leaf steal/merge rebalance to open room at the front)
-		// leaves the slots between the old live end and dstPos logically empty; the caller always fills them with a
-		// second copy before the column is read. A fixed-slot array carries those as harmless null sentinels, but the
-		// dense front-coded blob has no null-slot representation and encode() would NPE on them, so stamp transient
-		// empty-byte placeholders into the gap here — they are guaranteed to be overwritten by that follow-up copy.
-		for (int i = target.size; i < dstPos; i++) {
-			result[i] = EMPTY_BYTES;
+		target.decodeAllToFlat(scratch);
+		final int oldSize = target.size;
+		final int newSize = Math.max(oldSize, dstPos + length);
+		final byte[] srcFlat = scratch.flat;
+		final int[] srcOffsets = scratch.offsets;
+
+		// splice three segments into a small call-local buffer: the unchanged prefix [0, dstPos) (gap-filled with
+		// empty keys past oldSize — see the note below), the moved slice, and the unchanged suffix [dstPos + length,
+		// oldSize). Sizes change (the slice's total byte length rarely matches what it overwrites), so this has to be
+		// assembled fresh rather than mutated in place; bounded by the leaf block size, this is one array pair, not
+		// `length` individually-allocated entries.
+		final int prefixCount = Math.min(dstPos, oldSize);
+		int outLen = srcOffsets[prefixCount];
+		for (final byte[] key : slice) {
+			outLen += key.length;
 		}
-		target.encode(result, newSize);
+		if (dstPos + length < oldSize) {
+			outLen += srcOffsets[oldSize] - srcOffsets[dstPos + length];
+		}
+		final byte[] outFlat = new byte[outLen];
+		final int[] outOffsets = new int[newSize + 1];
+		int pos = 0;
+		int idx = 0;
+		for (int i = 0; i < prefixCount; i++) {
+			final int len = srcOffsets[i + 1] - srcOffsets[i];
+			System.arraycopy(srcFlat, srcOffsets[i], outFlat, pos, len);
+			outOffsets[idx++] = pos;
+			pos += len;
+		}
+		// A right-shift (dstPos > oldSize, used by the leaf steal/merge rebalance to open room at the front) leaves
+		// the slots between the old live end and dstPos logically empty; the caller always fills them with a second
+		// copy before the column is read. Empty (zero-length) keys are a valid front-coded entry, unlike a null
+		// slot in a fixed array, so no sentinel byte array is needed here.
+		for (int i = prefixCount; i < dstPos; i++) {
+			outOffsets[idx++] = pos;
+		}
+		for (final byte[] key : slice) {
+			System.arraycopy(key, 0, outFlat, pos, key.length);
+			outOffsets[idx++] = pos;
+			pos += key.length;
+		}
+		for (int i = dstPos + length; i < oldSize; i++) {
+			final int len = srcOffsets[i + 1] - srcOffsets[i];
+			System.arraycopy(srcFlat, srcOffsets[i], outFlat, pos, len);
+			outOffsets[idx++] = pos;
+			pos += len;
+		}
+		outOffsets[idx] = pos;
+		target.encode(outFlat, outOffsets, newSize);
 	}
 
 	@Override
@@ -447,6 +524,123 @@ final class FrontCodedStringColumn<M extends Comparable<M>> implements ValueColu
 	}
 
 	/**
+	 * Decodes every live entry into the calling thread's {@link DecodeScratch#flat} / {@link DecodeScratch#offsets}:
+	 * entry {@code i}'s full decoded bytes occupy {@code flat[offsets[i] .. offsets[i + 1])}. This is the flat-buffer
+	 * counterpart of {@link #decodeAllBytes} used by the hot slot mutators ({@link #insertKeyAt} / {@link #removeKeyAt}
+	 * / {@link #copyRangeTo}): one reused {@code byte[]} plus one reused {@code int[]} offset table replace the
+	 * {@code size} individually-allocated entry arrays {@link #decodeAllBytes} produces, so a single mutation no
+	 * longer allocates {@link #size} small objects.
+	 *
+	 * Each entry is written as a *self-contained* copy of its full bytes (not front-coded) so the buffer can be
+	 * spliced with a plain {@code System.arraycopy} by the caller; the shared-prefix compression is re-derived once,
+	 * on the way back out, by {@link #encode(byte[], int[], int)}. Because entries are appended left to right without
+	 * gaps, entry {@code i}'s shared prefix (if any) already sits at {@code flat[offsets[i - 1] .. offsets[i - 1] +
+	 * shared)} — the immediately preceding entry, still resident earlier in the same buffer — so no separate rolling
+	 * "current key" buffer is needed the way {@link #decodeAt} / {@link #decodeAllBytes} need one.
+	 *
+	 * @param scratch the calling thread's scratch (already fetched by the caller, which reuses it afterward)
+	 */
+	private void decodeAllToFlat(@Nonnull DecodeScratch scratch) {
+		final int n = this.size;
+		int[] offsets = ensureIntCapacity(scratch.offsets, n + 1);
+		byte[] flat = scratch.flat;
+		int pos = 0;
+		int flatPos = 0;
+		for (int i = 0; i < n; i++) {
+			offsets[i] = flatPos;
+			// read varint sharedPrefixLength
+			int shared = 0;
+			int shift = 0;
+			byte b;
+			do {
+				b = this.data[pos++];
+				shared |= (b & 0x7F) << shift;
+				shift += 7;
+			} while ((b & 0x80) != 0);
+			// read varint suffixLength
+			int suffixLen = 0;
+			shift = 0;
+			do {
+				b = this.data[pos++];
+				suffixLen |= (b & 0x7F) << shift;
+				shift += 7;
+			} while ((b & 0x80) != 0);
+			final int prevLen = i == 0 ? 0 : flatPos - offsets[i - 1];
+			// front-coding invariant (constant message keeps this per-entry check allocation-free)
+			Assert.isPremiseValid(shared <= prevLen, CORRUPT_BLOB_MESSAGE);
+			final int total = shared + suffixLen;
+			flat = ensureCapacity(flat, flatPos + total);
+			if (shared > 0) {
+				// the shared prefix is already sitting at the previous entry's location, earlier in this same buffer
+				System.arraycopy(flat, offsets[i - 1], flat, flatPos, shared);
+			}
+			System.arraycopy(this.data, pos, flat, flatPos + shared, suffixLen);
+			pos += suffixLen;
+			flatPos += total;
+		}
+		offsets[n] = flatPos;
+		scratch.flat = flat;
+		scratch.offsets = offsets;
+	}
+
+	/**
+	 * Decodes only the live entries in {@code [fromInclusive, toExclusive)} into a fresh, caller-owned
+	 * {@code byte[][]} (each element a freshly allocated copy aliasing neither {@link #data} nor the scratch). Used by
+	 * {@link #copyRangeTo} to snapshot the small moved slice *before* decoding the destination column into the shared
+	 * thread-local scratch (which would otherwise clobber an in-scratch slice when {@code dst == this}).
+	 *
+	 * @param scratch       the calling thread's scratch (already fetched by the caller)
+	 * @param fromInclusive the first live index to decode (restart-seeks to its enclosing restart point)
+	 * @param toExclusive   the exclusive end index
+	 * @return the decoded {@code [fromInclusive, toExclusive)} entries' raw UTF-8 bytes, in physical order
+	 */
+	@Nonnull
+	private byte[][] decodeRangeBytes(@Nonnull DecodeScratch scratch, int fromInclusive, int toExclusive) {
+		final int count = toExclusive - fromInclusive;
+		final byte[][] out = new byte[count][];
+		if (count == 0) {
+			return out;
+		}
+		final int restart = fromInclusive / RESTART_INTERVAL;
+		final int base = restart * RESTART_INTERVAL;
+		int pos = this.restartOffsets[restart];
+		byte[] cur = scratch.cur;
+		int curLen = 0;
+		// walk from the enclosing restart point, decoding (but discarding) entries before fromInclusive so the
+		// shared-prefix chain is reconstructed correctly, same as decodeAt's restart-seek-then-walk
+		for (int j = base; j < toExclusive; j++) {
+			int shared = 0;
+			int shift = 0;
+			byte b;
+			do {
+				b = this.data[pos++];
+				shared |= (b & 0x7F) << shift;
+				shift += 7;
+			} while ((b & 0x80) != 0);
+			int suffixLen = 0;
+			shift = 0;
+			do {
+				b = this.data[pos++];
+				suffixLen |= (b & 0x7F) << shift;
+				shift += 7;
+			} while ((b & 0x80) != 0);
+			Assert.isPremiseValid(shared <= curLen, CORRUPT_BLOB_MESSAGE);
+			final int total = shared + suffixLen;
+			if (total > cur.length) {
+				cur = Arrays.copyOf(cur, Math.max(total, cur.length << 1));
+			}
+			System.arraycopy(this.data, pos, cur, shared, suffixLen);
+			pos += suffixLen;
+			curLen = total;
+			if (j >= fromInclusive) {
+				out[j - fromInclusive] = Arrays.copyOf(cur, total);
+			}
+		}
+		scratch.cur = cur;
+		return out;
+	}
+
+	/**
 	 * Decodes all live entries into a fresh {@code String[]} of length {@link #size}. Cold path only (consistency
 	 * verification / {@link #asBoxedArray}); the hot slot mutators use {@link #decodeAllBytes} instead.
 	 *
@@ -475,16 +669,12 @@ final class FrontCodedStringColumn<M extends Comparable<M>> implements ValueColu
 	 */
 	private void encode(@Nonnull byte[][] keys, int n) {
 		if (n == 0) {
-			this.data = EMPTY_BYTES;
-			this.dataLength = 0;
-			this.restartOffsets = EMPTY_OFFSETS;
-			this.size = 0;
+			resetToEmpty();
 			return;
 		}
-		final int[] restarts = new int[(n + RESTART_INTERVAL - 1) / RESTART_INTERVAL];
-		// borrow the thread-local encode buffer (grown on demand) instead of allocating a fresh one per encode
+		final int[] restarts = newRestartTable(n);
 		final DecodeScratch scratch = SCRATCH.get();
-		byte[] buf = ensureCapacity(scratch.encodeBuf, Math.max(MIN_BUFFER_BYTES, n * BYTES_PER_ENTRY_ESTIMATE));
+		byte[] buf = acquireEncodeBuf(scratch, n);
 		int len = 0;
 		byte[] prev = EMPTY_BYTES;
 		for (int i = 0; i < n; i++) {
@@ -504,12 +694,105 @@ final class FrontCodedStringColumn<M extends Comparable<M>> implements ValueColu
 			len += suffixLen;
 			prev = keyBytes;
 		}
-		// write the (possibly grown) buffer back so the growth is reused by the next encode on this thread
+		finishEncode(scratch, buf, len, restarts, n);
+	}
+
+	/**
+	 * Re-encodes the first {@code n} entries of the flat buffer (entry {@code i} is {@code flat[offsets[i] ..
+	 * offsets[i + 1])}) into a fresh trimmed blob + restart index, replacing this column's state. Flat-buffer
+	 * counterpart of {@link #encode(byte[][], int)} used by the slot mutators that produce a
+	 * {@link DecodeScratch#flat} / {@link DecodeScratch#offsets} pair instead of a {@code byte[][]}.
+	 *
+	 * @param flat    the source key bytes, concatenated (at least {@code offsets[n]} bytes)
+	 * @param offsets the entry boundary table (at least {@code n + 1} entries)
+	 * @param n       the number of entries to encode
+	 */
+	private void encode(@Nonnull byte[] flat, @Nonnull int[] offsets, int n) {
+		if (n == 0) {
+			resetToEmpty();
+			return;
+		}
+		final int[] restarts = newRestartTable(n);
+		final DecodeScratch scratch = SCRATCH.get();
+		byte[] buf = acquireEncodeBuf(scratch, n);
+		int len = 0;
+		int prevStart = 0;
+		int prevLen = 0;
+		for (int i = 0; i < n; i++) {
+			final int start = offsets[i];
+			final int keyLen = offsets[i + 1] - start;
+			final int shared;
+			if (i % RESTART_INTERVAL == 0) {
+				restarts[i / RESTART_INTERVAL] = len;
+				shared = 0;
+			} else {
+				shared = commonPrefix(flat, prevStart, prevLen, start, keyLen);
+			}
+			final int suffixLen = keyLen - shared;
+			buf = ensureCapacity(buf, len + MAX_ENTRY_HEADER_BYTES + suffixLen);
+			len = writeVarInt(buf, len, shared);
+			len = writeVarInt(buf, len, suffixLen);
+			System.arraycopy(flat, start + shared, buf, len, suffixLen);
+			len += suffixLen;
+			prevStart = start;
+			prevLen = keyLen;
+		}
+		finishEncode(scratch, buf, len, restarts, n);
+	}
+
+	/**
+	 * Resets this column to the empty state (shared by both {@code encode} overloads' {@code n == 0} branch and the
+	 * public no-arg constructor).
+	 */
+	private void resetToEmpty() {
+		this.data = EMPTY_BYTES;
+		this.dataLength = 0;
+		this.restartOffsets = EMPTY_OFFSETS;
+		this.size = 0;
+	}
+
+	/**
+	 * Allocates the restart-offset index for {@code n} entries (shared by both {@code encode} overloads).
+	 *
+	 * @param n the number of entries to be encoded
+	 * @return a fresh, zeroed restart-offset table of the correct length
+	 */
+	@Nonnull
+	private static int[] newRestartTable(int n) {
+		return new int[(n + RESTART_INTERVAL - 1) / RESTART_INTERVAL];
+	}
+
+	/**
+	 * Borrows the thread-local encode buffer (grown on demand) instead of allocating a fresh one per encode; shared
+	 * by both {@code encode} overloads.
+	 *
+	 * @param scratch the calling thread's scratch
+	 * @param n       the number of entries to be encoded (sizing hint only)
+	 * @return a buffer of at least the estimated required capacity
+	 */
+	@Nonnull
+	private static byte[] acquireEncodeBuf(@Nonnull DecodeScratch scratch, int n) {
+		return ensureCapacity(scratch.encodeBuf, Math.max(MIN_BUFFER_BYTES, n * BYTES_PER_ENTRY_ESTIMATE));
+	}
+
+	/**
+	 * Commits the encode buffer's live prefix as this column's new state; shared by both {@code encode} overloads.
+	 *
+	 * `buf` is shared thread-local scratch, so this ALWAYS copies out a fresh trimmed blob - never adopts `buf`
+	 * into {@link #data} directly, or retained column state would alias the scratch and the next encode on this
+	 * thread would corrupt it. This copy trims to the exact live length (minimal retained footprint) and is the
+	 * load-bearing invariant that keeps the thread-local reuse MVCC-safe.
+	 *
+	 * @param scratch  the calling thread's scratch (the grown buffer is written back for reuse)
+	 * @param buf      the (possibly grown) encode buffer holding the freshly encoded blob in {@code buf[0, len)}
+	 * @param len      the live length of the encoded blob within {@code buf}
+	 * @param restarts the restart-offset index built alongside the encode
+	 * @param n        the number of entries encoded
+	 */
+	private void finishEncode(
+		@Nonnull DecodeScratch scratch, @Nonnull byte[] buf, int len, @Nonnull int[] restarts, int n
+	) {
 		scratch.encodeBuf = buf;
-		// `buf` is shared thread-local scratch, so ALWAYS copy out a fresh trimmed blob - never adopt `buf` into `data`,
-		// or retained column state would alias the scratch and the next encode on this thread would corrupt it. This
-		// copy trims to the exact live length (minimal retained footprint) and is the load-bearing invariant that keeps
-		// the thread-local reuse MVCC-safe.
 		this.data = Arrays.copyOf(buf, len);
 		this.dataLength = len;
 		this.restartOffsets = restarts;
@@ -548,6 +831,26 @@ final class FrontCodedStringColumn<M extends Comparable<M>> implements ValueColu
 	}
 
 	/**
+	 * Returns the length of the common leading byte run of two ranges within the same array (the flat-buffer
+	 * counterpart of {@link #commonPrefix(byte[], byte[])} used by {@link #encode(byte[], int[], int)}).
+	 *
+	 * @param arr    the backing array holding both ranges
+	 * @param aStart the start offset of the first (predecessor) range
+	 * @param aLen   the length of the first range
+	 * @param bStart the start offset of the second (current) range
+	 * @param bLen   the length of the second range
+	 * @return the shared prefix length
+	 */
+	private static int commonPrefix(@Nonnull byte[] arr, int aStart, int aLen, int bStart, int bLen) {
+		final int min = Math.min(aLen, bLen);
+		int i = 0;
+		while (i < min && arr[aStart + i] == arr[bStart + i]) {
+			i++;
+		}
+		return i;
+	}
+
+	/**
 	 * Writes an unsigned LEB128 varint and returns the advanced position.
 	 *
 	 * @param buf   the target buffer (guaranteed to have room)
@@ -574,6 +877,26 @@ final class FrontCodedStringColumn<M extends Comparable<M>> implements ValueColu
 	 */
 	@Nonnull
 	private static byte[] ensureCapacity(@Nonnull byte[] buf, int required) {
+		if (buf.length >= required) {
+			return buf;
+		}
+		int newLength = buf.length << 1;
+		if (newLength < required) {
+			newLength = required;
+		}
+		return Arrays.copyOf(buf, newLength);
+	}
+
+	/**
+	 * Grows the offset table (doubling) if it cannot hold {@code required} entries. Mirrors {@link #ensureCapacity}
+	 * for the {@link DecodeScratch#offsets} table.
+	 *
+	 * @param buf      the current offset table
+	 * @param required the minimum required length
+	 * @return a table of at least {@code required} length (the same instance when already large enough)
+	 */
+	@Nonnull
+	private static int[] ensureIntCapacity(@Nonnull int[] buf, int required) {
 		if (buf.length >= required) {
 			return buf;
 		}

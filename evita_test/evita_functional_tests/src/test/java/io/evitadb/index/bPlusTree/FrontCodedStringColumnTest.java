@@ -111,7 +111,7 @@ class FrontCodedStringColumnTest {
 			assertTrue(fHit.alreadyPresent());
 			assertEquals(bHit.position(), fHit.position());
 
-			// duplicate is an independent deep copy
+			// duplicate is an independent copy: mutating it must not affect the source
 			final ValueColumn<String> dup = frontCoded.duplicate();
 			assertColumnsEqual(dup, boxed, inserted.length + 1);
 			dup.insertKeyAt(0, "code-00");
@@ -125,6 +125,37 @@ class FrontCodedStringColumnTest {
 			assertColumnsEqual(frontCoded, boxed, inserted.length);
 
 			assertInstanceOf(FrontCodedStringColumn.class, frontCoded);
+		}
+
+		@Test
+		@DisplayName("duplicate() shares the blob until the first write, so mutating the source afterward must not "
+			+ "leak into the duplicate")
+		void shouldNotLeakSourceMutationsIntoDuplicate() {
+			// duplicate() structurally shares the backing blob/restart-index rather than deep-copying it (the blob is
+			// safe to alias because every mutator whole-reference-replaces it via encode()); this pins that invariant
+			// from the direction the parity test above does not cover — mutating the ORIGINAL after duplicating must
+			// leave the DUPLICATE observing its pre-mutation snapshot, proving encode() never edits the shared arrays
+			// in place
+			final ValueColumn<String> original = new FrontCodedStringColumn<>(BLOCK_SIZE);
+			final String[] keys = {"alpha", "alpine", "beta", "betard"};
+			for (int i = 0; i < keys.length; i++) {
+				original.insertKeyAt(i, keys[i]);
+			}
+
+			final ValueColumn<String> dup = original.duplicate();
+			// mutate the original: insert, then remove, so both encode() call sites run
+			original.insertKeyAt(2, "azure");
+			original.removeKeyAt(0);
+
+			// the duplicate must still report the pre-mutation snapshot
+			for (int i = 0; i < keys.length; i++) {
+				assertEquals(keys[i], dup.keyAt(i), "Duplicate must not observe the source's post-duplicate mutation");
+			}
+			// and the original must reflect its own mutations
+			final String[] expectedOriginal = {"alpine", "azure", "beta", "betard"};
+			for (int i = 0; i < expectedOriginal.length; i++) {
+				assertEquals(expectedOriginal[i], original.keyAt(i), "Original mutation mismatch at slot " + i);
+			}
 		}
 
 		@Test
