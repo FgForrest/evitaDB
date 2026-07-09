@@ -1845,7 +1845,7 @@ public class TestRoaringBitmap {
 			}
 			if (i > checkTime) {
 				assertTrue(equals(bs, rb));
-				checkTime *= 1.5;
+				checkTime = (int) (checkTime * 1.5);
 			}
 		}
 	}
@@ -1900,7 +1900,7 @@ public class TestRoaringBitmap {
 				final PersistentRoaringBitmap rb = (i & 1) == 0 ? rb2 : rb1;
 				final boolean status = equals(bs, rb);
 				assertTrue(status);
-				checkTime *= 1.5;
+				checkTime = (int) (checkTime * 1.5);
 			}
 		}
 	}
