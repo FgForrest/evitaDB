@@ -471,6 +471,86 @@ class FrontCodedStringColumnTest {
 		}
 
 		@Test
+		@DisplayName("copyRangeTo across restart-block boundaries (capacity 64, >16 live entries) matches the boxed column")
+		void shouldCopyRangeAcrossRestartBoundaries() {
+			// every other copyRangeTo test in this class uses BLOCK_SIZE (8), which never exceeds one restart block
+			// (RESTART_INTERVAL == 16), so the moved range never straddles a restart point - decodeRangeToFlat's
+			// restart-seek-then-walk (base = restart of srcPos, then rebase the caller's index against that base) is
+			// otherwise untested. This drives it at capacity 64 with 40 live entries (restarts at 0, 16, 32), picking
+			// src/dst ranges that straddle those boundaries, for both dst == this and dst != this.
+			final int capacity = 64;
+			final int count = 40;
+			final String[] keys = new String[count];
+			for (int i = 0; i < count; i++) {
+				// zero-padded so natural order == insertion order, matching shouldDecodeAcrossRestartBlocks
+				keys[i] = String.format("K%04d", i);
+			}
+
+			// dst == this, right shift: src [10, 22) straddles restart 16; dst [25, 37) straddles restart 32
+			{
+				final ValueColumn<String> front = new FrontCodedStringColumn<>(capacity);
+				final ValueColumn<String> boxed = new BoxedObjectColumn<>(String.class, capacity);
+				for (int i = 0; i < count; i++) {
+					front.insertKeyAt(i, keys[i]);
+					boxed.insertKeyAt(i, keys[i]);
+				}
+				front.copyRangeTo(10, front, 25, 12);
+				boxed.copyRangeTo(10, boxed, 25, 12);
+				assertColumnsEqual(front, boxed, count);
+			}
+
+			// dst == this, left shift: src [25, 37) straddles restart 32; dst [8, 20) straddles restart 16
+			{
+				final ValueColumn<String> front = new FrontCodedStringColumn<>(capacity);
+				final ValueColumn<String> boxed = new BoxedObjectColumn<>(String.class, capacity);
+				for (int i = 0; i < count; i++) {
+					front.insertKeyAt(i, keys[i]);
+					boxed.insertKeyAt(i, keys[i]);
+				}
+				front.copyRangeTo(25, front, 8, 12);
+				boxed.copyRangeTo(25, boxed, 8, 12);
+				assertColumnsEqual(front, boxed, count);
+			}
+
+			// dst != this, cross-leaf into an empty column: src [12, 34) straddles both restart 16 and restart 32
+			{
+				final ValueColumn<String> srcFront = new FrontCodedStringColumn<>(capacity);
+				final ValueColumn<String> srcBoxed = new BoxedObjectColumn<>(String.class, capacity);
+				for (int i = 0; i < count; i++) {
+					srcFront.insertKeyAt(i, keys[i]);
+					srcBoxed.insertKeyAt(i, keys[i]);
+				}
+				final ValueColumn<String> dstFront = srcFront.allocate(capacity);
+				final ValueColumn<String> dstBoxed = srcBoxed.allocate(capacity);
+				srcFront.copyRangeTo(12, dstFront, 0, 22);
+				srcBoxed.copyRangeTo(12, dstBoxed, 0, 22);
+				assertColumnsEqual(dstFront, dstBoxed, 22);
+			}
+
+			// dst != this, cross-leaf into a NON-empty column: exercises prefix + straddling slice + suffix together
+			// (dst already holds 40 keys under a different prefix, so this also proves the assembly buffer isn't
+			// confused between the two columns' distinct key spaces)
+			{
+				final ValueColumn<String> srcFront = new FrontCodedStringColumn<>(capacity);
+				final ValueColumn<String> srcBoxed = new BoxedObjectColumn<>(String.class, capacity);
+				final ValueColumn<String> dstFront = new FrontCodedStringColumn<>(capacity);
+				final ValueColumn<String> dstBoxed = new BoxedObjectColumn<>(String.class, capacity);
+				for (int i = 0; i < count; i++) {
+					srcFront.insertKeyAt(i, keys[i]);
+					srcBoxed.insertKeyAt(i, keys[i]);
+					final String dstKey = "Z" + keys[i];
+					dstFront.insertKeyAt(i, dstKey);
+					dstBoxed.insertKeyAt(i, dstKey);
+				}
+				// overwrite [15, 33) of dst (straddling dst's restart 16 and 32) with src's [5, 23) (straddling
+				// src's restart 16), leaving dst's [0, 15) prefix and [33, 40) suffix unchanged
+				srcFront.copyRangeTo(5, dstFront, 15, 18);
+				srcBoxed.copyRangeTo(5, dstBoxed, 15, 18);
+				assertColumnsEqual(dstFront, dstBoxed, count);
+			}
+		}
+
+		@Test
 		@DisplayName("fillEmpty is a no-op at the size boundary and truncates to empty from zero")
 		void shouldHandleFillEmptyBoundaries() {
 			final ValueColumn<String> column = new FrontCodedStringColumn<>(BLOCK_SIZE);
