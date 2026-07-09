@@ -161,6 +161,86 @@ public class Crc32CWrapper {
 	}
 
 	/**
+	 * Thread-local scratch {@link CRC32C} instance backing {@link #combineLong(long, long)},
+	 * {@link #combineInt(long, int)} and {@link #combineByte(long, byte)}. Computes the CRC32C of a
+	 * fixed-width primitive's raw bytes from a genuinely fresh (zero) state - the one state
+	 * {@link CRC32C} supports natively, so no {@link #forceValue(long)} is ever needed here. Shared
+	 * per-thread to avoid an allocation on every call.
+	 */
+	private static final ThreadLocal<CRC32C> COMBINE_PRIMITIVE_SCRATCH = ThreadLocal.withInitial(CRC32C::new);
+
+	/**
+	 * Thread-local 8-byte scratch buffer backing {@link #COMBINE_PRIMITIVE_SCRATCH}.
+	 */
+	private static final ThreadLocal<byte[]> COMBINE_PRIMITIVE_BUFFER = ThreadLocal.withInitial(() -> new byte[8]);
+
+	/**
+	 * Folds a fixed-width `long` value's little-endian byte representation into a cumulative CRC32C value,
+	 * without ever seeding a live {@link CRC32C} to an arbitrary state. Computes the CRC32C of the value's
+	 * 8 little-endian bytes from a genuinely fresh (zero) checksum, then folds that chunk checksum into
+	 * `cumulative` via {@link #combine(long, long, long)} - bit-identical to
+	 * `new Crc32CWrapper(cumulative).withLong(value).getValue()` but without ever calling
+	 * {@link #forceValue(long)}.
+	 *
+	 * @param cumulative the running cumulative CRC32C value to fold {@code value} into
+	 * @param value      the long value to fold in, in the same little-endian layout as {@link #withLong(long)}
+	 * @return the updated cumulative CRC32C value
+	 */
+	public static long combineLong(long cumulative, long value) {
+		final CRC32C scratch = COMBINE_PRIMITIVE_SCRATCH.get();
+		scratch.reset();
+		final byte[] buffer = COMBINE_PRIMITIVE_BUFFER.get();
+		buffer[0] = (byte) value;
+		buffer[1] = (byte) (value >>> 8);
+		buffer[2] = (byte) (value >>> 16);
+		buffer[3] = (byte) (value >>> 24);
+		buffer[4] = (byte) (value >>> 32);
+		buffer[5] = (byte) (value >>> 40);
+		buffer[6] = (byte) (value >>> 48);
+		buffer[7] = (byte) (value >>> 56);
+		scratch.update(buffer, 0, 8);
+		return combine(cumulative, scratch.getValue(), 8L);
+	}
+
+	/**
+	 * Folds a fixed-width `int` value's little-endian byte representation into a cumulative CRC32C value.
+	 * See {@link #combineLong(long, long)} for the rationale; this is the 4-byte counterpart, matching
+	 * {@link #withInt(int)}'s byte layout.
+	 *
+	 * @param cumulative the running cumulative CRC32C value to fold {@code value} into
+	 * @param value      the int value to fold in, in the same little-endian layout as {@link #withInt(int)}
+	 * @return the updated cumulative CRC32C value
+	 */
+	public static long combineInt(long cumulative, int value) {
+		final CRC32C scratch = COMBINE_PRIMITIVE_SCRATCH.get();
+		scratch.reset();
+		final byte[] buffer = COMBINE_PRIMITIVE_BUFFER.get();
+		buffer[0] = (byte) value;
+		buffer[1] = (byte) (value >> 8);
+		buffer[2] = (byte) (value >> 16);
+		buffer[3] = (byte) (value >> 24);
+		scratch.update(buffer, 0, 4);
+		return combine(cumulative, scratch.getValue(), 4L);
+	}
+
+	/**
+	 * Folds a single byte value into a cumulative CRC32C value. See {@link #combineLong(long, long)} for
+	 * the rationale; this is the 1-byte counterpart, matching {@link #withByte(byte)}'s byte layout.
+	 *
+	 * @param cumulative the running cumulative CRC32C value to fold {@code value} into
+	 * @param value      the byte value to fold in
+	 * @return the updated cumulative CRC32C value
+	 */
+	public static long combineByte(long cumulative, byte value) {
+		final CRC32C scratch = COMBINE_PRIMITIVE_SCRATCH.get();
+		scratch.reset();
+		final byte[] buffer = COMBINE_PRIMITIVE_BUFFER.get();
+		buffer[0] = value;
+		scratch.update(buffer, 0, 1);
+		return combine(cumulative, scratch.getValue(), 1L);
+	}
+
+	/**
 	 * Multiplies a vector by a matrix in GF(2) using Kernighan's bit-clearing trick.
 	 * Uses {@link Integer#numberOfTrailingZeros(int)} (a JVM intrinsic mapping to a single
 	 * TZCNT/BSF CPU instruction) to skip zero bits in O(1), reducing iterations from 32

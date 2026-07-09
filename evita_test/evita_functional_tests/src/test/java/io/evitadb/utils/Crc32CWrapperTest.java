@@ -1260,4 +1260,131 @@ class Crc32CWrapperTest {
 		assertEquals(expected.getValue(), result);
 	}
 
+	// =========================================================================
+	// Tests for combineLong/combineInt/combineByte (bare-long primitive folding, no forceValue)
+	// =========================================================================
+
+	@Test
+	@DisplayName("Should fold a byte value into a cumulative checksum identically to the old forceValue-based path")
+	void shouldCombineByteIdenticallyToForceValueBasedPath() {
+		final long cumulative = crc32c("prefix-data".getBytes(StandardCharsets.UTF_8));
+		final byte value = 42;
+
+		final long combined = Crc32CWrapper.combineByte(cumulative, value);
+		final long oldWay = new Crc32CWrapper(cumulative).withByte(value).getValue();
+
+		assertEquals(oldWay, combined);
+	}
+
+	@Test
+	@DisplayName("Should match the forceValue-based path across a spread of boundary byte values")
+	void shouldMatchForceValueBasedPathAcrossByteBoundarySpread() {
+		final long cumulative = crc32c("some-known-prefix".getBytes(StandardCharsets.UTF_8));
+		final byte[] values = {0, -1, 1, Byte.MIN_VALUE, Byte.MAX_VALUE, (byte) 0x55, (byte) 0xAA};
+		for (final byte value : values) {
+			final long combined = Crc32CWrapper.combineByte(cumulative, value);
+			final long oldWay = new Crc32CWrapper(cumulative).withByte(value).getValue();
+			assertEquals(oldWay, combined, "combineByte mismatch for value=" + value);
+		}
+	}
+
+	@Test
+	@DisplayName("Should fold a long value into a cumulative checksum identically to the old forceValue-based path")
+	void shouldCombineLongIdenticallyToForceValueBasedPath() {
+		final long cumulative = crc32c("prefix-data".getBytes(StandardCharsets.UTF_8));
+		final long value = 123456789L;
+
+		final long combined = Crc32CWrapper.combineLong(cumulative, value);
+		final long oldWay = new Crc32CWrapper(cumulative).withLong(value).getValue();
+
+		assertEquals(oldWay, combined);
+	}
+
+	@Test
+	@DisplayName("Should fold an int value into a cumulative checksum identically to the old forceValue-based path")
+	void shouldCombineIntIdenticallyToForceValueBasedPath() {
+		final long cumulative = crc32c("prefix-data".getBytes(StandardCharsets.UTF_8));
+		final int value = 42;
+
+		final long combined = Crc32CWrapper.combineInt(cumulative, value);
+		final long oldWay = new Crc32CWrapper(cumulative).withInt(value).getValue();
+
+		assertEquals(oldWay, combined);
+	}
+
+	@Test
+	@DisplayName("Should match the forceValue-based path across a spread of boundary long values")
+	void shouldMatchForceValueBasedPathAcrossLongBoundarySpread() {
+		final long cumulative = crc32c("some-known-prefix".getBytes(StandardCharsets.UTF_8));
+		final long[] values = {
+			0L, -1L, 1L, Long.MIN_VALUE, Long.MAX_VALUE,
+			0x5555555555555555L, 0xAAAAAAAAAAAAAAAAL, 0x0102030405060708L
+		};
+		for (final long value : values) {
+			final long combined = Crc32CWrapper.combineLong(cumulative, value);
+			final long oldWay = new Crc32CWrapper(cumulative).withLong(value).getValue();
+			assertEquals(oldWay, combined, "combineLong mismatch for value=" + value);
+		}
+	}
+
+	@Test
+	@DisplayName("Should match the forceValue-based path across a spread of boundary int values")
+	void shouldMatchForceValueBasedPathAcrossIntBoundarySpread() {
+		final long cumulative = crc32c("some-known-prefix".getBytes(StandardCharsets.UTF_8));
+		final int[] values = {
+			0, -1, 1, Integer.MIN_VALUE, Integer.MAX_VALUE,
+			0x55555555, 0xAAAAAAAA, 0x01020304
+		};
+		for (final int value : values) {
+			final long combined = Crc32CWrapper.combineInt(cumulative, value);
+			final long oldWay = new Crc32CWrapper(cumulative).withInt(value).getValue();
+			assertEquals(oldWay, combined, "combineInt mismatch for value=" + value);
+		}
+	}
+
+	@Test
+	@DisplayName("Should match the forceValue-based path across a large spread of random (cumulative, value) pairs")
+	void shouldMatchForceValueBasedPathAcrossRandomPairs() {
+		final java.util.Random rnd = new java.util.Random(2026_07_09L);
+		for (int i = 0; i < 20_000; i++) {
+			final long cumulative = rnd.nextLong() & 0xFFFFFFFFL;
+
+			final long longValue = rnd.nextLong();
+			final long combinedLong = Crc32CWrapper.combineLong(cumulative, longValue);
+			final long oldWayLong = new Crc32CWrapper(cumulative).withLong(longValue).getValue();
+			assertEquals(oldWayLong, combinedLong, "combineLong mismatch for cumulative=" + cumulative + ", value=" + longValue);
+
+			final int intValue = rnd.nextInt();
+			final long combinedInt = Crc32CWrapper.combineInt(cumulative, intValue);
+			final long oldWayInt = new Crc32CWrapper(cumulative).withInt(intValue).getValue();
+			assertEquals(oldWayInt, combinedInt, "combineInt mismatch for cumulative=" + cumulative + ", value=" + intValue);
+
+			final byte byteValue = (byte) rnd.nextInt();
+			final long combinedByte = Crc32CWrapper.combineByte(cumulative, byteValue);
+			final long oldWayByte = new Crc32CWrapper(cumulative).withByte(byteValue).getValue();
+			assertEquals(oldWayByte, combinedByte, "combineByte mismatch for cumulative=" + cumulative + ", value=" + byteValue);
+		}
+	}
+
+	@Test
+	@DisplayName("Should reuse thread-local scratch state safely across repeated combineLong/combineInt/combineByte calls")
+	void shouldReuseScratchStateSafelyAcrossRepeatedCalls() {
+		long cumulative = 0L;
+		for (int i = 0; i < 1000; i++) {
+			cumulative = Crc32CWrapper.combineLong(cumulative, i);
+			cumulative = Crc32CWrapper.combineInt(cumulative, i * 7);
+			cumulative = Crc32CWrapper.combineByte(cumulative, (byte) i);
+		}
+
+		// recompute independently via the old forceValue-based path to cross-check the final value
+		long expected = 0L;
+		for (int i = 0; i < 1000; i++) {
+			expected = new Crc32CWrapper(expected).withLong(i).getValue();
+			expected = new Crc32CWrapper(expected).withInt(i * 7).getValue();
+			expected = new Crc32CWrapper(expected).withByte((byte) i).getValue();
+		}
+
+		assertEquals(expected, cumulative);
+	}
+
 }

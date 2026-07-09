@@ -182,7 +182,33 @@ class EngineMutationLogTest implements EvitaTestSupport {
 	}
 
 	/**
-	 * Writes engine WAL entries composed of SetCatalogMutabilityMutation and appends TransactionMutations to WAL.
+	 * Creates an EngineMutationLog with checksum computation disabled ({@code computeCRC32(false)}), to verify
+	 * that the cumulative-checksum machinery's {@code Checksum.NO_OP} dispatch is unaffected by the
+	 * value-mode/stream-mode split in {@code Crc32CChecksum}.
+	 */
+	@Nonnull
+	private EngineMutationLog createEngineWalWithChecksumsDisabled() {
+		return new EngineMutationLog(
+			0L,
+			new LogFileRecordReference(EnginePersistenceService::getWalFileName),
+			this.walDirectory,
+			this.kryoPool,
+			new StorageSettings(
+				StorageOptions.builder()
+					.compress(false)
+					.computeCRC32(false)
+					.build(),
+				TransactionOptions.builder()
+					.walFileSizeBytes(Long.MAX_VALUE)
+					.build()
+			),
+			Mockito.mock(Scheduler.class)
+		);
+	}
+
+	/**
+	 * Writes engine WAL entries composed of SetCatalogMutabilityMutation and appends TransactionMutations to
+	 * {@link #wal}, using {@link #LARGE_FILE_STORAGE_SETTINGS} for the isolated per-transaction WAL buffer.
 	 *
 	 * @param transactionSizes   array specifying the number of mutations in each transaction
 	 * @param initialTimestamp   optional starting timestamp
@@ -190,6 +216,29 @@ class EngineMutationLogTest implements EvitaTestSupport {
 	 */
 	@Nonnull
 	private List<TxData> writeEngineWal(@Nonnull int[] transactionSizes, @Nullable OffsetDateTime initialTimestamp) {
+		return writeEngineWal(this.wal, LARGE_FILE_STORAGE_SETTINGS, transactionSizes, initialTimestamp);
+	}
+
+	/**
+	 * Writes engine WAL entries composed of SetCatalogMutabilityMutation and appends TransactionMutations to an
+	 * arbitrary target WAL, using the given settings for the isolated per-transaction WAL buffer. Used to exercise
+	 * a differently-configured {@link EngineMutationLog} (e.g. with checksums disabled) without a real, readable
+	 * Kryo payload — unlike {@link #createRawTestTransaction}, which fills the payload with non-mutation filler
+	 * bytes only suitable for raw checksum-byte inspection, not for reading back via a mutation stream.
+	 *
+	 * @param targetWal          the WAL to append transactions to
+	 * @param settings           the settings for the isolated per-transaction WAL buffer
+	 * @param transactionSizes   array specifying the number of mutations in each transaction
+	 * @param initialTimestamp   optional starting timestamp
+	 * @return list of TxData for each written transaction to verify content later
+	 */
+	@Nonnull
+	private List<TxData> writeEngineWal(
+		@Nonnull EngineMutationLog targetWal,
+		@Nonnull StorageSettings settings,
+		@Nonnull int[] transactionSizes,
+		@Nullable OffsetDateTime initialTimestamp
+	) {
 		final DefaultIsolatedWalService walPersistenceService = new DefaultIsolatedWalService(
 			TEST_CATALOG,
 			UUID.randomUUID(),
@@ -201,8 +250,8 @@ class EngineMutationLogTest implements EvitaTestSupport {
 				false,
 				this.observableOutputKeeper,
 				this.offHeapMemoryManager,
-				LARGE_FILE_STORAGE_SETTINGS,
-				LARGE_FILE_STORAGE_SETTINGS
+				settings,
+				settings
 			)
 		);
 
@@ -229,7 +278,7 @@ class EngineMutationLogTest implements EvitaTestSupport {
 				timestamp
 			);
 
-			this.wal.append(txMutation, walReference);
+			targetWal.append(txMutation, walReference);
 
 			result.add(new TxData(version, timestamp, txSize, walReference.getContentLength(), expectedConcat.toString()));
 			timestamp = timestamp.plusMinutes(1);
@@ -699,6 +748,62 @@ class EngineMutationLogTest implements EvitaTestSupport {
 				final long computedChecksum = checksumCalculator.getValue();
 
 				assertEquals(reportedChecksum, computedChecksum, "Computed CRC32C should match reported checksum");
+			}
+
+			// Clean directory and recreate WAL for tearDown
+			cleanTestSubDirectory(EngineMutationLogTest.class.getSimpleName());
+			EngineMutationLogTest.this.walDirectory.toFile().mkdirs();
+			EngineMutationLogTest.this.wal = createEngineWalWithLargeSize();
+		}
+
+		@Test
+		@DisplayName("should keep cumulative checksum at zero and remain readable when checksums are disabled")
+		void shouldKeepCumulativeChecksumAtZeroWhenChecksumsDisabled() throws IOException {
+			// re-verifies the correctness gap the Crc32CChecksum value-mode/stream-mode split was designed to
+			// avoid: StorageOptions#computeCRC32C()=false must still dispatch to Checksum.NO_OP end to end,
+			// on both the write path (cumulative checksum stays 0, on-disk bytes stay 0) and the read path
+			// (MutationSupplier's equalsTo() assertion must not throw against the disk's 0).
+			EngineMutationLogTest.this.wal.close();
+			cleanTestSubDirectory(EngineMutationLogTest.class.getSimpleName());
+			EngineMutationLogTest.this.walDirectory.toFile().mkdirs();
+
+			final Path walFilePath = EngineMutationLogTest.this.walDirectory.resolve(EnginePersistenceService.getWalFileName(0));
+			final StorageSettings noChecksumSettings = new StorageSettings(
+				StorageOptions.builder()
+					.compress(false)
+					.computeCRC32(false)
+					.build(),
+				TransactionOptions.builder()
+					.walFileSizeBytes(Long.MAX_VALUE)
+					.build()
+			);
+
+			try (final EngineMutationLog noChecksumWal = EngineMutationLogTest.this.createEngineWalWithChecksumsDisabled()) {
+				final List<TxData> written = writeEngineWal(noChecksumWal, noChecksumSettings, new int[]{1, 2}, null);
+
+				final Iterator<EngineMutation<?>> iterator = noChecksumWal.getCommittedMutationStream(1).iterator();
+				int transactionCount = 0;
+				while (iterator.hasNext()) {
+					final Mutation mutation = iterator.next();
+					assertInstanceOf(TransactionMutation.class, mutation);
+					final TransactionMutation txMutation = (TransactionMutation) mutation;
+					transactionCount++;
+					for (int i = 0; i < txMutation.getMutationCount(); i++) {
+						iterator.next();
+					}
+				}
+				assertEquals(written.size(), transactionCount, "Both transactions should be readable back with checksums disabled");
+			}
+
+			try (final RandomAccessFile raf = new RandomAccessFile(walFilePath.toFile(), "r")) {
+				final long fileSize = raf.length();
+				raf.seek(fileSize - 8);
+				final byte[] checksumBytes = new byte[8];
+				raf.readFully(checksumBytes);
+				assertEquals(
+					0L, readLittleEndianLong(checksumBytes),
+					"On-disk cumulative checksum should be zero when checksums are disabled"
+				);
 			}
 
 			// Clean directory and recreate WAL for tearDown

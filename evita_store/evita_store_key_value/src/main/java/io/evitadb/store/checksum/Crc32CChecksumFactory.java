@@ -28,10 +28,11 @@ import javax.annotation.Nonnull;
 /**
  * Factory implementation for creating CRC32C-based {@link Checksum} instances.
  *
- * This factory creates {@link Crc32CChecksum} instances that use the CRC32C (Castagnoli)
- * algorithm for data integrity verification. CRC32C provides efficient checksum computation with
- * hardware acceleration support on modern CPUs, making it well-suited for high-throughput storage
- * operations in evitaDB.
+ * This factory creates CRC32C (Castagnoli) checksum instances. Both creation methods return the same
+ * {@link Crc32CChecksum} implementation, differing only in their starting state - see
+ * {@link ChecksumFactory#createChecksum()} and {@link ChecksumFactory#createCumulativeChecksum(long)} for
+ * details. CRC32C provides efficient checksum computation with hardware acceleration support on modern
+ * CPUs, making it well-suited for high-throughput storage operations in evitaDB.
  *
  * The factory follows the singleton pattern with a single {@link #INSTANCE} that can be shared
  * across the application. This is the standard factory used in the evitaDB storage layer when
