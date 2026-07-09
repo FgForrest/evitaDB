@@ -375,10 +375,17 @@ public class CumulativeWeightBPlusTree<K> implements ConsistencySensitiveDataStr
 			cursor.depth = 0;
 		}
 		while (node instanceof final InternalNode internal) {
-			int childIndex = 0;
-			while (childIndex < internal.childCount - 1 && compare(key, internal.separators[childIndex]) >= 0) {
-				childIndex++;
+			int lo = 0;
+			int hi = internal.childCount - 1;
+			while (lo < hi) {
+				final int mid = (lo + hi) >>> 1;
+				if (compare(key, internal.separators[mid]) >= 0) {
+					lo = mid + 1;
+				} else {
+					hi = mid;
+				}
 			}
+			final int childIndex = lo;
 			if (cursor != null) {
 				cursor.push(internal, childIndex);
 			}
