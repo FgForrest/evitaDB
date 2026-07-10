@@ -58,7 +58,7 @@ public interface EvitaCatalogSetup extends CatalogSetup, EvitaTestSupport {
 						.lockTimeoutSeconds(50)
 						.waitOnCloseSeconds(50)
 						.outputBufferSize(4_194_304)
-						.maxOpenedReadHandles(12)
+						.maxOpenedReadHandles(Runtime.getRuntime().availableProcessors() * 4)
 						.computeCRC32(true)
 						.minimalActiveRecordShare(0.01)
 						.build()
