@@ -39,6 +39,8 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
 import java.time.OffsetDateTime;
+import java.util.function.Consumer;
+import java.util.function.IntConsumer;
 
 /**
  * Mock implementation of {@link PriceListAndCurrencyPriceIndex} that supports incremental price
@@ -154,6 +156,15 @@ public class MockPriceListAndCurrencyPriceIndex implements PriceListAndCurrencyP
 	@Override
 	public PriceRecordContract[] getPriceRecords() {
 		return this.priceRecords;
+	}
+
+	@Override
+	public void forEachPriceRecord(
+		@Nonnull Bitmap priceIds,
+		@Nonnull Consumer<PriceRecordContract> priceFoundCallback,
+		@Nonnull IntConsumer priceIdNotFoundCallback
+	) throws PriceListAndCurrencyPriceIndex.PriceListAndCurrencyPriceIndexTerminated {
+		throw new UnsupportedOperationException();
 	}
 
 	@Nonnull

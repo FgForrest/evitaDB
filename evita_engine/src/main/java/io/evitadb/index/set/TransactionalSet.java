@@ -176,7 +176,7 @@ public class TransactionalSet<K> implements Set<K>, Serializable, Cloneable,
 		if (layer == null) {
 			return this.setDelegate.iterator();
 		} else {
-			return new TransactionalMemorySetIterator<>(this.setDelegate, layer);
+			return new TransactionalMemorySetIterator<>(this.setDelegate, layer, this);
 		}
 	}
 
@@ -383,6 +383,7 @@ public class TransactionalSet<K> implements Set<K>, Serializable, Cloneable,
 	private static class TransactionalMemorySetIterator<K> implements Iterator<K> {
 
 		private final SetChanges<K> layer;
+		private final TransactionalLayerCreator<SetChanges<K>> layerCreator;
 		private final Iterator<K> layerIt;
 		private final Iterator<K> stateIt;
 
@@ -393,11 +394,18 @@ public class TransactionalSet<K> implements Set<K>, Serializable, Cloneable,
 		/**
 		 * Creates a new iterator merging the delegate and layer state.
 		 *
-		 * @param setDelegate the underlying delegate set
-		 * @param layer       the transactional diff layer
+		 * @param setDelegate  the underlying delegate set
+		 * @param layer        the transactional diff layer
+		 * @param layerCreator the creator owning the diff layer, used to register the write-touch with the
+		 *                     maintainer when {@link #remove()} mutates the layer
 		 */
-		TransactionalMemorySetIterator(@Nonnull Set<K> setDelegate, @Nonnull SetChanges<K> layer) {
+		TransactionalMemorySetIterator(
+			@Nonnull Set<K> setDelegate,
+			@Nonnull SetChanges<K> layer,
+			@Nonnull TransactionalLayerCreator<SetChanges<K>> layerCreator
+		) {
 			this.layer = layer;
+			this.layerCreator = layerCreator;
 			this.layerIt = layer.getCreatedKeys().iterator();
 			this.stateIt = setDelegate.iterator();
 		}
@@ -430,10 +438,18 @@ public class TransactionalSet<K> implements Set<K>, Serializable, Cloneable,
 				throw new GenericEvitaInternalError("Value unexpectedly not found!");
 			}
 
+			// register the write-touch with the maintainer FIRST: when a savepoint is open and this layer has not
+			// been touched inside it yet, this records the layer's pre-mutation snapshot (and activates its undo
+			// journal) BEFORE the removal below mutates the diff layer - otherwise the removal would be unrevertable
+			Transaction.getTransactionalMemoryLayerForWriteIfExists(this.layerCreator);
+
 			final K key = this.currentValue;
 			final boolean existing = this.layer.getSetDelegate().contains(key);
 			final boolean removedFromTransactionalMemory = this.layer.getCreatedKeys().contains(key);
 			if (removedFromTransactionalMemory) {
+				// capture the pre-mutation membership: the raw created-keys iterator removal below bypasses the
+				// layer's journaled mutators, so a savepoint rollback could not reinstate the created key otherwise
+				this.layer.journalKey(key);
 				this.layerIt.remove();
 				if (!existing) {
 					this.layer.removeCreatedKey(key);

@@ -25,6 +25,7 @@ package io.evitadb.index;
 
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
 import io.evitadb.test.duration.TimeArgumentProvider;
 import io.evitadb.test.duration.TimeArgumentProvider.GenerationalTestInput;
 import io.evitadb.test.duration.TimeBoundedTestSupport;
@@ -35,6 +36,7 @@ import org.junit.jupiter.params.provider.ArgumentsSource;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -47,16 +49,21 @@ import static io.evitadb.test.TestTags.HISTOGRAM;
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.MANAGEMENT;
 import static io.evitadb.test.TestTags.SLOW;
+import static io.evitadb.test.TestTags.TRANSACTION;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
+import static io.evitadb.utils.AssertionUtils.assertStateAfterRollback;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 /**
  * Generational property-based stress tests for {@link SimpleHistogramIndex} and
  * {@link LocalizedHistogramIndex}. Runs randomized insert/remove operations across
- * many generations and verifies committed state against a JDK reference model.
+ * many generations and verifies committed state against a JDK reference model. Besides the forward commit proof it also
+ * drives the transactional-discard atomic-rollback path against a value oracle (Ref: #569); the per-entity savepoint
+ * rollback (Ref: #1252) is exercised by the sibling {@code LongRunningSavepointHistogramIndexTest}.
  *
  * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -81,7 +88,7 @@ class LongRunningHistogramIndexTest implements TimeBoundedTestSupport {
 			50,
 			new SimpleTestState(
 				new StringBuilder(256),
-				new SimpleHistogramIndex(HISTOGRAM_NAME, REFERENCE_NAME, Integer.class)
+				new SimpleHistogramIndex(HISTOGRAM_NAME, REFERENCE_NAME, Integer.class, 0)
 			),
 			(random, testState) -> {
 				final StringBuilder code = testState.code();
@@ -93,34 +100,7 @@ class LongRunningHistogramIndexTest implements TimeBoundedTestSupport {
 
 				assertStateAfterCommit(
 					index,
-					original -> {
-						try {
-							final int opsCount = random.nextInt(50);
-							for (int i = 0; i < opsCount; i++) {
-								final int totalEntries = countEntries(referenceModel);
-								if ((random.nextBoolean() || totalEntries < 5) && totalEntries < 100) {
-									final int value = random.nextInt(50);
-									final int ownerPK = random.nextInt(30) + 1;
-									code.append("insert(").append(value)
-										.append(", ").append(ownerPK).append(")\n");
-									original.insertValue(null, value, ownerPK);
-									referenceModel
-										.computeIfAbsent(value, k -> new HashMap<>(8))
-										.merge(ownerPK, 1, Integer::sum);
-								} else {
-									final int[] entry = pickRandomEntry(random, referenceModel);
-									if (entry != null) {
-										code.append("remove(").append(entry[0])
-											.append(", ").append(entry[1]).append(")\n");
-										original.removeValue(null, entry[0], entry[1]);
-										decrementCardinality(referenceModel, entry[0], entry[1]);
-									}
-								}
-							}
-						} catch (Exception ex) {
-							fail("\n" + code, ex);
-						}
-					},
+					original -> applyRandomSimpleBatch(random, original, referenceModel, code),
 					(original, committed) -> {
 						verifyHistogramState(committed, null, referenceModel, code);
 						committedRef.set(committed);
@@ -148,7 +128,7 @@ class LongRunningHistogramIndexTest implements TimeBoundedTestSupport {
 			50,
 			new LocalizedTestState(
 				new StringBuilder(256),
-				new LocalizedHistogramIndex(HISTOGRAM_NAME, REFERENCE_NAME, Integer.class)
+				new LocalizedHistogramIndex(HISTOGRAM_NAME, REFERENCE_NAME, Integer.class, 0)
 			),
 			(random, testState) -> {
 				final StringBuilder code = testState.code();
@@ -159,43 +139,7 @@ class LongRunningHistogramIndexTest implements TimeBoundedTestSupport {
 
 				assertStateAfterCommit(
 					index,
-					original -> {
-						try {
-							final int opsCount = random.nextInt(50);
-							for (int i = 0; i < opsCount; i++) {
-								final Locale locale = locales[random.nextInt(locales.length)];
-								final Map<Integer, Map<Integer, Integer>> localeModel =
-									referenceModel.computeIfAbsent(locale, k -> new HashMap<>(64));
-								final int totalEntries = countEntries(localeModel);
-								if ((random.nextBoolean() || totalEntries < 5)
-									&& totalEntries < 80) {
-									final int value = random.nextInt(50);
-									final int ownerPK = random.nextInt(30) + 1;
-									code.append("insert(").append(locale).append(", ")
-										.append(value).append(", ")
-										.append(ownerPK).append(")\n");
-									original.insertValue(locale, value, ownerPK);
-									localeModel
-										.computeIfAbsent(value, k -> new HashMap<>(8))
-										.merge(ownerPK, 1, Integer::sum);
-								} else {
-									final int[] entry =
-										pickRandomEntry(random, localeModel);
-									if (entry != null) {
-										code.append("remove(").append(locale).append(", ")
-											.append(entry[0]).append(", ")
-											.append(entry[1]).append(")\n");
-										original.removeValue(locale, entry[0], entry[1]);
-										decrementCardinality(
-											localeModel, entry[0], entry[1]
-										);
-									}
-								}
-							}
-						} catch (Exception ex) {
-							fail("\n" + code, ex);
-						}
-					},
+					original -> applyRandomLocalizedBatch(random, original, locales, referenceModel, code),
 					(original, committed) -> {
 						for (Locale locale : locales) {
 							final Map<Integer, Map<Integer, Integer>> localeModel =
@@ -214,12 +158,271 @@ class LongRunningHistogramIndexTest implements TimeBoundedTestSupport {
 		);
 	}
 
+	/**
+	 * Generational proof that a **rolled-back** transaction discards every in-transaction mutation and leaves the base
+	 * {@link SimpleHistogramIndex} intact — the atomic-rollback contract of Ref: #569. Each generation rebuilds a fresh
+	 * index from the (random-walking) reference model, captures a value oracle of that base, applies a random batch of
+	 * insert/remove mutations inside a transaction that is then rolled back, and asserts the base index is unchanged and
+	 * no committed value was published. Shares the batch generator with the commit proof so both drive the identical
+	 * random-draw sequence.
+	 */
+	@ParameterizedTest(name = "SimpleHistogramIndex rollback discards every in-transaction mutation and leaves the base intact")
+	@Tag(SLOW)
+	@Tag(TRANSACTION)
+	@ArgumentsSource(TimeArgumentProvider.class)
+	void generationalRollbackProofTest(GenerationalTestInput input) {
+		final Map<Integer, Map<Integer, Integer>> referenceModel = new HashMap<>(64);
+
+		runFor(
+			input,
+			50,
+			new SimpleTestState(
+				new StringBuilder(256),
+				new SimpleHistogramIndex(HISTOGRAM_NAME, REFERENCE_NAME, Integer.class, 0)
+			),
+			(random, testState) -> {
+				final StringBuilder code = testState.code();
+				code.append("--- Generation ---\n");
+				appendReferenceState(code, referenceModel);
+
+				// rebuild a fresh base index from the (random-walking) reference model
+				final SimpleHistogramIndex index = buildSimpleFromModel(referenceModel);
+				final HistogramSnapshot beforeRollback = snapshot(index);
+
+				assertStateAfterRollback(
+					index,
+					original -> applyRandomSimpleBatch(random, original, referenceModel, code),
+					(original, committed) -> {
+						assertNull(committed,
+							"A rolled-back transaction must not publish a committed value!\n" + code);
+						assertEquals(beforeRollback, snapshot(original),
+							"SimpleHistogramIndex changed after rollback — atomic rollback leaked!\n" + code);
+					}
+				);
+
+				return new SimpleTestState(new StringBuilder(256), index);
+			}
+		);
+	}
+
+	/**
+	 * Localized counterpart of {@link #generationalRollbackProofTest}: the atomic-rollback contract of Ref: #569 for a
+	 * {@link LocalizedHistogramIndex}.
+	 */
+	@ParameterizedTest(name = "LocalizedHistogramIndex rollback discards every in-transaction mutation and leaves the base intact")
+	@Tag(SLOW)
+	@Tag(TRANSACTION)
+	@ArgumentsSource(TimeArgumentProvider.class)
+	void generationalRollbackProofTestLocalized(GenerationalTestInput input) {
+		final Locale[] locales = {Locale.ENGLISH, new Locale("cs"), Locale.GERMAN};
+		final Map<Locale, Map<Integer, Map<Integer, Integer>>> referenceModel = new HashMap<>(8);
+
+		runFor(
+			input,
+			50,
+			new LocalizedTestState(
+				new StringBuilder(256),
+				new LocalizedHistogramIndex(HISTOGRAM_NAME, REFERENCE_NAME, Integer.class, 0)
+			),
+			(random, testState) -> {
+				final StringBuilder code = testState.code();
+				code.append("--- Generation ---\n");
+
+				// rebuild a fresh base index from the (random-walking) reference model
+				final LocalizedHistogramIndex index = buildLocalizedFromModel(referenceModel);
+				final HistogramSnapshot beforeRollback = snapshot(index);
+
+				assertStateAfterRollback(
+					index,
+					original -> applyRandomLocalizedBatch(random, original, locales, referenceModel, code),
+					(original, committed) -> {
+						assertNull(committed,
+							"A rolled-back transaction must not publish a committed value!\n" + code);
+						assertEquals(beforeRollback, snapshot(original),
+							"LocalizedHistogramIndex changed after rollback — atomic rollback leaked!\n" + code);
+					}
+				);
+
+				return new LocalizedTestState(new StringBuilder(256), index);
+			}
+		);
+	}
+
+	// ======================== Batch Generators ========================
+
+	/**
+	 * Applies a random batch of insert/remove mutations to a non-localized `index`, mirroring each mutation into the
+	 * `referenceModel` (value -> ownerPK -> cardinality). Shared by the commit and rollback proofs so both drive the
+	 * identical random-draw sequence.
+	 */
+	private static void applyRandomSimpleBatch(
+		@Nonnull Random random,
+		@Nonnull SimpleHistogramIndex index,
+		@Nonnull Map<Integer, Map<Integer, Integer>> referenceModel,
+		@Nonnull StringBuilder code
+	) {
+		try {
+			final int opsCount = random.nextInt(50);
+			for (int i = 0; i < opsCount; i++) {
+				final int totalEntries = countEntries(referenceModel);
+				if ((random.nextBoolean() || totalEntries < 5) && totalEntries < 100) {
+					final int value = random.nextInt(50);
+					final int ownerPK = random.nextInt(30) + 1;
+					code.append("insert(").append(value)
+						.append(", ").append(ownerPK).append(")\n");
+					index.insertValue(null, value, ownerPK);
+					referenceModel
+						.computeIfAbsent(value, k -> new HashMap<>(8))
+						.merge(ownerPK, 1, Integer::sum);
+				} else {
+					final int[] entry = pickRandomEntry(random, referenceModel);
+					if (entry != null) {
+						code.append("remove(").append(entry[0])
+							.append(", ").append(entry[1]).append(")\n");
+						index.removeValue(null, entry[0], entry[1]);
+						decrementCardinality(referenceModel, entry[0], entry[1]);
+					}
+				}
+			}
+		} catch (Exception ex) {
+			fail("\n" + code, ex);
+		}
+	}
+
+	/**
+	 * Applies a random batch of insert/remove mutations to a localized `index`, mirroring each mutation into the
+	 * `referenceModel` (locale -> value -> ownerPK -> cardinality). Shared by the commit and rollback proofs so both
+	 * drive the identical random-draw sequence.
+	 */
+	private static void applyRandomLocalizedBatch(
+		@Nonnull Random random,
+		@Nonnull LocalizedHistogramIndex index,
+		@Nonnull Locale[] locales,
+		@Nonnull Map<Locale, Map<Integer, Map<Integer, Integer>>> referenceModel,
+		@Nonnull StringBuilder code
+	) {
+		try {
+			final int opsCount = random.nextInt(50);
+			for (int i = 0; i < opsCount; i++) {
+				final Locale locale = locales[random.nextInt(locales.length)];
+				final Map<Integer, Map<Integer, Integer>> localeModel =
+					referenceModel.computeIfAbsent(locale, k -> new HashMap<>(64));
+				final int totalEntries = countEntries(localeModel);
+				if ((random.nextBoolean() || totalEntries < 5)
+					&& totalEntries < 80) {
+					final int value = random.nextInt(50);
+					final int ownerPK = random.nextInt(30) + 1;
+					code.append("insert(").append(locale).append(", ")
+						.append(value).append(", ")
+						.append(ownerPK).append(")\n");
+					index.insertValue(locale, value, ownerPK);
+					localeModel
+						.computeIfAbsent(value, k -> new HashMap<>(8))
+						.merge(ownerPK, 1, Integer::sum);
+				} else {
+					final int[] entry =
+						pickRandomEntry(random, localeModel);
+					if (entry != null) {
+						code.append("remove(").append(locale).append(", ")
+							.append(entry[0]).append(", ")
+							.append(entry[1]).append(")\n");
+						index.removeValue(locale, entry[0], entry[1]);
+						decrementCardinality(
+							localeModel, entry[0], entry[1]
+						);
+					}
+				}
+			}
+		} catch (Exception ex) {
+			fail("\n" + code, ex);
+		}
+	}
+
+	// ======================== Reference-Model Rebuilders ========================
+
+	/**
+	 * Rebuilds a {@link SimpleHistogramIndex} from the reference model, replaying each (value, ownerPK) pair as many
+	 * times as its recorded cardinality so both the filter and cardinality indexes are reconstructed faithfully.
+	 */
+	@Nonnull
+	private static SimpleHistogramIndex buildSimpleFromModel(
+		@Nonnull Map<Integer, Map<Integer, Integer>> referenceModel
+	) {
+		final SimpleHistogramIndex index = new SimpleHistogramIndex(HISTOGRAM_NAME, REFERENCE_NAME, Integer.class, 0);
+		for (final Map.Entry<Integer, Map<Integer, Integer>> valueEntry : referenceModel.entrySet()) {
+			for (final Map.Entry<Integer, Integer> ownerEntry : valueEntry.getValue().entrySet()) {
+				for (int c = 0; c < ownerEntry.getValue(); c++) {
+					index.insertValue(null, valueEntry.getKey(), ownerEntry.getKey());
+				}
+			}
+		}
+		return index;
+	}
+
+	/**
+	 * Rebuilds a {@link LocalizedHistogramIndex} from the reference model, replaying each (locale, value, ownerPK) pair
+	 * as many times as its recorded cardinality so both the filter and cardinality indexes are reconstructed faithfully.
+	 */
+	@Nonnull
+	private static LocalizedHistogramIndex buildLocalizedFromModel(
+		@Nonnull Map<Locale, Map<Integer, Map<Integer, Integer>>> referenceModel
+	) {
+		final LocalizedHistogramIndex index = new LocalizedHistogramIndex(HISTOGRAM_NAME, REFERENCE_NAME, Integer.class, 0);
+		for (final Map.Entry<Locale, Map<Integer, Map<Integer, Integer>>> localeEntry : referenceModel.entrySet()) {
+			for (final Map.Entry<Integer, Map<Integer, Integer>> valueEntry : localeEntry.getValue().entrySet()) {
+				for (final Map.Entry<Integer, Integer> ownerEntry : valueEntry.getValue().entrySet()) {
+					for (int c = 0; c < ownerEntry.getValue(); c++) {
+						index.insertValue(localeEntry.getKey(), valueEntry.getKey(), ownerEntry.getKey());
+					}
+				}
+			}
+		}
+		return index;
+	}
+
+	// ======================== Value Oracle ========================
+
+	/**
+	 * Reads the full logical filter content of the histogram (transaction-aware) into a value-comparable snapshot —
+	 * locale tag -> value -> sorted owner ids — so two snapshots taken before and after a rollback can be compared with
+	 * `.equals` to prove exact restoration. The cardinality bookkeeping is internal and not exposed; the filter content
+	 * is the observable oracle the commit proof also verifies.
+	 */
+	@Nonnull
+	static HistogramSnapshot snapshot(@Nonnull HistogramIndex index) {
+		final Map<String, Map<Serializable, List<Integer>>> perLocale = new HashMap<>();
+		index.forEachLocale((name, locale) -> {
+			final FilterIndex filterIndex = index.getFilterIndex(locale);
+			if (filterIndex != null) {
+				final Map<Serializable, List<Integer>> content = new HashMap<>();
+				for (final ValueToRecordBitmap bucket : filterIndex.getInvertedIndex().getValueToRecordBitmap()) {
+					content.put(bucket.getValue(), toList(bucket.getRecordIds()));
+				}
+				perLocale.put(locale == null ? "" : locale.toLanguageTag(), content);
+			}
+		});
+		return new HistogramSnapshot(perLocale);
+	}
+
+	/**
+	 * Converts a bitmap into an ascending list of its record ids (a value type with deep `.equals`).
+	 */
+	@Nonnull
+	private static List<Integer> toList(@Nonnull Bitmap bitmap) {
+		final int[] array = bitmap.getArray();
+		final List<Integer> list = new ArrayList<>(array.length);
+		for (final int value : array) {
+			list.add(value);
+		}
+		return list;
+	}
+
 	// ======================== Helper Methods ========================
 
 	/**
 	 * Counts total (value, ownerPK) pairs with cardinality > 0 in the reference model.
 	 */
-	private int countEntries(@Nonnull Map<Integer, Map<Integer, Integer>> model) {
+	private static int countEntries(@Nonnull Map<Integer, Map<Integer, Integer>> model) {
 		int count = 0;
 		for (Map<Integer, Integer> ownerMap : model.values()) {
 			for (int cardinality : ownerMap.values()) {
@@ -240,7 +443,7 @@ class LongRunningHistogramIndexTest implements TimeBoundedTestSupport {
 	 * different replay on different machines and prevent local reproduction of CI failures.
 	 */
 	@Nullable
-	private int[] pickRandomEntry(
+	private static int[] pickRandomEntry(
 		@Nonnull Random random,
 		@Nonnull Map<Integer, Map<Integer, Integer>> model
 	) {
@@ -262,7 +465,7 @@ class LongRunningHistogramIndexTest implements TimeBoundedTestSupport {
 	/**
 	 * Decrements cardinality for (value, ownerPK) and cleans up zero-cardinality entries.
 	 */
-	private void decrementCardinality(
+	private static void decrementCardinality(
 		@Nonnull Map<Integer, Map<Integer, Integer>> model,
 		int value,
 		int ownerPK
@@ -282,7 +485,7 @@ class LongRunningHistogramIndexTest implements TimeBoundedTestSupport {
 	/**
 	 * Verifies committed histogram state matches the reference model for a given locale.
 	 */
-	private void verifyHistogramState(
+	private static void verifyHistogramState(
 		@Nonnull HistogramIndex committed,
 		@Nullable Locale locale,
 		@Nonnull Map<Integer, Map<Integer, Integer>> model,
@@ -335,7 +538,7 @@ class LongRunningHistogramIndexTest implements TimeBoundedTestSupport {
 	/**
 	 * Appends reference model state to the debug code buffer.
 	 */
-	private void appendReferenceState(
+	private static void appendReferenceState(
 		@Nonnull StringBuilder code,
 		@Nonnull Map<Integer, Map<Integer, Integer>> model
 	) {
@@ -345,6 +548,12 @@ class LongRunningHistogramIndexTest implements TimeBoundedTestSupport {
 		}
 		code.append("}\n");
 	}
+
+	/**
+	 * Value-comparable snapshot of a {@link HistogramIndex}'s filter content: locale tag -> value -> sorted owner ids.
+	 * Record equality gives deep structural comparison.
+	 */
+	record HistogramSnapshot(@Nonnull Map<String, Map<Serializable, List<Integer>>> perLocale) {}
 
 	/**
 	 * State holder for {@link SimpleHistogramIndex} generational test.

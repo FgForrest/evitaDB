@@ -30,8 +30,8 @@ import io.evitadb.index.price.PriceListAndCurrencyPriceIndex;
 import io.evitadb.index.price.model.priceRecord.CumulatedVirtualPriceRecord;
 import io.evitadb.index.price.model.priceRecord.PriceRecordContract;
 import io.evitadb.utils.Assert;
-import org.roaringbitmap.RoaringBitmap;
-import org.roaringbitmap.RoaringBitmapWriter;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
+import io.evitadb.roaringbitmap.RoaringBitmapWriter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.ThreadSafe;
@@ -104,9 +104,9 @@ public class NonResolvedFilteredPriceRecords implements FilteredPriceRecords {
 		System.arraycopy(this.cumulatedPriceRecords, 0, result, 0, this.cumulatedPriceRecords.length);
 		final AtomicInteger resultPeek = new AtomicInteger(this.cumulatedPriceRecords.length);
 
-		final RoaringBitmapWriter<RoaringBitmap> notFound = RoaringBitmapBackedBitmap.buildWriter();
+		final RoaringBitmapWriter<PersistentRoaringBitmap> notFound = RoaringBitmapBackedBitmap.buildWriter();
 		for (PriceListAndCurrencyPriceIndex<?,?> priceIndex : this.priceIndexes) {
-			priceIndex.getPriceRecords(
+			priceIndex.forEachPriceRecord(
 				this.priceRecordsIds,
 				priceRecordContract -> result[resultPeek.getAndIncrement()] = priceRecordContract,
 				notFound::add

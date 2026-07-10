@@ -25,7 +25,7 @@
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>io.evitadb</groupId>
 	<artifactId>evita_root</artifactId>
-	<version>2026.2-SNAPSHOT</version>
+	<version>2026.2.RC1-SNAPSHOT</version>
 	<packaging>pom</packaging>
 	<name>evitaDB - Root &amp; modules aggregator</name>
 	<url>https://evitadb.io</url>
@@ -130,7 +130,7 @@
 		<jackson.annotations.version>2.21</jackson.annotations.version>
 		<snakeyaml.version>2.6</snakeyaml.version>
 		<roaringbitmap.version>1.6.12</roaringbitmap.version>
-		<junit.jupiter.version>6.1.0-RC1</junit.jupiter.version>
+		<junit.jupiter.version>6.1.1</junit.jupiter.version>
 		<mockito.junit.version>5.22.0</mockito.junit.version>
 		<assertj.version>3.27.7</assertj.version>
 		<maven.compiler.version>3.15.0</maven.compiler.version>
@@ -148,6 +148,20 @@
 		<opentelemetry.version>1.62.0</opentelemetry.version>
 		<opentelemetry.semconv.version>1.41.1</opentelemetry.semconv.version>
 		<minio.version>8.6.0</minio.version>
+		<!--
+			Thread fan-out for the `unit`/`unitAndFunctional` surefire profiles. Defaults to
+			unlimited (best for beefy, many-core dev machines). CI (ci-dev.yml / pr-review.yml)
+			overrides both via -D on the command line to bound concurrency to the GitHub-hosted
+			runner's actual core count - see the surefire-plugin config below for why.
+		-->
+		<surefire.useUnlimitedThreads>true</surefire.useUnlimitedThreads>
+		<surefire.threadCount>4</surefire.threadCount>
+		<!--
+			Lets CI skip evita_roaring_bitmap's (colocated, vendor-suite) tests on pushes/PRs that
+			don't touch that module, to save CI time. Defaults to false (tests run) for local dev
+			and any invocation that doesn't explicitly override it - see ci-dev.yml / pr-review.yml.
+		-->
+		<roaringBitmap.skipTests>false</roaringBitmap.skipTests>
 	</properties>
 
 	<!--
@@ -161,6 +175,7 @@
 	-->
 	<modules>
 		<module>evita_common</module>
+		<module>evita_roaring_bitmap</module>
 		<module>evita_api</module>
 		<module>evita_query</module>
 		<module>evita_engine</module>
@@ -294,24 +309,19 @@
 				<version>3.20.0</version>
 			</dependency>
 			<!--
-				Pin junit-platform-* to the same version as junit-jupiter so that
-				transitive deps (e.g. s3mock-junit5) cannot drag in a different
-				platform release alongside the jupiter line.
+				Import the JUnit BOM so every junit-jupiter-* and junit-platform-*
+				artifact (api, params, engine, commons, launcher, ...) is locked to
+				a single version. Without this, transitive deps such as
+				mockito-junit-jupiter drag in an older junit-jupiter-api (e.g.
+				5.13.4) and Surefire's JUnit Platform alignment check then refuses
+				to fork the test JVM (wrapped NoClassDefFoundError).
 			-->
 			<dependency>
-				<groupId>org.junit.platform</groupId>
-				<artifactId>junit-platform-commons</artifactId>
+				<groupId>org.junit</groupId>
+				<artifactId>junit-bom</artifactId>
 				<version>${junit.jupiter.version}</version>
-			</dependency>
-			<dependency>
-				<groupId>org.junit.platform</groupId>
-				<artifactId>junit-platform-engine</artifactId>
-				<version>${junit.jupiter.version}</version>
-			</dependency>
-			<dependency>
-				<groupId>org.junit.platform</groupId>
-				<artifactId>junit-platform-launcher</artifactId>
-				<version>${junit.jupiter.version}</version>
+				<type>pom</type>
+				<scope>import</scope>
 			</dependency>
 			<!--
 				Force Bouncy Castle to ${bouncyCastle.version} across all modules.
@@ -445,7 +455,8 @@
 						<configuration>
 							<excludedGroups>slow,flaky</excludedGroups>
 							<parallel>all</parallel>
-							<useUnlimitedThreads>true</useUnlimitedThreads>
+							<useUnlimitedThreads>${surefire.useUnlimitedThreads}</useUnlimitedThreads>
+							<threadCount>${surefire.threadCount}</threadCount>
 						</configuration>
 					</plugin>
 				</plugins>
@@ -461,7 +472,8 @@
 						<configuration>
 							<excludedGroups>slow,flaky</excludedGroups>
 							<parallel>all</parallel>
-							<useUnlimitedThreads>true</useUnlimitedThreads>
+							<useUnlimitedThreads>${surefire.useUnlimitedThreads}</useUnlimitedThreads>
+							<threadCount>${surefire.threadCount}</threadCount>
 						</configuration>
 					</plugin>
 				</plugins>
@@ -621,7 +633,25 @@
 					<jdkToolchain>
 						<version>${java.version}</version>
 					</jdkToolchain>
-					<argLine>${surefireArgLine} -Xmx5g -Duser.country=US, -Duser.language=us -Dfile.encoding=${project.build.sourceEncoding} --add-opens java.base/java.lang.invoke=ALL-UNNAMED --add-opens java.base/java.lang.invoke=ALL-UNNAMED --add-opens java.base/java.lang=ALL-UNNAMED --add-opens java.base/java.math=ALL-UNNAMED --add-opens java.base/java.util=ALL-UNNAMED</argLine>
+					<!--
+						CI (ci-dev.yml / pr-review.yml) runs the `unitAndFunctional` profile on the
+						GitHub-hosted `ubuntu-latest` runner: 4 vCPUs, ~14.7 GB free RAM confirmed via
+						the "Print runner memory info" step, no cgroup cap (bare VM). A prior -Xmx12g
+						attempt got the whole "Build with Maven" step killed outright ("The operation
+						was canceled" after ~13 minutes) even though a single 12g fork should fit
+						comfortably under 14.7 GB on paper. Root cause: with that profile's
+						`useUnlimitedThreads=true`, a single fork can spin up dozens of concurrent test
+						threads on a 4-core box, each potentially standing up its own embedded
+						Evita+gRPC+GraphQL instance - that off-heap footprint (Netty buffers, thread
+						stacks, native socket resources) isn't bounded by -Xmx at all, so a bigger heap
+						just removed the backpressure that used to trigger a contained heap OOM instead
+						of an OS-level kill. Only `unitAndFunctional`'s own fork is CPU/memory-heavy
+						here - no other reactor module runs tests under this profile. Fix: CI overrides
+						`surefire.useUnlimitedThreads`/`surefire.threadCount` (see root <properties>) to
+						cap concurrency to the runner's actual core count, which bounds the off-heap
+						driver and makes 8g a safe, comfortable step up from the previous 5g.
+					-->
+					<argLine>${surefireArgLine} -Xmx8g -Duser.country=US, -Duser.language=us -Dfile.encoding=${project.build.sourceEncoding} --add-opens java.base/java.lang.invoke=ALL-UNNAMED --add-opens java.base/java.lang.invoke=ALL-UNNAMED --add-opens java.base/java.lang=ALL-UNNAMED --add-opens java.base/java.math=ALL-UNNAMED --add-opens java.base/java.util=ALL-UNNAMED</argLine>
 				</configuration>
 			</plugin>
 			<plugin>

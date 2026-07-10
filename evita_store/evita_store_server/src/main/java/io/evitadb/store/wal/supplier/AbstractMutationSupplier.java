@@ -220,7 +220,9 @@ abstract sealed class AbstractMutationSupplier<T extends Mutation> implements Su
 						new RandomAccessFile(this.walFile, "r"),
 						true
 					),
-					this.storageSettings.createChecksum(),
+					// cumulative-capable: readWithChecksum()/markCumulativeChecksumStart() below fold
+					// per-record checksums via combine()/update(long), not just stream real bytes
+					this.storageSettings.createCumulativeChecksum(0L),
 					this.storageSettings.createDecompressor().orElse(null)
 				);
 				// Outer do/while loop: retries with the next WAL file if the target version
@@ -360,7 +362,9 @@ abstract sealed class AbstractMutationSupplier<T extends Mutation> implements Su
 						new RandomAccessFile(nextWalFile, "r"),
 						true
 					),
-					this.storageSettings.createChecksum(),
+					// cumulative-capable: readWithChecksum()/markCumulativeChecksumStart() below fold
+					// per-record checksums via combine()/update(long), not just stream real bytes
+					this.storageSettings.createCumulativeChecksum(0L),
 					this.storageSettings.createDecompressor().orElse(null)
 				);
 

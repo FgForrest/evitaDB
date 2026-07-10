@@ -123,7 +123,13 @@ public class TransactionalStoragePartPersistenceService implements StoragePartPe
 		// or produce a torn (keys, peakId) pair that lets the new compressor allocate ids already present in the seed
 		final KeyCompressorSnapshot trunkSnapshot = this.delegate.getKeyCompressorSnapshot();
 		this.offsetIndex = new OffsetIndex(
-			catalogVersion + 1,
+			// Seed at the base catalog version (not base+1): the overlay operates entirely at the
+			// version the transaction started from - it reads and writes at that version, and is
+			// discarded on close before the post-commit version is ever assigned (WAL replay does
+			// that). Keeping the seed equal to the version its writes are stamped at lets the
+			// close-time flush supersede the seed instead of appending an older version onto a newer
+			// one (which the versioned-roots registry forbids).
+			catalogVersion,
 			new OffsetIndexDescriptor(
 				new PersistentStorageHeader(1L, FileLocation.EMPTY, trunkSnapshot.keys(), trunkSnapshot.peakId()),
 				kryoFactory,

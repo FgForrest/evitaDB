@@ -239,6 +239,59 @@ class EntityIndexKeyTest {
 	}
 
 	@Nested
+	@DisplayName("referenceName derivation")
+	class ReferenceNameDerivationTest {
+
+		@Test
+		@DisplayName("should derive null reference name for a GLOBAL (entity-level) index")
+		void shouldDeriveNullForGlobal() {
+			final EntityIndexKey key = new EntityIndexKey(EntityIndexType.GLOBAL, Scope.LIVE, null);
+
+			assertNull(key.referenceName());
+		}
+
+		@Test
+		@DisplayName("should derive the String discriminator as the reference name for REFERENCED_ENTITY_TYPE")
+		void shouldDeriveStringDiscriminatorForReferencedEntityType() {
+			final EntityIndexKey key = new EntityIndexKey(
+				EntityIndexType.REFERENCED_ENTITY_TYPE, Scope.LIVE, CATEGORY
+			);
+
+			assertEquals(CATEGORY, key.referenceName());
+		}
+
+		@Test
+		@DisplayName("should derive the String discriminator as the reference name for REFERENCED_GROUP_ENTITY_TYPE")
+		void shouldDeriveStringDiscriminatorForReferencedGroupEntityType() {
+			final EntityIndexKey key = new EntityIndexKey(
+				EntityIndexType.REFERENCED_GROUP_ENTITY_TYPE, Scope.LIVE, BRAND
+			);
+
+			assertEquals(BRAND, key.referenceName());
+		}
+
+		@Test
+		@DisplayName("should derive the RRK reference name for REFERENCED_ENTITY")
+		void shouldDeriveRrkReferenceNameForReferencedEntity() {
+			final EntityIndexKey key = new EntityIndexKey(
+				EntityIndexType.REFERENCED_ENTITY, Scope.LIVE, rrk(CATEGORY, 7)
+			);
+
+			assertEquals(CATEGORY, key.referenceName());
+		}
+
+		@Test
+		@DisplayName("should derive the RRK reference name for REFERENCED_GROUP_ENTITY")
+		void shouldDeriveRrkReferenceNameForReferencedGroupEntity() {
+			final EntityIndexKey key = new EntityIndexKey(
+				EntityIndexType.REFERENCED_GROUP_ENTITY, Scope.LIVE, rrk(BRAND, 3)
+			);
+
+			assertEquals(BRAND, key.referenceName());
+		}
+	}
+
+	@Nested
 	@DisplayName("toString formatting")
 	class ToStringFormattingTest {
 

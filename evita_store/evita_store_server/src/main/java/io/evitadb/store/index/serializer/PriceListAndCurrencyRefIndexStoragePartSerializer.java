@@ -27,16 +27,21 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
-import io.evitadb.index.price.model.PriceIndexKey;
-import io.evitadb.index.range.RangeIndex;
 import io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.PriceListAndCurrencyRefIndexStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.PriceListAndCurrencySuperIndexStoragePart;
-import io.evitadb.utils.Assert;
+import io.evitadb.store.index.serializer.PriceIndexHeaderSerializer.PriceIndexHeader;
+import io.evitadb.store.index.serializer.util.SortedIntArrayCodec;
 import lombok.RequiredArgsConstructor;
 
 /**
  * This {@link Serializer} implementation reads/writes {@link PriceListAndCurrencySuperIndexStoragePart} from/to binary format.
+ *
+ * The price ids array is strictly ascending (it is built from a `TransactionalObjArray` of price records sorted by
+ * internal price id and then deduped), so it is delta-varint encoded via {@link SortedIntArrayCodec} instead of as raw
+ * fixed 4-byte ints. The codec asserts the non-decreasing invariant on write, so any future breakage of that fragile
+ * ordering fails loud rather than silently corrupting the stream. The pre-slimming format is read by
+ * {@link PriceListAndCurrencyRefIndexStoragePartSerializer_2026_1}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
@@ -46,31 +51,21 @@ public class PriceListAndCurrencyRefIndexStoragePartSerializer extends Serialize
 
 	@Override
 	public void write(Kryo kryo, Output output, PriceListAndCurrencyRefIndexStoragePart priceIndex) {
-		output.writeInt(priceIndex.getEntityIndexPrimaryKey());
-		final Long uniquePartId = priceIndex.getStoragePartPK();
-		Assert.notNull(uniquePartId, "Unique part id should have been computed by now!");
-		output.writeVarLong(uniquePartId, true);
-		output.writeVarInt(this.keyCompressor.getId(priceIndex.getPriceIndexKey()), true);
+		PriceIndexHeaderSerializer.write(kryo, output, priceIndex, this.keyCompressor);
 
-		kryo.writeObject(output, priceIndex.getValidityIndex());
-
-		final int[] triples = priceIndex.getPriceIds();
-		output.writeInt(triples.length, true);
-		output.writeInts(triples, 0, triples.length);
+		// the price ids are strictly ascending; route through the asserting codec (writes the count itself)
+		SortedIntArrayCodec.writeAscendingInts(output, priceIndex.getPriceIds());
 	}
 
 	@Override
 	public PriceListAndCurrencyRefIndexStoragePart read(Kryo kryo, Input input, Class<? extends PriceListAndCurrencyRefIndexStoragePart> type) {
-		final int entityIndexPrimaryKey = input.readInt();
-		final long uniquePartId = input.readVarLong(true);
-		final PriceIndexKey priceIndexKey = this.keyCompressor.getKeyForId(input.readVarInt(true));
-		final RangeIndex validityIndex = kryo.readObject(input, RangeIndex.class);
+		final PriceIndexHeader header = PriceIndexHeaderSerializer.read(kryo, input, this.keyCompressor);
 
-		final int tripleCount = input.readInt(true);
-		final int[] priceIds = input.readInts(tripleCount);
+		final int[] priceIds = SortedIntArrayCodec.readAscendingInts(input);
 
 		return new PriceListAndCurrencyRefIndexStoragePart(
-			entityIndexPrimaryKey, priceIndexKey, validityIndex, priceIds, uniquePartId
+			header.entityIndexPrimaryKey(), header.priceIndexKey(), header.validityIndex(), priceIds,
+			header.uniquePartId()
 		);
 	}
 

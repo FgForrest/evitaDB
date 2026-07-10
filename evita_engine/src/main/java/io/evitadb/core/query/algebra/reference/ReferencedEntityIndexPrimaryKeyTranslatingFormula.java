@@ -37,7 +37,7 @@ import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import net.openhft.hashing.LongHashFunction;
-import org.roaringbitmap.RoaringBitmap;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -170,7 +170,7 @@ public class ReferencedEntityIndexPrimaryKeyTranslatingFormula
 		@Nullable UnaryOperator<Bitmap> expansionFunction
 	) {
 		if (isTargetManaged) {
-			RoaringBitmap bitmap = null;
+			PersistentRoaringBitmap bitmap = null;
 			final long[] transactionalIds = new long[scopes.size()];
 			int transactionalIdIndex = 0;
 			for (Scope theScope : scopes) {
@@ -188,7 +188,7 @@ public class ReferencedEntityIndexPrimaryKeyTranslatingFormula
 					}
 					bitmap = bitmap == null ?
 						RoaringBitmapBackedBitmap.getRoaringBitmap(allPrimaryKeys) :
-						RoaringBitmap.or(bitmap, RoaringBitmapBackedBitmap.getRoaringBitmap(allPrimaryKeys));
+						PersistentRoaringBitmap.or(bitmap, RoaringBitmapBackedBitmap.getRoaringBitmap(allPrimaryKeys));
 				}
 			}
 			this.referencedEntitySuperSet = bitmap == null ?
@@ -260,7 +260,7 @@ public class ReferencedEntityIndexPrimaryKeyTranslatingFormula
 				RoaringBitmapBackedBitmap.getRoaringBitmap(referencedEntityIds)
 			);
 		} else {
-			final RoaringBitmap matchingReferencedEntityPks = RoaringBitmap.and(
+			final PersistentRoaringBitmap matchingReferencedEntityPks = PersistentRoaringBitmap.and(
 				RoaringBitmapBackedBitmap.getRoaringBitmap(referencedEntityIds),
 				RoaringBitmapBackedBitmap.getRoaringBitmap(this.referencedEntitySuperSet)
 			);

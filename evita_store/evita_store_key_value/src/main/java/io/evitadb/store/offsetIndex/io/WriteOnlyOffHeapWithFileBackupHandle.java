@@ -314,13 +314,25 @@ public class WriteOnlyOffHeapWithFileBackupHandle implements WriteOnlyHandle {
 	/**
 	 * Releases the off-heap memory allocated for writing data.
 	 *
-	 * This method closes the off-heap memory output stream and sets it to null.
+	 * This method closes the underlying off-heap region stream (freeing the region slot) and hands the
+	 * {@link ObservableOutput} instance back to {@link #observableOutputKeeper} for reuse by a future
+	 * transaction, instead of discarding it. Safe to recycle while a read reference is outstanding: the
+	 * reference reads from the off-heap region's {@link ByteBuffer} directly (see
+	 * {@link #toReadOffHeapWithFileBackupReference()}), never from this output's heap buffer.
 	 */
 	private void releaseOffHeapMemory() {
-		if (this.offHeapMemoryOutput != null) {
-			this.offHeapMemoryOutput.close();
+		final ObservableOutput<OffHeapMemoryOutputStream> output = this.offHeapMemoryOutput;
+		if (output != null) {
+			// null the field first so a second release (both the reference-close callback and handle #close()
+			// may call this) is a no-op and never double-recycles the same instance
+			this.offHeapMemoryOutput = null;
+			// flush any not-yet-written bytes, then release the off-heap region (frees the region slot) -
+			// mirrors what Output#close() would have done, without calling it (that would tear down the
+			// instance); the buffer, checksum and deflater are left untouched so the instance stays usable
+			output.flush();
+			output.getOutputStream().close();
+			this.observableOutputKeeper.recycleOffHeapOutput(output);
 		}
-		this.offHeapMemoryOutput = null;
 	}
 
 	/**
@@ -464,14 +476,21 @@ public class WriteOnlyOffHeapWithFileBackupHandle implements WriteOnlyHandle {
 			);
 			return this.fileOutput;
 		} else {
-			this.offHeapMemoryOutput = new ObservableOutput<>(
-				offHeapRegion.get(),
-				this.outputBufferSize,
-				0,
-				this.checksumFactory.createChecksum(),
-				this.compressionFactory.createCompressor().orElse(null)
+			final OffHeapMemoryOutputStream stream = offHeapRegion.get();
+			this.offHeapMemoryOutput = this.observableOutputKeeper.borrowOffHeapOutput(
+				stream,
+				() -> {
+					final ObservableOutput<OffHeapMemoryOutputStream> newOutput = new ObservableOutput<>(
+						stream,
+						this.outputBufferSize,
+						0,
+						this.checksumFactory.createChecksum(),
+						this.compressionFactory.createCompressor().orElse(null)
+					);
+					newOutput.markCumulativeChecksumStart();
+					return newOutput;
+				}
 			);
-			this.offHeapMemoryOutput.markCumulativeChecksumStart();
 			return this.offHeapMemoryOutput;
 		}
 	}

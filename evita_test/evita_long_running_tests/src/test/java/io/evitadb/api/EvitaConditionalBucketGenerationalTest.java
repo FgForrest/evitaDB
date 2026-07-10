@@ -40,7 +40,7 @@ import io.evitadb.index.EntityIndex;
 import io.evitadb.index.ReducedGroupEntityIndex;
 import io.evitadb.index.ReferencedTypeEntityIndex;
 import io.evitadb.index.attribute.FilterIndex;
-import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
+import io.evitadb.index.invertedIndex.ValueToRecord;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.test.EvitaTestSupport.TestPaths;
 import io.evitadb.test.duration.TimeArgumentProvider;
@@ -124,6 +124,16 @@ class EvitaConditionalBucketGenerationalTest implements EvitaTestSupport, TimeBo
 	private static final int MAX_PARAM_VALUES = 5;
 	private static final int MAX_GROUPS = 3;
 
+	/**
+	 * Decimal-places scale declared on every `BigDecimal` histogram-source attribute. The
+	 * filter/histogram index stores `BigDecimal` keys as order-preserving scaled ints at this scale
+	 * (see `FilterIndex.getNormalizer`), so the scale must be at least the maximum fractional precision
+	 * present in {@link #VALUE_POOL} (two places: `3.75`, `7.25`) for the round-trip to be lossless.
+	 * {@link #extractHistogramState} denormalizes the stored scaled int back to the canonical
+	 * `BigDecimal` form using this same scale.
+	 */
+	private static final int VALUE_SCALE = 2;
+
 	private static final BigDecimal[] VALUE_POOL = {
 		new BigDecimal("1.5"), new BigDecimal("2"), new BigDecimal("3.75"),
 		new BigDecimal("5"), new BigDecimal("10"), new BigDecimal("0.5"),
@@ -156,7 +166,10 @@ class EvitaConditionalBucketGenerationalTest implements EvitaTestSupport, TimeBo
 	void shouldSurviveGenerationalTestWithEntityAttributeExpression(@Nonnull GenerationalTestInput input) {
 		this.evita.updateCatalog(TEST_CATALOG, session -> {
 			session.defineEntitySchema(ENTITY_PARAMETER_VALUE)
-				.withAttribute(ATTR_BASIC_UNIT_VALUE, BigDecimal.class, whichIs -> whichIs.filterable().nullable())
+				.withAttribute(
+					ATTR_BASIC_UNIT_VALUE, BigDecimal.class,
+					whichIs -> whichIs.filterable().nullable().indexDecimalPlaces(VALUE_SCALE)
+				)
 				.updateVia(session);
 			session.defineEntitySchema(ENTITY_PRODUCT)
 				.withAttribute(ATTR_IS_ACTIVE, Boolean.class, AttributeSchemaEditor::filterable)
@@ -280,7 +293,10 @@ class EvitaConditionalBucketGenerationalTest implements EvitaTestSupport, TimeBo
 					whichIs -> whichIs
 						.indexedForFilteringAndPartitioning()
 						.withAttribute(ATTR_PRIORITY, Integer.class, a -> a.filterable().nullable())
-						.withAttribute(ATTR_SOME_VALUE, BigDecimal.class, a -> a.filterable().nullable())
+						.withAttribute(
+							ATTR_SOME_VALUE, BigDecimal.class,
+							a -> a.filterable().nullable().indexDecimalPlaces(VALUE_SCALE)
+						)
 						.bucketed(
 							HISTOGRAM_REF_ATTR,
 							ExpressionFactory.parse("$reference.attributes['someValue']")
@@ -403,7 +419,10 @@ class EvitaConditionalBucketGenerationalTest implements EvitaTestSupport, TimeBo
 				.withAttribute(ATTR_INPUT_WIDGET_TYPE, String.class, whichIs -> whichIs.filterable().nullable())
 				.updateVia(session);
 			session.defineEntitySchema(ENTITY_PARAMETER_VALUE)
-				.withAttribute(ATTR_BASIC_UNIT_VALUE, BigDecimal.class, whichIs -> whichIs.filterable().nullable())
+				.withAttribute(
+					ATTR_BASIC_UNIT_VALUE, BigDecimal.class,
+					whichIs -> whichIs.filterable().nullable().indexDecimalPlaces(VALUE_SCALE)
+				)
 				.updateVia(session);
 			session.defineEntitySchema(ENTITY_PRODUCT)
 				.withReferenceToEntity(
@@ -538,7 +557,10 @@ class EvitaConditionalBucketGenerationalTest implements EvitaTestSupport, TimeBo
 		this.evita.updateCatalog(TEST_CATALOG, session -> {
 			session.defineEntitySchema(ENTITY_PARAMETER_VALUE)
 				.withAttribute(ATTR_STATUS, String.class, whichIs -> whichIs.filterable().nullable())
-				.withAttribute(ATTR_BASIC_UNIT_VALUE, BigDecimal.class, whichIs -> whichIs.filterable().nullable())
+				.withAttribute(
+					ATTR_BASIC_UNIT_VALUE, BigDecimal.class,
+					whichIs -> whichIs.filterable().nullable().indexDecimalPlaces(VALUE_SCALE)
+				)
 				.updateVia(session);
 			session.defineEntitySchema(ENTITY_PRODUCT)
 				.withReferenceToEntity(
@@ -652,7 +674,7 @@ class EvitaConditionalBucketGenerationalTest implements EvitaTestSupport, TimeBo
 				.updateVia(session);
 			session.defineEntitySchema(ENTITY_PARAMETER_VALUE)
 				.withAttribute(ATTR_BASIC_UNIT_VALUE, BigDecimal.class,
-					whichIs -> whichIs.filterableInScope(Scope.LIVE).nullable())
+					whichIs -> whichIs.filterableInScope(Scope.LIVE).nullable().indexDecimalPlaces(VALUE_SCALE))
 				.updateVia(session);
 			session.defineEntitySchema(ENTITY_PRODUCT)
 				.withReferenceToEntity(
@@ -749,6 +771,7 @@ class EvitaConditionalBucketGenerationalTest implements EvitaTestSupport, TimeBo
 				.withAttribute(
 					ATTR_BASIC_UNIT_VALUE, BigDecimal.class,
 					whichIs -> whichIs.filterableInScope(Scope.LIVE, Scope.ARCHIVED).nullable()
+						.indexDecimalPlaces(VALUE_SCALE)
 				)
 				.updateVia(session);
 			session.defineEntitySchema(ENTITY_PRODUCT)
@@ -2283,16 +2306,34 @@ class EvitaConditionalBucketGenerationalTest implements EvitaTestSupport, TimeBo
 		if (filterIndex == null) {
 			return Map.of();
 		}
-		final ValueToRecordBitmap[] buckets =
-			filterIndex.getHistogramOfAllRecords().getHistogramBuckets();
+		final ValueToRecord[] buckets =
+			filterIndex.getHistogramOfAllRecords().getBuckets();
 		final Map<Serializable, Set<Integer>> result = new HashMap<>(buckets.length);
-		for (ValueToRecordBitmap bucket : buckets) {
+		for (ValueToRecord bucket : buckets) {
 			final Set<Integer> pks = new HashSet<>();
 			bucket.getRecordIds().forEach(pks::add);
 			if (!pks.isEmpty()) {
-				result.put(bucket.getValue(), pks);
+				// the histogram FilterIndex stores BigDecimal keys as scaled ints at VALUE_SCALE (see
+				// FilterIndex.getNormalizer); denormalize back to the canonical stripTrailingZeros form
+				// the shadow model uses so the comparison stays in BigDecimal space
+				result.put(denormalizeBucketValue(bucket.getValue()), pks);
 			}
 		}
 		return result;
+	}
+
+	/**
+	 * Denormalizes a histogram bucket value back to the canonical `BigDecimal` form used by the
+	 * shadow model. The filter/histogram index stores `BigDecimal` keys as order-preserving scaled
+	 * ints at {@link #VALUE_SCALE}, so the stored value is restored via
+	 * `BigDecimal.valueOf(scaled, VALUE_SCALE)` (the inverse of the index normalizer) and stripped of
+	 * trailing zeros to match {@link #normalize(BigDecimal)}.
+	 *
+	 * @param storedValue the scaled-int bucket key read from the index
+	 * @return the canonical stripped `BigDecimal` value
+	 */
+	@Nonnull
+	private static BigDecimal denormalizeBucketValue(@Nonnull Serializable storedValue) {
+		return BigDecimal.valueOf(((Number) storedValue).longValue(), VALUE_SCALE).stripTrailingZeros();
 	}
 }

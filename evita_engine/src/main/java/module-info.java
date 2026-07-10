@@ -127,7 +127,7 @@ module evita.engine {
 	requires com.esotericsoftware.kryo;
 	requires net.bytebuddy;
 	requires proxycian.bytebuddy;
-	requires roaringbitmap;
+	requires evita.roaringbitmap;
 	requires zero.allocation.hashing;
 
 	opens io.evitadb.core.metric.event to evita.common;

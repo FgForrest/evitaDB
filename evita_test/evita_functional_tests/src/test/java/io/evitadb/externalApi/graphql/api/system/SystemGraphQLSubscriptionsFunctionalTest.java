@@ -47,6 +47,8 @@ import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import java.math.BigInteger;
+import java.time.Duration;
+import java.util.List;
 
 import static io.evitadb.test.TestTags.CDC;
 import static io.evitadb.test.TestTags.EXTERNAL_API;
@@ -72,6 +74,17 @@ public class SystemGraphQLSubscriptionsFunctionalTest extends SystemGraphQLEndpo
 	private static final String ON_CATALOG_CHANGE_PATH = "payload.data.onCatalogChange";
 	private static final String ON_CATALOG_CHANGE_UNTYPED_PATH = "payload.data.onCatalogChangeUntyped";
 	public static final String GRAPHQL_EMPTY_SYSTEM_FOR_SYSTEM_API = "GraphQLEmptySystemForSystemApi";
+
+	/**
+	 * Overall budget for the live-tail host-event retry loop in
+	 * {@link #shouldReceiveCatalogSchemaUpdatedFromHostSubscription(Evita, GraphQLTester)}. Kept
+	 * under the tester's own 30-second await so a genuinely broken CDC pipeline still fails.
+	 */
+	private static final Duration SUBSCRIPTION_LIVENESS_BUDGET = Duration.ofSeconds(20);
+	/**
+	 * Per-attempt wait for the coalesced host event before the retry loop re-fires the schema bump.
+	 */
+	private static final Duration SUBSCRIPTION_LIVENESS_POLL = Duration.ofSeconds(2);
 
 	@Override
 	@DataSet(value = GRAPHQL_EMPTY_SYSTEM_FOR_SYSTEM_API, openWebApi = GraphQLProvider.CODE, readOnly = false, destroyAfterClass = true)
@@ -104,7 +117,10 @@ public class SystemGraphQLSubscriptionsFunctionalTest extends SystemGraphQLEndpo
 		@Nonnull GraphQLTester tester
 	) {
 		final String subscriptionId = createSubscriptionId();
-		final String newCatalogName = "hostEventGqlCatalog" + subscriptionId;
+		final String catalogFamily = "hostEventGqlCatalog" + subscriptionId;
+		// records the catalog whose install host event was actually live-tailed back to us, so the
+		// validator asserts against the winning attempt rather than a fixed name (see the retry loop)
+		final String[] winningCatalog = { null };
 
 		tester.testWebSocket(
 			SYSTEM_URL,
@@ -124,57 +140,90 @@ public class SystemGraphQLSubscriptionsFunctionalTest extends SystemGraphQLEndpo
 						"... on CatalogRemovedFromLiveView { catalogName } " +
 						"} }"
 				));
-				// wait for connection_ack so the server has time to register the CDC subscription
-				// before triggering events — closes the race against the live-tail publisher hookup
+				// wait for `connection_ack` so the subscription registration has a head start —
+				// but the ack only proves `connection_init` was processed, NOT that the separate
+				// `subscribe` message was registered (that happens asynchronously on the server)
 				ctx.awaitEvents(1);
 
-				// trigger an engine-area mutation flow + a host-area host event via
-				// the catalog-create + go-live sequence
-				evita.defineCatalog(newCatalogName);
-				evita.updateCatalog(newCatalogName, EvitaSessionContract::goLiveAndClose);
+				// HOST events are live-tail only: `processHostEvent` dispatches straight to the
+				// currently-attached subscribers and drops the event when none is registered yet —
+				// it bypasses the WAL-backed ring buffer that makes the ENGINE envelopes this
+				// subscription also selects replayable. So a single `goLiveAndClose` fired before
+				// the async subscription registration completes loses its install host event
+				// forever. Retry the catalog activation with a DISTINCT catalog each attempt until
+				// the install host event is live-tailed back, or the budget elapses. The poll MUST
+				// be predicate-based, not frame-count-based: the replayable engine envelopes arrive
+				// regardless of the race, so a count wait would go true on those alone and mask a
+				// lost host event.
+				final long deadlineNanos = System.nanoTime() + SUBSCRIPTION_LIVENESS_BUDGET.toNanos();
+				int attempt = 0;
+				while (winningCatalog[0] == null && System.nanoTime() < deadlineNanos) {
+					final String catalog = catalogFamily + attempt++;
+					evita.defineCatalog(catalog);
+					evita.updateCatalog(catalog, EvitaSessionContract::goLiveAndClose);
+					if (ctx.tryAwaitEvents(
+						events -> hasInstalledHostEnvelope(events, catalog),
+						SUBSCRIPTION_LIVENESS_POLL
+					)) {
+						winningCatalog[0] = catalog;
+					}
+				}
 			},
 			// 1 connection_ack + at least one engine envelope + the host event itself; the
 			// websocket harness uses `>=` semantics so additional mutation envelopes that arrive
 			// before the host event do not cause failures
-			3, receivedEvents -> {
+			2, receivedEvents -> {
 				assertConnectionAckEvent(receivedEvents.get(0));
 
-				// scan all received envelopes (skipping the initial ack) for a host event
-				// envelope carrying the freshly-installed catalog name; the `__typename`
-				// discriminator is the canonical fragment-dispatch field for GraphQL unions
-				boolean hostEventSeen = false;
-				for (int i = 1; i < receivedEvents.size(); i++) {
-					final String envelope = receivedEvents.get(i);
-					try {
-						assertThatJson(envelope).and(
-							it -> it.node(resultPath(
-								ON_SYSTEM_CHANGE_PATH,
-								ChangeCaptureDescriptor.BODY,
-								TYPENAME_FIELD
-							)).isEqualTo(CatalogInstalledIntoLiveViewDescriptor.THIS.name()),
-							it -> it.node(resultPath(
-								ON_SYSTEM_CHANGE_PATH,
-								ChangeCaptureDescriptor.BODY,
-								CatalogInstalledIntoLiveViewDescriptor.CATALOG_NAME
-							)).isEqualTo(newCatalogName),
-							it -> it.node(resultPath(
-								ON_SYSTEM_CHANGE_PATH,
-								ChangeCaptureDescriptor.OPERATION
-							)).isEqualTo(Operation.UPSERT)
-						);
-						hostEventSeen = true;
-						break;
-					} catch (AssertionError ignored) {
-						// not the host-event envelope — keep scanning
-					}
-				}
 				assertTrue(
-					hostEventSeen,
+					winningCatalog[0] != null && hasInstalledHostEnvelope(receivedEvents, winningCatalog[0]),
 					"Expected at least one `" + HostSystemEvent.CatalogInstalledIntoLiveView.class.getSimpleName() +
-						"` envelope for catalog `" + newCatalogName + "`, received: " + receivedEvents
+						"` envelope for a `" + catalogFamily + "*` catalog within the liveness budget, received: " +
+						receivedEvents
 				);
 			}
 		);
+	}
+
+	/**
+	 * Scans the received subscription frames (skipping the initial `connection_ack` at index 0)
+	 * for a `CatalogInstalledIntoLiveView` host-event envelope carrying {@code expectedCatalogName}
+	 * and an `UPSERT` operation. Returns a boolean (rather than asserting) so the same scan can
+	 * drive both the retry poll and the final validator assertion.
+	 *
+	 * @param receivedEvents      the frames received so far
+	 * @param expectedCatalogName the catalog name the install envelope must carry
+	 * @return {@code true} if a matching install host envelope is present
+	 */
+	private boolean hasInstalledHostEnvelope(
+		@Nonnull List<String> receivedEvents,
+		@Nonnull String expectedCatalogName
+	) {
+		for (int i = 1; i < receivedEvents.size(); i++) {
+			final String envelope = receivedEvents.get(i);
+			try {
+				assertThatJson(envelope).and(
+					it -> it.node(resultPath(
+						ON_SYSTEM_CHANGE_PATH,
+						ChangeCaptureDescriptor.BODY,
+						TYPENAME_FIELD
+					)).isEqualTo(CatalogInstalledIntoLiveViewDescriptor.THIS.name()),
+					it -> it.node(resultPath(
+						ON_SYSTEM_CHANGE_PATH,
+						ChangeCaptureDescriptor.BODY,
+						CatalogInstalledIntoLiveViewDescriptor.CATALOG_NAME
+					)).isEqualTo(expectedCatalogName),
+					it -> it.node(resultPath(
+						ON_SYSTEM_CHANGE_PATH,
+						ChangeCaptureDescriptor.OPERATION
+					)).isEqualTo(Operation.UPSERT)
+				);
+				return true;
+			} catch (AssertionError ignored) {
+				// not the host-event envelope — keep scanning
+			}
+		}
+		return false;
 	}
 
 	/**
@@ -226,23 +275,42 @@ public class SystemGraphQLSubscriptionsFunctionalTest extends SystemGraphQLEndpo
 						"... on CatalogSchemaUpdated { catalogName newSchemaVersion currentEngineVersion } " +
 						"} }"
 				));
-				// wait for connection_ack so the server has time to register the CDC subscription
-				// before triggering events — closes the race against the live-tail publisher hookup
+				// wait for `connection_ack` so the subscription registration has a head start —
+				// but note the ack only proves `connection_init` was processed, NOT that the
+				// separate `subscribe` message was registered (that happens asynchronously on the
+				// server via `executeAsync` → `streamMessage.subscribe`)
 				ctx.awaitEvents(1);
 
 				// bump the catalog schema version inside an ALIVE transaction — the issue spec
 				// guarantees one coalesced `CatalogSchemaUpdated` per such commit regardless of
 				// how many `ModifyCatalogSchemaMutation`s were applied (defining an entity schema
-				// + a couple of attributes still produces exactly one host event)
-				evita.updateCatalog(
-					newCatalogName,
-					session -> {
-						session.defineEntitySchema(newEntityType)
-							.withAttribute("code", String.class)
-							.withAttribute("priority", Integer.class)
-							.updateVia(session);
-					}
-				);
+				// + a couple of attributes still produces exactly one host event).
+				//
+				// HOST-area events are live-tail only (no `sinceVersion` backfill), so a single
+				// bump fired before the async subscription registration completes is dropped and
+				// lost forever — the exact CI flake this guards against. Retry the bump until the
+				// first event is live-tailed back to us or the budget elapses; each attempt defines
+				// a DISTINCT entity type, producing a fresh coalesced schema-version bump, and the
+				// first delivered `CatalogSchemaUpdated` proves the subscription is now live. Extra
+				// schema versions on this throwaway catalog are harmless and the validator below
+				// tolerates the additional envelopes.
+				final long deadlineNanos = System.nanoTime() + SUBSCRIPTION_LIVENESS_BUDGET.toNanos();
+				int attempt = 0;
+				boolean hostEventDelivered = false;
+				while (!hostEventDelivered && System.nanoTime() < deadlineNanos) {
+					final String probeEntityType = newEntityType + attempt++;
+					evita.updateCatalog(
+						newCatalogName,
+						session -> {
+							session.defineEntitySchema(probeEntityType)
+								.withAttribute("code", String.class)
+								.withAttribute("priority", Integer.class)
+								.updateVia(session);
+						}
+					);
+					// short, non-throwing wait for the coalesced host event before re-bumping
+					hostEventDelivered = ctx.tryAwaitEvents(2, SUBSCRIPTION_LIVENESS_POLL);
+				}
 			},
 			// 1 connection_ack + at least the host event itself; the websocket harness uses
 			// `>=` semantics so additional envelopes that arrive in between do not cause failures

@@ -27,12 +27,18 @@ import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
+import io.evitadb.api.APITestConstants;
+import io.evitadb.api.proxy.mock.EmptyEntitySchemaAccessor;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.Cardinality;
+import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
-import io.evitadb.api.requestResponse.schema.EvolutionMode;
-import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaEditor;
+import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
+import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
+import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.dataType.Predecessor;
 import io.evitadb.dataType.Scope;
@@ -41,9 +47,17 @@ import io.evitadb.index.attribute.AttributeScope;
 import io.evitadb.index.attribute.ChainIndex;
 import io.evitadb.index.attribute.EntityAttributeIndex;
 import io.evitadb.index.attribute.FilterIndex;
+import io.evitadb.index.attribute.FilterIndexView;
+import io.evitadb.index.attribute.OwnerFilterIndex;
+import io.evitadb.index.attribute.OwnerUniqueIndex;
 import io.evitadb.index.attribute.ReferenceAttributeIndex;
 import io.evitadb.index.attribute.SortIndex;
+import io.evitadb.index.attribute.SortIndexView;
 import io.evitadb.index.attribute.UniqueIndex;
+import io.evitadb.index.invertedIndex.InvertedIndex;
+import io.evitadb.index.range.RangeIndex;
+import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.index.cardinality.AttributeCardinalityIndex;
 import io.evitadb.index.cardinality.ReferenceTypeCardinalityIndex;
@@ -60,23 +74,25 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeInde
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStorageKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.ChainIndexStoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIdsStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIndexStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.FacetIndexStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.FilterIndexStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.GroupCardinalityIndexStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.HierarchyIndexStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.HistogramIndexStorageKey;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.HistogramCardinalityStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.HistogramIndexStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.PriceListAndCurrencyRefIndexStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.PriceListAndCurrencySuperIndexStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.ReferenceTypeCardinalityIndexStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.SortIndexStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.UniqueIndexStoragePart;
+import io.evitadb.utils.NamingConvention;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentMatchers;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -85,6 +101,9 @@ import java.util.ArrayList;
 import java.util.Currency;
 import java.util.EnumSet;
 import java.util.HashMap;
+import io.evitadb.utils.CollectionUtils;
+
+import java.util.Objects;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
@@ -95,10 +114,9 @@ import java.util.Set;
 
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.MANAGEMENT;
+import static io.evitadb.test.TestTags.SERIALIZATION;
 import static io.evitadb.test.TestTags.STORAGE;
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 /**
  * Pins the storage-part round-trip contract of every concrete `EntityIndex` subclass —
@@ -152,20 +170,39 @@ class EntityIndexRoundTripTest {
 	private static final String HISTOGRAM_NAME = "priceHistogram";
 
 	/**
-	 * Builds an entity schema mock that admits the given locales and disallows evolution. Used
-	 * by language-tracking calls (`upsertLanguage`) which validate locale membership against
-	 * the schema.
-	 *
-	 * @param allowedLocales the set of locales the schema accepts
-	 * @return a mocked entity schema fixed to the supplied locales
+	 * Catalog + product schema scaffolding used to assemble {@link #SCHEMA} through the real
+	 * {@link InternalEntitySchemaBuilder} (rather than Mockito stubs). The builder runs the production
+	 * schema-assembly path, so the schema is one the engine could actually receive.
 	 */
-	@Nonnull
-	private static EntitySchemaContract createSchema(@Nonnull Set<Locale> allowedLocales) {
-		final EntitySchemaContract schema = mock(EntitySchemaContract.class);
-		when(schema.getLocales()).thenReturn(allowedLocales);
-		when(schema.getEvolutionMode()).thenReturn(EnumSet.noneOf(EvolutionMode.class));
-		return schema;
-	}
+	private static final CatalogSchema CATALOG_SCHEMA = CatalogSchema._internalBuild(
+		APITestConstants.TEST_CATALOG, NamingConvention.generate(APITestConstants.TEST_CATALOG),
+		EnumSet.allOf(CatalogEvolutionMode.class), EmptyEntitySchemaAccessor.INSTANCE
+	);
+	private static final EntitySchema ENTITY_SCHEMA = EntitySchema._internalBuild(ENTITY_TYPE);
+
+	/**
+	 * The real product schema shared by these round-trips. It admits {@link Locale#ENGLISH} (so the
+	 * `upsertLanguage(Locale.ENGLISH, …)` calls pass locale validation) and carries the `CATEGORY` reference
+	 * indexed for filtering AND partitioning — the index type the reduced/partitioned reference paths require
+	 * (this is what the former {@code refSchema} mock hand-stubbed via `getReferenceIndexType`).
+	 */
+	private static final EntitySchemaContract SCHEMA = new InternalEntitySchemaBuilder(
+		CATALOG_SCHEMA, ENTITY_SCHEMA
+	)
+		.withLocale(Locale.ENGLISH)
+		.withReferenceToEntity(
+			REFERENCE_NAME, REFERENCE_NAME, Cardinality.ZERO_OR_MORE,
+			ReferenceSchemaEditor::indexedForFilteringAndPartitioning
+		)
+		.toInstance();
+
+	/**
+	 * The real `CATEGORY` {@link ReferenceSchemaContract}; its name flows into
+	 * {@link AttributeIndex#createAttributeKey(ReferenceSchemaContract, AttributeSchemaContract, Locale)}
+	 * and its index type is FOR_FILTERING_AND_PARTITIONING.
+	 */
+	private static final ReferenceSchemaContract CATEGORY_REFERENCE =
+		SCHEMA.getReference(REFERENCE_NAME).orElseThrow();
 
 	/**
 	 * Builds a non-localized, filterable {@link AttributeSchemaContract} with the given name
@@ -364,10 +401,12 @@ class EntityIndexRoundTripTest {
 
 	/**
 	 * Reconstructs an [AttributeIndex] from the captured storage parts using the same
-	 * constructor wiring as the production `fetchUniqueIndex` / `fetchFilterIndex` /
-	 * `fetchSortIndex` / `fetchChainIndex` helpers in `DefaultEntityCollectionPersistenceService`.
-	 * The CARDINALITY parts are intentionally ignored here because they live outside [AttributeIndex]
-	 * — reduced/referenced indexes consume them via a separate map.
+	 * constructor wiring as the production `fetchUnique` / `fetchFilter` / `fetchSort` / `fetchChain`
+	 * helpers in [io.evitadb.index.component.loader.AttributeIndexLoader]. The CARDINALITY parts are
+	 * intentionally ignored here because they live outside [AttributeIndex] — reduced/referenced
+	 * indexes consume them via a separate map. The captured chains are small (single-leaf), so — like
+	 * the SORT branch below — only the inline SINGLE shape is reconstructed here; the granular PAGED
+	 * reload is covered by `AttributeIndexLoader.fetchChain` and its dedicated round-trip tests.
 	 *
 	 * The `referenceScoped` flag pins the structural subclass explicitly. It is required because
 	 * [io.evitadb.index.ReferencedTypeEntityIndex] passes a `null` representative key yet is
@@ -388,41 +427,78 @@ class EntityIndexRoundTripTest {
 		@Nullable RepresentativeReferenceKey referenceKey,
 		boolean referenceScoped
 	) {
+		// AttributeIndex owns the shared value→ValueToRecord trees; FilterIndex is a view and a both-flagged
+		// SortIndex runs in view mode. UNIQUE is a STANDALONE structure. Mirror
+		// AttributeIndexLoader: build the shared trees + filter views from FILTER parts, the standalone unique map from
+		// UNIQUE parts, then view-mode sort (when a FILTER part exists) or owner mode.
 		final Map<AttributeIndexKey, UniqueIndex> uniqueIndexes = new HashMap<>(8);
 		final Map<AttributeIndexKey, FilterIndex> filterIndexes = new HashMap<>(8);
 		final Map<AttributeIndexKey, SortIndex> sortIndexes = new HashMap<>(8);
 		final Map<AttributeIndexKey, ChainIndex> chainIndexes = new HashMap<>(8);
+		final Map<AttributeIndexKey, InvertedIndex> sharedValueIndexes = new HashMap<>(8);
+		final Map<AttributeIndexKey, RangeIndex> sharedRangeIndexes = new HashMap<>(8);
+		final Map<AttributeIndexKey, UniqueIndex> uniqueViewIndexes = new HashMap<>(8);
+		// first pass: FILTER parts -> shared trees + filter views
+		for (final AttributeIndexStoragePart part : storage.attributeParts) {
+			final AttributeIndexKey attrKey = part.getAttributeIndexKey();
+			if (part instanceof FilterIndexStoragePart filterPart) {
+				final Class<?> attributeType = filterPart.getAttributeType();
+				final Class<?> plainType = attributeType.isArray() ? attributeType.getComponentType() : attributeType;
+				final InvertedIndex shared = new InvertedIndex(
+					filterPart.getHistogramPoints(),
+					FilterIndex.getNormalizer(plainType, 0),
+					FilterIndex.getComparator(attrKey, plainType)
+				);
+				sharedValueIndexes.put(attrKey, shared);
+				final RangeIndex rangeIndex = filterPart.getRangeIndex();
+				if (rangeIndex != null) {
+					sharedRangeIndexes.put(attrKey, rangeIndex);
+				}
+				filterIndexes.put(attrKey, new FilterIndexView(attrKey, shared, rangeIndex, attributeType));
+			}
+		}
+		// second pass: SORT (view mode iff a FILTER part exists for the key) + CHAIN
 		for (final AttributeIndexStoragePart part : storage.attributeParts) {
 			final AttributeIndexKey attrKey = part.getAttributeIndexKey();
 			if (part instanceof UniqueIndexStoragePart uniquePart) {
-				uniqueIndexes.put(
-					attrKey,
-					new UniqueIndex(
-						entityType, attrKey, uniquePart.getType(),
-						uniquePart.getUniqueValueToRecordId(),
-						uniquePart.getRecordIds()
-					)
-				);
-			} else if (part instanceof FilterIndexStoragePart filterPart) {
-				filterIndexes.put(
-					attrKey,
-					new FilterIndex(
+				// folded VIEW when a FILTER (shared) tree exists for the key; otherwise a standalone owner
+				if (sharedValueIndexes.containsKey(attrKey)) {
+					uniqueViewIndexes.put(
 						attrKey,
-						filterPart.getHistogramPoints(),
-						filterPart.getRangeIndex(),
-						filterPart.getAttributeType()
-					)
-				);
+						UniqueIndex.createView(
+							entityType, attrKey, uniquePart.getType(), filterIndexes.get(attrKey)
+						)
+					);
+				} else {
+					uniqueIndexes.put(
+						attrKey,
+						new OwnerUniqueIndex(
+							entityType, attrKey, uniquePart.getType(),
+							Objects.requireNonNull(uniquePart.getValues()),
+							Objects.requireNonNull(uniquePart.getRecordIds())
+						)
+					);
+				}
 			} else if (part instanceof SortIndexStoragePart sortPart) {
+				final boolean sortViewMode = sharedValueIndexes.containsKey(attrKey);
 				sortIndexes.put(
 					attrKey,
-					new SortIndex(
+					SortIndex.create(
 						sortPart.getComparatorBase(),
 						referenceKey,
 						attrKey,
-						sortPart.getSortedRecords(),
+						// the scale is no longer persisted; these round-trips index no BigDecimal attribute, so it is 0
+						0,
+						// view mode: the slim part omits the positional sortedRecords; rebuild it from the shared tree,
+						// mirroring AttributeIndexLoader.fetchSort (the persisted array is ignored even when present)
+						sortViewMode
+							? SortIndexView.reconstructSortedRecords(sharedValueIndexes.get(attrKey))
+							: sortPart.getSortedRecords(),
 						sortPart.getSortedRecordsValues(),
-						sortPart.getValueCardinalities()
+						sortPart.getValueCardinalities(),
+						sortViewMode
+							? () -> sharedValueIndexes.get(attrKey)
+							: null
 					)
 				);
 			} else if (part instanceof ChainIndexStoragePart chainPart) {
@@ -439,30 +515,51 @@ class EntityIndexRoundTripTest {
 		}
 		return referenceScoped
 			? new ReferenceAttributeIndex(
-				entityType, referenceKey, uniqueIndexes, filterIndexes, sortIndexes, chainIndexes
+				entityType, referenceKey, uniqueIndexes, filterIndexes, uniqueViewIndexes, sortIndexes, chainIndexes, sharedValueIndexes, sharedRangeIndexes
 			)
 			: new EntityAttributeIndex(
-				entityType, uniqueIndexes, filterIndexes, sortIndexes, chainIndexes
+				entityType, uniqueIndexes, filterIndexes, uniqueViewIndexes, sortIndexes, chainIndexes, sharedValueIndexes, sharedRangeIndexes
 			);
 	}
 
 	/**
-	 * Reconstructs the entity-id-by-language map from the manifest. The map is bitmap-typed and
-	 * needs to be wrapped in fresh transactional bitmaps to match the deserialization constructor's
-	 * expected type.
+	 * Resolves the entity-id superset bitmap exactly as the production `readEntityIndex` loader does:
+	 * from the sibling {@link EntityIdsStoragePart} when present, else from the manifest's legacy inline
+	 * carrier, else an empty bitmap.
 	 *
-	 * @param manifest the captured `EntityIndexStoragePart`
+	 * @param storage the captured storage parts
+	 * @return the entity-id superset bitmap to feed into the deserialization constructor
+	 */
+	@Nonnull
+	private static Bitmap reloadEntityIds(@Nonnull CapturedStorage storage) {
+		if (storage.bitmapsPart != null) {
+			return storage.bitmapsPart.getEntityIds();
+		}
+		final Bitmap legacy = storage.requireManifest().getEntityIds();
+		return legacy == null ? EmptyBitmap.INSTANCE : legacy;
+	}
+
+	/**
+	 * Reconstructs the entity-id-by-language map by the same sibling-or-legacy-fallback rule as
+	 * {@link #reloadEntityIds(CapturedStorage)}. The map is bitmap-typed and needs to be wrapped in
+	 * fresh transactional bitmaps to match the deserialization constructor's expected type.
+	 *
+	 * @param storage the captured storage parts
 	 * @return a map suitable for passing into the deserialization constructor
 	 */
 	@Nonnull
 	private static Map<Locale, TransactionalBitmap> reloadEntityIdsByLanguage(
-		@Nonnull EntityIndexStoragePart manifest
+		@Nonnull CapturedStorage storage
 	) {
+		final Map<Locale, TransactionalBitmap> source = storage.bitmapsPart != null
+			? storage.bitmapsPart.getEntityIdsByLanguage()
+			: storage.requireManifest().getEntityIdsByLanguage();
 		// LinkedHashMap preserves deterministic iteration order for downstream comparisons
 		final Map<Locale, TransactionalBitmap> reloaded = new LinkedHashMap<>(4);
-		for (final Map.Entry<Locale, TransactionalBitmap> entry
-			: manifest.getEntityIdsByLanguage().entrySet()) {
-			reloaded.put(entry.getKey(), new TransactionalBitmap(entry.getValue()));
+		if (source != null) {
+			for (final Map.Entry<Locale, TransactionalBitmap> entry : source.entrySet()) {
+				reloaded.put(entry.getKey(), new TransactionalBitmap(entry.getValue()));
+			}
 		}
 		return reloaded;
 	}
@@ -546,13 +643,19 @@ class EntityIndexRoundTripTest {
 		final Map<String, HistogramIndex> result = new HashMap<>(storage.histogramParts.size());
 		for (final HistogramIndexStoragePart part : storage.histogramParts) {
 			// the test only emits non-localized histograms; reconstruct a SimpleHistogramIndex using
-			// the same constructor signature as production fetchHistogramIndexes. The embedded
-			// cardinality index is re-built (rather than reused) so its dirty flag starts clean —
-			// mirrors what kryo deserialization produces on a real reload.
+			// the same constructor signature as production fetchHistogramIndexes. The cardinality index is now
+			// evicted to a sibling HistogramCardinalityStoragePart (matched by histogram name); it is re-built
+			// (rather than reused) so its dirty flag starts clean — mirrors kryo deserialization on a real reload.
 			@SuppressWarnings("unchecked")
 			final Class<? extends Serializable> valueType =
 				(Class<? extends Serializable>) part.getValueType();
-			final AttributeCardinalityIndex liveCardinality = part.getCardinalityIndex();
+			final AttributeCardinalityIndex liveCardinality = storage.histogramCardinalityParts.stream()
+				.filter(c -> c.getHistogramName().equals(part.getHistogramName()) && c.getLocale() == null)
+				.findFirst()
+				.map(HistogramCardinalityStoragePart::getCardinalityIndex)
+				.orElseThrow(() -> new IllegalStateException(
+					"No cardinality sibling emitted for histogram '" + part.getHistogramName() + "'!"
+				));
 			final AttributeCardinalityIndex freshCardinality = new AttributeCardinalityIndex(
 				liveCardinality.getValueType(), liveCardinality.getCardinalities()
 			);
@@ -562,11 +665,14 @@ class EntityIndexRoundTripTest {
 					part.getHistogramName(),
 					referenceName,
 					valueType,
-					new FilterIndex(
+					// the scale is no longer persisted; these round-trips index no BigDecimal histogram, so it is 0
+					0,
+					new OwnerFilterIndex(
 						new AttributeIndexKey(referenceName, part.getHistogramName(), null),
 						part.getHistogramPoints(),
 						part.getRangeIndex(),
-						part.getValueType()
+						part.getValueType(),
+						0
 					),
 					freshCardinality
 				)
@@ -590,7 +696,6 @@ class EntityIndexRoundTripTest {
 		private static GlobalEntityIndex buildPopulatedIndex() {
 			final EntityIndexKey key = new EntityIndexKey(EntityIndexType.GLOBAL, Scope.LIVE);
 			final GlobalEntityIndex index = new GlobalEntityIndex(INDEX_PK, ENTITY_TYPE, key);
-			final EntitySchemaContract schema = createSchema(Set.of(Locale.ENGLISH));
 			final AttributeSchemaContract codeSchema = createAttributeSchema(ATTRIBUTE_CODE, String.class);
 			final AttributeSchemaContract nameSchema = createAttributeSchema(ATTRIBUTE_NAME, String.class);
 			final AttributeSchemaContract prioritySchema =
@@ -602,11 +707,14 @@ class EntityIndexRoundTripTest {
 			// PKs and language tracking
 			index.insertPrimaryKeyIfMissing(10);
 			index.insertPrimaryKeyIfMissing(20);
-			index.upsertLanguage(Locale.ENGLISH, 10, schema);
+			index.upsertLanguage(Locale.ENGLISH, 10, SCHEMA);
 
-			// one of each attribute index type
+			// one of each attribute index type. `code` is a foldable unique attribute, so — exactly as the mutator
+			// does for a unique-not-separately-filterable attribute — its value is also shadowed into the shared filter
+			// tree; this is what backs the folded unique VIEW and lets the slim UNIQUE part round-trip.
 			index.insertUniqueAttribute(null, codeSchema, allowedLocales, Scope.LIVE, null, "ABC", 10);
-			index.insertFilterAttribute(null, nameSchema, allowedLocales, null, "Phone", 10);
+			index.insertFilterAttribute(null, codeSchema, allowedLocales, null, "ABC", 10, false);
+			index.insertFilterAttribute(null, nameSchema, allowedLocales, null, "Phone", 10, false);
 			index.insertSortAttribute(null, prioritySchema, allowedLocales, null, 42, 10);
 			index.insertSortAttribute(null, orderSchema, allowedLocales, null, Predecessor.HEAD, 10);
 
@@ -658,8 +766,8 @@ class EntityIndexRoundTripTest {
 				manifest.getPrimaryKey(),
 				manifest.getEntityIndexKey(),
 				manifest.getVersion(),
-				manifest.getEntityIds(),
-				reloadEntityIdsByLanguage(manifest),
+				reloadEntityIds(storage),
+				reloadEntityIdsByLanguage(storage),
 				(EntityAttributeIndex) attributeIndex,
 				new PriceSuperIndex(priceIndexes),
 				reloadHierarchyIndex(storage),
@@ -752,16 +860,10 @@ class EntityIndexRoundTripTest {
 			final EntityIndexKey key =
 				new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY, Scope.LIVE, rrk);
 			final ReducedEntityIndex index = new ReducedEntityIndex(INDEX_PK, ENTITY_TYPE, key);
-			final EntitySchemaContract schema = createSchema(Set.of(Locale.ENGLISH));
-			// AbstractReducedEntityIndex.assertPartitioningIndex requires a non-null reference
-			// schema; configure FOR_FILTERING_AND_PARTITIONING so attribute/price/facet paths pass.
-			// The schema name flows into AttributeIndex.createAttributeKey, so configure
-			// getName() to return REFERENCE_NAME — otherwise filter keys collapse to (null, name, null)
-			// and the post-reload lookup against (REFERENCE_NAME, name, null) returns null.
-			final ReferenceSchemaContract refSchema = mock(ReferenceSchemaContract.class);
-			when(refSchema.getName()).thenReturn(REFERENCE_NAME);
-			when(refSchema.getReferenceIndexType(ArgumentMatchers.any(Scope.class)))
-				.thenReturn(ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING);
+			// AbstractReducedEntityIndex.assertPartitioningIndex requires a reference indexed
+			// FOR_FILTERING_AND_PARTITIONING; the reference name flows into AttributeIndex.createAttributeKey
+			// (filter keys must be (REFERENCE_NAME, name, null) so the post-reload lookup resolves).
+			final ReferenceSchemaContract refSchema = CATEGORY_REFERENCE;
 			final AttributeSchemaContract codeSchema = createAttributeSchema(ATTRIBUTE_CODE, String.class);
 			final AttributeSchemaContract nameSchema = createAttributeSchema(ATTRIBUTE_NAME, String.class);
 			final AttributeSchemaContract prioritySchema =
@@ -772,12 +874,15 @@ class EntityIndexRoundTripTest {
 
 			index.insertPrimaryKeyIfMissing(11);
 			index.insertPrimaryKeyIfMissing(22);
-			index.upsertLanguage(Locale.ENGLISH, 11, schema);
+			index.upsertLanguage(Locale.ENGLISH, 11, SCHEMA);
 
+			// `code` is a foldable unique attribute, so its value is also shadowed into the shared filter tree exactly as
+			// the mutator does for a unique-not-separately-filterable attribute (backs the folded unique VIEW + slim part)
 			index.insertUniqueAttribute(
 				refSchema, codeSchema, allowedLocales, Scope.LIVE, null, "ABC-R", 11
 			);
-			index.insertFilterAttribute(refSchema, nameSchema, allowedLocales, null, "Tablet", 11);
+			index.insertFilterAttribute(refSchema, codeSchema, allowedLocales, null, "ABC-R", 11, false);
+			index.insertFilterAttribute(refSchema, nameSchema, allowedLocales, null, "Tablet", 11, false);
 			index.insertSortAttribute(refSchema, prioritySchema, allowedLocales, null, 7, 11);
 			index.insertSortAttribute(refSchema, orderSchema, allowedLocales, null, Predecessor.HEAD, 11);
 
@@ -826,8 +931,8 @@ class EntityIndexRoundTripTest {
 				manifest.getPrimaryKey(),
 				manifest.getEntityIndexKey(),
 				manifest.getVersion(),
-				manifest.getEntityIds(),
-				reloadEntityIdsByLanguage(manifest),
+				reloadEntityIds(storage),
+				reloadEntityIdsByLanguage(storage),
 				(ReferenceAttributeIndex) attributeIndex,
 				new PriceRefIndex(manifest.getEntityIndexKey().scope(), priceIndexes),
 				reloadHierarchyIndex(storage),
@@ -912,15 +1017,10 @@ class EntityIndexRoundTripTest {
 				new EntityIndexKey(EntityIndexType.REFERENCED_GROUP_ENTITY, Scope.LIVE, rrk);
 			final ReducedGroupEntityIndex index =
 				new ReducedGroupEntityIndex(INDEX_PK, ENTITY_TYPE, key);
-			final EntitySchemaContract schema = createSchema(Set.of(Locale.ENGLISH));
-			// the 1-arg assertPartitioningIndex (used by addFacet / addPrice) inspects
-			// getReferenceIndexType — configure FOR_FILTERING_AND_PARTITIONING so the facet
-			// path passes the precondition; getName() flows into AttributeIndex.createAttributeKey
-			// so configure it to REFERENCE_NAME for consistency with the manifest discriminator
-			final ReferenceSchemaContract refSchema = mock(ReferenceSchemaContract.class);
-			when(refSchema.getName()).thenReturn(REFERENCE_NAME);
-			when(refSchema.getReferenceIndexType(ArgumentMatchers.any(Scope.class)))
-				.thenReturn(ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING);
+			// the 1-arg assertPartitioningIndex (used by addFacet / addPrice) inspects getReferenceIndexType
+			// (FOR_FILTERING_AND_PARTITIONING here); the reference name flows into AttributeIndex.createAttributeKey
+			// as the manifest discriminator
+			final ReferenceSchemaContract refSchema = CATEGORY_REFERENCE;
 			final AttributeSchemaContract nameSchema = createAttributeSchema(ATTRIBUTE_NAME, String.class);
 			final Set<Locale> allowedLocales = Set.of(Locale.ENGLISH);
 
@@ -928,11 +1028,11 @@ class EntityIndexRoundTripTest {
 			index.insertPrimaryKeyIfMissing(13, 1);
 			index.insertPrimaryKeyIfMissing(13, 2);
 			index.insertPrimaryKeyIfMissing(14, 3);
-			index.upsertLanguage(Locale.ENGLISH, 13, schema);
+			index.upsertLanguage(Locale.ENGLISH, 13, SCHEMA);
 
 			// filter attribute with cardinality tracking — drives the CARDINALITY storage part
-			index.insertFilterAttribute(refSchema, nameSchema, allowedLocales, null, "Watch", 13);
-			index.insertFilterAttribute(refSchema, nameSchema, allowedLocales, null, "Watch", 13);
+			index.insertFilterAttribute(refSchema, nameSchema, allowedLocales, null, "Watch", 13, false);
+			index.insertFilterAttribute(refSchema, nameSchema, allowedLocales, null, "Watch", 13, false);
 
 			// histogram — must round-trip via the manifest
 			index.insertHistogramValue(HISTOGRAM_NAME, null, 100, 13, Integer.class, 0);
@@ -987,8 +1087,8 @@ class EntityIndexRoundTripTest {
 				manifest.getPrimaryKey(),
 				manifest.getEntityIndexKey(),
 				manifest.getVersion(),
-				manifest.getEntityIds(),
-				reloadEntityIdsByLanguage(manifest),
+				reloadEntityIds(storage),
+				reloadEntityIdsByLanguage(storage),
 				(ReferenceAttributeIndex) attributeIndex,
 				new PriceRefIndex(manifest.getEntityIndexKey().scope(), priceIndexes),
 				reloadHierarchyIndex(storage),
@@ -1071,20 +1171,21 @@ class EntityIndexRoundTripTest {
 			);
 			final ReferencedTypeEntityIndex index =
 				new ReferencedTypeEntityIndex(INDEX_PK, ENTITY_TYPE, key);
-			final EntitySchemaContract schema = createSchema(Set.of(Locale.ENGLISH));
-			final ReferenceSchemaContract refSchema = mock(ReferenceSchemaContract.class);
 			final AttributeSchemaContract nameSchema = createAttributeSchema(ATTRIBUTE_NAME, String.class);
 			final Set<Locale> allowedLocales = Set.of(Locale.ENGLISH);
 
+			// A ReferencedTypeEntityIndex is reference-scoped via its index key, not via the attribute key: the
+			// AttributeIndex receives a null reference schema, so filter keys are (null, name, null). Passing null
+			// here (rather than a named reference) is the faithful shape — matching the addFacet(null, …) below.
 			// cardinality-aware PK insertion: entity 15 has two refs to referenced entity 50;
 			// entity 16 has one ref to referenced entity 51
 			index.insertPrimaryKeyIfMissing(15, 50);
 			index.insertPrimaryKeyIfMissing(15, 50);
 			index.insertPrimaryKeyIfMissing(16, 51);
-			index.upsertLanguage(Locale.ENGLISH, 15, schema);
+			index.upsertLanguage(Locale.ENGLISH, 15, SCHEMA);
 
-			index.insertFilterAttribute(refSchema, nameSchema, allowedLocales, null, "Lamp", 15);
-			index.insertFilterAttribute(refSchema, nameSchema, allowedLocales, null, "Lamp", 15);
+			index.insertFilterAttribute(null, nameSchema, allowedLocales, null, "Lamp", 15, false);
+			index.insertFilterAttribute(null, nameSchema, allowedLocales, null, "Lamp", 15, false);
 
 			index.insertHistogramValue(HISTOGRAM_NAME, null, 11, 15, Integer.class, 0);
 			index.insertHistogramValue(HISTOGRAM_NAME, null, 22, 16, Integer.class, 0);
@@ -1106,23 +1207,29 @@ class EntityIndexRoundTripTest {
 			// ReferencedTypeEntityIndex is reference-scoped even though the AttributeIndex receives a
 			// null representative key — its discriminator is a String reference name
 			final AttributeIndex attributeIndex = reloadAttributeIndex(storage, ENTITY_TYPE, null, true);
-			final ReferenceTypeCardinalityIndexStoragePart refTypePart =
-				storage.referenceTypeCardinalityPart;
+			final ReferenceTypeCardinalityIndexStoragePart refTypePart = storage.referenceTypeCardinalityPart;
 			assertNotNull(refTypePart, "ReferencedTypeEntityIndex must emit a ref-type cardinality part");
 			final Map<String, HistogramIndex> histogramIndexes =
 				reloadHistogramIndexes(storage, REFERENCE_NAME);
-			// reconstruct ReferenceTypeCardinalityIndex via the (Map, Map) constructor so its dirty
-			// flag starts clean — production kryo deserialization has the same effect
-			final ReferenceTypeCardinalityIndex liveRefType = refTypePart.getCardinalityIndex();
+			// reconstruct ReferenceTypeCardinalityIndex from the inline SINGLE columns via the (Map, Map) constructor so
+			// its dirty flag starts clean — production kryo deserialization + loader has the same effect. The fixture is
+			// small, so the cardinality tree stays a single leaf (SINGLE shape) and never pages out.
+			assertFalse(refTypePart.isPaged(), "Small ref-type cardinality fixture must persist inline (SINGLE)");
+			final long[] refTypeKeys = Objects.requireNonNull(refTypePart.getKeys());
+			final long[] refTypePayloads = Objects.requireNonNull(refTypePart.getPayloads());
+			final Map<Long, Integer> refTypeCardinalities = CollectionUtils.createHashMap(refTypeKeys.length);
+			for (int i = 0; i < refTypeKeys.length; i++) {
+				refTypeCardinalities.put(refTypeKeys[i], (int) refTypePayloads[i]);
+			}
 			final ReferenceTypeCardinalityIndex freshRefType = new ReferenceTypeCardinalityIndex(
-				liveRefType.getCardinalities(), liveRefType.getReferencedPrimaryKeysIndex()
+				refTypeCardinalities, refTypePart.getReferencedPrimaryKeysIndex()
 			);
 			return new ReferencedTypeEntityIndex(
 				manifest.getPrimaryKey(),
 				manifest.getEntityIndexKey(),
 				manifest.getVersion(),
-				manifest.getEntityIds(),
-				reloadEntityIdsByLanguage(manifest),
+				reloadEntityIds(storage),
+				reloadEntityIdsByLanguage(storage),
 				(ReferenceAttributeIndex) attributeIndex,
 				reloadHierarchyIndex(storage),
 				reloadFacetIndex(storage),
@@ -1181,6 +1288,89 @@ class EntityIndexRoundTripTest {
 		}
 	}
 
+	@Nested
+	@DisplayName("Legacy inline-bitmap manifest reload")
+	@Tag(INDEXING)
+	@Tag(SERIALIZATION)
+	class LegacyInlineBitmapManifestReloadTest {
+
+		/**
+		 * Builds a legacy-format `GlobalEntityIndex` manifest through the canonical 10-arg constructor,
+		 * carrying the entity-id bitmaps INLINE (the way manifests written before the entity-id bitmaps
+		 * were evicted into a sibling `EntityIdsStoragePart` look on disk). No sibling bitmaps part is
+		 * captured, so the reload helpers must fall back to the manifest's inline carrier — the exact
+		 * code path the production `readEntityIndex` loader takes when reading an older-format manifest.
+		 *
+		 * @param entityIds           the inline superset bitmap, or `null` for an empty legacy index
+		 * @param entityIdsByLanguage the inline per-locale bitmaps, or `null` for an empty legacy index
+		 * @return a captured storage bundle whose only populated slot is the legacy manifest
+		 */
+		@Nonnull
+		private static CapturedStorage captureLegacyManifest(
+			@Nullable Bitmap entityIds,
+			@Nullable Map<Locale, TransactionalBitmap> entityIdsByLanguage
+		) {
+			final EntityIndexKey key = new EntityIndexKey(EntityIndexType.GLOBAL, Scope.LIVE);
+			final EntityIndexStoragePart legacyManifest = new EntityIndexStoragePart(
+				INDEX_PK, 1, key,
+				entityIds, entityIdsByLanguage,
+				Set.of(), Set.of(), false, Set.of(), Set.of()
+			);
+			final CapturedStorage storage = new CapturedStorage();
+			// mirror the on-disk shape of an older-format catalog: the manifest carries the bitmaps
+			// itself and there is no sibling EntityIdsStoragePart, leaving bitmapsPart null
+			storage.manifest = legacyManifest;
+			return storage;
+		}
+
+		@Test
+		@DisplayName("should resolve membership from the manifest's inline bitmaps when no sibling bitmaps part exists")
+		void shouldResolveMembershipFromInlineBitmapsWhenNoSiblingPartExists() {
+			final TransactionalBitmap inlineEntityIds = new TransactionalBitmap(10, 20, 30);
+			final TransactionalBitmap inlineEnglish = new TransactionalBitmap(10, 20);
+			final Map<Locale, TransactionalBitmap> inlineByLanguage = new LinkedHashMap<>(2);
+			inlineByLanguage.put(Locale.ENGLISH, inlineEnglish);
+
+			final CapturedStorage storage = LegacyInlineBitmapManifestReloadTest.captureLegacyManifest(inlineEntityIds, inlineByLanguage);
+			final Bitmap reloadedEntityIds = reloadEntityIds(storage);
+			final Map<Locale, TransactionalBitmap> reloadedByLanguage = reloadEntityIdsByLanguage(storage);
+
+			// the superset membership must equal the inline-carried bitmap verbatim
+			assertArrayEquals(
+				inlineEntityIds.getArray(), reloadedEntityIds.getArray(),
+				"Reloaded superset membership must equal the manifest's inline entity-id bitmap"
+			);
+			// each per-locale membership must equal the inline-carried per-locale bitmap
+			assertEquals(
+				Set.of(Locale.ENGLISH), reloadedByLanguage.keySet(),
+				"Reloaded per-locale map must carry exactly the inline-tracked locales"
+			);
+			assertArrayEquals(
+				inlineEnglish.getArray(), reloadedByLanguage.get(Locale.ENGLISH).getArray(),
+				"Reloaded English membership must equal the manifest's inline per-locale bitmap"
+			);
+		}
+
+		@Test
+		@DisplayName("should resolve to empty membership without failing when the manifest carries no inline bitmaps")
+		void shouldResolveToEmptyMembershipWhenManifestCarriesNoInlineBitmaps() {
+			// a modern, empty index: getEntityIds() == null and getEntityIdsByLanguage() == null —
+			// the loader must fall back to EmptyBitmap.INSTANCE / an empty map rather than dereferencing null
+			final CapturedStorage storage = LegacyInlineBitmapManifestReloadTest.captureLegacyManifest(null, null);
+			final Bitmap reloadedEntityIds = reloadEntityIds(storage);
+			final Map<Locale, TransactionalBitmap> reloadedByLanguage = reloadEntityIdsByLanguage(storage);
+
+			assertTrue(
+				reloadedEntityIds.isEmpty(),
+				"Null inline superset bitmap must resolve to an empty bitmap, not throw"
+			);
+			assertTrue(
+				reloadedByLanguage.isEmpty(),
+				"Null inline per-locale map must resolve to an empty map, not throw"
+			);
+		}
+	}
+
 	/**
 	 * In-memory bag of storage parts emitted by a single `getModifiedStorageParts` call,
 	 * categorized by structural role for test access.
@@ -1188,6 +1378,8 @@ class EntityIndexRoundTripTest {
 	private static final class CapturedStorage {
 		/** The manifest emitted by the entity index. */
 		@Nullable private EntityIndexStoragePart manifest;
+		/** The sibling entity-id bitmaps part (evicted out of the manifest from the 2026.2 format). */
+		@Nullable private EntityIdsStoragePart bitmapsPart;
 		/** UNIQUE / FILTER / SORT / CHAIN parts (CARDINALITY parts are stored separately). */
 		@Nonnull private final List<AttributeIndexStoragePart> attributeParts = new ArrayList<>(8);
 		/** Attribute cardinality parts — reduced/referenced indexes consume them via a separate map. */
@@ -1197,6 +1389,8 @@ class EntityIndexRoundTripTest {
 		@Nonnull private final List<StoragePart> priceParts = new ArrayList<>(4);
 		/** Histogram parts, one per (histogramName, locale) pair. */
 		@Nonnull private final List<HistogramIndexStoragePart> histogramParts = new ArrayList<>(4);
+		/** Histogram cardinality sibling parts, evicted out of the histogram root (one per histogram name + locale). */
+		@Nonnull private final List<HistogramCardinalityStoragePart> histogramCardinalityParts = new ArrayList<>(4);
 		/** Facet parts, one per reference name with non-empty facet data. */
 		@Nonnull private final List<FacetIndexStoragePart> facetParts = new ArrayList<>(4);
 		/** The single hierarchy part if hierarchy was populated, else null. */
@@ -1217,10 +1411,15 @@ class EntityIndexRoundTripTest {
 			if (part instanceof EntityIndexStoragePart manifestPart) {
 				assertNull(this.manifest, "Multiple manifests emitted in one flush");
 				this.manifest = manifestPart;
+			} else if (part instanceof EntityIdsStoragePart bitmapsStoragePart) {
+				assertNull(this.bitmapsPart, "Multiple entity-id bitmaps parts emitted in one flush");
+				this.bitmapsPart = bitmapsStoragePart;
 			} else if (part instanceof AttributeCardinalityIndexStoragePart cardPart) {
 				this.attributeCardinalityParts.add(cardPart);
 			} else if (part instanceof AttributeIndexStoragePart attrPart) {
 				this.attributeParts.add(attrPart);
+			} else if (part instanceof HistogramCardinalityStoragePart histCardPart) {
+				this.histogramCardinalityParts.add(histCardPart);
 			} else if (part instanceof HistogramIndexStoragePart histPart) {
 				this.histogramParts.add(histPart);
 			} else if (part instanceof FacetIndexStoragePart facetPart) {

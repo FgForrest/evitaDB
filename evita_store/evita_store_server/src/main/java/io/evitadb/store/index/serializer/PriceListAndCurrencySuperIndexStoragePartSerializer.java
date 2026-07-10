@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -27,19 +27,21 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
-import io.evitadb.exception.GenericEvitaInternalError;
-import io.evitadb.index.price.model.PriceIndexKey;
-import io.evitadb.index.price.model.priceRecord.PriceRecord;
 import io.evitadb.index.price.model.priceRecord.PriceRecordContract;
-import io.evitadb.index.price.model.priceRecord.PriceRecordInnerRecordSpecific;
-import io.evitadb.index.range.RangeIndex;
 import io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.PriceListAndCurrencySuperIndexStoragePart;
-import io.evitadb.utils.Assert;
+import io.evitadb.store.index.serializer.PagedStreamMetadataSerializer.PagedStreamMetadata;
+import io.evitadb.store.index.serializer.PriceIndexHeaderSerializer.PriceIndexHeader;
+import io.evitadb.store.index.serializer.util.PriceRecordCodec;
 import lombok.RequiredArgsConstructor;
 
 /**
- * This {@link Serializer} implementation reads/writes {@link PriceListAndCurrencySuperIndexStoragePart} from/to binary format.
+ * This {@link Serializer} implementation reads/writes {@link PriceListAndCurrencySuperIndexStoragePart} from/to binary
+ * format. A `SINGLE`-shaped part carries every price record inline; a `PAGED`-shaped part carries none (its records live
+ * in individual {@code PriceListAndCurrencySuperIndexLeafPagePart} leaf pages) and instead carries the page-stream
+ * high-water and the ordered live leaf-page list. The `SINGLE`/`PAGED` discriminator is appended after the legacy fields
+ * so a `SINGLE` part stays a byte superset of the prior (2026.1) layout — the matching pre-paged blob is read by
+ * {@link PriceListAndCurrencySuperIndexStoragePartSerializer_2026_1}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
@@ -49,73 +51,33 @@ public class PriceListAndCurrencySuperIndexStoragePartSerializer extends Seriali
 
 	@Override
 	public void write(Kryo kryo, Output output, PriceListAndCurrencySuperIndexStoragePart priceIndex) {
-		output.writeInt(priceIndex.getEntityIndexPrimaryKey());
-		final Long uniquePartId = priceIndex.getStoragePartPK();
-		Assert.notNull(uniquePartId, "Unique part id should have been computed by now!");
-		output.writeVarLong(uniquePartId, true);
-		output.writeVarInt(this.keyCompressor.getId(priceIndex.getPriceIndexKey()), true);
+		PriceIndexHeaderSerializer.write(kryo, output, priceIndex, this.keyCompressor);
 
-		kryo.writeObject(output, priceIndex.getValidityIndex());
+		// SINGLE shape carries every record inline here; PAGED shape carries none (this writes count 0) — its records
+		// live in individual PriceListAndCurrencySuperIndexLeafPagePart leaf pages
+		PriceRecordCodec.writePriceRecords(output, priceIndex.getPriceRecords());
 
-		final PriceRecordContract[] triples = priceIndex.getPriceRecords();
-		final int tripleCount = triples.length;
-		output.writeInt(tripleCount, true);
-		for (PriceRecordContract priceRecord : triples) {
-			if (priceRecord instanceof PriceRecord) {
-				output.writeBoolean(true);
-				output.writeInt(priceRecord.internalPriceId());
-				output.writeInt(priceRecord.priceId());
-				output.writeInt(priceRecord.entityPrimaryKey());
-				output.writeInt(priceRecord.priceWithTax(), true);
-				output.writeInt(priceRecord.priceWithoutTax(), true);
-			} else if (priceRecord instanceof PriceRecordInnerRecordSpecific) {
-				output.writeBoolean(false);
-				output.writeInt(priceRecord.internalPriceId());
-				output.writeInt(priceRecord.priceId());
-				output.writeInt(priceRecord.entityPrimaryKey());
-				output.writeInt(priceRecord.innerRecordId());
-				output.writeInt(priceRecord.priceWithTax(), true);
-				output.writeInt(priceRecord.priceWithoutTax(), true);
-			} else {
-				throw new GenericEvitaInternalError("Unknown implementation `" + priceRecord.getClass() + "` of PriceRecordContract!");
-			}
-		}
+		// the SINGLE/PAGED discriminator + the PAGED page-stream metadata. Appended after the legacy fields so the
+		// SINGLE shape stays a superset of the prior (2026.1) layout (just a trailing `false`). The page-stream id is
+		// NOT persisted — it is recomputed at load from the sub-index identity.
+		PagedStreamMetadataSerializer.writeOptional(
+			output, priceIndex.isPaged(), priceIndex.getHighWaterPageSequence(), priceIndex.getLeafPageSequences()
+		);
 	}
 
 	@Override
 	public PriceListAndCurrencySuperIndexStoragePart read(Kryo kryo, Input input, Class<? extends PriceListAndCurrencySuperIndexStoragePart> type) {
-		final int entityIndexPrimaryKey = input.readInt();
-		final long uniquePartId = input.readVarLong(true);
-		final PriceIndexKey priceIndexKey = this.keyCompressor.getKeyForId(input.readVarInt(true));
+		final PriceIndexHeader header = PriceIndexHeaderSerializer.read(kryo, input, this.keyCompressor);
 
-		final RangeIndex validityIndex = kryo.readObject(input, RangeIndex.class);
+		final PriceRecordContract[] priceRecords = PriceRecordCodec.readPriceRecords(input);
 
-		final int tripleCount = input.readInt(true);
-		final PriceRecordContract[] priceRecords = new PriceRecordContract[tripleCount];
-		for (int i = 0; i < tripleCount; i++) {
-			final boolean thinPriceRecord = input.readBoolean();
-			if (thinPriceRecord) {
-				priceRecords[i] = new PriceRecord(
-					input.readInt(),
-					input.readInt(),
-					input.readInt(),
-					input.readInt(true),
-					input.readInt(true)
-				);
-			} else {
-				priceRecords[i] = new PriceRecordInnerRecordSpecific(
-					input.readInt(),
-					input.readInt(),
-					input.readInt(),
-					input.readInt(),
-					input.readInt(true),
-					input.readInt(true)
-				);
-			}
-		}
+		// the SINGLE/PAGED discriminator + the PAGED page-stream metadata (the page-stream id is recomputed at load from
+		// the sub-index identity, not read here)
+		final PagedStreamMetadata metadata = PagedStreamMetadataSerializer.readOptional(input);
 
 		return new PriceListAndCurrencySuperIndexStoragePart(
-			entityIndexPrimaryKey, priceIndexKey, validityIndex, priceRecords, uniquePartId
+			header.entityIndexPrimaryKey(), header.priceIndexKey(), header.validityIndex(), priceRecords,
+			metadata.paged(), metadata.highWaterPageSequence(), metadata.leafPageSequences(), header.uniquePartId()
 		);
 	}
 

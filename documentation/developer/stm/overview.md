@@ -18,6 +18,7 @@ layer. For the user-facing transaction lifecycle (WAL, conflict resolution, cata
 | [core-interfaces.md](core-interfaces.md)       | `TransactionalLayerCreator`, `TransactionalLayerProducer` contracts |
 | [layer-lifecycle.md](layer-lifecycle.md)        | How diff layers are created, consumed, and verified                 |
 | [data-structures.md](data-structures.md)       | Concrete transactional data structures and their diff strategies    |
+| [champ-persistent-map.md](champ-persistent-map.md) | The CHAMP persistent immutable map (structural sharing; backs `OffsetIndex`) |
 | [debugging.md](debugging.md)                   | `TransactionalObjectVersion`, stale-layer diagnosis, debugging tips |
 | [testing.md](testing.md)                       | Generational / property-based testing patterns                      |
 | [rules-and-invariants.md](rules-and-invariants.md) | Formal rules for writing and testing STM-aware code             |

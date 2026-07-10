@@ -49,6 +49,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
+import java.time.Duration;
 import java.util.List;
 
 import static io.evitadb.test.TestTags.CDC;
@@ -57,6 +58,7 @@ import static io.evitadb.test.TestTags.QUERY;
 import static io.evitadb.test.TestTags.REST;
 import static io.evitadb.test.TestTags.SCHEMA;
 import static net.javacrumbs.jsonunit.assertj.JsonAssertions.assertThatJson;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 /**
@@ -76,6 +78,17 @@ public class SystemRestStreamingFunctionalTest extends RestEndpointFunctionalTes
 	private static final String SYSTEM_CHANGE_CAPTURE_URL_PATH = "/" + SystemRootDescriptor.CHANGE_SYSTEM_CAPTURE.urlPathItem();
 
 	private static final String SYSTEM_CHANGE_CAPTURE_PATH = "payload.data";
+
+	/**
+	 * Overall budget for the live-tail host-event retry loops in the HOST-area subscription tests
+	 * below. Kept under the tester's own 30-second await so a genuinely broken CDC pipeline still
+	 * fails rather than hanging.
+	 */
+	private static final Duration SUBSCRIPTION_LIVENESS_BUDGET = Duration.ofSeconds(20);
+	/**
+	 * Per-attempt wait for the coalesced host event before a retry loop re-fires its trigger.
+	 */
+	private static final Duration SUBSCRIPTION_LIVENESS_POLL = Duration.ofSeconds(2);
 
 	@Override
 	@DataSet(value = REST_EMPTY_SYSTEM_FOR_SYSTEM_API, openWebApi = RestProvider.CODE, readOnly = false, destroyAfterClass = true)
@@ -102,7 +115,10 @@ public class SystemRestStreamingFunctionalTest extends RestEndpointFunctionalTes
 		@Nonnull RestTester tester
 	) {
 		final String subscriptionId = createSubscriptionId();
-		final String hostEventCatalog = "hostEventCatalog" + subscriptionId;
+		final String catalogFamily = "hostEventCatalog" + subscriptionId;
+		// records the catalog whose install host event was actually live-tailed back to us, so the
+		// validator asserts against the winning attempt rather than a fixed name (see the retry loop)
+		final String[] winningCatalog = { null };
 
 		tester.testWebSocket(
 			SYSTEM_URL,
@@ -123,29 +139,59 @@ public class SystemRestStreamingFunctionalTest extends RestEndpointFunctionalTes
 						"\"content\": \"BODY\" " +
 						"}"
 				));
-				// wait for connection_ack so the server has time to register the CDC subscription
-				// before triggering events — closes the race against the live-tail publisher hookup
+				// wait for `connection_ack` so the subscription registration has a head start —
+				// but the ack only proves `connection_init` was processed, NOT that the separate
+				// `subscribe` message was registered (that happens asynchronously on the server)
 				ctx.awaitEvents(1);
 
-				// trigger a catalog state transition that emits a host event when the catalog
-				// settles into the ALIVE state on this host
-				evita.defineCatalog(hostEventCatalog);
-				evita.updateCatalog(hostEventCatalog, EvitaSessionContract::goLiveAndClose);
+				// HOST events are live-tail only: the server dispatches them straight to the
+				// currently-attached subscribers and drops them when none is registered yet — they
+				// bypass the WAL-backed ring buffer that makes the ENGINE envelopes this subscription
+				// also selects replayable. So a single `goLiveAndClose` fired before the async
+				// subscription registration completes loses its install host event forever. Retry the
+				// catalog activation with a DISTINCT catalog each attempt until the install host
+				// event is live-tailed back, or the budget elapses. The poll MUST be predicate-based,
+				// not frame-count-based: the replayable engine envelopes arrive regardless of the
+				// race, so a count wait would go true on those alone and mask a lost host event.
+				final long deadlineNanos = System.nanoTime() + SUBSCRIPTION_LIVENESS_BUDGET.toNanos();
+				int attempt = 0;
+				while (winningCatalog[0] == null && System.nanoTime() < deadlineNanos) {
+					final String catalog = catalogFamily + attempt++;
+					evita.defineCatalog(catalog);
+					evita.updateCatalog(catalog, EvitaSessionContract::goLiveAndClose);
+					if (ctx.tryAwaitEvents(
+						events -> hasInstalledHostEnvelope(events, catalog),
+						SUBSCRIPTION_LIVENESS_POLL
+					)) {
+						winningCatalog[0] = catalog;
+					}
+				}
 			},
-			6, receivedEvents -> {
+			2, receivedEvents -> {
 				assertConnectionAckEvent(receivedEvents.get(0));
-				assertHostEventPresent(receivedEvents, hostEventCatalog);
+				assertTrue(
+					winningCatalog[0] != null && hasInstalledHostEnvelope(receivedEvents, winningCatalog[0]),
+					"Expected at least one `" + CatalogInstalledIntoLiveViewDescriptor.THIS.name() +
+						"` host event for a `" + catalogFamily + "*` catalog within the liveness budget, " +
+						"but received: " + receivedEvents
+				);
 			}
 		);
 	}
 
 	/**
-	 * Asserts that AT LEAST ONE of the received subscription events carries a polymorphic body
-	 * with the `CatalogInstalledIntoLiveView` discriminator and the expected catalog name.
+	 * Scans the received subscription frames (skipping the initial `connection_ack` at index 0)
+	 * for a `CatalogInstalledIntoLiveView` host-event envelope carrying {@code expectedCatalogName}
+	 * and an `UPSERT` operation. Returns a boolean (rather than asserting) so the same scan can
+	 * drive both the retry poll and the final validator assertion.
 	 *
 	 * The first event is always the connection-acknowledgement frame and is skipped.
+	 *
+	 * @param receivedEvents      the frames received so far
+	 * @param expectedCatalogName the catalog name the install envelope must carry
+	 * @return {@code true} if a matching install host envelope is present
 	 */
-	private void assertHostEventPresent(
+	private boolean hasInstalledHostEnvelope(
 		@Nonnull List<String> receivedEvents,
 		@Nonnull String expectedCatalogName
 	) {
@@ -156,13 +202,11 @@ public class SystemRestStreamingFunctionalTest extends RestEndpointFunctionalTes
 			try {
 				root = mapper.readTree(event);
 			} catch (Exception ex) {
-				fail("Received event is not a valid JSON document: " + event, ex);
-				return;
+				// not a parseable JSON frame — skip, it cannot be the sought host envelope
+				continue;
 			}
-			final JsonNode body = root
-				.path("payload")
-				.path("data")
-				.path(ChangeCaptureDescriptor.BODY.name());
+			final JsonNode data = root.path("payload").path("data");
+			final JsonNode body = data.path(ChangeCaptureDescriptor.BODY.name());
 			if (body.isMissingNode() || body.isNull()) {
 				continue;
 			}
@@ -173,24 +217,15 @@ public class SystemRestStreamingFunctionalTest extends RestEndpointFunctionalTes
 			if (!CatalogInstalledIntoLiveViewDescriptor.THIS.name().equals(typeNode.asText())) {
 				continue;
 			}
-			// once we found the discriminator, lock the catalog name with assertThatJson so the
-			// failure message matches the project's existing JSON-assertion style
-			assertThatJson(event)
-				.node(resultPath(
-					SYSTEM_CHANGE_CAPTURE_PATH,
-					ChangeCaptureDescriptor.BODY,
-					CatalogInstalledIntoLiveViewDescriptor.CATALOG_NAME
-				))
-				.isEqualTo(expectedCatalogName);
-			assertThatJson(event)
-				.node(resultPath(SYSTEM_CHANGE_CAPTURE_PATH, ChangeCaptureDescriptor.OPERATION))
-				.isEqualTo(Operation.UPSERT);
-			return;
+			final JsonNode catalogNameNode =
+				body.path(CatalogInstalledIntoLiveViewDescriptor.CATALOG_NAME.name());
+			final JsonNode operationNode = data.path(ChangeCaptureDescriptor.OPERATION.name());
+			if (expectedCatalogName.equals(catalogNameNode.asText())
+				&& Operation.UPSERT.name().equals(operationNode.asText())) {
+				return true;
+			}
 		}
-		fail(
-			"Expected to receive at least one `" + CatalogInstalledIntoLiveViewDescriptor.THIS.name() +
-				"` host event for catalog `" + expectedCatalogName + "`, but received: " + receivedEvents
-		);
+		return false;
 	}
 
 	/**
@@ -245,24 +280,39 @@ public class SystemRestStreamingFunctionalTest extends RestEndpointFunctionalTes
 						"\"content\": \"BODY\" " +
 						"}"
 				));
-				// wait for connection_ack so the server has time to register the CDC subscription
-				// before triggering events — closes the race against the live-tail publisher hookup
+				// wait for `connection_ack` so the subscription registration has a head start —
+				// but the ack only proves `connection_init` was processed, NOT that the separate
+				// `subscribe` message was registered (that happens asynchronously on the server)
 				ctx.awaitEvents(1);
 
 				// trigger a schema-version bump on the WARMING_UP catalog: define an entity with
 				// two attributes and close the session. The session-close path emits a single
-				// coalesced `CatalogSchemaUpdated` host event because the schema version
-				// advanced. Block-bodied lambda disambiguates between the `Function`- and
-				// `Consumer`-returning `updateCatalog` overloads.
-				evita.updateCatalog(
-					schemaUpdatedCatalog,
-					session -> {
-						session.defineEntitySchema("schemaBumpEntity")
-							.withAttribute("attrA", String.class, AttributeSchemaEditor::filterable)
-							.withAttribute("attrB", Integer.class, AttributeSchemaEditor::sortable)
-							.updateVia(session);
-					}
-				);
+				// coalesced `CatalogSchemaUpdated` host event because the schema version advanced.
+				//
+				// HOST events are live-tail only (no `sinceVersion` backfill), so a single bump
+				// fired before the async subscription registration completes is dropped and lost
+				// forever. Retry the bump until the coalesced host event is live-tailed back or the
+				// budget elapses; each attempt defines a DISTINCT entity type, producing a fresh
+				// schema-version bump. This is a HOST-only subscription (no replayable engine
+				// envelopes are delivered), so a frame-count wait is unambiguous here — ack + the
+				// host event are the only frames that can arrive. Block-bodied lambda disambiguates
+				// the `Function`- and `Consumer`-returning `updateCatalog` overloads.
+				final long deadlineNanos = System.nanoTime() + SUBSCRIPTION_LIVENESS_BUDGET.toNanos();
+				int attempt = 0;
+				boolean hostEventDelivered = false;
+				while (!hostEventDelivered && System.nanoTime() < deadlineNanos) {
+					final String probeEntityType = "schemaBumpEntity" + attempt++;
+					evita.updateCatalog(
+						schemaUpdatedCatalog,
+						session -> {
+							session.defineEntitySchema(probeEntityType)
+								.withAttribute("attrA", String.class, AttributeSchemaEditor::filterable)
+								.withAttribute("attrB", Integer.class, AttributeSchemaEditor::sortable)
+								.updateVia(session);
+						}
+					);
+					hostEventDelivered = ctx.tryAwaitEvents(2, SUBSCRIPTION_LIVENESS_POLL);
+				}
 			},
 			// 1 connection_ack + the coalesced `CatalogSchemaUpdated` host event itself; HOST-only
 			// subscription means no engine-mutation envelopes are delivered. The harness uses `>=`

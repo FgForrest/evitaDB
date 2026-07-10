@@ -24,6 +24,7 @@
 package io.evitadb.index.array;
 
 import io.evitadb.api.requestResponse.data.ContentComparator;
+import io.evitadb.core.transaction.memory.Snapshotable;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.ArrayUtils.InsertionPosition;
 import lombok.Getter;
@@ -50,7 +51,7 @@ import java.util.Comparator;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2019
  */
 @NotThreadSafe
-public class ObjArrayChanges<T> {
+public class ObjArrayChanges<T> implements Snapshotable<ObjArrayChanges.ObjArrayChangesMemento<T>> {
 	/**
 	 * Unmodifiable underlying array.
 	 */
@@ -272,7 +273,8 @@ public class ObjArrayChanges<T> {
 	private void insertIntoChangeLayer(@Nonnull T recordId, int position, @Nonnull Comparator<T> comparator) {
 		final int index = Arrays.binarySearch(this.insertions, position);
 		if (index >= 0) {
-			this.insertedValues[index].addRecord(recordId, comparator);
+			// buckets are immutable-once-published: substitute the slot with the returned bucket
+			this.insertedValues[index] = this.insertedValues[index].addRecord(recordId, comparator);
 		} else {
 			final int startIndex = -1 * (index) - 1;
 			this.insertions = ArrayUtils.insertIntIntoArrayOnIndex(
@@ -301,8 +303,10 @@ public class ObjArrayChanges<T> {
 		if (Arrays.binarySearch(bucket.getInsertedValues(), recordId, comparator) < 0) {
 			return;
 		}
-		bucket.removeRecord(recordId, comparator);
-		if (bucket.isEmpty()) {
+		// buckets are immutable-once-published: substitute the slot with the reduced bucket
+		final InsertionBucket<T> reducedBucket = bucket.removeRecord(recordId, comparator);
+		this.insertedValues[insIdx] = reducedBucket;
+		if (reducedBucket.isEmpty()) {
 			this.insertions = ArrayUtils.removeIntFromArrayOnIndex(this.insertions, insIdx);
 			this.insertedValues = ArrayUtils.removeRecordFromArrayOnIndex(this.insertedValues, insIdx);
 		}
@@ -330,7 +334,9 @@ public class ObjArrayChanges<T> {
 			final int insertionIndex = Arrays.binarySearch(this.insertions, changePosition);
 			if (insertionIndex >= 0) {
 				// yes the record was added recently and we need to rollback this insertion
-				this.insertedValues[insertionIndex].removeRecord(recordId, comparator);
+				// buckets are immutable-once-published: substitute the slot with the reduced bucket
+				this.insertedValues[insertionIndex] =
+					this.insertedValues[insertionIndex].removeRecord(recordId, comparator);
 				if (this.insertedValues[insertionIndex].isEmpty()) {
 					// inserted values are now empty, we need to shrink insertion arrays
 					this.insertions = ArrayUtils.removeIntFromArrayOnIndex(
@@ -503,40 +509,189 @@ public class ObjArrayChanges<T> {
 	}
 
 	/**
-	 * Bucket contains all records on certain position.
+	 * Captures the current mutable diff state (insertion positions, insertion buckets and removal
+	 * positions) into an independent memento. Independence is now achieved cheaply — a one-level clone
+	 * rather than a deep copy — because the layer mutates with strict copy-on-write discipline (the same
+	 * shape as {@link IntArrayChanges#snapshot()}):
+	 *
+	 *  - {@link #insertions} and {@link #removals} are reference-captured: every mutation replaces the
+	 *    whole field with a freshly allocated array (via the {@link ArrayUtils} helpers), never writing
+	 *    an existing element, so the captured reference can never be observed mutating.
+	 *  - {@link #insertedValues} requires a ONE-LEVEL clone of the outer array: its slots are reassigned
+	 *    in place ({@code this.insertedValues[i] = ...}) when a bucket is substituted. The
+	 *    {@link InsertionBucket} entries are shared by reference because buckets are now IMMUTABLE once
+	 *    published — {@link InsertionBucket#addRecord}/{@link InsertionBucket#removeRecord} return fresh
+	 *    buckets rather than mutating in place — so no per-bucket deep copy is needed.
+	 *
+	 * The {@link #delegate} baseline is final, immutable and shared by reference - it is intentionally
+	 * not captured. The {@link #memoizedMergedArray} cache is derived state and is intentionally not
+	 * captured either; it is rebuilt lazily after a restore.
+	 *
+	 * Element ({@code T}) payloads inside the buckets are captured by reference only - they are never
+	 * mutated in place (only replaced wholesale), so deep-copying them is unnecessary and would
+	 * violate the nested-layer boundary invariant.
+	 *
+	 * @return an independent memento of the current diff state
 	 */
-	private static class InsertionBucket<T> {
-		@Getter private T[] insertedValues;
+	@Nonnull
+	@Override
+	public ObjArrayChangesMemento<T> snapshot() {
+		return new ObjArrayChangesMemento<>(
+			// reference-captured: replaced wholesale on each mutation, never element-mutated
+			this.insertions,
+			// reference-captured: replaced wholesale on each mutation, never element-mutated
+			this.removals,
+			// one-level clone: outer slots are reassigned in place; buckets are immutable-once-published
+			this.insertedValues.clone()
+		);
+	}
 
+	/**
+	 * Resets this diff layer back to the state captured by the given memento, undoing every insertion
+	 * and removal recorded since the snapshot. {@link #insertions} and {@link #removals} are only ever
+	 * reassigned wholesale by subsequent mutations (never element-mutated), so aliasing the memento's
+	 * references straight into the live fields is safe for repeated restores. The outer
+	 * {@link #insertedValues} array has its slots reassigned in place, so it MUST be re-cloned here
+	 * (mirroring the snapshot clone); the immutable bucket entries themselves are shared by reference.
+	 *
+	 * The {@link #delegate} baseline is final and untouched. The {@link #memoizedMergedArray} cache is
+	 * reset to {@code null} so the next {@link #getMergedArray()} recomputes from the restored diff -
+	 * a merged array computed after the snapshot must not survive the rollback.
+	 *
+	 * @param memento a memento previously produced by {@link #snapshot()} on this same layer
+	 */
+	@Override
+	public void restore(@Nonnull ObjArrayChangesMemento<T> memento) {
+		this.insertions = memento.insertions();
+		this.removals = memento.removals();
+		this.insertedValues = memento.insertedValues().clone();
+		// derived cache - drop it so the next getMergedArray() recomputes from the restored diff
+		this.memoizedMergedArray = null;
+	}
+
+	/**
+	 * Immutable carrier of the {@link ObjArrayChanges} mutable diff state used by
+	 * {@link ObjArrayChanges#snapshot()} / {@link ObjArrayChanges#restore(ObjArrayChangesMemento)}.
+	 *
+	 * It holds the two reference-captured position arrays ({@code insertions} / {@code removals}) and a
+	 * one-level clone of the co-indexed {@code insertedValues} bucket array (the immutable buckets are
+	 * shared by reference). The immutable {@code delegate} baseline and the derived
+	 * {@code memoizedMergedArray} cache are deliberately excluded. The element ({@code T}) payloads
+	 * inside the buckets are held by reference (their own transactional state is handled by their own
+	 * savepoints).
+	 *
+	 * @param insertions     reference-captured sorted delegate positions where insertion buckets apply
+	 * @param removals       reference-captured sorted delegate positions marked for removal
+	 * @param insertedValues one-level clone of the index-aligned immutable insertion buckets
+	 * @param <T>            the element type held by the originating {@link ObjArrayChanges}
+	 */
+	public record ObjArrayChangesMemento<T>(
+		@Nonnull int[] insertions,
+		@Nonnull int[] removals,
+		@Nonnull InsertionBucket<T>[] insertedValues
+	) {
+	}
+
+	/**
+	 * Holds the ordered set of records queued for insertion at a single logical position of the
+	 * delegate array. The parent {@link ObjArrayChanges} keeps one bucket per insertion position in
+	 * its {@link #insertedValues} array, index-aligned with the {@link #insertions} positions; the
+	 * merge step ({@link #getMergedArray()}) splices each bucket's records into the result at the
+	 * position the bucket is bound to. Records inside a bucket stay sorted by the caller-supplied
+	 * comparator so look-ups can use binary search.
+	 *
+	 * Package-private (not `private`) so it can appear as a component type of the public
+	 * {@link ObjArrayChangesMemento} record produced by {@link ObjArrayChanges#snapshot()}.
+	 */
+	static class InsertionBucket<T> {
+		/**
+		 * Records queued for insertion at this bucket's position, kept sorted by the comparator used in
+		 * {@link #addRecord}. The bucket is IMMUTABLE-once-published: this backing array is never mutated
+		 * in place - both {@link #addRecord} and {@link #removeRecord} return a fresh bucket over a new
+		 * array. That immutability is what lets {@link ObjArrayChanges#snapshot()} share buckets by
+		 * reference and clone only the one-level outer bucket array (the {@link IntArrayChanges} shape),
+		 * instead of deep-copying every bucket on every savepoint.
+		 */
+		@Getter private final T[] insertedValues;
+
+		/**
+		 * Creates a bucket seeded with a single record.
+		 *
+		 * @param insertedValue the first record placed into the bucket
+		 * @param componentType the runtime element type, used to allocate the typed backing array
+		 */
 		@SuppressWarnings("unchecked")
 		public InsertionBucket(@Nonnull T insertedValue, @Nonnull Class<?> componentType) {
-			this.insertedValues = (T[]) Array.newInstance(componentType, 1);
-			this.insertedValues[0] = insertedValue;
+			final T[] backingArray = (T[]) Array.newInstance(componentType, 1);
+			backingArray[0] = insertedValue;
+			this.insertedValues = backingArray;
 		}
 
-		public void addRecord(@Nonnull T recordId, @Nonnull Comparator<T> comparator) {
+		/**
+		 * Creates a bucket directly over an already-prepared backing array. Used by the copy-on-write
+		 * mutators to publish a new immutable bucket over a freshly derived array.
+		 *
+		 * @param insertedValues the backing array this bucket takes ownership of
+		 */
+		private InsertionBucket(@Nonnull T[] insertedValues) {
+			this.insertedValues = insertedValues;
+		}
+
+		/**
+		 * Returns a bucket with the record inserted, keeping the backing array sorted. When a record
+		 * sharing the same comparator key is already present, it is substituted (so an updated instance -
+		 * e.g. a content substitution - supersedes the stale one). The current bucket is never mutated: a
+		 * fresh bucket over a new array is returned, preserving the immutable-once-published invariant on
+		 * which the cheap snapshot relies.
+		 *
+		 * @param recordId   the record to insert or use as the replacement
+		 * @param comparator orders the bucket and locates the matching key
+		 * @return a new bucket over a fresh backing array with the record applied
+		 */
+		@Nonnull
+		public InsertionBucket<T> addRecord(@Nonnull T recordId, @Nonnull Comparator<T> comparator) {
 			final int idx = Arrays.binarySearch(this.insertedValues, recordId, comparator);
 			if (idx >= 0) {
-				// record with the same comparator key is already in the bucket - substitute it,
-				// otherwise the new instance (potentially carrying updated content) would be dropped
-				this.insertedValues[idx] = recordId;
+				// record with the same comparator key is already in the bucket - substitute it on a
+				// fresh clone (never write the published array in place)
+				final T[] substituted = this.insertedValues.clone();
+				substituted[idx] = recordId;
+				return new InsertionBucket<>(substituted);
 			} else {
-				this.insertedValues = ArrayUtils.insertRecordIntoArrayOnIndex(
-					recordId, this.insertedValues, -idx - 1
+				return new InsertionBucket<>(
+					ArrayUtils.insertRecordIntoArrayOnIndex(recordId, this.insertedValues, -idx - 1)
 				);
 			}
 		}
 
-		public void removeRecord(@Nonnull T recordId, @Nonnull Comparator<T> comparator) {
-			this.insertedValues = ArrayUtils.removeRecordFromOrderedArray(
-				recordId, this.insertedValues, comparator
+		/**
+		 * Returns a bucket with the record matching the comparator key removed; returns a bucket over an
+		 * equivalent array when the record is absent. The current bucket is never mutated (immutable
+		 * once published).
+		 *
+		 * @param recordId   the record to remove
+		 * @param comparator locates the matching key in the sorted backing array
+		 * @return a new bucket over a fresh backing array with the record removed
+		 */
+		@Nonnull
+		public InsertionBucket<T> removeRecord(@Nonnull T recordId, @Nonnull Comparator<T> comparator) {
+			return new InsertionBucket<>(
+				ArrayUtils.removeRecordFromOrderedArray(recordId, this.insertedValues, comparator)
 			);
 		}
 
+		/**
+		 * Returns true when no records are queued, signalling the parent that the whole bucket entry
+		 * can be dropped from the index-aligned insertion arrays.
+		 */
 		public boolean isEmpty() {
 			return this.insertedValues.length == 0;
 		}
 
+		/**
+		 * Number of records queued for insertion, i.e. how many slots this bucket contributes to the
+		 * merged array.
+		 */
 		public int size() {
 			return this.insertedValues.length;
 		}

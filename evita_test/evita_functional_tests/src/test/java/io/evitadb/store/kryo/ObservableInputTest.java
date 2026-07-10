@@ -94,7 +94,7 @@ class ObservableInputTest extends AbstractObservableInputOutputTest {
 		final ByteArrayInputStream bais = new ByteArrayInputStream(bytes);
 		return new ObservableInput<>(
 			bais, bufferSize,
-			Crc32CChecksumFactory.INSTANCE.createChecksum(),
+			Crc32CChecksumFactory.INSTANCE.createCumulativeChecksum(0L),
 			null
 		);
 	}
@@ -120,7 +120,7 @@ class ObservableInputTest extends AbstractObservableInputOutputTest {
 		);
 		return new ObservableInput<>(
 			trickle, bufferSize,
-			Crc32CChecksumFactory.INSTANCE.createChecksum(),
+			Crc32CChecksumFactory.INSTANCE.createCumulativeChecksum(0L),
 			null
 		);
 	}
@@ -140,7 +140,7 @@ class ObservableInputTest extends AbstractObservableInputOutputTest {
 		final ByteArrayInputStream bais = new ByteArrayInputStream(bytes);
 		return new ObservableInput<>(
 			bais, bufferSize,
-			Crc32CChecksumFactory.INSTANCE.createChecksum(),
+			Crc32CChecksumFactory.INSTANCE.createCumulativeChecksum(0L),
 			ZipCompressionFactory.INSTANCE.createDecompressor().orElseThrow()
 		);
 	}
@@ -321,7 +321,7 @@ class ObservableInputTest extends AbstractObservableInputOutputTest {
 				try (final RandomAccessFile raf = new RandomAccessFile(targetFileDescription, "r")) {
 					final ObservableInput<RandomAccessFileInputStream> input = new ObservableInput<>(
 						new RandomAccessFileInputStream(raf),
-						24, Crc32CChecksumFactory.INSTANCE.createChecksum(), null
+						24, Crc32CChecksumFactory.INSTANCE.createCumulativeChecksum(0L), null
 					);
 
 					seekReadAndVerifyRecord(input, s2, 256);
@@ -424,7 +424,7 @@ class ObservableInputTest extends AbstractObservableInputOutputTest {
 			final ByteArrayInputStream bais = new ByteArrayInputStream(baos.toByteArray());
 			try (
 				final ObservableInput<?> input = new ObservableInput<>(
-					bais, 24, Crc32CChecksumFactory.INSTANCE.createChecksum(), null
+					bais, 24, Crc32CChecksumFactory.INSTANCE.createCumulativeChecksum(0L), null
 				)
 			) {
 				// start reading a record
@@ -468,7 +468,7 @@ class ObservableInputTest extends AbstractObservableInputOutputTest {
 			// read first record with cumulative checksum
 			final ByteArrayInputStream bais1 = new ByteArrayInputStream(baos1.toByteArray());
 			final ObservableInput<?> input1 = new ObservableInput<>(
-				bais1, 24, Crc32CChecksumFactory.INSTANCE.createChecksum(), null
+				bais1, 24, Crc32CChecksumFactory.INSTANCE.createCumulativeChecksum(0L), null
 			);
 			input1.markCumulativeChecksumStart();
 			readAndVerifyRecord(input1, payloadSize);
@@ -477,7 +477,7 @@ class ObservableInputTest extends AbstractObservableInputOutputTest {
 			// read second record with cumulative checksum
 			final ByteArrayInputStream bais2 = new ByteArrayInputStream(baos2.toByteArray());
 			final ObservableInput<?> input2 = new ObservableInput<>(
-				bais2, 24, Crc32CChecksumFactory.INSTANCE.createChecksum(), null
+				bais2, 24, Crc32CChecksumFactory.INSTANCE.createCumulativeChecksum(0L), null
 			);
 			input2.markCumulativeChecksumStart();
 			readAndVerifyRecord(input2, payloadSize);
@@ -513,7 +513,7 @@ class ObservableInputTest extends AbstractObservableInputOutputTest {
 				try (final RandomAccessFile raf = new RandomAccessFile(targetFileDescr, "r")) {
 					final ObservableInput<RandomAccessFileInputStream> input = new ObservableInput<>(
 						new RandomAccessFileInputStream(raf),
-						24, Crc32CChecksumFactory.INSTANCE.createChecksum(), null
+						24, Crc32CChecksumFactory.INSTANCE.createCumulativeChecksum(0L), null
 					);
 
 					input.markCumulativeChecksumStart();
@@ -610,7 +610,7 @@ class ObservableInputTest extends AbstractObservableInputOutputTest {
 					final ObservableInput<RandomAccessFileInputStream> input = new ObservableInput<>(
 						new RandomAccessFileInputStream(raf),
 						bufferSize,
-						Crc32CChecksumFactory.INSTANCE.createChecksum(),
+						Crc32CChecksumFactory.INSTANCE.createCumulativeChecksum(0L),
 						ZipCompressionFactory.INSTANCE.createDecompressor().orElseThrow()
 					);
 
@@ -810,7 +810,7 @@ class ObservableInputTest extends AbstractObservableInputOutputTest {
 					final ObservableInput<RandomAccessFileInputStream> input = new ObservableInput<>(
 						new RandomAccessFileInputStream(raf),
 						bufferSize,
-						Crc32CChecksumFactory.INSTANCE.createChecksum(),
+						Crc32CChecksumFactory.INSTANCE.createCumulativeChecksum(0L),
 						ZipCompressionFactory.INSTANCE.createDecompressor().orElseThrow()
 					);
 
@@ -905,7 +905,7 @@ class ObservableInputTest extends AbstractObservableInputOutputTest {
 			try (
 				final ObservableInput<?> input = new ObservableInput<>(
 					bais, bufferSize,
-					Crc32CChecksumFactory.INSTANCE.createChecksum(),
+					Crc32CChecksumFactory.INSTANCE.createCumulativeChecksum(0L),
 					ZipCompressionFactory.INSTANCE.createDecompressor().orElseThrow()
 				)
 			) {

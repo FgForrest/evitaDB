@@ -25,7 +25,6 @@ package io.evitadb.store.catalog;
 
 import com.esotericsoftware.kryo.Kryo;
 import io.evitadb.api.EvitaSessionContract;
-import io.evitadb.api.exception.AttributeNotFoundException;
 import io.evitadb.api.exception.EntityAlreadyRemovedException;
 import io.evitadb.api.exception.EntityMissingException;
 import io.evitadb.api.query.require.EntityFetch;
@@ -43,7 +42,6 @@ import io.evitadb.api.requestResponse.data.structure.predicate.AttributeValueSer
 import io.evitadb.api.requestResponse.data.structure.predicate.HierarchySerializablePredicate;
 import io.evitadb.api.requestResponse.data.structure.predicate.PriceContractSerializablePredicate;
 import io.evitadb.api.requestResponse.data.structure.predicate.ReferenceContractSerializablePredicate;
-import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.core.buffer.DataStoreChanges.RemovedStoragePart;
@@ -57,12 +55,13 @@ import io.evitadb.core.metric.event.storage.FileType;
 import io.evitadb.core.metric.event.storage.OffsetIndexHistoryKeptEvent;
 import io.evitadb.core.metric.event.storage.OffsetIndexNonFlushedEvent;
 import io.evitadb.core.query.response.ServerEntityDecorator;
-import io.evitadb.dataType.Scope;
-import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.EntityIndexType;
+import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.index.bitmap.EmptyBitmap;
+import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.ReducedEntityIndex;
 import io.evitadb.index.ReducedGroupEntityIndex;
@@ -72,7 +71,7 @@ import io.evitadb.index.component.loader.LoadContext;
 import io.evitadb.spi.store.catalog.chunk.ServerChunkTransformerAccessor;
 import io.evitadb.spi.store.catalog.header.HeaderInfoSupplier;
 import io.evitadb.spi.store.catalog.persistence.EntityCollectionPersistenceService;
-import io.evitadb.spi.store.catalog.persistence.StoragePartPersistenceService;
+import io.evitadb.spi.store.catalog.persistence.storageParts.DeferredRemovalStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.AssociatedDataStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.AssociatedDataStoragePart.EntityAssociatedDataKey;
@@ -82,7 +81,9 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.entity.EntityBodySt
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.EntityStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.PricesStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.ReferencesStoragePart;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.*;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIdsStoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIndexStoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIndexStoragePartDeprecated;
 import io.evitadb.store.entity.EntityFactory;
 import io.evitadb.store.entity.EntityStoragePartConfigurer;
 import io.evitadb.store.index.IndexStoragePartConfigurer;
@@ -104,7 +105,6 @@ import io.evitadb.store.shared.kryo.SharedClassesConfigurer;
 import io.evitadb.store.shared.kryo.VersionedKryoFactory;
 import io.evitadb.store.shared.model.PersistentStorageDescriptor;
 import io.evitadb.store.wal.TransactionalStoragePartPersistenceService;
-import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.Functions;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -114,11 +114,10 @@ import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.BufferedOutputStream;
 import java.io.File;
-import java.math.BigDecimal;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.Serializable;
 import java.io.OutputStream;
 import java.nio.file.Path;
 import java.time.OffsetDateTime;
@@ -152,6 +151,13 @@ public class DefaultEntityCollectionPersistenceService
 	CatalogConsumersListener
 {
 	public static final byte[][] BYTE_TWO_DIMENSIONAL_ARRAY = new byte[0][];
+	/**
+	 * Buffer size for the {@link BufferedOutputStream} that wraps the raw compaction output file. The snapshot
+	 * copy emits three tiny writes per record (header, payload, tail); without buffering a multi-million-record
+	 * collection turns the copy into millions of write syscalls. Batching them through this buffer collapses it
+	 * into far fewer, larger writes.
+	 */
+	private static final int COMPACTION_OUTPUT_BUFFER_SIZE = 65_536;
 	/**
 	 * Factory function that configures new instance of the versioned kryo factory.
 	 */
@@ -208,6 +214,14 @@ public class DefaultEntityCollectionPersistenceService
 	 * Contains information about the time the non-flushed block was reported.
 	 */
 	private long lastReportTimestamp;
+	/**
+	 * Wall-clock time (epoch millis) at which this instance was created. Because a compacted collection is always
+	 * replaced by a brand-new {@link DefaultEntityCollectionPersistenceService} instance
+	 * ({@link DefaultCatalogPersistenceService#flush}), this value doubles as "time of the last compaction" for the
+	 * {@code minCompactionIntervalMilliseconds} cadence gate without needing to be updated anywhere else.
+	 */
+	@Getter
+	private final long lastCompactionAtMillis;
 
 	@Nonnull
 	private static Optional<EntityWithFetchCount> toEntity(
@@ -486,6 +500,7 @@ public class DefaultEntityCollectionPersistenceService
 		this.entityCollectionHeader = entityTypeHeader;
 		this.offsetIndexRecordTypeRegistry = offsetIndexRecordTypeRegistry;
 		this.observableOutputKeeper = observableOutputKeeper;
+		this.lastCompactionAtMillis = DefaultCatalogPersistenceService.getNowEpochMillis();
 		final WriteOnlyFileHandle writeHandle = new WriteOnlyFileHandle(
 			catalogName,
 			FileType.ENTITY_COLLECTION,
@@ -558,6 +573,16 @@ public class DefaultEntityCollectionPersistenceService
 					catalogVersion,
 					removedStoragePart.getStoragePartPKOrElseThrowException(),
 					removedStoragePart.containerType()
+				);
+			} else if (storagePart instanceof DeferredRemovalStoragePart deferredRemoval) {
+				// a removal whose primary key can only be resolved store-side (e.g. a freed granular FilterIndex leaf page
+				// whose streamId is a compressor dictionary id) — resolve it against the live compressor and remove it.
+				// The read-only view suffices: the stream was registered when the page was first written.
+				final long removedPartPK = deferredRemoval.computeUniquePartIdAndSet(
+					this.storagePartPersistenceService.getReadOnlyKeyCompressor()
+				);
+				this.storagePartPersistenceService.removeStoragePart(
+					catalogVersion, removedPartPK, deferredRemoval.removedContainerType()
 				);
 			} else {
 				this.storagePartPersistenceService.putStoragePart(catalogVersion, storagePart);
@@ -816,42 +841,46 @@ public class DefaultEntityCollectionPersistenceService
 
 		final EntityIndexKey entityIndexKey = manifest.getEntityIndexKey();
 		final RepresentativeReferenceKey referenceKey;
-		// build the attribute-type fallback resolver — used by AttributeIndexLoader to recover
-		// the runtime Class for null-attributeType filter-index storage parts; see #538
-		final Function<AttributeIndexKey, Class<? extends Serializable>> attributeTypeFetcher;
 		if (entityIndexKey.type() == EntityIndexType.GLOBAL) {
 			referenceKey = null;
-			attributeTypeFetcher = attributeKey -> entitySchema
-				.getAttribute(attributeKey.attributeName())
-				.map(AttributeSchemaContract::getType)
-				.orElseThrow(() -> new AttributeNotFoundException(attributeKey.attributeName(), entitySchema));
 		} else {
-			final String referenceName;
 			if (
 				entityIndexKey.type() == EntityIndexType.REFERENCED_ENTITY_TYPE ||
 					entityIndexKey.type() == EntityIndexType.REFERENCED_GROUP_ENTITY_TYPE
 			) {
 				referenceKey = null;
-				referenceName = Objects.requireNonNull((String) entityIndexKey.discriminator());
 			} else {
-				referenceKey = Objects.requireNonNull(
-					(RepresentativeReferenceKey) entityIndexKey.discriminator()
-				);
-				referenceName = referenceKey.referenceName();
+				referenceKey = Objects.requireNonNull((RepresentativeReferenceKey) entityIndexKey.discriminator());
 			}
-			final ReferenceSchema referenceSchema = entitySchema.getReferenceOrThrowException(referenceName);
-			attributeTypeFetcher = attributeKey -> referenceSchema
-				.getAttribute(attributeKey.attributeName())
-				.or(() -> entitySchema.getAttribute(attributeKey.attributeName()))
-				.map(AttributeSchemaContract::getType)
-				.orElseThrow(() -> new AttributeNotFoundException(
-					attributeKey.attributeName(), referenceSchema, entitySchema
-				));
+		}
+
+		// the entity-id bitmaps were evicted out of the manifest into a sibling EntityIdsStoragePart from
+		// the 2026.2 format onwards — resolve them from the sibling when present, else fall back to the
+		// manifest's legacy inline carrier (released formats up to 2026.1), else an empty index
+		final EntityIdsStoragePart bitmapsPart = this.storagePartPersistenceService.getStoragePart(
+			catalogVersion, entityIndexId, EntityIdsStoragePart.class
+		);
+		final Bitmap entityIds;
+		final Map<Locale, TransactionalBitmap> entityIdsByLanguage;
+		final int effectiveVersion;
+		if (bitmapsPart != null) {
+			entityIds = bitmapsPart.getEntityIds();
+			entityIdsByLanguage = bitmapsPart.getEntityIdsByLanguage();
+			// the bitmaps part is re-emitted on every membership change while the manifest is not, so its
+			// version may run ahead of the manifest's — reconcile by taking the maximum
+			effectiveVersion = Math.max(manifest.getVersion(), bitmapsPart.getVersion());
+		} else {
+			final Bitmap legacyEntityIds = manifest.getEntityIds();
+			entityIds = legacyEntityIds == null ? EmptyBitmap.INSTANCE : legacyEntityIds;
+			final Map<Locale, TransactionalBitmap> legacyByLanguage = manifest.getEntityIdsByLanguage();
+			entityIdsByLanguage = legacyByLanguage == null ? Map.of() : legacyByLanguage;
+			effectiveVersion = manifest.getVersion();
 		}
 
 		final LoadContext context = new LoadContext(
 			catalogVersion, entityIndexId, entitySchema, entityIndexKey, manifest,
-			this.storagePartPersistenceService, attributeTypeFetcher, referenceKey
+			effectiveVersion, entityIds, entityIdsByLanguage,
+			this.storagePartPersistenceService, referenceKey
 		);
 
 		return resolvePlanFor(entityIndexKey.type()).run(context);
@@ -943,7 +972,9 @@ public class DefaultEntityCollectionPersistenceService
 		final Path catalogStoragePath = this.entityCollectionFile.getParent();
 		final Path newFilePath = newReference.toFilePath(catalogStoragePath);
 		final OffsetIndexDescriptor offsetIndexDescriptor;
-		try (final FileOutputStream fos = new FileOutputStream(newFilePath.toFile())) {
+		try (final OutputStream fos = new BufferedOutputStream(
+			new FileOutputStream(newFilePath.toFile()), COMPACTION_OUTPUT_BUFFER_SIZE
+		)) {
 			offsetIndexDescriptor = this.storagePartPersistenceService.copySnapshotTo(catalogVersion, fos, null);
 		} catch (IOException e) {
 			throw new UnexpectedIOException(

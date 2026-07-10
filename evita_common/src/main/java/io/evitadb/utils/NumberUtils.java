@@ -25,6 +25,7 @@ package io.evitadb.utils;
 
 import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.exception.GenericEvitaInternalError;
 
 import javax.annotation.Nonnull;
 import java.io.Serializable;
@@ -251,21 +252,93 @@ public class NumberUtils {
 	}
 
 	/**
-	 * Creates long number as a composition of two integer numbers.
+	 * Packs two integer numbers into a single long — `numberA` occupies the high-order 32 bits, `numberB` the low-order
+	 * 32 bits. Inverse of {@link #unpack(long)} / {@link #unpackHigh(long)} / {@link #unpackLow(long)}.
 	 * Solution taken from https://stackoverflow.com/questions/12772939/java-storing-two-ints-in-a-long/12772968
 	 */
-	public static long join(int numberA, int numberB) {
+	public static long pack(int numberA, int numberB) {
 		return (((long) numberA) << 32) | (numberB & 0xffffffffL);
 	}
 
 	/**
-	 * Inverse method to {@link #join(int, int)}.
+	 * Packs two 16-bit values and one 32-bit value into a single long with the layout `high16:16 | mid16:16 | low32:32`.
+	 * Both `high16` and `mid16` MUST fit into an unsigned 16-bit field (range `0..65535`); a value that overflows the
+	 * field would be silently truncated, so it is rejected loudly instead — packing such a value is a broken caller
+	 * assumption, not a recoverable condition. The `low32` value occupies the full low 32 bits and is stored
+	 * sign-preservingly (any int is valid). Inverse of {@link #unpackHigh16(long)} / {@link #unpackMid16(long)} /
+	 * {@link #unpackLow32(long)}.
+	 *
+	 * @param high16 value stored in the high 16-bit field (must be in the unsigned 16-bit range `0..65535`)
+	 * @param mid16  value stored in the mid 16-bit field (must be in the unsigned 16-bit range `0..65535`)
+	 * @param low32  value stored in the low 32-bit field (any int)
+	 * @return the packed long
 	 */
-	public static int[] split(long number) {
+	public static long pack(int high16, int mid16, int low32) {
+		// hand-rolled bounds check keeps this hot-path packer zero-allocation on success (no eager string, no lambda)
+		if ((high16 & ~0xFFFF) != 0) {
+			throw new GenericEvitaInternalError(
+				"Value " + high16 + " does not fit into the high 16-bit field of a packed long.");
+		}
+		if ((mid16 & ~0xFFFF) != 0) {
+			throw new GenericEvitaInternalError(
+				"Value " + mid16 + " does not fit into the mid 16-bit field of a packed long.");
+		}
+		return ((long) high16 << 48) | ((long) mid16 << 32) | (low32 & 0xFFFFFFFFL);
+	}
+
+	/**
+	 * Inverse method to {@link #pack(int, int)}. Allocates a two-element array holding the high-order
+	 * component at index 0 and the low-order component at index 1. On hot paths that need only one of
+	 * the two halves prefer the allocation-free {@link #unpackHigh(long)} / {@link #unpackLow(long)}.
+	 */
+	public static int[] unpack(long number) {
 		return new int[]{
-			(int) (number >> 32),
-			(int) (number)
+			unpackHigh(number),
+			unpackLow(number)
 		};
+	}
+
+	/**
+	 * Returns the high-order 32 bits of `number` as an int — the index-0 component of
+	 * {@link #unpack(long)}, i.e. the `numberA` that was passed to {@link #pack(int, int)}. Unlike
+	 * {@link #unpack(long)} this performs no array allocation, so it is safe to call on hot paths that
+	 * decompose a packed long.
+	 */
+	public static int unpackHigh(long number) {
+		return (int) (number >> 32);
+	}
+
+	/**
+	 * Returns the low-order 32 bits of `number` as an int — the index-1 component of
+	 * {@link #unpack(long)}, i.e. the `numberB` that was passed to {@link #pack(int, int)}. Unlike
+	 * {@link #unpack(long)} this performs no array allocation, so it is safe to call on hot paths that
+	 * decompose a packed long.
+	 */
+	public static int unpackLow(long number) {
+		return (int) number;
+	}
+
+	/**
+	 * Returns the high 16-bit field (bits 48..63) of a long packed by {@link #pack(int, int, int)} as an unsigned int in
+	 * the range `0..65535`.
+	 */
+	public static int unpackHigh16(long packed) {
+		return (int) ((packed >>> 48) & 0xFFFF);
+	}
+
+	/**
+	 * Returns the mid 16-bit field (bits 32..47) of a long packed by {@link #pack(int, int, int)} as an unsigned int in
+	 * the range `0..65535`.
+	 */
+	public static int unpackMid16(long packed) {
+		return (int) ((packed >>> 32) & 0xFFFF);
+	}
+
+	/**
+	 * Returns the low 32-bit field (bits 0..31) of a long packed by {@link #pack(int, int, int)} as a sign-preserving int.
+	 */
+	public static int unpackLow32(long packed) {
+		return (int) packed;
 	}
 
 	/**

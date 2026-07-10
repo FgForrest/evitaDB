@@ -59,7 +59,7 @@ import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
-import org.roaringbitmap.RoaringBitmap;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -203,10 +203,10 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 			return facetEntityIds[0];
 		} else {
 			return new BaseBitmap(
-				RoaringBitmap.or(
+				PersistentRoaringBitmap.or(
 					Arrays.stream(facetEntityIds)
 						.map(RoaringBitmapBackedBitmap::getRoaringBitmap)
-						.toArray(RoaringBitmap[]::new)
+						.toArray(PersistentRoaringBitmap[]::new)
 				)
 			);
 		}

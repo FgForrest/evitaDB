@@ -49,6 +49,8 @@ import io.evitadb.index.bitmap.ArrayBitmap;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
+import java.math.BigDecimal;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
@@ -179,17 +181,30 @@ public class AttributeEqualsTranslator extends AbstractAttributeTranslator
 			final AttributeKey attributeKey = createAttributeKey(filterByVisitor, attributeSchema);
 
 			final Class<? extends Serializable> plainType = attributeSchema.getPlainType();
-			final Function<Object, Serializable> normalizer = FilterIndex.getNormalizer(plainType);
-			final Serializable comparedValue = normalizer.apply(EvitaDataTypes.toTargetType(attributeValue, plainType));
+			// Normalize the probe with the filter normalizer (NFD strings, instant-folded OffsetDateTime, scaled-int
+			// BigDecimal). The scaled-int form is what the filter value tree stores, and because that normalizer is
+			// idempotent the filter index re-normalizes the already-scaled Integer without a ClassCastException.
+			final Function<Object, Serializable> normalizer = FilterIndex.getNormalizer(
+				plainType, attributeSchema.getIndexedDecimalPlaces()
+			);
+			final Serializable targetValue = Objects.requireNonNull(
+				EvitaDataTypes.toTargetType(attributeValue, plainType)
+			);
+			final Serializable comparedValue = normalizer.apply(targetValue);
 
 			if (attributeSchema instanceof GlobalAttributeSchema globalAttributeSchema &&
 				scopes.stream().anyMatch(globalAttributeSchema::isUniqueGloballyInScope)) {
+				// uniqueness stays exact BigDecimal: the unique index never scales its keys, so a BigDecimal attribute is
+				// probed with the exact value; other types share the canonical (NFD/instant) form used by the unique index
 				return createGloballyUniqueAttributeFormula(
-					filterByVisitor, globalAttributeSchema, attributeKey, comparedValue
+					filterByVisitor, globalAttributeSchema, attributeKey,
+					plainType == BigDecimal.class ? targetValue : comparedValue
 				);
 			} else if (scopes.stream().anyMatch(attributeSchema::isUniqueInScope)) {
+				// uniqueness stays exact BigDecimal (see above)
 				return createUniqueAttributeFormula(
-					filterByVisitor, processingScope.getReferenceSchema(), attributeSchema, attributeKey, comparedValue
+					filterByVisitor, processingScope.getReferenceSchema(), attributeSchema, attributeKey,
+					plainType == BigDecimal.class ? targetValue : comparedValue
 				);
 			} else {
 				return createFilterableAttributeFormula(

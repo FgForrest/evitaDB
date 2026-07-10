@@ -30,7 +30,7 @@
 	<parent>
 		<groupId>io.evitadb</groupId>
 		<artifactId>evita_root</artifactId>
-		<version>2026.2-SNAPSHOT</version>
+		<version>2026.2.RC1-SNAPSHOT</version>
 		<relativePath>../../pom.xml</relativePath>
 	</parent>
 
@@ -56,6 +56,16 @@
 			<artifactId>jmh-generator-annprocess</artifactId>
 			<version>${jmh.version}</version>
 			<scope>provided</scope>
+		</dependency>
+		<!--
+			Benchmarks compare evitaDB's vendored bitmap against upstream RoaringBitmap variants
+			(FastRankRoaringBitmap, buffer.MutableRoaringBitmap) that are intentionally NOT vendored
+			into evita_roaring_bitmap, so this module keeps the original upstream dependency.
+		-->
+		<dependency>
+			<groupId>org.roaringbitmap</groupId>
+			<artifactId>RoaringBitmap</artifactId>
+			<version>${roaringbitmap.version}</version>
 		</dependency>
 		<dependency>
 			<groupId>${project.groupId}</groupId>
@@ -131,6 +141,11 @@
 			<groupId>org.mockito</groupId>
 			<artifactId>mockito-junit-jupiter</artifactId>
 			<version>${mockito.junit.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>org.openjdk.jol</groupId>
+			<artifactId>jol-core</artifactId>
+			<version>0.17</version>
 		</dependency>
 	</dependencies>
 

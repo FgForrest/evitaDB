@@ -29,6 +29,8 @@ import io.evitadb.api.requestResponse.chunk.OffsetAndLimit;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.core.query.QueryExecutionContext;
+import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.ForcedSortResolution;
+import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.PositionResolution;
 import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedRecordsProvider;
 import io.evitadb.core.query.sort.Sorter;
 import io.evitadb.core.query.sort.attribute.MergedSortedRecordsSupplierContract;
@@ -38,10 +40,8 @@ import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.utils.CollectionUtils;
-import org.roaringbitmap.BatchIterator;
-import org.roaringbitmap.RoaringBatchIterator;
-import org.roaringbitmap.RoaringBitmap;
-import org.roaringbitmap.RoaringBitmapWriter;
+import io.evitadb.roaringbitmap.RoaringBatchIterator;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -129,7 +129,7 @@ public final class MergedSortedRecordsSupplierSorter implements Sorter, MergedSo
 	@Nonnull
 	private static PartialSortResult fetchSlice(
 		@Nonnull SortedRecordsProvider sortedRecordsProvider,
-		@Nonnull RoaringBitmap positions,
+		@Nonnull PersistentRoaringBitmap positions,
 		@Nonnull IntSet alreadySortedRecordIds,
 		int skip,
 		int length,
@@ -139,7 +139,6 @@ public final class MergedSortedRecordsSupplierSorter implements Sorter, MergedSo
 		@Nullable IntConsumer skippedRecordsConsumer
 	) {
 		final RoaringBatchIterator batchIterator = positions.getBatchIterator();
-		final int[] preSortedRecordIds = sortedRecordsProvider.getSortedRecordIds();
 		int toSkip = skip;
 		int read = 0;
 		int toRead = length;
@@ -157,7 +156,7 @@ public final class MergedSortedRecordsSupplierSorter implements Sorter, MergedSo
 				if (skippedRecordsConsumer != null) {
 					// skip records in buffer, cap really read records in the buffer
 					for (int i = 0; i < skippedInBuffer; i++) {
-						skippedRecordsConsumer.accept(preSortedRecordIds[buffer[i]]);
+						skippedRecordsConsumer.accept(sortedRecordsProvider.recordAt(buffer[i]));
 					}
 				}
 				toSkip -= bufferPeak;
@@ -169,7 +168,7 @@ public final class MergedSortedRecordsSupplierSorter implements Sorter, MergedSo
 			if (toSkip <= 0) {
 				// copy records for page
 				for (int i = skippedInBuffer; toRead > 0 && i < bufferPeak; i++) {
-					final int preSortedRecordId = preSortedRecordIds[buffer[i]];
+					final int preSortedRecordId = sortedRecordsProvider.recordAt(buffer[i]);
 					if (!alreadySortedRecordIds.contains(preSortedRecordId)) {
 						result[peak++] = preSortedRecordId;
 						read++;
@@ -188,67 +187,6 @@ public final class MergedSortedRecordsSupplierSorter implements Sorter, MergedSo
 			}
 		}
 		return new PartialSortResult(skip - toSkip, read, peak);
-	}
-
-	/**
-	 * Returns mask of the positions in the presorted array that matched the computational result
-	 * Mask also contains record ids not found in presorted record index.
-	 */
-	@Nonnull
-	private static MaskResult getMask(
-		@Nonnull QueryExecutionContext queryContext,
-		@Nonnull SortedRecordsProvider sortedRecordsProvider,
-		@Nonnull RoaringBitmap selectedRecordIds,
-		int selectedRecordCount
-	) {
-		final int[] unsortedRecordsBuffer = queryContext.borrowBuffer();
-		final int[] selectedRecordsBuffer = queryContext.borrowBuffer();
-		try {
-			final Bitmap unsortedRecordIds = sortedRecordsProvider.getAllRecords();
-			final int[] recordPositions = sortedRecordsProvider.getRecordPositions();
-
-			final RoaringBitmapWriter<RoaringBitmap> mask = RoaringBitmapBackedBitmap.buildWriter();
-			final RoaringBitmapWriter<RoaringBitmap> notFound = RoaringBitmapBackedBitmap.buildWriter();
-
-			final BatchIterator unsortedRecordIdsIt = RoaringBitmapBackedBitmap.getRoaringBitmap(unsortedRecordIds).getBatchIterator();
-			final BatchIterator selectedRecordIdsIt = selectedRecordIds.getBatchIterator();
-
-			int matchesFound = 0;
-			int notFoundCount = 0;
-			int unsortedRecordsPeak = -1;
-			int unsortedRecordsRead = -1;
-			int selectedRecordsPeak = -1;
-			int selectedRecordsRead = -1;
-			int unsortedRecordsAcc = 1;
-			do {
-				if (unsortedRecordsPeak == unsortedRecordsRead && unsortedRecordsRead != 0) {
-					unsortedRecordsAcc += unsortedRecordsRead;
-					unsortedRecordsRead = unsortedRecordIdsIt.nextBatch(unsortedRecordsBuffer);
-					unsortedRecordsPeak = 0;
-				}
-				if (selectedRecordsPeak == selectedRecordsRead) {
-					selectedRecordsRead = selectedRecordIdsIt.nextBatch(selectedRecordsBuffer);
-					selectedRecordsPeak = 0;
-				}
-				if (unsortedRecordsPeak < unsortedRecordsRead && unsortedRecordsBuffer[unsortedRecordsPeak] == selectedRecordsBuffer[selectedRecordsPeak]) {
-					mask.add(recordPositions[unsortedRecordsAcc + unsortedRecordsPeak]);
-					matchesFound++;
-					selectedRecordsPeak++;
-					unsortedRecordsPeak++;
-				} else if (selectedRecordsPeak < selectedRecordsRead && (unsortedRecordsPeak >= unsortedRecordsRead || unsortedRecordsBuffer[unsortedRecordsPeak] > selectedRecordsBuffer[selectedRecordsPeak])) {
-					notFound.add(selectedRecordsBuffer[selectedRecordsPeak]);
-					notFoundCount++;
-					selectedRecordsPeak++;
-				} else {
-					unsortedRecordsPeak++;
-				}
-			} while (matchesFound < selectedRecordCount && selectedRecordsRead > 0);
-
-			return new MaskResult(mask.get(), notFound.get(), notFoundCount);
-		} finally {
-			queryContext.returnBuffer(unsortedRecordsBuffer);
-			queryContext.returnBuffer(selectedRecordsBuffer);
-		}
 	}
 
 	public MergedSortedRecordsSupplierSorter(@Nonnull SortedRecordsProvider[] sortedRecordsProviders) {
@@ -270,6 +208,11 @@ public final class MergedSortedRecordsSupplierSorter implements Sorter, MergedSo
 
 		if (queryContext.getPrefetchedEntities() == null && offsetAndLimit.offset() >= 0) {
 			final int[] buffer = queryContext.borrowBuffer();
+			final int[] resolveBufferA = queryContext.borrowBuffer();
+			final int[] resolveBufferB = queryContext.borrowBuffer();
+			// debug override (or null for cost-based) + per-strategy telemetry tally (null when telemetry is off)
+			final ForcedSortResolution forcedResolution = SortResolutionStrategies.resolveForcedResolution(queryContext);
+			final int[] strategyTally = SortResolutionStrategies.newStrategyTally(queryContext);
 			try {
 				final int startIndex = sortingContext.recomputedStartIndex();
 				final int endIndex = sortingContext.recomputedEndIndex();
@@ -279,16 +222,17 @@ public final class MergedSortedRecordsSupplierSorter implements Sorter, MergedSo
 				int alreadyRead = 0;
 				int skipped = 0;
 
-				RoaringBitmap recordsToSort = RoaringBitmapBackedBitmap.getRoaringBitmap(selectedRecordIds);
+				PersistentRoaringBitmap recordsToSort = RoaringBitmapBackedBitmap.getRoaringBitmap(selectedRecordIds);
 				final IntSet alreadySortedRecordIds = new IntHashSet(selectedRecordIds.size());
 				int recordsToSortCount = selectedRecordIds.size();
 				for (int i = offsetAndLimit.offset(); i < offsetAndLimit.limit(); i++) {
 					final SortedRecordsProvider sortedRecordsProvider = this.sortedRecordsProviders[i];
-					final MaskResult maskResult = getMask(
-						queryContext, sortedRecordsProvider, recordsToSort, recordsToSortCount
+					final PositionResolution resolution = sortedRecordsProvider.resolvePositions(
+						recordsToSort, recordsToSortCount, resolveBufferA, resolveBufferB, forcedResolution
 					);
+					SortResolutionStrategies.tally(strategyTally, resolution);
 					final PartialSortResult currentResult = fetchSlice(
-						sortedRecordsProvider, maskResult.mask(), alreadySortedRecordIds,
+						sortedRecordsProvider, resolution.mask(), alreadySortedRecordIds,
 						startIndex - skipped,
 						toRead - alreadyRead,
 						result,
@@ -297,8 +241,8 @@ public final class MergedSortedRecordsSupplierSorter implements Sorter, MergedSo
 					);
 					skipped += currentResult.skipped();
 					alreadyRead += currentResult.read();
-					recordsToSort = maskResult.notFoundRecords();
-					recordsToSortCount = maskResult.notFoundRecordsCount();
+					recordsToSort = resolution.notFoundRecords();
+					recordsToSortCount = resolution.notFoundRecordsCount();
 					if (alreadyRead >= toRead || recordsToSortCount == 0) {
 						break;
 					}
@@ -311,7 +255,10 @@ public final class MergedSortedRecordsSupplierSorter implements Sorter, MergedSo
 					skipped
 				);
 			} finally {
+				SortResolutionStrategies.report(queryContext, strategyTally);
 				queryContext.returnBuffer(buffer);
+				queryContext.returnBuffer(resolveBufferA);
+				queryContext.returnBuffer(resolveBufferB);
 			}
 		} else {
 			return sortingContext;
@@ -337,20 +284,6 @@ public final class MergedSortedRecordsSupplierSorter implements Sorter, MergedSo
 			}
 		}
 		return new OffsetAndLimit(-1, 0, this.sortedRecordsProviders.length);
-	}
-
-	/**
-	 * Mask result of the positions in the presorted array that matched the computational result.
-	 *
-	 * @param mask                 IntegerBitmap of positions of record ids in presorted set.
-	 * @param notFoundRecords      IntegerBitmap of record ids not found in presorted set at all.
-	 * @param notFoundRecordsCount Count of records not found in presorted set at all.
-	 */
-	private record MaskResult(
-		@Nonnull RoaringBitmap mask,
-		@Nonnull RoaringBitmap notFoundRecords,
-		int notFoundRecordsCount
-	) {
 	}
 
 	/**

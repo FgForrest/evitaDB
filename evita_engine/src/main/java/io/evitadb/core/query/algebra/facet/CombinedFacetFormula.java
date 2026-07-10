@@ -32,7 +32,7 @@ import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.utils.Assert;
 import net.openhft.hashing.LongHashFunction;
-import org.roaringbitmap.RoaringBitmap;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 
 import javax.annotation.Nonnull;
 
@@ -94,11 +94,11 @@ public class CombinedFacetFormula extends AbstractFormula implements NonCacheabl
 	@Override
 	protected Bitmap computeInternal() {
 		final Formula[] formulas = getInnerFormulas();
-		final RoaringBitmap[] roaringBitmaps = new RoaringBitmap[formulas.length];
+		final PersistentRoaringBitmap[] roaringBitmaps = new PersistentRoaringBitmap[formulas.length];
 		for (int i = 0; i < formulas.length; i++) {
 			roaringBitmaps[i] = RoaringBitmapBackedBitmap.getRoaringBitmap(formulas[i].compute());
 		}
-		return new BaseBitmap(RoaringBitmap.or(roaringBitmaps));
+		return new BaseBitmap(PersistentRoaringBitmap.or(roaringBitmaps));
 	}
 
 	@Override

@@ -50,4 +50,16 @@ public interface GrpcCloseWithProgressRequestOrBuilder extends
    */
   com.google.protobuf.ByteString
       getCatalogNameBytes();
+
+  /**
+   * <pre>
+   * When true, the session's transaction is discarded (rolled back) instead of committed. The client sets this when
+   * an exception escaped the transaction block uncaught, so the server rolls back exactly as an embedded session
+   * would. When false (the default) the surviving changes are committed.
+   * </pre>
+   *
+   * <code>bool rollback = 2;</code>
+   * @return The rollback.
+   */
+  boolean getRollback();
 }

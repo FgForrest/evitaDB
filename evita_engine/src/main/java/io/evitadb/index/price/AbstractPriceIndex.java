@@ -45,7 +45,6 @@ import java.util.Map;
 import java.util.stream.Stream;
 
 import static io.evitadb.utils.Assert.notNull;
-import static java.util.Optional.ofNullable;
 
 /**
  * Price index contains data structures that allow processing price related filtering and sorting constraints such as
@@ -168,8 +167,10 @@ abstract class AbstractPriceIndex<T extends PriceListAndCurrencyPriceIndex> impl
 	 */
 	public void getModifiedStorageParts(int entityIndexPrimaryKey, @Nonnull TrappedChanges trappedChanges) {
 		for (T index : this.getPriceIndexes().values()) {
-			ofNullable(index.createStoragePart(entityIndexPrimaryKey))
-				.ifPresent(trappedChanges::addChangeToStore);
+			// each per-list index appends its own parts: the ref index (and any non-paged index) emits a single
+			// whole-index part, while the super price index emits granular PAGED leaf pages when its tree spans
+			// multiple leaves
+			index.appendStorageParts(entityIndexPrimaryKey, trappedChanges);
 		}
 	}
 

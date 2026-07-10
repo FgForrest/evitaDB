@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -29,10 +29,6 @@ import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.base.OrFormula;
-import io.evitadb.core.query.algebra.utils.FormulaFactory;
-import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
-import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
-import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
 import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.ComparableCurrency;
 import io.evitadb.dataType.ComparableLocale;
@@ -43,16 +39,22 @@ import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.IndexDataStructure;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
-import io.evitadb.index.bool.TransactionalBoolean;
 import io.evitadb.index.invertedIndex.InvertedIndex;
-import io.evitadb.index.invertedIndex.InvertedIndex.MonotonicRowCorruptedException;
+import io.evitadb.index.page.PageEmission;
 import io.evitadb.index.invertedIndex.InvertedIndexSubSet;
+import io.evitadb.index.invertedIndex.ValueToRecord;
 import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
 import io.evitadb.index.range.RangeIndex;
 import io.evitadb.index.range.TransactionalRangePoint;
-import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
+import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStoragePart.AttributeIndexType;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeKeyWithIndexType;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.FilterIndexLeafPagePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.FilterIndexLeafPageRemoval;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.FilterIndexStoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.RangeIndexLeafPagePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.RangeIndexLeafPageRemoval;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.NumberUtils;
@@ -64,13 +66,13 @@ import java.io.Serial;
 import java.io.Serializable;
 import java.lang.reflect.Array;
 import java.math.BigDecimal;
+import java.text.Normalizer;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.Comparator;
 import java.util.Currency;
 import java.util.Iterator;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
@@ -80,22 +82,36 @@ import java.util.function.Function;
 import static io.evitadb.core.transaction.Transaction.isTransactionAvailable;
 import static io.evitadb.utils.Assert.isTrue;
 import static io.evitadb.utils.StringUtils.unknownToString;
-import static java.util.Optional.ofNullable;
 
 /**
  * Filter index maintains information about single filterable attribute - its value to record id relation.
  * It uses several data structures to allow filtration - see fields description.
  *
+ * This is the abstract, sealed base of the owner/view hierarchy. It holds the shared read/write query algebra
+ * over the {@link #invertedIndex} (and optional {@link #rangeIndex}) but owns no transactional lifecycle of its
+ * own. Two concrete shapes exist:
+ *
+ * - {@link OwnerFilterIndex} — owns its {@link InvertedIndex} and participates in the commit cycle as a
+ * {@link io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer}. Used by the histogram subsystem and
+ * any standalone owner.
+ * - {@link FilterIndexView} — a stateless flyweight wrapping an {@link AttributeIndex}-owned shared
+ * {@link InvertedIndex}. It is NOT a transactional producer; its dirtiness, persistence and transactional id are
+ * all derived from the shared tree it wraps.
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2019
  */
 @SuppressWarnings({"unchecked", "rawtypes"})
-public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, IndexDataStructure, Serializable {
+public abstract sealed class FilterIndex implements IndexDataStructure, Serializable
+	permits OwnerFilterIndex, FilterIndexView {
+	public static final Function<Object, Serializable> NO_NORMALIZATION = Serializable.class::cast;
+	static final Comparator<Comparable> DEFAULT_COMPARATOR = Comparator.naturalOrder();
+	/**
+	 * Empty inline-bucket array carried by a bucket-`PAGED` {@link FilterIndexStoragePart} root (its buckets live in
+	 * individual leaf pages instead).
+	 */
+	private static final ValueToRecordBitmap[] EMPTY_HISTOGRAM_POINTS = new ValueToRecordBitmap[0];
 	@Serial private static final long serialVersionUID = -6813305126746774103L;
 	private static final String ERROR_RANGE_TYPE_NOT_SUPPORTED = "This filter index doesn't handle Range type!";
-	static final Comparator<Comparable> DEFAULT_COMPARATOR = Comparator.naturalOrder();
-
-	public static final Function<Object, Serializable> NO_NORMALIZATION = Serializable.class::cast;
-
 	/**
 	 * Aggregation lambda used by {@link #getRangeHistogramOfAllRecords(Class, int)} when producing the subset's
 	 * {@link InvertedIndexSubSet#getFormula()}. Range histogram buckets overlap by design (a single record may
@@ -103,8 +119,8 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	 * `recordIds` is the correct distinct-union aggregator. Empty / single-bucket inputs short-circuit to avoid
 	 * spurious formula tree allocations.
 	 */
-	private static final BiFunction<Long, ValueToRecordBitmap[], Formula> RANGE_HISTOGRAM_AGGREGATION_LAMBDA =
-		(indexTransactionId, histogramBuckets) -> {
+	private static final BiFunction<long[], ValueToRecord[], Formula> RANGE_HISTOGRAM_AGGREGATION_LAMBDA =
+		(indexTransactionIds, histogramBuckets) -> {
 			if (histogramBuckets.length == 0) {
 				return EmptyFormula.INSTANCE;
 			}
@@ -117,25 +133,20 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 					? EmptyFormula.INSTANCE
 					: new ConstantFormula(bitmaps[0]);
 			}
-			return new OrFormula(new long[] {indexTransactionId}, bitmaps);
+			return new OrFormula(indexTransactionIds, bitmaps);
 		};
 
-	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 	/**
 	 * Contains key identifying the attribute.
 	 */
 	@Getter private final AttributeIndexKey attributeIndexKey;
-	/**
-	 * This is internal flag that tracks whether the index contents became dirty and needs to be persisted.
-	 */
-	@Nonnull private final TransactionalBoolean dirty;
 	/**
 	 * Histogram is the main data structure that holds the information about value to record ids relation.
 	 */
 	@Nonnull @Getter private final InvertedIndex invertedIndex;
 	/**
 	 * Range index is used only for attribute types that are assignable to {@link Range} and can answer questions like:
-	 * <p>
+	 *
 	 * - what records are valid at precise moment
 	 * - what records are valid until certain moment
 	 * - what records are valid after certain moment
@@ -145,6 +156,13 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	 * Contains information about the type of the value held in this filter index (the type of {@link #attributeIndexKey} values).
 	 */
 	private final Class<?> attributeType;
+	/**
+	 * Decimal-places scale used to encode `BigDecimal` values to an order-preserving scaled `int` before they enter the
+	 * value tree (and to decode them back on the read boundary). Sourced from the attribute schema's
+	 * `indexedDecimalPlaces` at construction and re-resolved from the schema on load (it is not persisted in the
+	 * {@link FilterIndexStoragePart}). `0` for non-`BigDecimal` attributes.
+	 */
+	@Getter private final int indexedDecimalPlaces;
 	/**
 	 * Instance of conversion function that converts the value before it is placed into internal index or looked up
 	 * in it by {@link Comparator} interface.
@@ -174,94 +192,152 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	@Nullable private transient InvertedIndexSubSet memoizedRangeHistogramSubSet;
 
 	/**
-	 * Verifies that the provided value is an array of Serializable objects and
-	 * returns it as an array of Comparable objects. If the elements in the value array
-	 * are not Comparable, they are converted to a String representation and
-	 * returned as a String array.
+	 * Fails fast when an index built at one `BigDecimal` scale is about to be modified under a schema that now declares a
+	 * different {@link io.evitadb.api.requestResponse.schema.AttributeSchemaContract#getIndexedDecimalPlaces()}. The scale
+	 * an index encodes its values at is frozen when the index is created and the index is never re-scaled in place; once
+	 * the schema's indexed decimal places change, the index must be fully rebuilt before it may be modified again.
+	 * Encoding a new value at the changed scale and merging it with values still stored at the original scale would
+	 * silently corrupt equality, range and ordering, so a mismatch must surface immediately rather than mangle the index
+	 * further. For non-`BigDecimal` attributes both scales are `0`, so the check is a no-op.
 	 *
-	 * @param value the object to be verified and converted
-	 * @return an array of Comparable objects or a String array if elements are not Comparable
+	 * @param frozenIndexedDecimalPlaces  the scale frozen into the index when it was created
+	 * @param currentIndexedDecimalPlaces the scale the attribute schema currently declares
+	 * @param indexName                   the attribute / histogram name, used only to build a comprehensible message
 	 */
-	@Nonnull
-	private static Comparable[] verifyValueArray(@Nonnull Object value) {
-		isTrue(Serializable.class.isAssignableFrom(value.getClass().getComponentType()), "Value `" + unknownToString(value) + "` is expected to be Serializable, but it is not!");
-		if (Comparable.class.isAssignableFrom(value.getClass().getComponentType())) {
-			return (Comparable[]) value;
-		} else {
-			final int arraySize = Array.getLength(value);
-			final String[] valuesAsString = new String[arraySize];
-			for (int i = 0; i < arraySize; i++) {
-				valuesAsString[i] = String.valueOf(Array.get(value, i));
-			}
-			return valuesAsString;
-		}
-	}
-
-	/**
-	 * Returns the remaining ranges after subtracting the subtractedRanges from the existingRanges.
-	 *
-	 * @param subtractedRanges an array of ranges to be subtracted
-	 * @param existingRanges   an array of existing ranges
-	 * @return the remaining ranges after the subtraction
-	 */
-	@Nonnull
-	private static Range[] getRemainingRanges(@Nonnull Range[] subtractedRanges, @Nonnull Range[] existingRanges) {
-		final Range[] remainingRanges = new Range[existingRanges.length - subtractedRanges.length];
-		int remainingRangesIndex = 0;
-		final BitSet foundRanges = new BitSet(subtractedRanges.length);
-		nextRange:
-		for (Range existingRange : existingRanges) {
-			for (int i = 0; i < subtractedRanges.length; i++) {
-				final Range range = subtractedRanges[i];
-				if (existingRange.equals(range)) {
-					Assert.isPremiseValid(!foundRanges.get(i), "Sanity check - range already found!");
-					foundRanges.set(i);
-					continue nextRange;
-				}
-			}
-			Assert.isTrue(remainingRangesIndex < remainingRanges.length, "Sanity check - remaining ranges index out of bounds!");
-			remainingRanges[remainingRangesIndex++] = existingRange;
-		}
-		Assert.isPremiseValid(foundRanges.cardinality() == subtractedRanges.length, "Sanity check - not all ranges found!");
-		return remainingRanges;
+	public static void assertIndexedDecimalPlacesUnchanged(
+		int frozenIndexedDecimalPlaces,
+		int currentIndexedDecimalPlaces,
+		@Nonnull String indexName
+	) {
+		Assert.isPremiseValid(
+			frozenIndexedDecimalPlaces == currentIndexedDecimalPlaces,
+			() -> "Attribute `" + indexName + "` is indexed with " + frozenIndexedDecimalPlaces +
+				" decimal place(s), but its schema now declares " + currentIndexedDecimalPlaces +
+				"; the index must be rebuilt before it can be modified."
+		);
 	}
 
 	/**
 	 * Returns the appropriate normalizer function for particular attribute type and key.
 	 *
-	 * @param attributeType type of the attribute
+	 * `BigDecimal` values are normalized to an order-preserving scaled `int` (respecting the schema's
+	 * `indexedDecimalPlaces`) so the value tree stores them in the compact `IntValueColumn`. The normalizer is
+	 * idempotent: an already-scaled `Integer` (and `null`) passes through unchanged, so a value may be normalized
+	 * more than once on a probe→lookup path without a `ClassCastException`.
+	 *
+	 * @param attributeType        type of the attribute
+	 * @param indexedDecimalPlaces decimal-places scale used to encode `BigDecimal` values to a scaled `int`; ignored
+	 *                             for every other attribute type
 	 * @return appropriate comparator
 	 */
 	@Nonnull
-	public static Function<Object, Serializable> getNormalizer(@Nonnull Class<?> attributeType) {
+	public static Function<Object, Serializable> getNormalizer(
+		@Nonnull Class<?> attributeType,
+		int indexedDecimalPlaces
+	) {
 		if (OffsetDateTime.class.isAssignableFrom(attributeType)) {
-			return comparable -> comparable instanceof OffsetDateTime offsetDateTime ? offsetDateTime.toInstant() : (Serializable) comparable;
+			return comparable -> comparable instanceof OffsetDateTime offsetDateTime
+				? offsetDateTime.toInstant()
+				: (Serializable) comparable;
 		} else if (Currency.class.isAssignableFrom(attributeType)) {
-			return comparable -> comparable instanceof Currency currency ? new ComparableCurrency(currency) : (Serializable) comparable;
+			return comparable -> comparable instanceof Currency currency
+				? new ComparableCurrency(currency)
+				: (Serializable) comparable;
 		} else if (Locale.class.isAssignableFrom(attributeType)) {
-			return comparable -> comparable instanceof Locale locale ? new ComparableLocale(locale) : (Serializable) comparable;
+			return comparable -> comparable instanceof Locale locale
+				? new ComparableLocale(locale)
+				: (Serializable) comparable;
+		} else if (BigDecimal.class.isAssignableFrom(attributeType)) {
+			// scale a real BigDecimal to its order-preserving int; an already-scaled Integer (or null) passes through
+			// so a probe value normalized twice along a lookup path never throws (idempotent contract)
+			return value -> value instanceof BigDecimal bd
+				? Integer.valueOf(NumberUtils.convertToInt(bd, indexedDecimalPlaces))
+				: (Serializable) value;
+		} else if (BigDecimalNumberRange.class.isAssignableFrom(attributeType)) {
+			// a BigDecimal-backed range canonicalizes to the schema's `indexedDecimalPlaces`, mirroring the
+			// plain-BigDecimal branch above: its `RangeIndex` thresholds (`getFrom()` / `getTo()`) must be computed
+			// at the very scale the source filter index stores, so the bucket keys reconstructed from those
+			// thresholds at histogram query time agree. Idempotent: a range already at that scale rebuilds to an
+			// equal range; a non-range value (or null) passes through untouched
+			return value -> value instanceof BigDecimalNumberRange bdr
+				? rescaleBigDecimalRange(bdr, indexedDecimalPlaces)
+				: (Serializable) value;
+		} else if (String.class.isAssignableFrom(attributeType)) {
+			// String keys are normalized to Unicode NFD so the shared value tree holds one canonical form across the
+			// unique / filter / sort role-views. This matches SortIndex.createNormalizerFor's NFD
+			// form verbatim, so a both-flagged attribute reads and writes the very same key bytes on every path. ASCII
+			// (`code`, `ean`) is unaffected; non-ASCII filter `=` gains canonical equivalence (accepted release-note).
+			return text -> text == null
+				? null
+				: Normalizer.normalize(String.valueOf(text), Normalizer.Form.NFD);
 		} else if (Comparable.class.isAssignableFrom(attributeType)) {
 			return NO_NORMALIZATION;
 		} else {
-			throw new EvitaInvalidUsageException("Unsupported attribute type `" + attributeType + "`! The type is not comparable!");
+			throw new EvitaInvalidUsageException(
+				"Unsupported attribute type `" + attributeType + "`! The type is not comparable!");
 		}
 	}
 
 	/**
 	 * Returns the appropriate comparator for particular attribute type and key.
 	 *
-	 * @param attributeIndexKey  key containing information about used locale
-	 * @param attributeType type of the attribute
+	 * @param attributeIndexKey key containing information about used locale
+	 * @param attributeType     type of the attribute
 	 * @return appropriate comparator
 	 */
 	@Nonnull
-	public static Comparator<? extends Comparable> getComparator(@Nonnull AttributeIndexKey attributeIndexKey, @Nonnull Class<?> attributeType) {
+	public static Comparator<? extends Comparable> getComparator(
+		@Nonnull AttributeIndexKey attributeIndexKey, @Nonnull Class<?> attributeType) {
 		final Locale locale = attributeIndexKey.locale();
 		if (String.class.isAssignableFrom(attributeType) && locale != null) {
 			return new LocalizedStringComparator(locale);
 		} else {
 			return DEFAULT_COMPARATOR;
 		}
+	}
+
+	/**
+	 * Converts a histogram boundary value back into its `long` threshold for `RangeIndex` lookups.
+	 * This is the inverse of {@link #toBucketKey(long, Class, int)}: any value previously emitted
+	 * by the bucket-key encoder will round-trip through this method to recover the original
+	 * `long` threshold that fed it.
+	 *
+	 * Encoding contract for `BigDecimal`: bucket-keys emitted as
+	 * `BigDecimal.valueOf(threshold, retainedDecimalPlaces)` carry an intrinsic scale equal to
+	 * `retainedDecimalPlaces`, so reversing the scale via `scaleByPowerOfTen` recovers the
+	 * original `long` without needing the decimal-places parameter explicitly.
+	 *
+	 * @param value the boundary value emitted by the histogram sweep — one of Byte, Short,
+	 *              Integer, Long, BigDecimal
+	 * @return the comparable long-encoded threshold
+	 */
+	public static long fromBucketKey(@Nonnull Serializable value) {
+		if (value instanceof BigDecimal bd) {
+			// inverse of `BigDecimal.valueOf(threshold, retainedDecimalPlaces)` in toBucketKey;
+			// round-trip keys always carry scale >= 0, so the Math.max is a no-op there — it is a
+			// belt-and-suspenders guard for direct callers passing externally-built negative-scale
+			// BigDecimals (e.g. `1E+2`, scale -2) so those still decode to the correct long
+			final int scale = Math.max(bd.scale(), 0);
+			return bd.scaleByPowerOfTen(scale).longValueExact();
+		}
+		if (value instanceof Number n) {
+			return n.longValue();
+		}
+		throw new GenericEvitaInternalError(
+			"Cannot convert histogram boundary value `" + value + "` of type `" +
+				value.getClass().getName() + "` to a long threshold — only numeric scalar types are supported."
+		);
+	}
+
+	/**
+	 * Resolves the plain (array-unwrapped) attribute type that drives the comparator / normalizer / range decisions.
+	 *
+	 * @param attributeType the declared (possibly array) attribute type
+	 * @return the array component type for array attributes, otherwise the type itself
+	 */
+	@Nonnull
+	static Class<?> plainTypeOf(@Nonnull Class<?> attributeType) {
+		return attributeType.isArray() ? attributeType.getComponentType() : attributeType;
 	}
 
 	/**
@@ -303,108 +379,111 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	}
 
 	/**
-	 * Converts a histogram boundary value back into its `long` threshold for `RangeIndex` lookups.
-	 * This is the inverse of {@link #toBucketKey(long, Class, int)}: any value previously emitted
-	 * by the bucket-key encoder will round-trip through this method to recover the original
-	 * `long` threshold that fed it.
+	 * Verifies that the provided value is an array of Serializable objects and
+	 * returns it as an array of Comparable objects. If the elements in the value array
+	 * are not Comparable, they are converted to a String representation and
+	 * returned as a String array.
 	 *
-	 * Encoding contract for `BigDecimal`: bucket-keys emitted as
-	 * `BigDecimal.valueOf(threshold, retainedDecimalPlaces)` carry an intrinsic scale equal to
-	 * `retainedDecimalPlaces`, so reversing the scale via `scaleByPowerOfTen` recovers the
-	 * original `long` without needing the decimal-places parameter explicitly.
-	 *
-	 * @param value the boundary value emitted by the histogram sweep — one of Byte, Short,
-	 *              Integer, Long, BigDecimal
-	 * @return the comparable long-encoded threshold
+	 * @param value the object to be verified and converted
+	 * @return an array of Comparable objects or a String array if elements are not Comparable
 	 */
-	public static long fromBucketKey(@Nonnull Serializable value) {
-		if (value instanceof BigDecimal bd) {
-			// inverse of `BigDecimal.valueOf(threshold, retainedDecimalPlaces)` in toBucketKey;
-			// round-trip keys always carry scale >= 0, so the Math.max is a no-op there — it is a
-			// belt-and-suspenders guard for direct callers passing externally-built negative-scale
-			// BigDecimals (e.g. `1E+2`, scale -2) so those still decode to the correct long
-			final int scale = Math.max(bd.scale(), 0);
-			return bd.scaleByPowerOfTen(scale).longValueExact();
-		}
-		if (value instanceof Number n) {
-			return n.longValue();
-		}
-		throw new GenericEvitaInternalError(
-			"Cannot convert histogram boundary value `" + value + "` of type `" +
-				value.getClass().getName() + "` to a long threshold — only numeric scalar types are supported."
+	@Nonnull
+	private static Comparable[] verifyValueArray(@Nonnull Object value) {
+		isTrue(
+			Serializable.class.isAssignableFrom(value.getClass().getComponentType()),
+			"Value `" + unknownToString(value) + "` is expected to be Serializable, but it is not!"
 		);
+		if (Comparable.class.isAssignableFrom(value.getClass().getComponentType())) {
+			return (Comparable[]) value;
+		} else {
+			final int arraySize = Array.getLength(value);
+			final String[] valuesAsString = new String[arraySize];
+			for (int i = 0; i < arraySize; i++) {
+				valuesAsString[i] = String.valueOf(Array.get(value, i));
+			}
+			return valuesAsString;
+		}
 	}
 
-	public FilterIndex(@Nonnull AttributeIndexKey attributeIndexKey, @Nonnull Class<?> attributeType) {
-		this.attributeIndexKey = attributeIndexKey;
-		this.attributeType = attributeType;
-		this.dirty = new TransactionalBoolean();
-		final Class<?> plainType = attributeType.isArray() ? attributeType.getComponentType() : attributeType;
-		this.rangeIndex = Range.class.isAssignableFrom(plainType) ? new RangeIndex() : null;
-		this.comparator = getComparator(attributeIndexKey, plainType);
-		this.normalizer = getNormalizer(plainType);
-		this.invertedIndex = new InvertedIndex(this.normalizer, this.comparator);
-	}
-
-	public FilterIndex(
-		@Nonnull AttributeIndexKey attributeIndexKey,
-		@Nonnull ValueToRecordBitmap[] valueToRecords,
-		@Nullable RangeIndex rangeIndex,
-		@Nonnull Class<?> attributeType
-	) {
-		this.attributeIndexKey = attributeIndexKey;
-		this.attributeType = attributeType;
-		this.dirty = new TransactionalBoolean();
-		this.rangeIndex = rangeIndex;
-		final Class<?> plainType = attributeType.isArray() ? attributeType.getComponentType() : attributeType;
-		this.comparator = getComparator(attributeIndexKey, plainType);
-		this.normalizer = getNormalizer(plainType);
-		this.invertedIndex = new InvertedIndex(valueToRecords, this.normalizer, this.comparator);
-	}
-
-	//	TOBEDONE #538 - remove unnecessary constructor
-	public FilterIndex(
-		@Nonnull AttributeIndexKey attributeIndexKey,
-		@Nonnull ValueToRecordBitmap[] valueToRecords,
-		@Nullable RangeIndex rangeIndex,
-		@Nonnull Class<?> attributeType,
-		boolean updateSortedValues
-	) {
-		this.attributeIndexKey = attributeIndexKey;
-		this.attributeType = attributeType;
-		this.dirty = new TransactionalBoolean();
-		this.rangeIndex = rangeIndex;
-		final Class<?> plainType = attributeType.isArray() ? attributeType.getComponentType() : attributeType;
-		this.comparator = getComparator(attributeIndexKey, plainType);
-		this.normalizer = getNormalizer(plainType);
-		if (updateSortedValues) {
-			if (this.normalizer != NO_NORMALIZATION) {
-				for (int i = 0; i < valueToRecords.length; i++) {
-					final ValueToRecordBitmap valueToRecord = valueToRecords[i];
-					valueToRecords[i] = new ValueToRecordBitmap(this.normalizer.apply(valueToRecord.getValue()), valueToRecord.getRecordIds());
+	/**
+	 * Returns the remaining ranges after subtracting the subtractedRanges from the existingRanges.
+	 *
+	 * @param subtractedRanges an array of ranges to be subtracted
+	 * @param existingRanges   an array of existing ranges
+	 * @return the remaining ranges after the subtraction
+	 */
+	@Nonnull
+	private static Range[] getRemainingRanges(@Nonnull Range[] subtractedRanges, @Nonnull Range[] existingRanges) {
+		final Range[] remainingRanges = new Range[existingRanges.length - subtractedRanges.length];
+		int remainingRangesIndex = 0;
+		final BitSet foundRanges = new BitSet(subtractedRanges.length);
+		nextRange:
+		for (Range existingRange : existingRanges) {
+			for (int i = 0; i < subtractedRanges.length; i++) {
+				final Range range = subtractedRanges[i];
+				if (existingRange.equals(range)) {
+					Assert.isPremiseValid(!foundRanges.get(i), "Sanity check - range already found!");
+					foundRanges.set(i);
+					continue nextRange;
 				}
 			}
-			if (this.comparator != DEFAULT_COMPARATOR) {
-				ArrayUtils.sortArray((o1, o2) -> ((Comparator) this.comparator).compare(o1.getValue(), o2.getValue()), valueToRecords);
-			}
+			Assert.isTrue(
+				remainingRangesIndex < remainingRanges.length, "Sanity check - remaining ranges index out of bounds!");
+			remainingRanges[remainingRangesIndex++] = existingRange;
 		}
-		InvertedIndex theInvertedIndex;
-		try {
-			theInvertedIndex = new InvertedIndex(valueToRecords, this.normalizer, this.comparator);
-		} catch (MonotonicRowCorruptedException ex) {
-			if (this.comparator != DEFAULT_COMPARATOR) {
-				ArrayUtils.sortArray((o1, o2) -> ((Comparator) this.comparator).compare(o1.getValue(), o2.getValue()), valueToRecords);
-				theInvertedIndex = new InvertedIndex(valueToRecords, this.normalizer, this.comparator);
-			} else {
-				throw ex;
-			}
-		}
-		this.invertedIndex = theInvertedIndex;
+		Assert.isPremiseValid(
+			foundRanges.cardinality() == subtractedRanges.length, "Sanity check - not all ranges found!");
+		return remainingRanges;
 	}
 
-	private FilterIndex(
+	/**
+	 * Rebuilds a `BigDecimalNumberRange` so its comparable `long` thresholds (`getFrom()` / `getTo()`) are computed
+	 * at the supplied `indexedDecimalPlaces` rather than the value's intrinsic scale. This matches the scale the
+	 * source attribute's filter / range index stores (the main attribute path coerces range values the same way via
+	 * `EvitaDataTypes.toTargetType`), so the histogram bucket keys reconstructed from those thresholds at query time
+	 * use the same magnitude. The operation is idempotent — a range already at the target scale rebuilds to an equal
+	 * range — and preserves open-ended bounds.
+	 *
+	 * @param range                the source range whose precise `BigDecimal` bounds are rescaled
+	 * @param indexedDecimalPlaces decimal-places scale to encode the range thresholds at
+	 * @return a `BigDecimalNumberRange` whose thresholds are computed at `indexedDecimalPlaces`
+	 */
+	@Nonnull
+	private static BigDecimalNumberRange rescaleBigDecimalRange(
+		@Nonnull BigDecimalNumberRange range,
+		int indexedDecimalPlaces
+	) {
+		final BigDecimal preciseFrom = range.getPreciseFrom();
+		final BigDecimal preciseTo = range.getPreciseTo();
+		if (preciseFrom == null && preciseTo == null) {
+			// fully open (infinite) range — there are no bounds to rescale
+			return range;
+		} else if (preciseFrom != null && preciseTo != null) {
+			return BigDecimalNumberRange.between(preciseFrom, preciseTo, indexedDecimalPlaces);
+		} else if (preciseFrom != null) {
+			return BigDecimalNumberRange.from(preciseFrom, indexedDecimalPlaces);
+		} else {
+			return BigDecimalNumberRange.to(preciseTo, indexedDecimalPlaces);
+		}
+	}
+
+	/**
+	 * Shared base constructor wiring the immutable fields common to every owner / view. Concrete subclasses are
+	 * responsible for sourcing the {@link InvertedIndex} (owned vs shared), the comparator / normalizer (derived from
+	 * the attribute type vs delegated to the wrapped tree) and the transactional lifecycle.
+	 *
+	 * @param attributeIndexKey    key identifying the attribute
+	 * @param attributeType        the declared attribute type (array-aware)
+	 * @param indexedDecimalPlaces decimal-places scale used to encode `BigDecimal` values (0 for other types)
+	 * @param invertedIndex        the value→ValueToRecord tree backing this index (owned or shared)
+	 * @param rangeIndex           the range structure for range-typed attributes, or `null`
+	 * @param comparator           the value comparator
+	 * @param normalizer           the value normalizer
+	 */
+	protected FilterIndex(
 		@Nonnull AttributeIndexKey attributeIndexKey,
 		@Nonnull Class<?> attributeType,
+		int indexedDecimalPlaces,
 		@Nonnull InvertedIndex invertedIndex,
 		@Nullable RangeIndex rangeIndex,
 		@Nonnull Comparator<? extends Comparable> comparator,
@@ -412,11 +491,33 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	) {
 		this.attributeIndexKey = attributeIndexKey;
 		this.attributeType = attributeType;
-		this.dirty = new TransactionalBoolean();
+		this.indexedDecimalPlaces = indexedDecimalPlaces;
 		this.invertedIndex = invertedIndex;
 		this.rangeIndex = rangeIndex;
 		this.comparator = comparator;
 		this.normalizer = normalizer;
+	}
+
+	/**
+	 * Returns a stable transactional id for this index. Owners mint their own sequence id; views derive it from the
+	 * wrapped shared {@link InvertedIndex} so it stays stable across commits that did not touch the tree (keeping the
+	 * query-planner formula cache warm).
+	 */
+	public abstract long getId();
+
+	/**
+	 * Returns `true` if the index contents have been modified and need persistence. Owners track their own dirty flag;
+	 * views delegate to the shared tree's dirty flag.
+	 */
+	public abstract boolean isDirty();
+
+	/**
+	 * Returns the declared attribute type backing this filter index (array-aware). Exposed so {@link AttributeIndex} can
+	 * rebuild the stateless filter views and produce the {@link FilterIndexStoragePart} from the shared tree.
+	 */
+	@Nonnull
+	public Class<?> getAttributeType() {
+		return this.attributeType;
 	}
 
 	/**
@@ -429,70 +530,57 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	/**
 	 * Returns formula of record ids whose String attribute starts with particular prefix.
 	 *
-	 * TOBEDONE JNO naive and slow - use RadixTree
+	 * The prefix is canonicalized through the index normalizer (Unicode NFD for String attributes) so a
+	 * caller-supplied precomposed (NFC) term matches the decomposed keys actually stored in the index - the same
+	 * canonical equivalence the `=` operator already provides.
+	 *
+	 * When the index uses the natural codepoint comparator, any value that starts with the normalized prefix sorts
+	 * greater than or equal to it and no non-matching value can sort between the prefix and a matching value, so the
+	 * matching buckets form a single contiguous run beginning at the first bucket `>= prefix`. We then anchor a
+	 * bounded forward iteration at that bucket and stream until the first non-matching value (early break), with no
+	 * whole-array materialization and no backward scan. Under a localized (collation) comparator that contiguity
+	 * assumption does not hold - codepoint-`startsWith` matches may sort before the anchor or be interleaved with
+	 * non-matches - so we fall back to a full predicate scan that visits every bucket.
 	 */
 	@Nonnull
 	public Formula getRecordsWhoseValuesStartWith(@Nonnull String prefix) {
-		final ValueToRecordBitmap[] buckets = this.invertedIndex.getValueToRecordBitmap();
-		final int matchIndex = ArrayUtils.binarySearch(
-			buckets,
-			prefix,
-			(valueToRecordBitmap, textToSearch) -> {
-				final String valueA = String.valueOf(valueToRecordBitmap.getValue());
-				final String shortenedA = valueA.substring(0, Math.min(valueA.length(), textToSearch.length()));
-				return ((Comparator<String>)this.comparator).compare(shortenedA, textToSearch);
-			}
-		);
-		if (matchIndex < 0) {
-			return EmptyFormula.INSTANCE;
-		} else {
-			final LinkedList<Formula> formulas = new LinkedList<>();
-			// find all matching values to the end of the bucket list
-			for (int i = matchIndex; i < buckets.length; i++) {
-				final ValueToRecordBitmap bucket = buckets[i];
-				final String value = String.valueOf(bucket.getValue());
-				if (value.startsWith(prefix)) {
-					formulas.add(new ConstantFormula(bucket.getRecordIds()));
-				} else {
-					// break immediately when the prefix is no longer valid
-					break;
-				}
-			}
-			// find all matching values to the start of the bucket list
-			for (int i = matchIndex - 1; i >= 0; i--) {
-				final ValueToRecordBitmap bucket = buckets[i];
-				final String value = String.valueOf(bucket.getValue());
-				if (value.startsWith(prefix)) {
-					formulas.add(new ConstantFormula(bucket.getRecordIds()));
-				} else {
-					// break immediately when the prefix is no longer valid
-					break;
-				}
-			}
-			return FormulaFactory.or(formulas.toArray(Formula.EMPTY_FORMULA_ARRAY));
+		/* TOBEDONE JNO naive and slow - use RadixTree */
+		final String normalizedPrefix = (String) this.normalizer.apply(prefix);
+		if (this.comparator != DEFAULT_COMPARATOR) {
+			// collation ordering does not guarantee a contiguous prefix run - scan every bucket without early break
+			return this.invertedIndex.getRecordsMatchingFormula(value -> ((String) value).startsWith(normalizedPrefix));
 		}
+		// natural codepoint order: matches form one contiguous run from the anchor, so the index walks the run off its
+		// cursor and early-breaks at the first miss (no flyweight / iterator / per-bucket node allocation)
+		return this.invertedIndex.getRecordsStartingFromWhile(
+			normalizedPrefix, value -> ((String) value).startsWith(normalizedPrefix)
+		);
 	}
 
 	/**
-	 * Returns formula of record ids whose String attribute ends with particular prefix.
+	 * Returns formula of record ids whose String attribute ends with particular suffix.
+	 *
+	 * The suffix is canonicalized through the index normalizer (Unicode NFD for String attributes) so a
+	 * caller-supplied precomposed (NFC) term matches the decomposed keys stored in the index.
 	 */
 	@Nonnull
 	public Formula getRecordsWhoseValuesEndsWith(@Nonnull String suffix) {
 		/* TOBEDONE JNO naive and slow - use RadixTree */
-		return this.invertedIndex
-			.getSortedRecordsMatching(value -> ((String) value).endsWith(suffix))
-			.getFormula();
+		final String normalizedSuffix = (String) this.normalizer.apply(suffix);
+		return this.invertedIndex.getRecordsMatchingFormula(value -> ((String) value).endsWith(normalizedSuffix));
 	}
 
 	/**
 	 * Returns formula of record ids whose String attribute contains particular text.
+	 *
+	 * The text is canonicalized through the index normalizer (Unicode NFD for String attributes) so a
+	 * caller-supplied precomposed (NFC) term matches the decomposed keys stored in the index.
 	 */
 	@Nonnull
 	public Formula getRecordsWhoseValuesContains(@Nonnull String text) {
 		/* TOBEDONE JNO naive and slow - use RadixTree */
-		return this.invertedIndex
-			.getSortedRecordsMatching(value -> ((String) value).contains(text))
-			.getFormula();
+		final String normalizedText = (String) this.normalizer.apply(text);
+		return this.invertedIndex.getRecordsMatchingFormula(value -> ((String) value).contains(normalizedText));
 	}
 
 	/**
@@ -505,7 +593,8 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	 * @param <T>      the type of the value, must implement Comparable<T>
 	 * @throws EvitaInvalidUsageException when the value is not of type Range in case of range index
 	 */
-	public <T extends Serializable> void addRecord(int recordId, @Nonnull Object value) throws EvitaInvalidUsageException {
+	public <T extends Serializable> void addRecord(
+		int recordId, @Nonnull Object value) throws EvitaInvalidUsageException {
 		// if current attribute is Range based assign record also to range index
 		if (this.rangeIndex != null) {
 			if (value instanceof Range[] valueArray) {
@@ -513,8 +602,13 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 			} else {
 				isTrue(
 					value instanceof Range,
-					() -> new EvitaInvalidUsageException("Value `" + unknownToString(value) + "` is expected to be Range but it is not!"));
-				final Range range = (Range) value;
+					() -> new EvitaInvalidUsageException(
+						"Value `" + unknownToString(value) + "` is expected to be Range but it is not!")
+				);
+				// canonicalize the range to the index scale before deriving the range-index thresholds, so a
+				// `BigDecimalNumberRange` supplied at its intrinsic scale yields the same `getFrom()` / `getTo()`
+				// the schema-scale probe is coerced to (no-op for non-`BigDecimal` ranges via `NO_NORMALIZATION`)
+				final Range range = (Range) this.normalizer.apply(value);
 				this.rangeIndex.addRecord(range.getFrom(), range.getTo(), recordId);
 			}
 		}
@@ -531,7 +625,7 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 			this.memoizedAllRecordsFormula = null;
 			this.memoizedRangeHistogramSubSet = null;
 		}
-		this.dirty.setToTrue();
+		markDirty();
 	}
 
 	/**
@@ -545,19 +639,24 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	 * @param <T>      the type of the attribute value
 	 * @throws EvitaInvalidUsageException when the value is not of type Range in case of range index
 	 */
-	public <T extends Serializable> void addRecordDelta(int recordId, @Nonnull Object[] value) throws EvitaInvalidUsageException {
+	public <T extends Serializable> void addRecordDelta(
+		int recordId, @Nonnull Object[] value) throws EvitaInvalidUsageException {
 		// if current attribute is Range based assign record also to range index
 		//noinspection VariableNotUsedInsideIf
 		if (this.rangeIndex != null) {
 			if (value instanceof Range[] valueArray) {
-				// this is quite expensive operation, but we need to do it to be able to remove and add the record
+				// this is quite expensive operation, but we need to do it to be able to remove and add the record;
+				// the existing ranges read back from the inverted index are already canonicalized to the index
+				// scale, so the raw delta ranges are canonicalized too before the merge so both sides share one
+				// form and consolidation collapses scale-equal duplicates (no-op for non-`BigDecimal` ranges)
 				final Range[] existingRanges = this.invertedIndex.getValuesForRecord(recordId, Range.class);
-				final Range[] aggregatedRanges = ArrayUtils.mergeArrays(existingRanges, valueArray);
+				final Range[] aggregatedRanges = ArrayUtils.mergeArrays(existingRanges, normalizeRanges(valueArray));
 
 				removeRange(recordId, existingRanges);
 				addRange(recordId, aggregatedRanges);
 			} else {
-				throw new EvitaInvalidUsageException("Value `" + unknownToString(value) + "` is expected to be Range but it is not!");
+				throw new EvitaInvalidUsageException(
+					"Value `" + unknownToString(value) + "` is expected to be Range but it is not!");
 			}
 		}
 
@@ -569,7 +668,7 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 			this.memoizedAllRecordsFormula = null;
 			this.memoizedRangeHistogramSubSet = null;
 		}
-		this.dirty.setToTrue();
+		markDirty();
 	}
 
 	/**
@@ -581,20 +680,26 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	 * @throws EvitaInvalidUsageException when the removed record is not actually registered for the attribute or
 	 *                                    when the value is not of type Range in case of range index
 	 */
-	public <T extends Serializable> void removeRecord(int recordId, @Nonnull Object value) throws EvitaInvalidUsageException {
+	public <T extends Serializable> void removeRecord(
+		int recordId, @Nonnull Object value) throws EvitaInvalidUsageException {
 		// if current attribute is Range based assign record also to range index
 		if (this.rangeIndex != null) {
 			if (value instanceof Object[]) {
 				isTrue(
 					Range.class.isAssignableFrom(value.getClass().getComponentType()),
-					() -> new EvitaInvalidUsageException("Value `" + unknownToString(value) + "` is expected to be Range but it is not!")
+					() -> new EvitaInvalidUsageException(
+						"Value `" + unknownToString(value) + "` is expected to be Range but it is not!")
 				);
 				removeRange(recordId, (Range[]) value);
 			} else {
 				isTrue(
 					value instanceof Range,
-					() -> new EvitaInvalidUsageException("Value `" + unknownToString(value) + "` is expected to be Range but it is not!"));
-				final Range range = (Range) value;
+					() -> new EvitaInvalidUsageException(
+						"Value `" + unknownToString(value) + "` is expected to be Range but it is not!")
+				);
+				// canonicalize to the index scale so the thresholds being removed match the ones `addRecord`
+				// inserted at the schema scale (no-op for non-`BigDecimal` ranges via `NO_NORMALIZATION`)
+				final Range range = (Range) this.normalizer.apply(value);
 				this.rangeIndex.removeRecord(range.getFrom(), range.getTo(), recordId);
 			}
 		}
@@ -611,7 +716,7 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 			this.memoizedAllRecordsFormula = null;
 			this.memoizedRangeHistogramSubSet = null;
 		}
-		this.dirty.setToTrue();
+		markDirty();
 	}
 
 	/**
@@ -630,14 +735,18 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 		//noinspection VariableNotUsedInsideIf
 		if (this.rangeIndex != null) {
 			if (value instanceof Range[] valueArray) {
-				// this is quite expensive operation, but we need to do it to be able to remove and add the record
+				// this is quite expensive operation, but we need to do it to be able to remove and add the record;
+				// the existing ranges read back from the inverted index are already canonicalized to the index
+				// scale, so the raw delta ranges must be canonicalized too before the set subtraction compares them
+				// by equality (no-op for non-`BigDecimal` ranges)
 				final Range[] existingRanges = this.invertedIndex.getValuesForRecord(recordId, Range.class);
-				final Range[] remainingRanges = getRemainingRanges(valueArray, existingRanges);
+				final Range[] remainingRanges = getRemainingRanges(normalizeRanges(valueArray), existingRanges);
 
 				removeRange(recordId, existingRanges);
 				addRange(recordId, remainingRanges);
 			} else {
-				throw new EvitaInvalidUsageException("Value `" + unknownToString(value) + "` is expected to be Range but it is not!");
+				throw new EvitaInvalidUsageException(
+					"Value `" + unknownToString(value) + "` is expected to be Range but it is not!");
 			}
 		}
 
@@ -650,7 +759,7 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 			this.memoizedAllRecordsFormula = null;
 			this.memoizedRangeHistogramSubSet = null;
 		}
-		this.dirty.setToTrue();
+		markDirty();
 	}
 
 	/**
@@ -661,7 +770,10 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	}
 
 	/**
-	 * Returns bitmap of all record ids connected with the value in the argument
+	 * Returns bitmap of all record ids connected with the value in the argument. The lookup value is funneled
+	 * through the same canonicalization the write path uses — `BigDecimal` scale stripping via
+	 * {@link NumberUtils#normalizeIfBigDecimal} followed by {@link #normalizer} — so the probe key matches the
+	 * form the bucket was stored under (e.g. NFD-folded strings, instant-normalized `OffsetDateTime`).
 	 */
 	@Nonnull
 	public <T extends Serializable> Bitmap getRecordsEqualTo(@Nonnull T attributeValue) {
@@ -670,7 +782,9 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	}
 
 	/**
-	 * Returns bitmap of all record ids connected with the value in the argument
+	 * Formula-returning counterpart of {@link #getRecordsEqualTo(Serializable)} for the query-planner: yields a
+	 * {@link ConstantFormula} over the matching record ids, or {@link EmptyFormula#INSTANCE} when none match. The
+	 * lookup value is canonicalized identically (see {@link #getRecordsEqualTo(Serializable)}).
 	 */
 	@Nonnull
 	public <T extends Serializable> Formula getRecordsEqualToFormula(@Nonnull T attributeValue) {
@@ -778,8 +892,11 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 			}
 		}
 		final ValueToRecordBitmap[] bucketArray = buckets.toArray(new ValueToRecordBitmap[0]);
+		// range-histogram staleness stays whole-index coarse: the buckets are assembled from the RangeIndex point
+		// sweep above (not from InvertedIndex leaf pages), so there are no leaf-version tokens to key on here.
+		// getId() already mints a fresh id on any mutation, which invalidates any cached formula over this subset.
 		final InvertedIndexSubSet result = new InvertedIndexSubSet(
-			getId(),
+			new long[]{getId()},
 			bucketArray,
 			RANGE_HISTOGRAM_AGGREGATION_LAMBDA
 		);
@@ -808,7 +925,7 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	 */
 	public Formula getAllRecordsFormula() {
 		// if there is transaction open, there might be changes in the histogram data, and we can't easily use cache
-		if (isTransactionAvailable() && this.dirty.isTrue()) {
+		if (isTransactionAvailable() && isDirty()) {
 			final Bitmap allRecords = getHistogramOfAllRecords().getFormula().compute();
 			return allRecords.isEmpty() ? EmptyFormula.INSTANCE : new ConstantFormula(allRecords);
 		} else {
@@ -973,7 +1090,8 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	 * Returns all records which range overlaps the passed range in the form of {@link Bitmap}.
 	 * This method can be used only when the attribute type is of the {@link Range} type.
 	 *
-	 * @param from * @param to
+	 * @param from the inclusive lower bound of the overlap query, as a `RangeIndex` long threshold
+	 * @param to   the inclusive upper bound of the overlap query, as a `RangeIndex` long threshold
 	 */
 	@Nonnull
 	public Bitmap getRecordsOverlapping(long from, long to) {
@@ -993,66 +1111,212 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	}
 
 	/**
-	 * Returns `true` if the index contents have been modified and need persistence.
+	 * Emits this filter index's modified storage parts into `sink`. A clean index emits nothing. A
+	 * dirty index whose bucket tree spans a single leaf emits the inline `SINGLE` root (today's whole-index part); a
+	 * dirty index whose tree spans multiple leaves emits the granular `PAGED` shape: one {@link FilterIndexLeafPagePart}
+	 * per CHANGED leaf plus the fused `PAGED` root carrying each axis's high-water and ordered live leaf-page list —
+	 * re-emitted only when an axis's page list changed (or a non-paged axis carries varying inline data); when both
+	 * axes are page-stable the root is byte-identical to disk and skipped. The leaf pages
+	 * carry the sub-index identity so their stream id (and primary key) is resolved store-side at write time.
+	 *
+	 * @param entityIndexPrimaryKey the owning entity index pk
+	 * @param sink                  the trapped-changes accumulator for this commit
 	 */
-	public boolean isDirty() {
-		return this.dirty.isTrue();
-	}
-
-	/**
-	 * Method creates container for storing filter index from memory to the persistent storage.
-	 */
-	@Nullable
-	public StoragePart createStoragePart(int entityIndexPrimaryKey) {
-		if (this.dirty.isTrue()) {
-			return new FilterIndexStoragePart(
-				entityIndexPrimaryKey, this.attributeIndexKey, this.attributeType,
-				this.invertedIndex.getValueToRecordBitmap(),
-				this.rangeIndex
-			);
-		} else {
-			return null;
+	public void appendStorageParts(int entityIndexPrimaryKey, @Nonnull TrappedChanges sink) {
+		if (!isDirty()) {
+			return;
 		}
-	}
+		final AttributeKeyWithIndexType streamKey =
+			new AttributeKeyWithIndexType(this.attributeIndexKey, AttributeIndexType.FILTER);
 
-	@Override
-	public void resetDirty() {
-		this.dirty.reset();
-	}
+		// the two sub-indexes are paged independently of each other; emit the range axis first (preserving the prior
+		// emission order), then the bucket axis, then fuse both descriptors into the single FilterIndexStoragePart root
+		final RangeAxis range = appendRangeAxis(entityIndexPrimaryKey, streamKey, sink);
+		final BucketAxis bucket = appendBucketAxis(entityIndexPrimaryKey, streamKey, sink);
 
-	@Nonnull
-	@Override
-	public FilterIndex createCopyWithMergedTransactionalMemory(
-		@Nullable Void layer,
-		@Nonnull TransactionalLayerMaintainer transactionalLayer
-	) {
-		// we can safely throw away dirty flag now
-		transactionalLayer.getStateCopyWithCommittedChanges(this.dirty);
-		return new FilterIndex(
-			this.attributeIndexKey,
-			this.attributeType,
-			transactionalLayer.getStateCopyWithCommittedChanges(this.invertedIndex),
-			this.rangeIndex == null ? null : transactionalLayer.getStateCopyWithCommittedChanges(this.rangeIndex),
-			this.comparator,
-			this.normalizer
+		// the fused root carries per-commit-varying inline data only for an axis that is NOT paged (an inline histogram
+		// for a SINGLE bucket tree, an inline RangeIndex for a SINGLE range). When BOTH axes are externalized to leaf
+		// pages the root is nothing but two page-lists + immutable schema, so it can be skipped whenever NEITHER list
+		// changed this commit (a leaf allocated/freed) — collapsing the steady-state root cost to O(1) instead of
+		// O(live pages). An absent range (no companion) contributes nothing that varies, so it is root-stable too.
+		final boolean bucketRootStable = bucket.paged() && !bucket.listChanged();
+		final boolean rangeRootStable = range.rangePaged()
+			? !range.listChanged()
+			: range.inlineRangeIndex() == null;
+		if (bucketRootStable && rangeRootStable) {
+			return;
+		}
+
+		sink.addChangeToStore(
+			new FilterIndexStoragePart(
+				entityIndexPrimaryKey, this.attributeIndexKey, this.attributeType,
+				bucket.histogramPoints(), range.inlineRangeIndex(), this.indexedDecimalPlaces,
+				bucket.paged(), bucket.highWaterPageSequence(), bucket.leafPageSequences(),
+				range.rangePaged(), range.rangeHighWaterPageSequence(), range.rangeLeafPageSequences(), null
+			)
 		);
 	}
 
-	/*
-		TransactionalLayerProducer implementation
+	/**
+	 * Emits the BUCKET (value) axis of this commit into `sink` and returns how it maps onto the
+	 * {@link FilterIndexStoragePart} root. A `PAGED` bucket tree emits one {@link FilterIndexLeafPagePart} per CHANGED
+	 * leaf plus a {@link FilterIndexLeafPageRemoval} per freed leaf and carries empty inline buckets; a `SINGLE` tree
+	 * that just collapsed from `PAGED` removes its prior leaf pages, forgets the page stream, and carries every bucket
+	 * inline.
+	 *
+	 * @param entityIndexPrimaryKey the owning entity index pk
+	 * @param streamKey             the sub-index identity carried by each leaf page (resolves its store-side stream id)
+	 * @param sink                  the trapped-changes accumulator for this commit
+	 * @return the bucket-axis descriptor to fold into the root part
 	 */
-
-	@Override
-	public void removeLayer(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
-		transactionalLayer.removeTransactionalMemoryLayerIfExists(this);
-		this.invertedIndex.removeLayer(transactionalLayer);
-		ofNullable(this.rangeIndex).ifPresent(it -> it.removeLayer(transactionalLayer));
-		this.dirty.removeLayer(transactionalLayer);
+	@Nonnull
+	private BucketAxis appendBucketAxis(
+		int entityIndexPrimaryKey, @Nonnull AttributeKeyWithIndexType streamKey, @Nonnull TrappedChanges sink
+	) {
+		if (this.invertedIndex.isPaged()) {
+			final PageEmission<InvertedIndex.LeafPage> emission = this.invertedIndex.collectChangedPages();
+			for (final InvertedIndex.LeafPage page : emission.changedPages()) {
+				sink.addChangeToStore(
+					new FilterIndexLeafPagePart(entityIndexPrimaryKey, streamKey, page.pageSequence(), page.buckets())
+				);
+			}
+			// remove the leaf pages a merge dropped this commit so they don't leak (the OffsetIndex never reclaims an
+			// unreferenced-but-never-removed record — page ids are advance-only and never re-keyed)
+			for (final int freedPageSequence : emission.freedPageSequences()) {
+				sink.addChangeToStore(new FilterIndexLeafPageRemoval(entityIndexPrimaryKey, streamKey, freedPageSequence));
+			}
+			return new BucketAxis(
+				EMPTY_HISTOGRAM_POINTS, true, emission.highWaterPageSequence(), emission.orderedPageSequences(),
+				emission.pageListChanged()
+			);
+		}
+		// SINGLE shape: the index collapsed back to a single leaf. Remove every leaf page from its prior PAGED life
+		// (the SINGLE root no longer references them) BEFORE dropping the page bookkeeping, then forget the stream so a
+		// later regrow into PAGED starts from a clean baseline and re-emits every leaf.
+		for (final int freedPageSequence : this.invertedIndex.livePageSequences()) {
+			sink.addChangeToStore(new FilterIndexLeafPageRemoval(entityIndexPrimaryKey, streamKey, freedPageSequence));
+		}
+		this.invertedIndex.forgetPageStream();
+		// SINGLE: the inline histogram rides the root and can change every commit, so force the root re-emit
+		// (listChanged=true)
+		return new BucketAxis(
+			this.invertedIndex.getValueToRecordBitmap(), false, -1, ArrayUtils.EMPTY_INT_ARRAY, true
+		);
 	}
 
-	/*
-		PRIVATE METHODS
+	/**
+	 * Emits the RANGE axis of this commit into `sink` and returns how it maps onto the {@link FilterIndexStoragePart}
+	 * root, mirroring {@link #appendBucketAxis}. A `PAGED` range emits one {@link RangeIndexLeafPagePart} per CHANGED
+	 * leaf plus a {@link RangeIndexLeafPageRemoval} per freed leaf and carries a `null` inline range; a `SINGLE` range
+	 * (or none at all) carries the whole {@link RangeIndex} inline and, if it just collapsed from `PAGED`, removes its
+	 * prior leaf pages and forgets the range stream.
+	 *
+	 * @param entityIndexPrimaryKey the owning entity index pk
+	 * @param streamKey             the sub-index identity carried by each leaf page (resolves its store-side stream id)
+	 * @param sink                  the trapped-changes accumulator for this commit
+	 * @return the range-axis descriptor to fold into the root part
 	 */
+	@Nonnull
+	private RangeAxis appendRangeAxis(
+		int entityIndexPrimaryKey, @Nonnull AttributeKeyWithIndexType streamKey, @Nonnull TrappedChanges sink
+	) {
+		if (this.rangeIndex != null && this.rangeIndex.isPaged()) {
+			final PageEmission<RangeIndex.RangePage> emission = this.rangeIndex.collectChangedPages();
+			for (final RangeIndex.RangePage page : emission.changedPages()) {
+				sink.addChangeToStore(
+					new RangeIndexLeafPagePart(entityIndexPrimaryKey, streamKey, page.pageSequence(), page.points())
+				);
+			}
+			for (final int freedPageSequence : emission.freedPageSequences()) {
+				sink.addChangeToStore(new RangeIndexLeafPageRemoval(entityIndexPrimaryKey, streamKey, freedPageSequence));
+			}
+			return new RangeAxis(
+				null, true, emission.highWaterPageSequence(), emission.orderedPageSequences(),
+				emission.pageListChanged()
+			);
+		}
+		if (this.rangeIndex != null) {
+			// SINGLE range that may have just collapsed from PAGED: remove every prior leaf page (the inline root no
+			// longer references them) BEFORE dropping the bookkeeping, then forget the stream so a later regrow starts
+			// from a clean baseline and re-emits every leaf
+			for (final int freedPageSequence : this.rangeIndex.livePageSequences()) {
+				sink.addChangeToStore(new RangeIndexLeafPageRemoval(entityIndexPrimaryKey, streamKey, freedPageSequence));
+			}
+			this.rangeIndex.forgetPageStream();
+		}
+		// non-paged range: either absent (`null`) or carried inline; the skip test keys off `inlineRangeIndex == null`,
+		// so `listChanged` is irrelevant here — pass `true` to avoid implying the (unwritten) page-list is stable
+		return new RangeAxis(this.rangeIndex, false, -1, ArrayUtils.EMPTY_INT_ARRAY, true);
+	}
+
+	/**
+	 * The bucket-axis outcome of one commit: how the value bucket tree maps onto the {@link FilterIndexStoragePart}
+	 * root. When `paged`, `histogramPoints` is empty and the buckets live in {@link FilterIndexLeafPagePart} leaf pages;
+	 * when `SINGLE`, `histogramPoints` carries every bucket inline and the page metadata is the empty / `-1` sentinel.
+	 *
+	 * @param histogramPoints  inline buckets for a `SINGLE` part; empty for a `PAGED` part
+	 * @param paged            true when the bucket tree is persisted as leaf pages
+	 * @param highWaterPageSequence the bucket stream high-water for a `PAGED` part; `-1` otherwise
+	 * @param leafPageSequences     the ordered live leaf-page sequences for a `PAGED` part; empty otherwise
+	 * @param listChanged      for a `PAGED` part, whether the live leaf-page list changed this commit (a leaf was
+	 *                         allocated or freed); meaningless (and forced `true`) for a `SINGLE` part whose inline
+	 *                         histogram always rides the root
+	 */
+	private record BucketAxis(
+		@Nonnull ValueToRecordBitmap[] histogramPoints,
+		boolean paged,
+		int highWaterPageSequence,
+		@Nonnull int[] leafPageSequences,
+		boolean listChanged
+	) {
+	}
+
+	/**
+	 * The range-axis outcome of one commit, mirroring {@link BucketAxis} for the optional range companion. When
+	 * `rangePaged`, `inlineRangeIndex` is `null` and the range points live in {@link RangeIndexLeafPagePart} leaf pages;
+	 * otherwise the whole {@link RangeIndex} is carried inline (or `null` when the attribute has no range companion).
+	 *
+	 * @param inlineRangeIndex      the inline range for a non-paged part; `null` when paged or absent
+	 * @param rangePaged            true when the range tree is persisted as leaf pages
+	 * @param rangeHighWaterPageSequence the range stream high-water for a `PAGED` range; `-1` otherwise
+	 * @param rangeLeafPageSequences     the ordered live range leaf-page sequences for a `PAGED` range; empty otherwise
+	 * @param listChanged           for a `PAGED` range, whether the live leaf-page list changed this commit (a leaf was
+	 *                              allocated or freed); meaningless for a non-paged range (the skip test uses the
+	 *                              `null`-inline check instead)
+	 */
+	private record RangeAxis(
+		@Nullable RangeIndex inlineRangeIndex,
+		boolean rangePaged,
+		int rangeHighWaterPageSequence,
+		@Nonnull int[] rangeLeafPageSequences,
+		boolean listChanged
+	) {
+	}
+
+	/**
+	 * Marks the index as dirty after a mutation. Owners flip their own transactional dirty flag; views are no-ops
+	 * (the shared tree they wrap tracks its own dirtiness — a view never participates in a commit, so engaging a
+	 * private dirty flag would leak an undischarged transactional layer).
+	 */
+	protected abstract void markDirty();
+
+	/**
+	 * Returns the normalizer applied to values before they enter the inverted index. Exposed so subclasses can wire
+	 * the merged-transactional copy without re-deriving it.
+	 */
+	@Nonnull
+	protected Function<Object, Serializable> getNormalizer() {
+		return this.normalizer;
+	}
+
+	/**
+	 * Returns the comparator used to order values inside the inverted index. Exposed so subclasses can wire the
+	 * merged-transactional copy without re-deriving it.
+	 */
+	@Nonnull
+	protected Comparator<? extends Comparable> getComparator() {
+		return this.comparator;
+	}
 
 	/**
 	 * Adds the given ranges to the range index for the specified record ID.
@@ -1061,9 +1325,12 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	 * @param ranges   The ranges to add.
 	 */
 	private void addRange(int recordId, @Nonnull Range[] ranges) {
-		final Range[] consolidatedRangesToAdd = Range.consolidateRange(ranges);
+		// canonicalize every range to the index scale before consolidation so consolidation, the range-index
+		// thresholds and the schema-scale probe all agree (no-op for non-`BigDecimal` ranges)
+		final Range[] consolidatedRangesToAdd = Range.consolidateRange(normalizeRanges(ranges));
 		for (Range consolidatedRange : consolidatedRangesToAdd) {
-			Objects.requireNonNull(this.rangeIndex).addRecord(consolidatedRange.getFrom(), consolidatedRange.getTo(), recordId);
+			Objects.requireNonNull(this.rangeIndex).addRecord(
+				consolidatedRange.getFrom(), consolidatedRange.getTo(), recordId);
 		}
 	}
 
@@ -1074,15 +1341,64 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	 * @param ranges   An array of ranges to be removed.
 	 */
 	private void removeRange(int recordId, @Nonnull Range[] ranges) {
-		final Range[] consolidatedRangesToRemove = Range.consolidateRange(ranges);
+		// canonicalize every range to the index scale before consolidation so the thresholds being removed
+		// match those `addRange` inserted at the schema scale (no-op for non-`BigDecimal` ranges)
+		final Range[] consolidatedRangesToRemove = Range.consolidateRange(normalizeRanges(ranges));
 		for (Range consolidatedRange : consolidatedRangesToRemove) {
-			Objects.requireNonNull(this.rangeIndex).removeRecord(consolidatedRange.getFrom(), consolidatedRange.getTo(), recordId);
+			Objects.requireNonNull(this.rangeIndex).removeRecord(
+				consolidatedRange.getFrom(), consolidatedRange.getTo(), recordId);
 		}
 	}
 
+	/**
+	 * Canonicalizes each element of the supplied range array via {@link #normalizer} so its `getFrom()` /
+	 * `getTo()` thresholds are computed at the index scale rather than at the value's intrinsic scale. For
+	 * `BigDecimalNumberRange` attributes this rescales the range to the schema's `indexedDecimalPlaces`
+	 * (matching the form the probe is coerced to and the form the {@link #invertedIndex} already stores);
+	 * for every other range type the normalizer is the identity {@link #NO_NORMALIZATION}, so the array is
+	 * returned with its elements unchanged.
+	 *
+	 * A fresh array is always returned — the caller may freely consolidate / merge it without mutating the
+	 * source array (the inverted-index path still reads the original values).
+	 *
+	 * @param ranges the raw ranges to canonicalize
+	 * @return a new array holding the canonicalized ranges
+	 */
+	@Nonnull
+	private Range[] normalizeRanges(@Nonnull Range[] ranges) {
+		final Range[] normalized = new Range[ranges.length];
+		for (int i = 0; i < ranges.length; i++) {
+			normalized[i] = (Range) this.normalizer.apply(ranges[i]);
+		}
+		return normalized;
+	}
+
+	/**
+	 * Drops a single value→record association from the backing {@link #invertedIndex}. This is the shared
+	 * removal primitive behind both {@link #removeRecord(int, Object)} (whole value) and
+	 * {@link #removeRecordDelta(int, Object[])} (partial array contents), invoked once per scalar value item.
+	 *
+	 * Before touching the tree it asserts the record really is registered for this value's bucket: the value is
+	 * run through {@link #normalizer} (so the lookup key matches the canonical form the bucket was stored under,
+	 * e.g. NFD-folded strings) and {@link InvertedIndex#getRecordsEqualTo} must contain `recordId`. The actual
+	 * {@link InvertedIndex#removeRecord} call then uses the RAW (un-normalized) value, because the tree applies
+	 * its own comparator-driven normalization during removal — normalizing here as well would double-fold the key
+	 * and miss the bucket. The normalizer's output therefore feeds the sanity check only, never the write.
+	 *
+	 * @param recordId the record id to detach from the value's bucket
+	 * @param value    the raw attribute value whose association is removed
+	 * @param <T>      the attribute value type
+	 * @throws EvitaInvalidUsageException when the record is not registered for the (normalized) value — signals a
+	 *                                    mismatch between the mutation being applied and the index state
+	 */
 	private <T extends Serializable> void removeRecordFromHistogramAndValueIndex(int recordId, @Nonnull T value) {
-		final int removalIndex = this.invertedIndex.removeRecord(value, recordId);
-		isTrue(removalIndex >= 0, "Sanity check - record not found!");
+		// sanity check first - the record must currently be assigned to this value's bucket
+		final Serializable normalizedValue = this.normalizer.apply(value);
+		isTrue(
+			this.invertedIndex.getRecordsEqualTo(normalizedValue).contains(recordId),
+			"Sanity check - record not found!"
+		);
+		this.invertedIndex.removeRecord(value, recordId);
 	}
 
 }

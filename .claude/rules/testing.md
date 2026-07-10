@@ -15,6 +15,7 @@ paths:
 - **Coverage**: Automatically generate test cases for all public methods
 - When creating new test consider implementing helper interface `io.evitadb.test.EvitaTestSupport` that provides utility methods for working with folders, ports, certificates and similar helpful things
 - When creating tests consolidate similar tests in nested classes using `@Nested` annotation
+- **No Java `ObjectOutputStream`/`ObjectInputStream` round-trip tests.** Many core classes (e.g. `Bitmap` implementations, index data structures) implement `java.io.Serializable` and declare a `serialVersionUID`, but they are **never** persisted via the Java object-serialization stream — persistence goes through **Kryo** serializers (`evita_store`). Testing `Serializable` round-tripping asserts a contract the system does not rely on. Test the actual persistence path (Kryo) instead, where one exists.
 
 ## Tag taxonomy
 

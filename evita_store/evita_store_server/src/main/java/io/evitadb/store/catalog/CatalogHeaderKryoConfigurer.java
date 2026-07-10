@@ -30,7 +30,12 @@ import io.evitadb.index.price.model.PriceIndexKey;
 import io.evitadb.spi.store.catalog.header.model.CatalogHeader;
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.AttributesStoragePart.AttributesSetKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeKeyWithIndexType;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.GlobalUniqueLeafStreamKey;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.HistogramLeafStreamKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.HistogramIndexKey;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.LeafStreamKey;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.PriceLeafStreamKey;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.ReferenceTypeCardinalityLeafStreamKey;
 import io.evitadb.store.catalog.serializer.CatalogHeaderSerializer;
 import io.evitadb.store.catalog.serializer.CatalogHeaderSerializer_2024_05;
 import io.evitadb.store.catalog.serializer.CatalogHeaderSerializer_2024_08;
@@ -43,8 +48,13 @@ import io.evitadb.store.entity.serializer.EnumNameSerializer;
 import io.evitadb.store.entity.serializer.SerialVersionBasedSerializer;
 import io.evitadb.store.index.serializer.AttributeKeyWithIndexTypeSerializer;
 import io.evitadb.store.index.serializer.AttributeKeyWithIndexTypeSerializer_2025_5;
+import io.evitadb.store.index.serializer.GlobalUniqueLeafStreamKeySerializer;
 import io.evitadb.store.index.serializer.HistogramIndexKeySerializer;
+import io.evitadb.store.index.serializer.HistogramLeafStreamKeySerializer;
+import io.evitadb.store.index.serializer.LeafStreamKeySerializer;
 import io.evitadb.store.index.serializer.PriceIndexKeySerializer;
+import io.evitadb.store.index.serializer.PriceLeafStreamKeySerializer;
+import io.evitadb.store.index.serializer.ReferenceTypeCardinalityLeafStreamKeySerializer;
 import io.evitadb.store.model.header.EntityCollectionFileHeader;
 import io.evitadb.store.schema.serializer.CatalogSchemaSerializer;
 import io.evitadb.utils.Assert;
@@ -94,6 +104,42 @@ public class CatalogHeaderKryoConfigurer implements Consumer<Kryo> {
 		kryo.register(
 			HistogramIndexKey.class,
 			new SerialVersionBasedSerializer<>(new HistogramIndexKeySerializer(), HistogramIndexKey.class),
+			index++
+		);
+		// the granular FilterIndex page-stream identity key — a brand-new key type with no backward-compatible
+		// reader. Appended last to keep the preceding registration ids stable.
+		kryo.register(
+			LeafStreamKey.class,
+			new SerialVersionBasedSerializer<>(new LeafStreamKeySerializer(), LeafStreamKey.class),
+			index++
+		);
+		// the granular super-price-index page-stream identity key — a brand-new key type with no backward-compatible
+		// reader. Appended last to keep the preceding registration ids stable.
+		kryo.register(
+			PriceLeafStreamKey.class,
+			new SerialVersionBasedSerializer<>(new PriceLeafStreamKeySerializer(), PriceLeafStreamKey.class),
+			index++
+		);
+		// the granular global-unique-index page-stream identity key — a brand-new key type with no backward-compatible
+		// reader. Appended last to keep the preceding registration ids stable.
+		kryo.register(
+			GlobalUniqueLeafStreamKey.class,
+			new SerialVersionBasedSerializer<>(new GlobalUniqueLeafStreamKeySerializer(), GlobalUniqueLeafStreamKey.class),
+			index++
+		);
+		// the granular reference-type-cardinality-index page-stream identity key — a brand-new key type with no
+		// backward-compatible reader. Appended last to keep the preceding registration ids stable.
+		kryo.register(
+			ReferenceTypeCardinalityLeafStreamKey.class,
+			new SerialVersionBasedSerializer<>(new ReferenceTypeCardinalityLeafStreamKeySerializer(), ReferenceTypeCardinalityLeafStreamKey.class),
+			index++
+		);
+
+		// the granular histogram page-stream identity key — a brand-new key type with no backward-compatible reader.
+		// Appended last to keep the preceding registration ids stable.
+		kryo.register(
+			HistogramLeafStreamKey.class,
+			new SerialVersionBasedSerializer<>(new HistogramLeafStreamKeySerializer(), HistogramLeafStreamKey.class),
 			index++
 		);
 

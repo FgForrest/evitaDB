@@ -27,6 +27,7 @@ import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.QueryUtils;
 import io.evitadb.api.query.filter.EntityScope;
 import io.evitadb.api.query.filter.FilterBy;
+import io.evitadb.api.query.filter.GroupHaving;
 import io.evitadb.api.query.filter.SeparateEntityScopeContainer;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -58,7 +59,7 @@ import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.utils.NumberUtils;
-import org.roaringbitmap.RoaringBitmap;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -244,7 +245,7 @@ class HavingTranslatorHelper {
 
 	/**
 	 * Translates a having constraint (either {@link io.evitadb.api.query.filter.EntityHaving} or
-	 * {@link io.evitadb.api.query.filter.GroupHaving}) into a formula that computes owner entity
+	 * {@link GroupHaving}) into a formula that computes owner entity
 	 * primary keys matching the constraint.
 	 *
 	 * @param filterConstraint          the child filter constraint from the having container
@@ -344,11 +345,11 @@ class HavingTranslatorHelper {
 										nestedResult.globalIndex(),
 										nestedResult.filter(),
 										it -> {
-											final RoaringBitmap combinedResult = RoaringBitmap.or(
+											final PersistentRoaringBitmap combinedResult = PersistentRoaringBitmap.or(
 												reducedIndexLookup.lookup(entitySchema, referenceSchema, it)
 													.map(EntityIndex::getAllPrimaryKeys)
 													.map(RoaringBitmapBackedBitmap::getRoaringBitmap)
-													.toArray(RoaringBitmap[]::new)
+													.toArray(PersistentRoaringBitmap[]::new)
 											);
 											return combinedResult.isEmpty() ?
 												EmptyBitmap.INSTANCE : new BaseBitmap(combinedResult);
@@ -374,7 +375,7 @@ class HavingTranslatorHelper {
 							2L,
 							// we need to add exact pointers to the entity schema and reference schema,
 							// which play role in the lambda evaluation
-							NumberUtils.join(
+							NumberUtils.pack(
 								System.identityHashCode(entitySchema),
 								System.identityHashCode(referenceSchema)
 							),

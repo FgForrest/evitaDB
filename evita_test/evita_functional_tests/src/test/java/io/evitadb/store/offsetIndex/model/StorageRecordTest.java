@@ -39,6 +39,7 @@ import io.evitadb.store.kryo.ObservableInput;
 import io.evitadb.store.kryo.ObservableOutput;
 import io.evitadb.store.offsetIndex.exception.CorruptedRecordException;
 import io.evitadb.store.offsetIndex.model.StorageRecord.RawRecord;
+import io.evitadb.store.offsetIndex.model.StorageRecord.RawRecordCursor;
 import io.evitadb.store.offsetIndex.model.StorageRecord.StorageRecordWithChecksum;
 import io.evitadb.store.shared.model.FileLocation;
 import io.evitadb.stream.RandomAccessFileInputStream;
@@ -51,7 +52,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
-import org.roaringbitmap.longlong.Roaring64Bitmap;
+import io.evitadb.roaringbitmap.PersistentLongRoaringBitmap;
 
 import javax.annotation.Nonnull;
 import java.io.File;
@@ -234,7 +235,7 @@ class StorageRecordTest {
 		this.kryo = new Kryo();
 		this.kryo.register(ByteChunk.class, new ByteChunkSerializer());
 		this.kryo.register(LongSetChunk.class, new LongSetChunkSerializer());
-		this.kryo.register(Roaring64Bitmap.class, new Roaring64BitmapSerializer());
+		this.kryo.register(PersistentLongRoaringBitmap.class, new Roaring64BitmapSerializer());
 	}
 
 	@AfterEach
@@ -551,18 +552,18 @@ class StorageRecordTest {
 			}
 		}
 
-		@DisplayName("Should persist and read Roaring64Bitmap over multiple records")
+		@DisplayName("Should persist and read PersistentLongRoaringBitmap over multiple records")
 		@ParameterizedTest
 		@MethodSource("io.evitadb.store.offsetIndex.model.StorageRecordTest#combineSettings")
 		void shouldWriteAndReadLongBitmapOverMultipleRecords(
 			ChecksumCheck crc32Check, Compression compression) throws IOException {
 			final int cardinality = 4065427;
-			final Roaring64Bitmap bitmap = new Roaring64Bitmap();
+			final PersistentLongRoaringBitmap bitmap = new PersistentLongRoaringBitmap();
 			for (int i = 0; i < cardinality; i++) {
 				bitmap.add(i);
 			}
 
-			final StorageRecord<Roaring64Bitmap> record;
+			final StorageRecord<PersistentLongRoaringBitmap> record;
 			try (
 				final ObservableOutput<?> output =
 					createOutputWithFlush(new FileOutputStream(StorageRecordTest.this.tempFile), 512, 1024, 0, crc32Check, compression)
@@ -574,9 +575,9 @@ class StorageRecordTest {
 				final ObservableInput<?> input =
 					createInput(new FileInputStream(StorageRecordTest.this.tempFile), 8_192, crc32Check, compression)
 			) {
-				final StorageRecord<Roaring64Bitmap> loadedRecord = StorageRecord.read(
+				final StorageRecord<PersistentLongRoaringBitmap> loadedRecord = StorageRecord.read(
 					StorageRecordTest.this.kryo, input,
-					fl -> Roaring64Bitmap.class
+					fl -> PersistentLongRoaringBitmap.class
 				);
 				assertEquals(record.fileLocation(), loadedRecord.fileLocation());
 				assertEquals(record, loadedRecord);
@@ -593,9 +594,9 @@ class StorageRecordTest {
 					8_192, crc32Check, compression
 				)
 			) {
-				final StorageRecord<Roaring64Bitmap> loadedRecord = StorageRecord.read(
+				final StorageRecord<PersistentLongRoaringBitmap> loadedRecord = StorageRecord.read(
 					input, record.fileLocation(),
-					(stream, length, control) -> StorageRecordTest.this.kryo.readObject(stream, Roaring64Bitmap.class)
+					(stream, length, control) -> StorageRecordTest.this.kryo.readObject(stream, PersistentLongRoaringBitmap.class)
 				);
 				assertEquals(record.fileLocation(), loadedRecord.fileLocation());
 				assertEquals(record, loadedRecord);
@@ -775,12 +776,12 @@ class StorageRecordTest {
 			assumeTrue(crc32Check == ChecksumCheck.YES, "Cumulative checksum requires checksum to be enabled");
 
 			final int cardinality = 4065427;
-			final Roaring64Bitmap bitmap = new Roaring64Bitmap();
+			final PersistentLongRoaringBitmap bitmap = new PersistentLongRoaringBitmap();
 			for (int i = 0; i < cardinality; i++) {
 				bitmap.add(i);
 			}
 
-			final StorageRecord<Roaring64Bitmap> record;
+			final StorageRecord<PersistentLongRoaringBitmap> record;
 			// use small flush/buffer sizes to force record to span multiple physical records
 			try (final ObservableOutput<?> output = createOutputWithFlush(
 				new FileOutputStream(StorageRecordTest.this.tempFile), 512, 1024, 0, crc32Check, compression)) {
@@ -793,9 +794,9 @@ class StorageRecordTest {
 
 			try (final ObservableInput<?> input = createInput(
 				new FileInputStream(StorageRecordTest.this.tempFile), 8_192, crc32Check, compression)) {
-				final StorageRecordWithChecksum<Roaring64Bitmap> result = StorageRecord.readWithChecksum(
+				final StorageRecordWithChecksum<PersistentLongRoaringBitmap> result = StorageRecord.readWithChecksum(
 					input,
-					(stream, length) -> StorageRecordTest.this.kryo.readObject(stream, Roaring64Bitmap.class)
+					(stream, length) -> StorageRecordTest.this.kryo.readObject(stream, PersistentLongRoaringBitmap.class)
 				);
 				assertEquals(record.fileLocation(), result.record().fileLocation());
 				assertEquals(record, result.record());
@@ -1158,6 +1159,180 @@ class StorageRecordTest {
 			}
 		}
 
+		@DisplayName("Should populate cursor and scratch buffer matching readRaw")
+		@Test
+		void shouldReadRawIntoCursorAndScratchBuffer() throws IOException {
+			try (final ObservableOutput<?> output = createOutput(
+				new FileOutputStream(StorageRecordTest.this.tempFile), 16_384, 0, ChecksumCheck.YES, Compression.NO)) {
+				//noinspection ResultOfObjectAllocationIgnored
+				new StorageRecord<>(StorageRecordTest.this.kryo, output, 1L, false, generateBytes(256));
+			}
+
+			// reference values obtained via the allocating readRaw sibling
+			final RawRecord expected;
+			try (final ObservableInput<?> input = createInput(
+				new FileInputStream(StorageRecordTest.this.tempFile), 8_192, ChecksumCheck.YES, Compression.NO)) {
+				expected = StorageRecord.readRaw(input);
+			}
+
+			// the allocation-free readRawInto must reproduce the same control byte, payload length and payload bytes
+			final byte[] scratch = new byte[16_384];
+			final RawRecordCursor cursor = new RawRecordCursor();
+			try (final ObservableInput<?> input = createInput(
+				new FileInputStream(StorageRecordTest.this.tempFile), 8_192, ChecksumCheck.YES, Compression.NO)) {
+				StorageRecord.readRawInto(input, scratch, cursor);
+			}
+
+			assertEquals(expected.control(), cursor.control(), "Cursor control byte must match the written record");
+			assertEquals(
+				expected.rawData().length, cursor.payloadLength(),
+				"Cursor payload length must match the written record"
+			);
+			assertArrayEquals(
+				expected.rawData(), Arrays.copyOf(scratch, cursor.payloadLength()),
+				"Scratch buffer must hold the same payload bytes as readRaw"
+			);
+		}
+
+		@DisplayName("Should reuse a single cursor across records without leaking stale state")
+		@Test
+		void shouldReuseCursorAcrossRecordsWithoutStaleState() throws IOException {
+			// first record: longer payload, generation kept open (no generation-closing bit)
+			// second record: shorter payload, generation closing (different control byte) - reading it into the same
+			// cursor and scratch must not leave any of the first record's longer tail observable
+			try (final ObservableOutput<?> output = createOutput(
+				new FileOutputStream(StorageRecordTest.this.tempFile), 16_384, 0, ChecksumCheck.YES, Compression.NO)) {
+				//noinspection ResultOfObjectAllocationIgnored
+				new StorageRecord<>(StorageRecordTest.this.kryo, output, 1L, false, generateBytes(400));
+				//noinspection ResultOfObjectAllocationIgnored
+				new StorageRecord<>(StorageRecordTest.this.kryo, output, 1L, true, generateBytes(80));
+			}
+
+			// reference values for both records via readRaw
+			final RawRecord expectedFirst;
+			final RawRecord expectedSecond;
+			try (final ObservableInput<?> input = createInput(
+				new FileInputStream(StorageRecordTest.this.tempFile), 8_192, ChecksumCheck.YES, Compression.NO)) {
+				expectedFirst = StorageRecord.readRaw(input);
+				expectedSecond = StorageRecord.readRaw(input);
+			}
+			// guard the test premise: the second record really is shorter and carries a different control byte
+			assertTrue(
+				expectedSecond.rawData().length < expectedFirst.rawData().length,
+				"Second record must be shorter so a stale tail would be detectable"
+			);
+			assertNotEquals(
+				expectedFirst.control(), expectedSecond.control(),
+				"Records must differ in their control byte"
+			);
+
+			final byte[] scratch = new byte[16_384];
+			final RawRecordCursor cursor = new RawRecordCursor();
+			try (final ObservableInput<?> input = createInput(
+				new FileInputStream(StorageRecordTest.this.tempFile), 8_192, ChecksumCheck.YES, Compression.NO)) {
+				// read the first (longer) record into the shared cursor and scratch
+				StorageRecord.readRawInto(input, scratch, cursor);
+				assertEquals(expectedFirst.control(), cursor.control());
+				assertEquals(expectedFirst.rawData().length, cursor.payloadLength());
+
+				// reuse the very same cursor and scratch for the second (shorter) record
+				StorageRecord.readRawInto(input, scratch, cursor);
+			}
+
+			// after the second read the cursor must reflect the second record exactly - no bleed from the first
+			assertEquals(expectedSecond.control(), cursor.control(), "Cursor must reflect the second record's control byte");
+			assertEquals(
+				expectedSecond.rawData().length, cursor.payloadLength(),
+				"Cursor must reflect the second (shorter) record's payload length"
+			);
+			// reads bounded by the cursor's payload length must observe only the second record's bytes
+			assertArrayEquals(
+				expectedSecond.rawData(), Arrays.copyOf(scratch, cursor.payloadLength()),
+				"Bytes within the cursor payload length must belong to the second record, not the first record's tail"
+			);
+		}
+
+		@DisplayName("Should round-trip a raw record through the cursor read path")
+		@Test
+		void shouldRoundTripViaReadRawIntoThenWriteRaw() throws IOException {
+			final StorageRecord<ByteChunk> originalRecord;
+			try (final ObservableOutput<?> output = createOutput(
+				new FileOutputStream(StorageRecordTest.this.tempFile), 16_384, 0, ChecksumCheck.YES, Compression.NO)) {
+				originalRecord = new StorageRecord<>(StorageRecordTest.this.kryo, output, 1L, false, generateBytes(256));
+			}
+
+			// read the record into a reusable cursor and scratch buffer
+			final byte[] scratch = new byte[16_384];
+			final RawRecordCursor cursor = new RawRecordCursor();
+			try (final ObservableInput<?> input = createInput(
+				new FileInputStream(StorageRecordTest.this.tempFile), 8_192, ChecksumCheck.YES, Compression.NO)) {
+				StorageRecord.readRawInto(input, scratch, cursor);
+			}
+
+			// write it back out from the cursor + scratch and verify the produced file is byte-identical
+			final File tempFile2 = Path.of(System.getProperty("java.io.tmpdir")).resolve("evita_test_file2.tmp").toFile();
+			try {
+				try (final ObservableOutput<?> output = createOutput(
+					new FileOutputStream(tempFile2), 16_384, 0, ChecksumCheck.YES, Compression.NO)) {
+					StorageRecord.writeRaw(
+						output, cursor.control(), originalRecord.generationId(), scratch, 0, cursor.payloadLength());
+				}
+
+				final byte[] originalBytes = Files.readAllBytes(StorageRecordTest.this.tempFile.toPath());
+				final byte[] copiedBytes = Files.readAllBytes(tempFile2.toPath());
+				assertArrayEquals(
+					originalBytes, copiedBytes, "Cursor-based raw round-trip should produce identical file");
+			} finally {
+				tempFile2.delete();
+			}
+		}
+
+		@DisplayName("Should leave cursor untouched when a record read fails mid-way")
+		@Test
+		void shouldLeaveCursorUntouchedWhenRecordReadFails() throws IOException {
+			// write a valid leading record followed by a second record whose checksum we corrupt below
+			try (final ObservableOutput<?> output = createOutput(
+				new FileOutputStream(StorageRecordTest.this.tempFile), 16_384, 0, ChecksumCheck.YES, Compression.NO)) {
+				//noinspection ResultOfObjectAllocationIgnored
+				new StorageRecord<>(StorageRecordTest.this.kryo, output, 1L, false, generateBytes(256));
+				//noinspection ResultOfObjectAllocationIgnored
+				new StorageRecord<>(StorageRecordTest.this.kryo, output, 1L, true, generateBytes(120));
+			}
+
+			// corrupt the CRC32 of the trailing record (last bytes of the file)
+			final byte[] fileBytes = Files.readAllBytes(StorageRecordTest.this.tempFile.toPath());
+			fileBytes[fileBytes.length - 1] ^= (byte) 0xFF;
+			fileBytes[fileBytes.length - 2] ^= (byte) 0xFF;
+			Files.write(StorageRecordTest.this.tempFile.toPath(), fileBytes);
+
+			final byte[] scratch = new byte[16_384];
+			final RawRecordCursor cursor = new RawRecordCursor();
+			try (final ObservableInput<?> input = createInput(
+				new FileInputStream(StorageRecordTest.this.tempFile), 8_192, ChecksumCheck.YES, Compression.NO)) {
+				// the first record reads cleanly and publishes its scalars into the cursor
+				StorageRecord.readRawInto(input, scratch, cursor);
+				final byte controlAfterFirst = cursor.control();
+				final int payloadLengthAfterFirst = cursor.payloadLength();
+
+				// the corrupted second record must fail before publishing anything into the cursor
+				assertThrows(
+					CorruptedRecordException.class,
+					() -> StorageRecord.readRawInto(input, scratch, cursor),
+					"Corrupted record should fail the read"
+				);
+
+				// the cursor must still carry the previous (successfully read) record's scalars
+				assertEquals(
+					controlAfterFirst, cursor.control(),
+					"Cursor control byte must be untouched after a failed read"
+				);
+				assertEquals(
+					payloadLengthAfterFirst, cursor.payloadLength(),
+					"Cursor payload length must be untouched after a failed read"
+				);
+			}
+		}
+
 	}
 
 	/**
@@ -1279,10 +1454,10 @@ class StorageRecordTest {
 
 	}
 
-	private static class Roaring64BitmapSerializer extends Serializer<Roaring64Bitmap> {
+	private static class Roaring64BitmapSerializer extends Serializer<PersistentLongRoaringBitmap> {
 
 		@Override
-		public void write(Kryo kryo, Output output, Roaring64Bitmap object) {
+		public void write(Kryo kryo, Output output, PersistentLongRoaringBitmap object) {
 			try {
 				object.serialize(new KryoDataOutput(output));
 			} catch (IOException e) {
@@ -1291,8 +1466,8 @@ class StorageRecordTest {
 		}
 
 		@Override
-		public Roaring64Bitmap read(Kryo kryo, Input input, Class<? extends Roaring64Bitmap> type) {
-			final Roaring64Bitmap bitmap = new Roaring64Bitmap();
+		public PersistentLongRoaringBitmap read(Kryo kryo, Input input, Class<? extends PersistentLongRoaringBitmap> type) {
+			final PersistentLongRoaringBitmap bitmap = new PersistentLongRoaringBitmap();
 			try {
 				bitmap.deserialize(new KryoDataInput(input));
 			} catch (IOException e) {

@@ -114,4 +114,5 @@ mcp-jdwp-inspector.log
 ### Agent plans and reproduction notes (never committed)
 
 /.repro/
+/docs/
 /.claude/scheduled_tasks.lock

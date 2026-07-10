@@ -338,9 +338,10 @@ public abstract class AbstractReducedEntityIndex extends EntityIndex
 		@Nonnull Set<Locale> allowedLocales,
 		@Nullable Locale locale,
 		@Nonnull Serializable value,
-		int recordId
+		int recordId,
+		boolean foldedUnique
 	) {
-		super.insertFilterAttribute(referenceSchema, attributeSchema, allowedLocales, locale, value, recordId);
+		super.insertFilterAttribute(referenceSchema, attributeSchema, allowedLocales, locale, value, recordId, foldedUnique);
 	}
 
 	/**
@@ -368,9 +369,10 @@ public abstract class AbstractReducedEntityIndex extends EntityIndex
 		@Nonnull Set<Locale> allowedLocales,
 		@Nullable Locale locale,
 		@Nonnull Serializable[] value,
-		int recordId
+		int recordId,
+		boolean foldedUnique
 	) {
-		super.addDeltaFilterAttribute(referenceSchema, attributeSchema, allowedLocales, locale, value, recordId);
+		super.addDeltaFilterAttribute(referenceSchema, attributeSchema, allowedLocales, locale, value, recordId, foldedUnique);
 	}
 
 	/**
@@ -457,7 +459,7 @@ public abstract class AbstractReducedEntityIndex extends EntityIndex
 	 * Delegates to {@link EntityIndex#insertUniqueAttribute} bypassing any overrides in this class hierarchy.
 	 * Used by subtypes that need direct access to the base implementation.
 	 */
-	protected void delegateInsertUniqueAttribute(
+	protected io.evitadb.index.attribute.AttributeIndex.UniquenessEnforcement delegateInsertUniqueAttribute(
 		@Nullable ReferenceSchemaContract referenceSchema,
 		@Nonnull AttributeSchemaContract attributeSchema,
 		@Nonnull Set<Locale> allowedLocales,
@@ -466,7 +468,7 @@ public abstract class AbstractReducedEntityIndex extends EntityIndex
 		@Nonnull Serializable value,
 		int recordId
 	) {
-		super.insertUniqueAttribute(referenceSchema, attributeSchema, allowedLocales, scope, locale, value, recordId);
+		return super.insertUniqueAttribute(referenceSchema, attributeSchema, allowedLocales, scope, locale, value, recordId);
 	}
 
 	/**

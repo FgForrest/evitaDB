@@ -38,40 +38,24 @@ import io.evitadb.dataType.Predecessor;
 import io.evitadb.dataType.ReferencedEntityPredecessor;
 import io.evitadb.test.Entities;
 import io.evitadb.test.EvitaTestSupport;
-import io.evitadb.test.EvitaTestSupport.TestPaths;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import java.math.BigDecimal;
 import java.util.Currency;
 import java.util.Locale;
-import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.Query.query;
-import static io.evitadb.api.query.QueryConstraints.attributeContent;
-import static io.evitadb.api.query.QueryConstraints.attributeContentAll;
-import static io.evitadb.api.query.QueryConstraints.attributeEquals;
-import static io.evitadb.api.query.QueryConstraints.collection;
-import static io.evitadb.api.query.QueryConstraints.dataInLocalesAll;
-import static io.evitadb.api.query.QueryConstraints.entityLocaleEquals;
-import static io.evitadb.api.query.QueryConstraints.filterBy;
-import static io.evitadb.api.query.QueryConstraints.referenceContentAll;
-import static io.evitadb.api.query.QueryConstraints.referenceContentAllWithAttributes;
-import static io.evitadb.api.query.QueryConstraints.entityFetchAll;
-import static io.evitadb.api.query.QueryConstraints.require;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.junit.jupiter.api.Assertions.fail;
+import static io.evitadb.api.query.QueryConstraints.*;
+import static io.evitadb.test.TestTags.ATTRIBUTE;
 import static io.evitadb.test.TestTags.CONTRACT;
 import static io.evitadb.test.TestTags.INDEXING;
-import static io.evitadb.test.TestTags.ATTRIBUTE;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Tests for attribute indexing operations verifying unique constraints, non-nullable validation,
@@ -198,7 +182,7 @@ class AttributeIndexingTest implements EvitaTestSupport, IndexingTestSupport {
 				TEST_CATALOG,
 				session -> {
 					session.defineEntitySchema(Entities.BRAND)
-						.withAttribute(ATTRIBUTE_CODE, String.class, whichIs -> whichIs.unique())
+						.withAttribute(ATTRIBUTE_CODE, String.class, AttributeSchemaEditor::unique)
 						.updateVia(session);
 
 					session
@@ -224,7 +208,7 @@ class AttributeIndexingTest implements EvitaTestSupport, IndexingTestSupport {
 				TEST_CATALOG,
 				session -> {
 					session.defineEntitySchema(Entities.BRAND)
-						.withAttribute(ATTRIBUTE_CODE, String.class, whichIs -> whichIs.unique())
+						.withAttribute(ATTRIBUTE_CODE, String.class, AttributeSchemaEditor::unique)
 						.updateVia(session);
 
 					session
@@ -1099,7 +1083,7 @@ class AttributeIndexingTest implements EvitaTestSupport, IndexingTestSupport {
 
 			// verify these are compareTo-equal but equals-different
 			assertEquals(0, storedValue.compareTo(queryValue));
-			assertFalse(storedValue.equals(queryValue));
+			assertNotEquals(storedValue, queryValue);
 
 			AttributeIndexingTest.this.evita.updateCatalog(
 				TEST_CATALOG,
@@ -1159,7 +1143,10 @@ class AttributeIndexingTest implements EvitaTestSupport, IndexingTestSupport {
 					session.updateEntitySchema(
 						session
 							.defineEntitySchema(Entities.PRODUCT)
-							.withAttribute(ATTRIBUTE_PRICE, BigDecimal.class, AttributeSchemaEditor::filterable)
+							.withAttribute(
+								ATTRIBUTE_PRICE, BigDecimal.class,
+								whichIs -> whichIs.filterable().indexDecimalPlaces(2)
+							)
 					);
 
 					session

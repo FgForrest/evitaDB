@@ -81,9 +81,13 @@ import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService;
 import io.evitadb.spi.store.catalog.persistence.CatalogStoragePartPersistenceService;
 import io.evitadb.spi.store.catalog.persistence.EntityCollectionPersistenceService;
 import io.evitadb.spi.store.catalog.persistence.PersistenceService;
+import io.evitadb.core.buffer.DataStoreChanges.RemovedStoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.DeferredRemovalStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.CatalogIndexStoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.GlobalUniqueIndexLeafPagePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.GlobalUniqueIndexStoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.GlobalUniqueLeafStreamKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.schema.CatalogSchemaStoragePart;
 import io.evitadb.spi.store.catalog.shared.model.LogRecordReference;
 import io.evitadb.spi.store.catalog.wal.IsolatedWalPersistenceService;
@@ -140,15 +144,18 @@ import io.evitadb.utils.FileUtils;
 import io.evitadb.utils.IOUtils;
 import io.evitadb.utils.IOUtils.ExceptionThrowingRunnable;
 import io.evitadb.utils.NamingConvention;
+import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.BufferedOutputStream;
 import java.io.Closeable;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
@@ -195,6 +202,14 @@ public class DefaultCatalogPersistenceService
 	CatalogPersistenceService<LogFileRecordReference, CollectionFileReference, EntityCollectionFileHeader>,
 	CatalogConsumersListener
 {
+
+	/**
+	 * Buffer size for the {@link BufferedOutputStream} that wraps a raw compaction / snapshot output file. The
+	 * snapshot copy emits three tiny writes per record (header, payload, tail); without buffering a
+	 * multi-million-record collection turns the copy into millions of write syscalls. Batching them through this
+	 * buffer collapses it into far fewer, larger writes.
+	 */
+	private static final int COMPACTION_OUTPUT_BUFFER_SIZE = 65_536;
 
 	/**
 	 * Factory function that configures new instance of the versioned kryo factory.
@@ -272,6 +287,13 @@ public class DefaultCatalogPersistenceService
 	 */
 	@Nonnull
 	private final StorageSettings bootstrapStorageSettings;
+	/**
+	 * Wall-clock time (epoch millis, {@link #CURRENT_TIME_MILLIS}) at which the catalog data file was last compacted.
+	 * Backs the {@code minCompactionIntervalMilliseconds} cadence gate for the catalog-file compaction trigger in
+	 * {@link #recordBootstrap(long, String, int, long, DataStoreMemoryBuffer)}.
+	 */
+	@Getter(AccessLevel.PACKAGE)
+	private long lastCatalogCompactionAtMillis = getNowEpochMillis();
 	/**
 	 * The map contains index of already created {@link EntityCollectionPersistenceService entity collection services}.
 	 * Instances of these services are costly and also contain references to the state, so that they must be kept as
@@ -912,12 +934,68 @@ public class DefaultCatalogPersistenceService
 	}
 
 	/**
-	 * Returns current date & time in epoch milliseconds.
+	 * Returns current date & time in epoch milliseconds. Package-visible so that
+	 * {@link DefaultEntityCollectionPersistenceService} can share the same test-overridable clock ({@link #CURRENT_TIME_MILLIS})
+	 * for its own compaction-interval gate.
 	 *
 	 * @return current date & time in epoch milliseconds
 	 */
-	private static long getNowEpochMillis() {
+	static long getNowEpochMillis() {
 		return CURRENT_TIME_MILLIS.getAsLong();
+	}
+
+	/**
+	 * Tells whether at least {@code minCompactionIntervalMillis} have elapsed since {@code lastCompactionAtMillis}.
+	 * A {@code minCompactionIntervalMillis} of `0` (the backward-compatible default) always returns `true`, i.e.
+	 * the gate is disabled and imposes no minimum interval.
+	 *
+	 * @param nowMillis                   current wall-clock time in epoch milliseconds
+	 * @param lastCompactionAtMillis      wall-clock time of the file's last compaction, in epoch milliseconds
+	 * @param minCompactionIntervalMillis configured minimal interval between compactions, in milliseconds
+	 * @return `true` if the minimal interval has elapsed (or is disabled)
+	 */
+	static boolean isCompactionIntervalElapsed(
+		long nowMillis,
+		long lastCompactionAtMillis,
+		long minCompactionIntervalMillis
+	) {
+		return (nowMillis - lastCompactionAtMillis) >= minCompactionIntervalMillis;
+	}
+
+	/**
+	 * Decides whether a data file should be compacted now. This is the single decision function shared by both
+	 * compaction trigger sites (entity-collection flush and catalog-file bootstrap) - see
+	 * `docs/plans/optimizations/compaction-waste-threshold-auto-tuning.md` §3.1.
+	 *
+	 * The file is compacted when it exceeds `fileSizeCompactionThresholdBytes` (`fileBigEnough`) AND either:
+	 * (a) its active record share has fallen below `maxWasteActiveShare` - a hard override that forces compaction
+	 *     immediately, regardless of the minimal interval, or
+	 * (b) its active record share is below `minimalActiveRecordShare` (worthwhile to compact) AND the minimal
+	 *     compaction interval has elapsed.
+	 *
+	 * With the backward-compatible defaults (`minCompactionIntervalMilliseconds = 0`, `maxWasteActiveShare =
+	 * minimalActiveRecordShare`), `intervalElapsed` is always `true` and branch (a) subsumes branch (b), so this
+	 * collapses to the original `fileBigEnough && activeRecordShare < minimalActiveRecordShare` condition exactly.
+	 *
+	 * @param fileBigEnough             `true` when the file size exceeds `fileSizeCompactionThresholdBytes`
+	 * @param activeRecordShare         the file's current active (non-wasted) record share
+	 * @param minimalActiveRecordShare  the "worthwhile waste" threshold (`A`)
+	 * @param maxWasteActiveShare       the hard override threshold - compaction is forced below this share
+	 * @param minCompactionIntervalElapsed `true` when at least `minCompactionIntervalMilliseconds` have elapsed since
+	 *                                      the file's last compaction (see {@link #isCompactionIntervalElapsed})
+	 * @return `true` if the file should be compacted now
+	 */
+	static boolean shouldCompact(
+		boolean fileBigEnough,
+		double activeRecordShare,
+		double minimalActiveRecordShare,
+		double maxWasteActiveShare,
+		boolean minCompactionIntervalElapsed
+	) {
+		return fileBigEnough && (
+			activeRecordShare < maxWasteActiveShare ||
+				(activeRecordShare < minimalActiveRecordShare && minCompactionIntervalElapsed)
+		);
 	}
 
 	/**
@@ -1571,16 +1649,60 @@ public class DefaultCatalogPersistenceService
 					.orElseThrow(
 						() -> new EvitaInvalidUsageException(
 							"Catalog index references attribute `" + attributeKey.attributeName() + "` but such attribute is not found in catalog schema!"));
-				sharedUniqueIndexes.put(
-					attributeKey,
-					new GlobalUniqueIndex(
+				final GlobalUniqueIndex globalUniqueIndex;
+				if (sharedUniqueIndexStoragePart.isPaged()) {
+					// PAGED: the value→tuple tree was persisted as individual leaf pages. Resolve the stream id from the
+					// (scope, attributeKey) identity (registered at the first PAGED write) and read every listed leaf page
+					// in ascending key order, then reassemble boundary-stable so the first post-restart commit rewrites
+					// only genuinely-changed leaves.
+					final int streamId = storagePartPersistenceService.getReadOnlyKeyCompressor().getId(
+						new GlobalUniqueLeafStreamKey(scope, attributeKey)
+					);
+					final int[] orderedPageSequences = sharedUniqueIndexStoragePart.getLeafPageSequences();
+					final java.io.Serializable[][] perPageValues = new java.io.Serializable[orderedPageSequences.length][];
+					final long[][] perPagePayloads = new long[orderedPageSequences.length][];
+					for (int i = 0; i < orderedPageSequences.length; i++) {
+						final int pageSequence = orderedPageSequences[i];
+						final GlobalUniqueIndexLeafPagePart leafPage = storagePartPersistenceService.getStoragePart(
+							catalogVersion,
+							GlobalUniqueIndexLeafPagePart.computeUniquePartId(streamId, pageSequence),
+							GlobalUniqueIndexLeafPagePart.class
+						);
+						Assert.isPremiseValid(
+							leafPage != null,
+							"Global unique index leaf page " + pageSequence + " (stream " + streamId + ") for attribute `" +
+								attributeKey + "` was not found in persistent storage!"
+						);
+						perPageValues[i] = leafPage.getValues();
+						perPagePayloads[i] = leafPage.getPayloads();
+					}
+					globalUniqueIndex = GlobalUniqueIndex.fromPersistedPages(
 						scope,
 						attributeKey,
 						attributeSchema.getPlainType(),
-						sharedUniqueIndexStoragePart.getUniqueValueToRecordId(),
+						orderedPageSequences,
+						perPageValues,
+						perPagePayloads,
+						sharedUniqueIndexStoragePart.getHighWaterPageSequence(),
 						sharedUniqueIndexStoragePart.getLocaleIndex()
-					)
-				);
+					);
+				} else {
+					globalUniqueIndex = new GlobalUniqueIndex(
+						scope,
+						attributeKey,
+						attributeSchema.getPlainType(),
+						java.util.Objects.requireNonNull(
+							sharedUniqueIndexStoragePart.getValues(),
+							"A SINGLE global unique part must carry the inline value column!"
+						),
+						java.util.Objects.requireNonNull(
+							sharedUniqueIndexStoragePart.getPayloads(),
+							"A SINGLE global unique part must carry the inline payload column!"
+						),
+						sharedUniqueIndexStoragePart.getLocaleIndex()
+					);
+				}
+				sharedUniqueIndexes.put(attributeKey, globalUniqueIndex);
 			}
 			return Optional.of(
 				new CatalogIndex(
@@ -1733,10 +1855,18 @@ public class DefaultCatalogPersistenceService
 			final long previousVersion = entityCollectionPersistenceService.getEntityCollectionHeader().version();
 			final OffsetIndexDescriptor newDescriptor = entityCollectionPersistenceService.flush(
 				catalogVersion, headerInfoSupplier);
-			if (newDescriptor.version() > previousVersion &&
-				newDescriptor.getActiveRecordShare() < this.storageSettings.minimalActiveRecordShare() &&
-				newDescriptor.getFileSize() > this.storageSettings.fileSizeCompactionThresholdBytes()
-			) {
+			final boolean intervalElapsed = isCompactionIntervalElapsed(
+				getNowEpochMillis(), entityCollectionPersistenceService.getLastCompactionAtMillis(),
+				this.storageSettings.minCompactionIntervalMilliseconds()
+			);
+			final boolean shouldCompact = shouldCompact(
+				newDescriptor.getFileSize() > this.storageSettings.fileSizeCompactionThresholdBytes(),
+				newDescriptor.getActiveRecordShare(),
+				this.storageSettings.minimalActiveRecordShare(),
+				this.storageSettings.maxWasteActiveShare(),
+				intervalElapsed
+			);
+			if (newDescriptor.version() > previousVersion && shouldCompact) {
 				log.info(
 					"Compacting catalog `{}` entity collection `{}`, size exceeds threshold `{}` and active record share is `{}`%, " +
 						"entity collection files on disk consume `{}` bytes.",
@@ -2167,7 +2297,9 @@ public class DefaultCatalogPersistenceService
 			// now copy living snapshot of the entity collection to a new file
 			Assert.isPremiseValid(
 				newFile.createNewFile(), "Cannot create new entity collection file: `" + newFilePath + "`!");
-			try (final FileOutputStream fos = new FileOutputStream(newFile)) {
+			try (final OutputStream fos = new BufferedOutputStream(
+				new FileOutputStream(newFile), COMPACTION_OUTPUT_BUFFER_SIZE
+			)) {
 				newEntityCollectionHeader = entityPersistenceService.copySnapshotTo(
 					catalogVersion, newEntityTypeFileIndex, fos, null);
 			}
@@ -2792,7 +2924,27 @@ public class DefaultCatalogPersistenceService
 			catalogVersion);
 		final Iterator<StoragePart> it = trappedChanges.getTrappedChangesIterator();
 		while (it.hasNext()) {
-			storagePartPersistenceService.putStoragePart(catalogVersion, it.next());
+			final StoragePart storagePart = it.next();
+			if (storagePart instanceof RemovedStoragePart removedStoragePart) {
+				storagePartPersistenceService.removeStoragePart(
+					catalogVersion,
+					removedStoragePart.getStoragePartPKOrElseThrowException(),
+					removedStoragePart.containerType()
+				);
+			} else if (storagePart instanceof DeferredRemovalStoragePart deferredRemoval) {
+				// a removal whose primary key can only be resolved store-side (e.g. a freed granular
+				// GlobalUniqueIndex leaf page whose streamId is a compressor dictionary id) — resolve it against the
+				// live compressor and remove it. The read-only view suffices: the stream was registered when the page
+				// was first written. Mirrors the entity-collection flush drain.
+				final long removedPartPK = deferredRemoval.computeUniquePartIdAndSet(
+					storagePartPersistenceService.getReadOnlyKeyCompressor()
+				);
+				storagePartPersistenceService.removeStoragePart(
+					catalogVersion, removedPartPK, deferredRemoval.removedContainerType()
+				);
+			} else {
+				storagePartPersistenceService.putStoragePart(catalogVersion, storagePart);
+			}
 
 			// Increment the counter and update progress every X items
 			if (++counter[0] % division == 0) {
@@ -2909,8 +3061,16 @@ public class DefaultCatalogPersistenceService
 			catalogVersion);
 		final OffsetIndexDescriptor flushedDescriptor = storagePartPersistenceService.flush(catalogVersion);
 		final CatalogBootstrap bootstrapRecord;
-		if (flushedDescriptor.getActiveRecordShare() < this.storageSettings.minimalActiveRecordShare() &&
-			flushedDescriptor.getFileSize() > this.storageSettings.fileSizeCompactionThresholdBytes()) {
+		final boolean catalogIntervalElapsed = isCompactionIntervalElapsed(
+			getNowEpochMillis(), this.lastCatalogCompactionAtMillis, this.storageSettings.minCompactionIntervalMilliseconds()
+		);
+		if (shouldCompact(
+			flushedDescriptor.getFileSize() > this.storageSettings.fileSizeCompactionThresholdBytes(),
+			flushedDescriptor.getActiveRecordShare(),
+			this.storageSettings.minimalActiveRecordShare(),
+			this.storageSettings.maxWasteActiveShare(),
+			catalogIntervalElapsed
+		)) {
 
 			final DataFileCompactEvent event = new DataFileCompactEvent(
 				this.catalogName,
@@ -2921,8 +3081,10 @@ public class DefaultCatalogPersistenceService
 			final int newCatalogFileIndex = catalogFileIndex + 1;
 			final String compactedFileName = getCatalogDataStoreFileName(newCatalogName, newCatalogFileIndex);
 			final OffsetIndexDescriptor compactedDescriptor;
-			try (final FileOutputStream fos = new FileOutputStream(
-				this.catalogStoragePath.resolve(compactedFileName).toFile())) {
+			try (final OutputStream fos = new BufferedOutputStream(
+				new FileOutputStream(this.catalogStoragePath.resolve(compactedFileName).toFile()),
+				COMPACTION_OUTPUT_BUFFER_SIZE
+			)) {
 				compactedDescriptor = storagePartPersistenceService.copySnapshotTo(catalogVersion, fos, null);
 			} catch (IOException e) {
 				throw new UnexpectedIOException(
@@ -2996,6 +3158,8 @@ public class DefaultCatalogPersistenceService
 					this.cpsvLock.unlock();
 				}
 			}
+
+			this.lastCatalogCompactionAtMillis = getNowEpochMillis();
 
 			// emit the event
 			event.finish().commit();
@@ -3350,6 +3514,13 @@ public class DefaultCatalogPersistenceService
 								currentCatalogHeader, currentService, 5, walRef
 							);
 						}
+					);
+				} else if (catalogStorageProtocolVersion == 5) {
+					Migration_2026_2.upgradeFromStorageProtocolVersion_5_to_6(
+						catalogHeader,
+						currentService,
+						this::createEntityCollectionPersistenceService,
+						newCatalogHeader -> updateStorageProtocolInCatalogHeader(newCatalogHeader, currentService, 6)
 					);
 				}
 				// try to initialize the persistence service again - it should now have the correct storage protocol version

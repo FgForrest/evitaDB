@@ -35,6 +35,7 @@ import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.core.Evita;
+import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.dataType.Scope;
 import io.evitadb.test.EvitaTestSupport;
@@ -115,6 +116,25 @@ public abstract class AbstractReferenceSummaryHistogramFunctionalTest implements
 	 * verified against a single shared catalog.
 	 */
 	public static final String REFERENCE_HISTOGRAM_RANGE = "referenceHistogramRange";
+
+	/**
+	 * Name of the `BigDecimalNumberRange`-typed source attribute fixture. Mirrors
+	 * {@link #REFERENCE_HISTOGRAM_RANGE} but the referenced entity's {@link #ATTR_RANGE}
+	 * attribute is a `BigDecimalNumberRange` declared with `indexDecimalPlaces(2)`, while
+	 * every seeded range value carries an INTRINSIC scale of 1 (e.g. `between(1.5, 2.5)`).
+	 * The scale mismatch is deliberate: the histogram subsystem must encode the range
+	 * thresholds at the schema's `indexedDecimalPlaces` and reconstruct the bucket
+	 * boundaries at the same scale, so the emitted thresholds read back as `1.50` / `2.50`,
+	 * not `0.15` / `0.25`.
+	 */
+	public static final String REFERENCE_HISTOGRAM_DECIMAL_RANGE = "referenceHistogramDecimalRange";
+
+	/**
+	 * `indexDecimalPlaces` declared on the {@link #ATTR_RANGE} attribute in the decimal-range
+	 * fixture. Chosen larger than the seeded ranges' intrinsic scale (1) so the encode /
+	 * reconstruct round-trip is only correct when both ends agree on this schema scale.
+	 */
+	public static final int DECIMAL_RANGE_PLACES = 2;
 
 	// ---------------------------------------------------------------------
 	// shared entity / reference / attribute / histogram names
@@ -561,6 +581,110 @@ public abstract class AbstractReferenceSummaryHistogramFunctionalTest implements
 	}
 
 	// ---------------------------------------------------------------------
+	// decimal-range-fixture schema + seed (provisions
+	// REFERENCE_HISTOGRAM_DECIMAL_RANGE)
+	// ---------------------------------------------------------------------
+
+	/**
+	 * Defines a `product → parameterValue → parameter` schema identical in shape to
+	 * {@link #defineRangeSchema(EvitaSessionContract)} except the referenced
+	 * `parameterValue` entity's {@link #ATTR_RANGE} attribute is a `BigDecimalNumberRange`
+	 * declared with `indexDecimalPlaces({@link #DECIMAL_RANGE_PLACES})`. The reference
+	 * declares a single {@link #HISTOGRAM_RANGE} histogram over the range source so the
+	 * decimal bucket sweep can be verified against a dedicated catalog.
+	 */
+	protected static void defineDecimalRangeSchema(@Nonnull EvitaSessionContract session) {
+		session.defineEntitySchema(ENTITY_PARAMETER)
+			.withAttribute(ATTR_NAME, String.class, whichIs -> whichIs.filterable().nullable())
+			.updateVia(session);
+
+		session.defineEntitySchema(ENTITY_PARAMETER_VALUE)
+			.withAttribute(ATTR_NAME, String.class, whichIs -> whichIs.filterable().nullable())
+			.withAttribute(
+				ATTR_RANGE, BigDecimalNumberRange.class,
+				whichIs -> whichIs.filterable().indexDecimalPlaces(DECIMAL_RANGE_PLACES).nullable()
+			)
+			.updateVia(session);
+
+		session.defineEntitySchema(ENTITY_PRODUCT)
+			.withReferenceToEntity(
+				REF_PARAM_VALUES, ENTITY_PARAMETER_VALUE, Cardinality.ZERO_OR_MORE,
+				whichIs -> whichIs
+					.indexedForFilteringAndPartitioning()
+					.indexedWithComponents(ReferenceIndexedComponents.values())
+					.faceted()
+					.withGroupTypeRelatedToEntity(ENTITY_PARAMETER)
+					.bucketed(
+						HISTOGRAM_RANGE,
+						ExpressionFactory.parse(
+							"$reference.referencedEntity?.attributes['" + ATTR_RANGE + "']"
+						)
+					)
+			)
+			.updateVia(session);
+	}
+
+	/**
+	 * Seeds the decimal-range fixture: a single parameter group ({@link #RANGE_GROUP_PK}),
+	 * four parameter values carrying overlapping `BigDecimalNumberRange` values, and four
+	 * products each wired to one PV inside that group.
+	 *
+	 * Layout (PV → range):
+	 *
+	 * - PV 1 → `[1.5, 2.5]`
+	 * - PV 2 → `[2.0, 3.0]`
+	 * - PV 3 → `[2.5, 3.5]`
+	 * - PV 4 → `[3.0, 4.0]`
+	 *
+	 * Every bound carries an INTRINSIC scale of 1 while the schema indexes at
+	 * {@link #DECIMAL_RANGE_PLACES} (= 2). The four ranges together span `[1.5, 4.0]`, so
+	 * the histogram sweep sees six distinct endpoints whose reconstructed bucket thresholds
+	 * must read back at the schema scale (`1.50`, `2.00`, …, `4.00`).
+	 */
+	protected static void seedDecimalRangeData(@Nonnull EvitaSessionContract session) {
+		session.createNewEntity(ENTITY_PARAMETER, RANGE_GROUP_PK)
+			.setAttribute(ATTR_NAME, "validity")
+			.upsertVia(session);
+
+		createParameterValueWithDecimalRange(
+			session, 1,
+			BigDecimalNumberRange.between(new BigDecimal("1.5"), new BigDecimal("2.5"))
+		);
+		createParameterValueWithDecimalRange(
+			session, 2,
+			BigDecimalNumberRange.between(new BigDecimal("2.0"), new BigDecimal("3.0"))
+		);
+		createParameterValueWithDecimalRange(
+			session, 3,
+			BigDecimalNumberRange.between(new BigDecimal("2.5"), new BigDecimal("3.5"))
+		);
+		createParameterValueWithDecimalRange(
+			session, 4,
+			BigDecimalNumberRange.between(new BigDecimal("3.0"), new BigDecimal("4.0"))
+		);
+
+		createProductReferencingPv(session, 100, 1);
+		createProductReferencingPv(session, 101, 2);
+		createProductReferencingPv(session, 102, 3);
+		createProductReferencingPv(session, 103, 4);
+	}
+
+	/**
+	 * Creates a single parameter-value entity for the decimal-range fixture with the supplied
+	 * `BigDecimalNumberRange`.
+	 */
+	private static void createParameterValueWithDecimalRange(
+		@Nonnull EvitaSessionContract session,
+		int pk,
+		@Nonnull BigDecimalNumberRange range
+	) {
+		session.createNewEntity(ENTITY_PARAMETER_VALUE, pk)
+			.setAttribute(ATTR_NAME, "pv-" + pk)
+			.setAttribute(ATTR_RANGE, range)
+			.upsertVia(session);
+	}
+
+	// ---------------------------------------------------------------------
 	// large-fixture oracle helpers (drive boundary-resolution assertions)
 	// ---------------------------------------------------------------------
 
@@ -761,6 +885,23 @@ public abstract class AbstractReferenceSummaryHistogramFunctionalTest implements
 			TEST_CATALOG, session -> {
 				defineRangeSchema(session);
 				seedRangeData(session);
+			}
+		);
+		return new DataCarrier();
+	}
+
+	/**
+	 * Installs the `BigDecimalNumberRange`-typed source attribute fixture: the schema from
+	 * {@link #defineDecimalRangeSchema(EvitaSessionContract)} plus the four-PV / four-product
+	 * seed from {@link #seedDecimalRangeData(EvitaSessionContract)}. The catalog is read-only
+	 * after provisioning so multiple test methods can share the same instance.
+	 */
+	@DataSet(REFERENCE_HISTOGRAM_DECIMAL_RANGE)
+	DataCarrier setUpDecimalRange(@Nonnull Evita evita) {
+		evita.updateCatalog(
+			TEST_CATALOG, session -> {
+				defineDecimalRangeSchema(session);
+				seedDecimalRangeData(session);
 			}
 		);
 		return new DataCarrier();

@@ -24,19 +24,21 @@
 package io.evitadb.index.bitmap;
 
 import com.carrotsearch.hppc.predicates.IntPredicate;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
-import org.roaringbitmap.RoaringBitmap;
 
+import java.util.Arrays;
 import java.util.PrimitiveIterator.OfInt;
-import org.junit.jupiter.api.Tag;
+import java.util.Random;
 
-import static org.junit.jupiter.api.Assertions.*;
-import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.DATA_TYPE;
+import static io.evitadb.test.TestTags.INDEXING;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * This test verifies contract of {@link BaseBitmap}.
@@ -47,6 +49,17 @@ import static io.evitadb.test.TestTags.DATA_TYPE;
 @Tag(INDEXING)
 @Tag(DATA_TYPE)
 class BaseBitmapTest {
+
+	private static int[] toArray(OfInt iterator, int size) {
+		final int[] result = new int[size];
+		int index = 0;
+		while (iterator.hasNext() && index < size) {
+			result[index++] = iterator.next();
+		}
+		assertEquals(size, index);
+		assertFalse(iterator.hasNext());
+		return result;
+	}
 
 	@Nested
 	@DisplayName("Construction")
@@ -82,12 +95,279 @@ class BaseBitmapTest {
 		}
 
 		@Test
-		@DisplayName("should create bitmap from RoaringBitmap")
+		@DisplayName("should create bitmap from PersistentRoaringBitmap")
 		void shouldCreateBitmapFromRoaringBitmap() {
-			final RoaringBitmap roaring = RoaringBitmap.bitmapOf(10, 20, 30);
+			final PersistentRoaringBitmap roaring = PersistentRoaringBitmap.bitmapOf(10, 20, 30);
 			final BaseBitmap bitmap = new BaseBitmap(roaring);
 			assertEquals(3, bitmap.size());
 			assertArrayEquals(new int[]{10, 20, 30}, bitmap.getArray());
+		}
+	}
+
+	@Nested
+	@DisplayName("Adaptive construction from int[]")
+	class AdaptiveConstructionEquivalenceTest {
+
+		/**
+		 * Asserts that {@link BaseBitmap#BaseBitmap(int...)} — whichever internal build path its density dispatch
+		 * selects (incremental append vs. the constant-memory writer) — yields a bitmap holding exactly the
+		 * sorted-distinct input, and that it is {@link Object#equals(Object) equal} (and hash-equal) to the same ids
+		 * built through the reference incremental path. This pins the invariant the optimization relies on: the writer
+		 * path can never diverge from incremental in container type or content, so bitmap equality (used by formula
+		 * caching) is preserved regardless of which path built a given id set.
+		 */
+		private static void assertConstructsEquivalently(int[] ids) {
+			// reference: the always-incremental build (fresh bitmap + add), wrapped without a further rebuild
+			final PersistentRoaringBitmap reference = new PersistentRoaringBitmap();
+			reference.add(ids);
+			final BaseBitmap referenceBitmap = new BaseBitmap(reference);
+
+			// the adaptive constructor under test — may internally route to the writer for large, dense inputs
+			final BaseBitmap adaptive = new BaseBitmap(ids);
+
+			final int[] expected = sortedDistinct(ids);
+			assertArrayEquals(expected, adaptive.getArray());
+			assertEquals(expected.length, adaptive.size());
+			assertEquals(referenceBitmap, adaptive, "adaptive build must equal the incremental build");
+			assertEquals(referenceBitmap.hashCode(), adaptive.hashCode(), "equal bitmaps must share a hash code");
+			for (int id : ids) {
+				assertTrue(adaptive.contains(id), () -> "missing id after adaptive build");
+			}
+		}
+
+		/**
+		 * Returns the ascending, duplicate-free form of the input — the exact contents a {@link BaseBitmap} must hold.
+		 */
+		private static int[] sortedDistinct(int[] ids) {
+			final int[] copy = Arrays.copyOf(ids, ids.length);
+			Arrays.sort(copy);
+			int write = 0;
+			for (int read = 0; read < copy.length; read++) {
+				if (write == 0 || copy[read] != copy[write - 1]) {
+					copy[write++] = copy[read];
+				}
+			}
+			return Arrays.copyOf(copy, write);
+		}
+
+		/**
+		 * Contiguous ids `[1, size]` — a single (or few) densely packed containers, the realistic entity-primary-key
+		 * shape that drives the writer path above the dispatch threshold.
+		 */
+		private static int[] dense(int size) {
+			final int[] ids = new int[size];
+			for (int i = 0; i < size; i++) {
+				ids[i] = 1 + i;
+			}
+			return ids;
+		}
+
+		/**
+		 * Ids strided by 700 — ≈93 per container, spread across many containers, the sparse layout the dispatch must
+		 * keep on the incremental path.
+		 */
+		private static int[] sparse(int size) {
+			final int[] ids = new int[size];
+			for (int i = 0; i < size; i++) {
+				ids[i] = 1 + i * 700;
+			}
+			return ids;
+		}
+
+		/**
+		 * Deterministically permutes a copy of the input so the density probe sees non-ascending ends.
+		 */
+		private static int[] shuffled(int[] ids, long seed) {
+			final int[] copy = Arrays.copyOf(ids, ids.length);
+			final Random random = new Random(seed);
+			for (int i = copy.length - 1; i > 0; i--) {
+				final int j = random.nextInt(i + 1);
+				final int swap = copy[i];
+				copy[i] = copy[j];
+				copy[j] = swap;
+			}
+			return copy;
+		}
+
+		/**
+		 * Concatenates `containers` full-density runs of `perContainer` contiguous ids, one run per
+		 * 65 536-wide container, ordered from the highest container down to the lowest. This
+		 * guarantees `ids[0]` sits in a strictly higher container than `ids[ids.length - 1]` — the
+		 * one input shape neither {@link #shouldSortUnsortedLargeDense()} (confined to a single
+		 * container, so the ends can never disagree) nor {@link #shouldSortUnsortedLargeSparse()}
+		 * (rejected by the density arithmetic regardless of end order) reaches.
+		 */
+		private static int[] descendingContainerOrder(int containers, int perContainer) {
+			final int[] ids = new int[containers * perContainer];
+			int index = 0;
+			for (int container = containers - 1; container >= 0; container--) {
+				final int base = container << 16;
+				for (int i = 0; i < perContainer; i++) {
+					ids[index++] = base + i;
+				}
+			}
+			return ids;
+		}
+
+		@Test
+		@DisplayName("should build a small input via the incremental path")
+		void shouldBuildSmallInput() {
+			assertConstructsEquivalently(dense(64));
+		}
+
+		@Test
+		@DisplayName("should build just below the dispatch threshold via the incremental path")
+		void shouldBuildJustBelowThreshold() {
+			assertConstructsEquivalently(dense(4095));
+		}
+
+		@Test
+		@DisplayName("should build at the exact threshold identically to the incremental path")
+		void shouldBuildAtThreshold() {
+			assertConstructsEquivalently(dense(4096));
+		}
+
+		@Test
+		@DisplayName("should build a large dense input via the writer path, content-identical to incremental")
+		void shouldBuildLargeDenseSorted() {
+			assertConstructsEquivalently(dense(16384));
+		}
+
+		@Test
+		@DisplayName("should build a large sparse input via the incremental path, content-identical to incremental")
+		void shouldBuildLargeSparseSorted() {
+			assertConstructsEquivalently(sparse(16384));
+		}
+
+		@Test
+		@DisplayName("should build a multi-container input mixing bitmap and array containers, identically to incremental")
+		void shouldBuildMultiContainerMixedTypes() {
+			// 200 000 contiguous ids: containers 0–2 hold 65 536 ids each (bitmap), the tail holds 3 393 (array) —
+			// both build paths must agree on every container's type for the bitmaps to compare equal
+			assertConstructsEquivalently(dense(200_000));
+		}
+
+		@Test
+		@DisplayName("should sort an unsorted large dense input regardless of build path")
+		void shouldSortUnsortedLargeDense() {
+			assertConstructsEquivalently(shuffled(dense(16384), 42L));
+		}
+
+		@Test
+		@DisplayName("should sort an unsorted large sparse input regardless of build path")
+		void shouldSortUnsortedLargeSparse() {
+			assertConstructsEquivalently(shuffled(sparse(16384), 7L));
+		}
+
+		@Test
+		@DisplayName("should build a multi-container dense input whose ends disagree on container order, identically to incremental")
+		void shouldBuildMultiContainerDenseInputWithReversedContainerOrder() {
+			// 3 containers × 5 000 contiguous ids each, emitted highest-container-first so ids[0] lands in a
+			// higher container than the last id — the only shape that exercises isDense's lastContainer <
+			// firstContainer guard (a sorted version would exceed the density threshold and take the writer)
+			assertConstructsEquivalently(descendingContainerOrder(3, 5000));
+		}
+	}
+
+	@Nested
+	@DisplayName("Direct construction via RoaringBitmapBackedBitmap.fromArray")
+	class FromArrayDirectConstructionTest {
+
+		/**
+		 * Returns `count` contiguous ids starting at `fromInclusive` — a densely packed run confined to
+		 * a single 65 536-wide container when `count` fits within it, the shape that drives the writer
+		 * path.
+		 */
+		private static int[] contiguousIds(int fromInclusive, int count) {
+			final int[] ids = new int[count];
+			for (int i = 0; i < count; i++) {
+				ids[i] = fromInclusive + i;
+			}
+			return ids;
+		}
+
+		/**
+		 * Returns `count` ids strided by `stride`, starting at 1 — spread thinly across many containers
+		 * so the mean ids-per-container stays far below the writer dispatch density.
+		 */
+		private static int[] stridedIds(int count, int stride) {
+			final int[] ids = new int[count];
+			for (int i = 0; i < count; i++) {
+				ids[i] = 1 + i * stride;
+			}
+			return ids;
+		}
+
+		@Test
+		@DisplayName("should build a single-record bitmap holding exactly that record")
+		void shouldBuildSingleRecordBitmap() {
+			final PersistentRoaringBitmap result = RoaringBitmapBackedBitmap.fromArray(42);
+			assertArrayEquals(new int[]{42}, result.toSignedArray());
+			assertEquals(1, result.getCardinality());
+		}
+
+		@Test
+		@DisplayName("should build a tiny scattered-id bitmap holding every id")
+		void shouldBuildTinyScatteredBitmap() {
+			final PersistentRoaringBitmap result = RoaringBitmapBackedBitmap.fromArray(3, 900000, 40);
+			assertArrayEquals(new int[]{3, 40, 900000}, result.toSignedArray());
+			assertEquals(3, result.getCardinality());
+		}
+
+		@Test
+		@DisplayName("should keep a large but thinly-spread input on the incremental path")
+		void shouldBuildLargeSparseInputAcrossManyContainers() {
+			// 8192 ids strided by 700 span roughly 90 containers at under 100 ids each — well below
+			// the writer dispatch density despite exceeding its length gate, so the container-span
+			// arithmetic (not just the length check) must reject the writer path
+			final int[] ids = stridedIds(8192, 700);
+			final PersistentRoaringBitmap result = RoaringBitmapBackedBitmap.fromArray(ids);
+
+			final PersistentRoaringBitmap incrementalBuilt = new PersistentRoaringBitmap();
+			incrementalBuilt.add(ids);
+
+			assertArrayEquals(incrementalBuilt.toSignedArray(), result.toSignedArray());
+			assertEquals(incrementalBuilt.getCardinality(), result.getCardinality());
+			assertEquals(incrementalBuilt, result);
+			assertEquals(incrementalBuilt.hashCode(), result.hashCode());
+		}
+
+		@Test
+		@DisplayName("should route a large dense single-container input through the writer path, equal to incremental in content and hash")
+		void shouldBuildLargeDenseSingleContainerBitmap() {
+			// 8192 contiguous ids all fall in container 0, crossing WRITER_DISPATCH_DENSITY within a
+			// single container — the writer path's removeRunCompression normalization must make its
+			// output indistinguishable from the always-correct incremental build
+			final int[] ids = contiguousIds(0, 8192);
+			final PersistentRoaringBitmap result = RoaringBitmapBackedBitmap.fromArray(ids);
+
+			final PersistentRoaringBitmap incrementalBuilt = new PersistentRoaringBitmap();
+			incrementalBuilt.add(ids);
+
+			assertArrayEquals(incrementalBuilt.toSignedArray(), result.toSignedArray());
+			assertEquals(incrementalBuilt.getCardinality(), result.getCardinality());
+			assertEquals(incrementalBuilt, result, "writer-built bitmap must equal the incremental build");
+			assertEquals(
+				incrementalBuilt.hashCode(), result.hashCode(),
+				"equal bitmaps must share a hash code"
+			);
+		}
+
+		@Test
+		@DisplayName("should round-trip negative ids in signed ascending order")
+		void shouldBuildBitmapWithNegativeIds() {
+			final int[] ids = {Integer.MIN_VALUE, -1000, 0, 5};
+			final BaseBitmap wrapped = new BaseBitmap(RoaringBitmapBackedBitmap.fromArray(ids));
+			assertArrayEquals(new int[]{Integer.MIN_VALUE, -1000, 0, 5}, wrapped.getArray());
+			assertEquals(4, wrapped.size());
+		}
+
+		@Test
+		@DisplayName("should build correct content from an unsorted input array")
+		void shouldBuildBitmapFromUnsortedInput() {
+			final PersistentRoaringBitmap result = RoaringBitmapBackedBitmap.fromArray(5, 1, 900000, 2);
+			assertArrayEquals(new int[]{1, 2, 5, 900000}, result.toSignedArray());
+			assertEquals(4, result.getCardinality());
 		}
 	}
 
@@ -198,10 +478,10 @@ class BaseBitmapTest {
 		}
 
 		@Test
-		@DisplayName("should expose RoaringBitmap")
+		@DisplayName("should expose PersistentRoaringBitmap")
 		void shouldExposeRoaringBitmap() {
 			final BaseBitmap tested = new BaseBitmap(1, 2, 3);
-			final RoaringBitmap roaringBitmap = tested.getRoaringBitmap();
+			final PersistentRoaringBitmap roaringBitmap = tested.getRoaringBitmap();
 			assertNotNull(roaringBitmap);
 			assertEquals(3, roaringBitmap.getCardinality());
 		}
@@ -294,7 +574,7 @@ class BaseBitmapTest {
 		}
 
 		@Test
-		@DisplayName("should removeAll from non-RoaringBitmap Bitmap instance")
+		@DisplayName("should removeAll from non-PersistentRoaringBitmap Bitmap instance")
 		void shouldRemoveAllFromNonRoaringBitmapInstance() {
 			final BaseBitmap tested = new BaseBitmap(1, 2, 3, 4, 5);
 			// ArrayBitmap is not a RoaringBitmapBackedBitmap, so the iteration path is used
@@ -463,8 +743,10 @@ class BaseBitmapTest {
 			large.removeAll(value -> value % 3 == 0 || value % 5 == 0);
 			final int[] result = large.getArray();
 			for (int value : result) {
-				assertFalse(value % 3 == 0 || value % 5 == 0,
-					"Value " + value + " should not be in result");
+				assertFalse(
+					value % 3 == 0 || value % 5 == 0,
+					"Value " + value + " should not be in result"
+				);
 			}
 		}
 
@@ -755,8 +1037,10 @@ class BaseBitmapTest {
 			large.retainAll(value -> value % 3 == 0 || value % 5 == 0);
 			final int[] result = large.getArray();
 			for (int value : result) {
-				assertFalse(value % 3 != 0 && value % 5 != 0,
-					"Value " + value + " should be in result");
+				assertFalse(
+					value % 3 != 0 && value % 5 != 0,
+					"Value " + value + " should be in result"
+				);
 			}
 		}
 
@@ -987,7 +1271,7 @@ class BaseBitmapTest {
 
 	/**
 	 * Guards the `removeAll` / `retainAll` predicate paths against regressions tied to the
-	 * container-boundary transitions of the underlying `RoaringBitmap`. The chosen sizes
+	 * container-boundary transitions of the underlying `PersistentRoaringBitmap`. The chosen sizes
 	 * straddle the critical thresholds: 16 lives in the small/array container range, 64 sits
 	 * right at the array→bitmap container flip, and 1024 is solidly inside the bitmap
 	 * container. The fine-grained 63/64/65 cadence is already covered by dedicated tests
@@ -1013,8 +1297,10 @@ class BaseBitmapTest {
 
 			bitmap.removeAll(value -> value % 2 == 0);
 
-			assertEquals(expectedOdd, bitmap.size(),
-				"All odd numbers in 1.." + size + " must remain");
+			assertEquals(
+				expectedOdd, bitmap.size(),
+				"All odd numbers in 1.." + size + " must remain"
+			);
 			for (final int value : bitmap.getArray()) {
 				assertNotEquals(0, value % 2, "Value " + value + " is even but should have been removed");
 			}
@@ -1035,17 +1321,21 @@ class BaseBitmapTest {
 
 			bitmap.retainAll(value -> value % 3 == 0);
 
-			assertEquals(expectedMatches, bitmap.size(),
-				"Only multiples of 3 in 1.." + size + " must remain");
+			assertEquals(
+				expectedMatches, bitmap.size(),
+				"Only multiples of 3 in 1.." + size + " must remain"
+			);
 			for (final int value : bitmap.getArray()) {
-				assertEquals(0, value % 3,
-					"Value " + value + " is not a multiple of 3 but was retained");
+				assertEquals(
+					0, value % 3,
+					"Value " + value + " is not a multiple of 3 but was retained"
+				);
 			}
 		}
 	}
 
 	/**
-	 * Signed-ordering contract around `Integer.MIN_VALUE` / `Integer.MAX_VALUE`. `RoaringBitmap`
+	 * Signed-ordering contract around `Integer.MIN_VALUE` / `Integer.MAX_VALUE`. `PersistentRoaringBitmap`
 	 * internally uses unsigned 32-bit container keys, so a naive `toArray()` would place negative
 	 * values after positives. `BaseBitmap.getArray()` must expose a strictly signed (arithmetic)
 	 * ordering — these tests pin that contract at the extremes so any regression in sign
@@ -1102,7 +1392,7 @@ class BaseBitmapTest {
 		@Test
 		@DisplayName("should order the -1/0 pair negative-before-positive (unsigned order would invert it)")
 		void shouldOrderNegativeOneBeforeZero() {
-			// In the native RoaringBitmap unsigned ordering -1 (0xFFFFFFFF) would sort AFTER 0;
+			// In the native PersistentRoaringBitmap unsigned ordering -1 (0xFFFFFFFF) would sort AFTER 0;
 			// signed ordering must place -1 before 0.
 			final BaseBitmap bitmap = new BaseBitmap(-1, 0);
 
@@ -1185,16 +1475,5 @@ class BaseBitmapTest {
 			assertEquals(3, bitmap.size());
 			assertArrayEquals(new int[]{1, 2, 3}, bitmap.getArray());
 		}
-	}
-
-	private static int[] toArray(OfInt iterator, int size) {
-		final int[] result = new int[size];
-		int index = 0;
-		while (iterator.hasNext() && index < size) {
-			result[index++] = iterator.next();
-		}
-		assertEquals(size, index);
-		assertFalse(iterator.hasNext());
-		return result;
 	}
 }

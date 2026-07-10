@@ -26,7 +26,9 @@ package io.evitadb.store.index.serializer;
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
+import io.evitadb.dataType.champ.ChampMap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
+import io.evitadb.index.map.PersistentTransactionalMap;
 import io.evitadb.spi.store.catalog.persistence.storageParts.compressor.ReadWriteKeyCompressor;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.GroupCardinalityIndexStoragePart;
 import io.evitadb.store.index.IndexStoragePartConfigurer;
@@ -229,6 +231,104 @@ class GroupCardinalityIndexStoragePartSerializerTest {
 
 			assertNotNull(deserialized.getStoragePartPK());
 			assertEquals(expectedPartPk, deserialized.getStoragePartPK());
+		}
+	}
+
+	/**
+	 * In production the storage part holds the live `pkCardinalities` map by reference, and that
+	 * map is a {@link PersistentTransactionalMap} rather than a plain {@link Map}. The serializer
+	 * iterates it via `size()` + `entrySet()`, so these tests pin that the Kryo write path reads a
+	 * {@link PersistentTransactionalMap}-backed part correctly in both backing states the map can
+	 * be in when it is flushed: a thawed warm-up buffer and a sealed (committed) snapshot.
+	 */
+	@Nested
+	@DisplayName("Persistent transactional map backing")
+	class PersistentTransactionalMapBackingTest {
+
+		@Test
+		@DisplayName("should round-trip a part whose cardinalities are a thawed warm-up map")
+		void shouldRoundTripThawedPersistentTransactionalMap() {
+			// a freshly populated PersistentTransactionalMap is held thawed (a mutable HashMap) -
+			// this mirrors the bulk warm-up / import path before the catalog becomes transactional
+			final PersistentTransactionalMap<Integer, Integer> pkCardinalities =
+				new PersistentTransactionalMap<>(CollectionUtils.createHashMap(4));
+			pkCardinalities.put(10, 3);
+			pkCardinalities.put(20, 1);
+
+			final Map<Integer, TransactionalBitmap> refPksIndex = CollectionUtils.createHashMap(4);
+			final TransactionalBitmap bitmap = new TransactionalBitmap();
+			bitmap.add(10);
+			bitmap.add(20);
+			refPksIndex.put(1, bitmap);
+
+			final GroupCardinalityIndexStoragePart original = new GroupCardinalityIndexStoragePart(
+				51, "CATEGORY", pkCardinalities, refPksIndex
+			);
+
+			final GroupCardinalityIndexStoragePart deserialized = roundTrip(original);
+
+			assertEquals(51, deserialized.getEntityIndexPrimaryKey());
+			assertEquals("CATEGORY", deserialized.getReferenceName());
+			assertEquals(2, deserialized.getPkCardinalities().size());
+			assertEquals(3, deserialized.getPkCardinalities().get(10));
+			assertEquals(1, deserialized.getPkCardinalities().get(20));
+			assertEquals(1, deserialized.getReferencedPrimaryKeysIndex().size());
+			assertTrue(deserialized.getReferencedPrimaryKeysIndex().get(1).contains(10));
+			assertTrue(deserialized.getReferencedPrimaryKeysIndex().get(1).contains(20));
+		}
+
+		@Test
+		@DisplayName("should round-trip a part whose cardinalities are a sealed committed snapshot")
+		void shouldRoundTripSealedPersistentTransactionalMap() {
+			// adopting a ChampMap seals the map in O(1) - this mirrors the transactional steady
+			// state where the commit path hands the just-derived immutable snapshot to the part
+			final ChampMap<Integer, Integer> snapshot = ChampMap.<Integer, Integer>empty()
+				.updated(10, 3)
+				.updated(20, 1)
+				.updated(30, 2);
+			final PersistentTransactionalMap<Integer, Integer> pkCardinalities =
+				new PersistentTransactionalMap<>(snapshot);
+
+			final Map<Integer, TransactionalBitmap> refPksIndex = CollectionUtils.createHashMap(4);
+			final TransactionalBitmap bitmap = new TransactionalBitmap();
+			bitmap.add(10);
+			bitmap.add(30);
+			refPksIndex.put(2, bitmap);
+
+			final GroupCardinalityIndexStoragePart original = new GroupCardinalityIndexStoragePart(
+				52, "BRAND", pkCardinalities, refPksIndex
+			);
+
+			final GroupCardinalityIndexStoragePart deserialized = roundTrip(original);
+
+			assertEquals(52, deserialized.getEntityIndexPrimaryKey());
+			assertEquals("BRAND", deserialized.getReferenceName());
+			assertEquals(3, deserialized.getPkCardinalities().size());
+			assertEquals(3, deserialized.getPkCardinalities().get(10));
+			assertEquals(1, deserialized.getPkCardinalities().get(20));
+			assertEquals(2, deserialized.getPkCardinalities().get(30));
+			assertEquals(1, deserialized.getReferencedPrimaryKeysIndex().size());
+			assertTrue(deserialized.getReferencedPrimaryKeysIndex().get(2).contains(10));
+			assertTrue(deserialized.getReferencedPrimaryKeysIndex().get(2).contains(30));
+		}
+
+		@Test
+		@DisplayName("should round-trip an empty persistent transactional map")
+		void shouldRoundTripEmptyPersistentTransactionalMap() {
+			final PersistentTransactionalMap<Integer, Integer> pkCardinalities =
+				new PersistentTransactionalMap<>(CollectionUtils.createHashMap(4));
+			final Map<Integer, TransactionalBitmap> refPksIndex = CollectionUtils.createHashMap(4);
+
+			final GroupCardinalityIndexStoragePart original = new GroupCardinalityIndexStoragePart(
+				53, "EMPTY_REF", pkCardinalities, refPksIndex
+			);
+
+			final GroupCardinalityIndexStoragePart deserialized = roundTrip(original);
+
+			assertEquals(53, deserialized.getEntityIndexPrimaryKey());
+			assertEquals("EMPTY_REF", deserialized.getReferenceName());
+			assertTrue(deserialized.getPkCardinalities().isEmpty());
+			assertTrue(deserialized.getReferencedPrimaryKeysIndex().isEmpty());
 		}
 	}
 }

@@ -31,6 +31,7 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.dataType.Scope;
+import io.evitadb.index.attribute.AttributeIndex;
 import io.evitadb.index.attribute.ReferenceAttributeIndex;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
@@ -157,14 +158,19 @@ public class ReducedEntityIndex extends AbstractReducedEntityIndex {
 			return new ReducedEntityIndex(
 				manifest.getPrimaryKey(),
 				manifest.getEntityIndexKey(),
-				manifest.getVersion(),
-				manifest.getEntityIds(),
-				manifest.getEntityIdsByLanguage(),
+				context.version(),
+				context.entityIds(),
+				context.entityIdsByLanguage(),
 				new ReferenceAttributeIndex(
 					context.entitySchema().getName(),
 					context.referenceKey(),
-					attributes.uniqueIndexes(), attributes.filterIndexes(),
-					attributes.sortIndexes(), attributes.chainIndexes()
+					attributes.uniqueIndexes(),
+					attributes.filterIndexes(),
+					attributes.uniqueViewIndexes(),
+					attributes.sortIndexes(),
+					attributes.chainIndexes(),
+					attributes.sharedValueIndexes(),
+					attributes.sharedRangeIndexes()
 				),
 				new PriceRefIndex(scope, prices.priceIndexes()),
 				hierarchy.hierarchyIndex(),
@@ -262,10 +268,11 @@ public class ReducedEntityIndex extends AbstractReducedEntityIndex {
 		@Nonnull Set<Locale> allowedLocales,
 		@Nullable Locale locale,
 		@Nonnull Serializable value,
-		int recordId
+		int recordId,
+		boolean foldedUnique
 	) {
 		assertPartitioningIndex(referenceSchema, attributeSchema);
-		delegateInsertFilterAttribute(referenceSchema, attributeSchema, allowedLocales, locale, value, recordId);
+		delegateInsertFilterAttribute(referenceSchema, attributeSchema, allowedLocales, locale, value, recordId, foldedUnique);
 	}
 
 	@Override
@@ -288,10 +295,11 @@ public class ReducedEntityIndex extends AbstractReducedEntityIndex {
 		@Nonnull Set<Locale> allowedLocales,
 		@Nullable Locale locale,
 		@Nonnull Serializable[] value,
-		int recordId
+		int recordId,
+		boolean foldedUnique
 	) {
 		assertPartitioningIndex(referenceSchema, attributeSchema);
-		delegateAddDeltaFilterAttribute(referenceSchema, attributeSchema, allowedLocales, locale, value, recordId);
+		delegateAddDeltaFilterAttribute(referenceSchema, attributeSchema, allowedLocales, locale, value, recordId, foldedUnique);
 	}
 
 	@Override
@@ -365,7 +373,7 @@ public class ReducedEntityIndex extends AbstractReducedEntityIndex {
 	}
 
 	@Override
-	public void insertUniqueAttribute(
+	public AttributeIndex.UniquenessEnforcement insertUniqueAttribute(
 		@Nullable ReferenceSchemaContract referenceSchema,
 		@Nonnull AttributeSchemaContract attributeSchema,
 		@Nonnull Set<Locale> allowedLocales,
@@ -375,7 +383,7 @@ public class ReducedEntityIndex extends AbstractReducedEntityIndex {
 		int recordId
 	) {
 		assertPartitioningIndex(referenceSchema, attributeSchema);
-		delegateInsertUniqueAttribute(referenceSchema, attributeSchema, allowedLocales, scope, locale, value, recordId);
+		return delegateInsertUniqueAttribute(referenceSchema, attributeSchema, allowedLocales, scope, locale, value, recordId);
 	}
 
 	@Override

@@ -40,6 +40,7 @@ import io.evitadb.dataType.expression.Expression;
 import io.evitadb.utils.NamingConvention;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
@@ -49,17 +50,11 @@ import java.util.EnumSet;
 import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import org.junit.jupiter.api.Tag;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.EXPRESSION;
 import static io.evitadb.test.TestTags.HISTOGRAM;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Tests for {@link HistogramValueDescriptorFactory} — validates expression classification,
@@ -112,7 +107,7 @@ class HistogramValueDescriptorFactoryTest {
 			assertEquals(HistogramValueSource.REFERENCE_ATTRIBUTE, result.source());
 			assertNull(result.sourceEntityType());
 			assertEquals(ATTR_VALUE, result.sourceAttributeName());
-			assertEquals(BigDecimal.class, result.plainType());
+			assertSame(BigDecimal.class, result.plainType());
 			assertFalse(result.arrayType());
 			assertFalse(result.localized());
 			assertNull(result.defaultValue());
@@ -133,7 +128,7 @@ class HistogramValueDescriptorFactoryTest {
 			assertNotNull(result);
 			assertEquals(HistogramValueSource.REFERENCE_ATTRIBUTE, result.source());
 			assertEquals(ATTR_WEIGHT, result.sourceAttributeName());
-			assertEquals(Integer.class, result.plainType());
+			assertSame(Integer.class, result.plainType());
 			assertFalse(result.localized());
 		}
 
@@ -151,7 +146,7 @@ class HistogramValueDescriptorFactoryTest {
 
 			assertNotNull(result);
 			assertEquals(HistogramValueSource.REFERENCE_ATTRIBUTE, result.source());
-			assertEquals(Long.class, result.plainType());
+			assertSame(Long.class, result.plainType());
 			assertFalse(result.localized());
 		}
 
@@ -169,7 +164,7 @@ class HistogramValueDescriptorFactoryTest {
 
 			assertNotNull(result);
 			assertEquals(HistogramValueSource.REFERENCE_ATTRIBUTE, result.source());
-			assertEquals(Short.class, result.plainType());
+			assertSame(Short.class, result.plainType());
 			assertFalse(result.localized());
 		}
 
@@ -187,7 +182,7 @@ class HistogramValueDescriptorFactoryTest {
 
 			assertNotNull(result);
 			assertEquals(HistogramValueSource.REFERENCE_ATTRIBUTE, result.source());
-			assertEquals(Byte.class, result.plainType());
+			assertSame(Byte.class, result.plainType());
 			assertFalse(result.localized());
 		}
 
@@ -241,7 +236,7 @@ class HistogramValueDescriptorFactoryTest {
 			assertEquals(HistogramValueSource.REFERENCED_ENTITY_ATTRIBUTE, result.source());
 			assertEquals(REFERENCED_ENTITY_TYPE, result.sourceEntityType());
 			assertEquals(ATTR_VALUE, result.sourceAttributeName());
-			assertEquals(BigDecimal.class, result.plainType());
+			assertSame(BigDecimal.class, result.plainType());
 			assertFalse(result.arrayType());
 			assertFalse(result.localized());
 			assertNull(result.defaultValue());
@@ -270,7 +265,7 @@ class HistogramValueDescriptorFactoryTest {
 			assertNotNull(result);
 			assertEquals(HistogramValueSource.REFERENCED_ENTITY_ATTRIBUTE, result.source());
 			assertEquals(ATTR_WEIGHT, result.sourceAttributeName());
-			assertEquals(Integer.class, result.plainType());
+			assertSame(Integer.class, result.plainType());
 			assertFalse(result.localized());
 		}
 	}
@@ -296,10 +291,10 @@ class HistogramValueDescriptorFactoryTest {
 
 			assertNotNull(result);
 			assertNotNull(result.defaultValue());
-			assertEquals(BigDecimal.class, result.plainType());
+			assertSame(BigDecimal.class, result.plainType());
 			assertFalse(result.localized());
 			// default value is converted to the attribute's plain type (BigDecimal)
-			assertTrue(result.defaultValue() instanceof BigDecimal);
+			assertInstanceOf(BigDecimal.class, result.defaultValue());
 			assertEquals(0, ((BigDecimal) result.defaultValue()).compareTo(BigDecimal.ZERO));
 		}
 
@@ -316,10 +311,10 @@ class HistogramValueDescriptorFactoryTest {
 			);
 
 			assertNotNull(result);
-			assertEquals(Integer.class, result.plainType());
+			assertSame(Integer.class, result.plainType());
 			assertFalse(result.localized());
 			assertNotNull(result.defaultValue());
-			assertTrue(result.defaultValue() instanceof Integer);
+			assertInstanceOf(Integer.class, result.defaultValue());
 			assertEquals(42, result.defaultValue().intValue());
 		}
 
@@ -336,10 +331,10 @@ class HistogramValueDescriptorFactoryTest {
 			);
 
 			assertNotNull(result);
-			assertEquals(Short.class, result.plainType());
+			assertSame(Short.class, result.plainType());
 			assertFalse(result.localized());
 			assertNotNull(result.defaultValue());
-			assertTrue(result.defaultValue() instanceof Short);
+			assertInstanceOf(Short.class, result.defaultValue());
 			assertEquals((short) 7, result.defaultValue().shortValue());
 		}
 
@@ -366,7 +361,7 @@ class HistogramValueDescriptorFactoryTest {
 			assertNotNull(result);
 			assertFalse(result.localized());
 			assertNotNull(result.defaultValue());
-			assertTrue(result.defaultValue() instanceof BigDecimal);
+			assertInstanceOf(BigDecimal.class, result.defaultValue());
 			assertEquals(0, ((BigDecimal) result.defaultValue()).compareTo(new BigDecimal("99.5")));
 		}
 
@@ -727,7 +722,7 @@ class HistogramValueDescriptorFactoryTest {
 			assertEquals(HistogramValueSource.REFERENCE_ATTRIBUTE, result.source());
 			assertNull(result.sourceEntityType());
 			assertEquals(ATTR_VALUE, result.sourceAttributeName());
-			assertEquals(BigDecimal.class, result.plainType());
+			assertSame(BigDecimal.class, result.plainType());
 			assertFalse(result.arrayType());
 			assertTrue(result.localized());
 			assertNull(result.defaultValue());
@@ -757,7 +752,7 @@ class HistogramValueDescriptorFactoryTest {
 			assertEquals(HistogramValueSource.REFERENCED_ENTITY_ATTRIBUTE, result.source());
 			assertEquals(REFERENCED_ENTITY_TYPE, result.sourceEntityType());
 			assertEquals(ATTR_VALUE, result.sourceAttributeName());
-			assertEquals(BigDecimal.class, result.plainType());
+			assertSame(BigDecimal.class, result.plainType());
 			assertFalse(result.arrayType());
 			assertTrue(result.localized());
 			assertNull(result.defaultValue());
@@ -780,10 +775,10 @@ class HistogramValueDescriptorFactoryTest {
 			assertNotNull(result);
 			assertEquals(HistogramValueSource.REFERENCE_ATTRIBUTE, result.source());
 			assertEquals(ATTR_VALUE, result.sourceAttributeName());
-			assertEquals(BigDecimal.class, result.plainType());
+			assertSame(BigDecimal.class, result.plainType());
 			assertTrue(result.localized());
 			assertNotNull(result.defaultValue());
-			assertTrue(result.defaultValue() instanceof BigDecimal);
+			assertInstanceOf(BigDecimal.class, result.defaultValue());
 			assertEquals(0, ((BigDecimal) result.defaultValue()).compareTo(BigDecimal.ZERO));
 		}
 
@@ -869,9 +864,38 @@ class HistogramValueDescriptorFactoryTest {
 			);
 
 			assertNotNull(result);
-			assertEquals(io.evitadb.dataType.IntegerNumberRange.class, result.plainType());
-			assertEquals(Integer.class, result.innerNumericType());
+			assertSame(io.evitadb.dataType.IntegerNumberRange.class, result.plainType());
+			assertSame(Integer.class, result.innerNumericType());
 			assertNull(result.defaultValue());
+			// an integral range carries no fractional scale
+			assertEquals(0, result.indexedDecimalPlaces());
+		}
+
+		@Test
+		@DisplayName("should carry the schema's indexedDecimalPlaces for a BigDecimalNumberRange source attribute")
+		void shouldCarryIndexedDecimalPlacesForBigDecimalRangeSource() {
+			final Expression expr = ExpressionFactory.parse("$reference.attributes['value']");
+			final ReferenceSchemaContract refSchema = buildReferenceSchema(builder ->
+				builder.withReferenceTo(REFERENCE_NAME, REFERENCED_ENTITY_TYPE, Cardinality.ZERO_OR_MORE,
+					whichIs -> whichIs
+						.indexedForFiltering()
+						.withAttribute(
+							ATTR_VALUE, io.evitadb.dataType.BigDecimalNumberRange.class,
+							thatIs -> thatIs.filterable().indexDecimalPlaces(2)
+						)
+				)
+			);
+
+			final HistogramValueDescriptor result = HistogramValueDescriptorFactory.build(
+				expr, REFERENCE_NAME, HISTOGRAM_NAME, Scope.LIVE, refSchema, noEntityResolver()
+			);
+
+			assertNotNull(result);
+			assertSame(io.evitadb.dataType.BigDecimalNumberRange.class, result.plainType());
+			assertSame(BigDecimal.class, result.innerNumericType());
+			// a BigDecimal-backed range scales to the source attribute's indexedDecimalPlaces, just like a plain
+			// BigDecimal attribute — so the histogram normalizer rebuilds its thresholds at the same scale
+			assertEquals(2, result.indexedDecimalPlaces());
 		}
 	}
 

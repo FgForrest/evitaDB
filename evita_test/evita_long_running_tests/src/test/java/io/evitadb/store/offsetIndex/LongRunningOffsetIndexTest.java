@@ -363,6 +363,7 @@ class LongRunningOffsetIndexTest implements EvitaTestSupport, TimeBoundedTestSup
 		cleanTestSubDirectory(TEST_FOLDER);
 	}
 
+	@DisplayName("Survive generational insert/update/remove with compaction and history-aware reads")
 	@ParameterizedTest(name = "OffsetIndex should survive generational randomized test applying modifications on it, compression: {1}")
 	@Tag(SLOW)
 	@ArgumentsSource(TimeAndCompressionArgumentProvider.class)
@@ -462,6 +463,13 @@ class LongRunningOffsetIndexTest implements EvitaTestSupport, TimeBoundedTestSup
 					}
 
 					final OffsetIndexDescriptor fileOffsetIndexDescriptor = currentOffsetIndex.flush(transactionId);
+
+					// release versions no client references any more so the version registry stays bounded; the
+					// release window is kept far below the verified history range so it never drops a snapshot
+					// that is asserted against below
+					if (transactionId > 50) {
+						currentOffsetIndex.purge(transactionId - 50);
+					}
 
 					long start = System.nanoTime();
 					final OffsetIndex loadedFileOffsetIndex = loadOffsetIndex(

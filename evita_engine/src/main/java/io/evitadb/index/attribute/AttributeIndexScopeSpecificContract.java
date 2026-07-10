@@ -33,13 +33,11 @@ import javax.annotation.Nullable;
 import java.util.Locale;
 
 /**
- * AttributeIndexContract describes the API of {@link AttributeIndex} that maintains data structures for fast accessing
- * filtered, unique and sorted entity attribute data. Interface describes both read and write access to the index.
- *
- * Purpose of this contract interface is to ease using {@link @lombok.experimental.Delegate} annotation
- * in {@link io.evitadb.index.EntityIndex} and minimize the amount of the code in this complex class by automatically
- * delegating all {@link AttributeIndexContract} methods to the {@link AttributeIndex} implementation that is part
- * of this index.
+ * AttributeIndexScopeSpecificContract declares the scope-parameterized unique-index lookup. It is deliberately kept
+ * OUT of the delegated {@link AttributeIndexContract} read surface and implemented only by {@link AttributeIndex}, so
+ * that {@link @lombok.experimental.Delegate} never auto-forwards it onto {@link io.evitadb.index.EntityIndex}. An
+ * entity index lives in exactly one scope, so it exposes only a scope-locked variant that resolves the scope from its
+ * own index key — letting a caller pass an arbitrary scope here would be a correctness footgun.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */

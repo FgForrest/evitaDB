@@ -29,10 +29,18 @@ import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.api.requestResponse.schema.OrderBehaviour;
 import io.evitadb.comparator.NullsFirstComparatorWrapper;
 import io.evitadb.comparator.NullsLastComparatorWrapper;
+import io.evitadb.core.buffer.TrappedChanges;
+import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.PositionResolution;
+import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortResolutionStrategy;
+import io.evitadb.core.transaction.Transaction;
+import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
+import io.evitadb.roaringbitmap.RoaringBitmapWriter;
 import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedComparableForwardSeeker;
 import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedRecordsProvider;
 import io.evitadb.dataType.ComparableCurrency;
 import io.evitadb.dataType.ComparableLocale;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.attribute.SortIndex.ComparableArray;
 import io.evitadb.index.attribute.SortIndex.ComparatorSource;
 import io.evitadb.index.bitmap.BaseBitmap;
@@ -41,6 +49,8 @@ import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.SortIndexStoragePart;
+import io.evitadb.utils.ArrayUtils;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
@@ -78,21 +88,21 @@ class SortIndexTest {
 	@Test
 	void shouldCreateIndexWithDifferentCardinalities() {
 		final SortIndex sortIndex = createIndexWithBaseCardinalities();
-		assertNull(sortIndex.valueCardinalities.get("Z"));
-		assertNull(sortIndex.valueCardinalities.get("A"));
-		assertEquals(2, sortIndex.valueCardinalities.get("B"));
-		assertEquals(4, sortIndex.valueCardinalities.get("C"));
-		assertArrayEquals(new String[]{"A", "B", "C", "E"}, sortIndex.sortedRecordsValues.getArray());
+		assertTrue(sortIndex.getRecordsEqualTo("Z").isEmpty());
+		assertEquals(1, sortIndex.getValueCardinality("A"));
+		assertEquals(2, sortIndex.getValueCardinality("B"));
+		assertEquals(4, sortIndex.getValueCardinality("C"));
+		assertArrayEquals(new String[]{"A", "B", "C", "E"}, sortIndex.getSortedRecordValues());
 		assertArrayEquals(new int[]{6, 4, 5, 1, 2, 3, 7, 9}, sortIndex.sortedRecords.getArray());
 	}
 
 	@Test
 	void shouldCreateCompoundIndexWithDifferentCardinalities() {
 		final SortIndex sortIndex = createCompoundIndexWithBaseCardinalities();
-		assertNull(sortIndex.valueCardinalities.get(new ComparableArray(new Serializable[]{"Z", 1})));
-		assertNull(sortIndex.valueCardinalities.get(new ComparableArray(new Serializable[]{"A", 2})));
-		assertEquals(2, sortIndex.valueCardinalities.get(new ComparableArray(new Serializable[]{"B", 1})));
-		assertEquals(2, sortIndex.valueCardinalities.get(new ComparableArray(new Serializable[]{"C", 9})));
+		assertTrue(sortIndex.getRecordsEqualTo(new Serializable[]{"Z", 1}).isEmpty());
+		assertTrue(sortIndex.getRecordsEqualTo(new Serializable[]{"A", 2}).isEmpty());
+		assertEquals(2, sortIndex.getValueCardinality(new ComparableArray(new Serializable[]{"B", 1})));
+		assertEquals(2, sortIndex.getValueCardinality(new ComparableArray(new Serializable[]{"C", 9})));
 		assertArrayEquals(
 			new ComparableArray[]{
 				new ComparableArray(new Serializable[]{null, 3}),
@@ -103,7 +113,7 @@ class SortIndexTest {
 				new ComparableArray(new Serializable[]{"C", null}),
 				new ComparableArray(new Serializable[]{"E", null})
 			},
-			sortIndex.sortedRecordsValues.getArray()
+			sortIndex.getSortedRecordValues()
 		);
 		assertArrayEquals(new int[]{8, 6, 4, 5, 1, 7, 3, 2, 9}, sortIndex.sortedRecords.getArray());
 	}
@@ -139,17 +149,17 @@ class SortIndexTest {
 		sortIndex.removeRecord("A", 6);
 		sortIndex.removeRecord("B", 4);
 		sortIndex.removeRecord("C", 1);
-		assertNull(sortIndex.valueCardinalities.get("Z"));
-		assertNull(sortIndex.valueCardinalities.get("A"));
-		assertNull(sortIndex.valueCardinalities.get("B"));
-		assertEquals(3, sortIndex.valueCardinalities.get("C"));
-		assertArrayEquals(new String[]{"B", "C", "E"}, sortIndex.sortedRecordsValues.getArray());
+		assertTrue(sortIndex.getRecordsEqualTo("Z").isEmpty());
+		assertTrue(sortIndex.getRecordsEqualTo("A").isEmpty());
+		assertEquals(1, sortIndex.getValueCardinality("B"));
+		assertEquals(3, sortIndex.getValueCardinality("C"));
+		assertArrayEquals(new String[]{"B", "C", "E"}, sortIndex.getSortedRecordValues());
 		assertArrayEquals(new int[]{5, 2, 3, 7, 9}, sortIndex.sortedRecords.getArray());
 	}
 
 	@Test
 	void shouldIndexRecordsAndReturnInAscendingOrder() {
-		final SortIndex sortIndex = new SortIndex(Integer.class, new AttributeIndexKey(null, "a", null));
+		final SortIndex sortIndex = new OwnerSortIndex(Integer.class, new AttributeIndexKey(null, "a", null));
 		sortIndex.addRecord(7, 2);
 		sortIndex.addRecord(3, 4);
 		sortIndex.addRecord(4, 3);
@@ -173,7 +183,7 @@ class SortIndexTest {
 
 	@Test
 	void shouldIndexRecordsAndReturnInDescendingOrder() {
-		final SortIndex sortIndex = new SortIndex(Integer.class, new AttributeIndexKey(null, "a", null));
+		final SortIndex sortIndex = new OwnerSortIndex(Integer.class, new AttributeIndexKey(null, "a", null));
 		sortIndex.addRecord(7, 2);
 		sortIndex.addRecord(3, 4);
 		sortIndex.addRecord(4, 3);
@@ -188,7 +198,7 @@ class SortIndexTest {
 
 	@Test
 	void shouldCorrectlyOrderLocalizedStrings() {
-		final SortIndex sortIndex = new SortIndex(String.class, new AttributeIndexKey(null, "a", CZECH_LOCALE));
+		final SortIndex sortIndex = new OwnerSortIndex(String.class, new AttributeIndexKey(null, "a", CZECH_LOCALE));
 		sortIndex.addRecord("c", 2);
 		sortIndex.addRecord("č", 3);
 		sortIndex.addRecord("a", 1);
@@ -212,7 +222,7 @@ class SortIndexTest {
 	@Test
 	void shouldCorrectlyOrderBigDecimals() {
 		// values are pre-normalized (stripTrailingZeros) as they would be by EntityIndexLocalMutationExecutor
-		final SortIndex sortIndex = new SortIndex(BigDecimal.class, new AttributeIndexKey(null, "a", CZECH_LOCALE));
+		final SortIndex sortIndex = new OwnerSortIndex(BigDecimal.class, new AttributeIndexKey(null, "a", CZECH_LOCALE));
 		sortIndex.addRecord(new BigDecimal("0"), 1);
 		sortIndex.addRecord(new BigDecimal("0"), 2);
 		sortIndex.addRecord(new BigDecimal("0"), 3);
@@ -304,7 +314,7 @@ class SortIndexTest {
 
 	@Test
 	void shouldPassGenerationalTest1() {
-		final SortIndex sortIndex = new SortIndex(String.class, new AttributeIndexKey(null, "a", null));
+		final SortIndex sortIndex = new OwnerSortIndex(String.class, new AttributeIndexKey(null, "a", null));
 		sortIndex.addRecord("W", 49);
 		sortIndex.addRecord("Z", 150);
 		sortIndex.addRecord("[", 175);
@@ -324,7 +334,7 @@ class SortIndexTest {
 
 	@Test
 	void shouldSortNationalCharactersCorrectly() {
-		final SortIndex sortIndex = new SortIndex(String.class, new AttributeIndexKey(null, "a", CZECH_LOCALE));
+		final SortIndex sortIndex = new OwnerSortIndex(String.class, new AttributeIndexKey(null, "a", CZECH_LOCALE));
 		sortIndex.addRecord("A", 1);
 		sortIndex.addRecord("Š", 2);
 		sortIndex.addRecord("T", 3);
@@ -343,14 +353,37 @@ class SortIndexTest {
 				normalize("T", Form.NFD),
 				normalize("Ž", Form.NFD)
 			},
-			sortIndex.sortedRecordsValues.getArray()
+			sortIndex.getSortedRecordValues()
 		);
 		assertArrayEquals(new int[]{1, 4, 7, 6, 2, 3, 5}, sortIndex.sortedRecords.getArray());
 	}
 
 	@Nonnull
 	private static SortIndex createIndexWithBaseCardinalities() {
-		final SortIndex sortIndex = new SortIndex(String.class, new AttributeIndexKey(null, "a", Locale.ENGLISH));
+		final SortIndex sortIndex = new OwnerSortIndex(String.class, new AttributeIndexKey(null, "a", Locale.ENGLISH));
+		sortIndex.addRecord("B", 5);
+		sortIndex.addRecord("A", 6);
+		sortIndex.addRecord("C", 3);
+		sortIndex.addRecord("C", 2);
+		sortIndex.addRecord("B", 4);
+		sortIndex.addRecord("C", 1);
+		sortIndex.addRecord("E", 9);
+		sortIndex.addRecord("C", 7);
+		return sortIndex;
+	}
+
+	/**
+	 * Builds the same base-cardinality fixture as {@link #createIndexWithBaseCardinalities()} but carrying a
+	 * {@link RepresentativeReferenceKey}, so the committed-snapshot fast path constructs a
+	 * {@link ReferenceSortedRecordsProvider} instead of a plain {@link SortedRecordsSupplier}.
+	 */
+	@Nonnull
+	private static SortIndex createReferenceKeyedIndexWithBaseCardinalities() {
+		final SortIndex sortIndex = new OwnerSortIndex(
+			String.class,
+			new RepresentativeReferenceKey(new ReferenceKey("brand", 1)),
+			new AttributeIndexKey(null, "a", Locale.ENGLISH)
+		);
 		sortIndex.addRecord("B", 5);
 		sortIndex.addRecord("A", 6);
 		sortIndex.addRecord("C", 3);
@@ -364,7 +397,7 @@ class SortIndexTest {
 
 	@Nonnull
 	private static SortIndex createIndexWithSingleCardinality() {
-		final SortIndex sortIndex = new SortIndex(String.class, new AttributeIndexKey(null, "a", Locale.ENGLISH));
+		final SortIndex sortIndex = new OwnerSortIndex(String.class, new AttributeIndexKey(null, "a", Locale.ENGLISH));
 		sortIndex.addRecord("A", 5);
 		sortIndex.addRecord("A", 6);
 		sortIndex.addRecord("A", 3);
@@ -378,7 +411,7 @@ class SortIndexTest {
 
 	@Nonnull
 	private static SortIndex createCompoundIndexWithBaseCardinalities() {
-		final SortIndex sortIndex = new SortIndex(
+		final SortIndex sortIndex = new OwnerSortIndex(
 			new ComparatorSource[]{
 				new ComparatorSource(String.class, OrderDirection.ASC, OrderBehaviour.NULLS_FIRST),
 				new ComparatorSource(Integer.class, OrderDirection.DESC, OrderBehaviour.NULLS_LAST)
@@ -405,8 +438,8 @@ class SortIndexTest {
 		@Test
 		@DisplayName("should assign unique id to each instance")
 		void shouldAssignUniqueIdToEachInstance() {
-			final SortIndex first = new SortIndex(Integer.class, new AttributeIndexKey(null, "x", null));
-			final SortIndex second = new SortIndex(Integer.class, new AttributeIndexKey(null, "y", null));
+			final SortIndex first = new OwnerSortIndex(Integer.class, new AttributeIndexKey(null, "x", null));
+			final SortIndex second = new OwnerSortIndex(Integer.class, new AttributeIndexKey(null, "y", null));
 
 			assertNotEquals(first.getId(), second.getId());
 		}
@@ -414,21 +447,21 @@ class SortIndexTest {
 		@Test
 		@DisplayName("should return same instance when no mutations applied")
 		void shouldReturnSameInstanceWhenNoMutationsApplied() {
-			final SortIndex sortIndex = new SortIndex(Integer.class, new AttributeIndexKey(null, "a", null));
+			final SortIndex sortIndex = new OwnerSortIndex(Integer.class, new AttributeIndexKey(null, "a", null));
 
 			assertStateAfterCommit(
 				sortIndex,
 				original -> {
 					// no mutations
 				},
-				(original, committed) -> assertSame(original, committed)
+				Assertions::assertSame
 			);
 		}
 
 		@Test
 		@DisplayName("should return new instance when dirty after commit")
 		void shouldReturnNewInstanceWhenDirtyAfterCommit() {
-			final SortIndex sortIndex = new SortIndex(Integer.class, new AttributeIndexKey(null, "a", null));
+			final SortIndex sortIndex = new OwnerSortIndex(Integer.class, new AttributeIndexKey(null, "a", null));
 
 			assertStateAfterCommit(
 				sortIndex,
@@ -444,7 +477,7 @@ class SortIndexTest {
 		@Test
 		@DisplayName("should leave original unchanged after commit")
 		void shouldLeaveOriginalUnchangedAfterCommit() {
-			final SortIndex sortIndex = new SortIndex(String.class, new AttributeIndexKey(null, "a", null));
+			final SortIndex sortIndex = new OwnerSortIndex(String.class, new AttributeIndexKey(null, "a", null));
 			sortIndex.addRecord("A", 1);
 
 			assertStateAfterCommit(
@@ -466,7 +499,7 @@ class SortIndexTest {
 		@Test
 		@DisplayName("should discard changes after rollback")
 		void shouldDiscardChangesAfterRollback() {
-			final SortIndex sortIndex = new SortIndex(String.class, new AttributeIndexKey(null, "a", null));
+			final SortIndex sortIndex = new OwnerSortIndex(String.class, new AttributeIndexKey(null, "a", null));
 			sortIndex.addRecord("X", 10);
 
 			assertStateAfterRollback(
@@ -488,7 +521,7 @@ class SortIndexTest {
 		@Test
 		@DisplayName("should deterministically commit add and remove")
 		void shouldDeterministicallyCommitAddAndRemove() {
-			final SortIndex sortIndex = new SortIndex(String.class, new AttributeIndexKey(null, "a", null));
+			final SortIndex sortIndex = new OwnerSortIndex(String.class, new AttributeIndexKey(null, "a", null));
 			sortIndex.addRecord("A", 1);
 			sortIndex.addRecord("B", 2);
 			sortIndex.addRecord("C", 3);
@@ -517,30 +550,34 @@ class SortIndexTest {
 		@Test
 		@DisplayName("should report empty index correctly")
 		void shouldReportEmptyIndexCorrectly() {
-			final SortIndex sortIndex = new SortIndex(Integer.class, new AttributeIndexKey(null, "a", null));
+			final SortIndex sortIndex = new OwnerSortIndex(Integer.class, new AttributeIndexKey(null, "a", null));
 
 			assertTrue(sortIndex.isEmpty());
 			assertEquals(0, sortIndex.size());
 		}
 
 		@Test
-		@DisplayName("should return null from createStoragePart when not dirty")
-		void shouldReturnNullFromCreateStoragePartWhenNotDirty() {
-			final SortIndex sortIndex = new SortIndex(Integer.class, new AttributeIndexKey(null, "a", null));
+		@DisplayName("should append nothing when not dirty")
+		void shouldAppendNothingWhenNotDirty() {
+			final SortIndex sortIndex = new OwnerSortIndex(Integer.class, new AttributeIndexKey(null, "a", null));
 
-			final StoragePart storagePart = sortIndex.createStoragePart(1);
-			assertNull(storagePart);
+			final TrappedChanges sink = new TrappedChanges();
+			sortIndex.appendStorageParts(1, sink);
+			assertEquals(0, sink.getTrappedChangesCount());
 		}
 
 		@Test
-		@DisplayName("should return SortIndexStoragePart when dirty")
-		void shouldReturnStoragePartWhenDirty() {
-			final SortIndex sortIndex = new SortIndex(String.class, new AttributeIndexKey(null, "name", null));
+		@DisplayName("should append SortIndexStoragePart when dirty")
+		void shouldAppendStoragePartWhenDirty() {
+			final SortIndex sortIndex = new OwnerSortIndex(String.class, new AttributeIndexKey(null, "name", null));
 			sortIndex.addRecord("Alpha", 1);
 			sortIndex.addRecord("Beta", 2);
 
-			final StoragePart storagePart = sortIndex.createStoragePart(42);
-			assertNotNull(storagePart);
+			final TrappedChanges sink = new TrappedChanges();
+			sortIndex.appendStorageParts(42, sink);
+			assertEquals(1, sink.getTrappedChangesCount());
+
+			final StoragePart storagePart = sink.getTrappedChangesIterator().next();
 			assertInstanceOf(SortIndexStoragePart.class, storagePart);
 
 			final SortIndexStoragePart part = (SortIndexStoragePart) storagePart;
@@ -548,30 +585,35 @@ class SortIndexTest {
 			assertEquals(new AttributeIndexKey(null, "name", null), part.getAttributeIndexKey());
 			assertArrayEquals(new int[]{1, 2}, part.getSortedRecords());
 
-			// dirty is still true so subsequent call returns part
-			final StoragePart secondPart = sortIndex.createStoragePart(42);
-			assertNotNull(secondPart);
+			// dirty is still true (only resetDirty() clears it) so a subsequent append emits the part again
+			final TrappedChanges secondSink = new TrappedChanges();
+			sortIndex.appendStorageParts(42, secondSink);
+			assertEquals(1, secondSink.getTrappedChangesCount());
 		}
 
 		@Test
 		@DisplayName("should reset dirty flag via resetDirty()")
 		void shouldResetDirtyFlag() {
-			final SortIndex sortIndex = new SortIndex(String.class, new AttributeIndexKey(null, "a", null));
+			final SortIndex sortIndex = new OwnerSortIndex(String.class, new AttributeIndexKey(null, "a", null));
 			sortIndex.addRecord("X", 1);
 
 			// dirty after add
-			assertNotNull(sortIndex.createStoragePart(1));
+			final TrappedChanges beforeReset = new TrappedChanges();
+			sortIndex.appendStorageParts(1, beforeReset);
+			assertEquals(1, beforeReset.getTrappedChangesCount());
 
 			sortIndex.resetDirty();
 
 			// not dirty anymore
-			assertNull(sortIndex.createStoragePart(1));
+			final TrappedChanges afterReset = new TrappedChanges();
+			sortIndex.appendStorageParts(1, afterReset);
+			assertEquals(0, afterReset.getTrappedChangesCount());
 		}
 
 		@Test
 		@DisplayName("should cache sortIndexChanges in non-transactional mode")
 		void shouldCacheSortIndexChangesNonTransactional() {
-			final SortIndex sortIndex = new SortIndex(String.class, new AttributeIndexKey(null, "a", null));
+			final SortIndex sortIndex = new OwnerSortIndex(String.class, new AttributeIndexKey(null, "a", null));
 			sortIndex.addRecord("A", 1);
 
 			// first call to ascending supplier creates changes
@@ -594,7 +636,7 @@ class SortIndexTest {
 		@Test
 		@DisplayName("should throw on duplicate recordId in scalar addRecord")
 		void shouldThrowOnDuplicateRecordIdScalar() {
-			final SortIndex sortIndex = new SortIndex(String.class, new AttributeIndexKey(null, "a", null));
+			final SortIndex sortIndex = new OwnerSortIndex(String.class, new AttributeIndexKey(null, "a", null));
 			sortIndex.addRecord("A", 1);
 
 			final IllegalArgumentException ex = assertThrows(
@@ -607,7 +649,7 @@ class SortIndexTest {
 		@Test
 		@DisplayName("should throw on duplicate recordId in array addRecord")
 		void shouldThrowOnDuplicateRecordIdArray() {
-			final SortIndex sortIndex = new SortIndex(
+			final SortIndex sortIndex = new OwnerSortIndex(
 				new ComparatorSource[]{
 					new ComparatorSource(String.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST),
 					new ComparatorSource(Integer.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)
@@ -626,7 +668,7 @@ class SortIndexTest {
 		@Test
 		@DisplayName("should throw when array passed as scalar value")
 		void shouldThrowWhenArrayPassedAsScalarValue() {
-			final SortIndex sortIndex = new SortIndex(String.class, new AttributeIndexKey(null, "a", null));
+			final SortIndex sortIndex = new OwnerSortIndex(String.class, new AttributeIndexKey(null, "a", null));
 
 			// cast to Serializable to force the scalar overload
 			final Serializable arrayValue = new String[]{"A", "B"};
@@ -640,7 +682,7 @@ class SortIndexTest {
 		@Test
 		@DisplayName("should throw when wrong type passed to addRecord")
 		void shouldThrowWhenWrongTypePassed() {
-			final SortIndex sortIndex = new SortIndex(Integer.class, new AttributeIndexKey(null, "a", null));
+			final SortIndex sortIndex = new OwnerSortIndex(Integer.class, new AttributeIndexKey(null, "a", null));
 
 			final IllegalArgumentException ex = assertThrows(
 				IllegalArgumentException.class,
@@ -652,7 +694,7 @@ class SortIndexTest {
 		@Test
 		@DisplayName("should throw when removing non-existent scalar value")
 		void shouldThrowOnRemoveNonExistentScalarValue() {
-			final SortIndex sortIndex = new SortIndex(String.class, new AttributeIndexKey(null, "a", null));
+			final SortIndex sortIndex = new OwnerSortIndex(String.class, new AttributeIndexKey(null, "a", null));
 			sortIndex.addRecord("A", 1);
 
 			final IllegalArgumentException ex = assertThrows(
@@ -665,7 +707,7 @@ class SortIndexTest {
 		@Test
 		@DisplayName("should throw when removing non-existent array value")
 		void shouldThrowOnRemoveNonExistentArrayValue() {
-			final SortIndex sortIndex = new SortIndex(
+			final SortIndex sortIndex = new OwnerSortIndex(
 				new ComparatorSource[]{
 					new ComparatorSource(String.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST),
 					new ComparatorSource(Integer.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)
@@ -679,6 +721,21 @@ class SortIndexTest {
 				() -> sortIndex.removeRecord(new Serializable[]{"Z", 99}, 10)
 			);
 			assertTrue(ex.getMessage().contains("not present"));
+		}
+
+		@Test
+		@DisplayName("should throw when cardinality requested for value absent from owned tree")
+		void shouldThrowWhenCardinalityRequestedForValueAbsentFromOwnedTree() {
+			final SortIndex sortIndex = new OwnerSortIndex(String.class, new AttributeIndexKey(null, "a", null));
+			sortIndex.addRecord("A", 1);
+
+			// owner mode owns every present value in its tree, so a cardinality miss is a broken invariant, not a query
+			// for an absent value (which callers must avoid) - it surfaces as a hard internal error
+			final GenericEvitaInternalError ex = assertThrows(
+				GenericEvitaInternalError.class,
+				() -> sortIndex.getValueCardinality("Z")
+			);
+			assertTrue(ex.getMessage().contains("Unexpected cardinality"));
 		}
 	}
 
@@ -707,16 +764,16 @@ class SortIndexTest {
 		@Test
 		@DisplayName("should handle cardinality exactly 2 removal correctly")
 		void shouldHandleCardinalityExactly2Removal() {
-			final SortIndex sortIndex = new SortIndex(String.class, new AttributeIndexKey(null, "a", null));
+			final SortIndex sortIndex = new OwnerSortIndex(String.class, new AttributeIndexKey(null, "a", null));
 			sortIndex.addRecord("X", 1);
 			sortIndex.addRecord("X", 2);
 
 			// cardinality is 2
-			assertEquals(2, sortIndex.valueCardinalities.get("X"));
+			assertEquals(2, sortIndex.getValueCardinality("X"));
 
-			// remove one -- cardinality drops to 1, entry removed
+			// remove one -- cardinality drops to 1 (still present, just no longer multi-record)
 			sortIndex.removeRecord("X", 1);
-			assertNull(sortIndex.valueCardinalities.get("X"));
+			assertEquals(1, sortIndex.getValueCardinality("X"));
 
 			// still one record remains
 			assertEquals(1, sortIndex.size());
@@ -841,11 +898,26 @@ class SortIndexTest {
 		}
 
 		@Test
-		@DisplayName("should not create normalizer for BigDecimal type (normalization happens at executor level)")
+		@DisplayName("should not scale BigDecimal in the query-comparator normalizer (raw natural order is correct)")
 		void shouldNotCreateNormalizerForBigDecimal() {
 			final ComparatorSource source =
 				new ComparatorSource(BigDecimal.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST);
+			// the query-side overload leaves BigDecimal unscaled - sorting result rows by raw BigDecimal is order-correct
 			assertTrue(SortIndex.createNormalizerFor(source).isEmpty());
+		}
+
+		@Test
+		@DisplayName("should scale BigDecimal to a scaled int in the places-aware normalizer")
+		void shouldScaleBigDecimalInPlacesAwareNormalizer() {
+			final ComparatorSource source =
+				new ComparatorSource(BigDecimal.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST);
+			final UnaryOperator<Serializable> normalizer = SortIndex.createNormalizerFor(source, 2).orElseThrow();
+
+			// 1.50 scaled by 2 decimal places becomes the order-preserving int 150
+			assertEquals(150, normalizer.apply(new BigDecimal("1.50")));
+			// the normalizer is idempotent: an already-scaled Integer (and null) passes through unchanged
+			assertEquals(150, normalizer.apply(150));
+			assertNull(normalizer.apply(null));
 		}
 
 		@Test
@@ -879,7 +951,7 @@ class SortIndexTest {
 				new ComparatorSource(String.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST);
 			final UnaryOperator<Serializable> normalizer = SortIndex.createNormalizerFor(source).orElseThrow();
 
-			final Serializable result = normalizer.apply("\u00e9"); // e-acute
+			final Serializable result = normalizer.apply("é"); // e-acute
 			assertNotNull(result);
 			assertNull(normalizer.apply(null));
 		}
@@ -892,7 +964,7 @@ class SortIndexTest {
 			assertTrue(SortIndex.createNormalizerFor(source).isEmpty());
 		}
 
-		@SuppressWarnings("rawtypes")
+		@SuppressWarnings({"rawtypes", "unchecked"})
 		@Test
 		@DisplayName("should create NULLS_FIRST ASC comparator")
 		void shouldCreateNullsFirstAscComparator() {
@@ -905,7 +977,7 @@ class SortIndexTest {
 			assertTrue(comparator.compare(null, "A") < 0);
 		}
 
-		@SuppressWarnings("rawtypes")
+		@SuppressWarnings("unchecked")
 		@Test
 		@DisplayName("should create NULLS_LAST DESC comparator")
 		void shouldCreateNullsLastDescComparator() {
@@ -920,7 +992,7 @@ class SortIndexTest {
 			assertTrue(comparator.compare("B", "A") < 0);
 		}
 
-		@SuppressWarnings("rawtypes")
+		@SuppressWarnings({"rawtypes", "unchecked"})
 		@Test
 		@DisplayName("should create NULLS_FIRST DESC comparator")
 		void shouldCreateNullsFirstDescComparator() {
@@ -935,7 +1007,7 @@ class SortIndexTest {
 			assertTrue(comparator.compare("B", "A") < 0);
 		}
 
-		@SuppressWarnings("rawtypes")
+		@SuppressWarnings({"rawtypes", "unchecked"})
 		@Test
 		@DisplayName("should create NULLS_LAST ASC comparator")
 		void shouldCreateNullsLastAscComparator() {
@@ -964,7 +1036,7 @@ class SortIndexTest {
 		void shouldThrowWhenSingleComparatorPassedToMultiField() {
 			assertThrows(
 				IllegalArgumentException.class,
-				() -> new SortIndex(
+				() -> new OwnerSortIndex(
 					new ComparatorSource[]{
 						new ComparatorSource(String.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)
 					},
@@ -982,7 +1054,7 @@ class SortIndexTest {
 			final Map<Serializable, Integer> cardinalities = new HashMap<>(4);
 			cardinalities.put("B", 2);
 
-			final SortIndex sortIndex = new SortIndex(
+			final SortIndex sortIndex = new OwnerSortIndex(
 				base, null,
 				new AttributeIndexKey(null, "a", null),
 				new int[]{1, 2, 3},
@@ -1000,7 +1072,7 @@ class SortIndexTest {
 		@DisplayName("should return reference key from referenceKey constructor")
 		void shouldReturnReferenceKeyFromConstructor() {
 			final RepresentativeReferenceKey refKey = new RepresentativeReferenceKey(new ReferenceKey("brand", 1));
-			final SortIndex sortIndex = new SortIndex(
+			final SortIndex sortIndex = new OwnerSortIndex(
 				String.class, refKey, new AttributeIndexKey(null, "name", null)
 			);
 
@@ -1011,7 +1083,7 @@ class SortIndexTest {
 		@Test
 		@DisplayName("should return null referenceKey for non-reference constructor")
 		void shouldReturnNullReferenceKeyForNonReference() {
-			final SortIndex sortIndex = new SortIndex(String.class, new AttributeIndexKey(null, "name", null));
+			final SortIndex sortIndex = new OwnerSortIndex(String.class, new AttributeIndexKey(null, "name", null));
 
 			assertNull(sortIndex.getReferenceKey());
 		}
@@ -1065,6 +1137,452 @@ class SortIndexTest {
 
 			assertNotEquals(null, a);
 			assertNotEquals("not-a-comparable-array", a);
+		}
+	}
+
+	@Nested
+	@DisplayName("Supplier array memoization")
+	class SupplierArrayMemoizationTest {
+
+		@Test
+		@DisplayName("descending supplier reflects an added record after the memo was materialized")
+		void shouldReflectAddedRecordInDescendingSupplierAfterMemoization() {
+			final SortIndex sortIndex = createIndexWithBaseCardinalities();
+
+			// materialize the descending memo so a subsequent add must invalidate it
+			assertArrayEquals(
+				new int[]{9, 7, 3, 2, 1, 5, 4, 6},
+				sortIndex.getDescendingOrderRecordsSupplier().getSortedRecordIds()
+			);
+
+			// add a second record into the "A" block - record ids inside a block stay in natural integer order
+			sortIndex.addRecord("A", 8);
+
+			// the descending supplier must expose the NEW absolute order, not the stale memoized array
+			assertArrayEquals(
+				new int[]{9, 7, 3, 2, 1, 5, 4, 8, 6},
+				sortIndex.getDescendingOrderRecordsSupplier().getSortedRecordIds()
+			);
+		}
+
+		@Test
+		@DisplayName("both suppliers reflect a removed record after both memos were materialized")
+		void shouldReflectRemovedRecordInBothSuppliersAfterMemoization() {
+			final SortIndex sortIndex = createIndexWithBaseCardinalities();
+
+			// materialize BOTH per-direction memos
+			assertArrayEquals(
+				new int[]{6, 4, 5, 1, 2, 3, 7, 9},
+				sortIndex.getAscendingOrderRecordsSupplier().getSortedRecordIds()
+			);
+			assertArrayEquals(
+				new int[]{9, 7, 3, 2, 1, 5, 4, 6},
+				sortIndex.getDescendingOrderRecordsSupplier().getSortedRecordIds()
+			);
+
+			// a single mutation must invalidate BOTH direction holders, not just the one that triggered it
+			sortIndex.removeRecord("C", 2);
+
+			assertArrayEquals(
+				new int[]{6, 4, 5, 1, 3, 7, 9},
+				sortIndex.getAscendingOrderRecordsSupplier().getSortedRecordIds()
+			);
+			assertArrayEquals(
+				new int[]{9, 7, 3, 1, 5, 4, 6},
+				sortIndex.getDescendingOrderRecordsSupplier().getSortedRecordIds()
+			);
+		}
+
+		@Test
+		@DisplayName("repeated calls reuse the memoized arrays but mint a fresh seeker and provider each time")
+		void shouldReturnConsistentArraysAndFreshSeekerAcrossRepeatedAscendingCalls() {
+			final SortIndex sortIndex = createIndexWithBaseCardinalities();
+
+			final SortedRecordsProvider first = sortIndex.getAscendingOrderRecordsSupplier();
+			final SortedRecordsProvider second = sortIndex.getAscendingOrderRecordsSupplier();
+
+			// the expensive memoized arrays/bitmap are stable across calls (no mutation in between)
+			assertArrayEquals(first.getSortedRecordIds(), second.getSortedRecordIds());
+			assertArrayEquals(first.getRecordPositions(), second.getRecordPositions());
+			assertEquals(first.getAllRecords(), second.getAllRecords());
+
+			// the stateful, monotonic seeker and the provider wrapper must be freshly built per call so concurrent
+			// queries never share a cursor
+			assertNotSame(first, second);
+			assertNotSame(
+				first.getSortedComparableForwardSeeker(),
+				second.getSortedComparableForwardSeeker()
+			);
+
+			// the same fresh-seeker contract holds for the descending direction
+			final SortedRecordsProvider firstDescending = sortIndex.getDescendingOrderRecordsSupplier();
+			final SortedRecordsProvider secondDescending = sortIndex.getDescendingOrderRecordsSupplier();
+			assertNotSame(firstDescending, secondDescending);
+			assertNotSame(
+				firstDescending.getSortedComparableForwardSeeker(),
+				secondDescending.getSortedComparableForwardSeeker()
+			);
+		}
+
+		@Test
+		@DisplayName("deriving the descending arrays does not mutate the shared ascending arrays")
+		void shouldNotMutateSharedAscendingArraysWhenDerivingDescending() {
+			final SortIndex sortIndex = createIndexWithBaseCardinalities();
+
+			final int[] ascendingIds = sortIndex.getAscendingOrderRecordsSupplier().getSortedRecordIds();
+			final int[] ascendingPositions = sortIndex.getAscendingOrderRecordsSupplier().getRecordPositions();
+			final int[] ascendingIdsCopy = ascendingIds.clone();
+			final int[] ascendingPositionsCopy = ascendingPositions.clone();
+
+			// the descending arrays are reverse()/invert() derivations - both must allocate fresh and leave the shared
+			// ascending arrays untouched
+			final SortedRecordsProvider descending = sortIndex.getDescendingOrderRecordsSupplier();
+			final int[] descendingIds = descending.getSortedRecordIds();
+			final int[] descendingPositions = descending.getRecordPositions();
+
+			// re-read the ascending arrays: they must be byte-for-byte what they were before descending was derived
+			assertArrayEquals(
+				ascendingIdsCopy,
+				sortIndex.getAscendingOrderRecordsSupplier().getSortedRecordIds()
+			);
+			assertArrayEquals(
+				ascendingPositionsCopy,
+				sortIndex.getAscendingOrderRecordsSupplier().getRecordPositions()
+			);
+
+			// and the descending arrays are exactly the reverse / inversion of the ascending ones
+			assertArrayEquals(ArrayUtils.reverse(ascendingIdsCopy), descendingIds);
+			assertArrayEquals(SortIndex.invert(ascendingPositionsCopy), descendingPositions);
+		}
+	}
+
+	/**
+	 * Verifies the committed-snapshot supplier cache added to {@link SortIndex#getAscendingOrderRecordsSupplier()} /
+	 * {@link SortIndex#getDescendingOrderRecordsSupplier()}: every query in a transactional (`ALIVE`) catalog opens
+	 * and discards its own throwaway {@link Transaction}, which used to defeat the {@link SortIndexChanges} array
+	 * memoization ({@link SupplierArrayMemoizationTest}) completely, since a fresh, empty layer was minted per
+	 * query. This suite covers the transactional axis {@link SupplierArrayMemoizationTest} does not: it never opens
+	 * a {@link Transaction} at all.
+	 */
+	@Nested
+	@DisplayName("Committed-snapshot cache (transactional fast path)")
+	class CommittedSnapshotCacheTest {
+
+		@Test
+		@DisplayName("a dense query on the cache fast path dispatches to the warm array merge-walk, not the cold tree walk")
+		void shouldDispatchDenseQueryToWarmMergeWalkOnCacheFastPath() {
+			final SortIndex sortIndex = createIndexWithBaseCardinalities();
+
+			// a dense selection (well above the sparse/dense threshold for this tiny 8-record index): every record
+			final RoaringBitmapWriter<PersistentRoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
+			for (final int recordId : new int[]{1, 2, 3, 4, 5, 6, 7, 9}) {
+				writer.add(recordId);
+			}
+			final PersistentRoaringBitmap selection = writer.get();
+
+			final PositionResolution resolution = Transaction.executeInTransactionIfProvided(
+				new Transaction(sortIndex),
+				() -> sortIndex.getAscendingOrderRecordsSupplier().resolvePositions(
+					selection, 8, new int[512], new int[512], null
+				)
+			);
+
+			// this is the crux of the fix: the cache must be wired into the DISPATCH the regressing query path
+			// actually takes, not merely be correct-but-unconsulted - see SortIndex#buildCachedSupplier's javadoc
+			assertEquals(SortResolutionStrategy.ARRAY_MERGE_WALK, resolution.strategy());
+		}
+
+		@Test
+		@DisplayName("separate throwaway transactions that never write to this index reuse the same cached arrays")
+		void shouldReuseCachedArraysAcrossSeparateThrowawayTransactions() {
+			final SortIndex sortIndex = createIndexWithBaseCardinalities();
+
+			final int[] first = Transaction.executeInTransactionIfProvided(
+				new Transaction(sortIndex),
+				() -> sortIndex.getAscendingOrderRecordsSupplier().getSortedRecordIds()
+			);
+			final int[] second = Transaction.executeInTransactionIfProvided(
+				new Transaction(sortIndex),
+				() -> sortIndex.getAscendingOrderRecordsSupplier().getSortedRecordIds()
+			);
+
+			// a DIFFERENT Transaction object each time, yet the SAME array instance - proves the cache lives on the
+			// SortIndex snapshot, not on any transaction
+			assertSame(first, second);
+
+			// the descending direction now shares the SAME ascending snapshot cache and derives its reversed order by
+			// transform on demand (production never calls getSortedRecordIds() on a descending provider - the sorters
+			// use recordAt() / resolvePositions()), so repeated calls are value-equal rather than the same instance
+			final int[] firstDescending = Transaction.executeInTransactionIfProvided(
+				new Transaction(sortIndex),
+				() -> sortIndex.getDescendingOrderRecordsSupplier().getSortedRecordIds()
+			);
+			final int[] secondDescending = Transaction.executeInTransactionIfProvided(
+				new Transaction(sortIndex),
+				() -> sortIndex.getDescendingOrderRecordsSupplier().getSortedRecordIds()
+			);
+			assertArrayEquals(firstDescending, secondDescending);
+			// and it is exactly the ascending order reversed, confirming the shared-cache derivation
+			assertArrayEquals(ArrayUtils.reverse(first), firstDescending);
+		}
+
+		@Test
+		@DisplayName("a write within a transaction is visible to a later read in the SAME transaction, not the stale cache")
+		void shouldServeLiveWriteWithinSameTransactionInsteadOfStaleCache() {
+			final SortIndex sortIndex = createIndexWithBaseCardinalities();
+
+			Transaction.executeInTransactionIfProvided(
+				new Transaction(sortIndex),
+				(Runnable) () -> {
+					// warms the committed-snapshot cache fast path (nothing written yet in this transaction)
+					final int[] beforeWrite = sortIndex.getAscendingOrderRecordsSupplier().getSortedRecordIds();
+					assertFalse(ArrayUtils.contains(beforeWrite, 8));
+
+					// the first write to THIS index within this transaction must mint a real per-transaction layer
+					sortIndex.addRecord("A", 8);
+
+					// a later read in the SAME transaction must reflect the write, not the pre-write cached array
+					final int[] afterWrite = sortIndex.getAscendingOrderRecordsSupplier().getSortedRecordIds();
+					assertTrue(ArrayUtils.contains(afterWrite, 8));
+
+					// the descending direction is guarded by the identical check - confirm it is symmetric
+					final int[] afterWriteDescending = sortIndex.getDescendingOrderRecordsSupplier().getSortedRecordIds();
+					assertTrue(ArrayUtils.contains(afterWriteDescending, 8));
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("a transaction that writes to a DIFFERENT index still hits the cache fast path for this one")
+		void shouldStillUseCacheWhenOnlyAnUnrelatedIndexIsWrittenTo() {
+			final SortIndex sortIndex = createIndexWithBaseCardinalities();
+			final SortIndex unrelatedIndex = createIndexWithBaseCardinalities();
+
+			Transaction.executeInTransactionIfProvided(
+				new Transaction(sortIndex),
+				(Runnable) () -> {
+					final int[] first = sortIndex.getAscendingOrderRecordsSupplier().getSortedRecordIds();
+
+					// writing to a DIFFERENT SortIndex must not disturb this one's cache eligibility - the
+					// transactional-layer lookup is keyed per TransactionalLayerCreator instance
+					unrelatedIndex.addRecord("A", 8);
+
+					final int[] second = sortIndex.getAscendingOrderRecordsSupplier().getSortedRecordIds();
+					assertSame(first, second);
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("after a no-op commit the committed copy is the same instance and keeps the warm cache")
+		void shouldKeepWarmCacheAcrossANoOpCommit() {
+			final SortIndex sortIndex = createIndexWithBaseCardinalities();
+			// the fixture builds the index via addRecord() outside any transaction, which marks it dirty
+			// (needs persistence); reset that pre-existing dirty flag so THIS test's transaction starts clean,
+			// isolating the "read-only transaction never dirties the index" contract under test
+			sortIndex.resetDirty();
+
+			assertStateAfterCommit(
+				sortIndex,
+				original -> {
+					// a read-only transaction never dirties the index, so the merge is expected to return the SAME
+					// instance (see SortIndex#createCopyWithMergedTransactionalMemory) - its warm cache carries over
+					original.getAscendingOrderRecordsSupplier().getSortedRecordIds();
+				},
+				(original, committed) -> assertSame(original, committed)
+			);
+		}
+
+		@Test
+		@DisplayName("after a real commit the new snapshot instance starts cold and reflects the write when queried")
+		void shouldStartColdOnNewSnapshotInstanceAfterCommit() {
+			final SortIndex sortIndex = createIndexWithBaseCardinalities();
+
+			assertStateAfterCommit(
+				sortIndex,
+				original -> {
+					// warm the ORIGINAL instance's cache before mutating it
+					original.getAscendingOrderRecordsSupplier().getSortedRecordIds();
+					original.addRecord("A", 8);
+				},
+				(original, committed) -> {
+					// the commit actually changed the index, so a NEW instance must have been produced
+					assertNotSame(original, committed);
+					// querying the new snapshot (outside any transaction here) must reflect the write
+					assertTrue(
+						ArrayUtils.contains(committed.getAscendingOrderRecordsSupplier().getSortedRecordIds(), 8)
+					);
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("a dense query with NO transaction (read-only session) also dispatches to the warm array merge-walk")
+		void shouldDispatchDenseQueryToWarmMergeWalkWithoutAnyTransaction() {
+			final SortIndex sortIndex = createIndexWithBaseCardinalities();
+
+			// a dense selection (well above the sparse/dense threshold for this tiny 8-record index): every record
+			final RoaringBitmapWriter<PersistentRoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
+			for (final int recordId : new int[]{1, 2, 3, 4, 5, 6, 7, 9}) {
+				writer.add(recordId);
+			}
+			final PersistentRoaringBitmap selection = writer.get();
+
+			// NO Transaction.executeInTransactionIfProvided wrapper: this mirrors a read-only session, which opens no
+			// transaction at all. The committed-snapshot fast path must STILL engage here - a gate that required a bound
+			// Transaction would never take the fast path for a read-only query, since such a query binds no Transaction.
+			final PositionResolution resolution = sortIndex.getAscendingOrderRecordsSupplier().resolvePositions(
+				selection, 8, new int[512], new int[512], null
+			);
+
+			assertEquals(SortResolutionStrategy.ARRAY_MERGE_WALK, resolution.strategy());
+		}
+
+		@Test
+		@DisplayName("a non-transactional in-place write invalidates the committed-snapshot cache so a later read is not stale")
+		void shouldInvalidateCommittedCacheOnNonTransactionalInPlaceWrite() {
+			final SortIndex sortIndex = createIndexWithBaseCardinalities();
+
+			// warm the committed-snapshot cache OUTSIDE any transaction (the read-only / warm-up regime)
+			final int[] beforeWrite = sortIndex.getAscendingOrderRecordsSupplier().getSortedRecordIds();
+			assertFalse(ArrayUtils.contains(beforeWrite, 8));
+
+			// an in-place mutation in the SAME non-transactional regime (a warm-up / bulk add) mutates sortedRecords
+			// directly and mints no fresh instance, so the never-swapped cache must be dropped explicitly
+			sortIndex.addRecord("A", 8);
+
+			// a later read must reflect the in-place write, not the pre-write cached arrays
+			final int[] afterWrite = sortIndex.getAscendingOrderRecordsSupplier().getSortedRecordIds();
+			assertTrue(ArrayUtils.contains(afterWrite, 8));
+			// the descending direction is guarded by the identical invalidation
+			assertTrue(ArrayUtils.contains(sortIndex.getDescendingOrderRecordsSupplier().getSortedRecordIds(), 8));
+		}
+
+		@Test
+		@DisplayName("concurrent throwaway transactions reading the same index never observe an exception or corrupt data")
+		void shouldToleratePotentialFirstTouchRaceUnderConcurrentReaders() throws InterruptedException {
+			final SortIndex sortIndex = createIndexWithBaseCardinalities();
+			final int[] expected = Transaction.executeInTransactionIfProvided(
+				new Transaction(sortIndex),
+				() -> sortIndex.getAscendingOrderRecordsSupplier().getSortedRecordIds().clone()
+			);
+
+			final int threadCount = 8;
+			final Thread[] threads = new Thread[threadCount];
+			final int[][] observed = new int[threadCount][];
+			final Throwable[] failures = new Throwable[threadCount];
+			for (int i = 0; i < threadCount; i++) {
+				final int threadIndex = i;
+				threads[i] = new Thread(() -> {
+					try {
+						observed[threadIndex] = Transaction.executeInTransactionIfProvided(
+							new Transaction(sortIndex),
+							() -> sortIndex.getAscendingOrderRecordsSupplier().getSortedRecordIds()
+						);
+					} catch (Throwable ex) {
+						failures[threadIndex] = ex;
+					}
+				});
+			}
+			for (final Thread thread : threads) {
+				thread.start();
+			}
+			for (final Thread thread : threads) {
+				thread.join();
+			}
+
+			for (int i = 0; i < threadCount; i++) {
+				assertNull(failures[i], "Thread " + i + " must not fail while racing to populate the cache");
+				assertArrayEquals(expected, observed[i], "Thread " + i + " must observe fully-published, correct data");
+			}
+		}
+
+		@Test
+		@DisplayName("a reference-keyed index serves the committed-snapshot cache through a ReferenceSortedRecordsProvider")
+		void shouldServeReferenceKeyedIndexThroughCommittedSnapshotCache() {
+			final RepresentativeReferenceKey referenceKey = new RepresentativeReferenceKey(new ReferenceKey("brand", 1));
+			final SortIndex sortIndex = createReferenceKeyedIndexWithBaseCardinalities();
+
+			// the no-transaction fast path must take the referenceKey != null branch of buildCachedSupplier and hand
+			// back a ReferenceSortedRecordsProvider that both preserves the discriminator and serves the correct order
+			final SortedRecordsProvider ascending = sortIndex.getAscendingOrderRecordsSupplier();
+			assertInstanceOf(ReferenceSortedRecordsProvider.class, ascending);
+			assertEquals(referenceKey, ((ReferenceSortedRecordsProvider) ascending).getReferenceKey());
+			assertArrayEquals(new int[]{6, 4, 5, 1, 2, 3, 7, 9}, ascending.getSortedRecordIds());
+
+			// the descending direction must build its own reversed/inverted arrays yet stay a reference provider
+			final SortedRecordsProvider descending = sortIndex.getDescendingOrderRecordsSupplier();
+			assertInstanceOf(ReferenceSortedRecordsProvider.class, descending);
+			assertEquals(referenceKey, ((ReferenceSortedRecordsProvider) descending).getReferenceKey());
+			assertArrayEquals(new int[]{9, 7, 3, 2, 1, 5, 4, 6}, descending.getSortedRecordIds());
+		}
+
+		@Test
+		@DisplayName("a descending dense query with no transaction dispatches to the warm array merge-walk")
+		void shouldDispatchDescendingDenseQueryToWarmMergeWalkWithoutAnyTransaction() {
+			final SortIndex sortIndex = createIndexWithBaseCardinalities();
+
+			// a dense selection (well above the sparse/dense threshold for this tiny 8-record index): every record
+			final RoaringBitmapWriter<PersistentRoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
+			for (final int recordId : new int[]{1, 2, 3, 4, 5, 6, 7, 9}) {
+				writer.add(recordId);
+			}
+			final PersistentRoaringBitmap selection = writer.get();
+
+			// mirrors the ascending no-transaction dispatch check, but the descending direction wires the reversed
+			// record ids and inverted positions into the supplier - those too must feed the dense merge-walk dispatch
+			final PositionResolution resolution = sortIndex.getDescendingOrderRecordsSupplier().resolvePositions(
+				selection, 8, new int[512], new int[512], null
+			);
+
+			assertEquals(SortResolutionStrategy.ARRAY_MERGE_WALK, resolution.strategy());
+		}
+
+		@Test
+		@DisplayName("a non-transactional in-place removal invalidates the committed-snapshot cache so a later read is not stale")
+		void shouldInvalidateCommittedCacheOnNonTransactionalInPlaceRemoval() {
+			final SortIndex sortIndex = createIndexWithBaseCardinalities();
+
+			// warm both directions OUTSIDE any transaction (the read-only / warm-up regime)
+			assertTrue(ArrayUtils.contains(sortIndex.getAscendingOrderRecordsSupplier().getSortedRecordIds(), 7));
+			assertTrue(ArrayUtils.contains(sortIndex.getDescendingOrderRecordsSupplier().getSortedRecordIds(), 7));
+			// the shared all-records bitmap must also be warm and carry the record about to be removed
+			assertTrue(sortIndex.getAscendingOrderRecordsSupplier().getAllRecords().contains(7));
+
+			// a non-transactional in-place removal mutates sortedRecords directly and mints no fresh instance, so the
+			// never-swapped cache must be dropped explicitly by removeRecordInternal
+			sortIndex.removeRecord("C", 7);
+
+			// every direction and the shared bitmap must reflect the removal, not the pre-removal cached snapshot
+			assertFalse(ArrayUtils.contains(sortIndex.getAscendingOrderRecordsSupplier().getSortedRecordIds(), 7));
+			assertFalse(ArrayUtils.contains(sortIndex.getDescendingOrderRecordsSupplier().getSortedRecordIds(), 7));
+			assertFalse(sortIndex.getAscendingOrderRecordsSupplier().getAllRecords().contains(7));
+		}
+
+		@Test
+		@DisplayName("interleaved non-transactional writes rebuild the cache each time rather than serving a stale snapshot")
+		void shouldRebuildCacheRatherThanServeStaleAcrossInterleavedNonTransactionalWrites() {
+			final SortIndex sortIndex = createIndexWithBaseCardinalities();
+
+			// two reads with no intervening write must return the SAME array instance - proves quiescent reuse
+			final int[] first = sortIndex.getAscendingOrderRecordsSupplier().getSortedRecordIds();
+			final int[] second = sortIndex.getAscendingOrderRecordsSupplier().getSortedRecordIds();
+			assertSame(first, second);
+
+			// a non-transactional add must rebuild: a DIFFERENT array instance that reflects the write
+			sortIndex.addRecord("A", 8);
+			final int[] afterAdd = sortIndex.getAscendingOrderRecordsSupplier().getSortedRecordIds();
+			assertNotSame(second, afterAdd);
+			assertTrue(ArrayUtils.contains(afterAdd, 8));
+
+			// a non-transactional removal must rebuild again: another distinct instance no longer carrying the record
+			sortIndex.removeRecord("A", 8);
+			final int[] afterRemove = sortIndex.getAscendingOrderRecordsSupplier().getSortedRecordIds();
+			assertNotSame(afterAdd, afterRemove);
+			assertFalse(ArrayUtils.contains(afterRemove, 8));
+
+			// a further quiescent read again reuses the freshly rebuilt array - the reuse contract survives the churn
+			assertSame(afterRemove, sortIndex.getAscendingOrderRecordsSupplier().getSortedRecordIds());
 		}
 	}
 

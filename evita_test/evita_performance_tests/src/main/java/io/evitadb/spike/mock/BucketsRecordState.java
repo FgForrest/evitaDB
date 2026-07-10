@@ -29,6 +29,7 @@ import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.extraResult.translator.histogram.producer.AttributeHistogramProducer.AttributeHistogramRequest;
 import io.evitadb.dataType.array.CompositeIntArray;
 import io.evitadb.index.attribute.FilterIndex;
+import io.evitadb.index.attribute.OwnerFilterIndex;
 import io.evitadb.index.bitmap.ArrayBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
@@ -80,11 +81,11 @@ public class BucketsRecordState {
 			AttributeSchema._internalBuild("whatever", Integer.class, false),
 			Comparator.naturalOrder(),
 			Arrays.asList(
-				new FilterIndex(new AttributeIndexKey(null, "whatever", null), generateBuckets(BUCKET_COUNT, VALUE_COUNT / 5), new RangeIndex(), Integer.class),
-				new FilterIndex(new AttributeIndexKey(null, "whatever", null), generateBuckets(BUCKET_COUNT, VALUE_COUNT / 5), new RangeIndex(), Integer.class),
-				new FilterIndex(new AttributeIndexKey(null, "whatever", null), generateBuckets(BUCKET_COUNT, VALUE_COUNT / 5), new RangeIndex(), Integer.class),
-				new FilterIndex(new AttributeIndexKey(null, "whatever", null), generateBuckets(BUCKET_COUNT, VALUE_COUNT / 5), new RangeIndex(), Integer.class),
-				new FilterIndex(new AttributeIndexKey(null, "whatever", null), generateBuckets(BUCKET_COUNT, VALUE_COUNT / 5), new RangeIndex(), Integer.class)
+				new OwnerFilterIndex(new AttributeIndexKey(null, "whatever", null), generateBuckets(BUCKET_COUNT, VALUE_COUNT / 5), new RangeIndex(), Integer.class),
+				new OwnerFilterIndex(new AttributeIndexKey(null, "whatever", null), generateBuckets(BUCKET_COUNT, VALUE_COUNT / 5), new RangeIndex(), Integer.class),
+				new OwnerFilterIndex(new AttributeIndexKey(null, "whatever", null), generateBuckets(BUCKET_COUNT, VALUE_COUNT / 5), new RangeIndex(), Integer.class),
+				new OwnerFilterIndex(new AttributeIndexKey(null, "whatever", null), generateBuckets(BUCKET_COUNT, VALUE_COUNT / 5), new RangeIndex(), Integer.class),
+				new OwnerFilterIndex(new AttributeIndexKey(null, "whatever", null), generateBuckets(BUCKET_COUNT, VALUE_COUNT / 5), new RangeIndex(), Integer.class)
 			)
 		);
 		this.buckets = generateBuckets(BUCKET_COUNT, VALUE_COUNT);

@@ -31,6 +31,7 @@ import com.linecorp.armeria.common.AggregatedHttpResponse;
 import com.linecorp.armeria.common.TlsKeyPair;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.configuration.ExportOptions;
+import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.core.Evita;
 import io.evitadb.driver.EvitaClient;
 import io.evitadb.driver.config.ClientTlsOptions;
@@ -865,6 +866,34 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 	}
 
 	@Test
+	void shouldResolveMillisecondNamedPropertiesFromBundledDefaultsCorrectly() {
+		// regression guard: SpecialConfigInputFormatsHandler must scale the seconds-based TIME_FORMAT shorthand
+		// (e.g. "1m") to milliseconds for properties whose name ends in Millis/Milliseconds. Before the fix,
+		// the bundled default `trafficFlushIntervalInMilliseconds: 1m` silently resolved to `60` (60 milliseconds)
+		// instead of the intended `60000` (1 minute) - a 1000x more frequent flush than intended whenever traffic
+		// recording is enabled with the shipped default.
+		final EvitaServer evitaServer = new EvitaServer(
+			getPathInTargetDirectory(DIR_EVITA_SERVER_TEST),
+			constructTestArguments()
+		);
+		try {
+			evitaServer.run();
+
+			final Evita evita = evitaServer.getEvita();
+			assertEquals(5_000L, evita.getConfiguration().server().queryTimeoutInMilliseconds());
+			assertEquals(300_000L, evita.getConfiguration().server().transactionTimeoutInMilliseconds());
+			assertEquals(60_000L, evita.getConfiguration().server().trafficRecording().trafficFlushIntervalInMilliseconds());
+			// same shorthand-resolution mechanism backs the new compaction cadence knobs
+			assertEquals(60_000L, evita.getConfiguration().storage().minCompactionIntervalMilliseconds());
+			assertEquals(0.1, evita.getConfiguration().storage().maxWasteActiveShare());
+		} catch (Exception ex) {
+			fail(ex);
+		} finally {
+			closeServerAndEvita(evitaServer);
+		}
+	}
+
+	@Test
 	void shouldMergeMultipleYamlConfigurationTogether() {
 		EvitaTestSupport.bootstrapEvitaServerConfigurationFileFrom(
 			DIR_EVITA_SERVER_TEST,
@@ -894,6 +923,36 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 			assertNull(externalApiServer.getExternalApiProviderByCode(RestProvider.CODE));
 			assertNull(externalApiServer.getExternalApiProviderByCode(GrpcProvider.CODE));
 			assertNull(externalApiServer.getExternalApiProviderByCode(ObservabilityProvider.CODE));
+
+		} catch (Exception ex) {
+			fail(ex);
+		} finally {
+			closeServerAndEvita(evitaServer);
+		}
+	}
+
+	@Test
+	void shouldLoadCompactionCadenceConfiguration() {
+		EvitaTestSupport.bootstrapEvitaServerConfigurationFileFrom(
+			DIR_EVITA_SERVER_TEST,
+			"/testData/evita-configuration-compaction-cadence.yaml",
+			"evita-configuration-compaction-cadence.yaml"
+		);
+
+		final EvitaServer evitaServer = new EvitaServer(
+			getPathInTargetDirectory(DIR_EVITA_SERVER_TEST),
+			constructTestArguments()
+		);
+		try {
+			evitaServer.run();
+
+			final Evita evita = evitaServer.getEvita();
+			final StorageOptions storageOptions = evita.getConfiguration().storage();
+			// "10m" must be parsed via the seconds-based TIME_FORMAT handler and then scaled to milliseconds
+			// because the property name ends in "Milliseconds" - not left as a raw "10" or unscaled "600"
+			assertEquals(600_000L, storageOptions.minCompactionIntervalMilliseconds());
+			assertEquals(0.4, storageOptions.minimalActiveRecordShare());
+			assertEquals(0.2, storageOptions.maxWasteActiveShare());
 
 		} catch (Exception ex) {
 			fail(ex);

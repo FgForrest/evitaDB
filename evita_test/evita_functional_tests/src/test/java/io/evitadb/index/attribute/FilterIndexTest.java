@@ -26,6 +26,7 @@ package io.evitadb.index.attribute;
 import io.evitadb.comparator.LocalizedStringComparator;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
+import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.ComparableCurrency;
 import io.evitadb.dataType.ComparableLocale;
@@ -37,7 +38,7 @@ import io.evitadb.dataType.NumberRange;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.invertedIndex.InvertedIndexSubSet;
-import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
+import io.evitadb.index.invertedIndex.ValueToRecord;
 import io.evitadb.index.range.RangePoint;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
@@ -52,6 +53,7 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.text.Normalizer;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Currency;
@@ -78,12 +80,12 @@ import static io.evitadb.test.TestTags.FILTER;
 @Tag(ATTRIBUTE)
 @Tag(FILTER)
 class FilterIndexTest {
-	private final FilterIndex stringAttribute = new FilterIndex(new AttributeIndexKey(null, "a", null), String.class);
-	private final FilterIndex rangeAttribute = new FilterIndex(new AttributeIndexKey(null, "b", null), NumberRange.class);
+	private final OwnerFilterIndex stringAttribute = new OwnerFilterIndex(new AttributeIndexKey(null, "a", null), String.class);
+	private final OwnerFilterIndex rangeAttribute = new OwnerFilterIndex(new AttributeIndexKey(null, "b", null), NumberRange.class);
 
 	@Test
 	void filterIndexValidNowDelegatesToRangeIndexCachedPath() {
-		final FilterIndex filterIndex = new FilterIndex(new AttributeIndexKey(null, "validity", null), DateTimeRange.class);
+		final OwnerFilterIndex filterIndex = new OwnerFilterIndex(new AttributeIndexKey(null, "validity", null), DateTimeRange.class);
 		filterIndex.addRecord(1, DateTimeRange.between(
 			OffsetDateTime.parse("2026-01-01T00:00:00Z"),
 			OffsetDateTime.parse("2026-12-31T23:59:59Z")
@@ -105,7 +107,7 @@ class FilterIndexTest {
 
 	@Test
 	void filterIndexValidInUncachedPathProducesFreshBitmapEachCall() {
-		final FilterIndex filterIndex = new FilterIndex(new AttributeIndexKey(null, "validity", null), DateTimeRange.class);
+		final OwnerFilterIndex filterIndex = new OwnerFilterIndex(new AttributeIndexKey(null, "validity", null), DateTimeRange.class);
 		filterIndex.addRecord(1, DateTimeRange.between(
 			OffsetDateTime.parse("2026-01-01T00:00:00Z"),
 			OffsetDateTime.parse("2026-12-31T23:59:59Z")
@@ -123,6 +125,69 @@ class FilterIndexTest {
 		assertArrayEquals(new int[]{1, 2}, secondBitmap.getArray());
 		// uncached path builds a fresh formula tree and bitmap each call
 		assertNotSame(firstBitmap, secondBitmap);
+	}
+
+	@Test
+	@DisplayName("range index thresholds of a scale-mismatched BigDecimal range honor the index scale")
+	void rangeIndexHonorsIndexScaleForScaleMismatchedBigDecimalRange() {
+		// `validRange` is indexed at scale 2 but the range is built without a places argument, so its bounds keep
+		// their intrinsic scale of 1; the range-index thresholds must still be derived at the index scale so a
+		// probe coerced to that scale lands inside the stored envelope
+		final OwnerFilterIndex filterIndex = new OwnerFilterIndex(
+			new AttributeIndexKey(null, "validRange", null), BigDecimalNumberRange.class, 2
+		);
+		filterIndex.addRecord(
+			1, BigDecimalNumberRange.between(new BigDecimal("1.5"), new BigDecimal("2.5"))
+		);
+
+		// probe 2.0 coerces to 200 at the index scale; the stored envelope [150, 250] must contain it
+		final long probeInside = BigDecimalNumberRange.toComparableLong(new BigDecimal("2.0"), 2);
+		assertArrayEquals(
+			new int[]{1}, filterIndex.getRecordsValidInFormula(probeInside).compute().getArray()
+		);
+
+		// inclusive boundaries 1.5 -> 150 and 2.5 -> 250 both match
+		assertArrayEquals(
+			new int[]{1},
+			filterIndex.getRecordsValidInFormula(
+				BigDecimalNumberRange.toComparableLong(new BigDecimal("1.5"), 2)
+			).compute().getArray()
+		);
+		assertArrayEquals(
+			new int[]{1},
+			filterIndex.getRecordsValidInFormula(
+				BigDecimalNumberRange.toComparableLong(new BigDecimal("2.5"), 2)
+			).compute().getArray()
+		);
+
+		// a probe outside the envelope (3.0 -> 300) matches nothing
+		assertArrayEquals(
+			new int[0],
+			filterIndex.getRecordsValidInFormula(
+				BigDecimalNumberRange.toComparableLong(new BigDecimal("3.0"), 2)
+			).compute().getArray()
+		);
+	}
+
+	@Test
+	@DisplayName("removing a scale-mismatched BigDecimal range clears its range-index envelope without a sanity throw")
+	void removingScaleMismatchedBigDecimalRangeClearsEnvelope() {
+		final OwnerFilterIndex filterIndex = new OwnerFilterIndex(
+			new AttributeIndexKey(null, "validRange", null), BigDecimalNumberRange.class, 2
+		);
+		final BigDecimalNumberRange range =
+			BigDecimalNumberRange.between(new BigDecimal("1.5"), new BigDecimal("2.5"));
+		filterIndex.addRecord(1, range);
+		final long probeInside = BigDecimalNumberRange.toComparableLong(new BigDecimal("2.0"), 2);
+		assertArrayEquals(
+			new int[]{1}, filterIndex.getRecordsValidInFormula(probeInside).compute().getArray()
+		);
+
+		// remove uses the same raw intrinsic-scale range; the symmetric canonicalization must clear the envelope
+		filterIndex.removeRecord(1, range);
+		assertArrayEquals(
+			new int[0], filterIndex.getRecordsValidInFormula(probeInside).compute().getArray()
+		);
 	}
 
 	@Test
@@ -324,7 +389,7 @@ class FilterIndexTest {
 
 	@Test
 	void shouldReturnRecordsLesserThanLocaleSpecific_Czech() {
-		FilterIndex czechStringAttribute = new FilterIndex(new AttributeIndexKey(null, "a", new Locale("cs", "CZ")), String.class);
+		OwnerFilterIndex czechStringAttribute = new OwnerFilterIndex(new AttributeIndexKey(null, "a", new Locale("cs", "CZ")), String.class);
 		czechStringAttribute.addRecord(1, "CH");
 		czechStringAttribute.addRecord(2, "E");
 		czechStringAttribute.addRecord(3, "K");
@@ -336,7 +401,7 @@ class FilterIndexTest {
 
 	@Test
 	void shouldReturnRecordsLesserThanLocaleSpecific_English() {
-		FilterIndex czechStringAttribute = new FilterIndex(new AttributeIndexKey(null, "a", Locale.ENGLISH), String.class);
+		OwnerFilterIndex czechStringAttribute = new OwnerFilterIndex(new AttributeIndexKey(null, "a", Locale.ENGLISH), String.class);
 		czechStringAttribute.addRecord(1, "CH");
 		czechStringAttribute.addRecord(2, "E");
 		czechStringAttribute.addRecord(3, "K");
@@ -432,10 +497,10 @@ class FilterIndexTest {
 		@Test
 		@DisplayName("each instance has a unique id")
 		void shouldHaveUniqueIdAcrossInstances() {
-			final FilterIndex first = new FilterIndex(
+			final OwnerFilterIndex first = new OwnerFilterIndex(
 				new AttributeIndexKey(null, "x", null), String.class
 			);
-			final FilterIndex second = new FilterIndex(
+			final OwnerFilterIndex second = new OwnerFilterIndex(
 				new AttributeIndexKey(null, "y", null), String.class
 			);
 
@@ -445,7 +510,7 @@ class FilterIndexTest {
 		@Test
 		@DisplayName("committed copy is a new instance")
 		void shouldReturnNewInstanceOnCommit() {
-			final FilterIndex index = new FilterIndex(
+			final OwnerFilterIndex index = new OwnerFilterIndex(
 				new AttributeIndexKey(null, "a", null), String.class
 			);
 			index.addRecord(1, "Alpha");
@@ -466,7 +531,7 @@ class FilterIndexTest {
 		@Test
 		@DisplayName("original unchanged after commit")
 		void shouldLeaveOriginalUnchangedAfterCommit() {
-			final FilterIndex index = new FilterIndex(
+			final OwnerFilterIndex index = new OwnerFilterIndex(
 				new AttributeIndexKey(null, "a", null), String.class
 			);
 			index.addRecord(1, "Alpha");
@@ -487,7 +552,7 @@ class FilterIndexTest {
 		@Test
 		@DisplayName("rollback discards transactional mutations")
 		void shouldDiscardMutationsOnRollback() {
-			final FilterIndex index = new FilterIndex(
+			final OwnerFilterIndex index = new OwnerFilterIndex(
 				new AttributeIndexKey(null, "a", null), String.class
 			);
 			index.addRecord(1, "Alpha");
@@ -518,7 +583,7 @@ class FilterIndexTest {
 		@Test
 		@DisplayName("memoized formula is invalidated on non-tx write")
 		void shouldInvalidateMemoizedFormulaOnNonTransactionalWrite() {
-			final FilterIndex index = new FilterIndex(
+			final OwnerFilterIndex index = new OwnerFilterIndex(
 				new AttributeIndexKey(null, "a", null), String.class
 			);
 			index.addRecord(1, "A");
@@ -547,7 +612,7 @@ class FilterIndexTest {
 		@Test
 		@DisplayName("getAllRecordsFormula returns same instance when no writes")
 		void shouldReturnSameFormulaInstanceWhenNoWrites() {
-			final FilterIndex index = new FilterIndex(
+			final OwnerFilterIndex index = new OwnerFilterIndex(
 				new AttributeIndexKey(null, "a", null), String.class
 			);
 			index.addRecord(1, "A");
@@ -564,7 +629,7 @@ class FilterIndexTest {
 			"getAllRecordsFormula bypasses cache in dirty transaction"
 		)
 		void shouldBypassCacheInDirtyTransaction() {
-			final FilterIndex index = new FilterIndex(
+			final OwnerFilterIndex index = new OwnerFilterIndex(
 				new AttributeIndexKey(null, "a", null), String.class
 			);
 			index.addRecord(1, "A");
@@ -594,7 +659,7 @@ class FilterIndexTest {
 			"getRecordsEqualToFormula returns EmptyFormula for missing value"
 		)
 		void shouldReturnEmptyFormulaForMissingValue() {
-			final FilterIndex index = new FilterIndex(
+			final OwnerFilterIndex index = new OwnerFilterIndex(
 				new AttributeIndexKey(null, "a", null), String.class
 			);
 			index.addRecord(1, "A");
@@ -612,7 +677,7 @@ class FilterIndexTest {
 		@Test
 		@DisplayName("getRecordsWhoseValuesEndsWith finds matching records")
 		void shouldReturnRecordsEndingWithSuffix() {
-			final FilterIndex index = new FilterIndex(
+			final OwnerFilterIndex index = new OwnerFilterIndex(
 				new AttributeIndexKey(null, "a", null), String.class
 			);
 			index.addRecord(1, "Hello");
@@ -633,7 +698,7 @@ class FilterIndexTest {
 			"getRecordsWhoseValuesEndsWith returns EmptyFormula when no match"
 		)
 		void shouldReturnEmptyFormulaForNoEndsWithMatch() {
-			final FilterIndex index = new FilterIndex(
+			final OwnerFilterIndex index = new OwnerFilterIndex(
 				new AttributeIndexKey(null, "a", null), String.class
 			);
 			index.addRecord(1, "Hello");
@@ -646,7 +711,7 @@ class FilterIndexTest {
 		@Test
 		@DisplayName("getRecordsWhoseValuesContains finds matching records")
 		void shouldReturnRecordsContainingText() {
-			final FilterIndex index = new FilterIndex(
+			final OwnerFilterIndex index = new OwnerFilterIndex(
 				new AttributeIndexKey(null, "a", null), String.class
 			);
 			index.addRecord(1, "Alphabet");
@@ -668,7 +733,7 @@ class FilterIndexTest {
 			"getRecordsWhoseValuesContains returns EmptyFormula when no match"
 		)
 		void shouldReturnEmptyFormulaForNoContainsMatch() {
-			final FilterIndex index = new FilterIndex(
+			final OwnerFilterIndex index = new OwnerFilterIndex(
 				new AttributeIndexKey(null, "a", null), String.class
 			);
 			index.addRecord(1, "Hello");
@@ -684,7 +749,7 @@ class FilterIndexTest {
 			"getRecordsWhoseValuesStartWith returns EmptyFormula for no match"
 		)
 		void shouldReturnEmptyFormulaForNoStartsWithMatch() {
-			final FilterIndex index = new FilterIndex(
+			final OwnerFilterIndex index = new OwnerFilterIndex(
 				new AttributeIndexKey(null, "a", null), String.class
 			);
 			index.addRecord(1, "Hello");
@@ -695,6 +760,125 @@ class FilterIndexTest {
 
 			assertSame(EmptyFormula.INSTANCE, result);
 		}
+
+		/**
+		 * The index stores String keys in Unicode NFD (decomposed) form, but a user naturally types the search
+		 * term in NFC (precomposed) form. `startsWith` must match across these canonically-equivalent encodings,
+		 * exactly as the `=` operator already does. A pure-ASCII prefix on the same data is asserted alongside to
+		 * guard the common path against regression.
+		 */
+		@Test
+		@DisplayName("getRecordsWhoseValuesStartWith matches a precomposed (NFC) prefix")
+		void shouldReturnRecordsStartingWithPrecomposedPrefix() {
+			final OwnerFilterIndex index = new OwnerFilterIndex(
+				new AttributeIndexKey(null, "a", null), String.class
+			);
+			// "Pâté" supplied in NFC (precomposed â = U+00E2, é = U+00E9)
+			final String precomposedValue = Normalizer.normalize("Pâté", Normalizer.Form.NFC);
+			index.addRecord(1, precomposedValue);
+			index.addRecord(2, "Pasta");
+
+			// user types the precomposed prefix "Pâ"
+			final String precomposedPrefix = Normalizer.normalize("Pâ", Normalizer.Form.NFC);
+			assertArrayEquals(
+				new int[]{1},
+				index.getRecordsWhoseValuesStartWith(precomposedPrefix).compute().getArray()
+			);
+
+			// pure-ASCII prefix still works on the same index
+			assertArrayEquals(
+				new int[]{1, 2},
+				index.getRecordsWhoseValuesStartWith("P").compute().getArray()
+			);
+		}
+
+		/**
+		 * The index stores String keys in Unicode NFD (decomposed) form, but a user naturally types the search
+		 * term in NFC (precomposed) form. `endsWith` must match across these canonically-equivalent encodings. A
+		 * pure-ASCII suffix on the same data is asserted alongside to guard the common path against regression.
+		 */
+		@Test
+		@DisplayName("getRecordsWhoseValuesEndsWith matches a precomposed (NFC) suffix")
+		void shouldReturnRecordsEndingWithPrecomposedSuffix() {
+			final OwnerFilterIndex index = new OwnerFilterIndex(
+				new AttributeIndexKey(null, "a", null), String.class
+			);
+			final String precomposedValue = Normalizer.normalize("Pâté", Normalizer.Form.NFC);
+			index.addRecord(1, precomposedValue);
+			index.addRecord(2, "Latte");
+
+			// user types the precomposed suffix "âté"
+			final String precomposedSuffix = Normalizer.normalize("âté", Normalizer.Form.NFC);
+			assertArrayEquals(
+				new int[]{1},
+				index.getRecordsWhoseValuesEndsWith(precomposedSuffix).compute().getArray()
+			);
+
+			// pure-ASCII suffix still works on the same index
+			assertArrayEquals(
+				new int[]{2},
+				index.getRecordsWhoseValuesEndsWith("tte").compute().getArray()
+			);
+		}
+
+		/**
+		 * The index stores String keys in Unicode NFD (decomposed) form, but a user naturally types the search
+		 * term in NFC (precomposed) form. `contains` must match across these canonically-equivalent encodings. A
+		 * pure-ASCII substring on the same data is asserted alongside to guard the common path against regression.
+		 */
+		@Test
+		@DisplayName("getRecordsWhoseValuesContains matches a precomposed (NFC) substring")
+		void shouldReturnRecordsContainingPrecomposedText() {
+			final OwnerFilterIndex index = new OwnerFilterIndex(
+				new AttributeIndexKey(null, "a", null), String.class
+			);
+			final String precomposedValue = Normalizer.normalize("Pâté", Normalizer.Form.NFC);
+			index.addRecord(1, precomposedValue);
+			index.addRecord(2, "Plate");
+
+			// user types the precomposed substring "ât"
+			final String precomposedText = Normalizer.normalize("ât", Normalizer.Form.NFC);
+			assertArrayEquals(
+				new int[]{1},
+				index.getRecordsWhoseValuesContains(precomposedText).compute().getArray()
+			);
+
+			// pure-ASCII substring still works on the same index
+			assertArrayEquals(
+				new int[]{2},
+				index.getRecordsWhoseValuesContains("lat").compute().getArray()
+			);
+		}
+
+		/**
+		 * For a localized String attribute the inverted index is ordered by collation
+		 * ({@link LocalizedStringComparator}), not by codepoint. Under collation order a codepoint-`startsWith`
+		 * match may sort after non-matching values (a capitalized term collates together with its lowercase form,
+		 * so it interleaves with the matches), so the contiguous forward-run assumption that lets
+		 * `getRecordsWhoseValuesStartWith` early-break drops matches. Here the buckets collate in the order
+		 * `apple`, `Apple pie`, `applesauce`, `banana`, `Banana split`; an early break stops at the non-matching
+		 * `Apple pie` and never reaches `applesauce`, so the full predicate scan is required. `startsWith` is
+		 * case-sensitive, hence `Apple pie` itself never matches the lowercase `app` prefix.
+		 */
+		@Test
+		@DisplayName("getRecordsWhoseValuesStartWith finds all matches under collation ordering")
+		void shouldReturnAllRecordsStartingWithUnderCollationOrdering() {
+			final OwnerFilterIndex index = new OwnerFilterIndex(
+				new AttributeIndexKey(null, "a", Locale.ENGLISH), String.class
+			);
+			// under English collation case is a tertiary difference so "Apple pie" collates between "apple" and
+			// "applesauce", breaking the codepoint-order contiguity of the lowercase "app" matches
+			index.addRecord(1, "apple");
+			index.addRecord(2, "Apple pie");
+			index.addRecord(3, "banana");
+			index.addRecord(4, "applesauce");
+			index.addRecord(5, "Banana split");
+
+			assertArrayEquals(
+				new int[]{1, 4},
+				index.getRecordsWhoseValuesStartWith("app").compute().getArray()
+			);
+		}
 	}
 
 	@Nested
@@ -704,7 +888,7 @@ class FilterIndexTest {
 		@Test
 		@DisplayName("getRecordsOverlapping finds overlapping ranges")
 		void shouldReturnRecordsOverlappingRange() {
-			final FilterIndex index = new FilterIndex(
+			final OwnerFilterIndex index = new OwnerFilterIndex(
 				new AttributeIndexKey(null, "r", null),
 				NumberRange.class
 			);
@@ -721,7 +905,7 @@ class FilterIndexTest {
 		@Test
 		@DisplayName("getRecordsOverlappingFormula finds overlapping ranges")
 		void shouldReturnOverlappingFormula() {
-			final FilterIndex index = new FilterIndex(
+			final OwnerFilterIndex index = new OwnerFilterIndex(
 				new AttributeIndexKey(null, "r", null),
 				NumberRange.class
 			);
@@ -743,7 +927,7 @@ class FilterIndexTest {
 			"getRecordsValidIn on non-range index throws exception"
 		)
 		void shouldThrowWhenValidInCalledOnNonRangeIndex() {
-			final FilterIndex index = new FilterIndex(
+			final OwnerFilterIndex index = new OwnerFilterIndex(
 				new AttributeIndexKey(null, "a", null), String.class
 			);
 
@@ -758,7 +942,7 @@ class FilterIndexTest {
 			"getRecordsValidInFormula on non-range index throws exception"
 		)
 		void shouldThrowWhenValidInFormulaCalledOnNonRangeIndex() {
-			final FilterIndex index = new FilterIndex(
+			final OwnerFilterIndex index = new OwnerFilterIndex(
 				new AttributeIndexKey(null, "a", null), String.class
 			);
 
@@ -773,7 +957,7 @@ class FilterIndexTest {
 			"getRecordsOverlapping on non-range index throws exception"
 		)
 		void shouldThrowWhenOverlappingCalledOnNonRangeIndex() {
-			final FilterIndex index = new FilterIndex(
+			final OwnerFilterIndex index = new OwnerFilterIndex(
 				new AttributeIndexKey(null, "a", null), String.class
 			);
 
@@ -788,7 +972,7 @@ class FilterIndexTest {
 			"getRecordsOverlappingFormula on non-range index throws"
 		)
 		void shouldThrowWhenOverlappingFormulaCalledOnNonRangeIndex() {
-			final FilterIndex index = new FilterIndex(
+			final OwnerFilterIndex index = new OwnerFilterIndex(
 				new AttributeIndexKey(null, "a", null), String.class
 			);
 
@@ -808,7 +992,7 @@ class FilterIndexTest {
 			"addRecord with non-Range value on range index throws"
 		)
 		void shouldThrowWhenAddingNonRangeValueToRangeIndex() {
-			final FilterIndex index = new FilterIndex(
+			final OwnerFilterIndex index = new OwnerFilterIndex(
 				new AttributeIndexKey(null, "r", null),
 				NumberRange.class
 			);
@@ -824,7 +1008,7 @@ class FilterIndexTest {
 			"removeRecord with non-Range value on range index throws"
 		)
 		void shouldThrowWhenRemovingNonRangeValueFromRangeIndex() {
-			final FilterIndex index = new FilterIndex(
+			final OwnerFilterIndex index = new OwnerFilterIndex(
 				new AttributeIndexKey(null, "r", null),
 				NumberRange.class
 			);
@@ -841,7 +1025,7 @@ class FilterIndexTest {
 			"addRecordDelta with non-Range array on range index throws"
 		)
 		void shouldThrowWhenAddingNonRangeDeltaToRangeIndex() {
-			final FilterIndex index = new FilterIndex(
+			final OwnerFilterIndex index = new OwnerFilterIndex(
 				new AttributeIndexKey(null, "r", null),
 				NumberRange.class
 			);
@@ -860,7 +1044,7 @@ class FilterIndexTest {
 			"removeRecordDelta with non-Range array on range index throws"
 		)
 		void shouldThrowWhenRemovingNonRangeDeltaFromRangeIndex() {
-			final FilterIndex index = new FilterIndex(
+			final OwnerFilterIndex index = new OwnerFilterIndex(
 				new AttributeIndexKey(null, "r", null),
 				NumberRange.class
 			);
@@ -875,6 +1059,7 @@ class FilterIndexTest {
 		}
 	}
 
+	@SuppressWarnings("rawtypes")
 	@Nested
 	@DisplayName("Normalizer and comparator")
 	class NormalizerComparatorTest {
@@ -885,7 +1070,7 @@ class FilterIndexTest {
 		)
 		void shouldNormalizeOffsetDateTimeToInstant() {
 			final Function<Object, Serializable> normalizer =
-				FilterIndex.getNormalizer(OffsetDateTime.class);
+				FilterIndex.getNormalizer(OffsetDateTime.class, 0);
 			final OffsetDateTime odt =
 				OffsetDateTime.of(2025, 1, 15, 10, 30, 0, 0, ZoneOffset.UTC);
 
@@ -901,7 +1086,7 @@ class FilterIndexTest {
 		)
 		void shouldNormalizeCurrencyToComparableCurrency() {
 			final Function<Object, Serializable> normalizer =
-				FilterIndex.getNormalizer(Currency.class);
+				FilterIndex.getNormalizer(Currency.class, 0);
 			final Currency usd = Currency.getInstance("USD");
 
 			final Serializable result = normalizer.apply(usd);
@@ -915,7 +1100,7 @@ class FilterIndexTest {
 		)
 		void shouldNormalizeLocaleToComparableLocale() {
 			final Function<Object, Serializable> normalizer =
-				FilterIndex.getNormalizer(Locale.class);
+				FilterIndex.getNormalizer(Locale.class, 0);
 
 			final Serializable result = normalizer.apply(Locale.ENGLISH);
 
@@ -928,7 +1113,7 @@ class FilterIndexTest {
 		)
 		void shouldReturnNoNormalizationForComparableType() {
 			final Function<Object, Serializable> normalizer =
-				FilterIndex.getNormalizer(Integer.class);
+				FilterIndex.getNormalizer(Integer.class, 0);
 
 			assertSame(FilterIndex.NO_NORMALIZATION, normalizer);
 		}
@@ -940,8 +1125,57 @@ class FilterIndexTest {
 		void shouldThrowForUnsupportedType() {
 			assertThrows(
 				EvitaInvalidUsageException.class,
-				() -> FilterIndex.getNormalizer(Object.class)
+				() -> FilterIndex.getNormalizer(Object.class, 0)
 			);
+		}
+
+		@Test
+		@DisplayName("getNormalizer for BigDecimal scales to an order-preserving int and is idempotent")
+		void shouldScaleBigDecimalToInt() {
+			final Function<Object, Serializable> normalizer =
+				FilterIndex.getNormalizer(BigDecimal.class, 2);
+
+			// 1.50 with two decimal places becomes the scaled int 150
+			assertEquals(150, normalizer.apply(new BigDecimal("1.50")));
+			// two BigDecimals equal under the schema's decimal places normalize to the same scaled int (same bucket)
+			assertEquals(normalizer.apply(new BigDecimal("1.5")), normalizer.apply(new BigDecimal("1.50")));
+			// idempotent: an already-scaled Integer (and null) passes through unchanged
+			assertEquals(150, normalizer.apply(150));
+			assertNull(normalizer.apply(null));
+		}
+
+		@Test
+		@DisplayName("getNormalizer for BigDecimalNumberRange rescales thresholds to the schema's decimal places")
+		void shouldRescaleBigDecimalNumberRangeToIndexedDecimalPlaces() {
+			final Function<Object, Serializable> normalizer =
+				FilterIndex.getNormalizer(BigDecimalNumberRange.class, 2);
+
+			// a range whose bounds carry an intrinsic scale of 1 must be rebuilt at the schema's two decimal places,
+			// so its comparable thresholds line up with what the source filter / range index stores (15/25 -> 150/250)
+			final BigDecimalNumberRange raw =
+				BigDecimalNumberRange.between(new BigDecimal("1.5"), new BigDecimal("2.5"));
+			assertEquals(15L, raw.getFrom(), "precondition: raw range encodes at its intrinsic scale of 1");
+			assertEquals(25L, raw.getTo(), "precondition: raw range encodes at its intrinsic scale of 1");
+
+			final Serializable normalized = normalizer.apply(raw);
+			final BigDecimalNumberRange rescaled = assertInstanceOf(BigDecimalNumberRange.class, normalized);
+			assertEquals(2, rescaled.getRetainedDecimalPlaces());
+			assertEquals(150L, rescaled.getFrom());
+			assertEquals(250L, rescaled.getTo());
+
+			// open-ended bounds survive the rescale
+			final BigDecimalNumberRange toOnly =
+				(BigDecimalNumberRange) normalizer.apply(BigDecimalNumberRange.to(new BigDecimal("9.9")));
+			assertEquals(990L, toOnly.getTo());
+
+			// idempotent: a range already at the target scale rescales to an equal range
+			final BigDecimalNumberRange reNormalized = (BigDecimalNumberRange) normalizer.apply(rescaled);
+			assertEquals(rescaled.getFrom(), reNormalized.getFrom());
+			assertEquals(rescaled.getTo(), reNormalized.getTo());
+
+			// a non-range value (and null) passes through untouched
+			assertEquals("untouched", normalizer.apply("untouched"));
+			assertNull(normalizer.apply(null));
 		}
 
 		@Test
@@ -994,7 +1228,7 @@ class FilterIndexTest {
 		@Test
 		@DisplayName("isEmpty returns true for newly created index")
 		void shouldReturnTrueForEmptyIndex() {
-			final FilterIndex index = new FilterIndex(
+			final OwnerFilterIndex index = new OwnerFilterIndex(
 				new AttributeIndexKey(null, "a", null), String.class
 			);
 
@@ -1004,7 +1238,7 @@ class FilterIndexTest {
 		@Test
 		@DisplayName("size returns zero for newly created index")
 		void shouldReturnZeroSizeForEmptyIndex() {
-			final FilterIndex index = new FilterIndex(
+			final OwnerFilterIndex index = new OwnerFilterIndex(
 				new AttributeIndexKey(null, "a", null), String.class
 			);
 
@@ -1014,7 +1248,7 @@ class FilterIndexTest {
 		@Test
 		@DisplayName("isEmpty returns false after adding a record")
 		void shouldReturnFalseAfterAddingRecord() {
-			final FilterIndex index = new FilterIndex(
+			final OwnerFilterIndex index = new OwnerFilterIndex(
 				new AttributeIndexKey(null, "a", null), String.class
 			);
 			index.addRecord(1, "A");
@@ -1025,7 +1259,7 @@ class FilterIndexTest {
 		@Test
 		@DisplayName("size returns correct count after adding records")
 		void shouldReturnCorrectSizeAfterAddingRecords() {
-			final FilterIndex index = new FilterIndex(
+			final OwnerFilterIndex index = new OwnerFilterIndex(
 				new AttributeIndexKey(null, "a", null), String.class
 			);
 			index.addRecord(1, "A");
@@ -1040,30 +1274,33 @@ class FilterIndexTest {
 	class StoragePartTest {
 
 		@Test
-		@DisplayName("createStoragePart returns null when not dirty")
-		void shouldReturnNullStoragePartWhenNotDirty() {
-			final FilterIndex index = new FilterIndex(
+		@DisplayName("appendStorageParts emits nothing when not dirty")
+		void shouldEmitNothingWhenNotDirty() {
+			final OwnerFilterIndex index = new OwnerFilterIndex(
 				new AttributeIndexKey(null, "a", null), String.class
 			);
 
-			final StoragePart storagePart = index.createStoragePart(1);
+			final TrappedChanges sink = new TrappedChanges();
+			index.appendStorageParts(1, sink);
 
-			assertNull(storagePart);
+			assertEquals(0, sink.getTrappedChangesCount());
 		}
 
 		@Test
 		@DisplayName(
-			"createStoragePart returns FilterIndexStoragePart when dirty"
+			"appendStorageParts emits a FilterIndexStoragePart when dirty"
 		)
-		void shouldReturnStoragePartWhenDirty() {
-			final FilterIndex index = new FilterIndex(
+		void shouldEmitStoragePartWhenDirty() {
+			final OwnerFilterIndex index = new OwnerFilterIndex(
 				new AttributeIndexKey(null, "a", null), String.class
 			);
 			index.addRecord(1, "A");
 
-			final StoragePart storagePart = index.createStoragePart(42);
+			final TrappedChanges sink = new TrappedChanges();
+			index.appendStorageParts(42, sink);
 
-			assertNotNull(storagePart);
+			assertEquals(1, sink.getTrappedChangesCount());
+			final StoragePart storagePart = sink.getTrappedChangesIterator().next();
 			assertInstanceOf(FilterIndexStoragePart.class, storagePart);
 			final FilterIndexStoragePart filterPart =
 				(FilterIndexStoragePart) storagePart;
@@ -1077,18 +1314,22 @@ class FilterIndexTest {
 		@Test
 		@DisplayName("resetDirty clears the dirty flag")
 		void shouldResetDirtyFlag() {
-			final FilterIndex index = new FilterIndex(
+			final OwnerFilterIndex index = new OwnerFilterIndex(
 				new AttributeIndexKey(null, "a", null), String.class
 			);
 			index.addRecord(1, "A");
 
 			// should be dirty now
-			assertNotNull(index.createStoragePart(1));
+			final TrappedChanges beforeReset = new TrappedChanges();
+			index.appendStorageParts(1, beforeReset);
+			assertEquals(1, beforeReset.getTrappedChangesCount());
 
 			index.resetDirty();
 
 			// after reset, should no longer be dirty
-			assertNull(index.createStoragePart(1));
+			final TrappedChanges afterReset = new TrappedChanges();
+			index.appendStorageParts(1, afterReset);
+			assertEquals(0, afterReset.getTrappedChangesCount());
 		}
 	}
 
@@ -1133,19 +1374,19 @@ class FilterIndexTest {
 		@Test
 		@DisplayName("empty range index emits no buckets and skips sentinels")
 		void shouldReturnEmptyArrayWhenRangeIndexHasNoRecords() {
-			final FilterIndex index = new FilterIndex(
+			final OwnerFilterIndex index = new OwnerFilterIndex(
 				new AttributeIndexKey(null, "score", null), IntegerNumberRange.class
 			);
 
 			final InvertedIndexSubSet subset = index.getRangeHistogramOfAllRecords(Integer.class, 0);
 
-			assertEquals(0, subset.getHistogramBuckets().length);
+			assertEquals(0, subset.getBuckets().length);
 		}
 
 		@Test
 		@DisplayName("single multi-bucket sweep covers every endpoint and respects closed intervals")
 		void shouldProduceClosedIntervalBucketsForOverlappingRanges() {
-			final FilterIndex index = new FilterIndex(
+			final OwnerFilterIndex index = new OwnerFilterIndex(
 				new AttributeIndexKey(null, "score", null), IntegerNumberRange.class
 			);
 			index.addRecord(1, IntegerNumberRange.between(10, 20));
@@ -1153,7 +1394,7 @@ class FilterIndexTest {
 			index.addRecord(3, IntegerNumberRange.between(20, 30));
 
 			final InvertedIndexSubSet subset = index.getRangeHistogramOfAllRecords(Integer.class, 0);
-			final ValueToRecordBitmap[] buckets = subset.getHistogramBuckets();
+			final ValueToRecord[] buckets = subset.getBuckets();
 
 			// RangeIndex consolidates same-threshold start/end into one point — so the five distinct
 			// thresholds 10, 15, 20, 25, 30 produce five buckets. At threshold 20, record 3 starts
@@ -1174,15 +1415,15 @@ class FilterIndexTest {
 		@Test
 		@DisplayName("point ranges (from == to) emit a bucket containing the record")
 		void shouldEmitBucketContainingRecordForPointRange() {
-			final FilterIndex index = new FilterIndex(
+			final OwnerFilterIndex index = new OwnerFilterIndex(
 				new AttributeIndexKey(null, "score", null), IntegerNumberRange.class
 			);
 			index.addRecord(1, IntegerNumberRange.between(7, 7));
 			index.addRecord(2, IntegerNumberRange.between(3, 7));
 
-			final ValueToRecordBitmap[] buckets = index
+			final ValueToRecord[] buckets = index
 				.getRangeHistogramOfAllRecords(Integer.class, 0)
-				.getHistogramBuckets();
+				.getBuckets();
 
 			// distinct thresholds: 3 (record 2 starts) and 7 (record 1 starts and ends, record 2 ends)
 			final Integer[] keys = new Integer[buckets.length];
@@ -1200,14 +1441,14 @@ class FilterIndexTest {
 		@Test
 		@DisplayName("Byte/Short/Long inner numeric types materialize matching bucket keys")
 		void shouldEmitBucketKeysOfMatchingNumericType() {
-			final FilterIndex longIndex = new FilterIndex(
+			final OwnerFilterIndex longIndex = new OwnerFilterIndex(
 				new AttributeIndexKey(null, "value", null), LongNumberRange.class
 			);
 			longIndex.addRecord(1, LongNumberRange.between(1_000_000_000_000L, 2_000_000_000_000L));
 
-			final ValueToRecordBitmap[] longBuckets = longIndex
+			final ValueToRecord[] longBuckets = longIndex
 				.getRangeHistogramOfAllRecords(Long.class, 0)
-				.getHistogramBuckets();
+				.getBuckets();
 			assertEquals(2, longBuckets.length);
 			assertEquals(1_000_000_000_000L, longBuckets[0].getValue());
 			assertEquals(2_000_000_000_000L, longBuckets[1].getValue());
@@ -1216,8 +1457,11 @@ class FilterIndexTest {
 		@Test
 		@DisplayName("BigDecimal inner numeric type recovers scaled decimal bucket keys")
 		void shouldEmitScaledBigDecimalBucketKeys() {
-			final FilterIndex bdIndex = new FilterIndex(
-				new AttributeIndexKey(null, "price", null), BigDecimalNumberRange.class
+			// the index scale must match the range scale: the filter index canonicalizes every incoming range to
+			// its own `indexedDecimalPlaces` before deriving the range-index thresholds, so an index built at
+			// scale 2 keeps a scale-2 range's thresholds intact
+			final OwnerFilterIndex bdIndex = new OwnerFilterIndex(
+				new AttributeIndexKey(null, "price", null), BigDecimalNumberRange.class, 2
 			);
 			// BigDecimalNumberRange encodes the threshold as `value.scaleByPowerOfTen(scale).longValueExact()`;
 			// passing retainedDecimalPlaces=2 here reproduces the exact stored thresholds.
@@ -1225,9 +1469,9 @@ class FilterIndexTest {
 				new BigDecimal("10.50"), new BigDecimal("20.75"), 2
 			));
 
-			final ValueToRecordBitmap[] buckets = bdIndex
+			final ValueToRecord[] buckets = bdIndex
 				.getRangeHistogramOfAllRecords(BigDecimal.class, 2)
-				.getHistogramBuckets();
+				.getBuckets();
 			assertEquals(2, buckets.length);
 			// `BigDecimal.valueOf(threshold, 2)` yields a scale-2 decimal; `compareTo` is required because
 			// BigDecimal equality is scale-sensitive
@@ -1240,7 +1484,7 @@ class FilterIndexTest {
 		@Test
 		@DisplayName("memoization returns the same subset until a non-tx mutation invalidates it")
 		void shouldMemoizeUntilNonTxMutation() {
-			final FilterIndex index = new FilterIndex(
+			final OwnerFilterIndex index = new OwnerFilterIndex(
 				new AttributeIndexKey(null, "score", null), IntegerNumberRange.class
 			);
 			index.addRecord(1, IntegerNumberRange.between(10, 20));
@@ -1252,13 +1496,13 @@ class FilterIndexTest {
 			index.addRecord(2, IntegerNumberRange.between(5, 30));
 			final InvertedIndexSubSet third = index.getRangeHistogramOfAllRecords(Integer.class, 0);
 			assertNotSame(first, third);
-			assertEquals(4, third.getHistogramBuckets().length);
+			assertEquals(4, third.getBuckets().length);
 		}
 
 		@Test
 		@DisplayName("invocation on a non-range FilterIndex throws GenericEvitaInternalError")
 		void shouldThrowOnNonRangeFilterIndex() {
-			final FilterIndex scalarIndex = new FilterIndex(
+			final OwnerFilterIndex scalarIndex = new OwnerFilterIndex(
 				new AttributeIndexKey(null, "name", null), String.class
 			);
 			assertThrows(
@@ -1270,7 +1514,7 @@ class FilterIndexTest {
 		@Test
 		@DisplayName("unbounded-from range (IntegerNumberRange.to(X)) participates in every bucket V <= X")
 		void shouldIncludeUnboundedFromRangeInAllBucketsUpToUpperBound() {
-			final FilterIndex index = new FilterIndex(
+			final OwnerFilterIndex index = new OwnerFilterIndex(
 				new AttributeIndexKey(null, "score", null), IntegerNumberRange.class
 			);
 			// record 1: range [null, 50] — `getFrom()` returns `Long.MIN_VALUE`, so its
@@ -1280,9 +1524,9 @@ class FilterIndexTest {
 			index.addRecord(2, IntegerNumberRange.between(20, 80));
 			index.addRecord(3, IntegerNumberRange.between(60, 100));
 
-			final ValueToRecordBitmap[] buckets = index
+			final ValueToRecord[] buckets = index
 				.getRangeHistogramOfAllRecords(Integer.class, 0)
-				.getHistogramBuckets();
+				.getBuckets();
 
 			final Integer[] keys = new Integer[buckets.length];
 			for (int i = 0; i < buckets.length; i++) {
@@ -1301,7 +1545,7 @@ class FilterIndexTest {
 		@Test
 		@DisplayName("unbounded-to range (IntegerNumberRange.from(X)) participates in every bucket V >= X")
 		void shouldIncludeUnboundedToRangeInAllBucketsFromLowerBound() {
-			final FilterIndex index = new FilterIndex(
+			final OwnerFilterIndex index = new OwnerFilterIndex(
 				new AttributeIndexKey(null, "score", null), IntegerNumberRange.class
 			);
 			// record 1: range [50, null] — `getTo()` returns `Long.MAX_VALUE`, so its
@@ -1312,9 +1556,9 @@ class FilterIndexTest {
 			index.addRecord(2, IntegerNumberRange.between(20, 80));
 			index.addRecord(3, IntegerNumberRange.between(10, 30));
 
-			final ValueToRecordBitmap[] buckets = index
+			final ValueToRecord[] buckets = index
 				.getRangeHistogramOfAllRecords(Integer.class, 0)
-				.getHistogramBuckets();
+				.getBuckets();
 
 			final Integer[] keys = new Integer[buckets.length];
 			for (int i = 0; i < buckets.length; i++) {

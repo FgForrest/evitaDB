@@ -35,7 +35,7 @@ import io.evitadb.index.ReducedEntityIndex;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
-import org.roaringbitmap.RoaringBitmap;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -87,7 +87,7 @@ public class SequentialSorter implements Sorter {
 		@Nonnull int[] result,
 		@Nullable IntConsumer skippedRecordsConsumer
 	) {
-		final RoaringBitmap recordsToSort = RoaringBitmapBackedBitmap.getRoaringBitmapClone(sortingContext.nonSortedKeys());
+		final PersistentRoaringBitmap recordsToSort = RoaringBitmapBackedBitmap.getRoaringBitmapClone(sortingContext.nonSortedKeys());
 
 		SortingContext nextSortingContext = sortingContext;
 		top:

@@ -37,13 +37,14 @@ import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.index.iterator.RoaringBitmapBatchArrayIterator;
+import io.evitadb.index.price.AbstractPriceListAndCurrencyPriceIndex;
 import io.evitadb.index.price.PriceListAndCurrencyPriceIndex;
 import io.evitadb.index.price.model.priceRecord.PriceRecord;
 import io.evitadb.index.price.model.priceRecord.PriceRecordContract;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
-import org.roaringbitmap.RoaringBitmap;
-import org.roaringbitmap.RoaringBitmapWriter;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
+import io.evitadb.roaringbitmap.RoaringBitmapWriter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -142,7 +143,7 @@ public interface FilteredPriceRecords extends Serializable {
 			}
 		}
 		if (totalCount == 0) {
-			return ResolvedFilteredPriceRecords.EMPTY_PRICE_RECORDS;
+			return AbstractPriceListAndCurrencyPriceIndex.EMPTY_PRICE_RECORDS;
 		}
 		final PriceRecordContract[] merged = new PriceRecordContract[totalCount];
 		int offset = 0;
@@ -397,7 +398,7 @@ public interface FilteredPriceRecords extends Serializable {
 	@Nonnull
 	static FilteredPriceRecordsLookupResult collectFilteredPriceRecordsFromPriceRecordAccessors(
 		@Nonnull Collection<FilteredPriceRecordAccessor> filteredPriceRecordAccessors,
-		@Nonnull RoaringBitmap filterTo,
+		@Nonnull PersistentRoaringBitmap filterTo,
 		@Nonnull QueryExecutionContext context
 	) {
 		final CompositeObjectArray<PriceRecordContract> collectedPriceRecords = new CompositeObjectArray<>(PriceRecordContract.class, false);
@@ -411,7 +412,7 @@ public interface FilteredPriceRecords extends Serializable {
 		try {
 			// prepare writer for sorted output entity ids
 			final BatchArrayIterator entityIdIterator = new RoaringBitmapBatchArrayIterator(filterTo.getBatchIterator(), buffer);
-			final RoaringBitmapWriter<RoaringBitmap> notFoundWriter = RoaringBitmapBackedBitmap.buildWriter();
+			final RoaringBitmapWriter<PersistentRoaringBitmap> notFoundWriter = RoaringBitmapBackedBitmap.buildWriter();
 
 			// iterate through all entity ids
 			while (entityIdIterator.hasNext()) {
@@ -438,7 +439,7 @@ public interface FilteredPriceRecords extends Serializable {
 				}
 			}
 
-			final RoaringBitmap notFound = notFoundWriter.get();
+			final PersistentRoaringBitmap notFound = notFoundWriter.get();
 			return notFound.isEmpty() ?
 				new FilteredPriceRecordsLookupResult(collectedPriceRecords.toArray()) :
 				new FilteredPriceRecordsLookupResult(collectedPriceRecords.toArray(), new BaseBitmap(notFound));

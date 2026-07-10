@@ -75,7 +75,8 @@ import java.util.UUID;
  *
  * - Read Committed: Each query sees all changes committed before the query started
  * - Snapshot Isolation: Within a transaction, all reads see a consistent snapshot
- * - Serializable: Transactions that modify overlapping data are serialized via conflict detection
+ * - Write conflicts: Transactions that modify overlapping data are detected at commit time and the later one is
+ *   rejected (optimistic first-writer-wins) — this is not full serializable isolation
  *
  * **Thread-Safety**
  *

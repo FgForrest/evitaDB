@@ -26,6 +26,7 @@ package io.evitadb.index.price;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
+import io.evitadb.core.query.algebra.price.filteredPriceRecords.FilteredPriceRecords;
 import io.evitadb.core.query.algebra.price.priceIndex.PriceIdContainerFormula;
 import io.evitadb.core.query.algebra.price.priceIndex.PriceIndexContainerFormula;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
@@ -33,7 +34,7 @@ import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.index.IndexDataStructure;
-import io.evitadb.index.array.TransactionalObjArray;
+import io.evitadb.index.bPlusTree.TransactionalElementBPlusTree;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.index.bool.TransactionalBoolean;
@@ -47,7 +48,11 @@ import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
 import java.time.OffsetDateTime;
-import java.util.Comparator;
+import java.util.Iterator;
+import java.util.PrimitiveIterator.OfInt;
+import java.util.function.Consumer;
+import java.util.function.IntConsumer;
+import java.util.function.ToIntFunction;
 
 import static io.evitadb.core.transaction.Transaction.isTransactionAvailable;
 
@@ -63,8 +68,20 @@ public abstract class AbstractPriceListAndCurrencyPriceIndex<SELF extends Abstra
 	PriceListAndCurrencyPriceIndex<Void, SELF>,
 	IndexDataStructure, Serializable {
 
+	/**
+	 * Shared empty array reused by callers that need to return "no price records" without per-call
+	 * allocation. Package-private so siblings in this package (notably
+	 * {@link FilteredPriceRecords#mergePerInnerRecordHistogramRecords}) can hand it back from the
+	 * zero-total fast path.
+	 */
+	public static final PriceRecordContract[] EMPTY_PRICE_RECORDS = new PriceRecordContract[0];
 	@Serial private static final long serialVersionUID = -4718293650182734951L;
 	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
+	/**
+	 * Derives the ordering / lookup key of a price record — its {@link PriceRecordContract#internalPriceId()} — for the
+	 * element-keyed {@link #priceRecords} tree.
+	 */
+	private static final ToIntFunction<PriceRecordContract> PRICE_RECORD_KEY = PriceRecordContract::internalPriceId;
 	/**
 	 * This is internal flag that tracks whether the index contents became dirty and needs to be persisted.
 	 */
@@ -89,11 +106,13 @@ public abstract class AbstractPriceListAndCurrencyPriceIndex<SELF extends Abstra
 	 */
 	protected final RangeIndex validityIndex;
 	/**
-	 * Array contains complete information about prices sorted by {@link io.evitadb.api.requestResponse.data.PriceContract#priceId()}
-	 * allowing translation of price id to entity primary key using binary search algorithm.
-	 * May be initialized late in subclasses (e.g. during catalog attachment).
+	 * Element-keyed B+ tree holding complete information about prices ordered by
+	 * {@link PriceRecordContract#internalPriceId()}, allowing translation of an internal price id to its price record
+	 * (and entity primary key) by a `O(log n)` tree lookup. Unlike a flat array it persists as individual leaf pages
+	 * (only the changed leaves are rewritten per commit — see the granular page-emission framework on the super index)
+	 * instead of one monolithic blob. May be initialized late in subclasses (e.g. during catalog attachment).
 	 */
-	protected TransactionalObjArray<PriceRecordContract> priceRecords;
+	protected TransactionalElementBPlusTree<PriceRecordContract> priceRecords;
 	/**
 	 * Contains flags that makes the index terminated and unusable.
 	 */
@@ -113,7 +132,7 @@ public abstract class AbstractPriceListAndCurrencyPriceIndex<SELF extends Abstra
 		this.indexedPriceIds = new TransactionalBitmap();
 		this.priceIndexKey = priceIndexKey;
 		this.validityIndex = new RangeIndex();
-		this.priceRecords = new TransactionalObjArray<>(new PriceRecordContract[0], Comparator.naturalOrder());
+		this.priceRecords = newPriceRecordTree();
 	}
 
 	/**
@@ -129,7 +148,7 @@ public abstract class AbstractPriceListAndCurrencyPriceIndex<SELF extends Abstra
 		this.terminated = new TransactionalBoolean();
 		this.priceIndexKey = priceIndexKey;
 		this.validityIndex = validityIndex;
-		this.priceRecords = new TransactionalObjArray<>(priceRecords, Comparator.naturalOrder());
+		this.priceRecords = newPriceRecordTree(priceRecords);
 
 		final int[] priceIds = new int[priceRecords.length];
 		final int[] entityIds = new int[priceRecords.length];
@@ -163,15 +182,17 @@ public abstract class AbstractPriceListAndCurrencyPriceIndex<SELF extends Abstra
 	}
 
 	/**
-	 * Copy constructor for creating a new index with merged transactional memory state.
-	 * Used when both entity id bitmap and price records are available.
+	 * Copy constructor for creating a new index with merged transactional memory state, adopting the already-merged
+	 * committed {@link #priceRecords} tree BY REFERENCE (the tree performed its own `O(Δ)` commit-merge). Used by
+	 * {@link PriceListAndCurrencyPriceSuperIndex#createCopyWithMergedTransactionalMemory} so the surviving committed
+	 * owner keeps the same tree instance (and its owner-resident page bookkeeping) across commits.
 	 */
 	protected AbstractPriceListAndCurrencyPriceIndex(
 		@Nonnull PriceIndexKey priceIndexKey,
 		@Nonnull Bitmap indexedPriceEntityIds,
 		@Nonnull Bitmap priceIds,
 		@Nonnull RangeIndex validityIndex,
-		@Nonnull PriceRecordContract[] priceRecords
+		@Nonnull TransactionalElementBPlusTree<PriceRecordContract> priceRecords
 	) {
 		this.dirty = new TransactionalBoolean();
 		this.terminated = new TransactionalBoolean();
@@ -179,7 +200,7 @@ public abstract class AbstractPriceListAndCurrencyPriceIndex<SELF extends Abstra
 		this.indexedPriceEntityIds = new TransactionalBitmap(indexedPriceEntityIds);
 		this.indexedPriceIds = new TransactionalBitmap(priceIds);
 		this.validityIndex = validityIndex;
-		this.priceRecords = new TransactionalObjArray<>(priceRecords, Comparator.naturalOrder());
+		this.priceRecords = priceRecords;
 	}
 
 	/**
@@ -216,6 +237,29 @@ public abstract class AbstractPriceListAndCurrencyPriceIndex<SELF extends Abstra
 		this.indexedPriceEntityIds = indexedPriceEntityIds;
 		this.indexedPriceIds = priceIds;
 		this.validityIndex = validityIndex;
+	}
+
+	/**
+	 * Shallow copy constructor that preserves the existing {@link TransactionalBitmap} instances AND the already-built
+	 * {@link #priceRecords} tree BY REFERENCE (no re-wrapping, no rebuild). Used for new catalog attachment of a ref index
+	 * where the re-attachment is purely in-memory and the super index's {@link PriceRecordContract} instances are carried
+	 * forward, so the derived tree stays valid and need not be reconstructed. Mirrors the no-tree shallow constructor
+	 * above; sharing the transactional structures by reference matches how the bitmaps are carried on this path.
+	 */
+	protected AbstractPriceListAndCurrencyPriceIndex(
+		@Nonnull PriceIndexKey priceIndexKey,
+		@Nonnull TransactionalBitmap indexedPriceEntityIds,
+		@Nonnull TransactionalBitmap priceIds,
+		@Nonnull RangeIndex validityIndex,
+		@Nonnull TransactionalElementBPlusTree<PriceRecordContract> priceRecords
+	) {
+		this.dirty = new TransactionalBoolean();
+		this.terminated = new TransactionalBoolean();
+		this.priceIndexKey = priceIndexKey;
+		this.indexedPriceEntityIds = indexedPriceEntityIds;
+		this.indexedPriceIds = priceIds;
+		this.validityIndex = validityIndex;
+		this.priceRecords = priceRecords;
 	}
 
 	@Nonnull
@@ -269,7 +313,72 @@ public abstract class AbstractPriceListAndCurrencyPriceIndex<SELF extends Abstra
 	@Override
 	public PriceRecordContract[] getPriceRecords() {
 		assertNotTerminated();
-		return this.priceRecords.getArray();
+		return this.priceRecords.toArray();
+	}
+
+	/**
+	 * Streams the price records for the passed ascending bitmap of internal price ids, picking the strategy by the
+	 * filter's selectivity — without ever materializing the whole price array. A SPARSE filter (`m · log n < n`, the
+	 * typical price case where the matched internal price ids are scattered) resolves each id by a direct `O(log n)` tree
+	 * search; a DENSE filter is resolved by a single forward merge-join that walks the tree and the ascending ids in
+	 * lockstep (`O(n + m)`). Found records are reported to `priceFoundCallback` in ascending key order; ids absent from
+	 * this index are reported to `priceIdNotFoundCallback`. Overrides the array-positional default in
+	 * {@link PriceListAndCurrencyPriceIndex} now that the records live in a tree rather than a flat array.
+	 */
+	@Override
+	public void forEachPriceRecord(
+		@Nonnull Bitmap priceIds,
+		@Nonnull Consumer<PriceRecordContract> priceFoundCallback,
+		@Nonnull IntConsumer priceIdNotFoundCallback
+	) throws PriceListAndCurrencyPriceIndexTerminated {
+		assertNotTerminated();
+		if (priceIds.isEmpty()) {
+			return;
+		}
+		final int filterSize = priceIds.size();
+		final int indexSize = this.indexedPriceIds.size();
+		final int log2IndexSize = Math.max(1, 32 - Integer.numberOfLeadingZeros(Math.max(1, indexSize)));
+		final OfInt idIterator = priceIds.iterator();
+		if ((long) filterSize * log2IndexSize < indexSize) {
+			// SPARSE filter: m direct point lookups (O(m · log n)) beat a full merge-join walk that would touch every one
+			// of the n records to find only m of them — the common price case, since the matched internal price ids are
+			// scattered across the id space (price-value order is unrelated to internal-price-id order)
+			while (idIterator.hasNext()) {
+				final int wantedId = idIterator.nextInt();
+				final PriceRecordContract record = this.priceRecords.search(wantedId);
+				if (record != null) {
+					priceFoundCallback.accept(record);
+				} else {
+					priceIdNotFoundCallback.accept(wantedId);
+				}
+			}
+		} else {
+			// DENSE filter: one forward merge-join over the tree, zipping the ascending tree walk against the ascending
+			// filtered ids so each side is visited at most once (O(n + m))
+			// seed the tree walk at the first wanted id (skips every record below it in O(log n))
+			int wantedId = idIterator.nextInt();
+			final Iterator<PriceRecordContract> recordIterator = this.priceRecords.greaterOrEqualValueIterator(
+				wantedId);
+			PriceRecordContract current = recordIterator.hasNext() ? recordIterator.next() : null;
+			boolean hasWanted = true;
+			while (hasWanted) {
+				// advance the tree cursor to the first record whose key is >= the wanted id
+				while (current != null && current.internalPriceId() < wantedId) {
+					current = recordIterator.hasNext() ? recordIterator.next() : null;
+				}
+				if (current != null && current.internalPriceId() == wantedId) {
+					// match: the next wanted id is strictly greater, so the inner loop advances `current` past it next round
+					priceFoundCallback.accept(current);
+				} else {
+					priceIdNotFoundCallback.accept(wantedId);
+				}
+				if (idIterator.hasNext()) {
+					wantedId = idIterator.nextInt();
+				} else {
+					hasWanted = false;
+				}
+			}
+		}
 	}
 
 	@Nonnull
@@ -345,6 +454,36 @@ public abstract class AbstractPriceListAndCurrencyPriceIndex<SELF extends Abstra
 		if (!isTransactionAvailable()) {
 			this.memoizedIndexedPriceIds = null;
 		}
+	}
+
+	/**
+	 * Builds an empty element-keyed B+ tree backing {@link #priceRecords}, keyed by
+	 * {@link PriceRecordContract#internalPriceId()}.
+	 *
+	 * @return a fresh empty price-record tree
+	 */
+	@Nonnull
+	protected static TransactionalElementBPlusTree<PriceRecordContract> newPriceRecordTree() {
+		return new TransactionalElementBPlusTree<>(PriceRecordContract.class, PRICE_RECORD_KEY);
+	}
+
+	/**
+	 * Builds the element-keyed B+ tree backing {@link #priceRecords} from a (deserialized) price-record array, inserting
+	 * each record under its internal price id. The array is expected ascending by internal price id, so the inserts land
+	 * at the right edge and never need to re-sort.
+	 *
+	 * @param priceRecords the price records to seed the tree with
+	 * @return a price-record tree holding every passed record
+	 */
+	@Nonnull
+	protected static TransactionalElementBPlusTree<PriceRecordContract> newPriceRecordTree(
+		@Nonnull PriceRecordContract[] priceRecords
+	) {
+		final TransactionalElementBPlusTree<PriceRecordContract> tree = newPriceRecordTree();
+		for (final PriceRecordContract priceRecord : priceRecords) {
+			tree.insert(priceRecord);
+		}
+		return tree;
 	}
 
 	/**

@@ -46,6 +46,7 @@ import io.evitadb.store.offsetIndex.exception.PoolExhaustedException;
 import io.evitadb.store.offsetIndex.exception.RecordNotYetWrittenException;
 import io.evitadb.store.offsetIndex.io.ReadOnlyHandle;
 import io.evitadb.store.offsetIndex.io.WriteOnlyHandle;
+import io.evitadb.store.offsetIndex.map.OffsetLocationChampMap;
 import io.evitadb.store.offsetIndex.model.OffsetIndexRecordTypeRegistry;
 import io.evitadb.store.offsetIndex.model.RecordKey;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
@@ -74,6 +75,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.RandomAccessFile;
 import java.io.Serializable;
+import java.lang.ref.SoftReference;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.time.OffsetDateTime;
@@ -95,7 +97,6 @@ import java.util.stream.Collectors;
 
 import static io.evitadb.store.offsetIndex.OffsetIndexSerializationService.*;
 import static io.evitadb.utils.Assert.isPremiseValid;
-import static io.evitadb.utils.CollectionUtils.createHashMap;
 import static java.util.Optional.empty;
 import static java.util.Optional.of;
 import static java.util.Optional.ofNullable;
@@ -121,7 +122,7 @@ import static java.util.Optional.ofNullable;
  *
  * WRITE:
  * - writes record to the end of the mapped file
- * - stores returned {@link FileLocation} along with key to {@link SharedState#keyToLocations()}
+ * - stores returned {@link FileLocation} along with key to {@link Roots#latestRoot()}
  *
  * READ:
  * - looks up {@link FileLocation} by the passed key (this is expected to be fast)
@@ -129,7 +130,7 @@ import static java.util.Optional.ofNullable;
  * - performance of this operation depends on the OS page cache - so the OS should have enough RAM left for this sake
  *
  * DELETE:
- * - removes record in the {@link SharedState#keyToLocations()}
+ * - removes record in the {@link Roots#latestRoot()}
  * - information about the remove is also tracked in MemoryFragment (when written to disk) so that when OffsetIndex is
  * reconstructed from fragments the record inserted in previous fragments will be ignored as well
  *
@@ -139,11 +140,11 @@ import static java.util.Optional.ofNullable;
 @ThreadSafe
 public class OffsetIndex {
 	/**
-	 * Initial size of the central {@link SharedState#keyToLocations()} index.
+	 * Initial size of the central {@link Roots#latestRoot()} index.
 	 */
 	public static final int KEY_HASH_MAP_INITIAL_SIZE = 65_536;
 	/**
-	 * Initial size of the central {@link #histogram} index.
+	 * Initial size of the central {@link Roots#latestHistogram()} index.
 	 */
 	public static final int HISTOGRAM_INITIAL_CAPACITY = 16;
 	/**
@@ -161,6 +162,15 @@ public class OffsetIndex {
 	 * Sourced from {@link StorageOptions#outputBufferSize()}, typically defaults to 2MB.
 	 */
 	private final int outputBufferSize;
+	/**
+	 * Reusable scratch buffer for the {@link #copySnapshotTo} record-copy loop, retained across compactions so each
+	 * compaction does not allocate a fresh {@link #outputBufferSize}-byte array. Held through a {@link SoftReference}
+	 * so idle collections do not pin the (default 2MB) buffer under memory pressure, and allocated lazily so a
+	 * never-compacted collection pays nothing. A single slot is sufficient — and no pool is needed — because every
+	 * writer of this instance is serialized by the {@link #writeHandle} lock, so at most one compaction reads it at a
+	 * time. See {@link #getCompactionScratchBuffer()}.
+	 */
+	@Nullable private SoftReference<byte[]> compactionScratchBuffer;
 	/**
 	 * Maximum number of read handles that can be simultaneously opened to the file.
 	 * Read handles are pooled to limit resource usage and prevent file descriptor exhaustion.
@@ -236,24 +246,19 @@ public class OffsetIndex {
 	 */
 	private final VolatileValues volatileValues;
 	/**
-	 * Map contains counts for each type of record stored in OffsetIndex.
-	 */
-	private final ConcurrentHashMap<Byte, Integer> histogram;
-	/**
 	 * Contains flag signalizing that OffsetIndex is open and can be used. Flag is set to false on {@link #close()} operation.
 	 * No additional calls are allowed after that.
 	 */
 	@Getter private boolean operative = true;
 	/**
-	 * Immutable holder pairing the main record-location index with the catalog version it conforms to. Both values are
-	 * published atomically through this single volatile reference so that lock-free readers in
-	 * {@link #get(long, long, Class)} (and its sibling lookups) always observe a consistent
-	 * `(keyCatalogVersion, keyToLocations)` pair. Were the two published separately, a reader could observe a freshly
-	 * promoted map alongside a stale version, skip the historical fallback (because `catalogVersion < keyCatalogVersion`
-	 * would evaluate to false) and then filter out the only available - newer - location, spuriously returning
-	 * {@code null} for a record that actually exists.
+	 * Versioned registry of the record-location index. A single volatile reference publishes the whole
+	 * `(currentVersion, versions, locationRoots, histograms)` triple atomically, so lock-free readers in
+	 * {@link #get(long, long, Class)} (and its sibling lookups) always observe a coherent snapshot - they can never
+	 * pair a freshly appended root with a stale version array. Each retained version owns an immutable, structurally
+	 * shared {@link OffsetLocationChampMap} of locations, so keeping many versions is cheap and historical reads resolve to the exact
+	 * per-version state via {@link Roots#floorRoot(long)} rather than reconstructing diffs. See {@link Roots}.
 	 */
-	private volatile SharedState sharedState;
+	private volatile Roots roots;
 	/**
 	 * OffsetIndex descriptor used when creating OffsetIndex instance or created on last {@link #flush(long)} operation.
 	 * Contains all information necessary to read/write data in OffsetIndex instance using {@link Kryo}.
@@ -267,18 +272,6 @@ public class OffsetIndex {
 	 * whenever {@link #fileOffsetDescriptor} is reassigned so that a stale view is never served.
 	 */
 	@Nullable private ReadOnlyKeyCompressorView readOnlyKeyCompressorView;
-	/**
-	 * Immutable pair of the main record-location index and the catalog version it conforms to. See {@link #sharedState}
-	 * for the concurrency rationale. The `keyToLocations` map keeps track of record keys' file locations and is used for
-	 * persisted record reading; it is completely replaced on each flush, so it may be a "non-concurrent" map.
-	 *
-	 * @param keyCatalogVersion the catalog version that conforms to the values in `keyToLocations`
-	 * @param keyToLocations    the main index mapping record keys to their file locations
-	 */
-	private record SharedState(
-		long keyCatalogVersion,
-		@Nonnull Map<RecordKey, FileLocation> keyToLocations
-	) {}
 	/**
 	 * This field contains the information about last known position that has been synced to the file on disk and can
 	 * be safely read.
@@ -382,15 +375,18 @@ public class OffsetIndex {
 					readFileOffsetIndex(fileOffsetDescriptor.fileLocation())
 				);
 			}
-			this.sharedState = new SharedState(
+			this.roots = Roots.initial(
 				catalogVersion,
 				fileOffsetIndexBuilder
 					.map(CollectingOffsetIndexBuilder::getBuiltIndex)
-					.orElseGet(() -> CollectionUtils.createConcurrentHashMap(KEY_HASH_MAP_INITIAL_SIZE))
+					.map(OffsetLocationChampMap::from)
+					.orElseGet(OffsetLocationChampMap::empty),
+				fileOffsetIndexBuilder
+					.map(CollectingOffsetIndexBuilder::getHistogram)
+					.<Map<Byte, Integer>>map(Map::copyOf)
+					.orElseGet(Map::of),
+				System.currentTimeMillis()
 			);
-			this.histogram = fileOffsetIndexBuilder
-				.map(CollectingOffsetIndexBuilder::getHistogram)
-				.orElseGet(() -> CollectionUtils.createConcurrentHashMap(HISTOGRAM_INITIAL_CAPACITY));
 			fileOffsetIndexBuilder
 				.ifPresent(it -> {
 					this.totalSizeBytes.set(it.getTotalSizeBytes());
@@ -465,8 +461,12 @@ public class OffsetIndex {
 				fileLocation,
 				fileOffsetIndexBuilder
 			);
-			this.sharedState = new SharedState(catalogVersion, fileOffsetIndexBuilder.getBuiltIndex());
-			this.histogram = fileOffsetIndexBuilder.getHistogram();
+			this.roots = Roots.initial(
+				catalogVersion,
+				OffsetLocationChampMap.from(fileOffsetIndexBuilder.getBuiltIndex()),
+				Map.copyOf(fileOffsetIndexBuilder.getHistogram()),
+				System.currentTimeMillis()
+			);
 			this.totalSizeBytes.set(fileOffsetIndexBuilder.getTotalSizeBytes());
 			this.maxRecordSizeBytes.set(fileOffsetIndexBuilder.getMaxSizeBytes());
 			this.fileOffsetDescriptor = offsetIndexDescriptorFactory.apply(fileOffsetIndexBuilder, input);
@@ -531,8 +531,12 @@ public class OffsetIndex {
 			);
 		}
 
-		this.sharedState = new SharedState(catalogVersion, previousOffsetIndex.sharedState.keyToLocations());
-		this.histogram = previousOffsetIndex.histogram;
+		this.roots = Roots.initial(
+			catalogVersion,
+			previousOffsetIndex.roots.latestRoot(),
+			previousOffsetIndex.roots.latestHistogram(),
+			System.currentTimeMillis()
+		);
 		this.totalSizeBytes.set(previousOffsetIndex.totalSizeBytes.get());
 		this.maxRecordSizeBytes.set(previousOffsetIndex.getMaxRecordSizeBytes());
 		this.fileOffsetDescriptor = fileOffsetIndexDescriptor;
@@ -584,9 +588,9 @@ public class OffsetIndex {
 	 *
 	 * - `.size()` / peek-only reads;
 	 * - `storeHeader` building a `CatalogHeader` whose subsequent Kryo serialization runs inside the
-	 *   compressor's write session and whose serializer (including value-key sub-serializers for `AttributeKey`,
-	 *   `AssociatedDataKey`, `CompressiblePriceKey`, `ReferenceNameKey`) never calls back into
-	 *   {@link io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor#getId(Comparable)} mid-iteration.
+	 * compressor's write session and whose serializer (including value-key sub-serializers for `AttributeKey`,
+	 * `AssociatedDataKey`, `CompressiblePriceKey`, `ReferenceNameKey`) never calls back into
+	 * {@link io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor#getId(Comparable)} mid-iteration.
 	 *
 	 * @return live id → key index of the current compressed keys
 	 */
@@ -616,45 +620,89 @@ public class OffsetIndex {
 	/**
 	 * Returns unmodifiable collection of all ACTIVE entries in the OffsetIndex. The entries are wrapped via
 	 * {@link Collections#unmodifiableMap(Map)} so that callers cannot mutate the published - and by the
-	 * {@link SharedState} contract immutable - locations map through {@link Entry#setValue(Object)}.
+	 * {@link Roots} contract immutable - locations map through {@link Entry#setValue(Object)}.
 	 */
 	public Collection<Entry<RecordKey, FileLocation>> getEntries() {
 		assertOperative();
-		return Collections.unmodifiableMap(this.sharedState.keyToLocations()).entrySet();
+		return Collections.unmodifiableMap(this.roots.latestRoot()).entrySet();
 	}
 
 	/**
-	 * Returns current count of ACTIVE entries in OffsetIndex.
+	 * Returns an unmodifiable collection of all ACTIVE entries as of `catalogVersion` - the exact per-version
+	 * snapshot resolved through the versioned-root registry. Used by the snapshot/compaction path to copy the living
+	 * data set of a specific version without per-key historical reconstruction.
+	 *
+	 * @param catalogVersion the catalog version whose snapshot to return
+	 * @return the active entries as of `catalogVersion`
+	 */
+	public Collection<Entry<RecordKey, FileLocation>> getEntries(long catalogVersion) {
+		assertOperative();
+		return Collections.unmodifiableMap(this.roots.floorRoot(catalogVersion)).entrySet();
+	}
+
+	/**
+	 * Returns the count of ACTIVE entries as of `catalogVersion`.
+	 *
+	 * The result is the live count for that version: the size of the per-version root plus the net delta of any
+	 * in-flight (not-yet-flushed) versions visible at `catalogVersion`.
+	 *
+	 * @param catalogVersion the catalog version to resolve the count against
+	 * @return the number of active entries visible at `catalogVersion`
 	 */
 	public int count(long catalogVersion) {
 		assertOperative();
-		return this.sharedState.keyToLocations().size() + this.volatileValues.countDifference(catalogVersion);
+		// the per-version root holds the exact live count as of catalogVersion; add only the net delta of any
+		// not-yet-flushed (in-flight) versions visible at catalogVersion
+		return this.roots.floorRoot(catalogVersion).size() + this.volatileValues.countDifference(catalogVersion);
 	}
 
 	/**
-	 * Returns current count of ACTIVE entries of certain type in OffsetIndex.
+	 * Returns the count of ACTIVE entries of the given type as of `catalogVersion`.
+	 *
+	 * The per-type count is resolved against the per-version histogram plus the net delta of that type across any
+	 * in-flight (not-yet-flushed) versions visible at `catalogVersion`.
+	 *
+	 * @param catalogVersion the catalog version to resolve the count against
+	 * @param recordType     the {@link StoragePart} subtype whose entries to count
+	 * @return the number of active entries of `recordType` visible at `catalogVersion`
 	 */
 	public int count(long catalogVersion, @Nonnull Class<? extends StoragePart> recordType) {
 		assertOperative();
 		final byte recordTypeId = this.recordTypeRegistry.idFor(recordType);
-		return ofNullable(this.histogram.get(recordTypeId)).orElse(0) + this.volatileValues.countDifference(catalogVersion, recordTypeId);
+		// the per-version histogram holds the exact per-type count as of catalogVersion; add only the net delta of
+		// any not-yet-flushed (in-flight) versions visible at catalogVersion
+		return this.roots.floorHistogram(catalogVersion).getOrDefault(
+			recordTypeId, 0) + this.volatileValues.countDifference(catalogVersion, recordTypeId);
 	}
 
 	/**
-	 * Returns value assigned to the primary key.
+	 * Returns the deserialized value assigned to `primaryKey` as of `catalogVersion`, or {@code null} when no
+	 * active record exists for that key at that version.
+	 *
+	 * The value is resolved against the per-version root, so the returned entry already conforms to
+	 * `catalogVersion` — there is no per-key historical reconstruction and no separate generation filter.
 	 *
 	 * Beware method may not return previously written record via {@link #put(long, StoragePart)} until method
 	 * {@link #flush(long)} is called. In this situation {@link RecordNotYetWrittenException} is thrown.
+	 *
+	 * @param catalogVersion the catalog version to resolve the value as of
+	 * @param primaryKey     the primary key of the record to read
+	 * @param recordType     the {@link StoragePart} subtype to deserialize the record as
+	 * @param <T>            the record type
+	 * @return the active value for `primaryKey` at `catalogVersion`, or {@code null} if none exists
+	 * @throws RecordNotYetWrittenException if the record was written but not yet flushed and cannot be read back
 	 */
 	@Nullable
-	public <T extends StoragePart> T get(long catalogVersion, long primaryKey, @Nonnull Class<T> recordType) throws RecordNotYetWrittenException {
+	public <T extends StoragePart> T get(
+		long catalogVersion, long primaryKey, @Nonnull Class<T> recordType) throws RecordNotYetWrittenException {
 		assertOperative();
 		final RecordKey key = new RecordKey(
 			this.recordTypeRegistry.idFor(recordType),
 			primaryKey
 		);
 
-		final Optional<VersionedValue> nonFlushedValueRef = this.volatileValues.getNonFlushedValueIfVersionMatches(catalogVersion, key);
+		final Optional<VersionedValue> nonFlushedValueRef =
+			this.volatileValues.getNonFlushedValueIfVersionMatches(catalogVersion, key);
 		if (nonFlushedValueRef.isPresent()) {
 			final VersionedValue nonFlushedValue = nonFlushedValueRef.get();
 			if (nonFlushedValue.removed()) {
@@ -666,37 +714,21 @@ public class OffsetIndex {
 						doSoftFlush();
 					}
 					//noinspection unchecked
-					return (T) get(nonFlushedValue.fileLocation(), this.recordTypeRegistry.typeFor(nonFlushedValue.recordType()));
+					return (T) get(
+						nonFlushedValue.fileLocation(),
+						this.recordTypeRegistry.typeFor(nonFlushedValue.recordType())
+					);
 				} catch (KryoException exception) {
 					throw new RecordNotYetWrittenException(primaryKey, recordType, exception);
 				}
 			}
 		}
 
-		// snapshot the shared state once so the historical-fallback guard and the current-state lookup below always
-		// observe a consistent (version, locations) pair - see the torn-read rationale on #sharedState
-		final SharedState state = this.sharedState;
-		if (catalogVersion < state.keyCatalogVersion()) {
-			final Optional<VolatileValueInformation> volatileValueRef = this.volatileValues.getVolatileValueInformation(catalogVersion, key);
-			if (volatileValueRef.isPresent()) {
-				final VolatileValueInformation volatileValue = volatileValueRef.get();
-				if (volatileValue.removed() || volatileValue.addedInFuture()) {
-					return null;
-				} else {
-					final VersionedValue rewrittenValue = volatileValue.versionedValue();
-					if (rewrittenValue == null) {
-						return null;
-					} else {
-						//noinspection unchecked
-						return (T) get(rewrittenValue.fileLocation(), this.recordTypeRegistry.typeFor(rewrittenValue.recordType()));
-					}
-				}
-			}
-		}
-
-		return ofNullable(state.keyToLocations().get(key))
+		// resolve against the per-version root: floorRoot returns the location map as of the greatest retained
+		// version not exceeding catalogVersion, so its entries already conform to that version (generationId <=
+		// catalogVersion is implied) - no separate historical reconstruction or generation filter is needed
+		return ofNullable(this.roots.floorRoot(catalogVersion).get(key))
 			.map(it -> doGet(recordType, primaryKey, it))
-			.filter(it -> it.generationId() <= catalogVersion)
 			.map(StorageRecord::payload)
 			.orElse(null);
 	}
@@ -716,13 +748,25 @@ public class OffsetIndex {
 	}
 
 	/**
-	 * Returns unparsed value assigned to the primary key.
+	 * Returns the raw (unparsed) payload assigned to `primaryKey` as of `catalogVersion`, or {@code null} when no
+	 * active record exists for that key at that version.
+	 *
+	 * Like {@link #get(long, long, Class)}, the value is resolved against the per-version root, so the returned
+	 * entry already conforms to `catalogVersion` — no per-key historical reconstruction and no generation filter.
 	 *
 	 * Beware method may not return previously written record via {@link #put(long, StoragePart)} until method
 	 * {@link #flush(long)} is called. In this situation {@link RecordNotYetWrittenException} is thrown.
+	 *
+	 * @param catalogVersion the catalog version to resolve the value as of
+	 * @param primaryKey     the primary key of the record to read
+	 * @param recordType     the {@link StoragePart} subtype the record belongs to
+	 * @param <T>            the record type
+	 * @return the raw payload bytes for `primaryKey` at `catalogVersion`, or {@code null} if none exists
+	 * @throws RecordNotYetWrittenException if the record was written but not yet flushed and cannot be read back
 	 */
 	@Nullable
-	public <T extends StoragePart> byte[] getBinary(long catalogVersion, long primaryKey, @Nonnull Class<T> recordType) throws RecordNotYetWrittenException {
+	public <T extends StoragePart> byte[] getBinary(
+		long catalogVersion, long primaryKey, @Nonnull Class<T> recordType) throws RecordNotYetWrittenException {
 		assertOperative();
 
 		final RecordKey key = new RecordKey(
@@ -730,7 +774,8 @@ public class OffsetIndex {
 			primaryKey
 		);
 
-		final Optional<VersionedValue> nonFlushedValueRef = this.volatileValues.getNonFlushedValueIfVersionMatches(catalogVersion, key);
+		final Optional<VersionedValue> nonFlushedValueRef = this.volatileValues.getNonFlushedValueIfVersionMatches(
+			catalogVersion, key);
 		if (nonFlushedValueRef.isPresent()) {
 			final VersionedValue nonFlushedValue = nonFlushedValueRef.get();
 			if (nonFlushedValue.removed()) {
@@ -741,36 +786,18 @@ public class OffsetIndex {
 					if (this.lastSyncedPosition < nonFlushedValue.fileLocation().endPosition()) {
 						doSoftFlush();
 					}
-					return getBinary(nonFlushedValue.fileLocation(), this.recordTypeRegistry.typeFor(nonFlushedValue.recordType()));
+					return getBinary(
+						nonFlushedValue.fileLocation(), this.recordTypeRegistry.typeFor(nonFlushedValue.recordType()));
 				} catch (KryoException exception) {
 					throw new RecordNotYetWrittenException(primaryKey, recordType, exception);
 				}
 			}
 		}
 
-		// snapshot the shared state once so the historical-fallback guard and the current-state lookup below always
-		// observe a consistent (version, locations) pair - see the torn-read rationale on #sharedState
-		final SharedState state = this.sharedState;
-		if (catalogVersion < state.keyCatalogVersion()) {
-			final Optional<VolatileValueInformation> volatileValueRef = this.volatileValues.getVolatileValueInformation(catalogVersion, key);
-			if (volatileValueRef.isPresent()) {
-				final VolatileValueInformation volatileValue = volatileValueRef.get();
-				if (volatileValue.removed() || volatileValue.addedInFuture()) {
-					return null;
-				} else {
-					final VersionedValue rewrittenValue = volatileValue.versionedValue();
-					if (rewrittenValue == null) {
-						return null;
-					} else {
-						return getBinary(rewrittenValue.fileLocation(), this.recordTypeRegistry.typeFor(rewrittenValue.recordType()));
-					}
-				}
-			}
-		}
-
-		return ofNullable(state.keyToLocations().get(key))
+		// resolve against the per-version root (see get): floorRoot already yields the location map conforming to
+		// catalogVersion, so no historical reconstruction or generation filter is required
+		return ofNullable(this.roots.floorRoot(catalogVersion).get(key))
 			.map(it -> doGetBinary(recordType, primaryKey, it))
-			.filter(it -> it.generationId() <= catalogVersion)
 			.map(StorageRecord::payload)
 			.orElse(null);
 	}
@@ -793,31 +820,25 @@ public class OffsetIndex {
 	 * @param <T>            The type of the record.
 	 * @return {@code true} if the record exists in the storage, {@code false} otherwise.
 	 */
-	public <T extends StoragePart> boolean contains(long catalogVersion, long primaryKey, @Nonnull Class<T> recordType) {
+	public <T extends StoragePart> boolean contains(
+		long catalogVersion, long primaryKey, @Nonnull Class<T> recordType) {
 		assertOperative();
 		final RecordKey key = new RecordKey(
 			this.recordTypeRegistry.idFor(recordType),
 			primaryKey
 		);
 
-		final Optional<VersionedValue> nonFlushedValueRef = this.volatileValues.getNonFlushedValueIfVersionMatches(catalogVersion, key);
+		final Optional<VersionedValue> nonFlushedValueRef = this.volatileValues.getNonFlushedValueIfVersionMatches(
+			catalogVersion, key);
 		if (nonFlushedValueRef.isPresent()) {
 			final VersionedValue nonFlushedValue = nonFlushedValueRef.get();
 			return !nonFlushedValue.removed();
 		}
 
-		// snapshot the shared state once so the historical-fallback guard and the current-state lookup below always
-		// observe a consistent (version, locations) pair - see the torn-read rationale on #sharedState
-		final SharedState state = this.sharedState;
-		if (catalogVersion < state.keyCatalogVersion()) {
-			final Optional<VolatileValueInformation> volatileValueRef = this.volatileValues.getVolatileValueInformation(catalogVersion, key);
-			if (volatileValueRef.isPresent()) {
-				final VolatileValueInformation volatileValue = volatileValueRef.get();
-				return !(volatileValue.removed() || volatileValue.addedInFuture());
-			}
-		}
-
-		return state.keyToLocations().containsKey(key);
+		// resolve presence against the per-version root: floorRoot yields the location map as of catalogVersion, so
+		// containsKey is consistent with get/getBinary at every version (a key absent at the requested version is
+		// simply absent from that version's root)
+		return this.roots.floorRoot(catalogVersion).containsKey(key);
 	}
 
 	/**
@@ -834,21 +855,23 @@ public class OffsetIndex {
 		// underlying HashMap mid-mutation and throw ConcurrentModificationException. `getId(...)` calls inside
 		// the session are reentrant on the write lock (~5 ns per call) instead of paying a full acquire/release
 		final ReadWriteKeyCompressor compressor = this.fileOffsetDescriptor.getWriteKeyCompressor();
-		return compressor.executeWithWriteAccess(() ->
-			this.writeHandle.checkAndExecute(
-				"Storing record",
-				this::assertOperative,
-				exclusiveWriteAccess -> {
-					final long partId = ofNullable(value.getStoragePartPK())
-						.orElseGet(() -> value.computeUniquePartIdAndSet(compressor));
-					doPut(
-						catalogVersion,
-						partId, value,
-						exclusiveWriteAccess
-					);
-					return partId;
-				}
-			)
+		return compressor.executeWithWriteAccess(
+			() ->
+				this.writeHandle.checkAndExecute(
+					"Storing record",
+					this::assertOperative,
+					exclusiveWriteAccess -> {
+						final long partId = ofNullable(value.getStoragePartPK())
+							.orElseGet(() -> value.computeUniquePartIdAndSet(compressor));
+						doPut(
+							catalogVersion,
+							partId,
+							value,
+							exclusiveWriteAccess
+						);
+						return partId;
+					}
+				)
 		);
 	}
 
@@ -912,14 +935,14 @@ public class OffsetIndex {
 		assertOperative();
 		this.fileOffsetDescriptor = doFlush(catalogVersion, this.fileOffsetDescriptor, false);
 		// flush runs under the single-writer model: all writes (including the promotion inside doFlush) are
-		// serialized by the writeHandle ReentrantLock, so no other thread mutates sharedState concurrently here.
+		// serialized by the writeHandle ReentrantLock, so no other thread mutates the roots registry concurrently here.
 		// When there were non-flushed values, doFlush already republished the shared state (version + locations)
 		// atomically; when there was nothing to promote, advance the conforming version while keeping the current
 		// locations. The guard is strictly monotonic (`<`, not `!=`) so the key catalog version can only move
 		// forward - it never regresses even if this assumption were ever violated.
-		final SharedState currentState = this.sharedState;
-		if (currentState.keyCatalogVersion() < catalogVersion) {
-			this.sharedState = new SharedState(catalogVersion, currentState.keyToLocations());
+		final Roots currentState = this.roots;
+		if (currentState.currentVersion() < catalogVersion) {
+			this.roots = currentState.withCurrentVersion(catalogVersion);
 		}
 		this.readOnlyKeyCompressorView = null;
 		return this.fileOffsetDescriptor;
@@ -938,13 +961,41 @@ public class OffsetIndex {
 	}
 
 	/**
-	 * Copies entire living data set to the target output stream. The output stream is not closed in the method,
-	 * the caller is responsible for closing the stream.
+	 * Returns the scratch buffer used by the {@link #copySnapshotTo} record-copy loop, lazily (re)allocating it if it
+	 * has never been created or was reclaimed by the GC. The buffer is sized to {@link #outputBufferSize} (the bound on
+	 * a single record fragment) and reused across compactions. Must be called only from within the {@link #writeHandle}
+	 * critical section, which serializes every writer of this instance — so the single-slot, no-synchronization design
+	 * is safe.
 	 *
-	 * @param outputStream   target output stream to write the copy to
-	 * @param progressConsumer consumer that will be called with the progress of the copy
-	 * @param catalogVersion will be propagated to {@link StorageRecord#generationId()}
-	 * @return result containing the file location and the file descriptor actual when the copy was made
+	 * @return a reusable {@link #outputBufferSize}-byte scratch buffer for the raw record copy
+	 */
+	@Nonnull
+	byte[] getCompactionScratchBuffer() {
+		final SoftReference<byte[]> ref = this.compactionScratchBuffer;
+		byte[] buffer = ref == null ? null : ref.get();
+		if (buffer == null) {
+			buffer = new byte[this.outputBufferSize];
+			this.compactionScratchBuffer = new SoftReference<>(buffer);
+		}
+		return buffer;
+	}
+
+	/**
+	 * Copies entire living data set to the target output stream. The output stream is not closed in
+	 * the method, the caller is responsible for closing the stream.
+	 *
+	 * The living data set is resolved as-of `catalogVersion`: the per-version snapshot exposed by
+	 * {@link #getEntries(long)} is copied verbatim, with no per-key historical reconstruction.
+	 *
+	 * @param outputStream        target output stream to write the copy to
+	 * @param progressConsumer    consumer that will be called with the progress of the copy
+	 * @param catalogVersion      version resolving which entries are copied; also propagated to
+	 *                            {@link StorageRecord#generationId()} on every copied record
+	 * @param updatedStorageParts records written verbatim into the copy instead of being copied from
+	 *                            the source file, keyed by record key; they override the as-of-version
+	 *                            snapshot for the keys they carry
+	 * @return result containing the file location and the file descriptor actual when the copy was
+	 * made
 	 */
 	@Nonnull
 	public OffsetIndexDescriptor copySnapshotTo(
@@ -959,68 +1010,71 @@ public class OffsetIndex {
 		// Kryo serialization inside `serializeValue(...)` — both can mutate the write compressor; without it
 		// a concurrent snapshot reader would see the underlying HashMap mid-mutation and throw CME
 		final ReadWriteKeyCompressor compressor = this.fileOffsetDescriptor.getWriteKeyCompressor();
-		return compressor.executeWithWriteAccess(() ->
-			// copy the active parts to a new file
-			this.readOnlyHandlePool.borrowAndExecute(
-				readOnlyFileHandle -> readOnlyFileHandle.execute(
-					// by requesting write-handle we enforce no other thread can write to the source file while we are copying
-					inputStream -> this.writeHandle.checkAndExecute(
-						"Writing mem table",
-						this::assertOperative,
-						output -> this.readKryoPool.borrowAndExecute(
-							kryo -> {
-								Assert.isTrue(inputStream.getInputStream() instanceof RandomAccessFileInputStream, "Input stream must be RandomAccessFileInputStream!");
-								@SuppressWarnings("unchecked") final ObservableInput<RandomAccessFileInputStream> randomAccessFileInputStream =
-									(ObservableInput<RandomAccessFileInputStream>) inputStream;
-								final Map<RecordKey, byte[]> overriddenEntries;
-								if (updatedStorageParts != null && updatedStorageParts.length > 0) {
-									overriddenEntries = CollectionUtils.createHashMap(updatedStorageParts.length);
-									final ByteArrayOutputStream baos = new ByteArrayOutputStream(this.outputBufferSize);
-									final ObservableOutput<ByteArrayOutputStream> observableOutput = new ObservableOutput<>(
-										baos, this.outputBufferSize, 0,
-										this.checksumFactory.createChecksum(),
-										this.compressionFactory.createCompressor().orElse(null)
+		return compressor.executeWithWriteAccess(
+			() ->
+				// copy the active parts to a new file
+				this.readOnlyHandlePool.borrowAndExecute(
+					readOnlyFileHandle -> readOnlyFileHandle.execute(
+						// by requesting write-handle we enforce no other thread can write to the source file while we are copying
+						inputStream -> this.writeHandle.checkAndExecute(
+							"Writing mem table",
+							this::assertOperative,
+							output -> this.readKryoPool.borrowAndExecute(
+								kryo -> {
+									Assert.isTrue(
+										inputStream.getInputStream() instanceof RandomAccessFileInputStream,
+										"Input stream must be RandomAccessFileInputStream!"
 									);
-									for (StoragePart value : updatedStorageParts) {
-										final RecordKey recordKey = new RecordKey(
-											this.recordTypeRegistry.idFor(value.getClass()),
-											ofNullable(value.getStoragePartPK())
-												.orElseGet(() -> value.computeUniquePartIdAndSet(compressor))
+									@SuppressWarnings("unchecked") final ObservableInput<RandomAccessFileInputStream> randomAccessFileInputStream =
+										(ObservableInput<RandomAccessFileInputStream>) inputStream;
+									final Map<RecordKey, byte[]> overriddenEntries;
+									if (updatedStorageParts != null && updatedStorageParts.length > 0) {
+										overriddenEntries = CollectionUtils.createHashMap(updatedStorageParts.length);
+										final ByteArrayOutputStream baos = new ByteArrayOutputStream(this.outputBufferSize);
+										final ObservableOutput<ByteArrayOutputStream> observableOutput = new ObservableOutput<>(
+											baos, this.outputBufferSize, 0,
+											this.checksumFactory.createChecksum(),
+											this.compressionFactory.createCompressor().orElse(null)
 										);
-										baos.reset();
-										observableOutput.reset();
-										serializeValue(value, observableOutput);
-										observableOutput.flush();
-										overriddenEntries.put(recordKey, baos.toByteArray());
+										for (StoragePart value : updatedStorageParts) {
+											final RecordKey recordKey = new RecordKey(
+												this.recordTypeRegistry.idFor(value.getClass()),
+												ofNullable(value.getStoragePartPK())
+													.orElseGet(() -> value.computeUniquePartIdAndSet(compressor))
+											);
+											baos.reset();
+											observableOutput.reset();
+											serializeValue(value, observableOutput);
+											observableOutput.flush();
+											overriddenEntries.put(recordKey, baos.toByteArray());
+										}
+									} else {
+										overriddenEntries = Collections.emptyMap();
 									}
-								} else {
-									overriddenEntries = Collections.emptyMap();
+									final FileLocationAndWrittenBytes locationAndWrittenBytes = OffsetIndexSerializationService.copySnapshotTo(
+										this,
+										randomAccessFileInputStream,
+										outputStream,
+										catalogVersion,
+										overriddenEntries,
+										progressConsumer,
+										this.checksumFactory,
+										this.compressionFactory,
+										this.outputBufferSize
+									);
+									return new OffsetIndexDescriptor(
+										this.fileOffsetDescriptor.version() + 1,
+										locationAndWrittenBytes.fileLocation(),
+										compressor.getKeys(),
+										this.fileOffsetDescriptor.getKryoFactory(),
+										1,
+										locationAndWrittenBytes.writtenBytes()
+									);
 								}
-								final FileLocationAndWrittenBytes locationAndWrittenBytes = OffsetIndexSerializationService.copySnapshotTo(
-									this,
-									randomAccessFileInputStream,
-									outputStream,
-									catalogVersion,
-									overriddenEntries,
-									this.volatileValues,
-									progressConsumer,
-									this.checksumFactory,
-									this.compressionFactory,
-									this.outputBufferSize
-								);
-								return new OffsetIndexDescriptor(
-									this.fileOffsetDescriptor.version() + 1,
-									locationAndWrittenBytes.fileLocation(),
-									compressor.getKeys(),
-									this.fileOffsetDescriptor.getKryoFactory(),
-									1,
-									locationAndWrittenBytes.writtenBytes()
-								);
-							}
+							)
 						)
 					)
 				)
-			)
 		);
 	}
 
@@ -1042,7 +1096,7 @@ public class OffsetIndex {
 				this.fileOffsetDescriptor = doFlush(
 					// if there are any non-flushed values, use their version as the last version
 					this.volatileValues.getLastNonFlushedCatalogVersionIfExists()
-						.orElse(this.sharedState.keyCatalogVersion()),
+						.orElse(this.roots.currentVersion()),
 					this.fileOffsetDescriptor,
 					true
 				);
@@ -1054,38 +1108,6 @@ public class OffsetIndex {
 		} finally {
 			this.shutdownDownProcedureActive.compareAndExchange(true, false);
 		}
-	}
-
-	/**
-	 * Clears read-only file handles that have been opened but not properly released.
-	 *
-	 * This method attempts to close all handles in the `readOnlyOpenedHandles` collection that were unable to be
-	 * released within a specific timeout defined by `storageOptions.waitOnCloseSeconds()`. It performs a cleanup
-	 * of file handles to ensure that resources are released and avoid resource leakage.
-	 */
-	private void clearReadOnlyOpenedHandles() {
-		long start = System.currentTimeMillis();
-		while (!this.readOnlyOpenedHandles.isEmpty() && System.currentTimeMillis() - start > this.waitOnCloseSeconds * 1000L) {
-			if (this.readOnlyHandlePool.getFree() > 0) {
-				final ReadOnlyHandle handleToClose = this.readOnlyHandlePool.obtain();
-				try {
-					handleToClose.execute(
-						exclusiveReadAccess -> {
-							IOUtils.closeQuietly(exclusiveReadAccess::close);
-							return null;
-						});
-					this.readOnlyOpenedHandles.remove(handleToClose);
-				} catch (Exception ex) {
-					log.error("Read handle cannot be closed!", ex);
-					// ignore this - we need to close other files
-				}
-			}
-		}
-		// these handles were not released by the clients within the timeout
-		for (ReadOnlyHandle readOnlyOpenedHandle : this.readOnlyOpenedHandles) {
-			readOnlyOpenedHandle.close();
-		}
-		this.readOnlyOpenedHandles.clear();
 	}
 
 	/**
@@ -1124,13 +1146,21 @@ public class OffsetIndex {
 	}
 
 	/**
-	 * Returns the oldest record kept timestamp.
+	 * Promotion time of the oldest retained *historical* version — a side-channel observability metric for how far
+	 * back point-in-time restore can currently reach.
 	 *
-	 * @return the oldest record kept timestamp
+	 * Returns empty when only the current version is retained (no history is being kept for past readers). This
+	 * value is telemetry only: it does NOT participate in version resolution — reads and counts are resolved
+	 * purely by catalog version, never by timestamp.
+	 *
+	 * @return the oldest retained historical version's promotion timestamp, or empty when no history is retained
 	 */
 	@Nonnull
 	public Optional<OffsetDateTime> getOldestRecordKeptTimestamp() {
-		return this.volatileValues.getOldestRecordKeptTimestamp();
+		final OptionalLong oldest = this.roots.oldestHistoricalTimestamp();
+		return oldest.isPresent() ?
+			of(OffsetDateTime.ofInstant(Instant.ofEpochMilli(oldest.getAsLong()), ZoneId.systemDefault())) :
+			empty();
 	}
 
 	/**
@@ -1140,7 +1170,7 @@ public class OffsetIndex {
 	 */
 	@Nonnull
 	public Map<String, Integer> getHistogram() {
-		return this.histogram.entrySet().stream()
+		return this.roots.latestHistogram().entrySet().stream()
 			.collect(
 				Collectors.toMap(
 					it -> this.recordTypeRegistry.typeFor(it.getKey()).getSimpleName(),
@@ -1156,7 +1186,7 @@ public class OffsetIndex {
 	 * @return the total size
 	 */
 	public long getTotalSizeBytes() {
-		return this.totalSizeBytes.get() + (long) this.sharedState.keyToLocations().size() * (long) MEM_TABLE_RECORD_SIZE;
+		return this.totalSizeBytes.get() + (long) this.roots.latestRoot().size() * (long) MEM_TABLE_RECORD_SIZE;
 	}
 
 	/**
@@ -1191,7 +1221,7 @@ public class OffsetIndex {
 	}
 
 	/**
-	 * Creates new file that contains only records directly reachable from {@link SharedState#keyToLocations()} index. While
+	 * Creates new file that contains only records directly reachable from {@link Roots#latestRoot()} index. While
 	 * compacting, the original offset index is locked for writing (but reading is still possible).
 	 *
 	 * Original file remains unchanged and must be removed later manually when the history is no longer needed.
@@ -1202,7 +1232,7 @@ public class OffsetIndex {
 	@Nonnull
 	public OffsetIndexDescriptor compact(@Nonnull Path newFilePath) {
 		try (final FileOutputStream fos = new FileOutputStream(newFilePath.toFile())) {
-			return copySnapshotTo(fos, null, this.sharedState.keyCatalogVersion());
+			return copySnapshotTo(fos, null, this.roots.currentVersion());
 		} catch (IOException e) {
 			throw new UnexpectedIOException(
 				"Error occurred while compacting the snapshot to the new file: " + e.getMessage(),
@@ -1217,7 +1247,7 @@ public class OffsetIndex {
 	 */
 	Collection<RecordKey> getKeys() {
 		assertOperative();
-		return Collections.unmodifiableCollection(this.sharedState.keyToLocations().keySet());
+		return Collections.unmodifiableCollection(this.roots.latestRoot().keySet());
 	}
 
 	/**
@@ -1225,7 +1255,7 @@ public class OffsetIndex {
 	 */
 	Collection<FileLocation> getFileLocations() {
 		assertOperative();
-		return Collections.unmodifiableCollection(this.sharedState.keyToLocations().values());
+		return Collections.unmodifiableCollection(this.roots.latestRoot().values());
 	}
 
 	/**
@@ -1233,7 +1263,49 @@ public class OffsetIndex {
 	 */
 	boolean fileOffsetIndexEquals(@Nonnull OffsetIndex o) {
 		if (this == o) return true;
-		return this.sharedState.keyToLocations().equals(o.sharedState.keyToLocations());
+		return this.roots.latestRoot().equals(o.roots.latestRoot());
+	}
+
+	/**
+	 * Clears read-only file handles that have been opened but not properly released.
+	 *
+	 * This method attempts to close all handles in the `readOnlyOpenedHandles` collection that were unable to be
+	 * released within a specific timeout defined by `storageOptions.waitOnCloseSeconds()`. It performs a cleanup
+	 * of file handles to ensure that resources are released and avoid resource leakage.
+	 */
+	private void clearReadOnlyOpenedHandles() {
+		final long start = System.currentTimeMillis();
+		// Grace-drain loop: wait up to `waitOnCloseSeconds` for clients (most importantly an in-flight snapshot
+		// copy / compaction that has borrowed a read handle) to return their handles, closing each one the moment
+		// it frees up in the pool. The comparison MUST be `<` (still inside the grace window): with the former `>`
+		// it was false on entry (elapsed is ~0), so this loop never ran and close() fell straight through to the
+		// force-close below while the handle was still being read - surfacing as `Stream Closed` mid-compaction on
+		// the reading thread.
+		while (!this.readOnlyOpenedHandles.isEmpty() && System.currentTimeMillis() - start < this.waitOnCloseSeconds * 1000L) {
+			if (this.readOnlyHandlePool.getFree() > 0) {
+				final ReadOnlyHandle handleToClose = this.readOnlyHandlePool.obtain();
+				try {
+					handleToClose.execute(
+						exclusiveReadAccess -> {
+							IOUtils.closeQuietly(exclusiveReadAccess::close);
+							return null;
+						});
+					this.readOnlyOpenedHandles.remove(handleToClose);
+				} catch (Exception ex) {
+					log.error("Read handle cannot be closed!", ex);
+					// ignore this - we need to close other files
+				}
+			} else {
+				// every handle is currently borrowed - yield rather than burn a core until one is returned to
+				// the pool
+				Thread.onSpinWait();
+			}
+		}
+		// these handles were not released by the clients within the timeout
+		for (ReadOnlyHandle readOnlyOpenedHandle : this.readOnlyOpenedHandles) {
+			readOnlyOpenedHandle.close();
+		}
+		this.readOnlyOpenedHandles.clear();
 	}
 
 	/**
@@ -1257,10 +1329,6 @@ public class OffsetIndex {
 		);
 	}
 
-	/*
-		PRIVATE METHODS
-	 */
-
 	/**
 	 * Calculates estimated total active size. In case of compression enabled this size might exceed the actual size
 	 * of the file on the disk, since it calculates potential size of the all the records in the index (compressed)
@@ -1273,7 +1341,7 @@ public class OffsetIndex {
 	 */
 	private long getTotalActiveSize() {
 		return this.totalSizeBytes.get() +
-			countFileOffsetTableSize(this.sharedState.keyToLocations().size(), this.outputBufferSize);
+			countFileOffsetTableSize(this.roots.latestRoot().size(), this.outputBufferSize);
 	}
 
 	/**
@@ -1325,14 +1393,14 @@ public class OffsetIndex {
 				this::assertOperative,
 				outputStream -> {
 					// serialize all non-flushed values to the output stream
-					final Collection<NonFlushedValueSet> nonFlushedEntries = this.volatileValues.getNonFlushedEntriesToPromote(catalogVersion);
+					final Collection<NonFlushedValueSet> nonFlushedEntries = this.volatileValues.getNonFlushedEntriesToPromote(
+						catalogVersion);
 					final List<VersionedValue> valuesToPromote = nonFlushedEntries
 						.stream()
 						.flatMap(it -> it.getAllValues().stream())
 						.toList();
 					return new NonFlushedValuesWithFileLocation(
 						nonFlushedEntries,
-						valuesToPromote.size(),
 						serialize(
 							outputStream,
 							catalogVersion,
@@ -1348,7 +1416,6 @@ public class OffsetIndex {
 					// now empty all NonFlushedValueSet and move them to current state
 					promoteNonFlushedValuesToSharedState(
 						catalogVersion,
-						nonFlushedValuesWithFileLocation.valueCount(),
 						nonFlushedValuesWithFileLocation.nonFlushedValueSets()
 					);
 					// propagate changes in KeyCompressor to the read kryo pool
@@ -1415,63 +1482,80 @@ public class OffsetIndex {
 	}
 
 	/**
-	 * Method moves all `nonFlushedValues` to a `keyToLocations` entries and purges them from the main memory. The new
-	 * locations map and the `catalogVersion` it conforms to are published together through a single
-	 * {@link #sharedState} volatile write, so lock-free readers never observe a torn `(version, locations)` pair.
+	 * Method moves all `nonFlushedValues` into the published per-version location map and purges them from the main
+	 * memory. The new location map and the `catalogVersion` it conforms to are published together through a single
+	 * {@link #roots} volatile write, so lock-free readers never observe a torn `(version, locations)` pair.
 	 *
-	 * @param catalogVersion       the catalog version stamped onto the freshly published `keyToLocations` map; this is
-	 *                             the conforming version that readers compare against in {@link #get(long, long, Class)}
-	 * @param valueCount           the number of promoted values, used to pre-size the new locations map
-	 * @param nonFlushedValueSets  the non-flushed value sets to promote to the shared state
+	 * @param catalogVersion      the catalog version stamped onto the freshly published {@link Roots#latestRoot()}
+	 *                            location map; this is the conforming version that readers compare against in
+	 *                            {@link #get(long, long, Class)}
+	 * @param nonFlushedValueSets the non-flushed value sets to promote to the shared state
 	 */
-	private void promoteNonFlushedValuesToSharedState(long catalogVersion, int valueCount, @Nonnull Collection<NonFlushedValueSet> nonFlushedValueSets) {
-		final Map<RecordKey, FileLocation> currentLocations = this.sharedState.keyToLocations();
-		this.volatileValues.recordHistoricalVersions(nonFlushedValueSets, currentLocations);
-		// promote changes to shared state
-		final Map<RecordKey, FileLocation> newKeyToLocations = createHashMap(
-			currentLocations.size() + valueCount
-		);
-		// we need to start with the original set - this is expensive operation - it would be much better to
-		// have something like persistent map that would allow us to create new instance with reusing the old segments
-		newKeyToLocations.putAll(currentLocations);
+	private void promoteNonFlushedValuesToSharedState(
+		long catalogVersion, @Nonnull Collection<NonFlushedValueSet> nonFlushedValueSets) {
+		final Roots currentRoots = this.roots;
+		// promote changes by path-copying the persistent map per committed version: each version derives a new root
+		// that structurally shares every untouched sub-tree with its predecessor, so the whole promotion costs
+		// O(M·log32 N) and allocates only the touched path (no O(N) full-map copy, no humongous backing array). One
+		// root + histogram snapshot is retained per promoted version, so a reader pinned to any of them resolves the
+		// exact per-version state through Roots.floorRoot (replacing the former overwritten-value reconstruction).
+		OffsetLocationChampMap root = currentRoots.latestRoot();
+		Map<Byte, Integer> histogram = currentRoots.latestHistogram();
+
+		final int batchSize = nonFlushedValueSets.size();
+		final long[] addVersions = new long[batchSize];
+		final OffsetLocationChampMap[] addRoots = new OffsetLocationChampMap[batchSize];
+		@SuppressWarnings("unchecked") final Map<Byte, Integer>[] addHistograms = new Map[batchSize];
+		final long[] addTimestamps = new long[batchSize];
+		// all versions in one flush become durable together, so they share a single promotion timestamp
+		final long promotedAt = System.currentTimeMillis();
 
 		long workingMaxRecordSize = this.maxRecordSizeBytes.get();
 		long recordLengthDelta = 0;
+		int batchIndex = 0;
 
-		final Map<Byte, Integer> histogramDiff = CollectionUtils.createHashMap(this.histogram.size());
-		for (NonFlushedValueSet volatileValues : nonFlushedValueSets) {
-			for (Entry<RecordKey, VersionedValue> entry : volatileValues.entrySet()) {
+		// the sets arrive in ascending catalog-version order (see getNonFlushedEntriesToPromote)
+		for (NonFlushedValueSet nonFlushedValueSet : nonFlushedValueSets) {
+			final Map<Byte, Integer> histogramDiff = CollectionUtils.createHashMap(histogram.size());
+			for (Entry<RecordKey, VersionedValue> entry : nonFlushedValueSet.entrySet()) {
 				final RecordKey recordKey = entry.getKey();
 				final VersionedValue nonFlushedValue = entry.getValue();
 
 				final int count;
 				if (nonFlushedValue.removed()) {
-					final FileLocation removedLocation = newKeyToLocations.remove(recordKey);
+					// read the dropped record's length before path-copying it away (primitive fast path,
+					// no FileLocation materialization)
+					final int removedLength = root.findRecordLength(recordKey);
 					// location might not exist when value was created and immediately removed
-					if (removedLocation != null) {
+					if (removedLength != OffsetLocationChampMap.RECORD_LENGTH_ABSENT) {
+						root = root.removed(recordKey);
 						count = -1;
-						recordLengthDelta -= removedLocation.recordLength();
+						recordLengthDelta -= removedLength;
 					} else {
 						count = 0;
 					}
-				} else if (volatileValues.wasAdded(recordKey)) {
+				} else if (nonFlushedValueSet.wasAdded(recordKey)) {
 					final FileLocation recordLocation = nonFlushedValue.fileLocation();
 					final int currentRecordLength = recordLocation.recordLength();
 					recordLengthDelta += currentRecordLength;
 					if (currentRecordLength > workingMaxRecordSize) {
 						workingMaxRecordSize = currentRecordLength;
 					}
-					final FileLocation previousValue = newKeyToLocations.put(recordKey, recordLocation);
 					Assert.isPremiseValid(
-						previousValue == null,
+						!root.containsKey(recordKey),
 						"Record was already present!"
 					);
+					root = root.updated(recordKey, recordLocation);
 					count = 1;
 				} else {
 					final FileLocation newRecordLocation = nonFlushedValue.fileLocation();
-					final FileLocation existingRecordLocation = newKeyToLocations.put(recordKey, newRecordLocation);
-					Assert.isPremiseValid(existingRecordLocation != null, "Record was not present!");
-					recordLengthDelta += newRecordLocation.recordLength() - existingRecordLocation.recordLength();
+					// read the replaced record's length before path-copying the new one in (primitive
+					// fast path, no FileLocation materialization)
+					final int existingLength = root.findRecordLength(recordKey);
+					Assert.isPremiseValid(
+						existingLength != OffsetLocationChampMap.RECORD_LENGTH_ABSENT, "Record was not present!");
+					root = root.updated(recordKey, newRecordLocation);
+					recordLengthDelta += newRecordLocation.recordLength() - existingLength;
 					if (newRecordLocation.recordLength() > workingMaxRecordSize) {
 						workingMaxRecordSize = newRecordLocation.recordLength();
 					}
@@ -1482,28 +1566,53 @@ public class OffsetIndex {
 					recordKey.recordType(), count, Integer::sum
 				);
 			}
+
+			// snapshot this version's histogram (reuse the prior immutable map when no record type changed)
+			if (!histogramDiff.isEmpty()) {
+				final Map<Byte, Integer> updatedHistogram = new HashMap<>(histogram);
+				for (Entry<Byte, Integer> entry : histogramDiff.entrySet()) {
+					updatedHistogram.merge(entry.getKey(), entry.getValue(), Integer::sum);
+				}
+				histogram = Map.copyOf(updatedHistogram);
+			}
+			addVersions[batchIndex] = nonFlushedValueSet.getCatalogVersion();
+			addRoots[batchIndex] = root;
+			addHistograms[batchIndex] = histogram;
+			addTimestamps[batchIndex] = promotedAt;
+			batchIndex++;
 		}
 
-		// update statistics
+		// update global statistics
 		this.totalSizeBytes.addAndGet(recordLengthDelta);
 		this.maxRecordSizeBytes.set(workingMaxRecordSize);
-		for (Entry<Byte, Integer> entry : histogramDiff.entrySet()) {
-			this.histogram.merge(entry.getKey(), entry.getValue(), Integer::sum);
+		// append the new per-version snapshots, then drop any history a catalog has released (the watermark set by
+		// purge is applied here, in the serialized writer, so no reader-side lock is needed)
+		Roots published = currentRoots.append(catalogVersion, addVersions, addRoots, addHistograms, addTimestamps);
+		final long releasedUptoInclusive = this.volatileValues.consumePurgeWatermark();
+		if (releasedUptoInclusive > -1) {
+			published = published.purgedThrough(releasedUptoInclusive);
 		}
-		// and the locations finally - publish the new map together with its conforming catalog version through a
-		// single volatile write, so lock-free readers never observe a torn (version, locations) pair
-		this.sharedState = new SharedState(catalogVersion, newKeyToLocations);
+		// publish the registry together with the conforming catalog version through a single volatile write, so
+		// lock-free readers never observe a torn (versions, roots) snapshot
+		this.roots = published;
+		// report the oldest retained historical version to observers after a release may have advanced it
+		if (releasedUptoInclusive > -1) {
+			this.volatileValues.notifyOldestKept(getOldestRecordKeptTimestamp().orElse(null));
+		}
 	}
 
 	/**
 	 * Method stores new record to the OffsetIndex. This method should be called only from singleton writer and never
 	 * directly from the code. All writes are serialized by exclusive write access.
 	 */
-	private void doPut(long catalogVersion, long primaryKey, @Nonnull StoragePart value, @Nonnull ObservableOutput<?> exclusiveWriteAccess) {
+	private void doPut(
+		long catalogVersion, long primaryKey, @Nonnull StoragePart value,
+		@Nonnull ObservableOutput<?> exclusiveWriteAccess
+	) {
 		final byte recordType = this.recordTypeRegistry.idFor(value.getClass());
 		final RecordKey key = new RecordKey(recordType, primaryKey);
 
-		final boolean update = this.sharedState.keyToLocations().containsKey(key);
+		final boolean update = this.roots.latestRoot().containsKey(key);
 		final FileLocation recordLocation = new StorageRecord<>(
 			this.writeKryo,
 			exclusiveWriteAccess,
@@ -1528,7 +1637,8 @@ public class OffsetIndex {
 		final byte recordType = this.recordTypeRegistry.idFor(valueType);
 		final RecordKey key = new RecordKey(recordType, primaryKey);
 
-		final Optional<VersionedValue> nonFlushedValueRef = this.volatileValues.getNonFlushedValueIfVersionMatches(catalogVersion, key);
+		final Optional<VersionedValue> nonFlushedValueRef = this.volatileValues.getNonFlushedValueIfVersionMatches(
+			catalogVersion, key);
 		if (nonFlushedValueRef.isPresent()) {
 			final VersionedValue nonFlushedValue = nonFlushedValueRef.get();
 			if (nonFlushedValue.removed()) {
@@ -1539,20 +1649,8 @@ public class OffsetIndex {
 			}
 		}
 
-		// snapshot the shared state once so the historical-fallback guard and the current-state lookup below always
-		// observe a consistent (version, locations) pair - see the torn-read rationale on #sharedState
-		final SharedState state = this.sharedState;
-		if (catalogVersion < state.keyCatalogVersion()) {
-			final Optional<VolatileValueInformation> volatileValueRef = this.volatileValues.getVolatileValueInformation(catalogVersion, key);
-			if (volatileValueRef.isPresent()) {
-				final VolatileValueInformation volatileValue = volatileValueRef.get();
-				if (volatileValue.removed() || volatileValue.addedInFuture()) {
-					return false;
-				}
-			}
-		}
-
-		final FileLocation currentLocation = state.keyToLocations().get(key);
+		// a write always targets the current version, so resolve the location to drop against the latest root
+		final FileLocation currentLocation = this.roots.floorRoot(catalogVersion).get(key);
 		if (currentLocation == null) {
 			return false;
 		} else {
@@ -1564,7 +1662,8 @@ public class OffsetIndex {
 	/**
 	 * Method retrieves existing record from the OffsetIndex.
 	 */
-	private <T extends Serializable> StorageRecord<T> doGet(@Nonnull Class<T> recordType, long primaryKey, @Nonnull FileLocation it) {
+	private <T extends Serializable> StorageRecord<T> doGet(
+		@Nonnull Class<T> recordType, long primaryKey, @Nonnull FileLocation it) {
 		return this.readOnlyHandlePool.borrowAndExecute(
 			readOnlyFileHandle -> readOnlyFileHandle.execute(
 				exclusiveReadAccess -> {
@@ -1592,7 +1691,8 @@ public class OffsetIndex {
 	/**
 	 * Method retrieves existing record from the OffsetIndex without parsing its contents.
 	 */
-	private <T extends Serializable> StorageRecord<byte[]> doGetBinary(@Nonnull Class<T> recordType, long primaryKey, @Nonnull FileLocation it) {
+	private <T extends Serializable> StorageRecord<byte[]> doGetBinary(
+		@Nonnull Class<T> recordType, long primaryKey, @Nonnull FileLocation it) {
 		return this.readOnlyHandlePool.borrowAndExecute(
 			readOnlyFileHandle -> readOnlyFileHandle.execute(
 				exclusiveReadAccess -> {
@@ -1610,7 +1710,8 @@ public class OffsetIndex {
 									byte[] utility = null;
 									try {
 										utility = this.decompressionPool.obtain();
-										final int decompressedBytes = exclusiveReadAccess.decompress(rawRecord.rawData(), utility);
+										final int decompressedBytes = exclusiveReadAccess.decompress(
+											rawRecord.rawData(), utility);
 										decompressed = Arrays.copyOf(utility, decompressedBytes);
 									} finally {
 										if (utility != null) {
@@ -1637,6 +1738,233 @@ public class OffsetIndex {
 				}
 			)
 		);
+	}
+
+	/**
+	 * Immutable, structurally-shared registry of the record-location index across catalog
+	 * versions. It pairs a sorted (ascending) `versions` array with parallel `locationRoots`,
+	 * `histograms` and `timestamps` arrays, where index `i` holds the complete state as it stood at
+	 * catalog version `versions[i]` - the {@link OffsetLocationChampMap} of record locations, the record-type
+	 * histogram, and the wall-clock promotion timestamp (a telemetry-only side channel, never
+	 * consulted for version resolution). Only versions that actually changed the index get an entry;
+	 * reads for any catalog version resolve through {@link #floorIndex(long)} (the greatest retained
+	 * version not exceeding the requested one), so the gaps between entries are interpolated for free
+	 * by the persistent map's structural sharing.
+	 *
+	 * The whole registry is published through a single volatile {@link #roots} reference, so
+	 * lock-free readers always observe a coherent `(versions, locationRoots, histograms, timestamps)`
+	 * tuple - they can never see a freshly appended root paired with a stale version array.
+	 * {@link #currentVersion} is the conforming catalog version of the latest entry; it may run ahead
+	 * of `versions[length - 1]` after an empty flush (a version bump that changed nothing), which
+	 * costs only a new holder - not a new root.
+	 *
+	 * @param currentVersion the conforming catalog version of the most recent state
+	 *                       (>= `versions[length - 1]`)
+	 * @param versions       retained catalog versions in ascending order; never empty
+	 * @param locationRoots  parallel to `versions`; `locationRoots[i]` is the location map as of
+	 *                       `versions[i]`
+	 * @param histograms     parallel to `versions`; `histograms[i]` is the record-type histogram as
+	 *                       of `versions[i]`
+	 * @param timestamps     parallel to `versions`; `timestamps[i]` is the epoch-millis promotion
+	 *                       time of `versions[i]` - a telemetry-only side channel, not used for
+	 *                       version resolution
+	 */
+	private record Roots(
+		long currentVersion,
+		@Nonnull long[] versions,
+		@Nonnull OffsetLocationChampMap[] locationRoots,
+		@Nonnull Map<Byte, Integer>[] histograms,
+		@Nonnull long[] timestamps
+	) {
+
+		/**
+		 * Builds a single-entry registry holding the initial state at `version`.
+		 *
+		 * @param version   the catalog version the state conforms to
+		 * @param root      the location map as of `version`
+		 * @param histogram the record-type histogram as of `version`
+		 * @param timestamp the wall-clock epoch millis at which `version` became the retained state
+		 * @return a one-entry registry
+		 */
+		@Nonnull
+		static Roots initial(
+			long version,
+			@Nonnull OffsetLocationChampMap root,
+			@Nonnull Map<Byte, Integer> histogram,
+			long timestamp
+		) {
+			return new Roots(
+				version, new long[]{version}, asRootArray(root), asHistogramArray(histogram), new long[]{timestamp}
+			);
+		}
+
+		@Nonnull
+		private static OffsetLocationChampMap[] asRootArray(
+			@Nonnull OffsetLocationChampMap root
+		) {
+			return new OffsetLocationChampMap[]{root};
+		}
+
+		@SuppressWarnings("unchecked")
+		@Nonnull
+		private static Map<Byte, Integer>[] asHistogramArray(@Nonnull Map<Byte, Integer> histogram) {
+			return (Map<Byte, Integer>[]) new Map[]{histogram};
+		}
+
+		/**
+		 * Returns a copy with the conforming version advanced to `version`, keeping every retained root, histogram and
+		 * timestamp untouched - an empty flush bumps only the version pointer, not the data.
+		 *
+		 * @param version the new conforming catalog version (must not be lower than {@link #currentVersion})
+		 * @return a registry with the advanced conforming version
+		 */
+		@Nonnull
+		Roots withCurrentVersion(long version) {
+			return new Roots(version, this.versions, this.locationRoots, this.histograms, this.timestamps);
+		}
+
+		/**
+		 * Returns a copy of this registry with the supplied per-version entries appended. The added versions must be
+		 * ascending and must not precede the current tail. The first added version may *equal* the tail version - this
+		 * happens when changes are written at the genesis/reload version (the writer keeps building the version it
+		 * started from) - in which case it supersedes the tail entry instead of duplicating it; every later added
+		 * version is strictly greater. Because each appended root structurally shares the bulk of its predecessor,
+		 * retaining the whole per-version history is cheap.
+		 *
+		 * @param newCurrentVersion the conforming catalog version after the append (>= the highest added version)
+		 * @param addVersions       the catalog versions to append, ascending, the first being >= the current tail
+		 * @param addRoots          parallel to `addVersions`; the location map snapshot per appended version
+		 * @param addHistograms     parallel to `addVersions`; the histogram snapshot per appended version
+		 * @param addTimestamps     parallel to `addVersions`; the epoch millis at which each version was promoted
+		 * @return a registry holding the retained entries followed by the appended ones
+		 */
+		@Nonnull
+		Roots append(
+			long newCurrentVersion,
+			@Nonnull long[] addVersions,
+			@Nonnull OffsetLocationChampMap[] addRoots,
+			@Nonnull Map<Byte, Integer>[] addHistograms,
+			@Nonnull long[] addTimestamps
+		) {
+			if (addVersions.length == 0) {
+				return withCurrentVersion(newCurrentVersion);
+			}
+			final long tail = this.versions[this.versions.length - 1];
+			Assert.isPremiseValid(
+				addVersions[0] >= tail,
+				"Appended versions must not precede the retained ones!"
+			);
+			// re-promoting the current tail version (changes written at the genesis/reload version) supersedes that
+			// entry rather than adding a duplicate; every other added version extends the registry
+			final int keep = addVersions[0] == tail ? this.versions.length - 1 : this.versions.length;
+			final int addLen = addVersions.length;
+			final int total = keep + addLen;
+			final long[] nv = new long[total];
+			System.arraycopy(this.versions, 0, nv, 0, keep);
+			System.arraycopy(addVersions, 0, nv, keep, addLen);
+			final OffsetLocationChampMap[] nr = Arrays.copyOf(this.locationRoots, total);
+			System.arraycopy(addRoots, 0, nr, keep, addLen);
+			final Map<Byte, Integer>[] nh = Arrays.copyOf(this.histograms, total);
+			System.arraycopy(addHistograms, 0, nh, keep, addLen);
+			final long[] nt = new long[total];
+			System.arraycopy(this.timestamps, 0, nt, 0, keep);
+			System.arraycopy(addTimestamps, 0, nt, keep, addLen);
+			return new Roots(newCurrentVersion, nv, nr, nh, nt);
+		}
+
+		/**
+		 * Returns a copy of this registry that has dropped every version no later than `releasedUptoInclusive` while
+		 * still retaining the floor entry needed to resolve the smallest version a client may still reference
+		 * (`releasedUptoInclusive + 1`). The current (last) entry is always retained. If nothing can be dropped the
+		 * same instance is returned. Dropped roots become unreachable and their now-exclusive CHAMP nodes are
+		 * reclaimed by the GC through structural sharing.
+		 *
+		 * @param releasedUptoInclusive the highest catalog version no client references any more
+		 * @return a registry without the released history, or `this` when nothing is dropped
+		 */
+		@Nonnull
+		Roots purgedThrough(long releasedUptoInclusive) {
+			final int keepFrom = floorIndex(releasedUptoInclusive + 1);
+			if (keepFrom <= 0) {
+				return this;
+			}
+			return new Roots(
+				this.currentVersion,
+				Arrays.copyOfRange(this.versions, keepFrom, this.versions.length),
+				Arrays.copyOfRange(this.locationRoots, keepFrom, this.locationRoots.length),
+				Arrays.copyOfRange(this.histograms, keepFrom, this.histograms.length),
+				Arrays.copyOfRange(this.timestamps, keepFrom, this.timestamps.length)
+			);
+		}
+
+		/**
+		 * Epoch millis at which the oldest retained *historical* version was promoted, or empty when only the current
+		 * version is retained (no history is being kept for past readers). Used purely for telemetry.
+		 *
+		 * @return the oldest retained historical version's promotion timestamp, or empty when no history is retained
+		 */
+		@Nonnull
+		OptionalLong oldestHistoricalTimestamp() {
+			return this.versions.length > 1 ? OptionalLong.of(this.timestamps[0]) : OptionalLong.empty();
+		}
+
+		/**
+		 * Index of the greatest retained version not exceeding `catalogVersion`; clamps to `0` when `catalogVersion`
+		 * precedes every retained version (the oldest retained state is then the best available answer).
+		 *
+		 * @param catalogVersion the catalog version to resolve
+		 * @return the parallel-array index of the resolved version
+		 */
+		int floorIndex(long catalogVersion) {
+			final int idx = Arrays.binarySearch(this.versions, catalogVersion);
+			if (idx >= 0) {
+				return idx;
+			}
+			final int insertion = -idx - 1;
+			return insertion == 0 ? 0 : insertion - 1;
+		}
+
+		/**
+		 * Returns the location map as of the greatest retained version not exceeding `catalogVersion`.
+		 *
+		 * @param catalogVersion the catalog version to resolve against
+		 * @return the resolved location map
+		 */
+		@Nonnull
+		OffsetLocationChampMap floorRoot(long catalogVersion) {
+			return this.locationRoots[floorIndex(catalogVersion)];
+		}
+
+		/**
+		 * Returns the record-type histogram as of the greatest retained version not exceeding `catalogVersion`.
+		 *
+		 * @param catalogVersion the catalog version to resolve against
+		 * @return the resolved histogram
+		 */
+		@Nonnull
+		Map<Byte, Integer> floorHistogram(long catalogVersion) {
+			return this.histograms[floorIndex(catalogVersion)];
+		}
+
+		/**
+		 * Returns the most recent (current) location map.
+		 *
+		 * @return the latest location map
+		 */
+		@Nonnull
+		OffsetLocationChampMap latestRoot() {
+			return this.locationRoots[this.locationRoots.length - 1];
+		}
+
+		/**
+		 * Returns the most recent (current) record-type histogram.
+		 *
+		 * @return the latest histogram
+		 */
+		@Nonnull
+		Map<Byte, Integer> latestHistogram() {
+			return this.histograms[this.histograms.length - 1];
+		}
 	}
 
 	/**
@@ -1743,7 +2071,7 @@ public class OffsetIndex {
 		/**
 		 * Stores instance of the record to the non-flushed index.
 		 *
-		 * @param create - when true it affects {@link #histogram} results
+		 * @param create - when true it affects {@link #nonFlushedValuesHistogram} results
 		 */
 		public void put(@Nonnull RecordKey key, @Nonnull VersionedValue value, boolean create) {
 			if (create) {
@@ -1761,7 +2089,8 @@ public class OffsetIndex {
 		 */
 		public void remove(@Nonnull RecordKey key, @Nonnull FileLocation fileLocation) {
 			this.nonFlushedValuesHistogram.merge(key.recordType(), -1, Integer::sum);
-			this.nonFlushedValueIndex.put(key, new VersionedValue(key.primaryKey(), (byte) (key.recordType() * -1), fileLocation));
+			this.nonFlushedValueIndex.put(
+				key, new VersionedValue(key.primaryKey(), (byte) (key.recordType() * -1), fileLocation));
 			this.addedKeys.remove(key);
 			this.removedKeys.add(key);
 			this.nonFlushedBlockSizeChangedCallback.accept(fileLocation.recordLength());
@@ -1773,69 +2102,6 @@ public class OffsetIndex {
 		@Nonnull
 		public Iterable<? extends Entry<RecordKey, VersionedValue>> entrySet() {
 			return this.nonFlushedValueIndex.entrySet();
-		}
-
-		/**
-		 * Creates map of original values for keys that were rewritten by this non-flushed value set.
-		 *
-		 * @param currentLocations current locations of the records
-		 * @return map of original values for keys that were rewritten by this non-flushed value set
-		 */
-		@Nonnull
-		public PastMemory createFrom(@Nonnull Map<RecordKey, FileLocation> currentLocations) {
-			final Map<RecordKey, VersionedValue> result = CollectionUtils.createHashMap(this.nonFlushedValueIndex.size());
-			for (RecordKey replacedKey : this.nonFlushedValueIndex.keySet()) {
-				ofNullable(currentLocations.get(replacedKey))
-					.map(it -> new VersionedValue(replacedKey.primaryKey(), replacedKey.recordType(), it))
-					.ifPresent(it -> result.put(replacedKey, it));
-			}
-			return new PastMemory(
-				Collections.unmodifiableMap(result),
-				this.addedKeys.isEmpty() ? Collections.emptySet() : Collections.unmodifiableSet(this.addedKeys),
-				this.removedKeys.isEmpty() ? Collections.emptySet() : Collections.unmodifiableSet(this.removedKeys),
-				this.nonFlushedValuesHistogram
-			);
-		}
-
-		/**
-		 * Merges the existingHistory map with the currentLocations map.
-		 * If a key in the existingHistory map is not present in the currentLocations map, a new VersionedValue
-		 * is created using the currentLocations map and added to the existingHistory map.
-		 *
-		 * @param existingHistory  The existing history map.
-		 * @param currentLocations The current locations map.
-		 * @return The merged map.
-		 */
-		@Nonnull
-		public PastMemory mergeWith(
-			@Nonnull PastMemory existingHistory,
-			@Nonnull Map<RecordKey, FileLocation> currentLocations
-		) {
-			final Set<RecordKey> addedKeys = new HashSet<>(existingHistory.getAddedKeys());
-			addedKeys.addAll(this.addedKeys);
-			final Set<RecordKey> removedKeys = new HashSet<>(existingHistory.getRemovedKeys());
-			removedKeys.addAll(this.removedKeys);
-			final Map<Byte, Integer> histogram = new HashMap<>(existingHistory.getHistogram());
-			for (Entry<Byte, Integer> entry : this.nonFlushedValuesHistogram.entrySet()) {
-				histogram.compute(entry.getKey(), (k, v) -> v == null ? entry.getValue() : v + entry.getValue());
-			}
-			final Map<RecordKey, VersionedValue> replacedValues = new HashMap<>(existingHistory.getReplacedValues());
-			for (RecordKey replacedKey : this.nonFlushedValueIndex.keySet()) {
-				// if the existing history already contains the key, we must not overwrite it, the currentLocations
-				// already contains value written in this catalog version and we would store invalid value (and lose
-				// the proper historical one) - the single record may have been written multiple times in single tx
-				if (!existingHistory.containsKey(replacedKey)) {
-					ofNullable(currentLocations.get(replacedKey))
-						.map(it -> new VersionedValue(replacedKey.primaryKey(), replacedKey.recordType(), it))
-						.ifPresent(it -> replacedValues.put(replacedKey, it));
-				}
-			}
-			return new PastMemory(
-				Collections.unmodifiableMap(replacedValues),
-				addedKeys.isEmpty() ? Collections.emptySet() : Collections.unmodifiableSet(addedKeys),
-				removedKeys.isEmpty() ? Collections.emptySet() : Collections.unmodifiableSet(removedKeys),
-				histogram
-			);
 		}
 
 		/**
@@ -1854,6 +2120,7 @@ public class OffsetIndex {
 
 		/**
 		 * Returns the count of non-flushed records of particular type.
+		 *
 		 * @param recordTypeId the record type id
 		 * @return the count of non-flushed records of particular type
 		 */
@@ -1863,21 +2130,20 @@ public class OffsetIndex {
 	}
 
 	/**
-	 * The VolatileValues class represents a collection of non-flushed values and their versions and also list
-	 * of previously written values in previous versions of the OffsetIndex in case there is still client referencing
-	 * to such version. The owner of the OffsetIndex is responsible to report when there are no more clients referencing
-	 * to the previous versions so that the memory can be released.
+	 * The VolatileValues class holds the not-yet-flushed (in-flight) changes of the OffsetIndex - the writes whose
+	 * file locations have been computed but not yet persisted and promoted into the versioned-root registry. Once a
+	 * flush promotes them (see {@link #promoteNonFlushedValuesToSharedState}) this container is emptied; historical
+	 * versions are no longer kept here - they live as retained roots in {@link Roots}, resolved by catalog version.
 	 *
-	 * Because the OffsetIndex points only to the latest version of the record by the primary key, we must keep pointers
-	 * to all previous versions that were overwritten by the new version in order to be able to retrieve the correct
-	 * versions to the clients referencing to older versions of the catalog (so that we keep the SNAPSHOT consistency
-	 * level).
+	 * This container also carries the deferred purge watermark: {@link #purge(long)} records the highest released
+	 * catalog version, and the next promotion consumes it (under the serialized writer) to drop the corresponding
+	 * retained roots from the registry.
 	 */
 	@RequiredArgsConstructor
 	static class VolatileValues {
 		/**
-		 * Contains catalog version which can be purged from {@link #historicalVersions} and {@link #volatileValues}
-		 * on the next promotion.
+		 * Highest catalog version a client has released; the next promotion consumes this watermark and drops the
+		 * corresponding retained roots from the versioned-root registry. `-1` means nothing is pending.
 		 */
 		private final AtomicLong purgeOlderThan = new AtomicLong(-1);
 		/**
@@ -1886,14 +2152,10 @@ public class OffsetIndex {
 		@Nonnull
 		private final Consumer<NonFlushedBlock> nonFlushedBlockObserver;
 		/**
-		 * Observer that is notified when a historical versions data is purged.
+		 * Observer that is notified, after a release advances the oldest retained version, with its promotion time.
 		 */
 		@Nonnull
 		private final Consumer<Optional<OffsetDateTime>> historicalVersionsObserver;
-		/**
-		 * Lock guarding the access to the {@link #historicalVersions}.
-		 */
-		private final ReentrantLock lock = new ReentrantLock();
 		/**
 		 * Non flushed values contains all values that has been modified in this OffsetIndex instance and their locations were
 		 * not yet flushed to the disk. They might have been written to the disk, but their location is still only in memory
@@ -1907,18 +2169,6 @@ public class OffsetIndex {
 		@Nullable
 		private volatile long[] nonFlushedVersions;
 		/**
-		 * Pointers to the records that have been overwritten by the new versions of the same record.
-		 */
-		@Nullable
-		private volatile ConcurrentHashMap<Long, PastMemory> volatileValues;
-		/**
-		 * Represents a sorted set of catalog versions used as keys in {@link #volatileValues} living in the memory.
-		 * This variable can be modified only in critical sections that are covered by write-handle lock to single
-		 * threaded access.
-		 */
-		@Nullable
-		private volatile long[] historicalVersions;
-		/**
 		 * Contains the last count of non-flushed records.
 		 */
 		private int nonFlushedRecordCount;
@@ -1928,108 +2178,50 @@ public class OffsetIndex {
 		private long nonFlushedRecordSizeInBytes;
 
 		/**
-		 * Counts all non-flushed records not yet promoted to the shared state and the historical versions we still
-		 * keep memory.
+		 * Net cardinality delta of the not-yet-flushed (in-flight) versions visible at `catalogVersion`. Flushed
+		 * versions are already reflected by the per-version root resolved in {@link #count(long)}, so this adds only
+		 * the contribution of in-flight versions whose catalog version does not exceed the requested one.
 		 *
-		 * @param catalogVersion the catalog version that limits the visibility of changes
-		 * @return the count of non-flushed records
+		 * @param catalogVersion the catalog version that limits the visibility of in-flight changes
+		 * @return the net (added minus removed) count of in-flight records visible at `catalogVersion`
 		 */
 		public int countDifference(long catalogVersion) {
 			int diff = 0;
-
-			// scan non-flushed values
 			final ConcurrentHashMap<Long, NonFlushedValueSet> nvValues = this.nonFlushedValues;
 			final long[] nv = this.nonFlushedVersions;
 			if (nv != null && nvValues != null) {
-				int index = Arrays.binarySearch(nv, catalogVersion);
-				if (index != -1) {
-					final int startIndex = index >= 0 ? index : -index - 1;
-					for (int ix = nv.length - 1; ix >= startIndex && ix >= 0; ix--) {
-						final NonFlushedValueSet nonFlushedValueSet = nvValues.get(nv[ix]);
+				// nv is ascending; accumulate every in-flight version up to (and including) catalogVersion
+				for (int ix = 0; ix < nv.length && nv[ix] <= catalogVersion; ix++) {
+					final NonFlushedValueSet nonFlushedValueSet = nvValues.get(nv[ix]);
+					if (nonFlushedValueSet != null) {
 						diff += nonFlushedValueSet.getAddedKeys().size() - nonFlushedValueSet.getRemovedKeys().size();
 					}
 				}
 			}
-
-			// scan also all previous versions we still keep in memory
-			if (this.volatileValues != null) {
-				final ConcurrentHashMap<Long, PastMemory> hvValues;
-				final long[] hv;
-				try {
-					this.lock.lock();
-					hvValues = this.volatileValues;
-					hv = this.historicalVersions;
-				} finally {
-					this.lock.unlock();
-				}
-				if (hv != null && hvValues != null) {
-					final int index = Arrays.binarySearch(hv, catalogVersion);
-					// on exact match, skip the matched version (its diff is already reflected in keyToLocations);
-					// on miss, -index-1 is the insertion point — the first version greater than catalogVersion,
-					// which must be included in the subtraction. When catalogVersion precedes all historical
-					// versions (binarySearch returns -1, insertion point 0), every entry must be subtracted
-					final int startIndex = index >= 0 ? index + 1 : -index - 1;
-					for (int ix = hv.length - 1; ix >= startIndex; ix--) {
-						// hvValues is the shared ConcurrentHashMap referenced by recordHistoricalVersions;
-						// a concurrent purge can remove an entry after we snapshotted hv under the lock
-						final PastMemory differenceSet = hvValues.get(hv[ix]);
-						diff -= differenceSet == null ? 0 : differenceSet.getAddedKeys().size() - differenceSet.getRemovedKeys().size();
-					}
-				}
-			}
-
 			return diff;
 		}
 
 		/**
-		 * Counts all non-flushed records of specific type not yet promoted to the shared state.
+		 * Net per-type cardinality delta of the not-yet-flushed (in-flight) versions visible at `catalogVersion`. As
+		 * with {@link #countDifference(long)}, flushed versions are reflected by the per-version histogram resolved in
+		 * {@link #count(long, Class)}, so this adds only the in-flight contribution.
 		 *
+		 * @param catalogVersion the catalog version that limits the visibility of in-flight changes
 		 * @param recordTypeId   the record type id
-		 * @param catalogVersion the catalog version that limits the visibility of changes
-		 * @return the count of non-flushed records of particular type
+		 * @return the net count of in-flight records of the given type visible at `catalogVersion`
 		 */
 		public int countDifference(long catalogVersion, byte recordTypeId) {
 			int diff = 0;
-
-			// scan non-flushed values
 			final ConcurrentHashMap<Long, NonFlushedValueSet> nvValues = this.nonFlushedValues;
 			final long[] nv = this.nonFlushedVersions;
-			if (nv != null) {
-				int index = Arrays.binarySearch(nv, catalogVersion);
-				if (index != -1 && nvValues != null) {
-					final int startIndex = index >= 0 ? index : -index - 1;
-					for (int ix = nv.length - 1; ix >= startIndex && ix >= 0; ix--) {
-						final NonFlushedValueSet nonFlushedValueSet = nvValues.get(nv[ix]);
-						diff += nonFlushedValueSet == null ? 0 : nonFlushedValueSet.getCountFor(recordTypeId);
+			if (nv != null && nvValues != null) {
+				for (int ix = 0; ix < nv.length && nv[ix] <= catalogVersion; ix++) {
+					final NonFlushedValueSet nonFlushedValueSet = nvValues.get(nv[ix]);
+					if (nonFlushedValueSet != null) {
+						diff += nonFlushedValueSet.getCountFor(recordTypeId);
 					}
 				}
 			}
-
-			// scan also all previous versions we still keep in memory
-			if (this.volatileValues != null) {
-				final ConcurrentHashMap<Long, PastMemory> hvValues;
-				final long[] hv;
-				try {
-					this.lock.lock();
-					hvValues = this.volatileValues;
-					hv = this.historicalVersions;
-				} finally {
-					this.lock.unlock();
-				}
-				if (hv != null && hvValues != null) {
-					final int index = Arrays.binarySearch(hv, catalogVersion);
-					// on exact match, skip the matched version (its diff is already reflected in the histogram);
-					// on miss, -index-1 is the insertion point — the first version greater than catalogVersion,
-					// which must be included in the subtraction. When catalogVersion precedes all historical
-					// versions (binarySearch returns -1, insertion point 0), every entry must be subtracted.
-					final int startIndex = index >= 0 ? index + 1 : -index - 1;
-					for (int ix = hv.length - 1; ix >= startIndex; ix--) {
-						final PastMemory differenceSet = hvValues.get(hv[ix]);
-						diff -= differenceSet == null ? 0 : differenceSet.getCountFor(recordTypeId);
-					}
-				}
-			}
-
 			return diff;
 		}
 
@@ -2041,7 +2233,8 @@ public class OffsetIndex {
 		 * @return an Optional containing the non-flushed VersionedValue if it exists, empty Optional otherwise
 		 */
 		@Nonnull
-		public Optional<VersionedValue> getNonFlushedValueIfVersionMatches(long catalogVersion, @Nonnull RecordKey key) {
+		public Optional<VersionedValue> getNonFlushedValueIfVersionMatches(
+			long catalogVersion, @Nonnull RecordKey key) {
 			final ConcurrentHashMap<Long, NonFlushedValueSet> nvSet = this.nonFlushedValues;
 			final long[] nv = this.nonFlushedVersions;
 			if (nv != null && nvSet != null) {
@@ -2086,62 +2279,6 @@ public class OffsetIndex {
 		}
 
 		/**
-		 * Retrieves the {@link VersionedValue} location associated with the passed key and valid for particular catalog
-		 * version. The method first looks at the non-flushed values and then at the previously rewritten ones.
-		 *
-		 * @param catalogVersion the catalog version to check against
-		 * @param key            the record key
-		 * @return the VersionedValue location if it exists, empty otherwise
-		 */
-		@Nonnull
-		public Optional<VolatileValueInformation> getVolatileValueInformation(long catalogVersion, @Nonnull RecordKey key) {
-			// scan also all previous versions we still keep in memory
-			final long[] hv;
-			final ConcurrentHashMap<Long, PastMemory> hvValues;
-			try {
-				this.lock.lock();
-				hvValues = this.volatileValues;
-				hv = this.historicalVersions;
-			} finally {
-				this.lock.unlock();
-			}
-			if (hv != null && hvValues != null) {
-				int index = Arrays.binarySearch(hv, catalogVersion);
-				final int startIndex = index >= 0 ? index : -index - 1;
-				boolean addedInFuture = false;
-				for (int ix = startIndex; ix < hv.length; ix++) {
-					final long examinedVersion = hv[ix];
-					// hvValues is the shared ConcurrentHashMap; a concurrent purge can remove an entry after we
-					// snapshotted the historicalVersions array under the lock, so guard against a missing value
-					final PastMemory pastMemory = hvValues.get(examinedVersion);
-					if (pastMemory == null) {
-						continue;
-					}
-					if (pastMemory.getAddedKeys().contains(key) && examinedVersion != catalogVersion) {
-						addedInFuture = true;
-					}
-					// note: there is intentionally no "removed key resets addedInFuture" branch here. Whenever
-					// addedInFuture is set to true above, the very same iteration immediately falls into the
-					// block below and returns (either via previousValue or via the addedInFuture branch). The
-					// loop can therefore only advance to the next version while addedInFuture is still false, so
-					// a reset tied to getRemovedKeys() would always be a no-op and was removed as dead code.
-					// we must skip the current version, because it contains previous value that was overwritten
-					// not the currently valid one
-					if (examinedVersion != catalogVersion) {
-						final VersionedValue previousValue = pastMemory.getPreviousValue(key);
-						if (previousValue != null) {
-							return of(new VolatileValueInformation(previousValue, previousValue.removed(), addedInFuture));
-						} else if (addedInFuture) {
-							return of(new VolatileValueInformation(null, false, addedInFuture));
-						}
-					}
-				}
-			}
-			// ok - we didn't find anything
-			return empty();
-		}
-
-		/**
 		 * Stores new value to non-flushed storage. The value will be propagated to the shared state once the
 		 * {@link #flush(long)} method is called.
 		 *
@@ -2150,7 +2287,8 @@ public class OffsetIndex {
 		 * @param nonFlushedValue the non-flushed value to store
 		 * @param create          whether the record was created or not (affects the histogram)
 		 */
-		public void putValue(long catalogVersion, @Nonnull RecordKey key, @Nonnull VersionedValue nonFlushedValue, boolean create) {
+		public void putValue(
+			long catalogVersion, @Nonnull RecordKey key, @Nonnull VersionedValue nonFlushedValue, boolean create) {
 			getNonFlushedValues(catalogVersion).put(key, nonFlushedValue, create && !contains(key));
 		}
 
@@ -2184,7 +2322,10 @@ public class OffsetIndex {
 				final List<NonFlushedValueSet> result = new ArrayList<>(nv.length);
 				for (long cv : nv) {
 					result.add(
-						Objects.requireNonNull(nvSet.get(cv), "Non-flushed value set for catalog version " + cv + " is unexpectedly missing!")
+						Objects.requireNonNull(
+							nvSet.get(cv),
+							"Non-flushed value set for catalog version " + cv + " is unexpectedly missing!"
+						)
 					);
 				}
 				// clear all the data that has been promoted
@@ -2201,91 +2342,37 @@ public class OffsetIndex {
 		}
 
 		/**
-		 * Returns the set of non-flushed values to promote to the shared state and clears the container so that it
-		 * could be initialized lazily on first next write. Method also stores information about locations of previous
-		 * versions of the records that were overwritten by the new versions.
+		 * Records the highest released catalog version as a deferred purge watermark. The actual drop of the matching
+		 * retained roots happens on the next promotion (under the serialized writer) via {@link #consumePurgeWatermark()}.
+		 * Accumulates the maximum, so several releases between flushes collapse into the highest released version - the
+		 * driver supplies a monotonically rising boundary (everything no later than it has been released by every
+		 * client), so keeping the maximum drops all releasable history rather than under-purging to the lowest. The
+		 * `-1` sentinel is naturally subsumed because every real released catalog version is `>= 0`.
 		 *
-		 * @param nonFlushedValueSetsToPromote the set of non-flushed values to promote to the shared state
-		 * @param keyToLocations               the map of current shared state of the record keys to their file locations
+		 * @param catalogVersion the highest catalog version no client references any more
 		 */
-		public void recordHistoricalVersions(
-			@Nonnull Collection<NonFlushedValueSet> nonFlushedValueSetsToPromote,
-			@Nonnull Map<RecordKey, FileLocation> keyToLocations
-		) {
-			final long versionToPurge = this.purgeOlderThan.getAndSet(-1);
-			// remove all versions that are lower than the given catalog version in a safe - single threaded scope
-			if (versionToPurge > -1) {
-				try {
-					this.lock.lock();
-					final long[] versionsToPurge = this.historicalVersions;
-					final ConcurrentHashMap<Long, PastMemory> theVolatileValues = this.volatileValues;
-					if (versionsToPurge != null && theVolatileValues != null) {
-						int index = Arrays.binarySearch(versionsToPurge, versionToPurge);
-						final int startIndex = index >= 0 ? index : -index - 2;
-						if (index != -1) {
-							for (int ix = startIndex; ix >= 0; ix--) {
-								theVolatileValues.remove(versionsToPurge[ix]);
-							}
-						}
-						this.historicalVersions = Arrays.copyOfRange(versionsToPurge, startIndex + 1, versionsToPurge.length);
-						// notify the observer
-						this.historicalVersionsObserver.accept(getOldestRecordKeptTimestamp());
-					}
-				} finally {
-					this.lock.unlock();
-				}
-			}
-			for (NonFlushedValueSet valuesToPromote : nonFlushedValueSetsToPromote) {
-				final long catalogVersion = valuesToPromote.getCatalogVersion();
-				try {
-					this.lock.lock();
-					final long[] hv = this.historicalVersions;
-					final ConcurrentHashMap<Long, PastMemory> theVolatileValues = this.volatileValues;
-					if (hv == null || theVolatileValues == null) {
-						final ConcurrentHashMap<Long, PastMemory> newVolatileValues = CollectionUtils.createConcurrentHashMap(16);
-						newVolatileValues.put(catalogVersion, valuesToPromote.createFrom(keyToLocations));
-						this.historicalVersions = new long[]{catalogVersion};
-						this.volatileValues = newVolatileValues;
-					} else {
-						theVolatileValues.compute(
-							catalogVersion,
-							(key, value) -> {
-								if (value == null) {
-									this.historicalVersions = ArrayUtils.insertLongIntoOrderedArray(catalogVersion, hv);
-									return valuesToPromote.createFrom(keyToLocations);
-								} else {
-									return valuesToPromote.mergeWith(value, keyToLocations);
-								}
-							}
-						);
-					}
-				} finally {
-					this.lock.unlock();
-				}
-			}
+		public void purge(long catalogVersion) {
+			this.purgeOlderThan.accumulateAndGet(catalogVersion, Math::max);
 		}
 
 		/**
-		 * Removes all versions of volatile record backup that are lower than the given catalog version.
-		 * There will never be another client asking for those values.
+		 * Atomically reads and clears the deferred purge watermark set by {@link #purge(long)}.
 		 *
-		 * @param catalogVersion the catalog version to compare against, all values related to this or
-		 *                       lesser version will be removed
+		 * @return the highest released catalog version to drop, or `-1` when no release is pending
 		 */
-		public void purge(long catalogVersion) {
-			final long[] hv;
-			try {
-				this.lock.lock();
-				hv = this.historicalVersions;
-			} finally {
-				this.lock.unlock();
-			}
-			if (hv != null && hv.length > 0) {
-				this.purgeOlderThan.accumulateAndGet(
-					catalogVersion,
-					(prev, next) -> prev > -1 ? Math.min(prev, next) : next
-				);
-			}
+		public long consumePurgeWatermark() {
+			return this.purgeOlderThan.getAndSet(-1);
+		}
+
+		/**
+		 * Notifies the historical-versions observer with the promotion timestamp of the oldest retained version after
+		 * a release may have advanced it. Purely telemetry (it surfaces how far back point-in-time restore can reach).
+		 *
+		 * @param oldestRecordKeptTimestamp the promotion time of the oldest retained historical version, or `null`
+		 *                                  when no history is retained
+		 */
+		public void notifyOldestKept(@Nullable OffsetDateTime oldestRecordKeptTimestamp) {
+			this.historicalVersionsObserver.accept(Optional.ofNullable(oldestRecordKeptTimestamp));
 		}
 
 		/**
@@ -2309,57 +2396,19 @@ public class OffsetIndex {
 			return Optional.ofNullable(this.nonFlushedVersions)
 				.map(nv -> (long) nv.length * MemoryMeasuringConstants.LONG_SIZE)
 				.orElse(0L) +
-				Optional.ofNullable(this.historicalVersions)
-					.map(hv -> (long) hv.length * MemoryMeasuringConstants.LONG_SIZE)
-					.orElse(0L) +
 				Optional.ofNullable(this.nonFlushedValues)
-					.map(nv -> nv.values().stream().mapToLong(it -> MemoryMeasuringConstants.LONG_SIZE + it.getTotalSize()).sum())
-					.orElse(0L) +
-				Optional.ofNullable(this.volatileValues)
-					.map(vv -> vv.values().stream().mapToLong(it -> MemoryMeasuringConstants.LONG_SIZE + it.getTotalSize()).sum())
+					.map(nv -> nv.values()
+						.stream()
+						.mapToLong(it -> MemoryMeasuringConstants.LONG_SIZE + it.getTotalSize())
+						.sum())
 					.orElse(0L)
 				+ (MemoryMeasuringConstants.OBJECT_HEADER_SIZE << 2)
 				+ MemoryMeasuringConstants.INT_SIZE + MemoryMeasuringConstants.LONG_SIZE;
 		}
 
 		/**
-		 * Returns the timestamp of the oldest record kept in the volatile values.
-		 *
-		 * @return the timestamp of the oldest record kept in the volatile values
-		 */
-		@Nonnull
-		public Optional<OffsetDateTime> getOldestRecordKeptTimestamp() {
-			// snapshot both fields under the lock - mirrors getVolatileValueInformation/countDifference -
-			// so the head historical version and the volatile values map come from the same consistent state
-			final long[] hv;
-			final ConcurrentHashMap<Long, PastMemory> hvValues;
-			try {
-				this.lock.lock();
-				hvValues = this.volatileValues;
-				hv = this.historicalVersions;
-			} finally {
-				this.lock.unlock();
-			}
-			if (hvValues == null || ArrayUtils.isEmpty(hv)) {
-				return empty();
-			}
-			// the oldest kept record is the head of the historical versions
-			final PastMemory pastMemory = hvValues.get(hv[0]);
-			// a concurrent purge can remove the head entry after we snapshotted the array; the purge
-			// contract guarantees no client needs that version, so an empty result is the correct answer
-			if (pastMemory == null) {
-				return empty();
-			}
-			return of(
-				OffsetDateTime.ofInstant(
-					Instant.ofEpochMilli(pastMemory.getTimestamp()),
-					ZoneId.systemDefault()
-				)
-			);
-		}
-
-		/**
 		 * Returns true if the non-flushed values contain the non-removed specified key.
+		 *
 		 * @param key the record key
 		 * @return true if the non-flushed values contain the non-removed specified key, false otherwise
 		 */
@@ -2393,7 +2442,8 @@ public class OffsetIndex {
 			final long[] nv = this.nonFlushedVersions;
 			final ConcurrentHashMap<Long, NonFlushedValueSet> theNonFlushedValues = this.nonFlushedValues;
 			if (nv == null || theNonFlushedValues == null) {
-				final ConcurrentHashMap<Long, NonFlushedValueSet> newNonFlushedValues = CollectionUtils.createConcurrentHashMap(16);
+				final ConcurrentHashMap<Long, NonFlushedValueSet> newNonFlushedValues = CollectionUtils.createConcurrentHashMap(
+					16);
 				final NonFlushedValueSet nvSet = new NonFlushedValueSet(catalogVersion, this::notifySizeIncrease);
 				newNonFlushedValues.put(catalogVersion, nvSet);
 				this.nonFlushedValues = newNonFlushedValues;
@@ -2426,7 +2476,8 @@ public class OffsetIndex {
 		private void notifySizeIncrease(long sizeInBytes) {
 			this.nonFlushedRecordCount++;
 			this.nonFlushedRecordSizeInBytes += sizeInBytes;
-			this.nonFlushedBlockObserver.accept(new NonFlushedBlock(this.nonFlushedRecordCount, this.nonFlushedRecordSizeInBytes));
+			this.nonFlushedBlockObserver.accept(
+				new NonFlushedBlock(this.nonFlushedRecordCount, this.nonFlushedRecordSizeInBytes));
 		}
 
 	}
@@ -2498,93 +2549,15 @@ public class OffsetIndex {
 	}
 
 	/**
-	 * The {@code PastMemory} class represents the past updates of a records in specific catalog version.
-	 * It contains information about the replaced values, added keys, and removed keys.
-	 */
-	@RequiredArgsConstructor
-	@Getter
-	private static class PastMemory {
-		@Getter private final long timestamp = System.currentTimeMillis();
-		@Nonnull private final Map<RecordKey, VersionedValue> replacedValues;
-		@Nonnull private final Set<RecordKey> addedKeys;
-		@Nonnull private final Set<RecordKey> removedKeys;
-		/**
-		 * Map of non-flushed values. We can use "non-concurrent" map because this instance is secured by the write
-		 * handle for concurrent access.
-		 */
-		private final Map<Byte, Integer> histogram;
-
-		/**
-		 * Retrieves the previous value associated with the specified record key.
-		 *
-		 * @param key The record key for which to retrieve the previous value.
-		 * @return The previous value associated with the record key, or null if no previous value exists.
-		 */
-		@Nullable
-		public VersionedValue getPreviousValue(@Nonnull RecordKey key) {
-			return this.replacedValues.get(key);
-		}
-
-		/**
-		 * Checks if the specified record key exists in the map of replaced values.
-		 *
-		 * @param replacedKey The record key to check for existence.
-		 * @return true if the record key exists in the map of replaced values, false otherwise.
-		 */
-		public boolean containsKey(@Nonnull RecordKey replacedKey) {
-			return this.replacedValues.containsKey(replacedKey);
-		}
-
-		/**
-		 * Returns the estimated memory size occupied by this instance in Bytes.
-		 *
-		 * @return the estimated memory size occupied by this instance in Bytes
-		 */
-		public long getTotalSize() {
-			return MemoryMeasuringConstants.OBJECT_HEADER_SIZE +
-				MemoryMeasuringConstants.LONG_SIZE +
-				this.replacedValues.size() * (RecordKey.MEMORY_SIZE + VersionedValue.MEMORY_SIZE) +
-				this.addedKeys.size() * RecordKey.MEMORY_SIZE +
-				this.removedKeys.size() * RecordKey.MEMORY_SIZE;
-		}
-
-		/**
-		 * Returns the count of past memory records of particular type.
-		 * @param recordTypeId the record type id
-		 * @return the count of past memory records of particular type
-		 */
-		public int getCountFor(byte recordTypeId) {
-			return this.histogram.getOrDefault(recordTypeId, 0);
-		}
-	}
-
-	/**
 	 * This record is used to propagate multiple values in the {@link #doFlush(long, OffsetIndexDescriptor, boolean)}
 	 * method.
 	 *
 	 * @param nonFlushedValueSets set of non-flushed value sets that have been flushed
-	 * @param valueCount          count of non-flushed values that have been flushed (allows to properly initialize collection sizes)
 	 * @param fileLocation        the file location of the offset-index descriptor in the file that covers the newly flushed values
 	 */
 	private record NonFlushedValuesWithFileLocation(
 		@Nonnull Collection<NonFlushedValueSet> nonFlushedValueSets,
-		int valueCount,
 		@Nonnull FileLocationAndWrittenBytes fileLocation
-	) {
-	}
-
-	/**
-	 * Contains information about volatile value and its location in the file. Contains information if the value was
-	 * removed in the past or added in the future versions.
-	 *
-	 * @param versionedValue the versioned value pointer
-	 * @param removed        true if the value was removed in the past
-	 * @param addedInFuture  true if the value was added in future versions
-	 */
-	protected record VolatileValueInformation(
-		@Nullable VersionedValue versionedValue,
-		boolean removed,
-		boolean addedInFuture
 	) {
 	}
 
@@ -2638,7 +2611,8 @@ public class OffsetIndex {
 					try {
 						final ReadOnlyHandle readOnlyFileHandle = OffsetIndex.this.writeHandle.toReadOnlyHandle();
 						if (OffsetIndex.this.readOnlyOpenedHandles.size() >= OffsetIndex.this.maxOpenedReadHandlesOrDefault) {
-							throw new PoolExhaustedException(OffsetIndex.this.maxOpenedReadHandlesOrDefault, readOnlyFileHandle.toString());
+							throw new PoolExhaustedException(
+								OffsetIndex.this.maxOpenedReadHandlesOrDefault, readOnlyFileHandle.toString());
 						}
 						OffsetIndex.this.readOnlyOpenedHandles.add(readOnlyFileHandle);
 						return readOnlyFileHandle;

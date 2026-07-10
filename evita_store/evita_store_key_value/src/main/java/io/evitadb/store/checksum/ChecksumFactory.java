@@ -29,15 +29,15 @@ import javax.annotation.Nonnull;
  * Factory interface for creating {@link Checksum} instances used in the storage layer.
  *
  * This factory pattern allows the storage system to create appropriate checksum calculators
- * based on configuration settings. The factory supports creating both regular checksums
- * (starting from initial state) and cumulative checksums (starting from a given initial value).
- *
- * Cumulative checksums are used for aggregating checksums across multiple data blocks, such as
- * in Write-Ahead Log (WAL) integrity verification where individual record checksums are combined
- * into a cumulative checksum for the entire log sequence.
+ * based on configuration settings. The two creation methods below return an instance with the same
+ * full set of capabilities - every {@link Checksum} operation is supported by either - they only differ
+ * in the starting state the instance is seeded with. Pick {@link #createCumulativeChecksum(long)} whenever
+ * a known starting value needs to be continued (e.g. resuming a persisted checksum), and
+ * {@link #createChecksum()} whenever a fresh instance is needed; both are otherwise interchangeable.
  *
  * The interface includes a {@link #NO_OP} factory that creates no-operation checksums when
  * checksum computation is disabled via {@link io.evitadb.api.configuration.StorageOptions#computeCRC32C()}.
+ * Both methods on that factory return the exact same {@link Checksum#NO_OP} singleton.
  *
  * Standard implementation: {@link Crc32CChecksumFactory}
  *
@@ -53,17 +53,19 @@ public interface ChecksumFactory {
 	ChecksumFactory NO_OP = new NoOpChecksumCalculatorFactory();
 
 	/**
-	 * Creates a new checksum instance initialized to its default starting state.
+	 * Creates a fresh checksum instance initialized to zero - e.g. verifying the forward checksum of one
+	 * storage record's payload as it is read or written.
 	 *
-	 * @return a new checksum instance ready to process data
+	 * @return a new checksum instance initialized to zero
 	 */
 	@Nonnull
 	Checksum createChecksum();
 
 	/**
-	 * Creates a new cumulative checksum instance initialized with the specified initial value.
-	 * This is used when combining multiple checksums into an aggregated checksum, such as
-	 * maintaining a running checksum across a sequence of WAL records.
+	 * Creates a checksum instance initialized with a known starting value - e.g. combining each WAL
+	 * record's own checksum into a running cumulative checksum for the entire log, or resuming a checksum
+	 * from a previously-persisted value. Equivalent to {@link #createChecksum()} followed by
+	 * {@code reset(initialChecksum)}, just without the redundant zero-initialization.
 	 *
 	 * @param initialChecksum the initial checksum value to start from
 	 * @return a new checksum instance initialized with the given value

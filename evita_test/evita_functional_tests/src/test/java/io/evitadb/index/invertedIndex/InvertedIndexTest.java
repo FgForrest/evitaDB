@@ -29,12 +29,13 @@ import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.dataType.ConsistencySensitiveDataStructure.ConsistencyReport;
 import io.evitadb.dataType.ConsistencySensitiveDataStructure.ConsistencyState;
+import io.evitadb.comparator.LocalizedStringComparator;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
-import io.evitadb.index.invertedIndex.InvertedIndex.MonotonicRowCorruptedException;
+import io.evitadb.index.page.PageEmission;
 import io.evitadb.store.index.serializer.InvertedIndexSerializer;
 import io.evitadb.store.index.serializer.TransactionalIntegerBitmapSerializer;
 import io.evitadb.store.index.serializer.ValueToRecordBitmapSerializer;
@@ -47,6 +48,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.io.Serializable;
+import java.text.Collator;
 import java.util.*;
 import java.util.function.Function;
 
@@ -112,22 +114,6 @@ class InvertedIndexTest implements TimeBoundedTestSupport {
 		}
 
 		@Test
-		@DisplayName("Pre-populated constructor with out-of-order buckets throws")
-		void shouldThrowWhenBucketsAreOutOfOrder() {
-			final ValueToRecordBitmap[] buckets = new ValueToRecordBitmap[]{
-				new ValueToRecordBitmap(10, 1),
-				new ValueToRecordBitmap(5, 2)
-			};
-
-			assertThrows(
-				MonotonicRowCorruptedException.class,
-				() -> new InvertedIndex(
-					buckets, FilterIndex.NO_NORMALIZATION, Comparator.naturalOrder()
-				)
-			);
-		}
-
-		@Test
 		@DisplayName("Custom normalizer transforms values during add and query")
 		void shouldApplyCustomNormalizerToValues() {
 			final Function<Object, Serializable> lowercaseNormalizer =
@@ -175,6 +161,36 @@ class InvertedIndexTest implements TimeBoundedTestSupport {
 
 			assertSame(comparator, index.getComparator());
 		}
+
+		@Test
+		@DisplayName("Localized Czech comparator orders buckets differently from natural String order")
+		void shouldOrderByLocalizedCzechComparatorNotNaturalStringOrder() {
+			// In Czech collation the digraph "ch" sorts as a single letter AFTER "h", so "chladný" sorts last;
+			// in natural String order 'c' < 'h' so "chladný" sorts near the front. This proves the comparator
+			// is actually driving bucket order (the Phase-1 payoff).
+			final InvertedIndex index = new InvertedIndex(
+				FilterIndex.NO_NORMALIZATION,
+				new LocalizedStringComparator(Collator.getInstance(new Locale("cs", "CZ")))
+			);
+			index.addRecord("chladný", 1);
+			index.addRecord("hora", 2);
+			index.addRecord("cibule", 3);
+			index.addRecord("auto", 4);
+
+			final ValueToRecordBitmap[] buckets = index.getValueToRecordBitmap();
+			assertArrayEquals(
+				new Serializable[]{"auto", "cibule", "hora", "chladný"},
+				new Serializable[]{
+					buckets[0].getValue(), buckets[1].getValue(),
+					buckets[2].getValue(), buckets[3].getValue()
+				}
+			);
+
+			// sanity: natural String ordering would put "chladný" right after "auto"
+			final String[] naturalOrder = {"chladný", "hora", "cibule", "auto"};
+			Arrays.sort(naturalOrder);
+			assertArrayEquals(new String[]{"auto", "chladný", "cibule", "hora"}, naturalOrder);
+		}
 	}
 
 	@Nested
@@ -211,24 +227,24 @@ class InvertedIndexTest implements TimeBoundedTestSupport {
 		}
 
 		@Test
-		@DisplayName("addRecord returns insertion index")
-		void shouldReturnInsertionIndex() {
+		@DisplayName("addRecord inserts buckets in comparator order regardless of insertion sequence")
+		void shouldInsertBucketsInComparatorOrder() {
 			final InvertedIndex index = new InvertedIndex(
 				FilterIndex.NO_NORMALIZATION, Comparator.naturalOrder()
 			);
 
-			final int firstIndex = index.addRecord(10, 1);
-			assertEquals(0, firstIndex);
+			index.addRecord(10, 1);
+			index.addRecord(5, 2);
+			index.addRecord(20, 3);
+			// add to the already existing bucket for value 10
+			index.addRecord(10, 4);
 
-			final int secondIndex = index.addRecord(5, 2);
-			assertEquals(0, secondIndex);
-
-			final int thirdIndex = index.addRecord(20, 3);
-			assertEquals(2, thirdIndex);
-
-			// adding to existing bucket
-			final int existingIndex = index.addRecord(10, 4);
-			assertEquals(1, existingIndex);
+			final ValueToRecordBitmap[] buckets = index.getValueToRecordBitmap();
+			assertEquals(3, buckets.length);
+			assertEquals(5, buckets[0].getValue());
+			assertEquals(10, buckets[1].getValue());
+			assertEquals(20, buckets[2].getValue());
+			assertArrayEquals(new int[]{1, 4}, buckets[1].getRecordIds().getArray());
 		}
 
 		@Test
@@ -244,11 +260,14 @@ class InvertedIndexTest implements TimeBoundedTestSupport {
 		}
 
 		@Test
-		@DisplayName("removeRecord returns -1 when value not found")
-		void shouldReturnMinusOneWhenValueNotFound() {
-			final int result = InvertedIndexTest.this.tested.removeRecord(999, 1);
+		@DisplayName("removeRecord on missing value is a silent no-op")
+		void shouldSilentlyIgnoreRemovalOfMissingValue() {
+			final int bucketCountBefore = InvertedIndexTest.this.tested.getBucketCount();
 
-			assertEquals(-1, result);
+			InvertedIndexTest.this.tested.removeRecord(999, 1);
+
+			assertEquals(bucketCountBefore, InvertedIndexTest.this.tested.getBucketCount());
+			assertFalse(InvertedIndexTest.this.tested.contains(999));
 		}
 
 		@Test
@@ -304,17 +323,17 @@ class InvertedIndexTest implements TimeBoundedTestSupport {
 		}
 
 		@Test
-		@DisplayName("getRecordsAtIndex with valid index returns correct bitmap")
-		void shouldReturnRecordsAtValidIndex() {
-			final Bitmap records = InvertedIndexTest.this.tested.getRecordsAtIndex(0);
+		@DisplayName("getRecordsEqualTo with present value returns correct bitmap")
+		void shouldReturnRecordsForPresentValue() {
+			final Bitmap records = InvertedIndexTest.this.tested.getRecordsEqualTo(5);
 
 			assertArrayEquals(new int[]{1, 20}, records.getArray());
 		}
 
 		@Test
-		@DisplayName("getRecordsAtIndex with negative index returns EmptyBitmap")
-		void shouldReturnEmptyBitmapForNegativeIndex() {
-			final Bitmap records = InvertedIndexTest.this.tested.getRecordsAtIndex(-1);
+		@DisplayName("getRecordsEqualTo with absent value returns EmptyBitmap")
+		void shouldReturnEmptyBitmapForAbsentValue() {
+			final Bitmap records = InvertedIndexTest.this.tested.getRecordsEqualTo(999);
 
 			assertSame(EmptyBitmap.INSTANCE, records);
 		}
@@ -624,12 +643,17 @@ class InvertedIndexTest implements TimeBoundedTestSupport {
 	class StmInvariantsTest {
 
 		@Test
-		@DisplayName("INV-1: getId() returns constant 1L")
-		void shouldReturnConstantIdOfOne() {
-			assertEquals(
-				1L,
-				InvertedIndexTest.this.tested.getId()
-			);
+		@DisplayName("INV-1: getId() returns a stable id, unique per instance")
+		void shouldReturnStableUniqueId() {
+			final long id = InvertedIndexTest.this.tested.getId();
+			// stable across repeated calls on the same instance
+			assertEquals(id, InvertedIndexTest.this.tested.getId());
+			// unique per instance (INV-1): the tree overrides the VoidTransactionMemoryProducer constant `1L` default so
+			// a FilterIndexView folded over it gets a distinct, non-colliding id — otherwise the attribute-histogram
+			// cache key (which is derived from FilterIndex#getId) would collapse across all attributes
+			final InvertedIndex other = new InvertedIndex(FilterIndex.NO_NORMALIZATION, Comparator.naturalOrder());
+			assertNotEquals(id, other.getId());
+			assertNotEquals(1L, id);
 		}
 
 		@Test
@@ -680,6 +704,77 @@ class InvertedIndexTest implements TimeBoundedTestSupport {
 					assertNotSame(original, committed);
 					// committed should have the new record
 					assertTrue(committed.contains(99));
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("T6: removing a bucket to empty inside a transaction commits cleanly (layer fully swept)")
+		void shouldRemoveBucketToEmptyInsideTransactionAndCommitCleanly() {
+			assertStateAfterCommit(
+				InvertedIndexTest.this.tested,
+				original -> {
+					// bucket for value 10 holds only record 3; removing it must delete the whole bucket
+					original.removeRecord(10, 3);
+					assertFalse(original.contains(10));
+				},
+				(original, committed) -> {
+					// original is unchanged, committed has the bucket gone - and the value's transactional
+					// layer must have been fully swept (assertStateAfterCommit runs verifyLayerWasFullySwept)
+					assertTrue(original.contains(10));
+					assertFalse(committed.contains(10));
+					assertArrayEquals(
+						new ValueToRecordBitmap[]{
+							new ValueToRecordBitmap(5, 1, 20),
+							new ValueToRecordBitmap(15, 2, 4),
+							new ValueToRecordBitmap(20, 5)
+						},
+						committed.getValueToRecordBitmap()
+					);
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("T6: modifying then removing a bucket to empty in one transaction sweeps cleanly")
+		void shouldModifyThenRemoveBucketToEmptyInOneTransaction() {
+			assertStateAfterCommit(
+				InvertedIndexTest.this.tested,
+				original -> {
+					// modify the bucket (touches its transactional bitmap layer) then delete it entirely
+					original.addRecord(10, 30);
+					original.removeRecord(10, 3, 30);
+					assertFalse(original.contains(10));
+				},
+				(original, committed) -> {
+					assertTrue(original.contains(10));
+					assertFalse(committed.contains(10));
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("T9: value iterator reflects in-transaction additions and removals")
+		void shouldReflectInTransactionChangesInValueIterator() {
+			assertStateAfterCommit(
+				InvertedIndexTest.this.tested,
+				original -> {
+					original.addRecord(7, 70);
+					original.removeRecord(20, 5);
+
+					// the bounded range iteration used by getSortedRecords must observe the in-txn state
+					assertIteratorContains(
+						original.getSortedRecords(5, 15).getRecordIds().iterator(),
+						new int[]{1, 2, 3, 4, 20, 70}
+					);
+					assertTrue(original.contains(7));
+					assertFalse(original.contains(20));
+				},
+				(original, committed) -> {
+					assertFalse(original.contains(7));
+					assertTrue(original.contains(20));
+					assertTrue(committed.contains(7));
+					assertFalse(committed.contains(20));
 				}
 			);
 		}
@@ -1200,29 +1295,6 @@ class InvertedIndexTest implements TimeBoundedTestSupport {
 			assertEquals(index1.hashCode(), index2.hashCode());
 		}
 
-		@Test
-		@DisplayName("getConsistencyReport returns BROKEN for non-monotonic index")
-		void shouldReturnBrokenReportForNonMonotonicIndex() {
-			final ValueToRecordBitmap[] brokenBuckets =
-				new ValueToRecordBitmap[]{
-					new ValueToRecordBitmap(10, 1),
-					new ValueToRecordBitmap(5, 2)
-				};
-
-			// The public constructor validates monotonicity and throws for broken ordering.
-			final MonotonicRowCorruptedException ex = assertThrows(
-				MonotonicRowCorruptedException.class,
-				() -> new InvertedIndex(
-					brokenBuckets,
-					FilterIndex.NO_NORMALIZATION,
-					Comparator.naturalOrder()
-				)
-			);
-			assertTrue(
-				ex.getMessage().contains("not monotonic"),
-				"Exception should mention non-monotonic values"
-			);
-		}
 	}
 
 	@Nested
@@ -1376,6 +1448,239 @@ class InvertedIndexTest implements TimeBoundedTestSupport {
 					);
 				}
 			);
+		}
+
+	}
+
+	/**
+	 * Granular `PAGED` write-path emission: a single-leaf index stays inline (`SINGLE`); a multi-leaf
+	 * index emits one leaf page per leaf whose ordered concatenation reconstructs the whole bucket array, with a dense
+	 * page-sequence allocation that is carried across emissions for unchanged leaves.
+	 */
+	@Nested
+	@DisplayName("Granular paged emission")
+	class PagedEmission {
+
+		@Test
+		@Tag(INDEXING)
+		@Tag(ATTRIBUTE)
+		@DisplayName("a single-leaf index is not paged")
+		void shouldNotPageSingleLeafIndex() {
+			final InvertedIndex index = new InvertedIndex(FilterIndex.NO_NORMALIZATION, Comparator.naturalOrder());
+			index.addRecord(1, 100);
+			index.addRecord(2, 200);
+			assertFalse(index.isPaged(), "A small (single-leaf) index must stay inline (SINGLE).");
+		}
+
+		@Test
+		@Tag(INDEXING)
+		@Tag(ATTRIBUTE)
+		@DisplayName("a multi-leaf index pages and its leaf pages reconstruct the full bucket array in order")
+		void shouldPageMultiLeafIndexAndReconstruct() {
+			final InvertedIndex index = new InvertedIndex(FilterIndex.NO_NORMALIZATION, Comparator.naturalOrder());
+			// well past one leaf block (256) so the tree spans several leaves
+			final int valueCount = 1_000;
+			for (int i = 0; i < valueCount; i++) {
+				index.addRecord(i, i * 10);
+				index.addRecord(i, i * 10 + 1); // a second record so some buckets are multi-record
+			}
+			assertTrue(index.isPaged(), "A large (multi-leaf) index must be paged.");
+
+			final PageEmission<InvertedIndex.LeafPage> emission = index.collectChangedPages();
+			final int[] ordered = emission.orderedPageSequences();
+			assertTrue(ordered.length >= 2, "A paged index must span multiple leaf pages.");
+			// first emission: every leaf is fresh, so a dense 0..L-1 allocation and a high-water of L-1
+			for (int i = 0; i < ordered.length; i++) {
+				assertEquals(i, ordered[i], "Fresh leaves must allocate a dense ascending page sequence.");
+			}
+			assertEquals(ordered.length - 1, emission.highWaterPageSequence(), "High-water must be the last page.");
+			assertEquals(
+				ordered.length, emission.changedPages().size(),
+				"On the first emission (empty baseline) every leaf page is changed."
+			);
+
+			// concatenating the leaf pages in ordered page-sequence order must equal the whole-tree materialization
+			final Map<Integer, ValueToRecord[]> byPageSequence = new HashMap<>();
+			for (final InvertedIndex.LeafPage page : emission.changedPages()) {
+				byPageSequence.put(page.pageSequence(), page.buckets());
+			}
+			final List<ValueToRecord> reconstructed = new ArrayList<>();
+			for (final int pageSequence : ordered) {
+				final ValueToRecord[] pageBuckets = byPageSequence.get(pageSequence);
+				assertNotNull(pageBuckets, "Every ordered page must have been emitted.");
+				Collections.addAll(reconstructed, pageBuckets);
+			}
+
+			final ValueToRecordBitmap[] expected = index.getValueToRecordBitmap();
+			assertEquals(expected.length, reconstructed.size(), "Bucket count must match the whole tree.");
+			for (int i = 0; i < expected.length; i++) {
+				assertEquals(expected[i].getValue(), reconstructed.get(i).getValue(), "value @ " + i);
+				assertArrayEquals(
+					expected[i].getRecordIds().getArray(), reconstructed.get(i).getRecordIds().getArray(),
+					"record set @ " + i
+				);
+			}
+		}
+
+		@Test
+		@Tag(INDEXING)
+		@Tag(ATTRIBUTE)
+		@DisplayName("collectChangedPages materializes single-record buckets as the compact ValueToRecordPrimitive and multi-record buckets as ValueToRecordBitmap")
+		void shouldSplitCollectedBucketsBySingleVersusMultiRecordCardinality() {
+			final InvertedIndex index = new InvertedIndex(FilterIndex.NO_NORMALIZATION, Comparator.naturalOrder());
+			index.addRecord(1, 100);            // single-record bucket
+			index.addRecord(2, 200);
+			index.addRecord(2, 201);            // multi-record bucket
+			index.addRecord(3, 300);            // single-record bucket
+
+			final PageEmission<InvertedIndex.LeafPage> emission = index.collectChangedPages();
+			assertEquals(1, emission.changedPages().size(), "A small index must be a single leaf page.");
+			final ValueToRecord[] buckets = emission.changedPages().get(0).buckets();
+			assertEquals(3, buckets.length, "Every distinct value must yield exactly one bucket.");
+
+			assertInstanceOf(ValueToRecordPrimitive.class, buckets[0], "A single-record bucket must be the compact primitive.");
+			assertEquals(1, buckets[0].getValue(), "value @ 0");
+			assertEquals(100, ((ValueToRecordPrimitive) buckets[0]).getRecordId(), "record id @ 0");
+
+			assertInstanceOf(ValueToRecordBitmap.class, buckets[1], "A multi-record bucket must be the bitmap representation.");
+			assertEquals(2, buckets[1].getValue(), "value @ 1");
+			assertArrayEquals(new int[]{200, 201}, buckets[1].getRecordIds().getArray(), "record set @ 1");
+
+			assertInstanceOf(ValueToRecordPrimitive.class, buckets[2], "A single-record bucket must be the compact primitive.");
+			assertEquals(3, buckets[2].getValue(), "value @ 2");
+			assertEquals(300, ((ValueToRecordPrimitive) buckets[2]).getRecordId(), "record id @ 2");
+		}
+
+		@Test
+		@Tag(INDEXING)
+		@Tag(ATTRIBUTE)
+		@DisplayName("page sequences are carried across emissions for unchanged leaves")
+		void shouldCarryPageSequencesAcrossEmissions() {
+			final InvertedIndex index = new InvertedIndex(FilterIndex.NO_NORMALIZATION, Comparator.naturalOrder());
+			for (int i = 0; i < 1_000; i++) {
+				index.addRecord(i, i * 10);
+			}
+			final int[] first = index.collectChangedPages().orderedPageSequences();
+			// a second emission without structural change must report the very same ordered page sequences (the leaves
+			// kept their allocated pages — no re-allocation), so the high-water does not advance
+			final PageEmission<InvertedIndex.LeafPage> second = index.collectChangedPages();
+			assertArrayEquals(first, second.orderedPageSequences(), "Unchanged leaves must keep their pages.");
+			assertEquals(first.length - 1, second.highWaterPageSequence(), "High-water must not advance.");
+		}
+
+		@Test
+		@Tag(INDEXING)
+		@Tag(ATTRIBUTE)
+		@DisplayName("after publishing the baseline, an unchanged tree re-writes nothing and only a changed leaf re-emits")
+		void shouldSuppressUnchangedLeavesAfterPublish() {
+			final InvertedIndex index = new InvertedIndex(FilterIndex.NO_NORMALIZATION, Comparator.naturalOrder());
+			for (int i = 0; i < 1_000; i++) {
+				index.addRecord(i, i * 10);
+			}
+			final PageEmission<InvertedIndex.LeafPage> first = index.collectChangedPages();
+			assertEquals(
+				first.orderedPageSequences().length, first.changedPages().size(), "First emission writes every leaf."
+			);
+			// simulate the durable-commit publish the merge performs (carries the staged baseline live)
+			index.getPageStreamRegistry().publishStaged();
+
+			// nothing changed → no leaf page is re-written
+			final PageEmission<InvertedIndex.LeafPage> unchanged = index.collectChangedPages();
+			assertTrue(
+				unchanged.changedPages().isEmpty(), "An unchanged tree must re-write no leaf pages after publish."
+			);
+			index.getPageStreamRegistry().publishStaged();
+
+			// touch the smallest value's record set → only the first leaf (page 0) is re-emitted
+			index.addRecord(0, 999);
+			final PageEmission<InvertedIndex.LeafPage> afterChange = index.collectChangedPages();
+			assertEquals(1, afterChange.changedPages().size(), "Only the changed leaf is re-written.");
+			assertEquals(
+				0, afterChange.changedPages().get(0).pageSequence(), "The first leaf (holding the smallest value) changed."
+			);
+		}
+
+		@Test
+		@Tag(INDEXING)
+		@Tag(ATTRIBUTE)
+		@DisplayName("a leaf merge reports the dropped page as freed (so it can be removed, not leaked) (#1)")
+		void shouldReportFreedPagesWhenLeafMergesAway() {
+			final InvertedIndex index = new InvertedIndex(FilterIndex.NO_NORMALIZATION, Comparator.naturalOrder());
+			for (int i = 0; i < 1_000; i++) {
+				index.addRecord(i, i * 10);
+			}
+			// publish the baseline so the next emission can diff against the prior live page set
+			final int[] pagesBefore = index.collectChangedPages().orderedPageSequences();
+			index.getPageStreamRegistry().publishStaged();
+			final Set<Integer> baseline = new HashSet<>();
+			for (final int sequence : pagesBefore) {
+				baseline.add(sequence);
+			}
+
+			// drop a large contiguous block of values → several leaves empty and merge away
+			for (int i = 0; i < 600; i++) {
+				index.removeRecord(i, i * 10);
+			}
+
+			final PageEmission<InvertedIndex.LeafPage> afterShrink = index.collectChangedPages();
+			assertTrue(
+				afterShrink.orderedPageSequences().length < pagesBefore.length, "Shrinking must drop at least one leaf page."
+			);
+			assertTrue(afterShrink.freedPageSequences().length > 0, "Dropped leaf pages must be reported as freed.");
+			final Set<Integer> live = new HashSet<>();
+			for (final int sequence : afterShrink.orderedPageSequences()) {
+				live.add(sequence);
+			}
+			for (final int freed : afterShrink.freedPageSequences()) {
+				assertFalse(live.contains(freed), "A freed page must not be live.");
+				assertTrue(baseline.contains(freed), "A freed page must have been live in the prior baseline.");
+			}
+		}
+
+		@Test
+		@Tag(INDEXING)
+		@Tag(ATTRIBUTE)
+		@DisplayName("a boundary-stable reload restores page identities and suppresses the first commit (#2)")
+		void shouldReloadBoundaryStableAndSuppressFirstCommit() {
+			final InvertedIndex index = new InvertedIndex(FilterIndex.NO_NORMALIZATION, Comparator.naturalOrder());
+			for (int i = 0; i < 1_000; i++) {
+				index.addRecord(i, i * 10);
+				if (i % 3 == 0) {
+					index.addRecord(i, i * 10 + 1); // some multi-record buckets
+				}
+			}
+			final PageEmission<InvertedIndex.LeafPage> emission = index.collectChangedPages();
+			index.getPageStreamRegistry().publishStaged();
+			final int[] orderedPageSequences = emission.orderedPageSequences();
+			final int highWater = emission.highWaterPageSequence();
+			// the first emission writes every leaf, so reconstruct the per-page buckets in page order from it
+			final Map<Integer, ValueToRecord[]> byPageSequence = new HashMap<>();
+			for (final InvertedIndex.LeafPage page : emission.changedPages()) {
+				byPageSequence.put(page.pageSequence(), page.buckets());
+			}
+			final ValueToRecord[][] perPageBuckets = new ValueToRecord[orderedPageSequences.length][];
+			for (int i = 0; i < orderedPageSequences.length; i++) {
+				perPageBuckets[i] = byPageSequence.get(orderedPageSequences[i]);
+			}
+
+			// reload boundary-stable (one leaf per page, page identities + change-detection baseline restored)
+			final InvertedIndex reloaded = InvertedIndex.fromPersistedPages(
+				Comparable.class, orderedPageSequences, perPageBuckets, highWater,
+				FilterIndex.NO_NORMALIZATION, Comparator.naturalOrder(), 0
+			);
+			assertTrue(reloaded.isPaged(), "Reloaded index must still be paged.");
+			assertEquals(index, reloaded, "Reloaded index must be content-equal to the original.");
+
+			// first post-reload commit must rewrite nothing and free nothing (identities + baseline survived the reload)
+			final PageEmission<InvertedIndex.LeafPage> afterReload = reloaded.collectChangedPages();
+			assertArrayEquals(
+				orderedPageSequences, afterReload.orderedPageSequences(), "Reload must preserve every leaf's page sequence."
+			);
+			assertTrue(
+				afterReload.changedPages().isEmpty(), "A boundary-stable reload must rewrite no leaf pages."
+			);
+			assertEquals(0, afterReload.freedPageSequences().length, "A boundary-stable reload must free no pages.");
+			assertEquals(highWater, afterReload.highWaterPageSequence(), "Reload must restore the high-water.");
 		}
 
 	}

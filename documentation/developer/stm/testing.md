@@ -103,15 +103,29 @@ maintained alongside the transactional structure to serve as the ground truth.
 
 Every generational test:
 
-1. Implements `TimeBoundedTestSupport`.
-2. Is annotated with `@Tag(LONG_RUNNING_TEST)` and uses `@ArgumentsSource(TimeArgumentProvider.class)`.
-3. Accepts a `GenerationalTestInput` with `intervalInMinutes` (default 1) and `randomSeed`.
+1. **Lives in the long-running module**, `evita_test/evita_long_running_tests`, mirroring the package of the
+   structure under test (e.g. `io.evitadb.index.map`). It is **never** placed in `evita_functional_tests` —
+   the fast functional suite must stay fast, and these tests run for minutes.
+2. Is named `LongRunning<StructureName>Test` (e.g. `LongRunningPersistentTransactionalMapTest`) and the class
+   `implements TimeBoundedTestSupport`.
+3. Carries the required **layer + capability** class-level tags (e.g. `@Tag(INDEXING) @Tag(DATA_TYPE) @Tag(TRANSACTION)`).
+4. Declares the proof as a `@ParameterizedTest(name = "…")` annotated with the **cost tag `@Tag(SLOW)`** (there is
+   no `LONG_RUNNING_TEST` tag — `SLOW` is what excludes the test from the fast suite) and
+   `@ArgumentsSource(TimeArgumentProvider.class)`.
+5. Accepts a `@Nonnull GenerationalTestInput input` carrying `intervalInMinutes` (default 1) and `randomSeed`.
 
 ```java
-@ParameterizedTest
-@Tag(LONG_RUNNING_TEST)
+@DisplayName("PersistentTransactionalMap (generational randomized proof)")
+@Tag(INDEXING)
+@Tag(DATA_TYPE)
+@Tag(TRANSACTION)
+class LongRunningPersistentTransactionalMapTest implements TimeBoundedTestSupport {
+
+@DisplayName("survives generational randomized test applying modifications on it")
+@ParameterizedTest(name = "PersistentTransactionalMap should survive generational randomized test applying modifications on it")
+@Tag(SLOW)
 @ArgumentsSource(TimeArgumentProvider.class)
-void generationalProofTest(GenerationalTestInput input) {
+void generationalProofTest(@Nonnull GenerationalTestInput input) {
     final Map<String, Integer> initialState = generateRandomInitialMap(
         new Random(input.randomSeed()), 100
     );
@@ -163,6 +177,8 @@ void generationalProofTest(GenerationalTestInput input) {
         }
     );
 }
+
+}
 ```
 
 ### Key properties verified
@@ -200,18 +216,47 @@ inconsistency.
 
 ## Which data structures have generational tests?
 
-| Data structure                  | Test class                                   | Operations tested                                  |
-|---------------------------------|----------------------------------------------|----------------------------------------------------|
-| `TransactionalIntArray`         | `TransactionalIntArrayTest`                  | Insert, remove, contains, indexOf                  |
-| `TransactionalObjArray`         | `TransactionalObjArrayTest`                  | Insert, remove of comparable objects               |
-| `TransactionalMap`              | `TransactionalMapTest`                       | Put, remove, iterator-update, iterator-remove      |
-| `TransactionalSet`              | `TransactionalSetTest`                       | Add, remove, retainAll, removeAll                  |
-| `TransactionalList`             | `TransactionalListTest`                      | Add, remove, index-based access                    |
-| `TransactionalBitmap`           | `TransactionalBitmapTest`                    | Add, remove bits, cardinality                      |
-| `TransactionalBoolean`          | `TransactionalBooleanTest`                   | Set/clear, toggle                                  |
-| `TransactionalComplexObjArray`  | `TransactionalComplexObjArrayTest`           | Insert, merge, subtract, obsolete check            |
-| `TransactionalIntBPlusTree`     | `TransactionalIntBPlusTreeTest`              | Insert, remove, lookup, range queries              |
-| `TransactionalObjectBPlusTree`  | `TransactionalObjectBPlusTreeTest`           | Insert, remove, lookup with comparable keys        |
+Every generational test class lives in `evita_test/evita_long_running_tests` and is named `LongRunning…Test`
+(the bare `…Test` class in `evita_functional_tests` holds only the fast example-based unit tests).
+
+| Data structure                       | Generational test class (long-running module)      | Operations tested                                      |
+|--------------------------------------|----------------------------------------------------|--------------------------------------------------------|
+| `TransactionalIntArray`              | `LongRunningTransactionalIntArrayTest`             | Insert, remove, contains, indexOf                      |
+| `TransactionalObjArray`              | `LongRunningTransactionalObjArrayTest`             | Insert, remove of comparable objects                   |
+| `TransactionalMap`                   | `LongRunningTransactionalMapTest`                  | Put, remove, iterator-update, iterator-remove          |
+| `TransactionalSet`                   | `LongRunningTransactionalSetTest`                  | Add, remove, retainAll, removeAll                      |
+| `TransactionalList`                  | `LongRunningTransactionalListTest`                 | Add, remove, index-based access                        |
+| `TransactionalBitmap`                | `LongRunningTransactionalBitmapTest`              | Add, remove bits, cardinality                          |
+| `TransactionalBoolean`               | `LongRunningTransactionalBooleanTest`             | Set/clear, toggle                                      |
+| `TransactionalComplexObjArray`       | `LongRunningTransactionalComplexObjArrayTest`     | Insert, merge, subtract, obsolete check                |
+| `TransactionalBucketBPlusTree`       | `LongRunningTransactionalBucketBPlusTreeTest`     | Insert, remove, lookup; columnar bucket store          |
+| `TransactionalLongBPlusTree`         | `LongRunningTransactionalLongBPlusTreeTest`       | Insert, remove, lookup, range queries (primitive long key) |
+| `TransactionalObjectBPlusTree`       | `LongRunningTransactionalObjectBPlusTreeTest`     | Insert, remove, lookup with comparable keys            |
+| `CumulativeWeightBPlusTree`          | `LongRunningCumulativeWeightBPlusTreeTest`        | Insert, remove, cumulative-weight / rank queries       |
+| `PersistentTransactionalMap`         | `LongRunningPersistentTransactionalMapTest`       | Put, remove, iterator-update, iterator-remove vs. a `HashMap` oracle (committed snapshot must be a `ChampMap`) |
+| `PersistentTransactionalProducerMap` | `LongRunningPersistentTransactionalProducerMapTest` | Insert, remove, **in-place marked mutation** vs. a `key → committedValue` oracle |
+
+The bare functional `…Test` classes (e.g. `PersistentTransactionalMapTest`) keep only fast example-based unit
+tests; each one points at its `LongRunning…Test` sibling in a class-javadoc note so the generational proof is
+discoverable.
+
+### Producer-map specifics — the marking invariant
+
+`PersistentTransactionalProducerMap` is the subtle one: its values are themselves `TransactionalLayerProducer`s
+that mutate through their *own* diff layer, invisible to the map's put/remove tracking. The map therefore relies
+on every in-place mutation being declared via `PersistentTransactionalProducerMap#markValueMutated` (the
+**marking invariant**) so the `O(Δ·log₃₂ N)` commit visits exactly the
+`removedKeys ∪ modifiedKeys ∪ valueMutatedKeys` union and shares every untouched producer node by reference. The
+generational test pairs each in-place mutation with its mark (as the real `AttributeIndex` paths do) and asserts
+the committed snapshot still matches the oracle after every generation — catching a dropped mark, a stale shared
+node, or a mis-swept nested layer as accumulated divergence. The deliberate counter-case (an *unmarked* in-place
+mutation must throw `StaleTransactionMemoryException` at commit) is covered by `ForgottenMarkSafetyNetTest` in the
+fast functional suite.
+
+> **Within-transaction constraint the producer-map test respects:** each key is touched at most once per
+> transaction. Mixing an in-place mark with a replace/remove of the *same* key in one transaction would orphan
+> the first value's diff layer — unsupported by the Δ-union commit by design. Keys are revisited freely *across*
+> generations, which is where the accumulated-correctness coverage comes from.
 
 ---
 
@@ -259,7 +304,9 @@ assertThrows(StaleTransactionMemoryException.class, () -> {
 
 ## Running generational tests
 
-Generational tests are marked with `@Tag(LONG_RUNNING_TEST)` and excluded from normal test runs.
+Generational tests live in the `evita_test/evita_long_running_tests` module (whose surefire config sets
+`skipTests=true` by default) and each proof method is tagged `@Tag(SLOW)` — so they are excluded from the
+normal fast run on two counts. There is no `LONG_RUNNING_TEST` tag; `SLOW` is the cost tag that gates them.
 
 **Maven:**
 ```
@@ -270,4 +317,4 @@ mvn clean install -P longRunning
 - `interval` -- duration in minutes (default: 1). Set higher for thorough pre-release testing.
 
 **IntelliJ IDEA:**
-Include the `longRunning` tag in your JUnit run configuration.
+Run the `LongRunning…Test` class directly, or select the `SLOW`-tagged method in your JUnit run configuration.

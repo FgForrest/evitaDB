@@ -1,0 +1,4 @@
+storage:
+  minimalActiveRecordShare: 0.4
+  minCompactionIntervalMilliseconds: 10m
+  maxWasteActiveShare: 0.2

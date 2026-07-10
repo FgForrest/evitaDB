@@ -26,7 +26,6 @@ package io.evitadb.index.component;
 import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.index.cardinality.ReferenceTypeCardinalityIndex;
-import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 
 import javax.annotation.Nonnull;
 
@@ -73,14 +72,13 @@ public final class ReferenceTypeCardinalityComponent implements IndexComponent {
 		@Nonnull EntityIndexManifest manifest,
 		@Nonnull TrappedChanges trappedChanges
 	) {
-		// emit only when the wrapped index reports dirty changes; no manifest contribution —
-		// the storage part is addressed independently of the parent EntityIndexStoragePart
-		final StoragePart part = this.indexPrimaryKeyCardinality.createStoragePart(
-			entityIndexPrimaryKey, this.referenceName
+		// emit only when the wrapped index reports dirty changes (the index self-gates on its dirty flag); no manifest
+		// contribution — the granular cardinality parts are addressed independently of the parent EntityIndexStoragePart.
+		// PAGED indexes emit one leaf page per changed leaf + a removal per freed leaf + a PAGED root; SINGLE indexes emit
+		// one inline root.
+		this.indexPrimaryKeyCardinality.appendStorageParts(
+			entityIndexPrimaryKey, this.referenceName, trappedChanges
 		);
-		if (part != null) {
-			trappedChanges.addChangeToStore(part);
-		}
 	}
 
 	@Override

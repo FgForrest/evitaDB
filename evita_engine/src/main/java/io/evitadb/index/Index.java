@@ -50,4 +50,16 @@ public interface Index<T extends IndexKey> {
 	 */
 	void getModifiedStorageParts(@Nonnull TrappedChanges trappedChanges);
 
+	/**
+	 * Notifies the index that its modified storage parts have just been collected for a flush (i.e. they are
+	 * about to be, or have been, persisted). This is the hook where an index may advance its change-detection
+	 * baseline to the just-persisted state. It is invoked once per flush, right after
+	 * {@link #getModifiedStorageParts(TrappedChanges)}, so {@code getModifiedStorageParts} can stay a pure,
+	 * idempotent read. The default implementation is a no-op for indexes that detect changes purely via a
+	 * dirty flag and therefore need no baseline advance.
+	 */
+	default void notifyFlushed() {
+		// no-op by default — only indexes with a snapshot-diff change-detection baseline override this
+	}
+
 }

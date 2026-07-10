@@ -205,7 +205,9 @@ public class AbstractAttributeComparisonTranslator extends AbstractAttributeTran
 			AttributeIndex.createAttributeKey(referenceSchema, attributeSchema, locale),
 			attributeSchema.getPlainType()
 		);
-		final Function<Object, Serializable> normalizer = FilterIndex.getNormalizer(attributeSchema.getPlainType());
+		final Function<Object, Serializable> normalizer = FilterIndex.getNormalizer(
+			attributeSchema.getPlainType(), attributeSchema.getIndexedDecimalPlaces()
+		);
 		final Serializable comparedValue = normalizer.apply(comparableValue);
 		final Predicate<Comparable> predicate = theValue -> theValue != null && comparisonPredicate.test(comparator.compare(theValue, comparedValue));
 

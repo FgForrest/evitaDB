@@ -983,8 +983,10 @@ public class EvitaClient implements EvitaContract {
 				new SessionFlags[]{SessionFlags.READ_WRITE} :
 				ArrayUtils.insertRecordIntoArrayOnIndex(SessionFlags.READ_WRITE, flags, flags.length)
 		);
-		try (final EvitaSessionContract session = this.createSession(traits)) {
-			return updater.apply(session);
+		try (final EvitaClientSession session = this.createSession(traits)) {
+			// run the updater within the session's root transaction frame so individual mutations run nested — a
+			// single caught mutation failure doesn't discard the surrounding transaction (1:1 with embedded)
+			return session.execute(updater);
 		}
 	}
 
@@ -1004,11 +1006,12 @@ public class EvitaClient implements EvitaContract {
 				new SessionFlags[]{SessionFlags.READ_WRITE} :
 				ArrayUtils.insertRecordIntoArrayOnIndex(SessionFlags.READ_WRITE, flags, flags.length)
 		);
-		final EvitaSessionContract session = this.createSession(traits);
+		final EvitaClientSession session = this.createSession(traits);
 		final CompletionStage<CommitVersions> closeFuture;
 		final T resultValue;
 		try {
-			resultValue = updater.apply(session);
+			// run the updater within the session's root transaction frame (1:1 with embedded — see updateCatalog)
+			resultValue = session.execute(updater);
 		} finally {
 			closeFuture = session.closeNow(commitBehaviour);
 		}
@@ -1038,8 +1041,9 @@ public class EvitaClient implements EvitaContract {
 				new SessionFlags[]{SessionFlags.READ_WRITE} :
 				ArrayUtils.insertRecordIntoArrayOnIndex(SessionFlags.READ_WRITE, flags, flags.length)
 		);
-		try (final EvitaSessionContract session = this.createSession(traits)) {
-			updater.accept(session);
+		try (final EvitaClientSession session = this.createSession(traits)) {
+			// run the updater within the session's root transaction frame (1:1 with embedded — see updateCatalog)
+			session.execute(updater);
 		}
 	}
 
@@ -1059,10 +1063,11 @@ public class EvitaClient implements EvitaContract {
 				new SessionFlags[]{SessionFlags.READ_WRITE} :
 				ArrayUtils.insertRecordIntoArrayOnIndex(SessionFlags.READ_WRITE, flags, flags.length)
 		);
-		final EvitaSessionContract session = this.createSession(traits);
+		final EvitaClientSession session = this.createSession(traits);
 		final CommitProgress commitProgress;
 		try {
-			updater.accept(session);
+			// run the updater within the session's root transaction frame (1:1 with embedded — see updateCatalog)
+			session.execute(updater);
 		} finally {
 			commitProgress = session.closeNowWithProgress();
 		}

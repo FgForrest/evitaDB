@@ -35,7 +35,7 @@ import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
 import net.openhft.hashing.LongHashFunction;
-import org.roaringbitmap.RoaringBitmap;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -53,7 +53,7 @@ public abstract class AbstractFormula implements Formula {
 	/**
 	 * Shared empty array returned by {@link #computeSortedConjunctionBitmaps(List)} on short-circuit.
 	 */
-	protected static final RoaringBitmap[] EMPTY_ROARING_BITMAP_ARRAY = new RoaringBitmap[0];
+	protected static final PersistentRoaringBitmap[] EMPTY_ROARING_BITMAP_ARRAY = new PersistentRoaringBitmap[0];
 	/**
 	 * Execution context from initialization phase.
 	 */
@@ -376,16 +376,16 @@ public abstract class AbstractFormula implements Formula {
 	}
 
 	/**
-	 * Computes {@link RoaringBitmap} results from pre-sorted formulas, short-circuiting and returning an empty array
+	 * Computes {@link PersistentRoaringBitmap} results from pre-sorted formulas, short-circuiting and returning an empty array
 	 * as soon as any formula produces an empty result.
 	 *
 	 * @param sortedFormulas formulas sorted by ascending estimated cost
 	 * @return array of computed bitmaps, or an empty array if any formula yields an empty result
 	 */
 	@Nonnull
-	protected static RoaringBitmap[] computeSortedConjunctionBitmaps(@Nonnull List<Formula> sortedFormulas) {
+	protected static PersistentRoaringBitmap[] computeSortedConjunctionBitmaps(@Nonnull List<Formula> sortedFormulas) {
 		final int size = sortedFormulas.size();
-		final RoaringBitmap[] theBitmaps = new RoaringBitmap[size];
+		final PersistentRoaringBitmap[] theBitmaps = new PersistentRoaringBitmap[size];
 		for (int i = 0; i < size; i++) {
 			final Bitmap computedBitmap = sortedFormulas.get(i).compute();
 			if (computedBitmap.isEmpty()) {
@@ -397,18 +397,18 @@ public abstract class AbstractFormula implements Formula {
 	}
 
 	/**
-	 * Computes the conjunction (AND) of the given {@link RoaringBitmap} array, returning
+	 * Computes the conjunction (AND) of the given {@link PersistentRoaringBitmap} array, returning
 	 * {@link EmptyBitmap#INSTANCE} if any bitmap is empty or if the array itself is empty.
 	 *
 	 * @param bitmaps the bitmaps to intersect
 	 * @return the intersection result, or {@link EmptyBitmap#INSTANCE} if the result is empty
 	 */
 	@Nonnull
-	protected static Bitmap computeConjunctionResult(@Nonnull RoaringBitmap[] bitmaps) {
+	protected static Bitmap computeConjunctionResult(@Nonnull PersistentRoaringBitmap[] bitmaps) {
 		if (bitmaps.length == 0) {
 			return EmptyBitmap.INSTANCE;
 		}
-		for (final RoaringBitmap bitmap : bitmaps) {
+		for (final PersistentRoaringBitmap bitmap : bitmaps) {
 			if (bitmap.isEmpty()) {
 				return EmptyBitmap.INSTANCE;
 			}

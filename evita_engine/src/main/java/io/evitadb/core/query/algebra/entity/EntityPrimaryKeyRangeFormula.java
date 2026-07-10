@@ -32,7 +32,7 @@ import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.utils.Assert;
 import net.openhft.hashing.LongHashFunction;
-import org.roaringbitmap.RoaringBitmap;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -55,7 +55,7 @@ public class EntityPrimaryKeyRangeFormula extends AbstractCacheableFormula {
 	private static final long CLASS_ID = -4829176503281746519L;
 	/**
 	 * Exclusive upper bound of the entire unsigned 32-bit value space (2^32).
-	 * {@link RoaringBitmap} stores ints as unsigned 32-bit values in the range `[0, 2^32)`.
+	 * {@link PersistentRoaringBitmap} stores ints as unsigned 32-bit values in the range `[0, 2^32)`.
 	 */
 	private static final long UNSIGNED_INT_LIMIT = 0x100000000L;
 	/**
@@ -165,8 +165,8 @@ public class EntityPrimaryKeyRangeFormula extends AbstractCacheableFormula {
 			return EmptyBitmap.INSTANCE;
 		}
 
-		final RoaringBitmap roaring = RoaringBitmapBackedBitmap.getRoaringBitmap(superSet);
-		final RoaringBitmap result = selectRangeSigned(roaring, this.from, this.to);
+		final PersistentRoaringBitmap roaring = RoaringBitmapBackedBitmap.getRoaringBitmap(superSet);
+		final PersistentRoaringBitmap result = selectRangeSigned(roaring, this.from, this.to);
 		if (result.isEmpty()) {
 			return EmptyBitmap.INSTANCE;
 		}
@@ -174,16 +174,16 @@ public class EntityPrimaryKeyRangeFormula extends AbstractCacheableFormula {
 	}
 
 	/**
-	 * Selects values from a {@link RoaringBitmap} that fall within the inclusive signed integer
+	 * Selects values from a {@link PersistentRoaringBitmap} that fall within the inclusive signed integer
 	 * range `[signedFrom, signedTo]`.
 	 *
-	 * {@link RoaringBitmap} stores ints as unsigned 32-bit values ordered by
+	 * {@link PersistentRoaringBitmap} stores ints as unsigned 32-bit values ordered by
 	 * {@link Integer#compareUnsigned}, so a signed range like `[-10, 5]` wraps around in unsigned
 	 * space (`-10` = `0xFFFFFFF6`, far above `5`). This method detects the wrap-around by comparing
 	 * the unsigned-converted bounds. When `unsignedStart > unsignedEnd`, it splits the query into
 	 * two contiguous unsigned sub-ranges `[0, unsignedEnd)` and `[unsignedStart, 2^32)`, each
-	 * handled by a single {@link RoaringBitmap#selectRange} call, then combines them with
-	 * {@link RoaringBitmap#or}. Since the sub-ranges never share container keys, the `or` is just
+	 * handled by a single {@link PersistentRoaringBitmap#selectRange} call, then combines them with
+	 * {@link PersistentRoaringBitmap#or}. Since the sub-ranges never share container keys, the `or` is just
 	 * an interleave with no per-container merging overhead.
 	 *
 	 * @param bitmap     the source bitmap to filter
@@ -192,8 +192,8 @@ public class EntityPrimaryKeyRangeFormula extends AbstractCacheableFormula {
 	 * @return new bitmap containing only the values within the signed range
 	 */
 	@Nonnull
-	private static RoaringBitmap selectRangeSigned(
-		@Nonnull RoaringBitmap bitmap,
+	private static PersistentRoaringBitmap selectRangeSigned(
+		@Nonnull PersistentRoaringBitmap bitmap,
 		int signedFrom,
 		int signedTo
 	) {
@@ -205,7 +205,7 @@ public class EntityPrimaryKeyRangeFormula extends AbstractCacheableFormula {
 			return bitmap.selectRange(unsignedStart, unsignedEnd);
 		}
 		// range wraps around — split into [0, unsignedEnd) ∪ [unsignedStart, 2^32)
-		return RoaringBitmap.or(
+		return PersistentRoaringBitmap.or(
 			bitmap.selectRange(0L, unsignedEnd),
 			bitmap.selectRange(unsignedStart, UNSIGNED_INT_LIMIT)
 		);

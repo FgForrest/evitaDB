@@ -26,7 +26,7 @@ package io.evitadb.index.bitmap;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
-import org.roaringbitmap.RoaringBitmap;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -50,7 +50,7 @@ class BitmapChangesTest {
 		@Test
 		@DisplayName("should create from empty original")
 		void shouldCreateFromEmptyOriginal() {
-			final BitmapChanges changes = new BitmapChanges(new RoaringBitmap());
+			final BitmapChanges changes = new BitmapChanges(new PersistentRoaringBitmap());
 			assertTrue(changes.isEmpty());
 			assertEquals(0, changes.getMergedLength());
 		}
@@ -58,7 +58,7 @@ class BitmapChangesTest {
 		@Test
 		@DisplayName("should create from non-empty original")
 		void shouldCreateFromNonEmptyOriginal() {
-			final RoaringBitmap original = RoaringBitmap.bitmapOf(1, 2, 3);
+			final PersistentRoaringBitmap original = PersistentRoaringBitmap.bitmapOf(1, 2, 3);
 			final BitmapChanges changes = new BitmapChanges(original);
 			assertFalse(changes.isEmpty());
 			assertEquals(3, changes.getMergedLength());
@@ -72,7 +72,7 @@ class BitmapChangesTest {
 		@Test
 		@DisplayName("should add new record to empty original")
 		void shouldAddNewRecordToEmptyOriginal() {
-			final BitmapChanges changes = new BitmapChanges(new RoaringBitmap());
+			final BitmapChanges changes = new BitmapChanges(new PersistentRoaringBitmap());
 			final boolean result = changes.addRecordId(5);
 			assertTrue(result);
 			assertTrue(changes.contains(5));
@@ -81,7 +81,7 @@ class BitmapChangesTest {
 		@Test
 		@DisplayName("should return true when adding new record")
 		void shouldReturnTrueWhenAddingNewRecord() {
-			final RoaringBitmap original = RoaringBitmap.bitmapOf(1, 2, 3);
+			final PersistentRoaringBitmap original = PersistentRoaringBitmap.bitmapOf(1, 2, 3);
 			final BitmapChanges changes = new BitmapChanges(original);
 			assertTrue(changes.addRecordId(5));
 		}
@@ -89,7 +89,7 @@ class BitmapChangesTest {
 		@Test
 		@DisplayName("should return false when adding record already in original")
 		void shouldReturnFalseWhenAddingRecordAlreadyInOriginal() {
-			final RoaringBitmap original = RoaringBitmap.bitmapOf(1, 2, 3);
+			final PersistentRoaringBitmap original = PersistentRoaringBitmap.bitmapOf(1, 2, 3);
 			final BitmapChanges changes = new BitmapChanges(original);
 			assertFalse(changes.addRecordId(2));
 		}
@@ -97,7 +97,7 @@ class BitmapChangesTest {
 		@Test
 		@DisplayName("should add multiple records")
 		void shouldAddMultipleRecords() {
-			final BitmapChanges changes = new BitmapChanges(new RoaringBitmap());
+			final BitmapChanges changes = new BitmapChanges(new PersistentRoaringBitmap());
 			changes.addRecordId(5);
 			changes.addRecordId(10);
 			changes.addRecordId(15);
@@ -110,7 +110,7 @@ class BitmapChangesTest {
 		@Test
 		@DisplayName("should cancel previous removal on add")
 		void shouldCancelPreviousRemovalOnAdd() {
-			final RoaringBitmap original = RoaringBitmap.bitmapOf(1, 2, 3);
+			final PersistentRoaringBitmap original = PersistentRoaringBitmap.bitmapOf(1, 2, 3);
 			final BitmapChanges changes = new BitmapChanges(original);
 			changes.removeRecordId(2);
 			assertFalse(changes.contains(2));
@@ -128,7 +128,7 @@ class BitmapChangesTest {
 		@Test
 		@DisplayName("should remove record from original")
 		void shouldRemoveRecordFromOriginal() {
-			final RoaringBitmap original = RoaringBitmap.bitmapOf(1, 2, 3);
+			final PersistentRoaringBitmap original = PersistentRoaringBitmap.bitmapOf(1, 2, 3);
 			final BitmapChanges changes = new BitmapChanges(original);
 			changes.removeRecordId(2);
 			assertFalse(changes.contains(2));
@@ -138,7 +138,7 @@ class BitmapChangesTest {
 		@Test
 		@DisplayName("should return true when removing existing record")
 		void shouldReturnTrueWhenRemovingExistingRecord() {
-			final RoaringBitmap original = RoaringBitmap.bitmapOf(1, 2, 3);
+			final PersistentRoaringBitmap original = PersistentRoaringBitmap.bitmapOf(1, 2, 3);
 			final BitmapChanges changes = new BitmapChanges(original);
 			assertTrue(changes.removeRecordId(2));
 		}
@@ -146,7 +146,7 @@ class BitmapChangesTest {
 		@Test
 		@DisplayName("should return false when removing non-existing record")
 		void shouldReturnFalseWhenRemovingNonExistingRecord() {
-			final RoaringBitmap original = RoaringBitmap.bitmapOf(1, 2, 3);
+			final PersistentRoaringBitmap original = PersistentRoaringBitmap.bitmapOf(1, 2, 3);
 			final BitmapChanges changes = new BitmapChanges(original);
 			assertFalse(changes.removeRecordId(99));
 		}
@@ -154,7 +154,7 @@ class BitmapChangesTest {
 		@Test
 		@DisplayName("should cancel previous insertion on remove")
 		void shouldCancelPreviousInsertionOnRemove() {
-			final RoaringBitmap original = RoaringBitmap.bitmapOf(1, 2, 3);
+			final PersistentRoaringBitmap original = PersistentRoaringBitmap.bitmapOf(1, 2, 3);
 			final BitmapChanges changes = new BitmapChanges(original);
 			changes.addRecordId(5);
 			assertTrue(changes.contains(5));
@@ -167,7 +167,7 @@ class BitmapChangesTest {
 		@Test
 		@DisplayName("should remove multiple records")
 		void shouldRemoveMultipleRecords() {
-			final RoaringBitmap original = RoaringBitmap.bitmapOf(1, 2, 3, 4, 5);
+			final PersistentRoaringBitmap original = PersistentRoaringBitmap.bitmapOf(1, 2, 3, 4, 5);
 			final BitmapChanges changes = new BitmapChanges(original);
 			changes.removeRecordId(2);
 			changes.removeRecordId(4);
@@ -184,7 +184,7 @@ class BitmapChangesTest {
 		@Test
 		@DisplayName("should contain record from original")
 		void shouldContainRecordFromOriginal() {
-			final RoaringBitmap original = RoaringBitmap.bitmapOf(1, 2, 3);
+			final PersistentRoaringBitmap original = PersistentRoaringBitmap.bitmapOf(1, 2, 3);
 			final BitmapChanges changes = new BitmapChanges(original);
 			assertTrue(changes.contains(1));
 			assertTrue(changes.contains(2));
@@ -194,7 +194,7 @@ class BitmapChangesTest {
 		@Test
 		@DisplayName("should not contain removed record")
 		void shouldNotContainRemovedRecord() {
-			final RoaringBitmap original = RoaringBitmap.bitmapOf(1, 2, 3);
+			final PersistentRoaringBitmap original = PersistentRoaringBitmap.bitmapOf(1, 2, 3);
 			final BitmapChanges changes = new BitmapChanges(original);
 			changes.removeRecordId(2);
 			assertFalse(changes.contains(2));
@@ -203,7 +203,7 @@ class BitmapChangesTest {
 		@Test
 		@DisplayName("should contain inserted record")
 		void shouldContainInsertedRecord() {
-			final RoaringBitmap original = RoaringBitmap.bitmapOf(1, 2, 3);
+			final PersistentRoaringBitmap original = PersistentRoaringBitmap.bitmapOf(1, 2, 3);
 			final BitmapChanges changes = new BitmapChanges(original);
 			changes.addRecordId(10);
 			assertTrue(changes.contains(10));
@@ -212,7 +212,7 @@ class BitmapChangesTest {
 		@Test
 		@DisplayName("should not contain record neither in original nor inserted")
 		void shouldNotContainRecordNeitherInOriginalNorInserted() {
-			final RoaringBitmap original = RoaringBitmap.bitmapOf(1, 2, 3);
+			final PersistentRoaringBitmap original = PersistentRoaringBitmap.bitmapOf(1, 2, 3);
 			final BitmapChanges changes = new BitmapChanges(original);
 			assertFalse(changes.contains(99));
 		}
@@ -225,7 +225,7 @@ class BitmapChangesTest {
 		@Test
 		@DisplayName("should return original when no changes")
 		void shouldReturnOriginalWhenNoChanges() {
-			final RoaringBitmap original = RoaringBitmap.bitmapOf(1, 2, 3);
+			final PersistentRoaringBitmap original = PersistentRoaringBitmap.bitmapOf(1, 2, 3);
 			final BitmapChanges changes = new BitmapChanges(original);
 			// when there are no changes, getMergedBitmap returns the original identity
 			assertSame(original, changes.getMergedBitmap());
@@ -234,56 +234,56 @@ class BitmapChangesTest {
 		@Test
 		@DisplayName("should return merged with insertions")
 		void shouldReturnMergedWithInsertions() {
-			final RoaringBitmap original = RoaringBitmap.bitmapOf(1, 2, 3);
+			final PersistentRoaringBitmap original = PersistentRoaringBitmap.bitmapOf(1, 2, 3);
 			final BitmapChanges changes = new BitmapChanges(original);
 			changes.addRecordId(5);
 			changes.addRecordId(7);
-			final RoaringBitmap merged = changes.getMergedBitmap();
+			final PersistentRoaringBitmap merged = changes.getMergedBitmap();
 			assertArrayEquals(new int[]{1, 2, 3, 5, 7}, merged.toArray());
 		}
 
 		@Test
 		@DisplayName("should return merged with removals")
 		void shouldReturnMergedWithRemovals() {
-			final RoaringBitmap original = RoaringBitmap.bitmapOf(1, 2, 3, 4, 5);
+			final PersistentRoaringBitmap original = PersistentRoaringBitmap.bitmapOf(1, 2, 3, 4, 5);
 			final BitmapChanges changes = new BitmapChanges(original);
 			changes.removeRecordId(2);
 			changes.removeRecordId(4);
-			final RoaringBitmap merged = changes.getMergedBitmap();
+			final PersistentRoaringBitmap merged = changes.getMergedBitmap();
 			assertArrayEquals(new int[]{1, 3, 5}, merged.toArray());
 		}
 
 		@Test
 		@DisplayName("should return merged with both insertions and removals")
 		void shouldReturnMergedWithBothInsertionsAndRemovals() {
-			final RoaringBitmap original = RoaringBitmap.bitmapOf(1, 2, 3);
+			final PersistentRoaringBitmap original = PersistentRoaringBitmap.bitmapOf(1, 2, 3);
 			final BitmapChanges changes = new BitmapChanges(original);
 			changes.removeRecordId(2);
 			changes.addRecordId(10);
-			final RoaringBitmap merged = changes.getMergedBitmap();
+			final PersistentRoaringBitmap merged = changes.getMergedBitmap();
 			assertArrayEquals(new int[]{1, 3, 10}, merged.toArray());
 		}
 
 		@Test
 		@DisplayName("should memoize merged result")
 		void shouldMemoizeMergedResult() {
-			final RoaringBitmap original = RoaringBitmap.bitmapOf(1, 2, 3);
+			final PersistentRoaringBitmap original = PersistentRoaringBitmap.bitmapOf(1, 2, 3);
 			final BitmapChanges changes = new BitmapChanges(original);
 			changes.addRecordId(5);
-			final RoaringBitmap firstCall = changes.getMergedBitmap();
-			final RoaringBitmap secondCall = changes.getMergedBitmap();
+			final PersistentRoaringBitmap firstCall = changes.getMergedBitmap();
+			final PersistentRoaringBitmap secondCall = changes.getMergedBitmap();
 			assertSame(firstCall, secondCall);
 		}
 
 		@Test
 		@DisplayName("should invalidate memoized result on add")
 		void shouldInvalidateMemoizedResultOnAdd() {
-			final RoaringBitmap original = RoaringBitmap.bitmapOf(1, 2, 3);
+			final PersistentRoaringBitmap original = PersistentRoaringBitmap.bitmapOf(1, 2, 3);
 			final BitmapChanges changes = new BitmapChanges(original);
 			changes.addRecordId(5);
-			final RoaringBitmap firstCall = changes.getMergedBitmap();
+			final PersistentRoaringBitmap firstCall = changes.getMergedBitmap();
 			changes.addRecordId(7);
-			final RoaringBitmap afterAdd = changes.getMergedBitmap();
+			final PersistentRoaringBitmap afterAdd = changes.getMergedBitmap();
 			assertNotSame(firstCall, afterAdd);
 			assertArrayEquals(new int[]{1, 2, 3, 5, 7}, afterAdd.toArray());
 		}
@@ -291,12 +291,12 @@ class BitmapChangesTest {
 		@Test
 		@DisplayName("should invalidate memoized result on remove")
 		void shouldInvalidateMemoizedResultOnRemove() {
-			final RoaringBitmap original = RoaringBitmap.bitmapOf(1, 2, 3);
+			final PersistentRoaringBitmap original = PersistentRoaringBitmap.bitmapOf(1, 2, 3);
 			final BitmapChanges changes = new BitmapChanges(original);
 			changes.addRecordId(5);
-			final RoaringBitmap firstCall = changes.getMergedBitmap();
+			final PersistentRoaringBitmap firstCall = changes.getMergedBitmap();
 			changes.removeRecordId(2);
-			final RoaringBitmap afterRemove = changes.getMergedBitmap();
+			final PersistentRoaringBitmap afterRemove = changes.getMergedBitmap();
 			assertNotSame(firstCall, afterRemove);
 			assertArrayEquals(new int[]{1, 3, 5}, afterRemove.toArray());
 		}
@@ -309,7 +309,7 @@ class BitmapChangesTest {
 		@Test
 		@DisplayName("should return original length when no changes")
 		void shouldReturnOriginalLengthWhenNoChanges() {
-			final RoaringBitmap original = RoaringBitmap.bitmapOf(1, 2, 3);
+			final PersistentRoaringBitmap original = PersistentRoaringBitmap.bitmapOf(1, 2, 3);
 			final BitmapChanges changes = new BitmapChanges(original);
 			assertEquals(3, changes.getMergedLength());
 		}
@@ -317,7 +317,7 @@ class BitmapChangesTest {
 		@Test
 		@DisplayName("should return length with insertions")
 		void shouldReturnLengthWithInsertions() {
-			final RoaringBitmap original = RoaringBitmap.bitmapOf(1, 2, 3);
+			final PersistentRoaringBitmap original = PersistentRoaringBitmap.bitmapOf(1, 2, 3);
 			final BitmapChanges changes = new BitmapChanges(original);
 			changes.addRecordId(5);
 			changes.addRecordId(7);
@@ -327,7 +327,7 @@ class BitmapChangesTest {
 		@Test
 		@DisplayName("should return length with removals")
 		void shouldReturnLengthWithRemovals() {
-			final RoaringBitmap original = RoaringBitmap.bitmapOf(1, 2, 3, 4, 5);
+			final PersistentRoaringBitmap original = PersistentRoaringBitmap.bitmapOf(1, 2, 3, 4, 5);
 			final BitmapChanges changes = new BitmapChanges(original);
 			changes.removeRecordId(2);
 			changes.removeRecordId(4);
@@ -337,7 +337,7 @@ class BitmapChangesTest {
 		@Test
 		@DisplayName("should return length with both insertions and removals")
 		void shouldReturnLengthWithBothInsertionsAndRemovals() {
-			final RoaringBitmap original = RoaringBitmap.bitmapOf(1, 2, 3);
+			final PersistentRoaringBitmap original = PersistentRoaringBitmap.bitmapOf(1, 2, 3);
 			final BitmapChanges changes = new BitmapChanges(original);
 			changes.removeRecordId(2);
 			changes.addRecordId(10);
@@ -353,14 +353,14 @@ class BitmapChangesTest {
 		@Test
 		@DisplayName("should be empty when original is empty and no insertions")
 		void shouldBeEmptyWhenOriginalIsEmptyAndNoInsertions() {
-			final BitmapChanges changes = new BitmapChanges(new RoaringBitmap());
+			final BitmapChanges changes = new BitmapChanges(new PersistentRoaringBitmap());
 			assertTrue(changes.isEmpty());
 		}
 
 		@Test
 		@DisplayName("should not be empty when original has records")
 		void shouldNotBeEmptyWhenOriginalHasRecords() {
-			final RoaringBitmap original = RoaringBitmap.bitmapOf(1, 2, 3);
+			final PersistentRoaringBitmap original = PersistentRoaringBitmap.bitmapOf(1, 2, 3);
 			final BitmapChanges changes = new BitmapChanges(original);
 			assertFalse(changes.isEmpty());
 		}
@@ -368,7 +368,7 @@ class BitmapChangesTest {
 		@Test
 		@DisplayName("should be empty when all original records removed")
 		void shouldBeEmptyWhenAllOriginalRecordsRemoved() {
-			final RoaringBitmap original = RoaringBitmap.bitmapOf(1, 2, 3);
+			final PersistentRoaringBitmap original = PersistentRoaringBitmap.bitmapOf(1, 2, 3);
 			final BitmapChanges changes = new BitmapChanges(original);
 			changes.removeRecordId(1);
 			changes.removeRecordId(2);
@@ -379,7 +379,7 @@ class BitmapChangesTest {
 		@Test
 		@DisplayName("should not be empty when record inserted")
 		void shouldNotBeEmptyWhenRecordInserted() {
-			final BitmapChanges changes = new BitmapChanges(new RoaringBitmap());
+			final BitmapChanges changes = new BitmapChanges(new PersistentRoaringBitmap());
 			changes.addRecordId(5);
 			assertFalse(changes.isEmpty());
 		}
@@ -387,7 +387,7 @@ class BitmapChangesTest {
 		@Test
 		@DisplayName("should not be empty when original has records and some removed")
 		void shouldNotBeEmptyWhenOriginalHasRecordsAndSomeRemoved() {
-			final RoaringBitmap original = RoaringBitmap.bitmapOf(1, 2, 3);
+			final PersistentRoaringBitmap original = PersistentRoaringBitmap.bitmapOf(1, 2, 3);
 			final BitmapChanges changes = new BitmapChanges(original);
 			changes.removeRecordId(1);
 			assertFalse(changes.isEmpty());

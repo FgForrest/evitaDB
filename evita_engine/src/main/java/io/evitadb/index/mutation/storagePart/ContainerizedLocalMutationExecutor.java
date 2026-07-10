@@ -113,8 +113,8 @@ import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.NumberUtils;
 import lombok.Getter;
 import lombok.Setter;
-import org.roaringbitmap.PeekableIntIterator;
-import org.roaringbitmap.RoaringBitmap;
+import io.evitadb.roaringbitmap.PeekableIntIterator;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -597,7 +597,7 @@ public final class ContainerizedLocalMutationExecutor
 		int entityPrimaryKey,
 		@Nonnull MutationCollector mutationCollector,
 		@Nonnull DataStoreReader dataStoreReader,
-		@Nonnull RoaringBitmap existingEntityPks,
+		@Nonnull PersistentRoaringBitmap existingEntityPks,
 		@Nonnull ReferenceSchema referenceSchema,
 		@Nonnull String referencedSchemaName,
 		@Nonnull String referencedEntityType,
@@ -821,7 +821,7 @@ public final class ContainerizedLocalMutationExecutor
 	private void removeExistingEntityPks(
 		int entityPrimaryKey,
 		@Nonnull MutationCollector mutationCollector,
-		@Nonnull RoaringBitmap existingEntityPks,
+		@Nonnull PersistentRoaringBitmap existingEntityPks,
 		@Nonnull ReferenceSchema referenceSchema,
 		@Nonnull String referencedSchemaName,
 		@Nonnull String referencedEntityType,
@@ -1263,11 +1263,6 @@ public final class ContainerizedLocalMutationExecutor
 					updater.accept(this.catalogVersion, part);
 				}
 			});
-	}
-
-	@Override
-	public void rollback() {
-		// do nothing all containers will be discarded along with this instance
 	}
 
 	@Override
@@ -2293,11 +2288,11 @@ public final class ContainerizedLocalMutationExecutor
 						entityIndexKey -> null
 					);
 					// if global index is found there is at least one entity of such type
-					final RoaringBitmap referencedPrimaryKeys = referenceBlock.getReferencedPrimaryKeys();
+					final PersistentRoaringBitmap referencedPrimaryKeys = referenceBlock.getReferencedPrimaryKeys();
 					// but we need to match only those our entity refers to via this reference
-					final RoaringBitmap existingEntityPks = globalIndex == null ?
+					final PersistentRoaringBitmap existingEntityPks = globalIndex == null ?
 						null :
-						RoaringBitmap.and(
+						PersistentRoaringBitmap.and(
 							referencedPrimaryKeys,
 							getRoaringBitmap(globalIndex.getAllPrimaryKeys())
 						);

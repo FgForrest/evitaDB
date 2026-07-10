@@ -80,87 +80,164 @@ public class Crc32CWrapper {
 	private final byte[] buffer;
 
 	/**
-	 * Reusable GF(2) matrix buffer for the "odd powers" operator, used by
-	 * {@link #combineInternal(int, int, long, int[], int[])} to avoid per-call allocation.
+	 * Precomputed GF(2) "doubling ladder" of CRC32C shift operators: `COMBINE_LADDER[j]` is the
+	 * matrix `M^(8·2^j)`, where `M` is the one-zero-bit reflected-CRC32C shift operator (a 32×32 GF(2)
+	 * matrix stored as an `int[32]`, one bit-column per int). Because these operators depend only on
+	 * {@link #CRC32C_POLY} — never on the checksum values or the length being combined — they are built
+	 * once at class load and shared immutably across all threads. `COMBINE_LADDER[0] = M^8` (one byte
+	 * of zero-shift); each subsequent rung is the square of the previous. {@link Long#SIZE} rungs cover
+	 * every {@code long} `len2`, so {@link #combine(long, long, long)} can fold `M^(8·len2)` into `crc1`
+	 * one rung per set bit of `len2` — no per-call matrix rebuild and no allocation.
+	 *
+	 * At {@code int[32]} (128 B) per rung this is a fixed 8 KB for the whole JVM.
 	 */
-	private final int[] odd = new int[32];
+	private static final int[][] COMBINE_LADDER = buildCombineLadder();
 
 	/**
-	 * Reusable GF(2) matrix buffer for the "even powers" operator, used by
-	 * {@link #combineInternal(int, int, long, int[], int[])} to avoid per-call allocation.
+	 * Builds the {@link #COMBINE_LADDER} doubling ladder once at class load. `M` is the operator for a
+	 * single zero bit; three squarings give `M^8` (the first rung), and each further rung is the square
+	 * of the previous (`M^(8·2^j)`).
+	 *
+	 * @return the immutable ladder of {@link Long#SIZE} GF(2) shift operators
 	 */
-	private final int[] even = new int[32];
+	@Nonnull
+	private static int[][] buildCombineLadder() {
+		// M = operator for one zero bit
+		final int[] m = new int[32];
+		m[0] = CRC32C_POLY;
+		int row = 1;
+		for (int i = 1; i < 32; i++) {
+			m[i] = row;
+			row <<= 1;
+		}
+		// first rung = M^8 (three squarings: M -> M^2 -> M^4 -> M^8)
+		final int[] m2 = new int[32];
+		final int[] m4 = new int[32];
+		final int[] m8 = new int[32];
+		gf2MatrixSquare(m2, m);
+		gf2MatrixSquare(m4, m2);
+		gf2MatrixSquare(m8, m4);
+		final int[][] ladder = new int[Long.SIZE][];
+		ladder[0] = m8;
+		// each subsequent rung is the square of the previous: M^(8·2^j)
+		for (int j = 1; j < ladder.length; j++) {
+			final int[] next = new int[32];
+			gf2MatrixSquare(next, ladder[j - 1]);
+			ladder[j] = next;
+		}
+		return ladder;
+	}
 
 	/**
-	 * Combine two CRC32C values into the CRC32C of (data1 || data2).
-	 * This static convenience method allocates temporary arrays on each call.
-	 * For hot paths, prefer calling through an instance (e.g., via
-	 * {@link #withAnotherChecksum(long, int)}) which reuses pre-allocated arrays.
+	 * Combines two CRC32C values into the CRC32C of (data1 || data2), i.e. computes the checksum of the
+	 * concatenation from the two part checksums and the length of the second part.
+	 *
+	 * Applies the precomputed GF(2) {@link #COMBINE_LADDER} to `crc1` once per set bit of `len2` — there
+	 * is no per-call matrix rebuild and no allocation. The result is bit-identical to a direct CRC32C of
+	 * the concatenated bytes (the ladder is a mathematical identity: `M^(8·len2)` factored over the set
+	 * bits of `len2`, and powers of `M` commute so the fold order is irrelevant).
 	 *
 	 * @param crc1 CRC32C of data1 (as returned by java.util.zip.CRC32C#getValue()).
 	 * @param crc2 CRC32C of data2 (as returned by java.util.zip.CRC32C#getValue()).
 	 * @param len2 number of bytes in data2.
-	 * @return CRC32C of concatenation data1||data2
+	 * @return CRC32C of concatenation data1||data2, as an unsigned 32-bit value in a long
 	 */
 	public static long combine(long crc1, long crc2, long len2) {
-		return combineInternal(
-			(int) crc1, (int) crc2, len2,
-			new int[32], new int[32]
-		);
-	}
-
-	/**
-	 * Core CRC32C combination algorithm using GF(2) matrix exponentiation.
-	 * Takes pre-allocated scratch arrays to avoid per-call heap allocation.
-	 *
-	 * @param crc1 CRC32C of data1 (lower 32 bits)
-	 * @param crc2 CRC32C of data2 (lower 32 bits)
-	 * @param len2 number of bytes in data2
-	 * @param odd  scratch array for odd-power operator (must be length 32)
-	 * @param even scratch array for even-power operator (must be length 32)
-	 * @return CRC32C of concatenation data1||data2, as unsigned 32-bit value in a long
-	 */
-	private static long combineInternal(
-		int crc1, int crc2, long len2,
-		@Nonnull int[] odd, @Nonnull int[] even
-	) {
 		if (len2 <= 0) {
 			return crc1 & 0xFFFFFFFFL;
 		}
-
-		// put operator for one zero bit in odd[]
-		odd[0] = CRC32C_POLY;
-		int row = 1;
-		for (int i = 1; i < 32; i++) {
-			odd[i] = row;
-			row <<= 1;
+		int shifted = (int) crc1;
+		long remaining = len2;
+		int rung = 0;
+		// fold M^(8·2^rung) into crc1 for each set bit of len2
+		while (remaining != 0) {
+			if ((remaining & 1L) != 0) {
+				shifted = gf2MatrixTimes(COMBINE_LADDER[rung], shifted);
+			}
+			remaining >>>= 1;
+			rung++;
 		}
+		return (shifted ^ (int) crc2) & 0xFFFFFFFFL;
+	}
 
-		// put operator for two zero bits in even[]
-		gf2MatrixSquare(even, odd);
+	/**
+	 * Thread-local scratch {@link CRC32C} instance backing {@link #combineLong(long, long)},
+	 * {@link #combineInt(long, int)} and {@link #combineByte(long, byte)}. Computes the CRC32C of a
+	 * fixed-width primitive's raw bytes from a genuinely fresh (zero) state - the one state
+	 * {@link CRC32C} supports natively, so no {@link #forceValue(long)} is ever needed here. Shared
+	 * per-thread to avoid an allocation on every call.
+	 */
+	private static final ThreadLocal<CRC32C> COMBINE_PRIMITIVE_SCRATCH = ThreadLocal.withInitial(CRC32C::new);
 
-		// put operator for four zero bits in odd[]
-		gf2MatrixSquare(odd, even);
+	/**
+	 * Thread-local 8-byte scratch buffer backing {@link #COMBINE_PRIMITIVE_SCRATCH}.
+	 */
+	private static final ThreadLocal<byte[]> COMBINE_PRIMITIVE_BUFFER = ThreadLocal.withInitial(() -> new byte[8]);
 
-		// apply len2 zeros to crc1 (i.e., shift crc1 by len2 bytes)
-		do {
-			gf2MatrixSquare(even, odd);
-			if ((len2 & 1L) != 0) {
-				crc1 = gf2MatrixTimes(even, crc1);
-			}
-			len2 >>= 1;
-			if (len2 == 0) {
-				break;
-			}
+	/**
+	 * Folds a fixed-width `long` value's little-endian byte representation into a cumulative CRC32C value,
+	 * without ever seeding a live {@link CRC32C} to an arbitrary state. Computes the CRC32C of the value's
+	 * 8 little-endian bytes from a genuinely fresh (zero) checksum, then folds that chunk checksum into
+	 * `cumulative` via {@link #combine(long, long, long)} - bit-identical to
+	 * `new Crc32CWrapper(cumulative).withLong(value).getValue()` but without ever calling
+	 * {@link #forceValue(long)}.
+	 *
+	 * @param cumulative the running cumulative CRC32C value to fold {@code value} into
+	 * @param value      the long value to fold in, in the same little-endian layout as {@link #withLong(long)}
+	 * @return the updated cumulative CRC32C value
+	 */
+	public static long combineLong(long cumulative, long value) {
+		final CRC32C scratch = COMBINE_PRIMITIVE_SCRATCH.get();
+		scratch.reset();
+		final byte[] buffer = COMBINE_PRIMITIVE_BUFFER.get();
+		buffer[0] = (byte) value;
+		buffer[1] = (byte) (value >>> 8);
+		buffer[2] = (byte) (value >>> 16);
+		buffer[3] = (byte) (value >>> 24);
+		buffer[4] = (byte) (value >>> 32);
+		buffer[5] = (byte) (value >>> 40);
+		buffer[6] = (byte) (value >>> 48);
+		buffer[7] = (byte) (value >>> 56);
+		scratch.update(buffer, 0, 8);
+		return combine(cumulative, scratch.getValue(), 8L);
+	}
 
-			gf2MatrixSquare(odd, even);
-			if ((len2 & 1L) != 0) {
-				crc1 = gf2MatrixTimes(odd, crc1);
-			}
-			len2 >>= 1;
-		} while (len2 != 0);
+	/**
+	 * Folds a fixed-width `int` value's little-endian byte representation into a cumulative CRC32C value.
+	 * See {@link #combineLong(long, long)} for the rationale; this is the 4-byte counterpart, matching
+	 * {@link #withInt(int)}'s byte layout.
+	 *
+	 * @param cumulative the running cumulative CRC32C value to fold {@code value} into
+	 * @param value      the int value to fold in, in the same little-endian layout as {@link #withInt(int)}
+	 * @return the updated cumulative CRC32C value
+	 */
+	public static long combineInt(long cumulative, int value) {
+		final CRC32C scratch = COMBINE_PRIMITIVE_SCRATCH.get();
+		scratch.reset();
+		final byte[] buffer = COMBINE_PRIMITIVE_BUFFER.get();
+		buffer[0] = (byte) value;
+		buffer[1] = (byte) (value >> 8);
+		buffer[2] = (byte) (value >> 16);
+		buffer[3] = (byte) (value >> 24);
+		scratch.update(buffer, 0, 4);
+		return combine(cumulative, scratch.getValue(), 4L);
+	}
 
-		return (crc1 ^ crc2) & 0xFFFFFFFFL;
+	/**
+	 * Folds a single byte value into a cumulative CRC32C value. See {@link #combineLong(long, long)} for
+	 * the rationale; this is the 1-byte counterpart, matching {@link #withByte(byte)}'s byte layout.
+	 *
+	 * @param cumulative the running cumulative CRC32C value to fold {@code value} into
+	 * @param value      the byte value to fold in
+	 * @return the updated cumulative CRC32C value
+	 */
+	public static long combineByte(long cumulative, byte value) {
+		final CRC32C scratch = COMBINE_PRIMITIVE_SCRATCH.get();
+		scratch.reset();
+		final byte[] buffer = COMBINE_PRIMITIVE_BUFFER.get();
+		buffer[0] = value;
+		scratch.update(buffer, 0, 1);
+		return combine(cumulative, scratch.getValue(), 1L);
 	}
 
 	/**
@@ -532,11 +609,7 @@ public class Crc32CWrapper {
 	 */
 	@Nonnull
 	public Crc32CWrapper withAnotherChecksum(long checksum, int contentLength) {
-		final long currentChecksum = getValue();
-		final long combined = combineInternal(
-			(int) currentChecksum, (int) checksum, contentLength,
-			this.odd, this.even
-		);
+		final long combined = combine(getValue(), checksum, contentLength);
 		forceValue(combined);
 		return this;
 	}

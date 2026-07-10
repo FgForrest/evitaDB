@@ -105,12 +105,17 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 	 */
 	@Nullable
 	private static SessionFlags[] getSessionFlags(GrpcSessionType sessionType, boolean rollbackTransactions) {
-		final List<SessionFlags> flags = new ArrayList<>(3);
+		final List<SessionFlags> flags = new ArrayList<>(4);
 		if (rollbackTransactions) {
 			flags.add(SessionFlags.DRY_RUN);
 		}
 		if (sessionType == GrpcSessionType.READ_WRITE || sessionType == GrpcSessionType.BINARY_READ_WRITE) {
 			flags.add(SessionFlags.READ_WRITE);
+			// the transaction of a remote read-write session is driven by the client: an individual mutation that
+			// fails must not poison the whole transaction (the savepoint reverts just that entity). The client decides
+			// at close time whether to commit the surviving mutations or discard the transaction — see the `rollback`
+			// flag honored by the close handler. This makes remote sessions behave 1:1 with embedded ones.
+			flags.add(SessionFlags.TRANSACTION_CONTROLLED_EXTERNALLY);
 		}
 		if (sessionType == GrpcSessionType.BINARY_READ_ONLY || sessionType == GrpcSessionType.BINARY_READ_WRITE) {
 			flags.add(SessionFlags.BINARY);

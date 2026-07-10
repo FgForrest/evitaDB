@@ -36,7 +36,7 @@ import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
 import net.openhft.hashing.LongHashFunction;
-import org.roaringbitmap.RoaringBitmap;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -123,11 +123,11 @@ public class FacetGroupOrFormula extends AbstractFormula implements FacetGroupFo
 		} else if (this.bitmaps.length == 1) {
 			return this.bitmaps[0];
 		} else {
-			final RoaringBitmap[] roaringBitmaps = new RoaringBitmap[this.bitmaps.length];
+			final PersistentRoaringBitmap[] roaringBitmaps = new PersistentRoaringBitmap[this.bitmaps.length];
 			for (int i = 0; i < this.bitmaps.length; i++) {
 				roaringBitmaps[i] = RoaringBitmapBackedBitmap.getRoaringBitmap(this.bitmaps[i]);
 			}
-			return new BaseBitmap(RoaringBitmap.or(roaringBitmaps));
+			return new BaseBitmap(PersistentRoaringBitmap.or(roaringBitmaps));
 		}
 	}
 

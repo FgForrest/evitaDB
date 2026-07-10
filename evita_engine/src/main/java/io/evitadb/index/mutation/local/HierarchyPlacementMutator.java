@@ -30,7 +30,6 @@ import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.function.Consumer;
 
 /**
  * Co-location interface for hierarchy placement mutation routines that keep {@link EntityIndexLocalMutationExecutor}
@@ -46,10 +45,6 @@ import java.util.function.Consumer;
  * This interface follows the same co-location pattern used by {@link AttributeIndexMutator} and
  * {@link PriceIndexMutator} — procedural, stateless mutation logic is moved into static interface methods and
  * imported with a static import in {@link EntityIndexLocalMutationExecutor}.
- *
- * The methods support transactional undo by accepting an optional `undoActionConsumer`. When provided, each
- * mutation registers the inverse operation with the consumer so that a partial transaction can be rolled back
- * without affecting the remainder of the index state.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
@@ -75,8 +70,6 @@ public interface HierarchyPlacementMutator {
 	 * @param entityIndex        the index whose embedded hierarchy index will be updated
 	 * @param primaryKeyToIndex  the primary key of the entity being placed in the hierarchy
 	 * @param parentPrimaryKey   the primary key of the parent entity, or `null` if the entity is a root node
-	 * @param undoActionConsumer optional consumer that collects undo lambdas for transactional rollback;
-	 *                           when non-null, the inverse `removeNode` operation is registered with it
 	 * @throws io.evitadb.exception.EvitaInvalidUsageException if the entity schema does not have hierarchy enabled
 	 *                                                         (i.e. {@link EntitySchema#isWithHierarchy()} returns
 	 *                                                         `false`)
@@ -85,8 +78,7 @@ public interface HierarchyPlacementMutator {
 		@Nonnull EntityIndexLocalMutationExecutor executor,
 		@Nonnull EntityIndex entityIndex,
 		int primaryKeyToIndex,
-		@Nullable Integer parentPrimaryKey,
-		@Nullable Consumer<Runnable> undoActionConsumer
+		@Nullable Integer parentPrimaryKey
 	) {
 		final EntitySchema entitySchema = executor.getEntitySchema();
 		Assert.isTrue(
@@ -98,9 +90,6 @@ public interface HierarchyPlacementMutator {
 		final Scope scope = entityIndex.getIndexKey().scope();
 		if (entitySchema.isHierarchyIndexedInScope(scope)) {
 			entityIndex.addNode(primaryKeyToIndex, parentPrimaryKey);
-			if (undoActionConsumer != null) {
-				undoActionConsumer.accept(() -> entityIndex.removeNode(primaryKeyToIndex));
-			}
 		}
 	}
 
@@ -115,16 +104,9 @@ public interface HierarchyPlacementMutator {
 	 * The update is skipped silently when the entity's scope does not have hierarchy indexing enabled, mirroring
 	 * the guard in {@link #setParent}.
 	 *
-	 * When an undo consumer is provided, the removed node's former parent primary key (returned by
-	 * {@link io.evitadb.index.hierarchy.HierarchyIndexContract#removeNode(int)}) is captured in the closure so
-	 * that the placement can be restored exactly if the transaction is rolled back.
-	 *
 	 * @param executor           the active mutation executor that provides access to entity schema and index state
 	 * @param entityIndex        the index whose embedded hierarchy index will be updated
 	 * @param primaryKeyToIndex  the primary key of the entity being removed from the hierarchy
-	 * @param undoActionConsumer optional consumer that collects undo lambdas for transactional rollback;
-	 *                           when non-null, the inverse `addNode` operation (restoring the original parent)
-	 *                           is registered with it
 	 * @throws io.evitadb.exception.EvitaInvalidUsageException if the entity schema does not have hierarchy enabled
 	 *                                                         (i.e. {@link EntitySchema#isWithHierarchy()} returns
 	 *                                                         `false`)
@@ -132,8 +114,7 @@ public interface HierarchyPlacementMutator {
 	static void removeParent(
 		@Nonnull EntityIndexLocalMutationExecutor executor,
 		@Nonnull EntityIndex entityIndex,
-		int primaryKeyToIndex,
-		@Nullable Consumer<Runnable> undoActionConsumer
+		int primaryKeyToIndex
 	) {
 		final EntitySchema entitySchema = executor.getEntitySchema();
 		Assert.isTrue(
@@ -143,10 +124,7 @@ public interface HierarchyPlacementMutator {
 
 		final Scope scope = entityIndex.getIndexKey().scope();
 		if (entitySchema.isHierarchyIndexedInScope(scope)) {
-			final Integer parentNodePk = entityIndex.removeNode(primaryKeyToIndex);
-			if (undoActionConsumer != null) {
-				undoActionConsumer.accept(() -> entityIndex.addNode(primaryKeyToIndex, parentNodePk));
-			}
+			entityIndex.removeNode(primaryKeyToIndex);
 		}
 	}
 

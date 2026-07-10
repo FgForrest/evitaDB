@@ -30,7 +30,9 @@ import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaCont
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.core.exception.ReferenceNotIndexedException;
 import io.evitadb.dataType.Scope;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.attribute.FilterIndex;
+import io.evitadb.index.attribute.UniqueIndex;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
@@ -39,10 +41,11 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
-import org.roaringbitmap.RoaringBitmap;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 
 import javax.annotation.Nonnull;
 import java.io.Serializable;
+import java.math.BigDecimal;
 import java.util.Collections;
 import java.util.Locale;
 import java.util.Set;
@@ -396,7 +399,7 @@ class ReferencedTypeEntityIndexTest extends AbstractEntityIndexTest<ReferencedTy
 	 * Tests for reference lookup methods:
 	 * {@link ReferencedTypeEntityIndex#getAllReferenceIndexes(int)},
 	 * {@link ReferencedTypeEntityIndex#getReferencedPrimaryKeysForIndexPks(Bitmap)},
-	 * and {@link ReferencedTypeEntityIndex#getIndexPrimaryKeys(RoaringBitmap)}.
+	 * and {@link ReferencedTypeEntityIndex#getIndexPrimaryKeys(PersistentRoaringBitmap)}.
 	 */
 	@Nested
 	@DisplayName("Reference lookup")
@@ -470,7 +473,7 @@ class ReferencedTypeEntityIndexTest extends AbstractEntityIndexTest<ReferencedTy
 			ReferencedTypeEntityIndexTest.this.index.insertPrimaryKeyIfMissing(10, 5);
 			ReferencedTypeEntityIndexTest.this.index.insertPrimaryKeyIfMissing(20, 6);
 
-			final RoaringBitmap referencedPks = RoaringBitmap.bitmapOf(5, 6);
+			final PersistentRoaringBitmap referencedPks = PersistentRoaringBitmap.bitmapOf(5, 6);
 			final Bitmap result = ReferencedTypeEntityIndexTest.this.index.getIndexPrimaryKeys(referencedPks);
 
 			assertEquals(2, result.size());
@@ -481,7 +484,7 @@ class ReferencedTypeEntityIndexTest extends AbstractEntityIndexTest<ReferencedTy
 		@Test
 		@DisplayName("should return empty bitmap for empty referenced PK input")
 		void shouldReturnEmptyForEmptyReferencedPkInput() {
-			final Bitmap result = ReferencedTypeEntityIndexTest.this.index.getIndexPrimaryKeys(new RoaringBitmap());
+			final Bitmap result = ReferencedTypeEntityIndexTest.this.index.getIndexPrimaryKeys(new PersistentRoaringBitmap());
 
 			assertSame(EmptyBitmap.INSTANCE, result);
 		}
@@ -494,7 +497,7 @@ class ReferencedTypeEntityIndexTest extends AbstractEntityIndexTest<ReferencedTy
 
 			// only ask for referenced entity 5
 			final Bitmap result = ReferencedTypeEntityIndexTest.this.index.getIndexPrimaryKeys(
-				RoaringBitmap.bitmapOf(5)
+				PersistentRoaringBitmap.bitmapOf(5)
 			);
 
 			assertEquals(1, result.size());
@@ -630,7 +633,7 @@ class ReferencedTypeEntityIndexTest extends AbstractEntityIndexTest<ReferencedTy
 
 			ReferencedTypeEntityIndexTest.this.index.insertFilterAttribute(
 				getReferenceSchema(), getStringAttrSchema(),
-				noLocales, null, "ABC", 10
+				noLocales, null, "ABC", 10, false
 			);
 
 			final Bitmap result = ReferencedTypeEntityIndexTest.this.index
@@ -641,17 +644,36 @@ class ReferencedTypeEntityIndexTest extends AbstractEntityIndexTest<ReferencedTy
 		}
 
 		@Test
+		@DisplayName("folded-unique view registers through the cardinality-gated filter write (boundary cross)")
+		void shouldRegisterFoldedUniqueViewThroughGatedFilterWrite() {
+			final Set<Locale> noLocales = Collections.emptySet();
+
+			// foldedUnique=true exercises a folded unique reference-attribute write. This index gates the shared-tree
+			// write on a cardinality boundary, so the folded view must be registered there — the first occurrence
+			// crosses the boundary, forwards to the base filter write, and that write self-registers the view.
+			ReferencedTypeEntityIndexTest.this.index.insertFilterAttribute(
+				getReferenceSchema(), getStringAttrSchema(), noLocales, null, "ABC", 10, true
+			);
+
+			final UniqueIndex view = ReferencedTypeEntityIndexTest.this.index.getUniqueIndex(
+				getReferenceSchema(), getStringAttrSchema(), null
+			);
+			assertNotNull(view, "the gated filter write must register the folded unique view on boundary cross");
+			assertEquals(10, view.getRecordIdByUniqueValue("ABC"));
+		}
+
+		@Test
 		@DisplayName("should not duplicate attribute on second occurrence with same value")
 		void shouldNotDuplicateAttributeOnSecondOccurrence() {
 			final Set<Locale> noLocales = Collections.emptySet();
 
 			ReferencedTypeEntityIndexTest.this.index.insertFilterAttribute(
 				getReferenceSchema(), getStringAttrSchema(),
-				noLocales, null, "ABC", 10
+				noLocales, null, "ABC", 10, false
 			);
 			ReferencedTypeEntityIndexTest.this.index.insertFilterAttribute(
 				getReferenceSchema(), getStringAttrSchema(),
-				noLocales, null, "ABC", 10
+				noLocales, null, "ABC", 10, false
 			);
 
 			final Bitmap result = ReferencedTypeEntityIndexTest.this.index
@@ -667,11 +689,11 @@ class ReferencedTypeEntityIndexTest extends AbstractEntityIndexTest<ReferencedTy
 
 			ReferencedTypeEntityIndexTest.this.index.insertFilterAttribute(
 				getReferenceSchema(), getStringAttrSchema(),
-				noLocales, null, "ABC", 10
+				noLocales, null, "ABC", 10, false
 			);
 			ReferencedTypeEntityIndexTest.this.index.insertFilterAttribute(
 				getReferenceSchema(), getStringAttrSchema(),
-				noLocales, null, "ABC", 10
+				noLocales, null, "ABC", 10, false
 			);
 
 			ReferencedTypeEntityIndexTest.this.index.removeFilterAttribute(
@@ -693,11 +715,11 @@ class ReferencedTypeEntityIndexTest extends AbstractEntityIndexTest<ReferencedTy
 
 			ReferencedTypeEntityIndexTest.this.index.insertFilterAttribute(
 				getReferenceSchema(), getStringAttrSchema(),
-				noLocales, null, "ABC", 10
+				noLocales, null, "ABC", 10, false
 			);
 			ReferencedTypeEntityIndexTest.this.index.insertFilterAttribute(
 				getReferenceSchema(), getStringAttrSchema(),
-				noLocales, null, "ABC", 10
+				noLocales, null, "ABC", 10, false
 			);
 
 			ReferencedTypeEntityIndexTest.this.index.removeFilterAttribute(
@@ -724,14 +746,14 @@ class ReferencedTypeEntityIndexTest extends AbstractEntityIndexTest<ReferencedTy
 			// first reference adds tags ["A", "B"]
 			ReferencedTypeEntityIndexTest.this.index.insertFilterAttribute(
 				getReferenceSchema(), arrayAttrSchema, noLocales, null,
-				new String[]{"A", "B"}, 10
+				new String[]{"A", "B"}, 10, false
 			);
 
 			// second reference adds tags ["B", "C"] -- "B" already has cardinality,
 			// only "C" should be newly added to the filter index
 			ReferencedTypeEntityIndexTest.this.index.insertFilterAttribute(
 				getReferenceSchema(), arrayAttrSchema, noLocales, null,
-				new String[]{"B", "C"}, 10
+				new String[]{"B", "C"}, 10, false
 			);
 
 			final AttributeIndexKey tagKey =
@@ -771,11 +793,11 @@ class ReferencedTypeEntityIndexTest extends AbstractEntityIndexTest<ReferencedTy
 
 			ReferencedTypeEntityIndexTest.this.index.insertFilterAttribute(
 				getReferenceSchema(), getStringAttrSchema(),
-				noLocales, null, "ABC", 10
+				noLocales, null, "ABC", 10, false
 			);
 			ReferencedTypeEntityIndexTest.this.index.insertFilterAttribute(
 				getReferenceSchema(), getStringAttrSchema(),
-				noLocales, null, "XYZ", 10
+				noLocales, null, "XYZ", 10, false
 			);
 
 			final AttributeIndexKey codeKey =
@@ -986,7 +1008,7 @@ class ReferencedTypeEntityIndexTest extends AbstractEntityIndexTest<ReferencedTy
 				ReferencedTypeEntityIndexTest.this.index,
 				original -> original.insertFilterAttribute(
 					refSchema, attrSchema, noLocales, null, "ABC", 10
-				),
+				, false),
 				(original, committed) -> {
 					// original should not have the attribute
 					assertNull(
@@ -1074,7 +1096,7 @@ class ReferencedTypeEntityIndexTest extends AbstractEntityIndexTest<ReferencedTy
 				ReferencedTypeEntityIndexTest.this.index,
 				original -> original.insertFilterAttribute(
 					refSchema, attrSchema, noLocales, null, "ABC", 10
-				),
+				, false),
 				(original, committed) -> {
 					assertNull(
 						original.getFilterIndex(
@@ -1175,6 +1197,53 @@ class ReferencedTypeEntityIndexTest extends AbstractEntityIndexTest<ReferencedTy
 			assertNull(
 				ReferencedTypeEntityIndexTest.this.index.getHistogramFilterIndex(HISTOGRAM_NAME, null),
 				"Filter index must be gone once all histogram values are removed"
+			);
+		}
+
+		@Test
+		@DisplayName("histogram insert into a scale-drifted index fails loudly")
+		void shouldThrowWhenHistogramInsertScaleDrifts() {
+			// build the histogram frozen at two decimal places
+			ReferencedTypeEntityIndexTest.this.index.insertHistogramValue(
+				HISTOGRAM_NAME, null, new BigDecimal("1.50"), 10, BigDecimal.class, 2
+			);
+
+			// the schema now declares three decimal places -- feeding the frozen histogram must refuse rather than mangle
+			assertThrows(
+				GenericEvitaInternalError.class,
+				() -> ReferencedTypeEntityIndexTest.this.index.insertHistogramValue(
+					HISTOGRAM_NAME, null, new BigDecimal("2.500"), 11, BigDecimal.class, 3
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("histogram remove from a scale-drifted index fails loudly")
+		void shouldThrowWhenHistogramRemoveScaleDrifts() {
+			ReferencedTypeEntityIndexTest.this.index.insertHistogramValue(
+				HISTOGRAM_NAME, null, new BigDecimal("1.50"), 10, BigDecimal.class, 2
+			);
+
+			assertThrows(
+				GenericEvitaInternalError.class,
+				() -> ReferencedTypeEntityIndexTest.this.index.removeHistogramValue(
+					HISTOGRAM_NAME, null, new BigDecimal("1.50"), 10, 3
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("histogram modification at the unchanged scale is accepted")
+		void shouldAcceptHistogramModificationAtUnchangedScale() {
+			ReferencedTypeEntityIndexTest.this.index.insertHistogramValue(
+				HISTOGRAM_NAME, null, new BigDecimal("1.50"), 10, BigDecimal.class, 2
+			);
+
+			// same scale -> no drift -> a second modification is accepted
+			assertDoesNotThrow(
+				() -> ReferencedTypeEntityIndexTest.this.index.insertHistogramValue(
+					HISTOGRAM_NAME, null, new BigDecimal("2.50"), 11, BigDecimal.class, 2
+				)
 			);
 		}
 	}

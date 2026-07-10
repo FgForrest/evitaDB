@@ -35,8 +35,11 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ArgumentsSource;
 
 import javax.annotation.Nonnull;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
@@ -46,9 +49,12 @@ import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.MANAGEMENT;
 import static io.evitadb.test.TestTags.REFERENCE;
 import static io.evitadb.test.TestTags.SLOW;
+import static io.evitadb.test.TestTags.TRANSACTION;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
+import static io.evitadb.utils.AssertionUtils.assertStateAfterRollback;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -102,14 +108,7 @@ class LongRunningReferencedTypeEntityIndexTest implements TimeBoundedTestSupport
 
 				assertStateAfterCommit(
 					tested,
-					original -> {
-						final int ops = random.nextInt(5) + 1;
-						for (int i = 0; i < ops; i++) {
-							executeRandomOperation(
-								random, original, referenceModel
-							);
-						}
-					},
+					original -> applyRandomBatch(random, original, referenceModel),
 					(original, committed) -> {
 						assertNotNull(committed);
 						verifyState(committed, referenceModel);
@@ -128,6 +127,130 @@ class LongRunningReferencedTypeEntityIndexTest implements TimeBoundedTestSupport
 				);
 			}
 		);
+	}
+
+	/**
+	 * Generational proof that a **rolled-back** transaction discards every in-transaction mutation and leaves the base
+	 * index byte-for-byte intact — the atomic-rollback contract of Ref: #569. Each generation rebuilds a fresh index
+	 * from the (random-walking) reference model, captures a value oracle of that base, applies a random batch of
+	 * insert/remove mutations inside a transaction that is then rolled back, and asserts the base index is unchanged and
+	 * no committed value was published.
+	 */
+	@DisplayName("rollback leaves the base index intact")
+	@ParameterizedTest(name = "ReferencedTypeEntityIndex rollback discards every in-transaction mutation and leaves the base intact")
+	@Tag(SLOW)
+	@Tag(TRANSACTION)
+	@ArgumentsSource(TimeArgumentProvider.class)
+	void generationalRollbackProofTest(GenerationalTestInput input) {
+		runFor(
+			input,
+			50_000,
+			new RollbackModel(new HashMap<>(32)),
+			(random, model) -> {
+				// rebuild a fresh base index from the (random-walking) reference model each generation
+				final Map<Integer, Set<Integer>> referenceModel =
+					deepCopyModel(model.expectedPkToRefs());
+				final ReferencedTypeEntityIndex tested = buildIndexFromModel(referenceModel);
+				// value oracle of the base state that the rollback must return to
+				final ReferencedTypeSnapshot beforeRollback = snapshot(tested);
+
+				assertStateAfterRollback(
+					tested,
+					original -> applyRandomBatch(random, original, referenceModel),
+					(original, committed) -> {
+						assertNull(committed,
+							"A rolled-back transaction must not publish a committed value!"
+						);
+						assertEquals(beforeRollback, snapshot(original),
+							"ReferencedTypeEntityIndex changed after rollback — atomic rollback leaked!"
+						);
+					}
+				);
+
+				// the reference model reflects the attempted (rolled-back) batch, so the next generation rebuilds from a
+				// different live state — a random walk that keeps the proof exploring fresh base indexes
+				return new RollbackModel(referenceModel);
+			},
+			(model, exc) -> System.out.println(
+				"Failed model - PK->refs: " + model.expectedPkToRefs()
+			)
+		);
+	}
+
+	/**
+	 * Applies a random batch of 1–5 insert/remove operations to `index`, mirroring each into the reference model so the
+	 * two stay in lockstep. Shared by the commit and rollback proofs so both drive the identical random-draw sequence.
+	 *
+	 * @param random         the random generator
+	 * @param index          the index being mutated
+	 * @param referenceModel the reference model tracking expected state
+	 */
+	private static void applyRandomBatch(
+		@Nonnull Random random,
+		@Nonnull ReferencedTypeEntityIndex index,
+		@Nonnull Map<Integer, Set<Integer>> referenceModel
+	) {
+		final int ops = random.nextInt(5) + 1;
+		for (int i = 0; i < ops; i++) {
+			executeRandomOperation(random, index, referenceModel);
+		}
+	}
+
+	/**
+	 * Builds a fresh {@link ReferencedTypeEntityIndex} whose logical content exactly matches the reference model, so a
+	 * snapshot taken right after the build equals the model. Used to seed each rollback generation from the walking
+	 * model.
+	 *
+	 * @param referenceModel the reference PK-to-referenced-entity mapping to replay
+	 * @return a freshly built index materialising the reference model
+	 */
+	@Nonnull
+	private static ReferencedTypeEntityIndex buildIndexFromModel(
+		@Nonnull Map<Integer, Set<Integer>> referenceModel
+	) {
+		final ReferencedTypeEntityIndex index = createInstance();
+		for (final Map.Entry<Integer, Set<Integer>> entry : referenceModel.entrySet()) {
+			for (final int refPk : entry.getValue()) {
+				index.insertPrimaryKeyIfMissing(entry.getKey(), refPk);
+			}
+		}
+		return index;
+	}
+
+	/**
+	 * Reads the full logical content of the index into a value-comparable snapshot: the sorted index primary keys plus,
+	 * per referenced entity PK, the sorted index PKs that reference it. Two snapshots taken before and after a rollback
+	 * can be compared with `.equals` to prove exact restoration.
+	 *
+	 * @param index the index to snapshot
+	 * @return a deeply `.equals`-comparable value snapshot of the index content
+	 */
+	@Nonnull
+	static ReferencedTypeSnapshot snapshot(@Nonnull ReferencedTypeEntityIndex index) {
+		final List<Integer> pks = toList(index.getAllPrimaryKeys().getArray());
+		final Map<Integer, List<Integer>> refToIndexes = new HashMap<>();
+		for (final int refPk : index.getAllReferencedPrimaryKeys().getArray()) {
+			refToIndexes.put(refPk, toList(index.getAllReferenceIndexes(refPk)));
+		}
+		return new ReferencedTypeSnapshot(pks, refToIndexes);
+	}
+
+	/**
+	 * Converts an int array into an ascending list of its values (a value type with deep `.equals`); the input is copied
+	 * before sorting so the caller's array is never mutated.
+	 *
+	 * @param array the values to convert
+	 * @return an ascending list of the values
+	 */
+	@Nonnull
+	private static List<Integer> toList(@Nonnull int[] array) {
+		final int[] sorted = array.clone();
+		Arrays.sort(sorted);
+		final List<Integer> list = new ArrayList<>(sorted.length);
+		for (final int value : sorted) {
+			list.add(value);
+		}
+		return list;
 	}
 
 	/**
@@ -239,5 +362,27 @@ class LongRunningReferencedTypeEntityIndexTest implements TimeBoundedTestSupport
 	private record GenerationalState(
 		@Nonnull Map<Integer, Set<Integer>> expectedPkToRefs,
 		@Nonnull ReferencedTypeEntityIndex index
+	) {}
+
+	/**
+	 * Reference model carried between generations of the rollback proof: the expected PK-to-referenced-entity mapping.
+	 * The base index is rebuilt fresh from this model at the start of each generation.
+	 *
+	 * @param expectedPkToRefs mapping of index PK to its set of referenced entity PKs
+	 */
+	private record RollbackModel(
+		@Nonnull Map<Integer, Set<Integer>> expectedPkToRefs
+	) {}
+
+	/**
+	 * Value-comparable snapshot of a {@link ReferencedTypeEntityIndex}: the sorted index primary keys and, per
+	 * referenced entity PK, the sorted index PKs that reference it. Record equality gives deep structural comparison.
+	 *
+	 * @param pks          sorted index primary keys held by the index
+	 * @param refToIndexes per referenced entity PK, the sorted referencing index PKs
+	 */
+	record ReferencedTypeSnapshot(
+		@Nonnull List<Integer> pks,
+		@Nonnull Map<Integer, List<Integer>> refToIndexes
 	) {}
 }

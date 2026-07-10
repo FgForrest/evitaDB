@@ -189,6 +189,8 @@ class StorageOptionsTest {
 						200_000_000L
 					)
 					.timeTravelEnabled(true)
+					.minCompactionIntervalMilliseconds(600L)
+					.maxWasteActiveShare(0.1)
 					.build();
 
 			final StorageOptions copy =
@@ -217,6 +219,122 @@ class StorageOptionsTest {
 				copy.fileSizeCompactionThresholdBytes()
 			);
 			assertTrue(copy.timeTravelEnabled());
+			assertEquals(600L, copy.minCompactionIntervalMilliseconds());
+			assertEquals(0.1, copy.maxWasteActiveShare());
+		}
+	}
+
+	@Nested
+	@DisplayName("Compaction cadence knobs")
+	class CompactionCadenceTest {
+
+		@Test
+		@DisplayName("should default minCompactionIntervalMilliseconds to 1 minute")
+		void shouldDefaultMinCompactionIntervalMillisecondsToOneMinute() {
+			final StorageOptions options = StorageOptions.builder().build();
+
+			assertEquals(60_000L, StorageOptions.DEFAULT_MIN_COMPACTION_INTERVAL_MILLISECONDS);
+			assertEquals(60_000L, options.minCompactionIntervalMilliseconds());
+		}
+
+		@Test
+		@DisplayName("should default maxWasteActiveShare to 0.1, strictly below minimalActiveRecordShare's default")
+		void shouldDefaultMaxWasteActiveShareBelowMinimalActiveRecordShare() {
+			final StorageOptions options = StorageOptions.builder().build();
+
+			assertEquals(0.1, StorageOptions.DEFAULT_MAX_WASTE_ACTIVE_SHARE);
+			assertEquals(0.1, options.maxWasteActiveShare());
+			// the interval only binds when maxWaste < A - verify the default pairing actually satisfies that
+			assertTrue(options.maxWasteActiveShare() < options.minimalActiveRecordShare());
+		}
+
+		@Test
+		@DisplayName("should allow overriding both knobs independently via the builder")
+		void shouldOverrideBothKnobsIndependently() {
+			final StorageOptions options = StorageOptions.builder()
+				.minCompactionIntervalMilliseconds(600L)
+				.maxWasteActiveShare(0.1)
+				.build();
+
+			assertEquals(600L, options.minCompactionIntervalMilliseconds());
+			assertEquals(0.1, options.maxWasteActiveShare());
+		}
+
+		@Test
+		@DisplayName("should clamp maxWasteActiveShare to minimalActiveRecordShare when only the latter is customized via the builder (BWC regression guard)")
+		void shouldClampMaxWasteActiveShareWhenOnlyMinimalActiveRecordShareIsCustomized() {
+			// builder() leaves maxWasteActiveShare at its static 0.1 default; overriding only
+			// minimalActiveRecordShare below that (e.g. 0.01) must not leave maxWasteActiveShare stuck above it
+			final StorageOptions options = StorageOptions.builder()
+				.minimalActiveRecordShare(0.01)
+				.build();
+
+			assertEquals(0.01, options.minimalActiveRecordShare());
+			assertEquals(0.01, options.maxWasteActiveShare());
+		}
+
+		@Test
+		@DisplayName("maxWasteActiveShare should never exceed minimalActiveRecordShare, however constructed")
+		void shouldNeverExceedMinimalActiveRecordShareInvariant() {
+			final StorageOptions options = StorageOptions.builder()
+				.minimalActiveRecordShare(0.2)
+				.maxWasteActiveShare(0.9) // deliberately "wrong" - higher than A
+				.build();
+
+			assertTrue(options.maxWasteActiveShare() <= options.minimalActiveRecordShare());
+			assertEquals(0.2, options.maxWasteActiveShare());
+		}
+	}
+
+	@Nested
+	@DisplayName("Previous-arity constructor (binary compatibility)")
+	class PreviousArityConstructorTest {
+
+		@SuppressWarnings("removal")
+		@Test
+		@DisplayName("should default minCompactionIntervalMilliseconds and clamp maxWasteActiveShare to the caller's minimalActiveRecordShare")
+		void shouldDefaultNewKnobsForPreviousArityCallers() {
+			final StorageOptions options = new StorageOptions(
+				Path.of("/tmp/custom-data"),
+				Path.of("/tmp/custom-work"),
+				10, 15, 4_194_304, 50,
+				false, true, false,
+				0.75, 200_000_000L, true
+			);
+
+			assertEquals(
+				StorageOptions.DEFAULT_MIN_COMPACTION_INTERVAL_MILLISECONDS,
+				options.minCompactionIntervalMilliseconds()
+			);
+			// 0.75 > the static DEFAULT_MAX_WASTE_ACTIVE_SHARE (0.1), so the clamp is a no-op here
+			assertEquals(
+				StorageOptions.DEFAULT_MAX_WASTE_ACTIVE_SHARE,
+				options.maxWasteActiveShare()
+			);
+			// unaffected fields still carry through correctly
+			assertEquals(0.75, options.minimalActiveRecordShare());
+			assertEquals(200_000_000L, options.fileSizeCompactionThresholdBytes());
+			assertTrue(options.timeTravelEnabled());
+		}
+
+		@SuppressWarnings("removal")
+		@Test
+		@DisplayName("should clamp maxWasteActiveShare down when the caller's minimalActiveRecordShare is below the static default (BWC regression guard)")
+		void shouldClampMaxWasteActiveShareBelowStaticDefault() {
+			// a caller with a custom, aggressive minimalActiveRecordShare (e.g. 0.01) must NOT end up with
+			// maxWasteActiveShare pinned at the static 0.1 default, or compaction would fire far more eagerly
+			// than before (active < 0.1 instead of active < 0.01) regardless of minCompactionIntervalMilliseconds
+			final StorageOptions options = new StorageOptions(
+				Path.of("/tmp/custom-data"),
+				Path.of("/tmp/custom-work"),
+				10, 15, 4_194_304, 50,
+				false, true, false,
+				0.01, 1_000_000L, false
+			);
+
+			assertEquals(0.01, options.minimalActiveRecordShare());
+			assertEquals(0.01, options.maxWasteActiveShare());
+			assertTrue(options.maxWasteActiveShare() <= options.minimalActiveRecordShare());
 		}
 	}
 

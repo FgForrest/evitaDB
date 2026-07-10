@@ -29,7 +29,6 @@ import io.evitadb.index.range.RangeIndex;
 import io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor;
 import io.evitadb.spi.store.catalog.persistence.storageParts.RecordWithCompressedId;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
-import io.evitadb.utils.Assert;
 import io.evitadb.utils.NumberUtils;
 import lombok.Getter;
 import lombok.Setter;
@@ -50,7 +49,7 @@ import java.io.Serial;
  */
 @NotThreadSafe
 @ToString(of = {"priceIndexKey", "entityIndexPrimaryKey"})
-abstract class PriceListAndCurrencyIndexStoragePart implements StoragePart, RecordWithCompressedId<PriceIndexKey> {
+public abstract class PriceListAndCurrencyIndexStoragePart implements StoragePart, RecordWithCompressedId<PriceIndexKey> {
 	@Serial private static final long serialVersionUID = -314925869532587405L;
 
 	/**
@@ -89,18 +88,15 @@ abstract class PriceListAndCurrencyIndexStoragePart implements StoragePart, Reco
 	 * attributes belong to and compressed attribute key integer that is assigned as soon as attribute is first stored.
 	 */
 	public static long computeUniquePartId(@Nonnull Integer entityIndexPrimaryKey, @Nonnull PriceIndexKey priceIndexKey, @Nonnull KeyCompressor keyCompressor) {
-		return NumberUtils.join(entityIndexPrimaryKey, keyCompressor.getId(priceIndexKey));
+		return NumberUtils.pack(entityIndexPrimaryKey, keyCompressor.getId(priceIndexKey));
 	}
 
 	@Override
 	public long computeUniquePartIdAndSet(@Nonnull KeyCompressor keyCompressor) {
-		final long computedUniquePartId = computeUniquePartId(getEntityIndexPrimaryKey(), getPriceIndexKey(), keyCompressor);
-		final Long theUniquePartId = getStoragePartPK();
-		if (theUniquePartId == null) {
-			setStoragePartPK(computedUniquePartId);
-		} else {
-			Assert.isTrue(theUniquePartId == computedUniquePartId, "Unique part ids must never differ!");
-		}
+		final long computedUniquePartId = StoragePart.verifyUniquePartId(
+			computeUniquePartId(getEntityIndexPrimaryKey(), getPriceIndexKey(), keyCompressor), getStoragePartPK()
+		);
+		setStoragePartPK(computedUniquePartId);
 		return computedUniquePartId;
 	}
 

@@ -33,7 +33,7 @@ import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.utils.Assert;
 import net.openhft.hashing.LongHashFunction;
-import org.roaringbitmap.RoaringBitmap;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 
 import javax.annotation.Nonnull;
 import java.util.Arrays;
@@ -255,7 +255,7 @@ public class NotFormula extends AbstractCacheableFormula {
 				theResult = EmptyBitmap.INSTANCE;
 			} else {
 				theResult = new BaseBitmap(
-					RoaringBitmap.andNot(
+					PersistentRoaringBitmap.andNot(
 						RoaringBitmapBackedBitmap.getRoaringBitmap(this.supersetBitmap),
 						RoaringBitmapBackedBitmap.getRoaringBitmap(this.subtractedBitmap)
 					)
@@ -270,7 +270,7 @@ public class NotFormula extends AbstractCacheableFormula {
 				theResult = EmptyBitmap.INSTANCE;
 			} else {
 				theResult = new BaseBitmap(
-					RoaringBitmap.andNot(
+					PersistentRoaringBitmap.andNot(
 						RoaringBitmapBackedBitmap.getRoaringBitmap(supersetBitmap),
 						RoaringBitmapBackedBitmap.getRoaringBitmap(getSubtractedFormula().compute())
 					)

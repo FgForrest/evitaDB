@@ -33,8 +33,6 @@ import io.evitadb.core.query.extraResult.CacheableEvitaResponseExtraResultComput
 import io.evitadb.core.query.extraResult.EvitaResponseExtraResultComputer;
 import io.evitadb.core.query.response.ServerBinaryEntityDecorator;
 import io.evitadb.core.query.response.ServerEntityDecorator;
-import io.evitadb.core.query.sort.CacheableSorter;
-import io.evitadb.core.query.sort.Sorter;
 import io.evitadb.utils.IOUtils;
 
 import javax.annotation.Nonnull;
@@ -130,24 +128,6 @@ public class HeapMemoryCacheSupervisor implements CacheSupervisor {
 			);
 		} else {
 			return extraResultComputer;
-		}
-	}
-
-	@Nonnull
-	@Override
-	public Sorter analyse(
-		@Nonnull EvitaSessionContract evitaSession,
-		@Nonnull String entityType,
-		@Nonnull CacheableSorter cacheableSorter
-	) {
-		// we use cache only for Evita read only sessions, write session might already contain client specific modifications
-		// that effectively exclude the formula caches from being used
-		if (evitaSession.isReadOnly()) {
-			return this.cacheAnteroom.register(
-				evitaSession, entityType, cacheableSorter
-			);
-		} else {
-			return cacheableSorter;
 		}
 	}
 

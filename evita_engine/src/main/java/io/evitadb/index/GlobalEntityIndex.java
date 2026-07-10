@@ -269,13 +269,18 @@ public class GlobalEntityIndex extends EntityIndex
 			return new GlobalEntityIndex(
 				manifest.getPrimaryKey(),
 				manifest.getEntityIndexKey(),
-				manifest.getVersion(),
-				manifest.getEntityIds(),
-				manifest.getEntityIdsByLanguage(),
+				context.version(),
+				context.entityIds(),
+				context.entityIdsByLanguage(),
 				new EntityAttributeIndex(
 					context.entitySchema().getName(),
-					attributes.uniqueIndexes(), attributes.filterIndexes(),
-					attributes.sortIndexes(), attributes.chainIndexes()
+					attributes.uniqueIndexes(),
+					attributes.filterIndexes(),
+					attributes.uniqueViewIndexes(),
+					attributes.sortIndexes(),
+					attributes.chainIndexes(),
+					attributes.sharedValueIndexes(),
+					attributes.sharedRangeIndexes()
 				),
 				new PriceSuperIndex(prices.priceIndexes()),
 				hierarchy.hierarchyIndex(),

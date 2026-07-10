@@ -45,7 +45,7 @@ import java.util.Map;
  * and which referenced entity primary keys map to which entity primary keys.
  *
  * Unlike {@link ReferenceTypeCardinalityIndexStoragePart}, which stores cardinalities using composed
- * `Long` keys (via {@link NumberUtils#join(int, int)}), this storage part uses simple `Integer` keys
+ * `Long` keys (via {@link NumberUtils#pack(int, int)}), this storage part uses simple `Integer` keys
  * directly, since the group index does not need the complex key composition used by
  * {@link io.evitadb.index.ReferencedTypeEntityIndex}.
  *
@@ -90,7 +90,7 @@ public class GroupCardinalityIndexStoragePart implements StoragePart, RecordWith
 		@Nonnull String referenceName,
 		@Nonnull KeyCompressor keyCompressor
 	) {
-		return NumberUtils.join(
+		return NumberUtils.pack(
 			entityIndexPrimaryKey,
 			keyCompressor.getId(new ReferenceNameKey(referenceName))
 		);
@@ -98,7 +98,7 @@ public class GroupCardinalityIndexStoragePart implements StoragePart, RecordWith
 
 	@Override
 	public long computeUniquePartIdAndSet(@Nonnull KeyCompressor keyCompressor) {
-		final long computedUniquePartId = NumberUtils.join(
+		final long computedUniquePartId = NumberUtils.pack(
 			this.entityIndexPrimaryKey,
 			keyCompressor.getId(new ReferenceNameKey(this.referenceName))
 		);

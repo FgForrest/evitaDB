@@ -25,17 +25,17 @@ package io.evitadb.dataType;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
-import org.junit.jupiter.api.Tag;
 
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.DATA_TYPE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static io.evitadb.test.TestTags.CONTRACT;
-import static io.evitadb.test.TestTags.DATA_TYPE;
 
 /**
  * Test class for the {@link BigDecimalNumberRange} set operations (union, intersection, inverse).
@@ -215,6 +215,51 @@ class BigDecimalNumberRangeTest {
 			final BigDecimalNumberRange range = BigDecimalNumberRange.INFINITE;
 			final BigDecimalNumberRange result = range.inverse(2);
 			assertEquals(BigDecimalNumberRange.INFINITE, result);
+		}
+	}
+
+	@Nested
+	@DisplayName("Membership")
+	class MembershipTest {
+
+		@Test
+		@DisplayName("Should report membership consistently when no explicit decimal places are given")
+		void shouldReportMembershipWithImplicitDecimalPlaces() {
+			// the bounds carry an intrinsic scale of 1 and no explicit retained places were supplied; the
+			// membership probe must be compared at the same resolved scale as the bounds, not at scale 0
+			final BigDecimalNumberRange range =
+				BigDecimalNumberRange.between(new BigDecimal("1.5"), new BigDecimal("2.5"));
+			assertTrue(range.isWithin(new BigDecimal("2.0")));
+			assertTrue(range.isWithin(new BigDecimal("2")));
+			// inclusive bounds
+			assertTrue(range.isWithin(new BigDecimal("1.5")));
+			assertTrue(range.isWithin(new BigDecimal("2.5")));
+			// outside the range
+			assertFalse(range.isWithin(new BigDecimal("1.0")));
+			assertFalse(range.isWithin(new BigDecimal("3.0")));
+			// an over-scaled probe rounds half-up at the resolved scale
+			assertTrue(range.isWithin(new BigDecimal("2.49")));
+		}
+
+		@Test
+		@DisplayName("Should report membership consistently with explicit decimal places")
+		void shouldReportMembershipWithExplicitDecimalPlaces() {
+			final BigDecimalNumberRange range =
+				BigDecimalNumberRange.between(new BigDecimal("1.5"), new BigDecimal("2.5"), 2);
+			assertTrue(range.isWithin(new BigDecimal("2.0")));
+			assertTrue(range.isWithin(new BigDecimal("1.5")));
+			assertTrue(range.isWithin(new BigDecimal("2.5")));
+			assertFalse(range.isWithin(new BigDecimal("1.0")));
+			assertFalse(range.isWithin(new BigDecimal("3.0")));
+		}
+
+		@Test
+		@DisplayName("Should report membership for an open-ended range without explicit decimal places")
+		void shouldReportMembershipForOpenEndedRange() {
+			final BigDecimalNumberRange range = BigDecimalNumberRange.from(new BigDecimal("1.5"));
+			assertTrue(range.isWithin(new BigDecimal("2.0")));
+			assertTrue(range.isWithin(new BigDecimal("1.5")));
+			assertFalse(range.isWithin(new BigDecimal("1.0")));
 		}
 	}
 

@@ -59,6 +59,7 @@ import io.evitadb.api.requestResponse.data.DeletedHierarchy;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.PriceContract;
+import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.PricesContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
@@ -70,15 +71,7 @@ import io.evitadb.api.requestResponse.data.mutation.price.UpsertPriceMutation;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
 import io.evitadb.api.requestResponse.progress.Progress;
-import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
-import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
-import io.evitadb.api.requestResponse.schema.Cardinality;
-import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
-import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
-import io.evitadb.api.requestResponse.schema.OrderBehaviour;
-import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
-import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract;
-import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
+import io.evitadb.api.requestResponse.schema.*;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.api.task.Task;
 import io.evitadb.api.task.TaskStatus;
@@ -147,6 +140,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 import java.util.stream.Stream;
 
 import static io.evitadb.api.query.Query.query;
@@ -154,8 +148,13 @@ import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_PRIORITY;
 import static java.util.Optional.ofNullable;
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.ATTRIBUTE;
 import static io.evitadb.test.TestTags.DRIVER;
+import static io.evitadb.test.TestTags.FACET;
 import static io.evitadb.test.TestTags.MANAGEMENT;
+import static io.evitadb.test.TestTags.PRICE;
+import static io.evitadb.test.TestTags.REFERENCE;
+import static io.evitadb.test.TestTags.TRANSACTION;
 
 /**
  * This test verifies behavior of {@link EvitaClient}.
@@ -180,10 +179,25 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 	private static final String PRICE_LIST_BASIC = "basic";
 	private static final Currency CURRENCY_CZK = Currency.getInstance("CZK");
 	private static final Currency CURRENCY_EUR = Currency.getInstance("EUR");
+	private static final String REFERENCE_BRAND = "brand";
+	private static final int BRAND_PRIMARY_KEY = 100;
+	private static final String ATOMIC_ROLLBACK_CATALOG = "atomicRollbackClientCatalog";
 
 	private final static int SEED = 42;
 	private static final String EVITA_CLIENT_DATA_SET = "EvitaReadWriteClientDataSet";
 	private static final String EVITA_CLIENT_EMPTY_DATA_SET = "EvitaReadWriteClientEmptyDataSet";
+	/**
+	 * Overall budget for the live-tail host-event retry loops in the HOST-area gRPC tests. Host
+	 * events are dispatched only to subscribers already registered server-side and are NOT replayed,
+	 * so a trigger fired before the async `registerSystemChangeCapture` subscription completes is
+	 * dropped. The loop re-fires the trigger until the event round-trips or this budget elapses.
+	 */
+	private static final long HOST_EVENT_LIVENESS_BUDGET_MS = 20_000L;
+	/**
+	 * Per-attempt wait (seconds) for the host event to round-trip before the retry loop re-fires
+	 * its trigger.
+	 */
+	private static final int HOST_EVENT_LIVENESS_POLL_SECONDS = 2;
 	private static final Map<Serializable, Integer> GENERATED_ENTITIES = new HashMap<>(20);
 	private static final BiFunction<String, Faker, Integer> RANDOM_ENTITY_PICKER = (entityType, faker) -> {
 		final int entityCount = GENERATED_ENTITIES.computeIfAbsent(entityType, serializable -> 0);
@@ -253,7 +267,7 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 				session -> {
 					session.getCatalogSchema()
 					       .openForWrite()
-					       .withAttribute(ATTRIBUTE_CODE, String.class, thatIs -> thatIs.uniqueGlobally())
+					       .withAttribute(ATTRIBUTE_CODE, String.class, GlobalAttributeSchemaEditor::uniqueGlobally)
 					       .updateVia(session);
 
 					DATA_GENERATOR.generateEntities(
@@ -797,7 +811,7 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 						thatIs -> thatIs
 							.withDescription("Assigned category.")
 							.deprecated("Already deprecated.")
-							.withAttribute("categoryPriority", Long.class, that -> that.sortable())
+							.withAttribute("categoryPriority", Long.class, AttributeSchemaEditor::sortable)
 							.withAttribute("note", String.class)
 							.indexedForFilteringAndPartitioning()
 							.faceted()
@@ -904,19 +918,37 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 				new MockEngineChangeCaptureSubscriber(Integer.MAX_VALUE);
 			publisher.subscribe(subscriber);
 
-			// trigger a catalog state transition that emits an installed-into-live-view host event
-			final String hostEventCatalog = "hostEventCatalogGrpc";
-			evitaClient.defineCatalog(hostEventCatalog);
-			evitaClient.updateCatalog(hostEventCatalog, EvitaSessionContract::goLiveAndClose);
-
-			// host event should round-trip and arrive on the client subscriber within 10 seconds
-			assertTrue(
-				subscriber.getCatalogInstalled(hostEventCatalog, 10, TimeUnit.SECONDS, 1) >= 1,
-				"Client should receive at least one CatalogInstalledIntoLiveView host event"
-			);
-
-			subscriber.cancel();
-			evitaClient.deleteCatalogIfExists(hostEventCatalog);
+			// `publisher.subscribe(...)` only kicks off the async gRPC stream — it does NOT block
+			// until the server-side subscription is registered (the server ACK lands on a different
+			// thread). Host events fired before that registration completes are dropped, not
+			// replayed. Retry the catalog activation with a DISTINCT catalog each attempt until the
+			// install host event round-trips to the client subscriber, or the budget elapses. The
+			// subscriber's per-catalog getter is event-specific, so checking the CURRENT attempt's
+			// catalog only goes true once registration has completed.
+			final String catalogFamily = "hostEventCatalogGrpc";
+			final long deadlineNanos = System.nanoTime() + HOST_EVENT_LIVENESS_BUDGET_MS * 1_000_000L;
+			int attempt = 0;
+			boolean hostEventDelivered = false;
+			try {
+				while (!hostEventDelivered && System.nanoTime() < deadlineNanos) {
+					final String catalog = catalogFamily + attempt++;
+					evitaClient.defineCatalog(catalog);
+					evitaClient.updateCatalog(catalog, EvitaSessionContract::goLiveAndClose);
+					hostEventDelivered = subscriber.getCatalogInstalled(
+						catalog, HOST_EVENT_LIVENESS_POLL_SECONDS, TimeUnit.SECONDS, 1
+					) >= 1;
+				}
+				assertTrue(
+					hostEventDelivered,
+					"Client should receive at least one CatalogInstalledIntoLiveView host event within the liveness budget"
+				);
+			} finally {
+				subscriber.cancel();
+				// clean up every catalog the retry loop created
+				for (int i = 0; i < attempt; i++) {
+					evitaClient.deleteCatalogIfExists(catalogFamily + i);
+				}
+			}
 		}
 	}
 
@@ -946,28 +978,40 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 				new MockEngineChangeCaptureSubscriber(Integer.MAX_VALUE);
 			publisher.subscribe(subscriber);
 
-			// create a WARMING_UP catalog and apply 3 schema mutations in a single session —
-			// the coalescing contract requires exactly one CatalogSchemaUpdated host event to
-			// arrive on the client's HOST-area subscription regardless of the mutation count
+			// create the WARMING_UP catalog once; each retry below applies schema mutations in a
+			// single session, and the coalescing contract requires exactly one CatalogSchemaUpdated
+			// host event per such session regardless of the mutation count
 			evitaClient.defineCatalog(schemaUpdatedCatalog);
-			evitaClient.updateCatalog(
-				schemaUpdatedCatalog,
-				session -> {
-					session.defineEntitySchema(Entities.PRODUCT)
-						.withAttribute("attr1", String.class)
-						.withAttribute("attr2", String.class)
-						.withAttribute("attr3", String.class)
-						.updateVia(session);
-				}
-			);
 
-			// the host event must round-trip and arrive on the client subscriber within 10 seconds
-			final int observed = subscriber.getCatalogSchemaUpdated(
-				schemaUpdatedCatalog, 10, TimeUnit.SECONDS, 1
-			);
+			// `publisher.subscribe(...)` only kicks off the async gRPC stream — it does NOT block
+			// until the server-side subscription is registered. Host events are dispatched only to
+			// already-registered subscribers and are NOT replayed, so a schema bump fired before
+			// registration completes is dropped. Retry the bump — each attempt defines a DISTINCT
+			// entity type, producing a fresh coalesced CatalogSchemaUpdated — until one round-trips
+			// to the client subscriber, or the budget elapses. The per-catalog count is cumulative,
+			// so it goes >= 1 as soon as any post-registration bump is delivered.
+			final long deadlineNanos = System.nanoTime() + HOST_EVENT_LIVENESS_BUDGET_MS * 1_000_000L;
+			int attempt = 0;
+			boolean hostEventDelivered = false;
+			while (!hostEventDelivered && System.nanoTime() < deadlineNanos) {
+				final String probeEntityType = Entities.PRODUCT + attempt++;
+				evitaClient.updateCatalog(
+					schemaUpdatedCatalog,
+					session -> {
+						session.defineEntitySchema(probeEntityType)
+							.withAttribute("attr1", String.class)
+							.withAttribute("attr2", String.class)
+							.withAttribute("attr3", String.class)
+							.updateVia(session);
+					}
+				);
+				hostEventDelivered = subscriber.getCatalogSchemaUpdated(
+					schemaUpdatedCatalog, HOST_EVENT_LIVENESS_POLL_SECONDS, TimeUnit.SECONDS, 1
+				) >= 1;
+			}
 			assertTrue(
-				observed >= 1,
-				"Client should receive at least one CatalogSchemaUpdated host event, got: " + observed
+				hostEventDelivered,
+				"Client should receive at least one CatalogSchemaUpdated host event within the liveness budget"
 			);
 
 			subscriber.cancel();
@@ -1260,11 +1304,11 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 						.withPrice()
 						.withReferenceToEntity(
 							"brand", "Brand", Cardinality.EXACTLY_ONE,
-							thatIs -> thatIs.indexedForFilteringAndPartitioning()
+							ReferenceSchemaEditor::indexedForFilteringAndPartitioning
 						)
 						.withReferenceToEntity(
 							"categories", "Category", Cardinality.ZERO_OR_MORE,
-							thatIs -> thatIs.indexedForFilteringAndPartitioning()
+							ReferenceSchemaEditor::indexedForFilteringAndPartitioning
 						)
 				)
 				// and now push all the definitions (mutations) to the server
@@ -2989,7 +3033,7 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 				                             )
 				                             .withAttribute(
 					                             "code", String.class,
-					                             thatIs -> thatIs.unique()
+					                             AttributeSchemaEditor::unique
 				                             )
 			           )
 			           // push the definitions to the server
@@ -3372,10 +3416,10 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 				sourceCatalogName,
 				session -> {
 					session.defineEntitySchema(Entities.PRODUCT)
-						.withAttribute(ATTRIBUTE_NAME, String.class, whichIs -> whichIs.localized())
+						.withAttribute(ATTRIBUTE_NAME, String.class, AttributeSchemaEditor::localized)
 						.updateVia(session);
 					session.defineEntitySchema(Entities.CATEGORY)
-						.withAttribute(ATTRIBUTE_NAME, String.class, whichIs -> whichIs.localized())
+						.withAttribute(ATTRIBUTE_NAME, String.class, AttributeSchemaEditor::localized)
 						.updateVia(session);
 
 					session.upsertEntity(
@@ -3470,10 +3514,10 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 				sourceCatalogName,
 				session -> {
 					session.defineEntitySchema(Entities.PRODUCT)
-						.withAttribute(ATTRIBUTE_NAME, String.class, whichIs -> whichIs.localized())
+						.withAttribute(ATTRIBUTE_NAME, String.class, AttributeSchemaEditor::localized)
 						.updateVia(session);
 					session.defineEntitySchema(Entities.CATEGORY)
-						.withAttribute(ATTRIBUTE_NAME, String.class, whichIs -> whichIs.localized())
+						.withAttribute(ATTRIBUTE_NAME, String.class, AttributeSchemaEditor::localized)
 						.updateVia(session);
 
 					session.upsertEntity(
@@ -3655,6 +3699,461 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 			evitaClient.deleteCatalogIfExists(catalogA);
 			evitaClient.deleteCatalogIfExists(catalogB);
 		}
+	}
+
+	@Test
+	@UseDataSet(EVITA_CLIENT_DATA_SET)
+	@Tag(TRANSACTION)
+	@Tag(ATTRIBUTE)
+	@DisplayName("A single failed upsert is swallowed while surrounding upserts and removals still commit")
+	void shouldCommitSurvivingMutationsWhenOneUpsertFailsMidTransaction(EvitaClient evitaClient) {
+		try {
+			// fresh ALIVE catalog carrying a unique `code`, seeded with product #1 (code "A") — see setup helper
+			setupAtomicRollbackCatalog(evitaClient);
+
+			// seed two more entities (#7, #8) that will be removed inside the batch transaction below
+			evitaClient.updateCatalog(
+				ATOMIC_ROLLBACK_CATALOG,
+				session -> {
+					session.upsertEntity(
+						session.createNewEntity(Entities.PRODUCT, 7).setAttribute(ATTRIBUTE_CODE, "G")
+					);
+					session.upsertEntity(
+						session.createNewEntity(Entities.PRODUCT, 8).setAttribute(ATTRIBUTE_CODE, "H")
+					);
+				}
+			);
+
+			// one transaction mixing upserts and removals; the duplicate-code upsert (#3) throws mid-way over gRPC,
+			// is caught by the client, and the server-side savepoint must revert only #3 so that every other mutation
+			// still commits — proving a single exception doesn't corrupt the transaction from the client's viewpoint
+			evitaClient.updateCatalog(
+				ATOMIC_ROLLBACK_CATALOG,
+				session -> {
+					session.upsertEntity(
+						session.createNewEntity(Entities.PRODUCT, 2).setAttribute(ATTRIBUTE_CODE, "B")
+					);
+
+					assertTrue(
+						session.deleteEntity(Entities.PRODUCT, 7),
+						"Existing entity #7 should be removed inside the transaction!"
+					);
+
+					final EvitaInvalidUsageException exception = assertThrows(
+						EvitaInvalidUsageException.class,
+						() -> session.upsertEntity(
+							// duplicate of #1's unique code → the server rejects it after partially touching the indexes
+							session.createNewEntity(Entities.PRODUCT, 3).setAttribute(ATTRIBUTE_CODE, "A")
+						),
+						"The duplicate unique code must be rejected by the server!"
+					);
+					assertTrue(
+						exception.getMessage().contains("Unique constraint violation"),
+						"Unexpected exception message: " + exception.getMessage()
+					);
+
+					assertTrue(
+						session.deleteEntity(Entities.PRODUCT, 8),
+						"Existing entity #8 should be removed inside the transaction!"
+					);
+
+					session.upsertEntity(
+						session.createNewEntity(Entities.PRODUCT, 4).setAttribute(ATTRIBUTE_CODE, "C")
+					);
+				}
+			);
+
+			// the transaction committed: every non-failing mutation is visible, #3 was fully reverted
+			evitaClient.queryCatalog(
+				ATOMIC_ROLLBACK_CATALOG,
+				session -> {
+					assertTrue(session.getEntity(Entities.PRODUCT, 1).isPresent(), "Pre-seeded #1 must survive!");
+					assertTrue(session.getEntity(Entities.PRODUCT, 2).isPresent(), "Upserted #2 must be committed!");
+					assertFalse(session.getEntity(Entities.PRODUCT, 3).isPresent(), "Reverted #3 must not exist!");
+					assertTrue(session.getEntity(Entities.PRODUCT, 4).isPresent(), "Upserted #4 must be committed!");
+					assertFalse(session.getEntity(Entities.PRODUCT, 7).isPresent(), "Removed #7 must be gone!");
+					assertFalse(session.getEntity(Entities.PRODUCT, 8).isPresent(), "Removed #8 must be gone!");
+				}
+			);
+
+			// the unique index stays consistent — surviving codes resolve to their owners, the reverted code "A" still
+			// points only at #1, and the codes owned by the removed entities resolve to nothing
+			assertCodeResolvesTo(evitaClient, "A", 1);
+			assertCodeResolvesTo(evitaClient, "B", 2);
+			assertCodeResolvesTo(evitaClient, "C", 4);
+			assertCodeResolvesToNothing(evitaClient, "G");
+			assertCodeResolvesToNothing(evitaClient, "H");
+		} finally {
+			evitaClient.deleteCatalogIfExists(ATOMIC_ROLLBACK_CATALOG);
+		}
+	}
+
+	@Test
+	@UseDataSet(EVITA_CLIENT_DATA_SET)
+	@Tag(TRANSACTION)
+	@Tag(REFERENCE)
+	@Tag(FACET)
+	@Tag(PRICE)
+	@DisplayName("A reverted entity leaves no orphan facet or phantom price entry across the gRPC boundary")
+	void shouldLeaveNoIndexResidueWhenEntityFailsMidTransaction(EvitaClient evitaClient) {
+		try {
+			setupAtomicRollbackCatalog(evitaClient);
+
+			// #2 and #4 legitimately reference brand #100 and publish a sellable basic/CZK price; #3 does the same but
+			// carries the duplicate code "A", so its reference/facet and price index entries are written first, then the
+			// unique check throws. The savepoint must scrub #3's tentative index entries before the transaction commits.
+			evitaClient.updateCatalog(
+				ATOMIC_ROLLBACK_CATALOG,
+				session -> {
+					session.upsertEntity(
+						session.createNewEntity(Entities.PRODUCT, 2)
+							.setAttribute(ATTRIBUTE_CODE, "B")
+							.setReference(REFERENCE_BRAND, BRAND_PRIMARY_KEY)
+							.setPriceInnerRecordHandling(PriceInnerRecordHandling.NONE)
+							.setPrice(1, PRICE_LIST_BASIC, CURRENCY_CZK, BigDecimal.TEN, BigDecimal.ZERO, BigDecimal.TEN, true)
+					);
+
+					assertThrows(
+						EvitaInvalidUsageException.class,
+						() -> session.upsertEntity(
+							session.createNewEntity(Entities.PRODUCT, 3)
+								.setAttribute(ATTRIBUTE_CODE, "A")
+								.setReference(REFERENCE_BRAND, BRAND_PRIMARY_KEY)
+								.setPriceInnerRecordHandling(PriceInnerRecordHandling.NONE)
+								.setPrice(1, PRICE_LIST_BASIC, CURRENCY_CZK, BigDecimal.TEN, BigDecimal.ZERO, BigDecimal.TEN, true)
+						),
+						"The duplicate unique code must be rejected by the server!"
+					);
+
+					session.upsertEntity(
+						session.createNewEntity(Entities.PRODUCT, 4)
+							.setAttribute(ATTRIBUTE_CODE, "C")
+							.setReference(REFERENCE_BRAND, BRAND_PRIMARY_KEY)
+							.setPriceInnerRecordHandling(PriceInnerRecordHandling.NONE)
+							.setPrice(1, PRICE_LIST_BASIC, CURRENCY_CZK, BigDecimal.TEN, BigDecimal.ZERO, BigDecimal.TEN, true)
+					);
+				}
+			);
+
+			evitaClient.queryCatalog(
+				ATOMIC_ROLLBACK_CATALOG,
+				session -> {
+					assertTrue(session.getEntity(Entities.PRODUCT, 2).isPresent(), "Upserted #2 must be committed!");
+					assertFalse(session.getEntity(Entities.PRODUCT, 3).isPresent(), "Reverted #3 must not exist!");
+					assertTrue(session.getEntity(Entities.PRODUCT, 4).isPresent(), "Upserted #4 must be committed!");
+				}
+			);
+
+			// the brand facet and the basic/CZK price index must resolve to exactly {#2, #4}; a leaked entry for the
+			// reverted #3 would surface here as an extra primary key
+			assertBrandFacetResolvesExactlyTo(evitaClient, 2, 4);
+			assertPricedProductsAreExactly(evitaClient, 2, 4);
+		} finally {
+			evitaClient.deleteCatalogIfExists(ATOMIC_ROLLBACK_CATALOG);
+		}
+	}
+
+	@Test
+	@UseDataSet(EVITA_CLIENT_DATA_SET)
+	@Tag(TRANSACTION)
+	@Tag(ATTRIBUTE)
+	@DisplayName("An exception escaping the update block uncaught discards the whole transaction")
+	void shouldRollBackWholeTransactionWhenUpdateCatalogBlockThrowsUncaught(EvitaClient evitaClient) {
+		try {
+			// fresh ALIVE catalog carrying a unique `code`, seeded with product #1 (code "A") — see setup helper
+			setupAtomicRollbackCatalog(evitaClient);
+
+			// a single transaction upserts #2 successfully and then throws an unrelated exception that nothing catches;
+			// the escape flips the root frame to rollback-only, so even the already-sent #2 is discarded. This isolates
+			// the client-driven full rollback: a non-mutation escape means the server savepoint plays no role, only the
+			// client's root-frame rollback flag reaching the server discards the already-sent #2
+			assertThrows(
+				IllegalStateException.class,
+				() -> evitaClient.updateCatalog(
+					ATOMIC_ROLLBACK_CATALOG,
+					// the always-throwing body is compatible with both updateCatalog overloads, so pin it to the
+					// Consumer form to keep the block void
+					(Consumer<EvitaSessionContract>) session -> {
+						session.upsertEntity(
+							session.createNewEntity(Entities.PRODUCT, 2).setAttribute(ATTRIBUTE_CODE, "B")
+						);
+						throw new IllegalStateException("boom");
+					}
+				),
+				"The exception escaping the update block must propagate to the caller!"
+			);
+
+			// the whole transaction was discarded: the successfully upserted #2 is gone, the pre-seeded #1 survives
+			evitaClient.queryCatalog(
+				ATOMIC_ROLLBACK_CATALOG,
+				session -> {
+					assertTrue(session.getEntity(Entities.PRODUCT, 1).isPresent(), "Pre-seeded #1 must survive!");
+					assertFalse(session.getEntity(Entities.PRODUCT, 2).isPresent(), "Rolled-back #2 must not exist!");
+				}
+			);
+			assertCodeResolvesTo(evitaClient, "A", 1);
+			assertCodeResolvesToNothing(evitaClient, "B");
+		} finally {
+			evitaClient.deleteCatalogIfExists(ATOMIC_ROLLBACK_CATALOG);
+		}
+	}
+
+	@Test
+	@UseDataSet(EVITA_CLIENT_DATA_SET)
+	@Tag(TRANSACTION)
+	@Tag(ATTRIBUTE)
+	@DisplayName("A caught mutation failure at the root frame of a direct session poisons the whole transaction")
+	void shouldPoisonWholeTransactionWhenMutationFailsInDirectReadWriteSession(EvitaClient evitaClient) {
+		try {
+			setupAtomicRollbackCatalog(evitaClient);
+
+			// a direct read-write session has no surrounding update block, so every mutation runs at the root frame
+			// (nesting level 1). The caught duplicate-code failure therefore poisons the whole transaction — 1:1 with
+			// embedded direct-session usage, where catch-and-continue is a block-only capability — so both the mutation
+			// before it (#2) and the one after it (#4) are discarded when the session closes
+			try (final EvitaSessionContract session = evitaClient.createReadWriteSession(ATOMIC_ROLLBACK_CATALOG)) {
+				session.upsertEntity(
+					session.createNewEntity(Entities.PRODUCT, 2).setAttribute(ATTRIBUTE_CODE, "B")
+				);
+
+				assertThrows(
+					EvitaInvalidUsageException.class,
+					() -> session.upsertEntity(
+						// duplicate of #1's unique code — rejected by the server at the root frame, poisoning the transaction
+						session.createNewEntity(Entities.PRODUCT, 3).setAttribute(ATTRIBUTE_CODE, "A")
+					),
+					"The duplicate unique code must be rejected by the server!"
+				);
+
+				session.upsertEntity(
+					session.createNewEntity(Entities.PRODUCT, 4).setAttribute(ATTRIBUTE_CODE, "C")
+				);
+			} catch (RuntimeException discardedOnClose) {
+				// closing a poisoned transaction discards every mutation and may surface the rollback as an exception
+				// here — tolerated because the discard itself is the behaviour under test, verified by the query below
+			}
+
+			// the whole transaction was discarded: neither #2 nor #4 committed, while the pre-seeded #1 survives
+			evitaClient.queryCatalog(
+				ATOMIC_ROLLBACK_CATALOG,
+				session -> {
+					assertTrue(session.getEntity(Entities.PRODUCT, 1).isPresent(), "Pre-seeded #1 must survive!");
+					assertFalse(session.getEntity(Entities.PRODUCT, 2).isPresent(), "Discarded #2 must not exist!");
+					assertFalse(session.getEntity(Entities.PRODUCT, 4).isPresent(), "Discarded #4 must not exist!");
+				}
+			);
+			assertCodeResolvesTo(evitaClient, "A", 1);
+			assertCodeResolvesToNothing(evitaClient, "B");
+			assertCodeResolvesToNothing(evitaClient, "C");
+		} finally {
+			evitaClient.deleteCatalogIfExists(ATOMIC_ROLLBACK_CATALOG);
+		}
+	}
+
+	@Test
+	@UseDataSet(EVITA_CLIENT_DATA_SET)
+	@Tag(TRANSACTION)
+	@Tag(ATTRIBUTE)
+	@DisplayName("Requesting rollback before closing a direct session with progress discards every mutation")
+	void shouldRollBackWholeTransactionViaCloseWithProgressWhenRollbackRequested(EvitaClient evitaClient) {
+		try {
+			setupAtomicRollbackCatalog(evitaClient);
+
+			// open a direct session, upsert #2 successfully, then request an explicit rollback and close through the
+			// progress-streaming path — this drives the closeNowWithProgress() rollback capture and the server-side
+			// close-with-progress rollback handler, a path distinct from the plain close request
+			final EvitaSessionContract session = evitaClient.createReadWriteSession(ATOMIC_ROLLBACK_CATALOG);
+			session.upsertEntity(
+				session.createNewEntity(Entities.PRODUCT, 2).setAttribute(ATTRIBUTE_CODE, "B")
+			);
+			session.setRollbackOnly();
+
+			final CommitProgress progress = session.closeNowWithProgress();
+			// await the terminal visibility stage so the requested rollback is fully processed server-side before the
+			// verifying query; a user-requested rollback settles the stage exceptionally, which we deliberately absorb
+			progress.onChangesVisible().toCompletableFuture().handle((versions, throwable) -> null).join();
+
+			// the whole transaction was discarded: the upserted #2 is gone, the pre-seeded #1 survives
+			evitaClient.queryCatalog(
+				ATOMIC_ROLLBACK_CATALOG,
+				readSession -> {
+					assertTrue(readSession.getEntity(Entities.PRODUCT, 1).isPresent(), "Pre-seeded #1 must survive!");
+					assertFalse(readSession.getEntity(Entities.PRODUCT, 2).isPresent(), "Rolled-back #2 must not exist!");
+				}
+			);
+			assertCodeResolvesTo(evitaClient, "A", 1);
+			assertCodeResolvesToNothing(evitaClient, "B");
+		} finally {
+			evitaClient.deleteCatalogIfExists(ATOMIC_ROLLBACK_CATALOG);
+		}
+	}
+
+	/**
+	 * Creates a fresh, ALIVE {@link #ATOMIC_ROLLBACK_CATALOG} carrying a product schema with a unique {@code code}
+	 * attribute, an indexed and faceted {@code brand} reference and an indexed price. It seeds brand #100 and product
+	 * #1 (unique code "A") in warm-up mode, then flips the catalog to ALIVE so subsequent live writes flow through the
+	 * transactional diff-layer path where the per-entity savepoint operates and can collide on the unique code.
+	 *
+	 * @param evitaClient the gRPC client used to define and seed the catalog, must not be null
+	 */
+	private static void setupAtomicRollbackCatalog(@Nonnull EvitaClient evitaClient) {
+		evitaClient.deleteCatalogIfExists(ATOMIC_ROLLBACK_CATALOG);
+		evitaClient.defineCatalog(ATOMIC_ROLLBACK_CATALOG);
+		evitaClient.updateCatalog(
+			ATOMIC_ROLLBACK_CATALOG,
+			session -> {
+				session.defineEntitySchema(Entities.BRAND)
+					.withoutGeneratedPrimaryKey()
+					.updateVia(session);
+				session.defineEntitySchema(Entities.PRODUCT)
+					.withoutGeneratedPrimaryKey()
+					.withAttribute(ATTRIBUTE_CODE, String.class, AttributeSchemaEditor::unique)
+					.withReferenceToEntity(
+						REFERENCE_BRAND, Entities.BRAND, Cardinality.ZERO_OR_ONE,
+						whichIs -> whichIs.indexed().faceted()
+					)
+					.withPrice()
+					.updateVia(session);
+
+				session.upsertEntity(session.createNewEntity(Entities.BRAND, BRAND_PRIMARY_KEY));
+				session.upsertEntity(
+					session.createNewEntity(Entities.PRODUCT, 1).setAttribute(ATTRIBUTE_CODE, "A")
+				);
+			}
+		);
+		// flip the catalog to ALIVE so subsequent writes go through the transactional diff-layer path
+		evitaClient.updateCatalog(ATOMIC_ROLLBACK_CATALOG, EvitaSessionContract::goLiveAndClose);
+	}
+
+	/**
+	 * Asserts that querying the unique {@link #ATTRIBUTE_CODE} attribute in {@link #ATOMIC_ROLLBACK_CATALOG} for the
+	 * given value resolves to exactly the expected product primary key.
+	 *
+	 * @param evitaClient        the gRPC client to query with, must not be null
+	 * @param code               the unique attribute value to look up, must not be null
+	 * @param expectedPrimaryKey the primary key the value must resolve to
+	 */
+	private static void assertCodeResolvesTo(@Nonnull EvitaClient evitaClient, @Nonnull String code, int expectedPrimaryKey) {
+		evitaClient.queryCatalog(
+			ATOMIC_ROLLBACK_CATALOG,
+			session -> {
+				final Optional<EntityReference> reference = session.queryOne(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(attributeEquals(ATTRIBUTE_CODE, code))
+					),
+					EntityReference.class
+				);
+				assertEquals(
+					new EntityReference(Entities.PRODUCT, expectedPrimaryKey),
+					reference.orElseThrow()
+				);
+			}
+		);
+	}
+
+	/**
+	 * Asserts that querying the unique {@link #ATTRIBUTE_CODE} attribute in {@link #ATOMIC_ROLLBACK_CATALOG} for the
+	 * given value resolves to no entity at all (its former owner was removed or reverted).
+	 *
+	 * @param evitaClient the gRPC client to query with, must not be null
+	 * @param code        the unique attribute value expected to be free, must not be null
+	 */
+	private static void assertCodeResolvesToNothing(@Nonnull EvitaClient evitaClient, @Nonnull String code) {
+		evitaClient.queryCatalog(
+			ATOMIC_ROLLBACK_CATALOG,
+			session -> {
+				final Optional<EntityReference> reference = session.queryOne(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(attributeEquals(ATTRIBUTE_CODE, code))
+					),
+					EntityReference.class
+				);
+				assertFalse(reference.isPresent(), "Code `" + code + "` must resolve to no entity!");
+			}
+		);
+	}
+
+	/**
+	 * Asserts that filtering products by the brand facet {@link #BRAND_PRIMARY_KEY} in {@link #ATOMIC_ROLLBACK_CATALOG}
+	 * returns exactly the supplied primary keys (and no others). A reverted entity whose facet entry leaked would
+	 * appear here as an extra primary key.
+	 *
+	 * @param evitaClient         the gRPC client to query with, must not be null
+	 * @param expectedPrimaryKeys the complete set of product primary keys expected to carry the brand facet
+	 */
+	private static void assertBrandFacetResolvesExactlyTo(@Nonnull EvitaClient evitaClient, @Nonnull int... expectedPrimaryKeys) {
+		evitaClient.queryCatalog(
+			ATOMIC_ROLLBACK_CATALOG,
+			session -> {
+				final List<EntityReference> references = session.queryList(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							userFilter(
+								facetHaving(REFERENCE_BRAND, entityPrimaryKeyInSet(BRAND_PRIMARY_KEY))
+							)
+						)
+					),
+					EntityReference.class
+				);
+				assertExactPrimaryKeys(expectedPrimaryKeys, references, "brand facet");
+			}
+		);
+	}
+
+	/**
+	 * Asserts that filtering products by the indexed {@link #PRICE_LIST_BASIC} price list in {@link #CURRENCY_CZK}
+	 * within {@link #ATOMIC_ROLLBACK_CATALOG} returns exactly the supplied primary keys (and no others). A reverted
+	 * entity whose price-index entry leaked would appear here as an extra primary key.
+	 *
+	 * @param evitaClient         the gRPC client to query with, must not be null
+	 * @param expectedPrimaryKeys the complete set of product primary keys expected to be priced in basic/CZK
+	 */
+	private static void assertPricedProductsAreExactly(@Nonnull EvitaClient evitaClient, @Nonnull int... expectedPrimaryKeys) {
+		evitaClient.queryCatalog(
+			ATOMIC_ROLLBACK_CATALOG,
+			session -> {
+				final List<EntityReference> references = session.queryList(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							priceInPriceLists(PRICE_LIST_BASIC),
+							priceInCurrency(CURRENCY_CZK)
+						)
+					),
+					EntityReference.class
+				);
+				assertExactPrimaryKeys(expectedPrimaryKeys, references, "basic/CZK price index");
+			}
+		);
+	}
+
+	/**
+	 * Shared helper asserting the primary keys carried by the supplied references are exactly the expected set
+	 * (order-independent), producing a readable message naming the index under test on mismatch.
+	 *
+	 * @param expectedPrimaryKeys the complete expected set of primary keys
+	 * @param references          the references returned by the query
+	 * @param indexDescription    a human-readable name of the index being verified
+	 */
+	private static void assertExactPrimaryKeys(
+		@Nonnull int[] expectedPrimaryKeys,
+		@Nonnull List<EntityReference> references,
+		@Nonnull String indexDescription
+	) {
+		final int[] actualPrimaryKeys = references.stream()
+			.mapToInt(EntityReference::getPrimaryKey)
+			.sorted()
+			.toArray();
+		final int[] sortedExpected = expectedPrimaryKeys.clone();
+		Arrays.sort(sortedExpected);
+		assertArrayEquals(
+			sortedExpected,
+			actualPrimaryKeys,
+			"The " + indexDescription + " must resolve to exactly the surviving entities (no residue from the reverted entity)!"
+		);
 	}
 
 

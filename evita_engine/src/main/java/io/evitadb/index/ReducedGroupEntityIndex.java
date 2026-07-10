@@ -33,6 +33,7 @@ import io.evitadb.core.transaction.Transaction;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.index.attribute.AttributeIndex;
 import io.evitadb.index.attribute.ReferenceAttributeIndex;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.bitmap.BaseBitmap;
@@ -52,6 +53,7 @@ import io.evitadb.index.component.loader.IndexReloadPlan;
 import io.evitadb.index.component.loader.LoadedComponentBundle;
 import io.evitadb.index.facet.FacetIndex;
 import io.evitadb.index.hierarchy.HierarchyIndex;
+import io.evitadb.index.map.PersistentTransactionalMap;
 import io.evitadb.index.map.TransactionalMap;
 import io.evitadb.index.price.PriceRefIndex;
 import io.evitadb.index.price.model.PriceIndexKey;
@@ -62,8 +64,8 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.index.HistogramInde
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.StringUtils;
-import org.roaringbitmap.RoaringBitmap;
-import org.roaringbitmap.RoaringBitmapWriter;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
+import io.evitadb.roaringbitmap.RoaringBitmapWriter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -106,7 +108,7 @@ public class ReducedGroupEntityIndex extends AbstractReducedEntityIndex implemen
 	 * references, so we need to track how many times each entity PK was added and only actually
 	 * add/remove from the bitmap when the cardinality transitions to/from zero.
 	 */
-	@Nonnull private final TransactionalMap<Integer, Integer> pkCardinalities;
+	@Nonnull private final PersistentTransactionalMap<Integer, Integer> pkCardinalities;
 	/**
 	 * Index that for each referenced entity primary key keeps the bitmap of all entity primary keys
 	 * that reference it within this group.
@@ -144,7 +146,7 @@ public class ReducedGroupEntityIndex extends AbstractReducedEntityIndex implemen
 				entityIndexKey.type()
 		);
 		this.cardinalityDirty = new TransactionalBoolean();
-		this.pkCardinalities = new TransactionalMap<>(CollectionUtils.createHashMap(16));
+		this.pkCardinalities = new PersistentTransactionalMap<>(CollectionUtils.createHashMap(16));
 		this.referencedPrimaryKeysIndex = new TransactionalMap<>(
 			CollectionUtils.createHashMap(16), TransactionalBitmap.class, TransactionalBitmap::new
 		);
@@ -198,7 +200,7 @@ public class ReducedGroupEntityIndex extends AbstractReducedEntityIndex implemen
 			attributeIndex, priceIndex, hierarchyIndex, facetIndex
 		);
 		this.cardinalityDirty = new TransactionalBoolean();
-		this.pkCardinalities = new TransactionalMap<>(pkCardinalities);
+		this.pkCardinalities = new PersistentTransactionalMap<>(pkCardinalities);
 		this.referencedPrimaryKeysIndex = new TransactionalMap<>(
 			referencedPrimaryKeysIndex, TransactionalBitmap.class, TransactionalBitmap::new
 		);
@@ -253,14 +255,19 @@ public class ReducedGroupEntityIndex extends AbstractReducedEntityIndex implemen
 			return new ReducedGroupEntityIndex(
 				manifest.getPrimaryKey(),
 				manifest.getEntityIndexKey(),
-				manifest.getVersion(),
-				manifest.getEntityIds(),
-				manifest.getEntityIdsByLanguage(),
+				context.version(),
+				context.entityIds(),
+				context.entityIdsByLanguage(),
 				new ReferenceAttributeIndex(
 					context.entitySchema().getName(),
 					context.referenceKey(),
-					attributes.uniqueIndexes(), attributes.filterIndexes(),
-					attributes.sortIndexes(), attributes.chainIndexes()
+					attributes.uniqueIndexes(),
+					attributes.filterIndexes(),
+					attributes.uniqueViewIndexes(),
+					attributes.sortIndexes(),
+					attributes.chainIndexes(),
+					attributes.sharedValueIndexes(),
+					attributes.sharedRangeIndexes()
 				),
 				new PriceRefIndex(scope, prices.priceIndexes()),
 				hierarchy.hierarchyIndex(),
@@ -310,7 +317,7 @@ public class ReducedGroupEntityIndex extends AbstractReducedEntityIndex implemen
 		@Nonnull Set<String> originalFacetIndexes,
 		@Nonnull Set<HistogramIndexStorageKey> originalHistogramKeys,
 		@Nonnull PriceRefIndex priceIndex,
-		@Nonnull TransactionalMap<Integer, Integer> pkCardinalities,
+		@Nonnull PersistentTransactionalMap<Integer, Integer> pkCardinalities,
 		@Nonnull TransactionalMap<Integer, TransactionalBitmap> referencedPrimaryKeysIndex,
 		@Nonnull TransactionalMap<AttributeIndexKey, AttributeCardinalityIndex> cardinalityIndexes,
 		@Nonnull TransactionalMap<String, HistogramIndex> histogramIndexes
@@ -394,7 +401,7 @@ public class ReducedGroupEntityIndex extends AbstractReducedEntityIndex implemen
 		if (this.referencedPrimaryKeysIndex.isEmpty()) {
 			return EmptyBitmap.INSTANCE;
 		}
-		final RoaringBitmapWriter<RoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
+		final RoaringBitmapWriter<PersistentRoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
 		for (final Integer referencedPk : this.referencedPrimaryKeysIndex.keySet()) {
 			writer.add(referencedPk);
 		}
@@ -438,14 +445,14 @@ public class ReducedGroupEntityIndex extends AbstractReducedEntityIndex implemen
 		if (indexPrimaryKeys.isEmpty() || this.referencedPrimaryKeysIndex.isEmpty()) {
 			return EmptyBitmap.INSTANCE;
 		}
-		final RoaringBitmap indexPksRoaring = RoaringBitmapBackedBitmap.getRoaringBitmap(indexPrimaryKeys);
-		final RoaringBitmapWriter<RoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
+		final PersistentRoaringBitmap indexPksRoaring = RoaringBitmapBackedBitmap.getRoaringBitmap(indexPrimaryKeys);
+		final RoaringBitmapWriter<PersistentRoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
 		for (final Integer referencedPk : this.referencedPrimaryKeysIndex.keySet()) {
 			if (indexPksRoaring.contains(referencedPk)) {
 				writer.add(referencedPk);
 			}
 		}
-		final RoaringBitmap result = writer.get();
+		final PersistentRoaringBitmap result = writer.get();
 		return result.isEmpty() ? EmptyBitmap.INSTANCE : new BaseBitmap(result);
 	}
 
@@ -588,7 +595,8 @@ public class ReducedGroupEntityIndex extends AbstractReducedEntityIndex implemen
 		@Nonnull Set<Locale> allowedLocales,
 		@Nullable Locale locale,
 		@Nonnull Serializable value,
-		int recordId
+		int recordId,
+		boolean foldedUnique
 	) {
 		assertPartitioningIndex(referenceSchema, attributeSchema);
 		// first retrieve or create the cardinality index for given attribute
@@ -614,14 +622,14 @@ public class ReducedGroupEntityIndex extends AbstractReducedEntityIndex implemen
 					onlyNewItemsValueArray, 0, onlyNewItemsValueArrayIndex
 				);
 				delegateAddDeltaFilterAttribute(
-					referenceSchema, attributeSchema, allowedLocales, locale, delta, recordId
+					referenceSchema, attributeSchema, allowedLocales, locale, delta, recordId, foldedUnique
 				);
 			}
 		} else {
 			// for non-array values we need to call super method only if cardinality was zero
 			if (theCardinalityIndex.addRecord(value, recordId) == CardinalityChange.BOUNDARY_CROSSED) {
 				delegateInsertFilterAttribute(
-					referenceSchema, attributeSchema, allowedLocales, locale, value, recordId
+					referenceSchema, attributeSchema, allowedLocales, locale, value, recordId, foldedUnique
 				);
 			}
 		}
@@ -693,10 +701,11 @@ public class ReducedGroupEntityIndex extends AbstractReducedEntityIndex implemen
 		@Nonnull Set<Locale> allowedLocales,
 		@Nullable Locale locale,
 		@Nonnull Serializable[] value,
-		int recordId
+		int recordId,
+		boolean foldedUnique
 	) {
 		assertPartitioningIndex(referenceSchema, attributeSchema);
-		delegateAddDeltaFilterAttribute(referenceSchema, attributeSchema, allowedLocales, locale, value, recordId);
+		delegateAddDeltaFilterAttribute(referenceSchema, attributeSchema, allowedLocales, locale, value, recordId, foldedUnique);
 	}
 
 	@Override
@@ -768,7 +777,7 @@ public class ReducedGroupEntityIndex extends AbstractReducedEntityIndex implemen
 	}
 
 	@Override
-	public void insertUniqueAttribute(
+	public AttributeIndex.UniquenessEnforcement insertUniqueAttribute(
 		@Nullable ReferenceSchemaContract referenceSchema,
 		@Nonnull AttributeSchemaContract attributeSchema,
 		@Nonnull Set<Locale> allowedLocales,
@@ -777,8 +786,10 @@ public class ReducedGroupEntityIndex extends AbstractReducedEntityIndex implemen
 		@Nonnull Serializable value,
 		int recordId
 	) {
-		// no-op: unique attributes are not maintained in group entity index because multiple
-		// entities can reference the same group, making uniqueness checks inappropriate
+		// no-op: unique attributes are not maintained in group entity index because multiple entities can reference the
+		// same group, making uniqueness checks inappropriate. NONE tells the filter write not to enforce folded
+		// uniqueness (nor register a folded view) here.
+		return AttributeIndex.UniquenessEnforcement.NONE;
 	}
 
 	@Override

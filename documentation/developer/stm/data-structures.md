@@ -60,19 +60,28 @@ sorted order.
 
 ### TransactionalUnorderedIntArray
 
-**Implements:** `TransactionalLayerProducer<UnorderedIntArrayChanges, int[]>`
+**Implements:** `TransactionalLayerProducer<Void, TransactionalUnorderedIntArray>`
 
 Unordered `int` array that allows duplicate values and position-based insertion.
 
-**Key differences from `TransactionalIntArray`:**
-- Supports `add(previousRecordId, recordId)` -- insert after a specific element.
-- Supports `addOnIndex(index, recordId)` -- positional insertion.
-- Supports `removeRange(startIndex, endIndex)`.
+**Key operations:**
+- `add(previousRecordId, recordId)` -- insert after a specific element.
+- `addOnIndex(index, recordId)` -- positional insertion.
+- `removeRange(startIndex, endIndex)`.
+- Optimised read-through: `indexOf`, `contains`, `length`.
 
-**Diff layer (`UnorderedIntArrayChanges`):** Tracks insert segments by position and removal ranges.
-More complex than `IntArrayChanges` because the array is not sorted.
+**No own diff layer (composite façade).** The array is a thin façade over two transactional B+ trees,
+each of which carries its own transactional layer (so the façade itself produces a `Void` diff and
+delegates). This keeps every operation -- positional insert, removal range, and `indexOf` -- at
+`O(log N)` without a hand-maintained positional diff:
 
-**Optimised read-through:** `indexOf`, `contains`, `length`.
+- a **position tree** (`UnorderedLookupTree`, an order-statistic tree) holding the elements in
+  insertion-defined order and answering rank/positional queries in `O(log N)`;
+- a **value index** (`TransactionalIntToLongBPlusTree`) mapping each record id to its order-key in the
+  position tree, so `indexOf(recordId)` is `O(log N)` rather than a scan.
+
+See [B+ Trees](#b-trees) below and
+[indexes/bplus-tree-bucket-store.md](../indexes/bplus-tree-bucket-store.md).
 
 ---
 
@@ -230,29 +239,41 @@ array because the producer/reducer logic makes positional reasoning impossible o
 
 ## B+ Trees
 
-### TransactionalIntBPlusTree\<V\> and TransactionalObjectBPlusTree\<K, V\>
+evitaDB maintains a family of transactional B+ trees. They are **not** mergeable into one generic
+tree -- the primitive variants exist to avoid boxing the key and/or value, which is the point of the
+memory optimization. Their structure and production roles are documented in
+[indexes/bplus-tree-bucket-store.md](../indexes/bplus-tree-bucket-store.md); this section covers only
+their **transactional** behaviour.
 
-**Implements:** `TransactionalLayerProducer<Void, TransactionalIntBPlusTree<V>>` (and similarly for Object variant)
+| Tree | Key / Value | Backs |
+|------|-------------|-------|
+| `TransactionalBucketBPlusTree<K>` | `K` / record set (columnar bucket store) | `InvertedIndex` |
+| `TransactionalLongBPlusTree<V>` | `long` / `V` | `RangeIndex` |
+| `TransactionalObjectBPlusTree<K,V>` | `K` / `V` (optional `Comparator`) | `OwnerSortIndex`, `TrafficRecordingIndex` |
+| `TransactionalIntToLongBPlusTree` | `int` / `long` | `TransactionalUnorderedIntArray` value index |
 
-These B+ tree implementations use a **different transactional strategy** from other data structures:
-they do not maintain their own diff layer (the diff type is `Void`). Instead, they rely on
-`TransactionalReference` wrappers for their mutable state:
+**Implements:** each is a `TransactionalLayerProducer<Void, Self>` -- the diff type is `Void`; they
+own **no** `Changes` layer. Mutable state lives behind two `TransactionalReference` fields:
 
 ```java
 private final TransactionalReference<Integer> size;
-private final TransactionalReference<BPlusTreeNode<?>> root;
+private final TransactionalReference<BPlusTreeNode<K, ?>> root;
 ```
 
-Tree nodes are mutable and marked `@NotThreadSafe`. The transactionality is achieved at the reference
-level: reads and writes to `size` and `root` go through `TransactionalReference`, which provides
-diff-layer isolation.
+Tree nodes are mutable and marked `@NotThreadSafe`. Transactional isolation is achieved by
+**path-copying** (copy-on-write): a write clones the nodes on the root-to-leaf path and publishes a
+new `root` through the `TransactionalReference`; readers outside the transaction keep the old root, and
+a rollback simply discards the new nodes.
 
-**Commit:** Returns a copy of the tree itself. The `TransactionalReference` fields produce their own
-committed values as part of the recursive merge.
-
-**Note:** The B+ tree leaf nodes and internal nodes also have their own
-`TransactionalObjectVersion` IDs and participate as `TransactionalLayerProducer` instances, creating a
+**Commit:** returns a copy of the tree itself. The `TransactionalReference` fields produce their own
+committed values as part of the recursive merge. Leaf and internal nodes are themselves
+`TransactionalLayerProducer` instances with their own `TransactionalObjectVersion` IDs, creating a
 fine-grained transactional structure within the tree.
+
+> **`CumulativeWeightBPlusTree<K>` is the exception** -- it is a non-transactional order-statistic
+> tree used as a transient helper inside `SortIndexChanges` (never persisted, discarded after use), so
+> it holds plain `root`/`size`/`totalWeight` fields, no `TransactionalReference`, and skips
+> rebalancing on delete.
 
 ---
 
@@ -262,16 +283,20 @@ fine-grained transactional structure within the tree.
 |--------------------------------|--------------------------|-------|----------------------------|
 | `TransactionalIntArray`        | `IntArrayChanges`        | No    | `int[]`                    |
 | `TransactionalObjArray<T>`     | `ObjArrayChanges<T>`     | No    | `T[]`                      |
-| `TransactionalUnorderedIntArray` | `UnorderedIntArrayChanges` | No | `int[]`                    |
+| `TransactionalUnorderedIntArray` | `Void` (composite façade) | Yes (via trees) | `TransactionalUnorderedIntArray` |
 | `TransactionalBoolean`         | `BooleanChanges`         | No    | `Boolean`                  |
 | `TransactionalReference<T>`    | `ReferenceChanges<T>`    | No    | `Optional<T>`              |
 | `TransactionalBitmap`          | `BitmapChanges`          | No    | `Bitmap`                   |
 | `TransactionalMap<K,V>`        | `MapChanges<K,V>`        | Conditional | `Map<K,V>`            |
+| `PersistentTransactionalMap<K,V>` | `MapChanges<K,V>`     | Conditional | `Map<K,V>` (ChampMap-backed) |
 | `TransactionalSet<K>`          | `SetChanges<K>`          | No    | `Set<K>`                   |
 | `TransactionalList<V>`         | `ListChanges<V>`         | Conditional | `List<V>`             |
 | `TransactionalComplexObjArray<T>` | `ComplexObjArrayChanges<T>` | Yes | `T[]`                  |
-| `TransactionalIntBPlusTree<V>` | `Void`                   | Yes (via Ref) | `TransactionalIntBPlusTree<V>` |
+| `TransactionalBucketBPlusTree<K>` | `Void`                | Yes (via Ref) | `TransactionalBucketBPlusTree<K>` |
+| `TransactionalLongBPlusTree<V>` | `Void`                  | Yes (via Ref) | `TransactionalLongBPlusTree<V>` |
 | `TransactionalObjectBPlusTree<K,V>` | `Void`              | Yes (via Ref) | `TransactionalObjectBPlusTree<K,V>` |
+| `TransactionalIntToLongBPlusTree` | `Void`                | Yes (via Ref) | `TransactionalIntToLongBPlusTree` |
+| `CumulativeWeightBPlusTree<K>` | *(none -- non-transactional)* | No | *(transient helper)* |
 
 ---
 
@@ -285,10 +310,10 @@ These are domain-specific objects that implement `TransactionalLayerProducer` (o
 | `Catalog`                        | `TransactionalReference<Long>`, `TransactionalMap<String, EntityCollection>` |
 | `EntityCollection`               | `TransactionalReference<EntitySchema>`, etc.             |
 | `EntityIndex`                    | `TransactionalBoolean`, `TransactionalBitmap`, `TransactionalMap<Locale, TransactionalBitmap>` |
-| `AttributeIndex`                 | `TransactionalMap<AttributeIndexKey, FilterIndex>`, etc. |
-| `UniqueIndex`                    | `TransactionalBoolean`, `TransactionalMap`               |
-| `SortIndex`                      | `TransactionalMap` of sorted arrays                      |
-| `FilterIndex`                    | `TransactionalMap`, `TransactionalBitmap`                |
+| `AttributeIndex`                 | `PersistentTransactionalProducerMap<AttributeIndexKey, InvertedIndex>` (and `RangeIndex`/`UniqueIndex`/`SortIndex`/`ChainIndex`); derived `TransactionalMap` view caches |
+| `OwnerUniqueIndex`               | `PersistentTransactionalMap<Serializable, Integer>`, `TransactionalBitmap`, `TransactionalBoolean` |
+| `OwnerSortIndex`                 | `TransactionalUnorderedIntArray`, `TransactionalObjectBPlusTree` (value→cardinality) |
+| `OwnerFilterIndex` / `InvertedIndex` | `TransactionalBucketBPlusTree` (columnar bucket store), optional `RangeIndex` |
 | `FacetIndex`                     | `TransactionalMap<EntityReference, FacetReferenceIndex>` |
 | `HierarchyIndex`                 | `TransactionalMap`, `TransactionalBitmap`                |
 | `PriceSuperIndex`                | `TransactionalMap<PriceKey, PriceListAndCurrencyPriceSuperIndex>` |
@@ -296,3 +321,44 @@ These are domain-specific objects that implement `TransactionalLayerProducer` (o
 All follow the same pattern: they hold transactional primitive data structures as fields, and their
 `createCopyWithMergedTransactionalMemory` creates a new index instance by calling
 `getStateCopyWithCommittedChanges` on each field.
+
+---
+
+## Persistent structures and ChampMap-backed transactional maps
+
+Not every structurally-shared data structure is a diff-layer `TransactionalLayerProducer`. The
+[CHAMP persistent hash map](champ-persistent-map.md) (`ChampMap`) achieves the same copy-on-write
+structural sharing but exposes it directly: each `updated`/`removed` returns a new immutable map instead
+of staging a thread-local diff. `ChampMap` is used in two ways:
+
+1. **Directly** by the persistence layer (`OffsetIndex`) -- see
+   [champ-persistent-map.md](champ-persistent-map.md).
+2. **As the committed backing of `PersistentTransactionalMap`** for in-memory index maps. This is a
+   drop-in `TransactionalMap` replacement that still stages a `MapChanges` diff during the transaction,
+   but on commit folds the diff onto an immutable `ChampMap` snapshot by path-copying **only the changed
+   keys** (`O(Δ·log₃₂ N)`), rather than rebuilding the entire delegate `HashMap` (`O(N)`) the way a
+   plain `TransactionalMap` does.
+
+### PersistentTransactionalMap\<K, V\>
+
+**Implements:** the same `TransactionalLayerProducer<MapChanges<K,V>, Map<K,V>>` contract as
+`TransactionalMap`, so it is interchangeable at call sites.
+
+Internally it holds its state as either a **thawed** `HashMap` (non-transactional warm-up) or a
+**sealed** `ChampMap` (transactional steady state). It is sealed lazily on first transactional touch;
+on commit the diff is folded onto the sealed snapshot. Constraints: no null keys/values, unordered
+(hash-trie) iteration.
+
+### PersistentTransactionalProducerMap\<K, V\>
+
+A variant for maps whose **values are themselves `TransactionalLayerProducer`s** (e.g. `InvertedIndex`,
+`RangeIndex`, `UniqueIndex`, `SortIndex`, `ChainIndex` inside `AttributeIndex`). Because a producer
+value mutates through its own diff layer -- which is a *read* from the map's perspective -- such in-place
+mutations leave no trace in the map's put/remove tracking. The producer map therefore adds a
+**dirty-key set** (`ProducerMapChanges.valueMutatedKeys`): callers declare in-place value mutations with
+`markValueMutated(key)`, and commit sweeps `removedKeys ∪ modifiedKeys ∪ valueMutatedKeys`. A forgotten
+`markValueMutated` surfaces as a `StaleTransactionMemoryException` at commit -- a hard failure, never
+silent staleness.
+
+These are documented from the index side in
+[indexes/bplus-tree-bucket-store.md](../indexes/bplus-tree-bucket-store.md#persistent-maps-for-plain-valued-and-producer-valued-index-maps).

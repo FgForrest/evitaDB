@@ -37,10 +37,11 @@ import java.util.Map;
  * Signals that a cross-entity change occurred that may affect the facet or histogram indexing expression
  * for the given reference. This is the unified mutation for both facet and histogram cross-entity triggers.
  *
- * The optional `preMutationSourceValues` field carries pre-mutation attribute values captured during Step 5a
- * (before the source entity's FilterIndex was updated). These enable deterministic histogram removal by providing
- * the exact old values for `remove(oldValue, ownerPK)` operations, eliminating the need for histogram bucket
- * scanning or fallback re-indexing. The map is keyed by attribute name, then by locale (null for non-localized).
+ * The optional `preMutationSourceValues` field carries pre-mutation attribute values captured during the container
+ * implicit-mutation phase (before the source entity's FilterIndex was updated). These enable deterministic histogram
+ * removal by providing the exact old values for `remove(oldValue, ownerPK)` operations, eliminating the need for
+ * histogram bucket scanning or fallback re-indexing. The map is keyed by attribute name, then by locale
+ * (null for non-localized).
  *
  * Identity (equals/hashCode) is based solely on the 4 core fields (referenceName, mutatedEntityPK,
  * dependencyType, scope) — the `preMutationSourceValues` field is excluded to preserve deduplication semantics

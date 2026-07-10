@@ -24,12 +24,12 @@
 package io.evitadb.index.iterator;
 
 import io.evitadb.dataType.iterator.BatchArrayIterator;
-import org.roaringbitmap.BatchIterator;
+import io.evitadb.roaringbitmap.BatchIterator;
 
 import javax.annotation.Nonnull;
 
 /**
- * Implementation of {@link BatchArrayIterator} for {@link org.roaringbitmap.RoaringBitmap}.
+ * Implementation of {@link BatchArrayIterator} for {@link io.evitadb.roaringbitmap.PersistentRoaringBitmap}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */

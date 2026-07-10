@@ -27,12 +27,12 @@ import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.attribute.FilterIndex;
+import io.evitadb.index.attribute.OwnerFilterIndex;
 import io.evitadb.index.cardinality.AttributeCardinalityIndex;
 import io.evitadb.index.map.TransactionalMap;
 import io.evitadb.index.result.CardinalityChange;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.HistogramIndexStorageKey;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.HistogramIndexStoragePart;
 import io.evitadb.utils.CollectionUtils;
 
 import javax.annotation.Nonnull;
@@ -46,6 +46,7 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.function.Function;
 
 import static io.evitadb.core.transaction.Transaction.getTransactionalLayerMaintainer;
@@ -79,7 +80,7 @@ public class LocalizedHistogramIndex extends HistogramIndex {
 	/**
 	 * Per-locale filter index storing bucketed histogram values mapped to owner entity primary keys.
 	 */
-	@Nonnull private final TransactionalMap<Locale, FilterIndex> filterIndexes;
+	@Nonnull private final TransactionalMap<Locale, OwnerFilterIndex> filterIndexes;
 
 	/**
 	 * Per-locale cardinality index tracking how many references contribute a given histogram value
@@ -90,18 +91,20 @@ public class LocalizedHistogramIndex extends HistogramIndex {
 	/**
 	 * Creates a new empty localized histogram index.
 	 *
-	 * @param histogramName the name of the histogram definition
-	 * @param referenceName the reference name for storage key construction
-	 * @param valueType     the plain numeric type of the attribute values
+	 * @param histogramName        the name of the histogram definition
+	 * @param referenceName        the reference name for storage key construction
+	 * @param valueType            the plain numeric type of the attribute values
+	 * @param indexedDecimalPlaces decimal-places scale used to encode `BigDecimal` values (0 for other types)
 	 */
 	public LocalizedHistogramIndex(
 		@Nonnull String histogramName,
 		@Nonnull String referenceName,
-		@Nonnull Class<? extends Serializable> valueType
+		@Nonnull Class<? extends Serializable> valueType,
+		int indexedDecimalPlaces
 	) {
-		super(histogramName, referenceName, valueType);
+		super(histogramName, referenceName, valueType, indexedDecimalPlaces);
 		this.filterIndexes = new TransactionalMap<>(
-			CollectionUtils.createHashMap(4), FilterIndex.class, Function.identity()
+			CollectionUtils.createHashMap(4), OwnerFilterIndex.class, Function.identity()
 		);
 		this.cardinalities = new TransactionalMap<>(
 			CollectionUtils.createHashMap(4), AttributeCardinalityIndex.class, Function.identity()
@@ -111,22 +114,24 @@ public class LocalizedHistogramIndex extends HistogramIndex {
 	/**
 	 * Creates a localized histogram index from persisted data.
 	 *
-	 * @param histogramName the name of the histogram definition
-	 * @param referenceName the reference name for storage key construction
-	 * @param valueType     the plain numeric type of the attribute values
-	 * @param filterIndexes persisted filter indexes by locale
-	 * @param cardinalities persisted cardinality indexes by locale
+	 * @param histogramName        the name of the histogram definition
+	 * @param referenceName        the reference name for storage key construction
+	 * @param valueType            the plain numeric type of the attribute values
+	 * @param indexedDecimalPlaces decimal-places scale used to encode `BigDecimal` values (0 for other types)
+	 * @param filterIndexes        persisted filter indexes by locale
+	 * @param cardinalities        persisted cardinality indexes by locale
 	 */
 	public LocalizedHistogramIndex(
 		@Nonnull String histogramName,
 		@Nonnull String referenceName,
 		@Nonnull Class<? extends Serializable> valueType,
-		@Nonnull Map<Locale, FilterIndex> filterIndexes,
+		int indexedDecimalPlaces,
+		@Nonnull Map<Locale, OwnerFilterIndex> filterIndexes,
 		@Nonnull Map<Locale, AttributeCardinalityIndex> cardinalities
 	) {
-		super(histogramName, referenceName, valueType);
+		super(histogramName, referenceName, valueType, indexedDecimalPlaces);
 		this.filterIndexes = new TransactionalMap<>(
-			filterIndexes, FilterIndex.class, Function.identity()
+			filterIndexes, OwnerFilterIndex.class, Function.identity()
 		);
 		this.cardinalities = new TransactionalMap<>(
 			cardinalities, AttributeCardinalityIndex.class, Function.identity()
@@ -142,19 +147,23 @@ public class LocalizedHistogramIndex extends HistogramIndex {
 		final Locale theLocale = Objects.requireNonNull(
 			locale, "Locale must not be null for localized histogram!");
 		final Class<? extends Serializable> theValueType = getValueType();
+		// canonicalize so insert and remove agree on the same key regardless of whether the upstream value
+		// arrived as a raw BigDecimal or an already-scaled Integer
+		final Serializable normalizedValue = normalizeValue(value);
 		final AttributeCardinalityIndex cardinalityIdx = this.cardinalities.computeIfAbsent(
 			theLocale,
 			k -> new AttributeCardinalityIndex(theValueType)
 		);
-		if (cardinalityIdx.addRecord(value, ownerPK) == CardinalityChange.BOUNDARY_CROSSED) {
-			final FilterIndex filterIdx = this.filterIndexes.computeIfAbsent(
+		if (cardinalityIdx.addRecord(normalizedValue, ownerPK) == CardinalityChange.BOUNDARY_CROSSED) {
+			final OwnerFilterIndex filterIdx = this.filterIndexes.computeIfAbsent(
 				theLocale,
-				k -> new FilterIndex(
+				k -> new OwnerFilterIndex(
 					new AttributeIndexKey(getReferenceName(), getHistogramName(), theLocale),
-					theValueType
+					theValueType,
+					getIndexedDecimalPlaces()
 				)
 			);
-			filterIdx.addRecord(ownerPK, value);
+			filterIdx.addRecord(ownerPK, normalizedValue);
 		}
 	}
 
@@ -173,10 +182,11 @@ public class LocalizedHistogramIndex extends HistogramIndex {
 				"Cannot remove value from localized histogram — no data exists for locale `" + theLocale + "`!"
 			);
 		}
-		if (cardinalityIdx.removeRecord(value, ownerPK) == CardinalityChange.BOUNDARY_CROSSED) {
-			final FilterIndex filterIdx = this.filterIndexes.get(theLocale);
+		final Serializable normalizedValue = normalizeValue(value);
+		if (cardinalityIdx.removeRecord(normalizedValue, ownerPK) == CardinalityChange.BOUNDARY_CROSSED) {
+			final OwnerFilterIndex filterIdx = this.filterIndexes.get(theLocale);
 			if (filterIdx != null) {
-				filterIdx.removeRecord(ownerPK, value);
+				filterIdx.removeRecord(ownerPK, normalizedValue);
 				if (filterIdx.isEmpty()) {
 					if (localeRemovalDeferred(theLocale)) {
 						removeFilterIndex(theLocale);
@@ -217,7 +227,7 @@ public class LocalizedHistogramIndex extends HistogramIndex {
 	 * Removes the {@link FilterIndex} entry for the given locale and cleans up its transactional layer.
 	 */
 	private void removeFilterIndex(@Nonnull Locale locale) {
-		final FilterIndex removedFilter = this.filterIndexes.remove(locale);
+		final OwnerFilterIndex removedFilter = this.filterIndexes.remove(locale);
 		if (removedFilter == null) {
 			throw new GenericEvitaInternalError(
 				"FilterIndex for locale " + locale + " doesn't exists!"
@@ -269,7 +279,7 @@ public class LocalizedHistogramIndex extends HistogramIndex {
 			this.deferredLocaleRemovals.remove();
 			if (!deferred.isEmpty()) {
 				for (Locale locale : deferred) {
-					final FilterIndex filterIdx = this.filterIndexes.get(locale);
+					final OwnerFilterIndex filterIdx = this.filterIndexes.get(locale);
 					if (filterIdx != null && filterIdx.isEmpty()) {
 						removeFilterIndex(locale);
 					}
@@ -298,21 +308,26 @@ public class LocalizedHistogramIndex extends HistogramIndex {
 		int entityIndexPrimaryKey,
 		@Nonnull TrappedChanges trappedChanges
 	) {
-		final String histogramName = getHistogramName();
-		for (Entry<Locale, FilterIndex> filterEntry : this.filterIndexes.entrySet()) {
+		for (Entry<Locale, OwnerFilterIndex> filterEntry : this.filterIndexes.entrySet()) {
 			final Locale locale = filterEntry.getKey();
-			final FilterIndex filterIndex = filterEntry.getValue();
+			final OwnerFilterIndex filterIndex = filterEntry.getValue();
 			final AttributeCardinalityIndex cardinalityIndex = this.cardinalities.get(locale);
-			if (filterIndex.isDirty() || (cardinalityIndex != null && cardinalityIndex.isDirty())) {
-				trappedChanges.addChangeToStore(
-					new HistogramIndexStoragePart(
-						entityIndexPrimaryKey, histogramName, locale, getValueType(),
-						filterIndex.getInvertedIndex().getValueToRecordBitmap(),
-						filterIndex.getRangeIndex(),
-						cardinalityIndex != null ? cardinalityIndex : new AttributeCardinalityIndex(getValueType())
-					)
-				);
-			}
+			// filterIndexes and cardinalities always share their locale key set (a locale gains/loses both together),
+			// so cardinalityIndex is non-null here; fall back defensively to a fresh empty one just in case
+			appendHistogramStorageParts(
+				entityIndexPrimaryKey, locale, filterIndex,
+				cardinalityIndex != null ? cardinalityIndex : new AttributeCardinalityIndex(getValueType()),
+				trappedChanges
+			);
+		}
+	}
+
+	@Override
+	public void collectPersistedLeafPages(@Nonnull Consumer<PersistedHistogramLeafPages> sink) {
+		// one entry per live locale — mirrors collectStorageKeys (which lists filterIndexes.keySet()), so a locale still
+		// present here is never mistaken for a drop while a pruned locale correctly falls out of the snapshot
+		for (final Entry<Locale, OwnerFilterIndex> entry : this.filterIndexes.entrySet()) {
+			sink.accept(persistedLeafPagesOf(entry.getKey(), entry.getValue()));
 		}
 	}
 
@@ -326,6 +341,7 @@ public class LocalizedHistogramIndex extends HistogramIndex {
 			getHistogramName(),
 			getReferenceName(),
 			getValueType(),
+			getIndexedDecimalPlaces(),
 			transactionalLayer.getStateCopyWithCommittedChanges(this.filterIndexes),
 			transactionalLayer.getStateCopyWithCommittedChanges(this.cardinalities)
 		);

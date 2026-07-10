@@ -34,7 +34,7 @@ import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.EntityIndexType;
 import io.evitadb.index.GlobalEntityIndex;
-import io.evitadb.index.array.TransactionalObjArray;
+import io.evitadb.index.bPlusTree.TransactionalElementBPlusTree;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.index.price.model.PriceIndexKey;
@@ -51,8 +51,6 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
 import java.time.OffsetDateTime;
-import java.util.Comparator;
-import java.util.Iterator;
 import java.util.Objects;
 
 /**
@@ -121,6 +119,42 @@ public class PriceListAndCurrencyPriceRefIndex
 		this.scope = scope;
 	}
 
+	/**
+	 * Copy constructor used by {@link #createCopyForNewCatalogAttachment} that shares the existing
+	 * {@link io.evitadb.index.bitmap.TransactionalBitmap} instances AND the derived {@link #priceRecords} tree BY
+	 * REFERENCE. The in-memory re-attachment keeps the super index's {@link PriceRecord} instances, so the carried tree
+	 * stays valid and attach need not rebuild it.
+	 */
+	private PriceListAndCurrencyPriceRefIndex(
+		@Nonnull Scope scope,
+		@Nonnull PriceIndexKey priceIndexKey,
+		@Nonnull TransactionalBitmap indexedPriceEntityIds,
+		@Nonnull TransactionalBitmap priceIds,
+		@Nonnull RangeIndex validityIndex,
+		@Nonnull TransactionalElementBPlusTree<PriceRecordContract> priceRecords
+	) {
+		super(priceIndexKey, indexedPriceEntityIds, priceIds, validityIndex, priceRecords);
+		this.scope = scope;
+	}
+
+	/**
+	 * Copy constructor used by {@link #createCopyWithMergedTransactionalMemory} that adopts the already-merged committed
+	 * {@link #priceRecords} tree BY REFERENCE. The ref tree holds the very same shared {@link PriceRecord} instances as
+	 * the super index (created once in the add-price path), so a commit carries it forward instead of rebuilding it from
+	 * the super index — only a disk-load attach reconstructs it (see {@link #attachToCatalog(String, Catalog)}).
+	 */
+	private PriceListAndCurrencyPriceRefIndex(
+		@Nonnull Scope scope,
+		@Nonnull PriceIndexKey priceIndexKey,
+		@Nonnull Bitmap indexedPriceEntityIds,
+		@Nonnull Bitmap priceIds,
+		@Nonnull RangeIndex validityIndex,
+		@Nonnull TransactionalElementBPlusTree<PriceRecordContract> priceRecords
+	) {
+		super(priceIndexKey, indexedPriceEntityIds, priceIds, validityIndex, priceRecords);
+		this.scope = scope;
+	}
+
 	@Override
 	public void attachToCatalog(@Nullable String entityType, @Nonnull Catalog catalog) {
 		assertNotTerminated();
@@ -142,27 +176,44 @@ public class PriceListAndCurrencyPriceRefIndex
 			)
 		);
 		this.superIndex = (PriceListAndCurrencyPriceSuperIndex) superIndex;
-		final PriceRecordContract[] priceRecords = superIndex.getPriceRecords(this.indexedPriceIds);
-		this.priceRecords = new TransactionalObjArray<>(priceRecords, Comparator.naturalOrder());
+		// the price-record tree is rebuilt from the super index ONLY on a disk-load attach, where deserialization left it
+		// null (the ref index persists just its price ids + validity, never the memory-expensive PriceRecord objects, so
+		// the tree must be reconstructed by pointing at the super index's existing heap instances — the dedup that collapses
+		// Kryo's per-index duplicate records back onto the single shared instances). A transactional commit carries the tree
+		// forward already populated with those same shared instances (createCopyWithMergedTransactionalMemory), so it needs
+		// no rebuild here — and rebuilding would in fact throw, since the finalized commit-merge forbids creating a fresh
+		// transactional layer for the insert loop.
+		if (this.priceRecords == null) {
+			final PriceRecordContract[] priceRecords = superIndex.getPriceRecords(this.indexedPriceIds);
+			this.priceRecords = newPriceRecordTree(priceRecords);
 
-		final int[] entityIds = new int[priceRecords.length];
-		for (int i = 0; i < priceRecords.length; i++) {
-			final PriceRecordContract priceRecord = priceRecords[i];
-			entityIds[i] = priceRecord.entityPrimaryKey();
+			final int[] entityIds = new int[priceRecords.length];
+			for (int i = 0; i < priceRecords.length; i++) {
+				final PriceRecordContract priceRecord = priceRecords[i];
+				entityIds[i] = priceRecord.entityPrimaryKey();
+			}
+			this.indexedPriceEntityIds = new TransactionalBitmap(entityIds);
 		}
-		this.indexedPriceEntityIds = new TransactionalBitmap(entityIds);
 	}
 
 	@Nonnull
 	@Override
 	public PriceListAndCurrencyPriceRefIndex createCopyForNewCatalogAttachment(@Nonnull CatalogState catalogState) {
 		assertNotTerminated();
+		// carry the derived price-record tree forward by reference rather than dropping it: this is a purely in-memory
+		// re-attachment (goLive / persistence-service swap / collection replace), where the GLOBAL entity index — and with
+		// it the super price index's PriceRecord instances — is carried by reference, NOT reloaded from disk (see
+		// EntityCollection#createIndexCopiesForNewCatalogAttachment). The carried tree therefore still points at exactly the
+		// instances the re-resolved super index holds, so attachToCatalog can skip the rebuild (only the disk-load path,
+		// which deserializes a null tree, must reconstruct it). Dropping the tree here would force that rebuild's insert
+		// loop to run during the finalized commit-merge, where #569's guard forbids creating a new transactional layer.
 		return new PriceListAndCurrencyPriceRefIndex(
 			this.scope,
 			this.priceIndexKey,
 			this.indexedPriceEntityIds,
 			this.indexedPriceIds,
-			this.validityIndex
+			this.validityIndex,
+			this.priceRecords
 		);
 	}
 
@@ -183,8 +234,8 @@ public class PriceListAndCurrencyPriceRefIndex
 		this.indexedPriceIds.add(priceRecord.internalPriceId());
 		// index validity
 		addValidity(validity, priceRecord.internalPriceId());
-		// add price to the translation triple
-		this.priceRecords.add(priceRecord);
+		// add price to the translation tree (keyed by internal price id)
+		this.priceRecords.insert(priceRecord);
 		// make index dirty
 		markDirtyAndInvalidateCache();
 
@@ -204,13 +255,13 @@ public class PriceListAndCurrencyPriceRefIndex
 		final PriceRecordContract priceRecord = this.superIndex.getPriceRecord(ipId);
 		final EntityPrices entityPrices = this.superIndex.getEntityPrices(priceRecord.entityPrimaryKey());
 
-		// remove price to the translation triple
-		this.priceRecords.remove(priceRecord);
+		// remove price from the translation tree (keyed by internal price id)
+		this.priceRecords.delete(priceRecord.internalPriceId());
 
 		// remove the presence of the record
 		this.indexedPriceIds.remove(priceRecord.internalPriceId());
 
-		if (!entityPrices.containsAnyOf(this.priceRecords.getArray())) {
+		if (!entityPrices.containsAnyOf(this.priceRecords.toArray())) {
 			// remove the presence of the record
 			this.indexedPriceEntityIds.remove(priceRecord.entityPrimaryKey());
 		}
@@ -250,15 +301,10 @@ public class PriceListAndCurrencyPriceRefIndex
 	@Override
 	public StoragePart createStoragePart(int entityIndexPrimaryKey) {
 		if (this.dirty.isTrue()) {
-			final int[] priceIds = new int[this.priceRecords.getLength()];
-			final Iterator<PriceRecordContract> it = this.priceRecords.iterator();
-			int index = 0;
-			while (it.hasNext()) {
-				final PriceRecordContract priceRecord = it.next();
-				priceIds[index++] = priceRecord.internalPriceId();
-			}
+			// the indexed price-id bitmap is kept in lockstep with the price-record tree (every add/remove updates both),
+			// so it already holds exactly the internal price ids to persist, ascending — no need to walk the tree
 			return new PriceListAndCurrencyRefIndexStoragePart(
-				entityIndexPrimaryKey, this.priceIndexKey, this.validityIndex, priceIds
+				entityIndexPrimaryKey, this.priceIndexKey, this.validityIndex, this.indexedPriceIds.getArray()
 			);
 		} else {
 			return null;
@@ -279,13 +325,21 @@ public class PriceListAndCurrencyPriceRefIndex
 		// we can safely throw away dirty flag now
 		this.dirty.removeLayer(transactionalLayer);
 		this.terminated.removeLayer(transactionalLayer);
-		this.priceRecords.removeLayer(transactionalLayer);
+		// carry the price-record tree forward by adopting its own committed merge rather than dropping it: the ref tree
+		// already holds the SAME shared PriceRecord instances as the super index (the add-price path created each record
+		// once and inserted that single reference into both indexes), so it stays correct across the commit with no
+		// rebuild-from-super. This both removes the wasteful per-commit insert-loop rebuild and keeps clear of the
+		// finalized-transaction guard, since getStateCopyWithCommittedChanges only MERGES the existing layer (it never
+		// creates a fresh one the way the rebuild's inserts would).
+		final TransactionalElementBPlusTree<PriceRecordContract> committedPriceRecords =
+			transactionalLayer.getStateCopyWithCommittedChanges(this.priceRecords);
 		return new PriceListAndCurrencyPriceRefIndex(
 			this.scope,
 			this.priceIndexKey,
 			transactionalLayer.getStateCopyWithCommittedChanges(this.indexedPriceEntityIds),
 			transactionalLayer.getStateCopyWithCommittedChanges(this.indexedPriceIds),
-			transactionalLayer.getStateCopyWithCommittedChanges(this.validityIndex)
+			transactionalLayer.getStateCopyWithCommittedChanges(this.validityIndex),
+			committedPriceRecords
 		);
 	}
 

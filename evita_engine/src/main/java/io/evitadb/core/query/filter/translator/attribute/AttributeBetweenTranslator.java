@@ -355,7 +355,9 @@ public class AttributeBetweenTranslator extends AbstractAttributeTranslator
 					),
 					attributeType
 				);
-				final Function<Object, Serializable> normalizer = FilterIndex.getNormalizer(attributeType);
+				final Function<Object, Serializable> normalizer = FilterIndex.getNormalizer(
+					attributeType, attributeSchema.getIndexedDecimalPlaces()
+				);
 				final Serializable comparableFrom = normalizer.apply(from);
 				final Serializable comparableTo = normalizer.apply(to);
 

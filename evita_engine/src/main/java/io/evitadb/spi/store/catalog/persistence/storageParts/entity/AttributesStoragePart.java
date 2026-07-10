@@ -117,7 +117,7 @@ public class AttributesStoragePart implements EntityStoragePart, RecordWithCompr
 		);
 		if (id.isPresent()) {
 			return OptionalLong.of(
-				NumberUtils.join(
+				NumberUtils.pack(
 					attributeSetKey.entityPrimaryKey(),
 					id.getAsInt()
 				)
@@ -173,7 +173,7 @@ public class AttributesStoragePart implements EntityStoragePart, RecordWithCompr
 	public long computeUniquePartIdAndSet(@Nonnull KeyCompressor keyCompressor) {
 		Assert.isTrue(this.storagePartPK == null, "Unique part id is already known!");
 		Assert.notNull(this.entityPrimaryKey, "Entity primary key must be non null!");
-		this.storagePartPK = NumberUtils.join(
+		this.storagePartPK = NumberUtils.pack(
 			this.attributeSetKey.entityPrimaryKey(),
 			keyCompressor.getId(
 				new AttributesSetKey(this.attributeSetKey.locale())

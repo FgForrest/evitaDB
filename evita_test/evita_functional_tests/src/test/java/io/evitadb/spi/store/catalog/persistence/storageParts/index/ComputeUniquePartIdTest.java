@@ -97,10 +97,10 @@ class ComputeUniquePartIdTest {
 	class StaticComputeUniquePartIdTest {
 
 		@Test
-		@DisplayName("should return NumberUtils.join of entity index PK and compressed key ID")
+		@DisplayName("should return NumberUtils.pack of entity index PK and compressed key ID")
 		void shouldReturnNumberUtilsJoinOfEntityIndexPkAndCompressedKeyId() {
 			final KeyCompressor keyCompressor = mockKeyCompressor(COMPRESSED_KEY_ID);
-			final long expectedId = NumberUtils.join(ENTITY_INDEX_PK, COMPRESSED_KEY_ID);
+			final long expectedId = NumberUtils.pack(ENTITY_INDEX_PK, COMPRESSED_KEY_ID);
 
 			final long result = AttributeIndexStoragePart.computeUniquePartId(
 				ENTITY_INDEX_PK, AttributeIndexType.FILTER, ATTR_KEY, keyCompressor
@@ -122,8 +122,8 @@ class ComputeUniquePartIdTest {
 			);
 
 			// the high 32 bits differ, so the results must differ
-			assertEquals(NumberUtils.join(1, COMPRESSED_KEY_ID), id1);
-			assertEquals(NumberUtils.join(2, COMPRESSED_KEY_ID), id2);
+			assertEquals(NumberUtils.pack(1, COMPRESSED_KEY_ID), id1);
+			assertEquals(NumberUtils.pack(2, COMPRESSED_KEY_ID), id2);
 		}
 	}
 
@@ -136,7 +136,7 @@ class ComputeUniquePartIdTest {
 		void shouldSetStoragePartPkWhenNull() {
 			final FilterIndexStoragePart part = createFilterPart(null);
 			final KeyCompressor keyCompressor = mockKeyCompressor(COMPRESSED_KEY_ID);
-			final long expectedId = NumberUtils.join(ENTITY_INDEX_PK, COMPRESSED_KEY_ID);
+			final long expectedId = NumberUtils.pack(ENTITY_INDEX_PK, COMPRESSED_KEY_ID);
 
 			final long result = part.computeUniquePartIdAndSet(keyCompressor);
 
@@ -147,7 +147,7 @@ class ComputeUniquePartIdTest {
 		@Test
 		@DisplayName("should succeed when storage part PK already matches computed value")
 		void shouldSucceedWhenStoragePartPkAlreadyMatchesComputedValue() {
-			final long expectedId = NumberUtils.join(ENTITY_INDEX_PK, COMPRESSED_KEY_ID);
+			final long expectedId = NumberUtils.pack(ENTITY_INDEX_PK, COMPRESSED_KEY_ID);
 			final FilterIndexStoragePart part = createFilterPart(expectedId);
 			final KeyCompressor keyCompressor = mockKeyCompressor(COMPRESSED_KEY_ID);
 

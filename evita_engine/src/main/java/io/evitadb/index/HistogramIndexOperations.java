@@ -24,6 +24,7 @@
 package io.evitadb.index;
 
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
+import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.bool.TransactionalBoolean;
 import io.evitadb.index.map.TransactionalMap;
 import io.evitadb.utils.Assert;
@@ -91,8 +92,13 @@ final class HistogramIndexOperations {
 		final HistogramIndex histogramIndex = histograms.computeIfAbsent(
 			histogramName,
 			k -> locale != null
-				? new LocalizedHistogramIndex(histogramName, referenceName, valueType)
-				: new SimpleHistogramIndex(histogramName, referenceName, valueType)
+				? new LocalizedHistogramIndex(histogramName, referenceName, valueType, indexedDecimalPlaces)
+				: new SimpleHistogramIndex(histogramName, referenceName, valueType, indexedDecimalPlaces)
+		);
+		// a pre-existing histogram froze its BigDecimal scale at creation; refuse to feed it a value scaled at a drifted
+		// schema scale rather than silently keep mutating a stale histogram (no-op for non-BigDecimal and a fresh index)
+		FilterIndex.assertIndexedDecimalPlacesUnchanged(
+			histogramIndex.getIndexedDecimalPlaces(), indexedDecimalPlaces, histogramName
 		);
 		// single normalization boundary for histogram writes — re-encode `BigDecimalNumberRange`
 		// (and scalar `BigDecimal`) bounds to the schema scale; non-decimal types pass through
@@ -115,9 +121,10 @@ final class HistogramIndexOperations {
 	 *                                  non-localized
 	 * @param value                     the histogram value to remove
 	 * @param ownerPK                   the primary key of the owner entity
-	 * @param indexedDecimalPlaces      the source attribute schema's indexed decimal places — must
-	 *                                  match the scale used at insert time so the removed value's
-	 *                                  encoded form lines up with what was stored
+	 * @param indexedDecimalPlaces      the source attribute schema's indexed decimal places — must match the
+	 *                                  scale used at insert time so the removed value's encoded form lines up
+	 *                                  with what was stored, and guards against a scale change that was not
+	 *                                  followed by a full index rebuild
 	 */
 	static void removeHistogramValue(
 		@Nonnull TransactionalMap<String, HistogramIndex> histograms,
@@ -133,6 +140,11 @@ final class HistogramIndexOperations {
 		Assert.isPremiseValid(
 			histogramIndex != null,
 			() -> "Histogram index for histogram " + histogramName + " not found."
+		);
+		// the histogram froze its BigDecimal scale at creation; refuse to derive a remove probe at a drifted schema scale
+		// rather than silently keep mutating a stale histogram (no-op for non-BigDecimal — both scales are 0)
+		FilterIndex.assertIndexedDecimalPlacesUnchanged(
+			histogramIndex.getIndexedDecimalPlaces(), indexedDecimalPlaces, histogramName
 		);
 		// symmetric with insertHistogramValue — same normalization so encoded longs match the stored form
 		histogramIndex.removeValue(locale, NumberUtils.normalizeForIndexing(value, indexedDecimalPlaces), ownerPK);

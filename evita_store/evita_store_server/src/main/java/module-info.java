@@ -55,7 +55,7 @@ module evita.store.server {
 	requires com.fasterxml.jackson.databind;
 	requires jdk.jfr;
 	requires org.slf4j;
-	requires roaringbitmap;
+	requires evita.roaringbitmap;
 	requires org.apache.commons.lang3;
 
 }

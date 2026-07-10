@@ -57,8 +57,8 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.index.HierarchyInde
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
-import org.roaringbitmap.RoaringBitmap;
-import org.roaringbitmap.RoaringBitmapWriter;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
+import io.evitadb.roaringbitmap.RoaringBitmapWriter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -618,7 +618,7 @@ public class HierarchyIndex
 	@Nonnull
 	@Override
 	public Bitmap listNodesIncludingParents(@Nonnull Bitmap nodes) {
-		final RoaringBitmap output = new RoaringBitmap();
+		final PersistentRoaringBitmap output = new PersistentRoaringBitmap();
 		for (Integer nodeId : nodes) {
 			output.add(nodeId);
 			HierarchyNode hierarchyNode = getHierarchyNodeOrThrowException(nodeId);
@@ -1314,11 +1314,11 @@ public class HierarchyIndex
 	@Nonnull
 	private Formula createAllHierarchyNodesFormula() {
 		final Set<Integer> nodeIds = this.itemIndex.keySet();
-		final RoaringBitmapWriter<RoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
+		final RoaringBitmapWriter<PersistentRoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
 		for (Integer nodeId : nodeIds) {
 			writer.add(nodeId);
 		}
-		final RoaringBitmap roaringBitmap = writer.get();
+		final PersistentRoaringBitmap roaringBitmap = writer.get();
 
 		final OfInt it = this.orphans.iterator();
 		while (it.hasNext()) {

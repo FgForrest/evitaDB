@@ -62,7 +62,6 @@ import java.util.Iterator;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Consumer;
 import java.util.function.Supplier;
 import org.junit.jupiter.api.Tag;
 
@@ -86,8 +85,6 @@ import static io.evitadb.test.TestTags.ATTRIBUTE;
 @Tag(SCHEMA)
 @Tag(ATTRIBUTE)
 class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
-	public static final Consumer<Runnable> DO_NOTHING_CONSUMER = runnable -> {
-	};
 	public static final Supplier<Entity> UNSUPPORTED_OPERATION = () -> {
 		throw new UnsupportedOperationException("Not supported in the test.");
 	};
@@ -142,7 +139,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 			this.productIndex,
 			this.productIndex,
 			new AttributeKey(ATTRIBUTE_CODE), "A",
-			true, true, DO_NOTHING_CONSUMER
+			true, true
 		);
 		executeAttributeUpsert(
 			this.executor,
@@ -152,7 +149,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 			this.productIndex,
 			this.productIndex,
 			new AttributeKey(ATTRIBUTE_EAN), "EAN-001",
-			true, true, DO_NOTHING_CONSUMER
+			true, true
 		);
 		executeAttributeUpsert(
 			this.executor,
@@ -162,7 +159,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 			this.productIndex,
 			this.productIndex,
 			new AttributeKey(ATTRIBUTE_GLOBAL_CODE), "GA",
-			true, true, DO_NOTHING_CONSUMER
+			true, true
 		);
 
 		final AttributeSchema codeSchema = this.productAttributeSchemaProvider.getAttributeSchema(ATTRIBUTE_CODE);
@@ -205,7 +202,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 			this.productIndex,
 			this.productIndex,
 			new AttributeKey(ATTRIBUTE_VARIANT_COUNT), "115",
-			false, true, DO_NOTHING_CONSUMER
+			false, true
 		);
 
 		final AttributeSchema variantCountSchema = this.productAttributeSchemaProvider.getAttributeSchema(ATTRIBUTE_VARIANT_COUNT);
@@ -238,7 +235,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 			this.productIndex,
 			this.productIndex,
 			codeAttributeKey, "B",
-			true, true, DO_NOTHING_CONSUMER
+			true, true
 		);
 
 		final AttributeKey eanAttributeKey = new AttributeKey(ATTRIBUTE_EAN);
@@ -254,7 +251,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 			this.productIndex,
 			this.productIndex,
 			eanAttributeKey, "EAN-002",
-			true, true, DO_NOTHING_CONSUMER
+			true, true
 		);
 
 		final AttributeKey globalCodeAttributeKey = new AttributeKey(ATTRIBUTE_GLOBAL_CODE);
@@ -270,7 +267,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 			this.productIndex,
 			this.productIndex,
 			globalCodeAttributeKey, "GB",
-			true, true, DO_NOTHING_CONSUMER
+			true, true
 		);
 
 		final UniqueIndex uniqueIndex = this.productIndex.getUniqueIndex(null, codeSchema, null);
@@ -320,7 +317,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 			this.productIndex,
 			this.productIndex,
 			charArrayAttr, 'A',
-			false, true, DO_NOTHING_CONSUMER
+			false, true
 		);
 		assertArrayEquals(new int[]{1}, this.productIndex.getFilterIndex(null, charArraySchema, null).getRecordsEqualTo('A').getArray());
 
@@ -335,7 +332,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 			this.productIndex,
 			this.productIndex,
 			charArrayAttr, new Character[]{'C', 'D'},
-			false, true, DO_NOTHING_CONSUMER
+			false, true
 		);
 
 		final FilterIndex filterIndex = this.productIndex.getFilterIndex(null, charArraySchema, null);
@@ -364,7 +361,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 			this.productIndex,
 			this.productIndex,
 			charArrayAttr, new Character[]{'A', 'B'},
-			false, true, DO_NOTHING_CONSUMER
+			false, true
 		);
 		assertArrayEquals(new int[]{1}, this.productIndex.getFilterIndex(null, charArraySchema, null).getRecordsEqualTo('A').getArray());
 		assertArrayEquals(new int[]{1}, this.productIndex.getFilterIndex(null, charArraySchema, null).getRecordsEqualTo('B').getArray());
@@ -380,7 +377,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 			this.productIndex,
 			this.productIndex,
 			charArrayAttr, new Character[]{'C', 'D'},
-			false, true, DO_NOTHING_CONSUMER
+			false, true
 		);
 
 		final FilterIndex filterIndex = this.productIndex.getFilterIndex(null, charArraySchema, null);
@@ -430,7 +427,6 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 						new MockEntityIndexCreator<>(this.catalogIndex),
 						() -> this.productSchema,
 						this.priceIdSequence::incrementAndGet,
-						false,
 						UNSUPPORTED_OPERATION,
 						null,
 						null,
@@ -442,7 +438,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 					this.productIndex,
 					this.productIndex,
 					attrCode, "A",
-					false, true, DO_NOTHING_CONSUMER
+					false, true
 				);
 			}
 		);
@@ -458,7 +454,6 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 						new MockEntityIndexCreator<>(this.catalogIndex),
 						() -> this.productSchema,
 						this.priceIdSequence::incrementAndGet,
-						false,
 						UNSUPPORTED_OPERATION,
 						null,
 						null,
@@ -470,7 +465,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 					this.productIndex,
 					this.productIndex,
 					attrGlobalCode, "GA",
-					false, true, DO_NOTHING_CONSUMER
+					false, true
 				);
 			}
 		);
@@ -491,7 +486,6 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 				new MockEntityIndexCreator<>(this.catalogIndex),
 				() -> this.productSchema,
 				this.priceIdSequence::incrementAndGet,
-				false,
 				UNSUPPORTED_OPERATION,
 				null,
 				null,
@@ -503,7 +497,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 			this.productIndex,
 			this.productIndex,
 			attrCode, "A",
-			true, true, DO_NOTHING_CONSUMER
+			true, true
 		);
 
 		final AttributeKey attrGlobalCode = new AttributeKey(ATTRIBUTE_GLOBAL_CODE);
@@ -514,7 +508,6 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 				new MockEntityIndexCreator<>(this.catalogIndex),
 				() -> this.productSchema,
 				this.priceIdSequence::incrementAndGet,
-				false,
 				UNSUPPORTED_OPERATION,
 				null,
 				null,
@@ -526,7 +519,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 			this.productIndex,
 			this.productIndex,
 			attrGlobalCode, "GA",
-			true, true, DO_NOTHING_CONSUMER
+			true, true
 		);
 
 		final AttributeSchema codeSchema = this.productAttributeSchemaProvider.getAttributeSchema(ATTRIBUTE_CODE);
@@ -582,7 +575,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 			this.productIndex,
 			this.productIndex,
 			attributeCode,
-			true, true, DO_NOTHING_CONSUMER
+			true, true
 		);
 
 		final AttributeKey attributeGlobalCode = new AttributeKey(ATTRIBUTE_GLOBAL_CODE);
@@ -599,7 +592,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 			this.productIndex,
 			this.productIndex,
 			attributeGlobalCode,
-			true, true, DO_NOTHING_CONSUMER
+			true, true
 		);
 
 		final AttributeSchema codeSchema = this.productAttributeSchemaProvider.getAttributeSchema(ATTRIBUTE_CODE);
@@ -633,7 +626,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 			this.productIndex,
 			this.productIndex,
 			attrVariantCount, 10,
-			false, true, DO_NOTHING_CONSUMER
+			false, true
 		);
 		executeAttributeUpsert(
 			new EntityIndexLocalMutationExecutor(
@@ -642,7 +635,6 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 				new MockEntityIndexCreator<>(this.catalogIndex),
 				() -> this.productSchema,
 				this.priceIdSequence::incrementAndGet,
-				false,
 				UNSUPPORTED_OPERATION,
 				null,
 				null,
@@ -654,7 +646,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 			this.productIndex,
 			this.productIndex,
 			attrVariantCount, 9,
-			false, true, DO_NOTHING_CONSUMER
+			false, true
 		);
 
 		final AttributeSchema variantCountSchema = this.productAttributeSchemaProvider.getAttributeSchema(ATTRIBUTE_VARIANT_COUNT);
@@ -673,7 +665,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 			getEntityAttributeValueSupplier(this.productSchema, 1),
 			this.productIndex,
 			this.productIndex,
-			attrVariantCount, -3, DO_NOTHING_CONSUMER
+			attrVariantCount, -3
 		);
 
 		assertArrayEquals(new int[]{1}, this.productIndex.getFilterIndex(null, variantCountSchema, null).getRecordsEqualTo(7).getArray());

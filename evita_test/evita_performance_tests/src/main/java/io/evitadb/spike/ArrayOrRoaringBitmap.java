@@ -34,9 +34,9 @@ import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.infra.Blackhole;
-import org.roaringbitmap.FastAggregation;
-import org.roaringbitmap.RoaringBitmap;
-import org.roaringbitmap.RoaringBitmapWriter;
+import io.evitadb.roaringbitmap.FastAggregation;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
+import io.evitadb.roaringbitmap.RoaringBitmapWriter;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -167,7 +167,7 @@ public class ArrayOrRoaringBitmap {
 	}
 
 	@State(Scope.Benchmark)
-	public static class GeneratedSetsAsRoaringMap extends GeneratedSetsBase<RoaringBitmapWriter<RoaringBitmap>, RoaringBitmap> {
+	public static class GeneratedSetsAsRoaringMap extends GeneratedSetsBase<RoaringBitmapWriter<PersistentRoaringBitmap>, PersistentRoaringBitmap> {
 		/**
 		 * Number of generated values in the value holder.
 		 */
@@ -181,18 +181,18 @@ public class ArrayOrRoaringBitmap {
 		@Getter private int setCount;
 
 		@Override
-		protected RoaringBitmapWriter<RoaringBitmap> createSetContainer(int setSize) {
+		protected RoaringBitmapWriter<PersistentRoaringBitmap> createSetContainer(int setSize) {
 			return RoaringBitmapWriter.writer().constantMemory().runCompress(false).get();
 		}
 
 		@Override
-		protected void addPrimaryKey(RoaringBitmapWriter<RoaringBitmap> set, int j, int primaryKey) {
+		protected void addPrimaryKey(RoaringBitmapWriter<PersistentRoaringBitmap> set, int j, int primaryKey) {
 			set.add(primaryKey);
 		}
 
 		@Override
-		protected RoaringBitmap convert(RoaringBitmapWriter<RoaringBitmap> set) {
-			final RoaringBitmap roaringBitmap = set.get();
+		protected PersistentRoaringBitmap convert(RoaringBitmapWriter<PersistentRoaringBitmap> set) {
+			final PersistentRoaringBitmap roaringBitmap = set.get();
 			roaringBitmap.runOptimize();
 			return roaringBitmap;
 		}
@@ -223,7 +223,7 @@ public class ArrayOrRoaringBitmap {
 	public void roaringBitmapAnd(GeneratedSetsAsRoaringMap generatedSets, Blackhole blackhole) {
 		blackhole.consume(
 			FastAggregation.and(
-				generatedSets.getSets().toArray(RoaringBitmap[]::new)
+				generatedSets.getSets().toArray(PersistentRoaringBitmap[]::new)
 			)
 		);
 	}
@@ -253,7 +253,7 @@ public class ArrayOrRoaringBitmap {
 	public void roaringBitmapDistinctOr(GeneratedSetsAsRoaringMap generatedSets, Blackhole blackhole) {
 		blackhole.consume(
 			FastAggregation.priorityqueue_or(
-				generatedSets.getSets().toArray(RoaringBitmap[]::new)
+				generatedSets.getSets().toArray(PersistentRoaringBitmap[]::new)
 			).toArray()
 		);
 	}

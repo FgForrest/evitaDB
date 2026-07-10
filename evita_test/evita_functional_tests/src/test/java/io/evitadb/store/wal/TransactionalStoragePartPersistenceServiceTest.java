@@ -49,6 +49,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.Supplier;
 import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -86,6 +87,10 @@ class TransactionalStoragePartPersistenceServiceTest {
 		final StorageOptions storageOptions = StorageOptions.builder().build();
 		final TransactionOptions transactionOptions = TransactionOptions.builder().build();
 		final ObservableOutputKeeper observableOutputKeeper = mock(ObservableOutputKeeper.class);
+		// the keeper is a bare mock here (this test doesn't exercise the pool itself), so make its off-heap
+		// borrow behave like an always-empty free-list: fall through to the caller-supplied cold-path factory
+		when(observableOutputKeeper.borrowOffHeapOutput(any(), any()))
+			.thenAnswer(invocation -> ((Supplier<?>) invocation.getArgument(1)).get());
 		final OffsetIndexRecordTypeRegistry registry = mock(OffsetIndexRecordTypeRegistry.class);
 		when(registry.idFor(EntityBodyStoragePart.class)).thenReturn((byte) 1);
 		doAnswer(invocation -> EntityBodyStoragePart.class).when(registry).typeFor((byte) 1);

@@ -59,6 +59,7 @@ public class ArrayUtils {
 	public static final Class<?>[] EMPTY_CLASS_ARRAY = new Class[0];
 	public static final Object[] EMPTY_OBJECT_ARRAY = new Object[0];
 	public static final String[] EMPTY_STRING_ARRAY = new String[0];
+	public static final byte[] EMPTY_BYTE_ARRAY = new byte[0];
 	public static final int[] EMPTY_INT_ARRAY = new int[0];
 	public static final long[] EMPTY_LONG_ARRAY = new long[0];
 	public static final Serializable[] EMPTY_SERIALIZABLE_ARRAY = new Serializable[0];
@@ -466,6 +467,24 @@ public class ArrayUtils {
 	}
 
 	/**
+	 * Inserts new long to the array on target position. No new array is allocated, the original one is modified.
+	 * If there was a meaningful data on the last position of the array, it is overwritten to make space for the new
+	 * record.
+	 */
+	public static void insertLongIntoSameArrayOnIndex(long recId, @Nonnull long[] recordIds, int position) {
+		System.arraycopy(recordIds, position, recordIds, position + 1, recordIds.length - position - 1);
+		recordIds[position] = recId;
+	}
+
+	/**
+	 * Removes long from array on specified index. The array size is not changed and the last element value becomes
+	 * "undefined". The caller is responsible for shrinking the array if needed or maintain a peek on the array size.
+	 */
+	public static void removeLongFromSameArrayOnIndex(@Nonnull long[] recordIds, int position) {
+		System.arraycopy(recordIds, position + 1, recordIds, position, recordIds.length - position - 1);
+	}
+
+	/**
 	 * Removes integer from ordered array and shrinks it.
 	 */
 	@Nonnull
@@ -791,6 +810,25 @@ public class ArrayUtils {
 	@Nonnull
 	public static InsertionPosition computeInsertPositionOfLongInOrderedArray(long recId, @Nonnull long[] recordIds) {
 		final int index = Arrays.binarySearch(recordIds, recId);
+		if (index >= 0) {
+			return new InsertionPosition(index, true);
+		} else {
+			return new InsertionPosition(-1 * (index) - 1, false);
+		}
+	}
+
+	/**
+	 * Method computes insertion point of a long into the ordered array.
+	 * Result object contains information about the position and whether the long is already in the array.
+	 * If the to index is less or equal to from index, the method returns object with position set to 0
+	 * and no presence of the long in the array.
+	 */
+	@Nonnull
+	public static InsertionPosition computeInsertPositionOfLongInOrderedArray(long recId, @Nonnull long[] recordIds, int fromIndex, int toIndex) {
+		if (toIndex <= fromIndex) {
+			return new InsertionPosition(0, false);
+		}
+		final int index = Arrays.binarySearch(recordIds, fromIndex, toIndex, recId);
 		if (index >= 0) {
 			return new InsertionPosition(index, true);
 		} else {

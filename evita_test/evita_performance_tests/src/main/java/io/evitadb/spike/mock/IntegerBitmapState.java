@@ -30,8 +30,8 @@ import org.openjdk.jmh.annotations.Level;
 import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
-import org.roaringbitmap.RoaringBitmap;
-import org.roaringbitmap.RoaringBitmapWriter;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
+import io.evitadb.roaringbitmap.RoaringBitmapWriter;
 
 import java.util.Random;
 
@@ -41,7 +41,7 @@ import java.util.Random;
  *
  * Each bitmap contains {@link #VALUE_COUNT} random integers drawn from [0, 2×VALUE_COUNT),
  * yielding ~50% overlap between the two bitmaps on average. Both bitmaps are run-optimized
- * for realistic RoaringBitmap performance characteristics. A fixed seed (42) ensures
+ * for realistic PersistentRoaringBitmap performance characteristics. A fixed seed (42) ensures
  * deterministic, reproducible datasets across runs.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
@@ -65,12 +65,12 @@ public class IntegerBitmapState {
 	}
 
 	private RoaringBitmapBackedBitmap generateBitmap(int valueCount) {
-		final RoaringBitmapWriter<RoaringBitmap> set = RoaringBitmapWriter.writer().constantMemory().runCompress(false).get();
+		final RoaringBitmapWriter<PersistentRoaringBitmap> set = RoaringBitmapWriter.writer().constantMemory().runCompress(false).get();
 		for (int i = 0; i < valueCount; i++) {
 			set.add(getRandomNumber());
 		}
 
-		final RoaringBitmap roaringBitmap = set.get();
+		final PersistentRoaringBitmap roaringBitmap = set.get();
 		roaringBitmap.runOptimize();
 		return new BaseBitmap(roaringBitmap);
 	}

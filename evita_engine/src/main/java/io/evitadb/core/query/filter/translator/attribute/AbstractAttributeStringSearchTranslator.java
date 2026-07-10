@@ -44,6 +44,7 @@ import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import java.io.Serializable;
+import java.text.Normalizer;
 import java.util.Arrays;
 import java.util.Objects;
 import java.util.Optional;
@@ -122,6 +123,24 @@ public class AbstractAttributeStringSearchTranslator extends AbstractAttributeTr
 	}
 
 	/**
+	 * Builds the prefetch-path predicate so it compares strings under the same canonical equivalence the
+	 * inverted index uses. The {@link FilterIndex} normalizes every stored String key and every incoming
+	 * search term to Unicode NFD; the prefetched raw entity attribute value may be in any canonically
+	 * equivalent form (typically precomposed NFC), so both the search term and each candidate value are
+	 * normalized to NFD here before applying {@link #stringPredicate}. The search term is normalized once and
+	 * the resulting predicate is reused for every (possibly array-element) value.
+	 *
+	 * @param textToSearch the raw search term supplied in the query
+	 * @return a predicate over a single String attribute value that is interchangeable with the index path
+	 */
+	@Nonnull
+	private Predicate<String> createCanonicalPredicate(@Nonnull String textToSearch) {
+		final String normalizedTextToSearch = Normalizer.normalize(textToSearch, Normalizer.Form.NFD);
+		return value -> value != null
+			&& this.stringPredicate.test(Normalizer.normalize(value, Normalizer.Form.NFD), normalizedTextToSearch);
+	}
+
+	/**
 	 * Creates an alternative bitmap filter for processing attribute conditions.
 	 *
 	 * @param filterByVisitor     the visitor handling the filter-by processing context
@@ -194,7 +213,7 @@ public class AbstractAttributeStringSearchTranslator extends AbstractAttributeTr
 					filteringFormula,
 					createAlternativeBitmapFilter(
 						filterByVisitor, attributeConstraint, attributeName,
-						value -> this.stringPredicate.test(value, textToSearch)
+						createCanonicalPredicate(textToSearch)
 					)
 				);
 			} else {
@@ -205,7 +224,7 @@ public class AbstractAttributeStringSearchTranslator extends AbstractAttributeTr
 				"attribute " + this.description + " filter",
 				createAlternativeBitmapFilter(
 					filterByVisitor, attributeConstraint, attributeName,
-					value -> this.stringPredicate.test(value, textToSearch)
+					createCanonicalPredicate(textToSearch)
 				)
 			);
 		}

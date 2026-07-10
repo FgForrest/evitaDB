@@ -24,13 +24,12 @@
 package io.evitadb.index.bitmap;
 
 import com.carrotsearch.hppc.predicates.IntPredicate;
-import org.roaringbitmap.PeekableIntIterator;
-import org.roaringbitmap.RoaringBatchIterator;
-import org.roaringbitmap.RoaringBitmap;
-import org.roaringbitmap.RoaringBitmapWriter;
+import io.evitadb.roaringbitmap.PeekableIntIterator;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
+import io.evitadb.roaringbitmap.RoaringBatchIterator;
+import io.evitadb.roaringbitmap.RoaringBitmapWriter;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
 import java.io.Serial;
 import java.util.NoSuchElementException;
@@ -38,30 +37,38 @@ import java.util.PrimitiveIterator.OfInt;
 import java.util.stream.Collectors;
 
 /**
- * IntegerBitmap implementation that is backed by {@link RoaringBitmap}.
+ * IntegerBitmap implementation that is backed by {@link PersistentRoaringBitmap}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @NotThreadSafe
 public class BaseBitmap implements RoaringBitmapBackedBitmap {
 	@Serial private static final long serialVersionUID = -8471705193727315151L;
-	private final RoaringBitmap roaringBitmap;
+	private final PersistentRoaringBitmap roaringBitmap;
 	private int memoizedCardinality;
 
 	public BaseBitmap() {
-		this.roaringBitmap = new RoaringBitmap();
+		this.roaringBitmap = new PersistentRoaringBitmap();
 		this.memoizedCardinality = 0;
 	}
 
-	public BaseBitmap(@Nullable int... recordIds) {
-		final RoaringBitmap theRoaringBitmap = new RoaringBitmap();
-		theRoaringBitmap.add(recordIds);
-		this.roaringBitmap = theRoaringBitmap;
-		this.memoizedCardinality = theRoaringBitmap.getCardinality();
+	/**
+	 * Builds a bitmap from a raw array of record ids, delegating to
+	 * {@link RoaringBitmapBackedBitmap#fromArray} which adaptively picks the cheaper of the writer
+	 * or incremental construction strategy depending on the size and density of the input — see
+	 * that method for the full reasoning.
+	 *
+	 * @param recordIds the record ids to store; expected sorted ascending (the density probe reads
+	 *                  only the ends, and falls back to the safe incremental path when they are not
+	 *                  ascending)
+	 */
+	public BaseBitmap(@Nonnull int... recordIds) {
+		this.roaringBitmap = RoaringBitmapBackedBitmap.fromArray(recordIds);
+		this.memoizedCardinality = this.roaringBitmap.getCardinality();
 	}
 
 	public BaseBitmap(@Nonnull Bitmap bitmap) {
-		final RoaringBitmap theRoaringBitmap;
+		final PersistentRoaringBitmap theRoaringBitmap;
 		if (bitmap instanceof RoaringBitmapBackedBitmap) {
 			theRoaringBitmap = ((RoaringBitmapBackedBitmap) bitmap).getRoaringBitmap().clone();
 		} else {
@@ -71,14 +78,14 @@ public class BaseBitmap implements RoaringBitmapBackedBitmap {
 		this.memoizedCardinality = bitmap.size();
 	}
 
-	public BaseBitmap(@Nonnull RoaringBitmap bitmap) {
+	public BaseBitmap(@Nonnull PersistentRoaringBitmap bitmap) {
 		this.roaringBitmap = bitmap;
 		this.memoizedCardinality = bitmap.getCardinality();
 	}
 
 	@Nonnull
 	@Override
-	public RoaringBitmap getRoaringBitmap() {
+	public PersistentRoaringBitmap getRoaringBitmap() {
 		return this.roaringBitmap;
 	}
 
@@ -137,7 +144,7 @@ public class BaseBitmap implements RoaringBitmapBackedBitmap {
 	 *                  Elements for which {@code predicate.apply(int)} returns {@code true} will be removed.
 	 */
 	public void removeAll(@Nonnull IntPredicate predicate) {
-		final RoaringBitmapWriter<RoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
+		final RoaringBitmapWriter<PersistentRoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
 		if (size() > 64) {
 			final int[] buffer = new int[64];
 			final RoaringBatchIterator batchIterator = this.roaringBitmap.getBatchIterator();
@@ -171,7 +178,7 @@ public class BaseBitmap implements RoaringBitmapBackedBitmap {
 	 *                  Elements for which it returns {@code true} are retained.
 	 */
 	public void retainAll(@Nonnull IntPredicate predicate) {
-		final RoaringBitmapWriter<RoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
+		final RoaringBitmapWriter<PersistentRoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
 		if (size() > 64) {
 			final int[] buffer = new int[64];
 			final RoaringBatchIterator batchIterator = this.roaringBitmap.getBatchIterator();

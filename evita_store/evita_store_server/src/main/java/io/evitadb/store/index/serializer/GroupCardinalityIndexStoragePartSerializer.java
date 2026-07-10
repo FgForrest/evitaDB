@@ -46,7 +46,7 @@ import static java.util.Optional.ofNullable;
  * Serialization format:
  * 1. Entity index PK (int)
  * 2. Unique part ID (varLong) — encodes entity index PK and compressed reference name ID via
- *    {@link NumberUtils#join(int, int)}, so the reference name is derived from it on read
+ *    {@link NumberUtils#pack(int, int)}, so the reference name is derived from it on read
  * 3. PK cardinalities count (varInt), then for each: entityPK (varInt) + count (varInt)
  * 4. Referenced PKs index count (varInt), then for each: referencedPK (varInt) + TransactionalBitmap (Kryo object)
  *
@@ -88,7 +88,7 @@ public class GroupCardinalityIndexStoragePartSerializer extends Serializer<Group
 		final long uniquePartId = input.readVarLong(true);
 		// derive compressed reference name ID from the uniquePartId (low 32 bits)
 		final ReferenceNameKey referenceNameKey = this.keyCompressor.getKeyForId(
-			NumberUtils.split(uniquePartId)[1]
+			NumberUtils.unpack(uniquePartId)[1]
 		);
 
 		// read PK cardinalities

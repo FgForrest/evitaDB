@@ -36,6 +36,7 @@ import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.invertedIndex.InvertedIndexSubSet;
+import io.evitadb.index.invertedIndex.ValueToRecord;
 import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.NumberUtils;
@@ -227,16 +228,21 @@ public class AttributeHistogramComputer implements CacheableEvitaResponseExtraRe
 				return converted;
 			};
 		} else if (BigDecimal.class.isAssignableFrom(effectiveType)) {
-			// round the value to the schema's indexed precision (HALF_UP) exactly like the sort/filter
-			// index encoding does — a scalar BigDecimal is stored verbatim (only trailing zeros stripped),
-			// so a value whose natural scale exceeds indexedDecimalPlaces must be rounded onto the indexed
-			// grid, not rejected. `convertToInt` still guards against int overflow via intValueExact(),
-			// preserving the int-range contract documented below. Reusing the canonical primitive keeps this
-			// path from drifting from `NumberUtils.convertToInt` (a hand-rolled longValueExact() variant
-			// threw `Rounding necessary` on any excess-scale scalar value).
-			converter = value -> NumberUtils.convertToInt(
-				(BigDecimal) value, histogramRequest.getDecimalPlaces()
-			);
+			// the filter index now stores `BigDecimal` attribute values as a scaled `int` (the magnitude
+			// `BigDecimal.valueOf(scaledInt, indexedDecimalPlaces)` restores), so the bucket value handed to
+			// the converter is already an `Integer` in the integer domain — use it as identity. A genuine
+			// `BigDecimal` is still accepted defensively (e.g. an externally-built probe): it is rounded to
+			// the schema's indexed precision (HALF_UP) onto the indexed grid via the canonical
+			// `NumberUtils.convertToInt` — the same primitive the sort/filter index encoding uses — rather
+			// than rejected when its natural scale exceeds indexedDecimalPlaces. `convertToInt` still guards
+			// against int overflow via `intValueExact()`, preserving the int-range contract documented below.
+			final int places = histogramRequest.getDecimalPlaces();
+			converter = value -> {
+				if (value instanceof Integer scaledInt) {
+					return scaledInt;
+				}
+				return NumberUtils.convertToInt((BigDecimal) value, places);
+			};
 		} else {
 			throw new GenericEvitaInternalError(
 				"Unsupported histogram number type: " + schemaType +
@@ -495,7 +501,7 @@ public class AttributeHistogramComputer implements CacheableEvitaResponseExtraRe
 			);
 			final int retainedDecimalPlaces = request.getDecimalPlaces();
 			final List<FilterIndex> attributeIndexList = histogramComputer.getAttributeIndexes();
-			final ValueToRecordBitmap[][] attributeIndexes = new ValueToRecordBitmap[attributeIndexList.size()][];
+			final ValueToRecord[][] attributeIndexes = new ValueToRecord[attributeIndexList.size()][];
 			for (int i = 0; i < attributeIndexList.size(); i++) {
 				final FilterIndex fi = attributeIndexList.get(i);
 				final InvertedIndexSubSet subset;
@@ -512,7 +518,7 @@ public class AttributeHistogramComputer implements CacheableEvitaResponseExtraRe
 				} else {
 					subset = fi.getHistogramOfAllRecords();
 				}
-				attributeIndexes[i] = subset.getHistogramBuckets();
+				attributeIndexes[i] = subset.getBuckets();
 			}
 
 			this.memoizedNarrowedBuckets = AttributeHistogramProducer.getCombinedAndFilteredBucketArray(

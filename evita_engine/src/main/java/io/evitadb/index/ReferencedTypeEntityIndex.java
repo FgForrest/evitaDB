@@ -64,7 +64,7 @@ import one.edee.oss.proxycian.PredicateMethodClassification;
 import one.edee.oss.proxycian.bytebuddy.ByteBuddyDispatcherInvocationHandler;
 import one.edee.oss.proxycian.bytebuddy.ByteBuddyProxyGenerator;
 import one.edee.oss.proxycian.util.ReflectionUtils;
-import org.roaringbitmap.RoaringBitmap;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -319,14 +319,19 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 			return new ReferencedTypeEntityIndex(
 				manifest.getPrimaryKey(),
 				manifest.getEntityIndexKey(),
-				manifest.getVersion(),
-				manifest.getEntityIds(),
-				manifest.getEntityIdsByLanguage(),
+				context.version(),
+				context.entityIds(),
+				context.entityIdsByLanguage(),
 				new ReferenceAttributeIndex(
 					context.entitySchema().getName(),
 					null,
-					attributes.uniqueIndexes(), attributes.filterIndexes(),
-					attributes.sortIndexes(), attributes.chainIndexes()
+					attributes.uniqueIndexes(),
+					attributes.filterIndexes(),
+					attributes.uniqueViewIndexes(),
+					attributes.sortIndexes(),
+					attributes.chainIndexes(),
+					attributes.sharedValueIndexes(),
+					attributes.sharedRangeIndexes()
 				),
 				hierarchy.hierarchyIndex(),
 				facet.facetIndex(),
@@ -401,7 +406,7 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 	/**
 	 * Returns the referenced entity primary keys (forward-mapping keys) whose reduced-index PK bitmaps
 	 * overlap with the given set of index primary keys. This is the reverse lookup of
-	 * {@link #getIndexPrimaryKeys(RoaringBitmap)}.
+	 * {@link #getIndexPrimaryKeys(PersistentRoaringBitmap)}.
 	 *
 	 * For a `REFERENCED_GROUP_ENTITY_TYPE` index this translates reduced-group-index PKs back to
 	 * group entity primary keys.
@@ -494,13 +499,13 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 	 */
 	@Nonnull
 	public Bitmap getIndexPrimaryKeys(
-		@Nonnull RoaringBitmap referencedEntityPrimaryKeys
+		@Nonnull PersistentRoaringBitmap referencedEntityPrimaryKeys
 	) {
 		return this.indexPrimaryKeyCardinality.getIndexPrimaryKeys(referencedEntityPrimaryKeys);
 	}
 
 	/**
-	 * This method delegates call to {@link EntityIndex#insertFilterAttribute(ReferenceSchemaContract, AttributeSchemaContract, Set, Locale, Serializable, int)}
+	 * This method delegates call to {@link EntityIndex#insertFilterAttribute(ReferenceSchemaContract, AttributeSchemaContract, Set, Locale, Serializable, int, boolean)}
 	 * but tracks the cardinality of the referenced primary key in {@link #cardinalityIndexes}.
 	 */
 	@Override
@@ -510,7 +515,8 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 		@Nonnull Set<Locale> allowedLocales,
 		@Nullable Locale locale,
 		@Nonnull Serializable value,
-		int recordId
+		int recordId,
+		boolean foldedUnique
 	) {
 		// first retrieve or create the cardinality index for given attribute
 		final AttributeCardinalityIndex theCardinalityIndex = this.cardinalityIndexes.computeIfAbsent(
@@ -530,7 +536,7 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 				final Serializable[] delta = Arrays.copyOfRange(onlyNewItemsValueArray, 0, onlyNewItemsValueArrayIndex);
 				super.addDeltaFilterAttribute(
 					referenceSchema, attributeSchema, allowedLocales, locale,
-					delta, recordId
+					delta, recordId, foldedUnique
 				);
 			}
 		} else {
@@ -538,7 +544,7 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 			if (theCardinalityIndex.addRecord(value, recordId) == CardinalityChange.BOUNDARY_CROSSED) {
 				super.insertFilterAttribute(
 					referenceSchema, attributeSchema, allowedLocales, locale,
-					value, recordId
+					value, recordId, foldedUnique
 				);
 			}
 		}

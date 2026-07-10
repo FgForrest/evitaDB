@@ -29,6 +29,8 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
+import io.evitadb.core.buffer.DataStoreChanges.RemovedStoragePart;
 import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
@@ -36,9 +38,10 @@ import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.locale.LocaleFormula;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
+import io.evitadb.dataType.Scope;
 import io.evitadb.index.attribute.AttributeIndex;
 import io.evitadb.index.attribute.AttributeIndexContract;
-import io.evitadb.index.attribute.AttributeIndexScopeSpecificContract;
+import io.evitadb.index.attribute.AttributeIndexEditorContract;
 import io.evitadb.index.attribute.EntityAttributeIndex;
 import io.evitadb.index.attribute.ReferenceAttributeIndex;
 import io.evitadb.index.attribute.UniqueIndex;
@@ -57,6 +60,7 @@ import io.evitadb.index.price.PriceIndexContract;
 import io.evitadb.index.price.model.PriceIndexKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStorageKey;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIdsStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIndexStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.HistogramIndexStorageKey;
 import io.evitadb.utils.Assert;
@@ -66,6 +70,7 @@ import lombok.experimental.Delegate;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -76,6 +81,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
 
 import static io.evitadb.core.transaction.Transaction.removeTransactionalMemoryLayerIfExists;
 import static io.evitadb.utils.Assert.isTrue;
@@ -95,6 +101,7 @@ import static java.util.Optional.ofNullable;
  */
 public abstract class EntityIndex implements
 	Index<EntityIndexKey>,
+	AttributeIndexEditorContract,
 	PriceIndexContract,
 	Versioned,
 	IndexDataStructure
@@ -106,10 +113,15 @@ public abstract class EntityIndex implements
 	 * data that are necessary for constructing {@link Formula} tree for the constraints
 	 * related to the attributes.
 	 */
-	@Delegate(types = AttributeIndexContract.class, excludes = AttributeIndexScopeSpecificContract.class)
+	@Delegate(types = AttributeIndexContract.class)
 	protected final AttributeIndex attributeIndex;
 	/**
-	 * This is internal flag that tracks whether the index contents became dirty and needs to be persisted.
+	 * Internal flag that tracks whether the entity-id membership bitmaps ({@link #entityIds} /
+	 * {@link #entityIdsByLanguage}) changed and must be re-persisted. It drives two things: the index
+	 * {@link #version} bump on commit, and the emission of the sibling {@link EntityIdsStoragePart}
+	 * during flush. Manifest ({@link EntityIndexStoragePart}) re-emission, by contrast, is decided by the
+	 * structural diff against the captured `original*` baselines — so a pure membership change no longer
+	 * forces the bulky manifest to be rewritten.
 	 */
 	protected final TransactionalBoolean dirty;
 	/**
@@ -176,6 +188,17 @@ public abstract class EntityIndex implements
 	 */
 	protected Set<HistogramIndexStorageKey> originalHistogramKeys;
 	/**
+	 * Whether this index already existed in persistent storage when it was constructed (proxied by a
+	 * committed entity-id bitmaps part, i.e. a non-empty `entityIds`). It guarantees the manifest is
+	 * written at least once even for an index whose only change is entity membership (no sub-index ever
+	 * appearing): such a never-persisted index would otherwise emit a bitmaps part with no manifest and
+	 * become unreloadable — see {@link #getModifiedStorageParts(TrappedChanges)}. The value is derived
+	 * from the non-emptiness of the supplied `entityIds` at construction, so it self-heals across the
+	 * transactional copy: once the first bitmaps part is committed, the next copy is built from a
+	 * non-empty bitmap and observes `true`.
+	 */
+	protected final boolean previouslyPersisted;
+	/**
 	 * Ordered list of self-registering sub-systems that participate in commit-time flush and
 	 * transactional-layer lifecycle. Populated by the base constructors with the three intrinsic
 	 * components (attribute, hierarchy, facet) and extended by subclass constructors via
@@ -222,6 +245,8 @@ public abstract class EntityIndex implements
 		this.dirty = new TransactionalBoolean();
 		this.indexKey = indexKey;
 		this.entityIds = new TransactionalBitmap();
+		// a fresh index has no persisted bitmaps yet
+		this.previouslyPersisted = false;
 		this.entityIdsByLanguage = new TransactionalMap<>(new HashMap<>(16), TransactionalBitmap.class, TransactionalBitmap::new);
 		final RepresentativeReferenceKey discriminatorRefKey =
 			indexKey.discriminator() instanceof RepresentativeReferenceKey rk ? rk : null;
@@ -275,6 +300,9 @@ public abstract class EntityIndex implements
 		this.version = version;
 		this.dirty = new TransactionalBoolean();
 		this.entityIds = new TransactionalBitmap(entityIds);
+		// reloaded / transactionally-copied indexes already carry persisted bitmaps when non-empty;
+		// this self-heals across the commit copy, which is built from the committed (non-empty) bitmap
+		this.previouslyPersisted = !entityIds.isEmpty();
 
 		final Map<Locale, TransactionalBitmap> txEntityIdsByLanguage = createHashMap(entityIdsByLanguage.size());
 		for (Entry<Locale, TransactionalBitmap> entry : entityIdsByLanguage.entrySet()) {
@@ -341,6 +369,8 @@ public abstract class EntityIndex implements
 		this.version = version;
 		this.dirty = new TransactionalBoolean();
 		this.entityIds = entityIds;
+		// the "preserve originals" copy carries the source index's persisted-bitmap state verbatim
+		this.previouslyPersisted = !entityIds.isEmpty();
 		this.entityIdsByLanguage = entityIdsByLanguage;
 		this.attributeIndex = attributeIndex;
 		this.hierarchyIndex = hierarchyIndex;
@@ -467,6 +497,310 @@ public abstract class EntityIndex implements
 		return this.attributeIndex.getUniqueIndex(referenceSchema, attributeSchema, this.indexKey.scope(), locale);
 	}
 
+	// Granular per-structure attribute write primitives. These are intentionally NOT part of the public
+	// AttributeIndexEditorContract — the mutation layer drives the index through the coarse upsert / remove /
+	// applyDelta operations below. They are exposed as concrete, overridable methods purely so those coarse operations
+	// can dispatch through `this`, letting the referenced-type / group subclasses override them to gate writes on a
+	// cardinality boundary or to no-op the structures they do not maintain. Each one forwards to the attribute sub-index.
+
+	/**
+	 * Registers `value` for `recordId` in the unique structure of `attributeSchema`. Overridable primitive — see the
+	 * note above. Returns where this value's uniqueness is enforced (an index that does not maintain unique attributes
+	 * overrides this to return {@link AttributeIndex.UniquenessEnforcement#NONE}).
+	 *
+	 * @return where this value's uniqueness is enforced
+	 * @throws io.evitadb.api.exception.UniqueValueViolationException when value is not unique
+	 */
+	public AttributeIndex.UniquenessEnforcement insertUniqueAttribute(
+		@Nullable ReferenceSchemaContract referenceSchema,
+		@Nonnull AttributeSchemaContract attributeSchema,
+		@Nonnull Set<Locale> allowedLocales,
+		@Nonnull Scope scope,
+		@Nullable Locale locale,
+		@Nonnull Serializable value,
+		int recordId
+	) {
+		return this.attributeIndex.insertUniqueAttribute(referenceSchema, attributeSchema, allowedLocales, scope, locale, value, recordId);
+	}
+
+	/**
+	 * Drops `value` for `recordId` from the unique structure of `attributeSchema`. Overridable primitive — see the
+	 * note above.
+	 */
+	public void removeUniqueAttribute(
+		@Nullable ReferenceSchemaContract referenceSchema,
+		@Nonnull AttributeSchemaContract attributeSchema,
+		@Nonnull Set<Locale> allowedLocales,
+		@Nonnull Scope scope,
+		@Nullable Locale locale,
+		@Nonnull Serializable value,
+		int recordId
+	) {
+		this.attributeIndex.removeUniqueAttribute(referenceSchema, attributeSchema, allowedLocales, scope, locale, value, recordId);
+	}
+
+	/**
+	 * Adds `value` for `recordId` to the filter structure of `attributeSchema`. Overridable primitive — see the note
+	 * above. When `foldedUnique` is set the write enforces folded per-value uniqueness and registers the folded view.
+	 */
+	public void insertFilterAttribute(
+		@Nullable ReferenceSchemaContract referenceSchema,
+		@Nonnull AttributeSchemaContract attributeSchema,
+		@Nonnull Set<Locale> allowedLocales,
+		@Nullable Locale locale,
+		@Nonnull Serializable value,
+		int recordId,
+		boolean foldedUnique
+	) {
+		this.attributeIndex.insertFilterAttribute(referenceSchema, attributeSchema, allowedLocales, locale, value, recordId, foldedUnique);
+	}
+
+	/**
+	 * Removes `value` for `recordId` from the filter structure of `attributeSchema`. Overridable primitive — see the
+	 * note above.
+	 */
+	public void removeFilterAttribute(
+		@Nullable ReferenceSchemaContract referenceSchema,
+		@Nonnull AttributeSchemaContract attributeSchema,
+		@Nonnull Set<Locale> allowedLocales,
+		@Nullable Locale locale,
+		@Nonnull Serializable value,
+		int recordId
+	) {
+		this.attributeIndex.removeFilterAttribute(referenceSchema, attributeSchema, allowedLocales, locale, value, recordId);
+	}
+
+	/**
+	 * Adds the array delta `value` for `recordId` to the filter structure (array attributes only). Overridable
+	 * primitive — see the note above. When `foldedUnique` is set every new element is verified and the view registered.
+	 */
+	public void addDeltaFilterAttribute(
+		@Nullable ReferenceSchemaContract referenceSchema,
+		@Nonnull AttributeSchemaContract attributeSchema,
+		@Nonnull Set<Locale> allowedLocales,
+		@Nullable Locale locale,
+		@Nonnull Serializable[] value,
+		int recordId,
+		boolean foldedUnique
+	) {
+		this.attributeIndex.addDeltaFilterAttribute(referenceSchema, attributeSchema, allowedLocales, locale, value, recordId, foldedUnique);
+	}
+
+	/**
+	 * Removes the array delta `value` for `recordId` from the filter structure (array attributes only). Overridable
+	 * primitive — see the note above.
+	 */
+	public void removeDeltaFilterAttribute(
+		@Nullable ReferenceSchemaContract referenceSchema,
+		@Nonnull AttributeSchemaContract attributeSchema,
+		@Nonnull Set<Locale> allowedLocales,
+		@Nullable Locale locale,
+		@Nonnull Serializable[] value,
+		int recordId
+	) {
+		this.attributeIndex.removeDeltaFilterAttribute(referenceSchema, attributeSchema, allowedLocales, locale, value, recordId);
+	}
+
+	/**
+	 * Adds `value` for `recordId` to the sort structure of `attributeSchema`. Overridable primitive — see the note
+	 * above.
+	 */
+	public void insertSortAttribute(
+		@Nullable ReferenceSchemaContract referenceSchema,
+		@Nonnull AttributeSchemaContract attributeSchema,
+		@Nonnull Set<Locale> allowedLocales,
+		@Nullable Locale locale,
+		@Nonnull Serializable value,
+		int recordId
+	) {
+		this.attributeIndex.insertSortAttribute(referenceSchema, attributeSchema, allowedLocales, locale, value, recordId);
+	}
+
+	/**
+	 * Removes `value` for `recordId` from the sort structure of `attributeSchema`. Overridable primitive — see the
+	 * note above.
+	 */
+	public void removeSortAttribute(
+		@Nullable ReferenceSchemaContract referenceSchema,
+		@Nonnull AttributeSchemaContract attributeSchema,
+		@Nonnull Set<Locale> allowedLocales,
+		@Nullable Locale locale,
+		@Nonnull Serializable value,
+		int recordId
+	) {
+		this.attributeIndex.removeSortAttribute(referenceSchema, attributeSchema, allowedLocales, locale, value, recordId);
+	}
+
+	/**
+	 * Adds the compound `value` for `recordId` to the sort structure described by `compoundSchema`. Overridable
+	 * primitive — see the note above.
+	 */
+	public void insertSortAttributeCompound(
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nullable ReferenceSchemaContract referenceSchema,
+		@Nonnull SortableAttributeCompoundSchemaContract compoundSchema,
+		@Nonnull Function<String, Class<?>> attributeTypeProvider,
+		@Nullable Locale locale,
+		@Nonnull Serializable[] value,
+		int recordId
+	) {
+		this.attributeIndex.insertSortAttributeCompound(entitySchema, referenceSchema, compoundSchema, attributeTypeProvider, locale, value, recordId);
+	}
+
+	/**
+	 * Removes the compound `value` for `recordId` from the sort structure described by `compoundSchema`. Overridable
+	 * primitive — see the note above.
+	 */
+	public void removeSortAttributeCompound(
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nullable ReferenceSchemaContract referenceSchema,
+		@Nonnull SortableAttributeCompoundSchemaContract compoundSchema,
+		@Nullable Locale locale,
+		@Nonnull Serializable[] value,
+		int recordId
+	) {
+		this.attributeIndex.removeSortAttributeCompound(entitySchema, referenceSchema, compoundSchema, locale, value, recordId);
+	}
+
+	/**
+	 * Inserts the attribute `value` for `recordId` into every index structure the `attributeSchema` enables in
+	 * `scope` — the unique, filter and sort sub-indexes — in one schema-driven operation. This is the insert half
+	 * of an attribute upsert: callers pair it with {@link #removeAttribute} for the previous value (the two halves
+	 * may target different index instances during a reference group reassignment).
+	 *
+	 * The per-structure primitives ({@link #insertUniqueAttribute}, {@link #insertFilterAttribute},
+	 * {@link #insertSortAttribute}) are invoked on `this`, so subclass overrides (cardinality gating in the
+	 * referenced-type / group indexes, no-op suppression of sort and unique there) compose automatically without
+	 * the caller needing to know which structures a particular index maintains.
+	 *
+	 * A unique attribute that is not separately filterable still shadows its value into the filter index, because
+	 * the shared value tree that backs unique reads is the filter structure.
+	 *
+	 * @param referenceSchema the reference schema owning the attribute, or `null` for entity-level attributes
+	 * @param attributeSchema the schema of the attribute being inserted
+	 * @param allowedLocales  the set of locales permitted by the entity schema
+	 * @param scope           the scope of the target index, deciding which structures are maintained
+	 * @param locale          the locale of the value, or `null` for language-agnostic attributes
+	 * @param value           the attribute value to insert (a `Serializable[]` for array attributes)
+	 * @param recordId        the primary key the value is attributed to
+	 */
+	@Override
+	public void upsertAttribute(
+		@Nullable ReferenceSchemaContract referenceSchema,
+		@Nonnull AttributeSchemaContract attributeSchema,
+		@Nonnull Set<Locale> allowedLocales,
+		@Nonnull Scope scope,
+		@Nullable Locale locale,
+		@Nonnull Serializable value,
+		int recordId
+	) {
+		final boolean unique = attributeSchema.isUniqueInScope(scope);
+		final boolean filterable = attributeSchema.isFilterableInScope(scope);
+		final boolean sortable = attributeSchema.isSortableInScope(scope);
+		// SORT before FILTER: a view-mode sort index reads the shared value tree in its pre-insert state to compute
+		// the new record's position, so the FILTER write (which mutates that tree) must run afterwards
+		if (sortable) {
+			insertSortAttribute(referenceSchema, attributeSchema, allowedLocales, locale, value, recordId);
+		}
+		// account for the value's uniqueness (standalone owner store, or — for a folded unique — nothing here) and learn
+		// WHERE it is enforced: the primitive reports this explicitly (a sub-index that suppresses unique maintenance
+		// returns NONE), so the decision flows by data, not by shared-map state
+		AttributeIndex.UniquenessEnforcement uniqueEnforcement = AttributeIndex.UniquenessEnforcement.NONE;
+		if (unique) {
+			uniqueEnforcement = insertUniqueAttribute(referenceSchema, attributeSchema, allowedLocales, scope, locale, value, recordId);
+		}
+		if (unique || filterable) {
+			// a unique attribute that is not separately filterable still shadows its value into the filter index, because
+			// the shared value tree that backs unique reads IS the filter structure. The filter write owns folded-unique
+			// enforcement + view registration iff the uniqueness is enforced BY_FILTER_WRITE (the folded representation)
+			insertFilterAttribute(
+				referenceSchema, attributeSchema, allowedLocales, locale, value, recordId,
+				uniqueEnforcement == AttributeIndex.UniquenessEnforcement.BY_FILTER_WRITE
+			);
+		}
+	}
+
+	/**
+	 * Removes the attribute `value` for `recordId` from every index structure the `attributeSchema` enables in
+	 * `scope` — the unique, filter and sort sub-indexes — in one schema-driven operation. This is both the remove
+	 * half of an attribute upsert and the operation used for outright attribute removal.
+	 *
+	 * Like {@link #upsertAttribute}, the per-structure primitives are invoked on `this` so subclass overrides
+	 * compose automatically. The catalog-level global-unique index is intentionally NOT touched here — it is a
+	 * separate index object maintained directly by the mutation executor.
+	 *
+	 * @param referenceSchema the reference schema owning the attribute, or `null` for entity-level attributes
+	 * @param attributeSchema the schema of the attribute being removed
+	 * @param allowedLocales  the set of locales permitted by the entity schema
+	 * @param scope           the scope of the target index, deciding which structures are maintained
+	 * @param locale          the locale of the value, or `null` for language-agnostic attributes
+	 * @param value           the attribute value to remove (a `Serializable[]` for array attributes)
+	 * @param recordId        the primary key the value was attributed to
+	 */
+	@Override
+	public void removeAttribute(
+		@Nullable ReferenceSchemaContract referenceSchema,
+		@Nonnull AttributeSchemaContract attributeSchema,
+		@Nonnull Set<Locale> allowedLocales,
+		@Nonnull Scope scope,
+		@Nullable Locale locale,
+		@Nonnull Serializable value,
+		int recordId
+	) {
+		final boolean unique = attributeSchema.isUniqueInScope(scope);
+		final boolean filterable = attributeSchema.isFilterableInScope(scope);
+		final boolean sortable = attributeSchema.isSortableInScope(scope);
+		// SORT before FILTER: a view-mode sort index reads the shared value tree in its pre-removal state (the
+		// record is still present), so the FILTER removal (which drops it from that tree) must run afterwards
+		if (sortable) {
+			removeSortAttribute(referenceSchema, attributeSchema, allowedLocales, locale, value, recordId);
+		}
+		if (unique) {
+			removeUniqueAttribute(referenceSchema, attributeSchema, allowedLocales, scope, locale, value, recordId);
+		}
+		if (unique || filterable) {
+			// mirror of the upsert shadow: drop the value (real or shadowed) from the filter index last
+			removeFilterAttribute(referenceSchema, attributeSchema, allowedLocales, locale, value, recordId);
+		}
+	}
+
+	/**
+	 * Transitions the attribute for `recordId` from `oldValue` to `newValue` across every index structure the
+	 * `attributeSchema` enables in `scope`. Unlike an upsert, a delta mutation never reassigns the record between
+	 * index instances, so the old-value removal and new-value insertion always target the same index and primary
+	 * key and can be applied as one operation.
+	 *
+	 * The per-structure primitives are invoked on `this` so subclass overrides compose automatically. As in
+	 * {@link #upsertAttribute}, a unique attribute that is not separately filterable shadows the transition into
+	 * the filter index.
+	 *
+	 * @param referenceSchema the reference schema owning the attribute, or `null` for entity-level attributes
+	 * @param attributeSchema the schema of the attribute being modified
+	 * @param allowedLocales  the set of locales permitted by the entity schema
+	 * @param scope           the scope of the target index, deciding which structures are maintained
+	 * @param locale          the locale of the value, or `null` for language-agnostic attributes
+	 * @param oldValue        the current attribute value to remove
+	 * @param newValue        the new attribute value to insert
+	 * @param recordId        the primary key the value is attributed to
+	 */
+	@Override
+	public void applyAttributeDelta(
+		@Nullable ReferenceSchemaContract referenceSchema,
+		@Nonnull AttributeSchemaContract attributeSchema,
+		@Nonnull Set<Locale> allowedLocales,
+		@Nonnull Scope scope,
+		@Nullable Locale locale,
+		@Nonnull Serializable oldValue,
+		@Nonnull Serializable newValue,
+		int recordId
+	) {
+		// a delta is a same-index, same-pk transition: remove the old value from every structure (sort-before-filter)
+		// then insert the new value the same way. Composing the two coarse halves keeps the ordering invariant and
+		// the shadow/uniqueness handling in one place.
+		removeAttribute(referenceSchema, attributeSchema, allowedLocales, scope, locale, oldValue, recordId);
+		upsertAttribute(referenceSchema, attributeSchema, allowedLocales, scope, locale, newValue, recordId);
+	}
+
 	/**
 	 * Returns formula that computes all record ids in this index that has at least one localized attribute / associated
 	 * data in passed `locale`.
@@ -507,9 +841,13 @@ public abstract class EntityIndex implements
 	 *
 	 * The flush walks the registered {@link IndexComponent} list in order: each component emits its own
 	 * modified storage parts and announces its live keys into a shared {@link EntityIndexManifest}. The
-	 * collected manifest is then compared against the captured originals; on any divergence (or when the
-	 * dirty flag is set) a fresh {@link EntityIndexStoragePart} is built listing every sub-index that
-	 * must reload on restart.
+	 * collected manifest is then compared against the captured originals; on any divergence a fresh
+	 * {@link EntityIndexStoragePart} is built listing every sub-index that must reload on restart.
+	 *
+	 * The entity-id membership bitmaps are persisted independently of the manifest: when {@link #dirty}
+	 * is set they are re-emitted as a sibling {@link EntityIdsStoragePart} (or removed when the index
+	 * emptied out), so a pure membership change no longer rewrites the bulky manifest. The one coupling
+	 * is the first write — see the body for why a never-persisted index still emits its manifest.
 	 *
 	 * @param trappedChanges the accumulator collecting modified storage parts for the current commit
 	 */
@@ -526,13 +864,22 @@ public abstract class EntityIndex implements
 		final Set<PriceIndexKey> priceIndexKeys = manifest.getPriceKeys();
 		final Set<String> facetIndexReferencedEntities = manifest.getFacetReferencedEntities();
 		final Set<HistogramIndexStorageKey> histogramIndexStorageKeys = manifest.getHistogramKeys();
-		if (this.dirty.isTrue() ||
+
+		final boolean bitmapsDirty = this.dirty.isTrue();
+		final boolean manifestStructurallyChanged =
 			this.originalHierarchyIndexEmpty != hierarchyIndexEmpty ||
-			!Objects.equals(this.originalAttributeIndexes, attributeIndexStorageKeys) ||
-			!Objects.equals(this.originalPriceIndexes, priceIndexKeys) ||
-			!Objects.equals(this.originalFacetIndexes, facetIndexReferencedEntities) ||
-			!Objects.equals(this.originalHistogramKeys, histogramIndexStorageKeys)
-		) {
+				!Objects.equals(this.originalAttributeIndexes, attributeIndexStorageKeys) ||
+				!Objects.equals(this.originalPriceIndexes, priceIndexKeys) ||
+				!Objects.equals(this.originalFacetIndexes, facetIndexReferencedEntities) ||
+				!Objects.equals(this.originalHistogramKeys, histogramIndexStorageKeys);
+
+		// The bulky manifest (the sub-index reference sets) is re-emitted only when its own content
+		// changed. The extra `bitmapsDirty && !previouslyPersisted` term guarantees the manifest is
+		// written at least once: a fresh index whose only change is entity membership (no sub-index ever
+		// appearing) must still persist a manifest, or it would be unreloadable (a bitmaps part with no
+		// manifest). After the first commit the transactional copy observes a non-empty bitmap and flips
+		// `previouslyPersisted` to true, so subsequent membership-only commits skip the manifest.
+		if (manifestStructurallyChanged || (bitmapsDirty && !this.previouslyPersisted)) {
 			trappedChanges.addChangeToStore(
 				createStoragePart(
 					hierarchyIndexEmpty, attributeIndexStorageKeys, priceIndexKeys,
@@ -540,6 +887,45 @@ public abstract class EntityIndex implements
 				)
 			);
 		}
+
+		// The entity-id bitmaps live in their own sibling part, re-emitted on any membership change.
+		if (bitmapsDirty) {
+			if (this.entityIds.isEmpty() && this.entityIdsByLanguage.isEmpty()) {
+				// the index emptied out — drop the sibling part so compaction can reclaim it (a no-op
+				// when none was ever written, e.g. a fresh index emptied before its first flush)
+				trappedChanges.addChangeToStore(
+					new RemovedStoragePart(EntityIdsStoragePart.class, this.primaryKey)
+				);
+			} else {
+				trappedChanges.addChangeToStore(createBitmapsPart());
+			}
+		}
+	}
+
+	/**
+	 * Advances the change-detection baseline to the state that was just persisted. Invoked by the flush
+	 * pipeline ({@link io.evitadb.core.buffer.DataStoreChanges#popTrappedUpdates()}) once, immediately after
+	 * {@link #getModifiedStorageParts(TrappedChanges)} has collected this index's parts for the commit, so it
+	 * runs exactly when the parts are actually written — and never on the incidental
+	 * {@code getModifiedStorageParts} calls made by tests or diagnostics (which is why the baseline refresh
+	 * lives here rather than inside the collect method, keeping that method a pure, idempotent read).
+	 *
+	 * After the flush the on-disk manifest reflects the current sub-index key sets, so the baseline the NEXT
+	 * flush diffs against must be those same sets. Without this advance an index first flushed in warm-up
+	 * (bulk) mode keeps its empty construction-time baseline while disk already holds the emitted sub-index
+	 * keys; the same instance is then reused after {@code goLive}, and a later transactional commit that drops
+	 * those sub-indexes (current key set shrinks back to the empty stale baseline) is mis-detected as
+	 * "unchanged". The stale manifest and its now-removed sub-index parts are then never rewritten/removed,
+	 * while the membership bitmap IS dropped — so on reload the index rebuilds a price/sort sub-index the
+	 * membership no longer backs, failing with "Price with id N was not found in the same index!" / the NULL
+	 * super-index variant / "Record id N is already present in the sort index!". Pure transactional commits
+	 * already refresh the baseline through the merge-copy constructor (which calls
+	 * {@link #captureOriginalsFromComponents()}); routing the refresh through this flush hook closes the same
+	 * gap on the warm-up -> transactional hand-off where the instance is reused rather than copied.
+	 */
+	@Override
+	public final void notifyFlushed() {
+		captureOriginalsFromComponents();
 	}
 
 	@Override
@@ -668,12 +1054,25 @@ public abstract class EntityIndex implements
 	) {
 		return new EntityIndexStoragePart(
 			this.primaryKey, this.version, this.indexKey,
-			this.entityIds, this.entityIdsByLanguage,
 			attributeIndexStorageKeys,
 			priceIndexKeys,
 			!hierarchyIndexEmpty,
 			facetIndexReferencedEntities,
 			histogramIndexStorageKeys
+		);
+	}
+
+	/**
+	 * Builds the sibling {@link EntityIdsStoragePart} carrying this index's entity-id membership bitmaps
+	 * ({@link #entityIds} and {@link #entityIdsByLanguage}). Emitted from
+	 * {@link #getModifiedStorageParts(TrappedChanges)} whenever the membership changed.
+	 *
+	 * @return the storage part holding the entity-id superset bitmap and the per-locale bitmaps
+	 */
+	@Nonnull
+	private StoragePart createBitmapsPart() {
+		return new EntityIdsStoragePart(
+			this.primaryKey, this.version, this.entityIds, this.entityIdsByLanguage
 		);
 	}
 
