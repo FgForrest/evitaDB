@@ -195,17 +195,18 @@ public class ChainIndexChanges
 			? () -> invert(elements.getPositions())
 			: elements::getPositions;
 		final Supplier<Bitmap> allRecordsSupplier = elements::getRecordIds;
-		return referenceKey != null
-			? new ReferenceSortedRecordsProvider(
-				transactionalId, elements, descending, recordCount,
-				sortedRecordIdsSupplier, recordPositionsSupplier, allRecordsSupplier,
-				THROWING_COMPARABLE_SEEKER, referenceKey
-			)
-			: new SortedRecordsSupplier(
-				transactionalId, elements, descending, recordCount,
-				sortedRecordIdsSupplier, recordPositionsSupplier, allRecordsSupplier,
-				THROWING_COMPARABLE_SEEKER
-			);
+		// per-transaction change layer is short-lived: a cold dense selection walks the tree (materializing nothing)
+		// rather than warming arrays it would rarely reuse - hence DenseSelectionWarmup.COLD_WALK
+		// the descending accessors already yield reversed/inverted arrays (direction-correct), so this supplier indexes
+		// them directly -> DESCENDING_OWN_ARRAYS (not mirrored)
+		final SortDirectionBacking directionBacking = descending
+			? SortDirectionBacking.DESCENDING_OWN_ARRAYS
+			: SortDirectionBacking.ASCENDING;
+		return SortedRecordsSupplier.createTreeBacked(
+			transactionalId, elements, recordCount,
+			sortedRecordIdsSupplier, recordPositionsSupplier, allRecordsSupplier, THROWING_COMPARABLE_SEEKER,
+			referenceKey, DenseSelectionWarmup.COLD_WALK, directionBacking
+		);
 	}
 
 	/**

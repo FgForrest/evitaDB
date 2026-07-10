@@ -220,9 +220,46 @@ public interface SortedRecordsSupplierFactory {
 			@Nonnull int[] bufferB,
 			@Nullable ForcedSortResolution forcedResolution
 		) {
-			final Bitmap unsortedRecordIds = getAllRecords();
-			final int[] recordPositions = getRecordPositions();
+			// a generic array-backed provider emits its position array as-is; a provider that shares ascending
+			// arrays for a descending direction overrides this method and passes mirror = true instead
+			return resolvePositionsByArrayMergeWalk(
+				getAllRecords(), getRecordPositions(), selectedRecordIds, selectedRecordCount, bufferA, bufferB,
+				false, 0
+			);
+		}
 
+		/**
+		 * Shared array merge-walk (`O(N + K)`) backing both the {@link #resolvePositions} default and the warm
+		 * array walk of the tree-backed supplier. Batch-iterates `unsortedRecordIds` against `selectedRecordIds`;
+		 * for every id present in both it looks up the record's sorted position in `recordPositions` and emits it
+		 * into an ascending mask bitmap, while selected ids with no match are collected into the not-found bitmap.
+		 * The mask stays ascending in the {@link PersistentRoaringBitmap} regardless of emit order.
+		 *
+		 * `mirror` supports a descending supplier that shares the ascending position array: when set, each
+		 * ascending position `p` is emitted as `lastPosition - p` (identity otherwise), so no reversed copy of the
+		 * array is ever materialized.
+		 *
+		 * @param unsortedRecordIds   the record ids in their natural (id) order, aligned with `recordPositions`
+		 * @param recordPositions     the sorted position of each record, in `unsortedRecordIds` order
+		 * @param selectedRecordIds   the record ids to locate, in ascending id order
+		 * @param selectedRecordCount the count of selected record ids (walk terminates once all are matched)
+		 * @param bufferA             scratch buffer for batch iteration over the record-id order
+		 * @param bufferB             scratch buffer for batch iteration over the selection
+		 * @param mirror              `true` to emit `lastPosition - position` (descending share), `false` for identity
+		 * @param lastPosition        the highest position index (`recordCount - 1`); used only when `mirror` is set
+		 * @return the ascending position mask, the not-found record ids, their count and {@link SortResolutionStrategy#ARRAY_MERGE_WALK}
+		 */
+		@Nonnull
+		static PositionResolution resolvePositionsByArrayMergeWalk(
+			@Nonnull Bitmap unsortedRecordIds,
+			@Nonnull int[] recordPositions,
+			@Nonnull PersistentRoaringBitmap selectedRecordIds,
+			int selectedRecordCount,
+			@Nonnull int[] bufferA,
+			@Nonnull int[] bufferB,
+			boolean mirror,
+			int lastPosition
+		) {
 			final RoaringBitmapWriter<PersistentRoaringBitmap> mask = RoaringBitmapBackedBitmap.buildWriter();
 			final RoaringBitmapWriter<PersistentRoaringBitmap> notFound = RoaringBitmapBackedBitmap.buildWriter();
 
@@ -247,7 +284,10 @@ public interface SortedRecordsSupplierFactory {
 					selectedRecordsPeak = 0;
 				}
 				if (unsortedRecordsPeak < unsortedRecordsRead && bufferA[unsortedRecordsPeak] == bufferB[selectedRecordsPeak]) {
-					mask.add(recordPositions[unsortedRecordsAcc + unsortedRecordsPeak]);
+					final int ascendingPosition = recordPositions[unsortedRecordsAcc + unsortedRecordsPeak];
+					// mirror for a descending supplier that shares the ascending positions; the RoaringBitmap keeps
+					// the mask ascending regardless of emit order
+					mask.add(mirror ? lastPosition - ascendingPosition : ascendingPosition);
 					matchesFound++;
 					selectedRecordsPeak++;
 					unsortedRecordsPeak++;

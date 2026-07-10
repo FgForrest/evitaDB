@@ -91,6 +91,34 @@ class RoaringBitmapBackedBitmapTest {
 		);
 	}
 
+	@Test
+	@DisplayName("RoaringBitmap-backed bitmap types unwrap directly, without rebuilding a bitmap")
+	void shouldUnwrapRoaringBackedBitmapTypesWithoutRebuild() {
+		// getRoaringBitmap()'s fast branch is taken only for RoaringBitmapBackedBitmap instances; for those it hands
+		// back the already-materialized backing bitmap, so no fromArray() rebuild happens. This is the cheap path that
+		// OrFormula.getRoaringBitmaps() relies on when unioning its inputs.
+		Assertions.assertInstanceOf(RoaringBitmapBackedBitmap.class, new BaseBitmap(1, 2, 3));
+		Assertions.assertInstanceOf(RoaringBitmapBackedBitmap.class, new TransactionalBitmap(1, 2, 3));
+
+		final BaseBitmap baseBitmap = new BaseBitmap(1, 2, 3);
+		// the unwrap returns the instance's OWN backing bitmap (delegates to getRoaringBitmap()), not a fresh rebuild
+		Assertions.assertSame(baseBitmap.getRoaringBitmap(), RoaringBitmapBackedBitmap.getRoaringBitmap(baseBitmap));
+	}
+
+	@Test
+	@DisplayName("a non-RoaringBitmap-backed bitmap (SingleRecordBitmap) is rebuilt via fromArray on unwrap")
+	void shouldRebuildNonRoaringBackedSingleRecordBitmapViaFromArray() {
+		// SingleRecordBitmap implements only Bitmap, NOT RoaringBitmapBackedBitmap, so getRoaringBitmap() falls to the
+		// else branch and rebuilds a whole RoaringBitmap from its int[] via fromArray() - the expensive per-input
+		// conversion OrFormula.getRoaringBitmaps() pays once per single-record value it unions.
+		final SingleRecordBitmap singleRecord = new SingleRecordBitmap(42);
+		Assertions.assertFalse(singleRecord instanceof RoaringBitmapBackedBitmap);
+
+		// the rebuild is correct - only its cost differs from the fast path above
+		final PersistentRoaringBitmap rebuilt = RoaringBitmapBackedBitmap.getRoaringBitmap(singleRecord);
+		Assertions.assertArrayEquals(new int[]{42}, new BaseBitmap(rebuilt).getArray());
+	}
+
 	private static PersistentRoaringBitmap creatRoaringBitmap(int... ints) {
 		final RoaringBitmapWriter<PersistentRoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
 		writer.addMany(ints);

@@ -30,6 +30,12 @@ import io.evitadb.api.requestResponse.schema.OrderBehaviour;
 import io.evitadb.comparator.NullsFirstComparatorWrapper;
 import io.evitadb.comparator.NullsLastComparatorWrapper;
 import io.evitadb.core.buffer.TrappedChanges;
+import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.PositionResolution;
+import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortResolutionStrategy;
+import io.evitadb.core.transaction.Transaction;
+import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
+import io.evitadb.roaringbitmap.RoaringBitmapWriter;
 import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedComparableForwardSeeker;
 import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedRecordsProvider;
 import io.evitadb.dataType.ComparableCurrency;
@@ -355,6 +361,29 @@ class SortIndexTest {
 	@Nonnull
 	private static SortIndex createIndexWithBaseCardinalities() {
 		final SortIndex sortIndex = new OwnerSortIndex(String.class, new AttributeIndexKey(null, "a", Locale.ENGLISH));
+		sortIndex.addRecord("B", 5);
+		sortIndex.addRecord("A", 6);
+		sortIndex.addRecord("C", 3);
+		sortIndex.addRecord("C", 2);
+		sortIndex.addRecord("B", 4);
+		sortIndex.addRecord("C", 1);
+		sortIndex.addRecord("E", 9);
+		sortIndex.addRecord("C", 7);
+		return sortIndex;
+	}
+
+	/**
+	 * Builds the same base-cardinality fixture as {@link #createIndexWithBaseCardinalities()} but carrying a
+	 * {@link RepresentativeReferenceKey}, so the committed-snapshot fast path constructs a
+	 * {@link ReferenceSortedRecordsProvider} instead of a plain {@link SortedRecordsSupplier}.
+	 */
+	@Nonnull
+	private static SortIndex createReferenceKeyedIndexWithBaseCardinalities() {
+		final SortIndex sortIndex = new OwnerSortIndex(
+			String.class,
+			new RepresentativeReferenceKey(new ReferenceKey("brand", 1)),
+			new AttributeIndexKey(null, "a", Locale.ENGLISH)
+		);
 		sortIndex.addRecord("B", 5);
 		sortIndex.addRecord("A", 6);
 		sortIndex.addRecord("C", 3);
@@ -1224,6 +1253,336 @@ class SortIndexTest {
 			// and the descending arrays are exactly the reverse / inversion of the ascending ones
 			assertArrayEquals(ArrayUtils.reverse(ascendingIdsCopy), descendingIds);
 			assertArrayEquals(SortIndex.invert(ascendingPositionsCopy), descendingPositions);
+		}
+	}
+
+	/**
+	 * Verifies the committed-snapshot supplier cache added to {@link SortIndex#getAscendingOrderRecordsSupplier()} /
+	 * {@link SortIndex#getDescendingOrderRecordsSupplier()}: every query in a transactional (`ALIVE`) catalog opens
+	 * and discards its own throwaway {@link Transaction}, which used to defeat the {@link SortIndexChanges} array
+	 * memoization ({@link SupplierArrayMemoizationTest}) completely, since a fresh, empty layer was minted per
+	 * query. This suite covers the transactional axis {@link SupplierArrayMemoizationTest} does not: it never opens
+	 * a {@link Transaction} at all.
+	 */
+	@Nested
+	@DisplayName("Committed-snapshot cache (transactional fast path)")
+	class CommittedSnapshotCacheTest {
+
+		@Test
+		@DisplayName("a dense query on the cache fast path dispatches to the warm array merge-walk, not the cold tree walk")
+		void shouldDispatchDenseQueryToWarmMergeWalkOnCacheFastPath() {
+			final SortIndex sortIndex = createIndexWithBaseCardinalities();
+
+			// a dense selection (well above the sparse/dense threshold for this tiny 8-record index): every record
+			final RoaringBitmapWriter<PersistentRoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
+			for (final int recordId : new int[]{1, 2, 3, 4, 5, 6, 7, 9}) {
+				writer.add(recordId);
+			}
+			final PersistentRoaringBitmap selection = writer.get();
+
+			final PositionResolution resolution = Transaction.executeInTransactionIfProvided(
+				new Transaction(sortIndex),
+				() -> sortIndex.getAscendingOrderRecordsSupplier().resolvePositions(
+					selection, 8, new int[512], new int[512], null
+				)
+			);
+
+			// this is the crux of the fix: the cache must be wired into the DISPATCH the regressing query path
+			// actually takes, not merely be correct-but-unconsulted - see SortIndex#buildCachedSupplier's javadoc
+			assertEquals(SortResolutionStrategy.ARRAY_MERGE_WALK, resolution.strategy());
+		}
+
+		@Test
+		@DisplayName("separate throwaway transactions that never write to this index reuse the same cached arrays")
+		void shouldReuseCachedArraysAcrossSeparateThrowawayTransactions() {
+			final SortIndex sortIndex = createIndexWithBaseCardinalities();
+
+			final int[] first = Transaction.executeInTransactionIfProvided(
+				new Transaction(sortIndex),
+				() -> sortIndex.getAscendingOrderRecordsSupplier().getSortedRecordIds()
+			);
+			final int[] second = Transaction.executeInTransactionIfProvided(
+				new Transaction(sortIndex),
+				() -> sortIndex.getAscendingOrderRecordsSupplier().getSortedRecordIds()
+			);
+
+			// a DIFFERENT Transaction object each time, yet the SAME array instance - proves the cache lives on the
+			// SortIndex snapshot, not on any transaction
+			assertSame(first, second);
+
+			// the descending direction now shares the SAME ascending snapshot cache and derives its reversed order by
+			// transform on demand (production never calls getSortedRecordIds() on a descending provider - the sorters
+			// use recordAt() / resolvePositions()), so repeated calls are value-equal rather than the same instance
+			final int[] firstDescending = Transaction.executeInTransactionIfProvided(
+				new Transaction(sortIndex),
+				() -> sortIndex.getDescendingOrderRecordsSupplier().getSortedRecordIds()
+			);
+			final int[] secondDescending = Transaction.executeInTransactionIfProvided(
+				new Transaction(sortIndex),
+				() -> sortIndex.getDescendingOrderRecordsSupplier().getSortedRecordIds()
+			);
+			assertArrayEquals(firstDescending, secondDescending);
+			// and it is exactly the ascending order reversed, confirming the shared-cache derivation
+			assertArrayEquals(ArrayUtils.reverse(first), firstDescending);
+		}
+
+		@Test
+		@DisplayName("a write within a transaction is visible to a later read in the SAME transaction, not the stale cache")
+		void shouldServeLiveWriteWithinSameTransactionInsteadOfStaleCache() {
+			final SortIndex sortIndex = createIndexWithBaseCardinalities();
+
+			Transaction.executeInTransactionIfProvided(
+				new Transaction(sortIndex),
+				(Runnable) () -> {
+					// warms the committed-snapshot cache fast path (nothing written yet in this transaction)
+					final int[] beforeWrite = sortIndex.getAscendingOrderRecordsSupplier().getSortedRecordIds();
+					assertFalse(ArrayUtils.contains(beforeWrite, 8));
+
+					// the first write to THIS index within this transaction must mint a real per-transaction layer
+					sortIndex.addRecord("A", 8);
+
+					// a later read in the SAME transaction must reflect the write, not the pre-write cached array
+					final int[] afterWrite = sortIndex.getAscendingOrderRecordsSupplier().getSortedRecordIds();
+					assertTrue(ArrayUtils.contains(afterWrite, 8));
+
+					// the descending direction is guarded by the identical check - confirm it is symmetric
+					final int[] afterWriteDescending = sortIndex.getDescendingOrderRecordsSupplier().getSortedRecordIds();
+					assertTrue(ArrayUtils.contains(afterWriteDescending, 8));
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("a transaction that writes to a DIFFERENT index still hits the cache fast path for this one")
+		void shouldStillUseCacheWhenOnlyAnUnrelatedIndexIsWrittenTo() {
+			final SortIndex sortIndex = createIndexWithBaseCardinalities();
+			final SortIndex unrelatedIndex = createIndexWithBaseCardinalities();
+
+			Transaction.executeInTransactionIfProvided(
+				new Transaction(sortIndex),
+				(Runnable) () -> {
+					final int[] first = sortIndex.getAscendingOrderRecordsSupplier().getSortedRecordIds();
+
+					// writing to a DIFFERENT SortIndex must not disturb this one's cache eligibility - the
+					// transactional-layer lookup is keyed per TransactionalLayerCreator instance
+					unrelatedIndex.addRecord("A", 8);
+
+					final int[] second = sortIndex.getAscendingOrderRecordsSupplier().getSortedRecordIds();
+					assertSame(first, second);
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("after a no-op commit the committed copy is the same instance and keeps the warm cache")
+		void shouldKeepWarmCacheAcrossANoOpCommit() {
+			final SortIndex sortIndex = createIndexWithBaseCardinalities();
+			// the fixture builds the index via addRecord() outside any transaction, which marks it dirty
+			// (needs persistence); reset that pre-existing dirty flag so THIS test's transaction starts clean,
+			// isolating the "read-only transaction never dirties the index" contract under test
+			sortIndex.resetDirty();
+
+			assertStateAfterCommit(
+				sortIndex,
+				original -> {
+					// a read-only transaction never dirties the index, so the merge is expected to return the SAME
+					// instance (see SortIndex#createCopyWithMergedTransactionalMemory) - its warm cache carries over
+					original.getAscendingOrderRecordsSupplier().getSortedRecordIds();
+				},
+				(original, committed) -> assertSame(original, committed)
+			);
+		}
+
+		@Test
+		@DisplayName("after a real commit the new snapshot instance starts cold and reflects the write when queried")
+		void shouldStartColdOnNewSnapshotInstanceAfterCommit() {
+			final SortIndex sortIndex = createIndexWithBaseCardinalities();
+
+			assertStateAfterCommit(
+				sortIndex,
+				original -> {
+					// warm the ORIGINAL instance's cache before mutating it
+					original.getAscendingOrderRecordsSupplier().getSortedRecordIds();
+					original.addRecord("A", 8);
+				},
+				(original, committed) -> {
+					// the commit actually changed the index, so a NEW instance must have been produced
+					assertNotSame(original, committed);
+					// querying the new snapshot (outside any transaction here) must reflect the write
+					assertTrue(
+						ArrayUtils.contains(committed.getAscendingOrderRecordsSupplier().getSortedRecordIds(), 8)
+					);
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("a dense query with NO transaction (read-only session) also dispatches to the warm array merge-walk")
+		void shouldDispatchDenseQueryToWarmMergeWalkWithoutAnyTransaction() {
+			final SortIndex sortIndex = createIndexWithBaseCardinalities();
+
+			// a dense selection (well above the sparse/dense threshold for this tiny 8-record index): every record
+			final RoaringBitmapWriter<PersistentRoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
+			for (final int recordId : new int[]{1, 2, 3, 4, 5, 6, 7, 9}) {
+				writer.add(recordId);
+			}
+			final PersistentRoaringBitmap selection = writer.get();
+
+			// NO Transaction.executeInTransactionIfProvided wrapper: this mirrors a read-only session, which opens no
+			// transaction at all. The committed-snapshot fast path must STILL engage here - a gate that required a bound
+			// Transaction would never take the fast path for a read-only query, since such a query binds no Transaction.
+			final PositionResolution resolution = sortIndex.getAscendingOrderRecordsSupplier().resolvePositions(
+				selection, 8, new int[512], new int[512], null
+			);
+
+			assertEquals(SortResolutionStrategy.ARRAY_MERGE_WALK, resolution.strategy());
+		}
+
+		@Test
+		@DisplayName("a non-transactional in-place write invalidates the committed-snapshot cache so a later read is not stale")
+		void shouldInvalidateCommittedCacheOnNonTransactionalInPlaceWrite() {
+			final SortIndex sortIndex = createIndexWithBaseCardinalities();
+
+			// warm the committed-snapshot cache OUTSIDE any transaction (the read-only / warm-up regime)
+			final int[] beforeWrite = sortIndex.getAscendingOrderRecordsSupplier().getSortedRecordIds();
+			assertFalse(ArrayUtils.contains(beforeWrite, 8));
+
+			// an in-place mutation in the SAME non-transactional regime (a warm-up / bulk add) mutates sortedRecords
+			// directly and mints no fresh instance, so the never-swapped cache must be dropped explicitly
+			sortIndex.addRecord("A", 8);
+
+			// a later read must reflect the in-place write, not the pre-write cached arrays
+			final int[] afterWrite = sortIndex.getAscendingOrderRecordsSupplier().getSortedRecordIds();
+			assertTrue(ArrayUtils.contains(afterWrite, 8));
+			// the descending direction is guarded by the identical invalidation
+			assertTrue(ArrayUtils.contains(sortIndex.getDescendingOrderRecordsSupplier().getSortedRecordIds(), 8));
+		}
+
+		@Test
+		@DisplayName("concurrent throwaway transactions reading the same index never observe an exception or corrupt data")
+		void shouldToleratePotentialFirstTouchRaceUnderConcurrentReaders() throws InterruptedException {
+			final SortIndex sortIndex = createIndexWithBaseCardinalities();
+			final int[] expected = Transaction.executeInTransactionIfProvided(
+				new Transaction(sortIndex),
+				() -> sortIndex.getAscendingOrderRecordsSupplier().getSortedRecordIds().clone()
+			);
+
+			final int threadCount = 8;
+			final Thread[] threads = new Thread[threadCount];
+			final int[][] observed = new int[threadCount][];
+			final Throwable[] failures = new Throwable[threadCount];
+			for (int i = 0; i < threadCount; i++) {
+				final int threadIndex = i;
+				threads[i] = new Thread(() -> {
+					try {
+						observed[threadIndex] = Transaction.executeInTransactionIfProvided(
+							new Transaction(sortIndex),
+							() -> sortIndex.getAscendingOrderRecordsSupplier().getSortedRecordIds()
+						);
+					} catch (Throwable ex) {
+						failures[threadIndex] = ex;
+					}
+				});
+			}
+			for (final Thread thread : threads) {
+				thread.start();
+			}
+			for (final Thread thread : threads) {
+				thread.join();
+			}
+
+			for (int i = 0; i < threadCount; i++) {
+				assertNull(failures[i], "Thread " + i + " must not fail while racing to populate the cache");
+				assertArrayEquals(expected, observed[i], "Thread " + i + " must observe fully-published, correct data");
+			}
+		}
+
+		@Test
+		@DisplayName("a reference-keyed index serves the committed-snapshot cache through a ReferenceSortedRecordsProvider")
+		void shouldServeReferenceKeyedIndexThroughCommittedSnapshotCache() {
+			final RepresentativeReferenceKey referenceKey = new RepresentativeReferenceKey(new ReferenceKey("brand", 1));
+			final SortIndex sortIndex = createReferenceKeyedIndexWithBaseCardinalities();
+
+			// the no-transaction fast path must take the referenceKey != null branch of buildCachedSupplier and hand
+			// back a ReferenceSortedRecordsProvider that both preserves the discriminator and serves the correct order
+			final SortedRecordsProvider ascending = sortIndex.getAscendingOrderRecordsSupplier();
+			assertInstanceOf(ReferenceSortedRecordsProvider.class, ascending);
+			assertEquals(referenceKey, ((ReferenceSortedRecordsProvider) ascending).getReferenceKey());
+			assertArrayEquals(new int[]{6, 4, 5, 1, 2, 3, 7, 9}, ascending.getSortedRecordIds());
+
+			// the descending direction must build its own reversed/inverted arrays yet stay a reference provider
+			final SortedRecordsProvider descending = sortIndex.getDescendingOrderRecordsSupplier();
+			assertInstanceOf(ReferenceSortedRecordsProvider.class, descending);
+			assertEquals(referenceKey, ((ReferenceSortedRecordsProvider) descending).getReferenceKey());
+			assertArrayEquals(new int[]{9, 7, 3, 2, 1, 5, 4, 6}, descending.getSortedRecordIds());
+		}
+
+		@Test
+		@DisplayName("a descending dense query with no transaction dispatches to the warm array merge-walk")
+		void shouldDispatchDescendingDenseQueryToWarmMergeWalkWithoutAnyTransaction() {
+			final SortIndex sortIndex = createIndexWithBaseCardinalities();
+
+			// a dense selection (well above the sparse/dense threshold for this tiny 8-record index): every record
+			final RoaringBitmapWriter<PersistentRoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
+			for (final int recordId : new int[]{1, 2, 3, 4, 5, 6, 7, 9}) {
+				writer.add(recordId);
+			}
+			final PersistentRoaringBitmap selection = writer.get();
+
+			// mirrors the ascending no-transaction dispatch check, but the descending direction wires the reversed
+			// record ids and inverted positions into the supplier - those too must feed the dense merge-walk dispatch
+			final PositionResolution resolution = sortIndex.getDescendingOrderRecordsSupplier().resolvePositions(
+				selection, 8, new int[512], new int[512], null
+			);
+
+			assertEquals(SortResolutionStrategy.ARRAY_MERGE_WALK, resolution.strategy());
+		}
+
+		@Test
+		@DisplayName("a non-transactional in-place removal invalidates the committed-snapshot cache so a later read is not stale")
+		void shouldInvalidateCommittedCacheOnNonTransactionalInPlaceRemoval() {
+			final SortIndex sortIndex = createIndexWithBaseCardinalities();
+
+			// warm both directions OUTSIDE any transaction (the read-only / warm-up regime)
+			assertTrue(ArrayUtils.contains(sortIndex.getAscendingOrderRecordsSupplier().getSortedRecordIds(), 7));
+			assertTrue(ArrayUtils.contains(sortIndex.getDescendingOrderRecordsSupplier().getSortedRecordIds(), 7));
+			// the shared all-records bitmap must also be warm and carry the record about to be removed
+			assertTrue(sortIndex.getAscendingOrderRecordsSupplier().getAllRecords().contains(7));
+
+			// a non-transactional in-place removal mutates sortedRecords directly and mints no fresh instance, so the
+			// never-swapped cache must be dropped explicitly by removeRecordInternal
+			sortIndex.removeRecord("C", 7);
+
+			// every direction and the shared bitmap must reflect the removal, not the pre-removal cached snapshot
+			assertFalse(ArrayUtils.contains(sortIndex.getAscendingOrderRecordsSupplier().getSortedRecordIds(), 7));
+			assertFalse(ArrayUtils.contains(sortIndex.getDescendingOrderRecordsSupplier().getSortedRecordIds(), 7));
+			assertFalse(sortIndex.getAscendingOrderRecordsSupplier().getAllRecords().contains(7));
+		}
+
+		@Test
+		@DisplayName("interleaved non-transactional writes rebuild the cache each time rather than serving a stale snapshot")
+		void shouldRebuildCacheRatherThanServeStaleAcrossInterleavedNonTransactionalWrites() {
+			final SortIndex sortIndex = createIndexWithBaseCardinalities();
+
+			// two reads with no intervening write must return the SAME array instance - proves quiescent reuse
+			final int[] first = sortIndex.getAscendingOrderRecordsSupplier().getSortedRecordIds();
+			final int[] second = sortIndex.getAscendingOrderRecordsSupplier().getSortedRecordIds();
+			assertSame(first, second);
+
+			// a non-transactional add must rebuild: a DIFFERENT array instance that reflects the write
+			sortIndex.addRecord("A", 8);
+			final int[] afterAdd = sortIndex.getAscendingOrderRecordsSupplier().getSortedRecordIds();
+			assertNotSame(second, afterAdd);
+			assertTrue(ArrayUtils.contains(afterAdd, 8));
+
+			// a non-transactional removal must rebuild again: another distinct instance no longer carrying the record
+			sortIndex.removeRecord("A", 8);
+			final int[] afterRemove = sortIndex.getAscendingOrderRecordsSupplier().getSortedRecordIds();
+			assertNotSame(afterAdd, afterRemove);
+			assertFalse(ArrayUtils.contains(afterRemove, 8));
+
+			// a further quiescent read again reuses the freshly rebuilt array - the reuse contract survives the churn
+			assertSame(afterRemove, sortIndex.getAscendingOrderRecordsSupplier().getSortedRecordIds());
 		}
 	}
 

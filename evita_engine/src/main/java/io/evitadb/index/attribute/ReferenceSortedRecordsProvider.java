@@ -64,17 +64,19 @@ public class ReferenceSortedRecordsProvider extends SortedRecordsSupplier {
 	public ReferenceSortedRecordsProvider(
 		long transactionalId,
 		@Nonnull TransactionalUnorderedIntArray sortedRecords,
-		boolean descending,
 		int recordCount,
 		@Nonnull Supplier<int[]> sortedRecordIdsSupplier,
 		@Nonnull Supplier<int[]> recordPositionsSupplier,
 		@Nonnull Supplier<Bitmap> allRecordsSupplier,
 		@Nonnull SortedComparableForwardSeeker sortedComparableForwardSeeker,
-		@Nonnull RepresentativeReferenceKey referenceKey
+		@Nonnull RepresentativeReferenceKey referenceKey,
+		@Nonnull DenseSelectionWarmup denseSelectionWarmup,
+		@Nonnull SortDirectionBacking directionBacking
 	) {
 		super(
-			transactionalId, sortedRecords, descending, recordCount,
-			sortedRecordIdsSupplier, recordPositionsSupplier, allRecordsSupplier, sortedComparableForwardSeeker
+			transactionalId, sortedRecords, recordCount,
+			sortedRecordIdsSupplier, recordPositionsSupplier, allRecordsSupplier, sortedComparableForwardSeeker,
+			denseSelectionWarmup, directionBacking
 		);
 		this.referenceKey = referenceKey;
 	}

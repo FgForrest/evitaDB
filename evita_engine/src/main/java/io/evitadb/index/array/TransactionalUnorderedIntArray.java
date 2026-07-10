@@ -278,6 +278,58 @@ public class TransactionalUnorderedIntArray
 	}
 
 	/**
+	 * Materializes, in a SINGLE position-tree walk plus a SINGLE `O(N log N)` sort, all three read-projection artifacts
+	 * a {@link io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedRecordsProvider} needs: the record ids in
+	 * logical (value) order, the record positions aligned with the ascending-id order, and the ascending-id record-id
+	 * bitmap. This replaces the former {@link #getArray()} + {@link #getPositions()} + {@link #getRecordIds()} trio,
+	 * which walked the position tree three times over and additionally built an {@link IntIntHashMap} plus sorted twice.
+	 *
+	 * The single sort packs each `(recordId, position)` pair into one `long` — the record id in the high 32 bits, the
+	 * position (always `0..N-1`, so non-negative) in the low 32 bits — and sorts the `long[]` once; the high half then
+	 * reads off as the ascending record ids (signed order, matching {@link Arrays#sort(int[])}) and the low half as the
+	 * position of each within the logical order.
+	 *
+	 * @return the three materialized artifacts (see {@link MaterializedOrder})
+	 */
+	@Nonnull
+	public MaterializedOrder materialize() {
+		// one tree walk: record ids in logical (value) order - this IS the sortedRecordIds artifact
+		final int[] sortedRecordIds = this.positionTree.getArray();
+		final int recordCount = sortedRecordIds.length;
+		// pack (recordId, position) into one long each so a single sort yields BOTH the ascending id order and the
+		// position aligned to it - record id in the high 32 bits (signed order preserved), position in the low 32 bits
+		final long[] packed = new long[recordCount];
+		for (int position = 0; position < recordCount; position++) {
+			packed[position] = (((long) sortedRecordIds[position]) << 32) | (position & 0xFFFFFFFFL);
+		}
+		Arrays.sort(packed);
+		final int[] ascendingRecordIds = new int[recordCount];
+		final int[] recordPositions = new int[recordCount];
+		for (int i = 0; i < recordCount; i++) {
+			ascendingRecordIds[i] = (int) (packed[i] >> 32);
+			recordPositions[i] = (int) packed[i];
+		}
+		return new MaterializedOrder(sortedRecordIds, recordPositions, new BaseBitmap(ascendingRecordIds));
+	}
+
+	/**
+	 * The three read-projection artifacts produced together by {@link #materialize()} in a single walk + sort. All
+	 * three are freshly allocated and owned by the caller; {@link #allRecords} is the ascending-id record-id bitmap,
+	 * direction-independent and safe to share across both sort directions.
+	 *
+	 * @param sortedRecordIds record ids in logical (value) order — identical to {@link #getArray()}
+	 * @param recordPositions position of each ascending-id record within {@link #sortedRecordIds} — identical to
+	 *                        {@link #getPositions()}, i.e. `sortedRecordIds[recordPositions[i]] == allRecords[i]`
+	 * @param allRecords      all record ids in natural (ascending) id order — identical to {@link #getRecordIds()}
+	 */
+	public record MaterializedOrder(
+		@Nonnull int[] sortedRecordIds,
+		@Nonnull int[] recordPositions,
+		@Nonnull Bitmap allRecords
+	) {
+	}
+
+	/**
 	 * Method returns record id on specified index of the array.
 	 */
 	public int get(int index) {

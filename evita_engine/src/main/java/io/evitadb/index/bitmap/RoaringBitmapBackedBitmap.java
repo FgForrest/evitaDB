@@ -44,22 +44,99 @@ import java.util.PrimitiveIterator;
 public interface RoaringBitmapBackedBitmap extends Bitmap {
 
 	/**
-	 * Creates {@link PersistentRoaringBitmap} from the array of integers. Providing a sorted array in
-	 * ascending order is preferred for performance, but unsorted input is also handled correctly.
+	 * Mean number of record ids per 65 536-wide roaring container at which {@link #fromArray(int...)}
+	 * switches from the incremental build to the constant-memory writer. It mirrors {@code
+	 * ArrayContainer.DEFAULT_MAX_SIZE} (package-private in the bitmap module): the cardinality above
+	 * which a container is promoted from an {@code ArrayContainer} to a {@code BitmapContainer}. See
+	 * {@link #fromArray(int...)} for the full reasoning.
+	 */
+	int WRITER_DISPATCH_DENSITY = 4096;
+
+	/**
+	 * Creates {@link PersistentRoaringBitmap} from the array of integers, adaptively picking the
+	 * cheaper of two construction strategies:
+	 *
+	 * - the **incremental** path ({@link PersistentRoaringBitmap#add(int...)} into a fresh bitmap),
+	 *   which appends each id into per-container {@code ArrayContainer}s — cheapest for small or
+	 *   sparse inputs; and
+	 * - the **constant-memory writer** ({@link #buildWriter()}), which fills a reused 65 536-bit word
+	 *   buffer and materializes each container once — cheapest for large, densely-packed inputs, where
+	 *   the incremental path otherwise pays repeated {@code ArrayContainer} reallocation plus the
+	 *   array→bitmap conversion.
+	 *
+	 * The two cross over at {@link #WRITER_DISPATCH_DENSITY} ids **per container**: below it a
+	 * container stays a cheap {@code ArrayContainer} (incremental wins); at/above it the container
+	 * becomes a {@code BitmapContainer} (writer wins). The choice is therefore gated on mean
+	 * ids-per-container (see the private {@code isDense} probe), not raw length. A JMH sweep ({@code
+	 * BitmapConstructionBenchmark}) measured the writer ≈2–3× faster with ≈⅓ the allocation on large
+	 * dense arrays, but **6–7× slower** on equally-large *sparse* ones — its fixed 8 KB word buffer
+	 * never amortizes when each container holds only a handful of ids — so a length-only threshold
+	 * would badly regress scattered id sets. The density probe is O(1) (for the ascending arrays this
+	 * method is fed, the extremes are the array ends), so it is unmeasurable against the build it
+	 * guards: small and sparse inputs stay on the incremental path with no overhead, and only large,
+	 * dense arrays take the writer.
+	 *
+	 * The writer path is normalized with {@link PersistentRoaringBitmap#removeRunCompression()} so its
+	 * output is representation-identical to the incremental build: the writer canonicalizes a
+	 * completely-full 65 536-wide container to a {@code RunContainer}, whereas incremental append
+	 * leaves it a {@code BitmapContainer}, and the two — though equal — carry different hash codes.
+	 * Undoing that canonicalization keeps this method a pure speed-up with no observable change to the
+	 * bitmap it produces (locked in by the equivalence test in {@code BaseBitmapTest}).
+	 *
+	 * Providing a sorted array in ascending order is preferred for performance, but unsorted input is
+	 * also handled correctly (the density probe reads only the array ends, and falls back to the safe
+	 * incremental path when they are not ascending).
 	 */
 	@Nonnull
 	static PersistentRoaringBitmap fromArray(@Nonnull int... array) {
 		if (ArrayUtils.isEmpty(array)) {
 			return new PersistentRoaringBitmap();
-		} else {
-			final RoaringBitmapWriter<PersistentRoaringBitmap> writer = RoaringBitmapWriter
-				.writer()
-				.constantMemory()
-				.runCompress(false)
-				.get();
+		} else if (array.length >= WRITER_DISPATCH_DENSITY && isDense(array)) {
+			// large + densely packed: the constant-memory writer avoids per-container reallocation and
+			// array->bitmap conversion
+			final RoaringBitmapWriter<PersistentRoaringBitmap> writer = buildWriter();
 			writer.addMany(array);
-			return writer.get();
+			final PersistentRoaringBitmap result = writer.get();
+			// normalize any full-container RunContainer back to a BitmapContainer so representation (and
+			// hashCode) matches the incremental build
+			result.removeRunCompression();
+			return result;
+		} else {
+			// small or sparse: incremental append into ArrayContainers is faster and allocates less (no 8 KB
+			// word buffer)
+			final PersistentRoaringBitmap result = new PersistentRoaringBitmap();
+			result.add(array);
+			return result;
 		}
+	}
+
+	/**
+	 * O(1) density probe used by {@link #fromArray(int...)} to choose between the incremental and
+	 * writer build paths. Returns whether the ids pack densely enough — a mean of at least {@link
+	 * #WRITER_DISPATCH_DENSITY} ids per 65 536-wide container — for the constant-memory writer to
+	 * overtake incremental appends.
+	 *
+	 * The span of occupied containers is derived from the id extremes without scanning: index
+	 * record-id sets are handed out sorted ascending, so `recordIds[0]` and `recordIds[length - 1]`
+	 * are the min and max and their high 16 bits bound the container range. Should a caller ever pass
+	 * unsorted ids, the ends may not be the extremes; the method then returns `false` (taking the
+	 * always-correct incremental path) whenever they are not ascending, so a bogus span can never
+	 * route a scattered array to the writer. This keeps the probe honest without an O(n) sortedness
+	 * scan.
+	 *
+	 * @param recordIds the record ids, expected sorted ascending; non-empty (the length check in the
+	 *                  caller guarantees it)
+	 * @return `true` when the ids are dense enough for the writer path to win
+	 */
+	private static boolean isDense(@Nonnull int[] recordIds) {
+		final int firstContainer = recordIds[0] >>> 16;
+		final int lastContainer = recordIds[recordIds.length - 1] >>> 16;
+		// ends not ascending: input isn't sorted, extremes-from-ends assumption is void, take safe path
+		if (lastContainer < firstContainer) {
+			return false;
+		}
+		final int containerSpan = lastContainer - firstContainer + 1;
+		return recordIds.length >= (long) containerSpan * WRITER_DISPATCH_DENSITY;
 	}
 
 	/**

@@ -166,6 +166,29 @@ public abstract sealed class SortIndex
 	 * bulk insertion or read only state where transaction are not used.
 	 */
 	@Nullable private SortIndexChanges sortIndexChanges;
+	/**
+	 * Memoized ascending-direction supplier arrays for THIS committed snapshot — lazily built by
+	 * {@link #getAscendingOrderRecordsSupplier()} whenever no transactional layer for this index exists on the current
+	 * thread (a read-only / no-transaction query, or a write transaction that has not yet written to this index), and
+	 * shared, unsynchronized, across every reader thread until it is either dropped or superseded by a new
+	 * {@code SortIndex} instance (see {@link #createCopyWithMergedTransactionalMemory}). This single cache backs BOTH
+	 * sort directions: a descending supplier reads these same ascending arrays and applies the reverse/invert transform
+	 * lazily (see {@link SortDirectionBacking#DESCENDING_MIRRORS_ASCENDING}), so no reversed/inverted arrays are cached.
+	 *
+	 * Two invalidation regimes keep it correct:
+	 * - In the transactional (`ALIVE`) world, writes are always routed through a per-transaction {@link SortIndexChanges}
+	 *   layer and never mutate this instance's own {@link #sortedRecords} in place (see the class javadoc); the next
+	 *   commit that actually changes this index produces a brand-new {@code SortIndex} instance whose cache field starts
+	 *   `null` again — so nothing to invalidate here.
+	 * - In the non-transactional (bulk-load / warm-up) path, {@link #sortedRecords} CAN be mutated in place and no new
+	 *   instance is minted, so {@link #invalidateCommittedSnapshotCacheIfNonTransactional()} explicitly clears this
+	 *   field on every in-place add/remove, forcing the next read to rebuild.
+	 *
+	 * `volatile` for cross-thread visibility only; concurrent first-touch races are tolerated (both racing threads
+	 * compute an equal, pure value and the record's `final` fields guarantee safe publication regardless of which
+	 * write wins) — the same pattern as {@code PersistentTransactionalMap#state}.
+	 */
+	@Nullable private transient volatile SortIndexChanges.MaterializedSortRecords cachedAscendingArrays;
 
 	/**
 	 * Method creates a comparator that compares {@link ComparableArray} respecting the comparator base requirements
@@ -629,16 +652,126 @@ public abstract sealed class SortIndex
 		return this.sortedRecords.getLength();
 	}
 
+	/**
+	 * Returns {@link SortedRecordsSupplier} that contains record ids sorted by value in ascending order.
+	 *
+	 * A plain query opens no transaction at all (read-only sessions never do, and even a read-write session only binds
+	 * a {@link Transaction} while a write is executing), so the per-transaction {@link SortIndexChanges} layer (see
+	 * {@link #getOrCreateSortIndexChanges()}) never survives long enough for its array memoization to pay off. The fast
+	 * path below therefore keys off the ONLY thing that matters for correctness: whether a transactional layer for THIS
+	 * index exists on the current thread. When none does — a read-only / no-transaction query, OR a write transaction
+	 * that has not yet written to this index — the committed base state ({@link #sortedRecords}) is guaranteed untouched
+	 * (an `ALIVE` commit mints a brand-new instance; the only in-place mutation is the non-transactional warm-up / bulk
+	 * path, which drops the cache via {@link #invalidateCommittedSnapshotCacheIfNonTransactional()}), so the request is
+	 * served from this instance's own long-lived cache ({@link #cachedAscendingArrays} et al.), reused across every
+	 * query against this snapshot. As soon as a write actually touches this index within a transaction, its layer
+	 * exists and the per-transaction path below takes over again, preserving read-your-own-writes.
+	 */
 	@Nonnull
 	@Override
 	public SortedRecordsSupplier getAscendingOrderRecordsSupplier() {
+		if (Transaction.getTransactionalMemoryLayerIfExists(this) == null) {
+			return buildCachedSupplier(false, createSortedComparableForwardSeeker());
+		}
 		return getOrCreateSortIndexChanges().getAscendingOrderRecordsSupplier();
 	}
 
+	/**
+	 * Returns {@link SortedRecordsSupplier} that contains record ids sorted by value in descending order.
+	 *
+	 * See {@link #getAscendingOrderRecordsSupplier()} for the full rationale of the committed-snapshot cache fast
+	 * path taken below.
+	 */
 	@Nonnull
 	@Override
 	public SortedRecordsSupplier getDescendingOrderRecordsSupplier() {
+		if (Transaction.getTransactionalMemoryLayerIfExists(this) == null) {
+			return buildCachedSupplier(true, createReversedSortedComparableForwardSeeker());
+		}
 		return getOrCreateSortIndexChanges().getDescendingOrderRecordsSupplier();
+	}
+
+	/**
+	 * Builds a tree-backed {@link SortedRecordsSupplier} resolving positions straight from {@link #sortedRecords},
+	 * with its materialized arrays exposed LAZILY through this instance's own long-lived committed-snapshot cache
+	 * ({@link #cachedAscendingArrays}) — mirrors {@code SortIndexChanges#buildSupplier}, but backed by a cache that
+	 * outlives the query rather than by a per-transaction layer.
+	 *
+	 * Deliberately lazy, not eager: a sparse selection resolves entirely by tree probe and NEVER reads the arrays, so
+	 * warming them at construction time would burn an `O(N log N)` materialization on every ORDER BY — including the
+	 * churn-heavy, sparse-only workloads the streaming tree was built to keep allocation-free. Instead the supplier is
+	 * flagged {@link DenseSelectionWarmup#WARM_AND_REUSE}: only when a DENSE selection actually needs the arrays does the
+	 * dispatch pull them through the accessors below, materializing the long-lived cache once and reusing it for every
+	 * later dense query against this snapshot (see {@link SortedRecordsSupplier#resolvePositions}).
+	 *
+	 * Both directions share the single ascending cache: a descending supplier is flagged
+	 * {@link SortDirectionBacking#DESCENDING_MIRRORS_ASCENDING} and applies the reverse/invert transform lazily, so the descending
+	 * direction never materializes or caches reversed/inverted arrays of its own.
+	 *
+	 * @param descending whether the descending order is requested
+	 * @param seeker     the freshly built value seeker for this direction
+	 * @return the lazily-cache-backed sorted-records supplier for the requested direction
+	 */
+	@Nonnull
+	private SortedRecordsSupplier buildCachedSupplier(
+		boolean descending,
+		@Nonnull SortedRecordsSupplierFactory.SortedComparableForwardSeeker seeker
+	) {
+		final int recordCount = this.sortedRecords.getLength();
+		final long transactionalId = descending ? this.id : this.sortedRecords.getId();
+		// BOTH directions read the SAME ascending snapshot cache (get-or-build); a descending supplier applies the
+		// reverse/invert transform lazily (recordAt mirror + merge-walk mirror + on-demand public getters), so no
+		// reversed/inverted arrays are ever materialized or cached - see SortDirectionBacking#DESCENDING_MIRRORS_ASCENDING.
+		// Consulted only by the dense array merge-walk, never by the sparse probe.
+		final Supplier<int[]> sortedRecordIdsSupplier = () -> getCachedAscendingArrays().sortedRecordIds();
+		final Supplier<int[]> recordPositionsSupplier = () -> getCachedAscendingArrays().recordPositions();
+		final Supplier<Bitmap> allRecordsSupplier = () -> getCachedAscendingArrays().allRecords();
+		// committed-snapshot arrays live in a long-lived cache, so a dense selection warms and reuses them
+		final SortDirectionBacking directionBacking = descending
+			? SortDirectionBacking.DESCENDING_MIRRORS_ASCENDING
+			: SortDirectionBacking.ASCENDING;
+		return SortedRecordsSupplier.createTreeBacked(
+			transactionalId, this.sortedRecords, recordCount,
+			sortedRecordIdsSupplier, recordPositionsSupplier, allRecordsSupplier, seeker, this.referenceKey,
+			DenseSelectionWarmup.WARM_AND_REUSE, directionBacking
+		);
+	}
+
+	/**
+	 * Lazily materializes and caches the ascending-direction supplier arrays for this committed snapshot in a SINGLE
+	 * tree walk + sort (via {@link TransactionalUnorderedIntArray#materialize()}, which yields the record-id order, the
+	 * record positions and the shared record-id bitmap together); see {@link #cachedAscendingArrays} for the
+	 * invalidation contract.
+	 */
+	@Nonnull
+	private SortIndexChanges.MaterializedSortRecords getCachedAscendingArrays() {
+		SortIndexChanges.MaterializedSortRecords current = this.cachedAscendingArrays;
+		if (current == null) {
+			final TransactionalUnorderedIntArray.MaterializedOrder order = this.sortedRecords.materialize();
+			current = new SortIndexChanges.MaterializedSortRecords(
+				this.sortedRecords.getId(),
+				order.sortedRecordIds(),
+				order.recordPositions(),
+				order.allRecords()
+			);
+			this.cachedAscendingArrays = current;
+		}
+		return current;
+	}
+
+	/**
+	 * Drops the committed-snapshot supplier cache ({@link #cachedAscendingArrays}, shared by both sort directions) when
+	 * — and only when — the caller just mutated {@link #sortedRecords} IN PLACE, i.e. outside any transactional layer
+	 * (the non-transactional warm-up / bulk-load regime). In the transactional (`ALIVE`) world a mutation is captured in
+	 * a per-transaction layer and the committed base is never touched, so the cache stays valid and a real commit mints
+	 * a fresh instance whose cache starts empty; only the in-place path needs explicit invalidation, because there no
+	 * new instance is minted to carry a clean cache. Detected by the absence of a transactional layer for this index on
+	 * the current thread — the same predicate the read fast path gates on.
+	 */
+	private void invalidateCommittedSnapshotCacheIfNonTransactional() {
+		if (Transaction.getTransactionalMemoryLayerIfExists(this) == null) {
+			this.cachedAscendingArrays = null;
+		}
 	}
 
 	/**
@@ -1019,6 +1152,8 @@ public abstract sealed class SortIndex
 			sortIndexChanges.valueAdded(normalizedValue);
 		}
 
+		// a non-transactional (warm-up / bulk) add mutates sortedRecords in place; drop the committed-snapshot cache
+		invalidateCommittedSnapshotCacheIfNonTransactional();
 		this.dirty.setToTrue();
 	}
 
@@ -1055,6 +1190,8 @@ public abstract sealed class SortIndex
 			sortIndexChanges.valueRemoved(normalizedValue);
 		}
 
+		// a non-transactional (warm-up / bulk) remove mutates sortedRecords in place; drop the committed-snapshot cache
+		invalidateCommittedSnapshotCacheIfNonTransactional();
 		this.dirty.setToTrue();
 	}
 
