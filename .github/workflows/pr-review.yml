@@ -22,10 +22,28 @@ jobs:
     permissions:
       contents: read
       checks: write
+      pull-requests: read
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           persist-credentials: false
+
+      - name: Detect RoaringBitmap module changes   # colocated vendor test suite - skip it unless
+        id: roaring-filter                          # this PR actually touches that module or the
+        env:                                         # root pom.xml (build/toolchain changes)
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          if files=$(gh pr diff "$PR_NUMBER" --name-only 2>&1); then
+            if echo "$files" | grep -qE '^(evita_roaring_bitmap/|pom\.xml$)'; then
+              echo "changed=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "changed=false" >> "$GITHUB_OUTPUT"
+            fi
+          else
+            echo "Could not compute PR diff - running RoaringBitmap tests to be safe: $files"
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Setup Java JDK
         uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5.2.0
@@ -44,8 +62,12 @@ jobs:
           echo "--- ulimit -a ---"; ulimit -a
 
       - name: Build with Maven
+        # surefire.useUnlimitedThreads/threadCount cap test-thread fan-out to this runner's actual
+        # core count (nproc, printed by the step above) - unbounded fan-out on a 4-core runner can
+        # balloon off-heap memory (Netty/gRPC buffers per concurrently-alive embedded test instance)
+        # well past -Xmx and get the whole job OS-killed; see the surefire-plugin comment in pom.xml
         run: |
-          mvn -T 1C -B package -P unitAndFunctional,full jacoco:report-aggregate -V --fail-at-end -Dmaven.test.skip=false --file pom.xml
+          mvn -T 1C -B package -P unitAndFunctional,full jacoco:report-aggregate -V --fail-at-end -Dmaven.test.skip=false -Dsurefire.useUnlimitedThreads=false -Dsurefire.threadCount=4 -DroaringBitmap.skipTests=${{ steps.roaring-filter.outputs.changed == 'true' && 'false' || 'true' }} --file pom.xml
           jacoco/jacoco-summary.sh jacoco/target/site/jacoco-aggregate/jacoco.csv
 
       - name: Upload test results

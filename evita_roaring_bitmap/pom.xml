@@ -35,4 +35,19 @@
 			<scope>test</scope>
 		</dependency>
 	</dependencies>
+	<build>
+		<plugins>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-surefire-plugin</artifactId>
+				<configuration>
+					<!--
+						See root pom.xml's `roaringBitmap.skipTests` property doc - CI overrides this
+						to skip this module's tests on pushes/PRs that don't touch evita_roaring_bitmap.
+					-->
+					<skipTests>${roaringBitmap.skipTests}</skipTests>
+				</configuration>
+			</plugin>
+		</plugins>
+	</build>
 </project>
