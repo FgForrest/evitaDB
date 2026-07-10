@@ -44,6 +44,15 @@ jobs:
          gpg-private-key: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
          gpg-passphrase: MAVEN_GPG_PASSPHRASE
 
+    - name: Print runner memory info   # ground truth for surefire -Xmx sizing; GitHub's documented runner
+      run: |                           # specs are per-VM totals, not necessarily what this job can safely use
+        echo "--- nproc ---"; nproc
+        echo "--- free -h ---"; free -h
+        echo "--- /proc/meminfo ---"; cat /proc/meminfo
+        echo "--- cgroup v2 memory.max ---"; cat /sys/fs/cgroup/memory.max 2>/dev/null || echo "n/a"
+        echo "--- cgroup v1 memory.limit_in_bytes ---"; cat /sys/fs/cgroup/memory/memory.limit_in_bytes 2>/dev/null || echo "n/a"
+        echo "--- ulimit -a ---"; ulimit -a
+
     - name: Build with Maven       # run Maven with tests; `full` activates the jacoco aggregator module
       run: |
         mvn -T 1C -B package -P unitAndFunctional,full jacoco:report-aggregate -V --fail-at-end -Dmaven.test.skip=false --file pom.xml

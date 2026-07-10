@@ -618,21 +618,17 @@
 						<version>${java.version}</version>
 					</jdkToolchain>
 					<!--
-						CI (ci-dev.yml / pr-review.yml / ci-master.yml / ci-performance.yml) runs exclusively on
-						the standard GitHub-hosted `ubuntu-latest` runner: 4 vCPUs / 16 GB RAM. forkCount=1 means
-						a single test JVM holds this heap alone for the vast majority of the build (the reactor's
-						module dependency chain is essentially linear, so concurrent -T 1C module builds overlap
-						compilation, not test execution, for all but the tiny sibling export modules). The
-						`unitAndFunctional`/`unit` profiles additionally set parallel=all + useUnlimitedThreads,
-						so evita_functional_tests' single fork can have every test class/method running
-						concurrently at once, each potentially standing up a full embedded Evita+gRPC+GraphQL
-						instance - that genuinely exceeded 5g in CI (OutOfMemoryError: Java heap space during
-						JUnit Jupiter startup) and cascaded into unrelated gRPC/GraphQL test failures elsewhere
-						in the same JVM. 12g leaves ~4 GB (25%) headroom for the OS, the Maven/mvnd daemon and
-						off-heap JVM overhead (metaspace, per-thread stacks under unlimited-thread parallelism,
-						direct buffers) while using most of the runner's memory.
+						CI (ci-dev.yml / pr-review.yml) runs on the GitHub-hosted `ubuntu-latest` runner, whose
+						vendor-documented spec is 4 vCPUs / 16 GB RAM - but that figure is the VM's total memory,
+						not necessarily what a single job/container can safely commit. A prior attempt to raise
+						this to -Xmx12g (assuming most of the documented 16 GB was free to claim) got the whole
+						"Build with Maven" step killed mid-run ("The operation was canceled" after ~13 minutes),
+						consistent with the runner itself being memory-exhausted rather than a normal in-JVM heap
+						OOM. Back to the known-safe 5g until the "Print runner memory info" step (added in the
+						same change) reports real numbers (free -h / cgroup limits / nproc) from an actual run -
+						see evitaDB issue #760 discussion for the follow-up once that data is in.
 					-->
-					<argLine>${surefireArgLine} -Xmx12g -Duser.country=US, -Duser.language=us -Dfile.encoding=${project.build.sourceEncoding} --add-opens java.base/java.lang.invoke=ALL-UNNAMED --add-opens java.base/java.lang.invoke=ALL-UNNAMED --add-opens java.base/java.lang=ALL-UNNAMED --add-opens java.base/java.math=ALL-UNNAMED --add-opens java.base/java.util=ALL-UNNAMED</argLine>
+					<argLine>${surefireArgLine} -Xmx5g -Duser.country=US, -Duser.language=us -Dfile.encoding=${project.build.sourceEncoding} --add-opens java.base/java.lang.invoke=ALL-UNNAMED --add-opens java.base/java.lang.invoke=ALL-UNNAMED --add-opens java.base/java.lang=ALL-UNNAMED --add-opens java.base/java.math=ALL-UNNAMED --add-opens java.base/java.util=ALL-UNNAMED</argLine>
 				</configuration>
 			</plugin>
 			<plugin>
