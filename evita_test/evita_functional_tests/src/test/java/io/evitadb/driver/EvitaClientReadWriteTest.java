@@ -186,6 +186,18 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 	private final static int SEED = 42;
 	private static final String EVITA_CLIENT_DATA_SET = "EvitaReadWriteClientDataSet";
 	private static final String EVITA_CLIENT_EMPTY_DATA_SET = "EvitaReadWriteClientEmptyDataSet";
+	/**
+	 * Overall budget for the live-tail host-event retry loops in the HOST-area gRPC tests. Host
+	 * events are dispatched only to subscribers already registered server-side and are NOT replayed,
+	 * so a trigger fired before the async `registerSystemChangeCapture` subscription completes is
+	 * dropped. The loop re-fires the trigger until the event round-trips or this budget elapses.
+	 */
+	private static final long HOST_EVENT_LIVENESS_BUDGET_MS = 20_000L;
+	/**
+	 * Per-attempt wait (seconds) for the host event to round-trip before the retry loop re-fires
+	 * its trigger.
+	 */
+	private static final int HOST_EVENT_LIVENESS_POLL_SECONDS = 2;
 	private static final Map<Serializable, Integer> GENERATED_ENTITIES = new HashMap<>(20);
 	private static final BiFunction<String, Faker, Integer> RANDOM_ENTITY_PICKER = (entityType, faker) -> {
 		final int entityCount = GENERATED_ENTITIES.computeIfAbsent(entityType, serializable -> 0);
@@ -906,19 +918,37 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 				new MockEngineChangeCaptureSubscriber(Integer.MAX_VALUE);
 			publisher.subscribe(subscriber);
 
-			// trigger a catalog state transition that emits an installed-into-live-view host event
-			final String hostEventCatalog = "hostEventCatalogGrpc";
-			evitaClient.defineCatalog(hostEventCatalog);
-			evitaClient.updateCatalog(hostEventCatalog, EvitaSessionContract::goLiveAndClose);
-
-			// host event should round-trip and arrive on the client subscriber within 10 seconds
-			assertTrue(
-				subscriber.getCatalogInstalled(hostEventCatalog, 10, TimeUnit.SECONDS, 1) >= 1,
-				"Client should receive at least one CatalogInstalledIntoLiveView host event"
-			);
-
-			subscriber.cancel();
-			evitaClient.deleteCatalogIfExists(hostEventCatalog);
+			// `publisher.subscribe(...)` only kicks off the async gRPC stream — it does NOT block
+			// until the server-side subscription is registered (the server ACK lands on a different
+			// thread). Host events fired before that registration completes are dropped, not
+			// replayed. Retry the catalog activation with a DISTINCT catalog each attempt until the
+			// install host event round-trips to the client subscriber, or the budget elapses. The
+			// subscriber's per-catalog getter is event-specific, so checking the CURRENT attempt's
+			// catalog only goes true once registration has completed.
+			final String catalogFamily = "hostEventCatalogGrpc";
+			final long deadlineNanos = System.nanoTime() + HOST_EVENT_LIVENESS_BUDGET_MS * 1_000_000L;
+			int attempt = 0;
+			boolean hostEventDelivered = false;
+			try {
+				while (!hostEventDelivered && System.nanoTime() < deadlineNanos) {
+					final String catalog = catalogFamily + attempt++;
+					evitaClient.defineCatalog(catalog);
+					evitaClient.updateCatalog(catalog, EvitaSessionContract::goLiveAndClose);
+					hostEventDelivered = subscriber.getCatalogInstalled(
+						catalog, HOST_EVENT_LIVENESS_POLL_SECONDS, TimeUnit.SECONDS, 1
+					) >= 1;
+				}
+				assertTrue(
+					hostEventDelivered,
+					"Client should receive at least one CatalogInstalledIntoLiveView host event within the liveness budget"
+				);
+			} finally {
+				subscriber.cancel();
+				// clean up every catalog the retry loop created
+				for (int i = 0; i < attempt; i++) {
+					evitaClient.deleteCatalogIfExists(catalogFamily + i);
+				}
+			}
 		}
 	}
 
@@ -948,28 +978,40 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 				new MockEngineChangeCaptureSubscriber(Integer.MAX_VALUE);
 			publisher.subscribe(subscriber);
 
-			// create a WARMING_UP catalog and apply 3 schema mutations in a single session —
-			// the coalescing contract requires exactly one CatalogSchemaUpdated host event to
-			// arrive on the client's HOST-area subscription regardless of the mutation count
+			// create the WARMING_UP catalog once; each retry below applies schema mutations in a
+			// single session, and the coalescing contract requires exactly one CatalogSchemaUpdated
+			// host event per such session regardless of the mutation count
 			evitaClient.defineCatalog(schemaUpdatedCatalog);
-			evitaClient.updateCatalog(
-				schemaUpdatedCatalog,
-				session -> {
-					session.defineEntitySchema(Entities.PRODUCT)
-						.withAttribute("attr1", String.class)
-						.withAttribute("attr2", String.class)
-						.withAttribute("attr3", String.class)
-						.updateVia(session);
-				}
-			);
 
-			// the host event must round-trip and arrive on the client subscriber within 10 seconds
-			final int observed = subscriber.getCatalogSchemaUpdated(
-				schemaUpdatedCatalog, 10, TimeUnit.SECONDS, 1
-			);
+			// `publisher.subscribe(...)` only kicks off the async gRPC stream — it does NOT block
+			// until the server-side subscription is registered. Host events are dispatched only to
+			// already-registered subscribers and are NOT replayed, so a schema bump fired before
+			// registration completes is dropped. Retry the bump — each attempt defines a DISTINCT
+			// entity type, producing a fresh coalesced CatalogSchemaUpdated — until one round-trips
+			// to the client subscriber, or the budget elapses. The per-catalog count is cumulative,
+			// so it goes >= 1 as soon as any post-registration bump is delivered.
+			final long deadlineNanos = System.nanoTime() + HOST_EVENT_LIVENESS_BUDGET_MS * 1_000_000L;
+			int attempt = 0;
+			boolean hostEventDelivered = false;
+			while (!hostEventDelivered && System.nanoTime() < deadlineNanos) {
+				final String probeEntityType = Entities.PRODUCT + attempt++;
+				evitaClient.updateCatalog(
+					schemaUpdatedCatalog,
+					session -> {
+						session.defineEntitySchema(probeEntityType)
+							.withAttribute("attr1", String.class)
+							.withAttribute("attr2", String.class)
+							.withAttribute("attr3", String.class)
+							.updateVia(session);
+					}
+				);
+				hostEventDelivered = subscriber.getCatalogSchemaUpdated(
+					schemaUpdatedCatalog, HOST_EVENT_LIVENESS_POLL_SECONDS, TimeUnit.SECONDS, 1
+				) >= 1;
+			}
 			assertTrue(
-				observed >= 1,
-				"Client should receive at least one CatalogSchemaUpdated host event, got: " + observed
+				hostEventDelivered,
+				"Client should receive at least one CatalogSchemaUpdated host event within the liveness budget"
 			);
 
 			subscriber.cancel();
