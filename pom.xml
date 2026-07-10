@@ -617,7 +617,22 @@
 					<jdkToolchain>
 						<version>${java.version}</version>
 					</jdkToolchain>
-					<argLine>${surefireArgLine} -Xmx5g -Duser.country=US, -Duser.language=us -Dfile.encoding=${project.build.sourceEncoding} --add-opens java.base/java.lang.invoke=ALL-UNNAMED --add-opens java.base/java.lang.invoke=ALL-UNNAMED --add-opens java.base/java.lang=ALL-UNNAMED --add-opens java.base/java.math=ALL-UNNAMED --add-opens java.base/java.util=ALL-UNNAMED</argLine>
+					<!--
+						CI (ci-dev.yml / pr-review.yml / ci-master.yml / ci-performance.yml) runs exclusively on
+						the standard GitHub-hosted `ubuntu-latest` runner: 4 vCPUs / 16 GB RAM. forkCount=1 means
+						a single test JVM holds this heap alone for the vast majority of the build (the reactor's
+						module dependency chain is essentially linear, so concurrent -T 1C module builds overlap
+						compilation, not test execution, for all but the tiny sibling export modules). The
+						`unitAndFunctional`/`unit` profiles additionally set parallel=all + useUnlimitedThreads,
+						so evita_functional_tests' single fork can have every test class/method running
+						concurrently at once, each potentially standing up a full embedded Evita+gRPC+GraphQL
+						instance - that genuinely exceeded 5g in CI (OutOfMemoryError: Java heap space during
+						JUnit Jupiter startup) and cascaded into unrelated gRPC/GraphQL test failures elsewhere
+						in the same JVM. 12g leaves ~4 GB (25%) headroom for the OS, the Maven/mvnd daemon and
+						off-heap JVM overhead (metaspace, per-thread stacks under unlimited-thread parallelism,
+						direct buffers) while using most of the runner's memory.
+					-->
+					<argLine>${surefireArgLine} -Xmx12g -Duser.country=US, -Duser.language=us -Dfile.encoding=${project.build.sourceEncoding} --add-opens java.base/java.lang.invoke=ALL-UNNAMED --add-opens java.base/java.lang.invoke=ALL-UNNAMED --add-opens java.base/java.lang=ALL-UNNAMED --add-opens java.base/java.math=ALL-UNNAMED --add-opens java.base/java.util=ALL-UNNAMED</argLine>
 				</configuration>
 			</plugin>
 			<plugin>

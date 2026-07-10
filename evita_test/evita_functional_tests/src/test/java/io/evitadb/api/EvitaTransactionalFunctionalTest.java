@@ -2236,6 +2236,9 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 						.minimalActiveRecordShare(0.9)
 						.timeTravelEnabled(true)
 						.fileSizeCompactionThresholdBytes(4_096)
+						// the test forces compaction to happen on every write via a tiny threshold, which is
+						// incompatible with the wall-clock compaction cadence gate (default 60s) - disable it
+						.minCompactionIntervalMilliseconds(0)
 						.build()
 				)
 				.transaction(
