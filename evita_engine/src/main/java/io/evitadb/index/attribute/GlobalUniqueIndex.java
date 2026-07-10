@@ -288,10 +288,13 @@ public class GlobalUniqueIndex implements
 		for (int i = 0; i < orderedPageSequences.length; i++) {
 			final Serializable[] values = perPageValues[i];
 			final long[] payloads = perPagePayloads[i];
-			// a page never exceeds a leaf's capacity, so this single-leaf tree never splits
+			// a page never exceeds a leaf's capacity, so this single-leaf tree never splits; the leaf's key/record
+			// columns are built in one bulk pass instead of `values.length` sequential addLongRecord calls, which
+			// would otherwise re-decode/re-encode a front-coded String column's whole blob per call - see
+			// bulkLoadSingleRecordPage's javadoc
 			final TransactionalBucketBPlusTree pageTree = createEmptyTree(plainType, comparator);
+			pageTree.bulkLoadSingleRecordPage(values, payloads, values.length);
 			for (int j = 0; j < values.length; j++) {
-				pageTree.addLongRecord((Comparable) values[j], payloads[j]);
 				final EntityWithTypeTuple tuple = unpackTuple(payloads[j]);
 				entitiesPerTypeBase.computeIfAbsent(tuple.entityType(), entityType -> new TransactionalBitmap())
 					.add(tuple.entityPrimaryKey());

@@ -102,6 +102,13 @@ final class IntValueColumn<M extends Comparable<M>> implements ValueColumn<M> {
 	}
 
 	@Override
+	public void bulkLoad(@Nonnull Object[] keys, int count) {
+		for (int i = 0; i < count; i++) {
+			this.keys[i] = (Integer) keys[i];
+		}
+	}
+
+	@Override
 	public void removeKeyAt(int index) {
 		System.arraycopy(this.keys, index + 1, this.keys, index, this.keys.length - index - 1);
 	}

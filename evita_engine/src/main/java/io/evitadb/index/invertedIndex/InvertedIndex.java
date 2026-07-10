@@ -501,17 +501,27 @@ public class InvertedIndex implements
 		final List<TransactionalBucketBPlusTree> pageTrees = new ArrayList<>(orderedPageSequences.length);
 		for (int i = 0; i < orderedPageSequences.length; i++) {
 			final ValueToRecord[] buckets = perPageBuckets[i];
-			// build a single-leaf tree from this page's buckets — a page never exceeds a leaf's capacity, so no split
+			// build a single-leaf tree from this page's buckets in one bulk pass — a page never exceeds a leaf's
+			// capacity, so no split — instead of `buckets.length` sequential addRecord calls, which would otherwise
+			// re-decode/re-encode a front-coded String column's whole blob per call; see bulkLoadPage's javadoc
 			final TransactionalBucketBPlusTree pageTree = createEmptyTree(plainType, comparator);
-			for (final ValueToRecord bucket : buckets) {
+			final Object[] keys = new Object[buckets.length];
+			final long[] payloads = new long[buckets.length];
+			TransactionalBitmap[] overflow = null;
+			for (int j = 0; j < buckets.length; j++) {
+				final ValueToRecord bucket = buckets[j];
 				final Bitmap recordIds = bucket.getRecordIds();
-				final Comparable value = (Comparable) bucket.getValue();
+				keys[j] = bucket.getValue();
 				if (recordIds.size() == 1) {
-					pageTree.addRecord(value, recordIds.getFirst());
+					payloads[j] = recordIds.getFirst();
 				} else {
-					pageTree.addRecord(value, recordIds.getArray());
+					if (overflow == null) {
+						overflow = new TransactionalBitmap[buckets.length];
+					}
+					overflow[j] = new TransactionalBitmap(recordIds);
 				}
 			}
+			pageTree.bulkLoadPage(keys, payloads, overflow, buckets.length);
 			pageTrees.add(pageTree);
 		}
 		// assemble the spine over the per-page leaves, preserving boundaries and stamping each leaf's page sequence

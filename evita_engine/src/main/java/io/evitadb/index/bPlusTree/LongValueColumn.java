@@ -99,6 +99,14 @@ final class LongValueColumn<M extends Comparable<M>> implements ValueColumn<M> {
 	}
 
 	@Override
+	@SuppressWarnings("unchecked")
+	public void bulkLoad(@Nonnull Object[] keys, int count) {
+		for (int i = 0; i < count; i++) {
+			this.keys[i] = this.codec.encode((M) keys[i]);
+		}
+	}
+
+	@Override
 	public void removeKeyAt(int index) {
 		System.arraycopy(this.keys, index + 1, this.keys, index, this.keys.length - index - 1);
 	}

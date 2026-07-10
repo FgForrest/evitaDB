@@ -87,6 +87,11 @@ final class LongRecordColumn implements RecordColumn {
 	}
 
 	@Override
+	public void bulkLoad(@Nonnull long[] payloads, int count) {
+		System.arraycopy(payloads, 0, this.records, 0, count);
+	}
+
+	@Override
 	public void setAt(int index, long value) {
 		this.records[index] = value;
 	}

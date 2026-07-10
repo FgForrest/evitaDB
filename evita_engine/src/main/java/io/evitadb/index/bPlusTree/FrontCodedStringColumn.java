@@ -347,6 +347,18 @@ final class FrontCodedStringColumn<M extends Comparable<M>> implements ValueColu
 	}
 
 	@Override
+	public void bulkLoad(@Nonnull Object[] keys, int count) {
+		// one UTF-8 encode per key (unavoidable — the blob has to hold the bytes anyway), then a single encode() pass
+		// builds the whole front-coded blob at once, instead of the O(count) decode-splice-reencode-of-everything-
+		// so-far that insertKeyAt would pay on each of `count` sequential calls (O(count²) total there vs O(count) here)
+		final byte[][] rawKeys = new byte[count][];
+		for (int i = 0; i < count; i++) {
+			rawKeys[i] = ((String) keys[i]).getBytes(StandardCharsets.UTF_8);
+		}
+		encode(rawKeys, count);
+	}
+
+	@Override
 	public void removeKeyAt(int index) {
 		final DecodeScratch scratch = SCRATCH.get();
 		decodeAllToFlat(scratch);

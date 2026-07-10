@@ -86,6 +86,13 @@ final class IntRecordColumn implements RecordColumn {
 	}
 
 	@Override
+	public void bulkLoad(@Nonnull long[] payloads, int count) {
+		for (int i = 0; i < count; i++) {
+			this.records[i] = (int) payloads[i];
+		}
+	}
+
+	@Override
 	public void setAt(int index, long value) {
 		this.records[index] = (int) value;
 	}

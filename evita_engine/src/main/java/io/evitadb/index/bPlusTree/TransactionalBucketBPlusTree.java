@@ -766,6 +766,81 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	}
 
 	/**
+	 * Bulk-populates this tree's root as a single leaf page from an already-known, ascending-ordered key/payload
+	 * set, in one pass — the load-time counterpart to {@code count} sequential {@link #addRecord}/
+	 * {@link #addLongRecord} calls. Intended for the persisted single-leaf-page load path
+	 * ({@code fromPersistedPages} implementations), where a page's full content is already deserialized up front
+	 * and replaying it through the incremental single-record API would pay avoidable Θ(count²) cost — see
+	 * {@link ValueColumn#bulkLoad} / {@link RecordColumn#bulkLoad} for why (each incremental insert shifts its
+	 * column's tail out to {@link #valueBlockSize}, and {@link FrontCodedStringColumn}'s incremental insert
+	 * additionally re-encodes its entire blob on every call). Requires this tree to still be in its
+	 * just-constructed, empty state — the bulk-built leaf unconditionally REPLACES the current root via
+	 * {@link #setRoot}.
+	 *
+	 * Every key maps to exactly one payload; this method never builds an overflow (multi-record) bucket, so it is
+	 * only valid for a tree whose persisted page structurally cannot hold a value shared by more than one record
+	 * (a global-unique or owner-unique index page — see their {@code fromPersistedPages}). A page that CAN hold
+	 * multi-record buckets (e.g. an inverted index's) must use {@link #bulkLoadPage} instead.
+	 *
+	 * @param keys     the ascending-ordered, distinct keys to load; only {@code keys[0, count)} are read
+	 * @param payloads the payload for each key, aligned by index with {@code keys}; only {@code payloads[0, count)}
+	 *                 are read (narrowed to {@code int} internally on an int-payload tree)
+	 * @param count    the number of live entries ({@code 1 <= count <= valueBlockSize} — a page never exceeds a
+	 *                 leaf's capacity)
+	 */
+	public void bulkLoadSingleRecordPage(@Nonnull Object[] keys, @Nonnull long[] payloads, int count) {
+		bulkLoadPage(keys, payloads, null, count);
+	}
+
+	/**
+	 * Bulk-populates this tree's root as a single leaf page from an already-known, ascending-ordered key/bucket
+	 * set, in one pass — the overflow-aware sibling of {@link #bulkLoadSingleRecordPage}, for trees whose persisted
+	 * page CAN hold a value shared by more than one record (e.g. {@code InvertedIndex}). Each key maps to either a
+	 * single payload ({@code overflow[i] == null}, {@code payloads[i]} is read) or a pre-built multi-record bitmap
+	 * ({@code overflow[i] != null}, {@code payloads[i]} is a don't-care, matching the leaf's own contract for a
+	 * promoted bucket's primitive slot — see {@link RecordColumn}'s javadoc).
+	 *
+	 * @param keys     the ascending-ordered, distinct keys to load; only {@code keys[0, count)} are read
+	 * @param payloads the single-record payload for each key that is NOT overflow-promoted; only
+	 *                 {@code payloads[0, count)} are read, and only where the aligned {@code overflow} slot is null
+	 * @param overflow per-key pre-built multi-record bitmap, or {@code null} at a slot whose key holds a single
+	 *                 record; pass {@code null} entirely if no key in this page is ever multi-record
+	 * @param count    the number of live entries ({@code 1 <= count <= valueBlockSize} — a page never exceeds a
+	 *                 leaf's capacity)
+	 */
+	@SuppressWarnings("unchecked")
+	public void bulkLoadPage(
+		@Nonnull Object[] keys, @Nonnull long[] payloads, @Nullable TransactionalBitmap[] overflow, int count
+	) {
+		Assert.isPremiseValid(count > 0, "A bulk-loaded page must hold at least one entry.");
+		Assert.isPremiseValid(
+			count <= this.valueBlockSize, "A page can never exceed the leaf block size (" + this.valueBlockSize + ")."
+		);
+		for (int i = 1; i < count; i++) {
+			final K previous = (K) keys[i - 1];
+			final K current = (K) keys[i];
+			final int comparison = this.comparator != null
+				? this.comparator.compare(previous, current) : previous.compareTo(current);
+			Assert.isPremiseValid(
+				comparison < 0, "Bulk-loaded keys must be strictly ascending and distinct, found '"
+					+ previous + "' before '" + current + "' at index " + i + "."
+			);
+		}
+		final ValueColumn<K> keyColumn = this.valueColumnFactory.create(this.valueBlockSize);
+		keyColumn.bulkLoad(keys, count);
+		final RecordColumn recordColumn = this.recordColumnFactory.create(this.valueBlockSize);
+		recordColumn.bulkLoad(payloads, count);
+		final TransactionalBitmap[] paddedOverflow;
+		if (overflow == null) {
+			paddedOverflow = null;
+		} else {
+			paddedOverflow = overflow.length == this.valueBlockSize
+				? overflow : Arrays.copyOf(overflow, this.valueBlockSize);
+		}
+		setRoot(new BPlusLeafTreeNode<>(keyColumn, recordColumn, paddedOverflow, count - 1, this.comparator, true));
+	}
+
+	/**
 	 * Adds a single record id into the bucket with the specified `value`. If no bucket with this value exists, it is
 	 * created as a single-record bucket. A single-record bucket promotes to a multi-record bitmap when a second
 	 * distinct record id is added; adding the id it already holds is a no-op. A bitmap bucket is mutated in place so its

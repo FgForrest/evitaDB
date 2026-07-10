@@ -112,6 +112,22 @@ sealed interface ValueColumn<M extends Comparable<M>>
 	void insertKeyAt(int index, @Nonnull M value);
 
 	/**
+	 * Bulk-populates this freshly-{@link #allocate}d (empty) column with {@code count} keys, already in ascending
+	 * order, in a single pass — the load-time counterpart to {@code count} sequential {@link #insertKeyAt} calls
+	 * (used when the full, already-sorted key set is known up front, e.g. loading a persisted leaf page). For most
+	 * implementations this is no cheaper per element than the incremental path — but {@link #insertKeyAt} always
+	 * shifts the tail out to {@link #capacity()} (not just the live count), so {@code count} sequential calls cost
+	 * Θ(count²/2) element copies where this method costs O(count); the difference is dramatic for
+	 * {@link FrontCodedStringColumn}, whose {@link #insertKeyAt} additionally decodes and re-encodes the *entire*
+	 * column on every call (O(current size) per call, O(count²) total for `count` calls) — this method builds the
+	 * same content with a single encode pass, O(count) total.
+	 *
+	 * @param keys  the ascending-ordered keys to load; only {@code keys[0, count)} are read
+	 * @param count the number of live keys ({@code <= capacity()})
+	 */
+	void bulkLoad(@Nonnull Object[] keys, int count);
+
+	/**
 	 * Removes the key at {@code index}, shifting the tail one slot to the left (the leaf clears the freed last slot via
 	 * {@link #clearAt} and shrinks {@code peek} afterwards). Mirrors {@code ArrayUtils.removeRecordFromSameArrayOnIndex}.
 	 *
@@ -245,6 +261,14 @@ final class BoxedObjectColumn<M extends Comparable<M>> implements ValueColumn<M>
 	@Override
 	public void insertKeyAt(int index, @Nonnull M value) {
 		insertRecordIntoSameArrayOnIndex(value, this.keys, index);
+	}
+
+	@Override
+	@SuppressWarnings("unchecked")
+	public void bulkLoad(@Nonnull Object[] keys, int count) {
+		for (int i = 0; i < count; i++) {
+			this.keys[i] = (M) keys[i];
+		}
 	}
 
 	@Override

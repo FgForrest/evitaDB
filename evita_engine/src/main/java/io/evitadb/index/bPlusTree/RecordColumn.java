@@ -107,6 +107,18 @@ sealed interface RecordColumn permits IntRecordColumn, LongRecordColumn {
 	void insertAt(int index, long value);
 
 	/**
+	 * Bulk-populates this freshly-{@link #allocate}d (empty) column with {@code count} already-known payloads in a
+	 * single pass — the load-time counterpart to {@code count} sequential {@link #insertAt} calls (used when the
+	 * full payload set is known up front, e.g. loading a persisted leaf page). {@link #insertAt} always shifts the
+	 * tail out to {@link #capacity()} (not just the live count), so {@code count} sequential calls cost
+	 * Θ(count²/2) element copies where this method costs O(count).
+	 *
+	 * @param payloads the payloads to load; only {@code payloads[0, count)} are read
+	 * @param count    the number of live payloads ({@code <= capacity()})
+	 */
+	void bulkLoad(@Nonnull long[] payloads, int count);
+
+	/**
 	 * Overwrites the record at the given occupied {@code index} in place, without shifting the tail (the leaf's
 	 * {@code peek} is unchanged). Used by the commit-merge to demote a multi bucket — drained to a single record —
 	 * back to the primitive single form: the sole surviving id is written over the don't-care slot. An

@@ -113,6 +113,15 @@ final class InstantValueColumn<M extends Comparable<M>> implements ValueColumn<M
 	}
 
 	@Override
+	public void bulkLoad(@Nonnull Object[] keys, int count) {
+		for (int i = 0; i < count; i++) {
+			final Instant inst = (Instant) keys[i];
+			this.seconds[i] = inst.getEpochSecond();
+			this.nanos[i] = inst.getNano();
+		}
+	}
+
+	@Override
 	public void removeKeyAt(int index) {
 		// lockstep left-shift of BOTH arrays
 		System.arraycopy(this.seconds, index + 1, this.seconds, index, this.seconds.length - index - 1);

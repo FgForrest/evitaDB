@@ -249,12 +249,18 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 		for (int i = 0; i < orderedPageSequences.length; i++) {
 			final Serializable[] values = perPageValues[i];
 			final int[] records = perPageRecordIds[i];
-			// a page never exceeds a leaf's capacity, so this single-leaf tree never splits
+			// a page never exceeds a leaf's capacity, so this single-leaf tree never splits; bulk-build the leaf's
+			// columns in one pass instead of `values.length` sequential addRecord calls - see
+			// bulkLoadSingleRecordPage's javadoc. An owner-unique index page structurally cannot hold a value
+			// shared by more than one record (uniqueness is enforced one layer up, at registerUniqueKey), so no
+			// overflow bucket is ever needed here
 			final TransactionalBucketBPlusTree pageTree = createEmptyTree(plainType, comparator);
+			final long[] payloads = new long[values.length];
 			for (int j = 0; j < values.length; j++) {
-				pageTree.addRecord((Comparable) values[j], records[j]);
+				payloads[j] = records[j];
 				allRecordIds.add(records[j]);
 			}
+			pageTree.bulkLoadSingleRecordPage(values, payloads, values.length);
 			pageTrees.add(pageTree);
 		}
 		final TransactionalBucketBPlusTree tree =
