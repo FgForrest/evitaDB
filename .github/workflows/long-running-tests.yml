@@ -26,7 +26,7 @@ jobs:
     timeout-minutes: 60
 
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           fetch-depth: 2
           persist-credentials: false
@@ -41,7 +41,7 @@ jobs:
           echo "Commits found in dev branch: $COMMIT_COUNT"
 
       - name: Setup Java JDK   # this should setup JDK 17 but only if something was committed to dev branch in the last week
-        uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5.2.0  # setup JDK 17 for building
+        uses: actions/setup-java@0f481fcb613427c0f801b606911222b5b6f3083a # v5.5.0  # setup JDK 17 for building
         if: ${{ env.NEW_COMMIT_COUNT != '0' }}
         with:
            distribution: 'temurin'

@@ -126,8 +126,8 @@
 		<slf4j.version>2.0.17</slf4j.version>
 		<logback.version>1.5.32</logback.version>
 		<kryo.version>5.6.2</kryo.version>
-		<jackson.version>2.21.3</jackson.version>
-		<jackson.annotations.version>2.21</jackson.annotations.version>
+		<jackson.version>2.22.1</jackson.version>
+		<jackson.annotations.version>2.22</jackson.annotations.version>
 		<snakeyaml.version>2.6</snakeyaml.version>
 		<roaringbitmap.version>1.6.12</roaringbitmap.version>
 		<junit.jupiter.version>6.1.1</junit.jupiter.version>
@@ -136,11 +136,11 @@
 		<maven.compiler.version>3.15.0</maven.compiler.version>
 		<maven.toolchains.version>3.2.0</maven.toolchains.version>
 		<lombok.version>1.18.46</lombok.version>
-		<grpc.version>1.80.0</grpc.version>
+		<grpc.version>1.82.2</grpc.version>
 		<bouncyCastle.version>1.84</bouncyCastle.version>
 		<swagger.version>2.2.43</swagger.version>
-		<armeria.version>1.39.0</armeria.version>
-		<prometheus.version>1.6.1</prometheus.version>
+		<armeria.version>1.40.0</armeria.version>
+		<prometheus.version>1.8.0</prometheus.version>
 		<micrometer.version>1.16.5</micrometer.version>
 		<byteBuddy.version>1.17.8</byteBuddy.version>
 		<graphql.version>25.0</graphql.version>
