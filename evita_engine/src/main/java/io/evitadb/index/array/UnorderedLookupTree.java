@@ -1023,8 +1023,10 @@ public class UnorderedLookupTree implements
 	public void forgetPageStream() {
 		requirePaged();
 		for (final LeafNode leaf : collectLeaves()) {
-			leaf.setPageSequence(PagedLeafHandle.UNASSIGNED_PAGE_SEQUENCE);
-			leaf.clearDirty();
+			// create-free reset: this runs at flush time after commit() has forbidden new layer creation, and the walk
+			// visits EVERY leaf including collapse survivors this transaction never touched (which carry no layer) - so
+			// it must NOT route through the create-on-write setPageSequence/clearDirty (see LeafNode.forgetPage)
+			leaf.forgetPage();
 		}
 	}
 
@@ -2758,6 +2760,32 @@ public class UnorderedLookupTree implements
 			if (layer == null) {
 				this.dirty = false;
 			} else {
+				layer.dirty = false;
+			}
+		}
+
+		/**
+		 * Resets this leaf's page bookkeeping — un-assigns the page sequence and clears the dirty flag — as part of a
+		 * `PAGED->SINGLE` collapse (see {@link #forgetPageStream()}). Writes through an EXISTING transactional layer when
+		 * one is present, but NEVER creates one — unlike {@link #setPageSequence(int)} / {@link #clearDirty()}, which route
+		 * through the create-on-write path. This runs at flush time, INSIDE the commit, after
+		 * {@link io.evitadb.core.transaction.memory.TransactionalLayerMaintainer#commit} has forbidden new layer creation;
+		 * because `forgetPageStream` walks EVERY leaf (a collapse survivor can be a leaf this transaction never touched, so
+		 * it carries no layer), a create-on-write reset would trip the "already committed" premise on that untouched leaf.
+		 * A leaf with no layer has no pending diff, so resetting its committed baseline field in place is what the merge
+		 * carries forward anyway — mirroring the create-free read path ({@link #getPageSequence()} / {@link #isDirty()}).
+		 * The reset MUST fire even for an untouched leaf: its baseline still holds an assigned page sequence whose page was
+		 * already emitted for removal and forgotten from the registry, so leaving it assigned would thread a dangling page
+		 * into a later `SINGLE->PAGED` regrow.
+		 */
+		void forgetPage() {
+			final LeafNode layer = this.transactionalLayer ?
+				Transaction.getTransactionalMemoryLayerIfExists(this) : null;
+			if (layer == null) {
+				this.pageSequence = PagedLeafHandle.UNASSIGNED_PAGE_SEQUENCE;
+				this.dirty = false;
+			} else {
+				layer.pageSequence = PagedLeafHandle.UNASSIGNED_PAGE_SEQUENCE;
 				layer.dirty = false;
 			}
 		}

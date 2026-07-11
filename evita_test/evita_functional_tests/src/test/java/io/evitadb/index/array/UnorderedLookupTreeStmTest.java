@@ -24,7 +24,9 @@
 package io.evitadb.index.array;
 
 import com.carrotsearch.hppc.IntLongHashMap;
+import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.core.transaction.Transaction;
+import io.evitadb.core.transaction.TransactionHandler;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.dataType.ConsistencySensitiveDataStructure.ConsistencyReport;
 import io.evitadb.dataType.ConsistencySensitiveDataStructure.ConsistencyState;
@@ -34,6 +36,8 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import java.util.UUID;
 
 import static io.evitadb.test.TestTags.DATA_TYPE;
 import static io.evitadb.test.TestTags.INDEXING;
@@ -42,6 +46,7 @@ import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -451,6 +456,96 @@ class UnorderedLookupTreeStmTest {
 			assertEquals(1000, (int) tree.findHeadCovering(0));
 			assertEquals(1003, (int) tree.findHeadCovering(3));
 			assertConsistent(tree);
+		}
+	}
+
+	@Nested
+	@DisplayName("Flush-time page reset")
+	class FlushTimePageResetTest {
+
+		@Test
+		@DisplayName("forgetPageStream over untouched leaves must not create a layer at flush time (after commit)")
+		void shouldForgetPageStreamWithoutCreatingLayerAfterCommit() {
+			// warm-up (outside any transaction): a paged, head-aware tree spanning MULTIPLE leaves - the shape a
+			// ChainIndex persists in its PAGED form. Tiny leaves (capacity 4) force many leaves from few records.
+			final TreeWithIndex driver = new TreeWithIndex(new UnorderedLookupTree(
+				Math.min(UnorderedLookupTree.DEFAULT_BLOCK_SIZE, 4),
+				UnorderedLookupTree.DEFAULT_ORDER_KEY_GAP, true, 4, true));
+			for (int i = 0; i < 20; i++) {
+				driver.addAtPosition(i, 1000 + i);
+			}
+			final UnorderedLookupTree tree = driver.tree;
+			assertTrue(tree.isRootInternal(), "warm-up must span multiple leaves (PAGED shape)");
+			// simulate a prior flush: stamp a live page sequence on every leaf and clear its dirty flag. This runs
+			// outside any transaction, so the stamps land on the committed baseline and NO leaf carries a layer -
+			// exactly the state a leaf a later collapsing transaction never touches is in.
+			int seq = 0;
+			for (final UnorderedLookupTree.LeafPageHandle handle : tree.leafPageHandles()) {
+				handle.setPageSequence(seq++);
+				handle.clearDirty();
+			}
+			assertEquals(seq, tree.livePageSequences().length, "every committed leaf must carry a live page");
+
+			// drive a real transaction whose commit runs forgetPageStream at flush time - i.e. AFTER commit() has
+			// flipped allowTransactionalLayerCreation to false, exactly like Catalog.flush -> EntityCollection.flush ->
+			// ChainIndex.appendStorageParts on a PAGED->SINGLE collapse. The transaction never touches the tree, so
+			// every leaf is an untouched collapse survivor with NO layer and an assigned baseline page sequence: the
+			// buggy create-on-first-touch setPageSequence/clearDirty would trip the "already committed" premise here.
+			final ForgetAtCommitHandler handler = new ForgetAtCommitHandler(tree);
+			Transaction.executeInTransactionIfProvided(
+				new Transaction(UUID.randomUUID(), handler, false),
+				() -> Transaction.getTransaction().orElseThrow().close()
+			);
+
+			// the flush-time forget completed in-thread without throwing, and the merged copy is reset to a clean
+			// baseline (no live pages) so a later SINGLE->PAGED regrow starts fresh and re-emits every leaf
+			final UnorderedLookupTree committed = handler.getCommitted();
+			assertNotNull(committed, "commit must complete without discarding the transaction");
+			assertEquals(
+				0, committed.livePageSequences().length,
+				"forgetPageStream must un-assign every leaf page in the committed copy"
+			);
+			assertEquals(
+				0, committed.collectChangedPages().size(),
+				"forgetPageStream must clear every dirty flag in the committed copy"
+			);
+		}
+
+		/**
+		 * Transaction handler that runs the flush-time {@link UnorderedLookupTree#forgetPageStream()} inside
+		 * {@link #commit} - which the transaction invokes only AFTER the maintainer has forbidden new layer creation,
+		 * reproducing the production ordering (`Catalog.flush` runs during commit, after the commit flag is flipped).
+		 */
+		private static final class ForgetAtCommitHandler implements TransactionHandler {
+			@Nonnull private final UnorderedLookupTree tree;
+			@Nullable private UnorderedLookupTree committed;
+
+			ForgetAtCommitHandler(@Nonnull UnorderedLookupTree tree) {
+				this.tree = tree;
+			}
+
+			@Nullable
+			UnorderedLookupTree getCommitted() {
+				return this.committed;
+			}
+
+			@Override
+			public void registerMutation(@Nonnull Mutation mutation) {
+				// no-op: this test does not drive WAL mutations
+			}
+
+			@Override
+			public void commit(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
+				// flush-time bookkeeping reset - runs with allowTransactionalLayerCreation already false
+				this.tree.forgetPageStream();
+				this.committed = transactionalLayer.getStateCopyWithCommittedChanges(this.tree);
+				transactionalLayer.verifyLayerWasFullySwept();
+			}
+
+			@Override
+			public void rollback(@Nonnull TransactionalLayerMaintainer transactionalLayer, @Nullable Throwable cause) {
+				// no-op: the test never rolls back
+			}
 		}
 	}
 
