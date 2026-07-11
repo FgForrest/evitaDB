@@ -105,7 +105,7 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 	private static String replaceVariables(@Nonnull String status) {
 		String output = status;
 		output = Pattern.compile("(\"serverName\": \"evitaDB-)(.+?)\"").matcher(output).replaceAll("$1RANDOM\"");
-		output = Pattern.compile("(\"version\": \")((?:\\?)|(?:\\d{4}\\.\\d{1,2}(-SNAPSHOT)?))\"").matcher(output).replaceAll("$1VARIABLE\"");
+		output = Pattern.compile("(\"version\": \")((?:\\?)|(?:\\d{4}\\.\\d{1,2}(?:\\.[A-Za-z0-9]+)?(-SNAPSHOT)?))\"").matcher(output).replaceAll("$1VARIABLE\"");
 		output = Pattern.compile("(\"startedAt\": \")(.+?)\"").matcher(output).replaceAll("$1VARIABLE\"");
 		output = Pattern.compile("(\"introducedAt\": \")(.+?)\"").matcher(output).replaceAll("$1VARIABLE\"");
 		output = Pattern.compile("(\"uptime\": )(.+?),").matcher(output).replaceAll("$1VARIABLE,");
