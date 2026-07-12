@@ -47,7 +47,7 @@ import static io.evitadb.test.TestTags.ORDER;
 @Tag(ENGINE)
 @Tag(MANAGEMENT)
 @Tag(ORDER)
-class OrderConstraintToJsonConverterTest extends ConstraintToJsonConverterTest {
+class OrderConstraintToJsonConverterTest extends AbstractConstraintToJsonConverterTest {
 
 	private OrderConstraintToJsonConverter converter;
 

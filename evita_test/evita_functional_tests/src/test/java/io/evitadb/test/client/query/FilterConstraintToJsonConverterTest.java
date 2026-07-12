@@ -49,7 +49,7 @@ import static io.evitadb.test.TestTags.FILTER;
 @Tag(ENGINE)
 @Tag(MANAGEMENT)
 @Tag(FILTER)
-class FilterConstraintToJsonConverterTest extends ConstraintToJsonConverterTest {
+class FilterConstraintToJsonConverterTest extends AbstractConstraintToJsonConverterTest {
 
 	private FilterConstraintToJsonConverter converter;
 

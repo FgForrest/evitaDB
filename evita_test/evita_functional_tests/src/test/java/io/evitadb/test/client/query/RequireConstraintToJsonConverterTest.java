@@ -55,7 +55,7 @@ import static io.evitadb.test.TestTags.MANAGEMENT;
  */
 @Tag(ENGINE)
 @Tag(MANAGEMENT)
-class RequireConstraintToJsonConverterTest extends ConstraintToJsonConverterTest {
+class RequireConstraintToJsonConverterTest extends AbstractConstraintToJsonConverterTest {
 
 	@Nonnull private static final Set<Class<? extends Constraint<?>>> allowedRequireConstraints = Set.of(
 		Require.class,

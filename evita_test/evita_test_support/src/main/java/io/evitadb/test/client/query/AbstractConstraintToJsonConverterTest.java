@@ -49,7 +49,7 @@ import java.util.Optional;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-abstract class ConstraintToJsonConverterTest {
+abstract class AbstractConstraintToJsonConverterTest {
 
 	protected final static JsonNodeFactory jsonNodeFactory = new JsonNodeFactory(true);
 
@@ -67,13 +67,13 @@ abstract class ConstraintToJsonConverterTest {
 				@Nonnull
 				@Override
 				public Collection<EntitySchemaContract> getEntitySchemas() {
-					return ConstraintToJsonConverterTest.this.entitySchemaIndex.values();
+					return AbstractConstraintToJsonConverterTest.this.entitySchemaIndex.values();
 				}
 
 				@Nonnull
 				@Override
 				public Optional<EntitySchemaContract> getEntitySchema(@Nonnull String entityType) {
-					return Optional.ofNullable(ConstraintToJsonConverterTest.this.entitySchemaIndex.get(entityType));
+					return Optional.ofNullable(AbstractConstraintToJsonConverterTest.this.entitySchemaIndex.get(entityType));
 				}
 			}
 		);
