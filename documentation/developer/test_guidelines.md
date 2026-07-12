@@ -6,92 +6,110 @@ _Note: the project includes pre-configured shared IntelliJ IDEA run configuratio
 common test scenarios (All functional tests, Documentation tests, GraphQL tests, REST tests). These can be used directly
 without manual setup._
 
+## Test modules and locations
+
+evitaDB's tests are consolidated into dedicated sibling modules under `evita_test/` — **production
+modules (`evita_engine`, `evita_api`, `evita_store`, …) carry no test sources of their own**. A test
+for a class in `evita_engine` is written in `evita_functional_tests`, not next to the class.
+
+| Module | Contents | Runs in default loop |
+|--------|----------|----------------------|
+| `evita_test_support` | Fixtures, helpers, JUnit extensions, the tag-policy listener — **no tests** | n/a |
+| `evita_functional_tests` | Fast **unit + functional** tests | yes |
+| `evita_long_running_tests` | Slow / generative / soak tests | no (`skipTests`) |
+| `evita_documentation_tests` | Markdown + multi-language code-sample runners | no (`skipTests`) |
+
+`evita_performance_tests` lives outside the default reactor (loaded via the `full` profile) and is
+excluded from the tag taxonomy. The vendored `evita_roaring_bitmap` module is a self-contained
+exception: it co-locates its ported upstream test suite in its own `src/test/java` and is **not**
+governed by the tag policy below.
+
+Test classes keep the name of the tested class with a `Test` suffix (`FooTest` for `Foo`), a
+convention IDEs recognise automatically.
+
+## Tag taxonomy
+
+Every test in `evita_functional_tests` and `evita_long_running_tests` must be categorised on two
+orthogonal axes using JUnit 5 `@Tag`s drawn from `io.evitadb.test.TestTags`:
+
+- **Layer axis (≥1 required)** — *where* in the stack the test exercises: e.g. `CONTRACT`, `ENGINE`,
+  `INDEXING`, `STORAGE`, `DRIVER`, `SERVER`, `EXTERNAL_API`, `REST`, `GRAPHQL`, `GRPC`, `LAB`, …
+- **Capability axis (≥1 required)** — *what* behaviour is tested: e.g. `QUERY`, `FILTER`, `ORDER`,
+  `FACET`, `HIERARCHY`, `PRICE`, `SCHEMA`, `TRANSACTION`, `SERIALIZATION`, `SESSION`, …
+- **Cost axis (optional, mutually exclusive)** — `SLOW`, `FLAKY`. Untagged-for-cost tests are fast.
+
+`TestTags` is the single authoritative catalogue — consult it for the complete list and the per-tag
+JavaDoc rather than relying on this excerpt. Tags are referenced via static import:
+
+``` java
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.DATA_TYPE;
+
+@Tag(ENGINE)
+@Tag(DATA_TYPE)
+class NumberUtilsTest { /* ... */ }
+```
+
+The policy is enforced by `TestTagPolicyListener` (auto-registered through the JUnit `ServiceLoader`
+in `evita_test_support`) in **strict mode by default**: a test method missing a layer or a capability
+tag fails the build *before any test executes*. Downgrade with `-Dtest.tag.policy=warn` (log only) or
+`-Dtest.tag.policy=off` (silence) for ad-hoc local iteration on freshly-stubbed classes. Tags may be
+applied at class level (inherited by every method) or per method.
+
+**Picking tags** — map the changed source path to its axes. A change under
+`evita_engine/src/main/java/io/evitadb/index/facet/` calls for `@Tag(INDEXING) @Tag(FACET)`; a REST
+surface test carries `@Tag(REST) @Tag(EXTERNAL_API)` plus its capability tag. When introducing a
+genuinely new tag, add the constant to `TestTags` and register it in `LAYER_TAGS` or `CAPABILITY_TAGS`.
+
 ## Unit testing
 
-Unit tests are placed directly in the same JAR as production code that is being tested. Test classes should keep the
-name of the tested class adding `Test` suffix. This pattern is automatically recognized by IDEs. Unit tests has no
-tags or annotations. Unit tests are expected to be fast.
+Unit tests live in `evita_functional_tests` alongside functional tests, keep the `Test`-suffix naming
+convention, carry their layer + capability tags like any other test, and are expected to be **fast**
+(no embedded server, no dataset).
 
-### Recommended usage
+## Functional testing
 
-You can run tests in Maven by using:
+Functional tests also live in `evita_functional_tests`. They use small, artificial datasets
+constructed specifically for each scenario to verify a particular behaviour end-to-end, typically
+against an embedded evitaDB instance provisioned by the test-support infrastructure described below.
 
-```
-mvn clean install -P unit
-```
+## Running tests
 
-or you can run tests in IntelliJ Idea, but you need to add several Java arguments
-to the JUnit configuration template:
-
-```
---add-opens java.base/java.lang.invoke=ALL-UNNAMED
---add-opens java.base/java.lang.invoke=ALL-UNNAMED
---add-opens java.base/java.lang=ALL-UNNAMED
---add-opens java.base/java.math=ALL-UNNAMED
---add-opens java.base/java.util=ALL-UNNAMED
-```
-
-and exclude `functional`, `integration`, `longRunning` and `documentation` tags from the actual runner configuration
-like so
-
-![IntelliJ Idea unit tests configuration](assets/images/intellij_idea_unit.png "IntelliJ Idea unit tests configuration")
-
-## Functional and integration testing
-
-Bodies of the **functional tests** are placed in `evita_functional_tests` module.
-Functional tests use artificial data that are constructed and created specially for each test to verify certain behaviour.
-The test data are relatively small.
-
-### Recommended usage
-
-You can run tests in Maven by using:
-
-```
-mvn clean install -P functional
-```
-
-Or you can run tests in IntelliJ Idea in the `evita_functional_tests` module, but you need to add several Java arguments
-to the JUnit configuration template:
-
-```
---add-opens java.base/java.lang.invoke=ALL-UNNAMED
---add-opens java.base/java.lang.invoke=ALL-UNNAMED
---add-opens java.base/java.lang=ALL-UNNAMED
---add-opens java.base/java.math=ALL-UNNAMED
---add-opens java.base/java.util=ALL-UNNAMED
-```
-
-and exclude tests with `documentation` and `longRunning` tags from the actual runner configuration:
-
-![IntelliJ Idea functional tests configuration](assets/images/intellij_idea_functional.png "IntelliJ Idea functional tests configuration")
-
-## Unit and functional testing
-
-You can also run both unit and functional tests (which is generally recommended) using Maven:
+The default fast loop runs unit + functional tests, excluding `slow`/`flaky`; the long-running and
+documentation modules skip themselves via their own surefire configuration. With the tag taxonomy the
+`unit` and `unitAndFunctional` profiles are **equivalent** (both names are kept for muscle memory):
 
 ```
 mvn clean install -P unitAndFunctional
 ```
 
-or in IntelliJ IDEA, but you need to add several Java arguments to JUnit configuration template first:
+Select or exclude tests by tag with JUnit 5 boolean expressions passed to surefire via
+`-Dgroups` / `-DexcludedGroups`:
 
 ```
---add-opens java.base/java.lang.invoke=ALL-UNNAMED
+mvn -pl evita_test/evita_functional_tests test -Dgroups="facet & external_api"
+mvn -pl evita_test/evita_functional_tests test -Dgroups="(query | indexing) & !slow"
+```
+
+Other profiles select a single specialised module: `-P documentation` runs only the documentation
+suite, `-P longRunning` only the long-running suite (see the sections below), and `-P full` adds the
+heavy out-of-reactor modules (performance tests, all-in-one driver, the jacoco aggregator).
+
+To run tests from IntelliJ IDEA, add these arguments to the JUnit configuration template — they open
+the JDK internals the engine and serialization tests reflect over:
+
+```
 --add-opens java.base/java.lang.invoke=ALL-UNNAMED
 --add-opens java.base/java.lang=ALL-UNNAMED
 --add-opens java.base/java.math=ALL-UNNAMED
 --add-opens java.base/java.util=ALL-UNNAMED
 ```
 
-as well as following expression for tags field:
+and set the runner's tag field to exclude the optional cost tags, e.g. `!slow & !flaky`. The
+screenshot below illustrates only where the `--add-opens` template goes; its tag field predates the
+current taxonomy, so read it as layout guidance, not literal tag names.
 
-```
-!integration&!longRunning&!documentation
-```
-
-like so
-
-![IntelliJ Idea example configuration for unit and functional tests](assets/images/intellij_idea_unit_and_functional.png "IntelliJ Idea example configuration for unit and functional tests")
+![IntelliJ Idea JUnit template configuration](assets/images/intellij_idea_unit.png "IntelliJ Idea JUnit template configuration")
 
 ## Documentation testing
 
@@ -571,8 +589,9 @@ To use them:
 
 ## Long-running testing
 
-Long-running tests execute the full test suite including integration, functional, and long-running tests. This profile
-is intended for comprehensive validation and is not typically run during daily development.
+The `longRunning` profile runs the slow / generative / soak tests in the `evita_long_running_tests`
+module (skipped in the default loop). It is intended for comprehensive validation and is not typically
+run during daily development.
 
 ### Recommended usage
 
@@ -717,7 +736,9 @@ destroyed after the method completes.
 #### Example: basic dataset usage
 
 ``` java
-@Tag(TestConstants.FUNCTIONAL_TEST)
+// layer + capability tags, statically imported from io.evitadb.test.TestTags
+@Tag(ENGINE)
+@Tag(QUERY)
 @ExtendWith(EvitaParameterResolver.class)
 public class SomeTest implements EvitaTestSupport {
 
@@ -805,6 +826,33 @@ class EntityByFacetFilteringAndPartitioningTest extends AbstractFacetFilteringTe
 	void shouldFilter(Evita evita) { }
 }
 ```
+
+### Test performance — reuse shared datasets
+
+Building a dataset is by far the most expensive thing a test does: it boots an embedded evitaDB
+instance, creates a catalog, generates entities, indexes them, and optionally starts web APIs. Design
+tests so that cost is **paid once and amortised across many assertions**:
+
+- **Share one `@DataSet` across many `@Test` methods via `@UseDataSet`.** A dataset referenced by the
+  same name is *not* rebuilt or cleared between consecutive tests — the instance and its data are
+  reused. Prefer one rich shared dataset per test class over a private dataset per method.
+- **A test with no `@UseDataSet` gets an anonymous, ephemeral evitaDB instance created and destroyed
+  for that single method.** Convenient, but slow — avoid it for anything but a genuinely one-off
+  scenario.
+- **Keep `readOnly = true` (the default).** Read-only is exactly what makes a dataset safe to share:
+  it guarantees no test can mutate state another test depends on. Disable it only when a test must
+  write, and then isolate that dataset.
+- **Avoid `destroyAfterTest` / `destroyAfterClass` unless you need them.** Each forces the dataset to
+  be torn down and rebuilt for the next consumer, discarding the amortisation. Reserve them for
+  datasets you deliberately mutated (see `readOnly`).
+- **Request the minimum `openWebApi`.** Each API listed (gRPC, REST, GraphQL) starts a real server;
+  omit the ones the test does not exercise.
+- **Use `@IsolateDataSetBySuffix` for class hierarchies**, so subclasses that alter a shared dataset
+  differently each get their own isolated instance without duplicating the setup logic — isolation
+  without giving up reuse.
+
+A well-factored suite has a small number of shared, read-only datasets feeding a large number of fast
+assertions, rather than one bespoke instance per test.
 
 ### `EvitaTestSupport` interface
 

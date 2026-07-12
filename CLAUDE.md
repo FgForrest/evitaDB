@@ -1,6 +1,6 @@
 # evitaDB - Claude Code Guidelines
 
-evitaDB is a specialized NoSQL in-memory database with easy-to-use API for e-commerce systems. It handles complex e-commerce tasks with low-latency and is designed to act as a fast secondary lookup/search index for front stores.
+evitaDB is an in-memory NoSQL database that acts as a fast secondary search/lookup index for e-commerce front stores.
 
 ## Building
 
@@ -14,17 +14,11 @@ Build command:
 mvn clean install
 ```
 
-## Key External Libraries
+Running tests: see `.claude/rules/testing.md` for the tag taxonomy, Maven profiles, and test commands.
 
-- **RoaringBitmap**: For working with bitmaps
-- **Kryo**: For binary serialization and deserialization
-- **Netty and Armeria**: For web server and client functionality
-- **Logback**: For logging
-- **Jackson**: For JSON serialization and deserialization
-- **gRPC Java**: For gRPC functionality
-- **GraphQL Java**: For GraphQL functionality
-- **Byte Buddy**: For runtime code generation
-- **MinIO Java**: For S3-compatible storage operations
+## Libraries
+
+Prefer the libraries already in use — Kryo (binary serialization), RoaringBitmap (bitmaps), Jackson (JSON), Netty/Armeria (web server & client), gRPC-Java & GraphQL-Java (APIs), Logback (logging), Byte Buddy (runtime codegen), MinIO (S3 storage). Don't introduce an alternative for a job one of these already does without discussion.
 
 ## Project Structure
 

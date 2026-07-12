@@ -208,6 +208,7 @@ In short, you need `~/.m2/toolchains.xml` in your home directory next to `~/.m2/
 - **evita_query**: query language (EvitaQL), query parser, and utilities for query handling
 - **evita_api**: public API of evitaDB including data type conversions and basic structures
 - **evita_engine**: implementation of the database engine core
+- **evita_roaring_bitmap**: vendored subset of the RoaringBitmap library (Apache-2.0), reshaped into persistent, structure-sharing bitmaps used by the engine and storage indexes
 - **evita_store**: storage layer implementation
   - **evita_store_key_value**: key-value store implementation with binary serialization using Kryo library
   - **evita_store_entity**: entity storage format and Kryo serialization (shared between server and Java client)
@@ -234,6 +235,8 @@ In short, you need `~/.m2/toolchains.xml` in your home directory next to `~/.m2/
 - **evita_test**: test modules
   - **evita_test_support**: utility classes that make writing integration tests with evitaDB easier
   - **evita_functional_tests**: test suite verifying functional correctness of standard and edge cases of the API
+  - **evita_long_running_tests**: long-running, generative, and soak tests excluded from the default fast suite
+  - **evita_documentation_tests**: runners that execute the code samples embedded in the documentation across languages
   - **evita_performance_tests**: JMH-based performance tests generating statistics for common operations
 - **jacoco**: Maven POM that allows to aggregate test coverage for entire project
 
@@ -246,6 +249,7 @@ flowchart TD
         query[evita_query]
         api[evita_api]
         engine[evita_engine]
+        roaring[evita_roaring_bitmap]
     end
 
     subgraph store["Storage Layer"]
@@ -284,6 +288,8 @@ flowchart TD
     subgraph testing["Testing"]
         test_support[evita_test_support]
         func_tests[evita_functional_tests]
+        long_tests[evita_long_running_tests]
+        doc_tests[evita_documentation_tests]
         perf_tests[evita_performance_tests]
     end
 
@@ -294,6 +300,7 @@ flowchart TD
     engine --> common
     engine --> query
     engine --> api
+    engine --> roaring
 
     %% Storage dependencies
     store_kv --> common
@@ -303,6 +310,7 @@ flowchart TD
     store_server --> store_entity
     store_server --> store_kv
     store_server --> engine
+    store_server --> roaring
     traffic --> engine
     traffic --> store_kv
     traffic --> store_server
@@ -367,6 +375,9 @@ flowchart TD
     test_support --> server
     test_support --> grpc_client
     func_tests -.-> test_support
+    long_tests --> test_support
+    long_tests -.-> func_tests
+    doc_tests --> test_support
     perf_tests --> test_support
 ```
 

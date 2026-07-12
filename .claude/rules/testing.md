@@ -56,3 +56,15 @@ The test suite is split across four sibling modules under `evita_test/`:
 - **Documentation runners** — `rtk mvn -P documentation`. The matching profile in the docs module flips its `skipTests` to `false`; the root profile sets `skipTests=true` everywhere else, so only documentation tests run.
 - **Slow / long-running tests** — `rtk mvn -P longRunning`. Same pattern as `documentation`; selects only the long-running module.
 - **Picking the right tags for a code change** — map the changed source path to layer + capability tags. For example, a change under `evita_engine/src/main/java/io/evitadb/index/facet/` calls for `(facet | indexing) & !slow`; under `evita_external_api/evita_external_api_rest/` use `rest & external_api`. The full path-to-tag mapping is documented in the `TestTags` JavaDoc and in the bulk-tagging script committed during the rollout.
+
+## Test performance — reuse shared datasets
+
+Booting an embedded evitaDB instance and building a catalog is the dominant cost in a test; amortise it rather than paying it per method (see `@DataSet` / `@UseDataSet` in `io.evitadb.test.annotation`):
+
+- Share one `@DataSet` across many `@Test` methods via `@UseDataSet` — a dataset referenced by the same name is **not** rebuilt or cleared between consecutive tests. Prefer one rich shared dataset per class over a per-method dataset.
+- A test with **no** `@UseDataSet` spins up an anonymous ephemeral instance created and destroyed for that single method — convenient but slow; avoid except for genuinely one-off scenarios.
+- Keep `readOnly = true` (the default) — it is what makes sharing safe. Avoid `destroyAfterTest` / `destroyAfterClass` unless the dataset was deliberately mutated; each forces a full rebuild for the next consumer.
+- Request the minimum `openWebApi` — each API listed (gRPC / REST / GraphQL) starts a real server.
+- Use `@IsolateDataSetBySuffix` for subclass hierarchies that alter a shared dataset differently.
+
+See `documentation/developer/test_guidelines.md` for the fuller narrative and the dataset-annotation reference.

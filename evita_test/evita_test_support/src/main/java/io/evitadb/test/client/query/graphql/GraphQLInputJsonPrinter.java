@@ -53,6 +53,23 @@ import java.util.stream.Collectors;
 /**
  * Prints GraphQL input JSONs correctly formatted to spec.
  *
+ * This is a **test-only** printer used to render expected GraphQL query strings. After Jackson
+ * serializes the JSON it post-processes the text with regular expressions to unquote GraphQL enum
+ * literals, locales and currencies (in GraphQL these are unquoted identifiers, not strings).
+ *
+ * **Known limitations** — the post-processing matches by *value*, not by schema position:
+ *
+ * - Any string whose value happens to equal a known enum constant, locale (`cs-CZ`, `en-US`,
+ *   `de-DE`, `cs`, `en`, `de`) or currency (`CZK`, `EUR`, `USD`, `GBP`) is unquoted regardless of
+ *   whether it is genuinely an enum/locale/currency — so an ordinary attribute value such as
+ *   `"EUR"` or `"cs"` would be corrupted into an unquoted identifier and produce invalid GraphQL.
+ * - The recognised enum, locale and currency sets are hard-coded ({@link #KNOWN_ENUMS},
+ *   `LOCALE_PATTERN`, `CURRENCY_PATTERN`); a newly introduced enum/locale/currency stays quoted
+ *   until it is added here.
+ *
+ * These trade-offs are acceptable for the controlled test inputs this class handles, but it must
+ * not be reused as a general-purpose GraphQL serializer.
+ *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 public class GraphQLInputJsonPrinter {
@@ -92,6 +109,14 @@ public class GraphQLInputJsonPrinter {
 		);
 	}
 
+	/**
+	 * Serializes the given JSON node into a GraphQL-input string, then unquotes recognised enum,
+	 * locale and currency literals. See the class-level *Known limitations* note — the unquoting is
+	 * value-based, so a string value colliding with a known token is mis-unquoted.
+	 *
+	 * @param node the JSON node to print
+	 * @return the GraphQL-input formatted string
+	 */
 	@Nonnull
 	public String print(@Nonnull JsonNode node) {
 		String graphQLJson;
