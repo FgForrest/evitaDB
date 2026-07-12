@@ -33,12 +33,12 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.math.BigDecimal;
 import java.util.Currency;
-import java.util.LinkedHashMap;
 import java.util.Locale;
-import java.util.Map;
 
 /**
- * Convenient map builder that uses {@link LinkedHashMap} to preserve order of keys. It is alternative to {@link Map#of()}.
+ * Convenient builder for JSON objects ({@link ObjectNode}) that preserves the insertion order of the
+ * added entries. Values can be scalars, nested {@link JsonObjectBuilder}/{@link JsonArrayBuilder}s or
+ * raw {@link JsonNode}s.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
@@ -94,12 +94,12 @@ public class JsonObjectBuilder {
 	}
 
 	public JsonObjectBuilder e(@Nonnull String key, @Nullable Currency value) {
-		this.objectNode.put(key, value.toString());
+		this.objectNode.put(key, value == null ? null : value.toString());
 		return this;
 	}
 
 	public JsonObjectBuilder e(@Nonnull String key, @Nullable Locale value) {
-		this.objectNode.put(key, value.toString());
+		this.objectNode.put(key, value == null ? null : value.toString());
 		return this;
 	}
 

@@ -67,8 +67,12 @@ public class SortUtils {
 	) {
 		final int length = Math.min(Math.min(endIndex - startIndex, rest.length - startIndex), result.length - resultPeak);
 		final int safeStart = Math.min(startIndex, rest.length - 1);
-		if (safeStart > 0 && skippedRecordsConsumer != null) {
-			for (int i = 0; i < safeStart; i++) {
+		// every record positioned before the requested window is skipped exactly once; the skip count
+		// is bounded by the number of records, not by the clamped arraycopy source offset (safeStart),
+		// which would otherwise drop the last skipped record when startIndex == rest.length
+		final int skippedCount = Math.min(startIndex, rest.length);
+		if (skippedRecordsConsumer != null) {
+			for (int i = 0; i < skippedCount; i++) {
 				skippedRecordsConsumer.accept(rest[i]);
 			}
 		}
@@ -96,7 +100,9 @@ public class SortUtils {
 			final int prevReadAcc = readAcc;
 			readAcc += read;
 			if (skippedRecordsConsumer != null) {
-				for (int i = 0; i < Math.min(read, startIndex); i++) {
+				// only the records of this batch positioned before the global startIndex are skipped;
+				// startIndex is a global offset, so subtract the records already read in prior batches
+				for (int i = 0; i < Math.min(read, Math.max(0, startIndex - prevReadAcc)); i++) {
 					skippedRecordsConsumer.accept(buffer[i]);
 				}
 			}

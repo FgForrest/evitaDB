@@ -35,13 +35,12 @@ import javax.annotation.Nullable;
 import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.Currency;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 
 /**
- * Convenient map builder that uses {@link LinkedHashMap} to preserve order of keys. It is alternative to {@link Map#of()}.
+ * Convenient builder for JSON arrays ({@link ArrayNode}) that preserves the insertion order of the
+ * appended elements. Elements can be scalars, nested {@link JsonObjectBuilder}s or raw {@link JsonNode}s.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
@@ -142,12 +141,12 @@ public class JsonArrayBuilder {
 	}
 
 	public JsonArrayBuilder add(@Nullable Locale value) {
-		this.arrayNode.add(value.toString());
+		this.arrayNode.add(value == null ? null : value.toString());
 		return this;
 	}
 
 	public JsonArrayBuilder add(@Nullable Currency value) {
-		this.arrayNode.add(value.toString());
+		this.arrayNode.add(value == null ? null : value.toString());
 		return this;
 	}
 
