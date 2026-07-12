@@ -63,6 +63,7 @@ import io.evitadb.test.tester.LabApiTester;
 import io.evitadb.test.tester.RestTester;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.StringUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.FileUtils;
 import org.junit.jupiter.api.extension.AfterAllCallback;
@@ -151,6 +152,18 @@ public class EvitaParameterResolver
 	 * Peak number of concurrently alive evita instances observed during the test run.
 	 */
 	protected final static AtomicInteger PEAK_EVITA_INSTANCES = new AtomicInteger();
+	/**
+	 * Accumulated wall-clock time (in nanoseconds) spent building each named dataset during this test
+	 * run, keyed by dataset name. Populated on every dataset (re)build so the slowest shared datasets
+	 * can be surfaced at the end of the run — reusing a dataset via `@UseDataSet` avoids paying this
+	 * cost per test method.
+	 */
+	protected final static Map<String, Long> DATASET_BUILD_NANOS = new ConcurrentHashMap<>();
+	/**
+	 * When {@code true} (enabled via `-Dtest.dataset.timing=true`), each individual dataset build logs
+	 * its duration at INFO level in addition to the aggregate summary printed at the end of the run.
+	 */
+	protected final static boolean LOG_DATASET_BUILD_TIMES = Boolean.getBoolean("test.dataset.timing");
 	/**
 	 * Global reference to dataset index allowing cross-extension access (mainly for debugging/metrics).
 	 */
@@ -981,9 +994,7 @@ public class EvitaParameterResolver
 				// method doesn't use data set - so it needs to start with empty db
 				final Evita evita = createEvita(TestConstants.TEST_CATALOG, evitaInstanceId);
 				evita.updateCatalog(
-					TestConstants.TEST_CATALOG, session -> {
-						session.goLiveAndClose();
-					}
+					TestConstants.TEST_CATALOG, EvitaSessionContract::goLiveAndClose
 				);
 				final DataSetInfo dataSetInfo = new DataSetInfo(
 					anonymousEvita,
@@ -1051,6 +1062,8 @@ public class EvitaParameterResolver
 					// fill in the reference to the test instance, that is known only now
 					dataSetInfo.init(
 						() -> {
+							// capture dataset build start so slow datasets can be surfaced at the end of the run
+							final long buildStartNanos = System.nanoTime();
 							final String randomFolderName = Long.toHexString(RANDOM.nextLong());
 							final Evita evita = createEvita(dataSetInfo.catalogName(), randomFolderName);
 							EvitaServer evitaServer = null;
@@ -1133,6 +1146,12 @@ public class EvitaParameterResolver
 									evita.setReadOnly();
 								}
 
+								// record how long this dataset took to build for the slowest-datasets summary
+								final long buildNanos = System.nanoTime() - buildStartNanos;
+								DATASET_BUILD_NANOS.merge(dataSetToUse, buildNanos, Long::sum);
+								if (LOG_DATASET_BUILD_TIMES) {
+									log.info("Dataset `{}` built in {}.", dataSetToUse, StringUtils.formatNano(buildNanos));
+								}
 								return new DataSetState(
 									extensionContext.getRequiredTestInstance(),
 									extensionContext.getRequiredTestMethod(),
@@ -1170,8 +1189,7 @@ public class EvitaParameterResolver
 					PEAK_EVITA_INSTANCES.get(),
 					dataSetIndex.values()
 					            .stream()
-					            .filter(
-						            it -> it.evitaInstance() != null)
+					            .filter(it -> it.evitaInstance() != null)
 					            .count()
 				));
 				if (evitaInstance != null) {

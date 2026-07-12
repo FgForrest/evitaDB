@@ -154,6 +154,19 @@ public class CleaningTestExecutionListener implements TestExecutionListener, Evi
 			ConsoleColor.DARK_GREEN
 		);
 
+		// surface the datasets that cost the most to build; reusing them via @UseDataSet amortises this
+		if (!EvitaParameterResolver.DATASET_BUILD_NANOS.isEmpty()) {
+			final String slowestDatasets = EvitaParameterResolver.DATASET_BUILD_NANOS.entrySet().stream()
+				.sorted(Entry.<String, Long>comparingByValue().reversed())
+				.limit(10)
+				.map(it -> "\t- " + it.getKey() + ": " + StringUtils.formatNano(it.getValue()) + "\n")
+				.collect(Collectors.joining());
+			ConsoleWriter.write(
+				"Dataset build time (slowest first — reuse via @UseDataSet to amortise):\n" + slowestDatasets + "\n",
+				ConsoleColor.DARK_GREEN
+			);
+		}
+
 		String[] quote = QUOTES[new Random().nextInt(QUOTES.length)];
 		ConsoleWriter.write(quote[0], ConsoleColor.BRIGHT_BLUE);
 		ConsoleWriter.write("\n(OpenGPT believes the author is: " + quote[1] + ")\n", ConsoleColor.DARK_BLUE);
