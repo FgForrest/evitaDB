@@ -29,6 +29,7 @@ import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.data.Droppable;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExistence;
+import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.spi.store.catalog.persistence.accessor.WritableEntityStorageContainerAccessor;
@@ -150,23 +151,35 @@ class ReferenceEntityStoragePartAccessorAttributeValueByRepresentativeReferenceK
 		// the entire reference is replaced, so we need to retrieve it again
 		if (isReferenceNullOrObsolete(references)) {
 			this.memoizedReferenceIndex = -1;
+			// hoist the target reference keys so the pre-filter below can skip references that cannot match without
+			// allocating a RepresentativeReferenceKey (and computing representative values) for every reference
+			final ReferenceKey currentTargetKey = this.currentReferenceKey.referenceKey();
+			final ReferenceKey storedTargetKey = this.storedReferenceKey.referenceKey();
 			for (int i = 0; i < references.length; i++) {
 				final ReferenceContract reference = references[i];
-				if (reference.exists()) {
-					final RepresentativeReferenceKey theReferenceKey =
-						this.referenceSchema.getName().equals(reference.getReferenceName()) &&
-							this.referenceSchema.getCardinality().allowsDuplicates() ?
-							new RepresentativeReferenceKey(
-								reference.getReferenceKey(),
-								this.referenceSchema.getRepresentativeAttributeDefinition()
-									.getRepresentativeValues(reference)
-							) :
-							new RepresentativeReferenceKey(reference.getReferenceKey());
-					if (Objects.equals(theReferenceKey, this.currentReferenceKey) || Objects.equals(theReferenceKey, this.storedReferenceKey)) {
-						this.memoizedReference = Optional.of(reference);
-						this.memoizedReferenceIndex = i;
-						break;
-					}
+				if (!reference.exists()) {
+					continue;
+				}
+				final ReferenceKey referenceKey = reference.getReferenceKey();
+				// RepresentativeReferenceKey equality requires the ReferenceKey to match in general (reference name
+				// and primary key); a reference matching neither target key can never match, so skip it before the
+				// (relatively expensive) RepresentativeReferenceKey allocation and representative-value computation
+				if (!referenceKey.equalsInGeneral(currentTargetKey) && !referenceKey.equalsInGeneral(storedTargetKey)) {
+					continue;
+				}
+				final RepresentativeReferenceKey theReferenceKey =
+					this.referenceSchema.getName().equals(reference.getReferenceName()) &&
+						this.referenceSchema.getCardinality().allowsDuplicates() ?
+						new RepresentativeReferenceKey(
+							referenceKey,
+							this.referenceSchema.getRepresentativeAttributeDefinition()
+								.getRepresentativeValues(reference)
+						) :
+						new RepresentativeReferenceKey(referenceKey);
+				if (Objects.equals(theReferenceKey, this.currentReferenceKey) || Objects.equals(theReferenceKey, this.storedReferenceKey)) {
+					this.memoizedReference = Optional.of(reference);
+					this.memoizedReferenceIndex = i;
+					break;
 				}
 			}
 			if (this.memoizedReferenceIndex == -1) {

@@ -2025,26 +2025,24 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		@Nonnull GlobalEntityIndex globalIndex,
 		@Nonnull EntityExistingDataFactory existingDataSupplierFactory
 	) {
-		entity.getAttributeValues()
-			.stream()
-			.filter(Droppable::exists)
-			.forEach(
-				attributeValue -> {
-					final AttributeKey key = attributeValue.key();
-					AttributeIndexMutator.executeAttributeRemoval(
-						this,
-						null,
-						new EntitySchemaAttributeAndCompoundSchemaProvider(entitySchema),
-						existingDataSupplierFactory.getNormalizedEntityAttributeValueSupplier(),
-						globalIndex,
-						globalIndex,
-						key,
-						true,
-						true
-					);
-					existingDataSupplierFactory.registerRemoval(key);
-				}
+		for (final AttributeValue attributeValue : entity.getAttributeValues()) {
+			if (!attributeValue.exists()) {
+				continue;
+			}
+			final AttributeKey key = attributeValue.key();
+			AttributeIndexMutator.executeAttributeRemoval(
+				this,
+				null,
+				new EntitySchemaAttributeAndCompoundSchemaProvider(entitySchema),
+				existingDataSupplierFactory.getNormalizedEntityAttributeValueSupplier(),
+				globalIndex,
+				globalIndex,
+				key,
+				true,
+				true
 			);
+			existingDataSupplierFactory.registerRemoval(key);
+		}
 
 		// unindex all non-localized attribute compounds
 		removeEntireSuiteOfSortableAttributeCompounds(
@@ -2241,26 +2239,24 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		@Nonnull EntityExistingDataFactory existingDataSupplierFactory
 	) {
 		// now index all attributes
-		entity.getAttributeValues()
-			.stream()
-			.filter(Droppable::exists)
-			.forEach(
-				attributeValue -> {
-					final AttributeKey key = attributeValue.key();
-					AttributeIndexMutator.executeAttributeUpsert(
-						this,
-						null,
-						new EntitySchemaAttributeAndCompoundSchemaProvider(entitySchema),
-						ExistingAttributeValueSupplier.NO_EXISTING_VALUE_SUPPLIER,
-						globalIndex,
-						globalIndex,
-						key,
-						attributeValue.valueOrThrowException(),
-						true,
-						false
-					);
-				}
+		for (final AttributeValue attributeValue : entity.getAttributeValues()) {
+			if (!attributeValue.exists()) {
+				continue;
+			}
+			final AttributeKey key = attributeValue.key();
+			AttributeIndexMutator.executeAttributeUpsert(
+				this,
+				null,
+				new EntitySchemaAttributeAndCompoundSchemaProvider(entitySchema),
+				ExistingAttributeValueSupplier.NO_EXISTING_VALUE_SUPPLIER,
+				globalIndex,
+				globalIndex,
+				key,
+				attributeValue.valueOrThrowException(),
+				true,
+				false
 			);
+		}
 
 		// index all non-localized attribute compounds
 		insertInitialSuiteOfSortableAttributeCompounds(
