@@ -23,6 +23,7 @@
 
 package io.evitadb.store.catalog;
 
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.spi.export.ExportService;
 import io.evitadb.spi.export.model.ExportFileHandle;
@@ -61,7 +62,7 @@ import static io.evitadb.spi.store.catalog.persistence.PersistenceService.WAL_FI
  * Migration interface containing one-time migration logic for upgrading WAL files from storage protocol version 4
  * to version 5. The migration rewrites WAL files to include cumulative CRC32C checksums.
  *
- * **Old WAL format (version 4):**
+ * **Old WAL format (early version 4):**
  * - File starts immediately with transaction data (no initial checksum)
  * - Transaction: `contentLength (4B) | txData (contentLength bytes)`
  * - Finalized file tail: `firstCv (8B) | lastCv (8B) | CRC32C(firstCv, lastCv) (8B)` — 24 bytes
@@ -71,7 +72,14 @@ import static io.evitadb.spi.store.catalog.persistence.PersistenceService.WAL_FI
  * - Transaction: `contentLength (4B) | txData (contentLength bytes) | cumulativeCRC32C (8B)`
  * - Finalized file tail: `firstCv (8B) | lastCv (8B) | cumulativeCRC32C_of_entire_file (8B)` — 24 bytes
  *
- * The migration uses a two-phase approach:
+ * **Ambiguity of "version 4" on disk:** the cumulative-checksum framing was added to the WAL writer/reader
+ * before the storage protocol number was bumped from 4 to 5. As a result a file may already be in the version-5
+ * format (byte-identical) while its bootstrap/header still reports protocol version 4 ("late version 4"). Such a
+ * file must NOT be converted — doing so would misread its 8-byte initial checksum as a transaction content
+ * length and drop every transaction. {@link #isWalFileAlreadyChecksummed} detects this case and the migration
+ * then preserves the WAL files untouched, letting the caller bump only the stored protocol version.
+ *
+ * The migration uses a two-phase approach (for genuine early-version-4 files):
  * 1. Convert all WAL files to `.wal.upgrade` files
  * 2. Replace all original `.wal` files with the `.wal.upgrade` files
  *
@@ -235,6 +243,39 @@ public interface Migration_2026_1 {
 
 		// Determine the active file index
 		final int activeFileIndex = walFileReference != null ? walFileReference.fileIndex() : -1;
+
+		// "Version 4" on disk is ambiguous. The cumulative-CRC32C WAL framing was introduced before the storage
+		// protocol was bumped from 4 to 5, so a WAL file may report protocol version 4 while already being
+		// byte-identical to version 5 ("late version 4"). Running the pre-checksum conversion below on such a file
+		// would misread its 8-byte initial cumulative checksum as a transaction content length and drop every
+		// transaction. Detect the already-checksummed shape on the active (last-written) file and, if present,
+		// preserve every WAL file untouched and only let the caller bump the stored protocol version — the reload
+		// path recomputes the WAL reference from the file itself, so no reference correction is needed here. The
+		// decision is directory-granular: the whole file series is produced by a single writer, so the active file
+		// is representative of the format of the rest.
+		File activeWalFile = null;
+		if (activeFileIndex >= 0) {
+			for (final File walFile : walFiles) {
+				if (AbstractMutationLog.getIndexFromWalFileName(walFile.getName()) == activeFileIndex) {
+					activeWalFile = walFile;
+					break;
+				}
+			}
+		}
+		if (activeWalFile == null) {
+			activeWalFile = walFiles[walFiles.length - 1];
+		}
+		if (isWalFileAlreadyChecksummed(activeWalFile, checksumFactory)) {
+			ConsoleWriter.writeLine(
+				"WAL files for `" + name + "` already carry cumulative CRC32C checksums; preserving them as-is " +
+					"and only bumping the storage protocol version.",
+				ConsoleColor.BRIGHT_BLUE
+			);
+			// null correction => the caller keeps the existing (already valid) WAL reference; the reload
+			// self-corrects the byte positions and cumulative checksum from the file contents.
+			postUpgradeAction.accept(null);
+			return null;
+		}
 
 		// Phase 0: Recovery check
 		final File[] upgradeFiles = storagePath.toFile().listFiles(
@@ -414,6 +455,14 @@ public interface Migration_2026_1 {
 		final Path upgradePath = walFile.toPath().resolveSibling(walFile.getName() + UPGRADE_SUFFIX);
 		final Checksum cumulativeChecksum = checksumFactory.createCumulativeChecksum(previousFileCumulativeChecksum);
 
+		// Results captured inside the try and consumed after the channels are closed, so the fail-safe abort below
+		// can portably delete the partial `.upgrade` file before throwing.
+		long transactionDataEnd;
+		long convertedByteCount;
+		long resultCumulativeChecksum;
+		FileLocation resultCorrectedLocation;
+		long resultCorrectedChecksum;
+
 		try (
 			FileChannel readChannel = FileChannel.open(walFile.toPath(), StandardOpenOption.READ);
 			FileChannel writeChannel = FileChannel.open(
@@ -435,12 +484,7 @@ public interface Migration_2026_1 {
 			cumulativeChecksum.update(initialChecksum); // initial checksum is part of the cumulative checksum
 
 			// Calculate where transaction data ends
-			final long transactionDataEnd;
-			if (isFinalized) {
-				transactionDataEnd = fileLength - OLD_WAL_TAIL_LENGTH;
-			} else {
-				transactionDataEnd = fileLength;
-			}
+			transactionDataEnd = isFinalized ? fileLength - OLD_WAL_TAIL_LENGTH : fileLength;
 
 			// Read and write transactions
 			long readPosition = 0;
@@ -542,15 +586,153 @@ public interface Migration_2026_1 {
 			}
 
 			writeChannel.force(true);
-			return new WalFileConversionResult(
-				lastTxCumulativeChecksum, correctedFileLocation, correctedCumulativeChecksum
-			);
+			convertedByteCount = readPosition;
+			resultCumulativeChecksum = lastTxCumulativeChecksum;
+			resultCorrectedLocation = correctedFileLocation;
+			resultCorrectedChecksum = correctedCumulativeChecksum;
 		} catch (IOException e) {
+			// Clean up any partial upgrade file so a later Phase 0 recovery cannot complete a broken conversion.
+			try {
+				Files.deleteIfExists(upgradePath);
+			} catch (IOException suppressed) {
+				e.addSuppressed(suppressed);
+			}
 			throw new UnexpectedIOException(
 				"Failed to convert WAL file: " + walFile.getAbsolutePath(),
 				"Failed to convert WAL file!",
 				e
 			);
+		}
+
+		// Fail-safe backstop (channels now closed): if the source held transaction data yet not a single transaction
+		// was converted, the file is not in the assumed pre-checksum layout (e.g. it is already checksummed and
+		// slipped past detection). Delete the partial `.upgrade` file — so a later Phase 0 recovery cannot complete
+		// a destructive replace — and abort before the original WAL is ever touched.
+		if (convertedByteCount == 0 && transactionDataEnd > 0) {
+			try {
+				Files.deleteIfExists(upgradePath);
+			} catch (IOException e) {
+				throw new UnexpectedIOException(
+					"WAL migration aborted (zero transactions read from a non-empty file `" + walFile.getName() +
+						"`) but the partial upgrade file `" + upgradePath + "` could not be removed; delete it " +
+						"manually before restarting to avoid data loss.",
+					"Failed to clean up partial WAL upgrade file after an aborted migration!",
+					e
+				);
+			}
+			throw new GenericEvitaInternalError(
+				"WAL migration read zero transactions from a non-empty file `" + walFile.getName() + "` (" +
+					transactionDataEnd + " bytes of transaction data). Refusing to produce an empty WAL to avoid " +
+					"data loss — the file may already be in the checksummed format."
+			);
+		}
+
+		return new WalFileConversionResult(
+			resultCumulativeChecksum, resultCorrectedLocation, resultCorrectedChecksum
+		);
+	}
+
+	/**
+	 * Determines whether the given WAL file is already stored in the checksummed (version 5) format — i.e. it
+	 * begins with an 8-byte initial cumulative CRC32C and every transaction frame carries its trailing cumulative
+	 * checksum. This is the case for "late version 4" files: the cumulative-checksum framing was introduced before
+	 * the storage protocol was bumped from 4 to 5, so a file may legitimately report protocol version 4 on disk
+	 * while already being byte-identical to version 5. Running {@link #convertWalFile} on such a file would misread
+	 * its initial checksum as a transaction content length and drop every transaction, so the migration must
+	 * detect and preserve these files.
+	 *
+	 * Detection is positive confirmation and mirrors the WAL reader exactly: the file must parse cleanly as the
+	 * checksummed format from its initial checksum to its end, with every per-transaction cumulative checksum
+	 * matching the recomputed value (the running checksum is fed length-then-content in the same order the writer
+	 * used). A genuine pre-checksum (early version 4) file fails this because its leading bytes do not form a
+	 * self-consistent checksum chain that lands exactly on the file boundary. An expected caller passes the active
+	 * (non-finalized) file, which has no trailing tail.
+	 *
+	 * @param walFile         the WAL file to inspect (the active, non-finalized file is expected)
+	 * @param checksumFactory factory used to recompute the cumulative CRC32C chain
+	 * @return true if the file is already in the checksummed version-5 format
+	 */
+	private static boolean isWalFileAlreadyChecksummed(
+		@Nonnull File walFile,
+		@Nonnull ChecksumFactory checksumFactory
+	) {
+		final int prefixSize = AbstractMutationLog.TRANSACTION_PREFIX_SIZE;
+		final int checksumSize = AbstractMutationLog.CUMULATIVE_CRC32_SIZE;
+		try (final FileChannel channel = FileChannel.open(walFile.toPath(), StandardOpenOption.READ)) {
+			final long fileLength = channel.size();
+			// The file must at least hold the initial checksum plus one complete frame (length + >=1B content +
+			// per-transaction checksum); anything smaller cannot be a non-empty checksummed WAL.
+			if (fileLength < (long) checksumSize + prefixSize + 1 + checksumSize) {
+				return false;
+			}
+
+			final ByteBuffer longBuffer = ByteBuffer.allocate(checksumSize).order(ByteOrder.LITTLE_ENDIAN);
+			final ByteBuffer intBuffer = ByteBuffer.allocate(prefixSize).order(ByteOrder.LITTLE_ENDIAN);
+
+			// The checksummed format begins with the 8-byte initial cumulative checksum; seed the running checksum
+			// from it exactly as the WAL reader does.
+			longBuffer.clear();
+			if (channel.read(longBuffer, 0) != checksumSize) {
+				return false;
+			}
+			longBuffer.flip();
+			final long initialChecksum = longBuffer.getLong();
+			final Checksum cumulativeChecksum = checksumFactory.createCumulativeChecksum(initialChecksum);
+			cumulativeChecksum.update(initialChecksum);
+
+			long position = checksumSize;
+			int framesValidated = 0;
+			while (position + prefixSize + checksumSize <= fileLength) {
+				// Read the 4-byte content length.
+				intBuffer.clear();
+				if (channel.read(intBuffer, position) != prefixSize) {
+					return false;
+				}
+				intBuffer.flip();
+				final int contentLength = intBuffer.getInt();
+				final long frameEnd = position + prefixSize + (long) contentLength + checksumSize;
+				if (contentLength <= 0 || frameEnd > fileLength) {
+					// Not a well-formed checksummed frame at this position.
+					break;
+				}
+
+				// Read the transaction content.
+				final byte[] content = new byte[contentLength];
+				final ByteBuffer contentBuffer = ByteBuffer.wrap(content);
+				int totalRead = 0;
+				while (totalRead < contentLength) {
+					final int read = channel.read(contentBuffer, position + prefixSize + totalRead);
+					if (read < 0) {
+						return false;
+					}
+					totalRead += read;
+				}
+
+				// Read the stored per-transaction cumulative checksum.
+				longBuffer.clear();
+				if (channel.read(longBuffer, position + prefixSize + contentLength) != checksumSize) {
+					return false;
+				}
+				longBuffer.flip();
+				final long storedChecksum = longBuffer.getLong();
+
+				// Recompute the running cumulative checksum in the writer's order (length, then content) and require
+				// it to match the stored per-transaction checksum before chaining the checksum itself forward.
+				cumulativeChecksum.update(contentLength);
+				cumulativeChecksum.update(content);
+				if (!cumulativeChecksum.equalsTo(storedChecksum)) {
+					return false;
+				}
+				cumulativeChecksum.update(storedChecksum);
+				framesValidated++;
+				position = frameEnd;
+			}
+
+			// A genuine checksummed, non-finalized active file is fully consumed by complete frames.
+			return framesValidated > 0 && position == fileLength;
+		} catch (IOException e) {
+			// If the file cannot be read as a checksummed WAL, let the normal conversion path handle it.
+			return false;
 		}
 	}
 
