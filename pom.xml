@@ -137,7 +137,7 @@
 		<maven.toolchains.version>3.2.0</maven.toolchains.version>
 		<lombok.version>1.18.46</lombok.version>
 		<grpc.version>1.82.2</grpc.version>
-		<bouncyCastle.version>1.84</bouncyCastle.version>
+		<bouncyCastle.version>1.85</bouncyCastle.version>
 		<swagger.version>2.2.43</swagger.version>
 		<armeria.version>1.40.0</armeria.version>
 		<prometheus.version>1.8.0</prometheus.version>
