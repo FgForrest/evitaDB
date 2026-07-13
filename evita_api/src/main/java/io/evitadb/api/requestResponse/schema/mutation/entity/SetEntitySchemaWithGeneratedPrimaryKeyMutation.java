@@ -93,6 +93,7 @@ public class SetEntitySchemaWithGeneratedPrimaryKeyMutation implements Combinabl
 				entitySchema.getNameVariants(),
 				entitySchema.getDescription(),
 				entitySchema.getDeprecationNotice(),
+				entitySchema.getConflictResolution().orElse(null),
 				this.withGeneratedPrimaryKey,
 				entitySchema.isWithHierarchy(),
 				entitySchema.getHierarchyIndexedInScopes(),

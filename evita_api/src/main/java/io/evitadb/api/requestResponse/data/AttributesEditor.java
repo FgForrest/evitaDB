@@ -25,6 +25,7 @@ package io.evitadb.api.requestResponse.data;
 
 import io.evitadb.api.requestResponse.data.mutation.attribute.AttributeMutation;
 import io.evitadb.api.requestResponse.data.structure.Attributes;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -137,7 +138,8 @@ public interface AttributesEditor<W extends AttributesEditor<W, S>, S extends At
 			return EntityAttributeSchema._internalBuild(
 				attributeValue.key().attributeName(),
 				Objects.requireNonNull(attributeValue.value()).getClass(),
-				attributeValue.key().localized()
+				attributeValue.key().localized(),
+				ConflictResolutionOverride.INHERITED
 			);
 		}
 
@@ -150,7 +152,8 @@ public interface AttributesEditor<W extends AttributesEditor<W, S>, S extends At
 			return AttributeSchema._internalBuild(
 				attributeValue.key().attributeName(),
 				Objects.requireNonNull(attributeValue.value()).getClass(),
-				attributeValue.key().localized()
+				attributeValue.key().localized(),
+				ConflictResolutionOverride.INHERITED
 			);
 		}
 

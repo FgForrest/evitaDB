@@ -25,6 +25,7 @@ package io.evitadb.api.requestResponse.schema.mutation.attribute;
 
 import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.requestResponse.cdc.Operation;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
@@ -93,6 +94,7 @@ public class CreateGlobalAttributeSchemaMutation
 	@Getter @Nonnull private final Class<? extends Serializable> type;
 	@Getter @Nullable private final Serializable defaultValue;
 	@Getter private final int indexedDecimalPlaces;
+	@Getter @Nonnull private final ConflictResolutionOverride conflictResolutionOverride;
 
 	public CreateGlobalAttributeSchemaMutation(
 		@Nonnull String name,
@@ -123,7 +125,6 @@ public class CreateGlobalAttributeSchemaMutation
 		);
 	}
 
-	@SerializableCreator
 	public CreateGlobalAttributeSchemaMutation(
 		@Nonnull String name,
 		@Nullable String description,
@@ -138,6 +139,31 @@ public class CreateGlobalAttributeSchemaMutation
 		@Nonnull Class<? extends Serializable> type,
 		@Nullable Serializable defaultValue,
 		int indexedDecimalPlaces
+	) {
+		this(
+			name, description, deprecationNotice,
+			uniqueInScopes, uniqueGloballyInScopes, filterableInScopes, sortableInScopes,
+			localized, nullable, representative, type, defaultValue, indexedDecimalPlaces,
+			ConflictResolutionOverride.INHERITED
+		);
+	}
+
+	@SerializableCreator
+	public CreateGlobalAttributeSchemaMutation(
+		@Nonnull String name,
+		@Nullable String description,
+		@Nullable String deprecationNotice,
+		@Nullable ScopedAttributeUniquenessType[] uniqueInScopes,
+		@Nullable ScopedGlobalAttributeUniquenessType[] uniqueGloballyInScopes,
+		@Nullable Scope[] filterableInScopes,
+		@Nullable Scope[] sortableInScopes,
+		boolean localized,
+		boolean nullable,
+		boolean representative,
+		@Nonnull Class<? extends Serializable> type,
+		@Nullable Serializable defaultValue,
+		int indexedDecimalPlaces,
+		@Nonnull ConflictResolutionOverride conflictResolutionOverride
 	) {
 		super(name);
 		ClassifierUtils.validateClassifierFormat(ClassifierType.ATTRIBUTE, name);
@@ -162,6 +188,7 @@ public class CreateGlobalAttributeSchemaMutation
 		this.type = type;
 		this.defaultValue = defaultValue;
 		this.indexedDecimalPlaces = indexedDecimalPlaces;
+		this.conflictResolutionOverride = conflictResolutionOverride;
 	}
 
 	@Nonnull
@@ -278,6 +305,12 @@ public class CreateGlobalAttributeSchemaMutation
 							createdVersion, existingVersion,
 							GlobalAttributeSchemaContract::isRepresentative,
 							newValue -> new SetAttributeSchemaRepresentativeMutation(this.name, newValue)
+						),
+						makeMutationIfDifferent(
+							GlobalAttributeSchemaContract.class,
+							createdVersion, existingVersion,
+							GlobalAttributeSchemaContract::getConflictResolutionOverride,
+							newValue -> new SetAttributeSchemaConflictResolutionOverrideMutation(this.name, newValue)
 						)
 					)
 					.filter(Objects::nonNull)
@@ -303,7 +336,8 @@ public class CreateGlobalAttributeSchemaMutation
 			this.filterableInScopes, this.sortableInScopes,
 			this.localized, this.nullable, this.representative,
 			(Class) this.type, this.defaultValue,
-			this.indexedDecimalPlaces
+			this.indexedDecimalPlaces,
+			this.conflictResolutionOverride
 		);
 	}
 
@@ -323,6 +357,7 @@ public class CreateGlobalAttributeSchemaMutation
 					catalogSchema.getName(),
 					catalogSchema.getNameVariants(),
 					catalogSchema.getDescription(),
+					catalogSchema.getConflictResolution().orElse(null),
 					catalogSchema.getCatalogEvolutionMode(),
 					Stream.concat(
 							catalogSchema.getAttributes().values().stream(),
@@ -370,7 +405,8 @@ public class CreateGlobalAttributeSchemaMutation
 			", representative=" + this.representative +
 			", type=" + this.type +
 			", defaultValue=" + this.defaultValue +
-			", indexedDecimalPlaces=" + this.indexedDecimalPlaces;
+			", indexedDecimalPlaces=" + this.indexedDecimalPlaces +
+			", conflictResolutionOverride=" + this.conflictResolutionOverride;
 	}
 
 }

@@ -25,6 +25,7 @@ package io.evitadb.api.requestResponse.schema.mutation.attribute;
 
 import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.requestResponse.cdc.Operation;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
@@ -94,6 +95,7 @@ public class CreateAttributeSchemaMutation extends AbstractAttributeSchemaMutati
 	@Getter @Nonnull private final Class<? extends Serializable> type;
 	@Getter @Nullable private final Serializable defaultValue;
 	@Getter private final int indexedDecimalPlaces;
+	@Getter @Nonnull private final ConflictResolutionOverride conflictResolutionOverride;
 
 	public CreateAttributeSchemaMutation(
 		@Nonnull String name,
@@ -123,7 +125,6 @@ public class CreateAttributeSchemaMutation extends AbstractAttributeSchemaMutati
 		);
 	}
 
-	@SerializableCreator
 	public CreateAttributeSchemaMutation(
 		@Nonnull String name,
 		@Nullable String description,
@@ -137,6 +138,30 @@ public class CreateAttributeSchemaMutation extends AbstractAttributeSchemaMutati
 		@Nonnull Class<? extends Serializable> type,
 		@Nullable Serializable defaultValue,
 		int indexedDecimalPlaces
+	) {
+		this(
+			name, description, deprecationNotice,
+			uniqueInScopes, filterableInScopes, sortableInScopes,
+			localized, nullable, representative, type, defaultValue, indexedDecimalPlaces,
+			ConflictResolutionOverride.INHERITED
+		);
+	}
+
+	@SerializableCreator
+	public CreateAttributeSchemaMutation(
+		@Nonnull String name,
+		@Nullable String description,
+		@Nullable String deprecationNotice,
+		@Nullable ScopedAttributeUniquenessType[] uniqueInScopes,
+		@Nullable Scope[] filterableInScopes,
+		@Nullable Scope[] sortableInScopes,
+		boolean localized,
+		boolean nullable,
+		boolean representative,
+		@Nonnull Class<? extends Serializable> type,
+		@Nullable Serializable defaultValue,
+		int indexedDecimalPlaces,
+		@Nonnull ConflictResolutionOverride conflictResolutionOverride
 	) {
 		super(name);
 		ClassifierUtils.validateClassifierFormat(ClassifierType.ATTRIBUTE, name);
@@ -156,6 +181,7 @@ public class CreateAttributeSchemaMutation extends AbstractAttributeSchemaMutati
 		this.type = type;
 		this.defaultValue = defaultValue;
 		this.indexedDecimalPlaces = indexedDecimalPlaces;
+		this.conflictResolutionOverride = conflictResolutionOverride;
 	}
 
 	@Nonnull
@@ -257,6 +283,12 @@ public class CreateAttributeSchemaMutation extends AbstractAttributeSchemaMutati
 							createdVersion, existingSchema,
 							AttributeSchemaContract::isRepresentative,
 							newValue -> new SetAttributeSchemaRepresentativeMutation(this.name, newValue)
+						),
+						makeMutationIfDifferent(
+							AttributeSchemaContract.class,
+							createdVersion, existingSchema,
+							AttributeSchemaContract::getConflictResolutionOverride,
+							newValue -> new SetAttributeSchemaConflictResolutionOverrideMutation(this.name, newValue)
 						)
 					)
 					.filter(Objects::nonNull)
@@ -277,7 +309,8 @@ public class CreateAttributeSchemaMutation extends AbstractAttributeSchemaMutati
 				this.uniqueInScopes, this.filterableInScopes, this.sortableInScopes,
 				this.localized, this.nullable, this.representative,
 				(Class) this.type, this.defaultValue,
-				this.indexedDecimalPlaces
+				this.indexedDecimalPlaces,
+				this.conflictResolutionOverride
 			);
 		} else if (AttributeSchemaContract.class.isAssignableFrom(schemaType)) {
 			//noinspection unchecked,rawtypes
@@ -286,7 +319,8 @@ public class CreateAttributeSchemaMutation extends AbstractAttributeSchemaMutati
 				this.uniqueInScopes, this.filterableInScopes, this.sortableInScopes,
 				this.localized, this.nullable, this.representative,
 				(Class) this.type, this.defaultValue,
-				this.indexedDecimalPlaces
+				this.indexedDecimalPlaces,
+				this.conflictResolutionOverride
 			);
 		} else {
 			throw new InvalidSchemaMutationException("Unsupported schema type: " + schemaType);
@@ -306,6 +340,7 @@ public class CreateAttributeSchemaMutation extends AbstractAttributeSchemaMutati
 				entitySchema.getNameVariants(),
 				entitySchema.getDescription(),
 				entitySchema.getDeprecationNotice(),
+				entitySchema.getConflictResolution().orElse(null),
 				entitySchema.isWithGeneratedPrimaryKey(),
 				entitySchema.isWithHierarchy(),
 				entitySchema.getHierarchyIndexedInScopes(),
@@ -350,7 +385,8 @@ public class CreateAttributeSchemaMutation extends AbstractAttributeSchemaMutati
 			this.uniqueInScopes, this.filterableInScopes, this.sortableInScopes,
 			this.localized, this.nullable, this.representative,
 			(Class) this.type, this.defaultValue,
-			this.indexedDecimalPlaces
+			this.indexedDecimalPlaces,
+			this.conflictResolutionOverride
 		);
 		final Optional<AttributeSchemaContract> existingAttributeSchema = getReferenceAttributeSchema(referenceSchema, this.name);
 		if (existingAttributeSchema.isEmpty()) {
@@ -397,7 +433,8 @@ public class CreateAttributeSchemaMutation extends AbstractAttributeSchemaMutati
 								Function.identity()
 							)
 						),
-					referenceSchema.getSortableAttributeCompounds()
+					referenceSchema.getSortableAttributeCompounds(),
+					referenceSchema.getConflictResolutionOverride()
 				);
 			}
 		} else if (existingAttributeSchema.get().equals(newAttributeSchema)) {
@@ -433,7 +470,8 @@ public class CreateAttributeSchemaMutation extends AbstractAttributeSchemaMutati
 			", representative=" + this.representative +
 			", type=" + this.type +
 			", defaultValue=" + this.defaultValue +
-			", indexedDecimalPlaces=" + this.indexedDecimalPlaces;
+			", indexedDecimalPlaces=" + this.indexedDecimalPlaces +
+			", conflictResolutionOverride=" + this.conflictResolutionOverride;
 	}
 
 }

@@ -25,6 +25,7 @@ package io.evitadb.api.requestResponse.data;
 
 import io.evitadb.api.requestResponse.data.mutation.associatedData.AssociatedDataMutation;
 import io.evitadb.api.requestResponse.data.structure.AssociatedData;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.AssociatedDataSchema;
@@ -130,7 +131,8 @@ public interface AssociatedDataEditor<W extends AssociatedDataEditor<W>> extends
 				null, null,
 				Objects.requireNonNull(associatedDataValue.value(), "Value is required for creating implicit associated data schema.").getClass(),
 				associatedDataValue.key().localized(),
-				true
+				true,
+				ConflictResolutionOverride.INHERITED
 			);
 		}
 

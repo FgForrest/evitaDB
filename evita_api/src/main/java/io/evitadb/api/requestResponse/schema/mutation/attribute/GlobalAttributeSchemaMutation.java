@@ -103,6 +103,7 @@ public interface GlobalAttributeSchemaMutation extends AttributeSchemaMutation, 
 					catalogSchema.getName(),
 					catalogSchema.getNameVariants(),
 					catalogSchema.getDescription(),
+					catalogSchema.getConflictResolution().orElse(null),
 					catalogSchema.getCatalogEvolutionMode(),
 					Stream.concat(
 							catalogSchema.getAttributes()

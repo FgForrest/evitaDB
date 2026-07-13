@@ -24,6 +24,7 @@
 package io.evitadb.api.requestResponse.schema.builder;
 
 import io.evitadb.api.exception.InvalidSchemaMutationException;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
@@ -238,6 +239,19 @@ public abstract sealed class AbstractReferenceSchemaBuilder<
 			addMutations(
 				this.catalogSchema, this.entitySchema, this.mutations,
 				new ModifyReferenceSchemaDescriptionMutation(getName(), description)
+			)
+		);
+		return (T) this;
+	}
+
+	@Override
+	@Nonnull
+	public T withConflictResolutionOverride(@Nonnull ConflictResolutionOverride conflictResolutionOverride) {
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				this.catalogSchema, this.entitySchema, this.mutations,
+				new SetReferenceSchemaConflictResolutionOverrideMutation(getName(), conflictResolutionOverride)
 			)
 		);
 		return (T) this;

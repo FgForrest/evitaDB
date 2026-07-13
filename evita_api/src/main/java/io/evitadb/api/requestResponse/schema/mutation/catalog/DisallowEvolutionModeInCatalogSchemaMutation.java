@@ -90,6 +90,7 @@ public class DisallowEvolutionModeInCatalogSchemaMutation implements LocalCatalo
 					catalogSchema.getName(),
 					catalogSchema.getNameVariants(),
 					catalogSchema.getDescription(),
+					catalogSchema.getConflictResolution().orElse(null),
 					catalogSchema.getCatalogEvolutionMode()
 						.stream()
 						.filter(it -> !this.evolutionModes.contains(it))

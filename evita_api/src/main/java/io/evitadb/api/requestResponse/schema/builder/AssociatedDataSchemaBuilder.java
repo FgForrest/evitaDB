@@ -24,6 +24,7 @@
 package io.evitadb.api.requestResponse.schema.builder;
 
 import io.evitadb.api.requestResponse.data.Versioned;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
 import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaEditor;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
@@ -36,6 +37,7 @@ import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.associatedData.CreateAssociatedDataSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.associatedData.ModifyAssociatedDataSchemaDeprecationNoticeMutation;
 import io.evitadb.api.requestResponse.schema.mutation.associatedData.ModifyAssociatedDataSchemaDescriptionMutation;
+import io.evitadb.api.requestResponse.schema.mutation.associatedData.SetAssociatedDataSchemaConflictResolutionOverrideMutation;
 import io.evitadb.api.requestResponse.schema.mutation.associatedData.SetAssociatedDataSchemaLocalizedMutation;
 import io.evitadb.api.requestResponse.schema.mutation.associatedData.SetAssociatedDataSchemaNullableMutation;
 import io.evitadb.exception.GenericEvitaInternalError;
@@ -85,7 +87,7 @@ public final class AssociatedDataSchemaBuilder implements AssociatedDataSchemaEd
 		this.catalogSchema = catalogSchema;
 		this.entitySchema = entitySchema;
 		this.baseSchema = AssociatedDataSchema._internalBuild(
-			name, ofType
+			name, ofType, ConflictResolutionOverride.INHERITED
 		);
 		this.mutations.add(
 			new CreateAssociatedDataSchemaMutation(
@@ -157,6 +159,22 @@ public final class AssociatedDataSchemaBuilder implements AssociatedDataSchemaEd
 				new SetAssociatedDataSchemaNullableMutation(
 					getName(),
 					decider.getAsBoolean()
+				)
+			)
+		);
+		return this;
+	}
+
+	@Override
+	@Nonnull
+	public AssociatedDataSchemaBuilder withConflictResolutionOverride(@Nonnull ConflictResolutionOverride conflictResolutionOverride) {
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				this.catalogSchema, this.entitySchema, this.mutations,
+				new SetAssociatedDataSchemaConflictResolutionOverrideMutation(
+					getName(),
+					conflictResolutionOverride
 				)
 			)
 		);

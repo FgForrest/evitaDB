@@ -210,7 +210,8 @@ public interface ReferenceSortableAttributeCompoundSchemaMutation extends Sortab
 								SortableAttributeCompoundSchemaContract::getName,
 								Function.identity()
 							)
-						)
+						),
+					referenceSchema.getConflictResolutionOverride()
 				);
 			}
 		}

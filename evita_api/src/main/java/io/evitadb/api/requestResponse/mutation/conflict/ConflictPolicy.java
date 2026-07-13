@@ -39,10 +39,19 @@ import lombok.RequiredArgsConstructor;
  * are scoped to the entire catalog (see {@link #CATALOG}). Choose the most specific policy that
  * correctly reflects what the mutation touches to maximize throughput while preserving correctness.
  *
- * Summary of scopes:
+ * This enum captures only the coarse, mutually exclusive scope axis of the conflict model. The
+ * sub-entity refinements ({@code ENTITY_ATTRIBUTE}, {@code REFERENCE}, …) have been extracted into a
+ * separate {@link GranularConflictPolicy} enum, and a coarse policy together with a set of granular
+ * refinements is carried by {@link ConflictResolution}. The granular constants below are retained
+ * transitionally and will be removed once all call sites consume {@link ConflictResolution}.
+ *
+ * Summary of coarse scopes:
+ * - {@link #NONE} — no conflict detection at all (last-writer-wins)
  * - {@link #CATALOG} — all writes to the same catalog conflict
  * - {@link #COLLECTION} — writes within the same collection conflict, different collections can proceed
  * - {@link #ENTITY} — writes to the same entity conflict, different entities can proceed
+ *
+ * Transitional granular scopes (see {@link GranularConflictPolicy}):
  * - {@link #ENTITY_ATTRIBUTE} — only writes touching the same entity attribute conflict
  * - {@link #REFERENCE} — only writes touching the same entity reference conflict
  * - {@link #REFERENCE_ATTRIBUTE} — only writes touching the same attribute of the same reference conflict
@@ -61,6 +70,16 @@ import lombok.RequiredArgsConstructor;
  */
 @RequiredArgsConstructor
 public enum ConflictPolicy {
+
+	/**
+	 * This policy disables conflict detection entirely: no conflict keys are generated for the affected
+	 * writes, so concurrent transactions never conflict on this basis and the last commit within an
+	 * overlapping window silently wins (last-writer-wins). It makes the "no consistency" mode an explicit,
+	 * nameable choice; historically the same effect was expressed as an empty policy set. Commutative
+	 * mutations that require a post-application check (e.g. range-constrained deltas) may still emit keys
+	 * even under this policy — see {@link ConflictResolution}.
+	 */
+	NONE(false),
 
 	/**
 	 * This policy generates conflict keys that are scoped to the entire catalog. If no more granular policy is

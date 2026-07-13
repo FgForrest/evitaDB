@@ -335,7 +335,7 @@ public class TransactionManager implements Closeable {
 	) {
 		this.evita = evita;
 		this.configuration = evita.getConfiguration();
-		this.conflictPolicy = this.configuration.transaction().conflictPolicy();
+		this.conflictPolicy = this.configuration.transaction().conflictPolicy().toLegacyPolicySet();
 		this.granularConflictPolicy = this.conflictPolicy.stream().anyMatch(ConflictPolicy::isGranular);
 		this.requestExecutor = requestExecutor;
 		this.transactionalExecutor = transactionalExecutor;

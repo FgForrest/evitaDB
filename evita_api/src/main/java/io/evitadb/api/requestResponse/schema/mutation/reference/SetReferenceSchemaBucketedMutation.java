@@ -260,7 +260,8 @@ public class SetReferenceSchemaBucketedMutation
 				bucketedScopes,
 				newPartially,
 				referenceSchema.getAttributes(),
-				referenceSchema.getSortableAttributeCompounds()
+				referenceSchema.getSortableAttributeCompounds(),
+				referenceSchema.getConflictResolutionOverride()
 			);
 		}
 	}

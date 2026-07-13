@@ -104,6 +104,7 @@ public class SetEntitySchemaWithPriceMutation implements CombinableLocalEntitySc
 				entitySchema.getNameVariants(),
 				entitySchema.getDescription(),
 				entitySchema.getDeprecationNotice(),
+				entitySchema.getConflictResolution().orElse(null),
 				entitySchema.isWithGeneratedPrimaryKey(),
 				entitySchema.isWithHierarchy(),
 				Arrays.stream(Scope.values())

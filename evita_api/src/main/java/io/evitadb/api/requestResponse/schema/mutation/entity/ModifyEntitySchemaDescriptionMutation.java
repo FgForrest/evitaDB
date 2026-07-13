@@ -92,6 +92,7 @@ public class ModifyEntitySchemaDescriptionMutation implements CombinableLocalEnt
 				entitySchema.getNameVariants(),
 				this.description,
 				entitySchema.getDeprecationNotice(),
+				entitySchema.getConflictResolution().orElse(null),
 				entitySchema.isWithGeneratedPrimaryKey(),
 				entitySchema.isWithHierarchy(),
 				entitySchema.getHierarchyIndexedInScopes(),

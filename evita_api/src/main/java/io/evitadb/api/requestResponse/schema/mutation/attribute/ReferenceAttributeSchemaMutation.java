@@ -188,7 +188,8 @@ public interface ReferenceAttributeSchemaMutation extends
 								Function.identity()
 							)
 						),
-					referenceSchema.getSortableAttributeCompounds()
+					referenceSchema.getSortableAttributeCompounds(),
+					referenceSchema.getConflictResolutionOverride()
 				);
 			}
 		}

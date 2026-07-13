@@ -92,6 +92,7 @@ public class ModifyEntitySchemaDeprecationNoticeMutation implements CombinableLo
 				entitySchema.getNameVariants(),
 				entitySchema.getDescription(),
 				this.deprecationNotice,
+				entitySchema.getConflictResolution().orElse(null),
 				entitySchema.isWithGeneratedPrimaryKey(),
 				entitySchema.isWithHierarchy(),
 				entitySchema.getHierarchyIndexedInScopes(),

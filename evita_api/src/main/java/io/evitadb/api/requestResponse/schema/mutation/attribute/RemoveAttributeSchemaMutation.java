@@ -129,6 +129,7 @@ public class RemoveAttributeSchemaMutation
 					catalogSchema.getName(),
 					catalogSchema.getNameVariants(),
 					catalogSchema.getDescription(),
+					catalogSchema.getConflictResolution().orElse(null),
 					catalogSchema.getCatalogEvolutionMode(),
 					catalogSchema.getAttributes().values()
 						.stream()
@@ -170,6 +171,7 @@ public class RemoveAttributeSchemaMutation
 				entitySchema.getNameVariants(),
 				entitySchema.getDescription(),
 				entitySchema.getDeprecationNotice(),
+				entitySchema.getConflictResolution().orElse(null),
 				entitySchema.isWithGeneratedPrimaryKey(),
 				entitySchema.isWithHierarchy(),
 				entitySchema.getHierarchyIndexedInScopes(),
@@ -246,7 +248,8 @@ public class RemoveAttributeSchemaMutation
 								Function.identity()
 							)
 						),
-					referenceSchema.getSortableAttributeCompounds()
+					referenceSchema.getSortableAttributeCompounds(),
+					referenceSchema.getConflictResolutionOverride()
 				);
 			}
 		}

@@ -40,6 +40,7 @@ import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.Versioned;
 import io.evitadb.api.requestResponse.data.structure.Price;
 import io.evitadb.api.requestResponse.data.structure.Prices;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolution;
 import io.evitadb.dataType.Scope;
 import io.evitadb.utils.NamingConvention;
 
@@ -92,6 +93,23 @@ public interface EntitySchemaContract extends
 	 * @return true when schema contains only name and nothing else
 	 */
 	boolean isBlank();
+
+	/**
+	 * Returns the transaction conflict resolution declared for this entity collection, or an empty result when the
+	 * collection inherits the setting from the catalog schema.
+	 *
+	 * A `null` / empty value means "inherit from the catalog schema" — which in turn inherits from the engine
+	 * configuration ({@link io.evitadb.api.configuration.TransactionOptions}). When a value is present it overrides that
+	 * inherited setting for this entity collection, both the coarse conflict policy and the optional sub-entity
+	 * granularity carried by {@link ConflictResolution}.
+	 *
+	 * The override is a whole-record replacement — there is no per-field merging with the inherited setting; the most
+	 * specific non-empty {@link ConflictResolution} wins in its entirety.
+	 *
+	 * @return the entity-collection-level conflict resolution override, or an empty result to inherit from the catalog
+	 */
+	@Nonnull
+	Optional<ConflictResolution> getConflictResolution();
 
 	/**
 	 * Returns TRUE when primary keys of entities of this type will not be provided by the external systems and Evita

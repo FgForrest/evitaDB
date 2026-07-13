@@ -123,6 +123,7 @@ public class ModifyCatalogSchemaNameMutation implements TopLevelCatalogSchemaMut
 					this.newCatalogName,
 					NamingConvention.generate(this.newCatalogName),
 					catalogSchema.getDescription(),
+					catalogSchema.getConflictResolution().orElse(null),
 					catalogSchema.getCatalogEvolutionMode(),
 					catalogSchema.getAttributes(),
 					MutationEntitySchemaAccessor.INSTANCE

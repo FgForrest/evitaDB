@@ -24,6 +24,8 @@
 package io.evitadb.api.configuration;
 
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolution;
+import io.evitadb.api.requestResponse.mutation.conflict.GranularConflictPolicy;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -96,7 +98,7 @@ class TransactionOptionsTest {
 				options.conflictRingBufferSize()
 			);
 			assertEquals(
-				TransactionOptions.DEFAULT_CONFLICT_POLICY,
+				TransactionOptions.DEFAULT_CONFLICT_RESOLUTION,
 				options.conflictPolicy()
 			);
 		}
@@ -211,8 +213,32 @@ class TransactionOptionsTest {
 
 		@Test
 		@DisplayName(
-			"should set conflict policy with varargs"
+			"should set conflict resolution with granularity"
 		)
+		void shouldSetConflictResolutionWithGranularity() {
+			final TransactionOptions options =
+				TransactionOptions.builder()
+					.conflictResolution(
+						ConflictPolicy.ENTITY,
+						GranularConflictPolicy.ENTITY_ATTRIBUTE
+					)
+					.build();
+
+			assertEquals(
+				ConflictPolicy.ENTITY,
+				options.conflictPolicy().policy()
+			);
+			assertTrue(
+				options.conflictPolicy().granularity()
+					.contains(GranularConflictPolicy.ENTITY_ATTRIBUTE)
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"should collapse deprecated varargs to coarsest policy"
+		)
+		@SuppressWarnings("deprecation")
 		void shouldSetConflictPolicyWithVarargs() {
 			final TransactionOptions options =
 				TransactionOptions.builder()
@@ -222,28 +248,31 @@ class TransactionOptionsTest {
 					)
 					.build();
 
-			assertTrue(
-				options.conflictPolicy()
-					.contains(ConflictPolicy.CATALOG)
+			// a catalog-wide lock subsumes the entity scope declared alongside it
+			assertEquals(
+				ConflictPolicy.CATALOG,
+				options.conflictPolicy().policy()
 			);
 			assertTrue(
-				options.conflictPolicy()
-					.contains(ConflictPolicy.ENTITY)
+				options.conflictPolicy().granularity().isEmpty()
 			);
 		}
 
 		@Test
 		@DisplayName(
-			"should set last writer wins (empty conflict " +
-				"policy)"
+			"should map deprecated last writer wins to NONE"
 		)
+		@SuppressWarnings("deprecation")
 		void shouldSetLastWriterWins() {
 			final TransactionOptions options =
 				TransactionOptions.builder()
 					.conflictPolicyLastWriterWins()
 					.build();
 
-			assertTrue(options.conflictPolicy().isEmpty());
+			assertEquals(
+				ConflictPolicy.NONE,
+				options.conflictPolicy().policy()
+			);
 		}
 
 		@Test
@@ -313,19 +342,19 @@ class TransactionOptionsTest {
 
 		@Test
 		@DisplayName(
-			"should copy conflict policy from source"
+			"should copy conflict resolution from source"
 		)
 		void shouldCopyConflictPolicyFromSource() {
 			final TransactionOptions source =
 				TransactionOptions.builder()
-					.conflictPolicy(ConflictPolicy.CATALOG)
+					.conflictResolution(ConflictPolicy.CATALOG)
 					.build();
 
 			final TransactionOptions copy =
 				TransactionOptions.builder(source).build();
 
 			assertEquals(
-				EnumSet.of(ConflictPolicy.CATALOG),
+				new ConflictResolution(ConflictPolicy.CATALOG),
 				copy.conflictPolicy()
 			);
 		}
@@ -396,7 +425,7 @@ class TransactionOptionsTest {
 					TransactionOptions.DEFAULT_FLUSH_FREQUENCY,
 					TransactionOptions
 						.DEFAULT_CONFLICT_RING_BUFFER_SIZE,
-					TransactionOptions.DEFAULT_CONFLICT_POLICY
+					TransactionOptions.DEFAULT_CONFLICT_RESOLUTION
 				);
 
 			assertEquals(
@@ -407,43 +436,49 @@ class TransactionOptionsTest {
 	}
 
 	@Nested
-	@DisplayName("Defensive copy of EnumSet")
-	class DefensiveCopyTest {
+	@DisplayName("Conflict resolution mapping")
+	class ConflictResolutionMappingTest {
 
 		@Test
 		@DisplayName(
-			"should not be affected by mutation of " +
-				"original set"
+			"should map deprecated empty policy list to NONE"
 		)
-		void shouldNotBeAffectedByOriginalSetMutation() {
-			final EnumSet<ConflictPolicy> policies =
-				EnumSet.of(ConflictPolicy.ENTITY);
+		@SuppressWarnings("deprecation")
+		void shouldMapEmptyLegacyListToNone() {
 			final TransactionOptions options =
-				new TransactionOptions(
-					TransactionOptions.DEFAULT_TX_DIRECTORY,
-					TransactionOptions
-						.DEFAULT_TRANSACTION_MEMORY_BUFFER_LIMIT_SIZE,
-					TransactionOptions
-						.DEFAULT_TRANSACTION_MEMORY_REGION_COUNT,
-					TransactionOptions.DEFAULT_WAL_SIZE_BYTES,
-					TransactionOptions
-						.DEFAULT_WAL_FILE_COUNT_KEPT,
-					TransactionOptions
-						.DEFAULT_WAIT_FOR_TRANSACTION_ACCEPTANCE,
-					TransactionOptions.DEFAULT_FLUSH_FREQUENCY,
-					TransactionOptions
-						.DEFAULT_CONFLICT_RING_BUFFER_SIZE,
-					policies
-				);
+				TransactionOptions.builder()
+					.conflictPolicy()
+					.build();
 
-			// mutating the original set should NOT affect
-			// the record
-			policies.add(ConflictPolicy.CATALOG);
-			assertFalse(
+			assertEquals(
+				ConflictPolicy.NONE,
+				options.conflictPolicy().policy()
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"should fold deprecated granular members into " +
+				"the refinement set"
+		)
+		@SuppressWarnings("deprecation")
+		void shouldFoldLegacyGranularMembers() {
+			final TransactionOptions options =
+				TransactionOptions.builder()
+					.conflictPolicy(
+						ConflictPolicy.ENTITY,
+						ConflictPolicy.ENTITY_ATTRIBUTE
+					)
+					.build();
+
+			assertEquals(
+				new ConflictResolution(
+					ConflictPolicy.ENTITY,
+					EnumSet.of(
+						GranularConflictPolicy.ENTITY_ATTRIBUTE
+					)
+				),
 				options.conflictPolicy()
-					.contains(ConflictPolicy.CATALOG),
-				"Record should hold a defensive copy, " +
-					"not the original reference"
 			);
 		}
 	}

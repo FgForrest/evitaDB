@@ -27,6 +27,7 @@ import io.evitadb.api.CatalogContract;
 import io.evitadb.api.exception.SchemaAlteringException;
 import io.evitadb.api.requestResponse.data.ContentComparator;
 import io.evitadb.api.requestResponse.data.Versioned;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolution;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
 import io.evitadb.exception.EvitaInvalidUsageException;
 
@@ -61,6 +62,23 @@ public interface CatalogSchemaContract
 	 */
 	@Nonnull
 	Set<CatalogEvolutionMode> getCatalogEvolutionMode();
+
+	/**
+	 * Returns the transaction conflict resolution declared for this whole catalog, or an empty result when the catalog
+	 * inherits the engine-level default.
+	 *
+	 * A `null` / empty value means "inherit from the engine configuration" — i.e. the default declared on
+	 * {@link io.evitadb.api.configuration.TransactionOptions}. When a value is present it overrides that default for
+	 * this entire catalog, both the coarse conflict policy and the optional sub-entity granularity carried by
+	 * {@link ConflictResolution}.
+	 *
+	 * The override is a whole-record replacement — there is no per-field merging with the inherited default; the most
+	 * specific non-empty {@link ConflictResolution} wins in its entirety.
+	 *
+	 * @return the catalog-level conflict resolution override, or an empty result to inherit the engine default
+	 */
+	@Nonnull
+	Optional<ConflictResolution> getConflictResolution();
 
 	/**
 	 * Returns a collection of all entity schemas in catalog.

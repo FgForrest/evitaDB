@@ -880,7 +880,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			TransactionOptions.DEFAULT_WAIT_FOR_TRANSACTION_ACCEPTANCE,
 			TransactionOptions.DEFAULT_FLUSH_FREQUENCY,
 			TransactionOptions.DEFAULT_CONFLICT_RING_BUFFER_SIZE,
-			TransactionOptions.DEFAULT_CONFLICT_POLICY
+			TransactionOptions.DEFAULT_CONFLICT_RESOLUTION
 		);
 	}
 

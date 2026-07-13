@@ -101,6 +101,7 @@ public class SetEntitySchemaWithHierarchyMutation implements CombinableLocalEnti
 				entitySchema.getNameVariants(),
 				entitySchema.getDescription(),
 				entitySchema.getDeprecationNotice(),
+				entitySchema.getConflictResolution().orElse(null),
 				entitySchema.isWithGeneratedPrimaryKey(),
 				this.withHierarchy,
 				this.indexedInScopes,

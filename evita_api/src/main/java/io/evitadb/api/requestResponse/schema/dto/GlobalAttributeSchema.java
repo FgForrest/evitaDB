@@ -23,6 +23,7 @@
 
 package io.evitadb.api.requestResponse.schema.dto;
 
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeUniquenessType;
@@ -95,7 +96,8 @@ public final class GlobalAttributeSchema extends AttributeSchema implements Glob
 	public static GlobalAttributeSchema _internalBuild(
 		@Nonnull String name,
 		@Nonnull Class<? extends Serializable> type,
-		boolean localized
+		boolean localized,
+		@Nonnull ConflictResolutionOverride conflictResolutionOverride
 	) {
 		final EnumMap<Scope, AttributeUniquenessType> theUniquenessType = toUniquenessEnumMap(null);
 		final EnumMap<Scope, GlobalAttributeUniquenessType> theGlobalUniquenessType = toGlobalUniquenessEnumMap(null);
@@ -110,7 +112,8 @@ public final class GlobalAttributeSchema extends AttributeSchema implements Glob
 			theSortableInScopes,
 			localized, false, false,
 			type, null,
-			0
+			0,
+			conflictResolutionOverride
 		);
 	}
 
@@ -131,7 +134,8 @@ public final class GlobalAttributeSchema extends AttributeSchema implements Glob
 		boolean nullable,
 		boolean representative,
 		@Nonnull Class<T> type,
-		@Nullable T defaultValue
+		@Nullable T defaultValue,
+		@Nonnull ConflictResolutionOverride conflictResolutionOverride
 	) {
 		final EnumMap<Scope, AttributeUniquenessType> theUniquenessType = toUniquenessEnumMap(unique);
 		final EnumMap<Scope, GlobalAttributeUniquenessType> theGlobalUniquenessType =
@@ -147,7 +151,8 @@ public final class GlobalAttributeSchema extends AttributeSchema implements Glob
 			theSortableInScopes,
 			localized, nullable, representative,
 			type, defaultValue,
-			0
+			0,
+			conflictResolutionOverride
 		);
 	}
 
@@ -171,7 +176,8 @@ public final class GlobalAttributeSchema extends AttributeSchema implements Glob
 		boolean representative,
 		@Nonnull Class<T> type,
 		@Nullable T defaultValue,
-		int indexedDecimalPlaces
+		int indexedDecimalPlaces,
+		@Nonnull ConflictResolutionOverride conflictResolutionOverride
 	) {
 		final EnumMap<Scope, AttributeUniquenessType> theUniquenessType = toUniquenessEnumMap(unique);
 		final EnumMap<Scope, GlobalAttributeUniquenessType> theGlobalUniquenessType =
@@ -187,7 +193,8 @@ public final class GlobalAttributeSchema extends AttributeSchema implements Glob
 			theSortableInScopes,
 			localized, nullable, representative,
 			type, defaultValue,
-			indexedDecimalPlaces
+			indexedDecimalPlaces,
+			conflictResolutionOverride
 		);
 	}
 
@@ -211,7 +218,8 @@ public final class GlobalAttributeSchema extends AttributeSchema implements Glob
 		boolean representative,
 		@Nonnull Class<T> type,
 		@Nullable T defaultValue,
-		int indexedDecimalPlaces
+		int indexedDecimalPlaces,
+		@Nonnull ConflictResolutionOverride conflictResolutionOverride
 	) {
 		return new GlobalAttributeSchema(
 			name, NamingConvention.generate(name),
@@ -222,7 +230,8 @@ public final class GlobalAttributeSchema extends AttributeSchema implements Glob
 			sortableInScopes,
 			localized, nullable, representative,
 			type, defaultValue,
-			indexedDecimalPlaces
+			indexedDecimalPlaces,
+			conflictResolutionOverride
 		);
 	}
 
@@ -247,7 +256,8 @@ public final class GlobalAttributeSchema extends AttributeSchema implements Glob
 		boolean representative,
 		@Nonnull Class<T> type,
 		@Nullable T defaultValue,
-		int indexedDecimalPlaces
+		int indexedDecimalPlaces,
+		@Nonnull ConflictResolutionOverride conflictResolutionOverride
 	) {
 		return new GlobalAttributeSchema(
 			name, nameVariants,
@@ -258,7 +268,8 @@ public final class GlobalAttributeSchema extends AttributeSchema implements Glob
 			sortableInScopes,
 			localized, nullable, representative,
 			type, defaultValue,
-			indexedDecimalPlaces
+			indexedDecimalPlaces,
+			conflictResolutionOverride
 		);
 	}
 
@@ -283,7 +294,8 @@ public final class GlobalAttributeSchema extends AttributeSchema implements Glob
 		boolean representative,
 		@Nonnull Class<T> type,
 		@Nullable T defaultValue,
-		int indexedDecimalPlaces
+		int indexedDecimalPlaces,
+		@Nonnull ConflictResolutionOverride conflictResolutionOverride
 	) {
 		final EnumMap<Scope, AttributeUniquenessType> theUniquenessType = toUniquenessEnumMap(unique);
 		final EnumMap<Scope, GlobalAttributeUniquenessType> theGlobalUniquenessType =
@@ -299,7 +311,8 @@ public final class GlobalAttributeSchema extends AttributeSchema implements Glob
 			theSortableInScopes,
 			localized, nullable, representative,
 			type, defaultValue,
-			indexedDecimalPlaces
+			indexedDecimalPlaces,
+			conflictResolutionOverride
 		);
 	}
 
@@ -317,13 +330,15 @@ public final class GlobalAttributeSchema extends AttributeSchema implements Glob
 		boolean representative,
 		@Nonnull Class<T> type,
 		@Nullable T defaultValue,
-		int indexedDecimalPlaces
+		int indexedDecimalPlaces,
+		@Nonnull ConflictResolutionOverride conflictResolutionOverride
 	) {
 		super(
 			name, nameVariants, description, deprecationNotice,
 			verifyAndAlterUniquenessTypes(uniqueInScopes, globalUniquenessTypeInScopes),
 			filterableInScopes, sortableInScopes, localized, nullable, representative,
-			type, defaultValue, indexedDecimalPlaces
+			type, defaultValue, indexedDecimalPlaces,
+			conflictResolutionOverride
 		);
 		if (globalUniquenessTypeInScopes == null || globalUniquenessTypeInScopes.isEmpty()) {
 			final EnumMap<Scope, GlobalAttributeUniquenessType> theMap = new EnumMap<>(Scope.class);
@@ -425,6 +440,7 @@ public final class GlobalAttributeSchema extends AttributeSchema implements Glob
 			", type=" + this.type +
 			", indexedDecimalPlaces=" + this.indexedDecimalPlaces +
 			", defaultValue=" + this.defaultValue +
+			", conflictResolutionOverride=" + this.conflictResolutionOverride +
 			'}';
 	}
 

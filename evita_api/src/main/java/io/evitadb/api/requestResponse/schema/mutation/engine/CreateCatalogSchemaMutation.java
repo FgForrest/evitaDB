@@ -32,6 +32,7 @@ import io.evitadb.api.requestResponse.mutation.conflict.CatalogConflictKey;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictGenerationContext;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolution;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
@@ -65,15 +66,29 @@ import java.util.stream.Stream;
 public class CreateCatalogSchemaMutation implements TopLevelCatalogSchemaMutation<CommitVersions> {
 	@Serial private static final long serialVersionUID = 6996920692477020274L;
 	@Nonnull @Getter private final String catalogName;
+	@Nullable @Getter private final ConflictResolution conflictResolution;
 
 	/**
-	 * Creates a new mutation that will set up a new catalog with the specified name.
+	 * Creates a new mutation that will set up a new catalog with the specified name, inheriting the engine-level
+	 * transaction conflict resolution default.
 	 *
 	 * @param catalogName name of the catalog to create
 	 */
 	public CreateCatalogSchemaMutation(@Nonnull String catalogName) {
+		this(catalogName, null);
+	}
+
+	/**
+	 * Creates a new mutation that will set up a new catalog with the specified name and an explicit catalog-level
+	 * transaction conflict resolution override.
+	 *
+	 * @param catalogName        name of the catalog to create
+	 * @param conflictResolution the catalog-level conflict resolution override, or `null` to inherit the engine default
+	 */
+	public CreateCatalogSchemaMutation(@Nonnull String catalogName, @Nullable ConflictResolution conflictResolution) {
 		ClassifierUtils.validateClassifierFormat(ClassifierType.CATALOG, catalogName);
 		this.catalogName = catalogName;
+		this.conflictResolution = conflictResolution;
 	}
 
 	@Nonnull
@@ -102,6 +117,7 @@ public class CreateCatalogSchemaMutation implements TopLevelCatalogSchemaMutatio
 			CatalogSchema._internalBuild(
 				this.catalogName,
 				NamingConvention.generate(this.catalogName),
+				this.conflictResolution,
 				EnumSet.allOf(CatalogEvolutionMode.class),
 				MutationEntitySchemaAccessor.INSTANCE
 			)
@@ -128,7 +144,8 @@ public class CreateCatalogSchemaMutation implements TopLevelCatalogSchemaMutatio
 	@Override
 	public String toString() {
 		return "Create catalog: " +
-			"catalogName='" + this.catalogName + '\'';
+			"catalogName='" + this.catalogName + '\'' +
+			", conflictResolution=" + this.conflictResolution;
 	}
 
 }

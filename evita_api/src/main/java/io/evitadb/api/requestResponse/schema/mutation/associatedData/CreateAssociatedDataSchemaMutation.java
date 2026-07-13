@@ -25,6 +25,7 @@ package io.evitadb.api.requestResponse.schema.mutation.associatedData;
 
 import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.requestResponse.cdc.Operation;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -79,9 +80,11 @@ public class CreateAssociatedDataSchemaMutation
 	@Getter @Nonnull private final Class<? extends Serializable> type;
 	@Getter private final boolean localized;
 	@Getter private final boolean nullable;
+	@Getter @Nonnull private final ConflictResolutionOverride conflictResolutionOverride;
 
 	/**
-	 * Creates a mutation that will set up a new associated data schema with the given properties.
+	 * Creates a mutation that will set up a new associated data schema with the given properties. The conflict
+	 * resolution override defaults to {@link ConflictResolutionOverride#INHERITED}.
 	 *
 	 * @param name              unique name of the associated data
 	 * @param description       optional human-readable description of the associated data
@@ -101,6 +104,35 @@ public class CreateAssociatedDataSchemaMutation
 		boolean localized,
 		boolean nullable
 	) {
+		this(name, description, deprecationNotice, type, localized, nullable, ConflictResolutionOverride.INHERITED);
+	}
+
+	/**
+	 * Creates a mutation that will set up a new associated data schema with the given properties.
+	 *
+	 * @param name                       unique name of the associated data
+	 * @param description                optional human-readable description of the associated data
+	 * @param deprecationNotice          optional deprecation notice if the associated data is deprecated
+	 * @param type                       the data type stored in this associated data (must be a supported evitaDB type
+	 *                                   or {@link ComplexDataObject}; {@link Predecessor} and
+	 *                                   {@link ReferencedEntityPredecessor} are not allowed)
+	 * @param localized                  whether the associated data values are locale-specific
+	 * @param nullable                   whether the associated data value can be null
+	 * @param conflictResolutionOverride the per-item override of the conflict resolution granularity applied to this
+	 *                                   associated data (never `null`; use
+	 *                                   {@link ConflictResolutionOverride#INHERITED} to follow the resolved conflict
+	 *                                   resolution)
+	 * @throws InvalidSchemaMutationException if the type is not allowed in associated data
+	 */
+	public CreateAssociatedDataSchemaMutation(
+		@Nonnull String name,
+		@Nullable String description,
+		@Nullable String deprecationNotice,
+		@Nonnull Class<? extends Serializable> type,
+		boolean localized,
+		boolean nullable,
+		@Nonnull ConflictResolutionOverride conflictResolutionOverride
+	) {
 		super(name);
 		ClassifierUtils.validateClassifierFormat(ClassifierType.ASSOCIATED_DATA, name);
 		final Class<?> plainType = type.isArray() ? type.getComponentType() : type;
@@ -113,6 +145,7 @@ public class CreateAssociatedDataSchemaMutation
 		this.type = type;
 		this.localized = localized;
 		this.nullable = nullable;
+		this.conflictResolutionOverride = conflictResolutionOverride;
 	}
 
 	@Nullable
@@ -162,6 +195,12 @@ public class CreateAssociatedDataSchemaMutation
 							createdVersion, existingVersion,
 							AssociatedDataSchemaContract::isNullable,
 							newValue -> new SetAssociatedDataSchemaNullableMutation(this.name, newValue)
+						),
+						makeMutationIfDifferent(
+							AssociatedDataSchemaContract.class,
+							createdVersion, existingVersion,
+							AssociatedDataSchemaContract::getConflictResolutionOverride,
+							newValue -> new SetAssociatedDataSchemaConflictResolutionOverrideMutation(this.name, newValue)
 						)
 					)
 					.filter(Objects::nonNull)
@@ -176,7 +215,8 @@ public class CreateAssociatedDataSchemaMutation
 	@Override
 	public AssociatedDataSchemaContract mutate(@Nullable AssociatedDataSchemaContract associatedDataSchema) {
 		return AssociatedDataSchema._internalBuild(
-			this.name, this.description, this.deprecationNotice, this.type, this.localized, this.nullable
+			this.name, this.description, this.deprecationNotice, this.type, this.localized, this.nullable,
+			this.conflictResolutionOverride
 		);
 	}
 
@@ -195,6 +235,7 @@ public class CreateAssociatedDataSchemaMutation
 				entitySchema.getNameVariants(),
 				entitySchema.getDescription(),
 				entitySchema.getDeprecationNotice(),
+				entitySchema.getConflictResolution().orElse(null),
 				entitySchema.isWithGeneratedPrimaryKey(),
 				entitySchema.isWithHierarchy(),
 				entitySchema.getHierarchyIndexedInScopes(),
@@ -244,6 +285,7 @@ public class CreateAssociatedDataSchemaMutation
 			", deprecationNotice='" + this.deprecationNotice + '\'' +
 			", type=" + this.type +
 			", localized=" + this.localized +
-			", nullable=" + this.nullable;
+			", nullable=" + this.nullable +
+			", conflictResolutionOverride=" + this.conflictResolutionOverride;
 	}
 }

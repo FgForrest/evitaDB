@@ -44,7 +44,8 @@ import java.util.function.BooleanSupplier;
  */
 public interface AttributeSchemaEditor<T extends AttributeSchemaEditor<T>> extends
 	NamedSchemaWithDeprecationEditor<T>,
-	AttributeSchemaContract
+	AttributeSchemaContract,
+	ConflictResolutionOverrideAwareSchemaEditor<T>
 {
 	/**
 	 * Default value is used when the entity is created without this attribute specified. Default values allow to pass

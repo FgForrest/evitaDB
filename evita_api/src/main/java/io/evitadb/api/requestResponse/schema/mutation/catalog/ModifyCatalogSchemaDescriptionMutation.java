@@ -97,6 +97,7 @@ public class ModifyCatalogSchemaDescriptionMutation implements CombinableCatalog
 					catalogSchema.getName(),
 					catalogSchema.getNameVariants(),
 					this.description,
+					catalogSchema.getConflictResolution().orElse(null),
 					catalogSchema.getCatalogEvolutionMode(),
 					catalogSchema.getAttributes(),
 					entitySchemaAccessor

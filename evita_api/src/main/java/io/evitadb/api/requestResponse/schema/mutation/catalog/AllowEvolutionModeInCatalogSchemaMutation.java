@@ -83,6 +83,7 @@ public class AllowEvolutionModeInCatalogSchemaMutation implements LocalCatalogSc
 					catalogSchema.getName(),
 					catalogSchema.getNameVariants(),
 					catalogSchema.getDescription(),
+					catalogSchema.getConflictResolution().orElse(null),
 					Stream.concat(
 							catalogSchema.getCatalogEvolutionMode().stream(),
 							Arrays.stream(this.evolutionModes)
