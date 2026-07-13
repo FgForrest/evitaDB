@@ -187,6 +187,22 @@ It is used during commit of `TransactionalComplexObjArray` to produce copies of 
 
 ---
 
+## Snapshotable\<M\> (opt-in)
+
+**Package:** `io.evitadb.core.transaction.memory`
+
+An **opt-in** SPI -- *not* a fourth mandatory interface -- implemented by a diff layer that wants to
+support savepoints (partial rollback within a transaction). `snapshot()` captures the layer's mutable
+state into an opaque memento and `restore(memento)` rewinds it. It is deliberately independent of
+`TransactionalLayerProducer` because not every layer is a genuine accumulating diff worth snapshotting.
+
+A layer that accumulates a diff and can be mutated inside a savepoint **must** implement it, or the
+maintainer throws `GenericEvitaInternalError` on first write-touch. The full contract, the memento
+invariants, and the two implementation strategies (deep-copy vs. `UndoJournal`) are covered in
+[savepoints.md](savepoints.md).
+
+---
+
 ## Interface hierarchy summary
 
 ```
@@ -196,4 +212,5 @@ TransactionalLayerCreator<T>
 └── TransactionalObject<T, DIFF_LAYER>    (for ComplexObjArray items)
 
 TransactionalCreatorMaintainer            (orthogonal; any object may implement it)
+Snapshotable<M>                           (orthogonal, opt-in; a diff layer implements it for savepoints)
 ```

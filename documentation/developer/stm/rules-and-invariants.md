@@ -177,6 +177,44 @@ no) transaction will see null and read from the immutable baseline.
 
 ---
 
+## Invariants for Snapshotable diff layers (savepoints)
+
+See [savepoints.md](savepoints.md) for the full lifecycle. These invariants apply to any diff layer that
+implements `Snapshotable<M>`.
+
+### INV-17: Snapshotable for savepoint-touchable layers
+
+A diff layer that accumulates a diff and can be mutated inside an open savepoint **must** implement
+`Snapshotable<M>`.
+
+**Why it matters:** When a savepoint is open, the maintainer captures each layer's pre-mutation state on
+first write-touch. A touched (or removed) layer that does not implement `Snapshotable` cannot be
+reverted, so the maintainer throws `GenericEvitaInternalError` rather than silently leaving a
+partial-rollback gap. Layers that are degenerate single-value diffs or rebuildable derived caches are
+legitimately exempt (they are never mutated inside a savepoint, or their memento is a cheap
+invalidation).
+
+### INV-18: Memento independence
+
+`snapshot()` must copy the layer's mutable containers deeply enough that a later mutation of the layer
+cannot mutate the memento, and `restore()` must copy state *out of* the memento (or the memento must be
+single-use). Primitive / immutable-value fields need no defensive cloning.
+
+**Why it matters:** The same memento may be restored more than once; a shared-reference memento would be
+corrupted by post-snapshot mutations and produce an incorrect rollback.
+
+### INV-19: Nested-layer boundary
+
+A layer's memento captures only *its own* diff. Nested `TransactionalLayerProducer` values the layer
+holds (map values, array elements) are captured **by reference only** -- never deep-copied, never reached
+into on restore.
+
+**Why it matters:** Each nested layer's own `Snapshotable` is snapshotted independently by the
+maintainer-level savepoint. Deep-copying nested values would double-capture their state and desynchronise
+the two copies on restore.
+
+---
+
 ## Rules for testing transactional data structures
 
 ### RULE-T1: Use assertStateAfterCommit / assertStateAfterRollback
@@ -243,6 +281,9 @@ When adding a new `TransactionalLayerProducer` field to an existing index or con
    `transactionalLayer.getStateCopyWithCommittedChanges(newField)`.
 4. Update `removeLayer(maintainer)` to clean up the new field's layer.
 5. If the container uses `TransactionalContainerChanges`, register created/removed instances.
-6. Write a unit test verifying commit/rollback for the new field.
-7. Run the generational test to catch any accumulated errors.
-8. Verify `verifyLayerWasFullySwept()` passes (handled by `assertStateAfterCommit`).
+6. If the field's diff layer accumulates changes and can be touched inside a savepoint, implement
+   `Snapshotable<M>` on it (see [INV-17](#inv-17-snapshotable-for-savepoint-touchable-layers)) --
+   otherwise the maintainer throws on first write-touch inside a savepoint.
+7. Write a unit test verifying commit/rollback for the new field.
+8. Run the generational test to catch any accumulated errors.
+9. Verify `verifyLayerWasFullySwept()` passes (handled by `assertStateAfterCommit`).
