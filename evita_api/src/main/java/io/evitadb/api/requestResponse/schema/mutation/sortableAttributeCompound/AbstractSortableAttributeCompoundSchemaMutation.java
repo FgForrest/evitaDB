@@ -50,7 +50,7 @@ import java.util.stream.Stream;
  * - Keeps the target compound's {@link #name}
  * - Exposes the container name via {@link #containerName()} so the mutation framework can route
  *   the change to the correct schema part
- * - Produces collection-scoped conflict keys in {@link #collectConflictKeys(ConflictGenerationContext, Set)}
+ * - Produces collection-scoped conflict keys in {@link #collectConflictKeys(ConflictGenerationContext)}
  *   so that mutations affecting the same entity type are detected and handled by the conflict engine
  *
  * Concurrency and safety:
@@ -87,8 +87,7 @@ abstract class AbstractSortableAttributeCompoundSchemaMutation implements NamedS
 	@Nonnull
 	@Override
 	public Stream<ConflictKey> collectConflictKeys(
-		@Nonnull ConflictGenerationContext context,
-		@Nonnull Set<ConflictPolicy> conflictPolicies
+		@Nonnull ConflictGenerationContext context
 	) {
 		return Stream.of(new CollectionConflictKey(context.getEntityType()));
 	}

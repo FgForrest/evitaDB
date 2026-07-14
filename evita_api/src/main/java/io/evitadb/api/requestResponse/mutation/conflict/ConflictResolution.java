@@ -24,7 +24,6 @@
 package io.evitadb.api.requestResponse.mutation.conflict;
 
 
-import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
@@ -104,46 +103,6 @@ public record ConflictResolution(
 	 */
 	public boolean hasGranularity() {
 		return !this.granularity.isEmpty();
-	}
-
-	/**
-	 * Transitional bridge that flattens this two-axis resolution into the historical single
-	 * {@link EnumSet} of {@link ConflictPolicy} constants understood by the not-yet-migrated conflict
-	 * key generation path. The coarse policy maps to itself (with {@link ConflictPolicy#NONE} yielding an
-	 * empty set, i.e. last-writer-wins), and every {@link GranularConflictPolicy} maps to the identically
-	 * named transitional {@link ConflictPolicy} constant.
-	 *
-	 * This method exists only until all call sites consume {@link ConflictResolution} directly; it — and
-	 * the transitional granular {@link ConflictPolicy} constants it relies on — will be removed then.
-	 *
-	 * @return the equivalent legacy flat policy set
-	 */
-	@Deprecated(forRemoval = true, since = "2026.2")
-	@Nonnull
-	public EnumSet<ConflictPolicy> toLegacyPolicySet() {
-		final EnumSet<ConflictPolicy> result = EnumSet.noneOf(ConflictPolicy.class);
-		switch (this.policy) {
-			case NONE:
-				// empty set is the historical encoding of last-writer-wins
-				break;
-			case CATALOG:
-				result.add(ConflictPolicy.CATALOG);
-				break;
-			case COLLECTION:
-				result.add(ConflictPolicy.COLLECTION);
-				break;
-			case ENTITY:
-				result.add(ConflictPolicy.ENTITY);
-				for (GranularConflictPolicy granularPolicy : this.granularity) {
-					result.add(ConflictPolicy.valueOf(granularPolicy.name()));
-				}
-				break;
-			default:
-				throw new GenericEvitaInternalError(
-					"Unexpected coarse conflict policy: " + this.policy + "!"
-				);
-		}
-		return result;
 	}
 
 	/**

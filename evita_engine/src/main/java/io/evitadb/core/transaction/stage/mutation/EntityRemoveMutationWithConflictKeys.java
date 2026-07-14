@@ -29,13 +29,12 @@ import io.evitadb.api.requestResponse.data.mutation.EntityRemoveMutation;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictGenerationContext;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
-import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolution;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
 import java.util.List;
-import java.util.Set;
 import java.util.stream.Stream;
 
 /**
@@ -58,17 +57,17 @@ public class EntityRemoveMutationWithConflictKeys extends EntityRemoveMutation i
 
 	public EntityRemoveMutationWithConflictKeys(
 		@Nonnull EntityRemoveMutation delegate,
-		@Nonnull Set<ConflictPolicy> conflictPolicy,
+		@Nonnull ConflictResolution conflictResolution,
 		@Nonnull List<? extends LocalMutation<?,?>> localMutations
 	) {
 		super(delegate.getEntityType(), delegate.getEntityPrimaryKey());
 		this.delegate = delegate;
-		final ConflictGenerationContext context = new ConflictGenerationContext();
+		final ConflictGenerationContext context = new ConflictGenerationContext(conflictResolution);
 		this.conflictKeyStream = context.withEntityType(
 			delegate.getEntityType(),
 			delegate.getEntityPrimaryKey(),
 			ctx -> EntityMutation.getConflictKeyStream(
-				delegate.getEntityType(), delegate.getEntityPrimaryKey(), localMutations, conflictPolicy, ctx
+				delegate.getEntityType(), delegate.getEntityPrimaryKey(), localMutations, ctx
 			)
 		);
 	}
@@ -76,8 +75,7 @@ public class EntityRemoveMutationWithConflictKeys extends EntityRemoveMutation i
 	@Nonnull
 	@Override
 	public Stream<ConflictKey> collectConflictKeys(
-		@Nonnull ConflictGenerationContext context,
-		@Nonnull Set<ConflictPolicy> conflictPolicies
+		@Nonnull ConflictGenerationContext context
 	) {
 		return this.conflictKeyStream;
 	}

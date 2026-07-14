@@ -28,7 +28,6 @@ import io.evitadb.api.requestResponse.mutation.conflict.CatalogConflictKey;
 import io.evitadb.api.requestResponse.mutation.conflict.CollectionConflictKey;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictGenerationContext;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
-import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
 import io.evitadb.api.requestResponse.schema.mutation.NamedSchemaMutation;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -51,7 +50,7 @@ import java.util.stream.Stream;
  *
  * - container addressing: {@link #containerName()} returns the attribute name so mutation processing
  *   can route the change to the correct schema container
- * - conflict scoping: {@link #collectConflictKeys(ConflictGenerationContext, Set)} yields a single
+ * - conflict scoping: {@link #collectConflictKeys(ConflictGenerationContext)} yields a single
  *   conflict key that scopes the mutation either to the current entity collection (when an entity
  *   type is present in the {@link ConflictGenerationContext}) or to the catalog as a whole (when no
  *   entity type is present). This allows the conflict resolver to detect and serialize concurrent
@@ -88,8 +87,7 @@ abstract class AbstractAttributeSchemaMutation implements NamedSchemaMutation {
 	@Nonnull
 	@Override
 	public Stream<ConflictKey> collectConflictKeys(
-		@Nonnull ConflictGenerationContext context,
-		@Nonnull Set<ConflictPolicy> conflictPolicies
+		@Nonnull ConflictGenerationContext context
 	) {
 		return context.isEntityTypePresent() ?
 			Stream.of(new CollectionConflictKey(context.getEntityType())) :

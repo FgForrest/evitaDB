@@ -34,7 +34,6 @@ import io.evitadb.api.requestResponse.mutation.MutationPredicateContext;
 import io.evitadb.api.requestResponse.mutation.StreamDirection;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictGenerationContext;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
-import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
@@ -55,7 +54,6 @@ import java.util.List;
 import java.util.ListIterator;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -233,14 +231,13 @@ public class EntityUpsertMutation implements EntityMutation {
 	@Nonnull
 	@Override
 	public Stream<ConflictKey> collectConflictKeys(
-		@Nonnull ConflictGenerationContext context,
-		@Nonnull Set<ConflictPolicy> conflictPolicies
+		@Nonnull ConflictGenerationContext context
 	) {
 		return context.withEntityType(
 			this.entityType,
 			this.entityPrimaryKey,
 			ctx -> EntityMutation.getConflictKeyStream(
-				this.entityType, this.entityPrimaryKey, this.localMutations, conflictPolicies, ctx
+				this.entityType, this.entityPrimaryKey, this.localMutations, ctx
 			)
 		);
 	}

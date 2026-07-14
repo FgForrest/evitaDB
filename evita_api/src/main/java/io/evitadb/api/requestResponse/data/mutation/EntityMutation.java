@@ -104,7 +104,6 @@ public non-sealed interface EntityMutation extends CatalogBoundMutation {
 	 * @param entityType       the type of the entity for which the conflict keys are generated, must not be null
 	 * @param entityPrimaryKey the primary key of the entity, may be null
 	 * @param localMutations   the list of local mutations to process, must not be null
-	 * @param conflictPolicies the set of conflict policies to consider, must not be null
 	 * @param context          the conflict generation context to use during processing, must not be null
 	 * @return a stream of {@link ConflictKey} objects representing the resolved conflict keys
 	 */
@@ -113,7 +112,6 @@ public non-sealed interface EntityMutation extends CatalogBoundMutation {
 		@Nonnull String entityType,
 		@Nullable Integer entityPrimaryKey,
 		@Nonnull List<? extends LocalMutation<?, ?>> localMutations,
-		@Nonnull Set<ConflictPolicy> conflictPolicies,
 		@Nonnull ConflictGenerationContext context
 	) {
 		final Stream.Builder<ConflictKey> keys = Stream.builder();
@@ -123,7 +121,7 @@ public non-sealed interface EntityMutation extends CatalogBoundMutation {
 			boolean keyAdded = false;
 
 			// Avoid lambda and AtomicBoolean: iterate directly
-			final Iterator<ConflictKey> it = localMutation.collectConflictKeys(context, conflictPolicies).iterator();
+			final Iterator<ConflictKey> it = localMutation.collectConflictKeys(context).iterator();
 			while (it.hasNext()) {
 				keys.add(it.next());
 				keyAdded = true;
@@ -135,14 +133,15 @@ public non-sealed interface EntityMutation extends CatalogBoundMutation {
 		// If any mutation didn't produce a key and ENTITY policy is enabled,
 		// add the fallback entity conflict key directly into the same builder.
 		if (atLeastOneKeyMissing) {
+			final ConflictPolicy coarsePolicy = context.coarsePolicy();
 			if (entityPrimaryKey == null) {
-				if (conflictPolicies.contains(ConflictPolicy.COLLECTION)) {
+				if (coarsePolicy == ConflictPolicy.COLLECTION) {
 					keys.add(new CollectionConflictKey(entityType));
 				}
 			} else {
-				if (conflictPolicies.contains(ConflictPolicy.ENTITY)) {
+				if (coarsePolicy == ConflictPolicy.ENTITY) {
 					keys.add(new EntityConflictKey(entityType, entityPrimaryKey));
-				} else if (conflictPolicies.contains(ConflictPolicy.COLLECTION)) {
+				} else if (coarsePolicy == ConflictPolicy.COLLECTION) {
 					keys.add(new CollectionConflictKey(entityType));
 				}
 			}

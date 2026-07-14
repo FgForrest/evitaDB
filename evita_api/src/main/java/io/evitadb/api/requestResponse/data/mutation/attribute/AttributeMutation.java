@@ -99,10 +99,9 @@ public abstract class AttributeMutation implements NamedLocalMutation<AttributeV
 	@Nonnull
 	@Override
 	public Stream<ConflictKey> collectConflictKeys(
-		@Nonnull ConflictGenerationContext context,
-		@Nonnull Set<ConflictPolicy> conflictPolicies
+		@Nonnull ConflictGenerationContext context
 	) {
-		return conflictPolicies.contains(ConflictPolicy.ENTITY_ATTRIBUTE) && context.getEntityPrimaryKey() != null ?
+		return context.shouldEmitEntityAttributeKey(this.attributeKey.attributeName()) && context.getEntityPrimaryKey() != null ?
 			Stream.of(
 				new AttributeConflictKey(
 					context.getEntityType(),

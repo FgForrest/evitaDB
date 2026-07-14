@@ -58,7 +58,7 @@ import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
 import io.evitadb.api.requestResponse.mutation.CatalogBoundMutation;
 import io.evitadb.api.requestResponse.mutation.EngineMutation;
 import io.evitadb.api.requestResponse.mutation.Mutation;
-import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolution;
 import io.evitadb.api.requestResponse.mutation.infrastructure.TransactionMutation;
 import io.evitadb.api.requestResponse.progress.ProgressingFuture;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
@@ -1965,13 +1965,13 @@ public final class Catalog
 	}
 
 	/**
-	 * Retrieves the set of conflict policies associated with the transaction configuration.
+	 * Retrieves the effective conflict resolution associated with the transaction configuration.
 	 *
-	 * @return a non-null set of ConflictPolicy objects representing the conflict policies.
+	 * @return a non-null {@link ConflictResolution} representing the effective conflict resolution.
 	 */
 	@Nonnull
-	public Set<ConflictPolicy> getConflictPolicy() {
-		return this.transactionManager.getConflictPolicy();
+	public ConflictResolution getConflictResolution() {
+		return this.transactionManager.getConflictResolution();
 	}
 
 	/**

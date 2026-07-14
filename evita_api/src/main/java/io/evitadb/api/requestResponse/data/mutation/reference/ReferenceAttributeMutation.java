@@ -38,7 +38,6 @@ import io.evitadb.api.requestResponse.data.structure.ExistingReferenceAttributes
 import io.evitadb.api.requestResponse.data.structure.Reference;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictGenerationContext;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
-import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
 import io.evitadb.api.requestResponse.mutation.conflict.ReferenceAttributeConflictKey;
 import io.evitadb.api.requestResponse.mutation.conflict.ReferenceAttributeDeltaConflictKey;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
@@ -57,7 +56,6 @@ import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
 
@@ -117,11 +115,10 @@ public class ReferenceAttributeMutation extends ReferenceMutation<ReferenceKeyWi
 	@Nonnull
 	@Override
 	public Stream<ConflictKey> collectConflictKeys(
-		@Nonnull ConflictGenerationContext context,
-		@Nonnull Set<ConflictPolicy> conflictPolicies
+		@Nonnull ConflictGenerationContext context
 	) {
         if (this.attributeMutation instanceof ApplyDeltaAttributeMutation<?> adam) {
-            return conflictPolicies.contains(ConflictPolicy.REFERENCE_ATTRIBUTE) ?
+            return context.shouldEmitReferenceAttributeKey(this.referenceKey.referenceName(), this.attributeKey.attributeName()) ?
                 Stream.of(
                     new ReferenceAttributeDeltaConflictKey(
                         context.getEntityType(),
@@ -134,7 +131,7 @@ public class ReferenceAttributeMutation extends ReferenceMutation<ReferenceKeyWi
                 ) :
                 Stream.empty();
         } else {
-            return conflictPolicies.contains(ConflictPolicy.REFERENCE_ATTRIBUTE) && context.getEntityPrimaryKey() != null ?
+            return context.shouldEmitReferenceAttributeKey(this.referenceKey.referenceName(), this.attributeKey.attributeName()) && context.getEntityPrimaryKey() != null ?
                 Stream.of(
                     new ReferenceAttributeConflictKey(
                         context.getEntityType(),

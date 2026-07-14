@@ -30,6 +30,7 @@ import io.evitadb.api.requestResponse.data.mutation.EntityUpsertMutation;
 import io.evitadb.api.requestResponse.data.mutation.attribute.UpsertAttributeMutation;
 import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolution;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.CreateAttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
 import io.evitadb.core.executor.Scheduler;
@@ -106,7 +107,7 @@ class DefaultIsolatedWalServiceTest implements EvitaTestSupport {
 	private final DefaultIsolatedWalService tested = new DefaultIsolatedWalService(
 		TEST_CATALOG,
 		this.transactionId,
-		EnumSet.noneOf(ConflictPolicy.class),
+		new ConflictResolution(ConflictPolicy.NONE),
 		this.kryo,
 		this.writeHandle
 	);

@@ -2040,7 +2040,7 @@ public class DefaultCatalogPersistenceService
 		return new DefaultIsolatedWalService(
 			this.catalogName,
 			transactionId,
-			this.storageSettings.conflictPolicy().toLegacyPolicySet(),
+			this.storageSettings.conflictPolicy(),
 			this.walKryoPool.obtain(),
 			new WriteOnlyOffHeapWithFileBackupHandle(
 				this.storageSettings.transactionWorkDirectory()

@@ -27,6 +27,7 @@ import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.mutation.conflict.CollectionConflictKey;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictGenerationContext;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolution;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -278,9 +279,9 @@ class ModifyEntitySchemaMutationTest {
 			final ModifyEntitySchemaMutation mutation = new ModifyEntitySchemaMutation(
 				"product", new SetAttributeSchemaFilterableMutation("attr", true)
 			);
-			final List<ConflictKey> keys = new ConflictGenerationContext().withEntityType(
+			final List<ConflictKey> keys = new ConflictGenerationContext(ConflictResolution.fromLegacyPolicySet(Set.of())).withEntityType(
 				"product", null,
-				ctx -> mutation.collectConflictKeys(ctx, Set.of()).toList()
+				ctx -> mutation.collectConflictKeys(ctx).toList()
 			);
 			assertEquals(1, keys.size());
 			assertInstanceOf(CollectionConflictKey.class, keys.get(0));

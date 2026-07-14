@@ -41,10 +41,10 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Verifies the invariants and the legacy write-direction bridge of the {@link ConflictResolution} value object. The
- * read-direction bridge ({@link ConflictResolution#fromLegacyPolicySet}) is already covered through the YAML
- * deserializer, so this test focuses on the parts nothing else reaches: the granularity-implies-entity invariant, the
- * null-granularity normalization, and {@link ConflictResolution#toLegacyPolicySet()}.
+ * Verifies the invariants of the {@link ConflictResolution} value object. The legacy read-direction bridge
+ * ({@link ConflictResolution#fromLegacyPolicySet}) is already covered through the YAML deserializer, so this test
+ * focuses on the parts nothing else reaches: the granularity-implies-entity invariant and the null-granularity
+ * normalization.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
@@ -93,46 +93,6 @@ class ConflictResolutionTest {
 		final ConflictResolution resolution = new ConflictResolution(ConflictPolicy.CATALOG);
 		assertFalse(resolution.hasGranularity());
 		assertTrue(resolution.granularity().isEmpty());
-	}
-
-	@Test
-	@DisplayName("should flatten a NONE policy to an empty legacy set")
-	void shouldFlattenNoneToEmptyLegacySet() {
-		assertEquals(
-			EnumSet.noneOf(ConflictPolicy.class),
-			new ConflictResolution(ConflictPolicy.NONE).toLegacyPolicySet()
-		);
-	}
-
-	@Test
-	@DisplayName("should flatten a coarse catalog policy to a singleton legacy set")
-	void shouldFlattenCatalogToSingletonLegacySet() {
-		assertEquals(
-			EnumSet.of(ConflictPolicy.CATALOG),
-			new ConflictResolution(ConflictPolicy.CATALOG).toLegacyPolicySet()
-		);
-	}
-
-	@Test
-	@DisplayName("should flatten a coarse collection policy to a singleton legacy set")
-	void shouldFlattenCollectionToSingletonLegacySet() {
-		assertEquals(
-			EnumSet.of(ConflictPolicy.COLLECTION),
-			new ConflictResolution(ConflictPolicy.COLLECTION).toLegacyPolicySet()
-		);
-	}
-
-	@Test
-	@DisplayName("should flatten an entity policy with granularity to entity plus the granular constants")
-	void shouldFlattenEntityWithGranularityToLegacySet() {
-		final ConflictResolution resolution = new ConflictResolution(
-			ConflictPolicy.ENTITY,
-			EnumSet.of(GranularConflictPolicy.ENTITY_ATTRIBUTE, GranularConflictPolicy.PRICE)
-		);
-		assertEquals(
-			EnumSet.of(ConflictPolicy.ENTITY, ConflictPolicy.ENTITY_ATTRIBUTE, ConflictPolicy.PRICE),
-			resolution.toLegacyPolicySet()
-		);
 	}
 
 }

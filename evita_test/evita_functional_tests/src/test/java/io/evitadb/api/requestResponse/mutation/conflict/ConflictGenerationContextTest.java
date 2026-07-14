@@ -51,7 +51,7 @@ class ConflictGenerationContextTest implements EvitaTestSupport {
 		@Test
 		@DisplayName("should provide catalog name within scope")
 		void shouldProvideCatalogNameWithinScope() {
-			final ConflictGenerationContext context = new ConflictGenerationContext();
+			final ConflictGenerationContext context = new ConflictGenerationContext(new ConflictResolution(ConflictPolicy.ENTITY));
 
 			final String result = context.withCatalogName("testCatalog", ctx -> {
 				assertEquals("testCatalog", ctx.getCatalogName());
@@ -64,7 +64,7 @@ class ConflictGenerationContextTest implements EvitaTestSupport {
 		@Test
 		@DisplayName("should clear catalog name after scope")
 		void shouldClearCatalogNameAfterScope() {
-			final ConflictGenerationContext context = new ConflictGenerationContext();
+			final ConflictGenerationContext context = new ConflictGenerationContext(new ConflictResolution(ConflictPolicy.ENTITY));
 
 			context.withCatalogName("testCatalog", ctx -> "done");
 
@@ -74,7 +74,7 @@ class ConflictGenerationContextTest implements EvitaTestSupport {
 		@Test
 		@DisplayName("should clear catalog name on exception")
 		void shouldClearCatalogNameOnException() {
-			final ConflictGenerationContext context = new ConflictGenerationContext();
+			final ConflictGenerationContext context = new ConflictGenerationContext(new ConflictResolution(ConflictPolicy.ENTITY));
 
 			assertThrows(RuntimeException.class, () ->
 				context.withCatalogName("testCatalog", ctx -> {
@@ -88,7 +88,7 @@ class ConflictGenerationContextTest implements EvitaTestSupport {
 		@Test
 		@DisplayName("should throw when catalog name is not set")
 		void shouldThrowWhenCatalogNameIsNotSet() {
-			final ConflictGenerationContext context = new ConflictGenerationContext();
+			final ConflictGenerationContext context = new ConflictGenerationContext(new ConflictResolution(ConflictPolicy.ENTITY));
 
 			assertThrows(GenericEvitaInternalError.class, context::getCatalogName);
 		}
@@ -101,7 +101,7 @@ class ConflictGenerationContextTest implements EvitaTestSupport {
 		@Test
 		@DisplayName("should provide entity type and primary key within scope")
 		void shouldProvideEntityTypeAndPrimaryKeyWithinScope() {
-			final ConflictGenerationContext context = new ConflictGenerationContext();
+			final ConflictGenerationContext context = new ConflictGenerationContext(new ConflictResolution(ConflictPolicy.ENTITY));
 
 			final String result = context.withEntityType("Product", 42, ctx -> {
 				assertEquals("Product", ctx.getEntityType());
@@ -116,7 +116,7 @@ class ConflictGenerationContextTest implements EvitaTestSupport {
 		@Test
 		@DisplayName("should allow null primary key")
 		void shouldAllowNullPrimaryKey() {
-			final ConflictGenerationContext context = new ConflictGenerationContext();
+			final ConflictGenerationContext context = new ConflictGenerationContext(new ConflictResolution(ConflictPolicy.ENTITY));
 
 			context.withEntityType("Product", null, ctx -> {
 				assertEquals("Product", ctx.getEntityType());
@@ -128,7 +128,7 @@ class ConflictGenerationContextTest implements EvitaTestSupport {
 		@Test
 		@DisplayName("should clear entity type after scope")
 		void shouldClearEntityTypeAfterScope() {
-			final ConflictGenerationContext context = new ConflictGenerationContext();
+			final ConflictGenerationContext context = new ConflictGenerationContext(new ConflictResolution(ConflictPolicy.ENTITY));
 
 			context.withEntityType("Product", 42, ctx -> "done");
 
@@ -140,7 +140,7 @@ class ConflictGenerationContextTest implements EvitaTestSupport {
 		@Test
 		@DisplayName("should clear entity type on exception")
 		void shouldClearEntityTypeOnException() {
-			final ConflictGenerationContext context = new ConflictGenerationContext();
+			final ConflictGenerationContext context = new ConflictGenerationContext(new ConflictResolution(ConflictPolicy.ENTITY));
 
 			assertThrows(RuntimeException.class, () ->
 				context.withEntityType("Product", 42, ctx -> {
@@ -155,7 +155,7 @@ class ConflictGenerationContextTest implements EvitaTestSupport {
 		@Test
 		@DisplayName("should throw when entity type is not set")
 		void shouldThrowWhenEntityTypeIsNotSet() {
-			final ConflictGenerationContext context = new ConflictGenerationContext();
+			final ConflictGenerationContext context = new ConflictGenerationContext(new ConflictResolution(ConflictPolicy.ENTITY));
 
 			assertThrows(GenericEvitaInternalError.class, context::getEntityType);
 		}
@@ -163,7 +163,7 @@ class ConflictGenerationContextTest implements EvitaTestSupport {
 		@Test
 		@DisplayName("should report entity type not present initially")
 		void shouldReportEntityTypeNotPresentInitially() {
-			final ConflictGenerationContext context = new ConflictGenerationContext();
+			final ConflictGenerationContext context = new ConflictGenerationContext(new ConflictResolution(ConflictPolicy.ENTITY));
 
 			assertFalse(context.isEntityTypePresent());
 		}
@@ -176,7 +176,7 @@ class ConflictGenerationContextTest implements EvitaTestSupport {
 		@Test
 		@DisplayName("should support catalog and entity nesting")
 		void shouldSupportCatalogAndEntityNesting() {
-			final ConflictGenerationContext context = new ConflictGenerationContext();
+			final ConflictGenerationContext context = new ConflictGenerationContext(new ConflictResolution(ConflictPolicy.ENTITY));
 
 			final String result = context.withCatalogName("testCatalog", catalogCtx ->
 				catalogCtx.withEntityType("Product", 42, entityCtx -> {
@@ -193,7 +193,7 @@ class ConflictGenerationContextTest implements EvitaTestSupport {
 		@Test
 		@DisplayName("should preserve catalog name when entity scope exits")
 		void shouldPreserveCatalogNameWhenEntityScopeExits() {
-			final ConflictGenerationContext context = new ConflictGenerationContext();
+			final ConflictGenerationContext context = new ConflictGenerationContext(new ConflictResolution(ConflictPolicy.ENTITY));
 
 			context.withCatalogName("testCatalog", catalogCtx -> {
 				catalogCtx.withEntityType("Product", 42, entityCtx -> "done");
@@ -208,7 +208,7 @@ class ConflictGenerationContextTest implements EvitaTestSupport {
 		@Test
 		@DisplayName("should support multiple entity types within catalog scope")
 		void shouldSupportMultipleEntityTypesWithinCatalogScope() {
-			final ConflictGenerationContext context = new ConflictGenerationContext();
+			final ConflictGenerationContext context = new ConflictGenerationContext(new ConflictResolution(ConflictPolicy.ENTITY));
 
 			context.withCatalogName("testCatalog", catalogCtx -> {
 				catalogCtx.withEntityType("Product", 1, entityCtx -> {

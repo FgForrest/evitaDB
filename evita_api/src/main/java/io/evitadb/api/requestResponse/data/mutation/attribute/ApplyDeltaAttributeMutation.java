@@ -31,7 +31,6 @@ import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.mutation.conflict.AttributeDeltaConflictKey;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictGenerationContext;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
-import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.dataType.NumberRange;
 import io.evitadb.utils.Assert;
@@ -43,7 +42,6 @@ import javax.annotation.Nullable;
 import java.io.Serial;
 import java.math.BigDecimal;
 import java.util.Locale;
-import java.util.Set;
 import java.util.stream.Stream;
 
 /**
@@ -189,10 +187,9 @@ public class ApplyDeltaAttributeMutation<T extends Number> extends AttributeSche
 	@Nonnull
 	@Override
 	public Stream<ConflictKey> collectConflictKeys(
-		@Nonnull ConflictGenerationContext context,
-		@Nonnull Set<ConflictPolicy> conflictPolicies
+		@Nonnull ConflictGenerationContext context
 	) {
-		return conflictPolicies.contains(ConflictPolicy.ENTITY_ATTRIBUTE) ?
+		return context.shouldEmitEntityAttributeKey(this.attributeKey.attributeName()) ?
 			Stream.of(
 				new AttributeDeltaConflictKey(
 					context.getEntityType(),

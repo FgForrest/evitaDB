@@ -30,6 +30,7 @@ import io.evitadb.api.requestResponse.mutation.conflict.CatalogConflictKey;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictGenerationContext;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolution;
 import io.evitadb.core.transaction.stage.mutation.ServerEntityMutation;
 import io.evitadb.dataType.array.CompositeObjectArray;
 import io.evitadb.spi.store.catalog.wal.IsolatedWalPersistenceService;
@@ -40,7 +41,6 @@ import io.evitadb.utils.CollectionUtils;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
-import java.util.EnumSet;
 import java.util.Iterator;
 import java.util.Set;
 import java.util.UUID;
@@ -60,9 +60,9 @@ public class DefaultIsolatedWalService implements IsolatedWalPersistenceService 
 	 */
 	@Nonnull private final String catalogName;
 	/**
-	 * The set of conflict policies that are considered when collecting conflict keys.
+	 * The effective conflict resolution that is considered when collecting conflict keys.
 	 */
-	@Nonnull private final EnumSet<ConflictPolicy> conflictPolicy;
+	@Nonnull private final ConflictResolution conflictResolution;
 	/**
 	 * The transactionId is the unique identifier for the transaction.
 	 */
@@ -91,13 +91,13 @@ public class DefaultIsolatedWalService implements IsolatedWalPersistenceService 
 	public DefaultIsolatedWalService(
 		@Nonnull String catalogName,
 		@Nonnull UUID transactionId,
-		@Nonnull EnumSet<ConflictPolicy> conflictPolicy,
+		@Nonnull ConflictResolution conflictResolution,
 		@Nonnull Kryo writeKryo,
 		@Nonnull WriteOnlyOffHeapWithFileBackupHandle writeHandle
 	) {
 		this.catalogName = catalogName;
 		this.transactionId = transactionId;
-		this.conflictPolicy = conflictPolicy;
+		this.conflictResolution = conflictResolution;
 		this.writeKryo = writeKryo;
 		this.writeHandle = writeHandle;
 	}
@@ -111,10 +111,10 @@ public class DefaultIsolatedWalService implements IsolatedWalPersistenceService 
 				final Mutation mutationToWrite = mutation instanceof ServerEntityMutation sem ?
 					sem.getDelegate() : mutation;
 				// collect conflict keys
-				final ConflictGenerationContext context = new ConflictGenerationContext();
+				final ConflictGenerationContext context = new ConflictGenerationContext(this.conflictResolution);
 				final Iterator<ConflictKey> it = context.withCatalogName(
 					this.catalogName,
-					ctx -> mutationToWrite.collectConflictKeys(ctx, this.conflictPolicy)
+					mutationToWrite::collectConflictKeys
 				).iterator();
 				// register collected conflict keys
 				boolean conflictKeyCollected = false;
@@ -123,7 +123,7 @@ public class DefaultIsolatedWalService implements IsolatedWalPersistenceService 
 					conflictKeyCollected = true;
 				}
 				// register catalog conflict key if none collected and catalog policy is requested
-				if (!conflictKeyCollected && this.conflictPolicy.contains(ConflictPolicy.CATALOG)) {
+				if (!conflictKeyCollected && this.conflictResolution.policy() == ConflictPolicy.CATALOG) {
 					this.conflictKeys.add(new CatalogConflictKey(this.catalogName));
 				}
 				// write the mutation
@@ -153,7 +153,7 @@ public class DefaultIsolatedWalService implements IsolatedWalPersistenceService 
 		for (ConflictKey conflictKey : this.conflictKeys) {
 			resultConflictKeys.add(conflictKey);
 		}
-		if (resultConflictKeys.isEmpty() && this.conflictPolicy.contains(ConflictPolicy.CATALOG)) {
+		if (resultConflictKeys.isEmpty() && this.conflictResolution.policy() == ConflictPolicy.CATALOG) {
 			// at least catalog conflict key must be present
 			resultConflictKeys.add(new CatalogConflictKey(this.catalogName));
 		}

@@ -42,7 +42,7 @@ import io.evitadb.api.requestResponse.mutation.conflict.AttributeDeltaConflictKe
 import io.evitadb.api.requestResponse.mutation.conflict.CommutativeConflictKey;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictGenerationContext;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
-import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolution;
 import io.evitadb.api.requestResponse.mutation.conflict.ReferenceAttributeDeltaConflictKey;
 import io.evitadb.api.requestResponse.mutation.infrastructure.TransactionMutation;
 import io.evitadb.api.requestResponse.progress.ProgressingFuture;
@@ -239,9 +239,9 @@ public class TransactionManager implements Closeable {
 	 */
 	private final ConflictRingBuffer conflictRingBuffer;
 	/**
-	 * Set of conflict policies that are used in this transaction manager.
+	 * Effective conflict resolution that is used in this transaction manager.
 	 */
-	private final EnumSet<ConflictPolicy> conflictPolicy;
+	private final ConflictResolution conflictResolution;
 	/**
 	 * Indicates whether any of the conflict policies is granular.
 	 */
@@ -335,8 +335,8 @@ public class TransactionManager implements Closeable {
 	) {
 		this.evita = evita;
 		this.configuration = evita.getConfiguration();
-		this.conflictPolicy = this.configuration.transaction().conflictPolicy().toLegacyPolicySet();
-		this.granularConflictPolicy = this.conflictPolicy.stream().anyMatch(ConflictPolicy::isGranular);
+		this.conflictResolution = this.configuration.transaction().conflictPolicy();
+		this.granularConflictPolicy = this.conflictResolution.hasGranularity();
 		this.requestExecutor = requestExecutor;
 		this.transactionalExecutor = transactionalExecutor;
 		this.transactionalPipeline = createTransactionalPublisher();
@@ -853,7 +853,7 @@ public class TransactionManager implements Closeable {
         @Nullable Map<CommutativeConflictKey<?>, CommutativeConflictResolver<?>> aggregates,
 		@Nonnull CatalogVersionIndex until
 	) {
-		final ConflictGenerationContext context = new ConflictGenerationContext();
+		final ConflictGenerationContext context = new ConflictGenerationContext(this.conflictResolution);
         long livingCatalogVersion = theLivingCatalog.getVersion();
 		long processedCatalogVersion = catalogVersion;
 		final Iterator<CatalogBoundMutation> mutationIterator = getLivingCatalog()
@@ -876,7 +876,7 @@ public class TransactionManager implements Closeable {
 			}
 
 			final Iterator<ConflictKey> conflictKeyIterator = mutation
-				.collectConflictKeys(context, this.conflictPolicy)
+				.collectConflictKeys(context)
 				.iterator();
 			while (conflictKeyIterator.hasNext()) {
 				final ConflictKey conflictKey = conflictKeyIterator.next();
@@ -1319,13 +1319,13 @@ public class TransactionManager implements Closeable {
 	}
 
 	/**
-	 * Retrieves the set of conflict policies associated with the transaction configuration.
+	 * Retrieves the effective conflict resolution associated with the transaction configuration.
 	 *
-	 * @return a non-null set of ConflictPolicy objects representing the conflict policies.
+	 * @return a non-null {@link ConflictResolution} representing the effective conflict resolution.
 	 */
 	@Nonnull
-	public Set<ConflictPolicy> getConflictPolicy() {
-		return this.conflictPolicy;
+	public ConflictResolution getConflictResolution() {
+		return this.conflictResolution;
 	}
 
 	/**

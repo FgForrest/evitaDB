@@ -27,6 +27,7 @@ import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.mutation.conflict.CollectionConflictKey;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictGenerationContext;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolution;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
@@ -360,10 +361,10 @@ class AllowEvolutionModeInEntitySchemaMutationTest {
 				new AllowEvolutionModeInEntitySchemaMutation(
 					EvolutionMode.ADDING_LOCALES
 				);
-			final List<ConflictKey> keys = new ConflictGenerationContext()
+			final List<ConflictKey> keys = new ConflictGenerationContext(ConflictResolution.fromLegacyPolicySet(Set.of()))
 				.withEntityType(
 					"testEntity", null,
-					ctx -> mutation.collectConflictKeys(ctx, Set.of()).toList()
+					ctx -> mutation.collectConflictKeys(ctx).toList()
 				);
 			assertEquals(1, keys.size());
 			assertInstanceOf(CollectionConflictKey.class, keys.get(0));

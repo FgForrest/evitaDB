@@ -30,6 +30,8 @@ import io.evitadb.api.exception.TransactionTimedOutException;
 import io.evitadb.api.requestResponse.mutation.EngineMutation;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictGenerationContext;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolution;
 import io.evitadb.api.requestResponse.progress.Progress;
 import io.evitadb.api.requestResponse.progress.ProgressRecord;
 import io.evitadb.api.requestResponse.progress.ProgressingFuture;
@@ -58,7 +60,6 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Closeable;
 import java.nio.file.Path;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -303,8 +304,10 @@ public class EngineTransactionManager implements Closeable {
 					+ (this.wedgeReason == null ? "<unknown reason>" : this.wedgeReason)
 			);
 		}
+		// engine mutations are catalog-scoped and emit their fixed catalog conflict key regardless of the
+		// resolution; NONE mirrors the historical empty policy set passed here.
 		final Set<ConflictKey> conflictKeys = engineMutation.collectConflictKeys(
-				new ConflictGenerationContext(), Collections.emptySet()
+				new ConflictGenerationContext(new ConflictResolution(ConflictPolicy.NONE))
 			)
 			.collect(Collectors.toSet());
 

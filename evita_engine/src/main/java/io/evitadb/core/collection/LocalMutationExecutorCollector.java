@@ -295,7 +295,7 @@ class LocalMutationExecutorCollector {
 					// and this requires to fetch full entity body to compute all conflict keys
 					entityMutation = new EntityRemoveMutationWithConflictKeys(
 						erm,
-						this.catalog.getConflictPolicy(),
+						this.catalog.getConflictResolution(),
 						localMutations
 					);
 				}
@@ -488,7 +488,20 @@ class LocalMutationExecutorCollector {
 	private void rollback() {
 		// atomic, transaction-bound path: revert this root mutation's diff-layer changes via the savepoint while the
 		// surrounding transaction keeps running. Outside it (warm-up / WAL replay) there is no per-entity rollback.
-		if (this.savepoint != null) {
+		rollbackOpenSavepoint();
+	}
+
+	/**
+	 * Rolls back the currently open savepoint (if any) and clears the savepoint bookkeeping so it cannot dangle into
+	 * later finalization. A failure of the rollback itself is non-fatal: it is attached to {@link #exception} as a
+	 * suppressed cause rather than propagated, and the savepoint fields are cleared unconditionally in a
+	 * {@code finally} block.
+	 *
+	 * The caller must have already set {@link #exception} to a non-null value, because a rollback failure is recorded
+	 * against it.
+	 */
+	private void rollbackOpenSavepoint() {
+		if (this.savepoint != null && this.savepointMaintainer != null) {
 			try {
 				this.savepointMaintainer.rollbackSavepoint(this.savepoint);
 			} catch (RuntimeException rollbackEx) {
@@ -527,7 +540,7 @@ class LocalMutationExecutorCollector {
 				});
 			// the root mutation succeeded — accept the savepoint: its bookkeeping is dropped and all changes
 			// made while it was open remain part of the transaction (no diff layer is modified)
-			if (this.savepoint != null) {
+			if (this.savepoint != null && this.savepointMaintainer != null) {
 				this.savepointMaintainer.commitSavepoint(this.savepoint);
 				this.savepoint = null;
 				this.savepointMaintainer = null;
@@ -537,16 +550,7 @@ class LocalMutationExecutorCollector {
 			// the commit failed - the whole transaction will be rolled back; release the still-open savepoint so it
 			// does not dangle into the transaction-level finalization (reverting its diff layers here is harmless,
 			// they are discarded with the transaction anyway)
-			if (this.savepoint != null) {
-				try {
-					this.savepointMaintainer.rollbackSavepoint(this.savepoint);
-				} catch (RuntimeException rollbackEx) {
-					this.exception.addSuppressed(rollbackEx);
-				} finally {
-					this.savepoint = null;
-					this.savepointMaintainer = null;
-				}
-			}
+			rollbackOpenSavepoint();
 		}
 	}
 
