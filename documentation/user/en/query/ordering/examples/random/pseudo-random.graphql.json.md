@@ -11,117 +11,117 @@
             }
           },
           {
-            "primaryKey" : 110080,
+            "primaryKey" : 108675,
             "attributes" : {
-              "code" : "lenovo-thinkpad-x1-carbon"
+              "code" : "acer-aspire-5-13"
             }
           },
           {
-            "primaryKey" : 107165,
+            "primaryKey" : 110945,
             "attributes" : {
-              "code" : "oppo-a52s"
+              "code" : "msi-gp66-10ug-leopard-5"
             }
           },
           {
-            "primaryKey" : 108228,
+            "primaryKey" : 107038,
             "attributes" : {
-              "code" : "apple-watch-series-7-45mm-cellular"
+              "code" : "oneplus-10-pro-1"
             }
           },
           {
-            "primaryKey" : 109192,
+            "primaryKey" : 110852,
             "attributes" : {
-              "code" : "asus-tuf-gaming-a15-5"
+              "code" : "msi-gl65-9sdk-4"
             }
           },
           {
-            "primaryKey" : 107103,
+            "primaryKey" : 106493,
             "attributes" : {
-              "code" : "oneplus-nord-2-1"
+              "code" : "bbk-vivo-y11s-1"
             }
           },
           {
-            "primaryKey" : 110135,
+            "primaryKey" : 106214,
             "attributes" : {
-              "code" : "lenovo-yoga-c740-1"
+              "code" : "apple-iphone-13-mini-3"
             }
           },
           {
-            "primaryKey" : 113880,
+            "primaryKey" : 109223,
             "attributes" : {
-              "code" : "voucher-5-000"
+              "code" : "asus-tuf-gaming-f17-5"
             }
           },
           {
-            "primaryKey" : 109113,
+            "primaryKey" : 106204,
             "attributes" : {
-              "code" : "asus-rog-strix-scar-17-5"
+              "code" : "apple-iphone-12-pro-max-12"
             }
           },
           {
-            "primaryKey" : 108926,
+            "primaryKey" : 109950,
             "attributes" : {
-              "code" : "acer-swift-3x"
+              "code" : "lenovo-thinkpad-l14-1"
             }
           },
           {
-            "primaryKey" : 109875,
+            "primaryKey" : 110741,
             "attributes" : {
-              "code" : "lenovo-ideapad-l340-gaming-17"
+              "code" : "msi-gf75-10scsr-thin-5"
             }
           },
           {
-            "primaryKey" : 111492,
+            "primaryKey" : 107119,
             "attributes" : {
-              "code" : "msi-workstation-ws65-9tm-1"
+              "code" : "oneplus-nord-ce-4"
             }
           },
           {
-            "primaryKey" : 106011,
+            "primaryKey" : 109863,
             "attributes" : {
-              "code" : "samsung-galaxy-tab-s8-11-2022-8"
+              "code" : "lenovo-ideapad-l340-4"
             }
           },
           {
-            "primaryKey" : 106938,
+            "primaryKey" : 109435,
             "attributes" : {
-              "code" : "motorola-moto-g-stylus-1"
+              "code" : "fujitsu-lifebook-e5411-1"
             }
           },
           {
-            "primaryKey" : 66650,
+            "primaryKey" : 109065,
             "attributes" : {
-              "code" : "macbook-pro-16-2021-23"
+              "code" : "asus-rog-flow-z13-5"
             }
           },
           {
-            "primaryKey" : 107802,
+            "primaryKey" : 109355,
             "attributes" : {
-              "code" : "xiaomi-redmi-note-11-pro-plus"
+              "code" : "asus-zenbook-13-oled-5"
             }
           },
           {
-            "primaryKey" : 110273,
+            "primaryKey" : 107934,
             "attributes" : {
-              "code" : "msi-creator-15-a10sdt-5"
+              "code" : "amazfit-bip-u-1"
             }
           },
           {
-            "primaryKey" : 106545,
+            "primaryKey" : 110364,
             "attributes" : {
-              "code" : "cubot-x20-3"
+              "code" : "msi-creator-m16-a12uc-1"
             }
           },
           {
-            "primaryKey" : 66615,
+            "primaryKey" : 109302,
             "attributes" : {
-              "code" : "macbook-pro-14-2021-30"
+              "code" : "asus-vivobook-pro-15-oled-3"
             }
           },
           {
-            "primaryKey" : 112838,
+            "primaryKey" : 105755,
             "attributes" : {
-              "code" : "adidas-z-n-e-01-anc"
+              "code" : "apple-ipad-mini-6th-generation-2021-16"
             }
           }
         ]

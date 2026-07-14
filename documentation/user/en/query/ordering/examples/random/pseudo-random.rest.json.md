@@ -19,39 +19,7 @@
         }
       },
       {
-        "primaryKey" : 110080,
-        "type" : "Product",
-        "version" : 2,
-        "scope" : "LIVE",
-        "allLocales" : [
-          "cs",
-          "de",
-          "en"
-        ],
-        "attributes" : {
-          "global" : {
-            "code" : "lenovo-thinkpad-x1-carbon"
-          }
-        }
-      },
-      {
-        "primaryKey" : 107165,
-        "type" : "Product",
-        "version" : 2,
-        "scope" : "LIVE",
-        "allLocales" : [
-          "cs",
-          "de",
-          "en"
-        ],
-        "attributes" : {
-          "global" : {
-            "code" : "oppo-a52s"
-          }
-        }
-      },
-      {
-        "primaryKey" : 108228,
+        "primaryKey" : 108675,
         "type" : "Product",
         "version" : 1,
         "scope" : "LIVE",
@@ -62,12 +30,12 @@
         ],
         "attributes" : {
           "global" : {
-            "code" : "apple-watch-series-7-45mm-cellular"
+            "code" : "acer-aspire-5-13"
           }
         }
       },
       {
-        "primaryKey" : 109192,
+        "primaryKey" : 110945,
         "type" : "Product",
         "version" : 1,
         "scope" : "LIVE",
@@ -78,12 +46,12 @@
         ],
         "attributes" : {
           "global" : {
-            "code" : "asus-tuf-gaming-a15-5"
+            "code" : "msi-gp66-10ug-leopard-5"
           }
         }
       },
       {
-        "primaryKey" : 107103,
+        "primaryKey" : 107038,
         "type" : "Product",
         "version" : 1,
         "scope" : "LIVE",
@@ -94,12 +62,12 @@
         ],
         "attributes" : {
           "global" : {
-            "code" : "oneplus-nord-2-1"
+            "code" : "oneplus-10-pro-1"
           }
         }
       },
       {
-        "primaryKey" : 110135,
+        "primaryKey" : 110852,
         "type" : "Product",
         "version" : 1,
         "scope" : "LIVE",
@@ -110,12 +78,12 @@
         ],
         "attributes" : {
           "global" : {
-            "code" : "lenovo-yoga-c740-1"
+            "code" : "msi-gl65-9sdk-4"
           }
         }
       },
       {
-        "primaryKey" : 113880,
+        "primaryKey" : 106493,
         "type" : "Product",
         "version" : 1,
         "scope" : "LIVE",
@@ -126,12 +94,12 @@
         ],
         "attributes" : {
           "global" : {
-            "code" : "voucher-5-000"
+            "code" : "bbk-vivo-y11s-1"
           }
         }
       },
       {
-        "primaryKey" : 109113,
+        "primaryKey" : 106214,
         "type" : "Product",
         "version" : 1,
         "scope" : "LIVE",
@@ -142,28 +110,12 @@
         ],
         "attributes" : {
           "global" : {
-            "code" : "asus-rog-strix-scar-17-5"
+            "code" : "apple-iphone-13-mini-3"
           }
         }
       },
       {
-        "primaryKey" : 108926,
-        "type" : "Product",
-        "version" : 2,
-        "scope" : "LIVE",
-        "allLocales" : [
-          "cs",
-          "de",
-          "en"
-        ],
-        "attributes" : {
-          "global" : {
-            "code" : "acer-swift-3x"
-          }
-        }
-      },
-      {
-        "primaryKey" : 109875,
+        "primaryKey" : 109223,
         "type" : "Product",
         "version" : 1,
         "scope" : "LIVE",
@@ -174,12 +126,12 @@
         ],
         "attributes" : {
           "global" : {
-            "code" : "lenovo-ideapad-l340-gaming-17"
+            "code" : "asus-tuf-gaming-f17-5"
           }
         }
       },
       {
-        "primaryKey" : 111492,
+        "primaryKey" : 106204,
         "type" : "Product",
         "version" : 1,
         "scope" : "LIVE",
@@ -190,12 +142,12 @@
         ],
         "attributes" : {
           "global" : {
-            "code" : "msi-workstation-ws65-9tm-1"
+            "code" : "apple-iphone-12-pro-max-12"
           }
         }
       },
       {
-        "primaryKey" : 106011,
+        "primaryKey" : 109950,
         "type" : "Product",
         "version" : 1,
         "scope" : "LIVE",
@@ -206,12 +158,12 @@
         ],
         "attributes" : {
           "global" : {
-            "code" : "samsung-galaxy-tab-s8-11-2022-8"
+            "code" : "lenovo-thinkpad-l14-1"
           }
         }
       },
       {
-        "primaryKey" : 106938,
+        "primaryKey" : 110741,
         "type" : "Product",
         "version" : 1,
         "scope" : "LIVE",
@@ -222,12 +174,12 @@
         ],
         "attributes" : {
           "global" : {
-            "code" : "motorola-moto-g-stylus-1"
+            "code" : "msi-gf75-10scsr-thin-5"
           }
         }
       },
       {
-        "primaryKey" : 66650,
+        "primaryKey" : 107119,
         "type" : "Product",
         "version" : 1,
         "scope" : "LIVE",
@@ -238,28 +190,12 @@
         ],
         "attributes" : {
           "global" : {
-            "code" : "macbook-pro-16-2021-23"
+            "code" : "oneplus-nord-ce-4"
           }
         }
       },
       {
-        "primaryKey" : 107802,
-        "type" : "Product",
-        "version" : 2,
-        "scope" : "LIVE",
-        "allLocales" : [
-          "cs",
-          "de",
-          "en"
-        ],
-        "attributes" : {
-          "global" : {
-            "code" : "xiaomi-redmi-note-11-pro-plus"
-          }
-        }
-      },
-      {
-        "primaryKey" : 110273,
+        "primaryKey" : 109863,
         "type" : "Product",
         "version" : 1,
         "scope" : "LIVE",
@@ -270,12 +206,12 @@
         ],
         "attributes" : {
           "global" : {
-            "code" : "msi-creator-15-a10sdt-5"
+            "code" : "lenovo-ideapad-l340-4"
           }
         }
       },
       {
-        "primaryKey" : 106545,
+        "primaryKey" : 109435,
         "type" : "Product",
         "version" : 1,
         "scope" : "LIVE",
@@ -286,12 +222,12 @@
         ],
         "attributes" : {
           "global" : {
-            "code" : "cubot-x20-3"
+            "code" : "fujitsu-lifebook-e5411-1"
           }
         }
       },
       {
-        "primaryKey" : 66615,
+        "primaryKey" : 109065,
         "type" : "Product",
         "version" : 1,
         "scope" : "LIVE",
@@ -302,12 +238,12 @@
         ],
         "attributes" : {
           "global" : {
-            "code" : "macbook-pro-14-2021-30"
+            "code" : "asus-rog-flow-z13-5"
           }
         }
       },
       {
-        "primaryKey" : 112838,
+        "primaryKey" : 109355,
         "type" : "Product",
         "version" : 1,
         "scope" : "LIVE",
@@ -318,7 +254,71 @@
         ],
         "attributes" : {
           "global" : {
-            "code" : "adidas-z-n-e-01-anc"
+            "code" : "asus-zenbook-13-oled-5"
+          }
+        }
+      },
+      {
+        "primaryKey" : 107934,
+        "type" : "Product",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
+          "cs",
+          "de",
+          "en"
+        ],
+        "attributes" : {
+          "global" : {
+            "code" : "amazfit-bip-u-1"
+          }
+        }
+      },
+      {
+        "primaryKey" : 110364,
+        "type" : "Product",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
+          "cs",
+          "de",
+          "en"
+        ],
+        "attributes" : {
+          "global" : {
+            "code" : "msi-creator-m16-a12uc-1"
+          }
+        }
+      },
+      {
+        "primaryKey" : 109302,
+        "type" : "Product",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
+          "cs",
+          "de",
+          "en"
+        ],
+        "attributes" : {
+          "global" : {
+            "code" : "asus-vivobook-pro-15-oled-3"
+          }
+        }
+      },
+      {
+        "primaryKey" : 105755,
+        "type" : "Product",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
+          "cs",
+          "de",
+          "en"
+        ],
+        "attributes" : {
+          "global" : {
+            "code" : "apple-ipad-mini-6th-generation-2021-16"
           }
         }
       }
