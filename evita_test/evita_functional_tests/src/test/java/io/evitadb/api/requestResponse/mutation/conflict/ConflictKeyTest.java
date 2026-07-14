@@ -560,6 +560,7 @@ class ConflictKeyTest implements EvitaTestSupport {
 		@Test
 		@DisplayName("should have correct granularity flags")
 		void shouldHaveCorrectGranularityFlags() {
+			assertFalse(ConflictPolicy.NONE.isGranular());
 			assertFalse(ConflictPolicy.CATALOG.isGranular());
 			assertFalse(ConflictPolicy.COLLECTION.isGranular());
 			assertFalse(ConflictPolicy.ENTITY.isGranular());
@@ -572,9 +573,115 @@ class ConflictKeyTest implements EvitaTestSupport {
 		}
 
 		@Test
-		@DisplayName("should have nine enum values")
-		void shouldHaveNineEnumValues() {
-			assertEquals(9, ConflictPolicy.values().length);
+		@DisplayName("should have ten enum values")
+		void shouldHaveTenEnumValues() {
+			assertEquals(10, ConflictPolicy.values().length);
+		}
+	}
+
+	@Nested
+	@DisplayName("parentConflictKey containment chain")
+	class ParentConflictKeyTest {
+
+		@Test
+		@DisplayName("catalog and collection keys sit at the top of the chain")
+		void shouldReturnNullAtTopOfChain() {
+			assertNull(new CatalogConflictKey("testCatalog").parentConflictKey());
+			assertNull(new CollectionConflictKey("Product").parentConflictKey());
+		}
+
+		@Test
+		@DisplayName("entity key is contained by its collection")
+		void shouldChainEntityToCollection() {
+			assertEquals(
+				new CollectionConflictKey("Product"),
+				new EntityConflictKey("Product", 1).parentConflictKey()
+			);
+		}
+
+		@Test
+		@DisplayName("entity-level granular keys are contained by their entity")
+		void shouldChainEntityLevelKeysToEntity() {
+			final EntityConflictKey expected = new EntityConflictKey("Product", 1);
+			assertEquals(expected, new AttributeConflictKey("Product", 1, "name").parentConflictKey());
+			assertEquals(expected, new AssociatedDataConflictKey("Product", 1, "gallery").parentConflictKey());
+			assertEquals(
+				expected,
+				new PriceConflictKey("Product", 1, 100, Currency.getInstance("EUR"), "basic").parentConflictKey()
+			);
+			assertEquals(expected, new PriceInnerRecordHandlingStrategyConflictKey("Product", 1).parentConflictKey());
+			assertEquals(expected, new HierarchyConflictKey("Product", 1).parentConflictKey());
+			assertEquals(expected, new ReferenceConflictKey("Product", 1, "brand", 10).parentConflictKey());
+		}
+
+		@Test
+		@DisplayName("reference attribute is contained by its reference")
+		void shouldChainReferenceAttributeToReference() {
+			assertEquals(
+				new ReferenceConflictKey("Product", 1, "brand", 10),
+				new ReferenceAttributeConflictKey("Product", 1, "brand", 10, "priority").parentConflictKey()
+			);
+		}
+
+		@Test
+		@DisplayName("attribute key walks up to the collection and terminates")
+		void shouldWalkAttributeChainToRoot() {
+			ConflictKey key = new AttributeConflictKey("Product", 1, "name");
+			key = key.parentConflictKey();
+			assertEquals(new EntityConflictKey("Product", 1), key);
+			key = key.parentConflictKey();
+			assertEquals(new CollectionConflictKey("Product"), key);
+			assertNull(key.parentConflictKey());
+		}
+
+		@Test
+		@DisplayName("reference-attribute key walks reference → entity → collection and terminates")
+		void shouldWalkReferenceAttributeChainToRoot() {
+			ConflictKey key = new ReferenceAttributeConflictKey("Product", 1, "brand", 10, "priority");
+			key = key.parentConflictKey();
+			assertEquals(new ReferenceConflictKey("Product", 1, "brand", 10), key);
+			key = key.parentConflictKey();
+			assertEquals(new EntityConflictKey("Product", 1), key);
+			key = key.parentConflictKey();
+			assertEquals(new CollectionConflictKey("Product"), key);
+			assertNull(key.parentConflictKey());
+		}
+
+		@Test
+		@DisplayName("attribute delta with known primary key reaches the absolute attribute key")
+		void shouldChainAttributeDeltaToAbsoluteAttribute() {
+			final AttributeDeltaConflictKey delta =
+				new AttributeDeltaConflictKey("Product", 1, new AttributeKey("stock"), 5, null);
+			assertEquals(new AttributeConflictKey("Product", 1, "stock"), delta.parentConflictKey());
+		}
+
+		@Test
+		@DisplayName("attribute delta without primary key falls back to the collection")
+		void shouldChainPklessAttributeDeltaToCollection() {
+			final AttributeDeltaConflictKey delta =
+				new AttributeDeltaConflictKey("Product", null, new AttributeKey("stock"), 5, null);
+			assertEquals(new CollectionConflictKey("Product"), delta.parentConflictKey());
+		}
+
+		@Test
+		@DisplayName("reference-attribute delta with known primary key reaches the absolute reference attribute key")
+		void shouldChainReferenceAttributeDeltaToAbsoluteReferenceAttribute() {
+			final ReferenceAttributeDeltaConflictKey delta = new ReferenceAttributeDeltaConflictKey(
+				"Product", 1, new ReferenceKey("brand", 10), new AttributeKey("priority"), 5, null
+			);
+			assertEquals(
+				new ReferenceAttributeConflictKey("Product", 1, "brand", 10, "priority"),
+				delta.parentConflictKey()
+			);
+		}
+
+		@Test
+		@DisplayName("reference-attribute delta without primary key falls back to the collection")
+		void shouldChainPklessReferenceAttributeDeltaToCollection() {
+			final ReferenceAttributeDeltaConflictKey delta = new ReferenceAttributeDeltaConflictKey(
+				"Product", null, new ReferenceKey("brand", 10), new AttributeKey("priority"), 5, null
+			);
+			assertEquals(new CollectionConflictKey("Product"), delta.parentConflictKey());
 		}
 	}
 }

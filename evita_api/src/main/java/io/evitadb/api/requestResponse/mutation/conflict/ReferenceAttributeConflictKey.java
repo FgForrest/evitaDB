@@ -41,6 +41,18 @@ public record ReferenceAttributeConflictKey(
 ) implements ConflictKey {
 
 	/**
+	 * A reference attribute is contained by its owning reference: any conflict on the whole reference implies a
+	 * conflict on this reference attribute.
+	 *
+	 * @return a {@link ReferenceConflictKey} for the owning reference
+	 */
+	@Nonnull
+	@Override
+	public ConflictKey parentConflictKey() {
+		return new ReferenceConflictKey(this.entityType, this.entityPrimaryKey, this.referenceName, this.referencePrimaryKey);
+	}
+
+	/**
 	 * Returns a concise, human-readable representation of this conflict key.
 	 *
 	 * @return non-null string representation

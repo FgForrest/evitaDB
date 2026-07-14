@@ -40,6 +40,18 @@ public record PriceInnerRecordHandlingStrategyConflictKey(
 ) implements ConflictKey {
 
 	/**
+	 * The price inner-record-handling strategy is contained by its owning entity: any entity-wide conflict implies a
+	 * conflict on this strategy.
+	 *
+	 * @return an {@link EntityConflictKey} for the owning entity
+	 */
+	@Nonnull
+	@Override
+	public ConflictKey parentConflictKey() {
+		return new EntityConflictKey(this.entityType, this.entityPrimaryKey);
+	}
+
+	/**
 	 * Returns a concise, human-readable representation of this conflict key.
 	 *
 	 * @return non-null string representation

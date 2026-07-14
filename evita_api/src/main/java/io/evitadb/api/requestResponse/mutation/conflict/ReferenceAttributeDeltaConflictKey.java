@@ -49,6 +49,31 @@ public record ReferenceAttributeDeltaConflictKey(
 	@Nullable NumberRange<?> allowedRange
 ) implements CommutativeConflictKey<Number> {
 
+    /**
+     * A range-constrained reference-attribute delta is contained by the absolute reference-attribute write it can
+     * conflict with: an unconditional overwrite of the same reference attribute invalidates the delta's
+     * post-application range guard, so the two must serialize. The owning {@link ReferenceAttributeConflictKey} is
+     * keyed by name only, so the delta's locale-bearing {@link AttributeKey} is projected to its name. When the entity
+     * primary key is not yet assigned (delta applied during entity creation) no entity- or reference-level key can be
+     * formed, so the finest derivable containing scope is the collection.
+     *
+     * @return a {@link ReferenceAttributeConflictKey} for the same reference attribute when the primary key is known,
+     *         otherwise a {@link CollectionConflictKey} for the entity's collection
+     */
+    @Nonnull
+    @Override
+    public ConflictKey parentConflictKey() {
+        return this.entityPrimaryKey == null ?
+            new CollectionConflictKey(this.entityType) :
+            new ReferenceAttributeConflictKey(
+                this.entityType,
+                this.entityPrimaryKey,
+                this.referenceKey.referenceName(),
+                this.referenceKey.primaryKey(),
+                this.attributeKey.attributeName()
+            );
+    }
+
     @Nonnull
     @Override
     public Number aggregate(@Nonnull Number one, @Nonnull Number two) {

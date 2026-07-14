@@ -44,6 +44,17 @@ public record PriceConflictKey(
 ) implements ConflictKey {
 
 	/**
+	 * A price is contained by its owning entity: any entity-wide conflict implies a conflict on this price.
+	 *
+	 * @return an {@link EntityConflictKey} for the owning entity
+	 */
+	@Nonnull
+	@Override
+	public ConflictKey parentConflictKey() {
+		return new EntityConflictKey(this.entityType, this.entityPrimaryKey);
+	}
+
+	/**
 	 * Returns a concise, human-readable representation of this conflict key.
 	 *
 	 * @return non-null string representation
