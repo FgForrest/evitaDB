@@ -1891,7 +1891,13 @@ public final class Catalog
 	 */
 	@Nonnull
 	public IsolatedWalPersistenceService createIsolatedWalService(@Nonnull UUID transactionId) {
-		return this.persistenceService.createIsolatedWalPersistenceService(transactionId);
+		// thread the living schema so the WAL write path resolves the effective, schema-declared conflict
+		// resolution per entity type (issue #503)
+		return this.persistenceService.createIsolatedWalPersistenceService(
+			transactionId,
+			getInternalSchema(),
+			entityType -> getEntitySchema(entityType).orElse(null)
+		);
 	}
 
 	/**
