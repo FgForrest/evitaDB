@@ -1499,6 +1499,157 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 		);
 	}
 
+	@DisplayName("When a committed range-constrained delta races an incoming absolute set of the same attribute, conflict is raised (committed-delta direction).")
+	@UseDataSet(value = TRANSACTIONAL_DATA_SET, destroyAfterTest = true)
+	@Test
+	void shouldRaiseConflictWhenCommittedDeltaRacesIncomingAbsoluteSet(
+		EvitaContract originalEvita, SealedEntitySchema productSchema) throws Exception {
+		// refine the coarse ENTITY policy with ENTITY_ATTRIBUTE granularity so that both the absolute set
+		// and the delta produce attribute-level (not entity-level) conflict keys — this is the granular
+		// level at which the commutative-vs-absolute containment probe must fire
+		final TransactionOptions txOptions = ((Evita) originalEvita).getConfiguration().transaction();
+		final Evita evita = reinitializeEvitaWithConfig(
+			originalEvita,
+			builder -> builder.transaction(
+				TransactionOptions.builder(txOptions)
+					.conflictPolicy(ConflictPolicy.ENTITY, ConflictPolicy.ENTITY_ATTRIBUTE)
+					.build()
+			)
+		);
+
+		final SealedEntity addedEntity = evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				final BiFunction<String, Faker, Integer> randomEntityPicker = (entityType, faker) -> RANDOM_ENTITY_PICKER.apply(
+					entityType, session, faker);
+				final Optional<SealedEntity> upsertedEntity = this.dataGenerator.generateEntities(
+						productSchema, randomEntityPicker, SEED)
+					.limit(1)
+					.map(session::upsertAndFetchEntity)
+					.findFirst();
+				assertTrue(upsertedEntity.isPresent());
+				return upsertedEntity.get();
+			}
+		);
+
+		assertThrows(
+			ConflictingCatalogMutationException.class,
+			() -> evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					final SealedEntity theEntity = session.getEntity(
+							productSchema.getName(), addedEntity.getPrimaryKey(), entityFetchAllContent()
+						)
+						.orElseThrow();
+					final Long basePriority = theEntity.getAttribute(ATTRIBUTE_PRIORITY, Long.class);
+
+					// incoming transaction absolutely overwrites the attribute
+					theEntity
+						.openForWrite()
+						.setAttribute(ATTRIBUTE_PRIORITY, basePriority + 100L)
+						.upsertVia(session);
+
+					try {
+						// concurrent transaction commits a range-constrained delta on the same attribute first
+						executeConcurrentUpdate(
+							evita, TEST_CATALOG, concurrentSession -> {
+								final SealedEntity concurrentEntity = concurrentSession.getEntity(
+										productSchema.getName(), addedEntity.getPrimaryKey(), entityFetchAllContent()
+									)
+									.orElseThrow();
+								final Long concurrentBase = concurrentEntity.getAttribute(ATTRIBUTE_PRIORITY, Long.class);
+								concurrentEntity
+									.openForWrite()
+									.mutate(new ApplyDeltaAttributeMutation<>(
+										ATTRIBUTE_PRIORITY, 1L, LongNumberRange.to(concurrentBase + 5L)
+									))
+									.upsertVia(concurrentSession);
+							}
+						);
+					} catch (InterruptedException e) {
+						fail("Test thread was interrupted!", e);
+					}
+
+					log.info("Attempting to commit conflicting transaction...");
+				}
+			)
+		);
+	}
+
+	@DisplayName("When a committed absolute set races an incoming range-constrained delta of the same attribute, conflict is raised (committed-absolute direction).")
+	@UseDataSet(value = TRANSACTIONAL_DATA_SET, destroyAfterTest = true)
+	@Test
+	void shouldRaiseConflictWhenCommittedAbsoluteSetRacesIncomingDelta(
+		EvitaContract originalEvita, SealedEntitySchema productSchema) throws Exception {
+		final TransactionOptions txOptions = ((Evita) originalEvita).getConfiguration().transaction();
+		final Evita evita = reinitializeEvitaWithConfig(
+			originalEvita,
+			builder -> builder.transaction(
+				TransactionOptions.builder(txOptions)
+					.conflictPolicy(ConflictPolicy.ENTITY, ConflictPolicy.ENTITY_ATTRIBUTE)
+					.build()
+			)
+		);
+
+		final SealedEntity addedEntity = evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				final BiFunction<String, Faker, Integer> randomEntityPicker = (entityType, faker) -> RANDOM_ENTITY_PICKER.apply(
+					entityType, session, faker);
+				final Optional<SealedEntity> upsertedEntity = this.dataGenerator.generateEntities(
+						productSchema, randomEntityPicker, SEED)
+					.limit(1)
+					.map(session::upsertAndFetchEntity)
+					.findFirst();
+				assertTrue(upsertedEntity.isPresent());
+				return upsertedEntity.get();
+			}
+		);
+
+		assertThrows(
+			ConflictingCatalogMutationException.class,
+			() -> evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					final SealedEntity theEntity = session.getEntity(
+							productSchema.getName(), addedEntity.getPrimaryKey(), entityFetchAllContent()
+						)
+						.orElseThrow();
+					final Long basePriority = theEntity.getAttribute(ATTRIBUTE_PRIORITY, Long.class);
+
+					// incoming transaction applies a range-constrained delta on the attribute
+					theEntity
+						.openForWrite()
+						.mutate(new ApplyDeltaAttributeMutation<>(
+							ATTRIBUTE_PRIORITY, 1L, LongNumberRange.to(basePriority + 5L)
+						))
+						.upsertVia(session);
+
+					try {
+						// concurrent transaction commits an absolute overwrite of the same attribute first
+						executeConcurrentUpdate(
+							evita, TEST_CATALOG, concurrentSession -> {
+								final SealedEntity concurrentEntity = concurrentSession.getEntity(
+										productSchema.getName(), addedEntity.getPrimaryKey(), entityFetchAllContent()
+									)
+									.orElseThrow();
+								final Long concurrentBase = concurrentEntity.getAttribute(ATTRIBUTE_PRIORITY, Long.class);
+								concurrentEntity
+									.openForWrite()
+									.setAttribute(ATTRIBUTE_PRIORITY, concurrentBase + 100L)
+									.upsertVia(concurrentSession);
+							}
+						);
+					} catch (InterruptedException e) {
+						fail("Test thread was interrupted!", e);
+					}
+
+					log.info("Attempting to commit conflicting transaction...");
+				}
+			)
+		);
+	}
+
 	@DisplayName("When two parallel transactions update same product on conflicting granular level (same attributes) via reference attribute delta mutation, no conflict is raised.")
 	@UseDataSet(value = TRANSACTIONAL_DATA_SET, destroyAfterTest = true)
 	@Test

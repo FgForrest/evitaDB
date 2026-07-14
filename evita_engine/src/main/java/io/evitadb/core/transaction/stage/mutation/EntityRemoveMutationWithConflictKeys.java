@@ -67,7 +67,8 @@ public class EntityRemoveMutationWithConflictKeys extends EntityRemoveMutation i
 			delegate.getEntityType(),
 			delegate.getEntityPrimaryKey(),
 			ctx -> EntityMutation.getConflictKeyStream(
-				delegate.getEntityType(), delegate.getEntityPrimaryKey(), localMutations, ctx
+				delegate.getEntityType(), delegate.getEntityPrimaryKey(), localMutations,
+				delegate.expects(), ctx
 			)
 		);
 	}

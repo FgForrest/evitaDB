@@ -237,7 +237,7 @@ public class EntityUpsertMutation implements EntityMutation {
 			this.entityType,
 			this.entityPrimaryKey,
 			ctx -> EntityMutation.getConflictKeyStream(
-				this.entityType, this.entityPrimaryKey, this.localMutations, ctx
+				this.entityType, this.entityPrimaryKey, this.localMutations, this.entityExistence, ctx
 			)
 		);
 	}

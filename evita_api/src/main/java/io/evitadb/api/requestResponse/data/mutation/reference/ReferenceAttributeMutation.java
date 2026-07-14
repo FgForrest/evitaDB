@@ -118,7 +118,11 @@ public class ReferenceAttributeMutation extends ReferenceMutation<ReferenceKeyWi
 		@Nonnull ConflictGenerationContext context
 	) {
         if (this.attributeMutation instanceof ApplyDeltaAttributeMutation<?> adam) {
-            return context.shouldEmitReferenceAttributeKey(this.referenceKey.referenceName(), this.attributeKey.attributeName()) ?
+            // A range-constrained delta must always emit its conflict key, regardless of the resolved
+            // conflict policy: keeping the accumulated value inside the required range is a hard
+            // invariant, not something relaxed conflict granularity opts out of.
+            return adam.getRequiredRangeAfterApplication() != null
+                || context.shouldEmitReferenceAttributeKey(this.referenceKey.referenceName(), this.attributeKey.attributeName()) ?
                 Stream.of(
                     new ReferenceAttributeDeltaConflictKey(
                         context.getEntityType(),

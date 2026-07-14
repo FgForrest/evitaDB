@@ -189,7 +189,11 @@ public class ApplyDeltaAttributeMutation<T extends Number> extends AttributeSche
 	public Stream<ConflictKey> collectConflictKeys(
 		@Nonnull ConflictGenerationContext context
 	) {
-		return context.shouldEmitEntityAttributeKey(this.attributeKey.attributeName()) ?
+		// A range-constrained delta must always emit its conflict key, regardless of the resolved
+		// conflict policy: keeping the accumulated value inside the required range is a hard invariant,
+		// not something the user opts out of by relaxing conflict granularity.
+		return this.requiredRangeAfterApplication != null
+			|| context.shouldEmitEntityAttributeKey(this.attributeKey.attributeName()) ?
 			Stream.of(
 				new AttributeDeltaConflictKey(
 					context.getEntityType(),

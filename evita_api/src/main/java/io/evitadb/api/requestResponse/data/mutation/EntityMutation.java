@@ -104,6 +104,9 @@ public non-sealed interface EntityMutation extends CatalogBoundMutation {
 	 * @param entityType       the type of the entity for which the conflict keys are generated, must not be null
 	 * @param entityPrimaryKey the primary key of the entity, may be null
 	 * @param localMutations   the list of local mutations to process, must not be null
+	 * @param expects          the entity-existence expectation of the owning mutation; a forced creation
+	 *                         ({@link EntityExistence#MUST_NOT_EXIST}) contends on the entity's very
+	 *                         existence and therefore always emits the coarse entity/collection key
 	 * @param context          the conflict generation context to use during processing, must not be null
 	 * @return a stream of {@link ConflictKey} objects representing the resolved conflict keys
 	 */
@@ -112,6 +115,7 @@ public non-sealed interface EntityMutation extends CatalogBoundMutation {
 		@Nonnull String entityType,
 		@Nullable Integer entityPrimaryKey,
 		@Nonnull List<? extends LocalMutation<?, ?>> localMutations,
+		@Nonnull EntityExistence expects,
 		@Nonnull ConflictGenerationContext context
 	) {
 		final Stream.Builder<ConflictKey> keys = Stream.builder();
@@ -130,9 +134,13 @@ public non-sealed interface EntityMutation extends CatalogBoundMutation {
 			atLeastOneKeyMissing = atLeastOneKeyMissing || !keyAdded;
 		}
 
-		// If any mutation didn't produce a key and ENTITY policy is enabled,
-		// add the fallback entity conflict key directly into the same builder.
-		if (atLeastOneKeyMissing) {
+		// Add the coarse fallback key when either (a) some mutation produced no granular key, or
+		// (b) this is a forced creation (MUST_NOT_EXIST): two concurrent creations of the same
+		// primary key contend on the entity's very existence even when they touch disjoint fields
+		// and each emit only granular keys, so a fully-granular creation must still surface the
+		// entity-level conflict. NONE policy still emits nothing (coarsePolicy yields neither ENTITY nor COLLECTION),
+		// preserving the opt-out.
+		if (atLeastOneKeyMissing || expects == EntityExistence.MUST_NOT_EXIST) {
 			final ConflictPolicy coarsePolicy = context.coarsePolicy();
 			if (entityPrimaryKey == null) {
 				if (coarsePolicy == ConflictPolicy.COLLECTION) {

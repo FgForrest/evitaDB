@@ -43,6 +43,7 @@ import io.evitadb.api.requestResponse.mutation.conflict.CommutativeConflictKey;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictGenerationContext;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolution;
+import io.evitadb.api.requestResponse.mutation.conflict.IncomingConflictScope;
 import io.evitadb.api.requestResponse.mutation.conflict.ReferenceAttributeDeltaConflictKey;
 import io.evitadb.api.requestResponse.mutation.infrastructure.TransactionMutation;
 import io.evitadb.api.requestResponse.progress.ProgressingFuture;
@@ -756,13 +757,16 @@ public class TransactionManager implements Closeable {
                 final long livingCatalogVersion = theLivingCatalog.getVersion();
                 final Map<CommutativeConflictKey<?>, CommutativeConflictResolver<?>> aggregates =
                     initializeAggregatesIfNecessary(conflictKeys);
+                // pre-index the incoming transaction's conflict keys once so every committed key can be
+                // tested by containment (ancestry chain) rather than raw equality
+                final IncomingConflictScope incomingScope = IncomingConflictScope.of(conflictKeys);
 
                 try {
                     this.conflictRingBuffer.forEachSince(
                         catalogVersion,
                         vck -> examineConflictKey(
                             vck.conflictKey(),
-                            conflictKeys,
+                            incomingScope,
                             theLivingCatalog,
                             aggregates,
                             vck.version(),
@@ -774,7 +778,7 @@ public class TransactionManager implements Closeable {
                     // and was able to check only partial set of conflict keys
                     identifyConflictsInOldCommittedTransactions(
                         catalogVersion,
-                        conflictKeys,
+                        incomingScope,
                         theLivingCatalog,
                         aggregates,
                         e.getEffectiveStart()
@@ -843,16 +847,22 @@ public class TransactionManager implements Closeable {
 	 * it throws a {@link ConflictingCatalogMutationException}.
 	 *
 	 * @param catalogVersion the starting version of the catalog to check for conflicts in committed transactions
-	 * @param conflictKeys a set of conflict keys to check against in the committed transactions
+	 * @param incomingScope the pre-indexed conflict scope of the transaction being committed
 	 * @param until the upper bound versioned conflict key, up to which committed transactions are analyzed
 	 */
 	private void identifyConflictsInOldCommittedTransactions(
 		long catalogVersion,
-		@Nonnull Set<ConflictKey> conflictKeys,
+		@Nonnull IncomingConflictScope incomingScope,
         @Nonnull Catalog theLivingCatalog,
         @Nullable Map<CommutativeConflictKey<?>, CommutativeConflictResolver<?>> aggregates,
 		@Nonnull CatalogVersionIndex until
 	) {
+		// This fallback recomputes conflict keys for aged-out committed transactions using the current
+		// engine-default resolution rather than the per-entity schema resolution that was in effect when
+		// each transaction was written. Reconstructing historical schemas is deliberately not attempted:
+		// this path only fires for transactions old enough to have left the
+		// conflict ring buffer, which by construction can no longer overlap the incoming commit window,
+		// so any residual over-/under-granularity here cannot change the accept/reject outcome.
 		final ConflictGenerationContext context = new ConflictGenerationContext(this.conflictResolution);
         long livingCatalogVersion = theLivingCatalog.getVersion();
 		long processedCatalogVersion = catalogVersion;
@@ -881,7 +891,7 @@ public class TransactionManager implements Closeable {
 			while (conflictKeyIterator.hasNext()) {
 				final ConflictKey conflictKey = conflictKeyIterator.next();
                 examineConflictKey(
-                    conflictKey, conflictKeys, theLivingCatalog, aggregates,
+                    conflictKey, incomingScope, theLivingCatalog, aggregates,
                     processedCatalogVersion, livingCatalogVersion
                 );
             }
@@ -893,17 +903,17 @@ public class TransactionManager implements Closeable {
      * Handles commutative conflict keys and processes them against the current catalog state.
      *
      * @param conflictKey The conflict key to be examined.
-     * @param conflictKeys A set of conflict keys to check against for conflicts.
+     * @param incomingScope The pre-indexed conflict scope of the transaction being committed.
      * @param theLivingCatalog The current state of the catalog.
      * @param aggregates A map of commutative conflict keys and their corresponding aggregated values.
      *                   Can be null if it makes no sense to accumulate commutative keys.
      * @param processedCatalogVersion The version of the catalog being processed.
      * @param livingCatalogVersion The current version of the living catalog.
-     * @throws ConflictingCatalogMutationException if the conflict key is already present in the current transaction.
+     * @throws ConflictingCatalogMutationException if the conflict key overlaps the current transaction.
      */
     private <T> void examineConflictKey(
         @Nonnull ConflictKey conflictKey,
-        @Nonnull Set<ConflictKey> conflictKeys,
+        @Nonnull IncomingConflictScope incomingScope,
         @Nonnull Catalog theLivingCatalog,
         @Nullable Map<CommutativeConflictKey<?>, CommutativeConflictResolver<?>> aggregates,
         long processedCatalogVersion,
@@ -925,8 +935,18 @@ public class TransactionManager implements Closeable {
                     }
                 );
             }
-        } else if (conflictKeys.contains(conflictKey)) {
-            // check whether any of the conflict keys is present in the current transaction
+            // A committed commutative delta still conflicts with an incoming *absolute* write of the same
+            // (or a containing) scope — the delete/set-vs-delta case the accumulation above cannot express.
+            // Probing from the parent keeps delta-vs-delta of the same key commuting.
+            if (incomingScope.conflictsWithCommutative(conflictKey)) {
+                throw new ConflictingCatalogMutationException(
+                    this.catalogName,
+                    conflictKey,
+                    processedCatalogVersion
+                );
+            }
+        } else if (incomingScope.conflictsWithAbsolute(conflictKey)) {
+            // the committed key's write scope overlaps the incoming transaction's write scope
             throw new ConflictingCatalogMutationException(
                 this.catalogName,
                 conflictKey,
