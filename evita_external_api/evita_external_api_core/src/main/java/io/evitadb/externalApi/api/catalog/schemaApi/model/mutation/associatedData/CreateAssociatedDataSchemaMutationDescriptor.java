@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData;
 
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.schema.mutation.associatedData.CreateAssociatedDataSchemaMutation;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
@@ -81,6 +82,15 @@ public interface CreateAssociatedDataSchemaMutationDescriptor extends Associated
 			""")
 		.type(nullable(Boolean.class))
 		.build();
+	PropertyDescriptor CONFLICT_RESOLUTION_OVERRIDE = PropertyDescriptor.builder()
+		.name("conflictResolutionOverride")
+		.description("""
+			Determines the granularity at which transaction conflicts are detected for this associated data. When set to
+			`INHERITED` (the default) the associated data follows the conflict resolution resolved for the entity,
+			otherwise it overrides the resolved granularity for this associated data alone.
+			""")
+		.type(nullable(ConflictResolutionOverride.class))
+		.build();
 
 	ObjectDescriptor THIS = ObjectDescriptor.implementing(THIS_INTERFACE)
 		.representedClass(CreateAssociatedDataSchemaMutation.class)
@@ -94,6 +104,7 @@ public interface CreateAssociatedDataSchemaMutationDescriptor extends Associated
 		.staticProperty(TYPE)
 		.staticProperty(LOCALIZED)
 		.staticProperty(NULLABLE)
+		.staticProperty(CONFLICT_RESOLUTION_OVERRIDE)
 		.build();
 	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS, INPUT_OBJECT_PROPERTIES_FILTER)
 		.name("CreateAssociatedDataSchemaMutationInput")

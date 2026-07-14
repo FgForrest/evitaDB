@@ -65,6 +65,7 @@ private static final long serialVersionUID = 0L;
     filterableInScopes_ = java.util.Collections.emptyList();
     sortableInScopes_ = java.util.Collections.emptyList();
     uniqueGloballyInScopes_ = java.util.Collections.emptyList();
+    conflictResolutionOverride_ = 0;
   }
 
   @java.lang.Override
@@ -217,7 +218,7 @@ private static final long serialVersionUID = 0L;
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType unique = 4 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema.unique is deprecated.
-   *     See GrpcCatalogSchema.proto;l=64
+   *     See GrpcCatalogSchema.proto;l=67
    * @return The enum numeric value on the wire for unique.
    */
   @java.lang.Override @java.lang.Deprecated public int getUniqueValue() {
@@ -235,7 +236,7 @@ private static final long serialVersionUID = 0L;
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType unique = 4 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema.unique is deprecated.
-   *     See GrpcCatalogSchema.proto;l=64
+   *     See GrpcCatalogSchema.proto;l=67
    * @return The unique.
    */
   @java.lang.Override @java.lang.Deprecated public io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType getUnique() {
@@ -258,7 +259,7 @@ private static final long serialVersionUID = 0L;
    *
    * <code>bool filterable = 5 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema.filterable is deprecated.
-   *     See GrpcCatalogSchema.proto;l=72
+   *     See GrpcCatalogSchema.proto;l=75
    * @return The filterable.
    */
   @java.lang.Override
@@ -278,7 +279,7 @@ private static final long serialVersionUID = 0L;
    *
    * <code>bool sortable = 6 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema.sortable is deprecated.
-   *     See GrpcCatalogSchema.proto;l=77
+   *     See GrpcCatalogSchema.proto;l=80
    * @return The sortable.
    */
   @java.lang.Override
@@ -437,7 +438,7 @@ private static final long serialVersionUID = 0L;
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeUniquenessType uniqueGlobally = 13 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema.uniqueGlobally is deprecated.
-   *     See GrpcCatalogSchema.proto;l=106
+   *     See GrpcCatalogSchema.proto;l=109
    * @return The enum numeric value on the wire for uniqueGlobally.
    */
   @java.lang.Override @java.lang.Deprecated public int getUniqueGloballyValue() {
@@ -455,7 +456,7 @@ private static final long serialVersionUID = 0L;
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeUniquenessType uniqueGlobally = 13 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema.uniqueGlobally is deprecated.
-   *     See GrpcCatalogSchema.proto;l=106
+   *     See GrpcCatalogSchema.proto;l=109
    * @return The uniqueGlobally.
    */
   @java.lang.Override @java.lang.Deprecated public io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeUniquenessType getUniqueGlobally() {
@@ -877,6 +878,34 @@ private static final long serialVersionUID = 0L;
     return uniqueGloballyInScopes_.get(index);
   }
 
+  public static final int CONFLICTRESOLUTIONOVERRIDE_FIELD_NUMBER = 19;
+  private int conflictResolutionOverride_ = 0;
+  /**
+   * <pre>
+   * Contains the per-attribute override of the conflict resolution granularity. Defaults to inherited (follow the
+   * resolved conflict resolution).
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcConflictResolutionOverride conflictResolutionOverride = 19;</code>
+   * @return The enum numeric value on the wire for conflictResolutionOverride.
+   */
+  @java.lang.Override public int getConflictResolutionOverrideValue() {
+    return conflictResolutionOverride_;
+  }
+  /**
+   * <pre>
+   * Contains the per-attribute override of the conflict resolution granularity. Defaults to inherited (follow the
+   * resolved conflict resolution).
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcConflictResolutionOverride conflictResolutionOverride = 19;</code>
+   * @return The conflictResolutionOverride.
+   */
+  @java.lang.Override public io.evitadb.externalApi.grpc.generated.GrpcConflictResolutionOverride getConflictResolutionOverride() {
+    io.evitadb.externalApi.grpc.generated.GrpcConflictResolutionOverride result = io.evitadb.externalApi.grpc.generated.GrpcConflictResolutionOverride.forNumber(conflictResolutionOverride_);
+    return result == null ? io.evitadb.externalApi.grpc.generated.GrpcConflictResolutionOverride.UNRECOGNIZED : result;
+  }
+
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
@@ -953,6 +982,9 @@ private static final long serialVersionUID = 0L;
     }
     for (int i = 0; i < uniqueGloballyInScopes_.size(); i++) {
       output.writeMessage(18, uniqueGloballyInScopes_.get(i));
+    }
+    if (conflictResolutionOverride_ != io.evitadb.externalApi.grpc.generated.GrpcConflictResolutionOverride.CONFLICT_RESOLUTION_OVERRIDE_INHERITED.getNumber()) {
+      output.writeEnum(19, conflictResolutionOverride_);
     }
     getUnknownFields().writeTo(output);
   }
@@ -1050,6 +1082,10 @@ private static final long serialVersionUID = 0L;
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(18, uniqueGloballyInScopes_.get(i));
     }
+    if (conflictResolutionOverride_ != io.evitadb.externalApi.grpc.generated.GrpcConflictResolutionOverride.CONFLICT_RESOLUTION_OVERRIDE_INHERITED.getNumber()) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeEnumSize(19, conflictResolutionOverride_);
+    }
     size += getUnknownFields().getSerializedSize();
     memoizedSize = size;
     return size;
@@ -1105,6 +1141,7 @@ private static final long serialVersionUID = 0L;
     if (!sortableInScopes_.equals(other.sortableInScopes_)) return false;
     if (!getUniqueGloballyInScopesList()
         .equals(other.getUniqueGloballyInScopesList())) return false;
+    if (conflictResolutionOverride_ != other.conflictResolutionOverride_) return false;
     if (!getUnknownFields().equals(other.getUnknownFields())) return false;
     return true;
   }
@@ -1173,6 +1210,8 @@ private static final long serialVersionUID = 0L;
       hash = (37 * hash) + UNIQUEGLOBALLYINSCOPES_FIELD_NUMBER;
       hash = (53 * hash) + getUniqueGloballyInScopesList().hashCode();
     }
+    hash = (37 * hash) + CONFLICTRESOLUTIONOVERRIDE_FIELD_NUMBER;
+    hash = (53 * hash) + conflictResolutionOverride_;
     hash = (29 * hash) + getUnknownFields().hashCode();
     memoizedHashCode = hash;
     return hash;
@@ -1381,6 +1420,7 @@ private static final long serialVersionUID = 0L;
         uniqueGloballyInScopesBuilder_.clear();
       }
       bitField0_ = (bitField0_ & ~0x00020000);
+      conflictResolutionOverride_ = 0;
       return this;
     }
 
@@ -1503,6 +1543,9 @@ private static final long serialVersionUID = 0L;
       }
       if (((from_bitField0_ & 0x00001000) != 0)) {
         result.uniqueGlobally_ = uniqueGlobally_;
+      }
+      if (((from_bitField0_ & 0x00040000) != 0)) {
+        result.conflictResolutionOverride_ = conflictResolutionOverride_;
       }
       result.bitField0_ |= to_bitField0_;
     }
@@ -1690,6 +1733,9 @@ private static final long serialVersionUID = 0L;
           }
         }
       }
+      if (other.conflictResolutionOverride_ != 0) {
+        setConflictResolutionOverrideValue(other.getConflictResolutionOverrideValue());
+      }
       this.mergeUnknownFields(other.getUnknownFields());
       onChanged();
       return this;
@@ -1860,6 +1906,11 @@ private static final long serialVersionUID = 0L;
               }
               break;
             } // case 146
+            case 152: {
+              conflictResolutionOverride_ = input.readEnum();
+              bitField0_ |= 0x00040000;
+              break;
+            } // case 152
             default: {
               if (!super.parseUnknownField(input, extensionRegistry, tag)) {
                 done = true; // was an endgroup tag
@@ -2276,7 +2327,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType unique = 4 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema.unique is deprecated.
-     *     See GrpcCatalogSchema.proto;l=64
+     *     See GrpcCatalogSchema.proto;l=67
      * @return The enum numeric value on the wire for unique.
      */
     @java.lang.Override @java.lang.Deprecated public int getUniqueValue() {
@@ -2294,7 +2345,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType unique = 4 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema.unique is deprecated.
-     *     See GrpcCatalogSchema.proto;l=64
+     *     See GrpcCatalogSchema.proto;l=67
      * @param value The enum numeric value on the wire for unique to set.
      * @return This builder for chaining.
      */
@@ -2316,7 +2367,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType unique = 4 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema.unique is deprecated.
-     *     See GrpcCatalogSchema.proto;l=64
+     *     See GrpcCatalogSchema.proto;l=67
      * @return The unique.
      */
     @java.lang.Override
@@ -2336,7 +2387,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType unique = 4 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema.unique is deprecated.
-     *     See GrpcCatalogSchema.proto;l=64
+     *     See GrpcCatalogSchema.proto;l=67
      * @param value The unique to set.
      * @return This builder for chaining.
      */
@@ -2361,7 +2412,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType unique = 4 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema.unique is deprecated.
-     *     See GrpcCatalogSchema.proto;l=64
+     *     See GrpcCatalogSchema.proto;l=67
      * @return This builder for chaining.
      */
     @java.lang.Deprecated public Builder clearUnique() {
@@ -2385,7 +2436,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>bool filterable = 5 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema.filterable is deprecated.
-     *     See GrpcCatalogSchema.proto;l=72
+     *     See GrpcCatalogSchema.proto;l=75
      * @return The filterable.
      */
     @java.lang.Override
@@ -2405,7 +2456,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>bool filterable = 5 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema.filterable is deprecated.
-     *     See GrpcCatalogSchema.proto;l=72
+     *     See GrpcCatalogSchema.proto;l=75
      * @param value The filterable to set.
      * @return This builder for chaining.
      */
@@ -2429,7 +2480,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>bool filterable = 5 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema.filterable is deprecated.
-     *     See GrpcCatalogSchema.proto;l=72
+     *     See GrpcCatalogSchema.proto;l=75
      * @return This builder for chaining.
      */
     @java.lang.Deprecated public Builder clearFilterable() {
@@ -2450,7 +2501,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>bool sortable = 6 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema.sortable is deprecated.
-     *     See GrpcCatalogSchema.proto;l=77
+     *     See GrpcCatalogSchema.proto;l=80
      * @return The sortable.
      */
     @java.lang.Override
@@ -2467,7 +2518,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>bool sortable = 6 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema.sortable is deprecated.
-     *     See GrpcCatalogSchema.proto;l=77
+     *     See GrpcCatalogSchema.proto;l=80
      * @param value The sortable to set.
      * @return This builder for chaining.
      */
@@ -2488,7 +2539,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>bool sortable = 6 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema.sortable is deprecated.
-     *     See GrpcCatalogSchema.proto;l=77
+     *     See GrpcCatalogSchema.proto;l=80
      * @return This builder for chaining.
      */
     @java.lang.Deprecated public Builder clearSortable() {
@@ -2955,7 +3006,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeUniquenessType uniqueGlobally = 13 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema.uniqueGlobally is deprecated.
-     *     See GrpcCatalogSchema.proto;l=106
+     *     See GrpcCatalogSchema.proto;l=109
      * @return The enum numeric value on the wire for uniqueGlobally.
      */
     @java.lang.Override @java.lang.Deprecated public int getUniqueGloballyValue() {
@@ -2973,7 +3024,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeUniquenessType uniqueGlobally = 13 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema.uniqueGlobally is deprecated.
-     *     See GrpcCatalogSchema.proto;l=106
+     *     See GrpcCatalogSchema.proto;l=109
      * @param value The enum numeric value on the wire for uniqueGlobally to set.
      * @return This builder for chaining.
      */
@@ -2995,7 +3046,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeUniquenessType uniqueGlobally = 13 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema.uniqueGlobally is deprecated.
-     *     See GrpcCatalogSchema.proto;l=106
+     *     See GrpcCatalogSchema.proto;l=109
      * @return The uniqueGlobally.
      */
     @java.lang.Override
@@ -3015,7 +3066,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeUniquenessType uniqueGlobally = 13 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema.uniqueGlobally is deprecated.
-     *     See GrpcCatalogSchema.proto;l=106
+     *     See GrpcCatalogSchema.proto;l=109
      * @param value The uniqueGlobally to set.
      * @return This builder for chaining.
      */
@@ -3040,7 +3091,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeUniquenessType uniqueGlobally = 13 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema.uniqueGlobally is deprecated.
-     *     See GrpcCatalogSchema.proto;l=106
+     *     See GrpcCatalogSchema.proto;l=109
      * @return This builder for chaining.
      */
     @java.lang.Deprecated public Builder clearUniqueGlobally() {
@@ -4588,6 +4639,84 @@ private static final long serialVersionUID = 0L;
         uniqueGloballyInScopes_ = null;
       }
       return uniqueGloballyInScopesBuilder_;
+    }
+
+    private int conflictResolutionOverride_ = 0;
+    /**
+     * <pre>
+     * Contains the per-attribute override of the conflict resolution granularity. Defaults to inherited (follow the
+     * resolved conflict resolution).
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcConflictResolutionOverride conflictResolutionOverride = 19;</code>
+     * @return The enum numeric value on the wire for conflictResolutionOverride.
+     */
+    @java.lang.Override public int getConflictResolutionOverrideValue() {
+      return conflictResolutionOverride_;
+    }
+    /**
+     * <pre>
+     * Contains the per-attribute override of the conflict resolution granularity. Defaults to inherited (follow the
+     * resolved conflict resolution).
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcConflictResolutionOverride conflictResolutionOverride = 19;</code>
+     * @param value The enum numeric value on the wire for conflictResolutionOverride to set.
+     * @return This builder for chaining.
+     */
+    public Builder setConflictResolutionOverrideValue(int value) {
+      conflictResolutionOverride_ = value;
+      bitField0_ |= 0x00040000;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Contains the per-attribute override of the conflict resolution granularity. Defaults to inherited (follow the
+     * resolved conflict resolution).
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcConflictResolutionOverride conflictResolutionOverride = 19;</code>
+     * @return The conflictResolutionOverride.
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcConflictResolutionOverride getConflictResolutionOverride() {
+      io.evitadb.externalApi.grpc.generated.GrpcConflictResolutionOverride result = io.evitadb.externalApi.grpc.generated.GrpcConflictResolutionOverride.forNumber(conflictResolutionOverride_);
+      return result == null ? io.evitadb.externalApi.grpc.generated.GrpcConflictResolutionOverride.UNRECOGNIZED : result;
+    }
+    /**
+     * <pre>
+     * Contains the per-attribute override of the conflict resolution granularity. Defaults to inherited (follow the
+     * resolved conflict resolution).
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcConflictResolutionOverride conflictResolutionOverride = 19;</code>
+     * @param value The conflictResolutionOverride to set.
+     * @return This builder for chaining.
+     */
+    public Builder setConflictResolutionOverride(io.evitadb.externalApi.grpc.generated.GrpcConflictResolutionOverride value) {
+      if (value == null) {
+        throw new NullPointerException();
+      }
+      bitField0_ |= 0x00040000;
+      conflictResolutionOverride_ = value.getNumber();
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Contains the per-attribute override of the conflict resolution granularity. Defaults to inherited (follow the
+     * resolved conflict resolution).
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcConflictResolutionOverride conflictResolutionOverride = 19;</code>
+     * @return This builder for chaining.
+     */
+    public Builder clearConflictResolutionOverride() {
+      bitField0_ = (bitField0_ & ~0x00040000);
+      conflictResolutionOverride_ = 0;
+      onChanged();
+      return this;
     }
     @java.lang.Override
     public final Builder setUnknownFields(

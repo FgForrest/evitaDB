@@ -46,7 +46,7 @@ import java.util.Map;
 @ThreadSafe
 @EqualsAndHashCode
 public class AssociatedDataSchema implements Serializable, AssociatedDataSchemaContract {
-	@Serial private static final long serialVersionUID = -995599294301442064L;
+	@Serial private static final long serialVersionUID = -995599294301442063L;
 
 	@Getter @Nonnull private final String name;
 	@Getter @Nonnull private final Map<NamingConvention, String> nameVariants;
@@ -79,6 +79,25 @@ public class AssociatedDataSchema implements Serializable, AssociatedDataSchemaC
 	}
 
 	/**
+	 * Transitional compatibility overload defaulting the conflict resolution setting; delegates to the full overload.
+	 *
+	 * @deprecated bridges call sites not yet migrated to the explicit conflict-resolution parameter.
+	 */
+	@Deprecated(forRemoval = true)
+	public static AssociatedDataSchema _internalBuild(
+		@Nonnull String name,
+		@Nullable String description,
+		@Nullable String deprecationNotice,
+		@Nonnull Class<? extends Serializable> type,
+		boolean localized,
+		boolean nullable
+	) {
+		return _internalBuild(
+			name, description, deprecationNotice, type, localized, nullable, ConflictResolutionOverride.INHERITED
+		);
+	}
+
+	/**
 	 * This method is for internal purposes only. It could be used for reconstruction of AssociatedDataSchema from
 	 * different package than current, but still internal code of the Evita ecosystems.
 	 *
@@ -101,6 +120,31 @@ public class AssociatedDataSchema implements Serializable, AssociatedDataSchemaC
 	}
 
 	/**
+	 * Transitional compatibility overload that reconstructs an associated data schema without a conflict resolution
+	 * override, defaulting it to {@link ConflictResolutionOverride#INHERITED}. It exists so external API converters
+	 * (gRPC/GraphQL/REST) that do not yet propagate the conflict resolution setting keep compiling and round-tripping
+	 * the rest of the schema. It will be removed once those converters carry the conflict resolution setting through
+	 * their transport format.
+	 *
+	 * @deprecated bridges external-API reconstruction until the conflict resolution setting is propagated over the wire
+	 */
+	@Deprecated(forRemoval = true)
+	public static AssociatedDataSchema _internalBuild(
+		@Nonnull String name,
+		@Nonnull Map<NamingConvention, String> nameVariants,
+		@Nullable String description,
+		@Nullable String deprecationNotice,
+		@Nonnull Class<? extends Serializable> type,
+		boolean localized,
+		boolean nullable
+	) {
+		return _internalBuild(
+			name, nameVariants, description, deprecationNotice, type, localized, nullable,
+			ConflictResolutionOverride.INHERITED
+		);
+	}
+
+	/**
 	 * This method is for internal purposes only. It could be used for reconstruction of AssociatedDataSchema from
 	 * different package than current, but still internal code of the Evita ecosystems.
 	 *
@@ -114,6 +158,19 @@ public class AssociatedDataSchema implements Serializable, AssociatedDataSchemaC
 		return new AssociatedDataSchema(
 			name, null, null, type, false, false, conflictResolutionOverride
 		);
+	}
+
+	/**
+	 * Transitional compatibility overload defaulting the conflict resolution setting; delegates to the full overload.
+	 *
+	 * @deprecated bridges call sites not yet migrated to the explicit conflict-resolution parameter.
+	 */
+	@Deprecated(forRemoval = true)
+	public static AssociatedDataSchemaContract _internalBuild(
+		@Nonnull String name,
+		@Nonnull Class<? extends Serializable> type
+	) {
+		return _internalBuild(name, type, ConflictResolutionOverride.INHERITED);
 	}
 
 	private AssociatedDataSchema(

@@ -45,6 +45,9 @@ import io.evitadb.api.requestResponse.data.mutation.reference.RemoveReferenceGro
 import io.evitadb.api.requestResponse.data.mutation.reference.RemoveReferenceMutation;
 import io.evitadb.api.requestResponse.data.mutation.reference.SetReferenceGroupMutation;
 import io.evitadb.api.requestResponse.data.mutation.scope.SetEntityScopeMutation;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
+import io.evitadb.api.requestResponse.mutation.conflict.GranularConflictPolicy;
 import io.evitadb.api.requestResponse.mutation.infrastructure.TransactionMutation;
 import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.Cardinality;
@@ -61,12 +64,14 @@ import io.evitadb.api.requestResponse.schema.mutation.associatedData.ModifyAssoc
 import io.evitadb.api.requestResponse.schema.mutation.associatedData.ModifyAssociatedDataSchemaNameMutation;
 import io.evitadb.api.requestResponse.schema.mutation.associatedData.ModifyAssociatedDataSchemaTypeMutation;
 import io.evitadb.api.requestResponse.schema.mutation.associatedData.RemoveAssociatedDataSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.associatedData.SetAssociatedDataSchemaConflictResolutionOverrideMutation;
 import io.evitadb.api.requestResponse.schema.mutation.associatedData.SetAssociatedDataSchemaLocalizedMutation;
 import io.evitadb.api.requestResponse.schema.mutation.associatedData.SetAssociatedDataSchemaNullableMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.*;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.AllowEvolutionModeInCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.CreateEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.DisallowEvolutionModeInCatalogSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyCatalogSchemaConflictResolutionMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyCatalogSchemaDescriptionMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaNameMutation;
@@ -112,11 +117,13 @@ import io.evitadb.store.wal.data.price.UpsertPriceMutationSerializer;
 import io.evitadb.store.wal.data.reference.*;
 import io.evitadb.store.wal.data.scope.SetEntityScopeMutationSerializer;
 import io.evitadb.store.wal.schema.associatedData.CreateAssociatedDataSchemaMutationSerializer;
+import io.evitadb.store.wal.schema.associatedData.CreateAssociatedDataSchemaMutationSerializer_2026_1;
 import io.evitadb.store.wal.schema.associatedData.ModifyAssociatedDataSchemaDeprecationNoticeMutationSerializer;
 import io.evitadb.store.wal.schema.associatedData.ModifyAssociatedDataSchemaDescriptionMutationSerializer;
 import io.evitadb.store.wal.schema.associatedData.ModifyAssociatedDataSchemaNameMutationSerializer;
 import io.evitadb.store.wal.schema.associatedData.ModifyAssociatedDataSchemaTypeMutationSerializer;
 import io.evitadb.store.wal.schema.associatedData.RemoveAssociatedDataSchemaMutationSerializer;
+import io.evitadb.store.wal.schema.associatedData.SetAssociatedDataSchemaConflictResolutionOverrideMutationSerializer;
 import io.evitadb.store.wal.schema.associatedData.SetAssociatedDataSchemaLocalizedMutationSerializer;
 import io.evitadb.store.wal.schema.associatedData.SetAssociatedDataSchemaNullableMutationSerializer;
 import io.evitadb.store.wal.schema.attribute.*;
@@ -157,7 +164,12 @@ public class WalKryoConfigurer implements Consumer<Kryo> {
 		kryo.register(EntityExistence.class, new EnumNameSerializer<>(), index++);
 		kryo.register(PriceInnerRecordHandling.class, new EnumNameSerializer<>(), index++);
 
-		kryo.register(CreateAssociatedDataSchemaMutation.class, new SerialVersionBasedSerializer<>(new CreateAssociatedDataSchemaMutationSerializer(), CreateAssociatedDataSchemaMutation.class), index++);
+		kryo.register(
+			CreateAssociatedDataSchemaMutation.class,
+			new SerialVersionBasedSerializer<>(new CreateAssociatedDataSchemaMutationSerializer(), CreateAssociatedDataSchemaMutation.class)
+				.addBackwardCompatibleSerializer(-7368528015832499968L, new CreateAssociatedDataSchemaMutationSerializer_2026_1()),
+			index++
+		);
 		kryo.register(
 			ModifyAssociatedDataSchemaDeprecationNoticeMutation.class,
 			new SerialVersionBasedSerializer<>(new ModifyAssociatedDataSchemaDeprecationNoticeMutationSerializer(), ModifyAssociatedDataSchemaDeprecationNoticeMutation.class)
@@ -184,13 +196,15 @@ public class WalKryoConfigurer implements Consumer<Kryo> {
 		kryo.register(
 			CreateAttributeSchemaMutation.class,
 			new SerialVersionBasedSerializer<>(new CreateAttributeSchemaMutationSerializer(), CreateAttributeSchemaMutation.class)
-				.addBackwardCompatibleSerializer(-7082514745878566818L, new CreateAttributeSchemaMutationSerializer_2024_11()),
+				.addBackwardCompatibleSerializer(-7082514745878566818L, new CreateAttributeSchemaMutationSerializer_2024_11())
+				.addBackwardCompatibleSerializer(-469815390440407270L, new CreateAttributeSchemaMutationSerializer_2026_1()),
 			index++
 		);
 		kryo.register(
 			CreateGlobalAttributeSchemaMutation.class,
 			new SerialVersionBasedSerializer<>(new CreateGlobalAttributeSchemaMutationSerializer(), CreateGlobalAttributeSchemaMutation.class)
-				.addBackwardCompatibleSerializer(-7082514745878566818L, new CreateGlobalAttributeSchemaMutationSerializer_2024_11()),
+				.addBackwardCompatibleSerializer(-7082514745878566818L, new CreateGlobalAttributeSchemaMutationSerializer_2024_11())
+				.addBackwardCompatibleSerializer(496202593310308290L, new CreateGlobalAttributeSchemaMutationSerializer_2026_1()),
 			index++
 		);
 		kryo.register(ModifyAttributeSchemaDefaultValueMutation.class, new SerialVersionBasedSerializer<>(new ModifyAttributeSchemaDefaultValueMutationSerializer(), ModifyAttributeSchemaDefaultValueMutation.class), index++);
@@ -280,7 +294,8 @@ public class WalKryoConfigurer implements Consumer<Kryo> {
 			CreateReferenceSchemaMutation.class,
 			new SerialVersionBasedSerializer<>(new CreateReferenceSchemaMutationSerializer(), CreateReferenceSchemaMutation.class)
 				.addBackwardCompatibleSerializer(-1736213837309810284L, new CreateReferenceSchemaMutationSerializer_2024_11())
-				.addBackwardCompatibleSerializer(-5200773391501101688L, new CreateReferenceSchemaMutationSerializer_2026_1()),
+				.addBackwardCompatibleSerializer(-5200773391501101688L, new CreateReferenceSchemaMutationSerializer_2026_1())
+				.addBackwardCompatibleSerializer(-4158068801437475008L, new CreateReferenceSchemaMutationSerializer_2026_2()),
 			index++
 		);
 		kryo.register(ModifyReferenceAttributeSchemaMutation.class, new SerialVersionBasedSerializer<>(new ModifyReferenceAttributeSchemaMutationSerializer(), ModifyReferenceAttributeSchemaMutation.class), index++);
@@ -427,6 +442,39 @@ public class WalKryoConfigurer implements Consumer<Kryo> {
 		kryo.register(
 			UpgradeCatalogFormatMutation.class,
 			new SerialVersionBasedSerializer<>(new UpgradeCatalogFormatMutationSerializer(), UpgradeCatalogFormatMutation.class),
+			index++
+		);
+
+		// enums referenced by the conflict-resolution schema mutation serializers below; the WAL kryo does
+		// not compose SchemaKryoConfigurer, so these must be registered here (mirroring how that configurer
+		// registers them for the storage kryo) to avoid "class is not registered" failures at commit time
+		kryo.register(ConflictResolutionOverride.class, new EnumNameSerializer<>(), index++);
+		kryo.register(ConflictPolicy.class, new EnumNameSerializer<>(), index++);
+		kryo.register(GranularConflictPolicy.class, new EnumNameSerializer<>(), index++);
+
+		kryo.register(
+			SetAttributeSchemaConflictResolutionOverrideMutation.class,
+			new SerialVersionBasedSerializer<>(new SetAttributeSchemaConflictResolutionOverrideMutationSerializer(), SetAttributeSchemaConflictResolutionOverrideMutation.class),
+			index++
+		);
+		kryo.register(
+			SetAssociatedDataSchemaConflictResolutionOverrideMutation.class,
+			new SerialVersionBasedSerializer<>(new SetAssociatedDataSchemaConflictResolutionOverrideMutationSerializer(), SetAssociatedDataSchemaConflictResolutionOverrideMutation.class),
+			index++
+		);
+		kryo.register(
+			SetReferenceSchemaConflictResolutionOverrideMutation.class,
+			new SerialVersionBasedSerializer<>(new SetReferenceSchemaConflictResolutionOverrideMutationSerializer(), SetReferenceSchemaConflictResolutionOverrideMutation.class),
+			index++
+		);
+		kryo.register(
+			ModifyCatalogSchemaConflictResolutionMutation.class,
+			new SerialVersionBasedSerializer<>(new ModifyCatalogSchemaConflictResolutionMutationSerializer(), ModifyCatalogSchemaConflictResolutionMutation.class),
+			index++
+		);
+		kryo.register(
+			ModifyEntitySchemaConflictResolutionMutation.class,
+			new SerialVersionBasedSerializer<>(new ModifyEntitySchemaConflictResolutionMutationSerializer(), ModifyEntitySchemaConflictResolutionMutation.class),
 			index++
 		);
 

@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.associatedData;
 
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.schema.mutation.associatedData.CreateAssociatedDataSchemaMutation;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.ValueTypeMapper;
 import io.evitadb.externalApi.api.resolver.mutation.Input;
@@ -64,7 +65,8 @@ public class CreateAssociatedDataSchemaMutationConverter extends AssociatedDataS
 				new ValueTypeMapper(getExceptionFactory(), CreateAssociatedDataSchemaMutationDescriptor.TYPE)
 			),
 			input.getProperty(CreateAssociatedDataSchemaMutationDescriptor.LOCALIZED, false),
-			input.getProperty(CreateAssociatedDataSchemaMutationDescriptor.NULLABLE, false)
+			input.getProperty(CreateAssociatedDataSchemaMutationDescriptor.NULLABLE, false),
+			input.getProperty(CreateAssociatedDataSchemaMutationDescriptor.CONFLICT_RESOLUTION_OVERRIDE, ConflictResolutionOverride.INHERITED)
 		);
 	}
 }

@@ -106,6 +106,7 @@ public class EntitySchemaSerializer_2024_11 extends Serializer<EntitySchema> {
 		return EntitySchema._internalBuild(
 			version,
 			entityName, nameVariants, description, deprecationNotice,
+			null,
 			withGeneratedPrimaryKey,
 			withHierarchy,
 			withHierarchy ? Scope.DEFAULT_SCOPES : Scope.NO_SCOPE,

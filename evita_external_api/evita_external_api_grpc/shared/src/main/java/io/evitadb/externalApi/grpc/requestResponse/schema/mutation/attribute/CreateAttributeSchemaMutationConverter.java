@@ -39,7 +39,9 @@ import javax.annotation.Nonnull;
 import java.util.Arrays;
 
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toBooleanScopes;
+import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toConflictResolutionOverride;
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toGrpcAttributeUniquenessType;
+import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toGrpcConflictResolutionOverride;
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toScopedAttributeUniquenessTypes;
 
 /**
@@ -69,7 +71,8 @@ public class CreateAttributeSchemaMutationConverter implements SchemaMutationCon
 			mutation.getRepresentative(),
 			EvitaDataTypesConverter.toEvitaDataType(mutation.getType()),
 			mutation.hasDefaultValue() ? EvitaDataTypesConverter.toEvitaValue(mutation.getDefaultValue()) : null,
-			mutation.getIndexedDecimalPlaces()
+			mutation.getIndexedDecimalPlaces(),
+			toConflictResolutionOverride(mutation.getConflictResolutionOverride())
 		);
 	}
 
@@ -103,7 +106,8 @@ public class CreateAttributeSchemaMutationConverter implements SchemaMutationCon
 			.setLocalized(mutation.isLocalized())
 			.setNullable(mutation.isNullable())
 			.setType(EvitaDataTypesConverter.toGrpcEvitaDataType(mutation.getType()))
-			.setIndexedDecimalPlaces(mutation.getIndexedDecimalPlaces());
+			.setIndexedDecimalPlaces(mutation.getIndexedDecimalPlaces())
+			.setConflictResolutionOverride(toGrpcConflictResolutionOverride(mutation.getConflictResolutionOverride()));
 
 		if (mutation.getDescription() != null) {
 			builder.setDescription(StringValue.of(mutation.getDescription()));

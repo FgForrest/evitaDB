@@ -76,6 +76,7 @@ private static final long serialVersionUID = 0L;
     facetedPartially_ = java.util.Collections.emptyList();
     bucketed_ = java.util.Collections.emptyList();
     bucketedPartially_ = java.util.Collections.emptyList();
+    conflictResolutionOverride_ = 0;
   }
 
   @java.lang.Override
@@ -343,7 +344,7 @@ private static final long serialVersionUID = 0L;
    *
    * <code>bool entityTypeRelatesToEntity = 6 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcReferenceSchema.entityTypeRelatesToEntity is deprecated.
-   *     See GrpcEntitySchema.proto;l=327
+   *     See GrpcEntitySchema.proto;l=336
    * @return The entityTypeRelatesToEntity.
    */
   @java.lang.Override
@@ -402,7 +403,7 @@ private static final long serialVersionUID = 0L;
    *
    * <code>bool groupTypeRelatesToEntity = 8 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcReferenceSchema.groupTypeRelatesToEntity is deprecated.
-   *     See GrpcEntitySchema.proto;l=333
+   *     See GrpcEntitySchema.proto;l=342
    * @return The groupTypeRelatesToEntity.
    */
   @java.lang.Override
@@ -427,7 +428,7 @@ private static final long serialVersionUID = 0L;
    *
    * <code>bool indexed = 9 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcReferenceSchema.indexed is deprecated.
-   *     See GrpcEntitySchema.proto;l=343
+   *     See GrpcEntitySchema.proto;l=352
    * @return The indexed.
    */
   @java.lang.Override
@@ -452,7 +453,7 @@ private static final long serialVersionUID = 0L;
    *
    * <code>bool faceted = 10 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcReferenceSchema.faceted is deprecated.
-   *     See GrpcEntitySchema.proto;l=353
+   *     See GrpcEntitySchema.proto;l=362
    * @return The faceted.
    */
   @java.lang.Override
@@ -1128,7 +1129,7 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 26 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcReferenceSchema.indexedInScopes is deprecated.
-   *     See GrpcEntitySchema.proto;l=405
+   *     See GrpcEntitySchema.proto;l=414
    * @return A list containing the indexedInScopes.
    */
   @java.lang.Override
@@ -1151,7 +1152,7 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 26 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcReferenceSchema.indexedInScopes is deprecated.
-   *     See GrpcEntitySchema.proto;l=405
+   *     See GrpcEntitySchema.proto;l=414
    * @return The count of indexedInScopes.
    */
   @java.lang.Override
@@ -1173,7 +1174,7 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 26 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcReferenceSchema.indexedInScopes is deprecated.
-   *     See GrpcEntitySchema.proto;l=405
+   *     See GrpcEntitySchema.proto;l=414
    * @param index The index of the element to return.
    * @return The indexedInScopes at the given index.
    */
@@ -1196,7 +1197,7 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 26 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcReferenceSchema.indexedInScopes is deprecated.
-   *     See GrpcEntitySchema.proto;l=405
+   *     See GrpcEntitySchema.proto;l=414
    * @return A list containing the enum numeric values on the wire for indexedInScopes.
    */
   @java.lang.Override
@@ -1219,7 +1220,7 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 26 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcReferenceSchema.indexedInScopes is deprecated.
-   *     See GrpcEntitySchema.proto;l=405
+   *     See GrpcEntitySchema.proto;l=414
    * @param index The index of the value to return.
    * @return The enum numeric value on the wire of indexedInScopes at the given index.
    */
@@ -1673,6 +1674,34 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
     return bucketedPartially_.get(index);
   }
 
+  public static final int CONFLICTRESOLUTIONOVERRIDE_FIELD_NUMBER = 34;
+  private int conflictResolutionOverride_ = 0;
+  /**
+   * <pre>
+   * Contains the per-reference override of the conflict resolution granularity. Defaults to inherited (follow the
+   * resolved conflict resolution). On reflected references this is always inherited.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcConflictResolutionOverride conflictResolutionOverride = 34;</code>
+   * @return The enum numeric value on the wire for conflictResolutionOverride.
+   */
+  @java.lang.Override public int getConflictResolutionOverrideValue() {
+    return conflictResolutionOverride_;
+  }
+  /**
+   * <pre>
+   * Contains the per-reference override of the conflict resolution granularity. Defaults to inherited (follow the
+   * resolved conflict resolution). On reflected references this is always inherited.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcConflictResolutionOverride conflictResolutionOverride = 34;</code>
+   * @return The conflictResolutionOverride.
+   */
+  @java.lang.Override public io.evitadb.externalApi.grpc.generated.GrpcConflictResolutionOverride getConflictResolutionOverride() {
+    io.evitadb.externalApi.grpc.generated.GrpcConflictResolutionOverride result = io.evitadb.externalApi.grpc.generated.GrpcConflictResolutionOverride.forNumber(conflictResolutionOverride_);
+    return result == null ? io.evitadb.externalApi.grpc.generated.GrpcConflictResolutionOverride.UNRECOGNIZED : result;
+  }
+
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
@@ -1800,6 +1829,9 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
     }
     for (int i = 0; i < bucketedPartially_.size(); i++) {
       output.writeMessage(33, bucketedPartially_.get(i));
+    }
+    if (conflictResolutionOverride_ != io.evitadb.externalApi.grpc.generated.GrpcConflictResolutionOverride.CONFLICT_RESOLUTION_OVERRIDE_INHERITED.getNumber()) {
+      output.writeEnum(34, conflictResolutionOverride_);
     }
     getUnknownFields().writeTo(output);
   }
@@ -1972,6 +2004,10 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(33, bucketedPartially_.get(i));
     }
+    if (conflictResolutionOverride_ != io.evitadb.externalApi.grpc.generated.GrpcConflictResolutionOverride.CONFLICT_RESOLUTION_OVERRIDE_INHERITED.getNumber()) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeEnumSize(34, conflictResolutionOverride_);
+    }
     size += getUnknownFields().getSerializedSize();
     memoizedSize = size;
     return size;
@@ -2061,6 +2097,7 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
         .equals(other.getBucketedList())) return false;
     if (!getBucketedPartiallyList()
         .equals(other.getBucketedPartiallyList())) return false;
+    if (conflictResolutionOverride_ != other.conflictResolutionOverride_) return false;
     if (!getUnknownFields().equals(other.getUnknownFields())) return false;
     return true;
   }
@@ -2184,6 +2221,8 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
       hash = (37 * hash) + BUCKETEDPARTIALLY_FIELD_NUMBER;
       hash = (53 * hash) + getBucketedPartiallyList().hashCode();
     }
+    hash = (37 * hash) + CONFLICTRESOLUTIONOVERRIDE_FIELD_NUMBER;
+    hash = (53 * hash) + conflictResolutionOverride_;
     hash = (29 * hash) + getUnknownFields().hashCode();
     memoizedHashCode = hash;
     return hash;
@@ -2479,6 +2518,7 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
         bucketedPartiallyBuilder_.clear();
       }
       bitField1_ = (bitField1_ & ~0x00000001);
+      conflictResolutionOverride_ = 0;
       return this;
     }
 
@@ -2687,6 +2727,9 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
 
     private void buildPartial1(io.evitadb.externalApi.grpc.generated.GrpcReferenceSchema result) {
       int from_bitField1_ = bitField1_;
+      if (((from_bitField1_ & 0x00000002) != 0)) {
+        result.conflictResolutionOverride_ = conflictResolutionOverride_;
+      }
     }
 
     @java.lang.Override
@@ -3041,6 +3084,9 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
           }
         }
       }
+      if (other.conflictResolutionOverride_ != 0) {
+        setConflictResolutionOverrideValue(other.getConflictResolutionOverrideValue());
+      }
       this.mergeUnknownFields(other.getUnknownFields());
       onChanged();
       return this;
@@ -3337,6 +3383,11 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
               }
               break;
             } // case 266
+            case 272: {
+              conflictResolutionOverride_ = input.readEnum();
+              bitField1_ |= 0x00000002;
+              break;
+            } // case 272
             default: {
               if (!super.parseUnknownField(input, extensionRegistry, tag)) {
                 done = true; // was an endgroup tag
@@ -4001,7 +4052,7 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
      *
      * <code>bool entityTypeRelatesToEntity = 6 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcReferenceSchema.entityTypeRelatesToEntity is deprecated.
-     *     See GrpcEntitySchema.proto;l=327
+     *     See GrpcEntitySchema.proto;l=336
      * @return The entityTypeRelatesToEntity.
      */
     @java.lang.Override
@@ -4016,7 +4067,7 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
      *
      * <code>bool entityTypeRelatesToEntity = 6 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcReferenceSchema.entityTypeRelatesToEntity is deprecated.
-     *     See GrpcEntitySchema.proto;l=327
+     *     See GrpcEntitySchema.proto;l=336
      * @param value The entityTypeRelatesToEntity to set.
      * @return This builder for chaining.
      */
@@ -4035,7 +4086,7 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
      *
      * <code>bool entityTypeRelatesToEntity = 6 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcReferenceSchema.entityTypeRelatesToEntity is deprecated.
-     *     See GrpcEntitySchema.proto;l=327
+     *     See GrpcEntitySchema.proto;l=336
      * @return This builder for chaining.
      */
     @java.lang.Deprecated public Builder clearEntityTypeRelatesToEntity() {
@@ -4220,7 +4271,7 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
      *
      * <code>bool groupTypeRelatesToEntity = 8 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcReferenceSchema.groupTypeRelatesToEntity is deprecated.
-     *     See GrpcEntitySchema.proto;l=333
+     *     See GrpcEntitySchema.proto;l=342
      * @return The groupTypeRelatesToEntity.
      */
     @java.lang.Override
@@ -4235,7 +4286,7 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
      *
      * <code>bool groupTypeRelatesToEntity = 8 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcReferenceSchema.groupTypeRelatesToEntity is deprecated.
-     *     See GrpcEntitySchema.proto;l=333
+     *     See GrpcEntitySchema.proto;l=342
      * @param value The groupTypeRelatesToEntity to set.
      * @return This builder for chaining.
      */
@@ -4254,7 +4305,7 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
      *
      * <code>bool groupTypeRelatesToEntity = 8 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcReferenceSchema.groupTypeRelatesToEntity is deprecated.
-     *     See GrpcEntitySchema.proto;l=333
+     *     See GrpcEntitySchema.proto;l=342
      * @return This builder for chaining.
      */
     @java.lang.Deprecated public Builder clearGroupTypeRelatesToEntity() {
@@ -4280,7 +4331,7 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
      *
      * <code>bool indexed = 9 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcReferenceSchema.indexed is deprecated.
-     *     See GrpcEntitySchema.proto;l=343
+     *     See GrpcEntitySchema.proto;l=352
      * @return The indexed.
      */
     @java.lang.Override
@@ -4302,7 +4353,7 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
      *
      * <code>bool indexed = 9 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcReferenceSchema.indexed is deprecated.
-     *     See GrpcEntitySchema.proto;l=343
+     *     See GrpcEntitySchema.proto;l=352
      * @param value The indexed to set.
      * @return This builder for chaining.
      */
@@ -4328,7 +4379,7 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
      *
      * <code>bool indexed = 9 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcReferenceSchema.indexed is deprecated.
-     *     See GrpcEntitySchema.proto;l=343
+     *     See GrpcEntitySchema.proto;l=352
      * @return This builder for chaining.
      */
     @java.lang.Deprecated public Builder clearIndexed() {
@@ -4354,7 +4405,7 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
      *
      * <code>bool faceted = 10 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcReferenceSchema.faceted is deprecated.
-     *     See GrpcEntitySchema.proto;l=353
+     *     See GrpcEntitySchema.proto;l=362
      * @return The faceted.
      */
     @java.lang.Override
@@ -4376,7 +4427,7 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
      *
      * <code>bool faceted = 10 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcReferenceSchema.faceted is deprecated.
-     *     See GrpcEntitySchema.proto;l=353
+     *     See GrpcEntitySchema.proto;l=362
      * @param value The faceted to set.
      * @return This builder for chaining.
      */
@@ -4402,7 +4453,7 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
      *
      * <code>bool faceted = 10 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcReferenceSchema.faceted is deprecated.
-     *     See GrpcEntitySchema.proto;l=353
+     *     See GrpcEntitySchema.proto;l=362
      * @return This builder for chaining.
      */
     @java.lang.Deprecated public Builder clearFaceted() {
@@ -6529,7 +6580,7 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 26 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcReferenceSchema.indexedInScopes is deprecated.
-     *     See GrpcEntitySchema.proto;l=405
+     *     See GrpcEntitySchema.proto;l=414
      * @return A list containing the indexedInScopes.
      */
     @java.lang.Deprecated public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcEntityScope> getIndexedInScopesList() {
@@ -6551,7 +6602,7 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 26 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcReferenceSchema.indexedInScopes is deprecated.
-     *     See GrpcEntitySchema.proto;l=405
+     *     See GrpcEntitySchema.proto;l=414
      * @return The count of indexedInScopes.
      */
     @java.lang.Deprecated public int getIndexedInScopesCount() {
@@ -6572,7 +6623,7 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 26 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcReferenceSchema.indexedInScopes is deprecated.
-     *     See GrpcEntitySchema.proto;l=405
+     *     See GrpcEntitySchema.proto;l=414
      * @param index The index of the element to return.
      * @return The indexedInScopes at the given index.
      */
@@ -6594,7 +6645,7 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 26 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcReferenceSchema.indexedInScopes is deprecated.
-     *     See GrpcEntitySchema.proto;l=405
+     *     See GrpcEntitySchema.proto;l=414
      * @param index The index to set the value at.
      * @param value The indexedInScopes to set.
      * @return This builder for chaining.
@@ -6624,7 +6675,7 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 26 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcReferenceSchema.indexedInScopes is deprecated.
-     *     See GrpcEntitySchema.proto;l=405
+     *     See GrpcEntitySchema.proto;l=414
      * @param value The indexedInScopes to add.
      * @return This builder for chaining.
      */
@@ -6652,7 +6703,7 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 26 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcReferenceSchema.indexedInScopes is deprecated.
-     *     See GrpcEntitySchema.proto;l=405
+     *     See GrpcEntitySchema.proto;l=414
      * @param values The indexedInScopes to add.
      * @return This builder for chaining.
      */
@@ -6680,7 +6731,7 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 26 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcReferenceSchema.indexedInScopes is deprecated.
-     *     See GrpcEntitySchema.proto;l=405
+     *     See GrpcEntitySchema.proto;l=414
      * @return This builder for chaining.
      */
     @java.lang.Deprecated public Builder clearIndexedInScopes() {
@@ -6704,7 +6755,7 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 26 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcReferenceSchema.indexedInScopes is deprecated.
-     *     See GrpcEntitySchema.proto;l=405
+     *     See GrpcEntitySchema.proto;l=414
      * @return A list containing the enum numeric values on the wire for indexedInScopes.
      */
     @java.lang.Deprecated public java.util.List<java.lang.Integer>
@@ -6726,7 +6777,7 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 26 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcReferenceSchema.indexedInScopes is deprecated.
-     *     See GrpcEntitySchema.proto;l=405
+     *     See GrpcEntitySchema.proto;l=414
      * @param index The index of the value to return.
      * @return The enum numeric value on the wire of indexedInScopes at the given index.
      */
@@ -6748,7 +6799,7 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 26 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcReferenceSchema.indexedInScopes is deprecated.
-     *     See GrpcEntitySchema.proto;l=405
+     *     See GrpcEntitySchema.proto;l=414
      * @param index The index to set the value at.
      * @param value The enum numeric value on the wire for indexedInScopes to set.
      * @return This builder for chaining.
@@ -6775,7 +6826,7 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 26 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcReferenceSchema.indexedInScopes is deprecated.
-     *     See GrpcEntitySchema.proto;l=405
+     *     See GrpcEntitySchema.proto;l=414
      * @param value The enum numeric value on the wire for indexedInScopes to add.
      * @return This builder for chaining.
      */
@@ -6800,7 +6851,7 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 26 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcReferenceSchema.indexedInScopes is deprecated.
-     *     See GrpcEntitySchema.proto;l=405
+     *     See GrpcEntitySchema.proto;l=414
      * @param values The enum numeric values on the wire for indexedInScopes to add.
      * @return This builder for chaining.
      */
@@ -8727,6 +8778,84 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
         bucketedPartially_ = null;
       }
       return bucketedPartiallyBuilder_;
+    }
+
+    private int conflictResolutionOverride_ = 0;
+    /**
+     * <pre>
+     * Contains the per-reference override of the conflict resolution granularity. Defaults to inherited (follow the
+     * resolved conflict resolution). On reflected references this is always inherited.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcConflictResolutionOverride conflictResolutionOverride = 34;</code>
+     * @return The enum numeric value on the wire for conflictResolutionOverride.
+     */
+    @java.lang.Override public int getConflictResolutionOverrideValue() {
+      return conflictResolutionOverride_;
+    }
+    /**
+     * <pre>
+     * Contains the per-reference override of the conflict resolution granularity. Defaults to inherited (follow the
+     * resolved conflict resolution). On reflected references this is always inherited.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcConflictResolutionOverride conflictResolutionOverride = 34;</code>
+     * @param value The enum numeric value on the wire for conflictResolutionOverride to set.
+     * @return This builder for chaining.
+     */
+    public Builder setConflictResolutionOverrideValue(int value) {
+      conflictResolutionOverride_ = value;
+      bitField1_ |= 0x00000002;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Contains the per-reference override of the conflict resolution granularity. Defaults to inherited (follow the
+     * resolved conflict resolution). On reflected references this is always inherited.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcConflictResolutionOverride conflictResolutionOverride = 34;</code>
+     * @return The conflictResolutionOverride.
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcConflictResolutionOverride getConflictResolutionOverride() {
+      io.evitadb.externalApi.grpc.generated.GrpcConflictResolutionOverride result = io.evitadb.externalApi.grpc.generated.GrpcConflictResolutionOverride.forNumber(conflictResolutionOverride_);
+      return result == null ? io.evitadb.externalApi.grpc.generated.GrpcConflictResolutionOverride.UNRECOGNIZED : result;
+    }
+    /**
+     * <pre>
+     * Contains the per-reference override of the conflict resolution granularity. Defaults to inherited (follow the
+     * resolved conflict resolution). On reflected references this is always inherited.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcConflictResolutionOverride conflictResolutionOverride = 34;</code>
+     * @param value The conflictResolutionOverride to set.
+     * @return This builder for chaining.
+     */
+    public Builder setConflictResolutionOverride(io.evitadb.externalApi.grpc.generated.GrpcConflictResolutionOverride value) {
+      if (value == null) {
+        throw new NullPointerException();
+      }
+      bitField1_ |= 0x00000002;
+      conflictResolutionOverride_ = value.getNumber();
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Contains the per-reference override of the conflict resolution granularity. Defaults to inherited (follow the
+     * resolved conflict resolution). On reflected references this is always inherited.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcConflictResolutionOverride conflictResolutionOverride = 34;</code>
+     * @return This builder for chaining.
+     */
+    public Builder clearConflictResolutionOverride() {
+      bitField1_ = (bitField1_ & ~0x00000002);
+      conflictResolutionOverride_ = 0;
+      onChanged();
+      return this;
     }
     @java.lang.Override
     public final Builder setUnknownFields(

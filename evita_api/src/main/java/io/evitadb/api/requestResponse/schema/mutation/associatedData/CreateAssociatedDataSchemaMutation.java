@@ -31,6 +31,7 @@ import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.NamedSchemaContract;
 import io.evitadb.api.requestResponse.schema.NamedSchemaWithDeprecationContract;
+import io.evitadb.api.requestResponse.schema.annotation.SerializableCreator;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
 import io.evitadb.api.requestResponse.schema.dto.AssociatedDataSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
@@ -74,7 +75,7 @@ import java.util.stream.Stream;
 public class CreateAssociatedDataSchemaMutation
 	extends AbstractAssociatedDataSchemaMutation
 	implements CombinableLocalEntitySchemaMutation, CreateMutation {
-	@Serial private static final long serialVersionUID = -7368528015832499968L;
+	@Serial private static final long serialVersionUID = -7368528015832499967L;
 	@Getter @Nullable private final String description;
 	@Getter @Nullable private final String deprecationNotice;
 	@Getter @Nonnull private final Class<? extends Serializable> type;
@@ -124,6 +125,7 @@ public class CreateAssociatedDataSchemaMutation
 	 *                                   resolution)
 	 * @throws InvalidSchemaMutationException if the type is not allowed in associated data
 	 */
+	@SerializableCreator
 	public CreateAssociatedDataSchemaMutation(
 		@Nonnull String name,
 		@Nullable String description,

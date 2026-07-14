@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute;
 
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.CreateGlobalAttributeSchemaMutation;
 import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedAttributeUniquenessTypeDescriptor;
@@ -174,6 +175,16 @@ public interface CreateGlobalAttributeSchemaMutationDescriptor extends Attribute
 		.build();
 
 
+	PropertyDescriptor CONFLICT_RESOLUTION_OVERRIDE = PropertyDescriptor.builder()
+		.name("conflictResolutionOverride")
+		.description("""
+			Determines the granularity at which transaction conflicts are detected for this attribute. When set to
+			`INHERITED` (the default) the attribute follows the conflict resolution resolved for the entity, otherwise it
+			overrides the resolved granularity for this attribute alone.
+			""")
+		.type(nullable(ConflictResolutionOverride.class))
+		.build();
+
 	ObjectDescriptor THIS = ObjectDescriptor.implementing(THIS_INTERFACE)
 		.representedClass(CreateGlobalAttributeSchemaMutation.class)
 		.description("""
@@ -192,6 +203,7 @@ public interface CreateGlobalAttributeSchemaMutationDescriptor extends Attribute
 		.staticProperty(TYPE)
 		.staticProperty(DEFAULT_VALUE)
 		.staticProperty(INDEXED_DECIMAL_PLACES)
+		.staticProperty(CONFLICT_RESOLUTION_OVERRIDE)
 		.build();
 	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS, INPUT_OBJECT_PROPERTIES_FILTER)
 		.name("CreateGlobalAttributeSchemaMutationInput")

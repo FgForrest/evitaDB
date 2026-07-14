@@ -74,6 +74,12 @@ public class CatalogSchemaJsonSerializer extends SchemaJsonSerializer {
 		rootNode.set(NamedSchemaDescriptor.NAME_VARIANTS.name(), serializeNameVariants(catalogSchema.getNameVariants()));
 		rootNode.putIfAbsent(NamedSchemaDescriptor.DESCRIPTION.name(), catalogSchema.getDescription() != null ? this.objectJsonSerializer.serializeObject(catalogSchema.getDescription()) : null);
 
+		serializeConflictResolution(
+			rootNode,
+			CatalogSchemaDescriptor.CONFLICT_RESOLUTION.name(),
+			catalogSchema.getConflictResolution().orElse(null)
+		);
+
 		rootNode.set(CatalogSchemaDescriptor.ATTRIBUTES.name(), serializeAttributeSchemas(catalogSchema));
 		rootNode.set(CatalogSchemaDescriptor.ENTITY_SCHEMAS.name(), serializeEntitySchemas(entitySchemaFetcher, entityTypes));
 

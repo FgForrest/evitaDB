@@ -34,6 +34,7 @@ import java.util.List;
 import java.util.Locale;
 
 import static io.evitadb.externalApi.api.model.TypePropertyDataTypeDescriptor.nonNullListRef;
+import static io.evitadb.externalApi.api.model.TypePropertyDataTypeDescriptor.nullableRef;
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
 
 /**
@@ -280,6 +281,16 @@ public interface EntitySchemaDescriptor extends VersionedDescriptor, NamedSchema
 		.type(nonNullListRef(ReferenceSchemaDescriptor.THIS_GENERIC))
 		.build();
 
+	PropertyDescriptor CONFLICT_RESOLUTION = PropertyDescriptor.builder()
+		.name("conflictResolution")
+		.description("""
+			The transaction conflict resolution declared at the entity level. A `null` value means the entity inherits
+			the conflict resolution resolved for the catalog (and ultimately the engine default); a non-null value
+			overrides that default for this entity collection.
+			""")
+		.type(nullableRef(ConflictResolutionDescriptor.THIS))
+		.build();
+
 	ObjectDescriptor THIS_GENERIC = ObjectDescriptor.builder()
 		.name("EntitySchema")
 		.description("""
@@ -314,7 +325,8 @@ public interface EntitySchemaDescriptor extends VersionedDescriptor, NamedSchema
 			ALL_ATTRIBUTES,
 			ALL_SORTABLE_ATTRIBUTE_COMPOUNDS,
 			ALL_ASSOCIATED_DATA,
-			ALL_REFERENCES
+			ALL_REFERENCES,
+			CONFLICT_RESOLUTION
 		))
 		.build();
 	ObjectDescriptor THIS_SPECIFIC = ObjectDescriptor.builder()
@@ -347,7 +359,8 @@ public interface EntitySchemaDescriptor extends VersionedDescriptor, NamedSchema
 			INDEXED_PRICE_PLACES,
 			LOCALES,
 			CURRENCIES,
-			EVOLUTION_MODE
+			EVOLUTION_MODE,
+			CONFLICT_RESOLUTION
 		))
 		.build();
 }

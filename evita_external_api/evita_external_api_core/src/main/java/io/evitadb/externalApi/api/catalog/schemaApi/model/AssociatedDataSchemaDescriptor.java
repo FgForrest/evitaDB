@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.api.catalog.schemaApi.model;
 
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.schema.dto.AssociatedDataSchema;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
@@ -68,6 +69,16 @@ public interface AssociatedDataSchemaDescriptor extends NamedSchemaWithDeprecati
 		.type(nonNull(Boolean.class))
 		.build();
 
+	PropertyDescriptor CONFLICT_RESOLUTION_OVERRIDE = PropertyDescriptor.builder()
+		.name("conflictResolutionOverride")
+		.description("""
+			Determines the granularity at which transaction conflicts are detected for this associated data. When set to
+			`INHERITED` the associated data follows the conflict resolution resolved for the entity, otherwise it
+			overrides the resolved granularity for this associated data alone.
+			""")
+		.type(nonNull(ConflictResolutionOverride.class))
+		.build();
+
 
 	ObjectDescriptor THIS = ObjectDescriptor.builder()
 		.name("AssociatedDataSchema")
@@ -88,7 +99,8 @@ public interface AssociatedDataSchemaDescriptor extends NamedSchemaWithDeprecati
 			DEPRECATION_NOTICE,
 			LOCALIZED,
 			NULLABLE,
-			TYPE
+			TYPE,
+			CONFLICT_RESOLUTION_OVERRIDE
 		))
 		.build();
 }

@@ -24,6 +24,7 @@
 package io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference;
 
 import io.evitadb.api.requestResponse.schema.Cardinality;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.schema.mutation.reference.CreateReferenceSchemaMutation;
 import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedHistogramIndexDefinitionDescriptor;
@@ -202,6 +203,15 @@ public interface CreateReferenceSchemaMutationDescriptor extends ReferenceSchema
 	PropertyDescriptor BUCKETED_PARTIALLY_IN_SCOPES_INPUT = PropertyDescriptor.from(BUCKETED_PARTIALLY_IN_SCOPES)
 		.type(nullableListRef(ScopedBucketedPartiallyDescriptor.THIS_INPUT))
 		.build();
+	PropertyDescriptor CONFLICT_RESOLUTION_OVERRIDE = PropertyDescriptor.builder()
+		.name("conflictResolutionOverride")
+		.description("""
+			Determines the granularity at which transaction conflicts are detected for this reference. When set to
+			`INHERITED` (the default) the reference follows the conflict resolution resolved for the entity, otherwise it
+			overrides the resolved granularity for this reference alone.
+			""")
+		.type(nullable(ConflictResolutionOverride.class))
+		.build();
 
 	ObjectDescriptor THIS = ObjectDescriptor.implementing(THIS_INTERFACE)
 		.representedClass(CreateReferenceSchemaMutation.class)
@@ -223,6 +233,7 @@ public interface CreateReferenceSchemaMutationDescriptor extends ReferenceSchema
 		.staticProperty(FACETED_PARTIALLY_IN_SCOPES)
 		.staticProperty(BUCKETED_IN_SCOPES)
 		.staticProperty(BUCKETED_PARTIALLY_IN_SCOPES)
+		.staticProperty(CONFLICT_RESOLUTION_OVERRIDE)
 		.build();
 	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS, INPUT_OBJECT_PROPERTIES_FILTER)
 		.name("CreateReferenceSchemaMutationInput")

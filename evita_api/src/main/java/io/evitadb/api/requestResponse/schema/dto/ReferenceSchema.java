@@ -75,7 +75,7 @@ import static java.util.Optional.ofNullable;
 @Immutable
 @ThreadSafe
 public sealed class ReferenceSchema implements ReferenceSchemaContract permits ReflectedReferenceSchema {
-	@Serial private static final long serialVersionUID = 5443565766311111159L;
+	@Serial private static final long serialVersionUID = 5443565766311111160L;
 	/**
 	 * Reference name distinguishing relations of the same target type.
 	 */
@@ -602,6 +602,43 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 	}
 
 	/**
+	 * Transitional compatibility overload defaulting the conflict resolution setting; delegates to the full overload.
+	 *
+	 * @deprecated bridges call sites not yet migrated to the explicit conflict-resolution parameter.
+	 */
+	@Deprecated(forRemoval = true)
+	@Nonnull
+	public static ReferenceSchema _internalBuild(
+		@Nonnull String name,
+		@Nonnull Map<NamingConvention, String> nameVariants,
+		@Nullable String description,
+		@Nullable String deprecationNotice,
+		@Nullable Cardinality cardinality,
+		@Nonnull String referencedEntityType,
+		@Nonnull Map<NamingConvention, String> entityTypeNameVariants,
+		boolean referencedEntityTypeManaged,
+		@Nullable String referencedGroupType,
+		@Nonnull Map<NamingConvention, String> groupTypeNameVariants,
+		boolean referencedGroupTypeManaged,
+		@Nonnull Map<Scope, ReferenceIndexType> indexedInScopes,
+		@Nonnull Map<Scope, Set<ReferenceIndexedComponents>> indexedComponentsInScopes,
+		@Nonnull Set<Scope> facetedInScopes,
+		@Nonnull Map<Scope, Expression> facetedPartiallyInScopes,
+		@Nonnull Map<Scope, Map<String, HistogramIndexDefinition>> bucketedInScopes,
+		@Nonnull Map<Scope, Expression> bucketedPartiallyInScopes,
+		@Nonnull Map<String, AttributeSchemaContract> attributes,
+		@Nonnull Map<String, SortableAttributeCompoundSchemaContract> sortableAttributeCompounds
+	) {
+		return _internalBuild(
+			name, nameVariants, description, deprecationNotice, cardinality, referencedEntityType,
+			entityTypeNameVariants, referencedEntityTypeManaged, referencedGroupType, groupTypeNameVariants,
+			referencedGroupTypeManaged, indexedInScopes, indexedComponentsInScopes, facetedInScopes,
+			facetedPartiallyInScopes, bucketedInScopes, bucketedPartiallyInScopes, attributes,
+			sortableAttributeCompounds, ConflictResolutionOverride.INHERITED
+		);
+	}
+
+	/**
 	 * This method is for internal purposes only. It could be used for reconstruction of ReferenceSchema from
 	 * different package than current, but still internal code of the Evita ecosystems.
 	 *
@@ -660,6 +697,47 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 			attributes,
 			sortableAttributeCompounds,
 			conflictResolutionOverride
+		);
+	}
+
+	/**
+	 * Transitional compatibility overload that reconstructs a reference schema without a conflict resolution override,
+	 * defaulting it to {@link ConflictResolutionOverride#INHERITED}. It exists so external API converters
+	 * (gRPC/GraphQL/REST) that do not yet propagate the conflict resolution setting keep compiling and round-tripping
+	 * the rest of the schema. It will be removed once those converters carry the conflict resolution setting through
+	 * their transport format.
+	 *
+	 * @deprecated bridges external-API reconstruction until the conflict resolution setting is propagated over the wire
+	 */
+	@Deprecated(forRemoval = true)
+	@Nonnull
+	public static ReferenceSchema _internalBuild(
+		@Nonnull String name,
+		@Nonnull Map<NamingConvention, String> nameVariants,
+		@Nullable String description,
+		@Nullable String deprecationNotice,
+		@Nonnull String entityType,
+		@Nonnull Map<NamingConvention, String> entityTypeNameVariants,
+		boolean referencedEntityTypeManaged,
+		@Nonnull Cardinality cardinality,
+		@Nullable String groupType,
+		@Nullable Map<NamingConvention, String> groupTypeNameVariants,
+		boolean referencedGroupTypeManaged,
+		@Nonnull ScopedReferenceIndexType[] indexedInScopes,
+		@Nullable ScopedReferenceIndexedComponents[] indexedComponentsInScopes,
+		@Nonnull Scope[] facetedInScopes,
+		@Nullable ScopedFacetedPartially[] facetedPartiallyInScopes,
+		@Nullable ScopedHistogramIndexDefinition[] bucketedInScopes,
+		@Nullable ScopedBucketedPartially[] bucketedPartiallyInScopes,
+		@Nonnull Map<String, AttributeSchemaContract> attributes,
+		@Nonnull Map<String, SortableAttributeCompoundSchemaContract> sortableAttributeCompounds
+	) {
+		return _internalBuild(
+			name, nameVariants, description, deprecationNotice, entityType, entityTypeNameVariants,
+			referencedEntityTypeManaged, cardinality, groupType, groupTypeNameVariants, referencedGroupTypeManaged,
+			indexedInScopes, indexedComponentsInScopes, facetedInScopes, facetedPartiallyInScopes, bucketedInScopes,
+			bucketedPartiallyInScopes, attributes, sortableAttributeCompounds,
+			ConflictResolutionOverride.INHERITED
 		);
 	}
 

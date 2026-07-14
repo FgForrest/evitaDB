@@ -27,6 +27,9 @@ import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.OrderBehaviour;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
+import io.evitadb.api.requestResponse.mutation.conflict.GranularConflictPolicy;
 import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
 import io.evitadb.core.Evita;
 import io.evitadb.dataType.Scope;
@@ -261,6 +264,7 @@ class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEnd
 						.e(AttributeSchemaDescriptor.TYPE.name(), String.class.getSimpleName())
 						.e(AttributeSchemaDescriptor.DEFAULT_VALUE.name(), null)
 						.e(AttributeSchemaDescriptor.INDEXED_DECIMAL_PLACES.name(), 0)
+						.e(AttributeSchemaDescriptor.CONFLICT_RESOLUTION_OVERRIDE.name(), ConflictResolutionOverride.INHERITED.name())
 						.build()
 				)
 			)
@@ -312,6 +316,7 @@ class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEnd
 						.e(AttributeSchemaDescriptor.TYPE.name(), String.class.getSimpleName())
 						.e(AttributeSchemaDescriptor.DEFAULT_VALUE.name(), null)
 						.e(AttributeSchemaDescriptor.INDEXED_DECIMAL_PLACES.name(), 0)
+						.e(AttributeSchemaDescriptor.CONFLICT_RESOLUTION_OVERRIDE.name(), ConflictResolutionOverride.INHERITED.name())
 						.build()
 				)
 			)
@@ -576,6 +581,7 @@ class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEnd
 						.e(AssociatedDataSchemaDescriptor.TYPE.name(), String.class.getSimpleName())
 						.e(AssociatedDataSchemaDescriptor.LOCALIZED.name(), true)
 						.e(AssociatedDataSchemaDescriptor.NULLABLE.name(), false)
+						.e(AssociatedDataSchemaDescriptor.CONFLICT_RESOLUTION_OVERRIDE.name(), ConflictResolutionOverride.INHERITED.name())
 						.build()
 				)
 			)
@@ -622,6 +628,7 @@ class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEnd
 						.e(AssociatedDataSchemaDescriptor.TYPE.name(), String.class.getSimpleName())
 						.e(AssociatedDataSchemaDescriptor.LOCALIZED.name(), true)
 						.e(AssociatedDataSchemaDescriptor.NULLABLE.name(), false)
+						.e(AssociatedDataSchemaDescriptor.CONFLICT_RESOLUTION_OVERRIDE.name(), ConflictResolutionOverride.INHERITED.name())
 						.build()
 				)
 			)
@@ -749,6 +756,7 @@ class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEnd
 						.e(ReferenceSchemaDescriptor.FACETED_PARTIALLY.name(), list())
 						.e(ReferenceSchemaDescriptor.BUCKETED.name(), list())
 						.e(ReferenceSchemaDescriptor.BUCKETED_PARTIALLY.name(), list())
+						.e(ReferenceSchemaDescriptor.CONFLICT_RESOLUTION_OVERRIDE.name(), ConflictResolutionOverride.INHERITED.name())
 						.e(ReferenceSchemaDescriptor.ATTRIBUTES.name(), map())
 						.e(SortableAttributeCompoundsSchemaProviderDescriptor.SORTABLE_ATTRIBUTE_COMPOUNDS.name(), map())
 						.build()
@@ -1073,6 +1081,118 @@ class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEnd
 				""")
 			.executeAndThen()
 			.statusCode(200);
+	}
+
+	@Test
+	@UseDataSet(REST_THOUSAND_PRODUCTS_FOR_SCHEMA_UPDATE)
+	@DisplayName("Should change conflict resolution of entity schema and attribute override")
+	void shouldChangeConflictResolutionOfEntitySchema(Evita evita, RestTester tester) {
+		final int initialEntitySchemaVersion = getEntitySchemaVersion(tester, ENTITY_EMPTY);
+
+		// create an attribute, a reference and an associated data we can attach non-default overrides to
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/empty/schema")
+			.httpMethod(Request.METHOD_PUT)
+			.requestBody("""
+				{
+					"mutations": [
+						{
+							"createAttributeSchemaMutation": {
+								"name": "conflictAttribute",
+								"type": "String",
+								"indexedDecimalPlaces": 0
+							}
+						},
+						{
+							"createReferenceSchemaMutation": {
+								"name": "conflictReference",
+								"referencedEntityType": "tag",
+								"referencedEntityTypeManaged": false,
+								"referencedGroupTypeManaged": false
+							}
+						},
+						{
+							"createAssociatedDataSchemaMutation": {
+								"name": "conflictLabel",
+								"type": "String",
+								"localized": false,
+								"nullable": false
+							}
+						}
+					]
+				}
+				""")
+			.executeAndExpectOkAndThen()
+			.body(VersionedDescriptor.VERSION.name(), equalTo(initialEntitySchemaVersion + 3));
+
+		// set a non-default entity-level conflict resolution and non-default overrides on all three elements
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/empty/schema")
+			.httpMethod(Request.METHOD_PUT)
+			.requestBody("""
+				{
+					"mutations": [
+						{
+							"modifyEntitySchemaConflictResolutionMutation": {
+								"conflictResolution": {
+									"policy": "ENTITY",
+									"granularity": ["ENTITY_ATTRIBUTE"]
+								}
+							}
+						},
+						{
+							"setAttributeSchemaConflictResolutionOverrideMutation": {
+								"name": "conflictAttribute",
+								"conflictResolutionOverride": "GRANULAR"
+							}
+						},
+						{
+							"setReferenceSchemaConflictResolutionOverrideMutation": {
+								"name": "conflictReference",
+								"conflictResolutionOverride": "GRANULAR"
+							}
+						},
+						{
+							"setAssociatedDataSchemaConflictResolutionOverrideMutation": {
+								"name": "conflictLabel",
+								"conflictResolutionOverride": "GRANULAR"
+							}
+						}
+					]
+				}
+				""")
+			.executeAndExpectOkAndThen()
+			.body(VersionedDescriptor.VERSION.name(), equalTo(initialEntitySchemaVersion + 7));
+
+		// read the schema back and assert the non-default values survived the hand-written serialization
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/empty/schema")
+			.httpMethod(Request.METHOD_GET)
+			.executeAndExpectOkAndThen()
+			.body(
+				EntitySchemaDescriptor.CONFLICT_RESOLUTION.name(),
+				equalTo(
+					map()
+						.e(ConflictResolutionDescriptor.POLICY.name(), ConflictPolicy.ENTITY.name())
+						.e(
+							ConflictResolutionDescriptor.GRANULARITY.name(),
+							List.of(GranularConflictPolicy.ENTITY_ATTRIBUTE.name())
+						)
+						.build()
+				)
+			)
+			.body(
+				EntitySchemaDescriptor.ATTRIBUTES.name() + ".conflictAttribute." + AttributeSchemaDescriptor.CONFLICT_RESOLUTION_OVERRIDE.name(),
+				equalTo(ConflictResolutionOverride.GRANULAR.name())
+			)
+			.body(
+				EntitySchemaDescriptor.REFERENCES.name() + ".conflictReference." + ReferenceSchemaDescriptor.CONFLICT_RESOLUTION_OVERRIDE.name(),
+				equalTo(ConflictResolutionOverride.GRANULAR.name())
+			)
+			.body(
+				EntitySchemaDescriptor.ASSOCIATED_DATA.name() + ".conflictLabel." + AssociatedDataSchemaDescriptor.CONFLICT_RESOLUTION_OVERRIDE.name(),
+				equalTo(ConflictResolutionOverride.GRANULAR.name())
+			);
 	}
 
 	private static int getEntitySchemaVersion(@Nonnull RestTester tester, @Nonnull String entityType) {

@@ -27,6 +27,7 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.CreateGlobalAttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
@@ -98,6 +99,7 @@ public class CreateGlobalAttributeSchemaMutationSerializer extends Serializer<Cr
 		output.writeBoolean(mutation.isRepresentative());
 		kryo.writeObjectOrNull(output, mutation.getDefaultValue(), mutation.getType());
 		output.writeVarInt(mutation.getIndexedDecimalPlaces(), true);
+		kryo.writeObject(output, mutation.getConflictResolutionOverride());
 	}
 
 	@Override
@@ -129,7 +131,8 @@ public class CreateGlobalAttributeSchemaMutationSerializer extends Serializer<Cr
 			representative,
 			theType,
 			kryo.readObjectOrNull(input, theType),
-			input.readVarInt(true)
+			input.readVarInt(true),
+			kryo.readObject(input, ConflictResolutionOverride.class)
 		);
 	}
 }

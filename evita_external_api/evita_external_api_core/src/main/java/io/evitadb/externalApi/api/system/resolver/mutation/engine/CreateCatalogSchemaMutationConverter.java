@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,9 +23,15 @@
 
 package io.evitadb.externalApi.api.system.resolver.mutation.engine;
 
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolution;
 import io.evitadb.api.requestResponse.schema.mutation.engine.CreateCatalogSchemaMutation;
+import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.ConflictResolutionMutationConverterSupport;
+import io.evitadb.externalApi.api.system.model.mutation.engine.CreateCatalogSchemaMutationDescriptor;
+import io.evitadb.externalApi.api.system.model.mutation.engine.EngineMutationDescriptor;
+import io.evitadb.externalApi.api.resolver.mutation.Input;
 import io.evitadb.externalApi.api.resolver.mutation.MutationObjectMapper;
 import io.evitadb.externalApi.api.resolver.mutation.MutationResolvingExceptionFactory;
+import io.evitadb.externalApi.api.resolver.mutation.Output;
 
 import javax.annotation.Nonnull;
 
@@ -33,6 +39,10 @@ import javax.annotation.Nonnull;
  * Implementation of {@link EngineMutationConverter} for resolving {@link CreateCatalogSchemaMutation}.
  * This converter handles the conversion of external API requests into catalog schema creation mutations,
  * enabling the creation of new catalog schemas through the external API.
+ *
+ * The optional catalog-level {@link ConflictResolution} value object cannot be handled by the reflective converter
+ * path; both directions are delegated to {@link ConflictResolutionMutationConverterSupport}, which documents the
+ * rationale.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
@@ -50,5 +60,31 @@ public class CreateCatalogSchemaMutationConverter
 	@Override
 	protected Class<CreateCatalogSchemaMutation> getMutationClass() {
 		return CreateCatalogSchemaMutation.class;
+	}
+
+	@Nonnull
+	@Override
+	protected CreateCatalogSchemaMutation convertFromInput(@Nonnull Input input) {
+		final String catalogName = input.getProperty(EngineMutationDescriptor.CATALOG_NAME);
+		final ConflictResolution conflictResolution = input.getOptionalProperty(
+			CreateCatalogSchemaMutationDescriptor.CONFLICT_RESOLUTION.name(),
+			rawValue -> ConflictResolutionMutationConverterSupport.parseConflictResolution(
+				input, rawValue, getMutationName(), getExceptionFactory()
+			)
+		);
+		return new CreateCatalogSchemaMutation(catalogName, conflictResolution);
+	}
+
+	@Override
+	protected void convertToOutput(
+		@Nonnull CreateCatalogSchemaMutation mutation,
+		@Nonnull Output output
+	) {
+		ConflictResolutionMutationConverterSupport.serializeConflictResolution(
+			mutation.getConflictResolution(),
+			output,
+			CreateCatalogSchemaMutationDescriptor.CONFLICT_RESOLUTION.name()
+		);
+		super.convertToOutput(mutation, output);
 	}
 }

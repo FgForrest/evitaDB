@@ -843,3 +843,61 @@ enum GrpcTimeFlow {
   BEFORE = 1;
 
 }
+
+// Enum represents the per-item override of the conflict resolution granularity applied to a schema element
+// (attribute, associated data or reference).
+enum GrpcConflictResolutionOverride {
+
+  // The schema element follows the resolved conflict resolution (no explicit override).
+  CONFLICT_RESOLUTION_OVERRIDE_INHERITED = 0;
+  // Conflicts on this schema element are detected at granular (sub-entity) level.
+  CONFLICT_RESOLUTION_OVERRIDE_GRANULAR = 1;
+  // Conflicts on this schema element are detected at whole-entity level.
+  CONFLICT_RESOLUTION_OVERRIDE_ENTITY = 2;
+
+}
+
+// Enum represents the coarse, mutually exclusive scope at which transaction conflicts are detected.
+enum GrpcConflictPolicy {
+
+  // No conflict detection is performed.
+  CONFLICT_POLICY_NONE = 0;
+  // Conflicts are detected at the catalog level.
+  CONFLICT_POLICY_CATALOG = 1;
+  // Conflicts are detected at the entity collection level.
+  CONFLICT_POLICY_COLLECTION = 2;
+  // Conflicts are detected at the entity level.
+  CONFLICT_POLICY_ENTITY = 3;
+
+}
+
+// Enum represents a sub-entity refinement of entity-level conflict detection. Granularity is legal only when the
+// coarse conflict policy is set to entity level.
+enum GrpcGranularConflictPolicy {
+
+  // Conflicts are detected on entity attributes.
+  GRANULAR_CONFLICT_POLICY_ENTITY_ATTRIBUTE = 0;
+  // Conflicts are detected on references.
+  GRANULAR_CONFLICT_POLICY_REFERENCE = 1;
+  // Conflicts are detected on reference attributes.
+  GRANULAR_CONFLICT_POLICY_REFERENCE_ATTRIBUTE = 2;
+  // Conflicts are detected on associated data.
+  GRANULAR_CONFLICT_POLICY_ASSOCIATED_DATA = 3;
+  // Conflicts are detected on prices.
+  GRANULAR_CONFLICT_POLICY_PRICE = 4;
+  // Conflicts are detected on hierarchy placement.
+  GRANULAR_CONFLICT_POLICY_HIERARCHY = 5;
+
+}
+
+// Represents the conflict resolution setting combining the coarse conflict policy scope with an optional set of
+// sub-entity granular refinements. Used as an optional (nullable) field on catalog and entity schemas — an absent
+// message means the schema inherits the resolved conflict resolution.
+message GrpcConflictResolution {
+
+  // The coarse, mutually exclusive scope at which conflicts are detected.
+  GrpcConflictPolicy policy = 1;
+  // The set of sub-entity refinements; non-empty only when policy is set to entity level.
+  repeated GrpcGranularConflictPolicy granularity = 2;
+
+}

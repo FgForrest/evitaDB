@@ -28,6 +28,10 @@ import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.proxy.mock.EmptyEntitySchemaAccessor;
 import io.evitadb.api.query.expression.ExpressionFactory;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolution;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
+import io.evitadb.api.requestResponse.mutation.conflict.GranularConflictPolicy;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -107,6 +111,47 @@ class SchemaSerializationServiceTest {
 		}
 		assertEquals(createdSchema, deserializedSchema);
 		assertExactlyEquals(createdSchema, deserializedSchema);
+	}
+
+	@Test
+	@DisplayName("should round-trip non-default conflict resolution settings through the schema serializers")
+	void shouldRoundTripNonDefaultConflictResolutionSettings() {
+		// non-default values on every axis: catalog/entity nullable ConflictResolution and per-item override enums
+		final ConflictResolution entityResolution = new ConflictResolution(
+			ConflictPolicy.ENTITY,
+			EnumSet.of(GranularConflictPolicy.PRICE, GranularConflictPolicy.REFERENCE)
+		);
+		final EntitySchemaContract createdSchema = createEntitySchemaBuilder()
+			.withConflictResolution(entityResolution)
+			.withAttribute(
+				"code", String.class,
+				whichIs -> whichIs.withConflictResolutionOverride(ConflictResolutionOverride.GRANULAR)
+			)
+			.withReferenceToEntity(
+				Entities.BRAND, Entities.BRAND, Cardinality.ZERO_OR_ONE,
+				whichIs -> whichIs.withConflictResolutionOverride(ConflictResolutionOverride.ENTITY)
+			)
+			.toInstance();
+
+		final EntitySchema deserialized = roundTripEntitySchema(createKryo(), createdSchema);
+
+		assertEquals(createdSchema, deserialized);
+		assertExactlyEquals(createdSchema, deserialized);
+
+		// explicit non-default assertions — a silent drop would default these back to empty / INHERITED and,
+		// because the field would still be readable at its default, the equals checks alone might not surface it
+		assertEquals(
+			entityResolution,
+			deserialized.getConflictResolution().orElseThrow()
+		);
+		assertEquals(
+			ConflictResolutionOverride.GRANULAR,
+			deserialized.getAttribute("code").orElseThrow().getConflictResolutionOverride()
+		);
+		assertEquals(
+			ConflictResolutionOverride.ENTITY,
+			deserialized.getReference(Entities.BRAND).orElseThrow().getConflictResolutionOverride()
+		);
 	}
 
 	/**

@@ -93,6 +93,8 @@ private static final long serialVersionUID = 0L;
     MODIFYENTITYSCHEMAMUTATION(31),
     MODIFYENTITYSCHEMANAMEMUTATION(32),
     REMOVEENTITYSCHEMAMUTATION(33),
+    SETATTRIBUTESCHEMACONFLICTRESOLUTIONOVERRIDEMUTATION(34),
+    MODIFYCATALOGSCHEMACONFLICTRESOLUTIONMUTATION(35),
     MUTATION_NOT_SET(0);
     private final int value;
     private MutationCase(int value) {
@@ -131,6 +133,8 @@ private static final long serialVersionUID = 0L;
         case 31: return MODIFYENTITYSCHEMAMUTATION;
         case 32: return MODIFYENTITYSCHEMANAMEMUTATION;
         case 33: return REMOVEENTITYSCHEMAMUTATION;
+        case 34: return SETATTRIBUTESCHEMACONFLICTRESOLUTIONOVERRIDEMUTATION;
+        case 35: return MODIFYCATALOGSCHEMACONFLICTRESOLUTIONMUTATION;
         case 0: return MUTATION_NOT_SET;
         default: return null;
       }
@@ -1091,6 +1095,92 @@ private static final long serialVersionUID = 0L;
     return io.evitadb.externalApi.grpc.generated.GrpcRemoveEntitySchemaMutation.getDefaultInstance();
   }
 
+  public static final int SETATTRIBUTESCHEMACONFLICTRESOLUTIONOVERRIDEMUTATION_FIELD_NUMBER = 34;
+  /**
+   * <pre>
+   * Mutation is responsible for setting value `AttributeSchema.conflictResolutionOverride` in `CatalogSchema`.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaConflictResolutionOverrideMutation setAttributeSchemaConflictResolutionOverrideMutation = 34;</code>
+   * @return Whether the setAttributeSchemaConflictResolutionOverrideMutation field is set.
+   */
+  @java.lang.Override
+  public boolean hasSetAttributeSchemaConflictResolutionOverrideMutation() {
+    return mutationCase_ == 34;
+  }
+  /**
+   * <pre>
+   * Mutation is responsible for setting value `AttributeSchema.conflictResolutionOverride` in `CatalogSchema`.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaConflictResolutionOverrideMutation setAttributeSchemaConflictResolutionOverrideMutation = 34;</code>
+   * @return The setAttributeSchemaConflictResolutionOverrideMutation.
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaConflictResolutionOverrideMutation getSetAttributeSchemaConflictResolutionOverrideMutation() {
+    if (mutationCase_ == 34) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaConflictResolutionOverrideMutation) mutation_;
+    }
+    return io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaConflictResolutionOverrideMutation.getDefaultInstance();
+  }
+  /**
+   * <pre>
+   * Mutation is responsible for setting value `AttributeSchema.conflictResolutionOverride` in `CatalogSchema`.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaConflictResolutionOverrideMutation setAttributeSchemaConflictResolutionOverrideMutation = 34;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaConflictResolutionOverrideMutationOrBuilder getSetAttributeSchemaConflictResolutionOverrideMutationOrBuilder() {
+    if (mutationCase_ == 34) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaConflictResolutionOverrideMutation) mutation_;
+    }
+    return io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaConflictResolutionOverrideMutation.getDefaultInstance();
+  }
+
+  public static final int MODIFYCATALOGSCHEMACONFLICTRESOLUTIONMUTATION_FIELD_NUMBER = 35;
+  /**
+   * <pre>
+   * Mutation is responsible for setting value to a `CatalogSchema.conflictResolution` in `CatalogSchema`.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyCatalogSchemaConflictResolutionMutation modifyCatalogSchemaConflictResolutionMutation = 35;</code>
+   * @return Whether the modifyCatalogSchemaConflictResolutionMutation field is set.
+   */
+  @java.lang.Override
+  public boolean hasModifyCatalogSchemaConflictResolutionMutation() {
+    return mutationCase_ == 35;
+  }
+  /**
+   * <pre>
+   * Mutation is responsible for setting value to a `CatalogSchema.conflictResolution` in `CatalogSchema`.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyCatalogSchemaConflictResolutionMutation modifyCatalogSchemaConflictResolutionMutation = 35;</code>
+   * @return The modifyCatalogSchemaConflictResolutionMutation.
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcModifyCatalogSchemaConflictResolutionMutation getModifyCatalogSchemaConflictResolutionMutation() {
+    if (mutationCase_ == 35) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcModifyCatalogSchemaConflictResolutionMutation) mutation_;
+    }
+    return io.evitadb.externalApi.grpc.generated.GrpcModifyCatalogSchemaConflictResolutionMutation.getDefaultInstance();
+  }
+  /**
+   * <pre>
+   * Mutation is responsible for setting value to a `CatalogSchema.conflictResolution` in `CatalogSchema`.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyCatalogSchemaConflictResolutionMutation modifyCatalogSchemaConflictResolutionMutation = 35;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcModifyCatalogSchemaConflictResolutionMutationOrBuilder getModifyCatalogSchemaConflictResolutionMutationOrBuilder() {
+    if (mutationCase_ == 35) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcModifyCatalogSchemaConflictResolutionMutation) mutation_;
+    }
+    return io.evitadb.externalApi.grpc.generated.GrpcModifyCatalogSchemaConflictResolutionMutation.getDefaultInstance();
+  }
+
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
@@ -1167,6 +1257,12 @@ private static final long serialVersionUID = 0L;
     }
     if (mutationCase_ == 33) {
       output.writeMessage(33, (io.evitadb.externalApi.grpc.generated.GrpcRemoveEntitySchemaMutation) mutation_);
+    }
+    if (mutationCase_ == 34) {
+      output.writeMessage(34, (io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaConflictResolutionOverrideMutation) mutation_);
+    }
+    if (mutationCase_ == 35) {
+      output.writeMessage(35, (io.evitadb.externalApi.grpc.generated.GrpcModifyCatalogSchemaConflictResolutionMutation) mutation_);
     }
     getUnknownFields().writeTo(output);
   }
@@ -1260,6 +1356,14 @@ private static final long serialVersionUID = 0L;
     if (mutationCase_ == 33) {
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(33, (io.evitadb.externalApi.grpc.generated.GrpcRemoveEntitySchemaMutation) mutation_);
+    }
+    if (mutationCase_ == 34) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(34, (io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaConflictResolutionOverrideMutation) mutation_);
+    }
+    if (mutationCase_ == 35) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(35, (io.evitadb.externalApi.grpc.generated.GrpcModifyCatalogSchemaConflictResolutionMutation) mutation_);
     }
     size += getUnknownFields().getSerializedSize();
     memoizedSize = size;
@@ -1362,6 +1466,14 @@ private static final long serialVersionUID = 0L;
         if (!getRemoveEntitySchemaMutation()
             .equals(other.getRemoveEntitySchemaMutation())) return false;
         break;
+      case 34:
+        if (!getSetAttributeSchemaConflictResolutionOverrideMutation()
+            .equals(other.getSetAttributeSchemaConflictResolutionOverrideMutation())) return false;
+        break;
+      case 35:
+        if (!getModifyCatalogSchemaConflictResolutionMutation()
+            .equals(other.getModifyCatalogSchemaConflictResolutionMutation())) return false;
+        break;
       case 0:
       default:
     }
@@ -1460,6 +1572,14 @@ private static final long serialVersionUID = 0L;
       case 33:
         hash = (37 * hash) + REMOVEENTITYSCHEMAMUTATION_FIELD_NUMBER;
         hash = (53 * hash) + getRemoveEntitySchemaMutation().hashCode();
+        break;
+      case 34:
+        hash = (37 * hash) + SETATTRIBUTESCHEMACONFLICTRESOLUTIONOVERRIDEMUTATION_FIELD_NUMBER;
+        hash = (53 * hash) + getSetAttributeSchemaConflictResolutionOverrideMutation().hashCode();
+        break;
+      case 35:
+        hash = (37 * hash) + MODIFYCATALOGSCHEMACONFLICTRESOLUTIONMUTATION_FIELD_NUMBER;
+        hash = (53 * hash) + getModifyCatalogSchemaConflictResolutionMutation().hashCode();
         break;
       case 0:
       default:
@@ -1662,6 +1782,12 @@ private static final long serialVersionUID = 0L;
       if (removeEntitySchemaMutationBuilder_ != null) {
         removeEntitySchemaMutationBuilder_.clear();
       }
+      if (setAttributeSchemaConflictResolutionOverrideMutationBuilder_ != null) {
+        setAttributeSchemaConflictResolutionOverrideMutationBuilder_.clear();
+      }
+      if (modifyCatalogSchemaConflictResolutionMutationBuilder_ != null) {
+        modifyCatalogSchemaConflictResolutionMutationBuilder_.clear();
+      }
       mutationCase_ = 0;
       mutation_ = null;
       return this;
@@ -1786,6 +1912,14 @@ private static final long serialVersionUID = 0L;
       if (mutationCase_ == 33 &&
           removeEntitySchemaMutationBuilder_ != null) {
         result.mutation_ = removeEntitySchemaMutationBuilder_.build();
+      }
+      if (mutationCase_ == 34 &&
+          setAttributeSchemaConflictResolutionOverrideMutationBuilder_ != null) {
+        result.mutation_ = setAttributeSchemaConflictResolutionOverrideMutationBuilder_.build();
+      }
+      if (mutationCase_ == 35 &&
+          modifyCatalogSchemaConflictResolutionMutationBuilder_ != null) {
+        result.mutation_ = modifyCatalogSchemaConflictResolutionMutationBuilder_.build();
       }
     }
 
@@ -1916,6 +2050,14 @@ private static final long serialVersionUID = 0L;
         }
         case REMOVEENTITYSCHEMAMUTATION: {
           mergeRemoveEntitySchemaMutation(other.getRemoveEntitySchemaMutation());
+          break;
+        }
+        case SETATTRIBUTESCHEMACONFLICTRESOLUTIONOVERRIDEMUTATION: {
+          mergeSetAttributeSchemaConflictResolutionOverrideMutation(other.getSetAttributeSchemaConflictResolutionOverrideMutation());
+          break;
+        }
+        case MODIFYCATALOGSCHEMACONFLICTRESOLUTIONMUTATION: {
+          mergeModifyCatalogSchemaConflictResolutionMutation(other.getModifyCatalogSchemaConflictResolutionMutation());
           break;
         }
         case MUTATION_NOT_SET: {
@@ -2095,6 +2237,20 @@ private static final long serialVersionUID = 0L;
               mutationCase_ = 33;
               break;
             } // case 266
+            case 274: {
+              input.readMessage(
+                  getSetAttributeSchemaConflictResolutionOverrideMutationFieldBuilder().getBuilder(),
+                  extensionRegistry);
+              mutationCase_ = 34;
+              break;
+            } // case 274
+            case 282: {
+              input.readMessage(
+                  getModifyCatalogSchemaConflictResolutionMutationFieldBuilder().getBuilder(),
+                  extensionRegistry);
+              mutationCase_ = 35;
+              break;
+            } // case 282
             default: {
               if (!super.parseUnknownField(input, extensionRegistry, tag)) {
                 done = true; // was an endgroup tag
@@ -5989,6 +6145,362 @@ private static final long serialVersionUID = 0L;
       mutationCase_ = 33;
       onChanged();
       return removeEntitySchemaMutationBuilder_;
+    }
+
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaConflictResolutionOverrideMutation, io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaConflictResolutionOverrideMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaConflictResolutionOverrideMutationOrBuilder> setAttributeSchemaConflictResolutionOverrideMutationBuilder_;
+    /**
+     * <pre>
+     * Mutation is responsible for setting value `AttributeSchema.conflictResolutionOverride` in `CatalogSchema`.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaConflictResolutionOverrideMutation setAttributeSchemaConflictResolutionOverrideMutation = 34;</code>
+     * @return Whether the setAttributeSchemaConflictResolutionOverrideMutation field is set.
+     */
+    @java.lang.Override
+    public boolean hasSetAttributeSchemaConflictResolutionOverrideMutation() {
+      return mutationCase_ == 34;
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for setting value `AttributeSchema.conflictResolutionOverride` in `CatalogSchema`.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaConflictResolutionOverrideMutation setAttributeSchemaConflictResolutionOverrideMutation = 34;</code>
+     * @return The setAttributeSchemaConflictResolutionOverrideMutation.
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaConflictResolutionOverrideMutation getSetAttributeSchemaConflictResolutionOverrideMutation() {
+      if (setAttributeSchemaConflictResolutionOverrideMutationBuilder_ == null) {
+        if (mutationCase_ == 34) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaConflictResolutionOverrideMutation) mutation_;
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaConflictResolutionOverrideMutation.getDefaultInstance();
+      } else {
+        if (mutationCase_ == 34) {
+          return setAttributeSchemaConflictResolutionOverrideMutationBuilder_.getMessage();
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaConflictResolutionOverrideMutation.getDefaultInstance();
+      }
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for setting value `AttributeSchema.conflictResolutionOverride` in `CatalogSchema`.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaConflictResolutionOverrideMutation setAttributeSchemaConflictResolutionOverrideMutation = 34;</code>
+     */
+    public Builder setSetAttributeSchemaConflictResolutionOverrideMutation(io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaConflictResolutionOverrideMutation value) {
+      if (setAttributeSchemaConflictResolutionOverrideMutationBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        mutation_ = value;
+        onChanged();
+      } else {
+        setAttributeSchemaConflictResolutionOverrideMutationBuilder_.setMessage(value);
+      }
+      mutationCase_ = 34;
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for setting value `AttributeSchema.conflictResolutionOverride` in `CatalogSchema`.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaConflictResolutionOverrideMutation setAttributeSchemaConflictResolutionOverrideMutation = 34;</code>
+     */
+    public Builder setSetAttributeSchemaConflictResolutionOverrideMutation(
+        io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaConflictResolutionOverrideMutation.Builder builderForValue) {
+      if (setAttributeSchemaConflictResolutionOverrideMutationBuilder_ == null) {
+        mutation_ = builderForValue.build();
+        onChanged();
+      } else {
+        setAttributeSchemaConflictResolutionOverrideMutationBuilder_.setMessage(builderForValue.build());
+      }
+      mutationCase_ = 34;
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for setting value `AttributeSchema.conflictResolutionOverride` in `CatalogSchema`.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaConflictResolutionOverrideMutation setAttributeSchemaConflictResolutionOverrideMutation = 34;</code>
+     */
+    public Builder mergeSetAttributeSchemaConflictResolutionOverrideMutation(io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaConflictResolutionOverrideMutation value) {
+      if (setAttributeSchemaConflictResolutionOverrideMutationBuilder_ == null) {
+        if (mutationCase_ == 34 &&
+            mutation_ != io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaConflictResolutionOverrideMutation.getDefaultInstance()) {
+          mutation_ = io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaConflictResolutionOverrideMutation.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaConflictResolutionOverrideMutation) mutation_)
+              .mergeFrom(value).buildPartial();
+        } else {
+          mutation_ = value;
+        }
+        onChanged();
+      } else {
+        if (mutationCase_ == 34) {
+          setAttributeSchemaConflictResolutionOverrideMutationBuilder_.mergeFrom(value);
+        } else {
+          setAttributeSchemaConflictResolutionOverrideMutationBuilder_.setMessage(value);
+        }
+      }
+      mutationCase_ = 34;
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for setting value `AttributeSchema.conflictResolutionOverride` in `CatalogSchema`.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaConflictResolutionOverrideMutation setAttributeSchemaConflictResolutionOverrideMutation = 34;</code>
+     */
+    public Builder clearSetAttributeSchemaConflictResolutionOverrideMutation() {
+      if (setAttributeSchemaConflictResolutionOverrideMutationBuilder_ == null) {
+        if (mutationCase_ == 34) {
+          mutationCase_ = 0;
+          mutation_ = null;
+          onChanged();
+        }
+      } else {
+        if (mutationCase_ == 34) {
+          mutationCase_ = 0;
+          mutation_ = null;
+        }
+        setAttributeSchemaConflictResolutionOverrideMutationBuilder_.clear();
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for setting value `AttributeSchema.conflictResolutionOverride` in `CatalogSchema`.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaConflictResolutionOverrideMutation setAttributeSchemaConflictResolutionOverrideMutation = 34;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaConflictResolutionOverrideMutation.Builder getSetAttributeSchemaConflictResolutionOverrideMutationBuilder() {
+      return getSetAttributeSchemaConflictResolutionOverrideMutationFieldBuilder().getBuilder();
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for setting value `AttributeSchema.conflictResolutionOverride` in `CatalogSchema`.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaConflictResolutionOverrideMutation setAttributeSchemaConflictResolutionOverrideMutation = 34;</code>
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaConflictResolutionOverrideMutationOrBuilder getSetAttributeSchemaConflictResolutionOverrideMutationOrBuilder() {
+      if ((mutationCase_ == 34) && (setAttributeSchemaConflictResolutionOverrideMutationBuilder_ != null)) {
+        return setAttributeSchemaConflictResolutionOverrideMutationBuilder_.getMessageOrBuilder();
+      } else {
+        if (mutationCase_ == 34) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaConflictResolutionOverrideMutation) mutation_;
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaConflictResolutionOverrideMutation.getDefaultInstance();
+      }
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for setting value `AttributeSchema.conflictResolutionOverride` in `CatalogSchema`.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaConflictResolutionOverrideMutation setAttributeSchemaConflictResolutionOverrideMutation = 34;</code>
+     */
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaConflictResolutionOverrideMutation, io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaConflictResolutionOverrideMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaConflictResolutionOverrideMutationOrBuilder> 
+        getSetAttributeSchemaConflictResolutionOverrideMutationFieldBuilder() {
+      if (setAttributeSchemaConflictResolutionOverrideMutationBuilder_ == null) {
+        if (!(mutationCase_ == 34)) {
+          mutation_ = io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaConflictResolutionOverrideMutation.getDefaultInstance();
+        }
+        setAttributeSchemaConflictResolutionOverrideMutationBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaConflictResolutionOverrideMutation, io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaConflictResolutionOverrideMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaConflictResolutionOverrideMutationOrBuilder>(
+                (io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaConflictResolutionOverrideMutation) mutation_,
+                getParentForChildren(),
+                isClean());
+        mutation_ = null;
+      }
+      mutationCase_ = 34;
+      onChanged();
+      return setAttributeSchemaConflictResolutionOverrideMutationBuilder_;
+    }
+
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcModifyCatalogSchemaConflictResolutionMutation, io.evitadb.externalApi.grpc.generated.GrpcModifyCatalogSchemaConflictResolutionMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcModifyCatalogSchemaConflictResolutionMutationOrBuilder> modifyCatalogSchemaConflictResolutionMutationBuilder_;
+    /**
+     * <pre>
+     * Mutation is responsible for setting value to a `CatalogSchema.conflictResolution` in `CatalogSchema`.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyCatalogSchemaConflictResolutionMutation modifyCatalogSchemaConflictResolutionMutation = 35;</code>
+     * @return Whether the modifyCatalogSchemaConflictResolutionMutation field is set.
+     */
+    @java.lang.Override
+    public boolean hasModifyCatalogSchemaConflictResolutionMutation() {
+      return mutationCase_ == 35;
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for setting value to a `CatalogSchema.conflictResolution` in `CatalogSchema`.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyCatalogSchemaConflictResolutionMutation modifyCatalogSchemaConflictResolutionMutation = 35;</code>
+     * @return The modifyCatalogSchemaConflictResolutionMutation.
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcModifyCatalogSchemaConflictResolutionMutation getModifyCatalogSchemaConflictResolutionMutation() {
+      if (modifyCatalogSchemaConflictResolutionMutationBuilder_ == null) {
+        if (mutationCase_ == 35) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcModifyCatalogSchemaConflictResolutionMutation) mutation_;
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcModifyCatalogSchemaConflictResolutionMutation.getDefaultInstance();
+      } else {
+        if (mutationCase_ == 35) {
+          return modifyCatalogSchemaConflictResolutionMutationBuilder_.getMessage();
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcModifyCatalogSchemaConflictResolutionMutation.getDefaultInstance();
+      }
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for setting value to a `CatalogSchema.conflictResolution` in `CatalogSchema`.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyCatalogSchemaConflictResolutionMutation modifyCatalogSchemaConflictResolutionMutation = 35;</code>
+     */
+    public Builder setModifyCatalogSchemaConflictResolutionMutation(io.evitadb.externalApi.grpc.generated.GrpcModifyCatalogSchemaConflictResolutionMutation value) {
+      if (modifyCatalogSchemaConflictResolutionMutationBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        mutation_ = value;
+        onChanged();
+      } else {
+        modifyCatalogSchemaConflictResolutionMutationBuilder_.setMessage(value);
+      }
+      mutationCase_ = 35;
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for setting value to a `CatalogSchema.conflictResolution` in `CatalogSchema`.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyCatalogSchemaConflictResolutionMutation modifyCatalogSchemaConflictResolutionMutation = 35;</code>
+     */
+    public Builder setModifyCatalogSchemaConflictResolutionMutation(
+        io.evitadb.externalApi.grpc.generated.GrpcModifyCatalogSchemaConflictResolutionMutation.Builder builderForValue) {
+      if (modifyCatalogSchemaConflictResolutionMutationBuilder_ == null) {
+        mutation_ = builderForValue.build();
+        onChanged();
+      } else {
+        modifyCatalogSchemaConflictResolutionMutationBuilder_.setMessage(builderForValue.build());
+      }
+      mutationCase_ = 35;
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for setting value to a `CatalogSchema.conflictResolution` in `CatalogSchema`.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyCatalogSchemaConflictResolutionMutation modifyCatalogSchemaConflictResolutionMutation = 35;</code>
+     */
+    public Builder mergeModifyCatalogSchemaConflictResolutionMutation(io.evitadb.externalApi.grpc.generated.GrpcModifyCatalogSchemaConflictResolutionMutation value) {
+      if (modifyCatalogSchemaConflictResolutionMutationBuilder_ == null) {
+        if (mutationCase_ == 35 &&
+            mutation_ != io.evitadb.externalApi.grpc.generated.GrpcModifyCatalogSchemaConflictResolutionMutation.getDefaultInstance()) {
+          mutation_ = io.evitadb.externalApi.grpc.generated.GrpcModifyCatalogSchemaConflictResolutionMutation.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcModifyCatalogSchemaConflictResolutionMutation) mutation_)
+              .mergeFrom(value).buildPartial();
+        } else {
+          mutation_ = value;
+        }
+        onChanged();
+      } else {
+        if (mutationCase_ == 35) {
+          modifyCatalogSchemaConflictResolutionMutationBuilder_.mergeFrom(value);
+        } else {
+          modifyCatalogSchemaConflictResolutionMutationBuilder_.setMessage(value);
+        }
+      }
+      mutationCase_ = 35;
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for setting value to a `CatalogSchema.conflictResolution` in `CatalogSchema`.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyCatalogSchemaConflictResolutionMutation modifyCatalogSchemaConflictResolutionMutation = 35;</code>
+     */
+    public Builder clearModifyCatalogSchemaConflictResolutionMutation() {
+      if (modifyCatalogSchemaConflictResolutionMutationBuilder_ == null) {
+        if (mutationCase_ == 35) {
+          mutationCase_ = 0;
+          mutation_ = null;
+          onChanged();
+        }
+      } else {
+        if (mutationCase_ == 35) {
+          mutationCase_ = 0;
+          mutation_ = null;
+        }
+        modifyCatalogSchemaConflictResolutionMutationBuilder_.clear();
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for setting value to a `CatalogSchema.conflictResolution` in `CatalogSchema`.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyCatalogSchemaConflictResolutionMutation modifyCatalogSchemaConflictResolutionMutation = 35;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcModifyCatalogSchemaConflictResolutionMutation.Builder getModifyCatalogSchemaConflictResolutionMutationBuilder() {
+      return getModifyCatalogSchemaConflictResolutionMutationFieldBuilder().getBuilder();
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for setting value to a `CatalogSchema.conflictResolution` in `CatalogSchema`.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyCatalogSchemaConflictResolutionMutation modifyCatalogSchemaConflictResolutionMutation = 35;</code>
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcModifyCatalogSchemaConflictResolutionMutationOrBuilder getModifyCatalogSchemaConflictResolutionMutationOrBuilder() {
+      if ((mutationCase_ == 35) && (modifyCatalogSchemaConflictResolutionMutationBuilder_ != null)) {
+        return modifyCatalogSchemaConflictResolutionMutationBuilder_.getMessageOrBuilder();
+      } else {
+        if (mutationCase_ == 35) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcModifyCatalogSchemaConflictResolutionMutation) mutation_;
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcModifyCatalogSchemaConflictResolutionMutation.getDefaultInstance();
+      }
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for setting value to a `CatalogSchema.conflictResolution` in `CatalogSchema`.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyCatalogSchemaConflictResolutionMutation modifyCatalogSchemaConflictResolutionMutation = 35;</code>
+     */
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcModifyCatalogSchemaConflictResolutionMutation, io.evitadb.externalApi.grpc.generated.GrpcModifyCatalogSchemaConflictResolutionMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcModifyCatalogSchemaConflictResolutionMutationOrBuilder> 
+        getModifyCatalogSchemaConflictResolutionMutationFieldBuilder() {
+      if (modifyCatalogSchemaConflictResolutionMutationBuilder_ == null) {
+        if (!(mutationCase_ == 35)) {
+          mutation_ = io.evitadb.externalApi.grpc.generated.GrpcModifyCatalogSchemaConflictResolutionMutation.getDefaultInstance();
+        }
+        modifyCatalogSchemaConflictResolutionMutationBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            io.evitadb.externalApi.grpc.generated.GrpcModifyCatalogSchemaConflictResolutionMutation, io.evitadb.externalApi.grpc.generated.GrpcModifyCatalogSchemaConflictResolutionMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcModifyCatalogSchemaConflictResolutionMutationOrBuilder>(
+                (io.evitadb.externalApi.grpc.generated.GrpcModifyCatalogSchemaConflictResolutionMutation) mutation_,
+                getParentForChildren(),
+                isClean());
+        mutation_ = null;
+      }
+      mutationCase_ = 35;
+      onChanged();
+      return modifyCatalogSchemaConflictResolutionMutationBuilder_;
     }
     @java.lang.Override
     public final Builder setUnknownFields(

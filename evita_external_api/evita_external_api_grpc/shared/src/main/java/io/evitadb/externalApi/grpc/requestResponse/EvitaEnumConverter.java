@@ -38,6 +38,9 @@ import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExistence;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
+import io.evitadb.api.requestResponse.mutation.conflict.GranularConflictPolicy;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
@@ -1511,6 +1514,120 @@ public class EvitaEnumConverter {
 		return switch (components) {
 			case REFERENCED_ENTITY -> GrpcReferenceIndexedComponents.REFERENCE_INDEXED_COMPONENTS_REFERENCED_ENTITY;
 			case REFERENCED_GROUP_ENTITY -> GrpcReferenceIndexedComponents.REFERENCE_INDEXED_COMPONENTS_REFERENCED_GROUP_ENTITY;
+		};
+	}
+
+	/**
+	 * Converts {@link GrpcConflictResolutionOverride} to {@link ConflictResolutionOverride}.
+	 *
+	 * @param grpcOverride the {@link GrpcConflictResolutionOverride} to be converted
+	 * @return the converted {@link ConflictResolutionOverride}
+	 * @throws EvitaInvalidUsageException if the remote override is unrecognized
+	 */
+	@Nonnull
+	public static ConflictResolutionOverride toConflictResolutionOverride(@Nonnull GrpcConflictResolutionOverride grpcOverride) {
+		return switch (grpcOverride) {
+			case CONFLICT_RESOLUTION_OVERRIDE_INHERITED -> ConflictResolutionOverride.INHERITED;
+			case CONFLICT_RESOLUTION_OVERRIDE_GRANULAR -> ConflictResolutionOverride.GRANULAR;
+			case CONFLICT_RESOLUTION_OVERRIDE_ENTITY -> ConflictResolutionOverride.ENTITY;
+			case UNRECOGNIZED ->
+				throw new EvitaInvalidUsageException("Unrecognized remote conflict resolution override: " + grpcOverride);
+		};
+	}
+
+	/**
+	 * Converts {@link ConflictResolutionOverride} to {@link GrpcConflictResolutionOverride}.
+	 *
+	 * @param override the {@link ConflictResolutionOverride} to be converted
+	 * @return the converted {@link GrpcConflictResolutionOverride}
+	 */
+	@Nonnull
+	public static GrpcConflictResolutionOverride toGrpcConflictResolutionOverride(@Nonnull ConflictResolutionOverride override) {
+		return switch (override) {
+			case INHERITED -> GrpcConflictResolutionOverride.CONFLICT_RESOLUTION_OVERRIDE_INHERITED;
+			case GRANULAR -> GrpcConflictResolutionOverride.CONFLICT_RESOLUTION_OVERRIDE_GRANULAR;
+			case ENTITY -> GrpcConflictResolutionOverride.CONFLICT_RESOLUTION_OVERRIDE_ENTITY;
+		};
+	}
+
+	/**
+	 * Converts {@link GrpcConflictPolicy} to {@link ConflictPolicy}.
+	 *
+	 * @param grpcPolicy the {@link GrpcConflictPolicy} to be converted
+	 * @return the converted {@link ConflictPolicy}
+	 * @throws EvitaInvalidUsageException if the remote policy is unrecognized
+	 */
+	@Nonnull
+	public static ConflictPolicy toConflictPolicy(@Nonnull GrpcConflictPolicy grpcPolicy) {
+		return switch (grpcPolicy) {
+			case CONFLICT_POLICY_NONE -> ConflictPolicy.NONE;
+			case CONFLICT_POLICY_CATALOG -> ConflictPolicy.CATALOG;
+			case CONFLICT_POLICY_COLLECTION -> ConflictPolicy.COLLECTION;
+			case CONFLICT_POLICY_ENTITY -> ConflictPolicy.ENTITY;
+			case UNRECOGNIZED ->
+				throw new EvitaInvalidUsageException("Unrecognized remote conflict policy: " + grpcPolicy);
+		};
+	}
+
+	/**
+	 * Converts the coarse {@link ConflictPolicy} to {@link GrpcConflictPolicy}. Only the coarse scopes (NONE, CATALOG,
+	 * COLLECTION, ENTITY) are transferable over the wire; the transitional granular {@link ConflictPolicy} constants are
+	 * carried by {@link GranularConflictPolicy} instead and must never appear as a coarse policy.
+	 *
+	 * @param policy the coarse {@link ConflictPolicy} to be converted
+	 * @return the converted {@link GrpcConflictPolicy}
+	 * @throws GenericEvitaInternalError if a transitional granular constant is passed as a coarse policy
+	 */
+	@Nonnull
+	public static GrpcConflictPolicy toGrpcConflictPolicy(@Nonnull ConflictPolicy policy) {
+		return switch (policy) {
+			case NONE -> GrpcConflictPolicy.CONFLICT_POLICY_NONE;
+			case CATALOG -> GrpcConflictPolicy.CONFLICT_POLICY_CATALOG;
+			case COLLECTION -> GrpcConflictPolicy.CONFLICT_POLICY_COLLECTION;
+			case ENTITY -> GrpcConflictPolicy.CONFLICT_POLICY_ENTITY;
+			case ENTITY_ATTRIBUTE, REFERENCE, REFERENCE_ATTRIBUTE, ASSOCIATED_DATA, PRICE, HIERARCHY ->
+				throw new GenericEvitaInternalError(
+					"Transitional granular conflict policy `" + policy + "` is not a coarse conflict policy scope."
+				);
+		};
+	}
+
+	/**
+	 * Converts {@link GrpcGranularConflictPolicy} to {@link GranularConflictPolicy}.
+	 *
+	 * @param grpcPolicy the {@link GrpcGranularConflictPolicy} to be converted
+	 * @return the converted {@link GranularConflictPolicy}
+	 * @throws EvitaInvalidUsageException if the remote policy is unrecognized
+	 */
+	@Nonnull
+	public static GranularConflictPolicy toGranularConflictPolicy(@Nonnull GrpcGranularConflictPolicy grpcPolicy) {
+		return switch (grpcPolicy) {
+			case GRANULAR_CONFLICT_POLICY_ENTITY_ATTRIBUTE -> GranularConflictPolicy.ENTITY_ATTRIBUTE;
+			case GRANULAR_CONFLICT_POLICY_REFERENCE -> GranularConflictPolicy.REFERENCE;
+			case GRANULAR_CONFLICT_POLICY_REFERENCE_ATTRIBUTE -> GranularConflictPolicy.REFERENCE_ATTRIBUTE;
+			case GRANULAR_CONFLICT_POLICY_ASSOCIATED_DATA -> GranularConflictPolicy.ASSOCIATED_DATA;
+			case GRANULAR_CONFLICT_POLICY_PRICE -> GranularConflictPolicy.PRICE;
+			case GRANULAR_CONFLICT_POLICY_HIERARCHY -> GranularConflictPolicy.HIERARCHY;
+			case UNRECOGNIZED ->
+				throw new EvitaInvalidUsageException("Unrecognized remote granular conflict policy: " + grpcPolicy);
+		};
+	}
+
+	/**
+	 * Converts {@link GranularConflictPolicy} to {@link GrpcGranularConflictPolicy}.
+	 *
+	 * @param policy the {@link GranularConflictPolicy} to be converted
+	 * @return the converted {@link GrpcGranularConflictPolicy}
+	 */
+	@Nonnull
+	public static GrpcGranularConflictPolicy toGrpcGranularConflictPolicy(@Nonnull GranularConflictPolicy policy) {
+		return switch (policy) {
+			case ENTITY_ATTRIBUTE -> GrpcGranularConflictPolicy.GRANULAR_CONFLICT_POLICY_ENTITY_ATTRIBUTE;
+			case REFERENCE -> GrpcGranularConflictPolicy.GRANULAR_CONFLICT_POLICY_REFERENCE;
+			case REFERENCE_ATTRIBUTE -> GrpcGranularConflictPolicy.GRANULAR_CONFLICT_POLICY_REFERENCE_ATTRIBUTE;
+			case ASSOCIATED_DATA -> GrpcGranularConflictPolicy.GRANULAR_CONFLICT_POLICY_ASSOCIATED_DATA;
+			case PRICE -> GrpcGranularConflictPolicy.GRANULAR_CONFLICT_POLICY_PRICE;
+			case HIERARCHY -> GrpcGranularConflictPolicy.GRANULAR_CONFLICT_POLICY_HIERARCHY;
 		};
 	}
 }

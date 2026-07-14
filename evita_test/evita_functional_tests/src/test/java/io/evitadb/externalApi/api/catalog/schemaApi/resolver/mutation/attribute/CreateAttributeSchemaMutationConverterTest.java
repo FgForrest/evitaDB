@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.attribute;
 
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.CreateAttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
@@ -229,7 +230,34 @@ class CreateAttributeSchemaMutationConverterTest {
 					.e(CreateAttributeSchemaMutationDescriptor.TYPE.name(), String.class.getSimpleName())
 					.e(CreateAttributeSchemaMutationDescriptor.DEFAULT_VALUE.name(), "defaultCode")
 					.e(CreateAttributeSchemaMutationDescriptor.INDEXED_DECIMAL_PLACES.name(), 2)
+					.e(CreateAttributeSchemaMutationDescriptor.CONFLICT_RESOLUTION_OVERRIDE.name(), ConflictResolutionOverride.INHERITED.name())
 					.build()
 			);
+	}
+
+	@Test
+	void shouldRoundTripNonDefaultConflictResolutionOverride() {
+		final CreateAttributeSchemaMutation inputMutation = new CreateAttributeSchemaMutation(
+			"code",
+			"desc",
+			"depr",
+			new ScopedAttributeUniquenessType[]{
+				new ScopedAttributeUniquenessType(Scope.LIVE, AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION)
+			},
+			new Scope[] { Scope.LIVE },
+			new Scope[] { Scope.LIVE },
+			false,
+			true,
+			true,
+			String.class,
+			"defaultCode",
+			2,
+			ConflictResolutionOverride.ENTITY
+		);
+
+		final CreateAttributeSchemaMutation roundTripped =
+			this.converter.convertFromInput(this.converter.convertToOutput(inputMutation));
+		assertEquals(ConflictResolutionOverride.ENTITY, roundTripped.getConflictResolutionOverride());
+		assertEquals(inputMutation, roundTripped);
 	}
 }

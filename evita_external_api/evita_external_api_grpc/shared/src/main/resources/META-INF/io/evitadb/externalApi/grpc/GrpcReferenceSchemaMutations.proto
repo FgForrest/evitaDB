@@ -89,6 +89,8 @@ message GrpcCreateReferenceSchemaMutation {
   repeated GrpcScopedHistogramIndexDefinition bucketedInScopes = 16;
   // Per-scope expressions that narrow which entities participate in bucketed histogram computation.
   repeated GrpcScopedBucketedPartially bucketedPartiallyInScopes = 17;
+  // The per-reference override of the conflict resolution granularity.
+  GrpcConflictResolutionOverride conflictResolutionOverride = 18;
 }
 
 // Mutation is responsible for setting up a new `ReflectedReferenceSchema` in the `EntitySchema`.
@@ -337,5 +339,14 @@ message GrpcSetReferenceSchemaIndexedMutation {
   // (referenced entity, referenced group entity) are indexed per scope.
   // When `inherited` is true, this field is ignored.
   repeated GrpcScopedReferenceIndexedComponents scopedIndexedComponents = 5;
+}
+
+// Mutation is responsible for setting value to a `ReferenceSchema.conflictResolutionOverride` in `EntitySchema`.
+// Mutation can be used for altering also the existing `ReferenceSchema` alone.
+message GrpcSetReferenceSchemaConflictResolutionOverrideMutation {
+  // Name of the reference the mutation is targeting.
+  string name = 1;
+  // The per-reference override of the conflict resolution granularity.
+  GrpcConflictResolutionOverride conflictResolutionOverride = 2;
 }
 

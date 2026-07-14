@@ -50,7 +50,7 @@ import java.util.Set;
 @ThreadSafe
 @EqualsAndHashCode(callSuper = true)
 public final class EntityAttributeSchema extends AttributeSchema implements EntityAttributeSchemaContract {
-	@Serial private static final long serialVersionUID = 8168305590483159082L;
+	@Serial private static final long serialVersionUID = 8168305590483159083L;
 
 	/**
 	 * This method is for internal purposes only. It could be used for reconstruction of EntityAttributeSchema from
@@ -77,6 +77,21 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 	}
 
 	/**
+	 * Transitional compatibility overload defaulting the conflict resolution setting; delegates to the full overload.
+	 *
+	 * @deprecated bridges call sites not yet migrated to the explicit conflict-resolution parameter.
+	 */
+	@Deprecated(forRemoval = true)
+	@Nonnull
+	public static EntityAttributeSchema _internalBuild(
+		@Nonnull String name,
+		@Nonnull Class<? extends Serializable> type,
+		boolean localized
+	) {
+		return _internalBuild(name, type, localized, ConflictResolutionOverride.INHERITED);
+	}
+
+	/**
 	 * This method is for internal purposes only. It could be used for reconstruction of EntityAttributeSchema from
 	 * different package than current, but still internal code of the Evita ecosystems.
 	 *
@@ -113,6 +128,30 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 	}
 
 	/**
+	 * Transitional compatibility overload defaulting the conflict resolution setting; delegates to the full overload.
+	 *
+	 * @deprecated bridges call sites not yet migrated to the explicit conflict-resolution parameter.
+	 */
+	@Deprecated(forRemoval = true)
+	@Nonnull
+	public static <T extends Serializable> EntityAttributeSchema _internalBuild(
+		@Nonnull String name,
+		@Nullable ScopedAttributeUniquenessType[] uniqueInScopes,
+		@Nullable Scope[] filterableInScopes,
+		@Nullable Scope[] sortableInScopes,
+		boolean localized,
+		boolean nullable,
+		boolean representative,
+		@Nonnull Class<T> type,
+		@Nullable T defaultValue
+	) {
+		return _internalBuild(
+			name, uniqueInScopes, filterableInScopes, sortableInScopes, localized, nullable, representative,
+			type, defaultValue, ConflictResolutionOverride.INHERITED
+		);
+	}
+
+	/**
 	 * This method is for internal purposes only. It could be used for reconstruction of EntityAttributeSchema from
 	 * different package than current, but still internal code of the Evita ecosystems.
 	 *
@@ -148,6 +187,34 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 			type, defaultValue,
 			indexedDecimalPlaces,
 			conflictResolutionOverride
+		);
+	}
+
+	/**
+	 * Transitional compatibility overload defaulting the conflict resolution setting; delegates to the full overload.
+	 *
+	 * @deprecated bridges call sites not yet migrated to the explicit conflict-resolution parameter.
+	 */
+	@Deprecated(forRemoval = true)
+	@Nonnull
+	public static <T extends Serializable> EntityAttributeSchema _internalBuild(
+		@Nonnull String name,
+		@Nullable String description,
+		@Nullable String deprecationNotice,
+		@Nullable ScopedAttributeUniquenessType[] uniqueInScopes,
+		@Nullable Scope[] filterableInScopes,
+		@Nullable Scope[] sortableInScopes,
+		boolean localized,
+		boolean nullable,
+		boolean representative,
+		@Nonnull Class<T> type,
+		@Nullable T defaultValue,
+		int indexedDecimalPlaces
+	) {
+		return _internalBuild(
+			name, description, deprecationNotice, uniqueInScopes, filterableInScopes, sortableInScopes,
+			localized, nullable, representative, type, defaultValue, indexedDecimalPlaces,
+			ConflictResolutionOverride.INHERITED
 		);
 	}
 
@@ -223,6 +290,35 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 	}
 
 	/**
+	 * Transitional compatibility overload defaulting the conflict resolution setting; delegates to the full overload.
+	 *
+	 * @deprecated bridges call sites not yet migrated to the explicit conflict-resolution parameter.
+	 */
+	@Deprecated(forRemoval = true)
+	@Nonnull
+	public static <T extends Serializable> EntityAttributeSchema _internalBuild(
+		@Nonnull String name,
+		@Nonnull Map<NamingConvention, String> nameVariants,
+		@Nullable String description,
+		@Nullable String deprecationNotice,
+		@Nullable Map<Scope, AttributeUniquenessType> uniqueInScopes,
+		@Nullable Set<Scope> filterableInScopes,
+		@Nullable Set<Scope> sortableInScopes,
+		boolean localized,
+		boolean nullable,
+		boolean representative,
+		@Nonnull Class<T> type,
+		@Nullable T defaultValue,
+		int indexedDecimalPlaces
+	) {
+		return _internalBuild(
+			name, nameVariants, description, deprecationNotice, uniqueInScopes, filterableInScopes,
+			sortableInScopes, localized, nullable, representative, type, defaultValue, indexedDecimalPlaces,
+			ConflictResolutionOverride.INHERITED
+		);
+	}
+
+	/**
 	 * This method is for internal purposes only. It could be used for reconstruction of EntityAttributeSchema from
 	 * different package than current, but still internal code of the Evita ecosystems.
 	 *
@@ -259,6 +355,39 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 			type, defaultValue,
 			indexedDecimalPlaces,
 			conflictResolutionOverride
+		);
+	}
+
+	/**
+	 * Transitional compatibility overload that reconstructs an entity attribute schema without a conflict resolution
+	 * override, defaulting it to {@link ConflictResolutionOverride#INHERITED}. It exists so external API converters
+	 * (gRPC/GraphQL/REST) that do not yet propagate the conflict resolution setting keep compiling and round-tripping
+	 * the rest of the schema. It will be removed once those converters carry the conflict resolution setting through
+	 * their transport format.
+	 *
+	 * @deprecated bridges external-API reconstruction until the conflict resolution setting is propagated over the wire
+	 */
+	@Deprecated(forRemoval = true)
+	@Nonnull
+	public static <T extends Serializable> EntityAttributeSchema _internalBuild(
+		@Nonnull String name,
+		@Nonnull Map<NamingConvention, String> nameVariants,
+		@Nullable String description,
+		@Nullable String deprecationNotice,
+		@Nullable ScopedAttributeUniquenessType[] uniqueInScopes,
+		@Nullable Scope[] filterableInScopes,
+		@Nullable Scope[] sortableInScopes,
+		boolean localized,
+		boolean nullable,
+		boolean representative,
+		@Nonnull Class<T> type,
+		@Nullable T defaultValue,
+		int indexedDecimalPlaces
+	) {
+		return _internalBuild(
+			name, nameVariants, description, deprecationNotice, uniqueInScopes, filterableInScopes,
+			sortableInScopes, localized, nullable, representative, type, defaultValue, indexedDecimalPlaces,
+			ConflictResolutionOverride.INHERITED
 		);
 	}
 

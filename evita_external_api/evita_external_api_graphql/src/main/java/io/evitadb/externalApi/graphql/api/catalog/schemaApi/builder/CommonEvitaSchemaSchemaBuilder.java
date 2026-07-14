@@ -28,6 +28,7 @@ import graphql.schema.GraphQLObjectType;
 import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.externalApi.api.catalog.model.cdc.ChangeCatalogCaptureDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.AttributeElementDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.ConflictResolutionDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedAttributeUniquenessTypeDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedGlobalAttributeUniquenessTypeDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedHistogramIndexDefinitionDescriptor;
@@ -48,11 +49,13 @@ import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedDat
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.ModifyAssociatedDataSchemaTypeMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.RemoveAssociatedDataSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.SetAssociatedDataSchemaLocalizedMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.SetAssociatedDataSchemaConflictResolutionOverrideMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.SetAssociatedDataSchemaNullableMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.*;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.AllowEvolutionModeInCatalogSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.CreateEntitySchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.DisallowEvolutionModeInCatalogSchemaMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.ModifyCatalogSchemaConflictResolutionMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.ModifyCatalogSchemaDescriptionMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.ModifyEntitySchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.ModifyEntitySchemaNameMutationDescriptor;
@@ -141,6 +144,10 @@ public class CommonEvitaSchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<
 		);
 		this.buildingContext.registerType(AttributeElementDescriptor.THIS.to(this.objectBuilderTransformer).build());
 		this.buildingContext.registerType(AttributeElementDescriptor.THIS_INPUT.to(this.inputObjectBuilderTransformer).build());
+		this.buildingContext.registerType(ConflictResolutionDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(ConflictResolutionDescriptor.THIS_INPUT.to(
+			this.inputObjectBuilderTransformer).build()
+		);
 
 		buildMutationInterface();
 		buildInputMutations();
@@ -183,6 +190,7 @@ public class CommonEvitaSchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<
 			DisallowCurrencyInEntitySchemaMutationDescriptor.THIS_INPUT,
 			DisallowEvolutionModeInEntitySchemaMutationDescriptor.THIS_INPUT,
 			DisallowLocaleInEntitySchemaMutationDescriptor.THIS_INPUT,
+			ModifyEntitySchemaConflictResolutionMutationDescriptor.THIS_INPUT,
 			ModifyEntitySchemaDeprecationNoticeMutationDescriptor.THIS_INPUT,
 			ModifyEntitySchemaDescriptionMutationDescriptor.THIS_INPUT,
 			ModifyEntitySchemaNameMutationDescriptor.THIS_INPUT,
@@ -193,6 +201,7 @@ public class CommonEvitaSchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<
 
 			// associated data schema mutations
 			CreateAssociatedDataSchemaMutationDescriptor.THIS_INPUT,
+			SetAssociatedDataSchemaConflictResolutionOverrideMutationDescriptor.THIS_INPUT,
 			ModifyAssociatedDataSchemaDeprecationNoticeMutationDescriptor.THIS_INPUT,
 			ModifyAssociatedDataSchemaDescriptionMutationDescriptor.THIS_INPUT,
 			ModifyAssociatedDataSchemaNameMutationDescriptor.THIS_INPUT,
@@ -203,6 +212,7 @@ public class CommonEvitaSchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<
 
 			// attribute schema mutations
 			CreateAttributeSchemaMutationDescriptor.THIS_INPUT,
+			SetAttributeSchemaConflictResolutionOverrideMutationDescriptor.THIS_INPUT,
 			ModifyAttributeSchemaDefaultValueMutationDescriptor.THIS_INPUT,
 			ModifyAttributeSchemaDeprecationNoticeMutationDescriptor.THIS_INPUT,
 			ModifyAttributeSchemaDescriptionMutationDescriptor.THIS_INPUT,
@@ -230,6 +240,7 @@ public class CommonEvitaSchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<
 			// reference schema mutations
 			CreateReferenceSchemaMutationDescriptor.THIS_INPUT,
 			CreateReflectedReferenceSchemaMutationDescriptor.THIS_INPUT,
+			SetReferenceSchemaConflictResolutionOverrideMutationDescriptor.THIS_INPUT,
 			ModifyReferenceAttributeSchemaMutationDescriptor.THIS_INPUT,
 			ModifyReferenceSchemaCardinalityMutationDescriptor.THIS_INPUT,
 			ModifyReferenceSchemaDeprecationNoticeMutationDescriptor.THIS_INPUT,
@@ -248,6 +259,7 @@ public class CommonEvitaSchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<
 
 			// catalog schema mutations
 			ModifyEntitySchemaMutationDescriptor.THIS_INPUT,
+			ModifyCatalogSchemaConflictResolutionMutationDescriptor.THIS_INPUT,
 			ModifyCatalogSchemaDescriptionMutationDescriptor.THIS_INPUT,
 			AllowEvolutionModeInCatalogSchemaMutationDescriptor.THIS_INPUT,
 			DisallowEvolutionModeInCatalogSchemaMutationDescriptor.THIS_INPUT,
@@ -269,6 +281,7 @@ public class CommonEvitaSchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<
 			CreateEntitySchemaMutationDescriptor.THIS,
 			ModifyEntitySchemaMutationDescriptor.THIS,
 			RemoveEntitySchemaMutationDescriptor.THIS,
+			ModifyCatalogSchemaConflictResolutionMutationDescriptor.THIS,
 			ModifyCatalogSchemaDescriptionMutationDescriptor.THIS,
 			AllowEvolutionModeInCatalogSchemaMutationDescriptor.THIS,
 			DisallowEvolutionModeInCatalogSchemaMutationDescriptor.THIS,
@@ -284,6 +297,7 @@ public class CommonEvitaSchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<
 			DisallowCurrencyInEntitySchemaMutationDescriptor.THIS,
 			DisallowEvolutionModeInEntitySchemaMutationDescriptor.THIS,
 			DisallowLocaleInEntitySchemaMutationDescriptor.THIS,
+			ModifyEntitySchemaConflictResolutionMutationDescriptor.THIS,
 			ModifyEntitySchemaDeprecationNoticeMutationDescriptor.THIS,
 			ModifyEntitySchemaDescriptionMutationDescriptor.THIS,
 			ModifyEntitySchemaNameMutationDescriptor.THIS,
@@ -293,6 +307,7 @@ public class CommonEvitaSchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<
 
 			// associated data schema mutations
 			CreateAssociatedDataSchemaMutationDescriptor.THIS,
+			SetAssociatedDataSchemaConflictResolutionOverrideMutationDescriptor.THIS,
 			ModifyAssociatedDataSchemaDeprecationNoticeMutationDescriptor.THIS,
 			ModifyAssociatedDataSchemaDescriptionMutationDescriptor.THIS,
 			ModifyAssociatedDataSchemaNameMutationDescriptor.THIS,
@@ -303,6 +318,7 @@ public class CommonEvitaSchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<
 
 			// attribute schema mutations
 			CreateAttributeSchemaMutationDescriptor.THIS,
+			SetAttributeSchemaConflictResolutionOverrideMutationDescriptor.THIS,
 			ModifyAttributeSchemaDefaultValueMutationDescriptor.THIS,
 			ModifyAttributeSchemaDeprecationNoticeMutationDescriptor.THIS,
 			ModifyAttributeSchemaDescriptionMutationDescriptor.THIS,
@@ -328,6 +344,7 @@ public class CommonEvitaSchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<
 			// reference schema mutations
 			CreateReferenceSchemaMutationDescriptor.THIS,
 			CreateReflectedReferenceSchemaMutationDescriptor.THIS,
+			SetReferenceSchemaConflictResolutionOverrideMutationDescriptor.THIS,
 			ModifyReferenceAttributeSchemaMutationDescriptor.THIS,
 			ModifyReferenceSchemaCardinalityMutationDescriptor.THIS,
 			ModifyReferenceSchemaDeprecationNoticeMutationDescriptor.THIS,

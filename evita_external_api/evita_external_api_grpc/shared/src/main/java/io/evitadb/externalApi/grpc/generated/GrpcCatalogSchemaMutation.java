@@ -57,7 +57,7 @@ public final class GrpcCatalogSchemaMutation {
       "tributeSchemaMutations.proto\032 GrpcCatalo" +
       "gSchemaMutations.proto\032\037GrpcEntitySchema" +
       "Mutations.proto\032\036GrpcEntitySchemaMutatio" +
-      "n.proto\"\247\025\n\036GrpcLocalCatalogSchemaMutati" +
+      "n.proto\"\335\027\n\036GrpcLocalCatalogSchemaMutati" +
       "on\022\203\001\n&modifyCatalogSchemaDescriptionMut" +
       "ation\030\001 \001(\0132Q.io.evitadb.externalApi.grp" +
       "c.generated.GrpcModifyCatalogSchemaDescr" +
@@ -125,7 +125,15 @@ public final class GrpcCatalogSchemaMutation {
       "maNameMutationH\000\022k\n\032removeEntitySchemaMu" +
       "tation\030! \001(\0132E.io.evitadb.externalApi.gr" +
       "pc.generated.GrpcRemoveEntitySchemaMutat" +
-      "ionH\000B\n\n\010mutationB\014P\001\252\002\007EvitaDBb\006proto3"
+      "ionH\000\022\237\001\n4setAttributeSchemaConflictReso" +
+      "lutionOverrideMutation\030\" \001(\0132_.io.evitad" +
+      "b.externalApi.grpc.generated.GrpcSetAttr" +
+      "ibuteSchemaConflictResolutionOverrideMut" +
+      "ationH\000\022\221\001\n-modifyCatalogSchemaConflictR" +
+      "esolutionMutation\030# \001(\0132X.io.evitadb.ext" +
+      "ernalApi.grpc.generated.GrpcModifyCatalo" +
+      "gSchemaConflictResolutionMutationH\000B\n\n\010m" +
+      "utationB\014P\001\252\002\007EvitaDBb\006proto3"
     };
     descriptor = com.google.protobuf.Descriptors.FileDescriptor
       .internalBuildGeneratedFileFrom(descriptorData,
@@ -140,7 +148,7 @@ public final class GrpcCatalogSchemaMutation {
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcLocalCatalogSchemaMutation_fieldAccessorTable = new
       com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
         internal_static_io_evitadb_externalApi_grpc_generated_GrpcLocalCatalogSchemaMutation_descriptor,
-        new java.lang.String[] { "ModifyCatalogSchemaDescriptionMutation", "AllowEvolutionModeInCatalogSchemaMutation", "DisallowEvolutionModeInCatalogSchemaMutation", "CreateGlobalAttributeSchemaMutation", "ModifyAttributeSchemaDefaultValueMutation", "ModifyAttributeSchemaDeprecationNoticeMutation", "ModifyAttributeSchemaDescriptionMutation", "ModifyAttributeSchemaNameMutation", "ModifyAttributeSchemaTypeMutation", "RemoveAttributeSchemaMutation", "SetAttributeSchemaFilterableMutation", "SetAttributeSchemaLocalizedMutation", "SetAttributeSchemaNullableMutation", "SetAttributeSchemaRepresentativeMutation", "SetAttributeSchemaSortableMutation", "SetAttributeSchemaUniqueMutation", "SetAttributeSchemaGloballyUniqueMutation", "CreateEntitySchemaMutation", "ModifyEntitySchemaMutation", "ModifyEntitySchemaNameMutation", "RemoveEntitySchemaMutation", "Mutation", });
+        new java.lang.String[] { "ModifyCatalogSchemaDescriptionMutation", "AllowEvolutionModeInCatalogSchemaMutation", "DisallowEvolutionModeInCatalogSchemaMutation", "CreateGlobalAttributeSchemaMutation", "ModifyAttributeSchemaDefaultValueMutation", "ModifyAttributeSchemaDeprecationNoticeMutation", "ModifyAttributeSchemaDescriptionMutation", "ModifyAttributeSchemaNameMutation", "ModifyAttributeSchemaTypeMutation", "RemoveAttributeSchemaMutation", "SetAttributeSchemaFilterableMutation", "SetAttributeSchemaLocalizedMutation", "SetAttributeSchemaNullableMutation", "SetAttributeSchemaRepresentativeMutation", "SetAttributeSchemaSortableMutation", "SetAttributeSchemaUniqueMutation", "SetAttributeSchemaGloballyUniqueMutation", "CreateEntitySchemaMutation", "ModifyEntitySchemaMutation", "ModifyEntitySchemaNameMutation", "RemoveEntitySchemaMutation", "SetAttributeSchemaConflictResolutionOverrideMutation", "ModifyCatalogSchemaConflictResolutionMutation", "Mutation", });
     io.evitadb.externalApi.grpc.generated.GrpcAttributeSchemaMutations.getDescriptor();
     io.evitadb.externalApi.grpc.generated.GrpcCatalogSchemaMutations.getDescriptor();
     io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutations.getDescriptor();

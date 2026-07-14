@@ -27,6 +27,9 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolution;
+import io.evitadb.api.requestResponse.mutation.conflict.GranularConflictPolicy;
 import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySortableAttributeCompoundSchemaContract;
@@ -46,6 +49,7 @@ import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.NamingConvention;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.Collection;
 import java.util.Currency;
 import java.util.EnumMap;
@@ -64,6 +68,51 @@ import java.util.Set;
  */
 public class EntitySchemaSerializer extends Serializer<EntitySchema> {
 	private final HeterogeneousMapSerializer<Object, Object> heterogeneousSerializer = new HeterogeneousMapSerializer<>(LinkedHashMap::new);
+
+	/**
+	 * Serializes a nullable {@link ConflictResolution} to the given Kryo output. A leading boolean marks presence so
+	 * that a `null` value (meaning: inherit the engine-level default) round-trips faithfully. When present, the coarse
+	 * {@link ConflictPolicy} is written by name followed by the {@link GranularConflictPolicy} granularity set.
+	 *
+	 * @param kryo               the Kryo instance to use for serialization
+	 * @param output             the Output instance to write to
+	 * @param conflictResolution the conflict resolution to serialize, may be null
+	 */
+	static void writeConflictResolution(@Nonnull Kryo kryo, @Nonnull Output output, @Nullable ConflictResolution conflictResolution) {
+		if (conflictResolution == null) {
+			output.writeBoolean(false);
+			return;
+		}
+		output.writeBoolean(true);
+		kryo.writeObject(output, conflictResolution.policy());
+		final EnumSet<GranularConflictPolicy> granularity = conflictResolution.granularity();
+		output.writeVarInt(granularity.size(), true);
+		for (GranularConflictPolicy granularConflictPolicy : granularity) {
+			kryo.writeObject(output, granularConflictPolicy);
+		}
+	}
+
+	/**
+	 * Reads a nullable {@link ConflictResolution} previously written by
+	 * {@link #writeConflictResolution(Kryo, Output, ConflictResolution)}.
+	 *
+	 * @param kryo  the Kryo instance to use for deserialization
+	 * @param input the Input instance to read from
+	 * @return the deserialized conflict resolution, or null when none was persisted
+	 */
+	@Nullable
+	static ConflictResolution readConflictResolution(@Nonnull Kryo kryo, @Nonnull Input input) {
+		if (!input.readBoolean()) {
+			return null;
+		}
+		final ConflictPolicy policy = kryo.readObject(input, ConflictPolicy.class);
+		final int granularitySize = input.readVarInt(true);
+		final EnumSet<GranularConflictPolicy> granularity = EnumSet.noneOf(GranularConflictPolicy.class);
+		for (int i = 0; i < granularitySize; i++) {
+			granularity.add(kryo.readObject(input, GranularConflictPolicy.class));
+		}
+		return new ConflictResolution(policy, granularity);
+	}
 
 	/**
 	 * Serializes an EnumSet of Scope objects to the given Kryo output.
@@ -419,6 +468,7 @@ public class EntitySchemaSerializer extends Serializer<EntitySchema> {
 		} else {
 			output.writeBoolean(false);
 		}
+		writeConflictResolution(kryo, output, entitySchema.getConflictResolution().orElse(null));
 
 		writeSortableAttributeCompounds(kryo, output, entitySchema.getSortableAttributeCompounds().values());
 	}
@@ -442,6 +492,7 @@ public class EntitySchemaSerializer extends Serializer<EntitySchema> {
 		@SuppressWarnings("unchecked") final Set<EvolutionMode> evolutionMode = kryo.readObject(input, Set.class);
 		final String description = input.readBoolean() ? input.readString() : null;
 		final String deprecationNotice = input.readBoolean() ? input.readString() : null;
+		final ConflictResolution conflictResolution = readConflictResolution(kryo, input);
 
 		final int sortableAttributeCompoundsCount = input.readVarInt(true);
 		final Map<String, EntitySortableAttributeCompoundSchemaContract> sortableAttributeCompounds = CollectionUtils.createHashMap(sortableAttributeCompoundsCount);
@@ -456,6 +507,7 @@ public class EntitySchemaSerializer extends Serializer<EntitySchema> {
 		return EntitySchema._internalBuild(
 			version,
 			entityName, nameVariants, description, deprecationNotice,
+			conflictResolution,
 			withGeneratedPrimaryKey,
 			withHierarchy,
 			hierarchyIndexedInScopes,

@@ -36,6 +36,7 @@ import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.associated
 import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.associatedData.ModifyAssociatedDataSchemaTypeMutationConverter;
 import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.associatedData.RemoveAssociatedDataSchemaMutationConverter;
 import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.associatedData.SetAssociatedDataSchemaLocalizedMutationConverter;
+import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.associatedData.SetAssociatedDataSchemaConflictResolutionOverrideMutationConverter;
 import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.associatedData.SetAssociatedDataSchemaNullableMutationConverter;
 import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.attribute.*;
 import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.entity.*;
@@ -81,6 +82,7 @@ public class LocalEntitySchemaMutationInputAggregateConverter extends
 		registerConverter(DISALLOW_LOCALE_IN_ENTITY_SCHEMA_MUTATION.name(), new DisallowLocaleInEntitySchemaMutationConverter(objectParser, exceptionFactory));
 		registerConverter(MODIFY_ENTITY_SCHEMA_DEPRECATION_NOTICE_MUTATION.name(), new ModifyEntitySchemaDeprecationNoticeMutationConverter(objectParser, exceptionFactory));
 		registerConverter(MODIFY_ENTITY_SCHEMA_DESCRIPTION_MUTATION.name(), new ModifyEntitySchemaDescriptionMutationConverter(objectParser, exceptionFactory));
+		registerConverter(MODIFY_ENTITY_SCHEMA_CONFLICT_RESOLUTION_MUTATION.name(), new ModifyEntitySchemaConflictResolutionMutationConverter(objectParser, exceptionFactory));
 		registerConverter(SET_ENTITY_SCHEMA_WITH_GENERATED_PRIMARY_KEY_MUTATION.name(), new SetEntitySchemaWithGeneratedPrimaryKeyMutationConverter(objectParser, exceptionFactory));
 		registerConverter(SET_ENTITY_SCHEMA_WITH_HIERARCHY_MUTATION.name(), new SetEntitySchemaWithHierarchyMutationConverter(objectParser, exceptionFactory));
 		registerConverter(SET_ENTITY_SCHEMA_WITH_PRICE_MUTATION.name(), new SetEntitySchemaWithPriceMutationConverter(objectParser, exceptionFactory));
@@ -94,6 +96,7 @@ public class LocalEntitySchemaMutationInputAggregateConverter extends
 		registerConverter(REMOVE_ASSOCIATED_DATA_SCHEMA_MUTATION.name(), new RemoveAssociatedDataSchemaMutationConverter(objectParser, exceptionFactory));
 		registerConverter(SET_ASSOCIATED_DATA_SCHEMA_LOCALIZED_MUTATION.name(), new SetAssociatedDataSchemaLocalizedMutationConverter(objectParser, exceptionFactory));
 		registerConverter(SET_ASSOCIATED_DATA_SCHEMA_NULLABLE_MUTATION.name(), new SetAssociatedDataSchemaNullableMutationConverter(objectParser, exceptionFactory));
+		registerConverter(SET_ASSOCIATED_DATA_SCHEMA_CONFLICT_RESOLUTION_OVERRIDE_MUTATION.name(), new SetAssociatedDataSchemaConflictResolutionOverrideMutationConverter(objectParser, exceptionFactory));
 
 		// attribute schema mutations
 		registerConverter(CREATE_ATTRIBUTE_SCHEMA_MUTATION.name(), new CreateAttributeSchemaMutationConverter(objectParser, exceptionFactory));
@@ -106,6 +109,7 @@ public class LocalEntitySchemaMutationInputAggregateConverter extends
 		registerConverter(SET_ATTRIBUTE_SCHEMA_FILTERABLE_MUTATION.name(), new SetAttributeSchemaFilterableMutationConverter(objectParser, exceptionFactory));
 		registerConverter(SET_ATTRIBUTE_SCHEMA_LOCALIZED_MUTATION.name(), new SetAttributeSchemaLocalizedMutationConverter(objectParser, exceptionFactory));
 		registerConverter(SET_ATTRIBUTE_SCHEMA_NULLABLE_MUTATION.name(), new SetAttributeSchemaNullableMutationConverter(objectParser, exceptionFactory));
+		registerConverter(SET_ATTRIBUTE_SCHEMA_CONFLICT_RESOLUTION_OVERRIDE_MUTATION.name(), new SetAttributeSchemaConflictResolutionOverrideMutationConverter(objectParser, exceptionFactory));
 		registerConverter(SET_ATTRIBUTE_SCHEMA_REPRESENTATIVE_MUTATION.name(), new SetAttributeSchemaRepresentativeMutationConverter(objectParser, exceptionFactory));
 		registerConverter(SET_ATTRIBUTE_SCHEMA_SORTABLE_MUTATION.name(), new SetAttributeSchemaSortableMutationConverter(objectParser, exceptionFactory));
 		registerConverter(SET_ATTRIBUTE_SCHEMA_UNIQUE_MUTATION.name(), new SetAttributeSchemaUniqueMutationConverter(objectParser, exceptionFactory));
@@ -135,6 +139,7 @@ public class LocalEntitySchemaMutationInputAggregateConverter extends
 		registerConverter(SET_REFERENCE_SCHEMA_BUCKETED_MUTATION.name(), new SetReferenceSchemaBucketedMutationConverter(objectParser, exceptionFactory));
 		registerConverter(SET_REFERENCE_SCHEMA_FACETED_MUTATION.name(), new SetReferenceSchemaFacetedMutationConverter(objectParser, exceptionFactory));
 		registerConverter(SET_REFERENCE_SCHEMA_INDEXED_MUTATION.name(), new SetReferenceSchemaIndexedMutationConverter(objectParser, exceptionFactory));
+		registerConverter(SET_REFERENCE_SCHEMA_CONFLICT_RESOLUTION_OVERRIDE_MUTATION.name(), new SetReferenceSchemaConflictResolutionOverrideMutationConverter(objectParser, exceptionFactory));
 	}
 
 	@Nonnull

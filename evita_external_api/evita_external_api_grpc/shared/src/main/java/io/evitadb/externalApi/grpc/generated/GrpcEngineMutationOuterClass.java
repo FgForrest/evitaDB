@@ -109,69 +109,73 @@ public final class GrpcEngineMutationOuterClass {
     java.lang.String[] descriptorData = {
       "\n\030GrpcEngineMutation.proto\022%io.evitadb.e" +
       "xternalApi.grpc.generated\032\037GrpcCatalogSc" +
-      "hemaMutation.proto\032\030GrpcEvitaDataTypes.p" +
-      "roto\032\037GrpcInfrastrutureMutation.proto\"6\n" +
-      "\037GrpcCreateCatalogSchemaMutation\022\023\n\013cata" +
-      "logName\030\001 \001(\t\"7\n GrpcRestoreCatalogSchem" +
-      "aMutation\022\023\n\013catalogName\030\001 \001(\t\"k\n#GrpcMo" +
-      "difyCatalogSchemaNameMutation\022\023\n\013catalog" +
-      "Name\030\001 \001(\t\022\026\n\016newCatalogName\030\002 \001(\t\022\027\n\017ov" +
-      "erwriteTarget\030\003 \001(\010\"\226\001\n\037GrpcModifyCatalo" +
-      "gSchemaMutation\022\023\n\013catalogName\030\001 \001(\t\022^\n\017" +
-      "schemaMutations\030\002 \003(\0132E.io.evitadb.exter" +
-      "nalApi.grpc.generated.GrpcLocalCatalogSc" +
-      "hemaMutation\"3\n\034GrpcMakeCatalogAliveMuta" +
-      "tion\022\023\n\013catalogName\030\001 \001(\t\"6\n\037GrpcRemoveC" +
-      "atalogSchemaMutation\022\023\n\013catalogName\030\001 \001(" +
-      "\t\"H\n GrpcSetCatalogMutabilityMutation\022\023\n" +
-      "\013catalogName\030\001 \001(\t\022\017\n\007mutable\030\002 \001(\010\"K\n\034G" +
-      "rpcDuplicateCatalogMutation\022\023\n\013catalogNa" +
-      "me\030\001 \001(\t\022\026\n\016newCatalogName\030\002 \001(\t\"B\n\033Grpc" +
-      "SetCatalogStateMutation\022\023\n\013catalogName\030\001" +
-      " \001(\t\022\016\n\006active\030\002 \001(\010\"5\n\036GrpcMarkCatalogM" +
-      "issingMutation\022\023\n\013catalogName\030\001 \001(\t\"o\n G" +
-      "rpcUpgradeCatalogFormatMutation\022\023\n\013catal" +
-      "ogName\030\001 \001(\t\022\033\n\023fromProtocolVersion\030\002 \001(" +
-      "\005\022\031\n\021toProtocolVersion\030\003 \001(\005\"\274\n\n\022GrpcEng" +
-      "ineMutation\022m\n\033createCatalogSchemaMutati" +
-      "on\030\001 \001(\0132F.io.evitadb.externalApi.grpc.g" +
-      "enerated.GrpcCreateCatalogSchemaMutation" +
-      "H\000\022u\n\037modifyCatalogSchemaNameMutation\030\002 " +
-      "\001(\0132J.io.evitadb.externalApi.grpc.genera" +
-      "ted.GrpcModifyCatalogSchemaNameMutationH" +
-      "\000\022m\n\033modifyCatalogSchemaMutation\030\003 \001(\0132F" +
-      ".io.evitadb.externalApi.grpc.generated.G" +
-      "rpcModifyCatalogSchemaMutationH\000\022g\n\030make" +
-      "CatalogAliveMutation\030\004 \001(\0132C.io.evitadb." +
-      "externalApi.grpc.generated.GrpcMakeCatal" +
-      "ogAliveMutationH\000\022m\n\033removeCatalogSchema" +
-      "Mutation\030\005 \001(\0132F.io.evitadb.externalApi." +
-      "grpc.generated.GrpcRemoveCatalogSchemaMu" +
-      "tationH\000\022]\n\023transactionMutation\030\006 \001(\0132>." +
+      "hemaMutation.proto\032\017GrpcEnums.proto\032\030Grp" +
+      "cEvitaDataTypes.proto\032\037GrpcInfrastruture" +
+      "Mutation.proto\"\221\001\n\037GrpcCreateCatalogSche" +
+      "maMutation\022\023\n\013catalogName\030\001 \001(\t\022Y\n\022confl" +
+      "ictResolution\030\002 \001(\0132=.io.evitadb.externa" +
+      "lApi.grpc.generated.GrpcConflictResoluti" +
+      "on\"7\n GrpcRestoreCatalogSchemaMutation\022\023" +
+      "\n\013catalogName\030\001 \001(\t\"k\n#GrpcModifyCatalog" +
+      "SchemaNameMutation\022\023\n\013catalogName\030\001 \001(\t\022" +
+      "\026\n\016newCatalogName\030\002 \001(\t\022\027\n\017overwriteTarg" +
+      "et\030\003 \001(\010\"\226\001\n\037GrpcModifyCatalogSchemaMuta" +
+      "tion\022\023\n\013catalogName\030\001 \001(\t\022^\n\017schemaMutat" +
+      "ions\030\002 \003(\0132E.io.evitadb.externalApi.grpc" +
+      ".generated.GrpcLocalCatalogSchemaMutatio" +
+      "n\"3\n\034GrpcMakeCatalogAliveMutation\022\023\n\013cat" +
+      "alogName\030\001 \001(\t\"6\n\037GrpcRemoveCatalogSchem" +
+      "aMutation\022\023\n\013catalogName\030\001 \001(\t\"H\n GrpcSe" +
+      "tCatalogMutabilityMutation\022\023\n\013catalogNam" +
+      "e\030\001 \001(\t\022\017\n\007mutable\030\002 \001(\010\"K\n\034GrpcDuplicat" +
+      "eCatalogMutation\022\023\n\013catalogName\030\001 \001(\t\022\026\n" +
+      "\016newCatalogName\030\002 \001(\t\"B\n\033GrpcSetCatalogS" +
+      "tateMutation\022\023\n\013catalogName\030\001 \001(\t\022\016\n\006act" +
+      "ive\030\002 \001(\010\"5\n\036GrpcMarkCatalogMissingMutat" +
+      "ion\022\023\n\013catalogName\030\001 \001(\t\"o\n GrpcUpgradeC" +
+      "atalogFormatMutation\022\023\n\013catalogName\030\001 \001(" +
+      "\t\022\033\n\023fromProtocolVersion\030\002 \001(\005\022\031\n\021toProt" +
+      "ocolVersion\030\003 \001(\005\"\274\n\n\022GrpcEngineMutation" +
+      "\022m\n\033createCatalogSchemaMutation\030\001 \001(\0132F." +
       "io.evitadb.externalApi.grpc.generated.Gr" +
-      "pcTransactionMutationH\000\022o\n\034setCatalogMut" +
-      "abilityMutation\030\007 \001(\0132G.io.evitadb.exter" +
-      "nalApi.grpc.generated.GrpcSetCatalogMuta" +
-      "bilityMutationH\000\022g\n\030duplicateCatalogMuta" +
-      "tion\030\010 \001(\0132C.io.evitadb.externalApi.grpc" +
-      ".generated.GrpcDuplicateCatalogMutationH" +
-      "\000\022e\n\027setCatalogStateMutation\030\t \001(\0132B.io." +
-      "evitadb.externalApi.grpc.generated.GrpcS" +
-      "etCatalogStateMutationH\000\022o\n\034restoreCatal" +
-      "ogSchemaMutation\030\n \001(\0132G.io.evitadb.exte" +
-      "rnalApi.grpc.generated.GrpcRestoreCatalo" +
-      "gSchemaMutationH\000\022k\n\032markCatalogMissingM" +
-      "utation\030\013 \001(\0132E.io.evitadb.externalApi.g" +
-      "rpc.generated.GrpcMarkCatalogMissingMuta" +
-      "tionH\000\022o\n\034upgradeCatalogFormatMutation\030\014" +
-      " \001(\0132G.io.evitadb.externalApi.grpc.gener" +
-      "ated.GrpcUpgradeCatalogFormatMutationH\000B" +
-      "\n\n\010mutationB\014P\001\252\002\007EvitaDBb\006proto3"
+      "pcCreateCatalogSchemaMutationH\000\022u\n\037modif" +
+      "yCatalogSchemaNameMutation\030\002 \001(\0132J.io.ev" +
+      "itadb.externalApi.grpc.generated.GrpcMod" +
+      "ifyCatalogSchemaNameMutationH\000\022m\n\033modify" +
+      "CatalogSchemaMutation\030\003 \001(\0132F.io.evitadb" +
+      ".externalApi.grpc.generated.GrpcModifyCa" +
+      "talogSchemaMutationH\000\022g\n\030makeCatalogAliv" +
+      "eMutation\030\004 \001(\0132C.io.evitadb.externalApi" +
+      ".grpc.generated.GrpcMakeCatalogAliveMuta" +
+      "tionH\000\022m\n\033removeCatalogSchemaMutation\030\005 " +
+      "\001(\0132F.io.evitadb.externalApi.grpc.genera" +
+      "ted.GrpcRemoveCatalogSchemaMutationH\000\022]\n" +
+      "\023transactionMutation\030\006 \001(\0132>.io.evitadb." +
+      "externalApi.grpc.generated.GrpcTransacti" +
+      "onMutationH\000\022o\n\034setCatalogMutabilityMuta" +
+      "tion\030\007 \001(\0132G.io.evitadb.externalApi.grpc" +
+      ".generated.GrpcSetCatalogMutabilityMutat" +
+      "ionH\000\022g\n\030duplicateCatalogMutation\030\010 \001(\0132" +
+      "C.io.evitadb.externalApi.grpc.generated." +
+      "GrpcDuplicateCatalogMutationH\000\022e\n\027setCat" +
+      "alogStateMutation\030\t \001(\0132B.io.evitadb.ext" +
+      "ernalApi.grpc.generated.GrpcSetCatalogSt" +
+      "ateMutationH\000\022o\n\034restoreCatalogSchemaMut" +
+      "ation\030\n \001(\0132G.io.evitadb.externalApi.grp" +
+      "c.generated.GrpcRestoreCatalogSchemaMuta" +
+      "tionH\000\022k\n\032markCatalogMissingMutation\030\013 \001" +
+      "(\0132E.io.evitadb.externalApi.grpc.generat" +
+      "ed.GrpcMarkCatalogMissingMutationH\000\022o\n\034u" +
+      "pgradeCatalogFormatMutation\030\014 \001(\0132G.io.e" +
+      "vitadb.externalApi.grpc.generated.GrpcUp" +
+      "gradeCatalogFormatMutationH\000B\n\n\010mutation" +
+      "B\014P\001\252\002\007EvitaDBb\006proto3"
     };
     descriptor = com.google.protobuf.Descriptors.FileDescriptor
       .internalBuildGeneratedFileFrom(descriptorData,
         new com.google.protobuf.Descriptors.FileDescriptor[] {
           io.evitadb.externalApi.grpc.generated.GrpcCatalogSchemaMutation.getDescriptor(),
+          io.evitadb.externalApi.grpc.generated.GrpcEnums.getDescriptor(),
           io.evitadb.externalApi.grpc.generated.GrpcEvitaDataTypes.getDescriptor(),
           io.evitadb.externalApi.grpc.generated.GrpcInfrastrutureMutation.getDescriptor(),
         });
@@ -180,7 +184,7 @@ public final class GrpcEngineMutationOuterClass {
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcCreateCatalogSchemaMutation_fieldAccessorTable = new
       com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
         internal_static_io_evitadb_externalApi_grpc_generated_GrpcCreateCatalogSchemaMutation_descriptor,
-        new java.lang.String[] { "CatalogName", });
+        new java.lang.String[] { "CatalogName", "ConflictResolution", });
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcRestoreCatalogSchemaMutation_descriptor =
       getDescriptor().getMessageTypes().get(1);
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcRestoreCatalogSchemaMutation_fieldAccessorTable = new
@@ -248,6 +252,7 @@ public final class GrpcEngineMutationOuterClass {
         internal_static_io_evitadb_externalApi_grpc_generated_GrpcEngineMutation_descriptor,
         new java.lang.String[] { "CreateCatalogSchemaMutation", "ModifyCatalogSchemaNameMutation", "ModifyCatalogSchemaMutation", "MakeCatalogAliveMutation", "RemoveCatalogSchemaMutation", "TransactionMutation", "SetCatalogMutabilityMutation", "DuplicateCatalogMutation", "SetCatalogStateMutation", "RestoreCatalogSchemaMutation", "MarkCatalogMissingMutation", "UpgradeCatalogFormatMutation", "Mutation", });
     io.evitadb.externalApi.grpc.generated.GrpcCatalogSchemaMutation.getDescriptor();
+    io.evitadb.externalApi.grpc.generated.GrpcEnums.getDescriptor();
     io.evitadb.externalApi.grpc.generated.GrpcEvitaDataTypes.getDescriptor();
     io.evitadb.externalApi.grpc.generated.GrpcInfrastrutureMutation.getDescriptor();
   }

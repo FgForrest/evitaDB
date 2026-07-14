@@ -80,7 +80,7 @@ import static io.evitadb.dataType.Scope.NO_SCOPE;
 public class CreateGlobalAttributeSchemaMutation
 	extends AbstractAttributeSchemaMutation
 	implements GlobalAttributeSchemaMutation, CombinableCatalogSchemaMutation, CatalogSchemaMutation, CreateMutation {
-	@Serial private static final long serialVersionUID = 496202593310308290L;
+	@Serial private static final long serialVersionUID = 496202593310308291L;
 
 	@Getter @Nullable private final String description;
 	@Getter @Nullable private final String deprecationNotice;

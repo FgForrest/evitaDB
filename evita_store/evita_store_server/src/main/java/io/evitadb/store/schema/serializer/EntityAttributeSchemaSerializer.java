@@ -27,6 +27,7 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.dto.EntityAttributeSchema;
@@ -91,6 +92,7 @@ public class EntityAttributeSchemaSerializer extends Serializer<EntityAttributeS
 		} else {
 			output.writeBoolean(false);
 		}
+		kryo.writeObject(output, attributeSchema.getConflictResolutionOverride());
 	}
 
 	@SuppressWarnings({"rawtypes", "unchecked"})
@@ -125,10 +127,11 @@ public class EntityAttributeSchemaSerializer extends Serializer<EntityAttributeS
 		final int indexedDecimalPlaces = input.readInt();
 		final String description = input.readBoolean() ? input.readString() : null;
 		final String deprecationNotice = input.readBoolean() ? input.readString() : null;
+		final ConflictResolutionOverride conflictResolutionOverride = kryo.readObject(input, ConflictResolutionOverride.class);
 		return EntityAttributeSchema._internalBuild(
 			name, nameVariants, description, deprecationNotice,
 			unique, filterable, sortable, localized, nullable, representative,
-			type, (Serializable) defaultValue, indexedDecimalPlaces
+			type, (Serializable) defaultValue, indexedDecimalPlaces, conflictResolutionOverride
 		);
 	}
 

@@ -98,6 +98,12 @@ public class EntitySchemaObjectBuilder {
 		this.buildingContext.registerType(
 			ScopedBucketedPartiallyDescriptor.THIS_INPUT.to(this.objectBuilderTransformer).build()
 		);
+		this.buildingContext.registerType(
+			ConflictResolutionDescriptor.THIS.to(this.objectBuilderTransformer).build()
+		);
+		this.buildingContext.registerType(
+			ConflictResolutionDescriptor.THIS_INPUT.to(this.objectBuilderTransformer).build()
+		);
 		this.buildingContext.registerType(AttributeSchemaDescriptor.THIS.to(this.objectBuilderTransformer).build());
 		this.buildingContext.registerType(EntityAttributeSchemaDescriptor.THIS.to(this.objectBuilderTransformer).build());
 		this.buildingContext.registerType(GlobalAttributeSchemaDescriptor.THIS.to(this.objectBuilderTransformer).build());

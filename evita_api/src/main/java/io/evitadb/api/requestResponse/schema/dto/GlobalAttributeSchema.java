@@ -56,7 +56,7 @@ import java.util.Set;
 @ThreadSafe
 @EqualsAndHashCode(callSuper = true)
 public final class GlobalAttributeSchema extends AttributeSchema implements GlobalAttributeSchemaContract {
-	@Serial private static final long serialVersionUID = -6027390261318420826L;
+	@Serial private static final long serialVersionUID = -6027390261318420825L;
 	/**
 	 * A mapping of {@link Scope} to their corresponding {@link GlobalAttributeUniquenessType}.
 	 * This map specifies the global uniqueness constraints for attributes within given scopes.
@@ -118,6 +118,21 @@ public final class GlobalAttributeSchema extends AttributeSchema implements Glob
 	}
 
 	/**
+	 * Transitional compatibility overload defaulting the conflict resolution setting; delegates to the full overload.
+	 *
+	 * @deprecated bridges call sites not yet migrated to the explicit conflict-resolution parameter.
+	 */
+	@Deprecated(forRemoval = true)
+	@Nonnull
+	public static GlobalAttributeSchema _internalBuild(
+		@Nonnull String name,
+		@Nonnull Class<? extends Serializable> type,
+		boolean localized
+	) {
+		return _internalBuild(name, type, localized, ConflictResolutionOverride.INHERITED);
+	}
+
+	/**
 	 * This method is for internal purposes only. It could be used for reconstruction of GlobalAttributeSchema from
 	 * different package than current, but still internal code of the Evita ecosystems.
 	 *
@@ -157,6 +172,31 @@ public final class GlobalAttributeSchema extends AttributeSchema implements Glob
 	}
 
 	/**
+	 * Transitional compatibility overload defaulting the conflict resolution setting; delegates to the full overload.
+	 *
+	 * @deprecated bridges call sites not yet migrated to the explicit conflict-resolution parameter.
+	 */
+	@Deprecated(forRemoval = true)
+	@Nonnull
+	public static <T extends Serializable> GlobalAttributeSchema _internalBuild(
+		@Nonnull String name,
+		@Nullable ScopedAttributeUniquenessType[] unique,
+		@Nullable ScopedGlobalAttributeUniquenessType[] uniqueGlobally,
+		@Nullable Scope[] filterable,
+		@Nullable Scope[] sortable,
+		boolean localized,
+		boolean nullable,
+		boolean representative,
+		@Nonnull Class<T> type,
+		@Nullable T defaultValue
+	) {
+		return _internalBuild(
+			name, unique, uniqueGlobally, filterable, sortable, localized, nullable, representative,
+			type, defaultValue, ConflictResolutionOverride.INHERITED
+		);
+	}
+
+	/**
 	 * This method is for internal purposes only. It could be used for reconstruction of GlobalAttributeSchema from
 	 * different package than current, but still internal code of the Evita ecosystems.
 	 *
@@ -195,6 +235,39 @@ public final class GlobalAttributeSchema extends AttributeSchema implements Glob
 			type, defaultValue,
 			indexedDecimalPlaces,
 			conflictResolutionOverride
+		);
+	}
+
+	/**
+	 * Transitional compatibility overload that reconstructs a global attribute schema without a conflict resolution
+	 * override, defaulting it to {@link ConflictResolutionOverride#INHERITED}. It exists so external API converters
+	 * (gRPC/GraphQL/REST) that do not yet propagate the conflict resolution setting keep compiling and round-tripping
+	 * the rest of the schema. It will be removed once those converters carry the conflict resolution setting through
+	 * their transport format.
+	 *
+	 * @deprecated bridges external-API reconstruction until the conflict resolution setting is propagated over the wire
+	 */
+	@Deprecated(forRemoval = true)
+	@Nonnull
+	public static <T extends Serializable> GlobalAttributeSchema _internalBuild(
+		@Nonnull String name,
+		@Nullable String description,
+		@Nullable String deprecationNotice,
+		@Nullable ScopedAttributeUniquenessType[] unique,
+		@Nullable ScopedGlobalAttributeUniquenessType[] uniqueGlobally,
+		@Nullable Scope[] filterable,
+		@Nullable Scope[] sortable,
+		boolean localized,
+		boolean nullable,
+		boolean representative,
+		@Nonnull Class<T> type,
+		@Nullable T defaultValue,
+		int indexedDecimalPlaces
+	) {
+		return _internalBuild(
+			name, description, deprecationNotice, unique, uniqueGlobally, filterable, sortable,
+			localized, nullable, representative, type, defaultValue, indexedDecimalPlaces,
+			ConflictResolutionOverride.INHERITED
 		);
 	}
 
@@ -274,6 +347,36 @@ public final class GlobalAttributeSchema extends AttributeSchema implements Glob
 	}
 
 	/**
+	 * Transitional compatibility overload defaulting the conflict resolution setting; delegates to the full overload.
+	 *
+	 * @deprecated bridges call sites not yet migrated to the explicit conflict-resolution parameter.
+	 */
+	@Deprecated(forRemoval = true)
+	@Nonnull
+	public static <T extends Serializable> GlobalAttributeSchema _internalBuild(
+		@Nonnull String name,
+		@Nonnull Map<NamingConvention, String> nameVariants,
+		@Nullable String description,
+		@Nullable String deprecationNotice,
+		@Nullable Map<Scope, AttributeUniquenessType> uniqueInScopes,
+		@Nullable Map<Scope, GlobalAttributeUniquenessType> globalUniquenessTypeInScopes,
+		@Nonnull Set<Scope> filterableInScopes,
+		@Nonnull Set<Scope> sortableInScopes,
+		boolean localized,
+		boolean nullable,
+		boolean representative,
+		@Nonnull Class<T> type,
+		@Nullable T defaultValue,
+		int indexedDecimalPlaces
+	) {
+		return _internalBuild(
+			name, nameVariants, description, deprecationNotice, uniqueInScopes, globalUniquenessTypeInScopes,
+			filterableInScopes, sortableInScopes, localized, nullable, representative, type, defaultValue,
+			indexedDecimalPlaces, ConflictResolutionOverride.INHERITED
+		);
+	}
+
+	/**
 	 * This method is for internal purposes only. It could be used for reconstruction of GlobalAttributeSchema from
 	 * different package than current, but still internal code of the Evita ecosystems.
 	 *
@@ -313,6 +416,40 @@ public final class GlobalAttributeSchema extends AttributeSchema implements Glob
 			type, defaultValue,
 			indexedDecimalPlaces,
 			conflictResolutionOverride
+		);
+	}
+
+	/**
+	 * Transitional compatibility overload that reconstructs a global attribute schema without a conflict resolution
+	 * override, defaulting it to {@link ConflictResolutionOverride#INHERITED}. It exists so external API converters
+	 * (gRPC/GraphQL/REST) that do not yet propagate the conflict resolution setting keep compiling and round-tripping
+	 * the rest of the schema. It will be removed once those converters carry the conflict resolution setting through
+	 * their transport format.
+	 *
+	 * @deprecated bridges external-API reconstruction until the conflict resolution setting is propagated over the wire
+	 */
+	@Deprecated(forRemoval = true)
+	@Nonnull
+	public static <T extends Serializable> GlobalAttributeSchema _internalBuild(
+		@Nonnull String name,
+		@Nonnull Map<NamingConvention, String> nameVariants,
+		@Nullable String description,
+		@Nullable String deprecationNotice,
+		@Nullable ScopedAttributeUniquenessType[] unique,
+		@Nullable ScopedGlobalAttributeUniquenessType[] uniqueGlobally,
+		@Nullable Scope[] filterable,
+		@Nullable Scope[] sortable,
+		boolean localized,
+		boolean nullable,
+		boolean representative,
+		@Nonnull Class<T> type,
+		@Nullable T defaultValue,
+		int indexedDecimalPlaces
+	) {
+		return _internalBuild(
+			name, nameVariants, description, deprecationNotice, unique, uniqueGlobally, filterable, sortable,
+			localized, nullable, representative, type, defaultValue, indexedDecimalPlaces,
+			ConflictResolutionOverride.INHERITED
 		);
 	}
 

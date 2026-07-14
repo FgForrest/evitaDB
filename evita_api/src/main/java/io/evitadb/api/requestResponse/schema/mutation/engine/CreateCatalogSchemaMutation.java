@@ -36,6 +36,7 @@ import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolution;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
+import io.evitadb.api.requestResponse.schema.annotation.SerializableCreator;
 import io.evitadb.api.requestResponse.schema.mutation.TopLevelCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.MutationEntitySchemaAccessor;
 import io.evitadb.dataType.ClassifierType;
@@ -85,6 +86,7 @@ public class CreateCatalogSchemaMutation implements TopLevelCatalogSchemaMutatio
 	 * @param catalogName        name of the catalog to create
 	 * @param conflictResolution the catalog-level conflict resolution override, or `null` to inherit the engine default
 	 */
+	@SerializableCreator
 	public CreateCatalogSchemaMutation(@Nonnull String catalogName, @Nullable ConflictResolution conflictResolution) {
 		ClassifierUtils.validateClassifierFormat(ClassifierType.CATALOG, catalogName);
 		this.catalogName = catalogName;

@@ -67,6 +67,7 @@ private static final long serialVersionUID = 0L;
             io.evitadb.externalApi.grpc.generated.GrpcCreateCatalogSchemaMutation.class, io.evitadb.externalApi.grpc.generated.GrpcCreateCatalogSchemaMutation.Builder.class);
   }
 
+  private int bitField0_;
   public static final int CATALOGNAME_FIELD_NUMBER = 1;
   @SuppressWarnings("serial")
   private volatile java.lang.Object catalogName_ = "";
@@ -114,6 +115,47 @@ private static final long serialVersionUID = 0L;
     }
   }
 
+  public static final int CONFLICTRESOLUTION_FIELD_NUMBER = 2;
+  private io.evitadb.externalApi.grpc.generated.GrpcConflictResolution conflictResolution_;
+  /**
+   * <pre>
+   * Optional catalog-level transaction conflict resolution override applied to the new catalog. When not set, the
+   * catalog inherits the engine-level default.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcConflictResolution conflictResolution = 2;</code>
+   * @return Whether the conflictResolution field is set.
+   */
+  @java.lang.Override
+  public boolean hasConflictResolution() {
+    return ((bitField0_ & 0x00000001) != 0);
+  }
+  /**
+   * <pre>
+   * Optional catalog-level transaction conflict resolution override applied to the new catalog. When not set, the
+   * catalog inherits the engine-level default.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcConflictResolution conflictResolution = 2;</code>
+   * @return The conflictResolution.
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcConflictResolution getConflictResolution() {
+    return conflictResolution_ == null ? io.evitadb.externalApi.grpc.generated.GrpcConflictResolution.getDefaultInstance() : conflictResolution_;
+  }
+  /**
+   * <pre>
+   * Optional catalog-level transaction conflict resolution override applied to the new catalog. When not set, the
+   * catalog inherits the engine-level default.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcConflictResolution conflictResolution = 2;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcConflictResolutionOrBuilder getConflictResolutionOrBuilder() {
+    return conflictResolution_ == null ? io.evitadb.externalApi.grpc.generated.GrpcConflictResolution.getDefaultInstance() : conflictResolution_;
+  }
+
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
@@ -131,6 +173,9 @@ private static final long serialVersionUID = 0L;
     if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(catalogName_)) {
       com.google.protobuf.GeneratedMessageV3.writeString(output, 1, catalogName_);
     }
+    if (((bitField0_ & 0x00000001) != 0)) {
+      output.writeMessage(2, getConflictResolution());
+    }
     getUnknownFields().writeTo(output);
   }
 
@@ -142,6 +187,10 @@ private static final long serialVersionUID = 0L;
     size = 0;
     if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(catalogName_)) {
       size += com.google.protobuf.GeneratedMessageV3.computeStringSize(1, catalogName_);
+    }
+    if (((bitField0_ & 0x00000001) != 0)) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(2, getConflictResolution());
     }
     size += getUnknownFields().getSerializedSize();
     memoizedSize = size;
@@ -160,6 +209,11 @@ private static final long serialVersionUID = 0L;
 
     if (!getCatalogName()
         .equals(other.getCatalogName())) return false;
+    if (hasConflictResolution() != other.hasConflictResolution()) return false;
+    if (hasConflictResolution()) {
+      if (!getConflictResolution()
+          .equals(other.getConflictResolution())) return false;
+    }
     if (!getUnknownFields().equals(other.getUnknownFields())) return false;
     return true;
   }
@@ -173,6 +227,10 @@ private static final long serialVersionUID = 0L;
     hash = (19 * hash) + getDescriptor().hashCode();
     hash = (37 * hash) + CATALOGNAME_FIELD_NUMBER;
     hash = (53 * hash) + getCatalogName().hashCode();
+    if (hasConflictResolution()) {
+      hash = (37 * hash) + CONFLICTRESOLUTION_FIELD_NUMBER;
+      hash = (53 * hash) + getConflictResolution().hashCode();
+    }
     hash = (29 * hash) + getUnknownFields().hashCode();
     memoizedHashCode = hash;
     return hash;
@@ -296,19 +354,30 @@ private static final long serialVersionUID = 0L;
 
     // Construct using io.evitadb.externalApi.grpc.generated.GrpcCreateCatalogSchemaMutation.newBuilder()
     private Builder() {
-
+      maybeForceBuilderInitialization();
     }
 
     private Builder(
         com.google.protobuf.GeneratedMessageV3.BuilderParent parent) {
       super(parent);
-
+      maybeForceBuilderInitialization();
+    }
+    private void maybeForceBuilderInitialization() {
+      if (com.google.protobuf.GeneratedMessageV3
+              .alwaysUseFieldBuilders) {
+        getConflictResolutionFieldBuilder();
+      }
     }
     @java.lang.Override
     public Builder clear() {
       super.clear();
       bitField0_ = 0;
       catalogName_ = "";
+      conflictResolution_ = null;
+      if (conflictResolutionBuilder_ != null) {
+        conflictResolutionBuilder_.dispose();
+        conflictResolutionBuilder_ = null;
+      }
       return this;
     }
 
@@ -345,6 +414,14 @@ private static final long serialVersionUID = 0L;
       if (((from_bitField0_ & 0x00000001) != 0)) {
         result.catalogName_ = catalogName_;
       }
+      int to_bitField0_ = 0;
+      if (((from_bitField0_ & 0x00000002) != 0)) {
+        result.conflictResolution_ = conflictResolutionBuilder_ == null
+            ? conflictResolution_
+            : conflictResolutionBuilder_.build();
+        to_bitField0_ |= 0x00000001;
+      }
+      result.bitField0_ |= to_bitField0_;
     }
 
     @java.lang.Override
@@ -396,6 +473,9 @@ private static final long serialVersionUID = 0L;
         bitField0_ |= 0x00000001;
         onChanged();
       }
+      if (other.hasConflictResolution()) {
+        mergeConflictResolution(other.getConflictResolution());
+      }
       this.mergeUnknownFields(other.getUnknownFields());
       onChanged();
       return this;
@@ -427,6 +507,13 @@ private static final long serialVersionUID = 0L;
               bitField0_ |= 0x00000001;
               break;
             } // case 10
+            case 18: {
+              input.readMessage(
+                  getConflictResolutionFieldBuilder().getBuilder(),
+                  extensionRegistry);
+              bitField0_ |= 0x00000002;
+              break;
+            } // case 18
             default: {
               if (!super.parseUnknownField(input, extensionRegistry, tag)) {
                 done = true; // was an endgroup tag
@@ -534,6 +621,172 @@ private static final long serialVersionUID = 0L;
       bitField0_ |= 0x00000001;
       onChanged();
       return this;
+    }
+
+    private io.evitadb.externalApi.grpc.generated.GrpcConflictResolution conflictResolution_;
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcConflictResolution, io.evitadb.externalApi.grpc.generated.GrpcConflictResolution.Builder, io.evitadb.externalApi.grpc.generated.GrpcConflictResolutionOrBuilder> conflictResolutionBuilder_;
+    /**
+     * <pre>
+     * Optional catalog-level transaction conflict resolution override applied to the new catalog. When not set, the
+     * catalog inherits the engine-level default.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcConflictResolution conflictResolution = 2;</code>
+     * @return Whether the conflictResolution field is set.
+     */
+    public boolean hasConflictResolution() {
+      return ((bitField0_ & 0x00000002) != 0);
+    }
+    /**
+     * <pre>
+     * Optional catalog-level transaction conflict resolution override applied to the new catalog. When not set, the
+     * catalog inherits the engine-level default.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcConflictResolution conflictResolution = 2;</code>
+     * @return The conflictResolution.
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcConflictResolution getConflictResolution() {
+      if (conflictResolutionBuilder_ == null) {
+        return conflictResolution_ == null ? io.evitadb.externalApi.grpc.generated.GrpcConflictResolution.getDefaultInstance() : conflictResolution_;
+      } else {
+        return conflictResolutionBuilder_.getMessage();
+      }
+    }
+    /**
+     * <pre>
+     * Optional catalog-level transaction conflict resolution override applied to the new catalog. When not set, the
+     * catalog inherits the engine-level default.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcConflictResolution conflictResolution = 2;</code>
+     */
+    public Builder setConflictResolution(io.evitadb.externalApi.grpc.generated.GrpcConflictResolution value) {
+      if (conflictResolutionBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        conflictResolution_ = value;
+      } else {
+        conflictResolutionBuilder_.setMessage(value);
+      }
+      bitField0_ |= 0x00000002;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Optional catalog-level transaction conflict resolution override applied to the new catalog. When not set, the
+     * catalog inherits the engine-level default.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcConflictResolution conflictResolution = 2;</code>
+     */
+    public Builder setConflictResolution(
+        io.evitadb.externalApi.grpc.generated.GrpcConflictResolution.Builder builderForValue) {
+      if (conflictResolutionBuilder_ == null) {
+        conflictResolution_ = builderForValue.build();
+      } else {
+        conflictResolutionBuilder_.setMessage(builderForValue.build());
+      }
+      bitField0_ |= 0x00000002;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Optional catalog-level transaction conflict resolution override applied to the new catalog. When not set, the
+     * catalog inherits the engine-level default.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcConflictResolution conflictResolution = 2;</code>
+     */
+    public Builder mergeConflictResolution(io.evitadb.externalApi.grpc.generated.GrpcConflictResolution value) {
+      if (conflictResolutionBuilder_ == null) {
+        if (((bitField0_ & 0x00000002) != 0) &&
+          conflictResolution_ != null &&
+          conflictResolution_ != io.evitadb.externalApi.grpc.generated.GrpcConflictResolution.getDefaultInstance()) {
+          getConflictResolutionBuilder().mergeFrom(value);
+        } else {
+          conflictResolution_ = value;
+        }
+      } else {
+        conflictResolutionBuilder_.mergeFrom(value);
+      }
+      if (conflictResolution_ != null) {
+        bitField0_ |= 0x00000002;
+        onChanged();
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Optional catalog-level transaction conflict resolution override applied to the new catalog. When not set, the
+     * catalog inherits the engine-level default.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcConflictResolution conflictResolution = 2;</code>
+     */
+    public Builder clearConflictResolution() {
+      bitField0_ = (bitField0_ & ~0x00000002);
+      conflictResolution_ = null;
+      if (conflictResolutionBuilder_ != null) {
+        conflictResolutionBuilder_.dispose();
+        conflictResolutionBuilder_ = null;
+      }
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Optional catalog-level transaction conflict resolution override applied to the new catalog. When not set, the
+     * catalog inherits the engine-level default.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcConflictResolution conflictResolution = 2;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcConflictResolution.Builder getConflictResolutionBuilder() {
+      bitField0_ |= 0x00000002;
+      onChanged();
+      return getConflictResolutionFieldBuilder().getBuilder();
+    }
+    /**
+     * <pre>
+     * Optional catalog-level transaction conflict resolution override applied to the new catalog. When not set, the
+     * catalog inherits the engine-level default.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcConflictResolution conflictResolution = 2;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcConflictResolutionOrBuilder getConflictResolutionOrBuilder() {
+      if (conflictResolutionBuilder_ != null) {
+        return conflictResolutionBuilder_.getMessageOrBuilder();
+      } else {
+        return conflictResolution_ == null ?
+            io.evitadb.externalApi.grpc.generated.GrpcConflictResolution.getDefaultInstance() : conflictResolution_;
+      }
+    }
+    /**
+     * <pre>
+     * Optional catalog-level transaction conflict resolution override applied to the new catalog. When not set, the
+     * catalog inherits the engine-level default.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcConflictResolution conflictResolution = 2;</code>
+     */
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcConflictResolution, io.evitadb.externalApi.grpc.generated.GrpcConflictResolution.Builder, io.evitadb.externalApi.grpc.generated.GrpcConflictResolutionOrBuilder> 
+        getConflictResolutionFieldBuilder() {
+      if (conflictResolutionBuilder_ == null) {
+        conflictResolutionBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            io.evitadb.externalApi.grpc.generated.GrpcConflictResolution, io.evitadb.externalApi.grpc.generated.GrpcConflictResolution.Builder, io.evitadb.externalApi.grpc.generated.GrpcConflictResolutionOrBuilder>(
+                getConflictResolution(),
+                getParentForChildren(),
+                isClean());
+        conflictResolution_ = null;
+      }
+      return conflictResolutionBuilder_;
     }
     @java.lang.Override
     public final Builder setUnknownFields(

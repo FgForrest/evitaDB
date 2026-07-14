@@ -133,7 +133,7 @@ private static final long serialVersionUID = 0L;
    *
    * <code>bool faceted = 2 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaFacetedMutation.faceted is deprecated.
-   *     See GrpcReferenceSchemaMutations.proto;l=284
+   *     See GrpcReferenceSchemaMutations.proto;l=286
    * @return The faceted.
    */
   @java.lang.Override
@@ -949,7 +949,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>bool faceted = 2 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaFacetedMutation.faceted is deprecated.
-     *     See GrpcReferenceSchemaMutations.proto;l=284
+     *     See GrpcReferenceSchemaMutations.proto;l=286
      * @return The faceted.
      */
     @java.lang.Override
@@ -970,7 +970,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>bool faceted = 2 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaFacetedMutation.faceted is deprecated.
-     *     See GrpcReferenceSchemaMutations.proto;l=284
+     *     See GrpcReferenceSchemaMutations.proto;l=286
      * @param value The faceted to set.
      * @return This builder for chaining.
      */
@@ -995,7 +995,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>bool faceted = 2 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaFacetedMutation.faceted is deprecated.
-     *     See GrpcReferenceSchemaMutations.proto;l=284
+     *     See GrpcReferenceSchemaMutations.proto;l=286
      * @return This builder for chaining.
      */
     @java.lang.Deprecated public Builder clearFaceted() {

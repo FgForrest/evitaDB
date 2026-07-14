@@ -28,6 +28,7 @@ import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.*;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.AllowEvolutionModeInCatalogSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.CreateEntitySchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.DisallowEvolutionModeInCatalogSchemaMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.ModifyCatalogSchemaConflictResolutionMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.ModifyCatalogSchemaDescriptionMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.ModifyEntitySchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.ModifyEntitySchemaNameMutationDescriptor;
@@ -54,6 +55,10 @@ public interface LocalCatalogSchemaMutationInputAggregateDescriptor {
 	PropertyDescriptor MODIFY_CATALOG_SCHEMA_DESCRIPTION_MUTATION = PropertyDescriptor.nullableFromObject(
 		"modifyCatalogSchemaDescriptionMutation",
 		ModifyCatalogSchemaDescriptionMutationDescriptor.THIS_INPUT
+	);
+	PropertyDescriptor MODIFY_CATALOG_SCHEMA_CONFLICT_RESOLUTION_MUTATION = PropertyDescriptor.nullableFromObject(
+		"modifyCatalogSchemaConflictResolutionMutation",
+		ModifyCatalogSchemaConflictResolutionMutationDescriptor.THIS_INPUT
 	);
 
 	PropertyDescriptor ALLOW_EVOLUTION_MODE_IN_CATALOG_SCHEMA_MUTATION = PropertyDescriptor.nullableFromObject(
@@ -106,6 +111,10 @@ public interface LocalCatalogSchemaMutationInputAggregateDescriptor {
 		"setAttributeSchemaLocalizedMutation",
 		SetAttributeSchemaLocalizedMutationDescriptor.THIS_INPUT
 	);
+	PropertyDescriptor SET_ATTRIBUTE_SCHEMA_CONFLICT_RESOLUTION_OVERRIDE_MUTATION = PropertyDescriptor.nullableFromObject(
+		"setAttributeSchemaConflictResolutionOverrideMutation",
+		SetAttributeSchemaConflictResolutionOverrideMutationDescriptor.THIS_INPUT
+	);
 	PropertyDescriptor SET_ATTRIBUTE_SCHEMA_NULLABLE_MUTATION = PropertyDescriptor.nullableFromObject(
 		"setAttributeSchemaNullableMutation",
 		SetAttributeSchemaNullableMutationDescriptor.THIS_INPUT
@@ -155,6 +164,7 @@ public interface LocalCatalogSchemaMutationInputAggregateDescriptor {
             """)
 		.staticProperties(List.of(
 			MODIFY_CATALOG_SCHEMA_DESCRIPTION_MUTATION,
+			MODIFY_CATALOG_SCHEMA_CONFLICT_RESOLUTION_MUTATION,
 			ALLOW_EVOLUTION_MODE_IN_CATALOG_SCHEMA_MUTATION,
 			DISALLOW_EVOLUTION_MODE_IN_CATALOG_SCHEMA_MUTATION,
 
@@ -168,6 +178,7 @@ public interface LocalCatalogSchemaMutationInputAggregateDescriptor {
 			SET_ATTRIBUTE_SCHEMA_FILTERABLE_MUTATION,
 			SET_ATTRIBUTE_SCHEMA_LOCALIZED_MUTATION,
 			SET_ATTRIBUTE_SCHEMA_NULLABLE_MUTATION,
+			SET_ATTRIBUTE_SCHEMA_CONFLICT_RESOLUTION_OVERRIDE_MUTATION,
 			SET_ATTRIBUTE_SCHEMA_SORTABLE_MUTATION,
 			SET_ATTRIBUTE_SCHEMA_UNIQUE_MUTATION,
 			SET_ATTRIBUTE_SCHEMA_GLOBALLY_UNIQUE_MUTATION,

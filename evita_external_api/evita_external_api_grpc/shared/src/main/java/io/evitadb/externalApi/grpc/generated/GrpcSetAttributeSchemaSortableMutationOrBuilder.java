@@ -61,7 +61,7 @@ public interface GrpcSetAttributeSchemaSortableMutationOrBuilder extends
    *
    * <code>bool sortable = 2 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSortableMutation.sortable is deprecated.
-   *     See GrpcAttributeSchemaMutations.proto;l=263
+   *     See GrpcAttributeSchemaMutations.proto;l=276
    * @return The sortable.
    */
   @java.lang.Deprecated boolean getSortable();

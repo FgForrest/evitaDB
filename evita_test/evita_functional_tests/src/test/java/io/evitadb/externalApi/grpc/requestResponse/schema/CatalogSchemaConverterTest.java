@@ -24,6 +24,10 @@
 package io.evitadb.externalApi.grpc.requestResponse.schema;
 
 import io.evitadb.api.proxy.mock.EmptyEntitySchemaAccessor;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolution;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
+import io.evitadb.api.requestResponse.mutation.conflict.GranularConflictPolicy;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
@@ -84,6 +88,7 @@ class CatalogSchemaConverterTest {
 			TestConstants.TEST_CATALOG,
 			NamingConvention.generate(TestConstants.TEST_CATALOG),
 			"description",
+			new ConflictResolution(ConflictPolicy.ENTITY, EnumSet.of(GranularConflictPolicy.REFERENCE)),
 			EnumSet.allOf(CatalogEvolutionMode.class),
 			Map.of(
 				"code", GlobalAttributeSchema._internalBuild(
@@ -103,7 +108,8 @@ class CatalogSchemaConverterTest {
 					false,
 					String.class,
 					null,
-					0
+					0,
+					ConflictResolutionOverride.ENTITY
 				),
 				"priority", GlobalAttributeSchema._internalBuild(
 					"code",
@@ -127,6 +133,7 @@ class CatalogSchemaConverterTest {
 		assertEquals(expected.getName(), actual.getName());
 		assertEquals(expected.getDescription(), actual.getDescription());
 		assertEquals(expected.getNameVariants(), actual.getNameVariants());
+		assertEquals(expected.getConflictResolution(), actual.getConflictResolution());
 		assertEquals(expected.getAttributes().size(), actual.getAttributes().size());
 		expected.getAttributes().forEach((attributeName, attribute) ->
 			assertGlobalAttributeSchema(attribute, actual.getAttribute(attributeName).orElseThrow()));
@@ -147,5 +154,6 @@ class CatalogSchemaConverterTest {
 		assertEquals(expected.getPlainType(), actual.getPlainType());
 		assertEquals(expected.getDefaultValue(), actual.getDefaultValue());
 		assertEquals(expected.getIndexedDecimalPlaces(), actual.getIndexedDecimalPlaces());
+		assertEquals(expected.getConflictResolutionOverride(), actual.getConflictResolutionOverride());
 	}
 }

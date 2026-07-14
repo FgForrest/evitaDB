@@ -138,6 +138,9 @@ message GrpcEntitySchema {
   repeated GrpcEntityScope priceIndexedInScopes = 18;
   // Contains current version of the catalog schema this entity schema belongs to.
   int64 catalogSchemaVersion = 19;
+  // Contains the entity-level conflict resolution setting. When not set (absent), the entity schema inherits the
+  // resolved conflict resolution from the catalog / transaction options.
+  GrpcConflictResolution conflictResolution = 20;
 }
 
 // This is the definition object for attributes that are stored along with
@@ -251,6 +254,9 @@ message GrpcAttributeSchema {
   // as sortable unless you know that you'll sort entities along this attribute. Each sortable attribute occupies
   // (memory/disk) space in the form of index.
   repeated GrpcEntityScope sortableInScopes = 20;
+  // Contains the per-attribute override of the conflict resolution granularity. Defaults to inherited (follow the
+  // resolved conflict resolution).
+  GrpcConflictResolutionOverride conflictResolutionOverride = 21;
 }
 
 // This is the definition object for associated data that is stored along with
@@ -283,6 +289,9 @@ message GrpcAssociatedDataSchema {
   bool nullable = 6;
   // Contains associated data name converted to different naming conventions.
   repeated GrpcNameVariant nameVariant = 7;
+  // Contains the per-associated-data override of the conflict resolution granularity. Defaults to inherited (follow
+  // the resolved conflict resolution).
+  GrpcConflictResolutionOverride conflictResolutionOverride = 8;
 }
 
 // This is the definition object for reference that is stored along with
@@ -428,6 +437,9 @@ message GrpcReferenceSchema {
   repeated GrpcScopedHistogramIndexDefinition bucketed = 32;
   // Per-scope expressions that narrow which entities participate in bucketed histogram computation.
   repeated GrpcScopedBucketedPartially bucketedPartially = 33;
+  // Contains the per-reference override of the conflict resolution granularity. Defaults to inherited (follow the
+  // resolved conflict resolution). On reflected references this is always inherited.
+  GrpcConflictResolutionOverride conflictResolutionOverride = 34;
 }
 
 // Sortable attribute compounds are used to sort entities or references by multiple attributes at once. evitaDB

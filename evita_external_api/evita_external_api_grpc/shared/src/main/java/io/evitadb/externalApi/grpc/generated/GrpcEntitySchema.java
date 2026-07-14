@@ -1353,6 +1353,47 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
     return catalogSchemaVersion_;
   }
 
+  public static final int CONFLICTRESOLUTION_FIELD_NUMBER = 20;
+  private io.evitadb.externalApi.grpc.generated.GrpcConflictResolution conflictResolution_;
+  /**
+   * <pre>
+   * Contains the entity-level conflict resolution setting. When not set (absent), the entity schema inherits the
+   * resolved conflict resolution from the catalog / transaction options.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcConflictResolution conflictResolution = 20;</code>
+   * @return Whether the conflictResolution field is set.
+   */
+  @java.lang.Override
+  public boolean hasConflictResolution() {
+    return ((bitField0_ & 0x00000004) != 0);
+  }
+  /**
+   * <pre>
+   * Contains the entity-level conflict resolution setting. When not set (absent), the entity schema inherits the
+   * resolved conflict resolution from the catalog / transaction options.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcConflictResolution conflictResolution = 20;</code>
+   * @return The conflictResolution.
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcConflictResolution getConflictResolution() {
+    return conflictResolution_ == null ? io.evitadb.externalApi.grpc.generated.GrpcConflictResolution.getDefaultInstance() : conflictResolution_;
+  }
+  /**
+   * <pre>
+   * Contains the entity-level conflict resolution setting. When not set (absent), the entity schema inherits the
+   * resolved conflict resolution from the catalog / transaction options.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcConflictResolution conflictResolution = 20;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcConflictResolutionOrBuilder getConflictResolutionOrBuilder() {
+    return conflictResolution_ == null ? io.evitadb.externalApi.grpc.generated.GrpcConflictResolution.getDefaultInstance() : conflictResolution_;
+  }
+
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
@@ -1448,6 +1489,9 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
     }
     if (catalogSchemaVersion_ != 0L) {
       output.writeInt64(19, catalogSchemaVersion_);
+    }
+    if (((bitField0_ & 0x00000004) != 0)) {
+      output.writeMessage(20, getConflictResolution());
     }
     getUnknownFields().writeTo(output);
   }
@@ -1581,6 +1625,10 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
       size += com.google.protobuf.CodedOutputStream
         .computeInt64Size(19, catalogSchemaVersion_);
     }
+    if (((bitField0_ & 0x00000004) != 0)) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(20, getConflictResolution());
+    }
     size += getUnknownFields().getSerializedSize();
     memoizedSize = size;
     return size;
@@ -1637,6 +1685,11 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
     if (!priceIndexedInScopes_.equals(other.priceIndexedInScopes_)) return false;
     if (getCatalogSchemaVersion()
         != other.getCatalogSchemaVersion()) return false;
+    if (hasConflictResolution() != other.hasConflictResolution()) return false;
+    if (hasConflictResolution()) {
+      if (!getConflictResolution()
+          .equals(other.getConflictResolution())) return false;
+    }
     if (!getUnknownFields().equals(other.getUnknownFields())) return false;
     return true;
   }
@@ -1714,6 +1767,10 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
     hash = (37 * hash) + CATALOGSCHEMAVERSION_FIELD_NUMBER;
     hash = (53 * hash) + com.google.protobuf.Internal.hashLong(
         getCatalogSchemaVersion());
+    if (hasConflictResolution()) {
+      hash = (37 * hash) + CONFLICTRESOLUTION_FIELD_NUMBER;
+      hash = (53 * hash) + getConflictResolution().hashCode();
+    }
     hash = (29 * hash) + getUnknownFields().hashCode();
     memoizedHashCode = hash;
     return hash;
@@ -1898,6 +1955,7 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
         getLocalesFieldBuilder();
         getCurrenciesFieldBuilder();
         getNameVariantFieldBuilder();
+        getConflictResolutionFieldBuilder();
       }
     }
     @java.lang.Override
@@ -1952,6 +2010,11 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
       priceIndexedInScopes_ = java.util.Collections.emptyList();
       bitField0_ = (bitField0_ & ~0x00020000);
       catalogSchemaVersion_ = 0L;
+      conflictResolution_ = null;
+      if (conflictResolutionBuilder_ != null) {
+        conflictResolutionBuilder_.dispose();
+        conflictResolutionBuilder_ = null;
+      }
       return this;
     }
 
@@ -2076,6 +2139,12 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
       }
       if (((from_bitField0_ & 0x00040000) != 0)) {
         result.catalogSchemaVersion_ = catalogSchemaVersion_;
+      }
+      if (((from_bitField0_ & 0x00080000) != 0)) {
+        result.conflictResolution_ = conflictResolutionBuilder_ == null
+            ? conflictResolution_
+            : conflictResolutionBuilder_.build();
+        to_bitField0_ |= 0x00000004;
       }
       result.bitField0_ |= to_bitField0_;
     }
@@ -2272,6 +2341,9 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
       }
       if (other.getCatalogSchemaVersion() != 0L) {
         setCatalogSchemaVersion(other.getCatalogSchemaVersion());
+      }
+      if (other.hasConflictResolution()) {
+        mergeConflictResolution(other.getConflictResolution());
       }
       this.mergeUnknownFields(other.getUnknownFields());
       onChanged();
@@ -2474,6 +2546,13 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
               bitField0_ |= 0x00040000;
               break;
             } // case 152
+            case 162: {
+              input.readMessage(
+                  getConflictResolutionFieldBuilder().getBuilder(),
+                  extensionRegistry);
+              bitField0_ |= 0x00080000;
+              break;
+            } // case 162
             default: {
               if (!super.parseUnknownField(input, extensionRegistry, tag)) {
                 done = true; // was an endgroup tag
@@ -5955,6 +6034,172 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
       catalogSchemaVersion_ = 0L;
       onChanged();
       return this;
+    }
+
+    private io.evitadb.externalApi.grpc.generated.GrpcConflictResolution conflictResolution_;
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcConflictResolution, io.evitadb.externalApi.grpc.generated.GrpcConflictResolution.Builder, io.evitadb.externalApi.grpc.generated.GrpcConflictResolutionOrBuilder> conflictResolutionBuilder_;
+    /**
+     * <pre>
+     * Contains the entity-level conflict resolution setting. When not set (absent), the entity schema inherits the
+     * resolved conflict resolution from the catalog / transaction options.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcConflictResolution conflictResolution = 20;</code>
+     * @return Whether the conflictResolution field is set.
+     */
+    public boolean hasConflictResolution() {
+      return ((bitField0_ & 0x00080000) != 0);
+    }
+    /**
+     * <pre>
+     * Contains the entity-level conflict resolution setting. When not set (absent), the entity schema inherits the
+     * resolved conflict resolution from the catalog / transaction options.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcConflictResolution conflictResolution = 20;</code>
+     * @return The conflictResolution.
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcConflictResolution getConflictResolution() {
+      if (conflictResolutionBuilder_ == null) {
+        return conflictResolution_ == null ? io.evitadb.externalApi.grpc.generated.GrpcConflictResolution.getDefaultInstance() : conflictResolution_;
+      } else {
+        return conflictResolutionBuilder_.getMessage();
+      }
+    }
+    /**
+     * <pre>
+     * Contains the entity-level conflict resolution setting. When not set (absent), the entity schema inherits the
+     * resolved conflict resolution from the catalog / transaction options.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcConflictResolution conflictResolution = 20;</code>
+     */
+    public Builder setConflictResolution(io.evitadb.externalApi.grpc.generated.GrpcConflictResolution value) {
+      if (conflictResolutionBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        conflictResolution_ = value;
+      } else {
+        conflictResolutionBuilder_.setMessage(value);
+      }
+      bitField0_ |= 0x00080000;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Contains the entity-level conflict resolution setting. When not set (absent), the entity schema inherits the
+     * resolved conflict resolution from the catalog / transaction options.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcConflictResolution conflictResolution = 20;</code>
+     */
+    public Builder setConflictResolution(
+        io.evitadb.externalApi.grpc.generated.GrpcConflictResolution.Builder builderForValue) {
+      if (conflictResolutionBuilder_ == null) {
+        conflictResolution_ = builderForValue.build();
+      } else {
+        conflictResolutionBuilder_.setMessage(builderForValue.build());
+      }
+      bitField0_ |= 0x00080000;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Contains the entity-level conflict resolution setting. When not set (absent), the entity schema inherits the
+     * resolved conflict resolution from the catalog / transaction options.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcConflictResolution conflictResolution = 20;</code>
+     */
+    public Builder mergeConflictResolution(io.evitadb.externalApi.grpc.generated.GrpcConflictResolution value) {
+      if (conflictResolutionBuilder_ == null) {
+        if (((bitField0_ & 0x00080000) != 0) &&
+          conflictResolution_ != null &&
+          conflictResolution_ != io.evitadb.externalApi.grpc.generated.GrpcConflictResolution.getDefaultInstance()) {
+          getConflictResolutionBuilder().mergeFrom(value);
+        } else {
+          conflictResolution_ = value;
+        }
+      } else {
+        conflictResolutionBuilder_.mergeFrom(value);
+      }
+      if (conflictResolution_ != null) {
+        bitField0_ |= 0x00080000;
+        onChanged();
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Contains the entity-level conflict resolution setting. When not set (absent), the entity schema inherits the
+     * resolved conflict resolution from the catalog / transaction options.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcConflictResolution conflictResolution = 20;</code>
+     */
+    public Builder clearConflictResolution() {
+      bitField0_ = (bitField0_ & ~0x00080000);
+      conflictResolution_ = null;
+      if (conflictResolutionBuilder_ != null) {
+        conflictResolutionBuilder_.dispose();
+        conflictResolutionBuilder_ = null;
+      }
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Contains the entity-level conflict resolution setting. When not set (absent), the entity schema inherits the
+     * resolved conflict resolution from the catalog / transaction options.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcConflictResolution conflictResolution = 20;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcConflictResolution.Builder getConflictResolutionBuilder() {
+      bitField0_ |= 0x00080000;
+      onChanged();
+      return getConflictResolutionFieldBuilder().getBuilder();
+    }
+    /**
+     * <pre>
+     * Contains the entity-level conflict resolution setting. When not set (absent), the entity schema inherits the
+     * resolved conflict resolution from the catalog / transaction options.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcConflictResolution conflictResolution = 20;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcConflictResolutionOrBuilder getConflictResolutionOrBuilder() {
+      if (conflictResolutionBuilder_ != null) {
+        return conflictResolutionBuilder_.getMessageOrBuilder();
+      } else {
+        return conflictResolution_ == null ?
+            io.evitadb.externalApi.grpc.generated.GrpcConflictResolution.getDefaultInstance() : conflictResolution_;
+      }
+    }
+    /**
+     * <pre>
+     * Contains the entity-level conflict resolution setting. When not set (absent), the entity schema inherits the
+     * resolved conflict resolution from the catalog / transaction options.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcConflictResolution conflictResolution = 20;</code>
+     */
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcConflictResolution, io.evitadb.externalApi.grpc.generated.GrpcConflictResolution.Builder, io.evitadb.externalApi.grpc.generated.GrpcConflictResolutionOrBuilder> 
+        getConflictResolutionFieldBuilder() {
+      if (conflictResolutionBuilder_ == null) {
+        conflictResolutionBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            io.evitadb.externalApi.grpc.generated.GrpcConflictResolution, io.evitadb.externalApi.grpc.generated.GrpcConflictResolution.Builder, io.evitadb.externalApi.grpc.generated.GrpcConflictResolutionOrBuilder>(
+                getConflictResolution(),
+                getParentForChildren(),
+                isClean());
+        conflictResolution_ = null;
+      }
+      return conflictResolutionBuilder_;
     }
     @java.lang.Override
     public final Builder setUnknownFields(

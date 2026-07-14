@@ -5,6 +5,7 @@ option java_multiple_files = true;
 option csharp_namespace = "EvitaDB";
 
 import "GrpcCatalogSchemaMutation.proto";
+import "GrpcEnums.proto";
 import "GrpcEvitaDataTypes.proto";
 import "GrpcInfrastrutureMutation.proto";
 
@@ -12,6 +13,9 @@ import "GrpcInfrastrutureMutation.proto";
 message GrpcCreateCatalogSchemaMutation {
   // Name of newly created catalog schema.
   string catalogName = 1;
+  // Optional catalog-level transaction conflict resolution override applied to the new catalog. When not set, the
+  // catalog inherits the engine-level default.
+  GrpcConflictResolution conflictResolution = 2;
 }
 
 // Mutation is responsible for restoring a CatalogSchema in INACTIVE state.

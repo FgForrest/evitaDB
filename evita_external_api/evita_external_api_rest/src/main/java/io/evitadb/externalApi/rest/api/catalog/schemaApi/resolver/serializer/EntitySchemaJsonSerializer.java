@@ -79,6 +79,12 @@ public class EntitySchemaJsonSerializer extends SchemaJsonSerializer {
 		rootNode.set(EntitySchemaDescriptor.CURRENCIES.name(), this.objectJsonSerializer.serializeCollection(entitySchema.getCurrencies().stream().map(Currency::toString).toList()));
 		rootNode.set(EntitySchemaDescriptor.EVOLUTION_MODE.name(), this.objectJsonSerializer.serializeCollection(entitySchema.getEvolutionMode().stream().map(EvolutionMode::name).toList()));
 
+		serializeConflictResolution(
+			rootNode,
+			EntitySchemaDescriptor.CONFLICT_RESOLUTION.name(),
+			entitySchema.getConflictResolution().orElse(null)
+		);
+
 		rootNode.set(EntitySchemaDescriptor.ATTRIBUTES.name(), serializeAttributeSchemas(entitySchema));
 		rootNode.set(SortableAttributeCompoundsSchemaProviderDescriptor.SORTABLE_ATTRIBUTE_COMPOUNDS.name(), serializeSortableAttributeCompoundSchemas(entitySchema));
 		rootNode.set(EntitySchemaDescriptor.ASSOCIATED_DATA.name(), serializeAssociatedDataSchemas(entitySchema));
@@ -161,6 +167,7 @@ public class EntitySchemaJsonSerializer extends SchemaJsonSerializer {
 		associatedDataSchemaNode.put(AssociatedDataSchemaDescriptor.TYPE.name(), DataTypeSerializer.serialize(associatedDataSchema.getType()));
 		associatedDataSchemaNode.putIfAbsent(AssociatedDataSchemaDescriptor.LOCALIZED.name(), this.objectJsonSerializer.serializeObject(associatedDataSchema.isLocalized()));
 		associatedDataSchemaNode.putIfAbsent(AssociatedDataSchemaDescriptor.NULLABLE.name(), this.objectJsonSerializer.serializeObject(associatedDataSchema.isNullable()));
+		associatedDataSchemaNode.put(AssociatedDataSchemaDescriptor.CONFLICT_RESOLUTION_OVERRIDE.name(), associatedDataSchema.getConflictResolutionOverride().name());
 
 		return associatedDataSchemaNode;
 	}
@@ -200,6 +207,7 @@ public class EntitySchemaJsonSerializer extends SchemaJsonSerializer {
 		referenceSchemaNode.set(ReferenceSchemaDescriptor.FACETED_PARTIALLY.name(), serializeFacetedPartially(referenceSchema));
 		referenceSchemaNode.set(ReferenceSchemaDescriptor.BUCKETED.name(), serializeBucketedHistogram(referenceSchema));
 		referenceSchemaNode.set(ReferenceSchemaDescriptor.BUCKETED_PARTIALLY.name(), serializeBucketedPartially(referenceSchema));
+		referenceSchemaNode.put(ReferenceSchemaDescriptor.CONFLICT_RESOLUTION_OVERRIDE.name(), referenceSchema.getConflictResolutionOverride().name());
 
 		referenceSchemaNode.set(ReferenceSchemaDescriptor.ATTRIBUTES.name(), serializeAttributeSchemas(referenceSchema));
 		referenceSchemaNode.set(SortableAttributeCompoundsSchemaProviderDescriptor.SORTABLE_ATTRIBUTE_COMPOUNDS.name(), serializeSortableAttributeCompoundSchemas(referenceSchema));

@@ -24,6 +24,7 @@
 package io.evitadb.externalApi.rest.api.catalog.schemaApi;
 
 import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolution;
 import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
@@ -118,6 +119,7 @@ public abstract class CatalogRestSchemaEndpointFunctionalTest extends RestEndpoi
 				.e(NameVariantsDescriptor.KEBAB_CASE.name(), catalogSchema.getNameVariant(NamingConvention.KEBAB_CASE))
 				.build())
 			.e(NamedSchemaDescriptor.DESCRIPTION.name(), catalogSchema.getDescription())
+			.e(CatalogSchemaDescriptor.CONFLICT_RESOLUTION.name(), createConflictResolutionDto(catalogSchema.getConflictResolution().orElse(null)))
 			.e(CatalogSchemaDescriptor.ATTRIBUTES.name(), createLinkedHashMap(catalogSchema.getAttributes().size()))
 			.e(CatalogSchemaDescriptor.ENTITY_SCHEMAS.name(), createLinkedHashMap(entityTypes.size()));
 
@@ -170,6 +172,7 @@ public abstract class CatalogRestSchemaEndpointFunctionalTest extends RestEndpoi
 			.e(EntitySchemaDescriptor.LOCALES.name(), entitySchema.getLocales().stream().map(Locale::toLanguageTag).collect(Collectors.toList()))
 			.e(EntitySchemaDescriptor.CURRENCIES.name(), entitySchema.getCurrencies().stream().map(Currency::toString).collect(Collectors.toList()))
 			.e(EntitySchemaDescriptor.EVOLUTION_MODE.name(), entitySchema.getEvolutionMode().stream().map(Enum::toString).collect(Collectors.toList()))
+			.e(EntitySchemaDescriptor.CONFLICT_RESOLUTION.name(), createConflictResolutionDto(entitySchema.getConflictResolution().orElse(null)))
 			.e(EntitySchemaDescriptor.ATTRIBUTES.name(), createLinkedHashMap(entitySchema.getAttributes().size()))
 			.e(SortableAttributeCompoundsSchemaProviderDescriptor.SORTABLE_ATTRIBUTE_COMPOUNDS.name(), createLinkedHashMap(entitySchema.getSortableAttributeCompounds().size()))
 			.e(EntitySchemaDescriptor.ASSOCIATED_DATA.name(), createLinkedHashMap(entitySchema.getAssociatedData().size()))
@@ -257,7 +260,8 @@ public abstract class CatalogRestSchemaEndpointFunctionalTest extends RestEndpoi
 		dtoBuilder
 			.e(AttributeSchemaDescriptor.TYPE.name(), DataTypeSerializer.serialize(attributeSchema.getType()))
 			.e(AttributeSchemaDescriptor.DEFAULT_VALUE.name(), serializeDefaultValue(attributeSchema.getDefaultValue()))
-			.e(AttributeSchemaDescriptor.INDEXED_DECIMAL_PLACES.name(), attributeSchema.getIndexedDecimalPlaces());
+			.e(AttributeSchemaDescriptor.INDEXED_DECIMAL_PLACES.name(), attributeSchema.getIndexedDecimalPlaces())
+			.e(AttributeSchemaDescriptor.CONFLICT_RESOLUTION_OVERRIDE.name(), attributeSchema.getConflictResolutionOverride().name());
 
 
 		return dtoBuilder
@@ -305,6 +309,7 @@ public abstract class CatalogRestSchemaEndpointFunctionalTest extends RestEndpoi
 			.e(AssociatedDataSchemaDescriptor.TYPE.name(), DataTypeSerializer.serialize(associatedDataSchema.getType()))
 			.e(AssociatedDataSchemaDescriptor.LOCALIZED.name(), associatedDataSchema.isLocalized())
 			.e(AssociatedDataSchemaDescriptor.NULLABLE.name(), associatedDataSchema.isNullable())
+			.e(AssociatedDataSchemaDescriptor.CONFLICT_RESOLUTION_OVERRIDE.name(), associatedDataSchema.getConflictResolutionOverride().name())
 			.build();
 	}
 
@@ -350,6 +355,7 @@ public abstract class CatalogRestSchemaEndpointFunctionalTest extends RestEndpoi
 			.e(ReferenceSchemaDescriptor.FACETED_PARTIALLY.name(), createFacetedPartiallyDto(referenceSchema))
 			.e(ReferenceSchemaDescriptor.BUCKETED.name(), createBucketedHistogramDto(referenceSchema))
 			.e(ReferenceSchemaDescriptor.BUCKETED_PARTIALLY.name(), createBucketedPartiallyDto(referenceSchema))
+			.e(ReferenceSchemaDescriptor.CONFLICT_RESOLUTION_OVERRIDE.name(), referenceSchema.getConflictResolutionOverride().name())
 			.e(ReferenceSchemaDescriptor.ATTRIBUTES.name(), createLinkedHashMap(referenceSchema.getAttributes().size()))
 			.e(SortableAttributeCompoundsSchemaProviderDescriptor.SORTABLE_ATTRIBUTE_COMPOUNDS.name(), createLinkedHashMap(referenceSchema.getSortableAttributeCompounds().size()));
 
@@ -389,6 +395,25 @@ public abstract class CatalogRestSchemaEndpointFunctionalTest extends RestEndpoi
 	@Nonnull
 	private static List<String> createFlagInScopesDto(@Nonnull Predicate<Scope> flagPredicate) {
 		return Arrays.stream(Scope.values()).filter(flagPredicate).map(Enum::name).toList();
+	}
+
+	/**
+	 * Builds the expected JSON representation of the entity/catalog level conflict resolution mirroring the hand-written
+	 * REST serializer. A `null` conflict resolution (the schema inherits it) maps to a JSON `null`; otherwise a nested
+	 * object combining the coarse policy and the granularity array is produced.
+	 *
+	 * @param conflictResolution the conflict resolution to serialize, or `null` when the schema inherits it
+	 * @return the expected map, or `null` when the schema inherits its conflict resolution
+	 */
+	@Nullable
+	protected static Map<String, Object> createConflictResolutionDto(@Nullable ConflictResolution conflictResolution) {
+		if (conflictResolution == null) {
+			return null;
+		}
+		return map()
+			.e(ConflictResolutionDescriptor.POLICY.name(), conflictResolution.policy().name())
+			.e(ConflictResolutionDescriptor.GRANULARITY.name(), conflictResolution.granularity().stream().map(Enum::name).toList())
+			.build();
 	}
 
 	/**

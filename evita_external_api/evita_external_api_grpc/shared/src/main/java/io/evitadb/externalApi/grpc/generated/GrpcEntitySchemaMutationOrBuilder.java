@@ -273,6 +273,36 @@ public interface GrpcEntitySchemaMutationOrBuilder extends
 
   /**
    * <pre>
+   * Mutation is responsible for setting value to a `AssociatedDataSchema.conflictResolutionOverride` in `EntitySchema`.
+   * Mutation can be used for altering also the existing `AssociatedDataSchema` alone.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAssociatedDataSchemaConflictResolutionOverrideMutation setAssociatedDataSchemaConflictResolutionOverrideMutation = 9;</code>
+   * @return Whether the setAssociatedDataSchemaConflictResolutionOverrideMutation field is set.
+   */
+  boolean hasSetAssociatedDataSchemaConflictResolutionOverrideMutation();
+  /**
+   * <pre>
+   * Mutation is responsible for setting value to a `AssociatedDataSchema.conflictResolutionOverride` in `EntitySchema`.
+   * Mutation can be used for altering also the existing `AssociatedDataSchema` alone.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAssociatedDataSchemaConflictResolutionOverrideMutation setAssociatedDataSchemaConflictResolutionOverrideMutation = 9;</code>
+   * @return The setAssociatedDataSchemaConflictResolutionOverrideMutation.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcSetAssociatedDataSchemaConflictResolutionOverrideMutation getSetAssociatedDataSchemaConflictResolutionOverrideMutation();
+  /**
+   * <pre>
+   * Mutation is responsible for setting value to a `AssociatedDataSchema.conflictResolutionOverride` in `EntitySchema`.
+   * Mutation can be used for altering also the existing `AssociatedDataSchema` alone.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAssociatedDataSchemaConflictResolutionOverrideMutation setAssociatedDataSchemaConflictResolutionOverrideMutation = 9;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcSetAssociatedDataSchemaConflictResolutionOverrideMutationOrBuilder getSetAssociatedDataSchemaConflictResolutionOverrideMutationOrBuilder();
+
+  /**
+   * <pre>
    * Mutation is responsible for setting up a new `AttributeSchema` in the `EntitySchema`.
    * Mutation can be used for altering also the existing `AttributeSchema` alone.
    * </pre>
@@ -690,6 +720,33 @@ public interface GrpcEntitySchemaMutationOrBuilder extends
 
   /**
    * <pre>
+   * Mutation is responsible for setting value `AttributeSchema.conflictResolutionOverride` in `EntitySchema`.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaConflictResolutionOverrideMutation setAttributeSchemaConflictResolutionOverrideMutation = 34;</code>
+   * @return Whether the setAttributeSchemaConflictResolutionOverrideMutation field is set.
+   */
+  boolean hasSetAttributeSchemaConflictResolutionOverrideMutation();
+  /**
+   * <pre>
+   * Mutation is responsible for setting value `AttributeSchema.conflictResolutionOverride` in `EntitySchema`.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaConflictResolutionOverrideMutation setAttributeSchemaConflictResolutionOverrideMutation = 34;</code>
+   * @return The setAttributeSchemaConflictResolutionOverrideMutation.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaConflictResolutionOverrideMutation getSetAttributeSchemaConflictResolutionOverrideMutation();
+  /**
+   * <pre>
+   * Mutation is responsible for setting value `AttributeSchema.conflictResolutionOverride` in `EntitySchema`.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaConflictResolutionOverrideMutation setAttributeSchemaConflictResolutionOverrideMutation = 34;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaConflictResolutionOverrideMutationOrBuilder getSetAttributeSchemaConflictResolutionOverrideMutationOrBuilder();
+
+  /**
+   * <pre>
    * Mutation is responsible for adding one or more currencies to a `EntitySchema.currencies` in `EntitySchema`.
    * </pre>
    *
@@ -1092,6 +1149,33 @@ public interface GrpcEntitySchemaMutationOrBuilder extends
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyEntitySchemaMutation modifyEntitySchemaMutation = 64;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcModifyEntitySchemaMutationOrBuilder getModifyEntitySchemaMutationOrBuilder();
+
+  /**
+   * <pre>
+   * Mutation is responsible for setting value to a `EntitySchema.conflictResolution` in `EntitySchema`.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyEntitySchemaConflictResolutionMutation modifyEntitySchemaConflictResolutionMutation = 65;</code>
+   * @return Whether the modifyEntitySchemaConflictResolutionMutation field is set.
+   */
+  boolean hasModifyEntitySchemaConflictResolutionMutation();
+  /**
+   * <pre>
+   * Mutation is responsible for setting value to a `EntitySchema.conflictResolution` in `EntitySchema`.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyEntitySchemaConflictResolutionMutation modifyEntitySchemaConflictResolutionMutation = 65;</code>
+   * @return The modifyEntitySchemaConflictResolutionMutation.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcModifyEntitySchemaConflictResolutionMutation getModifyEntitySchemaConflictResolutionMutation();
+  /**
+   * <pre>
+   * Mutation is responsible for setting value to a `EntitySchema.conflictResolution` in `EntitySchema`.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyEntitySchemaConflictResolutionMutation modifyEntitySchemaConflictResolutionMutation = 65;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcModifyEntitySchemaConflictResolutionMutationOrBuilder getModifyEntitySchemaConflictResolutionMutationOrBuilder();
 
   /**
    * <pre>
@@ -1533,6 +1617,36 @@ public interface GrpcEntitySchemaMutationOrBuilder extends
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaBucketedMutation setReferenceSchemaBucketedMutation = 94;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaBucketedMutationOrBuilder getSetReferenceSchemaBucketedMutationOrBuilder();
+
+  /**
+   * <pre>
+   * Mutation is responsible for setting value to a `ReferenceSchema.conflictResolutionOverride` in `EntitySchema`.
+   * Mutation can be used for altering also the existing `ReferenceSchema` alone.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaConflictResolutionOverrideMutation setReferenceSchemaConflictResolutionOverrideMutation = 95;</code>
+   * @return Whether the setReferenceSchemaConflictResolutionOverrideMutation field is set.
+   */
+  boolean hasSetReferenceSchemaConflictResolutionOverrideMutation();
+  /**
+   * <pre>
+   * Mutation is responsible for setting value to a `ReferenceSchema.conflictResolutionOverride` in `EntitySchema`.
+   * Mutation can be used for altering also the existing `ReferenceSchema` alone.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaConflictResolutionOverrideMutation setReferenceSchemaConflictResolutionOverrideMutation = 95;</code>
+   * @return The setReferenceSchemaConflictResolutionOverrideMutation.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaConflictResolutionOverrideMutation getSetReferenceSchemaConflictResolutionOverrideMutation();
+  /**
+   * <pre>
+   * Mutation is responsible for setting value to a `ReferenceSchema.conflictResolutionOverride` in `EntitySchema`.
+   * Mutation can be used for altering also the existing `ReferenceSchema` alone.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaConflictResolutionOverrideMutation setReferenceSchemaConflictResolutionOverrideMutation = 95;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaConflictResolutionOverrideMutationOrBuilder getSetReferenceSchemaConflictResolutionOverrideMutationOrBuilder();
 
   /**
    * <pre>
