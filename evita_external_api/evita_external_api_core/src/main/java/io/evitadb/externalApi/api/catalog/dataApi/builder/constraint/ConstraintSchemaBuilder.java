@@ -371,7 +371,8 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 			return List.of();
 		}
 
-		final ReferenceSchemaContract referenceSchema = this.sharedContext.getEntitySchemaOrThrowException(parentDataLocator.entityType())
+		final ReferenceSchemaContract referenceSchema = this.sharedContext
+			.getEntitySchemaOrThrowException(parentDataLocator.entityType())
 			.getReferenceOrThrowException(dataLocatorWithReference.referenceName());
 		final String referencedGroupType = referenceSchema.getReferencedGroupType();
 		if (referencedGroupType == null) {
