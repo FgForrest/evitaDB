@@ -120,6 +120,30 @@ Nastavení spojení se konfiguruje přes
         <p>Identifikace portu serveru, na kterém běží system API evitaDB. System API slouží k automatickému nastavení klientského certifikátu pro mTLS nebo ke stažení self-signed certifikátu serveru.
         Viz [Konfigurace a principy TLS](../../operate/tls.md). System API není vyžadováno, pokud server používá důvěryhodný certifikát a mTLS je vypnuté, nebo pokud je privátní/veřejný klíč serveru/klienta distribuován „ručně“ s klientem.</p>
     </dd>
+    <dt>pingIntervalMillis</dt>
+    <dd>
+        <p>**Výchozí: `30000` (30 s)**</p>
+        <p>Interval HTTP/2 keep-alive PING v milisekundách. Pokud na spojení po tuto dobu neproběhne žádný provoz,
+        klient odešle PING; pokud ho protistrana ve stejném intervalu nepotvrdí, je spojení uzavřeno. Interval je
+        tedy *rozpočet na zaseknutí* — musí s rezervou překročit nejdelší tolerovatelnou pauzu způsobenou GC či
+        vytížením CPU, nikoli být frekvencí sondování, jinak může být pomalé, ale živé volání předčasně zabito.
+        Hodnota `0` PING klienta zcela vypne (spojení je pak uklizeno pouze na základě `idleTimeoutMillis`); jakákoli
+        jiná hodnota musí být alespoň `1000` ms. PING musí zůstat striktně pod hodnotou `idleTimeoutMillis`, jinak
+        ho podkladový HTTP klient tiše vypne — výchozí dvojice (`30000` PING, `300000` idle) tuto podmínku splňuje
+        a klient zaloguje varování, pokud ji vlastní dvojice poruší.</p>
+    </dd>
+    <dt>idleTimeoutMillis</dt>
+    <dd>
+        <p>**Výchozí: `300000` (300 s)**</p>
+        <p>Jak dlouho může spojení ze sdíleného poolu zůstat bez aplikačního provozu, než je uzavřeno. Tato hodnota
+        je záměrně **oddělena od časového limitu jednotlivého volání (`timeout`)**: krátký časový limit požadavku
+        nesmí vynutit zbourání a znovunavázání fyzického spojení mezi voláními. Výchozích 300 s leží s rezervou nad
+        30s PINGem, takže keep-alive hlídač zůstává aktivní a zdravá spojení jsou udržována „teplá“ — potvrzené PINGy
+        se počítají jako provoz, takže živé spojení nikdy nevyprší nečinností, zatímco mrtvá protistrana je odhalena
+        do jednoho intervalu PINGu. Hodnota `0` časový limit nečinnosti zcela vypne (spojení pak žije, dokud ho
+        neuzavře protistrana, selhání PINGu nebo pool spojení). Udržujte tuto hodnotu striktně nad
+        `pingIntervalMillis`.</p>
+    </dd>
 </dl>
 
 #### Možnosti TLS

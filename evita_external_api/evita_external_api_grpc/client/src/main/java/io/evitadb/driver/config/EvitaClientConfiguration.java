@@ -144,6 +144,28 @@ public record EvitaClientConfiguration(
 		return this.connection.systemApiPort();
 	}
 
+	/**
+	 * Returns the HTTP/2 keep-alive PING interval in milliseconds.
+	 *
+	 * Delegates to {@link ClientConnectionOptions#pingIntervalMillis()}.
+	 *
+	 * @return the keep-alive ping interval in milliseconds
+	 */
+	public int pingIntervalMillis() {
+		return this.connection.pingIntervalMillis();
+	}
+
+	/**
+	 * Returns the connection idle timeout in milliseconds.
+	 *
+	 * Delegates to {@link ClientConnectionOptions#idleTimeoutMillis()}.
+	 *
+	 * @return the connection idle timeout in milliseconds
+	 */
+	public int idleTimeoutMillis() {
+		return this.connection.idleTimeoutMillis();
+	}
+
 	// ============================================================================================
 	// Deprecated delegate accessor methods for backward compatibility
 	// ============================================================================================
@@ -415,6 +437,34 @@ public record EvitaClientConfiguration(
 		@Nonnull
 		public EvitaClientConfiguration.Builder systemApiPort(int systemApiPort) {
 			this.connectionBuilder.systemApiPort(systemApiPort);
+			return this;
+		}
+
+		/**
+		 * Sets the HTTP/2 keep-alive PING interval in milliseconds.
+		 *
+		 * Delegates to {@link ClientConnectionOptions.Builder#pingIntervalMillis(int)}.
+		 *
+		 * @param pingIntervalMillis the keep-alive ping interval in milliseconds (`0` disables, otherwise `>= 1000`)
+		 * @return this builder for chaining
+		 */
+		@Nonnull
+		public EvitaClientConfiguration.Builder pingIntervalMillis(int pingIntervalMillis) {
+			this.connectionBuilder.pingIntervalMillis(pingIntervalMillis);
+			return this;
+		}
+
+		/**
+		 * Sets the connection idle timeout in milliseconds.
+		 *
+		 * Delegates to {@link ClientConnectionOptions.Builder#idleTimeoutMillis(int)}.
+		 *
+		 * @param idleTimeoutMillis the connection idle timeout in milliseconds (`0` disables the idle timeout)
+		 * @return this builder for chaining
+		 */
+		@Nonnull
+		public EvitaClientConfiguration.Builder idleTimeoutMillis(int idleTimeoutMillis) {
+			this.connectionBuilder.idleTimeoutMillis(idleTimeoutMillis);
 			return this;
 		}
 
