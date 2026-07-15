@@ -38,6 +38,7 @@ import javax.annotation.Nullable;
 import java.io.IOException;
 import java.io.Serial;
 import java.util.EnumSet;
+import java.util.Iterator;
 
 /**
  * Custom Jackson deserializer for {@link ConflictResolution} that accepts both the current object form and
@@ -63,6 +64,11 @@ import java.util.EnumSet;
  * semantics. The object form is validated by the {@link ConflictResolution} constructor (granular refinements
  * require an {@link ConflictPolicy#ENTITY} scope).
  *
+ * Invalid input fails loudly at load time rather than being silently ignored: the object form
+ * rejects unknown field names (only `policy` and `granularity` are accepted) and a non-list
+ * `granularity` value, and the deprecated flat-list rejects a `NONE` token — use the empty list
+ * `[]` to disable conflict detection.
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 public class ConflictResolutionDeserializer extends StdDeserializer<ConflictResolution> {
@@ -85,6 +91,7 @@ public class ConflictResolutionDeserializer extends StdDeserializer<ConflictReso
 	}
 
 	@Override
+	@Nonnull
 	public ConflictResolution deserialize(
 		@Nonnull JsonParser parser,
 		@Nonnull DeserializationContext context
@@ -107,53 +114,10 @@ public class ConflictResolutionDeserializer extends StdDeserializer<ConflictReso
 			return new ConflictResolution(ConflictPolicy.ENTITY);
 		}
 		if (node.isArray()) {
-			// deprecated flat-list form: classify each token by name against the coarse ConflictPolicy and,
-			// failing that, the GranularConflictPolicy refinements, reproducing the historical collapse rules
-			// (empty -> NONE; a catalog- or collection-wide lock subsumes any finer member declared alongside
-			// it; otherwise entity scope with the granular members folded in) without ever materialising a
-			// granular ConflictPolicy constant
-			boolean hasCatalog = false;
-			boolean hasCollection = false;
-			int tokenCount = 0;
-			final EnumSet<GranularConflictPolicy> granularity = EnumSet.noneOf(GranularConflictPolicy.class);
-			for (JsonNode element : node) {
-				tokenCount++;
-				final String token = element.asText().trim();
-				final ConflictPolicy coarse = parseCoarsePolicyOrNull(token);
-				if (coarse == ConflictPolicy.CATALOG) {
-					hasCatalog = true;
-				} else if (coarse == ConflictPolicy.COLLECTION) {
-					hasCollection = true;
-				} else if (coarse == null) {
-					// not a coarse policy name -> it must be a granular refinement (or an unknown token)
-					granularity.add(parseGranularConflictPolicy(token));
-				}
-				// NONE / ENTITY coarse members contribute nothing beyond making the list non-empty
-			}
-			if (tokenCount == 0) {
-				return new ConflictResolution(ConflictPolicy.NONE);
-			}
-			if (hasCatalog) {
-				return new ConflictResolution(ConflictPolicy.CATALOG);
-			}
-			if (hasCollection) {
-				return new ConflictResolution(ConflictPolicy.COLLECTION);
-			}
-			return new ConflictResolution(ConflictPolicy.ENTITY, granularity);
+			return parseFlatList(node);
 		}
 		if (node.isObject()) {
-			final JsonNode policyNode = node.get(POLICY_FIELD);
-			final ConflictPolicy policy = policyNode == null || policyNode.isNull()
-				? ConflictPolicy.ENTITY
-				: parseConflictPolicy(policyNode.asText());
-			final EnumSet<GranularConflictPolicy> granularity = EnumSet.noneOf(GranularConflictPolicy.class);
-			final JsonNode granularityNode = node.get(GRANULARITY_FIELD);
-			if (granularityNode != null && granularityNode.isArray()) {
-				for (JsonNode element : granularityNode) {
-					granularity.add(parseGranularConflictPolicy(element.asText()));
-				}
-			}
-			return new ConflictResolution(policy, granularity);
+			return parseObjectForm(node);
 		}
 		if (node.isTextual()) {
 			// scalar shorthand for a coarse-only policy
@@ -162,6 +126,99 @@ public class ConflictResolutionDeserializer extends StdDeserializer<ConflictReso
 		throw new EvitaInvalidUsageException(
 			"Unsupported `conflictPolicy` configuration value: " + node + "!"
 		);
+	}
+
+	/**
+	 * Interprets the deprecated flat-list form, classifying each token by name against the coarse
+	 * {@link ConflictPolicy} and, failing that, the {@link GranularConflictPolicy} refinements.
+	 *
+	 * The historical collapse rules are reproduced without ever materialising a granular
+	 * {@link ConflictPolicy} constant:
+	 * - an empty list collapses to {@link ConflictPolicy#NONE} (last-writer-wins),
+	 * - a catalog-wide lock subsumes a collection-wide lock, which subsumes entity scope,
+	 * - otherwise entity scope applies with the granular members folded into the refinement set.
+	 *
+	 * @param node the flat-list configuration node
+	 * @return the parsed conflict resolution
+	 */
+	@Nonnull
+	private ConflictResolution parseFlatList(@Nonnull JsonNode node) {
+		if (node.isEmpty()) {
+			return new ConflictResolution(ConflictPolicy.NONE);
+		}
+		boolean hasCatalog = false;
+		boolean hasCollection = false;
+		final EnumSet<GranularConflictPolicy> granularity = EnumSet.noneOf(GranularConflictPolicy.class);
+		for (JsonNode element : node) {
+			final String token = element.asText().trim();
+			final ConflictPolicy coarse = parseCoarsePolicyOrNull(token);
+			if (coarse == ConflictPolicy.CATALOG) {
+				hasCatalog = true;
+			} else if (coarse == ConflictPolicy.COLLECTION) {
+				hasCollection = true;
+			} else if (coarse == ConflictPolicy.NONE) {
+				// the empty list `[]` is the canonical "no detection" form; a NONE token mixed into a
+				// flat list (or standing alone) contradicts every other member and is a configuration error
+				throw new EvitaInvalidUsageException(
+					"The `NONE` conflict policy cannot appear in a `conflictPolicy` list; use an empty list " +
+						"`[]` to disable conflict detection!"
+				);
+			} else if (coarse == null) {
+				// not a coarse policy name -> it must be a granular refinement (or an unknown token)
+				granularity.add(parseGranularConflictPolicy(token));
+			}
+			// an ENTITY coarse member contributes nothing beyond making the list non-empty
+		}
+		if (hasCatalog) {
+			return new ConflictResolution(ConflictPolicy.CATALOG);
+		}
+		if (hasCollection) {
+			return new ConflictResolution(ConflictPolicy.COLLECTION);
+		}
+		return new ConflictResolution(ConflictPolicy.ENTITY, granularity);
+	}
+
+	/**
+	 * Interprets the current object form with optional `policy` and `granularity` fields.
+	 *
+	 * Unknown field names are rejected so an omitted `policy` only ever defaults to
+	 * {@link ConflictPolicy#ENTITY} on a genuine omission, never because the field name was misspelled
+	 * (which would silently downgrade the configured scope). The `granularity` refinement set has a
+	 * single canonical shape - a list; a scalar value is a configuration error rather than something to
+	 * coerce into a one-element set.
+	 *
+	 * @param node the object-form configuration node
+	 * @return the parsed conflict resolution
+	 */
+	@Nonnull
+	private ConflictResolution parseObjectForm(@Nonnull JsonNode node) {
+		final Iterator<String> fieldNames = node.fieldNames();
+		while (fieldNames.hasNext()) {
+			final String fieldName = fieldNames.next();
+			if (!POLICY_FIELD.equals(fieldName) && !GRANULARITY_FIELD.equals(fieldName)) {
+				throw new EvitaInvalidUsageException(
+					"Unknown `conflictPolicy` object field `" + fieldName + "`; only `" + POLICY_FIELD +
+						"` and `" + GRANULARITY_FIELD + "` are allowed!"
+				);
+			}
+		}
+		final JsonNode policyNode = node.get(POLICY_FIELD);
+		final ConflictPolicy policy = policyNode == null || policyNode.isNull()
+			? ConflictPolicy.ENTITY
+			: parseConflictPolicy(policyNode.asText());
+		final EnumSet<GranularConflictPolicy> granularity = EnumSet.noneOf(GranularConflictPolicy.class);
+		final JsonNode granularityNode = node.get(GRANULARITY_FIELD);
+		if (granularityNode != null && !granularityNode.isNull()) {
+			if (!granularityNode.isArray()) {
+				throw new EvitaInvalidUsageException(
+					"The `conflictPolicy.granularity` value must be a list, but was `" + granularityNode + "`!"
+				);
+			}
+			for (JsonNode element : granularityNode) {
+				granularity.add(parseGranularConflictPolicy(element.asText()));
+			}
+		}
+		return new ConflictResolution(policy, granularity);
 	}
 
 	/**

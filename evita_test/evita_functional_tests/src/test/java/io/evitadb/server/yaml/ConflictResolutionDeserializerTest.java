@@ -29,6 +29,7 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolution;
 import io.evitadb.api.requestResponse.mutation.conflict.GranularConflictPolicy;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -38,6 +39,7 @@ import java.util.EnumSet;
 import static io.evitadb.test.TestTags.SERVER;
 import static io.evitadb.test.TestTags.TRANSACTION;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -205,6 +207,112 @@ class ConflictResolutionDeserializerTest {
 
 		assertTrue(yaml.contains("policy"), () -> "Serialized form missing policy: " + yaml);
 		assertTrue(yaml.contains("ENTITY_ATTRIBUTE"), () -> "Serialized form missing granularity: " + yaml);
+	}
+
+	@Test
+	@DisplayName("should throw when a deprecated flat list contains an unknown token")
+	void shouldThrowWhenLegacyListContainsUnknownToken() {
+		final EvitaInvalidUsageException ex = assertThrows(
+			EvitaInvalidUsageException.class,
+			() -> yamlMapper().readValue("[ENTITY, BOGUS]", ConflictResolution.class)
+		);
+
+		assertTrue(
+			ex.getMessage().contains("BOGUS"),
+			() -> "Message should name the offending token: " + ex.getMessage()
+		);
+	}
+
+	@Test
+	@DisplayName("should throw when the object form carries an unknown policy")
+	void shouldThrowWhenObjectFormPolicyIsUnknown() {
+		final EvitaInvalidUsageException ex = assertThrows(
+			EvitaInvalidUsageException.class,
+			() -> yamlMapper().readValue("policy: BOGUS", ConflictResolution.class)
+		);
+
+		assertTrue(
+			ex.getMessage().contains("BOGUS"),
+			() -> "Message should name the offending policy: " + ex.getMessage()
+		);
+	}
+
+	@Test
+	@DisplayName("should throw when the object form granularity contains an unknown token")
+	void shouldThrowWhenObjectFormGranularityContainsUnknownToken() {
+		final EvitaInvalidUsageException ex = assertThrows(
+			EvitaInvalidUsageException.class,
+			() -> yamlMapper().readValue("granularity: [PRICE, BOGUS]", ConflictResolution.class)
+		);
+
+		assertTrue(
+			ex.getMessage().contains("BOGUS"),
+			() -> "Message should name the offending granular token: " + ex.getMessage()
+		);
+	}
+
+	@Test
+	@DisplayName("should throw when the scalar shorthand names an unknown policy")
+	void shouldThrowWhenScalarShorthandIsUnknown() {
+		final EvitaInvalidUsageException ex = assertThrows(
+			EvitaInvalidUsageException.class,
+			() -> yamlMapper().readValue("BOGUS", ConflictResolution.class)
+		);
+
+		assertTrue(
+			ex.getMessage().contains("BOGUS"),
+			() -> "Message should name the offending shorthand: " + ex.getMessage()
+		);
+	}
+
+	@Test
+	@DisplayName("should throw when the value is an unsupported scalar type")
+	void shouldThrowWhenValueIsUnsupportedScalarType() {
+		assertThrows(
+			EvitaInvalidUsageException.class,
+			() -> yamlMapper().readValue("42", ConflictResolution.class)
+		);
+	}
+
+	@Test
+	@DisplayName("should reject granular refinements under a coarser policy in the object form")
+	void shouldRejectGranularRefinementsUnderCoarserPolicyInObjectForm() {
+		assertThrows(
+			EvitaInvalidUsageException.class,
+			() -> yamlMapper().readValue("policy: COLLECTION\ngranularity: [PRICE]", ConflictResolution.class)
+		);
+	}
+
+	@Test
+	@DisplayName("should reject an unknown object-form field instead of silently downgrading scope")
+	void shouldRejectUnknownObjectFormField() {
+		final EvitaInvalidUsageException ex = assertThrows(
+			EvitaInvalidUsageException.class,
+			() -> yamlMapper().readValue("polciy: CATALOG", ConflictResolution.class)
+		);
+
+		assertTrue(
+			ex.getMessage().contains("polciy"),
+			() -> "Message should name the offending field: " + ex.getMessage()
+		);
+	}
+
+	@Test
+	@DisplayName("should reject a non-array granularity value instead of silently dropping it")
+	void shouldRejectNonArrayGranularity() {
+		assertThrows(
+			EvitaInvalidUsageException.class,
+			() -> yamlMapper().readValue("policy: ENTITY\ngranularity: PRICE", ConflictResolution.class)
+		);
+	}
+
+	@Test
+	@DisplayName("should reject a lone NONE flat list instead of mapping it to ENTITY")
+	void shouldRejectLoneNoneInLegacyList() {
+		assertThrows(
+			EvitaInvalidUsageException.class,
+			() -> yamlMapper().readValue("[NONE]", ConflictResolution.class)
+		);
 	}
 
 }
