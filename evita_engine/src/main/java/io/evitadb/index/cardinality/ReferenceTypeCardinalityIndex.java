@@ -172,6 +172,7 @@ public class ReferenceTypeCardinalityIndex
 	 * (high-water + live set) is restored, so the first post-restart commit rewrites only genuinely-changed leaves rather
 	 * than re-paginating the whole index.
 	 *
+	 * @param indexDescription       a full identification of this index for corruption diagnostics (e.g. the reference)
 	 * @param orderedPageSequences   the persisted leaf-page sequences in ascending key order
 	 * @param perPageKeys            the composed `long` keys of each leaf page, positionally aligned with `orderedPageSequences`
 	 * @param perPagePayloads        the counts of each leaf page, positionally aligned with `perPageKeys`
@@ -181,6 +182,7 @@ public class ReferenceTypeCardinalityIndex
 	 */
 	@Nonnull
 	public static ReferenceTypeCardinalityIndex fromPersistedPages(
+		@Nonnull String indexDescription,
 		@Nonnull int[] orderedPageSequences,
 		@Nonnull long[][] perPageKeys,
 		@Nonnull long[][] perPagePayloads,
@@ -204,7 +206,7 @@ public class ReferenceTypeCardinalityIndex
 			pageTrees.add(pageTree);
 		}
 		final TransactionalBucketBPlusTree tree =
-			createEmptyTree().assembleFromSingleLeafTrees(pageTrees, orderedPageSequences);
+			createEmptyTree().assembleFromSingleLeafTrees(pageTrees, orderedPageSequences, "cardinality index for " + indexDescription);
 		final PageStreamRegistry registry = PageStreamRegistry.restoredFrom(
 			CARDINALITY_PAGE_STREAM, highWaterPageSequence, tree.leafPageHandles()
 		);

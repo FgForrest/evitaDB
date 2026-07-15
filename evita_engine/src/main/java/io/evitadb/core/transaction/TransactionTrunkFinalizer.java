@@ -26,6 +26,7 @@ package io.evitadb.core.transaction;
 import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.api.requestResponse.mutation.infrastructure.TransactionMutation;
 import io.evitadb.core.catalog.Catalog;
+import io.evitadb.core.exception.DataStructureCorruptedException;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
@@ -106,7 +107,19 @@ public class TransactionTrunkFinalizer implements TransactionHandler {
 		// now let's flush the catalog on the disk
 		this.catalogToUpdate.flush(catalogVersion, lastProcessedTransaction);
 		// init new catalog with the same collections as the previous one
-		final Catalog newCatalog = this.lastTransactionLayer.getStateCopyWithCommittedChanges(this.catalogToUpdate);
+		final Catalog newCatalog;
+		try {
+			// the merge runs the post-replay (merge-time) dirty-scope validation on every participant the replay
+			// touched, before this catalog version can propagate to the live view
+			newCatalog = this.lastTransactionLayer.getStateCopyWithCommittedChanges(this.catalogToUpdate);
+		} catch (DataStructureCorruptedException ex) {
+			// the corruption slipped past the isolated run's pre-commit pass: the transaction is already durable
+			// in the write-ahead log, and its corrupt state may already sit in the flushed data files because the
+			// flush above precedes this merge. A restart will replay the WAL and either re-trigger this failure or
+			// fail at load-time validation. Re-wrap the neutral structure-level error with the poison-pill
+			// remediation caveat before it completes the commit progress exceptionally.
+			throw wrapPostReplayCorruption(ex);
+		}
 		Assert.isPremiseValid(
 			newCatalog.getVersion() == catalogVersion,
 			"Catalog version mismatch!"
@@ -117,6 +130,32 @@ public class TransactionTrunkFinalizer implements TransactionHandler {
 		this.committedCatalog = newCatalog;
 		// and return created catalog
 		return this.committedCatalog;
+	}
+
+	/**
+	 * Wraps a neutral, structure-level {@link DataStructureCorruptedException} raised by the post-replay (merge-time)
+	 * dirty-scope validation into the trunk-path poison-pill error. Unlike the isolated pre-commit (pre-WAL)
+	 * rejection — which happens with the shared write-ahead log still clean — a post-replay failure fires while
+	 * incorporating an already-committed transaction: it is durable in the write-ahead log, and because the catalog
+	 * flush precedes the merge its corrupt state may already sit in the flushed data files. The message states both
+	 * so the operator does not understate the blast radius, and chains the neutral structure-level cause for the
+	 * structural detail. A restart will replay the write-ahead log and either re-trigger this failure or fail at
+	 * load-time validation — either way loudly. Extracted from the `commitCatalogChanges` catch so the poison-pill
+	 * wording stays under test.
+	 *
+	 * @param cause the neutral structure-level corruption error raised by the merge
+	 * @return the poison-pill error to complete the commit progress exceptionally with
+	 */
+	@Nonnull
+	public static GenericEvitaInternalError wrapPostReplayCorruption(@Nonnull DataStructureCorruptedException cause) {
+		return new GenericEvitaInternalError(
+			"A transactional data structure failed post-replay integrity validation while incorporating a " +
+				"transaction into the catalog trunk. The transaction is already durable in the write-ahead log " +
+				"(and its corrupt state may already be in the flushed data files), so a restart will replay it and " +
+				"either re-trigger this failure or fail at load-time validation. Remediation: restore the catalog " +
+				"from a backup, or fully rebuild / reindex it, and file a bug report.",
+			cause
+		);
 	}
 
 	@Override

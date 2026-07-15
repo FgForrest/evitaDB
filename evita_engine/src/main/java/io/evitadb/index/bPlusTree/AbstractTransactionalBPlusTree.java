@@ -23,7 +23,9 @@
 
 package io.evitadb.index.bPlusTree;
 
+import io.evitadb.core.exception.DataStructureCorruptedException;
 import io.evitadb.core.transaction.Transaction;
+import io.evitadb.core.transaction.memory.DirtyScopeValidator;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
@@ -58,7 +60,7 @@ import java.util.Objects;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-abstract class AbstractTransactionalBPlusTree implements Serializable {
+public abstract class AbstractTransactionalBPlusTree implements Serializable {
 	@Serial private static final long serialVersionUID = -941486965526807368L;
 	/**
 	 * Sentinel value of a leaf's {@link LeafBPlusTreeNode#getPageSequence()} before it has been assigned a persistence
@@ -389,6 +391,40 @@ abstract class AbstractTransactionalBPlusTree implements Serializable {
 	protected abstract BPlusTreeNode<?> newEmptyLeaf();
 
 	/**
+	 * Registers a leaf as dirtied for the current transaction's pre-commit / post-replay dirty-scope validation. A
+	 * no-op when no transaction is active — warm-up bulk load and other non-transactional mutations have neither a
+	 * registry nor a WAL, so the validation does not apply and pays nothing. The registered object is the leaf's write
+	 * LAYER when one exists (it holds the effective in-transaction keys and survives the layer discard the trunk merge
+	 * performs), otherwise the leaf itself (a split-born leaf holds its keys directly). Registered objects are key
+	 * sources only, so registering a not-strictly-current object cannot cause a false positive (see
+	 * {@link DirtyScopeValidator}).
+	 *
+	 * @param tree the owner tree the leaf belongs to
+	 * @param leaf the dirtied leaf node
+	 */
+	static void registerDirtyLeafInScope(@Nonnull DirtyScopeValidator tree, @Nonnull BPlusTreeNode<?> leaf) {
+		final TransactionalLayerMaintainer maintainer = Transaction.getTransactionalLayerMaintainer();
+		if (maintainer == null) {
+			return;
+		}
+		final Object writable = Transaction.getTransactionalMemoryLayerIfExists(leaf);
+		maintainer.registerDirtyScopeToken(tree, writable != null ? writable : leaf);
+	}
+
+	/**
+	 * Hook invoked by {@link #consolidate(Cursor)} for each leaf whose boundary keys a rebalance (steal / merge)
+	 * changed, so the concrete tree can register it in the transaction's dirty-scope validation. The default is a
+	 * no-op: the out-of-scope trees ({@code TransactionalObjectBPlusTree}, {@code TransactionalIntToLongBPlusTree}) do
+	 * not participate in the dirty-leaf validation. The in-scope paged trees override it to call
+	 * {@link #registerDirtyLeafInScope(DirtyScopeValidator, BPlusTreeNode)}.
+	 *
+	 * @param leaf the rebalanced leaf node
+	 */
+	protected void registerConsolidatedLeaf(@Nonnull BPlusTreeNode<?> leaf) {
+		// no-op by default; the in-scope paged trees override this to register the rebalanced leaf
+	}
+
+	/**
 	 * Recursively removes the transactional diff layers of the passed node, its descendants and - for leaf nodes whose
 	 * values are themselves {@link TransactionalLayerProducer}s - those values. Walks the current (transaction-aware)
 	 * view of the tree.
@@ -540,6 +576,12 @@ abstract class AbstractTransactionalBPlusTree implements Serializable {
 								Math.max(1, (previousNode.keyCount() - minBlock) / 2), previousNode);
 							// update parent keys
 							updateParentKeys(cursorWithLevel);
+							// both the receiver and the donor leaf had their boundary keys shifted — register them
+							// for the transaction's dirty-scope validation
+							if (!isInternal) {
+								registerConsolidatedLeaf(node);
+								registerConsolidatedLeaf(previousNode);
+							}
 							return;
 						}
 					}
@@ -558,6 +600,12 @@ abstract class AbstractTransactionalBPlusTree implements Serializable {
 							// update parent keys, but only if node was empty - which means first key was added
 							if (isInternal || nodeIsEmpty) {
 								updateParentKeys(cursorWithLevel);
+							}
+							// both the receiver and the donor leaf had their boundary keys shifted — register them
+							// for the transaction's dirty-scope validation
+							if (!isInternal) {
+								registerConsolidatedLeaf(node);
+								registerConsolidatedLeaf(nextNode);
 							}
 							return;
 						}
@@ -579,6 +627,12 @@ abstract class AbstractTransactionalBPlusTree implements Serializable {
 							}
 							// update parent keys, previous node has been removed
 							updateParentKeys(previousNodeCursor.withReplacedCurrentNode(node));
+							// the surviving merged leaf absorbed the left sibling — its first key lowered; register it
+							// for the transaction's dirty-scope validation (the merged-away node is gone and needs no
+							// registration)
+							if (!isInternal) {
+								registerConsolidatedLeaf(node);
+							}
 							// consolidate the parent node
 							cursorWithLevel = cursorWithLevel.toParentLevel();
 							// continue with parent level
@@ -602,6 +656,12 @@ abstract class AbstractTransactionalBPlusTree implements Serializable {
 							}
 							// update parent keys, next node has been removed
 							updateParentKeys(cursorWithLevel.withReplacedCurrentNode(node));
+							// the surviving merged leaf absorbed the right sibling — its last key rose; register it for
+							// the transaction's dirty-scope validation (the merged-away node is gone and needs no
+							// registration)
+							if (!isInternal) {
+								registerConsolidatedLeaf(node);
+							}
 							// consolidate the parent node
 							cursorWithLevel = cursorWithLevel.toParentLevel();
 						}
@@ -1303,6 +1363,29 @@ abstract class AbstractTransactionalBPlusTree implements Serializable {
 			}
 			this.hasNextElement = found;
 		}
+	}
+
+	/**
+	 * Raised when a transactional B+ tree is found to violate its cross-leaf ordering invariants — a leaf whose key range
+	 * overlaps an adjacent leaf (the "stale leaf-page twin" corruption class) or an internal separator that no longer
+	 * matches the live leaf it fronts.
+	 *
+	 * It is a dedicated {@link DataStructureCorruptedException} subtype so the transaction commit path can recognise a
+	 * tree-corruption rejection specifically — without catching unrelated internal errors. The pre-commit (pre-WAL)
+	 * validation rejects the commit with a still-clean write-ahead log; the post-replay (merge-time) validation catches
+	 * this exception after the transaction is already durable and re-wraps it with the poison-pill remediation caveat.
+	 * The message carried here is deliberately view-neutral (it fires on the isolated merge path too, where no WAL
+	 * exists), so the WAL / poison-pill wording lives only in the trunk wrapper.
+	 *
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
+	 */
+	public static class BPlusTreeCorruptedException extends DataStructureCorruptedException {
+		@Serial private static final long serialVersionUID = 6748142835067359214L;
+
+		public BPlusTreeCorruptedException(@Nonnull String publicMessage) {
+			super(publicMessage);
+		}
+
 	}
 
 }

@@ -1732,7 +1732,9 @@ class RangeIndexTest {
 			}
 
 			// reload boundary-stable (one leaf per page, page identities + change-detection baseline restored)
-			final RangeIndex reloaded = RangeIndex.fromPersistedPages(orderedPageSequences, perPagePoints, highWater);
+			final RangeIndex reloaded = RangeIndex.fromPersistedPages(
+				"attribute `test`", orderedPageSequences, perPagePoints, highWater
+			);
 			assertTrue(reloaded.isPaged(), "Reloaded range must still be paged.");
 			assertEquals(index, reloaded, "Reloaded range must be content-equal to the original.");
 

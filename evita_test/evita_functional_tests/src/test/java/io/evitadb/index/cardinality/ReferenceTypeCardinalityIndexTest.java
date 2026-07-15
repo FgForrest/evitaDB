@@ -839,14 +839,14 @@ class ReferenceTypeCardinalityIndexTest {
 			assertThrows(
 				GenericEvitaInternalError.class,
 				() -> ReferenceTypeCardinalityIndex.fromPersistedPages(
-					new int[0], new long[0][], new long[0][], 0, Collections.emptyMap()
+					"reference `test`", new int[0], new long[0][], new long[0][], 0, Collections.emptyMap()
 				)
 			);
 			// the alignment premise: the page-sequence count must match the leaf-page array counts
 			assertThrows(
 				GenericEvitaInternalError.class,
 				() -> ReferenceTypeCardinalityIndex.fromPersistedPages(
-					new int[]{0, 1}, new long[][]{{10L}}, new long[][]{{1L}}, 1, Collections.emptyMap()
+					"reference `test`", new int[]{0, 1}, new long[][]{{10L}}, new long[][]{{1L}}, 1, Collections.emptyMap()
 				)
 			);
 		}
@@ -860,7 +860,8 @@ class ReferenceTypeCardinalityIndexTest {
 			final long[] seedPayloads = {1L, 2L, 3L};
 			final ReferenceTypeCardinalityIndex index =
 				ReferenceTypeCardinalityIndex.fromPersistedPages(
-					new int[]{0}, new long[][]{seedKeys}, new long[][]{seedPayloads}, 0, Collections.emptyMap()
+					"reference `test`", new int[]{0}, new long[][]{seedKeys}, new long[][]{seedPayloads}, 0,
+					Collections.emptyMap()
 				);
 
 			assertFalse(index.isPaged(), "a single leaf page must reassemble as SINGLE");

@@ -262,7 +262,8 @@ public final class HistogramIndexMapLoader implements ComponentLoader {
 				perPagePoints[i] = leafPage.getPoints();
 			}
 			rangeIndex = RangeIndex.fromPersistedPages(
-				rangePageSequences, perPagePoints, part.getRangeHighWaterPageSequence()
+				"histogram '" + histogramName + "'", rangePageSequences, perPagePoints,
+				part.getRangeHighWaterPageSequence()
 			);
 		}
 

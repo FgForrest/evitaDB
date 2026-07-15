@@ -627,7 +627,7 @@ class ReferenceTypeCardinalityIndexPagingRoundTripTest implements EvitaTestSuppo
 			perPagePayloads[i] = leafPage.getPayloads();
 		}
 		return ReferenceTypeCardinalityIndex.fromPersistedPages(
-			orderedPageSequences, perPageKeys, perPagePayloads,
+			"reference `test`", orderedPageSequences, perPageKeys, perPagePayloads,
 			root.getHighWaterPageSequence(), root.getReferencedPrimaryKeysIndex()
 		);
 	}
