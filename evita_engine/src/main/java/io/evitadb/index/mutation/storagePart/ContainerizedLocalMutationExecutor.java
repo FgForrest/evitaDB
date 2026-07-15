@@ -234,37 +234,22 @@ public final class ContainerizedLocalMutationExecutor
 	}
 
 	/**
-	 * Retrieves all attribute keys specified in the passed {@link ReferenceContract}.
-	 */
-	@Nonnull
-	private static Set<AttributeKey> collectAttributeKeys(@Nonnull ReferenceContract referenceContract) {
-		final Collection<AttributeValue> attributeValues = referenceContract.getAttributeValues();
-		if (attributeValues.isEmpty()) {
-			return Collections.emptySet();
-		}
-		// allocation-optimized loop (avoids stream pipeline on this hot mutation path);
-		// pre-sized for the worst case where every attribute exists
-		final Set<AttributeKey> result = CollectionUtils.createHashSet(attributeValues.size());
-		for (final AttributeValue attributeValue : attributeValues) {
-			if (attributeValue.exists()) {
-				result.add(attributeValue.key());
-			}
-		}
-		return result;
-	}
-
-	/**
-	 * Processes reference attributes with default values.
+	 * Processes reference attributes with default values. For every mandatory / default-valued attribute declared by
+	 * the reference schema this checks - via an allocation-free membership probe on the reference itself
+	 * ({@link Reference#isAttributeValuePresentAndExists(AttributeKey)}) - whether the corresponding value is already
+	 * present; if not, the handler is invoked to either register the missing mandatory attribute or emit the
+	 * default-value mutation. Probing the (usually few) schema attributes directly avoids materializing the full key
+	 * set of the reference (a HashSet per reference) on this hot mutation path.
 	 *
 	 * @param referenceSchema         The reference schema, expected to be non-null.
 	 * @param entityLocales           The set of locales applicable to the entity, expected to be non-null.
-	 * @param availableAttributes     The set of available attribute keys, expected to be non-null.
-	 * @param missingAttributeHandler The handler for missing attributes, can be null if no handling is required.
+	 * @param reference               The reference whose existing attribute values are probed, expected to be non-null.
+	 * @param missingAttributeHandler The handler for missing attributes, expected to be non-null.
 	 */
 	private static void processReferenceAttributesWithDefaultValue(
 		@Nonnull ReferenceSchema referenceSchema,
 		@Nonnull Set<Locale> entityLocales,
-		@Nonnull Set<AttributeKey> availableAttributes,
+		@Nonnull Reference reference,
 		@Nonnull MissingAttributeHandler missingAttributeHandler
 	) {
 		for (final AttributeSchemaContract attributeSchema : referenceSchema.getNonNullableOrDefaultValueAttributes().values()) {
@@ -273,13 +258,13 @@ public final class ContainerizedLocalMutationExecutor
 			if (attributeSchema.isLocalized()) {
 				for (final Locale locale : entityLocales) {
 					final AttributeKey attributeKey = new AttributeKey(attributeSchema.getName(), locale);
-					if (!availableAttributes.contains(attributeKey)) {
+					if (!reference.isAttributeValuePresentAndExists(attributeKey)) {
 						missingAttributeHandler.accept(defaultValue, nullable, attributeKey);
 					}
 				}
 			} else {
 				final AttributeKey attributeKey = new AttributeKey(attributeSchema.getName());
-				if (!availableAttributes.contains(attributeKey)) {
+				if (!reference.isAttributeValuePresentAndExists(attributeKey)) {
 					missingAttributeHandler.accept(defaultValue, nullable, attributeKey);
 				}
 			}
@@ -2477,6 +2462,24 @@ public final class ContainerizedLocalMutationExecutor
 
 		final Set<Locale> entityLocales = entityStorageContainer.getLocales();
 		final List<AttributeKey> missingReferenceMandatedAttribute = new LinkedList<>();
+		// the only per-reference state the handler needs is the reference key; carrying it through a single-element
+		// holder lets the handler (and its captured context) be allocated once per call instead of once per reference
+		final ReferenceKey[] currentReferenceKey = new ReferenceKey[1];
+		final MissingAttributeHandler missingAttributeHandler = (defaultValue, nullable, attributeKey) -> {
+			Assert.isPremiseValid(attributeKey != null, "Attribute key must not be null!");
+			if (defaultValue == null) {
+				if (!nullable) {
+					missingReferenceMandatedAttribute.add(attributeKey);
+				}
+			} else {
+				mutationCollector.addLocalMutation(
+					new ReferenceAttributeMutation(
+						currentReferenceKey[0],
+						new UpsertAttributeMutation(attributeKey, defaultValue)
+					)
+				);
+			}
+		};
 		ReferenceSchema referenceSchema = null;
 		for (Reference reference : referencesStoragePart.getReferences()) {
 			if (reference.exists()) {
@@ -2485,31 +2488,19 @@ public final class ContainerizedLocalMutationExecutor
 					referenceSchema = entitySchema.getReferenceOrThrowException(reference.getReferenceName());
 				}
 				// skip references whose schema declares no mandatory / default-valued attributes -
-				// there is nothing to verify or default here, so we avoid collecting the reference
-				// attribute keys and allocating the per-reference handler for the common case
+				// there is nothing to verify or default here, so we avoid probing the reference attributes
+				// for the common case
 				if (referenceSchema.getNonNullableOrDefaultValueAttributes().isEmpty()) {
 					continue;
 				}
 				missingReferenceMandatedAttribute.clear();
-				final Set<AttributeKey> availableAttributes = collectAttributeKeys(reference);
-				final MissingAttributeHandler missingAttributeHandler = (defaultValue, nullable, attributeKey) -> {
-					Assert.isPremiseValid(attributeKey != null, "Attribute key must not be null!");
-					if (defaultValue == null) {
-						if (!nullable) {
-							missingReferenceMandatedAttribute.add(attributeKey);
-						}
-					} else {
-						mutationCollector.addLocalMutation(
-							new ReferenceAttributeMutation(
-								reference.getReferenceKey(),
-								new UpsertAttributeMutation(attributeKey, defaultValue)
-							)
-						);
-					}
-				};
+				// point the shared handler at the reference currently being verified
+				currentReferenceKey[0] = reference.getReferenceKey();
 
+				// probe the reference directly for each mandatory / default-valued schema attribute instead of
+				// materializing the full key set of the reference (a HashSet per reference on the hot path)
 				processReferenceAttributesWithDefaultValue(
-					referenceSchema, entityLocales, availableAttributes, missingAttributeHandler
+					referenceSchema, entityLocales, reference, missingAttributeHandler
 				);
 
 				if (!missingReferenceMandatedAttribute.isEmpty()) {
