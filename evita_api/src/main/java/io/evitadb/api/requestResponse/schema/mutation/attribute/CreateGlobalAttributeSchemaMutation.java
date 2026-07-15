@@ -125,6 +125,27 @@ public class CreateGlobalAttributeSchemaMutation
 		);
 	}
 
+	/**
+	 * Creates a mutation that will set up a new global attribute schema with the given properties. The
+	 * conflict resolution override defaults to {@link ConflictResolutionOverride#INHERITED}.
+	 *
+	 * @param name                   unique name of the attribute
+	 * @param description            optional human-readable description of the attribute
+	 * @param deprecationNotice      optional deprecation notice if the attribute is deprecated
+	 * @param uniqueInScopes         the scopes in which the attribute must be unique (may be `null`)
+	 * @param uniqueGloballyInScopes the scopes in which the attribute must be globally unique across the
+	 *                               whole catalog (may be `null`)
+	 * @param filterableInScopes     the scopes in which the attribute is filterable (may be `null`)
+	 * @param sortableInScopes       the scopes in which the attribute is sortable (may be `null`)
+	 * @param localized              whether the attribute values are locale-specific
+	 * @param nullable               whether the attribute value can be null
+	 * @param representative         whether the attribute is representative for the entity
+	 * @param type                   the data type stored in this attribute (must be a supported evitaDB
+	 *                               type or its array)
+	 * @param defaultValue           optional default value for the attribute
+	 * @param indexedDecimalPlaces   number of decimal places indexed for number-based attribute types
+	 * @throws InvalidSchemaMutationException if the type is not allowed in attributes
+	 */
 	public CreateGlobalAttributeSchemaMutation(
 		@Nonnull String name,
 		@Nullable String description,
@@ -148,6 +169,30 @@ public class CreateGlobalAttributeSchemaMutation
 		);
 	}
 
+	/**
+	 * Creates a mutation that will set up a new global attribute schema with the given properties.
+	 *
+	 * @param name                       unique name of the attribute
+	 * @param description                optional human-readable description of the attribute
+	 * @param deprecationNotice          optional deprecation notice if the attribute is deprecated
+	 * @param uniqueInScopes             the scopes in which the attribute must be unique (may be `null`)
+	 * @param uniqueGloballyInScopes     the scopes in which the attribute must be globally unique across
+	 *                                   the whole catalog (may be `null`)
+	 * @param filterableInScopes         the scopes in which the attribute is filterable (may be `null`)
+	 * @param sortableInScopes           the scopes in which the attribute is sortable (may be `null`)
+	 * @param localized                  whether the attribute values are locale-specific
+	 * @param nullable                   whether the attribute value can be null
+	 * @param representative             whether the attribute is representative for the entity
+	 * @param type                       the data type stored in this attribute (must be a supported
+	 *                                   evitaDB type or its array)
+	 * @param defaultValue               optional default value for the attribute
+	 * @param indexedDecimalPlaces       number of decimal places indexed for number-based attribute types
+	 * @param conflictResolutionOverride the per-item override of the conflict resolution granularity
+	 *                                   applied to this attribute (never `null`; use
+	 *                                   {@link ConflictResolutionOverride#INHERITED} to follow the
+	 *                                   resolved conflict resolution)
+	 * @throws InvalidSchemaMutationException if the type is not allowed in attributes
+	 */
 	@SerializableCreator
 	public CreateGlobalAttributeSchemaMutation(
 		@Nonnull String name,
