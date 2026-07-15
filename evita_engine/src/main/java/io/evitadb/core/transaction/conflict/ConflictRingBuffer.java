@@ -85,7 +85,7 @@ public class ConflictRingBuffer extends RingBuffer<VersionedConflictKey, Catalog
 	}
 
 	/**
-	 * Sets the effective start position of the buffer to the specified catalog version
+	 * Sets the effective end position of the buffer to the specified catalog version
 	 *
 	 * @param catalogVersion the catalog version to set as the effective end
 	 */

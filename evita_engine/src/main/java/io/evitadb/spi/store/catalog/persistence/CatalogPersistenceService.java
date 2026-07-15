@@ -372,7 +372,7 @@ public non-sealed interface CatalogPersistenceService<S extends LogRecordReferen
 	/**
 	 * Method creates the service allowing to store and read Write-Ahead-Log entries. The catalog schema and
 	 * entity schema accessor are threaded in so the WAL write path can resolve the effective, schema-declared
-	 * conflict resolution per entity type (issue #503) — the conflict keys emitted per mutation depend on the
+	 * conflict resolution per entity type — the conflict keys emitted per mutation depend on the
 	 * per-catalog / per-entity / per-item conflict resolution declared in the schema, not just the engine
 	 * default.
 	 *
