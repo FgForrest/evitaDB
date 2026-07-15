@@ -53,6 +53,17 @@ public record ReferenceAttributeConflictKey(
 	}
 
 	/**
+	 * {@inheritDoc}
+	 *
+	 * @return {@link ConflictScope#REFERENCE_ATTRIBUTE}
+	 */
+	@Nonnull
+	@Override
+	public ConflictScope conflictScope() {
+		return ConflictScope.REFERENCE_ATTRIBUTE;
+	}
+
+	/**
 	 * Returns a concise, human-readable representation of this conflict key.
 	 *
 	 * @return non-null string representation

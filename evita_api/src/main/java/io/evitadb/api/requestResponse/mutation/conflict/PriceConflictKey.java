@@ -55,6 +55,17 @@ public record PriceConflictKey(
 	}
 
 	/**
+	 * {@inheritDoc}
+	 *
+	 * @return {@link ConflictScope#PRICE}
+	 */
+	@Nonnull
+	@Override
+	public ConflictScope conflictScope() {
+		return ConflictScope.PRICE;
+	}
+
+	/**
 	 * Returns a concise, human-readable representation of this conflict key.
 	 *
 	 * @return non-null string representation

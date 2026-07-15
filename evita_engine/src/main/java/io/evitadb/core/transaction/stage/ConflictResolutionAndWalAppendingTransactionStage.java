@@ -26,10 +26,12 @@ package io.evitadb.core.transaction.stage;
 import io.evitadb.api.CommitProgress.CommitVersions;
 import io.evitadb.api.CommitProgressRecord;
 import io.evitadb.api.TransactionContract.CommitBehavior;
+import io.evitadb.api.exception.ConflictingCatalogMutationException;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
 import io.evitadb.api.requestResponse.mutation.infrastructure.TransactionMutation;
 import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.metric.event.transaction.TransactionAcceptedEvent;
+import io.evitadb.core.metric.event.transaction.TransactionConflictEvent;
 import io.evitadb.core.metric.event.transaction.TransactionAppendedToWalEvent;
 import io.evitadb.core.metric.event.transaction.TransactionQueuedEvent;
 import io.evitadb.core.metric.event.transaction.TransactionResolution;
@@ -152,6 +154,12 @@ public final class ConflictResolutionAndWalAppendingTransactionStage
 				this.publisher
 			);
 		} catch (RuntimeException ex) {
+			// count only genuine conflict-induced rollbacks - not WAL mismatches or other runtime failures -
+			// with the resolved policy/layer/scope read straight off the caught exception's diagnostics.
+			// Emitted before the rollback so the counter is independent of rollback success.
+			if (ex instanceof ConflictingCatalogMutationException conflict) {
+				new TransactionConflictEvent(task.catalogName(), conflict).commit();
+			}
 			rollbackFailedTask(
 				task,
 				expectedCatalogVersion,

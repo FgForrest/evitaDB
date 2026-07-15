@@ -115,6 +115,17 @@ public record AttributeDeltaConflictKey(
         return result;
     }
 
+	/**
+	 * {@inheritDoc}
+	 *
+	 * @return {@link ConflictScope#ATTRIBUTE}
+	 */
+	@Nonnull
+	@Override
+	public ConflictScope conflictScope() {
+		return ConflictScope.ATTRIBUTE;
+	}
+
     /**
 	 * Returns a concise, human-readable representation of this conflict key.
 	 *

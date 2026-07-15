@@ -23,6 +23,7 @@
 
 package io.evitadb.api.requestResponse.mutation.conflict;
 
+import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 
@@ -72,5 +73,20 @@ public interface ConflictKey {
 	default String entityType() {
 		return null;
 	}
+
+	/**
+	 * Returns the bounded {@link ConflictScope} this key sits at — the low-cardinality granularity label
+	 * (attribute / entity / price / reference / …) as opposed to the unbounded coordinates (primary key,
+	 * attribute name) the concrete key also carries.
+	 *
+	 * Deliberately declared without a default: every {@link ConflictKey} implementation must map itself onto
+	 * exactly one scope, so a newly added key type fails to compile until its scope is decided rather than
+	 * silently defaulting to a wrong or catch-all label. The value is stable across class renames and is the
+	 * source of the exported conflict-metric label.
+	 *
+	 * @return the bounded scope this key represents, never null
+	 */
+	@Nonnull
+	ConflictScope conflictScope();
 
 }

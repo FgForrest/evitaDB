@@ -94,6 +94,7 @@ public class EvitaJfrEventRegistry {
 		CatalogGoesLiveEvent.class,
 		TransactionStartedEvent.class,
 		TransactionFinishedEvent.class,
+		TransactionConflictEvent.class,
 		TransactionAcceptedEvent.class,
 		TransactionAppendedToWalEvent.class,
 		TransactionIncorporatedToTrunkEvent.class,

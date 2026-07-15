@@ -51,6 +51,17 @@ public record EntityConflictKey(
 	}
 
 	/**
+	 * {@inheritDoc}
+	 *
+	 * @return {@link ConflictScope#ENTITY}
+	 */
+	@Nonnull
+	@Override
+	public ConflictScope conflictScope() {
+		return ConflictScope.ENTITY;
+	}
+
+	/**
 	 * Returns a concise, human-readable representation of this conflict key.
 	 *
 	 * @return non-null string representation

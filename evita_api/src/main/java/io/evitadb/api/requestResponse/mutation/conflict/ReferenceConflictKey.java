@@ -51,6 +51,17 @@ public record ReferenceConflictKey(
 	}
 
 	/**
+	 * {@inheritDoc}
+	 *
+	 * @return {@link ConflictScope#REFERENCE}
+	 */
+	@Nonnull
+	@Override
+	public ConflictScope conflictScope() {
+		return ConflictScope.REFERENCE;
+	}
+
+	/**
 	 * Returns a concise, human-readable representation of this conflict key.
 	 *
 	 * @return non-null string representation

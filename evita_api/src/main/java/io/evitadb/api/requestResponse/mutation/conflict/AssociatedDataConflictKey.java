@@ -51,6 +51,17 @@ public record AssociatedDataConflictKey(
 	}
 
 	/**
+	 * {@inheritDoc}
+	 *
+	 * @return {@link ConflictScope#ASSOCIATED_DATA}
+	 */
+	@Nonnull
+	@Override
+	public ConflictScope conflictScope() {
+		return ConflictScope.ASSOCIATED_DATA;
+	}
+
+	/**
 	 * Returns a concise, human-readable representation of this conflict key.
 	 *
 	 * @return non-null string representation
