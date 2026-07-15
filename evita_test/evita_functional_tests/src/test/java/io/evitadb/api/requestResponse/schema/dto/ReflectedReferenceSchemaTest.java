@@ -24,7 +24,9 @@
 package io.evitadb.api.requestResponse.schema.dto;
 
 import io.evitadb.api.exception.InvalidSchemaMutationException;
+import io.evitadb.api.proxy.mock.EmptyEntitySchemaAccessor;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
+import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder;
 import io.evitadb.api.query.expression.ExpressionFactory;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.Cardinality;
@@ -1115,6 +1117,59 @@ class ReflectedReferenceSchemaTest {
 			);
 
 			assertNotEquals(a, b);
+		}
+	}
+
+	@Nested
+	@DisplayName("Conflict resolution override")
+	class ConflictResolutionOverrideGuard {
+
+		/**
+		 * Builds a fresh {@link InternalEntitySchemaBuilder} for a "Product" entity in an empty test catalog,
+		 * suitable for declaring a reflected reference whose builder can then be exercised.
+		 *
+		 * @return a new entity schema builder
+		 */
+		@Nonnull
+		private static InternalEntitySchemaBuilder createProductSchemaBuilder() {
+			return new InternalEntitySchemaBuilder(
+				CatalogSchema._internalBuild(
+					"testCatalog",
+					NamingConvention.generate("testCatalog"),
+					null,
+					EnumSet.allOf(CatalogEvolutionMode.class),
+					EmptyEntitySchemaAccessor.INSTANCE
+				),
+				EntitySchema._internalBuild("Product")
+			);
+		}
+
+		@Test
+		@DisplayName("should reject a conflict resolution override on a reflected reference")
+		void shouldRejectConflictResolutionOverrideOnReflectedReference() {
+			final InternalEntitySchemaBuilder entitySchemaBuilder = createProductSchemaBuilder();
+
+			// the reflected-reference builder always inherits the override from its target reference, so any
+			// attempt to set one explicitly must fail fast rather than silently establish an unsupported state
+			final InvalidSchemaMutationException ex = assertThrows(
+				InvalidSchemaMutationException.class,
+				() -> entitySchemaBuilder.withReflectedReferenceToEntity(
+					"marketingBrand",
+					"Brand",
+					"productsInBrand",
+					whichIs -> whichIs.withConflictResolutionOverride(ConflictResolutionOverride.GRANULAR)
+				)
+			);
+
+			final String message = ex.getMessage();
+			assertTrue(
+				message.contains("reflected reference"),
+				"Expected message to mention reflected reference, got: " + message
+			);
+			assertTrue(
+				message.contains("inherited"),
+				"Expected message to mention inheritance from the target reference, got: " + message
+			);
 		}
 	}
 

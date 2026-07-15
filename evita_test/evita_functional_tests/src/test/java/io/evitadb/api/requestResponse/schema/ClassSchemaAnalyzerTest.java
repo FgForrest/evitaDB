@@ -4991,6 +4991,59 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 			);
 		}
 
+		@DisplayName("Re-deriving from a model class whose annotation omits a conflict resolution preserves an explicit per-item override")
+		@Test
+		void shouldPreservePerItemOverrideWhenReDerivedFromDefaultAnnotation() {
+			ClassSchemaAnalyzerTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					// derive the schema from a model class that carries no conflict-resolution annotation
+					session.defineEntitySchemaFromModelClass(ConflictResolutionDefaultEntity.class);
+
+					// explicitly opt an attribute and an associated data into their own conflict key through the
+					// fluent schema builder - these route through two distinct reconciliation sites in the analyzer
+					session.getEntitySchema("ConflictResolutionDefaultEntity")
+						.orElseThrow()
+						.openForWrite()
+						.withAttribute(
+							"plainCode", String.class,
+							whichIs -> whichIs.withConflictResolutionOverride(ConflictResolutionOverride.GRANULAR))
+						.withAssociatedData(
+							"plainData", String.class,
+							whichIs -> whichIs.withConflictResolutionOverride(ConflictResolutionOverride.GRANULAR))
+						.updateVia(session);
+
+					// sanity: the explicit overrides are now in place
+					final SealedEntitySchema afterOverride = session.getEntitySchema("ConflictResolutionDefaultEntity")
+						.orElseThrow();
+					assertEquals(
+						ConflictResolutionOverride.GRANULAR,
+						afterOverride.getAttribute("plainCode").orElseThrow().getConflictResolutionOverride()
+					);
+					assertEquals(
+						ConflictResolutionOverride.GRANULAR,
+						afterOverride.getAssociatedData("plainData").orElseThrow().getConflictResolutionOverride()
+					);
+
+					// re-derive from the same annotation-free model class
+					session.defineEntitySchemaFromModelClass(ConflictResolutionDefaultEntity.class);
+
+					// the annotation attributes default to INHERITED, which carries no opinion; reconciliation must
+					// leave the explicitly-set GRANULAR overrides untouched rather than resetting them to INHERITED
+					final SealedEntitySchema afterReDerive = session.getEntitySchema("ConflictResolutionDefaultEntity")
+						.orElseThrow();
+					assertEquals(
+						ConflictResolutionOverride.GRANULAR,
+						afterReDerive.getAttribute("plainCode").orElseThrow().getConflictResolutionOverride()
+					);
+					assertEquals(
+						ConflictResolutionOverride.GRANULAR,
+						afterReDerive.getAssociatedData("plainData").orElseThrow().getConflictResolutionOverride()
+					);
+				}
+			);
+		}
+
 		@DisplayName("Reflected references never receive a conflict resolution override")
 		@Test
 		void shouldLeaveReflectedReferenceConflictResolutionInherited() {

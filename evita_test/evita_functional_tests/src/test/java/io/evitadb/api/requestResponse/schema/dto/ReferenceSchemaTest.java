@@ -790,6 +790,16 @@ class ReferenceSchemaTest {
 			assertNotEquals(a, b);
 		}
 
+		@Test
+		@DisplayName("should not be equal when conflict resolution override differs")
+		void shouldNotBeEqualWhenConflictResolutionOverrideDiffers() {
+			final ReferenceSchema a = createBrandRefWithOverride(ConflictResolutionOverride.INHERITED);
+			final ReferenceSchema b = createBrandRefWithOverride(ConflictResolutionOverride.GRANULAR);
+
+			assertNotEquals(a, b);
+			assertNotEquals(a.hashCode(), b.hashCode());
+		}
+
 		private static ReferenceSchema createBrandRef() {
 			return ReferenceSchema._internalBuild(
 				"brand", "Brand", true,
@@ -799,6 +809,41 @@ class ReferenceSchemaTest {
 					new ScopedReferenceIndexType(Scope.LIVE, ReferenceIndexType.FOR_FILTERING)
 				},
 				null
+			);
+		}
+
+		/**
+		 * Builds a managed "brand" reference identical in every respect except the supplied
+		 * conflict resolution override, so equality and hash-code differences can be attributed
+		 * solely to that field.
+		 *
+		 * @param override the per-reference conflict resolution override to apply
+		 * @return a reference schema carrying the given override
+		 */
+		private static ReferenceSchema createBrandRefWithOverride(
+			@Nonnull ConflictResolutionOverride override
+		) {
+			return ReferenceSchema._internalBuild(
+				"brand",
+				NamingConvention.generate("brand"),
+				null, null, Cardinality.ZERO_OR_ONE,
+				"Brand",
+				Collections.emptyMap(),
+				true,
+				null,
+				Collections.emptyMap(),
+				false,
+				Map.of(Scope.LIVE, ReferenceIndexType.FOR_FILTERING),
+				ReferenceSchema.defaultIndexedComponents(
+					Map.of(Scope.LIVE, ReferenceIndexType.FOR_FILTERING)
+				),
+				Collections.emptySet(),
+				Collections.emptyMap(),
+				Collections.emptyMap(),
+				Collections.emptyMap(),
+				Collections.emptyMap(),
+				Collections.emptyMap(),
+				override
 			);
 		}
 	}

@@ -23,6 +23,7 @@
 
 package io.evitadb.api.requestResponse.schema.model;
 
+import io.evitadb.api.requestResponse.data.annotation.AssociatedData;
 import io.evitadb.api.requestResponse.data.annotation.Attribute;
 import io.evitadb.api.requestResponse.data.annotation.Entity;
 import io.evitadb.api.requestResponse.data.annotation.PrimaryKey;
@@ -50,5 +51,8 @@ public class ConflictResolutionDefaultEntity {
 
 	@Attribute(name = "plainName")
 	private String plainName;
+
+	@AssociatedData(name = "plainData")
+	private String plainData;
 
 }

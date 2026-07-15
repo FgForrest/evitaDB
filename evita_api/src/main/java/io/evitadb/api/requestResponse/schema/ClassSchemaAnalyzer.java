@@ -399,8 +399,11 @@ public class ClassSchemaAnalyzer {
 				editor.indexDecimalPlaces(attributeAnnotation.indexedDecimalPlaces());
 			}
 			// conflict resolution granularity override - reconcile with annotation (covers entity, global and
-			// reference attributes, which all route through this consumer)
-			if (attributeAnnotation.conflictResolution() != editor.getConflictResolutionOverride()) {
+			// reference attributes, which all route through this consumer). A defaulted (INHERITED) annotation
+			// carries no opinion and must never overwrite an explicit override set through the fluent builder,
+			// otherwise an idempotent re-derivation would silently reset it back to INHERITED.
+			if (attributeAnnotation.conflictResolution() != ConflictResolutionOverride.INHERITED &&
+				attributeAnnotation.conflictResolution() != editor.getConflictResolutionOverride()) {
 				editor.withConflictResolutionOverride(attributeAnnotation.conflictResolution());
 			}
 		};
@@ -1591,8 +1594,11 @@ public class ClassSchemaAnalyzer {
 				} else if (!associatedDataAnnotation.localized() && whichIs.isLocalized()) {
 					whichIs.localized(() -> false);
 				}
-				// conflict resolution granularity override - reconcile with annotation
-				if (associatedDataAnnotation.conflictResolution() != whichIs.getConflictResolutionOverride()) {
+				// conflict resolution granularity override - reconcile with annotation. A defaulted (INHERITED)
+				// annotation carries no opinion and must never overwrite an explicit override set through the
+				// fluent builder, otherwise an idempotent re-derivation would silently reset it to INHERITED.
+				if (associatedDataAnnotation.conflictResolution() != ConflictResolutionOverride.INHERITED &&
+					associatedDataAnnotation.conflictResolution() != whichIs.getConflictResolutionOverride()) {
 					whichIs.withConflictResolutionOverride(associatedDataAnnotation.conflictResolution());
 				}
 			}
@@ -1675,8 +1681,11 @@ public class ClassSchemaAnalyzer {
 			applyReferenceScopedProperties(editor, reference);
 
 			// conflict resolution granularity override - reconcile with annotation (reflected references are
-			// read projections and deliberately never receive an override)
-			if (reference.conflictResolution() != editor.getConflictResolutionOverride()) {
+			// read projections and deliberately never receive an override). A defaulted (INHERITED) annotation
+			// carries no opinion and must never overwrite an explicit override set through the fluent builder,
+			// otherwise an idempotent re-derivation would silently reset it back to INHERITED.
+			if (reference.conflictResolution() != ConflictResolutionOverride.INHERITED &&
+				reference.conflictResolution() != editor.getConflictResolutionOverride()) {
 				editor.withConflictResolutionOverride(reference.conflictResolution());
 			}
 

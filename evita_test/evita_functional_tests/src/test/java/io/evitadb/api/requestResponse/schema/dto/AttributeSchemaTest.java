@@ -373,6 +373,16 @@ class AttributeSchemaTest {
 
 			assertNotEquals(a, b);
 		}
+
+		@Test
+		@DisplayName("should not be equal when conflict resolution override differs")
+		void shouldNotBeEqualWhenConflictResolutionOverrideDiffers() {
+			final AttributeSchema a = AttributeSchema._internalBuild("code", String.class, false, ConflictResolutionOverride.INHERITED);
+			final AttributeSchema b = AttributeSchema._internalBuild("code", String.class, false, ConflictResolutionOverride.GRANULAR);
+
+			assertNotEquals(a, b);
+			assertNotEquals(a.hashCode(), b.hashCode());
+		}
 	}
 
 	@Nested

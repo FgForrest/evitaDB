@@ -184,5 +184,21 @@ class AssociatedDataSchemaTest {
 
 			assertNotEquals(a, b);
 		}
+
+		@Test
+		@DisplayName("should not be equal when conflict resolution override differs")
+		void shouldNotBeEqualWhenConflictResolutionOverrideDiffers() {
+			final AssociatedDataSchema a = AssociatedDataSchema._internalBuild(
+				"data", null, null, String.class, false, false,
+				ConflictResolutionOverride.INHERITED
+			);
+			final AssociatedDataSchema b = AssociatedDataSchema._internalBuild(
+				"data", null, null, String.class, false, false,
+				ConflictResolutionOverride.GRANULAR
+			);
+
+			assertNotEquals(a, b);
+			assertNotEquals(a.hashCode(), b.hashCode());
+		}
 	}
 }
