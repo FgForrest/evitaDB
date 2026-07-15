@@ -646,7 +646,7 @@ public class EvitaServer {
 	 */
 	public void run() {
 		if (this.evita == null) {
-			this.evita = new Evita(this.evitaConfiguration, false);
+			this.evita = new Evita(this.evitaConfiguration, false, null, null, false);
 		}
 		this.externalApiServer = new ExternalApiServer(
 			this.evita, this.evitaServerConfiguration.api(), this.externalApiProviders

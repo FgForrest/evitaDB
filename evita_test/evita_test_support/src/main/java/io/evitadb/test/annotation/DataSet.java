@@ -90,4 +90,19 @@ public @interface DataSet {
 	 */
 	CatalogState expectedCatalogState() default CatalogState.ALIVE;
 
+	/**
+	 * When set to true this dataset runs its evitaDB server on real (asynchronous) thread pools instead of the
+	 * deterministic direct/immediate executor the test lane uses by default.
+	 *
+	 * The direct executor collapses the request pool and the scheduler into an immediate executor so that, under
+	 * CPU-saturated parallel test execution, no asynchronous handoff can introduce timing flakiness. That determinism
+	 * is what most tests rely on. A handful of behaviours only manifest under real pools — the gRPC session
+	 * cancellation cascade and the change-data-capture register-then-mutate ordering — and can only be regression
+	 * tested with production-like asynchronous execution. Opt those datasets in with this flag.
+	 *
+	 * Do not enable it for datasets whose tests mutate a catalog schema and then immediately query the regenerated
+	 * REST/GraphQL API: that API rebuild is asynchronous under real pools, so the follow-up call would race it.
+	 */
+	boolean useRealThreadPools() default false;
+
 }

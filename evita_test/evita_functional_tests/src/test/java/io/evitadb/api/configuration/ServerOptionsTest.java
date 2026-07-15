@@ -135,7 +135,7 @@ class ServerOptionsTest {
 				ServerOptions
 					.DEFAULT_CLOSE_SESSIONS_AFTER_SECONDS_OF_INACTIVITY,
 				null, null,
-				false, false, false
+				false, false
 			);
 
 			assertNotNull(options.requestThreadPool());
@@ -158,7 +158,7 @@ class ServerOptionsTest {
 				ServerOptions
 					.DEFAULT_CLOSE_SESSIONS_AFTER_SECONDS_OF_INACTIVITY,
 				null, null,
-				false, false, false
+				false, false
 			);
 
 			assertNotNull(options.changeDataCapture());
