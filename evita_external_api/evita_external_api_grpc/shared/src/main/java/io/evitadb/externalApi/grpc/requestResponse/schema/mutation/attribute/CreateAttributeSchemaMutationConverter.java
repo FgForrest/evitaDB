@@ -105,6 +105,7 @@ public class CreateAttributeSchemaMutationConverter implements SchemaMutationCon
 			)
 			.setLocalized(mutation.isLocalized())
 			.setNullable(mutation.isNullable())
+			.setRepresentative(mutation.isRepresentative())
 			.setType(EvitaDataTypesConverter.toGrpcEvitaDataType(mutation.getType()))
 			.setIndexedDecimalPlaces(mutation.getIndexedDecimalPlaces())
 			.setConflictResolutionOverride(toGrpcConflictResolutionOverride(mutation.getConflictResolutionOverride()));

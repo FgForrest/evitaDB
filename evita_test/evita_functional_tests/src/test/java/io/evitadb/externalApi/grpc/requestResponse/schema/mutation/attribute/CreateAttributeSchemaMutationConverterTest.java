@@ -25,11 +25,13 @@ package io.evitadb.externalApi.grpc.requestResponse.schema.mutation.attribute;
 
 import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.CreateAttributeSchemaMutation;
+import io.evitadb.externalApi.grpc.generated.GrpcCreateAttributeSchemaMutation;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static io.evitadb.test.TestTags.GRPC;
 import static io.evitadb.test.TestTags.EXTERNAL_API;
 import static io.evitadb.test.TestTags.QUERY;
@@ -83,5 +85,29 @@ class CreateAttributeSchemaMutationConverterTest {
 			0
 		);
 		assertEquals(mutation2, converter.convert(converter.convert(mutation2)));
+	}
+
+	@Test
+	void shouldRoundTripRepresentativeFlagThroughGrpc() {
+		final CreateAttributeSchemaMutation mutation = new CreateAttributeSchemaMutation(
+			"code",
+			"desc",
+			"depr",
+			AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION,
+			true,
+			true,
+			true,
+			false,
+			true,
+			String.class,
+			"defaultCode",
+			0
+		);
+
+		final GrpcCreateAttributeSchemaMutation grpcMutation = converter.convert(mutation);
+		assertTrue(grpcMutation.getRepresentative());
+
+		final CreateAttributeSchemaMutation roundTrip = converter.convert(grpcMutation);
+		assertTrue(roundTrip.isRepresentative());
 	}
 }
