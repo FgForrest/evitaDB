@@ -1981,15 +1981,6 @@ public final class Catalog
 	}
 
 	/**
-	 * Determines if a granular (sub-entity level) conflict policy is used.
-	 *
-	 * @return true if a granular conflict policy is enabled; false otherwise
-	 */
-	public boolean hasGranularConflictPolicy() {
-		return this.transactionManager.hasGranularConflictPolicy();
-	}
-
-	/**
 	 * Marks the given entity type as dirty for trigger-registry rebuild. If a batch frame is
 	 * active on {@link #PENDING_TRIGGER_REBUILDS} the entity type is appended there and the
 	 * rebuild is deferred to the end of the enclosing `updateSchema(...)` call; otherwise the

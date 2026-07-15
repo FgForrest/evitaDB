@@ -32,7 +32,7 @@ import java.util.Optional;
 
 /**
  * Resolves the effective entity-level {@link ConflictResolution} for a given entity type by walking the
- * schema precedence chain mandated by issue #503:
+ * schema precedence chain:
  *
  * entity-schema resolution → catalog-schema resolution → engine default.
  *
@@ -87,6 +87,41 @@ public final class EffectiveConflictResolutionResolver {
 		}
 		// then the catalog schema's resolution, finally the engine default
 		return catalogSchema.getConflictResolution().orElse(engineDefault);
+	}
+
+	/**
+	 * Diagnostic counterpart of {@link #resolve} that, in addition to the effective resolution, reports the
+	 * {@link ConflictResolutionLayer schema layer} the resolution was taken from. Intended for the cold
+	 * conflict-reporting path only — it walks the same precedence but allocates a small result record and is
+	 * therefore not used on the hot key-generation path.
+	 *
+	 * @param catalogSchema the catalog schema whose (nullable) resolution overrides the engine default,
+	 *                      must not be null
+	 * @param entitySchema  the entity schema whose (nullable) resolution overrides the catalog resolution;
+	 *                      may be null when the conflicting key carries no entity type (a catalog-wide key)
+	 *                      or the entity type has no schema, in which case the catalog/engine levels apply
+	 * @param engineDefault the engine-wide default resolution used when neither schema declares one, must
+	 *                      not be null
+	 * @return the resolved resolution paired with the layer it came from, never null
+	 */
+	@Nonnull
+	public static ResolvedConflictResolution resolveWithSource(
+		@Nonnull CatalogSchemaContract catalogSchema,
+		@Nullable EntitySchemaContract entitySchema,
+		@Nonnull ConflictResolution engineDefault
+	) {
+		// most specific level first: the entity schema's own resolution wins entirely when present
+		if (entitySchema != null) {
+			final Optional<ConflictResolution> entityLevel = entitySchema.getConflictResolution();
+			if (entityLevel.isPresent()) {
+				return new ResolvedConflictResolution(entityLevel.get(), ConflictResolutionLayer.ENTITY_SCHEMA);
+			}
+		}
+		// then the catalog schema's resolution, finally the engine default
+		final Optional<ConflictResolution> catalogLevel = catalogSchema.getConflictResolution();
+		return catalogLevel
+			.map(cr -> new ResolvedConflictResolution(cr, ConflictResolutionLayer.CATALOG_SCHEMA))
+			.orElseGet(() -> new ResolvedConflictResolution(engineDefault, ConflictResolutionLayer.ENGINE_DEFAULT));
 	}
 
 }

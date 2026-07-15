@@ -25,9 +25,12 @@ package io.evitadb.api.exception;
 
 
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolution;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionLayer;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.Serial;
 
 /**
@@ -75,6 +78,18 @@ public class ConflictingCatalogMutationException extends TransactionException {
 	@Getter private final long catalogVersion;
 
 	/**
+	 * The effective conflict resolution that was in force for the conflicting scope, or {@code null} when the
+	 * exception was raised without diagnostic resolution context.
+	 */
+	@Getter @Nullable private final ConflictResolution resolvedConflictResolution;
+
+	/**
+	 * The schema layer the {@link #resolvedConflictResolution} was taken from (entity / catalog / engine), or
+	 * {@code null} when the exception was raised without diagnostic resolution context.
+	 */
+	@Getter @Nullable private final ConflictResolutionLayer resolutionLayer;
+
+	/**
 	 * Creates a new exception describing a mutation conflict for the given catalog and
 	 * conflict key.
 	 *
@@ -89,14 +104,39 @@ public class ConflictingCatalogMutationException extends TransactionException {
 		@Nonnull ConflictKey conflictKey,
 		long catalogVersion
 	) {
-		super(
-			"Conflicting mutations detected in catalog `" + catalogName + "` for conflict key: " + conflictKey + " " +
-				"between your transaction and transactions that committed before you. " +
-				"Conflicting change occurred exactly at catalog version: " + catalogVersion + ". "
-		);
+		super(composeMessage(catalogName, conflictKey, catalogVersion, null));
 		this.catalogName = catalogName;
 		this.conflictKey = conflictKey;
 		this.catalogVersion = catalogVersion;
+		this.resolvedConflictResolution = null;
+		this.resolutionLayer = null;
+	}
+
+	/**
+	 * Creates a new exception describing a mutation conflict enriched with the resolved conflict-resolution
+	 * diagnostics: the policy that was in force for the conflicting scope and the schema layer it was
+	 * resolved from. The diagnostic detail is folded into the exception message so it survives serialization
+	 * across the client boundary in addition to being available through the getters.
+	 *
+	 * @param catalogName               name of the catalog where the conflict occurred
+	 * @param conflictKey               key identifying the conflicting mutation scope
+	 * @param catalogVersion            the exact catalog version where the conflicting change was committed
+	 * @param resolvedConflictResolution the effective resolution that was in force for the conflicting scope
+	 * @param resolutionLayer           the schema layer the resolution was taken from
+	 */
+	public ConflictingCatalogMutationException(
+		@Nonnull String catalogName,
+		@Nonnull ConflictKey conflictKey,
+		long catalogVersion,
+		@Nonnull ConflictResolution resolvedConflictResolution,
+		@Nonnull ConflictResolutionLayer resolutionLayer
+	) {
+		super(composeMessage(catalogName, conflictKey, catalogVersion, buildDiagnostics(resolvedConflictResolution, resolutionLayer)));
+		this.catalogName = catalogName;
+		this.conflictKey = conflictKey;
+		this.catalogVersion = catalogVersion;
+		this.resolvedConflictResolution = resolvedConflictResolution;
+		this.resolutionLayer = resolutionLayer;
 	}
 
     /**
@@ -113,14 +153,63 @@ public class ConflictingCatalogMutationException extends TransactionException {
         long catalogVersion,
         @Nonnull String additionalMessage
     ) {
-        super(
-            "Conflicting mutations detected in catalog `" + catalogName + "` for conflict key: " + conflictKey + " " +
-                "between your transaction and transactions that committed before you. " +
-                "Conflicting change occurred exactly at catalog version: " + catalogVersion + ". " + additionalMessage
-        );
+        super(composeMessage(catalogName, conflictKey, catalogVersion, additionalMessage));
         this.catalogName = catalogName;
         this.conflictKey = conflictKey;
         this.catalogVersion = catalogVersion;
+        this.resolvedConflictResolution = null;
+        this.resolutionLayer = null;
     }
+
+	/**
+	 * Composes the exception message: the common conflict preamble (catalog, conflict key, committed version)
+	 * optionally followed by an additional diagnostic sentence.
+	 *
+	 * @param catalogName       name of the catalog where the conflict occurred, must not be null
+	 * @param conflictKey       key identifying the conflicting mutation scope, must not be null
+	 * @param catalogVersion    the exact catalog version where the conflicting change was committed
+	 * @param additionalMessage extra diagnostic detail to append, or {@code null} for none
+	 * @return the fully composed exception message
+	 */
+	@Nonnull
+	private static String composeMessage(
+		@Nonnull String catalogName,
+		@Nonnull ConflictKey conflictKey,
+		long catalogVersion,
+		@Nullable String additionalMessage
+	) {
+		final StringBuilder sb = new StringBuilder(256);
+		sb.append("Conflicting mutations detected in catalog `").append(catalogName)
+			.append("` for conflict key: ").append(conflictKey).append(' ')
+			.append("between your transaction and transactions that committed before you. ")
+			.append("Conflicting change occurred exactly at catalog version: ").append(catalogVersion).append(". ");
+		if (additionalMessage != null) {
+			sb.append(additionalMessage);
+		}
+		return sb.toString();
+	}
+
+	/**
+	 * Renders the resolved conflict-resolution diagnostics into a human-readable sentence appended to the
+	 * base conflict message: the coarse policy that was in force, any granular refinement, and the schema
+	 * layer the policy was resolved from.
+	 *
+	 * @param resolution the effective resolution that was in force, must not be null
+	 * @param layer      the schema layer the resolution was taken from, must not be null
+	 * @return a diagnostic sentence describing the resolved policy and its source layer
+	 */
+	@Nonnull
+	private static String buildDiagnostics(
+		@Nonnull ConflictResolution resolution,
+		@Nonnull ConflictResolutionLayer layer
+	) {
+		final StringBuilder sb = new StringBuilder(128);
+		sb.append("The effective conflict resolution in force was `").append(resolution.policy()).append('`');
+		if (!resolution.granularity().isEmpty()) {
+			sb.append(" with granular refinement ").append(resolution.granularity());
+		}
+		sb.append(", resolved from the ").append(layer).append(" layer.");
+		return sb.toString();
+	}
 
 }

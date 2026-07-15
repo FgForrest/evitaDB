@@ -47,7 +47,6 @@ import io.evitadb.core.traffic.TrafficRecordingEngine.MutationApplicationRecord;
 import io.evitadb.core.transaction.Transaction;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer.Savepoint;
-import io.evitadb.core.transaction.stage.mutation.EntityRemoveMutationWithConflictKeys;
 import io.evitadb.core.transaction.stage.mutation.ServerEntityMutation;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
@@ -286,19 +285,14 @@ class LocalMutationExecutorCollector {
 			this.level++;
 
 			final List<? extends LocalMutation<?, ?>> localMutations;
-			if (entityMutation instanceof EntityRemoveMutation erm) {
+			if (entityMutation instanceof EntityRemoveMutation) {
+				// fetch the full entity body so the removal can be decomposed into the local mutations
+				// that actually apply it — this is required to execute the removal, not to derive conflict
+				// keys: conflict detection works by scope containment, so a plain entity-remove mutation
+				// (emitting the coarse entity conflict key) already conflicts with any concurrent
+				// finer-grained write to the same entity
 				result = getFullEntityContents(changeCollector);
 				localMutations = computeLocalMutationsForEntityRemoval(result.entity());
-				// collect conflict keys for removal mutation
-				if (this.catalog.hasGranularConflictPolicy()) {
-					// we need to wrap the remove mutation to one which takes granular conflict keys into account
-					// and this requires to fetch full entity body to compute all conflict keys
-					entityMutation = new EntityRemoveMutationWithConflictKeys(
-						erm,
-						this.catalog.getConflictResolution(),
-						localMutations
-					);
-				}
 			} else if (entityMutation instanceof EntityUpsertMutation) {
 				localMutations = entityMutation.getLocalMutations();
 				entityIndexUpdater.prepare(localMutations);

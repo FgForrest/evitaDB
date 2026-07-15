@@ -38,8 +38,16 @@ import java.util.List;
 import java.util.stream.Stream;
 
 /**
- * Artificial mutation that wraps {@link EntityRemoveMutation} and is able to provide conflict keys based reflecting
- * all the local mutations that were used to remove it completely.
+ * Artificial mutation that wraps {@link EntityRemoveMutation} and is able to provide conflict keys reflecting
+ * all the local mutations that were used to remove the entity completely.
+ *
+ * This class is no longer created at runtime: conflict detection now works by scope containment, so a plain
+ * entity-remove mutation (emitting the coarse entity conflict key) already conflicts with any concurrent
+ * finer-grained write to the same entity, making the granular decomposition unnecessary. The class is retained
+ * solely because its write-ahead-log serializer is registered under a fixed positional class id in
+ * {@code WalKryoConfigurer}: that registration is part of the released WAL wire format and cannot be removed
+ * without shifting every subsequent class id, so any previously persisted log that recorded this class id must
+ * still deserialize (the serializer resolves it back to a plain {@link EntityRemoveMutation}).
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */

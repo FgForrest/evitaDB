@@ -684,4 +684,24 @@ class ConflictKeyTest implements EvitaTestSupport {
 			assertEquals(new CollectionConflictKey("Product"), delta.parentConflictKey());
 		}
 	}
+
+	@Nested
+	@DisplayName("entityType accessor")
+	class EntityTypeAccessorTest {
+
+		@Test
+		@DisplayName("entity-scoped keys report their entity type")
+		void shouldReportEntityTypeForEntityScopedKeys() {
+			assertEquals("Product", new EntityConflictKey("Product", 1).entityType());
+			assertEquals("Product", new CollectionConflictKey("Product").entityType());
+			assertEquals("Product", new AttributeConflictKey("Product", 1, "name").entityType());
+		}
+
+		@Test
+		@DisplayName("catalog-wide key reports no entity type")
+		void shouldReportNoEntityTypeForCatalogKey() {
+			// the catalog-wide key is not bound to any single collection, so it falls back to the null default
+			assertNull(new CatalogConflictKey("someCatalog").entityType());
+		}
+	}
 }

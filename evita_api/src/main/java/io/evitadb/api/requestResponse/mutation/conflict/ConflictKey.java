@@ -57,4 +57,20 @@ public interface ConflictKey {
 		return null;
 	}
 
+	/**
+	 * Returns the entity type this key is scoped to, or {@code null} for a catalog-wide key that is not
+	 * bound to any single collection. Every key except {@link CatalogConflictKey} is a record carrying an
+	 * {@code entityType} component, so the record accessor satisfies this method automatically; the
+	 * catalog-wide key falls back to this {@code null} default.
+	 *
+	 * Used by the conflict-reporting path to look up the entity schema and resolve which policy was in
+	 * force; it is not consulted during matching.
+	 *
+	 * @return the scoped entity type, or {@code null} for a catalog-wide key
+	 */
+	@Nullable
+	default String entityType() {
+		return null;
+	}
+
 }

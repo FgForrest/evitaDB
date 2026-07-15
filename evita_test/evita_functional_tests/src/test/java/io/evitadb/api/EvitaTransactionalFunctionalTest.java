@@ -1650,6 +1650,74 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 		);
 	}
 
+	@DisplayName("When a committed entity removal races an incoming granular attribute update under granular policy, conflict is raised.")
+	@UseDataSet(value = TRANSACTIONAL_DATA_SET, destroyAfterTest = true)
+	@Test
+	void shouldRaiseConflictWhenRemovalRacesGranularAttributeUpdate(
+		EvitaContract originalEvita, SealedEntitySchema productSchema) throws Exception {
+		// under a granular policy an entity removal emits only the coarse entity conflict key; scope
+		// containment must still make it conflict with a concurrent finer-grained attribute update to the
+		// same entity (the entity key contains the attribute key)
+		final TransactionOptions txOptions = ((Evita) originalEvita).getConfiguration().transaction();
+		final Evita evita = reinitializeEvitaWithConfig(
+			originalEvita,
+			builder -> builder.transaction(
+				TransactionOptions.builder(txOptions)
+					.conflictPolicy(ConflictPolicy.ENTITY, ConflictPolicy.ENTITY_ATTRIBUTE)
+					.build()
+			)
+		);
+
+		final SealedEntity addedEntity = evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				final BiFunction<String, Faker, Integer> randomEntityPicker = (entityType, faker) -> RANDOM_ENTITY_PICKER.apply(
+					entityType, session, faker);
+				final Optional<SealedEntity> upsertedEntity = this.dataGenerator.generateEntities(
+						productSchema, randomEntityPicker, SEED)
+					.limit(1)
+					.map(session::upsertAndFetchEntity)
+					.findFirst();
+				assertTrue(upsertedEntity.isPresent());
+				return upsertedEntity.get();
+			}
+		);
+
+		assertThrows(
+			ConflictingCatalogMutationException.class,
+			() -> evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					final SealedEntity theEntity = session.getEntity(
+							productSchema.getName(), addedEntity.getPrimaryKey(), entityFetchAllContent()
+						)
+						.orElseThrow();
+					final Long basePriority = theEntity.getAttribute(ATTRIBUTE_PRIORITY, Long.class);
+
+					// incoming transaction updates a single attribute (granular scope)
+					theEntity
+						.openForWrite()
+						.setAttribute(ATTRIBUTE_PRIORITY, basePriority + 100L)
+						.upsertVia(session);
+
+					try {
+						// concurrent transaction removes the whole entity and commits first
+						executeConcurrentUpdate(
+							evita, TEST_CATALOG,
+							concurrentSession -> concurrentSession.deleteEntity(
+								productSchema.getName(), addedEntity.getPrimaryKey()
+							)
+						);
+					} catch (InterruptedException e) {
+						fail("Test thread was interrupted!", e);
+					}
+
+					log.info("Attempting to commit conflicting transaction...");
+				}
+			)
+		);
+	}
+
 	@DisplayName("When two parallel transactions update same product on conflicting granular level (same attributes) via reference attribute delta mutation, no conflict is raised.")
 	@UseDataSet(value = TRANSACTIONAL_DATA_SET, destroyAfterTest = true)
 	@Test
@@ -1968,6 +2036,88 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 					}
 
 					log.info("Attempting to commit conflicting transaction...");
+				}
+			)
+		);
+	}
+
+	@DisplayName("When a committed reference removal races an incoming update of an attribute on the same reference, conflict is raised.")
+	@UseDataSet(value = TRANSACTIONAL_DATA_SET, destroyAfterTest = true)
+	@Test
+	void shouldRaiseConflictWhenReferenceRemovalRacesReferenceAttributeUpdate(
+		EvitaContract originalEvita, SealedEntitySchema productSchema
+	) throws Exception {
+		// removing a reference must conflict with a concurrent update to that reference's attribute: the
+		// coarse reference key contains the finer reference-attribute key through the ancestor chain
+		final Evita evita = reinitializeEvitaWithConfig(
+			originalEvita,
+			builder -> builder.transaction(
+				TransactionOptions.builder(builder.build().transaction())
+					.conflictPolicy(ConflictPolicy.ENTITY, ConflictPolicy.REFERENCE, ConflictPolicy.REFERENCE_ATTRIBUTE)
+					.build()
+			)
+		);
+
+		final SealedEntity addedEntity = evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				final BiFunction<String, Faker, Integer> randomEntityPicker = (entityType, faker) -> RANDOM_ENTITY_PICKER.apply(
+					entityType, session, faker);
+				final Optional<SealedEntity> upsertedEntity = this.dataGenerator.generateEntities(
+						productSchema, randomEntityPicker, SEED)
+					.limit(1)
+					.map(session::upsertAndFetchEntity)
+					.findFirst();
+				assertTrue(upsertedEntity.isPresent());
+				return upsertedEntity.get();
+			}
+		);
+
+		assertThrows(
+			ConflictingCatalogMutationException.class,
+			() -> evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					final SealedEntity theEntity = session.getEntity(
+							productSchema.getName(), addedEntity.getPrimaryKey(), entityFetchAllContent())
+						.orElseThrow();
+					final ReferenceKey referenceKey = theEntity
+						.getReferences(Entities.STORE)
+						.stream()
+						.filter(it -> it.getAttribute(STORE_PRIORITY) != null)
+						.map(ReferenceContract::getReferenceKey)
+						.findFirst()
+						.orElseThrow();
+
+					// the incoming transaction updates the attribute of the store reference
+					theEntity
+						.openForWrite()
+						.mutate(
+							new ReferenceAttributeMutation(
+								referenceKey,
+								new ApplyDeltaAttributeMutation<>(STORE_PRIORITY, 1L)
+							)
+						)
+						.upsertVia(session);
+
+					try {
+						// the concurrent transaction removes that very reference and commits first
+						executeConcurrentUpdate(
+							evita, TEST_CATALOG, concurrentSession ->
+								concurrentSession.getEntity(
+										productSchema.getName(), addedEntity.getPrimaryKey(),
+										entityFetchAllContent()
+									)
+									.orElseThrow()
+									.openForWrite()
+									.removeReference(referenceKey)
+									.upsertVia(concurrentSession)
+						);
+					} catch (InterruptedException e) {
+						fail("Test thread was interrupted!", e);
+					}
+
+					log.info("Attempting to commit reference-attribute update after concurrent reference removal...");
 				}
 			)
 		);

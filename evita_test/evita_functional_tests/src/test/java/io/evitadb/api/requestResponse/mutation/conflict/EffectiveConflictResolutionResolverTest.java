@@ -135,4 +135,45 @@ class EffectiveConflictResolutionResolverTest {
 		assertEquals(EnumSet.of(GranularConflictPolicy.ENTITY_ATTRIBUTE), resolved.granularity());
 	}
 
+	@Test
+	@DisplayName("should report the entity-schema layer when the entity schema declares a resolution")
+	void shouldReportEntitySchemaLayerWhenEntityDeclaresOne() {
+		final ResolvedConflictResolution resolved = EffectiveConflictResolutionResolver.resolveWithSource(
+			catalogWith(CATALOG_LEVEL), entityWith(ENTITY_LEVEL), ENGINE_DEFAULT
+		);
+		assertSame(ENTITY_LEVEL, resolved.resolution());
+		assertEquals(ConflictResolutionLayer.ENTITY_SCHEMA, resolved.layer());
+	}
+
+	@Test
+	@DisplayName("should report the catalog-schema layer when only the catalog declares a resolution")
+	void shouldReportCatalogSchemaLayerWhenOnlyCatalogDeclaresOne() {
+		final ResolvedConflictResolution resolved = EffectiveConflictResolutionResolver.resolveWithSource(
+			catalogWith(CATALOG_LEVEL), entityWith(null), ENGINE_DEFAULT
+		);
+		assertSame(CATALOG_LEVEL, resolved.resolution());
+		assertEquals(ConflictResolutionLayer.CATALOG_SCHEMA, resolved.layer());
+	}
+
+	@Test
+	@DisplayName("should report the engine-default layer when neither schema declares a resolution")
+	void shouldReportEngineDefaultLayerWhenNeitherDeclaresOne() {
+		final ResolvedConflictResolution resolved = EffectiveConflictResolutionResolver.resolveWithSource(
+			catalogWith(null), entityWith(null), ENGINE_DEFAULT
+		);
+		assertSame(ENGINE_DEFAULT, resolved.resolution());
+		assertEquals(ConflictResolutionLayer.ENGINE_DEFAULT, resolved.layer());
+	}
+
+	@Test
+	@DisplayName("should report the catalog-schema layer with source when there is no entity schema at all")
+	void shouldReportCatalogSchemaLayerWhenNoEntitySchema() {
+		// a catalog-wide conflict key carries no entity type, so the entity level is skipped entirely
+		final ResolvedConflictResolution resolved = EffectiveConflictResolutionResolver.resolveWithSource(
+			catalogWith(CATALOG_LEVEL), null, ENGINE_DEFAULT
+		);
+		assertSame(CATALOG_LEVEL, resolved.resolution());
+		assertEquals(ConflictResolutionLayer.CATALOG_SCHEMA, resolved.layer());
+	}
+
 }

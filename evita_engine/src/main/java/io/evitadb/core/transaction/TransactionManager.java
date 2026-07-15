@@ -43,7 +43,9 @@ import io.evitadb.api.requestResponse.mutation.conflict.CommutativeConflictKey;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictGenerationContext;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolution;
+import io.evitadb.api.requestResponse.mutation.conflict.EffectiveConflictResolutionResolver;
 import io.evitadb.api.requestResponse.mutation.conflict.IncomingConflictScope;
+import io.evitadb.api.requestResponse.mutation.conflict.ResolvedConflictResolution;
 import io.evitadb.api.requestResponse.mutation.conflict.ReferenceAttributeDeltaConflictKey;
 import io.evitadb.api.requestResponse.mutation.infrastructure.TransactionMutation;
 import io.evitadb.api.requestResponse.progress.ProgressingFuture;
@@ -244,10 +246,6 @@ public class TransactionManager implements Closeable {
 	 */
 	private final ConflictResolution conflictResolution;
 	/**
-	 * Indicates whether any of the conflict policies is granular.
-	 */
-	private final boolean granularConflictPolicy;
-	/**
 	 * Name of the catalog.
 	 */
 	private String catalogName;
@@ -337,7 +335,6 @@ public class TransactionManager implements Closeable {
 		this.evita = evita;
 		this.configuration = evita.getConfiguration();
 		this.conflictResolution = this.configuration.transaction().conflictPolicy();
-		this.granularConflictPolicy = this.conflictResolution.hasGranularity();
 		this.requestExecutor = requestExecutor;
 		this.transactionalExecutor = transactionalExecutor;
 		this.transactionalPipeline = createTransactionalPublisher();
@@ -939,21 +936,46 @@ public class TransactionManager implements Closeable {
             // (or a containing) scope — the delete/set-vs-delta case the accumulation above cannot express.
             // Probing from the parent keeps delta-vs-delta of the same key commuting.
             if (incomingScope.conflictsWithCommutative(conflictKey)) {
-                throw new ConflictingCatalogMutationException(
-                    this.catalogName,
-                    conflictKey,
-                    processedCatalogVersion
-                );
+                throw conflictException(conflictKey, processedCatalogVersion, theLivingCatalog);
             }
         } else if (incomingScope.conflictsWithAbsolute(conflictKey)) {
             // the committed key's write scope overlaps the incoming transaction's write scope
-            throw new ConflictingCatalogMutationException(
-                this.catalogName,
-                conflictKey,
-                processedCatalogVersion
-            );
+            throw conflictException(conflictKey, processedCatalogVersion, theLivingCatalog);
         }
     }
+
+	/**
+	 * Builds a {@link ConflictingCatalogMutationException} enriched with the conflict-resolution diagnostics
+	 * for the offending key: the policy that was in force for its scope and the schema layer that policy was
+	 * resolved from. This runs only on the cold conflict-reporting path (a conflict is about to abort the
+	 * transaction), so the extra schema lookup and allocation are inconsequential.
+	 *
+	 * The resolution is derived from the living catalog's current schema rather than reconstructed from the
+	 * historical schema in effect when the conflicting change committed — see the note on the historical
+	 * recompute path; the two agree in every window where they can both fire. A catalog-wide key carries no
+	 * entity type, so the entity schema is skipped and the catalog/engine levels report the layer.
+	 *
+	 * @param conflictKey             the committed key that overlaps the incoming transaction, must not be null
+	 * @param processedCatalogVersion the catalog version at which the conflicting change committed
+	 * @param theLivingCatalog        the current catalog whose schema resolves the effective policy, must not be null
+	 * @return the enriched exception ready to be thrown
+	 */
+	@Nonnull
+	private ConflictingCatalogMutationException conflictException(
+		@Nonnull ConflictKey conflictKey,
+		long processedCatalogVersion,
+		@Nonnull Catalog theLivingCatalog
+	) {
+		final String entityType = conflictKey.entityType();
+		final ResolvedConflictResolution resolved = EffectiveConflictResolutionResolver.resolveWithSource(
+			theLivingCatalog.getSchema(),
+			entityType == null ? null : theLivingCatalog.getEntitySchema(entityType).orElse(null),
+			this.conflictResolution
+		);
+		return new ConflictingCatalogMutationException(
+			this.catalogName, conflictKey, processedCatalogVersion, resolved.resolution(), resolved.layer()
+		);
+	}
 
     /**
      * Creates a commutative conflict resolver for the given conflict key and catalog.
@@ -1346,15 +1368,6 @@ public class TransactionManager implements Closeable {
 	@Nonnull
 	public ConflictResolution getConflictResolution() {
 		return this.conflictResolution;
-	}
-
-	/**
-	 * Determines if a granular (sub-entity level) conflict policy is used.
-	 *
-	 * @return true if a granular conflict policy is enabled; false otherwise
-	 */
-	public boolean hasGranularConflictPolicy() {
-		return this.granularConflictPolicy;
 	}
 
 	/**

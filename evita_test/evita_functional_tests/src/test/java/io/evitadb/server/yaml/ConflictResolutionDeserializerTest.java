@@ -99,6 +99,66 @@ class ConflictResolutionDeserializerTest {
 	}
 
 	@Test
+	@DisplayName("should read a single coarse ENTITY legacy list as ENTITY without granularity")
+	void shouldReadSingleEntityListAsEntity() throws Exception {
+		final ConflictResolution resolution = yamlMapper()
+			.readValue("[ENTITY]", ConflictResolution.class);
+
+		assertEquals(new ConflictResolution(ConflictPolicy.ENTITY), resolution);
+		assertTrue(resolution.granularity().isEmpty());
+	}
+
+	@Test
+	@DisplayName("should read a single coarse COLLECTION legacy list as COLLECTION")
+	void shouldReadSingleCollectionListAsCollection() throws Exception {
+		final ConflictResolution resolution = yamlMapper()
+			.readValue("[COLLECTION]", ConflictResolution.class);
+
+		assertEquals(new ConflictResolution(ConflictPolicy.COLLECTION), resolution);
+	}
+
+	@Test
+	@DisplayName("should imply ENTITY when a legacy list carries only granular members")
+	void shouldImplyEntityForGranularOnlyList() throws Exception {
+		final ConflictResolution resolution = yamlMapper()
+			.readValue("[PRICE, HIERARCHY]", ConflictResolution.class);
+
+		assertEquals(
+			new ConflictResolution(
+				ConflictPolicy.ENTITY,
+				EnumSet.of(GranularConflictPolicy.PRICE, GranularConflictPolicy.HIERARCHY)
+			),
+			resolution
+		);
+	}
+
+	@Test
+	@DisplayName("should keep both the coarse ENTITY policy and its granular members from a mixed legacy list")
+	void shouldKeepEntityAndGranularMembersFromMixedList() throws Exception {
+		final ConflictResolution resolution = yamlMapper()
+			.readValue("[ENTITY, PRICE, HIERARCHY]", ConflictResolution.class);
+
+		assertEquals(
+			new ConflictResolution(
+				ConflictPolicy.ENTITY,
+				EnumSet.of(GranularConflictPolicy.PRICE, GranularConflictPolicy.HIERARCHY)
+			),
+			resolution
+		);
+	}
+
+	@Test
+	@DisplayName("should let a coarse COLLECTION subsume any granular members declared alongside it")
+	void shouldLetCollectionSubsumeGranularMembers() throws Exception {
+		// a collection-wide lock already subsumes any finer refinement present in the same legacy list
+		final ConflictResolution resolution = yamlMapper()
+			.readValue("[COLLECTION, ENTITY_ATTRIBUTE]", ConflictResolution.class);
+
+		assertEquals(new ConflictResolution(ConflictPolicy.COLLECTION), resolution);
+		assertTrue(resolution.granularity().isEmpty());
+	}
+
+	@Test
 	@DisplayName("should default the policy to ENTITY in the object form when granularity is present")
 	void shouldDefaultObjectFormPolicyToEntity() throws Exception {
 		final ConflictResolution resolution = yamlMapper()
