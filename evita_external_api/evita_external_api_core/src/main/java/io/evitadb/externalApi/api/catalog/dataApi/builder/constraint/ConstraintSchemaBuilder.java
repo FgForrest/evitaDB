@@ -358,6 +358,45 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 
 	/**
 	 * Builds fields representing children of constraint container from constraint descriptors of these children.
+	 * This is shortcut method for building all children of {@link ConstraintPropertyType#GROUP} property type.
+	 * Unlike {@link #buildEntityChildren}, there's no root-level fallback: a GROUP-typed constraint only makes
+	 * sense when nested in a reference/facet scope whose reference schema actually declares a group type.
+	 */
+	@Nonnull
+	protected List<OBJECT_FIELD> buildGroupChildren(@Nonnull ConstraintBuildContext buildContext,
+	                                                @Nonnull AllowedConstraintPredicate allowedChildrenPredicate) {
+		final DataLocator parentDataLocator = buildContext.dataLocator();
+		if (!(parentDataLocator instanceof final DataLocatorWithReference dataLocatorWithReference)) {
+			return List.of();
+		}
+		final String referenceName = dataLocatorWithReference.referenceName();
+		if (referenceName == null) {
+			return List.of();
+		}
+
+		final ReferenceSchemaContract referenceSchema = this.sharedContext.getEntitySchemaOrThrowException(parentDataLocator.entityType())
+			.getReferenceOrThrowException(referenceName);
+		final String referencedGroupType = referenceSchema.getReferencedGroupType();
+		if (referencedGroupType == null) {
+			// the reference has no group type configured, so there's no group entity to filter/order/require by
+			return List.of();
+		}
+
+		final DataLocator childDataLocator = new EntityDataLocator(
+			referenceSchema.isReferencedGroupTypeManaged()
+				? new ManagedEntityTypePointer(referencedGroupType)
+				: new ExternalEntityTypePointer(referencedGroupType)
+		);
+
+		return buildBasicChildren(
+			buildContext.switchToChildContext(childDataLocator),
+			allowedChildrenPredicate,
+			ConstraintPropertyType.GROUP
+		);
+	}
+
+	/**
+	 * Builds fields representing children of constraint container from constraint descriptors of these children.
 	 * This is shortcut method for building all children of {@link ConstraintPropertyType#ATTRIBUTE} property type.
 	 */
 	@Nonnull
