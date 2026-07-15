@@ -92,6 +92,12 @@ public class SetReferenceSchemaConflictResolutionOverrideMutation
 		}
 	}
 
+	/**
+	 * {@inheritDoc}
+	 *
+	 * @throws InvalidSchemaMutationException when applied to a {@link ReflectedReferenceSchema}, which always
+	 *         inherits its conflict resolution and can therefore never carry an explicit override
+	 */
 	@Nonnull
 	@Override
 	public ReferenceSchemaContract mutate(

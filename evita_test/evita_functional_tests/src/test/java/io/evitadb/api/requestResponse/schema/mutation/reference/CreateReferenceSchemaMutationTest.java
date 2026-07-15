@@ -528,6 +528,29 @@ class CreateReferenceSchemaMutationTest {
 		}
 
 		@Test
+		@DisplayName("should propagate a non-default conflict resolution override into the created reference")
+		void shouldCreateReferenceWithConflictResolutionOverride() {
+			final CreateReferenceSchemaMutation mutation = new CreateReferenceSchemaMutation(
+				REFERENCE_NAME,
+				"description",
+				"deprecationNotice",
+				Cardinality.ZERO_OR_MORE,
+				REFERENCE_TYPE,
+				false,
+				GROUP_TYPE,
+				false,
+				null, null, null, null, null, null,
+				ConflictResolutionOverride.GRANULAR
+			);
+
+			final ReferenceSchemaContract referenceSchema =
+				mutation.mutate(Mockito.mock(EntitySchemaContract.class), null);
+
+			assertNotNull(referenceSchema);
+			assertEquals(ConflictResolutionOverride.GRANULAR, referenceSchema.getConflictResolutionOverride());
+		}
+
+		@Test
 		@DisplayName("should create reference with explicit indexed components")
 		void shouldCreateReferenceWithExplicitIndexedComponents() {
 			final CreateReferenceSchemaMutation mutation = createReferenceSchemaMutation(

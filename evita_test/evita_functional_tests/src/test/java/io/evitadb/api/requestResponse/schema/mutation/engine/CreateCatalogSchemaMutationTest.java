@@ -23,6 +23,8 @@
 
 package io.evitadb.api.requestResponse.schema.mutation.engine;
 
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolution;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.mutation.CatalogSchemaMutation.CatalogSchemaWithImpactOnEntitySchemas;
 import org.junit.jupiter.api.Test;
@@ -52,6 +54,19 @@ public class CreateCatalogSchemaMutationTest {
 		assertNotNull(newCatalogSchema);
 		assertEquals(1, newCatalogSchema.version());
 		assertEquals("newCatalog", newCatalogSchema.getName());
+	}
+
+	@Test
+	void shouldPropagateConflictResolutionIntoCreatedCatalogSchema() {
+		final ConflictResolution resolution = new ConflictResolution(ConflictPolicy.CATALOG);
+		final CreateCatalogSchemaMutation mutation =
+			new CreateCatalogSchemaMutation("newCatalog", resolution);
+
+		final CatalogSchemaWithImpactOnEntitySchemas result = mutation.mutate(null);
+		final CatalogSchemaContract newCatalogSchema = result.updatedCatalogSchema();
+
+		assertNotNull(newCatalogSchema);
+		assertEquals(resolution, newCatalogSchema.getConflictResolution().orElseThrow());
 	}
 
 }

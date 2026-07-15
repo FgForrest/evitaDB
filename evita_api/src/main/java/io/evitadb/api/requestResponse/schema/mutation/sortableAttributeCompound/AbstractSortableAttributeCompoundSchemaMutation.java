@@ -27,7 +27,6 @@ package io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound
 import io.evitadb.api.requestResponse.mutation.conflict.CollectionConflictKey;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictGenerationContext;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
-import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
 import io.evitadb.api.requestResponse.schema.mutation.NamedSchemaMutation;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -36,7 +35,6 @@ import javax.annotation.Nonnull;
 import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
-import java.util.Set;
 import java.util.stream.Stream;
 
 /**
