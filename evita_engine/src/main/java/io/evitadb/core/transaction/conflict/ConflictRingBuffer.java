@@ -105,11 +105,11 @@ public class ConflictRingBuffer extends RingBuffer<VersionedConflictKey, Catalog
 	}
 
 	/**
-	 * Clears all entries in the conflict ring buffer that were created after the specified catalog version.
-	 * Entries are logically cleared by transforming the catalog version into a {@link CatalogVersionIndex}
-	 * and invoking the method in the parent class.
+	 * Clears all entries in the conflict ring buffer that were registered under the specified catalog
+	 * version or any later one. Entries are logically cleared by transforming the catalog version into
+	 * a {@link CatalogVersionIndex} and invoking the method in the parent class.
 	 *
-	 * @param catalogVersion the catalog version after which all entries in the buffer should be cleared
+	 * @param catalogVersion the catalog version at or after which all entries in the buffer should be cleared
 	 */
 	public void clearAllAfter(long catalogVersion) {
 		this.clearAllAfter(new CatalogVersionIndex(catalogVersion, 0));

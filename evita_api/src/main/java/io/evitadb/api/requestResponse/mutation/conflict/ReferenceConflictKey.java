@@ -27,7 +27,8 @@ package io.evitadb.api.requestResponse.mutation.conflict;
 import javax.annotation.Nonnull;
 
 /**
- * Reference attribute conflict key for serializing concurrent mutations.
+ * Whole-reference conflict key for serializing concurrent mutations of a single reference — identified by its
+ * reference name and referenced primary key — on an entity. It is contained by the owning entity's scope.
  *
  * @see ConflictKey
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025

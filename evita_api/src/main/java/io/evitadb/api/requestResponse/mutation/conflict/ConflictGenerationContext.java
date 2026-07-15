@@ -264,8 +264,13 @@ public class ConflictGenerationContext {
 			// the element explicitly serializes on the whole entity: no per-element key
 			return false;
 		}
-		// INHERITED, or global-backed mode with no per-item override: follow the resolved granularity set
-		return resolved.granularity().contains(granularPolicy);
+		if (itemOverride == null || itemOverride == ConflictResolutionOverride.INHERITED) {
+			// global-backed mode with no per-item override, or an explicit inherit: follow the resolved set
+			return resolved.granularity().contains(granularPolicy);
+		}
+		throw new GenericEvitaInternalError(
+			"Unhandled conflict resolution override: " + itemOverride
+		);
 	}
 
 	/**

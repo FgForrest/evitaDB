@@ -32,17 +32,20 @@ import javax.annotation.Nonnull;
  * Represents a stable key used to track and resolve write conflicts in a ring buffer.
  *
  * The key combines:
- * - `version` — monotonically increasing version of the buffer slot that allows distinguishing
- *   an old entry from a newly overwritten one even when the slot `index` is reused.
- * - `index` — physical position in the ring buffer where the conflicting operation was recorded.
+ * - `version` — the catalog version assigned to the transaction that produced the conflict key
+ *   (its commit version, never its snapshot version); versions grow monotonically with commit order,
+ *   which is what keeps the ring buffer ordered and binary-searchable.
+ * - `index` — zero-based ordinal of the conflict key within its transaction's conflict key set,
+ *   distinguishing multiple keys registered under the same catalog version.
  * - `conflictKey` — logical key describing the affected entity or resource as defined by
  *   {@link io.evitadb.api.requestResponse.mutation.conflict.ConflictKey ConflictKey}.
  *
- * This composite is used by the transaction/CDC infrastructure to quickly identify whether two
- * mutations target the same logical resource and originate from the same buffer slot incarnation.
+ * The conflict-resolution stage compares a committing transaction's snapshot version against these
+ * commit versions: only keys with `version` greater than the snapshot belong to concurrent
+ * transactions and are examined for overlaps.
  *
- * @param version	monotonically increasing version associated with the ring buffer slot
- * @param index	zero-based index of the slot within the ring buffer
+ * @param version	the commit catalog version of the transaction that registered this key
+ * @param index	zero-based ordinal of the conflict key within its transaction
  * @param conflictKey	the logical conflict key describing the targeted resource, never {@code null}
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025

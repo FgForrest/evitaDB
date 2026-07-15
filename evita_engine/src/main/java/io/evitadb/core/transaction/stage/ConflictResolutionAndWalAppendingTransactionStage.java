@@ -327,8 +327,12 @@ public final class ConflictResolutionAndWalAppendingTransactionStage
 	private CommitVersions resolveConflicts(@Nonnull ConflictResolutionAndWalAppendingTransactionTask task, long expectedCatalogVersion) {
 		final TransactionAcceptedEvent conflictResolutionEvent = new TransactionAcceptedEvent(task.catalogName());
 
+		// the expected catalog version doubles as the reservation under which the transaction's conflict
+		// keys are registered in the ring buffer — the successor check compares later snapshots against
+		// this commit version, and rollbackFailedTask releases exactly the keys registered under it
 		this.transactionManager.identifyConflicts(
 			task.sessionCatalogVersion(),
+			expectedCatalogVersion,
 			task.commitProgress().getCommitStartTime(),
 			task.conflictKeys()
 		);

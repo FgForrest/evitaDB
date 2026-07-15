@@ -107,7 +107,6 @@ import java.util.stream.Stream;
 
 import static java.util.Optional.empty;
 import static java.util.Optional.of;
-import static java.util.Optional.ofNullable;
 
 /**
  * Transaction manager is propagated through different versions / instances of the same catalog and is responsible for
@@ -738,70 +737,106 @@ public class TransactionManager implements Closeable {
 
 	/**
 	 * This method identifies concurrent transaction commits based on passed mutation keys.
+	 *
+	 * Two transactions are successors when the incoming transaction's snapshot version is greater than or equal
+	 * to the committed transaction's assigned catalog version — only then the incoming transaction could see
+	 * the committed changes. The examination window therefore covers every conflict key committed with a catalog
+	 * version in range `(sessionCatalogVersion, lastWrittenCatalogVersion]`: the ring buffer scan starts at
+	 * `sessionCatalogVersion + 1` and the WAL fallback stream contract starts at the very same version
+	 * (see {@link Catalog#getCommittedLiveMutationStream(long, long)}).
+	 *
+	 * When no conflict is found, the incoming transaction's own keys are registered in the ring buffer under
+	 * `reservedCatalogVersion` — the catalog version this transaction is assigned right after this check — so
+	 * that later transactions with older snapshots compare against this transaction's commit version, never its
+	 * snapshot version. Keys of a rejected transaction are not registered at all; any keys registered before
+	 * a range-constraint violation are removed by {@link #rollbackConflictKeys(long)} driven by the stage.
+	 *
+	 * @param sessionCatalogVersion  the catalog version the committing transaction started with (its snapshot)
+	 * @param reservedCatalogVersion the catalog version this transaction will be assigned when it is accepted
+	 * @param commitTimestamp        the timestamp the commit entered the pipeline (for timeout accounting)
+	 * @param conflictKeys           the conflict keys produced by the committing transaction
 	 */
 	public void identifyConflicts(
-		long catalogVersion,
+		long sessionCatalogVersion,
+		long reservedCatalogVersion,
 		@Nonnull OffsetDateTime commitTimestamp,
 		@Nonnull Set<ConflictKey> conflictKeys
 	) {
 		try {
-			// calculate the rest of the timeout
-			final long timeout = this.transactionAcceptanceTimeout - Duration.between(
-				OffsetDateTime.now(), commitTimestamp
-			).toMillis();
-            if (this.conflictResolutionLock.tryLock(timeout, TimeUnit.MILLISECONDS)) {
-                final Catalog theLivingCatalog = getLivingCatalog();
-                final long livingCatalogVersion = theLivingCatalog.getVersion();
-                final Map<CommutativeConflictKey<?>, CommutativeConflictResolver<?>> aggregates =
-                    initializeAggregatesIfNecessary(conflictKeys);
-                // pre-index the incoming transaction's conflict keys once so every committed key can be
-                // tested by containment (ancestry chain) rather than raw equality
-                final IncomingConflictScope incomingScope = IncomingConflictScope.of(conflictKeys);
+			// remaining acceptance-timeout budget after the time already spent queuing; commitTimestamp is in
+			// the past, so elapsed = now - commitTimestamp and the budget shrinks as queue delay grows, clamped
+			// at zero so an over-budget transaction does not wait (never a negative tryLock argument)
+			final long elapsedMillis = Duration.between(commitTimestamp, OffsetDateTime.now()).toMillis();
+			final long timeout = Math.max(0L, this.transactionAcceptanceTimeout - elapsedMillis);
+			if (this.conflictResolutionLock.tryLock(timeout, TimeUnit.MILLISECONDS)) {
+				// the ring buffer requires monotonically increasing versions and the rollback logic relies
+				// on the registered version being the one the single-threaded conflict-resolution stage
+				// assigns right after this check succeeds
+				final long theLastAssignedCatalogVersion = getLastAssignedCatalogVersion();
+				Assert.isPremiseValid(
+					reservedCatalogVersion == theLastAssignedCatalogVersion + 1,
+					"Reserved catalog version " + reservedCatalogVersion + " must directly follow " +
+						"the last assigned catalog version " + theLastAssignedCatalogVersion + "!"
+				);
+				final Catalog theLivingCatalog = getLivingCatalog();
+				final long livingCatalogVersion = theLivingCatalog.getVersion();
+				final Map<Object, CommutativeConflictResolver<?>> aggregates =
+					initializeAggregatesIfNecessary(conflictKeys);
+				// pre-index the incoming transaction's conflict keys once so every committed key can be
+				// tested by containment (ancestry chain) rather than raw equality
+				final IncomingConflictScope incomingScope = IncomingConflictScope.of(conflictKeys);
 
-                try {
-                    this.conflictRingBuffer.forEachSince(
-                        catalogVersion,
-                        vck -> examineConflictKey(
-                            vck.conflictKey(),
-                            incomingScope,
-                            theLivingCatalog,
-                            aggregates,
-                            vck.version(),
-                            livingCatalogVersion
-                        )
-                    );
-                } catch (OutsideScopeException e) {
-                    // this means that the conflict ring buffer has already cleared the catalog version
-                    // and was able to check only partial set of conflict keys
-                    identifyConflictsInOldCommittedTransactions(
-                        catalogVersion,
-                        incomingScope,
-                        theLivingCatalog,
-                        aggregates,
-                        e.getEffectiveStart()
-                    );
-                } finally {
-                    int index = 0;
-                    for (ConflictKey conflictKey : conflictKeys) {
-                        if (conflictKey instanceof CommutativeConflictKey<?> cck && cck.isConstrainedToRange()) {
-                            Assert.isPremiseValid(
-                                aggregates != null,
-                                "Aggregates map must be initialized when commutative conflict keys are present!"
-                            );
-                            //noinspection unchecked
-                            final CommutativeConflictKey<Object> ccko = (CommutativeConflictKey<Object>) cck;
-                            // if the commutative conflict key is present in this transaction, we need to
-                            //noinspection unchecked
-                            final CommutativeConflictResolver<Object> resolver = ofNullable((CommutativeConflictResolver<Object>) aggregates.get(cck))
-                                .orElseGet(() -> createCommutativeResolver(ccko, theLivingCatalog));
-                            // 1. add the aggregate from previous transactions
-                            final Object accumulatedValue = ccko.aggregate(resolver.accumulatedValue(), ccko.deltaValue());
-                            // 2. check whether the result is within the allowed range
-                            ccko.assertInAllowedRange(this.catalogName, catalogVersion, accumulatedValue);
-                        }
-                        this.conflictRingBuffer.offer(new VersionedConflictKey(catalogVersion, index++, conflictKey));
-                    }
-                }
+				try {
+					// keys registered at exactly `sessionCatalogVersion` belong to a predecessor whose
+					// changes the snapshot already saw, so the scan starts one version above it
+					this.conflictRingBuffer.forEachSince(
+						sessionCatalogVersion + 1,
+						vck -> examineConflictKey(
+							vck.conflictKey(),
+							incomingScope,
+							theLivingCatalog,
+							aggregates,
+							vck.version(),
+							livingCatalogVersion
+						)
+					);
+				} catch (OutsideScopeException e) {
+					// this means that the conflict ring buffer has already cleared the catalog version
+					// and was able to check only partial set of conflict keys
+					identifyConflictsInOldCommittedTransactions(
+						sessionCatalogVersion,
+						incomingScope,
+						theLivingCatalog,
+						aggregates,
+						e.getEffectiveStart()
+					);
+				}
+
+				// no overlapping committed key was found — validate range-constrained commutative keys
+				// against the accumulated in-flight deltas and register the incoming transaction's keys
+				// under its reserved commit version (a conflicting transaction never registers its keys)
+				int index = 0;
+				for (ConflictKey conflictKey : conflictKeys) {
+					if (conflictKey instanceof CommutativeConflictKey<?> cck && cck.isConstrainedToRange()) {
+						Assert.isPremiseValid(
+							aggregates != null,
+							"Aggregates map must be initialized when commutative conflict keys are present!"
+						);
+						//noinspection unchecked
+						final CommutativeConflictKey<Object> ccko = (CommutativeConflictKey<Object>) cck;
+						//noinspection unchecked
+						final CommutativeConflictResolver<Object> committedDeltas =
+							(CommutativeConflictResolver<Object>) aggregates.get(ccko.aggregationKey());
+						// the accumulated value is the stored base plus every delta committed in the
+						// overlap window plus this transaction's own delta; when no committed delta shares
+						// the aggregation slot, a resolver built from this key already yields base + delta
+						final Object accumulatedValue = committedDeltas == null ?
+							createCommutativeResolver(ccko, theLivingCatalog).accumulatedValue() :
+							ccko.aggregate(committedDeltas.accumulatedValue(), ccko.deltaValue());
+						ccko.assertInAllowedRange(this.catalogName, reservedCatalogVersion, accumulatedValue);
+					}
+					this.conflictRingBuffer.offer(new VersionedConflictKey(reservedCatalogVersion, index++, conflictKey));
+				}
 			} else {
 				throw new TransactionTimedOutException(
 					"Conflict resolution lock timed out! Waited for " + timeout + " ms of maximum waiting time " + this.transactionAcceptanceTimeout + " ms."
@@ -826,7 +861,7 @@ public class TransactionManager implements Closeable {
      * @return a lazily initialized map if required, otherwise null
      */
     @Nullable
-    private static Map<CommutativeConflictKey<?>, CommutativeConflictResolver<?>> initializeAggregatesIfNecessary(
+    private static Map<Object, CommutativeConflictResolver<?>> initializeAggregatesIfNecessary(
         @Nonnull Set<ConflictKey> conflictKeys
     ) {
         for (ConflictKey conflictKey : conflictKeys) {
@@ -837,21 +872,24 @@ public class TransactionManager implements Closeable {
         return null;
     }
 
-    /**
+	/**
 	 * Identifies conflicts in old committed transactions within a catalog over a specified range of versions.
-	 * This method iterates through all committed live mutations from the given catalog version up to a specified version,
-	 * and checks if any of the conflict keys provided are present in the mutations. If a conflict is detected,
-	 * it throws a {@link ConflictingCatalogMutationException}.
+	 * This method iterates through all committed live mutations following the session catalog version (the WAL
+	 * stream contract starts with the transaction that evolved the catalog to `sessionCatalogVersion + 1`) up
+	 * to the point where the conflict ring buffer takes over, and checks whether any recomputed conflict key
+	 * overlaps the incoming transaction. If a conflict is detected, it throws
+	 * a {@link ConflictingCatalogMutationException}.
 	 *
-	 * @param catalogVersion the starting version of the catalog to check for conflicts in committed transactions
+	 * @param sessionCatalogVersion the snapshot version of the committing transaction; only mutations committed
+	 *                              after this version are examined
 	 * @param incomingScope the pre-indexed conflict scope of the transaction being committed
-	 * @param until the upper bound versioned conflict key, up to which committed transactions are analyzed
+	 * @param until the oldest versioned conflict key still covered by the conflict ring buffer
 	 */
 	private void identifyConflictsInOldCommittedTransactions(
-		long catalogVersion,
+		long sessionCatalogVersion,
 		@Nonnull IncomingConflictScope incomingScope,
-        @Nonnull Catalog theLivingCatalog,
-        @Nullable Map<CommutativeConflictKey<?>, CommutativeConflictResolver<?>> aggregates,
+		@Nonnull Catalog theLivingCatalog,
+		@Nullable Map<Object, CommutativeConflictResolver<?>> aggregates,
 		@Nonnull CatalogVersionIndex until
 	) {
 		// This fallback recomputes conflict keys for aged-out committed transactions using the current
@@ -861,25 +899,30 @@ public class TransactionManager implements Closeable {
 		// conflict ring buffer, which by construction can no longer overlap the incoming commit window,
 		// so any residual over-/under-granularity here cannot change the accept/reject outcome.
 		final ConflictGenerationContext context = new ConflictGenerationContext(this.conflictResolution);
-        long livingCatalogVersion = theLivingCatalog.getVersion();
-		long processedCatalogVersion = catalogVersion;
+		final long livingCatalogVersion = theLivingCatalog.getVersion();
+		long processedCatalogVersion = sessionCatalogVersion;
 		final Iterator<CatalogBoundMutation> mutationIterator = getLivingCatalog()
-			.getCommittedLiveMutationStream(catalogVersion, until.catalogVersion())
+			.getCommittedLiveMutationStream(sessionCatalogVersion, until.catalogVersion())
 			.iterator();
 
-		int index = -1;
 		while (mutationIterator.hasNext()) {
 			final Mutation mutation = mutationIterator.next();
 			if (mutation instanceof TransactionMutation tm) {
 				processedCatalogVersion = tm.getVersion();
-				index = 0;
-			} else {
-				index++;
-			}
-
-			if (until.catalogVersion() == processedCatalogVersion && index == until.index()) {
-				// stop at the mutation that is the upper bound
-				break;
+				// stop where the conflict ring buffer takes over: when the buffer's effective start points
+				// at the first conflict key of the boundary transaction (index 0), that transaction is
+				// fully covered by the buffer scan; when the buffer retained only a suffix of the boundary
+				// transaction's keys (index > 0), the whole boundary transaction is examined here as well —
+				// the ring buffer indexes conflict-key ordinals while this stream yields mutations, so the
+				// two index domains cannot be matched exactly and the conservative overlap is preferred.
+				// Re-examining the retained suffix is safe: absolute keys yield the same verdict, and
+				// commutative deltas are only accumulated for versions ahead of the living catalog, which
+				// the buffer's oldest transaction cannot be unless the buffer is sized smaller than the
+				// in-flight transaction window
+				if (processedCatalogVersion > until.catalogVersion() ||
+					(processedCatalogVersion == until.catalogVersion() && until.index() == 0)) {
+					break;
+				}
 			}
 
 			final Iterator<ConflictKey> conflictKeyIterator = mutation
@@ -887,11 +930,11 @@ public class TransactionManager implements Closeable {
 				.iterator();
 			while (conflictKeyIterator.hasNext()) {
 				final ConflictKey conflictKey = conflictKeyIterator.next();
-                examineConflictKey(
-                    conflictKey, incomingScope, theLivingCatalog, aggregates,
-                    processedCatalogVersion, livingCatalogVersion
-                );
-            }
+				examineConflictKey(
+					conflictKey, incomingScope, theLivingCatalog, aggregates,
+					processedCatalogVersion, livingCatalogVersion
+				);
+			}
 		}
 	}
 
@@ -912,7 +955,7 @@ public class TransactionManager implements Closeable {
         @Nonnull ConflictKey conflictKey,
         @Nonnull IncomingConflictScope incomingScope,
         @Nonnull Catalog theLivingCatalog,
-        @Nullable Map<CommutativeConflictKey<?>, CommutativeConflictResolver<?>> aggregates,
+        @Nullable Map<Object, CommutativeConflictResolver<?>> aggregates,
         long processedCatalogVersion,
         long livingCatalogVersion
     ) {
@@ -920,7 +963,7 @@ public class TransactionManager implements Closeable {
         if (conflictKey instanceof CommutativeConflictKey<?> cck) {
             if (aggregates != null && processedCatalogVersion > livingCatalogVersion) {
                 aggregates.compute(
-                    cck,
+                    cck.aggregationKey(),
                     (key, existingAggregate) -> {
                         if (existingAggregate == null) {
                             return createCommutativeResolver(cck, theLivingCatalog);
@@ -1046,10 +1089,11 @@ public class TransactionManager implements Closeable {
 		@Nonnull LogRecordReference walReference
 	) {
 		try {
-			// calculate the rest of the timeout
-			final long timeout = this.transactionAcceptanceTimeout - Duration.between(
-				OffsetDateTime.now(), commitTimestamp
-			).toMillis();
+			// remaining acceptance-timeout budget after the time already spent queuing; commitTimestamp is in
+			// the past, so elapsed = now - commitTimestamp and the budget shrinks as queue delay grows, clamped
+			// at zero so an over-budget transaction does not wait (never a negative tryLock argument)
+			final long elapsedMillis = Duration.between(commitTimestamp, OffsetDateTime.now()).toMillis();
+			final long timeout = Math.max(0L, this.transactionAcceptanceTimeout - elapsedMillis);
 			// try to obtain the lock within the timeout
 			if (this.walAppendingLock.tryLock(timeout, TimeUnit.MILLISECONDS)) {
 				final long theLastWrittenCatalogVersion = this.lastWrittenCatalogVersion.get();

@@ -101,8 +101,8 @@ class EffectiveConflictResolutionResolverTest {
 		final ConflictResolution resolved = EffectiveConflictResolutionResolver.resolve(
 			catalogWith(null), entityWith(null), ENGINE_DEFAULT
 		);
-		// identity guard: the resolver must return the exact engine-default value it was given — this is
-		// what keeps schema-aware Site A byte-identical to the old global-backed path under default config
+		// identity guard: the resolver must return the exact engine-default value it was given — this keeps
+		// the schema-aware path byte-identical to the global-backed path under default configuration
 		assertSame(ENGINE_DEFAULT, resolved);
 	}
 

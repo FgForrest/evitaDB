@@ -95,7 +95,7 @@ public record AttributeDeltaConflictKey(
     }
 
     @Override
-    public boolean equals(Object o) {
+    public boolean equals(@Nullable Object o) {
         if (!(o instanceof AttributeDeltaConflictKey that)) return false;
 
         return this.entityType.equals(that.entityType) &&
@@ -105,14 +105,31 @@ public record AttributeDeltaConflictKey(
             Objects.equals(this.allowedRange, that.allowedRange);
     }
 
-    // hashCode intentionally excludes deltaValue and allowedRange so that keys differing only
-    // in the delta/range land in the same hash bucket, enabling efficient aggregation lookups
+    /**
+     * Hashes the full identity, consistent with {@link #equals(Object)} (including the delta value and
+     * allowed range). Accumulation grouping is handled separately by {@link #aggregationKey()}, so the hash
+     * no longer needs to collapse keys that differ only in their delta.
+     */
     @Override
     public int hashCode() {
         int result = this.entityType.hashCode();
         result = 31 * result + Objects.hashCode(this.entityPrimaryKey);
         result = 31 * result + this.attributeKey.hashCode();
+        result = 31 * result + this.deltaValue.hashCode();
+        result = 31 * result + Objects.hashCode(this.allowedRange);
         return result;
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * @return a {@link DeltaAggregationKey} over the entity type, primary key and attribute key, so deltas on
+     *         the same attribute accumulate regardless of their individual delta value or allowed range
+     */
+    @Nonnull
+    @Override
+    public Object aggregationKey() {
+        return new DeltaAggregationKey(this.entityType, this.entityPrimaryKey, null, this.attributeKey);
     }
 
 	/**

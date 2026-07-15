@@ -446,18 +446,29 @@ class ConflictKeyTest implements EvitaTestSupport {
 		}
 
 		@Test
-		@DisplayName("custom hashCode excludes deltaValue for bucket stability")
-		void customHashCodeExcludesDeltaValueForBucketStability() {
-			// hashCode intentionally excludes deltaValue/allowedRange so that keys with different
-			// deltas land in the same hash bucket, enabling aggregation lookups
+		@DisplayName("aggregation key groups deltas that differ only in value or range")
+		void aggregationKeyGroupsDeltasByAttribute() {
+			// the aggregation key deliberately drops deltaValue and allowedRange so that concurrent deltas
+			// on the same attribute accumulate into a single running total; equals()/hashCode() stay
+			// delta-sensitive for per-transaction key sets and the conflict ring buffer
 			final AttributeDeltaConflictKey key1 = new AttributeDeltaConflictKey(
 				"Product", 1, new AttributeKey("quantity"), 5, null
 			);
 			final AttributeDeltaConflictKey key2 = new AttributeDeltaConflictKey(
-				"Product", 1, new AttributeKey("quantity"), 10, null
+				"Product", 1, new AttributeKey("quantity"), 10, IntegerNumberRange.between(0, 100)
+			);
+			final AttributeDeltaConflictKey differentAttribute = new AttributeDeltaConflictKey(
+				"Product", 1, new AttributeKey("weight"), 5, null
 			);
 
-			assertEquals(key1.hashCode(), key2.hashCode());
+			assertEquals(key1.aggregationKey(), key2.aggregationKey());
+			assertEquals(key1.aggregationKey().hashCode(), key2.aggregationKey().hashCode());
+			assertNotEquals(key1.aggregationKey(), differentAttribute.aggregationKey());
+			// hashCode is now consistent with the delta-sensitive equals: identical keys share a hash
+			assertEquals(
+				key1.hashCode(),
+				new AttributeDeltaConflictKey("Product", 1, new AttributeKey("quantity"), 5, null).hashCode()
+			);
 		}
 
 		@Test
@@ -514,6 +525,28 @@ class ConflictKeyTest implements EvitaTestSupport {
 		}
 
 		@Test
+		@DisplayName("should be constrained to range when allowedRange is present")
+		void shouldBeConstrainedWhenRangePresent() {
+			final ReferenceAttributeDeltaConflictKey key = new ReferenceAttributeDeltaConflictKey(
+				"Product", 1, new ReferenceKey("brand", 10), new AttributeKey("priority"), 5,
+				IntegerNumberRange.between(0, 100)
+			);
+
+			assertTrue(key.isConstrainedToRange());
+		}
+
+		@Test
+		@DisplayName("should not throw when value is within allowed range")
+		void shouldNotThrowWhenValueWithinRange() {
+			final ReferenceAttributeDeltaConflictKey key = new ReferenceAttributeDeltaConflictKey(
+				"Product", 1, new ReferenceKey("brand", 10), new AttributeKey("priority"), 5,
+				IntegerNumberRange.between(0, 100)
+			);
+
+			assertDoesNotThrow(() -> key.assertInAllowedRange("catalog", 1L, 50));
+		}
+
+		@Test
 		@DisplayName("custom equals includes deltaValue and allowedRange")
 		void customEqualsIncludesDeltaValueAndAllowedRange() {
 			final ReferenceAttributeDeltaConflictKey key1 = new ReferenceAttributeDeltaConflictKey(
@@ -527,16 +560,28 @@ class ConflictKeyTest implements EvitaTestSupport {
 		}
 
 		@Test
-		@DisplayName("custom hashCode excludes deltaValue for bucket stability")
-		void customHashCodeExcludesDeltaValueForBucketStability() {
+		@DisplayName("aggregation key groups reference-attribute deltas that differ only in value or range")
+		void aggregationKeyGroupsDeltasByReferenceAttribute() {
 			final ReferenceAttributeDeltaConflictKey key1 = new ReferenceAttributeDeltaConflictKey(
 				"Product", 1, new ReferenceKey("brand", 10), new AttributeKey("priority"), 5, null
 			);
 			final ReferenceAttributeDeltaConflictKey key2 = new ReferenceAttributeDeltaConflictKey(
-				"Product", 1, new ReferenceKey("brand", 10), new AttributeKey("priority"), 10, null
+				"Product", 1, new ReferenceKey("brand", 10), new AttributeKey("priority"), 10,
+				IntegerNumberRange.between(0, 100)
+			);
+			final ReferenceAttributeDeltaConflictKey differentReference = new ReferenceAttributeDeltaConflictKey(
+				"Product", 1, new ReferenceKey("brand", 20), new AttributeKey("priority"), 5, null
 			);
 
-			assertEquals(key1.hashCode(), key2.hashCode());
+			assertEquals(key1.aggregationKey(), key2.aggregationKey());
+			assertEquals(key1.aggregationKey().hashCode(), key2.aggregationKey().hashCode());
+			assertNotEquals(key1.aggregationKey(), differentReference.aggregationKey());
+			assertEquals(
+				key1.hashCode(),
+				new ReferenceAttributeDeltaConflictKey(
+					"Product", 1, new ReferenceKey("brand", 10), new AttributeKey("priority"), 5, null
+				).hashCode()
+			);
 		}
 
 		@Test
