@@ -55,6 +55,7 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaEditor;
 import io.evitadb.api.requestResponse.system.MaterializedVersionBlock;
 import io.evitadb.api.requestResponse.system.SystemStatus;
 import io.evitadb.dataType.PaginatedList;
@@ -164,7 +165,7 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 	 * @return DataCarrier containing the configured EvitaClient and test data
 	 */
 	@DataSet(value = EVITA_CLIENT_DATA_SET, openWebApi = {GrpcProvider.CODE, SystemProvider.CODE},
-		destroyAfterClass = true)
+		destroyAfterClass = true, useRealThreadPools = true)
 	static DataCarrier initDataSet(EvitaServer evitaServer) {
 		final DataGenerator dataGenerator = new DataGenerator.Builder()
 			.registerValueGenerator(
@@ -225,7 +226,7 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 					// Add global unique code attribute to catalog schema
 					session.getCatalogSchema()
 						.openForWrite()
-						.withAttribute(ATTRIBUTE_CODE, String.class, thatIs -> thatIs.uniqueGlobally())
+						.withAttribute(ATTRIBUTE_CODE, String.class, GlobalAttributeSchemaEditor::uniqueGlobally)
 						.updateVia(session);
 
 					// Generate brand entities (5 entities)

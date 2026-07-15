@@ -32,8 +32,10 @@ import com.linecorp.armeria.client.grpc.GrpcClientBuilder;
 import com.linecorp.armeria.client.grpc.GrpcClients;
 import com.linecorp.armeria.client.retry.RetryRule;
 import com.linecorp.armeria.client.retry.RetryingClient;
+import com.linecorp.armeria.common.ClosedSessionException;
 import com.linecorp.armeria.common.HttpStatus;
 import com.linecorp.armeria.common.grpc.GrpcSerializationFormats;
+import com.linecorp.armeria.common.stream.ClosedStreamException;
 import com.linecorp.armeria.common.util.EventLoopGroups;
 import com.linecorp.armeria.common.util.TimeoutMode;
 import io.evitadb.api.CatalogState;
@@ -272,6 +274,38 @@ public class EvitaClient implements EvitaContract {
 		}
 	}
 
+	/**
+	 * Classifies a throwable as a TRANSPORT-level failure — one where the gRPC connection did not deliver the
+	 * call's outcome, as opposed to a business error the server deliberately returned over a healthy connection.
+	 * A transport failure is any of: a {@link StatusRuntimeException} with status {@link Code#CANCELLED},
+	 * {@link Code#UNAVAILABLE} or {@link Code#DEADLINE_EXCEEDED}, or a cause chain carrying Armeria's
+	 * {@link ClosedSessionException} / {@link ClosedStreamException}. The whole cause chain is inspected because
+	 * the transport signal is frequently wrapped (e.g. a {@link StatusRuntimeException} caused by a
+	 * {@link ClosedSessionException}).
+	 *
+	 * When a session call fails this way the server-side invocation is orphaned and the outcome is indeterminate
+	 * for the client, which is why the caller must treat the session as lost rather than retrying blindly.
+	 *
+	 * @param throwable the throwable to classify (typically unwrapped from an {@link ExecutionException})
+	 * @return true if the failure happened at the transport level
+	 */
+	public static boolean isTransportFailure(@Nonnull Throwable throwable) {
+		Throwable current = throwable;
+		while (current != null) {
+			if (current instanceof final StatusRuntimeException statusRuntimeException) {
+				final Code code = statusRuntimeException.getStatus().getCode();
+				if (code == Code.CANCELLED || code == Code.UNAVAILABLE || code == Code.DEADLINE_EXCEEDED) {
+					return true;
+				}
+			}
+			if (current instanceof ClosedStreamException) {
+				return true;
+			}
+			current = current.getCause();
+		}
+		return false;
+	}
+
 	@Nonnull
 	private static ClientTracingContext getClientTracingContext(@Nonnull EvitaClientConfiguration configuration) {
 		final ClientTracingContext context = ClientTracingContextProvider.getContext();
@@ -379,16 +413,33 @@ public class EvitaClient implements EvitaContract {
 				.build();
 		}
 
+		// The connection idle timeout is a dedicated knob, deliberately decoupled from the per-call timeout:
+		// a short request deadline must not tear down the pooled HTTP/2 connection between calls.
+		final int idleTimeoutMillis = configuration.connection().idleTimeoutMillis();
+		final int pingIntervalMillis = configuration.connection().pingIntervalMillis();
+		// Armeria silently disables the keep-alive ping when the (floored) ping interval is not strictly below
+		// a positive connection idle timeout (see ClientFactoryBuilder ping/idle reconciliation: the ping is
+		// dropped when idle > 0 && ping > 0 && max(ping, 1000) >= idle; 1000 ms is Armeria's minimum ping). An
+		// idle timeout of 0 means "never idle out" and keeps the ping active. Warn loudly so an operator who
+		// configured a ping expecting a watchdog is not left with a silently inert one.
+		if (idleTimeoutMillis > 0 && pingIntervalMillis > 0
+			&& Math.max(pingIntervalMillis, 1000) >= idleTimeoutMillis) {
+			log.warn(
+				"Client keep-alive ping ({} ms) is not below the connection idle timeout ({} ms); Armeria will " +
+					"disable the ping. Lower the ping interval (ClientConnectionOptions.pingIntervalMillis) or " +
+					"raise the connection idle timeout (ClientConnectionOptions.idleTimeoutMillis) to keep the " +
+					"ping active.",
+				pingIntervalMillis, idleTimeoutMillis
+			);
+		}
+		// keepAliveOnPing = true makes acknowledged keep-alive pings count as connection activity, so a healthy
+		// connection is never reaped by the idle timeout — set explicitly rather than riding Armeria's global
+		// Flags.defaultClientKeepAliveOnPing (false by default, and flippable by a system property).
 		ClientFactoryBuilder clientFactoryBuilder = ClientFactory
 			.builder()
 			.workerGroup(workerGroup, true)
-			.idleTimeoutMillis(
-				TimeUnit.MILLISECONDS.convert(
-					clientTimeouts.timeout(),
-					clientTimeouts.timeoutUnit()
-				)
-			)
-			.pingIntervalMillis(1000);
+			.idleTimeoutMillis(idleTimeoutMillis, true)
+			.pingIntervalMillis(pingIntervalMillis);
 
 		final String uriScheme;
 		final ClientTlsOptions tlsOptions = configuration.tls();
