@@ -59,6 +59,15 @@ import java.util.function.IntFunction;
  * Reading stops when there are no more complete transactions available, or when the
  * {@link #requestedCatalogVersion} is reached (if {@code avoidPartiallyFilledBuffer} is enabled).
  *
+ * **End-of-stream vs. failure.** When {@code avoidPartiallyFilledBuffer} is enabled, the caller is asserting
+ * that {@link #requestedCatalogVersion} has already been durably written and may only lag in what the
+ * reader's cached file-length view can currently observe. Until that version has actually been delivered,
+ * any inability to advance — a truncated read, a not-yet-visible next record, or running out of WAL files —
+ * is surfaced as a {@link WriteAheadLogCorruptedException} rather than
+ * a silent {@code null}, so such a caller cannot mistake "not visible yet" for "nothing left to process".
+ * Once the requested version has been delivered, or when no target version is enforced (a greedy read), the
+ * same conditions are treated as a normal, graceful end of the stream.
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 public final class MutationSupplier<T extends Mutation> extends AbstractMutationSupplier<T> {
@@ -120,6 +129,9 @@ public final class MutationSupplier<T extends Mutation> extends AbstractMutation
 	 *
 	 * @return the next mutation in forward order, or {@code null} if all transactions have been exhausted
 	 *         or the file is incomplete
+	 * @throws WriteAheadLogCorruptedException if the trailing cumulative checksum does not match the computed
+	 *         one, or if — in {@code avoidPartiallyFilledBuffer} mode — the stream cannot advance to the next
+	 *         transaction before {@link #requestedCatalogVersion} has been delivered
 	 */
 	@Nullable
 	@Override
@@ -138,31 +150,53 @@ public final class MutationSupplier<T extends Mutation> extends AbstractMutation
 				//noinspection unchecked
 				return (T) readMutation();
 			} else {
-				// Phase 3: all mutations read — validate checksum and advance to next transaction
-				final long readCumulativeChecksum = getObservableInput().simpleLongRead();
-				final Checksum checksum = Objects.requireNonNull(this.cumulativeChecksum);
-				Assert.isPremiseValid(
-					checksum.equalsTo(readCumulativeChecksum),
-					() -> new WriteAheadLogCorruptedException(
-						this.walKind,
-						this.walFile.toPath(),
-						this.transactionMutation.getTransactionSpan().endPosition(),
-						checksum.getValue(),
-						readCumulativeChecksum
-					)
-				);
-				this.transactionMutation.withCumulativeChecksum(readCumulativeChecksum);
-				// feed the validated checksum back into cumulative — it is part of the WAL format
-				// and participates in the cumulative computation for the next transaction
-				checksum.update(readCumulativeChecksum);
-
-				this.filePosition = this.transactionMutation.getTransactionSpan().endPosition();
+				// Phase 3: all mutations read — validate the trailing cumulative checksum and advance to the
+				// next transaction. A read failure here (a missing trailing checksum, or a genuinely
+				// underflowing next transaction) is a legitimate end-of-stream ONLY when we have already
+				// delivered the caller's requested version, or when reading greedily; before that point a
+				// requested version could not be read and MUST surface. Swallowing it into a silent "no more
+				// data" is what makes the trunk-incorporation stage misread a durably-written transaction as
+				// "already processed", hang, and spin forever.
+				final long lastDeliveredVersion = this.transactionMutation.getVersion();
+				final boolean mayEndGracefully = !this.avoidPartiallyFilledBuffer
+					|| lastDeliveredVersion >= this.requestedCatalogVersion;
 				try {
+					final long readCumulativeChecksum = getObservableInput().simpleLongRead();
+					final Checksum checksum = Objects.requireNonNull(this.cumulativeChecksum);
+					Assert.isPremiseValid(
+						checksum.equalsTo(readCumulativeChecksum),
+						() -> new WriteAheadLogCorruptedException(
+							this.walKind,
+							this.walFile.toPath(),
+							this.transactionMutation.getTransactionSpan().endPosition(),
+							checksum.getValue(),
+							readCumulativeChecksum
+						)
+					);
+					this.transactionMutation.withCumulativeChecksum(readCumulativeChecksum);
+					// feed the validated checksum back into cumulative — it is part of the WAL format
+					// and participates in the cumulative computation for the next transaction
+					checksum.update(readCumulativeChecksum);
+
+					this.filePosition = this.transactionMutation.getTransactionSpan().endPosition();
 					final long currentFileLength = this.walFile.length();
 					// check if there is enough room for another transaction (content + WAL tail marker)
 					if (currentFileLength <= this.filePosition + AbstractMutationLog.WAL_TAIL_LENGTH) {
 						if (!moveToNextWalFile(1)) {
-							return null;
+							if (mayEndGracefully) {
+								return null;
+							}
+							// the current WAL ends without room for another transaction before the caller's
+							// requested version was reached, and there is no next file — the requested
+							// transaction is missing or truncated, surface it instead of ending silently
+							throw new WriteAheadLogCorruptedException(
+								this.walKind,
+								"Reached the end of " + this.walKind.fileLabel + " `" + this.walFile.getName() +
+									"` at position " + this.filePosition + " before the requested catalog version " +
+									this.requestedCatalogVersion + " was read (last delivered version " +
+									lastDeliveredVersion + ").",
+								this.walKind.corruptedLabel + ": requested version missing before end of file"
+							);
 						}
 					}
 					this.transactionMutation = readAndRecordTransactionMutation(
@@ -174,30 +208,63 @@ public final class MutationSupplier<T extends Mutation> extends AbstractMutation
 					// buffer, concurrent writes can cause pointer misalignment. This check ensures
 					// we only proceed when sufficient data is available.
 					if (this.transactionMutation == null) {
-						return null;
-					} else {
-						final long requiredLength = this.transactionMutation.getTransactionSpan().endPosition();
-						final boolean canProceed;
-						if (this.avoidPartiallyFilledBuffer) {
-							// conservative mode: only proceed if the version is within the requested
-							// range AND the full transaction data is available on disk
-							canProceed = this.transactionMutation.getVersion() <= this.requestedCatalogVersion
-								&& currentFileLength >= requiredLength;
-						} else {
-							// standard mode: proceed as long as the full transaction is written
-							canProceed = currentFileLength >= requiredLength;
-						}
-						if (canProceed) {
-							this.transactionMutationRead = 1;
-							//noinspection unchecked
-							return (T) this.transactionMutation;
-						} else {
+						if (mayEndGracefully) {
+							// greedy/recovery read, or the caller's requested version has already been
+							// delivered — a truncated or not-yet-durable next record is a legitimate end
 							return null;
 						}
+						// the next transaction on the way to the caller's requested version is not (yet)
+						// sufficiently on disk; ending the stream silently here would be indistinguishable
+						// from "nothing left to process" to a caller that already believes this version was
+						// durably written, causing it to finalize prematurely at a stale version instead of
+						// retrying — surface it loudly, exactly like the sibling end-of-data branches above
+						throw new WriteAheadLogCorruptedException(
+							this.walKind,
+							"Reached a truncated or unreadable transaction record in " + this.walKind.fileLabel +
+								" `" + this.walFile.getName() + "` at position " + this.filePosition +
+								" before the requested catalog version " + this.requestedCatalogVersion +
+								" was read (last delivered version " + lastDeliveredVersion + ").",
+							this.walKind.corruptedLabel + ": requested version not fully on disk before end of data"
+						);
 					}
+					final long requiredEndPosition = this.transactionMutation.getTransactionSpan().endPosition();
+					final boolean canProceed;
+					if (this.avoidPartiallyFilledBuffer) {
+						// the caller guarantees the requested transaction is written: proceed once its version is
+						// within the requested range AND its CONTENT is on disk (the trailing checksum of a
+						// just-written tail may still be lagging the reader's file-length view)
+						canProceed = this.transactionMutation.getVersion() <= this.requestedCatalogVersion
+							&& currentFileLength >= requiredEndPosition - AbstractMutationLog.CUMULATIVE_CRC32_SIZE;
+					} else {
+						// standard mode: proceed as long as the full transaction (incl. checksum) is written
+						canProceed = currentFileLength >= requiredEndPosition;
+					}
+					if (canProceed) {
+						this.transactionMutationRead = 1;
+						//noinspection unchecked
+						return (T) this.transactionMutation;
+					} else {
+						return null;
+					}
+				} catch (WriteAheadLogCorruptedException ex) {
+					// a cumulative-checksum mismatch is a hard corruption regardless of position — never swallow it
+					throw ex;
 				} catch (Exception ex) {
-					// EOF or incomplete transaction write — stop iteration gracefully
-					return null;
+					if (mayEndGracefully) {
+						// everything the caller requested has been delivered (or we are reading greedily): a torn
+						// or not-yet-durable tail is a legitimate graceful end-of-stream
+						return null;
+					}
+					// a transaction the caller explicitly requested could not be read — surface it loudly instead
+					// of reporting an exhausted stream that the caller would misread as "nothing left to process"
+					throw new WriteAheadLogCorruptedException(
+						this.walKind,
+						"Failed to read " + this.walKind.fileLabel + " `" + this.walFile.getName() +
+							"` while advancing towards requested catalog version " + this.requestedCatalogVersion +
+							" (last delivered version " + lastDeliveredVersion + ") at position " + this.filePosition + ".",
+						this.walKind.corruptedLabel + ": read failed before the requested version was reached",
+						ex
+					);
 				}
 			}
 		}

@@ -171,6 +171,23 @@ abstract sealed class AbstractMutationSupplier<T extends Mutation> implements Su
 	}
 
 	/**
+	 * Returns the file position the given transaction must reach on disk to be considered readable at the current
+	 * position: the full record end (including the trailing cumulative checksum) for a greedy read, or the content
+	 * end (checksum excluded) in {@link #avoidPartiallyFilledBuffer} mode, where the trailing checksum of a
+	 * known-written requested transaction may momentarily lag the reader's file-length view.
+	 *
+	 * @param startPosition                   the byte position where the transaction begins in the WAL file
+	 * @param transactionMutationWithLocation the transaction whose required end position is being computed
+	 * @return the byte position that must be present in the file for the transaction to be delivered
+	 */
+	private long requiredEndPosition(
+		long startPosition, @Nonnull TransactionMutationWithLocation transactionMutationWithLocation
+	) {
+		final long fullEnd = calculateNextTransactionStartPosition(startPosition, transactionMutationWithLocation);
+		return this.avoidPartiallyFilledBuffer ? fullEnd - CUMULATIVE_CRC32_SIZE : fullEnd;
+	}
+
+	/**
 	 * Creates a new AbstractMutationSupplier for reading transactions from a WAL file.
 	 *
 	 * @param version                        the starting version to read from
@@ -258,10 +275,12 @@ abstract sealed class AbstractMutationSupplier<T extends Mutation> implements Su
 						this.cumulativeChecksum.reset(actualCumulativeChecksum);
 						this.cumulativeChecksum.update(actualCumulativeChecksum);
 						initialTransactionMutation = readAndRecordTransactionMutation(this.filePosition, walFileLength);
-						// verify the file has enough room for the complete transaction
+						// verify the file has enough room for the required portion of the transaction — the full
+						// record (incl. trailing checksum) for a greedy read, only the content in
+						// avoidPartiallyFilledBuffer mode where the checksum of a known-written tail may still be pending
 						if (
 							initialTransactionMutation
-								.map(it -> walFileLength < calculateNextTransactionStartPosition(this.filePosition, it))
+								.map(it -> walFileLength < requiredEndPosition(this.filePosition, it))
 								.orElse(true)
 						) {
 							initialTransactionMutation = empty();
@@ -432,9 +451,19 @@ abstract sealed class AbstractMutationSupplier<T extends Mutation> implements Su
 
 		// full record = 4 (length prefix) + content + 8 (trailing cumulative CRC32C)
 		final int fullRecordLength = 4 + contentLength + CUMULATIVE_CRC32_SIZE;
+		// content = 4 (length prefix) + leading TransactionMutation + individual mutations (no trailing checksum)
+		final int contentRecordLength = 4 + contentLength;
 
-		if (startPosition + fullRecordLength > fileSize) {
-			// file is truncated — not enough room for content + trailing checksum
+		// In avoidPartiallyFilledBuffer mode the caller guarantees the requested transaction is durably
+		// written, so a transaction whose CONTENT is fully on disk may be read even when its trailing
+		// cumulative checksum has not yet landed in the reader's (possibly lagging) file-length view: the
+		// writer flushes the length prefix and content before the trailing checksum, and a same-JVM reader's
+		// cached file length can observe that intermediate state. A greedy read (recovery/replay) treats a
+		// transaction as complete only once its trailing checksum is present too, so a genuinely torn tail
+		// is not delivered prematurely.
+		final int requiredRecordLength = this.avoidPartiallyFilledBuffer ? contentRecordLength : fullRecordLength;
+		if (startPosition + requiredRecordLength > fileSize) {
+			// file is truncated — not enough room for the required portion of the record
 			return empty();
 		}
 
