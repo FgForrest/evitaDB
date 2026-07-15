@@ -92,6 +92,7 @@ class HistogramExpressionTriggerFactoryTest {
 	private static final CatalogSchema CATALOG_SCHEMA = CatalogSchema._internalBuild(
 		"testCatalog",
 		NamingConvention.generate("testCatalog"),
+		null,
 		EnumSet.allOf(CatalogEvolutionMode.class),
 		EmptyEntitySchemaAccessor.INSTANCE
 	);

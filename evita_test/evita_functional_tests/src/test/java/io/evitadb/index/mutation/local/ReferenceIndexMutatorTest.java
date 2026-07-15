@@ -48,6 +48,7 @@ import io.evitadb.index.ReferencedTypeEntityIndex;
 import io.evitadb.index.mutation.local.dataAccess.EntityStoragePartExistingDataFactory;
 import io.evitadb.index.mutation.local.dataAccess.ExistingDataSupplierFactory;
 import io.evitadb.test.Entities;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -205,9 +206,9 @@ class ReferenceIndexMutatorTest extends AbstractMutatorTestBase {
 			new Scope[]{Scope.DEFAULT_SCOPE}
 		);
 		final AttributeSchemaContract brandCodeSchema =
-			AttributeSchema._internalBuild(ATTRIBUTE_BRAND_CODE, String.class, false);
+			AttributeSchema._internalBuild(ATTRIBUTE_BRAND_CODE, String.class, false, ConflictResolutionOverride.INHERITED);
 		final AttributeSchemaContract brandEanSchema =
-			AttributeSchema._internalBuild(ATTRIBUTE_BRAND_EAN, String.class, false);
+			AttributeSchema._internalBuild(ATTRIBUTE_BRAND_EAN, String.class, false, ConflictResolutionOverride.INHERITED);
 		assertEquals(
 			2,
 			this.referenceTypesIndex

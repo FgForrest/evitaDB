@@ -51,6 +51,7 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.index.FilterIndexSt
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.GlobalUniqueIndexStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.SortIndexStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.UniqueIndexStoragePart;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -223,7 +224,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 		shouldInsertNewAttribute();
 
 		final AttributeKey codeAttributeKey = new AttributeKey(ATTRIBUTE_CODE);
-		final AttributeSchema codeSchema = AttributeSchema._internalBuild(ATTRIBUTE_CODE, String.class, false);
+		final AttributeSchema codeSchema = AttributeSchema._internalBuild(ATTRIBUTE_CODE, String.class, false, ConflictResolutionOverride.INHERITED);
 		this.containerAccessor.getAttributeStoragePart(ENTITY_NAME, 1)
 			.upsertAttribute(codeAttributeKey, codeSchema, attributeValue -> new AttributeValue(codeAttributeKey, "A"));
 
@@ -239,7 +240,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 		);
 
 		final AttributeKey eanAttributeKey = new AttributeKey(ATTRIBUTE_EAN);
-		final AttributeSchema eanSchema = AttributeSchema._internalBuild(ATTRIBUTE_EAN, String.class, false);
+		final AttributeSchema eanSchema = AttributeSchema._internalBuild(ATTRIBUTE_EAN, String.class, false, ConflictResolutionOverride.INHERITED);
 		this.containerAccessor.getAttributeStoragePart(ENTITY_NAME, 1)
 			.upsertAttribute(eanAttributeKey, eanSchema, attributeValue -> new AttributeValue(eanAttributeKey, "EAN-001"));
 
@@ -255,7 +256,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 		);
 
 		final AttributeKey globalCodeAttributeKey = new AttributeKey(ATTRIBUTE_GLOBAL_CODE);
-		final AttributeSchema globalCodeSchema = AttributeSchema._internalBuild(ATTRIBUTE_GLOBAL_CODE, String.class, false);
+		final AttributeSchema globalCodeSchema = AttributeSchema._internalBuild(ATTRIBUTE_GLOBAL_CODE, String.class, false, ConflictResolutionOverride.INHERITED);
 		this.containerAccessor.getAttributeStoragePart(ENTITY_NAME, 1)
 			.upsertAttribute(globalCodeAttributeKey, globalCodeSchema, attributeValue -> new AttributeValue(globalCodeAttributeKey, "GA"));
 
@@ -307,7 +308,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 	@DisplayName("Should update simple value to array value in filter index")
 	void shouldInsertSimpleAndThenUpdateWithArrayAttribute() {
 		final AttributeKey charArrayAttr = new AttributeKey(ATTRIBUTE_CHAR_ARRAY);
-		final AttributeSchema charArraySchema = AttributeSchema._internalBuild(ATTRIBUTE_CHAR_ARRAY, Character[].class, false);
+		final AttributeSchema charArraySchema = AttributeSchema._internalBuild(ATTRIBUTE_CHAR_ARRAY, Character[].class, false, ConflictResolutionOverride.INHERITED);
 
 		executeAttributeUpsert(
 			this.executor,
@@ -351,7 +352,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 	@DisplayName("Should replace array attribute values in filter index")
 	void shouldInsertAndThenUpdateNewArrayAttribute() {
 		final AttributeKey charArrayAttr = new AttributeKey(ATTRIBUTE_CHAR_ARRAY);
-		final AttributeSchema charArraySchema = AttributeSchema._internalBuild(ATTRIBUTE_CHAR_ARRAY, Character[].class, false);
+		final AttributeSchema charArraySchema = AttributeSchema._internalBuild(ATTRIBUTE_CHAR_ARRAY, Character[].class, false, ConflictResolutionOverride.INHERITED);
 
 		executeAttributeUpsert(
 			this.executor,
@@ -616,7 +617,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 	@DisplayName("Should apply delta to numeric attribute and update filter and sort indices")
 	void shouldApplyDeltaToAttribute() {
 		final AttributeKey attrVariantCount = new AttributeKey(ATTRIBUTE_VARIANT_COUNT);
-		final AttributeSchema variantSchema = AttributeSchema._internalBuild(ATTRIBUTE_VARIANT_COUNT, Integer.class, false);
+		final AttributeSchema variantSchema = AttributeSchema._internalBuild(ATTRIBUTE_VARIANT_COUNT, Integer.class, false, ConflictResolutionOverride.INHERITED);
 
 		executeAttributeUpsert(
 			this.executor,

@@ -311,39 +311,6 @@ public final class EntitySchema implements EntitySchemaContract {
 	}
 
 	/**
-	 * Transitional compatibility overload defaulting the conflict resolution setting; delegates to the full overload.
-	 *
-	 * @deprecated bridges call sites not yet migrated to the explicit conflict-resolution parameter.
-	 */
-	@Deprecated(forRemoval = true)
-	@Nonnull
-	public static EntitySchema _internalBuild(
-		int version,
-		@Nonnull String name,
-		@Nullable String description,
-		@Nullable String deprecationNotice,
-		boolean withGeneratedPrimaryKey,
-		boolean withHierarchy,
-		@Nullable Scope[] hierarchyIndexedInScopes,
-		boolean withPrice,
-		@Nullable Scope[] priceIndexedInScopes,
-		int indexedPricePlaces,
-		@Nonnull Set<Locale> locales,
-		@Nonnull Set<Currency> currencies,
-		@Nonnull Map<String, EntityAttributeSchemaContract> attributes,
-		@Nonnull Map<String, AssociatedDataSchemaContract> associatedData,
-		@Nonnull Map<String, ReferenceSchemaContract> references,
-		@Nonnull Set<EvolutionMode> evolutionMode,
-		@Nonnull Map<String, EntitySortableAttributeCompoundSchemaContract> sortableAttributeCompounds
-	) {
-		return _internalBuild(
-			version, name, description, deprecationNotice, null, withGeneratedPrimaryKey, withHierarchy,
-			hierarchyIndexedInScopes, withPrice, priceIndexedInScopes, indexedPricePlaces, locales, currencies,
-			attributes, associatedData, references, evolutionMode, sortableAttributeCompounds
-		);
-	}
-
-	/**
 	 * This method is for internal purposes only. It could be used for reconstruction of original Entity from different
 	 * package than current, but still internal code of the Evita ecosystems.
 	 *
@@ -392,40 +359,6 @@ public final class EntitySchema implements EntitySchemaContract {
 	}
 
 	/**
-	 * Transitional compatibility overload defaulting the conflict resolution setting; delegates to the full overload.
-	 *
-	 * @deprecated bridges call sites not yet migrated to the explicit conflict-resolution parameter.
-	 */
-	@Deprecated(forRemoval = true)
-	@Nonnull
-	public static EntitySchema _internalBuild(
-		int version,
-		@Nonnull String name,
-		@Nonnull Map<NamingConvention, String> nameVariants,
-		@Nullable String description,
-		@Nullable String deprecationNotice,
-		boolean withGeneratedPrimaryKey,
-		boolean withHierarchy,
-		@Nullable Set<Scope> hierarchyIndexedInScopes,
-		boolean withPrice,
-		@Nullable Set<Scope> priceIndexedInScopes,
-		int indexedPricePlaces,
-		@Nonnull Set<Locale> locales,
-		@Nonnull Set<Currency> currencies,
-		@Nonnull Map<String, EntityAttributeSchemaContract> attributes,
-		@Nonnull Map<String, AssociatedDataSchemaContract> associatedData,
-		@Nonnull Map<String, ReferenceSchemaContract> references,
-		@Nonnull Set<EvolutionMode> evolutionMode,
-		@Nonnull Map<String, EntitySortableAttributeCompoundSchemaContract> sortableAttributeCompounds
-	) {
-		return _internalBuild(
-			version, name, nameVariants, description, deprecationNotice, null, withGeneratedPrimaryKey,
-			withHierarchy, hierarchyIndexedInScopes, withPrice, priceIndexedInScopes, indexedPricePlaces,
-			locales, currencies, attributes, associatedData, references, evolutionMode, sortableAttributeCompounds
-		);
-	}
-
-	/**
 	 * This method is for internal purposes only. It could be used for reconstruction of original Entity from different
 	 * package than current, but still internal code of the Evita ecosystems.
 	 *
@@ -470,44 +403,6 @@ public final class EntitySchema implements EntitySchemaContract {
 			references,
 			evolutionMode,
 			sortableAttributeCompounds
-		);
-	}
-
-	/**
-	 * Transitional compatibility overload that reconstructs an entity schema without a
-	 * {@link ConflictResolution}, defaulting it to `null` (inherit the engine-level default). It exists so external
-	 * API converters (gRPC/GraphQL/REST) that do not yet propagate the conflict resolution setting keep compiling and
-	 * round-tripping the rest of the schema. It will be removed once those converters carry the conflict resolution
-	 * setting through their transport format.
-	 *
-	 * @deprecated bridges external-API reconstruction until the conflict resolution setting is propagated over the wire
-	 */
-	@Deprecated(forRemoval = true)
-	@Nonnull
-	public static EntitySchema _internalBuild(
-		int version,
-		@Nonnull String name,
-		@Nonnull Map<NamingConvention, String> nameVariants,
-		@Nullable String description,
-		@Nullable String deprecationNotice,
-		boolean withGeneratedPrimaryKey,
-		boolean withHierarchy,
-		@Nullable Scope[] hierarchyIndexedInScopes,
-		boolean withPrice,
-		@Nullable Scope[] priceIndexedInScopes,
-		int indexedPricePlaces,
-		@Nonnull Set<Locale> locales,
-		@Nonnull Set<Currency> currencies,
-		@Nonnull Map<String, EntityAttributeSchemaContract> attributes,
-		@Nonnull Map<String, AssociatedDataSchemaContract> associatedData,
-		@Nonnull Map<String, ReferenceSchemaContract> references,
-		@Nonnull Set<EvolutionMode> evolutionMode,
-		@Nonnull Map<String, EntitySortableAttributeCompoundSchemaContract> sortableAttributeCompounds
-	) {
-		return _internalBuild(
-			version, name, nameVariants, description, deprecationNotice, null, withGeneratedPrimaryKey,
-			withHierarchy, hierarchyIndexedInScopes, withPrice, priceIndexedInScopes, indexedPricePlaces,
-			locales, currencies, attributes, associatedData, references, evolutionMode, sortableAttributeCompounds
 		);
 	}
 

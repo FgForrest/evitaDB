@@ -26,6 +26,7 @@ package io.evitadb.externalApi.grpc.requestResponse.schema;
 import com.google.protobuf.StringValue;
 import io.evitadb.api.query.expression.ExpressionFactory;
 import io.evitadb.api.requestResponse.schema.*;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.api.requestResponse.schema.dto.*;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
@@ -862,7 +863,8 @@ public class EntitySchemaConverter {
 								Entry::getKey,
 								it -> toSortableAttributeCompoundSchema(it.getValue())
 							)
-						)
+						),
+					ConflictResolutionOverride.INHERITED
 				)
 			);
 		} else {

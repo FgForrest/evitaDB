@@ -76,7 +76,7 @@ class EntitySchemaConverterTest {
 
 	@Nonnull
 	private static CatalogSchema createCatalogSchemaWithSingleEntitySchema(EntitySchema entitySchema) {
-		return CatalogSchema._internalBuild("test", Collections.emptyMap(), EnumSet.allOf(CatalogEvolutionMode.class), new EntitySchemaProvider() {
+		return CatalogSchema._internalBuild("test", Collections.emptyMap(), null, EnumSet.allOf(CatalogEvolutionMode.class), new EntitySchemaProvider() {
 			@Nonnull
 			@Override
 			public Collection<EntitySchemaContract> getEntitySchemas() {
@@ -108,7 +108,7 @@ class EntitySchemaConverterTest {
 			Set.of(Locale.ENGLISH, Locale.GERMAN),
 			Set.of(Currency.getInstance("EUR"), Currency.getInstance("USD")),
 			Map.of(
-				"test1", EntityAttributeSchema._internalBuild("test1", LocalDateTime.class, true),
+				"test1", EntityAttributeSchema._internalBuild("test1", LocalDateTime.class, true, ConflictResolutionOverride.INHERITED),
 				"test2", GlobalAttributeSchema._internalBuild(
 					"test2",
 					"description",
@@ -135,7 +135,7 @@ class EntitySchemaConverterTest {
 					"test1", "Lorem ipsum", "Alert", Integer.class, false, true,
 					ConflictResolutionOverride.GRANULAR
 				),
-				"test2", AssociatedDataSchema._internalBuild("test2", "Lorem ipsum", "Alert", String[].class, true, true)
+				"test2", AssociatedDataSchema._internalBuild("test2", "Lorem ipsum", "Alert", String[].class, true, true, ConflictResolutionOverride.INHERITED)
 			),
 			Map.of(
 				"test1", ReferenceSchema._internalBuild(
@@ -190,12 +190,14 @@ class EntitySchemaConverterTest {
 							true,
 							String.class,
 							null,
-							0
+							0,
+							ConflictResolutionOverride.INHERITED
 						),
 						"priority", EntityAttributeSchema._internalBuild(
 							"code",
 							Long[].class,
-							false
+							false,
+							ConflictResolutionOverride.INHERITED
 						)
 					),
 					Map.of(
@@ -473,6 +475,7 @@ class EntitySchemaConverterTest {
 			1,
 			Entities.PRODUCT,
 			null, null,
+			null,
 			true,
 			false,
 			Scope.NO_SCOPE,
@@ -508,7 +511,8 @@ class EntitySchemaConverterTest {
 					},
 					ScopedBucketedPartially.EMPTY,
 					Collections.emptyMap(),
-					Collections.emptyMap()
+					Collections.emptyMap(),
+					ConflictResolutionOverride.INHERITED
 				)
 			),
 			Collections.emptySet(),

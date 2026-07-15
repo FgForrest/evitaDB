@@ -740,7 +740,7 @@ public class LongRunningEvitaTransactionalFunctionalTest implements EvitaTestSup
 				.transaction(
 					TransactionOptions.builder()
 						.flushFrequencyInMillis(60_000)
-						.conflictPolicyLastWriterWins()
+						.conflictResolution(ConflictPolicy.NONE)
 						.build()
 				)
 				.server(
@@ -1102,7 +1102,7 @@ public class LongRunningEvitaTransactionalFunctionalTest implements EvitaTestSup
 						TransactionOptions.builder()
 							.walFileSizeBytes(4_096)
 							.walFileCountKept(2)
-							.conflictPolicyLastWriterWins()
+							.conflictResolution(ConflictPolicy.NONE)
 							.build()
 					)
 					.server(

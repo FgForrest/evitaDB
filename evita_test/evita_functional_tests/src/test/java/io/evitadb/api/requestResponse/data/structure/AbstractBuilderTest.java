@@ -44,7 +44,7 @@ import static io.evitadb.test.TestTags.QUERY;
 @Tag(CONTRACT)
 @Tag(QUERY)
 public abstract class AbstractBuilderTest {
-	protected static final CatalogSchema CATALOG_SCHEMA = CatalogSchema._internalBuild(APITestConstants.TEST_CATALOG, NamingConvention.generate(APITestConstants.TEST_CATALOG), EnumSet.allOf(CatalogEvolutionMode.class), EmptyEntitySchemaAccessor.INSTANCE);
+	protected static final CatalogSchema CATALOG_SCHEMA = CatalogSchema._internalBuild(APITestConstants.TEST_CATALOG, NamingConvention.generate(APITestConstants.TEST_CATALOG), null, EnumSet.allOf(CatalogEvolutionMode.class), EmptyEntitySchemaAccessor.INSTANCE);
 	protected static final EntitySchema PRODUCT_SCHEMA = EntitySchema._internalBuild("product");
 
 }

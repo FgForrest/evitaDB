@@ -161,7 +161,7 @@ class WalSerializationServiceTest {
 		final Kryo walKryo = KryoFactory.createKryo(WalKryoConfigurer.INSTANCE);
 		final ModifyEntitySchemaMutation mutation = constructSomeSchema(
 			new InternalEntitySchemaBuilder(
-				CatalogSchema._internalBuild(TestConstants.TEST_CATALOG, NamingConvention.generate(TestConstants.TEST_CATALOG), EnumSet.allOf(CatalogEvolutionMode.class), EmptyEntitySchemaAccessor.INSTANCE),
+				CatalogSchema._internalBuild(TestConstants.TEST_CATALOG, NamingConvention.generate(TestConstants.TEST_CATALOG), null, EnumSet.allOf(CatalogEvolutionMode.class), EmptyEntitySchemaAccessor.INSTANCE),
 				productSchema
 			)
 		)
@@ -307,7 +307,7 @@ class WalSerializationServiceTest {
 
 		final EntitySchemaContract productSchema = constructSomeSchema(
 			new InternalEntitySchemaBuilder(
-				CatalogSchema._internalBuild(TestConstants.TEST_CATALOG, NamingConvention.generate(TestConstants.TEST_CATALOG), EnumSet.allOf(CatalogEvolutionMode.class), EmptyEntitySchemaAccessor.INSTANCE),
+				CatalogSchema._internalBuild(TestConstants.TEST_CATALOG, NamingConvention.generate(TestConstants.TEST_CATALOG), null, EnumSet.allOf(CatalogEvolutionMode.class), EmptyEntitySchemaAccessor.INSTANCE),
 				EntitySchema._internalBuild(Entities.PRODUCT)
 			)
 		)

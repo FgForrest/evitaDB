@@ -1423,6 +1423,7 @@ class ReevaluateExpressionExecutorTest {
 	private static EntitySchema createRealEntitySchema(@Nonnull ReferenceSchemaContract refSchema) {
 		return EntitySchema._internalBuild(
 			1, ENTITY_TYPE, null, null,
+			null,
 			false, false, null, false, null, 2,
 			Collections.emptySet(), Collections.emptySet(),
 			Collections.emptyMap(), Collections.emptyMap(),

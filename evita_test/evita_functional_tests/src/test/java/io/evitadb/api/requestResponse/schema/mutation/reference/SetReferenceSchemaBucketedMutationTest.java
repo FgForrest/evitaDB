@@ -39,6 +39,7 @@ import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.dataType.Scope;
 import io.evitadb.dataType.expression.Expression;
 import io.evitadb.utils.NamingConvention;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -109,7 +110,8 @@ class SetReferenceSchemaBucketedMutationTest {
 			},
 			null,
 			Collections.emptyMap(),
-			Collections.emptyMap()
+			Collections.emptyMap(),
+			ConflictResolutionOverride.INHERITED
 		);
 	}
 
@@ -141,7 +143,8 @@ class SetReferenceSchemaBucketedMutationTest {
 			null,
 			null,
 			Collections.emptyMap(),
-			Collections.emptyMap()
+			Collections.emptyMap(),
+			ConflictResolutionOverride.INHERITED
 		);
 	}
 
@@ -177,7 +180,8 @@ class SetReferenceSchemaBucketedMutationTest {
 				new ScopedBucketedPartially(Scope.LIVE, ExpressionFactory.parse("1 > 0"))
 			},
 			Collections.emptyMap(),
-			Collections.emptyMap()
+			Collections.emptyMap(),
+			ConflictResolutionOverride.INHERITED
 		);
 	}
 

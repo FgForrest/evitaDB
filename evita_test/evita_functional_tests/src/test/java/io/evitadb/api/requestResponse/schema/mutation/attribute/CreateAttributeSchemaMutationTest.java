@@ -39,6 +39,7 @@ import io.evitadb.api.requestResponse.schema.GlobalAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.dataType.Scope;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -82,7 +83,8 @@ class CreateAttributeSchemaMutationTest {
 			false,
 			Integer.class,
 			null,
-			2
+			2,
+			ConflictResolutionOverride.INHERITED
 		);
 	}
 
@@ -105,7 +107,8 @@ class CreateAttributeSchemaMutationTest {
 			false,
 			Integer.class,
 			null,
-			2
+			2,
+			ConflictResolutionOverride.INHERITED
 		);
 	}
 
@@ -125,7 +128,8 @@ class CreateAttributeSchemaMutationTest {
 			false,
 			Integer.class,
 			null,
-			2
+			2,
+			ConflictResolutionOverride.INHERITED
 		);
 	}
 

@@ -150,6 +150,7 @@ public class LongRunningCatalogWriteAheadLogIntegrationTest implements EvitaTest
 		final CatalogSchema catalogSchema = CatalogSchema._internalBuild(
 			TEST_CATALOG,
 			NamingConvention.generate(TEST_CATALOG),
+			null,
 			EnumSet.allOf(CatalogEvolutionMode.class),
 			EmptyEntitySchemaAccessor.INSTANCE
 		);

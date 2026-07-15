@@ -93,7 +93,7 @@ class SchemaSerializationServiceTest {
 		final Kryo kryo = KryoFactory.createKryo(SchemaKryoConfigurer.INSTANCE.andThen(SharedClassesConfigurer.INSTANCE));
 		final EntitySchemaContract createdSchema = constructSomeSchema(
 				new InternalEntitySchemaBuilder(
-						CatalogSchema._internalBuild(TestConstants.TEST_CATALOG, NamingConvention.generate(TestConstants.TEST_CATALOG), EnumSet.allOf(CatalogEvolutionMode.class), EmptyEntitySchemaAccessor.INSTANCE),
+						CatalogSchema._internalBuild(TestConstants.TEST_CATALOG, NamingConvention.generate(TestConstants.TEST_CATALOG), null, EnumSet.allOf(CatalogEvolutionMode.class), EmptyEntitySchemaAccessor.INSTANCE),
 						productSchema
 				)
 		);
@@ -477,6 +477,7 @@ class SchemaSerializationServiceTest {
 			CatalogSchema._internalBuild(
 				TestConstants.TEST_CATALOG,
 				NamingConvention.generate(TestConstants.TEST_CATALOG),
+				null,
 				EnumSet.allOf(CatalogEvolutionMode.class),
 				EmptyEntitySchemaAccessor.INSTANCE
 			),

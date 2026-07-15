@@ -267,7 +267,7 @@ public class GrpcReferenceSummaryBuilderTest {
 		return new InitialEntityBuilder(
 			new InternalEntitySchemaBuilder(
 				CatalogSchema._internalBuild(
-					TestConstants.TEST_CATALOG, Map.of(), EnumSet.allOf(CatalogEvolutionMode.class), EmptyEntitySchemaAccessor.INSTANCE
+					TestConstants.TEST_CATALOG, Map.of(), null, EnumSet.allOf(CatalogEvolutionMode.class), EmptyEntitySchemaAccessor.INSTANCE
 				),
 				EntitySchema._internalBuild(groupEntityType)
 			)
@@ -286,7 +286,7 @@ public class GrpcReferenceSummaryBuilderTest {
 		return new InitialEntityBuilder(
 			new InternalEntitySchemaBuilder(
 				CatalogSchema._internalBuild(
-					TestConstants.TEST_CATALOG, Map.of(), EnumSet.allOf(CatalogEvolutionMode.class), EmptyEntitySchemaAccessor.INSTANCE
+					TestConstants.TEST_CATALOG, Map.of(), null, EnumSet.allOf(CatalogEvolutionMode.class), EmptyEntitySchemaAccessor.INSTANCE
 				),
 				EntitySchema._internalBuild(type)
 			)

@@ -62,6 +62,7 @@ abstract class AbstractConstraintToJsonConverterTest {
 		this.catalogSchema = CatalogSchema._internalBuild(
 			TestConstants.TEST_CATALOG,
 			Map.of(),
+			null,
 			EnumSet.allOf(CatalogEvolutionMode.class),
 			new EntitySchemaProvider() {
 				@Nonnull

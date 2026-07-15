@@ -236,37 +236,12 @@ class TransactionOptionsTest {
 
 		@Test
 		@DisplayName(
-			"should collapse deprecated varargs to coarsest policy"
+			"should configure last writer wins through a NONE resolution"
 		)
-		@SuppressWarnings("deprecation")
-		void shouldSetConflictPolicyWithVarargs() {
-			final TransactionOptions options =
-				TransactionOptions.builder()
-					.conflictPolicy(
-						ConflictPolicy.CATALOG,
-						ConflictPolicy.ENTITY
-					)
-					.build();
-
-			// a catalog-wide lock subsumes the entity scope declared alongside it
-			assertEquals(
-				ConflictPolicy.CATALOG,
-				options.conflictPolicy().policy()
-			);
-			assertTrue(
-				options.conflictPolicy().granularity().isEmpty()
-			);
-		}
-
-		@Test
-		@DisplayName(
-			"should map deprecated last writer wins to NONE"
-		)
-		@SuppressWarnings("deprecation")
 		void shouldSetLastWriterWins() {
 			final TransactionOptions options =
 				TransactionOptions.builder()
-					.conflictPolicyLastWriterWins()
+					.conflictResolution(ConflictPolicy.NONE)
 					.build();
 
 			assertEquals(
@@ -431,54 +406,6 @@ class TransactionOptionsTest {
 			assertEquals(
 				TransactionOptions.DEFAULT_TX_DIRECTORY,
 				options.transactionWorkDirectory()
-			);
-		}
-	}
-
-	@Nested
-	@DisplayName("Conflict resolution mapping")
-	class ConflictResolutionMappingTest {
-
-		@Test
-		@DisplayName(
-			"should map deprecated empty policy list to NONE"
-		)
-		@SuppressWarnings("deprecation")
-		void shouldMapEmptyLegacyListToNone() {
-			final TransactionOptions options =
-				TransactionOptions.builder()
-					.conflictPolicy()
-					.build();
-
-			assertEquals(
-				ConflictPolicy.NONE,
-				options.conflictPolicy().policy()
-			);
-		}
-
-		@Test
-		@DisplayName(
-			"should fold deprecated granular members into " +
-				"the refinement set"
-		)
-		@SuppressWarnings("deprecation")
-		void shouldFoldLegacyGranularMembers() {
-			final TransactionOptions options =
-				TransactionOptions.builder()
-					.conflictPolicy(
-						ConflictPolicy.ENTITY,
-						ConflictPolicy.ENTITY_ATTRIBUTE
-					)
-					.build();
-
-			assertEquals(
-				new ConflictResolution(
-					ConflictPolicy.ENTITY,
-					EnumSet.of(
-						GranularConflictPolicy.ENTITY_ATTRIBUTE
-					)
-				),
-				options.conflictPolicy()
 			);
 		}
 	}

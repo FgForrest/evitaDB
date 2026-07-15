@@ -57,6 +57,7 @@ import io.evitadb.index.mutation.IndexImplicitMutations;
 import io.evitadb.index.mutation.IndexMutation;
 import io.evitadb.index.mutation.ReevaluateExpressionMutation;
 import io.evitadb.spi.store.catalog.persistence.accessor.WritableEntityStorageContainerAccessor;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -199,19 +200,19 @@ class EntityIndexLocalMutationExecutorTriggerTest {
 
 	/** Attribute schema for the `inputWidgetType` attribute. */
 	private static final EntityAttributeSchema INPUT_WIDGET_TYPE_SCHEMA =
-		EntityAttributeSchema._internalBuild("inputWidgetType", String.class, false);
+		EntityAttributeSchema._internalBuild("inputWidgetType", String.class, false, ConflictResolutionOverride.INHERITED);
 	/** Attribute schema for the `status` attribute. */
 	private static final EntityAttributeSchema STATUS_SCHEMA =
-		EntityAttributeSchema._internalBuild("status", String.class, false);
+		EntityAttributeSchema._internalBuild("status", String.class, false, ConflictResolutionOverride.INHERITED);
 	/** Attribute schema for the `priority` attribute. */
 	private static final EntityAttributeSchema PRIORITY_SCHEMA =
-		EntityAttributeSchema._internalBuild("priority", Integer.class, false);
+		EntityAttributeSchema._internalBuild("priority", Integer.class, false, ConflictResolutionOverride.INHERITED);
 	/** Attribute schema for the `code` attribute. */
 	private static final EntityAttributeSchema CODE_SCHEMA =
-		EntityAttributeSchema._internalBuild("code", String.class, false);
+		EntityAttributeSchema._internalBuild("code", String.class, false, ConflictResolutionOverride.INHERITED);
 	/** Localized attribute schema for the `name` attribute. */
 	private static final EntityAttributeSchema NAME_SCHEMA =
-		EntityAttributeSchema._internalBuild("name", String.class, true);
+		EntityAttributeSchema._internalBuild("name", String.class, true, ConflictResolutionOverride.INHERITED);
 
 	/**
 	 * Builds a schema with all test attribute definitions so that `applyMutation()` does not throw
@@ -229,6 +230,7 @@ class EntityIndexLocalMutationExecutorTriggerTest {
 		return EntitySchema._internalBuild(
 			1, SOURCE_ENTITY_TYPE,
 			null, null,
+			null,
 			false, false, null,
 			false, null, 2,
 			Set.of(Locale.ENGLISH),

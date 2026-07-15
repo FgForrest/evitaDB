@@ -69,6 +69,7 @@ class CatalogSchemaConverterTest {
 		final CatalogSchema catalogSchema = CatalogSchema._internalBuild(
 			TestConstants.TEST_CATALOG,
 			NamingConvention.generate(TestConstants.TEST_CATALOG),
+			null,
 			EnumSet.noneOf(CatalogEvolutionMode.class),
 			EmptyEntitySchemaAccessor.INSTANCE
 		);
@@ -114,7 +115,8 @@ class CatalogSchemaConverterTest {
 				"priority", GlobalAttributeSchema._internalBuild(
 					"code",
 					Long[].class,
-					false
+					false,
+					ConflictResolutionOverride.INHERITED
 				)
 			),
 			EmptyEntitySchemaAccessor.INSTANCE

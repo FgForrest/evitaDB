@@ -46,6 +46,7 @@ import io.evitadb.dataType.Scope;
 import io.evitadb.dataType.expression.Expression;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.NamingConvention;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -104,7 +105,8 @@ class ReflectedReferenceSchemaTest {
 			Collections.emptyMap(),
 			Collections.emptyMap(),
 			Collections.emptyMap(),
-			Collections.emptyMap()
+			Collections.emptyMap(),
+			ConflictResolutionOverride.INHERITED
 		);
 	}
 
@@ -140,7 +142,8 @@ class ReflectedReferenceSchemaTest {
 			bucketedMap,
 			Map.of(Scope.LIVE, bucketedPartiallyExpr),
 			Collections.emptyMap(),
-			Collections.emptyMap()
+			Collections.emptyMap(),
+			ConflictResolutionOverride.INHERITED
 		);
 	}
 
@@ -174,7 +177,8 @@ class ReflectedReferenceSchemaTest {
 			Collections.emptyMap(),
 			Collections.emptyMap(),
 			attributes,
-			Collections.emptyMap()
+			Collections.emptyMap(),
+			ConflictResolutionOverride.INHERITED
 		);
 	}
 
@@ -186,7 +190,7 @@ class ReflectedReferenceSchemaTest {
 	 * @return a new {@link AttributeSchema}
 	 */
 	private static AttributeSchema createAttribute(String name, Class<? extends java.io.Serializable> type) {
-		return AttributeSchema._internalBuild(name, type, false);
+		return AttributeSchema._internalBuild(name, type, false, ConflictResolutionOverride.INHERITED);
 	}
 
 	@Nested
@@ -1200,6 +1204,7 @@ class ReflectedReferenceSchemaTest {
 				1, "Product",
 				NamingConvention.generate("Product"),
 				null, null,
+				null,
 				true, false, (Set<Scope>) null, false, (Set<Scope>) null, 2,
 				Collections.emptySet(), Collections.emptySet(),
 				Collections.emptyMap(), Collections.emptyMap(),
@@ -1210,6 +1215,7 @@ class ReflectedReferenceSchemaTest {
 			final CatalogSchema catalogSchema = CatalogSchema._internalBuild(
 				"testCatalog",
 				NamingConvention.generate("testCatalog"),
+				null,
 				EnumSet.allOf(CatalogEvolutionMode.class),
 				new EntitySchemaProvider() {
 					@Nonnull
@@ -1262,7 +1268,8 @@ class ReflectedReferenceSchemaTest {
 				Collections.emptyMap(),
 				Collections.emptyMap(),
 				Collections.emptyMap(),
-				Collections.emptyMap()
+				Collections.emptyMap(),
+				ConflictResolutionOverride.INHERITED
 			);
 
 			// Build reflected reference with facetedPartially in LIVE but NOT faceted
@@ -1338,7 +1345,8 @@ class ReflectedReferenceSchemaTest {
 				Collections.emptyMap(),
 				Collections.emptyMap(),
 				Collections.emptyMap(),
-				Collections.emptyMap()
+				Collections.emptyMap(),
+				ConflictResolutionOverride.INHERITED
 			);
 
 			// Build reflected reference with facetedInherited=true but different facetedPartially
@@ -1411,7 +1419,8 @@ class ReflectedReferenceSchemaTest {
 				Collections.emptyMap(),
 				Collections.emptyMap(),
 				Collections.emptyMap(),
-				Collections.emptyMap()
+				Collections.emptyMap(),
+				ConflictResolutionOverride.INHERITED
 			);
 
 			// Build reflected reference with facetedInherited=true but NO faceted scopes (differs from original)
@@ -1482,7 +1491,8 @@ class ReflectedReferenceSchemaTest {
 				Collections.emptyMap(),
 				Collections.emptyMap(),
 				Collections.emptyMap(),
-				Collections.emptyMap()
+				Collections.emptyMap(),
+				ConflictResolutionOverride.INHERITED
 			);
 
 			// Build reflected reference with indexedInherited=true but different indexed scopes
@@ -1556,7 +1566,8 @@ class ReflectedReferenceSchemaTest {
 				Collections.emptyMap(),
 				Collections.emptyMap(),
 				Collections.emptyMap(),
-				Collections.emptyMap()
+				Collections.emptyMap(),
+				ConflictResolutionOverride.INHERITED
 			);
 
 			// Build reflected reference with indexedComponentsInherited=true but different components
@@ -1767,7 +1778,8 @@ class ReflectedReferenceSchemaTest {
 				Collections.emptyMap(),
 				Collections.emptyMap(),
 				Collections.emptyMap(),
-				Collections.emptyMap()
+				Collections.emptyMap(),
+				ConflictResolutionOverride.INHERITED
 			);
 
 			// Reflected reference: inherited indexed, explicit bucketed in LIVE

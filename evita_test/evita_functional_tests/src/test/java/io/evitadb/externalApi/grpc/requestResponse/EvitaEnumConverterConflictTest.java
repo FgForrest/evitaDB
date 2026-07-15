@@ -27,7 +27,6 @@ import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.mutation.conflict.GranularConflictPolicy;
 import io.evitadb.exception.EvitaInvalidUsageException;
-import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.externalApi.grpc.generated.GrpcConflictPolicy;
 import io.evitadb.externalApi.grpc.generated.GrpcConflictResolutionOverride;
 import io.evitadb.externalApi.grpc.generated.GrpcGranularConflictPolicy;
@@ -84,19 +83,6 @@ class EvitaEnumConverterConflictTest {
 		assertThrows(
 			EvitaInvalidUsageException.class,
 			() -> EvitaEnumConverter.toGranularConflictPolicy(GrpcGranularConflictPolicy.UNRECOGNIZED)
-		);
-	}
-
-	@ParameterizedTest
-	@EnumSource(
-		value = ConflictPolicy.class,
-		names = {"ENTITY_ATTRIBUTE", "REFERENCE", "REFERENCE_ATTRIBUTE", "ASSOCIATED_DATA", "PRICE", "HIERARCHY"}
-	)
-	@DisplayName("should reject a transitional granular constant serialized as a coarse policy")
-	void shouldThrowWhenTransitionalGranularPolicyIsConvertedAsCoarse(@Nonnull ConflictPolicy granularPolicy) {
-		assertThrows(
-			GenericEvitaInternalError.class,
-			() -> EvitaEnumConverter.toGrpcConflictPolicy(granularPolicy)
 		);
 	}
 

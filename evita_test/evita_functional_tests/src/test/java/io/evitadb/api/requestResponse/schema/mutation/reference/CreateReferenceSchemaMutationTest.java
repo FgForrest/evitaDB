@@ -30,6 +30,7 @@ import io.evitadb.api.requestResponse.mutation.conflict.CollectionConflictKey;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictGenerationContext;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolution;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
 import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
@@ -52,6 +53,7 @@ import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeU
 import io.evitadb.dataType.Scope;
 import io.evitadb.utils.NamingConvention;
 import io.evitadb.exception.InvalidClassifierFormatException;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -149,7 +151,8 @@ class CreateReferenceSchemaMutationTest {
 					false,
 					Integer.class,
 					null,
-					2
+					2,
+					ConflictResolutionOverride.INHERITED
 				),
 				REFERENCE_ATTRIBUTE_QUANTITY,
 				AttributeSchema._internalBuild(
@@ -168,7 +171,8 @@ class CreateReferenceSchemaMutationTest {
 					false,
 					Integer.class,
 					null,
-					2
+					2,
+					ConflictResolutionOverride.INHERITED
 				)
 			),
 			Map.of(
@@ -191,7 +195,8 @@ class CreateReferenceSchemaMutationTest {
 						)
 					)
 				)
-			)
+			),
+			ConflictResolutionOverride.INHERITED
 		);
 	}
 
@@ -749,7 +754,8 @@ class CreateReferenceSchemaMutationTest {
 				},
 				null,
 				Collections.emptyMap(),
-				Collections.emptyMap()
+				Collections.emptyMap(),
+				ConflictResolutionOverride.INHERITED
 			);
 			final CreateReferenceSchemaMutation mutation = new CreateReferenceSchemaMutation(
 				REFERENCE_NAME,
@@ -897,7 +903,7 @@ class CreateReferenceSchemaMutationTest {
 				null, false,
 				true, false
 			);
-			final List<ConflictKey> keys = new ConflictGenerationContext(ConflictResolution.fromLegacyPolicySet(Set.of())).withEntityType(
+			final List<ConflictKey> keys = new ConflictGenerationContext(new ConflictResolution(ConflictPolicy.NONE)).withEntityType(
 				"testEntity", null,
 				ctx -> mutation.collectConflictKeys(ctx).toList()
 			);

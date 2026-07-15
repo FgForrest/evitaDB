@@ -28,6 +28,7 @@ import io.evitadb.api.requestResponse.mutation.conflict.CollectionConflictKey;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictGenerationContext;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolution;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
@@ -347,7 +348,7 @@ class DisallowCurrencyInEntitySchemaMutationTest {
 					Currency.getInstance("USD")
 				);
 			final List<ConflictKey> keys =
-				new ConflictGenerationContext(ConflictResolution.fromLegacyPolicySet(Set.of())).withEntityType(
+				new ConflictGenerationContext(new ConflictResolution(ConflictPolicy.NONE)).withEntityType(
 					"product", null,
 					ctx -> mutation.collectConflictKeys(ctx).toList()
 				);

@@ -102,6 +102,7 @@ import java.util.Currency;
 import java.util.EnumSet;
 import java.util.HashMap;
 import io.evitadb.utils.CollectionUtils;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 
 import java.util.Objects;
 import java.util.HashSet;
@@ -176,6 +177,7 @@ class EntityIndexRoundTripTest {
 	 */
 	private static final CatalogSchema CATALOG_SCHEMA = CatalogSchema._internalBuild(
 		APITestConstants.TEST_CATALOG, NamingConvention.generate(APITestConstants.TEST_CATALOG),
+		null,
 		EnumSet.allOf(CatalogEvolutionMode.class), EmptyEntitySchemaAccessor.INSTANCE
 	);
 	private static final EntitySchema ENTITY_SCHEMA = EntitySchema._internalBuild(ENTITY_TYPE);
@@ -223,7 +225,8 @@ class EntityIndexRoundTripTest {
 			new Scope[]{Scope.LIVE},
 			null,
 			false, false, false,
-			type, null
+			type, null,
+			ConflictResolutionOverride.INHERITED
 		);
 	}
 

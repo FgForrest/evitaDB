@@ -558,24 +558,18 @@ class ConflictKeyTest implements EvitaTestSupport {
 	class ConflictPolicyTest {
 
 		@Test
-		@DisplayName("should have correct granularity flags")
-		void shouldHaveCorrectGranularityFlags() {
-			assertFalse(ConflictPolicy.NONE.isGranular());
-			assertFalse(ConflictPolicy.CATALOG.isGranular());
-			assertFalse(ConflictPolicy.COLLECTION.isGranular());
-			assertFalse(ConflictPolicy.ENTITY.isGranular());
-			assertTrue(ConflictPolicy.ENTITY_ATTRIBUTE.isGranular());
-			assertTrue(ConflictPolicy.REFERENCE.isGranular());
-			assertTrue(ConflictPolicy.REFERENCE_ATTRIBUTE.isGranular());
-			assertTrue(ConflictPolicy.ASSOCIATED_DATA.isGranular());
-			assertTrue(ConflictPolicy.PRICE.isGranular());
-			assertTrue(ConflictPolicy.HIERARCHY.isGranular());
-		}
-
-		@Test
-		@DisplayName("should have ten enum values")
-		void shouldHaveTenEnumValues() {
-			assertEquals(10, ConflictPolicy.values().length);
+		@DisplayName("should expose exactly the four coarse scopes")
+		void shouldExposeOnlyCoarseScopes() {
+			assertEquals(4, ConflictPolicy.values().length);
+			assertArrayEquals(
+				new ConflictPolicy[] {
+					ConflictPolicy.NONE,
+					ConflictPolicy.CATALOG,
+					ConflictPolicy.COLLECTION,
+					ConflictPolicy.ENTITY
+				},
+				ConflictPolicy.values()
+			);
 		}
 	}
 

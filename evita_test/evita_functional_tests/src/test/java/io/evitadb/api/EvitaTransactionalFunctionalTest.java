@@ -50,6 +50,8 @@ import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.mutation.EngineMutation;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolution;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
+import io.evitadb.api.requestResponse.mutation.conflict.GranularConflictPolicy;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
@@ -97,6 +99,7 @@ import org.mockito.Mockito;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.OffsetDateTime;
@@ -303,6 +306,36 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 		final Evita evita = new Evita(configurationBuilder.apply(builder).build());
 		evita.waitUntilFullyInitialized();
 		return evita;
+	}
+
+	/**
+	 * Upserts a single generated product entity into the test catalog and returns it fully fetched.
+	 * Mirrors the entity-seeding block shared by the concurrent-conflict tests so those tests can focus
+	 * on the conflict assertions rather than repeating the entity generation boilerplate.
+	 *
+	 * @param evita         the evita instance to write into
+	 * @param productSchema the product schema used to generate the entity
+	 * @return the upserted product entity, fully fetched
+	 */
+	@Nonnull
+	private SealedEntity upsertSingleGeneratedProduct(
+		@Nonnull EvitaContract evita,
+		@Nonnull SealedEntitySchema productSchema
+	) {
+		return evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				final BiFunction<String, Faker, Integer> randomEntityPicker = (entityType, faker) -> RANDOM_ENTITY_PICKER.apply(
+					entityType, session, faker);
+				final Optional<SealedEntity> upsertedEntity = this.dataGenerator.generateEntities(
+						productSchema, randomEntityPicker, SEED)
+					.limit(1)
+					.map(session::upsertAndFetchEntity)
+					.findFirst();
+				assertTrue(upsertedEntity.isPresent());
+				return upsertedEntity.get();
+			}
+		);
 	}
 
 	/**
@@ -1203,7 +1236,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 			originalEvita,
 			builder -> builder.transaction(
 				TransactionOptions.builder(builder.build().transaction())
-					.conflictPolicy(ConflictPolicy.ENTITY, ConflictPolicy.ENTITY_ATTRIBUTE)
+					.conflictResolution(ConflictPolicy.ENTITY, GranularConflictPolicy.ENTITY_ATTRIBUTE)
 					.build()
 			)
 		);
@@ -1327,6 +1360,346 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 		);
 	}
 
+	@DisplayName("When the catalog schema declares an ENTITY conflict policy, it overrides a NONE engine default and concurrent writes to the same product conflict.")
+	@UseDataSet(value = TRANSACTIONAL_DATA_SET, destroyAfterTest = true)
+	@Test
+	void shouldRaiseConflictWhenCatalogSchemaDeclaresEntityPolicyOverridingNoneEngineDefault(
+		EvitaContract originalEvita, SealedEntitySchema productSchema) throws Exception {
+		// the engine default disables conflict detection entirely (last-writer-wins)...
+		final Evita evita = reinitializeEvitaWithConfig(
+			originalEvita,
+			builder -> builder.transaction(
+				TransactionOptions.builder(builder.build().transaction())
+					.conflictResolution(ConflictPolicy.NONE)
+					.build()
+			)
+		);
+
+		// ...but the catalog schema re-enables entity-level conflict detection on the live write path
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.getCatalogSchema()
+					.openForWrite()
+					.withConflictResolution(new ConflictResolution(ConflictPolicy.ENTITY))
+					.updateVia(session);
+			}
+		);
+
+		final SealedEntity addedEntity = upsertSingleGeneratedProduct(evita, productSchema);
+
+		assertThrows(
+			ConflictingCatalogMutationException.class,
+			() -> evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.getEntity(productSchema.getName(), addedEntity.getPrimaryKey(), entityFetchAllContent())
+						.orElseThrow()
+						.openForWrite()
+						.setAttribute(ATTRIBUTE_PRIORITY, 19846L)
+						.upsertVia(session);
+
+					try {
+						// concurrent session touches a different attribute of the SAME entity and commits first;
+						// under the whole-entity key mandated by the catalog schema this still conflicts
+						executeConcurrentUpdate(
+							evita, TEST_CATALOG, concurrentSession -> {
+								concurrentSession.getEntity(
+										productSchema.getName(), addedEntity.getPrimaryKey(), entityFetchAllContent())
+									.orElseThrow()
+									.openForWrite()
+									.setAttribute(ATTRIBUTE_CODE, "catalog-schema-conflict-code")
+									.upsertVia(concurrentSession);
+							}
+						);
+					} catch (InterruptedException e) {
+						fail("Test thread was interrupted!", e);
+					}
+
+					log.info("Attempting to commit transaction expected to conflict via catalog-schema policy...");
+				}
+			)
+		);
+	}
+
+	@DisplayName("When the engine default is NONE and no schema declares a conflict policy, concurrent writes to the same product do not conflict.")
+	@UseDataSet(value = TRANSACTIONAL_DATA_SET, destroyAfterTest = true)
+	@Test
+	void shouldNotRaiseConflictWhenEngineDefaultIsNoneAndNoSchemaDeclaresPolicy(
+		EvitaContract originalEvita, SealedEntitySchema productSchema) throws Exception {
+		// engine default disables conflict detection and, unlike the previous test, no schema overrides it
+		final Evita evita = reinitializeEvitaWithConfig(
+			originalEvita,
+			builder -> builder.transaction(
+				TransactionOptions.builder(builder.build().transaction())
+					.conflictResolution(ConflictPolicy.NONE)
+					.build()
+			)
+		);
+
+		final SealedEntity addedEntity = upsertSingleGeneratedProduct(evita, productSchema);
+
+		// two concurrent writes to the SAME attribute of the SAME entity would conflict under any
+		// entity-or-coarser policy, yet the NONE engine default lets the last writer silently win
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.getEntity(productSchema.getName(), addedEntity.getPrimaryKey(), entityFetchAllContent())
+					.orElseThrow()
+					.openForWrite()
+					.setAttribute(ATTRIBUTE_PRIORITY, 19846L)
+					.upsertVia(session);
+
+				try {
+					executeConcurrentUpdate(
+						evita, TEST_CATALOG, concurrentSession -> {
+							concurrentSession.getEntity(
+									productSchema.getName(), addedEntity.getPrimaryKey(), entityFetchAllContent())
+								.orElseThrow()
+								.openForWrite()
+								.setAttribute(ATTRIBUTE_PRIORITY, 27954L)
+								.upsertVia(concurrentSession);
+						}
+					);
+				} catch (InterruptedException e) {
+					fail("Test thread was interrupted!", e);
+				}
+
+				log.info("Committing transaction expected NOT to conflict under the NONE engine default...");
+			}
+		);
+	}
+
+	@DisplayName("When the entity schema declares a NONE conflict policy, it overrides an ENTITY catalog-schema policy and concurrent writes to the same product do not conflict.")
+	@UseDataSet(value = TRANSACTIONAL_DATA_SET, destroyAfterTest = true)
+	@Test
+	void shouldNotRaiseConflictWhenEntitySchemaDeclaresNonePolicyOverridingCatalogEntityPolicy(
+		EvitaContract evita, SealedEntitySchema productSchema) {
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				// catalog schema would force entity-level conflicts for every collection...
+				session.getCatalogSchema()
+					.openForWrite()
+					.withConflictResolution(new ConflictResolution(ConflictPolicy.ENTITY))
+					.updateVia(session);
+				// ...but the entity schema relaxes conflict detection entirely for this collection
+				session.getEntitySchema(productSchema.getName())
+					.orElseThrow()
+					.openForWrite()
+					.withConflictResolution(new ConflictResolution(ConflictPolicy.NONE))
+					.updateVia(session);
+			}
+		);
+
+		final SealedEntity addedEntity = upsertSingleGeneratedProduct(evita, productSchema);
+
+		// two concurrent writes to the SAME attribute of the SAME entity would conflict under the
+		// catalog policy, but the more specific entity-schema NONE override wins whole-record
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.getEntity(productSchema.getName(), addedEntity.getPrimaryKey(), entityFetchAllContent())
+					.orElseThrow()
+					.openForWrite()
+					.setAttribute(ATTRIBUTE_PRIORITY, 19846L)
+					.upsertVia(session);
+
+				try {
+					executeConcurrentUpdate(
+						evita, TEST_CATALOG, concurrentSession -> {
+							concurrentSession.getEntity(
+									productSchema.getName(), addedEntity.getPrimaryKey(), entityFetchAllContent())
+								.orElseThrow()
+								.openForWrite()
+								.setAttribute(ATTRIBUTE_PRIORITY, 27954L)
+								.upsertVia(concurrentSession);
+						}
+					);
+				} catch (InterruptedException e) {
+					fail("Test thread was interrupted!", e);
+				}
+
+				log.info("Committing transaction expected NOT to conflict via entity-schema NONE override...");
+			}
+		);
+	}
+
+	@DisplayName("When two entity attributes each declare a GRANULAR per-item conflict override, concurrent writes to different attributes of the same product do not conflict.")
+	@UseDataSet(value = TRANSACTIONAL_DATA_SET, destroyAfterTest = true)
+	@Test
+	void shouldNotRaiseConflictWhenPerItemGranularOverrideIsolatesDistinctAttributes(
+		EvitaContract originalEvita, SealedEntitySchema productSchema) throws Exception {
+		// coarse ENTITY policy with no granular refinements => every write emits the whole-entity key...
+		final Evita evita = reinitializeEvitaWithConfig(
+			originalEvita,
+			builder -> builder.transaction(
+				TransactionOptions.builder(builder.build().transaction())
+					.conflictResolution(ConflictPolicy.ENTITY)
+					.build()
+			)
+		);
+
+		// ...but two attributes opt themselves into their own attribute-scoped conflict keys
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.getEntitySchema(productSchema.getName())
+					.orElseThrow()
+					.openForWrite()
+					.withAttribute(
+						ATTRIBUTE_PRIORITY, Long.class,
+						whichIs -> whichIs.withConflictResolutionOverride(ConflictResolutionOverride.GRANULAR))
+					.withAttribute(
+						ATTRIBUTE_QUANTITY, BigDecimal.class,
+						whichIs -> whichIs.withConflictResolutionOverride(ConflictResolutionOverride.GRANULAR))
+					.updateVia(session);
+			}
+		);
+
+		final SealedEntity addedEntity = upsertSingleGeneratedProduct(evita, productSchema);
+
+		// writes to two distinct GRANULAR-overridden attributes emit disjoint keys => no conflict
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.getEntity(productSchema.getName(), addedEntity.getPrimaryKey(), entityFetchAllContent())
+					.orElseThrow()
+					.openForWrite()
+					.setAttribute(ATTRIBUTE_PRIORITY, 19846L)
+					.upsertVia(session);
+
+				try {
+					executeConcurrentUpdate(
+						evita, TEST_CATALOG, concurrentSession -> {
+							concurrentSession.getEntity(
+									productSchema.getName(), addedEntity.getPrimaryKey(), entityFetchAllContent())
+								.orElseThrow()
+								.openForWrite()
+								.setAttribute(ATTRIBUTE_QUANTITY, new BigDecimal("123.45"))
+								.upsertVia(concurrentSession);
+						}
+					);
+				} catch (InterruptedException e) {
+					fail("Test thread was interrupted!", e);
+				}
+
+				log.info("Committing transaction expected NOT to conflict via per-item GRANULAR overrides...");
+			}
+		);
+	}
+
+	@DisplayName("When an entity attribute declares a GRANULAR per-item conflict override, concurrent writes to that same attribute of the same product still conflict.")
+	@UseDataSet(value = TRANSACTIONAL_DATA_SET, destroyAfterTest = true)
+	@Test
+	void shouldRaiseConflictWhenPerItemGranularOverrideStillGuardsSameAttribute(
+		EvitaContract originalEvita, SealedEntitySchema productSchema) throws Exception {
+		// coarse ENTITY policy with no granular refinements as the baseline...
+		final Evita evita = reinitializeEvitaWithConfig(
+			originalEvita,
+			builder -> builder.transaction(
+				TransactionOptions.builder(builder.build().transaction())
+					.conflictResolution(ConflictPolicy.ENTITY)
+					.build()
+			)
+		);
+
+		// ...and a GRANULAR override on the priority attribute, isolating it into its own key
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.getEntitySchema(productSchema.getName())
+					.orElseThrow()
+					.openForWrite()
+					.withAttribute(
+						ATTRIBUTE_PRIORITY, Long.class,
+						whichIs -> whichIs.withConflictResolutionOverride(ConflictResolutionOverride.GRANULAR))
+					.updateVia(session);
+			}
+		);
+
+		final SealedEntity addedEntity = upsertSingleGeneratedProduct(evita, productSchema);
+
+		// both writes touch the SAME granular-overridden attribute => same key => conflict
+		assertThrows(
+			ConflictingCatalogMutationException.class,
+			() -> evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.getEntity(productSchema.getName(), addedEntity.getPrimaryKey(), entityFetchAllContent())
+						.orElseThrow()
+						.openForWrite()
+						.setAttribute(ATTRIBUTE_PRIORITY, 19846L)
+						.upsertVia(session);
+
+					try {
+						executeConcurrentUpdate(
+							evita, TEST_CATALOG, concurrentSession -> {
+								concurrentSession.getEntity(
+										productSchema.getName(), addedEntity.getPrimaryKey(), entityFetchAllContent())
+									.orElseThrow()
+									.openForWrite()
+									.setAttribute(ATTRIBUTE_PRIORITY, 27954L)
+									.upsertVia(concurrentSession);
+							}
+						);
+					} catch (InterruptedException e) {
+						fail("Test thread was interrupted!", e);
+					}
+
+					log.info("Attempting to commit conflicting write to the same granular attribute...");
+				}
+			)
+		);
+	}
+
+	@DisplayName("When two transactions concurrently create an entity with the same explicitly-assigned primary key under a fully granular policy, the second commit is rejected.")
+	@UseDataSet(value = TRANSACTIONAL_DATA_SET, destroyAfterTest = true)
+	@Test
+	void shouldRaiseConflictWhenTwoTransactionsCreateEntityWithSamePrimaryKeyUnderGranularPolicy(
+		EvitaContract originalEvita, SealedEntitySchema productSchema) throws Exception {
+		// fully granular policy: attribute writes to the same entity would NOT conflict...
+		final Evita evita = reinitializeEvitaWithConfig(
+			originalEvita,
+			builder -> builder.transaction(
+				TransactionOptions.builder(builder.build().transaction())
+					.conflictResolution(ConflictPolicy.ENTITY, GranularConflictPolicy.ENTITY_ATTRIBUTE)
+					.build()
+			)
+		);
+
+		final int sharedPrimaryKey = 1000;
+
+		// ...yet forced creation (MUST_NOT_EXIST) still emits the coarse whole-entity key, so two
+		// concurrent creations of the same primary key can never both succeed
+		assertThrows(
+			ConflictingCatalogMutationException.class,
+			() -> evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.createNewEntity(productSchema.getName(), sharedPrimaryKey)
+						.setAttribute(ATTRIBUTE_PRIORITY, 19846L)
+						.upsertVia(session);
+
+					try {
+						// concurrent session creates the same primary key and commits first
+						executeConcurrentUpdate(
+							evita, TEST_CATALOG, concurrentSession -> {
+								concurrentSession.createNewEntity(productSchema.getName(), sharedPrimaryKey)
+									.setAttribute(ATTRIBUTE_PRIORITY, 27954L)
+									.upsertVia(concurrentSession);
+							}
+						);
+					} catch (InterruptedException e) {
+						fail("Test thread was interrupted!", e);
+					}
+
+					log.info("Attempting to commit a second creation of the same primary key...");
+				}
+			)
+		);
+	}
+
 	@DisplayName("When two parallel transactions update same product on conflicting granular level (same attributes) via delta mutation, no conflict is raised.")
 	@UseDataSet(value = TRANSACTIONAL_DATA_SET, destroyAfterTest = true)
 	@Test
@@ -1341,7 +1714,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 				.name(originalConfiguration.name())
 				.transaction(
 					TransactionOptions.builder(originalConfiguration.transaction())
-						.conflictPolicy(ConflictPolicy.ENTITY, ConflictPolicy.ENTITY_ATTRIBUTE)
+						.conflictResolution(ConflictPolicy.ENTITY, GranularConflictPolicy.ENTITY_ATTRIBUTE)
 						.build()
 				)
 				.storage(originalConfiguration.storage())
@@ -1414,7 +1787,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 				.name(originalConfiguration.name())
 				.transaction(
 					TransactionOptions.builder(originalConfiguration.transaction())
-						.conflictPolicy(ConflictPolicy.ENTITY, ConflictPolicy.ENTITY_ATTRIBUTE)
+						.conflictResolution(ConflictPolicy.ENTITY, GranularConflictPolicy.ENTITY_ATTRIBUTE)
 						.build()
 				)
 				.storage(originalConfiguration.storage())
@@ -1512,7 +1885,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 			originalEvita,
 			builder -> builder.transaction(
 				TransactionOptions.builder(txOptions)
-					.conflictPolicy(ConflictPolicy.ENTITY, ConflictPolicy.ENTITY_ATTRIBUTE)
+					.conflictResolution(ConflictPolicy.ENTITY, GranularConflictPolicy.ENTITY_ATTRIBUTE)
 					.build()
 			)
 		);
@@ -1586,7 +1959,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 			originalEvita,
 			builder -> builder.transaction(
 				TransactionOptions.builder(txOptions)
-					.conflictPolicy(ConflictPolicy.ENTITY, ConflictPolicy.ENTITY_ATTRIBUTE)
+					.conflictResolution(ConflictPolicy.ENTITY, GranularConflictPolicy.ENTITY_ATTRIBUTE)
 					.build()
 			)
 		);
@@ -1663,7 +2036,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 			originalEvita,
 			builder -> builder.transaction(
 				TransactionOptions.builder(txOptions)
-					.conflictPolicy(ConflictPolicy.ENTITY, ConflictPolicy.ENTITY_ATTRIBUTE)
+					.conflictResolution(ConflictPolicy.ENTITY, GranularConflictPolicy.ENTITY_ATTRIBUTE)
 					.build()
 			)
 		);
@@ -1732,7 +2105,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 				.name(originalConfiguration.name())
 				.transaction(
 					TransactionOptions.builder(originalConfiguration.transaction())
-						.conflictPolicy(ConflictPolicy.ENTITY, ConflictPolicy.REFERENCE_ATTRIBUTE)
+						.conflictResolution(ConflictPolicy.ENTITY, GranularConflictPolicy.REFERENCE_ATTRIBUTE)
 						.build()
 				)
 				.storage(originalConfiguration.storage())
@@ -1835,7 +2208,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 				.name(originalConfiguration.name())
 				.transaction(
 					TransactionOptions.builder(originalConfiguration.transaction())
-						.conflictPolicy(ConflictPolicy.ENTITY, ConflictPolicy.REFERENCE_ATTRIBUTE)
+						.conflictResolution(ConflictPolicy.ENTITY, GranularConflictPolicy.REFERENCE_ATTRIBUTE)
 						.build()
 				)
 				.storage(originalConfiguration.storage())
@@ -1943,7 +2316,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 				.name(originalConfiguration.name())
 				.transaction(
 					TransactionOptions.builder(originalConfiguration.transaction())
-						.conflictPolicy(ConflictPolicy.ENTITY, ConflictPolicy.REFERENCE_ATTRIBUTE)
+						.conflictResolution(ConflictPolicy.ENTITY, GranularConflictPolicy.REFERENCE_ATTRIBUTE)
 						.build()
 				)
 				.storage(originalConfiguration.storage())
@@ -2053,7 +2426,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 			originalEvita,
 			builder -> builder.transaction(
 				TransactionOptions.builder(builder.build().transaction())
-					.conflictPolicy(ConflictPolicy.ENTITY, ConflictPolicy.REFERENCE, ConflictPolicy.REFERENCE_ATTRIBUTE)
+					.conflictResolution(ConflictPolicy.ENTITY, GranularConflictPolicy.REFERENCE, GranularConflictPolicy.REFERENCE_ATTRIBUTE)
 					.build()
 			)
 		);
@@ -2139,7 +2512,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 				.name(originalConfiguration.name())
 				.transaction(
 					TransactionOptions.builder(originalConfiguration.transaction())
-						.conflictPolicy(ConflictPolicy.ENTITY, ConflictPolicy.ENTITY_ATTRIBUTE)
+						.conflictResolution(ConflictPolicy.ENTITY, GranularConflictPolicy.ENTITY_ATTRIBUTE)
 						.build()
 				)
 				.storage(originalConfiguration.storage())
@@ -2224,7 +2597,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 				.name(originalConfiguration.name())
 				.transaction(
 					TransactionOptions.builder(originalConfiguration.transaction())
-						.conflictPolicy(ConflictPolicy.ENTITY, ConflictPolicy.ENTITY_ATTRIBUTE)
+						.conflictResolution(ConflictPolicy.ENTITY, GranularConflictPolicy.ENTITY_ATTRIBUTE)
 						.build()
 				)
 				.storage(originalConfiguration.storage())

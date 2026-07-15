@@ -119,25 +119,6 @@ public final class CatalogSchema implements CatalogSchemaContract {
 	}
 
 	/**
-	 * Transitional compatibility overload that reconstructs a catalog schema without a catalog-level
-	 * {@link ConflictResolution}, defaulting it to `null` (inherit the engine-level default). It exists so external
-	 * API converters (gRPC/GraphQL/REST) and test fixtures that do not yet propagate the conflict resolution setting
-	 * keep compiling and round-tripping the rest of the schema. It will be removed once those callers carry the
-	 * conflict resolution setting explicitly.
-	 *
-	 * @deprecated bridges external-API reconstruction until the conflict resolution setting is propagated over the wire
-	 */
-	@Deprecated(forRemoval = true)
-	public static CatalogSchema _internalBuild(
-		@Nonnull String name,
-		@Nonnull Map<NamingConvention, String> nameVariants,
-		@Nonnull Set<CatalogEvolutionMode> evolutionMode,
-		@Nonnull EntitySchemaProvider entitySchemaAccessor
-	) {
-		return _internalBuild(name, nameVariants, null, evolutionMode, entitySchemaAccessor);
-	}
-
-	/**
 	 * This method is for internal purposes only. It could be used for reconstruction of CatalogSchema from
 	 * different package than current, but still internal code of the Evita ecosystems.
 	 *
@@ -157,30 +138,6 @@ public final class CatalogSchema implements CatalogSchemaContract {
 			version, name, nameVariants, description, conflictResolution, evolutionMode,
 			attributes,
 			entitySchemaAccessor
-		);
-	}
-
-	/**
-	 * Transitional compatibility overload that reconstructs a catalog schema without a catalog-level
-	 * {@link ConflictResolution}, defaulting it to `null` (inherit the engine-level default). It exists so external
-	 * API converters (gRPC/GraphQL/REST) that do not yet propagate the conflict resolution setting keep compiling and
-	 * round-tripping the rest of the schema. It will be removed once those converters carry the conflict resolution
-	 * setting through their transport format.
-	 *
-	 * @deprecated bridges external-API reconstruction until the conflict resolution setting is propagated over the wire
-	 */
-	@Deprecated(forRemoval = true)
-	public static CatalogSchema _internalBuild(
-		int version,
-		@Nonnull String name,
-		@Nonnull Map<NamingConvention, String> nameVariants,
-		@Nullable String description,
-		@Nonnull Set<CatalogEvolutionMode> evolutionMode,
-		@Nonnull Map<String, GlobalAttributeSchemaContract> attributes,
-		@Nonnull EntitySchemaProvider entitySchemaAccessor
-	) {
-		return _internalBuild(
-			version, name, nameVariants, description, null, evolutionMode, attributes, entitySchemaAccessor
 		);
 	}
 

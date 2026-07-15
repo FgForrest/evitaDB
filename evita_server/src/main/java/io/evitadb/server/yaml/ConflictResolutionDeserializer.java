@@ -37,9 +37,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.IOException;
 import java.io.Serial;
-import java.util.ArrayList;
 import java.util.EnumSet;
-import java.util.List;
 
 /**
  * Custom Jackson deserializer for {@link ConflictResolution} that accepts both the current object form and
@@ -60,9 +58,10 @@ import java.util.List;
  * conflictPolicy: COLLECTION
  * ```
  *
- * The flat-list form is mapped through {@link ConflictResolution#fromLegacyPolicySet}, which collapses the
- * coarsest member and folds granular members into the refinement set. The object form is validated by the
- * {@link ConflictResolution} constructor (granular refinements require an {@link ConflictPolicy#ENTITY} scope).
+ * The flat-list form collapses the coarsest member (a catalog- or collection-wide lock subsumes any finer
+ * member declared alongside it) and folds any granular members into the refinement set, mirroring the legacy
+ * semantics. The object form is validated by the {@link ConflictResolution} constructor (granular refinements
+ * require an {@link ConflictPolicy#ENTITY} scope).
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
@@ -108,12 +107,39 @@ public class ConflictResolutionDeserializer extends StdDeserializer<ConflictReso
 			return new ConflictResolution(ConflictPolicy.ENTITY);
 		}
 		if (node.isArray()) {
-			// deprecated flat-list form
-			final List<ConflictPolicy> policies = new ArrayList<>(node.size());
+			// deprecated flat-list form: classify each token by name against the coarse ConflictPolicy and,
+			// failing that, the GranularConflictPolicy refinements, reproducing the historical collapse rules
+			// (empty -> NONE; a catalog- or collection-wide lock subsumes any finer member declared alongside
+			// it; otherwise entity scope with the granular members folded in) without ever materialising a
+			// granular ConflictPolicy constant
+			boolean hasCatalog = false;
+			boolean hasCollection = false;
+			int tokenCount = 0;
+			final EnumSet<GranularConflictPolicy> granularity = EnumSet.noneOf(GranularConflictPolicy.class);
 			for (JsonNode element : node) {
-				policies.add(parseConflictPolicy(element.asText()));
+				tokenCount++;
+				final String token = element.asText().trim();
+				final ConflictPolicy coarse = parseCoarsePolicyOrNull(token);
+				if (coarse == ConflictPolicy.CATALOG) {
+					hasCatalog = true;
+				} else if (coarse == ConflictPolicy.COLLECTION) {
+					hasCollection = true;
+				} else if (coarse == null) {
+					// not a coarse policy name -> it must be a granular refinement (or an unknown token)
+					granularity.add(parseGranularConflictPolicy(token));
+				}
+				// NONE / ENTITY coarse members contribute nothing beyond making the list non-empty
 			}
-			return ConflictResolution.fromLegacyPolicySet(policies);
+			if (tokenCount == 0) {
+				return new ConflictResolution(ConflictPolicy.NONE);
+			}
+			if (hasCatalog) {
+				return new ConflictResolution(ConflictPolicy.CATALOG);
+			}
+			if (hasCollection) {
+				return new ConflictResolution(ConflictPolicy.COLLECTION);
+			}
+			return new ConflictResolution(ConflictPolicy.ENTITY, granularity);
 		}
 		if (node.isObject()) {
 			final JsonNode policyNode = node.get(POLICY_FIELD);
@@ -152,6 +178,22 @@ public class ConflictResolutionDeserializer extends StdDeserializer<ConflictReso
 			throw new EvitaInvalidUsageException(
 				"Unknown conflict policy `" + value + "` in `conflictPolicy` configuration!"
 			);
+		}
+	}
+
+	/**
+	 * Resolves a token to a coarse {@link ConflictPolicy} constant, or returns null when the token is not a
+	 * coarse policy name (so a flat-list member can then be tried as a {@link GranularConflictPolicy}).
+	 *
+	 * @param value the textual representation of the token
+	 * @return the coarse policy, or null if the token names no coarse policy
+	 */
+	@Nullable
+	private static ConflictPolicy parseCoarsePolicyOrNull(@Nonnull String value) {
+		try {
+			return ConflictPolicy.valueOf(value);
+		} catch (IllegalArgumentException ex) {
+			return null;
 		}
 	}
 

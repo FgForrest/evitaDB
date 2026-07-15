@@ -195,7 +195,7 @@ public class GrpcHierarchyBuilderTest {
 	public static SealedEntity createHierarchyEntity(@Nonnull String type, int pk, @Nonnull String code) {
 		return new InitialEntityBuilder(
 			new InternalEntitySchemaBuilder(
-				CatalogSchema._internalBuild(TestConstants.TEST_CATALOG, Map.of(), EnumSet.allOf(CatalogEvolutionMode.class), EmptyEntitySchemaAccessor.INSTANCE),
+				CatalogSchema._internalBuild(TestConstants.TEST_CATALOG, Map.of(), null, EnumSet.allOf(CatalogEvolutionMode.class), EmptyEntitySchemaAccessor.INSTANCE),
 				EntitySchema._internalBuild(type)
 			)
 				.withAttribute("code", String.class)

@@ -28,7 +28,6 @@ import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import java.io.Serializable;
-import java.util.Collection;
 import java.util.EnumSet;
 
 /**
@@ -103,42 +102,6 @@ public record ConflictResolution(
 	 */
 	public boolean hasGranularity() {
 		return !this.granularity.isEmpty();
-	}
-
-	/**
-	 * Transitional bridge that interprets a historical flat {@link ConflictPolicy} set (as produced by the
-	 * pre-split configuration form) as a {@link ConflictResolution}. The coarsest non-granular member wins
-	 * — a catalog- or collection-wide lock already subsumes any finer refinement present in the same set —
-	 * while an empty set is read as {@link ConflictPolicy#NONE} (last-writer-wins). When only granular
-	 * members are present, the coarse policy defaults to {@link ConflictPolicy#ENTITY}.
-	 *
-	 * This method exists only to keep parsing the deprecated flat-list configuration form and will be
-	 * removed together with the transitional granular {@link ConflictPolicy} constants.
-	 *
-	 * @param policies the legacy flat policy set, never null
-	 * @return the equivalent {@link ConflictResolution}
-	 */
-	@Deprecated(forRemoval = true, since = "2026.2")
-	@Nonnull
-	public static ConflictResolution fromLegacyPolicySet(@Nonnull Collection<ConflictPolicy> policies) {
-		if (policies.isEmpty()) {
-			return new ConflictResolution(ConflictPolicy.NONE);
-		}
-		// a catalog- or collection-wide lock subsumes any finer scope declared alongside it
-		if (policies.contains(ConflictPolicy.CATALOG)) {
-			return new ConflictResolution(ConflictPolicy.CATALOG);
-		}
-		if (policies.contains(ConflictPolicy.COLLECTION)) {
-			return new ConflictResolution(ConflictPolicy.COLLECTION);
-		}
-		// entity scope (explicit or implied by the presence of granular members)
-		final EnumSet<GranularConflictPolicy> granularPolicies = EnumSet.noneOf(GranularConflictPolicy.class);
-		for (ConflictPolicy policy : policies) {
-			if (policy.isGranular()) {
-				granularPolicies.add(GranularConflictPolicy.valueOf(policy.name()));
-			}
-		}
-		return new ConflictResolution(ConflictPolicy.ENTITY, granularPolicies);
 	}
 
 }

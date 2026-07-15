@@ -27,6 +27,7 @@ import io.evitadb.api.requestResponse.data.ReferencesEditor.ReferencesBuilder;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -120,7 +121,8 @@ class InitialReferenceAttributesBuilderTest
 
 			assertEquals(
 				AttributeSchema._internalBuild(
-					"abc", Integer.class, false
+					"abc", Integer.class, false,
+					ConflictResolutionOverride.INHERITED
 				),
 				attributes.getAttributeSchema("abc")
 					.orElse(null)
@@ -130,21 +132,24 @@ class InitialReferenceAttributesBuilderTest
 					"def",
 					io.evitadb.dataType
 						.IntegerNumberRange.class,
-					false
+					false,
+					ConflictResolutionOverride.INHERITED
 				),
 				attributes.getAttributeSchema("def")
 					.orElse(null)
 			);
 			assertEquals(
 				AttributeSchema._internalBuild(
-					"dd", BigDecimal.class, false
+					"dd", BigDecimal.class, false,
+					ConflictResolutionOverride.INHERITED
 				),
 				attributes.getAttributeSchema("dd")
 					.orElse(null)
 			);
 			assertEquals(
 				AttributeSchema._internalBuild(
-					"greetings", String.class, true
+					"greetings", String.class, true,
+					ConflictResolutionOverride.INHERITED
 				),
 				attributes
 					.getAttributeSchema("greetings")

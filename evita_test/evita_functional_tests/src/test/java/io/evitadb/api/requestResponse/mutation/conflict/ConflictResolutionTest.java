@@ -41,10 +41,9 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Verifies the invariants of the {@link ConflictResolution} value object. The legacy read-direction bridge
- * ({@link ConflictResolution#fromLegacyPolicySet}) is already covered through the YAML deserializer, so this test
- * focuses on the parts nothing else reaches: the granularity-implies-entity invariant and the null-granularity
- * normalization.
+ * Verifies the invariants of the {@link ConflictResolution} value object. The legacy flat-list configuration
+ * form is covered through the YAML deserializer, so this test focuses on the parts nothing else reaches: the
+ * granularity-implies-entity invariant and the null-granularity normalization.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */

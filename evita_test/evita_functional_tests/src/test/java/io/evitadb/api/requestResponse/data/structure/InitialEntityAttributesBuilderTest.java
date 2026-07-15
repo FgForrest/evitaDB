@@ -32,6 +32,7 @@ import io.evitadb.api.requestResponse.schema.dto.EntityAttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.dataType.Scope;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -119,7 +120,8 @@ class InitialEntityAttributesBuilderTest
 					"abc", null,
 					Scope.NO_SCOPE, Scope.NO_SCOPE,
 					false, false, false,
-					Integer.class, null
+					Integer.class, null,
+					ConflictResolutionOverride.INHERITED
 				),
 				attributes.getAttributeSchema("abc")
 					.orElse(null)
@@ -129,7 +131,8 @@ class InitialEntityAttributesBuilderTest
 					"def", null,
 					Scope.NO_SCOPE, Scope.NO_SCOPE,
 					false, false, false,
-					IntegerNumberRange.class, null
+					IntegerNumberRange.class, null,
+					ConflictResolutionOverride.INHERITED
 				),
 				attributes.getAttributeSchema("def")
 					.orElse(null)
@@ -139,7 +142,8 @@ class InitialEntityAttributesBuilderTest
 					"dd", null,
 					Scope.NO_SCOPE, Scope.NO_SCOPE,
 					false, false, false,
-					BigDecimal.class, null
+					BigDecimal.class, null,
+					ConflictResolutionOverride.INHERITED
 				),
 				attributes.getAttributeSchema("dd")
 					.orElse(null)
@@ -149,7 +153,8 @@ class InitialEntityAttributesBuilderTest
 					"greetings", null,
 					Scope.NO_SCOPE, Scope.NO_SCOPE,
 					true, false, false,
-					String.class, null
+					String.class, null,
+					ConflictResolutionOverride.INHERITED
 				),
 				attributes
 					.getAttributeSchema("greetings")

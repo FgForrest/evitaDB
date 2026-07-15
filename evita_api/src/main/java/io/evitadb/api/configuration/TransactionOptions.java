@@ -282,31 +282,6 @@ public record TransactionOptions(
 			return this;
 		}
 
-		/**
-		 * Sets the conflict resolution from the deprecated flat {@link ConflictPolicy} list form.
-		 *
-		 * @param conflictPolicy the legacy flat policy list
-		 * @deprecated use {@link #conflictResolution(ConflictResolution)} or its convenience overloads instead
-		 */
-		@Deprecated(since = "2026.2", forRemoval = true)
-		@Nonnull
-		public TransactionOptions.Builder conflictPolicy(@Nonnull ConflictPolicy... conflictPolicy) {
-			this.conflictPolicy = ConflictResolution.fromLegacyPolicySet(Arrays.asList(conflictPolicy));
-			return this;
-		}
-
-		/**
-		 * Configures last-writer-wins (no conflict detection).
-		 *
-		 * @deprecated use {@link #conflictResolution(ConflictPolicy)} with {@link ConflictPolicy#NONE} instead
-		 */
-		@Deprecated(since = "2026.2", forRemoval = true)
-		@Nonnull
-		public TransactionOptions.Builder conflictPolicyLastWriterWins() {
-			this.conflictPolicy = new ConflictResolution(ConflictPolicy.NONE);
-			return this;
-		}
-
 		@Nonnull
 		public TransactionOptions build() {
 			return new TransactionOptions(

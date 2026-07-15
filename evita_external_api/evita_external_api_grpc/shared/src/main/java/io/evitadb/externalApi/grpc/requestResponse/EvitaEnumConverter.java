@@ -1570,13 +1570,12 @@ public class EvitaEnumConverter {
 	}
 
 	/**
-	 * Converts the coarse {@link ConflictPolicy} to {@link GrpcConflictPolicy}. Only the coarse scopes (NONE, CATALOG,
-	 * COLLECTION, ENTITY) are transferable over the wire; the transitional granular {@link ConflictPolicy} constants are
-	 * carried by {@link GranularConflictPolicy} instead and must never appear as a coarse policy.
+	 * Converts the coarse {@link ConflictPolicy} to {@link GrpcConflictPolicy}. The coarse scopes (NONE, CATALOG,
+	 * COLLECTION, ENTITY) map one-to-one over the wire; sub-entity refinements are carried separately by
+	 * {@link GrpcGranularConflictPolicy}.
 	 *
 	 * @param policy the coarse {@link ConflictPolicy} to be converted
 	 * @return the converted {@link GrpcConflictPolicy}
-	 * @throws GenericEvitaInternalError if a transitional granular constant is passed as a coarse policy
 	 */
 	@Nonnull
 	public static GrpcConflictPolicy toGrpcConflictPolicy(@Nonnull ConflictPolicy policy) {
@@ -1585,10 +1584,6 @@ public class EvitaEnumConverter {
 			case CATALOG -> GrpcConflictPolicy.CONFLICT_POLICY_CATALOG;
 			case COLLECTION -> GrpcConflictPolicy.CONFLICT_POLICY_COLLECTION;
 			case ENTITY -> GrpcConflictPolicy.CONFLICT_POLICY_ENTITY;
-			case ENTITY_ATTRIBUTE, REFERENCE, REFERENCE_ATTRIBUTE, ASSOCIATED_DATA, PRICE, HIERARCHY ->
-				throw new GenericEvitaInternalError(
-					"Transitional granular conflict policy `" + policy + "` is not a coarse conflict policy scope."
-				);
 		};
 	}
 

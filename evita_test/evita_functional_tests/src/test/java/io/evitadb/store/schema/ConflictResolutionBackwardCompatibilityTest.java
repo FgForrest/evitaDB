@@ -278,6 +278,7 @@ class ConflictResolutionBackwardCompatibilityTest {
 			CatalogSchema._internalBuild(
 				TestConstants.TEST_CATALOG,
 				NamingConvention.generate(TestConstants.TEST_CATALOG),
+				null,
 				EnumSet.allOf(CatalogEvolutionMode.class),
 				EmptyEntitySchemaAccessor.INSTANCE
 			),
@@ -324,6 +325,7 @@ class ConflictResolutionBackwardCompatibilityTest {
 		final CatalogSchema source = CatalogSchema._internalBuild(
 			TestConstants.TEST_CATALOG,
 			NamingConvention.generate(TestConstants.TEST_CATALOG),
+			null,
 			EnumSet.allOf(CatalogEvolutionMode.class),
 			EmptyEntitySchemaAccessor.INSTANCE
 		);

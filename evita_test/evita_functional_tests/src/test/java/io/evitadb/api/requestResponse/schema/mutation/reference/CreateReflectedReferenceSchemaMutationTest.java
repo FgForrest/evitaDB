@@ -30,6 +30,7 @@ import io.evitadb.api.requestResponse.mutation.conflict.CollectionConflictKey;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictGenerationContext;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolution;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -805,7 +806,7 @@ class CreateReflectedReferenceSchemaMutationTest {
 					AttributeInheritanceBehavior.INHERIT_ALL_EXCEPT,
 					null
 				);
-			final List<ConflictKey> keys = new ConflictGenerationContext(ConflictResolution.fromLegacyPolicySet(Set.of())).withEntityType(
+			final List<ConflictKey> keys = new ConflictGenerationContext(new ConflictResolution(ConflictPolicy.NONE)).withEntityType(
 				"testEntity", null,
 				ctx -> mutation.collectConflictKeys(ctx).toList()
 			);

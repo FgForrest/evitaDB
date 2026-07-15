@@ -29,6 +29,7 @@ import io.evitadb.api.requestResponse.mutation.conflict.CollectionConflictKey;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictGenerationContext;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolution;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
 import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -38,6 +39,7 @@ import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.dataType.ComplexDataObject;
 import io.evitadb.dataType.Predecessor;
 import io.evitadb.dataType.ReferencedEntityPredecessor;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -74,7 +76,8 @@ class CreateAssociatedDataSchemaMutationTest {
 			"oldDeprecationNotice",
 			Integer.class,
 			false,
-			false
+			false,
+			ConflictResolutionOverride.INHERITED
 		);
 	}
 
@@ -281,7 +284,7 @@ class CreateAssociatedDataSchemaMutationTest {
 			final CreateAssociatedDataSchemaMutation mutation = new CreateAssociatedDataSchemaMutation(
 				ASSOCIATED_DATA_NAME, "description", null, String.class, false, false
 			);
-			final List<ConflictKey> keys = new ConflictGenerationContext(ConflictResolution.fromLegacyPolicySet(Set.of())).withEntityType(
+			final List<ConflictKey> keys = new ConflictGenerationContext(new ConflictResolution(ConflictPolicy.NONE)).withEntityType(
 				"product", null,
 				ctx -> mutation.collectConflictKeys(ctx).toList()
 			);

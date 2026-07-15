@@ -27,6 +27,7 @@ import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
 import io.evitadb.dataType.Scope;
 import io.evitadb.utils.NamingConvention;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -56,7 +57,8 @@ class EntityAttributeSchemaTest {
 		@DisplayName("should build minimal schema")
 		void shouldBuildMinimalSchema() {
 			final EntityAttributeSchema schema = EntityAttributeSchema._internalBuild(
-				"name", String.class, true
+				"name", String.class, true,
+				ConflictResolutionOverride.INHERITED
 			);
 
 			assertEquals("name", schema.getName());
@@ -80,7 +82,8 @@ class EntityAttributeSchemaTest {
 				new Scope[]{Scope.LIVE},
 				false, true, true,
 				Integer.class, 10,
-				0
+				0,
+				ConflictResolutionOverride.INHERITED
 			);
 
 			assertEquals("priority", schema.getName());
@@ -103,7 +106,8 @@ class EntityAttributeSchemaTest {
 				(Map<Scope, AttributeUniquenessType>) null,
 				null, null,
 				false, false, false,
-				String.class, null, 0
+				String.class, null, 0,
+				ConflictResolutionOverride.INHERITED
 			);
 
 			assertEquals(
@@ -120,8 +124,8 @@ class EntityAttributeSchemaTest {
 		@Test
 		@DisplayName("should be equal for same parameters")
 		void shouldBeEqual() {
-			final EntityAttributeSchema a = EntityAttributeSchema._internalBuild("code", String.class, false);
-			final EntityAttributeSchema b = EntityAttributeSchema._internalBuild("code", String.class, false);
+			final EntityAttributeSchema a = EntityAttributeSchema._internalBuild("code", String.class, false, ConflictResolutionOverride.INHERITED);
+			final EntityAttributeSchema b = EntityAttributeSchema._internalBuild("code", String.class, false, ConflictResolutionOverride.INHERITED);
 
 			assertEquals(a, b);
 			assertEquals(a.hashCode(), b.hashCode());
@@ -131,9 +135,10 @@ class EntityAttributeSchemaTest {
 		@DisplayName("should not equal base AttributeSchema with same params")
 		void shouldNotEqualBaseAttributeSchema() {
 			final EntityAttributeSchema entity = EntityAttributeSchema._internalBuild(
-				"code", String.class, false
+				"code", String.class, false,
+				ConflictResolutionOverride.INHERITED
 			);
-			final AttributeSchema base = AttributeSchema._internalBuild("code", String.class, false);
+			final AttributeSchema base = AttributeSchema._internalBuild("code", String.class, false, ConflictResolutionOverride.INHERITED);
 
 			assertNotEquals(entity, base);
 		}
@@ -147,7 +152,8 @@ class EntityAttributeSchemaTest {
 		@DisplayName("should contain EntityAttributeSchema prefix")
 		void shouldContainPrefix() {
 			final EntityAttributeSchema schema = EntityAttributeSchema._internalBuild(
-				"code", String.class, false
+				"code", String.class, false,
+				ConflictResolutionOverride.INHERITED
 			);
 
 			final String result = schema.toString();
@@ -166,7 +172,8 @@ class EntityAttributeSchemaTest {
 				new Scope[]{Scope.LIVE},
 				null,
 				false, false, false,
-				String.class, null
+				String.class, null,
+				ConflictResolutionOverride.INHERITED
 			);
 
 			final String result = schema.toString();

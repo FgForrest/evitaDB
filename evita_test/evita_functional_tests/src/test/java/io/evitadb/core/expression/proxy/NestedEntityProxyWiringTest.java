@@ -49,6 +49,7 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.entity.EntityBodySt
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.PricesStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.ReferencesStoragePart;
 import io.evitadb.utils.NamingConvention;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -91,6 +92,7 @@ class NestedEntityProxyWiringTest {
 	private static final CatalogSchema CATALOG_SCHEMA = CatalogSchema._internalBuild(
 		"testCatalog",
 		NamingConvention.generate("testCatalog"),
+		null,
 		EnumSet.allOf(CatalogEvolutionMode.class),
 		EmptyEntitySchemaAccessor.INSTANCE
 	);
@@ -160,7 +162,7 @@ class NestedEntityProxyWiringTest {
 		for (final AttributeValue value : values) {
 			part.upsertAttribute(
 				value.key(),
-				AttributeSchema._internalBuild(value.key().attributeName(), String.class, false),
+				AttributeSchema._internalBuild(value.key().attributeName(), String.class, false, ConflictResolutionOverride.INHERITED),
 				existing -> value
 			);
 		}
