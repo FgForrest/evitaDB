@@ -29,6 +29,9 @@ import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.exception.SchemaClassInvalidException;
 import io.evitadb.api.requestResponse.data.annotation.*;
 import io.evitadb.api.requestResponse.data.annotation.ReflectedReference.InheritableBoolean;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolution;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
+import io.evitadb.api.requestResponse.mutation.conflict.GranularConflictPolicy;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor.CatalogSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaEditor.ReferenceSchemaBuilder;
@@ -394,6 +397,11 @@ public class ClassSchemaAnalyzer {
 			if ((BigDecimal.class.equals(indexedBaseType) || BigDecimalNumberRange.class.equals(indexedBaseType)) &&
 				editor.getIndexedDecimalPlaces() != attributeAnnotation.indexedDecimalPlaces()) {
 				editor.indexDecimalPlaces(attributeAnnotation.indexedDecimalPlaces());
+			}
+			// conflict resolution granularity override - reconcile with annotation (covers entity, global and
+			// reference attributes, which all route through this consumer)
+			if (attributeAnnotation.conflictResolution() != editor.getConflictResolutionOverride()) {
+				editor.withConflictResolutionOverride(attributeAnnotation.conflictResolution());
 			}
 		};
 
@@ -1297,6 +1305,19 @@ public class ClassSchemaAnalyzer {
 					entityBuilder.verifySchemaButAllow(entityAnnotation.allowedEvolution());
 				}
 
+				// entity-level conflict resolution - only set an explicit resolution; while the annotation is
+				// inherited (the default) leave any pre-existing resolution untouched, mirroring how the other
+				// facets treat their default value as "don't touch"
+				final EntityConflictResolution conflictResolution = entityAnnotation.conflictResolution();
+				if (!conflictResolution.inherited()) {
+					final EnumSet<GranularConflictPolicy> granularity = EnumSet.noneOf(GranularConflictPolicy.class);
+					Collections.addAll(granularity, conflictResolution.granularity());
+					final ConflictResolution resolution = new ConflictResolution(conflictResolution.policy(), granularity);
+					if (!entityBuilder.getConflictResolution().map(resolution::equals).orElse(false)) {
+						entityBuilder.withConflictResolution(resolution);
+					}
+				}
+
 				// now return the mutations that needs to be done
 				return new AnalysisResult(
 					entityName.get(),
@@ -1570,6 +1591,10 @@ public class ClassSchemaAnalyzer {
 				} else if (!associatedDataAnnotation.localized() && whichIs.isLocalized()) {
 					whichIs.localized(() -> false);
 				}
+				// conflict resolution granularity override - reconcile with annotation
+				if (associatedDataAnnotation.conflictResolution() != whichIs.getConflictResolutionOverride()) {
+					whichIs.withConflictResolutionOverride(associatedDataAnnotation.conflictResolution());
+				}
 			}
 		);
 	}
@@ -1648,6 +1673,12 @@ public class ClassSchemaAnalyzer {
 			}
 
 			applyReferenceScopedProperties(editor, reference);
+
+			// conflict resolution granularity override - reconcile with annotation (reflected references are
+			// read projections and deliberately never receive an override)
+			if (reference.conflictResolution() != editor.getConflictResolutionOverride()) {
+				editor.withConflictResolutionOverride(reference.conflictResolution());
+			}
 
 			defineReferenceAttributes(referenceType, editor, examinedReferenceType, relationAttributes);
 		};

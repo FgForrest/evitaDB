@@ -88,4 +88,13 @@ public @interface Entity {
 		EvolutionMode.UPDATING_REFERENCE_CARDINALITY
 	};
 
+	/**
+	 * Entity-level conflict resolution for the entity as a whole. By default ({@link EntityConflictResolution#inherited()}
+	 * `== true`) nothing is set and the entity follows the conflict resolution resolved from the catalog schema and
+	 * engine configuration. Declare `@EntityConflictResolution(inherited = false, policy = …, granularity = {…})` to pin
+	 * the entity to an explicit resolution.
+	 * Propagates to {@link EntitySchemaContract#getConflictResolution()}.
+	 */
+	EntityConflictResolution conflictResolution() default @EntityConflictResolution;
+
 }

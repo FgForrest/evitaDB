@@ -23,6 +23,7 @@
 
 package io.evitadb.api.requestResponse.data.annotation;
 
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
 
 import java.lang.annotation.Documented;
@@ -76,5 +77,15 @@ public @interface AssociatedData {
 	 * Propagates to {@link AssociatedDataSchemaContract#isLocalized()}.
 	 */
 	boolean localized() default false;
+
+	/**
+	 * Per-item conflict resolution granularity override for this associated data. {@link ConflictResolutionOverride#INHERITED}
+	 * (the default) follows the conflict resolution resolved from the entity schema, catalog schema and engine
+	 * configuration; {@link ConflictResolutionOverride#GRANULAR} opts this associated data into its own
+	 * associated-data-scoped conflict key (finer-grained detection); {@link ConflictResolutionOverride#ENTITY} pins it
+	 * to the whole-entity conflict key.
+	 * Propagates to {@link AssociatedDataSchemaContract#getConflictResolutionOverride()}.
+	 */
+	ConflictResolutionOverride conflictResolution() default ConflictResolutionOverride.INHERITED;
 
 }
