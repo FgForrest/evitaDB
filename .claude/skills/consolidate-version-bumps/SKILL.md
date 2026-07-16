@@ -1,7 +1,7 @@
 ---
 name: consolidate-version-bumps
 description: Use when there are open Dependabot "bump" PRs (maven and/or github_actions, authored by app/dependabot) to assess, test locally, and consolidate into one commit on dev, or when reviewing/resolving Dependabot security alerts. Triggers include "consolidate the bump PRs", "handle the dependabot PRs", "bump dependencies", "close the version-bump PRs". Leaves feature/fix PRs and frozen research artifacts untouched.
-allowed-tools: Read, Edit, Write, Grep, Glob, AskUserQuestion, Bash(tools/consolidate-version-bumps.sh list*), Bash(tools/consolidate-version-bumps.sh diffs*), Bash(tools/consolidate-version-bumps.sh verify-pins*), Bash(tools/consolidate-version-bumps.sh verify-tag*), Bash(tools/consolidate-version-bumps.sh alerts*), Bash(./tools/consolidate-version-bumps.sh list*), Bash(./tools/consolidate-version-bumps.sh diffs*), Bash(./tools/consolidate-version-bumps.sh verify-pins*), Bash(./tools/consolidate-version-bumps.sh verify-tag*), Bash(./tools/consolidate-version-bumps.sh alerts*), Bash(rtk mvn *), Bash(mvn *), Bash(git status*), Bash(git diff*), Bash(git log*), Bash(git fetch*), Bash(gh pr list *), Bash(gh pr diff *), Bash(rg *), Bash(grep *), Bash(jq *)
+allowed-tools: Read, Edit, Write, Grep, Glob, AskUserQuestion, Bash(tools/consolidate-version-bumps.sh list*), Bash(tools/consolidate-version-bumps.sh diffs*), Bash(tools/consolidate-version-bumps.sh verify-pins*), Bash(tools/consolidate-version-bumps.sh verify-tag*), Bash(tools/consolidate-version-bumps.sh alerts*), Bash(mvn *), Bash(git status*), Bash(git diff*), Bash(git log*), Bash(git fetch*), Bash(gh pr list *), Bash(gh pr diff *), Bash(rg *), Bash(grep *), Bash(jq *)
 ---
 
 # Consolidate Version Bumps
@@ -13,8 +13,9 @@ open bump PRs together**, applies their exact changes on a fresh branch off
 `origin/dev`, verifies GitHub Action SHA pins against their release tags, builds
 and runs focused tests, and lands everything as a **single consolidated commit
 on `dev`** — then closes the individual PRs and resolves any Dependabot security
-alerts. It follows the precedent commit `b35eacee40`
-("chore: bump Maven and GitHub Actions dependencies").
+alerts. It follows the repository's established consolidated-bump convention: a
+single `chore: bump Maven and GitHub Actions dependencies` commit (search
+`git log` for the previous one if you want a concrete template).
 
 The mechanical, error-prone steps are automated by
 `tools/consolidate-version-bumps.sh`. The judgement calls (which bumps are safe,
@@ -32,8 +33,9 @@ how to test, what to commit, whether to push) stay with you.
 - **Never edit frozen research artifacts.** Anything under
   `documentation/research/**` (e.g. `.../nosql/spike_tests`) is frozen in time
   and NOT in the Maven reactor. Do not upgrade it, even to clear an alert.
-- **Ask before pushing.** Committing is fine; the push to `dev` is the operator's
-  decision (use `AskUserQuestion`).
+- **Ask before pushing.** Committing is fine; the push is the operator's
+  decision (use `AskUserQuestion`, or an explicit override when non-interactive —
+  see *Running from CI*).
 - **Do not disturb the operator's working tree.** Work in a `git worktree`, not
   by switching the current branch.
 - **Close individual PRs only AFTER the commit is on `dev`** — otherwise
@@ -66,6 +68,21 @@ how to test, what to commit, whether to push) stay with you.
 
 ## Workflow
 
+Copy this checklist and tick items off as you go:
+
+```
+- [ ] 1. Enumerate + read the bumps (list, diffs)
+- [ ] 2. Assess each (changelogs, coupling, runtime risk)
+- [ ] 3. Verify Action SHA pins (verify-pins prs)
+- [ ] 4. Fresh worktree off the default branch
+- [ ] 5. Apply the exact diffs; confirm the combined diff == sum of the PRs
+- [ ] 6. Build (compile gate) + focused runtime tests
+- [ ] 7. Commit (chore: bump ...; + separate fix(security): if needed)
+- [ ] 8. Ask, then push to the default branch
+- [ ] 9. Close PRs + resolve alerts (after the push lands)
+- [ ] 10. Clean up the worktree
+```
+
 Execute in order. Stop and report on any failure.
 
 ### Step 1 — Enumerate and read the bumps
@@ -95,37 +112,44 @@ Every Action pin must be ✅. This is the "action pinning best practice" check
 and the only local verification Actions can get (they run in CI, not locally).
 Do not proceed with any pin that is ❌/❓/⚠️ without resolving it.
 
-### Step 4 — Fresh worktree off origin/dev
+### Step 4 — Fresh worktree off the default branch
+Compute the worktree path and branch name **once** and reuse the `$WT`/`$BR`/`$BASE`
+variables in every later step (the worktree is a sibling of the checkout, so
+nothing in the operator's working tree is disturbed and no path is hardcoded):
 ```shell
-git fetch origin dev
-git worktree add -b chore-dependency-bumps-YYYY-MM /www/oss/evita/evitaDB-bumps origin/dev
+BASE="${EVITA_DEFAULT_BRANCH:-dev}"            # this repo's default branch
+WT="$(git rev-parse --show-toplevel)-bumps"    # e.g. /path/to/evitaDB -> /path/to/evitaDB-bumps
+BR="chore-dependency-bumps-$(date +%Y-%m)"
+git fetch origin "$BASE"
+git worktree add -b "$BR" "$WT" "origin/$BASE"
 ```
-Keeps the operator's working tree untouched. Branch off `origin/dev` so the
-final commit fast-forwards cleanly.
+Branch off the default branch so the final commit fast-forwards cleanly.
 
 ### Step 5 — Apply the exact diffs
 In the worktree, edit each file to the new version/SHA. Then confirm the diff is
 **precisely** the union of the PRs (no extra changes):
 ```shell
-git -C /www/oss/evita/evitaDB-bumps diff --stat
+git -C "$WT" diff --stat
 ```
 
 ### Step 6 — Build and test locally
-Compile gate (compiles + test-compiles the whole reactor; catches API breaks):
+Use `mvn` below; if your `CLAUDE.md` configures a Maven proxy (e.g. `rtk mvn`),
+substitute it. Compile gate (compiles + test-compiles the whole reactor; catches
+API breaks):
 ```shell
-rtk mvn clean install -DskipTests            # expect exit 0
+mvn clean install -DskipTests            # expect exit 0
 ```
 Then **focused runtime tests** for the risky bumps — compile alone does not
 catch behavioural changes. Map each bump to its consumers and run them, e.g.:
 ```shell
-rtk mvn -pl evita_test/evita_functional_tests test -Dtest="<consumer test classes>" -DfailIfNoTests=false
+mvn -pl evita_test/evita_functional_tests test -Dtest="<consumer test classes>" -DfailIfNoTests=false
 ```
 Find consumers with `rg` (e.g. `rg -l "assertThatJson" evita_test`). Read the
 surefire `.txt` reports for the authoritative pass/fail count — do not grep the
-`rtk mvn` console (it truncates). See `.claude/rules/testing.md`.
+Maven console (it truncates). See `.claude/rules/testing.md`.
 
 ### Step 7 — Commit
-One commit for the bumps, following `b35eacee40`'s message shape (Maven list +
+One commit for the bumps, in the established message shape (Maven list +
 Actions list + `Ref: #<all bump PR numbers>`):
 ```
 chore: bump Maven and GitHub Actions dependencies
@@ -137,38 +161,63 @@ commit's `Ref:` stays honest:
 fix(security): bump <dep> <old> -> <new>
 ```
 
-### Step 8 — Ask, then push direct to dev
-Confirm the fast-forward, then ask the operator how to land it (`AskUserQuestion`).
-House style for these consolidated bump commits is a **direct commit on `dev`**
-(the operator's account bypasses the "PR required" rule, as `b35eacee40` did):
+### Step 8 — Ask, then push to the default branch
+Confirm the fast-forward, then ask the operator how to land it (`AskUserQuestion`) —
+unless running non-interactively (see *Running from CI / non-interactively*).
+House style for these consolidated bump commits is a **direct commit on the
+default branch**, which requires branch-protection **bypass rights**. If the
+push is rejected (no bypass rights, or a CI token subject to protection), fall
+back to opening a single consolidated PR from `$BR` instead.
 ```shell
-git -C /www/oss/evita/evitaDB-bumps log --oneline HEAD..origin/dev   # must be empty (clean FF)
-git -C /www/oss/evita/evitaDB-bumps push origin HEAD:dev
+git -C "$WT" log --oneline "HEAD..origin/$BASE"   # must be empty (clean FF)
+git -C "$WT" push origin "HEAD:$BASE"             # if rejected -> open a PR from "$BR"
 ```
 
 ### Step 9 — Close PRs and resolve alerts (after the push lands on dev)
 ```shell
-tools/consolidate-version-bumps.sh close-prs <commit-sha> 1270 1271 ...   # all bump PRs
-tools/consolidate-version-bumps.sh alerts                                 # re-check
+tools/consolidate-version-bumps.sh close-prs <commit-sha> <bump-PR-numbers>   # all bump PRs
+tools/consolidate-version-bumps.sh alerts                                      # re-check
 ```
 Alert resolution — pick the *correct* resolution per group:
 - **A dep you just fixed and merged to `dev`** → do NOT dismiss. Dependabot
   auto-closes it as **"fixed"** on its next rescan of the default branch (may
   lag minutes/hours). There is no "fixed" dismissal reason; forcing
   `fix_started` mislabels a completed fix.
-- **A vuln that will never be fixed here** — e.g. jackson-databind alerts that
-  live only in a frozen research spike pom, not the reactor, while the shipped
-  product already uses a fixed version — dismiss with the accurate reason:
+- **A vuln that will never be fixed here** — e.g. one confined to a component
+  outside the Maven reactor (such as a frozen research artifact) while the
+  shipped product already uses a fixed version — dismiss with the accurate
+  reason:
   ```shell
-  tools/consolidate-version-bumps.sh dismiss-alert 422 not_used "<=280-char reason>"
+  tools/consolidate-version-bumps.sh dismiss-alert <number> not_used "<=280-char reason>"
   ```
 
 ### Step 10 — Clean up
-Offer to remove the worktree and branch once both commits are on `dev`:
+Once the commit(s) are on the default branch, remove the worktree and branch
+(the interactive default is to *offer* this; the `--yes` CI override cleans up
+automatically):
 ```shell
-git worktree remove /www/oss/evita/evitaDB-bumps
-git branch -d chore-dependency-bumps-YYYY-MM
+git worktree remove "$WT"
+git branch -d "$BR"
 ```
+
+## Running from CI / non-interactively
+
+This skill is interactive by default. To run it headlessly (e.g. a future CI
+action) account for:
+
+- **No prompts.** Replace the `AskUserQuestion` gates (Steps 8, 10) with explicit
+  overrides — e.g. `CONSOLIDATE_AUTO_PUSH=1` to authorize the push and `--yes`
+  to auto-clean the worktree. Never push without an explicit signal.
+- **Auth + scopes.** Read-only subcommands need only repo read scope; the
+  mutating ones (`close-prs`, `dismiss-alert`) need pull-request write and, for
+  alerts, `security_events` — the ambient `GITHUB_TOKEN` usually lacks the
+  latter, so supply a PAT / GitHub App token.
+- **Branch protection.** A CI `GITHUB_TOKEN` is subject to branch protection and
+  cannot push to a protected default branch; detect the rejected push and fall
+  back to opening a consolidated PR (Step 8).
+- **Repo / branch / remote.** The tool derives the repo (`gh repo view`) and the
+  default branch; override with `EVITA_REPO` / `EVITA_DEFAULT_BRANCH`. The shell
+  steps assume the canonical remote is `origin` — set that accordingly on a fork.
 
 ## Common Mistakes
 

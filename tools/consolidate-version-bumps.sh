@@ -31,10 +31,17 @@
 #                        tolerable_risk. COMMENT max 280 chars.
 #
 # Requirements: bash, gh (authenticated), jq. Run from the repository root.
+# The read-only subcommands need only normal repo read scope. The mutating ones
+# (close-prs, dismiss-alert) need a token with pull-request write and, for
+# alerts, the security_events scope — the ambient CI GITHUB_TOKEN usually lacks
+# the latter, so supply a PAT / GitHub App token there.
 # --------------------------------------------------------------------------
 set -euo pipefail
 
-REPO="${EVITA_REPO:-FgForrest/evitaDB}"
+# Target repo: defaults to the checkout's own GitHub slug so this works on a
+# fork or in CI; override with EVITA_REPO. Falls back to the canonical repo when
+# gh cannot resolve a remote (e.g. run outside a checkout).
+REPO="${EVITA_REPO:-$(gh repo view --json nameWithOwner -q .nameWithOwner 2>/dev/null || echo FgForrest/evitaDB)}"
 WORKFLOW_DIR=".github/workflows"
 
 # ---- helpers -------------------------------------------------------------
@@ -89,15 +96,19 @@ cmd_list() {
 }
 
 # Return the list of open Dependabot bump PR numbers, optionally filtered to a kind.
-# $1 (optional): "github_actions" | "maven" to filter by ecosystem.
+# $1 (optional): "github_actions" | "maven" to filter by ecosystem (matched against
+# the dependabot head branch, e.g. dependabot/github_actions/... or dependabot/maven/...).
+# gh's --jq takes a single expression and does not forward jq's --arg, so the
+# ecosystem filter is applied in the pipeline rather than inside jq.
 _bump_pr_numbers() {
 	local filter="${1:-}"
 	gh pr list --repo "$REPO" --limit 200 \
 		--json number,headRefName,author \
-		--jq --arg f "$filter" '.[]
+		--jq '.[]
 			| select(.author.login == "app/dependabot" or (.headRefName | startswith("dependabot/")))
-			| select($f == "" or (.headRefName | test($f)))
-			| .number' \
+			| "\(.number)\t\(.headRefName)"' \
+		| { if [ -n "$filter" ]; then grep -F "$filter" || true; else cat; fi; } \
+		| awk -F'\t' '{ print $1 }' \
 		| sort -n
 }
 
@@ -105,7 +116,8 @@ cmd_diffs() {
 	preflight
 	local prs=("$@")
 	if [ ${#prs[@]} -eq 0 ]; then
-		mapfile -t prs < <(_bump_pr_numbers)
+		# portable read loop (avoids bash-4 `mapfile`; stock macOS ships bash 3.2)
+		prs=(); while IFS= read -r _n; do prs+=("$_n"); done < <(_bump_pr_numbers)
 	fi
 	[ ${#prs[@]} -eq 0 ] && { note "no open bump PRs"; return 0; }
 	local pr
@@ -176,8 +188,9 @@ cmd_verify_pins() {
 			;;
 		prs)
 			note "Auditing added action pins in open Dependabot github_actions PRs:"
-			local prs pr
-			mapfile -t prs < <(_bump_pr_numbers github_actions)
+			local prs=() pr
+			# portable read loop (avoids bash-4 `mapfile`; stock macOS ships bash 3.2)
+			while IFS= read -r _n; do prs+=("$_n"); done < <(_bump_pr_numbers github_actions)
 			[ ${#prs[@]} -eq 0 ] && { note "no open github_actions bump PRs"; return 0; }
 			for pr in "${prs[@]}"; do
 				gh pr diff "$pr" --repo "$REPO" \
@@ -218,8 +231,10 @@ cmd_close_prs() {
 	preflight
 	[ $# -ge 2 ] || die "usage: close-prs COMMIT PR [PR...]"
 	local commit="$1"; shift
-	local comment pr
-	comment="Superseded by the consolidated dependency-bump commit on \`dev\`: ${commit}. This exact version change is included there and has been built and tested locally, so closing this individual PR."
+	local comment pr branch
+	# name the branch the commit landed on (derived; override with EVITA_DEFAULT_BRANCH)
+	branch="${EVITA_DEFAULT_BRANCH:-$(gh repo view "$REPO" --json defaultBranchRef -q .defaultBranchRef.name 2>/dev/null || echo dev)}"
+	comment="Superseded by the consolidated dependency-bump commit on \`${branch}\`: ${commit}. This exact version change is included there and has been built and tested, so closing this individual PR."
 	for pr in "$@"; do
 		note "closing #$pr -> $commit"
 		gh pr close "$pr" --repo "$REPO" --comment "$comment"
