@@ -27,6 +27,7 @@ import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.*;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.AllowEvolutionModeInCatalogSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.CreateEntitySchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.DisallowEvolutionModeInCatalogSchemaMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.ModifyCatalogSchemaConflictResolutionMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.ModifyCatalogSchemaDescriptionMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.ModifyEntitySchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.ModifyEntitySchemaNameMutationDescriptor;
@@ -47,6 +48,7 @@ public interface LocalCatalogSchemaMutationUnionDescriptor {
 		.discriminator(MutationDescriptor.MUTATION_TYPE)
 
 		.type(ModifyCatalogSchemaDescriptionMutationDescriptor.THIS)
+		.type(ModifyCatalogSchemaConflictResolutionMutationDescriptor.THIS)
 		.type(AllowEvolutionModeInCatalogSchemaMutationDescriptor.THIS)
 		.type(DisallowEvolutionModeInCatalogSchemaMutationDescriptor.THIS)
 		.type(CreateEntitySchemaMutationDescriptor.THIS)

@@ -29,6 +29,7 @@ import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedDat
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.ModifyAssociatedDataSchemaNameMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.ModifyAssociatedDataSchemaTypeMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.RemoveAssociatedDataSchemaMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.SetAssociatedDataSchemaConflictResolutionOverrideMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.SetAssociatedDataSchemaLocalizedMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.SetAssociatedDataSchemaNullableMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.*;
@@ -69,6 +70,7 @@ public interface LocalEntitySchemaMutationUnionDescriptor {
 		.type(SetEntitySchemaWithGeneratedPrimaryKeyMutationDescriptor.THIS)
 		.type(SetEntitySchemaWithHierarchyMutationDescriptor.THIS)
 		.type(SetEntitySchemaWithPriceMutationDescriptor.THIS)
+		.type(ModifyEntitySchemaConflictResolutionMutationDescriptor.THIS)
 
 		.type(CreateAssociatedDataSchemaMutationDescriptor.THIS)
 		.type(ModifyAssociatedDataSchemaDeprecationNoticeMutationDescriptor.THIS)
@@ -78,6 +80,7 @@ public interface LocalEntitySchemaMutationUnionDescriptor {
 		.type(RemoveAssociatedDataSchemaMutationDescriptor.THIS)
 		.type(SetAssociatedDataSchemaLocalizedMutationDescriptor.THIS)
 		.type(SetAssociatedDataSchemaNullableMutationDescriptor.THIS)
+		.type(SetAssociatedDataSchemaConflictResolutionOverrideMutationDescriptor.THIS)
 
 		.type(CreateAttributeSchemaMutationDescriptor.THIS)
 		.type(ModifyAttributeSchemaDefaultValueMutationDescriptor.THIS)
@@ -92,6 +95,7 @@ public interface LocalEntitySchemaMutationUnionDescriptor {
 		.type(SetAttributeSchemaRepresentativeMutationDescriptor.THIS)
 		.type(SetAttributeSchemaSortableMutationDescriptor.THIS)
 		.type(SetAttributeSchemaUniqueMutationDescriptor.THIS)
+		.type(SetAttributeSchemaConflictResolutionOverrideMutationDescriptor.THIS)
 		.type(UseGlobalAttributeSchemaMutationDescriptor.THIS)
 
 		.type(CreateSortableAttributeCompoundSchemaMutationDescriptor.THIS)
@@ -116,6 +120,7 @@ public interface LocalEntitySchemaMutationUnionDescriptor {
 		.type(SetReferenceSchemaBucketedMutationDescriptor.THIS)
 		.type(SetReferenceSchemaFacetedMutationDescriptor.THIS)
 		.type(SetReferenceSchemaIndexedMutationDescriptor.THIS)
+		.type(SetReferenceSchemaConflictResolutionOverrideMutationDescriptor.THIS)
 
 		.build();
 }
