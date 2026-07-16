@@ -298,6 +298,8 @@ public class EvitaClient implements EvitaContract {
 					return true;
 				}
 			}
+			// ClosedSessionException (a connection-level close) is a final subclass of ClosedStreamException,
+			// so this single check classifies both stream- and session-level Armeria closures as transport failures
 			if (current instanceof ClosedStreamException) {
 				return true;
 			}

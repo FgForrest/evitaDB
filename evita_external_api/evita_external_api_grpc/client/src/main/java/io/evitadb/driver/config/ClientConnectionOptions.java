@@ -44,8 +44,8 @@ import java.net.UnknownHostException;
  *                          budget — it must exceed the worst tolerable GC / CPU-starvation pause, not act as a probe
  *                          frequency, otherwise a slow-but-alive call can be killed mid-flight. Defaults to
  *                          `30000` (30 s). `0` disables the client ping entirely (the connection is then reaped by the
- *                          idle timeout alone); any other value must be at least `1000` ms (the minimum Armeria
- *                          permits).
+ *                          idle timeout alone); a negative value falls back to the default, and any positive value below
+ *                          `1000` ms (the minimum Armeria permits) is raised to that floor.
  *
  *                          **Precondition — the ping must stay strictly below {@link #idleTimeoutMillis()}.** Armeria
  *                          **silently disables** the ping (no error, no log) whenever `max(pingIntervalMillis, 1000)`
@@ -61,8 +61,8 @@ import java.net.UnknownHostException;
  *                          active and healthy connections are kept warm — the client counts keep-alive pings as
  *                          activity (`keepAliveOnPing = true`), so a connection whose pings are acknowledged never
  *                          idles out. `0` disables the idle timeout entirely (the connection then lives until closed
- *                          by the peer, a ping failure or the pool). Must be `>= 0`; keep it strictly above
- *                          {@link #pingIntervalMillis()} to preserve the watchdog.
+ *                          by the peer, a ping failure or the pool). A negative value falls back to the default; keep it
+ *                          strictly above {@link #pingIntervalMillis()} to preserve the watchdog.
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public record ClientConnectionOptions(
@@ -78,6 +78,18 @@ public record ClientConnectionOptions(
 	public static final int DEFAULT_SYSTEM_API_PORT = 5555;
 	public static final int DEFAULT_PING_INTERVAL_MILLIS = 30_000;
 	public static final int DEFAULT_IDLE_TIMEOUT_MILLIS = 300_000;
+
+	/**
+	 * Normalizes the keep-alive settings to honour their documented contracts: a negative ping interval falls back
+	 * to the default, `0` disables the ping, and any positive value below Armeria's `1000` ms minimum is raised to
+	 * that floor; a negative idle timeout falls back to the default while `0` disables it.
+	 */
+	public ClientConnectionOptions {
+		pingIntervalMillis = pingIntervalMillis < 0
+			? DEFAULT_PING_INTERVAL_MILLIS
+			: pingIntervalMillis == 0 ? 0 : Math.max(pingIntervalMillis, 1000);
+		idleTimeoutMillis = idleTimeoutMillis < 0 ? DEFAULT_IDLE_TIMEOUT_MILLIS : idleTimeoutMillis;
+	}
 
 	/**
 	 * Creates a new instance with all default values.

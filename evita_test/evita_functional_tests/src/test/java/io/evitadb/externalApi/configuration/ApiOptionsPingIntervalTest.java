@@ -36,7 +36,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * {@link io.evitadb.driver.config.ClientConnectionOptions} coverage. The ping interval is the stall budget that
  * governs when Armeria closes an unacknowledged connection; `0` disables the server ping entirely (the default,
  * matching gRPC's convention that keep-alive is the client's responsibility) and any negative value falls back to
- * that default. A positive value is passed through verbatim.
+ * that default. A positive value at or above Armeria's `1000` ms minimum is passed through verbatim, while a
+ * positive value below it is raised to that floor.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -62,6 +63,13 @@ class ApiOptionsPingIntervalTest {
 	@DisplayName("Passes a positive ping interval through verbatim")
 	void shouldSetCustomPingInterval() {
 		assertEquals(1000, ApiOptions.builder().pingIntervalMillis(1000).build().pingIntervalMillis());
+	}
+
+	@Test
+	@DisplayName("Raises a positive ping interval below the Armeria minimum to the 1000 ms floor")
+	void shouldClampSubMinimumPingIntervalToArmeriaFloor() {
+		assertEquals(1000, ApiOptions.builder().pingIntervalMillis(500).build().pingIntervalMillis());
+		assertEquals(1000, ApiOptions.builder().pingIntervalMillis(1).build().pingIntervalMillis());
 	}
 
 	@Test

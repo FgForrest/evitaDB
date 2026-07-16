@@ -145,6 +145,33 @@ class ClientConnectionOptionsTest {
 		}
 
 		@Test
+		@DisplayName("should raise a positive ping interval below the Armeria minimum to the 1000 ms floor")
+		void shouldClampSubMinimumPingIntervalToArmeriaFloor() {
+			assertEquals(
+				1000,
+				ClientConnectionOptions.builder().pingIntervalMillis(500).build().pingIntervalMillis()
+			);
+		}
+
+		@Test
+		@DisplayName("should fall back to the default for a negative ping interval")
+		void shouldFallBackToDefaultForNegativePingInterval() {
+			assertEquals(
+				ClientConnectionOptions.DEFAULT_PING_INTERVAL_MILLIS,
+				ClientConnectionOptions.builder().pingIntervalMillis(-1).build().pingIntervalMillis()
+			);
+		}
+
+		@Test
+		@DisplayName("should fall back to the default for a negative idle timeout")
+		void shouldFallBackToDefaultForNegativeIdleTimeout() {
+			assertEquals(
+				ClientConnectionOptions.DEFAULT_IDLE_TIMEOUT_MILLIS,
+				ClientConnectionOptions.builder().idleTimeoutMillis(-1).build().idleTimeoutMillis()
+			);
+		}
+
+		@Test
 		@DisplayName("should set custom idle timeout via builder")
 		void shouldSetCustomIdleTimeout() {
 			final ClientConnectionOptions options =

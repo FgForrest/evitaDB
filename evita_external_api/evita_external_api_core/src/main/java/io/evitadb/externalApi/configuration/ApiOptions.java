@@ -60,8 +60,8 @@ import static java.util.Optional.ofNullable;
  *                               connections with a request in progress). The interval therefore IS the stall budget. Defaults to
  *                               `0`, which DISABLES the server-side ping — quiet connections are reaped by the idle timeout and
  *                               orphaned sessions by the session killer instead, matching the convention that keep-alive pinging is
- *                               the client's responsibility while the server polices and reaps. Any non-zero value must be at least
- *                               `1000` ms (the minimum Armeria permits).
+ *                               the client's responsibility while the server polices and reaps. A negative value falls back to the
+ *                               default; any positive value below `1000` ms (the minimum Armeria permits) is raised to that floor.
  * @param maxEntitySizeInBytes   The default maximum size of a request entity. If entity body is larger than this limit then a
  *                               java.io.IOException will be thrown at some point when reading the request (on the first read for fixed
  *                               length requests, when too much data has been read for chunked requests).
@@ -114,8 +114,11 @@ public record ApiOptions(
 		this.workerGroupThreads = ofNullable(workerGroupThreads).orElse(DEFAULT_WORKER_GROUP_THREADS);
 		this.idleTimeoutInMillis = idleTimeoutInMillis <= 0 ? DEFAULT_IDLE_TIMEOUT : idleTimeoutInMillis;
 		this.requestTimeoutInMillis = requestTimeoutInMillis <= 0 ? DEFAULT_REQUEST_TIMEOUT : requestTimeoutInMillis;
-		// 0 is a meaningful value here (disables the server ping); only a negative value falls back to the default
-		this.pingIntervalMillis = pingIntervalMillis < 0 ? DEFAULT_PING_INTERVAL : pingIntervalMillis;
+		// 0 disables the server ping and a negative value falls back to the default; any positive value below
+		// Armeria's 1000 ms minimum is raised to that floor to honour the documented pingIntervalMillis contract
+		this.pingIntervalMillis = pingIntervalMillis < 0
+			? DEFAULT_PING_INTERVAL
+			: pingIntervalMillis == 0 ? 0 : Math.max(pingIntervalMillis, 1000);
 		this.maxEntitySizeInBytes = maxEntitySizeInBytes <= 0 ? DEFAULT_MAX_ENTITY_SIZE : maxEntitySizeInBytes;
 		this.accessLog = accessLog;
 		this.headers = headers;
