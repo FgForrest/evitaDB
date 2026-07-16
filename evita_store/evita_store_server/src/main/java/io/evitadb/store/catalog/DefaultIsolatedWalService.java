@@ -124,7 +124,7 @@ public class DefaultIsolatedWalService implements IsolatedWalPersistenceService 
 	/**
 	 * Creates a schema-aware WAL service: conflict keys are generated from the effective, schema-declared
 	 * conflict resolution resolved per entity type (entity schema → catalog schema → engine default) with
-	 * per-item overrides applied (issue #503).
+	 * per-item overrides applied.
 	 *
 	 * @param conflictResolution   the engine-wide default resolution forming the base of the walk
 	 * @param catalogSchema        the catalog schema whose resolution overrides the engine default
@@ -146,6 +146,24 @@ public class DefaultIsolatedWalService implements IsolatedWalPersistenceService 
 		this.entitySchemaAccessor = entitySchemaAccessor;
 		this.writeKryo = writeKryo;
 		this.writeHandle = writeHandle;
+	}
+
+	/**
+	 * Resolves the effective catalog-level conflict policy governing the catalog-wide conflict fallback. In
+	 * schema-aware mode the catalog schema's declared resolution overrides the engine default; in global-backed
+	 * mode (no catalog schema) the fixed engine resolution applies. Mirrors the no-entity-scope branch of
+	 * {@link ConflictGenerationContext}'s catalog-level resolution so the fallback keys off the same policy the
+	 * per-mutation collection would.
+	 *
+	 * @return the effective catalog-level {@link ConflictPolicy}, never null
+	 */
+	@Nonnull
+	private ConflictPolicy effectiveCatalogPolicy() {
+		return this.catalogSchema == null
+			? this.conflictResolution.policy()
+			: this.catalogSchema.getConflictResolution()
+				.map(ConflictResolution::policy)
+				.orElse(this.conflictResolution.policy());
 	}
 
 	@Override
@@ -182,7 +200,7 @@ public class DefaultIsolatedWalService implements IsolatedWalPersistenceService 
 					conflictKeyCollected = true;
 				}
 				// register catalog conflict key if none collected and catalog policy is requested
-				if (!conflictKeyCollected && this.conflictResolution.policy() == ConflictPolicy.CATALOG) {
+				if (!conflictKeyCollected && effectiveCatalogPolicy() == ConflictPolicy.CATALOG) {
 					this.conflictKeys.add(new CatalogConflictKey(this.catalogName));
 				}
 				// write the mutation
@@ -212,7 +230,7 @@ public class DefaultIsolatedWalService implements IsolatedWalPersistenceService 
 		for (ConflictKey conflictKey : this.conflictKeys) {
 			resultConflictKeys.add(conflictKey);
 		}
-		if (resultConflictKeys.isEmpty() && this.conflictResolution.policy() == ConflictPolicy.CATALOG) {
+		if (resultConflictKeys.isEmpty() && effectiveCatalogPolicy() == ConflictPolicy.CATALOG) {
 			// at least catalog conflict key must be present
 			resultConflictKeys.add(new CatalogConflictKey(this.catalogName));
 		}
