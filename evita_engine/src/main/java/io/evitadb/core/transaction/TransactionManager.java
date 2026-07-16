@@ -909,13 +909,22 @@ public class TransactionManager implements Closeable {
 		@Nullable Map<Object, CommutativeConflictResolver<?>> aggregates,
 		@Nonnull CatalogVersionIndex until
 	) {
-		// This fallback recomputes conflict keys for aged-out committed transactions using the current
-		// engine-default resolution rather than the per-entity schema resolution that was in effect when
-		// each transaction was written. Reconstructing historical schemas is deliberately not attempted:
-		// this path only fires for transactions old enough to have left the
-		// conflict ring buffer, which by construction can no longer overlap the incoming commit window,
-		// so any residual over-/under-granularity here cannot change the accept/reject outcome.
-		final ConflictGenerationContext context = new ConflictGenerationContext(this.conflictResolution);
+		// Recompute the aged-out transactions' conflict keys through the same schema-effective resolution
+		// the live WAL-write path and the conflictException() diagnostics below use: the effective
+		// per-entity resolution is resolved against the living catalog's current schema (entity schema →
+		// catalog schema → engine default). This fallback exists precisely to test the incoming commit
+		// against these evicted-but-still-in-window transactions, so recomputing with the bare engine
+		// default would be wrong whenever an entity type carries a per-entity-type override that diverges
+		// from it: a too-coarse recomputed key would false-positive (reject a non-overlapping commit) and a
+		// too-fine one would mask a real overlap, flipping the containment verdict either way. Historical
+		// schemas are deliberately not reconstructed — the current schema is authoritative here, exactly as
+		// in conflictException(); the two paths must agree on the resolution so the thrown diagnostics match
+		// the verdict.
+		final ConflictGenerationContext context = new ConflictGenerationContext(
+			this.conflictResolution,
+			theLivingCatalog.getSchema(),
+			entityType -> theLivingCatalog.getEntitySchema(entityType).orElse(null)
+		);
 		final long livingCatalogVersion = theLivingCatalog.getVersion();
 		long processedCatalogVersion = sessionCatalogVersion;
 		final Iterator<CatalogBoundMutation> mutationIterator = getLivingCatalog()
