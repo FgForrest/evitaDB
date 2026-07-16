@@ -126,6 +126,28 @@ class ConflictRingBufferTest {
 		}
 
 		@Test
+		@DisplayName("clearAllAfter with a boundary in a gap between versions removes only the tail")
+		void shouldRemoveOnlyEntriesAboveGapBoundaryOnClearAllAfter() throws OutsideScopeException {
+			// given versions 10, 11 and 13 retained with version 12 absent — exactly the state left when a
+			// rejected/rolled-back transaction's reserved version 12 falls between two committed versions
+			// (identifyConflicts registers a reserved version's keys only after the conflict scan succeeds)
+			final ConflictRingBuffer buffer = newSpaciousBuffer();
+			final VersionedConflictKey key10 = key(10L, 0, 100);
+			final VersionedConflictKey key11 = key(11L, 0, 110);
+			buffer.offer(key10);
+			buffer.offer(key11);
+			buffer.offer(key(13L, 0, 130));
+
+			// when clearing everything at or after the absent boundary version 12
+			buffer.clearAllAfter(12L);
+
+			// then only version 13 is removed — the boundary resolves to its insertion point rather than a
+			// binary-search miss, so versions 10 and 11 below it must survive intact (the old code treated
+			// the miss as a raw negative index and wiped the entire retained buffer)
+			assertEquals(List.of(key10, key11), collectSince(buffer, 10L));
+		}
+
+		@Test
 		@DisplayName("clearAllUntil releases keys strictly below the version and advances the start boundary")
 		void shouldReleaseKeysBelowVersionOnClearAllUntil() throws OutsideScopeException {
 			// given one key per version 10, 11 and 12
