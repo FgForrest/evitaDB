@@ -366,16 +366,14 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 	protected List<OBJECT_FIELD> buildGroupChildren(@Nonnull ConstraintBuildContext buildContext,
 	                                                @Nonnull AllowedConstraintPredicate allowedChildrenPredicate) {
 		final DataLocator parentDataLocator = buildContext.dataLocator();
-		if (!(parentDataLocator instanceof final DataLocatorWithReference dataLocatorWithReference)) {
-			return List.of();
-		}
-		final String referenceName = dataLocatorWithReference.referenceName();
-		if (referenceName == null) {
+		if (!(parentDataLocator instanceof final DataLocatorWithReference dataLocatorWithReference) ||
+			dataLocatorWithReference.referenceName() == null) {
 			return List.of();
 		}
 
-		final ReferenceSchemaContract referenceSchema = this.sharedContext.getEntitySchemaOrThrowException(parentDataLocator.entityType())
-			.getReferenceOrThrowException(referenceName);
+		final ReferenceSchemaContract referenceSchema = this.sharedContext
+			.getEntitySchemaOrThrowException(parentDataLocator.entityType())
+			.getReferenceOrThrowException(dataLocatorWithReference.referenceName());
 		final String referencedGroupType = referenceSchema.getReferencedGroupType();
 		if (referencedGroupType == null) {
 			// the reference has no group type configured, so there's no group entity to filter/order/require by

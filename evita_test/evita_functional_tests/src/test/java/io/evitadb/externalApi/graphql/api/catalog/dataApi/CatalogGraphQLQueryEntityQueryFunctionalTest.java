@@ -9804,6 +9804,101 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should narrow results via groupHaving nested in the generic referenceParameterHaving container")
+	void shouldApplyGroupHavingInReferenceHaving(Evita evita, GraphQLTester tester, List<SealedEntity> originalProductEntities) {
+		// Regression: the schema builder never generated the GROUP constraint slot for generic
+		// referenceXxxHaving/facetXxxHaving containers — only histogramHaving's own dedicated
+		// groupSelector slot worked. This exercises groupHaving nested in referenceParameterHaving.
+		final SealedEntity sampleProduct = originalProductEntities.stream()
+			.filter(it -> it.getReferences(Entities.PARAMETER).stream()
+				.anyMatch(reference -> reference.getGroup().isPresent()))
+			.findFirst()
+			.orElseThrow();
+		final ReferenceContract sampleParameterReference = sampleProduct.getReferences(Entities.PARAMETER)
+			.stream()
+			.filter(reference -> reference.getGroup().isPresent())
+			.findFirst()
+			.orElseThrow();
+		final int groupPk = sampleParameterReference.getGroup().orElseThrow().getPrimaryKey();
+		final String groupCode = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.getEntity(Entities.PARAMETER_GROUP, groupPk, attributeContent(ATTRIBUTE_CODE));
+			}
+		).orElseThrow().getAttribute(ATTRIBUTE_CODE);
+		assertNotNull(groupCode, "sampled parameter group must carry a code — fixture sanity check");
+
+		final EvitaResponse<EntityReference> baselineResponse = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							referenceHaving(
+								Entities.PARAMETER,
+								groupHaving(attributeEquals(ATTRIBUTE_CODE, groupCode))
+							)
+						),
+						require(page(1, 1))
+					),
+					EntityReference.class
+				);
+			}
+		);
+		final int expectedCount = baselineResponse.getTotalRecordCount();
+		assertTrue(expectedCount > 0, "baseline query must match at least the sample product — fixture sanity check");
+
+		final EvitaResponse<EntityReference> catalogWideResponse = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.query(
+					query(collection(Entities.PRODUCT), require(page(1, 1))),
+					EntityReference.class
+				);
+			}
+		);
+		final int catalogWideProductCount = catalogWideResponse.getTotalRecordCount();
+		assertTrue(expectedCount < catalogWideProductCount,
+			"groupHaving must strictly narrow the result set (got " + expectedCount +
+				" with the group filter vs " + catalogWideProductCount + " catalog-wide)");
+
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+					query {
+						queryProduct(
+							filterBy: {
+								referenceParameterHaving: [
+									{
+										groupHaving: {
+											attributeCodeEquals: "%s"
+										}
+									}
+								]
+							}
+						) {
+							recordPage(size: %d) {
+								totalRecordCount
+							}
+						}
+					}
+					""",
+				groupCode,
+				Integer.MAX_VALUE
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(
+				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.RECORD_PAGE.name() + "." +
+					DataChunkDescriptor.TOTAL_RECORD_COUNT.name(),
+				equalTo(expectedCount)
+			);
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return error for reference summary with histogram statistics for non-bucketed reference for products")
 	void shouldReturnErrorForReferenceSummaryWithHistogramStatisticsForNonBucketedReferenceForProducts(Evita evita, GraphQLTester tester) {
 		tester.test(TEST_CATALOG)
