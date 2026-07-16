@@ -39,6 +39,7 @@ module evita.engine {
 	exports io.evitadb.core.expression.proxy.reference;
 	exports io.evitadb.core.expression.trigger;
 	exports io.evitadb.core.engine;
+	exports io.evitadb.core.exception;
 	exports io.evitadb.core.executor;
 	exports io.evitadb.core.management;
 	exports io.evitadb.core.metric.event;

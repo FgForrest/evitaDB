@@ -298,6 +298,21 @@ public class Reference implements ReferenceContract {
 		return this.referenceKey;
 	}
 
+	/**
+	 * Delegates to {@link Attributes#isAttributeValuePresentAndExists(AttributeKey)} - an
+	 * allocation-free probe for the presence of an existing (non-dropped) attribute value under the
+	 * given key on this reference. This is not part of the {@link AttributesContract} surface
+	 * delegated via Lombok, so it is declared explicitly here to guarantee the fast, set-free
+	 * membership test used when verifying mandatory / default-valued reference attributes.
+	 *
+	 * @param attributeKey the attribute key to test, must not be null
+	 * @return TRUE if an existing (non-dropped) attribute value is stored under the given key on
+	 * this reference
+	 */
+	public boolean isAttributeValuePresentAndExists(@Nonnull AttributeKey attributeKey) {
+		return this.attributes.isAttributeValuePresentAndExists(attributeKey);
+	}
+
 	@Nonnull
 	@Override
 	public Optional<SealedEntity> getReferencedEntity() {

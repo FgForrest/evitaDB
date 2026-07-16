@@ -264,7 +264,10 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 			pageTrees.add(pageTree);
 		}
 		final TransactionalBucketBPlusTree tree =
-			createEmptyTree(plainType, comparator).assembleFromSingleLeafTrees(pageTrees, orderedPageSequences);
+			createEmptyTree(plainType, comparator).assembleFromSingleLeafTrees(
+				pageTrees, orderedPageSequences,
+				"owner unique index for attribute " + attributeIndexKey + " of entity `" + entityType + "`"
+			);
 		final PageStreamRegistry pageStreamRegistry = PageStreamRegistry.restoredFrom(
 			UNIQUE_PAGE_STREAM, highWaterPageSequence, tree.leafPageHandles()
 		);

@@ -5372,14 +5372,17 @@ class EvitaTest implements EvitaTestSupport {
 					formerServerOptions.changeDataCapture(),
 					formerServerOptions.trafficRecording(),
 					formerServerOptions.readOnly(),
-					formerServerOptions.quiet(),
-					false
+					formerServerOptions.quiet()
 				),
 				formerConfiguration.storage(),
 				formerConfiguration.transaction(),
 				formerConfiguration.cache(),
 				formerConfiguration.export()
-			)
+			),
+			true,
+			null,
+			null,
+			false
 		);
 		reinstantiatedEvita.waitUntilFullyInitialized();
 		return reinstantiatedEvita;

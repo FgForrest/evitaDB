@@ -49,6 +49,7 @@ import io.evitadb.api.requestResponse.cdc.ChangeCapturePublisher;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureRequest;
 import io.evitadb.api.requestResponse.cdc.HostSystemEvent;
+import io.evitadb.api.requestResponse.data.DevelopmentConstants;
 import io.evitadb.api.requestResponse.mutation.EngineMutation;
 import io.evitadb.api.requestResponse.progress.Progress;
 import io.evitadb.api.requestResponse.progress.ProgressingFuture;
@@ -357,11 +358,60 @@ public final class Evita implements EvitaContract {
 		);
 	}
 
+	/**
+	 * Constructs a new `Evita` instance with session lifecycle callbacks and explicit control over the
+	 * second phase of the boot sequence (see {@link #Evita(EvitaConfiguration, boolean)}). The executor kind
+	 * defaults to {@link DevelopmentConstants#isTestRun()} — an immediate (synchronous) executor during test
+	 * runs, real thread pools otherwise; use
+	 * {@link #Evita(EvitaConfiguration, boolean, Consumer, Consumer, boolean)} to choose it explicitly.
+	 *
+	 * @param configuration                evita configuration; never `null`
+	 * @param scheduleCatalogLoading       `true` schedules loading immediately; `false` defers it to an
+	 *                                     explicit {@link #scheduleInitialCatalogLoading()} call
+	 * @param onSessionCreationCallback    optional callback invoked when a session is created
+	 * @param onSessionTerminationCallback optional callback invoked when a session is terminated
+	 */
 	public Evita(
 		@Nonnull EvitaConfiguration configuration,
 		boolean scheduleCatalogLoading,
 		@Nullable Consumer<EvitaSessionContract> onSessionCreationCallback,
 		@Nullable Consumer<EvitaSessionContract> onSessionTerminationCallback
+	) {
+		this(
+			configuration,
+			scheduleCatalogLoading,
+			onSessionCreationCallback,
+			onSessionTerminationCallback,
+			// in test runs default to the immediate (synchronous) executor so embedded execution stays
+			// deterministic; networked / production callers pass an explicit value to the constructor below
+			DevelopmentConstants.isTestRun()
+		);
+	}
+
+	/**
+	 * Constructs a new `Evita` instance with explicit control over both the second phase of the boot
+	 * sequence and the executor kind used for the request pool and the scheduler.
+	 *
+	 * This is the full constructor all other overloads delegate to. Networked hosts (e.g.
+	 * `EvitaServer`) and any caller that needs real (asynchronous) thread pools pass
+	 * `directExecutor=false`; embedded callers that omit the flag get the {@link DevelopmentConstants#isTestRun()}
+	 * default, which collapses the request pool and scheduler into an immediate (synchronous) executor
+	 * during test runs to keep embedded execution deterministic.
+	 *
+	 * @param configuration                       evita configuration; never `null`
+	 * @param scheduleCatalogLoading              `true` schedules loading immediately; `false` defers it to
+	 *                                            an explicit {@link #scheduleInitialCatalogLoading()} call
+	 * @param onSessionCreationCallback           optional callback invoked when a session is created
+	 * @param onSessionTerminationCallback        optional callback invoked when a session is terminated
+	 * @param directExecutor                      `true` uses the immediate (synchronous) executor for the
+	 *                                            request pool and scheduler; `false` uses real thread pools
+	 */
+	public Evita(
+		@Nonnull EvitaConfiguration configuration,
+		boolean scheduleCatalogLoading,
+		@Nullable Consumer<EvitaSessionContract> onSessionCreationCallback,
+		@Nullable Consumer<EvitaSessionContract> onSessionTerminationCallback,
+		boolean directExecutor
 	) {
 		this.configuration = configuration;
 		this.onSessionCreationCallback = onSessionCreationCallback == null ?
@@ -369,14 +419,14 @@ public final class Evita implements EvitaContract {
 		this.onSessionTerminationCallback = onSessionTerminationCallback == null ?
 			Functions.noOpConsumer() : onSessionTerminationCallback;
 
-		this.serviceExecutor = configuration.server().directExecutor() ?
+		this.serviceExecutor = directExecutor ?
 			// in test environment we use immediate (synchronous) executor to avoid race conditions
 			new Scheduler(new ImmediateScheduledThreadPoolExecutor()) :
 			// in standard environment we use a scheduled thread pool executor
 			new Scheduler(configuration.server().serviceThreadPool());
 		this.requestExecutor = new ObservableThreadExecutor(
 			"request", configuration.server().requestThreadPool(),
-			configuration.server().directExecutor(),
+			directExecutor,
 			RequestThreadPoolStatisticsEvent::new
 		);
 		this.transactionExecutor = new ObservableThreadExecutor(

@@ -179,7 +179,9 @@ public class PriceListAndCurrencyPriceSuperIndex
 		}
 		// assemble the spine over the per-page leaves, preserving boundaries and stamping each leaf's page sequence
 		final TransactionalElementBPlusTree<PriceRecordContract> tree =
-			newPriceRecordTree().assembleFromSingleLeafTrees(pageTrees, orderedPageSequences);
+			newPriceRecordTree().assembleFromSingleLeafTrees(
+				pageTrees, orderedPageSequences, "super price index for price list " + priceIndexKey
+			);
 		final PageStreamRegistry pageStreamRegistry = PageStreamRegistry.restoredFrom(
 			PRICE_PAGE_STREAM, highWaterPageSequence, tree.<PriceRecordContract>leafPageHandles()
 		);

@@ -194,6 +194,9 @@ class LongRunningCdcHeartbeatTest implements TestConstants, EvitaTestSupport {
 				.host(grpcHost.hostAddress())
 				.port(grpcHost.port())
 				.systemApiPort(systemHost.port())
+				// disable the keep-alive ping in the test lane: a long inline call on a direct-executor
+				// test server can stall the event loop past the ping budget and self-cancel the connection
+				.pingIntervalMillis(0)
 				.tls(
 					ClientTlsOptions.builder()
 						.mtlsEnabled(false)

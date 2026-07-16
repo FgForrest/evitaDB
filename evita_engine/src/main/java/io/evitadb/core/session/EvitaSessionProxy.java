@@ -23,6 +23,7 @@
 
 package io.evitadb.core.session;
 
+import io.evitadb.api.exception.ConcurrentSessionAccessException;
 import io.evitadb.api.exception.RollbackException;
 import io.evitadb.api.exception.TransactionException;
 import io.evitadb.api.observability.trace.RepresentsMutation;
@@ -93,6 +94,18 @@ final class EvitaSessionProxy implements InvocationHandler {
 	private final AtomicInteger insideInvocation = new AtomicInteger(0);
 	private final AtomicLong lastCall = new AtomicLong(System.currentTimeMillis());
 	private final AtomicReference<ClosingSequence> closeLambda = new AtomicReference<>(null);
+	/**
+	 * Thread that currently owns (is executing a business method on) this {@code @NotThreadSafe}
+	 * session, or {@code null} when no business method is in flight. A second thread that tries to
+	 * enter while another owns the session is rejected with a
+	 * {@link ConcurrentSessionAccessException} rather than being allowed to race the shared mutable
+	 * session state — the guard is thread-identity based so a legitimate re-entrant call on the very
+	 * same thread is permitted. Only guards the
+	 * delegated business-method path in {@link #invoke}; the housekeeping methods
+	 * {@link io.evitadb.core.session.task.SessionKiller} polls concurrently (e.g. `isActive`,
+	 * `isInactiveAndIdle`) are intentionally left unguarded.
+	 */
+	private final AtomicReference<Thread> owningThread = new AtomicReference<>(null);
 
 	/**
 	 * Resolves a method from {@link EvitaInternalSessionContract} by name and parameter types.
@@ -520,6 +533,21 @@ final class EvitaSessionProxy implements InvocationHandler {
 			});
 	}
 
+	/**
+	 * Dispatches a proxied session method call. Housekeeping methods polled by
+	 * {@link io.evitadb.core.session.task.SessionKiller} ({@code isActive}, {@code isInactiveAndIdle}
+	 * and friends) are handled directly and bypass the concurrency guard below since they must remain
+	 * safely callable from a different thread than the one currently executing a business method.
+	 * Every other (business) method is delegated to the wrapped {@link EvitaSession}, but only after
+	 * the calling thread claims exclusive ownership of {@link #owningThread} — see that field's
+	 * JavaDoc for why the session cannot tolerate two threads inside a business method at once.
+	 *
+	 * @param proxy  the proxy instance the method was invoked on (unused — calls are delegated to
+	 *               the wrapped {@link #evitaSession})
+	 * @param method the method that was invoked on the proxy
+	 * @param args   the arguments passed to the method invocation
+	 * @return the result of the delegated call, or a directly computed value for housekeeping methods
+	 */
 	@Nullable
 	@Override
 	public Object invoke(Object proxy, Method method, Object[] args) {
@@ -570,6 +598,20 @@ final class EvitaSessionProxy implements InvocationHandler {
 			}
 			return null;
 		} else {
+			// reject concurrent access from a second thread: an evitaDB session is @NotThreadSafe, so a
+			// racing call would silently corrupt the shared mutable session state (open transaction,
+			// warm-up index trees). The guard is thread-identity based, so a legitimate re-entrant call
+			// on the very same thread is allowed; only a genuinely different thread entering while this
+			// one owns the session fails.
+			final Thread currentThread = Thread.currentThread();
+			final Thread previousOwner = this.owningThread.compareAndExchange(null, currentThread);
+			if (previousOwner != null && previousOwner != currentThread) {
+				throw new ConcurrentSessionAccessException(
+					this.evitaSession.getId(), previousOwner.getName(), currentThread.getName()
+				);
+			}
+			// only the outermost invocation on the owning thread releases ownership when it unwinds
+			final boolean outermostInvocation = previousOwner == null;
 			try {
 				final ClosingSequence closingSequence = this.closeLambda.get();
 				// if there's a closing sequence in place
@@ -586,6 +628,9 @@ final class EvitaSessionProxy implements InvocationHandler {
 					return executeDelegateMethod(method, args);
 				}
 			} finally {
+				if (outermostInvocation) {
+					this.owningThread.set(null);
+				}
 				final ClosingSequence closingSequence = this.closeLambda.get();
 				// if there is newly registered close lambda and there is no other method being executed
 				if (this.insideInvocation.get() == 0 && closingSequence != null) {

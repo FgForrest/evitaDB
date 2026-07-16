@@ -1824,7 +1824,21 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 						transaction == null,
 						"In warming-up mode no transaction is expected to be opened!"
 					);
-					final ProgressingFuture<Void> flushFuture = this.catalog.flush();
+					final ProgressingFuture<Void> flushFuture;
+					try {
+						// building the warm-up flush future pops the trapped changes SYNCHRONOUSLY
+						// (Catalog.flush -> EntityCollection.createFlushFuture -> popTrappedChanges); a throw
+						// here (e.g. a corrupted index serialized at close) must complete the close future
+						// EXCEPTIONALLY instead of escaping and leaving `commitProgress` / `closingSequenceFuture`
+						// pending forever, which would hang SessionRegistry.closeAllActiveSessionsAndSuspend and
+						// Evita.close()
+						flushFuture = this.catalog.flush();
+					} catch (Throwable ex) {
+						this.commitProgress.completeExceptionally(ex);
+						this.closedFuture = this.commitProgress.on(commitBehavior);
+						this.closingSequenceFuture.get().complete(this.closedFuture);
+						return this.commitProgress;
+					}
 					// register the completion callback BEFORE dispatching to the executor — otherwise a
 					// synchronous RejectedExecutionException (e.g. during evitaDB shutdown) would escape
 					// without the callback ever being attached, leaving `commitProgress` pending forever

@@ -438,7 +438,7 @@ public final class AttributeIndexLoader implements ComponentLoader {
 			perPagePoints[i] = leafPage.getPoints();
 		}
 		return RangeIndex.fromPersistedPages(
-			rangePageSequences, perPagePoints, part.getRangeHighWaterPageSequence()
+			"attribute " + attributeIndexKey, rangePageSequences, perPagePoints, part.getRangeHighWaterPageSequence()
 		);
 	}
 

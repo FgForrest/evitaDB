@@ -77,6 +77,8 @@ import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.function.Functions;
 import io.evitadb.spi.store.catalog.shared.model.LogRecordReference;
 import io.evitadb.spi.store.catalog.wal.IsolatedWalPersistenceService;
+import io.evitadb.spi.store.engine.exception.WriteAheadLogCorruptedException;
+import io.evitadb.spi.store.engine.exception.WriteAheadLogCorruptedException.WalKind;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.IOUtils;
 import lombok.Getter;
@@ -97,9 +99,11 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.LockSupport;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
 import java.util.function.LongConsumer;
+import java.util.function.LongSupplier;
 import java.util.stream.Stream;
 
 import static java.util.Optional.empty;
@@ -116,6 +120,19 @@ import static java.util.Optional.ofNullable;
  */
 @Slf4j
 public class TransactionManager implements Closeable {
+	/**
+	 * Number of busy-spin attempts in
+	 * {@link #waitUntilVersionReaches(LongSupplier, long, long, String)} before the wait falls back
+	 * to parking. Catalog-version propagation to the live view normally lands within microseconds,
+	 * so the spin window keeps the hot path latency-free while a genuine stall stops burning a full
+	 * core.
+	 */
+	private static final int SPIN_ATTEMPTS_BEFORE_PARK = 4_096;
+	/**
+	 * Interval in nanoseconds the bounded wait parks for between live-version checks once the spin
+	 * window of {@link #SPIN_ATTEMPTS_BEFORE_PARK} attempts is exhausted.
+	 */
+	private static final long PARK_INTERVAL_NANOS = 100_000L;
 	/**
 	 * Reference to the evitaDB instance this transaction manager belongs to.
 	 */
@@ -1045,6 +1062,10 @@ public class TransactionManager implements Closeable {
 	 * @param waitForLock        Indicates whether to wait for the trunk incorporation lock.
 	 * @param progressCallback   A callback to report progress during transaction processing.
 	 * @return The processed transaction.
+	 * @throws WriteAheadLogCorruptedException when the mutation stream is empty but the finalized
+	 *                                          version has not yet reached {@code nextCatalogVersion}
+	 *                                          — i.e. a committed transaction was expected but could
+	 *                                          not be read from the WAL
 	 */
 	@Nonnull
 	public Optional<ProcessResult> processTransactions(
@@ -1090,8 +1111,24 @@ public class TransactionManager implements Closeable {
 					}
 					final Iterator<CatalogBoundMutation> mutationIterator = committedMutationStream.iterator();
 					if (!mutationIterator.hasNext()) {
-						// previous execution already processed all the mutations
-						return empty();
+						// an empty stream is only legitimately "already processed" when the finalized version
+						// has actually reached the version we were asked to process; if it has not, the WAL
+						// delivered nothing for a version we must reach — reporting "someone else did it"
+						// would silently finalize at a stale version and leave the commit-progress record
+						// (and any client awaiting it) hanging forever
+						if (lastFinalizedVersion >= nextCatalogVersion) {
+							// previous execution already processed all the mutations
+							return empty();
+						}
+						throw new WriteAheadLogCorruptedException(
+							WalKind.CATALOG,
+							"WAL mutation stream of catalog `" + getCatalogName() + "` went dry at finalized " +
+								"version " + lastFinalizedVersion + " without reaching requested version " +
+								nextCatalogVersion + " (last written version " +
+								this.lastWrittenCatalogVersion.get() + "). A committed transaction was not " +
+								"readable - refusing to report it as already processed.",
+							"Write-ahead log mutation stream ended before reaching a committed transaction."
+						);
 					} else {
 						long nextExpectedCatalogVersion = lastFinalizedVersion + 1;
 						// and process them
@@ -1246,15 +1283,74 @@ public class TransactionManager implements Closeable {
 	}
 
 	/**
-	 * Waits until the catalog version in the "live view" reaches the specified version.
+	 * Waits until the catalog version in the "live view" reaches the specified version. The wait is
+	 * bounded by {@link #safetyDeadlineMs()} — the same threshold the dangling-commit sweeper uses — so
+	 * it never fires under normal back-pressure, only on a genuine propagation stall. On expiry
+	 * a {@link TransactionTimedOutException} is thrown, which every caller translates into an
+	 * exceptional completion of the affected commit-progress record (or a watchdog reschedule)
+	 * instead of spinning a core forever.
 	 *
 	 * @param catalogVersion The catalog version to wait for in the "live view".
+	 * @throws TransactionTimedOutException when the live view does not reach the version in time
 	 */
 	public void waitUntilLiveVersionReaches(long catalogVersion) {
-		while (getLivingCatalog().getVersion() < catalogVersion) {
-			// wait until the catalog version is propagated to the "live view"
-			Thread.onSpinWait();
+		waitUntilVersionReaches(
+			() -> getLivingCatalog().getVersion(),
+			catalogVersion,
+			safetyDeadlineMs(),
+			getCatalogName()
+		);
+	}
+
+	/**
+	 * Bounded wait for a monotonically increasing version to reach the expected value. Busy-spins for
+	 * {@link #SPIN_ATTEMPTS_BEFORE_PARK} attempts (propagation normally lands within microseconds) and
+	 * then parks in {@link #PARK_INTERVAL_NANOS} intervals so a genuine stall does not burn a core.
+	 * Package-private so the bounded-wait contract can be unit-tested without a full manager instance.
+	 *
+	 * @param liveVersion    supplier of the currently visible version
+	 * @param catalogVersion the version that must be reached
+	 * @param deadlineMs     maximum time to wait in milliseconds
+	 * @param catalogName    name of the catalog used in the timeout message
+	 * @throws TransactionTimedOutException when the version does not reach the expected value in time
+	 */
+	static void waitUntilVersionReaches(
+		@Nonnull LongSupplier liveVersion,
+		long catalogVersion,
+		long deadlineMs,
+		@Nonnull String catalogName
+	) {
+		final long deadlineNanos = System.nanoTime() + deadlineMs * 1_000_000L;
+		int spins = 0;
+		long currentVersion;
+		while ((currentVersion = liveVersion.getAsLong()) < catalogVersion) {
+			// overflow-safe monotonic comparison mandated by the System.nanoTime() contract
+			if (System.nanoTime() - deadlineNanos >= 0) {
+				throw new TransactionTimedOutException(
+					"Live view of catalog `" + catalogName + "` did not reach version " + catalogVersion +
+						" within " + deadlineMs + " ms (stuck at version " + currentVersion +
+						"); refusing to wait indefinitely."
+				);
+			}
+			if (spins < SPIN_ATTEMPTS_BEFORE_PARK) {
+				Thread.onSpinWait();
+				spins++;
+			} else {
+				LockSupport.parkNanos(PARK_INTERVAL_NANOS);
+			}
 		}
+	}
+
+	/**
+	 * Returns the safety threshold in milliseconds after which a pipeline wait or a pending
+	 * commit-progress record is considered genuinely stalled. Five times the acceptance timeout gives
+	 * ample headroom for back-pressure spikes and executor queue drain times; a floor of 60s keeps the
+	 * threshold sensible on deployments that tune the acceptance timeout very low.
+	 *
+	 * @return the stall-detection deadline in milliseconds
+	 */
+	private long safetyDeadlineMs() {
+		return Math.max(60_000L, this.transactionAcceptanceTimeout * 5);
 	}
 
 	/**
@@ -1348,10 +1444,13 @@ public class TransactionManager implements Closeable {
 	}
 
 	/**
-	 * Sends the task simulating the WAL stage finalization with tasks that drains entire contents of the WAL in
-	 * the trunk incorporation stage. This should handle the situation when last transaction was not processed due
-	 * to queues being full. When no other transaction comes the WAL will forever contain more records than are
-	 * incorporated in the catalog.
+	 * Sends the task simulating the WAL stage finalization with tasks that drains entire contents of
+	 * the WAL in the trunk incorporation stage. This should handle the situation when last transaction
+	 * was not processed due to queues being full. When no other transaction comes the WAL will forever
+	 * contain more records than are incorporated in the catalog.
+	 *
+	 * @return `0` to reschedule immediately when a transient condition (busy lock or a momentarily
+	 * unreadable WAL tail) prevented draining, `-1` to pause the task once draining completed
 	 */
 	private long drainWal() {
 		try {
@@ -1362,8 +1461,13 @@ public class TransactionManager implements Closeable {
 				false, // we should not wait for the lock here - if its already running it will process the transactions
 				Functions.noOpLongConsumer()
 			);
-		} catch (TransactionTimedOutException ex) {
-			// reschedule again
+		} catch (TransactionTimedOutException | WriteAheadLogCorruptedException ex) {
+			// Best-effort background drainer: both conditions are transient here and get retried on the
+			// next tick. A busy trunk lock means another incorporation is already running; a WAL read that
+			// momentarily cannot see a just-appended version (same-JVM file-length visibility lag) clears on
+			// a later pass. A genuinely persistent inconsistency is surfaced loudly on the client commit
+			// path by the trunk-incorporation stage; the drainer owns no commit-progress record and must not
+			// let an uncaught throw permanently pause this task.
 			return 0;
 		}
 		// pause the task
@@ -1384,12 +1488,7 @@ public class TransactionManager implements Closeable {
 	 * pause when there is nothing left to watch over
 	 */
 	private long sweepDanglingCommitProgress() {
-		// five times the acceptance timeout gives ample headroom for back-pressure spikes and
-		// executor queue drain times; a floor of 60s keeps the threshold sensible on deployments
-		// that tune the acceptance timeout very low
-		final long acceptanceTimeoutMs = this.configuration.transaction().waitForTransactionAcceptanceInMillis();
-		final long maxAgeMs = Math.max(60_000L, acceptanceTimeoutMs * 5);
-		this.pendingCommitProgressRegistry.sweepRecordsOlderThan(Duration.ofMillis(maxAgeMs));
+		this.pendingCommitProgressRegistry.sweepRecordsOlderThan(Duration.ofMillis(safetyDeadlineMs()));
 		return this.pendingCommitProgressRegistry.size() > 0 ? 0L : -1L;
 	}
 

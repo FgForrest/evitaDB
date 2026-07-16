@@ -54,6 +54,14 @@ import static java.util.Optional.ofNullable;
  *                               grained approach, and small values will cause problems for requests with a long processing time.
  * @param requestTimeoutInMillis The amount of time a connection can sit idle without processing a request, before it is closed by
  *                               the server.
+ * @param pingIntervalMillis     The HTTP/2 keep-alive PING interval in milliseconds. When neither a read nor a write happens on a
+ *                               connection for this long, the server sends a PING; if the peer does not acknowledge it within the
+ *                               same interval, the connection is closed unconditionally (unlike the idle timeout, which skips
+ *                               connections with a request in progress). The interval therefore IS the stall budget. Defaults to
+ *                               `0`, which DISABLES the server-side ping — quiet connections are reaped by the idle timeout and
+ *                               orphaned sessions by the session killer instead, matching the convention that keep-alive pinging is
+ *                               the client's responsibility while the server polices and reaps. A negative value falls back to the
+ *                               default; any positive value below `1000` ms (the minimum Armeria permits) is raised to that floor.
  * @param maxEntitySizeInBytes   The default maximum size of a request entity. If entity body is larger than this limit then a
  *                               java.io.IOException will be thrown at some point when reading the request (on the first read for fixed
  *                               length requests, when too much data has been read for chunked requests).
@@ -63,6 +71,7 @@ public record ApiOptions(
 	@Nullable Integer workerGroupThreads,
 	int idleTimeoutInMillis,
 	int requestTimeoutInMillis,
+	int pingIntervalMillis,
 	long maxEntitySizeInBytes,
 	boolean accessLog,
 	@Nonnull HeaderOptions headers,
@@ -72,6 +81,7 @@ public record ApiOptions(
 	public static final int DEFAULT_WORKER_GROUP_THREADS = Runtime.getRuntime().availableProcessors();
 	public static final int DEFAULT_IDLE_TIMEOUT = 20 * 1000;
 	public static final int DEFAULT_REQUEST_TIMEOUT = 1000;
+	public static final int DEFAULT_PING_INTERVAL = 0;
 	public static final long DEFAULT_MAX_ENTITY_SIZE = 2_097_152L;
 
 	/**
@@ -95,7 +105,7 @@ public record ApiOptions(
 
 	public ApiOptions(
 		@Nullable Integer workerGroupThreads,
-		int idleTimeoutInMillis, int requestTimeoutInMillis,
+		int idleTimeoutInMillis, int requestTimeoutInMillis, int pingIntervalMillis,
 		long maxEntitySizeInBytes, boolean accessLog,
 		@Nonnull HeaderOptions headers,
 		@Nonnull CertificateOptions certificate,
@@ -104,6 +114,11 @@ public record ApiOptions(
 		this.workerGroupThreads = ofNullable(workerGroupThreads).orElse(DEFAULT_WORKER_GROUP_THREADS);
 		this.idleTimeoutInMillis = idleTimeoutInMillis <= 0 ? DEFAULT_IDLE_TIMEOUT : idleTimeoutInMillis;
 		this.requestTimeoutInMillis = requestTimeoutInMillis <= 0 ? DEFAULT_REQUEST_TIMEOUT : requestTimeoutInMillis;
+		// 0 disables the server ping and a negative value falls back to the default; any positive value below
+		// Armeria's 1000 ms minimum is raised to that floor to honour the documented pingIntervalMillis contract
+		this.pingIntervalMillis = pingIntervalMillis < 0
+			? DEFAULT_PING_INTERVAL
+			: pingIntervalMillis == 0 ? 0 : Math.max(pingIntervalMillis, 1000);
 		this.maxEntitySizeInBytes = maxEntitySizeInBytes <= 0 ? DEFAULT_MAX_ENTITY_SIZE : maxEntitySizeInBytes;
 		this.accessLog = accessLog;
 		this.headers = headers;
@@ -113,7 +128,7 @@ public record ApiOptions(
 
 	public ApiOptions() {
 		this(
-			DEFAULT_WORKER_GROUP_THREADS, DEFAULT_IDLE_TIMEOUT, DEFAULT_REQUEST_TIMEOUT,
+			DEFAULT_WORKER_GROUP_THREADS, DEFAULT_IDLE_TIMEOUT, DEFAULT_REQUEST_TIMEOUT, DEFAULT_PING_INTERVAL,
 			DEFAULT_MAX_ENTITY_SIZE, false,
 			new HeaderOptions(), new CertificateOptions(), new HashMap<>(8)
 		);
@@ -208,6 +223,7 @@ public record ApiOptions(
 		private final Map<String, AbstractApiOptions> enabledProviders;
 		private int idleTimeoutInMillis = DEFAULT_IDLE_TIMEOUT;
 		private int requestTimeoutInMillis = DEFAULT_REQUEST_TIMEOUT;
+		private int pingIntervalMillis = DEFAULT_PING_INTERVAL;
 		private long maxEntitySizeInBytes = DEFAULT_MAX_ENTITY_SIZE;
 		private HeaderOptions headers;
 		private CertificateOptions certificate;
@@ -244,6 +260,7 @@ public record ApiOptions(
 			this.workerGroupThreads = source.workerGroupThreadsAsInt();
 			this.idleTimeoutInMillis = source.idleTimeoutInMillis();
 			this.requestTimeoutInMillis = source.requestTimeoutInMillis();
+			this.pingIntervalMillis = source.pingIntervalMillis();
 			this.maxEntitySizeInBytes = source.maxEntitySizeInBytes();
 			this.accessLog = source.accessLog();
 			this.headers = source.headers();
@@ -265,6 +282,20 @@ public record ApiOptions(
 		@Nonnull
 		public ApiOptions.Builder requestTimeoutInMillis(int requestTimeoutInMillis) {
 			this.requestTimeoutInMillis = requestTimeoutInMillis;
+			return this;
+		}
+
+		/**
+		 * Sets the HTTP/2 keep-alive PING interval in milliseconds. See
+		 * {@link ApiOptions#pingIntervalMillis()} for the semantics (`0` disables the server ping, otherwise
+		 * the value must be `>= 1000`).
+		 *
+		 * @param pingIntervalMillis the keep-alive ping interval in milliseconds
+		 * @return this builder for chaining
+		 */
+		@Nonnull
+		public ApiOptions.Builder pingIntervalMillis(int pingIntervalMillis) {
+			this.pingIntervalMillis = pingIntervalMillis;
 			return this;
 		}
 
@@ -326,7 +357,7 @@ public record ApiOptions(
 		public ApiOptions build() {
 			return new ApiOptions(
 				this.workerGroupThreads,
-				this.idleTimeoutInMillis, this.requestTimeoutInMillis,
+				this.idleTimeoutInMillis, this.requestTimeoutInMillis, this.pingIntervalMillis,
 				this.maxEntitySizeInBytes,
 				this.accessLog,
 				this.headers,

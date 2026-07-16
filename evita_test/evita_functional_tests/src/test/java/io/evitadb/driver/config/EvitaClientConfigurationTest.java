@@ -283,6 +283,28 @@ class EvitaClientConfigurationTest {
 
 			assertEquals("custom-client", config.connection().clientId());
 		}
+
+		@Test
+		@DisplayName("should set ping interval via top-level builder setter")
+		void shouldSetPingIntervalViaBuilder() {
+			final EvitaClientConfiguration config =
+				EvitaClientConfiguration.builder()
+					.pingIntervalMillis(15_000)
+					.build();
+
+			assertEquals(15_000, config.connection().pingIntervalMillis());
+		}
+
+		@Test
+		@DisplayName("should set idle timeout via top-level builder setter")
+		void shouldSetIdleTimeoutViaBuilder() {
+			final EvitaClientConfiguration config =
+				EvitaClientConfiguration.builder()
+					.idleTimeoutMillis(150_000)
+					.build();
+
+			assertEquals(150_000, config.connection().idleTimeoutMillis());
+		}
 	}
 
 	@Nested
@@ -404,6 +426,30 @@ class EvitaClientConfigurationTest {
 					.build();
 
 			assertEquals(config.connection().systemApiPort(), config.systemApiPort());
+		}
+
+		@Test
+		@DisplayName("should delegate pingIntervalMillis() to connection().pingIntervalMillis()")
+		void shouldDelegatePingIntervalToConnectionPingInterval() {
+			final EvitaClientConfiguration config =
+				EvitaClientConfiguration.builder()
+					.connection(ClientConnectionOptions.builder().pingIntervalMillis(5000).build())
+					.build();
+
+			assertEquals(5000, config.pingIntervalMillis());
+			assertEquals(config.connection().pingIntervalMillis(), config.pingIntervalMillis());
+		}
+
+		@Test
+		@DisplayName("should delegate idleTimeoutMillis() to connection().idleTimeoutMillis()")
+		void shouldDelegateIdleTimeoutToConnectionIdleTimeout() {
+			final EvitaClientConfiguration config =
+				EvitaClientConfiguration.builder()
+					.connection(ClientConnectionOptions.builder().idleTimeoutMillis(120_000).build())
+					.build();
+
+			assertEquals(120_000, config.idleTimeoutMillis());
+			assertEquals(config.connection().idleTimeoutMillis(), config.idleTimeoutMillis());
 		}
 	}
 

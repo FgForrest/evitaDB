@@ -314,6 +314,24 @@ public abstract class Attributes<S extends AttributeSchemaContract> implements A
 	}
 
 	/**
+	 * Returns TRUE when an existing (non-dropped) attribute value is stored under the exact passed
+	 * key. This is an allocation-free membership probe performing a single map lookup: it is
+	 * equivalent to testing whether the key is contained in the set of existing attribute keys (see
+	 * the `exists()` filtering done when that key set is built), but without materializing that set -
+	 * which matters on the hot mutation path where mandatory / default-valued attributes are verified
+	 * per reference. Unlike {@link #getAttributeValue(AttributeKey)} this does not validate the
+	 * attribute against the schema (no lookup, no exception, no `Optional` allocation); the caller is
+	 * expected to probe keys derived from the schema itself.
+	 *
+	 * @param attributeKey the attribute key to test, must not be null
+	 * @return TRUE if an existing (non-dropped) attribute value is stored under the given key
+	 */
+	public boolean isAttributeValuePresentAndExists(@Nonnull AttributeKey attributeKey) {
+		final AttributeValue value = this.attributeValues.get(attributeKey);
+		return value != null && value.exists();
+	}
+
+	/**
 	 * Returns collection of all values present in this object.
 	 */
 	@Nonnull

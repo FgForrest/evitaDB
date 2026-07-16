@@ -1100,7 +1100,6 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 						property("export.fileSystem.enabled", "true"),
 						property("export.fileSystem.directory", getTestDirectory().resolve(DIR_EVITA_SERVER_TEST + "_export").toString()),
 						property("cache.enabled", "false"),
-						property("server.directExecutor", "false"),
 						property("api.requestTimeoutInMillis", "10K")
 					),
 					allApis.stream()

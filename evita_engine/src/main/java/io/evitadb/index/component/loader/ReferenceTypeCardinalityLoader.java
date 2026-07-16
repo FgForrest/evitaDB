@@ -91,7 +91,7 @@ public final class ReferenceTypeCardinalityLoader implements ComponentLoader {
 				perPagePayloads[i] = leaf.getPayloads();
 			}
 			index = ReferenceTypeCardinalityIndex.fromPersistedPages(
-				orderedPageSequences, perPageKeys, perPagePayloads,
+				"reference `" + referenceName + "`", orderedPageSequences, perPageKeys, perPagePayloads,
 				part.getHighWaterPageSequence(), part.getReferencedPrimaryKeysIndex()
 			);
 		} else {

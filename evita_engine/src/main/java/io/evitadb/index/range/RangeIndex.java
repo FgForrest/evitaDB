@@ -782,6 +782,8 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 	 * re-paginating the whole index. The border sentinels (`Long.MIN_VALUE` / `Long.MAX_VALUE`) live in the first / last
 	 * pages, so the reassembled tree carries them.
 	 *
+	 * @param indexDescription      a full identification of the owning index for corruption diagnostics (e.g. the
+	 *                              attribute or histogram the range companion belongs to)
 	 * @param orderedPageSequences  the persisted leaf-page sequences in ascending threshold order (the root's leaf list)
 	 * @param perPagePoints    the range points of each leaf page, positionally aligned with `orderedPageSequences`
 	 * @param highWaterPageSequence the persisted stream high-water (largest page sequence ever allocated)
@@ -789,6 +791,7 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 	 */
 	@Nonnull
 	public static RangeIndex fromPersistedPages(
+		@Nonnull String indexDescription,
 		@Nonnull int[] orderedPageSequences,
 		@Nonnull TransactionalRangePoint[][] perPagePoints,
 		int highWaterPageSequence
@@ -810,7 +813,7 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 		}
 		// assemble the spine over the per-page leaves, preserving boundaries and stamping each leaf's page sequence
 		final TransactionalLongBPlusTree<TransactionalRangePoint> tree =
-			createBareTree().assembleFromSingleLeafTrees(pageTrees, orderedPageSequences);
+			createBareTree().assembleFromSingleLeafTrees(pageTrees, orderedPageSequences, "range index for " + indexDescription);
 		final PageStreamRegistry pageStreamRegistry = PageStreamRegistry.restoredFrom(
 			RANGE_PAGE_STREAM, highWaterPageSequence, tree.<TransactionalRangePoint>leafPageHandles()
 		);

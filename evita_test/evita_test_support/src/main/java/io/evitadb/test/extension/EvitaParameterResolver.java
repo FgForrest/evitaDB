@@ -239,7 +239,8 @@ public class EvitaParameterResolver
 							new LinkedList<>(),
 							it.openWebApi(),
 							it.readOnly(),
-							it.destroyAfterClass()
+							it.destroyAfterClass(),
+							it.useRealThreadPools()
 						)
 					);
 				});
@@ -268,12 +269,14 @@ public class EvitaParameterResolver
 	/**
 	 * Creates new evitaDB instance with one catalog of `catalogName`.
 	 *
-	 * @param catalogName      name of the catalog to be created
-	 * @param randomFolderName unique folder name to be usedfor evitaDB storage
+	 * @param catalogName        name of the catalog to be created
+	 * @param randomFolderName   unique folder name to be used for evitaDB storage
+	 * @param useRealThreadPools when true the instance runs on real (asynchronous) thread pools instead of the
+	 *                           deterministic direct/immediate executor the test lane uses by default
 	 * @return new evitaDB instance
 	 */
 	@Nonnull
-	private Evita createEvita(@Nonnull String catalogName, @Nonnull String randomFolderName) {
+	private Evita createEvita(@Nonnull String catalogName, @Nonnull String randomFolderName, boolean useRealThreadPools) {
 		// dataset-scoped paths: all test methods sharing the same @UseDataSet see the same storage/export
 		// directories for the lifetime of the dataset, which is why randomFolderName is caller-supplied rather
 		// than freshly allocated via createTestPaths(String).
@@ -297,33 +300,35 @@ public class EvitaParameterResolver
 		}
 		Assert.isTrue(paths.storage().toFile().mkdirs(), "Fail to create directory: " + paths.storage());
 		Assert.isTrue(paths.export().toFile().mkdirs(), "Fail to create directory: " + paths.export());
+		// disable automatic session termination to avoid closing sessions when you stop at breakpoint
+		final ServerOptions.Builder serverOptionsBuilder = ServerOptions
+			.builder()
+			.closeSessionsAfterSecondsOfInactivity(-1)
+			.serviceThreadPool(
+				ThreadPoolOptions.serviceThreadPoolBuilder()
+				                 .minThreadCount(1)
+				                 .maxThreadCount(1)
+				                 .queueSize(10_000)
+				                 .build()
+			)
+			.requestThreadPool(
+				ThreadPoolOptions.requestThreadPoolBuilder()
+				                 .queueSize(10_000)
+				                 .build()
+			)
+			.transactionThreadPool(
+				ThreadPoolOptions.transactionThreadPoolBuilder()
+				                 .queueSize(10_000)
+				                 .build()
+			);
+		// A dataset may opt into real (asynchronous) thread pools via @DataSet(useRealThreadPools = true). The
+		// default collapses the request pool and the scheduler into an immediate executor so that CPU-saturated
+		// parallel tests stay deterministic; the few behaviours that only manifest under real pools (the gRPC
+		// session-cancellation cascade, the CDC register-then-mutate ordering) opt in to be regression tested.
+		// Everything else keeps the deterministic direct executor, hence directExecutor = !useRealThreadPools.
 		final Evita evita = new Evita(
 			newTestEvitaConfigurationBuilder(paths)
-				.server(
-					// disable automatic session termination
-					// to avoid closing sessions when you stop at breakpoint
-					ServerOptions
-						.builder()
-						.closeSessionsAfterSecondsOfInactivity(-1)
-						.serviceThreadPool(
-							ThreadPoolOptions.serviceThreadPoolBuilder()
-							                 .minThreadCount(1)
-							                 .maxThreadCount(1)
-							                 .queueSize(10_000)
-							                 .build()
-						)
-						.requestThreadPool(
-							ThreadPoolOptions.requestThreadPoolBuilder()
-							                 .queueSize(10_000)
-							                 .build()
-						)
-						.transactionThreadPool(
-							ThreadPoolOptions.transactionThreadPoolBuilder()
-							                 .queueSize(10_000)
-							                 .build()
-						)
-						.build()
-				)
+				.server(serverOptionsBuilder.build())
 				// preserve dataset-specific storage tuning that newTestEvitaConfigurationBuilder does not know about
 				.storage(
 					StorageOptions.builder()
@@ -339,7 +344,11 @@ public class EvitaParameterResolver
 					            .enabled(false)
 					            .build()
 				)
-				.build()
+				.build(),
+			true,
+			null,
+			null,
+			!useRealThreadPools
 		);
 		evita.defineCatalog(catalogName);
 		return evita;
@@ -851,6 +860,12 @@ public class EvitaParameterResolver
 								.host(grpcConfig.getHost()[0].hostAddress())
 								.port(grpcConfig.getHost()[0].port())
 								.systemApiPort(systemConfig.getHost()[0].port())
+								// disable the client keep-alive ping in the test lane: with the direct executor a
+								// legitimate long inline call (e.g. a bulk dataset build) holds the event loop well
+								// past any finite ping interval, so a ping would self-kill a healthy connection
+								// (spurious CANCELLED). The dedicated keep-alive test builds its own client with a
+								// ping. The server ping is already disabled by default (ApiOptions.DEFAULT_PING_INTERVAL).
+								.pingIntervalMillis(0)
 								.tls(
 									ClientTlsOptions.builder()
 										.certificateFolderPath(
@@ -991,8 +1006,9 @@ public class EvitaParameterResolver
 			final DataSetInfo alreadyExistingAnonymousInstance = dataSetIndex.get(anonymousEvita);
 			if (alreadyExistingAnonymousInstance == null) {
 
-				// method doesn't use data set - so it needs to start with empty db
-				final Evita evita = createEvita(TestConstants.TEST_CATALOG, evitaInstanceId);
+				// method doesn't use data set - so it needs to start with empty db; anonymous instances never open
+				// web APIs, so they keep the deterministic direct executor
+				final Evita evita = createEvita(TestConstants.TEST_CATALOG, evitaInstanceId, false);
 				evita.updateCatalog(
 					TestConstants.TEST_CATALOG, EvitaSessionContract::goLiveAndClose
 				);
@@ -1002,6 +1018,7 @@ public class EvitaParameterResolver
 					null,
 					Collections.emptyList(),
 					new String[0],
+					false,
 					false,
 					false,
 					new AtomicReference<>(
@@ -1065,10 +1082,13 @@ public class EvitaParameterResolver
 							// capture dataset build start so slow datasets can be surfaced at the end of the run
 							final long buildStartNanos = System.nanoTime();
 							final String randomFolderName = Long.toHexString(RANDOM.nextLong());
-							final Evita evita = createEvita(dataSetInfo.catalogName(), randomFolderName);
+							final boolean webApiEnabled = !ArrayUtils.isEmpty(dataSetInfo.webApi());
+							final Evita evita = createEvita(
+								dataSetInfo.catalogName(), randomFolderName, dataSetInfo.useRealThreadPools()
+							);
 							EvitaServer evitaServer = null;
 							try {
-								if (!ArrayUtils.isEmpty(dataSetInfo.webApi())) {
+								if (webApiEnabled) {
 									final ApiOptions apiOptions = createApiOptions(
 										dataSetToUse, evita, getPortManager(), dataSetInfo.webApi()
 									);
@@ -1255,6 +1275,7 @@ public class EvitaParameterResolver
 		@Nonnull String[] webApi,
 		boolean readOnly,
 		boolean destroyAfterClass,
+		boolean useRealThreadPools,
 		@Nonnull AtomicReference<DataSetState> dataSetInfoAtomicReference
 	) {
 
@@ -1264,11 +1285,11 @@ public class EvitaParameterResolver
 		public DataSetInfo(
 			@Nonnull String name, @Nonnull String catalogName, @Nullable CatalogInitMethod initMethod,
 			@Nonnull List<Method> destroyMethods, @Nonnull String[] webApi,
-			boolean readOnly, boolean destroyAfterClass
+			boolean readOnly, boolean destroyAfterClass, boolean useRealThreadPools
 		) {
 			this(
 				name, catalogName, initMethod, destroyMethods, webApi, readOnly, destroyAfterClass,
-				new AtomicReference<>()
+				useRealThreadPools, new AtomicReference<>()
 			);
 		}
 
