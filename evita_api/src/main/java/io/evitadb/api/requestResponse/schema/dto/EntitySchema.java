@@ -999,6 +999,10 @@ public final class EntitySchema implements EntitySchemaContract {
 			}
 		}
 
+		// a change to the entity-level conflict resolution (e.g. via ModifyEntitySchemaConflictResolutionMutation
+		// alone) is a real schema difference and must be detected here
+		if (!Objects.equals(this.conflictResolution, otherSchema.getConflictResolution().orElse(null))) return true;
+
 		return !this.evolutionMode.equals(otherSchema.getEvolutionMode());
 	}
 

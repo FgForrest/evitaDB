@@ -52,6 +52,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -404,7 +405,10 @@ public final class CatalogSchema implements CatalogSchemaContract {
 		return !(
 			this.version == otherObject.version() &&
 				this.name.equals(otherObject.getName()) &&
-				this.attributes.equals(otherObject.getAttributes())
+				this.attributes.equals(otherObject.getAttributes()) &&
+				// a change to the catalog-level conflict resolution (e.g. via
+				// ModifyCatalogSchemaConflictResolutionMutation alone) is a real schema difference
+				Objects.equals(this.conflictResolution, otherObject.getConflictResolution().orElse(null))
 		);
 	}
 
