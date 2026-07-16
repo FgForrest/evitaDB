@@ -46,7 +46,7 @@ import java.lang.annotation.Target;
 public @interface Entity {
 
 	/**
-	 * Name of the attribute. Use camel-case naming style.
+	 * Name of the entity. Use camel-case naming style.
 	 * Propagates to {@link EntitySchemaContract#getName()}
 	 * If left empty the name is taken from the name of the simple class name.
 	 */

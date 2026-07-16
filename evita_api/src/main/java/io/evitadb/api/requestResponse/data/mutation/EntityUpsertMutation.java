@@ -27,7 +27,6 @@ import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.requestResponse.cdc.ChangeCaptureContent;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
 import io.evitadb.api.requestResponse.cdc.Operation;
-import io.evitadb.api.requestResponse.data.Droppable;
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.mutation.MutationPredicate;
 import io.evitadb.api.requestResponse.mutation.MutationPredicateContext;
@@ -61,9 +60,9 @@ import static java.util.Optional.empty;
 import static java.util.Optional.of;
 
 /**
- * EntityUpsertMutation represents a terminal mutation when existing entity is removed in the evitaDB. The entity is
- * and all its internal data are marked as TRUE for {@link Droppable#dropped()}, stored to the storage file and
- * removed from the mem-table.
+ * EntityUpsertMutation represents a terminal mutation that either inserts a new entity or updates an
+ * existing one in evitaDB. It carries the collection of {@link LocalMutation}s that are applied to the
+ * entity contents; the resulting entity is stored to the storage file and indexed in the mem-table.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */

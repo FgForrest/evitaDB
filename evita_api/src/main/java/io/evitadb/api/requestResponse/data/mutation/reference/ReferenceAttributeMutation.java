@@ -117,36 +117,36 @@ public class ReferenceAttributeMutation extends ReferenceMutation<ReferenceKeyWi
 	public Stream<ConflictKey> collectConflictKeys(
 		@Nonnull ConflictGenerationContext context
 	) {
-        if (this.attributeMutation instanceof ApplyDeltaAttributeMutation<?> adam) {
-            // A range-constrained delta must always emit its conflict key, regardless of the resolved
-            // conflict policy: keeping the accumulated value inside the required range is a hard
-            // invariant, not something relaxed conflict granularity opts out of.
-            return adam.getRequiredRangeAfterApplication() != null
-                || context.shouldEmitReferenceAttributeKey(this.referenceKey.referenceName(), this.attributeKey.attributeName()) ?
-                Stream.of(
-                    new ReferenceAttributeDeltaConflictKey(
-                        context.getEntityType(),
-                        context.getEntityPrimaryKey(),
-                        this.referenceKey,
-                        this.attributeKey,
-                        adam.getDelta(),
-                        adam.getRequiredRangeAfterApplication()
-                    )
-                ) :
-                Stream.empty();
-        } else {
-            return context.shouldEmitReferenceAttributeKey(this.referenceKey.referenceName(), this.attributeKey.attributeName()) && context.getEntityPrimaryKey() != null ?
-                Stream.of(
-                    new ReferenceAttributeConflictKey(
-                        context.getEntityType(),
-                        context.getEntityPrimaryKey(),
-                        this.referenceKey.referenceName(),
-                        this.referenceKey.primaryKey(),
-                        this.attributeKey.attributeName()
-                    )
-                ) :
-                Stream.empty();
-        }
+		if (this.attributeMutation instanceof ApplyDeltaAttributeMutation<?> adam) {
+			// A range-constrained delta must always emit its conflict key, regardless of the resolved
+			// conflict policy: keeping the accumulated value inside the required range is a hard
+			// invariant, not something relaxed conflict granularity opts out of.
+			return adam.getRequiredRangeAfterApplication() != null
+				|| context.shouldEmitReferenceAttributeKey(this.referenceKey.referenceName(), this.attributeKey.attributeName()) ?
+				Stream.of(
+					new ReferenceAttributeDeltaConflictKey(
+						context.getEntityType(),
+						context.getEntityPrimaryKey(),
+						this.referenceKey,
+						this.attributeKey,
+						adam.getDelta(),
+						adam.getRequiredRangeAfterApplication()
+					)
+				) :
+				Stream.empty();
+		} else {
+			return context.shouldEmitReferenceAttributeKey(this.referenceKey.referenceName(), this.attributeKey.attributeName()) && context.getEntityPrimaryKey() != null ?
+				Stream.of(
+					new ReferenceAttributeConflictKey(
+						context.getEntityType(),
+						context.getEntityPrimaryKey(),
+						this.referenceKey.referenceName(),
+						this.referenceKey.primaryKey(),
+						this.attributeKey.attributeName()
+					)
+				) :
+				Stream.empty();
+		}
 	}
 
 	@Override

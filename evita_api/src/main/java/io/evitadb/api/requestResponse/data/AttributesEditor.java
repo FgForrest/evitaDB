@@ -105,7 +105,7 @@ public interface AttributesEditor<W extends AttributesEditor<W, S>, S extends At
 	 * Alters attribute value in a way defined by the passed mutation implementation.
 	 * There may never me multiple mutations for the same attribute - if you need to compose mutations you must wrap
 	 * them into single one, that is then handed to the builder.
-	 * <p>
+	 *
 	 * Remember each setAttribute produces a mutation itself - so you cannot set attribute and mutate it in the same
 	 * round. The latter operation would overwrite the previously registered mutation.
 	 *
