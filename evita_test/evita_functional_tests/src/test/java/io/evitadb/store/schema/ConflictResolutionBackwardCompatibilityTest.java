@@ -29,14 +29,24 @@ import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.CatalogContract;
 import io.evitadb.api.proxy.mock.EmptyEntitySchemaAccessor;
+import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.EntitySortableAttributeCompoundSchemaContract;
+import io.evitadb.api.requestResponse.schema.OrderBehaviour;
+import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
+import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder;
+import io.evitadb.api.requestResponse.schema.dto.AssociatedDataSchema;
+import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
+import io.evitadb.api.requestResponse.schema.dto.EntityAttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
+import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
+import io.evitadb.dataType.Scope;
 import io.evitadb.api.requestResponse.schema.mutation.associatedData.CreateAssociatedDataSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.CreateAttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.CreateGlobalAttributeSchemaMutation;
@@ -49,7 +59,12 @@ import io.evitadb.store.wal.schema.associatedData.CreateAssociatedDataSchemaMuta
 import io.evitadb.store.wal.schema.attribute.CreateAttributeSchemaMutationSerializer;
 import io.evitadb.store.wal.schema.attribute.CreateGlobalAttributeSchemaMutationSerializer;
 import io.evitadb.store.wal.schema.reference.CreateReferenceSchemaMutationSerializer;
+import io.evitadb.store.schema.serializer.AssociatedDataSchemaSerializer;
+import io.evitadb.store.schema.serializer.AttributeSchemaSerializer;
+import io.evitadb.store.schema.serializer.EntityAttributeSchemaSerializer;
+import io.evitadb.store.schema.serializer.GlobalAttributeSchemaSerializer;
 import io.evitadb.store.schema.serializer.ReferenceSchemaSerializer;
+import io.evitadb.store.shared.serializer.dataType.HeterogeneousMapSerializer;
 import io.evitadb.spi.store.catalog.persistence.storageParts.schema.CatalogSchemaStoragePart;
 import io.evitadb.test.Entities;
 import io.evitadb.test.TestConstants;
@@ -62,8 +77,11 @@ import org.mockito.Mockito;
 import javax.annotation.Nonnull;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.util.Collection;
 import java.util.EnumSet;
+import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
 
 import static io.evitadb.test.TestTags.SCHEMA;
 import static io.evitadb.test.TestTags.SERIALIZATION;
@@ -118,6 +136,26 @@ class ConflictResolutionBackwardCompatibilityTest {
 	 * Pre-2026.2 {@code serialVersionUID} of {@link CatalogSchema} (storage), bumped by the conflict-resolution field.
 	 */
 	private static final long CATALOG_SCHEMA_PRE_CONFLICT_UID = -1582409928666780012L;
+	/**
+	 * Pre-conflict {@code serialVersionUID} of {@link AttributeSchema} (storage), covered by its `_2026_1` reader.
+	 */
+	private static final long ATTRIBUTE_SCHEMA_PRE_CONFLICT_UID = -4825670975814791474L;
+	/**
+	 * Pre-conflict {@code serialVersionUID} of {@link GlobalAttributeSchema} (storage), covered by `_2026_1`.
+	 */
+	private static final long GLOBAL_ATTRIBUTE_SCHEMA_PRE_CONFLICT_UID = -6027390261318420826L;
+	/**
+	 * Pre-conflict {@code serialVersionUID} of {@link EntityAttributeSchema} (storage), covered by `_2026_1`.
+	 */
+	private static final long ENTITY_ATTRIBUTE_SCHEMA_PRE_CONFLICT_UID = 8168305590483159082L;
+	/**
+	 * Pre-conflict {@code serialVersionUID} of {@link AssociatedDataSchema} (storage), covered by `_2026_1`.
+	 */
+	private static final long ASSOCIATED_DATA_SCHEMA_PRE_CONFLICT_UID = -995599294301442064L;
+	/**
+	 * Pre-conflict {@code serialVersionUID} of {@link EntitySchema} (storage), bumped by the conflict-resolution field.
+	 */
+	private static final long ENTITY_SCHEMA_PRE_CONFLICT_UID = 8694215716025515883L;
 
 	@Test
 	@DisplayName("pre-conflict CatalogSchema reads back through the composed catalog kryo as inherited")
@@ -172,6 +210,127 @@ class ConflictResolutionBackwardCompatibilityTest {
 		assertEquals(Cardinality.ZERO_OR_ONE, deserialized.getCardinality());
 		// … and the absent override defaults to INHERITED
 		assertEquals(ConflictResolutionOverride.INHERITED, deserialized.getConflictResolutionOverride());
+	}
+
+	@Test
+	@DisplayName("pre-conflict AttributeSchema (storage) reads back with INHERITED override")
+	void shouldReadPreConflictAttributeSchemaAsInheritedOverride() {
+		final Kryo kryo = KryoFactory.createKryo(
+			SchemaKryoConfigurer.INSTANCE.andThen(SharedClassesConfigurer.INSTANCE)
+		);
+		final AttributeSchema attributeSchema = AttributeSchema._internalBuild(
+			"code", String.class, false, ConflictResolutionOverride.ENTITY
+		);
+
+		final AttributeSchema deserialized = readThroughBackwardCompatibleRoute(
+			kryo,
+			ATTRIBUTE_SCHEMA_PRE_CONFLICT_UID,
+			new AttributeSchemaSerializer(),
+			AttributeSchema.class,
+			attributeSchema
+		);
+
+		// preceding fields must survive intact — proves the reader is byte-aligned, not merely defaulting …
+		assertEquals("code", deserialized.getName());
+		// … and the absent override defaults to INHERITED
+		assertEquals(ConflictResolutionOverride.INHERITED, deserialized.getConflictResolutionOverride());
+	}
+
+	@Test
+	@DisplayName("pre-conflict GlobalAttributeSchema (storage) reads back with INHERITED override")
+	void shouldReadPreConflictGlobalAttributeSchemaAsInheritedOverride() {
+		final Kryo kryo = KryoFactory.createKryo(
+			SchemaKryoConfigurer.INSTANCE.andThen(SharedClassesConfigurer.INSTANCE)
+		);
+		final GlobalAttributeSchema attributeSchema = GlobalAttributeSchema._internalBuild(
+			"url", String.class, false, ConflictResolutionOverride.GRANULAR
+		);
+
+		final GlobalAttributeSchema deserialized = readThroughBackwardCompatibleRoute(
+			kryo,
+			GLOBAL_ATTRIBUTE_SCHEMA_PRE_CONFLICT_UID,
+			new GlobalAttributeSchemaSerializer(),
+			GlobalAttributeSchema.class,
+			attributeSchema
+		);
+
+		// preceding fields must survive intact — proves the reader is byte-aligned, not merely defaulting …
+		assertEquals("url", deserialized.getName());
+		// … and the absent override defaults to INHERITED
+		assertEquals(ConflictResolutionOverride.INHERITED, deserialized.getConflictResolutionOverride());
+	}
+
+	@Test
+	@DisplayName("pre-conflict EntityAttributeSchema (storage) reads back with INHERITED override")
+	void shouldReadPreConflictEntityAttributeSchemaAsInheritedOverride() {
+		final Kryo kryo = KryoFactory.createKryo(
+			SchemaKryoConfigurer.INSTANCE.andThen(SharedClassesConfigurer.INSTANCE)
+		);
+		final EntityAttributeSchema attributeSchema = EntityAttributeSchema._internalBuild(
+			"name", String.class, false, ConflictResolutionOverride.ENTITY
+		);
+
+		final EntityAttributeSchema deserialized = readThroughBackwardCompatibleRoute(
+			kryo,
+			ENTITY_ATTRIBUTE_SCHEMA_PRE_CONFLICT_UID,
+			new EntityAttributeSchemaSerializer(),
+			EntityAttributeSchema.class,
+			attributeSchema
+		);
+
+		// preceding fields must survive intact — proves the reader is byte-aligned, not merely defaulting …
+		assertEquals("name", deserialized.getName());
+		// … and the absent override defaults to INHERITED
+		assertEquals(ConflictResolutionOverride.INHERITED, deserialized.getConflictResolutionOverride());
+	}
+
+	@Test
+	@DisplayName("pre-conflict AssociatedDataSchema (storage) reads back with INHERITED override")
+	void shouldReadPreConflictAssociatedDataSchemaAsInheritedOverride() {
+		final Kryo kryo = KryoFactory.createKryo(
+			SchemaKryoConfigurer.INSTANCE.andThen(SharedClassesConfigurer.INSTANCE)
+		);
+		final AssociatedDataSchema associatedDataSchema = (AssociatedDataSchema) AssociatedDataSchema._internalBuild(
+			"labels", String.class, ConflictResolutionOverride.ENTITY
+		);
+
+		final AssociatedDataSchema deserialized = readThroughBackwardCompatibleRoute(
+			kryo,
+			ASSOCIATED_DATA_SCHEMA_PRE_CONFLICT_UID,
+			new AssociatedDataSchemaSerializer(),
+			AssociatedDataSchema.class,
+			associatedDataSchema
+		);
+
+		// preceding fields must survive intact — proves the reader is byte-aligned, not merely defaulting …
+		assertEquals("labels", deserialized.getName());
+		// … and the absent override defaults to INHERITED
+		assertEquals(ConflictResolutionOverride.INHERITED, deserialized.getConflictResolutionOverride());
+	}
+
+	@Test
+	@DisplayName("pre-conflict EntitySchema (storage) reads back with an empty (inherited) conflict resolution")
+	void shouldReadPreConflictEntitySchemaAsInheritedResolution() {
+		final Kryo kryo = KryoFactory.createKryo(
+			SchemaKryoConfigurer.INSTANCE.andThen(SharedClassesConfigurer.INSTANCE)
+		);
+		// The conflict field is written mid-stream (after the deprecation notice, before the sortable attribute
+		// compounds), so a pre-conflict record is NOT a byte prefix of the current format — its bytes are rendered
+		// explicitly in the pre-conflict layout.
+		final byte[] preConflictRecord = renderPreConflictEntitySchema(kryo);
+
+		final EntitySchema deserialized;
+		try (final Input input = new Input(new ByteArrayInputStream(preConflictRecord))) {
+			deserialized = kryo.readObject(input, EntitySchema.class);
+		}
+
+		// a preceding field survives intact …
+		assertEquals(Entities.PRODUCT, deserialized.getName());
+		// … the sortable attribute compound following the conflict field survives intact — proves the reader is
+		// byte-aligned across the skipped conflict field, not merely defaulting …
+		assertTrue(deserialized.getSortableAttributeCompound("codeName").isPresent());
+		// … and the absent conflict resolution reads back as empty (inherited)
+		assertTrue(deserialized.getConflictResolution().isEmpty());
 	}
 
 	@Test
@@ -345,6 +504,99 @@ class ConflictResolutionBackwardCompatibilityTest {
 			kryo.writeObject(output, source.getAttributes());
 		}
 		return baos.toByteArray();
+	}
+
+	/**
+	 * Renders an {@link EntitySchema} record in the pre-2026.2 on-disk layout — the current layout minus the
+	 * conflict-resolution field, which the current serializer writes mid-stream (after the deprecation notice, before
+	 * the sortable attribute compounds) rather than appended, so a pre-conflict record is not a byte prefix of the
+	 * current one. Every field is derived from a real {@link EntitySchema} and written in the exact order and encoding
+	 * of the current serializer (attributes and references through an equivalent {@link HeterogeneousMapSerializer}),
+	 * omitting only the conflict-presence boolean. The record is prefixed with the orphaned pre-conflict
+	 * {@code serialVersionUID} so the version-routing serializer selects the backward-compatible reader.
+	 *
+	 * The source schema carries a sortable attribute compound; because that compound is the sole field written after
+	 * the skipped conflict field, its intact survival on read-back is the byte-alignment witness.
+	 *
+	 * @param kryo the fully configured Kryo whose collection serializers render the sub-objects
+	 * @return the raw bytes of a pre-conflict entity-schema record
+	 */
+	@Nonnull
+	private static byte[] renderPreConflictEntitySchema(@Nonnull Kryo kryo) {
+		final EntitySchema source = (EntitySchema) new InternalEntitySchemaBuilder(
+			CatalogSchema._internalBuild(
+				TestConstants.TEST_CATALOG,
+				NamingConvention.generate(TestConstants.TEST_CATALOG),
+				null,
+				EnumSet.allOf(CatalogEvolutionMode.class),
+				EmptyEntitySchemaAccessor.INSTANCE
+			),
+			EntitySchema._internalBuild(Entities.PRODUCT)
+		)
+			.withAttribute("code", String.class, whichIs -> whichIs.sortable())
+			.withAttribute("name", String.class, whichIs -> whichIs.sortable())
+			.withSortableAttributeCompound(
+				"codeName",
+				new AttributeElement("code", OrderDirection.ASC, OrderBehaviour.NULLS_LAST),
+				new AttributeElement("name", OrderDirection.ASC, OrderBehaviour.NULLS_LAST)
+			)
+			.toInstance();
+
+		// attributes and references travel through a heterogeneous map serializer in the real writer; mirror it exactly
+		final HeterogeneousMapSerializer<Object, Object> heterogeneousSerializer =
+			new HeterogeneousMapSerializer<>(LinkedHashMap::new);
+
+		final ByteArrayOutputStream baos = new ByteArrayOutputStream(2_048);
+		try (final Output output = new Output(baos)) {
+			output.writeLong(ENTITY_SCHEMA_PRE_CONFLICT_UID);
+			output.writeInt(source.version());
+			output.writeString(source.getName());
+			// name variants (mirrors EntitySchemaSerializer.writeNameVariants, which is not visible from this package)
+			final Map<NamingConvention, String> nameVariants = source.getNameVariants();
+			output.writeVarInt(nameVariants.size(), true);
+			for (final Map.Entry<NamingConvention, String> entry : nameVariants.entrySet()) {
+				output.writeVarInt(entry.getKey().ordinal(), true);
+				output.writeString(entry.getValue());
+			}
+			output.writeBoolean(source.isWithGeneratedPrimaryKey());
+			output.writeBoolean(source.isWithHierarchy());
+			writeScopeSet(kryo, output, source.getHierarchyIndexedInScopes());
+			output.writeBoolean(source.isWithPrice());
+			writeScopeSet(kryo, output, source.getPriceIndexedInScopes());
+			output.writeInt(source.getIndexedPricePlaces(), true);
+			kryo.writeObject(output, source.getLocales());
+			kryo.writeObject(output, source.getCurrencies());
+			kryo.writeObject(output, source.getAttributes(), heterogeneousSerializer);
+			kryo.writeObject(output, source.getAssociatedData());
+			kryo.writeObject(output, source.getReferences(), heterogeneousSerializer);
+			kryo.writeObject(output, source.getEvolutionMode());
+			output.writeBoolean(false); // description is null — pre-conflict layout
+			output.writeBoolean(false); // deprecationNotice is null — pre-conflict layout, no conflict field follows
+			// the sortable attribute compounds are the sole field written after the (now absent) conflict field
+			final Collection<EntitySortableAttributeCompoundSchemaContract> compounds =
+				source.getSortableAttributeCompounds().values();
+			output.writeVarInt(compounds.size(), true);
+			for (final EntitySortableAttributeCompoundSchemaContract compound : compounds) {
+				kryo.writeObject(output, compound);
+			}
+		}
+		return baos.toByteArray();
+	}
+
+	/**
+	 * Writes an {@link EnumSet} of {@link Scope} exactly as {@code EntitySchemaSerializer.writeScopeSet} does — a
+	 * var-int size prefix followed by each scope through the registered enum serializer. Replicated here because that
+	 * helper is package-private to the serializer package and unreachable from this test's package.
+	 *
+	 * @param kryo   the Kryo whose registered {@link Scope} serializer encodes each element
+	 * @param output the output to write to
+	 * @param scopes the scope set to serialize
+	 */
+	private static void writeScopeSet(@Nonnull Kryo kryo, @Nonnull Output output, @Nonnull Set<Scope> scopes) {
+		output.writeVarInt(scopes.size(), true);
+		for (final Scope scope : scopes) {
+			kryo.writeObject(output, scope);
+		}
 	}
 
 	@Nonnull

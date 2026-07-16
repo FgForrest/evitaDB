@@ -37,6 +37,7 @@ import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
+import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract.AttributeInheritanceBehavior;
@@ -44,6 +45,7 @@ import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder
 import io.evitadb.api.requestResponse.schema.dto.HistogramIndexDefinition;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
+import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.dto.ReflectedReferenceSchema;
 import io.evitadb.dataType.DateTimeRange;
@@ -130,9 +132,18 @@ class SchemaSerializationServiceTest {
 				"code", String.class,
 				whichIs -> whichIs.withConflictResolutionOverride(ConflictResolutionOverride.GRANULAR)
 			)
+			.withAssociatedData(
+				"labels", String.class,
+				whichIs -> whichIs.withConflictResolutionOverride(ConflictResolutionOverride.ENTITY)
+			)
 			.withReferenceToEntity(
 				Entities.BRAND, Entities.BRAND, Cardinality.ZERO_OR_ONE,
-				whichIs -> whichIs.withConflictResolutionOverride(ConflictResolutionOverride.ENTITY)
+				whichIs -> whichIs
+					.withConflictResolutionOverride(ConflictResolutionOverride.ENTITY)
+					.withAttribute(
+						"brandCode", String.class,
+						thatIs -> thatIs.withConflictResolutionOverride(ConflictResolutionOverride.GRANULAR)
+					)
 			)
 			.toInstance();
 
@@ -147,13 +158,27 @@ class SchemaSerializationServiceTest {
 			entityResolution,
 			deserialized.getConflictResolution().orElseThrow()
 		);
+		// entity-level attribute (EntityAttributeSchema → EntityAttributeSchemaSerializer)
 		assertEquals(
 			ConflictResolutionOverride.GRANULAR,
 			deserialized.getAttribute("code").orElseThrow().getConflictResolutionOverride()
 		);
+		// per-reference override on the reference itself (ReferenceSchema → ReferenceSchemaSerializer)
 		assertEquals(
 			ConflictResolutionOverride.ENTITY,
 			deserialized.getReference(Entities.BRAND).orElseThrow().getConflictResolutionOverride()
+		);
+		// reference-level (plain) attribute (AttributeSchema → AttributeSchemaSerializer) — distinct serializer from
+		// the entity-level `code` attribute above, so it must be asserted independently
+		assertEquals(
+			ConflictResolutionOverride.GRANULAR,
+			deserialized.getReference(Entities.BRAND).orElseThrow()
+				.getAttribute("brandCode").orElseThrow().getConflictResolutionOverride()
+		);
+		// associated data (AssociatedDataSchema → AssociatedDataSchemaSerializer)
+		assertEquals(
+			ConflictResolutionOverride.ENTITY,
+			deserialized.getAssociatedData("labels").orElseThrow().getConflictResolutionOverride()
 		);
 	}
 
@@ -179,6 +204,35 @@ class SchemaSerializationServiceTest {
 		assertEquals(
 			catalogResolution,
 			deserialized.getConflictResolution().orElseThrow()
+		);
+	}
+
+	@Test
+	@DisplayName("should round-trip a non-default global attribute conflict resolution override through the schema serializers")
+	void shouldRoundTripGlobalAttributeConflictResolutionOverride() {
+		// a global attribute embedded in the catalog schema carrying a non-default override — a serializer that silently
+		// dropped the override on GlobalAttributeSchema would still pass every catalog-level ConflictResolution test
+		final GlobalAttributeSchema globalAttribute = GlobalAttributeSchema._internalBuild(
+			"url", String.class, false, ConflictResolutionOverride.GRANULAR
+		);
+		final Map<String, GlobalAttributeSchemaContract> attributes = Map.of("url", globalAttribute);
+		final CatalogSchema createdSchema = CatalogSchema._internalBuild(
+			1,
+			TestConstants.TEST_CATALOG,
+			NamingConvention.generate(TestConstants.TEST_CATALOG),
+			null,
+			null,
+			EnumSet.allOf(CatalogEvolutionMode.class),
+			attributes,
+			EmptyEntitySchemaAccessor.INSTANCE
+		);
+
+		final CatalogSchema deserialized = roundTripCatalogSchema(createKryo(), createdSchema);
+
+		// a silent drop would default this back to INHERITED; read it explicitly so the loss surfaces
+		assertEquals(
+			ConflictResolutionOverride.GRANULAR,
+			deserialized.getAttribute("url").orElseThrow().getConflictResolutionOverride()
 		);
 	}
 
