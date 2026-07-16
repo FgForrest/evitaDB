@@ -30,7 +30,7 @@
 	<parent>
 		<groupId>io.evitadb</groupId>
 		<artifactId>evita_root</artifactId>
-		<version>2026.2.RC1-SNAPSHOT</version>
+		<version>2026.2.1282-SNAPSHOT</version>
 		<relativePath>../../pom.xml</relativePath>
 	</parent>
 
@@ -80,6 +80,11 @@
 		<dependency>
 			<groupId>${project.groupId}</groupId>
 			<artifactId>evita_engine</artifactId>
+			<version>${project.parent.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>${project.groupId}</groupId>
+			<artifactId>evita_traffic_engine</artifactId>
 			<version>${project.parent.version}</version>
 		</dependency>
 		<dependency>
