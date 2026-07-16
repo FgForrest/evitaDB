@@ -43,7 +43,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * by an already committed transaction conflicts with the incoming transaction when the two write scopes
  * overlap along the {@link ConflictKey#parentConflictKey()} ancestry chain, in either direction. Special
  * attention is paid to the commutative (range-constrained delta) probe, which must catch delete/set
- * -vs-delta while letting two deltas of the same key commute.
+ * -vs-delta while letting two deltas of the same key commute, and to {@link EntityResidualConflictKey}'s
+ * containment: a sibling of the granular keys (never their ancestor or descendant) yet a child of the full
+ * {@link EntityConflictKey}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
@@ -112,7 +114,7 @@ class IncomingConflictScopeTest {
 			// committed absolute write on `price` must not match the delta's coveredAncestors (guards
 			// against a future collapse of the dir-1 probe onto coveredAncestors, which would over-detect)
 			final IncomingConflictScope scope = scopeOf(
-				new AttributeDeltaConflictKey(ENTITY, 1, new AttributeKey("stock"), 5, IntegerNumberRange.between(0, 100))
+				new AttributeDeltaConflictKey(ENTITY, 1, new AttributeKey("stock"), 5, IntegerNumberRange.between(0, 100), false)
 			);
 			assertFalse(scope.conflictsWithAbsolute(new AttributeConflictKey(ENTITY, 1, "price")));
 		}
@@ -133,6 +135,102 @@ class IncomingConflictScopeTest {
 	}
 
 	@Nested
+	@DisplayName("Residual (shared-surface) containment")
+	class ResidualContainment {
+
+		@Test
+		@DisplayName("Residual does not conflict with a committed granular associated-data key of the same entity")
+		void shouldNotConflictResidualVsGranularAssociatedData() {
+			final IncomingConflictScope scope = scopeOf(new EntityResidualConflictKey(ENTITY, 1));
+			assertFalse(scope.conflictsWithAbsolute(new AssociatedDataConflictKey(ENTITY, 1, "feed-heureka")));
+		}
+
+		@Test
+		@DisplayName("A granular associated-data key does not conflict with an incoming residual key of the same entity")
+		void shouldNotConflictGranularAssociatedDataVsIncomingResidual() {
+			final IncomingConflictScope scope = scopeOf(new AssociatedDataConflictKey(ENTITY, 1, "feed-heureka"));
+			assertFalse(scope.conflictsWithAbsolute(new EntityResidualConflictKey(ENTITY, 1)));
+		}
+
+		@Test
+		@DisplayName("Identical residual keys conflict (equality preserved)")
+		void shouldConflictOnIdenticalResidualKeys() {
+			final IncomingConflictScope scope = scopeOf(new EntityResidualConflictKey(ENTITY, 1));
+			assertTrue(scope.conflictsWithAbsolute(new EntityResidualConflictKey(ENTITY, 1)));
+		}
+
+		@Test
+		@DisplayName("Incoming residual key conflicts with a committed full entity key of the same entity")
+		void shouldConflictResidualVsCommittedFullEntity() {
+			final IncomingConflictScope scope = scopeOf(new EntityResidualConflictKey(ENTITY, 1));
+			assertTrue(scope.conflictsWithAbsolute(new EntityConflictKey(ENTITY, 1)));
+		}
+
+		@Test
+		@DisplayName("Incoming full entity key conflicts with a committed residual key of the same entity")
+		void shouldConflictFullEntityVsCommittedResidual() {
+			final IncomingConflictScope scope = scopeOf(new EntityConflictKey(ENTITY, 1));
+			assertTrue(scope.conflictsWithAbsolute(new EntityResidualConflictKey(ENTITY, 1)));
+		}
+
+		@Test
+		@DisplayName("Incoming full entity key contains a committed granular associated-data key")
+		void shouldConflictFullEntityVsCommittedGranularAssociatedData() {
+			final IncomingConflictScope scope = scopeOf(new EntityConflictKey(ENTITY, 1));
+			assertTrue(scope.conflictsWithAbsolute(new AssociatedDataConflictKey(ENTITY, 1, "feed-heureka")));
+		}
+
+		@Test
+		@DisplayName("Incoming granular associated-data key conflicts with a committed full entity key")
+		void shouldConflictGranularAssociatedDataVsCommittedFullEntity() {
+			final IncomingConflictScope scope = scopeOf(new AssociatedDataConflictKey(ENTITY, 1, "feed-heureka"));
+			assertTrue(scope.conflictsWithAbsolute(new EntityConflictKey(ENTITY, 1)));
+		}
+
+		@Test
+		@DisplayName("Residual of one entity does not conflict with a granular attribute of a different entity")
+		void shouldNotConflictResidualVsGranularAttributeOfDifferentEntity() {
+			final IncomingConflictScope scope = scopeOf(new EntityResidualConflictKey(ENTITY, 1));
+			assertFalse(scope.conflictsWithAbsolute(new AttributeConflictKey(ENTITY, 2, "name")));
+		}
+
+		@Test
+		@DisplayName("A granular attribute of a different entity does not conflict with an incoming residual key")
+		void shouldNotConflictGranularAttributeOfDifferentEntityVsIncomingResidual() {
+			final IncomingConflictScope scope = scopeOf(new AttributeConflictKey(ENTITY, 2, "name"));
+			assertFalse(scope.conflictsWithAbsolute(new EntityResidualConflictKey(ENTITY, 1)));
+		}
+
+		@Test
+		@DisplayName("Committed collection key contains an incoming residual key of that collection")
+		void shouldConflictCollectionContainsResidual() {
+			final IncomingConflictScope scope = scopeOf(new EntityResidualConflictKey(ENTITY, 1));
+			assertTrue(scope.conflictsWithAbsolute(new CollectionConflictKey(ENTITY)));
+		}
+
+		@Test
+		@DisplayName("Incoming collection key contains a committed residual key of that collection")
+		void shouldConflictResidualContainedByIncomingCollection() {
+			final IncomingConflictScope scope = scopeOf(new CollectionConflictKey(ENTITY));
+			assertTrue(scope.conflictsWithAbsolute(new EntityResidualConflictKey(ENTITY, 1)));
+		}
+
+		@Test
+		@DisplayName("Committed catalog key contains an incoming residual key")
+		void shouldConflictWhenCommittedCatalogContainsResidual() {
+			final IncomingConflictScope scope = scopeOf(new EntityResidualConflictKey(ENTITY, 1));
+			assertTrue(scope.conflictsWithAbsolute(new CatalogConflictKey(CATALOG)));
+		}
+
+		@Test
+		@DisplayName("Incoming catalog key contains a committed residual key")
+		void shouldConflictWhenIncomingCatalogContainsResidual() {
+			final IncomingConflictScope scope = scopeOf(new CatalogConflictKey(CATALOG));
+			assertTrue(scope.conflictsWithAbsolute(new EntityResidualConflictKey(ENTITY, 1)));
+		}
+	}
+
+	@Nested
 	@DisplayName("Catalog-wide containment")
 	class CatalogContainment {
 
@@ -143,7 +241,7 @@ class IncomingConflictScopeTest {
 			assertTrue(scope.conflictsWithAbsolute(new AttributeConflictKey(ENTITY, 7, "x")));
 			assertTrue(scope.conflictsWithAbsolute(new EntityConflictKey(ENTITY, 9)));
 			assertTrue(scope.conflictsWithCommutative(
-				new AttributeDeltaConflictKey(ENTITY, 1, new AttributeKey("stock"), 5, IntegerNumberRange.between(0, 100))
+				new AttributeDeltaConflictKey(ENTITY, 1, new AttributeKey("stock"), 5, IntegerNumberRange.between(0, 100), false)
 			));
 		}
 
@@ -169,7 +267,19 @@ class IncomingConflictScopeTest {
 		@Nonnull
 		private AttributeDeltaConflictKey delta(int deltaValue) {
 			return new AttributeDeltaConflictKey(
-				ENTITY, 1, new AttributeKey("stock"), deltaValue, IntegerNumberRange.between(0, 100)
+				ENTITY, 1, new AttributeKey("stock"), deltaValue, IntegerNumberRange.between(0, 100), false
+			);
+		}
+
+		/**
+		 * A delta on an attribute that was NOT carved out of the entity's shared surface at emission time
+		 * (`sharedSurface` true), so its parent chain reaches {@link EntityResidualConflictKey} instead of
+		 * the absolute {@link AttributeConflictKey}.
+		 */
+		@Nonnull
+		private AttributeDeltaConflictKey sharedDelta(int deltaValue) {
+			return new AttributeDeltaConflictKey(
+				ENTITY, 1, new AttributeKey("stock"), deltaValue, IntegerNumberRange.between(0, 100), true
 			);
 		}
 
@@ -206,6 +316,33 @@ class IncomingConflictScopeTest {
 		void shouldNotConflictCommittedDeltaVsSiblingAbsolute() {
 			final IncomingConflictScope scope = scopeOf(new AttributeConflictKey(ENTITY, 1, "price"));
 			assertFalse(scope.conflictsWithCommutative(delta(5)));
+		}
+
+		@Test
+		@DisplayName("Committed shared-surface delta conflicts with an incoming residual key (commutative path)")
+		void shouldConflictSharedSurfaceDeltaVsIncomingResidual() {
+			// the shared-surface delta's parent is the residual, not the absolute attribute key, so it must
+			// still be caught by a coarse writer of the same entity's shared surface
+			final IncomingConflictScope scope = scopeOf(new EntityResidualConflictKey(ENTITY, 1));
+			assertTrue(scope.conflictsWithCommutative(sharedDelta(5)));
+		}
+
+		@Test
+		@DisplayName("Committed carved-out delta does not conflict with an incoming residual key")
+		void shouldNotConflictCarvedOutDeltaVsIncomingResidual() {
+			// the carved-out delta's parent is the absolute attribute key, which is disjoint from the
+			// residual - a coarse writer of the shared surface must not be blocked by it
+			final IncomingConflictScope scope = scopeOf(new EntityResidualConflictKey(ENTITY, 1));
+			assertFalse(scope.conflictsWithCommutative(delta(5)));
+		}
+
+		@Test
+		@DisplayName("Committed shared-surface delta vs incoming full entity key (e.g. a removal) conflicts")
+		void shouldConflictSharedSurfaceDeltaVsIncomingFullEntity() {
+			// the extra hop through the residual must still terminate at the full entity key: a whole-entity
+			// operation conflicts with a shared-surface delta exactly as it does with a carved-out one
+			final IncomingConflictScope scope = scopeOf(new EntityConflictKey(ENTITY, 1));
+			assertTrue(scope.conflictsWithCommutative(sharedDelta(5)));
 		}
 	}
 }
