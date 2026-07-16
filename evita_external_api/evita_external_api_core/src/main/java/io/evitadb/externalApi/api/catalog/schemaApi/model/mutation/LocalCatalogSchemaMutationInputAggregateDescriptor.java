@@ -23,7 +23,7 @@
 
 package io.evitadb.externalApi.api.catalog.schemaApi.model.mutation;
 
-import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.*;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.AllowEvolutionModeInCatalogSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.CreateEntitySchemaMutationDescriptor;
@@ -39,7 +39,7 @@ import io.evitadb.externalApi.api.model.PropertyDescriptor;
 import java.util.List;
 
 /**
- * Descriptor of aggregate object containing all implementations of {@link EntitySchemaMutation}
+ * Descriptor of aggregate object containing all implementations of {@link LocalCatalogSchemaMutation}
  * for schema-based external APIs.
  *
  * Note: this descriptor has static structure.

@@ -23,15 +23,18 @@
 
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.attribute;
 
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.schema.mutation.AttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ModifyAttributeSchemaDescriptionMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ModifyAttributeSchemaNameMutation;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaConflictResolutionOverrideMutation;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.AttributeSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.ModifyAttributeSchemaDescriptionMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.ModifyAttributeSchemaNameMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.ReferenceAttributeSchemaMutationInputAggregateDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.SetAttributeSchemaConflictResolutionOverrideMutationDescriptor;
 import io.evitadb.externalApi.api.resolver.mutation.PassThroughMutationObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -48,6 +51,7 @@ import static io.evitadb.test.TestTags.QUERY;
 import static io.evitadb.test.TestTags.SCHEMA;
 import static io.evitadb.test.TestTags.REFERENCE;
 import static io.evitadb.test.TestTags.ATTRIBUTE;
+import static io.evitadb.test.TestTags.TRANSACTION;
 
 /**
  * Tests for {@link ReferenceAttributeSchemaMutationInputAggregateConverter}
@@ -91,6 +95,26 @@ class ReferenceAttributeSchemaMutationInputAggregateConverterTest {
 		);
 		assertEquals(expectedMutations, convertedMutations);
 	}
+
+	@Tag(TRANSACTION)
+	@Test
+	void shouldResolveConflictResolutionOverrideInputToLocalMutation() {
+		final List<AttributeSchemaMutation> expectedMutations = List.of(
+			new SetAttributeSchemaConflictResolutionOverrideMutation("code", ConflictResolutionOverride.GRANULAR)
+		);
+
+		final List<AttributeSchemaMutation> convertedMutations = this.converter.convertFromInput(
+			map()
+				.e(
+					ReferenceAttributeSchemaMutationInputAggregateDescriptor.SET_ATTRIBUTE_SCHEMA_CONFLICT_RESOLUTION_OVERRIDE_MUTATION.name(), map()
+					.e(AttributeSchemaMutationDescriptor.NAME.name(), "code")
+					.e(SetAttributeSchemaConflictResolutionOverrideMutationDescriptor.CONFLICT_RESOLUTION_OVERRIDE.name(), ConflictResolutionOverride.GRANULAR)
+					.build())
+				.build()
+		);
+		assertEquals(expectedMutations, convertedMutations);
+	}
+
 	@Test
 	void shouldResolveInputToLocalMutationWithOnlyRequiredData() {
 		final List<AttributeSchemaMutation> convertedMutations = this.converter.convertFromInput(Map.of());

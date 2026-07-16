@@ -26,7 +26,6 @@ package io.evitadb.externalApi.grpc.requestResponse.schema;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolution;
 import io.evitadb.api.requestResponse.mutation.conflict.GranularConflictPolicy;
 import io.evitadb.externalApi.grpc.generated.GrpcConflictResolution;
-import io.evitadb.externalApi.grpc.generated.GrpcGranularConflictPolicy;
 
 import javax.annotation.Nonnull;
 import java.util.EnumSet;
