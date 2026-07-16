@@ -191,16 +191,20 @@ public class ApplyDeltaAttributeMutation<T extends Number> extends AttributeSche
 	) {
 		// A range-constrained delta must always emit its conflict key, regardless of the resolved
 		// conflict policy: keeping the accumulated value inside the required range is a hard invariant,
-		// not something the user opts out of by relaxing conflict granularity.
-		return this.requiredRangeAfterApplication != null
-			|| context.shouldEmitEntityAttributeKey(this.attributeKey.attributeName()) ?
+		// not something the user opts out of by relaxing conflict granularity. Whether the attribute was
+		// carved out of the entity's shared surface is still resolved so the key's parent chain reaches the
+		// right coarse fallback (the absolute attribute key when carved out, the shared-surface residual
+		// otherwise) even when the range guard is the sole reason the key is emitted.
+		final boolean shouldEmit = context.shouldEmitEntityAttributeKey(this.attributeKey.attributeName());
+		return this.requiredRangeAfterApplication != null || shouldEmit ?
 			Stream.of(
 				new AttributeDeltaConflictKey(
 					context.getEntityType(),
 					context.getEntityPrimaryKey(),
 					this.attributeKey,
 					this.delta,
-                    this.requiredRangeAfterApplication
+					this.requiredRangeAfterApplication,
+					!shouldEmit
 				)
 			) :
 			Stream.empty();

@@ -62,6 +62,7 @@ import io.evitadb.core.executor.Scheduler;
 import io.evitadb.core.session.EvitaSession;
 import io.evitadb.core.transaction.Transaction;
 import io.evitadb.dataType.LongNumberRange;
+import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.function.Functions;
 import io.evitadb.function.TriFunction;
@@ -175,6 +176,8 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 		.build();
 	private static final String BRAND_PRIORITY = "brandPriority";
 	private static final String STORE_PRIORITY = "storePriority";
+	private static final String ASSOCIATED_DATA_FEED_HEUREKA = "feed-heureka";
+	private static final String ATTRIBUTE_SNIPPET_EXPIRATION = "snippetExpiration";
 	private final DataGenerator dataGenerator = GENERATOR_FACTORY.get();
 	private final Pool<Kryo> catalogKryoPool = new Pool<>(false, false, 1) {
 		@Override
@@ -1828,6 +1831,382 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 					log.info("Attempting to commit a second creation of the same primary key...");
 				}
 			)
+		);
+	}
+
+	/**
+	 * Reinitializes evita with coarse {@link ConflictPolicy#ENTITY} and declares the associated data
+	 * {@link #ASSOCIATED_DATA_FEED_HEUREKA} and the attribute {@link #ATTRIBUTE_SNIPPET_EXPIRATION} as
+	 * per-item {@link ConflictResolutionOverride#GRANULAR} on the product schema — the carve-out fixture
+	 * shared by the end-to-end conflict tests below.
+	 *
+	 * @param originalEvita the evita instance to reinitialize
+	 * @param productSchema the product schema to declare the carved-out items on
+	 * @return the reinitialized evita instance
+	 */
+	@Nonnull
+	private static Evita setUpPerItemCarveOutSchema(
+		@Nonnull EvitaContract originalEvita, @Nonnull SealedEntitySchema productSchema
+	) throws Exception {
+		final Evita evita = reinitializeEvitaWithConfig(
+			originalEvita,
+			builder -> builder.transaction(
+				TransactionOptions.builder(builder.build().transaction())
+					.conflictResolution(ConflictPolicy.ENTITY)
+					.build()
+			)
+		);
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.getEntitySchema(productSchema.getName())
+					.orElseThrow()
+					.openForWrite()
+					.withAssociatedData(
+						ASSOCIATED_DATA_FEED_HEUREKA, String.class,
+						whichIs -> whichIs.nullable().withConflictResolutionOverride(ConflictResolutionOverride.GRANULAR))
+					.withAttribute(
+						ATTRIBUTE_SNIPPET_EXPIRATION, Long.class,
+						whichIs -> whichIs.nullable().withConflictResolutionOverride(ConflictResolutionOverride.GRANULAR))
+					.updateVia(session);
+			}
+		);
+		return evita;
+	}
+
+	/**
+	 * Reinitializes evita with coarse {@link ConflictPolicy#ENTITY} refined by the
+	 * {@link GranularConflictPolicy#ASSOCIATED_DATA} granularity-set flavor (no per-item schema overrides at
+	 * all): every associated data item of every entity of this type is carved out purely by the inherited
+	 * refinement. Declares {@link #ASSOCIATED_DATA_FEED_HEUREKA} on the schema without any per-item override
+	 * so its carve-out status comes solely from the granularity set.
+	 *
+	 * @param originalEvita the evita instance to reinitialize
+	 * @param productSchema the product schema to declare the associated data item on
+	 * @return the reinitialized evita instance
+	 */
+	@Nonnull
+	private static Evita setUpGranularitySetCarveOutSchema(
+		@Nonnull EvitaContract originalEvita, @Nonnull SealedEntitySchema productSchema
+	) throws Exception {
+		final Evita evita = reinitializeEvitaWithConfig(
+			originalEvita,
+			builder -> builder.transaction(
+				TransactionOptions.builder(builder.build().transaction())
+					.conflictResolution(ConflictPolicy.ENTITY, GranularConflictPolicy.ASSOCIATED_DATA)
+					.build()
+			)
+		);
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.getEntitySchema(productSchema.getName())
+					.orElseThrow()
+					.openForWrite()
+					.withAssociatedData(ASSOCIATED_DATA_FEED_HEUREKA, String.class, whichIs -> whichIs.nullable())
+					.updateVia(session);
+			}
+		);
+		return evita;
+	}
+
+	@DisplayName("A coarse writer of a plain attribute and a writer of a carved-out associated data item do not conflict — the granular carve-out fix.")
+	@UseDataSet(value = TRANSACTIONAL_DATA_SET, destroyAfterTest = true)
+	@Test
+	void shouldNotRaiseConflictBetweenCoarseAttributeAndCarvedOutAssociatedDataWriters(
+		EvitaContract originalEvita, SealedEntitySchema productSchema) throws Exception {
+		final Evita evita = setUpPerItemCarveOutSchema(originalEvita, productSchema);
+		final SealedEntity addedEntity = upsertSingleGeneratedProduct(evita, productSchema);
+
+		// txn A writes a plain, non-carved-out attribute (the entity's shared surface); txn B writes the
+		// carved-out associated data item - before the fix, A's coarse fallback key would have been the
+		// full entity key, which falsely contained B's granular key
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				setPriority(session, productSchema, addedEntity.getPrimaryKey(), 19846L);
+
+				try {
+					executeConcurrentUpdate(
+						evita, TEST_CATALOG, concurrentSession -> {
+							concurrentSession.getEntity(productSchema.getName(), addedEntity.getPrimaryKey(), entityFetchAllContent())
+								.orElseThrow()
+								.openForWrite()
+								.setAssociatedData(ASSOCIATED_DATA_FEED_HEUREKA, "payload")
+								.upsertVia(concurrentSession);
+						}
+					);
+				} catch (InterruptedException e) {
+					fail("Test thread was interrupted!", e);
+				}
+
+				log.info("Committing transaction expected NOT to conflict via the residual/granular carve-out...");
+			}
+		);
+	}
+
+	@DisplayName("Two concurrent writers of the same carved-out associated data item still conflict.")
+	@UseDataSet(value = TRANSACTIONAL_DATA_SET, destroyAfterTest = true)
+	@Test
+	void shouldRaiseConflictBetweenTwoWritersOfSameCarvedOutAssociatedDataItem(
+		EvitaContract originalEvita, SealedEntitySchema productSchema) throws Exception {
+		final Evita evita = setUpPerItemCarveOutSchema(originalEvita, productSchema);
+		final SealedEntity addedEntity = upsertSingleGeneratedProduct(evita, productSchema);
+
+		assertThrows(
+			ConflictingCatalogMutationException.class,
+			() -> evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.getEntity(productSchema.getName(), addedEntity.getPrimaryKey(), entityFetchAllContent())
+						.orElseThrow()
+						.openForWrite()
+						.setAssociatedData(ASSOCIATED_DATA_FEED_HEUREKA, "payload-A")
+						.upsertVia(session);
+
+					try {
+						executeConcurrentUpdate(
+							evita, TEST_CATALOG, concurrentSession -> {
+								concurrentSession.getEntity(productSchema.getName(), addedEntity.getPrimaryKey(), entityFetchAllContent())
+									.orElseThrow()
+									.openForWrite()
+									.setAssociatedData(ASSOCIATED_DATA_FEED_HEUREKA, "payload-B")
+									.upsertVia(concurrentSession);
+							}
+						);
+					} catch (InterruptedException e) {
+						fail("Test thread was interrupted!", e);
+					}
+
+					log.info("Attempting to commit conflicting write to the same carved-out associated data item...");
+				}
+			)
+		);
+	}
+
+	@DisplayName("Two coarse writers touching disjoint non-carved-out items (an attribute and a price) still conflict via the shared residual key.")
+	@UseDataSet(value = TRANSACTIONAL_DATA_SET, destroyAfterTest = true)
+	@Test
+	void shouldRaiseConflictBetweenTwoCoarseWritersOfDisjointNonGranularItems(
+		EvitaContract originalEvita, SealedEntitySchema productSchema) throws Exception {
+		final Evita evita = setUpPerItemCarveOutSchema(originalEvita, productSchema);
+		final SealedEntity addedEntity = upsertSingleGeneratedProduct(evita, productSchema);
+
+		assertThrows(
+			ConflictingCatalogMutationException.class,
+			() -> evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					setPriority(session, productSchema, addedEntity.getPrimaryKey(), 19846L);
+
+					try {
+						executeConcurrentUpdate(
+							evita, TEST_CATALOG, concurrentSession -> {
+								concurrentSession.getEntity(productSchema.getName(), addedEntity.getPrimaryKey(), entityFetchAllContent())
+									.orElseThrow()
+									.openForWrite()
+									// a distinct price list avoids AmbiguousPriceException against the
+									// generated entity's existing (unbounded-validity) basic-price-list price
+									.setPrice(555, "carveout", CURRENCY_CZK, BigDecimal.TEN, BigDecimal.ZERO, BigDecimal.TEN, true)
+									.upsertVia(concurrentSession);
+							}
+						);
+					} catch (InterruptedException e) {
+						fail("Test thread was interrupted!", e);
+					}
+
+					log.info("Attempting to commit conflicting transaction sharing the entity's residual surface...");
+				}
+			)
+		);
+	}
+
+	@DisplayName("Entity removal conflicts with a concurrent writer of a carved-out associated data item.")
+	@UseDataSet(value = TRANSACTIONAL_DATA_SET, destroyAfterTest = true)
+	@Test
+	void shouldRaiseConflictBetweenEntityRemovalAndCarvedOutAssociatedDataWriter(
+		EvitaContract originalEvita, SealedEntitySchema productSchema) throws Exception {
+		final Evita evita = setUpPerItemCarveOutSchema(originalEvita, productSchema);
+		final SealedEntity addedEntity = upsertSingleGeneratedProduct(evita, productSchema);
+
+		assertThrows(
+			ConflictingCatalogMutationException.class,
+			() -> evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					// this mutation will generate a conflict, but only at the time of the commit, not now
+					session.deleteEntity(productSchema.getName(), addedEntity.getPrimaryKey());
+
+					try {
+						executeConcurrentUpdate(
+							evita, TEST_CATALOG, concurrentSession -> {
+								concurrentSession.getEntity(productSchema.getName(), addedEntity.getPrimaryKey(), entityFetchAllContent())
+									.orElseThrow()
+									.openForWrite()
+									.setAssociatedData(ASSOCIATED_DATA_FEED_HEUREKA, "payload")
+									.upsertVia(concurrentSession);
+							}
+						);
+					} catch (InterruptedException e) {
+						fail("Test thread was interrupted!", e);
+					}
+
+					log.info("Attempting to commit removal conflicting with a carved-out associated data writer...");
+				}
+			)
+		);
+	}
+
+	@DisplayName("A scope change conflicts with a concurrent writer of a carved-out associated data item.")
+	@UseDataSet(value = TRANSACTIONAL_DATA_SET, destroyAfterTest = true)
+	@Test
+	void shouldRaiseConflictBetweenScopeChangeAndCarvedOutAssociatedDataWriter(
+		EvitaContract originalEvita, SealedEntitySchema productSchema) throws Exception {
+		final Evita evita = setUpPerItemCarveOutSchema(originalEvita, productSchema);
+		final SealedEntity addedEntity = upsertSingleGeneratedProduct(evita, productSchema);
+
+		assertThrows(
+			ConflictingCatalogMutationException.class,
+			() -> evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					// a scope change is a whole-entity operation: it must conflict with every carved-out
+					// item too, even though the coarse fallback now only covers the shared surface
+					session.getEntity(productSchema.getName(), addedEntity.getPrimaryKey(), entityFetchAllContent())
+						.orElseThrow()
+						.openForWrite()
+						.setScope(Scope.ARCHIVED)
+						.upsertVia(session);
+
+					try {
+						executeConcurrentUpdate(
+							evita, TEST_CATALOG, concurrentSession -> {
+								concurrentSession.getEntity(productSchema.getName(), addedEntity.getPrimaryKey(), entityFetchAllContent())
+									.orElseThrow()
+									.openForWrite()
+									.setAssociatedData(ASSOCIATED_DATA_FEED_HEUREKA, "payload")
+									.upsertVia(concurrentSession);
+							}
+						);
+					} catch (InterruptedException e) {
+						fail("Test thread was interrupted!", e);
+					}
+
+					log.info("Attempting to commit scope change conflicting with a carved-out associated data writer...");
+				}
+			)
+		);
+	}
+
+	@DisplayName("Forced creation of the same primary key conflicts with a concurrent carved-out associated data writer on that pk.")
+	@UseDataSet(value = TRANSACTIONAL_DATA_SET, destroyAfterTest = true)
+	@Test
+	void shouldRaiseConflictBetweenForcedCreationAndCarvedOutAssociatedDataWriterOnSamePrimaryKey(
+		EvitaContract originalEvita, SealedEntitySchema productSchema) throws Exception {
+		final Evita evita = setUpPerItemCarveOutSchema(originalEvita, productSchema);
+
+		final int sharedPrimaryKey = 2000;
+
+		// both transactions create the same, not-yet-existing primary key (MUST_NOT_EXIST): forced
+		// creation always emits the full entity key, which conflicts with the concurrent writer's
+		// carved-out associated data key too, even though the two touch disjoint items
+		assertThrows(
+			ConflictingCatalogMutationException.class,
+			() -> evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.createNewEntity(productSchema.getName(), sharedPrimaryKey)
+						.setAttribute(ATTRIBUTE_PRIORITY, 19846L)
+						.upsertVia(session);
+
+					try {
+						executeConcurrentUpdate(
+							evita, TEST_CATALOG, concurrentSession -> {
+								// `priority` is a mandatory attribute, so a brand new entity must set it
+								// regardless of which item this transaction is actually exercising
+								concurrentSession.createNewEntity(productSchema.getName(), sharedPrimaryKey)
+									.setAttribute(ATTRIBUTE_PRIORITY, 27954L)
+									.setAssociatedData(ASSOCIATED_DATA_FEED_HEUREKA, "payload")
+									.upsertVia(concurrentSession);
+							}
+						);
+					} catch (InterruptedException e) {
+						fail("Test thread was interrupted!", e);
+					}
+
+					log.info("Attempting to commit a second creation of the same primary key...");
+				}
+			)
+		);
+	}
+
+	@DisplayName("A coarse writer and a writer touching only carved-out items (a granular attribute and a granular associated data item) do not conflict.")
+	@UseDataSet(value = TRANSACTIONAL_DATA_SET, destroyAfterTest = true)
+	@Test
+	void shouldNotRaiseConflictBetweenCoarseWriterAndFullyGranularWriter(
+		EvitaContract originalEvita, SealedEntitySchema productSchema) throws Exception {
+		final Evita evita = setUpPerItemCarveOutSchema(originalEvita, productSchema);
+		final SealedEntity addedEntity = upsertSingleGeneratedProduct(evita, productSchema);
+
+		// txn A writes the shared surface (residual key); txn B writes two DIFFERENT carved-out items
+		// (a granular attribute and a granular associated data item) - since every one of B's mutations
+		// produces its own granular key, B never falls back to the residual or full entity key at all
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				setPriority(session, productSchema, addedEntity.getPrimaryKey(), 19846L);
+
+				try {
+					executeConcurrentUpdate(
+						evita, TEST_CATALOG, concurrentSession -> {
+							concurrentSession.getEntity(productSchema.getName(), addedEntity.getPrimaryKey(), entityFetchAllContent())
+								.orElseThrow()
+								.openForWrite()
+								.setAttribute(ATTRIBUTE_SNIPPET_EXPIRATION, 1234L)
+								.setAssociatedData(ASSOCIATED_DATA_FEED_HEUREKA, "payload")
+								.upsertVia(concurrentSession);
+						}
+					);
+				} catch (InterruptedException e) {
+					fail("Test thread was interrupted!", e);
+				}
+
+				log.info("Committing transaction expected NOT to conflict — the writer touches only carved-out items...");
+			}
+		);
+	}
+
+	@DisplayName("Granularity-set flavor: an attribute writer and an associated-data writer do not conflict when ASSOCIATED_DATA is carved out via the entity's granularity set (no per-item overrides).")
+	@UseDataSet(value = TRANSACTIONAL_DATA_SET, destroyAfterTest = true)
+	@Test
+	void shouldNotRaiseConflictUnderGranularitySetCarveOut(
+		EvitaContract originalEvita, SealedEntitySchema productSchema) throws Exception {
+		final Evita evita = setUpGranularitySetCarveOutSchema(originalEvita, productSchema);
+		final SealedEntity addedEntity = upsertSingleGeneratedProduct(evita, productSchema);
+
+		// no per-item ConflictResolutionOverride is declared anywhere: the associated data item is carved
+		// out purely because the entity's inherited granularity set includes ASSOCIATED_DATA
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				setPriority(session, productSchema, addedEntity.getPrimaryKey(), 19846L);
+
+				try {
+					executeConcurrentUpdate(
+						evita, TEST_CATALOG, concurrentSession -> {
+							concurrentSession.getEntity(productSchema.getName(), addedEntity.getPrimaryKey(), entityFetchAllContent())
+								.orElseThrow()
+								.openForWrite()
+								.setAssociatedData(ASSOCIATED_DATA_FEED_HEUREKA, "payload")
+								.upsertVia(concurrentSession);
+						}
+					);
+				} catch (InterruptedException e) {
+					fail("Test thread was interrupted!", e);
+				}
+
+				log.info("Committing transaction expected NOT to conflict via the granularity-set carve-out...");
+			}
 		);
 	}
 

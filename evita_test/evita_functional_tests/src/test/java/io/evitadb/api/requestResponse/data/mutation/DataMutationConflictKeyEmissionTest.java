@@ -45,6 +45,7 @@ import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolution;
 import io.evitadb.api.requestResponse.mutation.conflict.EntityConflictKey;
+import io.evitadb.api.requestResponse.mutation.conflict.EntityResidualConflictKey;
 import io.evitadb.api.requestResponse.mutation.conflict.GranularConflictPolicy;
 import io.evitadb.api.requestResponse.mutation.conflict.HierarchyConflictKey;
 import io.evitadb.api.requestResponse.mutation.conflict.PriceConflictKey;
@@ -72,6 +73,7 @@ import java.util.Optional;
 import static io.evitadb.test.TestTags.CONTRACT;
 import static io.evitadb.test.TestTags.TRANSACTION;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -198,16 +200,39 @@ class DataMutationConflictKeyEmissionTest {
 	class EntityUpsertCoarseFallback {
 
 		@Test
-		@DisplayName("A non-granular mutation triggers the coarse entity key under ENTITY policy")
-		void shouldEmitEntityKeyWhenAtLeastOneKeyMissing() {
-			// a plain attribute upsert produces no granular key when ENTITY_ATTRIBUTE is not refined,
-			// so the coarse entity fallback is triggered by the missing key
+		@DisplayName("A non-granular mutation triggers the coarse residual key, not the full entity key, under ENTITY policy")
+		void shouldEmitResidualKeyWhenAtLeastOneKeyMissing() {
+			// a plain attribute upsert produces no granular key when ENTITY_ATTRIBUTE is not refined, so the
+			// coarse fallback is triggered by the missing key; since this is not a forced creation, the
+			// fallback is the finer residual key (the entity's shared surface), not the full entity key -
+			// this is the carve-out fix itself: a coarse writer must no longer contain a carved-out sibling
 			final EntityUpsertMutation mutation = new EntityUpsertMutation(
 				ENTITY, PK, EntityExistence.MAY_EXIST,
 				new UpsertAttributeMutation(ATTRIBUTE, "foo")
 			);
 			final List<ConflictKey> keys = mutation.collectConflictKeys(coarse(ConflictPolicy.ENTITY)).toList();
-			assertEquals(List.of(new EntityConflictKey(ENTITY, PK)), keys);
+			assertEquals(List.of(new EntityResidualConflictKey(ENTITY, PK)), keys);
+		}
+
+		@Test
+		@DisplayName("Forced creation emits the full entity key alongside a granular key, never the residual key")
+		void shouldEmitFullEntityKeyAlongsideGranularKeyForForcedCreation() {
+			// mixed mutations: the attribute is carved out (its own key is produced), the associated data is
+			// not (ASSOCIATED_DATA is not refined) - so a missing granular key is present too. Forced creation
+			// must still win with the full entity key, never the residual, since the full key already
+			// bidirectionally contains the residual
+			final ConflictGenerationContext context = entityGranular(GranularConflictPolicy.ENTITY_ATTRIBUTE);
+			final List<? extends LocalMutation<?, ?>> mutations = List.of(
+				new UpsertAttributeMutation(ATTRIBUTE, "foo"),
+				new UpsertAssociatedDataMutation(ASSOCIATED_DATA, "bar")
+			);
+			final List<ConflictKey> keys = context.withEntityType(
+				ENTITY, PK,
+				ctx -> EntityMutation.getConflictKeyStream(ENTITY, PK, mutations, EntityExistence.MUST_NOT_EXIST, ctx).toList()
+			);
+			assertTrue(keys.contains(new AttributeConflictKey(ENTITY, PK, ATTRIBUTE)));
+			assertTrue(keys.contains(new EntityConflictKey(ENTITY, PK)));
+			assertFalse(keys.contains(new EntityResidualConflictKey(ENTITY, PK)));
 		}
 
 		@Test
@@ -241,6 +266,60 @@ class DataMutationConflictKeyEmissionTest {
 			);
 			final List<ConflictKey> keys = mutation.collectConflictKeys(coarse(ConflictPolicy.NONE)).toList();
 			assertTrue(keys.isEmpty());
+		}
+	}
+
+	@Nested
+	@DisplayName("Coarse fallback interplay with carved-out items")
+	class CoarseFallbackInterplayWithGranularItems {
+
+		@Test
+		@DisplayName("A carved-out associated data alongside a non-granular attribute emits the granular key plus the residual, never the full entity key")
+		void shouldEmitGranularKeyAndResidualForMixedCarveOut() {
+			// only ASSOCIATED_DATA is refined: the associated data mutation is carved out and produces its own
+			// key, while the attribute mutation is not and produces none - triggering the residual fallback.
+			// The two keys are disjoint siblings, not a whole-entity key
+			final ConflictGenerationContext context = entityGranular(GranularConflictPolicy.ASSOCIATED_DATA);
+			final List<? extends LocalMutation<?, ?>> mutations = List.of(
+				new UpsertAttributeMutation(ATTRIBUTE, "foo"),
+				new UpsertAssociatedDataMutation(ASSOCIATED_DATA, "bar")
+			);
+			final List<ConflictKey> keys = context.withEntityType(
+				ENTITY, PK,
+				ctx -> EntityMutation.getConflictKeyStream(ENTITY, PK, mutations, EntityExistence.MAY_EXIST, ctx).toList()
+			);
+			assertEquals(
+				List.of(
+					new AssociatedDataConflictKey(ENTITY, PK, ASSOCIATED_DATA),
+					new EntityResidualConflictKey(ENTITY, PK)
+				),
+				keys
+			);
+		}
+
+		@Test
+		@DisplayName("Fully granular mutations emit only their own keys, with no entity-level key at all")
+		void shouldEmitOnlyGranularKeysWhenNothingIsMissing() {
+			// every mutation produces its own granular key (both refinements are active), so the coarse
+			// fallback is never triggered: no residual and no full entity key appears alongside them
+			final ConflictGenerationContext context = entityGranular(
+				GranularConflictPolicy.ENTITY_ATTRIBUTE, GranularConflictPolicy.ASSOCIATED_DATA
+			);
+			final List<? extends LocalMutation<?, ?>> mutations = List.of(
+				new UpsertAttributeMutation(ATTRIBUTE, "foo"),
+				new UpsertAssociatedDataMutation(ASSOCIATED_DATA, "bar")
+			);
+			final List<ConflictKey> keys = context.withEntityType(
+				ENTITY, PK,
+				ctx -> EntityMutation.getConflictKeyStream(ENTITY, PK, mutations, EntityExistence.MAY_EXIST, ctx).toList()
+			);
+			assertEquals(
+				List.of(
+					new AttributeConflictKey(ENTITY, PK, ATTRIBUTE),
+					new AssociatedDataConflictKey(ENTITY, PK, ASSOCIATED_DATA)
+				),
+				keys
+			);
 		}
 	}
 
@@ -536,7 +615,7 @@ class DataMutationConflictKeyEmissionTest {
 				PK
 			);
 			assertEquals(
-				List.of(new AttributeDeltaConflictKey(ENTITY, PK, new AttributeKey(ATTRIBUTE), 5, null)),
+				List.of(new AttributeDeltaConflictKey(ENTITY, PK, new AttributeKey(ATTRIBUTE), 5, null, false)),
 				keys
 			);
 		}
@@ -550,6 +629,40 @@ class DataMutationConflictKeyEmissionTest {
 				PK
 			);
 			assertTrue(keys.isEmpty());
+		}
+
+		@Test
+		@DisplayName("A range-constrained delta on a non-carved-out attribute is marked shared-surface, parented by the residual key")
+		void shouldEmitSharedSurfaceDeltaKeyForNonGranularRangeConstrainedDelta() {
+			// the range guard forces emission even though ENTITY_ATTRIBUTE is not refined; since the attribute
+			// was not carved out, the key must route through the entity's shared surface, not the absolute
+			// attribute key, so it still conflicts with a coarse writer of an unrelated non-carved-out field
+			final List<ConflictKey> keys = keysWithin(
+				coarse(ConflictPolicy.ENTITY),
+				new ApplyDeltaAttributeMutation<>(ATTRIBUTE, 5, IntegerNumberRange.between(0, 100)),
+				PK
+			);
+			assertEquals(1, keys.size());
+			final AttributeDeltaConflictKey key = (AttributeDeltaConflictKey) keys.get(0);
+			assertTrue(key.sharedSurface());
+			assertEquals(new EntityResidualConflictKey(ENTITY, PK), key.parentConflictKey());
+		}
+
+		@Test
+		@DisplayName("A range-constrained delta on a carved-out attribute is not marked shared-surface, parented by the absolute attribute key")
+		void shouldEmitCarvedOutDeltaKeyForGranularRangeConstrainedDelta() {
+			// the attribute is carved out (ENTITY_ATTRIBUTE refined), so even though the range guard alone
+			// would force emission, the key still routes through the absolute attribute key it can conflict
+			// with, not the shared surface
+			final List<ConflictKey> keys = keysWithin(
+				entityGranular(GranularConflictPolicy.ENTITY_ATTRIBUTE),
+				new ApplyDeltaAttributeMutation<>(ATTRIBUTE, 5, IntegerNumberRange.between(0, 100)),
+				PK
+			);
+			assertEquals(1, keys.size());
+			final AttributeDeltaConflictKey key = (AttributeDeltaConflictKey) keys.get(0);
+			assertFalse(key.sharedSurface());
+			assertEquals(new AttributeConflictKey(ENTITY, PK, ATTRIBUTE), key.parentConflictKey());
 		}
 	}
 
@@ -615,14 +728,14 @@ class DataMutationConflictKeyEmissionTest {
 			);
 			assertEquals(
 				List.of(new ReferenceAttributeDeltaConflictKey(
-					ENTITY, PK, new ReferenceKey(REFERENCE, REFERENCE_PK), new AttributeKey(ATTRIBUTE), 5, null
+					ENTITY, PK, new ReferenceKey(REFERENCE, REFERENCE_PK), new AttributeKey(ATTRIBUTE), 5, null, false
 				)),
 				keys
 			);
 		}
 
 		@Test
-		@DisplayName("A range-constrained wrapped delta emits its key even when the refinement is inactive")
+		@DisplayName("A range-constrained wrapped delta emits its key even when the refinement is inactive, marked shared-surface")
 		void shouldEmitReferenceAttributeDeltaKeyForConstrainedDeltaUnderNonePolicy() {
 			final List<ConflictKey> keys = keysWithin(
 				coarse(ConflictPolicy.NONE),
@@ -635,10 +748,29 @@ class DataMutationConflictKeyEmissionTest {
 			assertEquals(
 				List.of(new ReferenceAttributeDeltaConflictKey(
 					ENTITY, PK, new ReferenceKey(REFERENCE, REFERENCE_PK), new AttributeKey(ATTRIBUTE), 5,
-					IntegerNumberRange.between(0, 100)
+					IntegerNumberRange.between(0, 100), true
 				)),
 				keys
 			);
+		}
+
+		@Test
+		@DisplayName("A range-constrained delta on a non-carved-out reference attribute is marked shared-surface, parented by the residual key")
+		void shouldEmitSharedSurfaceReferenceAttributeDeltaKeyForNonGranularRangeConstrainedDelta() {
+			// REFERENCE_ATTRIBUTE is not refined, so the reference attribute is not carved out; the range
+			// guard alone forces emission, and the key must route through the entity's shared surface
+			final List<ConflictKey> keys = keysWithin(
+				coarse(ConflictPolicy.ENTITY),
+				new ReferenceAttributeMutation(
+					new ReferenceKey(REFERENCE, REFERENCE_PK),
+					new ApplyDeltaAttributeMutation<>(ATTRIBUTE, 5, IntegerNumberRange.between(0, 100))
+				),
+				PK
+			);
+			assertEquals(1, keys.size());
+			final ReferenceAttributeDeltaConflictKey key = (ReferenceAttributeDeltaConflictKey) keys.get(0);
+			assertTrue(key.sharedSurface());
+			assertEquals(new EntityResidualConflictKey(ENTITY, PK), key.parentConflictKey());
 		}
 	}
 
@@ -647,10 +779,10 @@ class DataMutationConflictKeyEmissionTest {
 	class SetEntityScopeMutationEmission {
 
 		@Test
-		@DisplayName("Emits nothing even under a fully granular emit-capable resolution")
-		void shouldEmitNothingEvenWhenOtherMutationsWould() {
-			// the scope mutation is intentionally silent: entity-scope conflicts are covered by the coarse
-			// entity-level fallback, so it must not contribute a key even where every refinement is active
+		@DisplayName("Emits the full entity key under ENTITY policy, even where every granular refinement is active")
+		void shouldEmitFullEntityKeyUnderEntityPolicy() {
+			// a scope change is a whole-entity operation, so it must conflict with every carved-out item too -
+			// it can no longer free-ride on the coarse fallback, which now only covers the shared surface
 			final ConflictGenerationContext context = entityGranular(
 				GranularConflictPolicy.ENTITY_ATTRIBUTE,
 				GranularConflictPolicy.ASSOCIATED_DATA,
@@ -660,6 +792,33 @@ class DataMutationConflictKeyEmissionTest {
 				GranularConflictPolicy.HIERARCHY
 			);
 			final List<ConflictKey> keys = keysWithin(context, new SetEntityScopeMutation(Scope.ARCHIVED), PK);
+			assertEquals(List.of(new EntityConflictKey(ENTITY, PK)), keys);
+		}
+
+		@Test
+		@DisplayName("Emits the collection key under COLLECTION policy")
+		void shouldEmitCollectionKeyUnderCollectionPolicy() {
+			final List<ConflictKey> keys = keysWithin(
+				coarse(ConflictPolicy.COLLECTION), new SetEntityScopeMutation(Scope.ARCHIVED), PK
+			);
+			assertEquals(List.of(new CollectionConflictKey(ENTITY)), keys);
+		}
+
+		@Test
+		@DisplayName("Emits nothing under NONE policy")
+		void shouldEmitNothingUnderNonePolicy() {
+			final List<ConflictKey> keys = keysWithin(
+				coarse(ConflictPolicy.NONE), new SetEntityScopeMutation(Scope.ARCHIVED), PK
+			);
+			assertTrue(keys.isEmpty());
+		}
+
+		@Test
+		@DisplayName("Emits nothing under ENTITY policy when the primary key is not yet assigned")
+		void shouldEmitNothingWhenPrimaryKeyIsNullUnderEntityPolicy() {
+			final List<ConflictKey> keys = keysWithin(
+				coarse(ConflictPolicy.ENTITY), new SetEntityScopeMutation(Scope.ARCHIVED), null
+			);
 			assertTrue(keys.isEmpty());
 		}
 	}

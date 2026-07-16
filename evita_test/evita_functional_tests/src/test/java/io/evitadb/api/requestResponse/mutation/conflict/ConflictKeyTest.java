@@ -149,6 +149,56 @@ class ConflictKeyTest implements EvitaTestSupport {
 	}
 
 	@Nested
+	@DisplayName("EntityResidualConflictKey")
+	class EntityResidualConflictKeyTest {
+
+		@Test
+		@DisplayName("should be equal for same entity type and primary key")
+		void shouldBeEqualForSameEntityTypeAndPrimaryKey() {
+			final EntityResidualConflictKey key1 = new EntityResidualConflictKey("Product", 1);
+			final EntityResidualConflictKey key2 = new EntityResidualConflictKey("Product", 1);
+
+			assertEquals(key1, key2);
+			assertEquals(key1.hashCode(), key2.hashCode());
+		}
+
+		@Test
+		@DisplayName("should not be equal for different primary keys")
+		void shouldNotBeEqualForDifferentPrimaryKeys() {
+			final EntityResidualConflictKey key1 = new EntityResidualConflictKey("Product", 1);
+			final EntityResidualConflictKey key2 = new EntityResidualConflictKey("Product", 2);
+
+			assertNotEquals(key1, key2);
+		}
+
+		@Test
+		@DisplayName("should not be equal to the full entity key it is contained by")
+		void shouldNotBeEqualToFullEntityKey() {
+			final EntityResidualConflictKey residual = new EntityResidualConflictKey("Product", 1);
+			final EntityConflictKey full = new EntityConflictKey("Product", 1);
+
+			assertNotEquals(residual, full);
+			assertNotEquals(full, residual);
+		}
+
+		@Test
+		@DisplayName("should map to the ENTITY scope, same as the full entity key")
+		void shouldMapToEntityScope() {
+			assertEquals(ConflictScope.ENTITY, new EntityResidualConflictKey("Product", 1).conflictScope());
+		}
+
+		@Test
+		@DisplayName("should produce readable toString")
+		void shouldProduceReadableToString() {
+			final EntityResidualConflictKey key = new EntityResidualConflictKey("Product", 42);
+			final String str = key.toString();
+
+			assertTrue(str.contains("Product"));
+			assertTrue(str.contains("42"));
+		}
+	}
+
+	@Nested
 	@DisplayName("AttributeConflictKey")
 	class AttributeConflictKeyTest {
 
@@ -381,7 +431,7 @@ class ConflictKeyTest implements EvitaTestSupport {
 		@DisplayName("should aggregate numbers using sum")
 		void shouldAggregateNumbersUsingSum() {
 			final AttributeDeltaConflictKey key = new AttributeDeltaConflictKey(
-				"Product", 1, new AttributeKey("quantity"), 5, null
+				"Product", 1, new AttributeKey("quantity"), 5, null, false
 			);
 
 			final Number result = key.aggregate(3, 7);
@@ -393,7 +443,7 @@ class ConflictKeyTest implements EvitaTestSupport {
 		@DisplayName("should not be constrained to range when allowedRange is null")
 		void shouldNotBeConstrainedWhenRangeIsNull() {
 			final AttributeDeltaConflictKey key = new AttributeDeltaConflictKey(
-				"Product", 1, new AttributeKey("quantity"), 5, null
+				"Product", 1, new AttributeKey("quantity"), 5, null, false
 			);
 
 			assertFalse(key.isConstrainedToRange());
@@ -403,7 +453,7 @@ class ConflictKeyTest implements EvitaTestSupport {
 		@DisplayName("should be constrained to range when allowedRange is present")
 		void shouldBeConstrainedWhenRangeIsPresent() {
 			final AttributeDeltaConflictKey key = new AttributeDeltaConflictKey(
-				"Product", 1, new AttributeKey("quantity"), 5, IntegerNumberRange.between(0, 100)
+				"Product", 1, new AttributeKey("quantity"), 5, IntegerNumberRange.between(0, 100), false
 			);
 
 			assertTrue(key.isConstrainedToRange());
@@ -413,7 +463,7 @@ class ConflictKeyTest implements EvitaTestSupport {
 		@DisplayName("should pass range check when value is within range")
 		void shouldPassRangeCheckWhenWithinRange() {
 			final AttributeDeltaConflictKey key = new AttributeDeltaConflictKey(
-				"Product", 1, new AttributeKey("quantity"), 5, IntegerNumberRange.between(0, 100)
+				"Product", 1, new AttributeKey("quantity"), 5, IntegerNumberRange.between(0, 100), false
 			);
 
 			assertDoesNotThrow(() -> key.assertInAllowedRange("catalog", 1L, 50));
@@ -423,7 +473,7 @@ class ConflictKeyTest implements EvitaTestSupport {
 		@DisplayName("should throw when value is outside allowed range")
 		void shouldThrowWhenValueIsOutsideRange() {
 			final AttributeDeltaConflictKey key = new AttributeDeltaConflictKey(
-				"Product", 1, new AttributeKey("quantity"), 5, IntegerNumberRange.between(0, 100)
+				"Product", 1, new AttributeKey("quantity"), 5, IntegerNumberRange.between(0, 100), false
 			);
 
 			assertThrows(
@@ -436,14 +486,27 @@ class ConflictKeyTest implements EvitaTestSupport {
 		@DisplayName("custom equals includes deltaValue and allowedRange")
 		void customEqualsIncludesDeltaValueAndAllowedRange() {
 			final AttributeDeltaConflictKey key1 = new AttributeDeltaConflictKey(
-				"Product", 1, new AttributeKey("quantity"), 5, null
+				"Product", 1, new AttributeKey("quantity"), 5, null, false
 			);
 			final AttributeDeltaConflictKey key2 = new AttributeDeltaConflictKey(
-				"Product", 1, new AttributeKey("quantity"), 10, null
+				"Product", 1, new AttributeKey("quantity"), 10, null, false
 			);
 
 			// Different deltaValue means not equal
 			assertNotEquals(key1, key2);
+		}
+
+		@Test
+		@DisplayName("custom equals distinguishes sharedSurface")
+		void customEqualsDistinguishesSharedSurface() {
+			final AttributeDeltaConflictKey carvedOut = new AttributeDeltaConflictKey(
+				"Product", 1, new AttributeKey("quantity"), 5, null, false
+			);
+			final AttributeDeltaConflictKey sharedSurface = new AttributeDeltaConflictKey(
+				"Product", 1, new AttributeKey("quantity"), 5, null, true
+			);
+
+			assertNotEquals(carvedOut, sharedSurface);
 		}
 
 		@Test
@@ -453,13 +516,13 @@ class ConflictKeyTest implements EvitaTestSupport {
 			// on the same attribute accumulate into a single running total; equals()/hashCode() stay
 			// delta-sensitive for per-transaction key sets and the conflict ring buffer
 			final AttributeDeltaConflictKey key1 = new AttributeDeltaConflictKey(
-				"Product", 1, new AttributeKey("quantity"), 5, null
+				"Product", 1, new AttributeKey("quantity"), 5, null, false
 			);
 			final AttributeDeltaConflictKey key2 = new AttributeDeltaConflictKey(
-				"Product", 1, new AttributeKey("quantity"), 10, IntegerNumberRange.between(0, 100)
+				"Product", 1, new AttributeKey("quantity"), 10, IntegerNumberRange.between(0, 100), false
 			);
 			final AttributeDeltaConflictKey differentAttribute = new AttributeDeltaConflictKey(
-				"Product", 1, new AttributeKey("weight"), 5, null
+				"Product", 1, new AttributeKey("weight"), 5, null, false
 			);
 
 			assertEquals(key1.aggregationKey(), key2.aggregationKey());
@@ -468,8 +531,25 @@ class ConflictKeyTest implements EvitaTestSupport {
 			// hashCode is now consistent with the delta-sensitive equals: identical keys share a hash
 			assertEquals(
 				key1.hashCode(),
-				new AttributeDeltaConflictKey("Product", 1, new AttributeKey("quantity"), 5, null).hashCode()
+				new AttributeDeltaConflictKey("Product", 1, new AttributeKey("quantity"), 5, null, false).hashCode()
 			);
+		}
+
+		@Test
+		@DisplayName("aggregation key groups deltas that differ only in sharedSurface")
+		void aggregationKeyGroupsDeltasRegardlessOfSharedSurface() {
+			// a carved-out delta and a shared-surface delta on the same attribute must still accumulate into
+			// a single running total: the carve-out decision is an emission-time classification, not a
+			// distinct accumulation slot
+			final AttributeDeltaConflictKey carvedOut = new AttributeDeltaConflictKey(
+				"Product", 1, new AttributeKey("quantity"), 5, null, false
+			);
+			final AttributeDeltaConflictKey sharedSurface = new AttributeDeltaConflictKey(
+				"Product", 1, new AttributeKey("quantity"), 10, null, true
+			);
+
+			assertEquals(carvedOut.aggregationKey(), sharedSurface.aggregationKey());
+			assertEquals(carvedOut.aggregationKey().hashCode(), sharedSurface.aggregationKey().hashCode());
 		}
 
 		@Test
@@ -479,7 +559,7 @@ class ConflictKeyTest implements EvitaTestSupport {
 			// assigned during upsert before the mutation is read back from the WAL, so a null primary key
 			// here would collapse every concurrently-created entity into one slot and is rejected fail-fast
 			final AttributeDeltaConflictKey unresolved = new AttributeDeltaConflictKey(
-				"Product", null, new AttributeKey("quantity"), 5, IntegerNumberRange.between(0, 100)
+				"Product", null, new AttributeKey("quantity"), 5, IntegerNumberRange.between(0, 100), false
 			);
 			assertThrows(GenericEvitaInternalError.class, unresolved::aggregationKey);
 		}
@@ -488,7 +568,7 @@ class ConflictKeyTest implements EvitaTestSupport {
 		@DisplayName("should produce readable toString")
 		void shouldProduceReadableToString() {
 			final AttributeDeltaConflictKey key = new AttributeDeltaConflictKey(
-				"Product", 1, new AttributeKey("quantity"), 5, null
+				"Product", 1, new AttributeKey("quantity"), 5, null, false
 			);
 			final String str = key.toString();
 
@@ -505,7 +585,7 @@ class ConflictKeyTest implements EvitaTestSupport {
 		@DisplayName("should aggregate numbers using sum")
 		void shouldAggregateNumbersUsingSum() {
 			final ReferenceAttributeDeltaConflictKey key = new ReferenceAttributeDeltaConflictKey(
-				"Product", 1, new ReferenceKey("brand", 10), new AttributeKey("priority"), 5, null
+				"Product", 1, new ReferenceKey("brand", 10), new AttributeKey("priority"), 5, null, false
 			);
 
 			final Number result = key.aggregate(3, 7);
@@ -517,7 +597,7 @@ class ConflictKeyTest implements EvitaTestSupport {
 		@DisplayName("should not be constrained to range when allowedRange is null")
 		void shouldNotBeConstrainedWhenRangeIsNull() {
 			final ReferenceAttributeDeltaConflictKey key = new ReferenceAttributeDeltaConflictKey(
-				"Product", 1, new ReferenceKey("brand", 10), new AttributeKey("priority"), 5, null
+				"Product", 1, new ReferenceKey("brand", 10), new AttributeKey("priority"), 5, null, false
 			);
 
 			assertFalse(key.isConstrainedToRange());
@@ -528,7 +608,7 @@ class ConflictKeyTest implements EvitaTestSupport {
 		void shouldThrowWhenValueIsOutsideRange() {
 			final ReferenceAttributeDeltaConflictKey key = new ReferenceAttributeDeltaConflictKey(
 				"Product", 1, new ReferenceKey("brand", 10), new AttributeKey("priority"), 5,
-				IntegerNumberRange.between(0, 100)
+				IntegerNumberRange.between(0, 100), false
 			);
 
 			assertThrows(
@@ -542,7 +622,7 @@ class ConflictKeyTest implements EvitaTestSupport {
 		void shouldBeConstrainedWhenRangePresent() {
 			final ReferenceAttributeDeltaConflictKey key = new ReferenceAttributeDeltaConflictKey(
 				"Product", 1, new ReferenceKey("brand", 10), new AttributeKey("priority"), 5,
-				IntegerNumberRange.between(0, 100)
+				IntegerNumberRange.between(0, 100), false
 			);
 
 			assertTrue(key.isConstrainedToRange());
@@ -553,7 +633,7 @@ class ConflictKeyTest implements EvitaTestSupport {
 		void shouldNotThrowWhenValueWithinRange() {
 			final ReferenceAttributeDeltaConflictKey key = new ReferenceAttributeDeltaConflictKey(
 				"Product", 1, new ReferenceKey("brand", 10), new AttributeKey("priority"), 5,
-				IntegerNumberRange.between(0, 100)
+				IntegerNumberRange.between(0, 100), false
 			);
 
 			assertDoesNotThrow(() -> key.assertInAllowedRange("catalog", 1L, 50));
@@ -563,27 +643,40 @@ class ConflictKeyTest implements EvitaTestSupport {
 		@DisplayName("custom equals includes deltaValue and allowedRange")
 		void customEqualsIncludesDeltaValueAndAllowedRange() {
 			final ReferenceAttributeDeltaConflictKey key1 = new ReferenceAttributeDeltaConflictKey(
-				"Product", 1, new ReferenceKey("brand", 10), new AttributeKey("priority"), 5, null
+				"Product", 1, new ReferenceKey("brand", 10), new AttributeKey("priority"), 5, null, false
 			);
 			final ReferenceAttributeDeltaConflictKey key2 = new ReferenceAttributeDeltaConflictKey(
-				"Product", 1, new ReferenceKey("brand", 10), new AttributeKey("priority"), 10, null
+				"Product", 1, new ReferenceKey("brand", 10), new AttributeKey("priority"), 10, null, false
 			);
 
 			assertNotEquals(key1, key2);
 		}
 
 		@Test
+		@DisplayName("custom equals distinguishes sharedSurface")
+		void customEqualsDistinguishesSharedSurface() {
+			final ReferenceAttributeDeltaConflictKey carvedOut = new ReferenceAttributeDeltaConflictKey(
+				"Product", 1, new ReferenceKey("brand", 10), new AttributeKey("priority"), 5, null, false
+			);
+			final ReferenceAttributeDeltaConflictKey sharedSurface = new ReferenceAttributeDeltaConflictKey(
+				"Product", 1, new ReferenceKey("brand", 10), new AttributeKey("priority"), 5, null, true
+			);
+
+			assertNotEquals(carvedOut, sharedSurface);
+		}
+
+		@Test
 		@DisplayName("aggregation key groups reference-attribute deltas that differ only in value or range")
 		void aggregationKeyGroupsDeltasByReferenceAttribute() {
 			final ReferenceAttributeDeltaConflictKey key1 = new ReferenceAttributeDeltaConflictKey(
-				"Product", 1, new ReferenceKey("brand", 10), new AttributeKey("priority"), 5, null
+				"Product", 1, new ReferenceKey("brand", 10), new AttributeKey("priority"), 5, null, false
 			);
 			final ReferenceAttributeDeltaConflictKey key2 = new ReferenceAttributeDeltaConflictKey(
 				"Product", 1, new ReferenceKey("brand", 10), new AttributeKey("priority"), 10,
-				IntegerNumberRange.between(0, 100)
+				IntegerNumberRange.between(0, 100), false
 			);
 			final ReferenceAttributeDeltaConflictKey differentReference = new ReferenceAttributeDeltaConflictKey(
-				"Product", 1, new ReferenceKey("brand", 20), new AttributeKey("priority"), 5, null
+				"Product", 1, new ReferenceKey("brand", 20), new AttributeKey("priority"), 5, null, false
 			);
 
 			assertEquals(key1.aggregationKey(), key2.aggregationKey());
@@ -592,9 +685,23 @@ class ConflictKeyTest implements EvitaTestSupport {
 			assertEquals(
 				key1.hashCode(),
 				new ReferenceAttributeDeltaConflictKey(
-					"Product", 1, new ReferenceKey("brand", 10), new AttributeKey("priority"), 5, null
+					"Product", 1, new ReferenceKey("brand", 10), new AttributeKey("priority"), 5, null, false
 				).hashCode()
 			);
+		}
+
+		@Test
+		@DisplayName("aggregation key groups reference-attribute deltas that differ only in sharedSurface")
+		void aggregationKeyGroupsDeltasRegardlessOfSharedSurface() {
+			final ReferenceAttributeDeltaConflictKey carvedOut = new ReferenceAttributeDeltaConflictKey(
+				"Product", 1, new ReferenceKey("brand", 10), new AttributeKey("priority"), 5, null, false
+			);
+			final ReferenceAttributeDeltaConflictKey sharedSurface = new ReferenceAttributeDeltaConflictKey(
+				"Product", 1, new ReferenceKey("brand", 10), new AttributeKey("priority"), 10, null, true
+			);
+
+			assertEquals(carvedOut.aggregationKey(), sharedSurface.aggregationKey());
+			assertEquals(carvedOut.aggregationKey().hashCode(), sharedSurface.aggregationKey().hashCode());
 		}
 
 		@Test
@@ -604,7 +711,7 @@ class ConflictKeyTest implements EvitaTestSupport {
 			// null one (never produced once the mutation is read back from the WAL) fails fast
 			final ReferenceAttributeDeltaConflictKey unresolved = new ReferenceAttributeDeltaConflictKey(
 				"Product", null, new ReferenceKey("brand", 10), new AttributeKey("priority"), 5,
-				IntegerNumberRange.between(0, 100)
+				IntegerNumberRange.between(0, 100), false
 			);
 			assertThrows(GenericEvitaInternalError.class, unresolved::aggregationKey);
 		}
@@ -613,7 +720,7 @@ class ConflictKeyTest implements EvitaTestSupport {
 		@DisplayName("should produce readable toString")
 		void shouldProduceReadableToString() {
 			final ReferenceAttributeDeltaConflictKey key = new ReferenceAttributeDeltaConflictKey(
-				"Product", 1, new ReferenceKey("brand", 10), new AttributeKey("priority"), 5, null
+				"Product", 1, new ReferenceKey("brand", 10), new AttributeKey("priority"), 5, null, false
 			);
 			final String str = key.toString();
 
@@ -660,6 +767,20 @@ class ConflictKeyTest implements EvitaTestSupport {
 			assertEquals(
 				new CollectionConflictKey("Product"),
 				new EntityConflictKey("Product", 1).parentConflictKey()
+			);
+		}
+
+		@Test
+		@DisplayName("residual key is contained by the full entity key, never equal to a granular key")
+		void shouldChainResidualToFullEntity() {
+			assertEquals(
+				new EntityConflictKey("Product", 1),
+				new EntityResidualConflictKey("Product", 1).parentConflictKey()
+			);
+			// the residual is a sibling of the granular keys, never their ancestor or descendant
+			assertNotEquals(
+				new AttributeConflictKey("Product", 1, "name"),
+				new EntityResidualConflictKey("Product", 1)
 			);
 		}
 
@@ -712,26 +833,38 @@ class ConflictKeyTest implements EvitaTestSupport {
 		}
 
 		@Test
-		@DisplayName("attribute delta with known primary key reaches the absolute attribute key")
+		@DisplayName("attribute delta with known primary key reaches the absolute attribute key when carved out")
 		void shouldChainAttributeDeltaToAbsoluteAttribute() {
 			final AttributeDeltaConflictKey delta =
-				new AttributeDeltaConflictKey("Product", 1, new AttributeKey("stock"), 5, null);
+				new AttributeDeltaConflictKey("Product", 1, new AttributeKey("stock"), 5, null, false);
 			assertEquals(new AttributeConflictKey("Product", 1, "stock"), delta.parentConflictKey());
 		}
 
 		@Test
-		@DisplayName("attribute delta without primary key falls back to the collection")
-		void shouldChainPklessAttributeDeltaToCollection() {
+		@DisplayName("attribute delta with known primary key reaches the residual key when on the shared surface")
+		void shouldChainSharedSurfaceAttributeDeltaToResidual() {
 			final AttributeDeltaConflictKey delta =
-				new AttributeDeltaConflictKey("Product", null, new AttributeKey("stock"), 5, null);
-			assertEquals(new CollectionConflictKey("Product"), delta.parentConflictKey());
+				new AttributeDeltaConflictKey("Product", 1, new AttributeKey("stock"), 5, null, true);
+			assertEquals(new EntityResidualConflictKey("Product", 1), delta.parentConflictKey());
 		}
 
 		@Test
-		@DisplayName("reference-attribute delta with known primary key reaches the absolute reference attribute key")
+		@DisplayName("attribute delta without primary key falls back to the collection regardless of sharedSurface")
+		void shouldChainPklessAttributeDeltaToCollection() {
+			final AttributeDeltaConflictKey carvedOut =
+				new AttributeDeltaConflictKey("Product", null, new AttributeKey("stock"), 5, null, false);
+			assertEquals(new CollectionConflictKey("Product"), carvedOut.parentConflictKey());
+
+			final AttributeDeltaConflictKey sharedSurface =
+				new AttributeDeltaConflictKey("Product", null, new AttributeKey("stock"), 5, null, true);
+			assertEquals(new CollectionConflictKey("Product"), sharedSurface.parentConflictKey());
+		}
+
+		@Test
+		@DisplayName("reference-attribute delta with known primary key reaches the absolute reference attribute key when carved out")
 		void shouldChainReferenceAttributeDeltaToAbsoluteReferenceAttribute() {
 			final ReferenceAttributeDeltaConflictKey delta = new ReferenceAttributeDeltaConflictKey(
-				"Product", 1, new ReferenceKey("brand", 10), new AttributeKey("priority"), 5, null
+				"Product", 1, new ReferenceKey("brand", 10), new AttributeKey("priority"), 5, null, false
 			);
 			assertEquals(
 				new ReferenceAttributeConflictKey("Product", 1, "brand", 10, "priority"),
@@ -740,12 +873,26 @@ class ConflictKeyTest implements EvitaTestSupport {
 		}
 
 		@Test
-		@DisplayName("reference-attribute delta without primary key falls back to the collection")
-		void shouldChainPklessReferenceAttributeDeltaToCollection() {
+		@DisplayName("reference-attribute delta with known primary key reaches the residual key when on the shared surface")
+		void shouldChainSharedSurfaceReferenceAttributeDeltaToResidual() {
 			final ReferenceAttributeDeltaConflictKey delta = new ReferenceAttributeDeltaConflictKey(
-				"Product", null, new ReferenceKey("brand", 10), new AttributeKey("priority"), 5, null
+				"Product", 1, new ReferenceKey("brand", 10), new AttributeKey("priority"), 5, null, true
 			);
-			assertEquals(new CollectionConflictKey("Product"), delta.parentConflictKey());
+			assertEquals(new EntityResidualConflictKey("Product", 1), delta.parentConflictKey());
+		}
+
+		@Test
+		@DisplayName("reference-attribute delta without primary key falls back to the collection regardless of sharedSurface")
+		void shouldChainPklessReferenceAttributeDeltaToCollection() {
+			final ReferenceAttributeDeltaConflictKey carvedOut = new ReferenceAttributeDeltaConflictKey(
+				"Product", null, new ReferenceKey("brand", 10), new AttributeKey("priority"), 5, null, false
+			);
+			assertEquals(new CollectionConflictKey("Product"), carvedOut.parentConflictKey());
+
+			final ReferenceAttributeDeltaConflictKey sharedSurface = new ReferenceAttributeDeltaConflictKey(
+				"Product", null, new ReferenceKey("brand", 10), new AttributeKey("priority"), 5, null, true
+			);
+			assertEquals(new CollectionConflictKey("Product"), sharedSurface.parentConflictKey());
 		}
 	}
 
@@ -757,6 +904,7 @@ class ConflictKeyTest implements EvitaTestSupport {
 		@DisplayName("entity-scoped keys report their entity type")
 		void shouldReportEntityTypeForEntityScopedKeys() {
 			assertEquals("Product", new EntityConflictKey("Product", 1).entityType());
+			assertEquals("Product", new EntityResidualConflictKey("Product", 1).entityType());
 			assertEquals("Product", new CollectionConflictKey("Product").entityType());
 			assertEquals("Product", new AttributeConflictKey("Product", 1, "name").entityType());
 		}

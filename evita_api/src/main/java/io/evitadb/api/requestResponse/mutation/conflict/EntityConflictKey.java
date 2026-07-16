@@ -29,9 +29,16 @@ import javax.annotation.Nonnull;
 /**
  * Entity-level conflict key for serializing concurrent engine mutations.
  *
- * The mutation conflict resolver uses this key to group all mutations that target the same entity.
+ * Represents a whole-entity operation: removal, forced creation ({@link
+ * io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExistence#MUST_NOT_EXIST}) or a scope
+ * change (archive/restore). These are the only writes that must conflict with *every* part of the entity,
+ * including an item that was carved out into its own granular conflict key — which is why every granular
+ * key's containment chain still reaches this key. An ordinary write that merely touches some of the entity's
+ * non-carved-out fields, without changing its existence or identity, instead produces the finer
+ * {@link EntityResidualConflictKey}, a sibling of the granular keys and a child of this one.
  *
  * @see ConflictKey
+ * @see EntityResidualConflictKey
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 public record EntityConflictKey(
