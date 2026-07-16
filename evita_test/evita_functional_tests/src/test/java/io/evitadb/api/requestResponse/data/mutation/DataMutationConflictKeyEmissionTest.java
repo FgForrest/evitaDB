@@ -84,7 +84,7 @@ import static org.mockito.Mockito.when;
  * the two historically missing emission gaps, this class exercises the whole per-mutation emission matrix:
  * each local mutation's predicate-true branch (the exact key it must contribute) and its predicate-false /
  * empty branch, plus the coarse entity/collection fallback assembled by
- * {@link EntityMutation#getConflictKeyStream} and the deliberately-silent scope mutation.
+ * {@link EntityMutation#getConflictKeyStream} and the whole-entity key the scope mutation emits.
  *
  * Assertions compare against full key instances (type, entity type, primary key, and every element
  * coordinate) rather than mere key-class membership, so a regression that emits a key of the right shape but

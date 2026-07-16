@@ -196,6 +196,9 @@ public class ApplyDeltaAttributeMutation<T extends Number> extends AttributeSche
 		// right coarse fallback (the absolute attribute key when carved out, the shared-surface residual
 		// otherwise) even when the range guard is the sole reason the key is emitted.
 		final boolean shouldEmit = context.shouldEmitEntityAttributeKey(this.attributeKey.attributeName());
+		// an attribute that is not carved out into its own granular key belongs to the entity's shared
+		// surface, so its delta key must route through the residual rather than the absolute attribute key
+		final boolean sharedSurface = !shouldEmit;
 		return this.requiredRangeAfterApplication != null || shouldEmit ?
 			Stream.of(
 				new AttributeDeltaConflictKey(
@@ -204,7 +207,7 @@ public class ApplyDeltaAttributeMutation<T extends Number> extends AttributeSche
 					this.attributeKey,
 					this.delta,
 					this.requiredRangeAfterApplication,
-					!shouldEmit
+					sharedSurface
 				)
 			) :
 			Stream.empty();

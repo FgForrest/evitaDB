@@ -128,6 +128,10 @@ public class ReferenceAttributeMutation extends ReferenceMutation<ReferenceKeyWi
 			final boolean shouldEmit = context.shouldEmitReferenceAttributeKey(
 				this.referenceKey.referenceName(), this.attributeKey.attributeName()
 			);
+			// a reference attribute that is not carved out into its own granular key belongs to the entity's
+			// shared surface, so its delta key must route through the residual rather than the absolute
+			// reference-attribute key
+			final boolean sharedSurface = !shouldEmit;
 			return adam.getRequiredRangeAfterApplication() != null || shouldEmit ?
 				Stream.of(
 					new ReferenceAttributeDeltaConflictKey(
@@ -137,7 +141,7 @@ public class ReferenceAttributeMutation extends ReferenceMutation<ReferenceKeyWi
 						this.attributeKey,
 						adam.getDelta(),
 						adam.getRequiredRangeAfterApplication(),
-						!shouldEmit
+						sharedSurface
 					)
 				) :
 				Stream.empty();

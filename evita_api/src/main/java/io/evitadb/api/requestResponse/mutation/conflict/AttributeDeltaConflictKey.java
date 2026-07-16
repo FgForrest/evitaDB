@@ -172,14 +172,18 @@ public record AttributeDeltaConflictKey(
 	}
 
 	/**
-	 * Returns a concise, human-readable representation of this conflict key.
+	 * Returns a concise, human-readable representation of this conflict key. The shared-surface routing is
+	 * appended when active, since it changes which coarse key this delta is contained by ({@link
+	 * EntityResidualConflictKey} instead of the absolute {@link AttributeConflictKey}) and would otherwise
+	 * render identically to a carved-out delta in a conflict diagnostic.
 	 *
 	 * @return non-null string representation
 	 */
 	@Nonnull
 	@Override
 	public String toString() {
-		return "attribute delta `" + this.attributeKey + "` of entity `" + this.entityType + "` with primary key `" + this.entityPrimaryKey + '`';
+		return "attribute delta `" + this.attributeKey + "` of entity `" + this.entityType + "` with primary key `" + this.entityPrimaryKey + '`' +
+			(this.sharedSurface ? " (shared surface)" : "");
 	}
 
 }
