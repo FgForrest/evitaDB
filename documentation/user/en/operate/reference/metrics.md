@@ -15,6 +15,10 @@
     <dd><strong>Catalog</strong>: The name of the catalog to which this event/metric is associated.</dd>
     <dt>commit</dt>
     <dd><strong>Commit hash</strong>: Abbreviated Git commit hash injected into the manifest at build time.</dd>
+    <dt>conflictPolicy</dt>
+    <dd><strong>Conflict policy</strong>: The coarse conflict policy (NONE/CATALOG/COLLECTION/ENTITY) in force for the conflicting scope.</dd>
+    <dt>conflictScope</dt>
+    <dd><strong>Conflict scope</strong>: The granularity of the conflicting key (e.g. entity, attribute, price, reference).</dd>
     <dt>entityType</dt>
     <dd><strong>Entity type</strong>: The name of the related entity type (collection).</dd>
     <dt>error_type</dt>
@@ -63,6 +67,8 @@ duration of the probe.</dd>
     <dd><strong>Request result</strong>: Simplified result of the request (SUCCESS, ERROR, TIMED_OUT, CANCELLED).</dd>
     <dt>resolution</dt>
     <dd><strong>Transaction resolution</strong>: The resolution of the transaction (either commit or rollback).</dd>
+    <dt>resolutionLayer</dt>
+    <dd><strong>Resolution layer</strong>: The schema layer the policy was resolved from (ENTITY_SCHEMA/CATALOG_SCHEMA/ENGINE_DEFAULT).</dd>
     <dt>responseStatus</dt>
     <dd><strong>Response status</strong>: The status of the response: OK, ERROR, CANCELLED, or TIMEOUT.</dd>
     <dt>restInstanceType</dt>
@@ -503,6 +509,8 @@ duration of the probe.</dd>
   <dd>Appending transaction to shared WAL duration in milliseconds</dd>
   <dt><code>io_evitadb_transaction_transaction_appended_to_wal_total</code> (COUNTER)</dt>
   <dd>Transactions appended to WAL</dd>
+  <dt><code>io_evitadb_transaction_transaction_conflict_total</code> (COUNTER)</dt>
+  <dd>Transaction conflicts detected<br/><br/><strong>Labels:</strong> <Term>conflictPolicy</Term>, <Term>conflictScope</Term>, <Term>resolutionLayer</Term><br/></dd>
   <dt><code>io_evitadb_transaction_transaction_finished_duration_milliseconds</code> (HISTOGRAM)</dt>
   <dd>Transaction lifespan duration in milliseconds<br/><br/><strong>Labels:</strong> <Term>resolution</Term><br/></dd>
   <dt><code>io_evitadb_transaction_transaction_finished_oldest_transaction_timestamp_seconds</code> (GAUGE)</dt>

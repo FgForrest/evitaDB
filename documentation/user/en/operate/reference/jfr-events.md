@@ -153,6 +153,8 @@
   <dd>Event fired when a transaction passes the conflict resolution phase.</dd>
   <dt><SourceClass>evita_engine/src/main/java/io/evitadb/core/metric/event/transaction/TransactionAppendedToWalEvent.java</SourceClass> Transaction appended to WAL</dt>
   <dd>Event fired when a transaction passes the conflict resolution phase.</dd>
+  <dt><SourceClass>evita_engine/src/main/java/io/evitadb/core/metric/event/transaction/TransactionConflictEvent.java</SourceClass> Transaction conflict</dt>
+  <dd>Event fired when a transaction is rolled back because its changes conflicted with a concurrently committed transaction under the effective conflict-resolution policy. Broken down by the coarse policy in force, the schema layer it was resolved from, and the conflict scope.</dd>
   <dt><SourceClass>evita_engine/src/main/java/io/evitadb/core/metric/event/transaction/TransactionFinishedEvent.java</SourceClass> Transaction finished</dt>
   <dd>Event fired when a transaction is completed, either by commit or rollback, and the corresponding session is closed. This includes waiting for the transaction to reach the desired state of processing.</dd>
   <dt><SourceClass>evita_engine/src/main/java/io/evitadb/core/metric/event/transaction/TransactionIncorporatedToTrunkEvent.java</SourceClass> Transaction incorporated to trunk</dt>
