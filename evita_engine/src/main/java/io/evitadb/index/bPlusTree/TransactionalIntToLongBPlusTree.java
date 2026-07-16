@@ -504,7 +504,7 @@ public class TransactionalIntToLongBPlusTree extends AbstractIntKeyedBPlusTree i
 			// remove changes of the previous root - it gets replaced
 			this.setRoot(
 				new BPlusInternalTreeNode(
-					this.valueBlockSize,
+					this.internalNodeBlockSize,
 					rightLeaf.getKeys()[0],
 					leftLeaf, rightLeaf,
 					true

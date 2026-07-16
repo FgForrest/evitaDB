@@ -926,7 +926,7 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> extends Ab
 			// remove changes of the previous root - it gets replaced
 			this.setRoot(
 				new BPlusInternalTreeNode<>(
-					this.valueBlockSize,
+					this.internalNodeBlockSize,
 					rightLeaf.getKeys()[0],
 					leftLeaf, rightLeaf,
 					this.keyType,
@@ -987,7 +987,12 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> extends Ab
 		@Nonnull BPlusInternalTreeNode<K> internal,
 		@Nonnull CursorWithLevel cursor
 	) {
-		final int mid = (this.valueBlockSize + 1) / 2;
+		// The node is full at split time (the only caller guards with isFull()), so occupancy equals capacity. Derive the
+		// midpoint from the actual key count rather than valueBlockSize: internal nodes are sized by internalNodeBlockSize,
+		// and spines bulk-assembled from persisted pages carry that (smaller) capacity, so a valueBlockSize-derived midpoint
+		// overruns their arrays. keyCount is the number of separator keys (children = keyCount + 1).
+		final int keyCount = internal.keyCount();
+		final int mid = (keyCount + 1) / 2;
 		final K[] originKeys = internal.getKeys();
 		final BPlusTreeNode<?>[] originChildren = internal.getChildren();
 
@@ -1006,14 +1011,16 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> extends Ab
 			true
 		);
 
-		// Move the other half to the start of existing arrays of former leaf in the right leaf node
+		// Move the other half to the start of existing arrays of former leaf in the right leaf node. End bounds are the
+		// origin's actual occupancy (keyCount separators, keyCount + 1 children), not the array capacity — capacity may
+		// exceed occupancy after the internalNodeBlockSize sizing fix, and only the live range must be copied.
 		final BPlusInternalTreeNode<K> rightInternal = new BPlusInternalTreeNode<>(
 			originKeys,
 			originChildren,
 			mid,
-			leftInternal.getKeys().length,
+			keyCount,
 			mid,
-			leftInternal.getChildren().length,
+			keyCount + 1,
 			this.keyType,
 			this.comparator,
 			true
@@ -1028,7 +1035,7 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> extends Ab
 		if (internal == this.getRoot()) {
 			this.setRoot(
 				new BPlusInternalTreeNode<>(
-					this.valueBlockSize,
+					this.internalNodeBlockSize,
 					rightInternal.getLeftBoundaryKey(),
 					leftInternal, rightInternal,
 					this.keyType,

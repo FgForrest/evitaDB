@@ -650,7 +650,10 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 		if (level.size() == 1) {
 			return level.get(0);
 		}
-		final int maxChildren = this.internalNodeBlockSize + 1;
+		// Pack at most internalNodeBlockSize children per parent (one below the node's children capacity of
+		// internalNodeBlockSize + 1). An assembled node must be born non-full so the first child split can still call
+		// adaptToLeafSplit (which requires !isFull()) before the parent overflows and splits in turn.
+		final int maxChildren = this.internalNodeBlockSize;
 		final int childTotal = level.size();
 		final int parentCount = (childTotal + maxChildren - 1) / maxChildren;
 		final int baseChildren = childTotal / parentCount;
@@ -999,7 +1002,7 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 		if (leaf == this.getRoot()) {
 			this.setRoot(
 				new BPlusInternalTreeNode(
-					this.valueBlockSize,
+					this.internalNodeBlockSize,
 					rightLeaf.getLeftBoundaryKey(),
 					leftLeaf, rightLeaf,
 					!Transaction.isTransactionAvailable()
