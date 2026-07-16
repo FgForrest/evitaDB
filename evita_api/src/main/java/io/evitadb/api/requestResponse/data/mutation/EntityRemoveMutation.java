@@ -184,14 +184,16 @@ public class EntityRemoveMutation implements EntityMutation {
 	public Stream<ConflictKey> collectConflictKeys(
 		@Nonnull ConflictGenerationContext context
 	) {
-		final ConflictPolicy coarsePolicy = context.coarsePolicy();
-		if (coarsePolicy == ConflictPolicy.ENTITY) {
-			return Stream.of(new EntityConflictKey(this.entityType, this.entityPrimaryKey));
-		} else if (coarsePolicy == ConflictPolicy.COLLECTION) {
-			return Stream.of(new CollectionConflictKey(this.entityType));
-		} else {
-			return Stream.empty();
-		}
+		return context.withEntityType(this.entityType, this.entityPrimaryKey, ctx -> {
+			final ConflictPolicy coarsePolicy = ctx.coarsePolicy();
+			if (coarsePolicy == ConflictPolicy.ENTITY) {
+				return Stream.of(new EntityConflictKey(this.entityType, this.entityPrimaryKey));
+			} else if (coarsePolicy == ConflictPolicy.COLLECTION) {
+				return Stream.of(new CollectionConflictKey(this.entityType));
+			} else {
+				return Stream.empty();
+			}
+		});
 	}
 
 	@Nonnull
