@@ -231,9 +231,10 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	 */
 	private volatile CompletionStage<CommitVersions> closedFuture;
 	/**
-	 * Timestamp of the last session activity (call).
+	 * Timestamp of the last session activity (call). Volatile because read-only sessions permit parallel reads
+	 * from multiple threads (see `EvitaSessionProxy`), and a plain `long` write is allowed to tear under the JMM.
 	 */
-	private long lastCall = System.currentTimeMillis();
+	private volatile long lastCall = System.currentTimeMillis();
 	/**
 	 * Contains a number of nested session calls.
 	 *
@@ -242,6 +243,11 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	 * so that every individual operation invoked over the wire runs as a *nested* call (level `2`) and never counts as
 	 * a root-level execution. This defers the commit-or-rollback decision to the external client and prevents a single
 	 * recoverable operation failure from poisoning the whole transaction.
+	 *
+	 * The counter is intentionally non-atomic: it is only meaningful in read-write sessions, which are enforced to be
+	 * single-threaded by the concurrency guard in `EvitaSessionProxy`. Read-only sessions permit parallel reads and
+	 * may race on this field, but they never consult it — {@link #isRootLevelExecution()} only influences transaction
+	 * rollback semantics and read-only sessions cannot open a transaction.
 	 */
 	private int nestLevel;
 	/**

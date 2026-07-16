@@ -30,18 +30,24 @@ import java.io.Serial;
 import java.util.UUID;
 
 /**
- * Exception thrown when a single evitaDB session is invoked concurrently from more than one thread.
+ * Exception thrown when a single read-write evitaDB session is invoked concurrently from more than
+ * one thread.
  *
- * `EvitaSession` is `@NotThreadSafe` by contract — a session maintains mutable, unsynchronized
- * state (open transaction, warm-up index trees, buffers) that a second thread entering while the
- * first is still inside would corrupt silently. Rather than counting concurrent invocations and
- * letting the data race proceed, evitaDB rejects the second thread's call immediately and loudly.
- * This matches the defensive-design rule: an unexpected state must surface at runtime, never be
- * silently absorbed.
+ * `EvitaSession` is `@NotThreadSafe` by contract — a read-write session maintains mutable,
+ * unsynchronized state (open transaction diff layers, warm-up index trees, buffers) that a second
+ * thread entering while the first is still inside would corrupt silently. Rather than counting
+ * concurrent invocations and letting the data race proceed, evitaDB rejects the second thread's
+ * call immediately and loudly. This matches the defensive-design rule: an unexpected state must
+ * surface at runtime, never be silently absorbed.
+ *
+ * Read-only sessions are exempt from this guard: they can never open a transaction and only read
+ * the immutable catalog snapshot pinned at session creation, so parallel reads through a single
+ * read-only session are safe and permitted (the GraphQL API relies on this when it fans the root
+ * fields of one query out to several request-executor threads).
  *
  * **Typical Causes:**
- * - Sharing one session instance across multiple threads (e.g. issuing upserts from a thread pool
- *   over a single warm-up session during a bulk reindex)
+ * - Sharing one read-write session instance across multiple threads (e.g. issuing upserts from
+ *   a thread pool over a single warm-up session during a bulk reindex)
  * - A driver- or application-level retry of a timed-out call that runs concurrently with the
  *   still executing original call on the same session
  *
@@ -71,8 +77,8 @@ public class ConcurrentSessionAccessException extends EvitaInvalidUsageException
 		super(
 			"Session `" + sessionId + "` is being used concurrently by more than one thread: " +
 				"thread `" + intrudingThreadName + "` attempted a call while thread `" +
-				owningThreadName + "` is still executing on it. An evitaDB session is not " +
-				"thread-safe - use a separate session per thread, or serialize access so that at " +
+				owningThreadName + "` is still executing on it. An evitaDB read-write session is " +
+				"not thread-safe - use a separate session per thread, or serialize access so that at " +
 				"most one call is in flight at any moment. If this is a retry of a timed-out call, " +
 				"make sure the original call has finished (or close the session) before retrying."
 		);
