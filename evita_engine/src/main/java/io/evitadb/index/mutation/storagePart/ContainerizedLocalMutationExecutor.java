@@ -124,7 +124,6 @@ import java.util.*;
 import java.util.Map.Entry;
 import java.util.PrimitiveIterator.OfInt;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.BiPredicate;
 import java.util.function.Function;
@@ -216,60 +215,60 @@ public final class ContainerizedLocalMutationExecutor
 	 */
 	@Nonnull
 	private static Set<AttributeKey> collectAttributeKeys(@Nullable AttributesStoragePart storagePart) {
-		return ofNullable(storagePart)
-			.map(AttributesStoragePart::getAttributes)
-			.map(
-				it -> Arrays.stream(it)
-					.filter(Droppable::exists)
-					.map(AttributeValue::key)
-					.collect(Collectors.toSet())
-			)
-			.orElse(Collections.emptySet());
+		if (storagePart == null) {
+			return Collections.emptySet();
+		}
+		final AttributeValue[] attributes = storagePart.getAttributes();
+		if (attributes.length == 0) {
+			return Collections.emptySet();
+		}
+		// allocation-optimized loop (avoids Optional + stream pipeline on this hot mutation path);
+		// pre-sized for the worst case where every attribute exists
+		final Set<AttributeKey> result = CollectionUtils.createHashSet(attributes.length);
+		for (final AttributeValue attribute : attributes) {
+			if (attribute.exists()) {
+				result.add(attribute.key());
+			}
+		}
+		return result;
 	}
 
 	/**
-	 * Retrieves all attribute keys specified in the passed {@link ReferenceContract}.
-	 */
-	@Nonnull
-	private static Set<AttributeKey> collectAttributeKeys(@Nonnull ReferenceContract referenceContract) {
-		return referenceContract.getAttributeValues()
-			.stream()
-			.filter(Droppable::exists)
-			.map(AttributeValue::key)
-			.collect(Collectors.toSet());
-	}
-
-	/**
-	 * Processes reference attributes with default values.
+	 * Processes reference attributes with default values. For every mandatory / default-valued attribute declared by
+	 * the reference schema this checks - via an allocation-free membership probe on the reference itself
+	 * ({@link Reference#isAttributeValuePresentAndExists(AttributeKey)}) - whether the corresponding value is already
+	 * present; if not, the handler is invoked to either register the missing mandatory attribute or emit the
+	 * default-value mutation. Probing the (usually few) schema attributes directly avoids materializing the full key
+	 * set of the reference (a HashSet per reference) on this hot mutation path.
 	 *
 	 * @param referenceSchema         The reference schema, expected to be non-null.
 	 * @param entityLocales           The set of locales applicable to the entity, expected to be non-null.
-	 * @param availableAttributes     The set of available attribute keys, expected to be non-null.
-	 * @param missingAttributeHandler The handler for missing attributes, can be null if no handling is required.
+	 * @param reference               The reference whose existing attribute values are probed, expected to be non-null.
+	 * @param missingAttributeHandler The handler for missing attributes, expected to be non-null.
 	 */
 	private static void processReferenceAttributesWithDefaultValue(
 		@Nonnull ReferenceSchema referenceSchema,
 		@Nonnull Set<Locale> entityLocales,
-		@Nonnull Set<AttributeKey> availableAttributes,
+		@Nonnull Reference reference,
 		@Nonnull MissingAttributeHandler missingAttributeHandler
 	) {
-		referenceSchema.getNonNullableOrDefaultValueAttributes()
-			.values()
-			.forEach(attributeSchema -> {
-				final Serializable defaultValue = attributeSchema.getDefaultValue();
-				if (attributeSchema.isLocalized()) {
-					entityLocales.stream()
-						.map(locale -> new AttributeKey(attributeSchema.getName(), locale))
-						.map(key -> availableAttributes.contains(key) ? null : key)
-						.filter(Objects::nonNull)
-						.forEach(it -> missingAttributeHandler.accept(defaultValue, attributeSchema.isNullable(), it));
-				} else {
-					final AttributeKey attributeKey = new AttributeKey(attributeSchema.getName());
-					if (!availableAttributes.contains(attributeKey)) {
-						missingAttributeHandler.accept(defaultValue, attributeSchema.isNullable(), attributeKey);
+		for (final AttributeSchemaContract attributeSchema : referenceSchema.getNonNullableOrDefaultValueAttributes().values()) {
+			final Serializable defaultValue = attributeSchema.getDefaultValue();
+			final boolean nullable = attributeSchema.isNullable();
+			if (attributeSchema.isLocalized()) {
+				for (final Locale locale : entityLocales) {
+					final AttributeKey attributeKey = new AttributeKey(attributeSchema.getName(), locale);
+					if (!reference.isAttributeValuePresentAndExists(attributeKey)) {
+						missingAttributeHandler.accept(defaultValue, nullable, attributeKey);
 					}
 				}
-			});
+			} else {
+				final AttributeKey attributeKey = new AttributeKey(attributeSchema.getName());
+				if (!reference.isAttributeValuePresentAndExists(attributeKey)) {
+					missingAttributeHandler.accept(defaultValue, nullable, attributeKey);
+				}
+			}
+		}
 	}
 
 	/**
@@ -1251,18 +1250,17 @@ public final class ContainerizedLocalMutationExecutor
 		final BiConsumer<Long, StoragePart> updater = this.trapChanges ?
 			this.dataStoreUpdater::trapUpdate : this.dataStoreUpdater::update;
 		// now store all dirty containers
-		getChangedEntityStorageParts()
-			.forEach(part -> {
-				if (part.isEmpty()) {
-					remover.accept(this.catalogVersion, part);
-				} else {
-					Assert.isPremiseValid(
-						!this.entityRemovedEntirely,
-						"Only removal operations are expected to happen!"
-					);
-					updater.accept(this.catalogVersion, part);
-				}
-			});
+		for (final EntityStoragePart part : getChangedEntityStorageParts()) {
+			if (part.isEmpty()) {
+				remover.accept(this.catalogVersion, part);
+			} else {
+				Assert.isPremiseValid(
+					!this.entityRemovedEntirely,
+					"Only removal operations are expected to happen!"
+				);
+				updater.accept(this.catalogVersion, part);
+			}
+		}
 	}
 
 	@Override
@@ -1334,14 +1332,23 @@ public final class ContainerizedLocalMutationExecutor
 				final List<Object> missingMandatedAttributes = new LinkedList<>();
 				// we need to check only changed parts
 				if (implicitMutationBehavior.contains(ImplicitMutationBehavior.GENERATE_ATTRIBUTES)) {
+					// null-safe dirty checks (avoid Optional + a per-entity stream().anyMatch)
+					final boolean globalAttributesDirty = this.globalAttributesStorageContainer != null
+						&& this.globalAttributesStorageContainer.isDirty();
+					boolean localizedAttributesDirty = false;
+					if (this.languageSpecificAttributesContainer != null) {
+						for (final AttributesStoragePart part : this.languageSpecificAttributesContainer.values()) {
+							if (part.isDirty()) {
+								localizedAttributesDirty = true;
+								break;
+							}
+						}
+					}
 					verifyMandatoryAttributes(
 						this.entityContainer,
 						missingMandatedAttributes,
-						ofNullable(this.globalAttributesStorageContainer).map(AttributesStoragePart::isDirty).orElse(false),
-						ofNullable(this.languageSpecificAttributesContainer)
-							.map(it -> it.values().stream()
-								.anyMatch(AttributesStoragePart::isDirty))
-							.orElse(false),
+						globalAttributesDirty,
+						localizedAttributesDirty,
 						mutationCollector
 					);
 				}
@@ -1473,19 +1480,35 @@ public final class ContainerizedLocalMutationExecutor
 	 */
 	@Nonnull
 	public EntityStoragePart[] getEntityStorageParts() {
-		return Stream.of(
-				Stream.of(this.entityContainer),
-				Stream.of(this.globalAttributesStorageContainer),
-				this.languageSpecificAttributesContainer == null ?
-					Stream.<AttributesStoragePart>empty() : this.languageSpecificAttributesContainer.values().stream(),
-				Stream.of(this.pricesContainer),
-				Stream.of(this.referencesStorageContainer),
-				this.associatedDataContainers == null ?
-					Stream.<AssociatedDataStoragePart>empty() : this.associatedDataContainers.values().stream()
-			)
-			.flatMap(Function.identity())
-			.filter(Objects::nonNull)
-			.toArray(EntityStoragePart[]::new);
+		// allocation-optimized assembly (avoids the nested Stream.of/flatMap pipeline)
+		final List<EntityStoragePart> parts = new ArrayList<>(8);
+		addIfNonNull(parts, this.entityContainer);
+		addIfNonNull(parts, this.globalAttributesStorageContainer);
+		if (this.languageSpecificAttributesContainer != null) {
+			for (final AttributesStoragePart part : this.languageSpecificAttributesContainer.values()) {
+				addIfNonNull(parts, part);
+			}
+		}
+		addIfNonNull(parts, this.pricesContainer);
+		addIfNonNull(parts, this.referencesStorageContainer);
+		if (this.associatedDataContainers != null) {
+			for (final AssociatedDataStoragePart part : this.associatedDataContainers.values()) {
+				addIfNonNull(parts, part);
+			}
+		}
+		return parts.toArray(EntityStoragePart[]::new);
+	}
+
+	/**
+	 * Adds the given storage part to the target list when it is not {@code null}.
+	 *
+	 * @param target the list to add the part to
+	 * @param part   the storage part to add, may be {@code null}
+	 */
+	private static void addIfNonNull(@Nonnull List<EntityStoragePart> target, @Nullable EntityStoragePart part) {
+		if (part != null) {
+			target.add(part);
+		}
 	}
 
 	/**
@@ -1497,40 +1520,42 @@ public final class ContainerizedLocalMutationExecutor
 	@Nonnull
 	public EntityStoragePart[] getAllEntityStorageParts() {
 		final EntityBodyStoragePart entityStorageContainer = getEntityStorageContainer();
-		return Stream.of(
-				Stream.of(entityStorageContainer),
-				Stream.of(
-					ofNullable(this.globalAttributesStorageContainer)
-						.orElseGet(() -> getAttributeStoragePart(this.entityType, this.entityPrimaryKey))
-				),
-				entityStorageContainer.getAttributeLocales()
-					.stream()
-					.map(
-						locale -> ofNullable(this.languageSpecificAttributesContainer)
-							.map(it -> it.get(locale))
-							.orElseGet(() -> getAttributeStoragePart(this.entityType, this.entityPrimaryKey, locale))
-					),
-				getEntitySchema().isWithPrice() ?
-					Stream.of(
-						ofNullable(this.pricesContainer)
-							.orElseGet(() -> getPriceStoragePart(this.entityType, this.entityPrimaryKey))
-					) :
-					Stream.<PricesStoragePart>empty(),
-				Stream.of(
-					ofNullable(this.referencesStorageContainer)
-						.orElseGet(() -> getReferencesStoragePart(this.entityType, this.entityPrimaryKey))
-				),
-				entityStorageContainer.getAssociatedDataKeys()
-					.stream()
-					.map(
-						associatedDataKey -> ofNullable(this.associatedDataContainers)
-							.map(it -> it.get(associatedDataKey))
-							.orElseGet(() -> getAssociatedDataStoragePart(this.entityType, this.entityPrimaryKey, associatedDataKey))
-					)
-			)
-			.flatMap(Function.identity())
-			.filter(Objects::nonNull)
-			.toArray(EntityStoragePart[]::new);
+		// allocation-optimized assembly (avoids the nested Stream.of/flatMap pipeline); each branch
+		// resolves to a non-null part (cached value or freshly fetched/created), so no null filtering
+		final List<EntityStoragePart> parts = new ArrayList<>(16);
+		parts.add(entityStorageContainer);
+		parts.add(
+			this.globalAttributesStorageContainer != null
+				? this.globalAttributesStorageContainer
+				: getAttributeStoragePart(this.entityType, this.entityPrimaryKey)
+		);
+		for (final Locale locale : entityStorageContainer.getAttributeLocales()) {
+			final AttributesStoragePart cached = this.languageSpecificAttributesContainer == null
+				? null : this.languageSpecificAttributesContainer.get(locale);
+			parts.add(cached != null ? cached : getAttributeStoragePart(this.entityType, this.entityPrimaryKey, locale));
+		}
+		if (getEntitySchema().isWithPrice()) {
+			parts.add(
+				this.pricesContainer != null
+					? this.pricesContainer
+					: getPriceStoragePart(this.entityType, this.entityPrimaryKey)
+			);
+		}
+		parts.add(
+			this.referencesStorageContainer != null
+				? this.referencesStorageContainer
+				: getReferencesStoragePart(this.entityType, this.entityPrimaryKey)
+		);
+		for (final AssociatedDataKey associatedDataKey : entityStorageContainer.getAssociatedDataKeys()) {
+			final AssociatedDataStoragePart cached = this.associatedDataContainers == null
+				? null : this.associatedDataContainers.get(associatedDataKey);
+			parts.add(
+				cached != null
+					? cached
+					: getAssociatedDataStoragePart(this.entityType, this.entityPrimaryKey, associatedDataKey)
+			);
+		}
+		return parts.toArray(EntityStoragePart[]::new);
 	}
 
 	/**
@@ -1764,12 +1789,38 @@ public final class ContainerizedLocalMutationExecutor
 		final AttributeKey affectedAttribute = attributeMutation.getAttributeKey();
 
 		if (attributeMutation instanceof UpsertAttributeMutation) {
-			ofNullable(affectedAttribute.locale())
-				.ifPresent(locale -> {
+			final Locale locale = affectedAttribute.locale();
+			if (locale != null) {
+				final EntityBodyStoragePart ebsp = getEntityStoragePart(
+					this.entityType, this.entityPrimaryKey, EntityExistence.MUST_EXIST
+				);
+				final LocaleModificationResult localeModificationResult = ebsp.addAttributeLocale(locale);
+				if (localeModificationResult.anyChangeOccurred()) {
+					this.localesIdentityHash++;
+					final EnumSet<LocaleScope> scopesAffected = EnumSet.noneOf(LocaleScope.class);
+					if (localeModificationResult.attributeLocalesChanged()) {
+						scopesAffected.add(LocaleScope.ATTRIBUTE);
+					}
+					if (localeModificationResult.entityLocalesChanged()) {
+						scopesAffected.add(LocaleScope.ENTITY);
+					}
+					registerAddedLocale(locale, scopesAffected);
+				}
+			}
+		} else if (attributeMutation instanceof RemoveAttributeMutation) {
+			final Locale locale = affectedAttribute.locale();
+			if (locale != null) {
+				final AttributesStoragePart attributeStoragePart = getAttributeStoragePart(
+					this.entityType, this.entityPrimaryKey, locale
+				);
+				final ReferencesStoragePart referencesStoragePart =
+					getReferencesStoragePart(this.entityType, this.entityPrimaryKey);
+
+				if (attributeStoragePart.isEmpty() && !referencesStoragePart.isLocalePresent(locale)) {
 					final EntityBodyStoragePart ebsp = getEntityStoragePart(
 						this.entityType, this.entityPrimaryKey, EntityExistence.MUST_EXIST
 					);
-					final LocaleModificationResult localeModificationResult = ebsp.addAttributeLocale(locale);
+					final LocaleModificationResult localeModificationResult = ebsp.removeAttributeLocale(locale);
 					if (localeModificationResult.anyChangeOccurred()) {
 						this.localesIdentityHash++;
 						final EnumSet<LocaleScope> scopesAffected = EnumSet.noneOf(LocaleScope.class);
@@ -1779,36 +1830,10 @@ public final class ContainerizedLocalMutationExecutor
 						if (localeModificationResult.entityLocalesChanged()) {
 							scopesAffected.add(LocaleScope.ENTITY);
 						}
-						registerAddedLocale(locale, scopesAffected);
+						registerRemovedLocale(locale, scopesAffected);
 					}
-				});
-		} else if (attributeMutation instanceof RemoveAttributeMutation) {
-			ofNullable(affectedAttribute.locale())
-				.ifPresent(locale -> {
-					final AttributesStoragePart attributeStoragePart = getAttributeStoragePart(
-						this.entityType, this.entityPrimaryKey, locale
-					);
-					final ReferencesStoragePart referencesStoragePart =
-						getReferencesStoragePart(this.entityType, this.entityPrimaryKey);
-
-					if (attributeStoragePart.isEmpty() && !referencesStoragePart.isLocalePresent(locale)) {
-						final EntityBodyStoragePart ebsp = getEntityStoragePart(
-						this.entityType, this.entityPrimaryKey, EntityExistence.MUST_EXIST
-					);
-						final LocaleModificationResult localeModificationResult = ebsp.removeAttributeLocale(locale);
-						if (localeModificationResult.anyChangeOccurred()) {
-							this.localesIdentityHash++;
-							final EnumSet<LocaleScope> scopesAffected = EnumSet.noneOf(LocaleScope.class);
-							if (localeModificationResult.attributeLocalesChanged()) {
-								scopesAffected.add(LocaleScope.ATTRIBUTE);
-							}
-							if (localeModificationResult.entityLocalesChanged()) {
-								scopesAffected.add(LocaleScope.ENTITY);
-							}
-							registerRemovedLocale(locale, scopesAffected);
-						}
-					}
-				});
+				}
+			}
 		} else if (attributeMutation instanceof ApplyDeltaAttributeMutation) {
 			// DO NOTHING
 		} else {
@@ -1849,15 +1874,18 @@ public final class ContainerizedLocalMutationExecutor
 		final Set<AttributeKey> availableGlobalAttributes = checkGlobal ?
 			collectAttributeKeys(this.globalAttributesStorageContainer) : Collections.emptySet();
 		final Set<Locale> entityLocales = entityStorageContainer.getLocales();
-		final Map<Locale, Set<AttributeKey>> availableLocalizedAttributes = checkLocalized ?
-			entityLocales
-				.stream()
-				.collect(
-					Collectors.toMap(
-						Function.identity(),
-						it -> collectAttributeKeys(getAttributeStoragePart(this.entityType, this.entityPrimaryKey, it))
-					)
-				) : Collections.emptyMap();
+		final Map<Locale, Set<AttributeKey>> availableLocalizedAttributes;
+		if (checkLocalized && !entityLocales.isEmpty()) {
+			availableLocalizedAttributes = CollectionUtils.createHashMap(entityLocales.size());
+			for (final Locale locale : entityLocales) {
+				availableLocalizedAttributes.put(
+					locale,
+					collectAttributeKeys(getAttributeStoragePart(this.entityType, this.entityPrimaryKey, locale))
+				);
+			}
+		} else {
+			availableLocalizedAttributes = Collections.emptyMap();
+		}
 
 		final MissingAttributeHandler missingAttributeHandler = (defaultValue, nullable, attributeKey) -> {
 			Assert.isPremiseValid(attributeKey != null, "Attribute key must not be null!");
@@ -1872,22 +1900,24 @@ public final class ContainerizedLocalMutationExecutor
 			}
 		};
 
-		nonNullableOrDefaultValueAttributes
-			.forEach(attribute -> {
-				final Serializable defaultValue = attribute.getDefaultValue();
-				if (checkLocalized && attribute.isLocalized()) {
-					entityLocales.stream()
-						.map(locale -> new AttributeKey(attribute.getName(), locale))
-						.flatMap(key -> ofNullable(availableLocalizedAttributes.get(key.locale()))
-							.map(it -> it.contains(key)).orElse(false) ? Stream.empty() : Stream.of(key))
-						.forEach(it -> missingAttributeHandler.accept(defaultValue, attribute.isNullable(), it));
-				} else if (checkGlobal && !attribute.isLocalized()) {
-					final AttributeKey attributeKey = new AttributeKey(attribute.getName());
-					if (!availableGlobalAttributes.contains(attributeKey)) {
-						missingAttributeHandler.accept(defaultValue, attribute.isNullable(), attributeKey);
+		for (final EntityAttributeSchemaContract attribute : nonNullableOrDefaultValueAttributes) {
+			final Serializable defaultValue = attribute.getDefaultValue();
+			final boolean nullable = attribute.isNullable();
+			if (checkLocalized && attribute.isLocalized()) {
+				for (final Locale locale : entityLocales) {
+					final AttributeKey attributeKey = new AttributeKey(attribute.getName(), locale);
+					final Set<AttributeKey> localeAttributes = availableLocalizedAttributes.get(locale);
+					if (localeAttributes == null || !localeAttributes.contains(attributeKey)) {
+						missingAttributeHandler.accept(defaultValue, nullable, attributeKey);
 					}
 				}
-			});
+			} else if (checkGlobal && !attribute.isLocalized()) {
+				final AttributeKey attributeKey = new AttributeKey(attribute.getName());
+				if (!availableGlobalAttributes.contains(attributeKey)) {
+					missingAttributeHandler.accept(defaultValue, nullable, attributeKey);
+				}
+			}
+		}
 
 		// verify that entity retains at least one locale if non-nullable localized attributes exist
 		if (checkLocalized && entityLocales.isEmpty()) {
@@ -2432,6 +2462,24 @@ public final class ContainerizedLocalMutationExecutor
 
 		final Set<Locale> entityLocales = entityStorageContainer.getLocales();
 		final List<AttributeKey> missingReferenceMandatedAttribute = new LinkedList<>();
+		// the only per-reference state the handler needs is the reference key; carrying it through a single-element
+		// holder lets the handler (and its captured context) be allocated once per call instead of once per reference
+		final ReferenceKey[] currentReferenceKey = new ReferenceKey[1];
+		final MissingAttributeHandler missingAttributeHandler = (defaultValue, nullable, attributeKey) -> {
+			Assert.isPremiseValid(attributeKey != null, "Attribute key must not be null!");
+			if (defaultValue == null) {
+				if (!nullable) {
+					missingReferenceMandatedAttribute.add(attributeKey);
+				}
+			} else {
+				mutationCollector.addLocalMutation(
+					new ReferenceAttributeMutation(
+						currentReferenceKey[0],
+						new UpsertAttributeMutation(attributeKey, defaultValue)
+					)
+				);
+			}
+		};
 		ReferenceSchema referenceSchema = null;
 		for (Reference reference : referencesStoragePart.getReferences()) {
 			if (reference.exists()) {
@@ -2439,26 +2487,20 @@ public final class ContainerizedLocalMutationExecutor
 					!referenceSchema.getName().equals(reference.getReferenceName())) {
 					referenceSchema = entitySchema.getReferenceOrThrowException(reference.getReferenceName());
 				}
+				// skip references whose schema declares no mandatory / default-valued attributes -
+				// there is nothing to verify or default here, so we avoid probing the reference attributes
+				// for the common case
+				if (referenceSchema.getNonNullableOrDefaultValueAttributes().isEmpty()) {
+					continue;
+				}
 				missingReferenceMandatedAttribute.clear();
-				final Set<AttributeKey> availableAttributes = collectAttributeKeys(reference);
-				final MissingAttributeHandler missingAttributeHandler = (defaultValue, nullable, attributeKey) -> {
-					Assert.isPremiseValid(attributeKey != null, "Attribute key must not be null!");
-					if (defaultValue == null) {
-						if (!nullable) {
-							missingReferenceMandatedAttribute.add(attributeKey);
-						}
-					} else {
-						mutationCollector.addLocalMutation(
-							new ReferenceAttributeMutation(
-								reference.getReferenceKey(),
-								new UpsertAttributeMutation(attributeKey, defaultValue)
-							)
-						);
-					}
-				};
+				// point the shared handler at the reference currently being verified
+				currentReferenceKey[0] = reference.getReferenceKey();
 
+				// probe the reference directly for each mandatory / default-valued schema attribute instead of
+				// materializing the full key set of the reference (a HashSet per reference on the hot path)
 				processReferenceAttributesWithDefaultValue(
-					referenceSchema, entityLocales, availableAttributes, missingAttributeHandler
+					referenceSchema, entityLocales, reference, missingAttributeHandler
 				);
 
 				if (!missingReferenceMandatedAttribute.isEmpty()) {
@@ -2650,23 +2692,30 @@ public final class ContainerizedLocalMutationExecutor
 		final Set<AssociatedDataKey> availableAssociatedDataKeys = this.entityContainer.getAssociatedDataKeys();
 		final Set<Locale> entityLocales = entityStorageContainer.getLocales();
 
-		final List<AssociatedDataKey> missingMandatedAssociatedData = nonNullableAssociatedData
-			.stream()
-			.flatMap(associatedData -> {
-				if (associatedData.isLocalized()) {
-					return entityLocales.stream()
-						.map(locale -> new AssociatedDataKey(associatedData.getName(), locale))
-						.flatMap(key -> availableAssociatedDataKeys.contains(key) ? Stream.empty() : Stream.of(key));
-				} else {
-					final AssociatedDataKey associatedDataKey = new AssociatedDataKey(associatedData.getName());
-					return availableAssociatedDataKeys.contains(associatedDataKey)
-						? Stream.empty()
-						: Stream.of(associatedDataKey);
+		List<AssociatedDataKey> missingMandatedAssociatedData = null;
+		for (final AssociatedDataSchema associatedData : nonNullableAssociatedData) {
+			if (associatedData.isLocalized()) {
+				for (final Locale locale : entityLocales) {
+					final AssociatedDataKey key = new AssociatedDataKey(associatedData.getName(), locale);
+					if (!availableAssociatedDataKeys.contains(key)) {
+						if (missingMandatedAssociatedData == null) {
+							missingMandatedAssociatedData = new LinkedList<>();
+						}
+						missingMandatedAssociatedData.add(key);
+					}
 				}
-			})
-			.toList();
+			} else {
+				final AssociatedDataKey key = new AssociatedDataKey(associatedData.getName());
+				if (!availableAssociatedDataKeys.contains(key)) {
+					if (missingMandatedAssociatedData == null) {
+						missingMandatedAssociatedData = new LinkedList<>();
+					}
+					missingMandatedAssociatedData.add(key);
+				}
+			}
+		}
 
-		if (!missingMandatedAssociatedData.isEmpty()) {
+		if (missingMandatedAssociatedData != null && !missingMandatedAssociatedData.isEmpty()) {
 			throw new MandatoryAssociatedDataNotProvidedException(entitySchema.getName(), missingMandatedAssociatedData);
 		}
 
@@ -2711,33 +2760,41 @@ public final class ContainerizedLocalMutationExecutor
 	 *                                                     localized associated data are defined in the schema
 	 */
 	private void verifyRemovedMandatoryAssociatedData() {
-		final AtomicReference<Set<String>> mandatoryAssociatedData = new AtomicReference<>();
 		final Set<Locale> entityLocales = this.entityContainer.getLocales();
-		final List<AssociatedDataKey> missingMandatedAssociatedData = ofNullable(this.associatedDataContainers)
-			.map(Map::values)
-			.orElse(Collections.emptyList())
-			.stream()
-			.filter(AssociatedDataStoragePart::isDirty)
-			.filter(AssociatedDataStoragePart::isEmpty)
-			.filter(it -> {
-				if (mandatoryAssociatedData.get() == null) {
-					final EntitySchema entitySchema = this.schemaAccessor.get();
-					mandatoryAssociatedData.set(
-						entitySchema.getNonNullableAssociatedData()
-							.stream()
-							.map(AssociatedDataSchema::getName)
-							.collect(Collectors.toSet())
-					);
+		List<AssociatedDataKey> missingMandatedAssociatedData = null;
+		Set<String> mandatoryAssociatedData = null;
+		if (this.associatedDataContainers != null) {
+			for (final AssociatedDataStoragePart part : this.associatedDataContainers.values()) {
+				// only dirty containers that have been emptied are candidates for a missing mandatory value
+				if (!part.isDirty() || !part.isEmpty()) {
+					continue;
 				}
-				final AssociatedDataValue value = it.getValue();
-				return value != null && mandatoryAssociatedData.get().contains(value.key().associatedDataName());
-			})
-			.map(it -> it.getValue().key())
-			// skip localized associated data whose locale has been dropped from the entity
-			.filter(key -> key.locale() == null || entityLocales.contains(key.locale()))
-			.toList();
+				// lazily resolve the set of mandatory associated data names on the first candidate
+				if (mandatoryAssociatedData == null) {
+					final Collection<AssociatedDataSchema> nonNullableAssociatedData =
+						this.schemaAccessor.get().getNonNullableAssociatedData();
+					mandatoryAssociatedData = CollectionUtils.createHashSet(nonNullableAssociatedData.size());
+					for (final AssociatedDataSchema associatedData : nonNullableAssociatedData) {
+						mandatoryAssociatedData.add(associatedData.getName());
+					}
+				}
+				final AssociatedDataValue value = part.getValue();
+				if (value == null || !mandatoryAssociatedData.contains(value.key().associatedDataName())) {
+					continue;
+				}
+				final AssociatedDataKey key = value.key();
+				// skip localized associated data whose locale has been dropped from the entity
+				if (key.locale() != null && !entityLocales.contains(key.locale())) {
+					continue;
+				}
+				if (missingMandatedAssociatedData == null) {
+					missingMandatedAssociatedData = new LinkedList<>();
+				}
+				missingMandatedAssociatedData.add(key);
+			}
+		}
 
-		if (!missingMandatedAssociatedData.isEmpty()) {
+		if (missingMandatedAssociatedData != null && !missingMandatedAssociatedData.isEmpty()) {
 			throw new MandatoryAssociatedDataNotProvidedException(this.entityType, missingMandatedAssociatedData);
 		}
 
@@ -2858,22 +2915,36 @@ public final class ContainerizedLocalMutationExecutor
 	 * automatically fetched from the underlying storage and modified, new containers are created on the fly.
 	 */
 	@Nonnull
-	private Stream<? extends EntityStoragePart> getChangedEntityStorageParts() {
-		// now return all affected containers
-		return Stream.of(
-				Stream.of(
-					this.getEntityStorageContainer(),
-					this.pricesContainer,
-					this.globalAttributesStorageContainer,
-					this.referencesStorageContainer
-				),
-				ofNullable(this.languageSpecificAttributesContainer).stream().flatMap(it -> it.values().stream()),
-				ofNullable(this.associatedDataContainers).stream().flatMap(it -> it.values().stream())
-			)
-			.flatMap(it -> it)
-			.filter(Objects::nonNull)
-			/* return only parts that have been changed */
-			.filter(EntityStoragePart::isDirty);
+	private List<EntityStoragePart> getChangedEntityStorageParts() {
+		// allocation-optimized collection of the changed containers (avoids the nested Stream pipeline)
+		final List<EntityStoragePart> dirtyParts = new ArrayList<>(8);
+		addIfDirty(dirtyParts, this.getEntityStorageContainer());
+		addIfDirty(dirtyParts, this.pricesContainer);
+		addIfDirty(dirtyParts, this.globalAttributesStorageContainer);
+		addIfDirty(dirtyParts, this.referencesStorageContainer);
+		if (this.languageSpecificAttributesContainer != null) {
+			for (final AttributesStoragePart part : this.languageSpecificAttributesContainer.values()) {
+				addIfDirty(dirtyParts, part);
+			}
+		}
+		if (this.associatedDataContainers != null) {
+			for (final AssociatedDataStoragePart part : this.associatedDataContainers.values()) {
+				addIfDirty(dirtyParts, part);
+			}
+		}
+		return dirtyParts;
+	}
+
+	/**
+	 * Adds the given storage part to the target list when it is not {@code null} and has been changed.
+	 *
+	 * @param target the list to add the part to
+	 * @param part   the storage part to add, may be {@code null}
+	 */
+	private static void addIfDirty(@Nonnull List<EntityStoragePart> target, @Nullable EntityStoragePart part) {
+		if (part != null && part.isDirty()) {
+			target.add(part);
+		}
 	}
 
 	/**
@@ -2899,11 +2970,11 @@ public final class ContainerizedLocalMutationExecutor
 				"Attribute `" + attributeKey.attributeName() +
 					"` is not known for entity `" + entitySchema.getName() + "`."
 			));
-		final AttributesStoragePart attributesStorageContainer = ofNullable(attributeKey.locale())
-			// get or create locale specific attributes container
-			.map(it -> getAttributeStoragePart(this.entityType, this.entityPrimaryKey, it))
-			// get or create locale agnostic container (global one)
-			.orElseGet(() -> getAttributeStoragePart(this.entityType, this.entityPrimaryKey));
+		// get or create the locale-specific attributes container, or the locale-agnostic (global) one
+		final Locale attributeLocale = attributeKey.locale();
+		final AttributesStoragePart attributesStorageContainer = attributeLocale != null
+			? getAttributeStoragePart(this.entityType, this.entityPrimaryKey, attributeLocale)
+			: getAttributeStoragePart(this.entityType, this.entityPrimaryKey);
 
 		// now replace the attribute contents in the container
 		attributesStorageContainer.upsertAttribute(
@@ -3045,9 +3116,11 @@ public final class ContainerizedLocalMutationExecutor
 		pricesStorageContainer.replaceOrAddPrice(
 			localMutation.getPriceKey(),
 			priceContract -> localMutation.mutateLocal(entitySchema, priceContract),
-			priceKey -> ofNullable(this.assignedInternalPriceIdIndex)
-				.map(it -> it.get(priceKey))
-				.orElseGet(this.priceInternalIdSupplier::getAsInt)
+			priceKey -> {
+				final Integer assignedPriceId = this.assignedInternalPriceIdIndex == null
+					? null : this.assignedInternalPriceIdIndex.get(priceKey);
+				return assignedPriceId == null ? this.priceInternalIdSupplier.getAsInt() : assignedPriceId;
+			}
 		);
 		// change in entity parts also change the entity itself (we need to update the version)
 		if (pricesStorageContainer.isDirty()) {

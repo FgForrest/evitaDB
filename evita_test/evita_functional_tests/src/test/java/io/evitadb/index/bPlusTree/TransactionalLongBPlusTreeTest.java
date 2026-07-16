@@ -26,6 +26,8 @@ package io.evitadb.index.bPlusTree;
 import io.evitadb.dataType.ConsistencySensitiveDataStructure.ConsistencyReport;
 import io.evitadb.dataType.ConsistencySensitiveDataStructure.ConsistencyState;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.core.transaction.Transaction;
+import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.index.bPlusTree.TransactionalLongBPlusTree.Entry;
 import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.index.list.TransactionalList;
@@ -2860,6 +2862,474 @@ class TransactionalLongBPlusTreeTest {
 					final TransactionalList<String> list2 = committed.search(2).orElseThrow();
 					assertEquals(2, list2.size());
 				}
+			);
+		}
+
+	}
+
+	@Nested
+	@DisplayName("Assemble from single-leaf trees validation")
+	class AssembleFromSingleLeafTreesValidationTest {
+
+		@Test
+		@DisplayName("rejects reassembled single-leaf pages that overlap across a leaf boundary")
+		void shouldThrowWhenSingleLeafTreesOverlapAcrossBoundary() {
+			// two single-leaf source trees whose key ranges overlap (a stale leaf-page twin shape):
+			// leaf A ends at key 3 while leaf B restarts at key 2, so cross-leaf-order validation
+			// must reject them; block size 5 keeps three keys in one leaf so getRoot() is a leaf
+			final TransactionalLongBPlusTree<String> treeA = new TransactionalLongBPlusTree<>(5, 1, 5, 2, String.class);
+			treeA.insert(1L, "Value1");
+			treeA.insert(2L, "Value2");
+			treeA.insert(3L, "Value3");
+
+			final TransactionalLongBPlusTree<String> treeB = new TransactionalLongBPlusTree<>(5, 1, 5, 2, String.class);
+			treeB.insert(2L, "Value2");
+			treeB.insert(3L, "Value3");
+			treeB.insert(4L, "Value4");
+
+			final TransactionalLongBPlusTree<String> assembled = new TransactionalLongBPlusTree<>(5, 1, 5, 2, String.class);
+			final GenericEvitaInternalError ex = assertThrows(
+				GenericEvitaInternalError.class,
+				() -> assembled.assembleFromSingleLeafTrees(
+					List.of(treeA, treeB), new int[]{0, 1}, "long B+ tree validation test"),
+				"Overlapping single-leaf trees must fail the cross-leaf-order validation."
+			);
+			assertTrue(
+				ex.getMessage().contains("overlaps its successor leaf-page sequence"),
+				"The failure must be the cross-leaf-order corruption diagnostic, got: " + ex.getMessage()
+			);
+		}
+
+		@Test
+		@DisplayName("rejects a reassembled leaf page whose interior keys are out of order")
+		void shouldThrowWhenLeafHasOutOfOrderInteriorKeys() {
+			// build a sound single-leaf source tree, then corrupt its interior key order in place (swap two keys)
+			// to simulate a serializer bug / truncated write / bit rot; the intra-leaf order check must reject it
+			final TransactionalLongBPlusTree<String> corrupt =
+				new TransactionalLongBPlusTree<>(10, 1, 3, 1, String.class);
+			corrupt.insert(1L, "Value1");
+			corrupt.insert(2L, "Value2");
+			corrupt.insert(3L, "Value3");
+			// mutate the live leaf key array directly: [1,2,3] -> [2,1,3]
+			final long[] keys =
+				((TransactionalLongBPlusTree.BPlusLeafTreeNode<String>) corrupt.getRoot()).getKeys();
+			final long swap = keys[0];
+			keys[0] = keys[1];
+			keys[1] = swap;
+
+			final TransactionalLongBPlusTree<String> assembled =
+				new TransactionalLongBPlusTree<>(10, 1, 3, 1, String.class);
+			final GenericEvitaInternalError ex = assertThrows(
+				GenericEvitaInternalError.class,
+				() -> assembled.assembleFromSingleLeafTrees(
+					List.of(corrupt), new int[]{0}, "long B+ tree intra-leaf test"),
+				"A leaf with out-of-order interior keys must fail the intra-leaf-order validation."
+			);
+			assertTrue(
+				ex.getMessage().contains("out-of-order keys"),
+				"Expected the intra-leaf-order corruption diagnostic, got: " + ex.getMessage()
+			);
+		}
+
+	}
+
+	@Nested
+	@DisplayName("Op-time boundary-mutation asserts")
+	class OpTimeBoundaryMutationTest {
+
+		/**
+		 * Builds a single-leaf source tree holding the supplied keys. Block size 10 keeps every supplied key in
+		 * one leaf (no split), so the tree's root stays a leaf that can be reassembled into a controlled spine.
+		 *
+		 * @param keys the keys to place in the leaf, in any order
+		 * @return a single-leaf tree
+		 */
+		@Nonnull
+		private TransactionalLongBPlusTree<String> singleLeaf(@Nonnull long... keys) {
+			final TransactionalLongBPlusTree<String> tree =
+				new TransactionalLongBPlusTree<>(10, 1, 3, 1, String.class);
+			for (final long key : keys) {
+				tree.insert(key, "v" + key);
+			}
+			return tree;
+		}
+
+		/**
+		 * Reassembles the supplied sound single-leaf trees into one tree with a deterministic spine: internal
+		 * block size 3 caps a parent at four children, so five leaves split into two parents. The leaves are
+		 * non-overlapping, so the Phase 1 cross-leaf validation inside the assembler passes; the assembled tree is
+		 * then used to exercise the op-time boundary checks against hypothetical boundary keys.
+		 *
+		 * @param leaves the ordered, non-overlapping single-leaf trees
+		 * @return the assembled tree
+		 */
+		@Nonnull
+		private TransactionalLongBPlusTree<String> assembleSound(
+			@Nonnull List<TransactionalLongBPlusTree<String>> leaves) {
+			final int[] pageSequences = new int[leaves.size()];
+			for (int i = 0; i < pageSequences.length; i++) {
+				pageSequences[i] = i;
+			}
+			return new TransactionalLongBPlusTree<String>(10, 1, 3, 1, String.class)
+				.assembleFromSingleLeafTrees(leaves, pageSequences, "long B+ tree op-time boundary test");
+		}
+
+		@Test
+		@DisplayName("tail insert overlapping the successor leaf under a different parent throws (Check T)")
+		void shouldThrowOnMisroutedTailInsertAcrossParentBoundary() {
+			// spine (internal block 3 => max 4 children => 5 leaves split 3 + 2): P1 = [L0,L1,L2], P2 = [L3,L4].
+			// L2 is the RIGHTMOST child of P1 and its successor L3 is the LEFTMOST child of P2, so the fence
+			// (8 = L3's first key) lives at the ROOT, not L2's immediate parent — this proves the cross-parent walk.
+			final TransactionalLongBPlusTree<String> tree = assembleSound(List.of(
+				singleLeaf(1, 2), singleLeaf(3, 4), singleLeaf(5, 6), singleLeaf(8, 9), singleLeaf(10, 11)
+			));
+			final AbstractTransactionalBPlusTree.Cursor cursor = tree.createCursor(5);
+			final GenericEvitaInternalError ex = assertThrows(
+				GenericEvitaInternalError.class,
+				() -> tree.assertTailBoundary(cursor, 8),
+				"A new last key equal to the successor leaf's first key must be rejected."
+			);
+			assertTrue(
+				ex.getMessage().contains("successor leaf boundary"),
+				"Expected the tail cross-leaf diagnostic, got: " + ex.getMessage()
+			);
+			// a last key strictly below the fence is legal
+			assertDoesNotThrow(() -> tree.assertTailBoundary(cursor, 7));
+		}
+
+		@Test
+		@DisplayName("head insert undercutting the same-parent predecessor throws (Check H)")
+		void shouldThrowOnMisroutedHeadInsertWithinParent() {
+			// three sound leaves under one parent: L0 = [1,5], L1 = [8,12], L2 = [15,16]. L1's predecessor is its
+			// same-parent left sibling L0 (last key 5). A head key of 3 undercuts it.
+			final TransactionalLongBPlusTree<String> tree = assembleSound(List.of(
+				singleLeaf(1, 5), singleLeaf(8, 12), singleLeaf(15, 16)
+			));
+			final AbstractTransactionalBPlusTree.Cursor cursor = tree.createCursor(8);
+			final GenericEvitaInternalError ex = assertThrows(
+				GenericEvitaInternalError.class,
+				() -> tree.assertHeadBoundary(cursor, 3),
+				"A new first key at or below the predecessor leaf's last key must be rejected."
+			);
+			assertTrue(
+				ex.getMessage().contains("predecessor leaf boundary"),
+				"Expected the head cross-leaf diagnostic, got: " + ex.getMessage()
+			);
+			// a first key strictly above the predecessor's last key is legal
+			assertDoesNotThrow(() -> tree.assertHeadBoundary(cursor, 6));
+			// the separator-order belt is INSUFFICIENT for this shape: propagating the mis-routed first key (3) up
+			// as L1's separator yields separators (3, 15) which are still strictly increasing, so the belt would
+			// NOT fire — which is exactly why Check H is required
+			assertDoesNotThrow(
+				() -> TransactionalLongBPlusTree.assertSeparatorOrder(new long[]{3, 15}, 2, 0));
+		}
+
+		@Test
+		@DisplayName("head insert undercutting a predecessor under a different parent throws (Check H right-spine)")
+		void shouldThrowOnMisroutedHeadInsertAcrossParentBoundary() {
+			// L3 is the LEFTMOST child of P2; its predecessor L2 is the RIGHTMOST child of P1 (cross-parent). Check
+			// H must walk up to the clamp ancestor (root) and descend P1's right spine to L2 (last key 6).
+			final TransactionalLongBPlusTree<String> tree = assembleSound(List.of(
+				singleLeaf(1, 2), singleLeaf(3, 4), singleLeaf(5, 6), singleLeaf(8, 9), singleLeaf(10, 11)
+			));
+			final AbstractTransactionalBPlusTree.Cursor cursor = tree.createCursor(8);
+			final GenericEvitaInternalError ex = assertThrows(
+				GenericEvitaInternalError.class,
+				() -> tree.assertHeadBoundary(cursor, 5),
+				"A new first key at or below the cross-parent predecessor's last key must be rejected."
+			);
+			assertTrue(
+				ex.getMessage().contains("predecessor leaf boundary"),
+				"Expected the head cross-leaf diagnostic, got: " + ex.getMessage()
+			);
+			assertDoesNotThrow(() -> tree.assertHeadBoundary(cursor, 7));
+		}
+
+		@Test
+		@DisplayName("both boundary checks apply to a single-key (0 to 1) leaf")
+		void shouldRunBothChecksForSingleKeyLeaf() {
+			// sound tree with a single-key middle leaf L_mid = [6] between L_pred = [1,4] and L_succ = [8,9]
+			final TransactionalLongBPlusTree<String> tree = assembleSound(List.of(
+				singleLeaf(1, 4), singleLeaf(6), singleLeaf(8, 9)
+			));
+			final AbstractTransactionalBPlusTree.Cursor cursor = tree.createCursor(6);
+			// the actual 0->1 key (6) is sound: both checks run and pass
+			assertDoesNotThrow(() -> tree.assertInsertBoundaries(cursor, 6));
+			// the SAME single-key leaf is subject to the head check (a smaller key undercuts L_pred's last key 4)
+			assertThrows(GenericEvitaInternalError.class, () -> tree.assertHeadBoundary(cursor, 3));
+			// ...and to the tail check (a larger key reaches L_succ's first key 8)
+			assertThrows(GenericEvitaInternalError.class, () -> tree.assertTailBoundary(cursor, 8));
+		}
+
+		@Test
+		@DisplayName("sequential bulk append and prepend never trip the op-time boundary asserts (happy-path pin)")
+		void shouldNotThrowOnSequentialInsertions() {
+			// ascending inserts are all tail inserts (Check T runs on the rightmost leaf and finds no fence);
+			// descending inserts are all head inserts on the leftmost leaf (Check H finds no predecessor)
+			final TransactionalLongBPlusTree<String> ascending = new TransactionalLongBPlusTree<>(3, String.class);
+			assertDoesNotThrow(() -> {
+				for (long i = 1; i <= 256; i++) {
+					ascending.insert(i, "v" + i);
+				}
+			});
+			final ConsistencyReport ascendingReport = ascending.getConsistencyReport();
+			assertEquals(ConsistencyState.CONSISTENT, ascendingReport.state(), ascendingReport.report());
+
+			final TransactionalLongBPlusTree<String> descending = new TransactionalLongBPlusTree<>(3, String.class);
+			assertDoesNotThrow(() -> {
+				for (long i = 256; i >= 1; i--) {
+					descending.insert(i, "v" + i);
+				}
+			});
+			final ConsistencyReport descendingReport = descending.getConsistencyReport();
+			assertEquals(ConsistencyState.CONSISTENT, descendingReport.state(), descendingReport.report());
+		}
+
+	}
+
+	@Nested
+	@DisplayName("commit-time structural integrity validation")
+	class DirtyLeafScopeValidationTest {
+
+		@Nonnull
+		private TransactionalLongBPlusTree<String> singleLeaf(@Nonnull long... keys) {
+			final TransactionalLongBPlusTree<String> tree =
+				new TransactionalLongBPlusTree<>(10, 1, 3, 1, String.class);
+			for (final long key : keys) {
+				tree.insert(key, "v" + key);
+			}
+			return tree;
+		}
+
+		@Nonnull
+		private TransactionalLongBPlusTree<String> assembleSound(
+			@Nonnull List<TransactionalLongBPlusTree<String>> leaves) {
+			final int[] pageSequences = new int[leaves.size()];
+			for (int i = 0; i < pageSequences.length; i++) {
+				pageSequences[i] = i;
+			}
+			return new TransactionalLongBPlusTree<String>(10, 1, 3, 1, String.class)
+				.assembleFromSingleLeafTrees(leaves, pageSequences, "long B+ tree scope test");
+		}
+
+		@Nonnull
+		private TransactionalLongBPlusTree.BPlusLeafTreeNode<String> leafAt(
+			@Nonnull TransactionalLongBPlusTree<String> tree, long key) {
+			return tree.createCursor(key).leafNode();
+		}
+
+		@Test
+		@DisplayName("a sound dirty scope relocates and validates without throwing")
+		void shouldNotThrowWhenDirtyLeavesAreSound() {
+			final TransactionalLongBPlusTree<String> tree = assembleSound(List.of(
+				singleLeaf(1, 2), singleLeaf(5, 6), singleLeaf(10, 11)
+			));
+			assertDoesNotThrow(() -> tree.validateDirtyScope(List.<Object>of(
+				leafAt(tree, 1), leafAt(tree, 5), leafAt(tree, 10)
+			)));
+		}
+
+		@Test
+		@DisplayName("a leaf whose last key was widened past its successor is caught (tail)")
+		void shouldDetectTailOverlapOnRelocateAndValidate() {
+			final TransactionalLongBPlusTree<String> tree = assembleSound(List.of(
+				singleLeaf(1, 2), singleLeaf(5, 6), singleLeaf(10, 11)
+			));
+			final TransactionalLongBPlusTree.BPlusLeafTreeNode<String> middle = leafAt(tree, 5);
+			// simulate a reverted / lifecycle-corrupted layer widening the middle leaf's range from [5,6] to [5,10]
+			// so its last key reaches the successor's first key; the separator is untouched, so relocating by the
+			// leaf's own first key (5) still lands on it and the tail half-invariant fires
+			final long[] keys = middle.getKeys();
+			keys[1] = 10L;
+			final AbstractTransactionalBPlusTree.BPlusTreeCorruptedException ex = assertThrows(
+				AbstractTransactionalBPlusTree.BPlusTreeCorruptedException.class,
+				() -> tree.validateDirtyScope(List.<Object>of(middle))
+			);
+			assertTrue(
+				ex.getMessage().contains("successor leaf boundary"),
+				"Expected the tail cross-leaf diagnostic, got: " + ex.getMessage()
+			);
+		}
+
+		@Test
+		@DisplayName("a leaf undercut by a widened predecessor is caught (head)")
+		void shouldDetectHeadOverlapOnRelocateAndValidate() {
+			final TransactionalLongBPlusTree<String> tree = assembleSound(List.of(
+				singleLeaf(1, 2), singleLeaf(5, 6), singleLeaf(10, 11)
+			));
+			// widen the PREDECESSOR leaf's last key from 2 to 5 so it reaches the middle leaf's first key; relocating
+			// the middle leaf by its unchanged first key (5) lands on it and the head half-invariant compares against
+			// the predecessor's corrupted last key
+			final long[] predecessorKeys = leafAt(tree, 1).getKeys();
+			predecessorKeys[1] = 5L;
+			final TransactionalLongBPlusTree.BPlusLeafTreeNode<String> middle = leafAt(tree, 5);
+			final AbstractTransactionalBPlusTree.BPlusTreeCorruptedException ex = assertThrows(
+				AbstractTransactionalBPlusTree.BPlusTreeCorruptedException.class,
+				() -> tree.validateDirtyScope(List.<Object>of(middle))
+			);
+			assertTrue(
+				ex.getMessage().contains("predecessor leaf boundary"),
+				"Expected the head cross-leaf diagnostic, got: " + ex.getMessage()
+			);
+		}
+
+		@Test
+		@DisplayName("an empty key source is skipped, not dereferenced")
+		void shouldSkipEmptyKeySource() {
+			final TransactionalLongBPlusTree<String> tree = assembleSound(List.of(
+				singleLeaf(1, 2), singleLeaf(5, 6)
+			));
+			// an empty single-leaf source carries no key (peek < 0) — the scope validation must skip it rather than
+			// dereference keys[0]
+			final TransactionalLongBPlusTree<String> empty = new TransactionalLongBPlusTree<>(10, 1, 3, 1, String.class);
+			final TransactionalLongBPlusTree.BPlusLeafTreeNode<String> emptyLeaf =
+				(TransactionalLongBPlusTree.BPlusLeafTreeNode<String>) empty.getRoot();
+			assertDoesNotThrow(() -> tree.validateDirtyScope(List.<Object>of(emptyLeaf)));
+		}
+
+		/**
+		 * Widens (in place) the effective last key of the leaf that currently routes {@code leafKey}, simulating a
+		 * lifecycle bug that reverted / corrupted the leaf's write layer so its range overlaps the successor. Mutates
+		 * the write layer when one exists (the transactional case), otherwise the leaf itself.
+		 */
+		private void corruptLastKey(
+			@Nonnull TransactionalLongBPlusTree<String> tree, long leafKey, long newLastKey) {
+			final TransactionalLongBPlusTree.BPlusLeafTreeNode<String> leaf = tree.createCursor(leafKey).leafNode();
+			final TransactionalLongBPlusTree.BPlusLeafTreeNode<String> layer =
+				Transaction.getTransactionalMemoryLayerIfExists(leaf);
+			final TransactionalLongBPlusTree.BPlusLeafTreeNode<String> writable = layer != null ? layer : leaf;
+			writable.getKeys()[writable.getPeek()] = newLastKey;
+		}
+
+		@Test
+		@DisplayName("pre-commit pipeline: a transactional insert registers its leaf and a healthy scope is accepted")
+		void shouldRegisterDirtiedLeafAndAcceptHealthyScope() {
+			final TransactionalLongBPlusTree<String> tree = assembleSound(List.of(
+				singleLeaf(1, 2), singleLeaf(5, 6), singleLeaf(10, 11)
+			));
+			assertStateAfterCommit(
+				tree,
+				t -> {
+					t.insert(7, "v7");
+					final TransactionalLayerMaintainer maintainer = Transaction.getTransactionalLayerMaintainer();
+					// registration fired AND the registry is keyed by this exact tree instance — the identity the
+					// pre-commit (pre-WAL) pass and the post-replay merge both look the scope up by
+					assertFalse(
+						maintainer.getDirtyScopeTokens(t).isEmpty(),
+						"the transactional insert must register its dirtied leaf under this tree"
+					);
+					// the healthy scope must be accepted by the pre-commit pass (no false positive)
+					assertDoesNotThrow(maintainer::validateDirtyScopesBeforeCommit);
+				},
+				(t, committed) -> assertNotNull(committed)
+			);
+		}
+
+		@Test
+		@DisplayName("pre-commit pipeline: a corrupted registered leaf is rejected by the pre-commit pass")
+		void shouldRejectCorruptedScopeInPreCommitPass() {
+			final TransactionalLongBPlusTree<String> tree = assembleSound(List.of(
+				singleLeaf(1, 2), singleLeaf(5, 6), singleLeaf(10, 11)
+			));
+			assertThrows(
+				AbstractTransactionalBPlusTree.BPlusTreeCorruptedException.class,
+				() -> assertStateAfterCommit(
+					tree,
+					t -> {
+						t.insert(7, "v7");
+						// widen the dirtied leaf (now [5,6,7]) so its last key reaches the successor's first key (10)
+						corruptLastKey(t, 5, 10L);
+						Transaction.getTransactionalLayerMaintainer().validateDirtyScopesBeforeCommit();
+					},
+					(t, committed) -> fail("the pre-commit pass must reject before commit")
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("post-replay pipeline: a corrupted registered leaf is rejected by the commit merge")
+		void shouldRejectCorruptedScopeInCommitMerge() {
+			final TransactionalLongBPlusTree<String> tree = assembleSound(List.of(
+				singleLeaf(1, 2), singleLeaf(5, 6), singleLeaf(10, 11)
+			));
+			assertThrows(
+				AbstractTransactionalBPlusTree.BPlusTreeCorruptedException.class,
+				() -> assertStateAfterCommit(
+					tree,
+					t -> {
+						t.insert(7, "v7");
+						// no pre-commit pass here — the commit merge (post-replay, inside createCopyWithMergedTransactionalMemory)
+						// must relocate the registered leaf in the merged tree and catch the overlap
+						corruptLastKey(t, 5, 10L);
+					},
+					(t, committed) -> fail("the commit merge must reject the corrupted scope")
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("pre-commit pipeline: a rolled-back savepoint does not spuriously reject the commit")
+		void shouldNotRejectAfterSavepointRollback() {
+			final TransactionalLongBPlusTree<String> tree = assembleSound(List.of(
+				singleLeaf(1, 2), singleLeaf(5, 6), singleLeaf(10, 11)
+			));
+			assertStateAfterCommit(
+				tree,
+				t -> {
+					final TransactionalLayerMaintainer maintainer = Transaction.getTransactionalLayerMaintainer();
+					final TransactionalLayerMaintainer.Savepoint savepoint = maintainer.openSavepoint();
+					t.insert(7, "v7");
+					// the insert registered the dirtied leaf inside the savepoint; rolling the savepoint back reverts
+					// the leaf, leaving the registered object stale — but relocating by its key lands on a healthy
+					// leaf, so the pre-commit pass must NOT spuriously reject
+					maintainer.rollbackSavepoint(savepoint);
+					assertDoesNotThrow(maintainer::validateDirtyScopesBeforeCommit);
+				},
+				(t, committed) -> assertNotNull(committed)
+			);
+		}
+
+		@Test
+		@DisplayName("Registry hygiene: a remove-only transaction still registers its dirtied leaf")
+		void shouldRegisterLeafOnRemoveOnlyTransaction() {
+			final TransactionalLongBPlusTree<String> tree = assembleSound(List.of(
+				singleLeaf(1, 2), singleLeaf(5, 6), singleLeaf(10, 11)
+			));
+			assertStateAfterCommit(
+				tree,
+				t -> {
+					// a clean remove (min block size 1 → [5,6] becomes [5], no underflow/rebalance) exercises the
+					// delete seam only; a reverted removal layer is exactly what the commit-time passes must be able to relocate
+					t.delete(6);
+					assertFalse(
+						Transaction.getTransactionalLayerMaintainer().getDirtyScopeTokens(t).isEmpty(),
+						"a remove-only transaction must register the leaf it dirtied"
+					);
+				},
+				(t, committed) -> assertNotNull(committed)
+			);
+		}
+
+		@Test
+		@DisplayName("Registry hygiene: a leaf split registers both halves")
+		void shouldRegisterBothHalvesOnLeafSplit() {
+			// block size 3 splits the root leaf as these four keys are inserted (mirrors shouldSplitNodeWhenFull)
+			final TransactionalLongBPlusTree<String> tree = new TransactionalLongBPlusTree<>(3, String.class);
+			assertStateAfterCommit(
+				tree,
+				t -> {
+					t.insert(1, "v1");
+					t.insert(2, "v2");
+					t.insert(3, "v3");
+					t.insert(4, "v4");
+					// the split must register BOTH leaf halves; the identity-set size collapses to 1 if only one half
+					// was registered (or one object was registered twice), which fails this assertion
+					assertTrue(
+						Transaction.getTransactionalLayerMaintainer().getDirtyScopeTokens(t).size() >= 2,
+						"a leaf split must register both halves"
+					);
+				},
+				(t, committed) -> assertNotNull(committed)
 			);
 		}
 

@@ -27,6 +27,7 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.util.Pool;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.configuration.TransactionOptions;
+import io.evitadb.api.requestResponse.mutation.CatalogBoundMutation;
 import io.evitadb.api.requestResponse.mutation.infrastructure.TransactionMutation;
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.exception.GenericEvitaInternalError;
@@ -34,7 +35,9 @@ import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService;
 import io.evitadb.spi.store.engine.exception.WriteAheadLogCorruptedException;
 import io.evitadb.store.checksum.Checksum;
 import io.evitadb.store.checksum.Crc32CChecksumFactory;
+import io.evitadb.store.kryo.ObservableOutputKeeper;
 import io.evitadb.store.model.reference.LogFileRecordReference;
+import io.evitadb.store.offsetIndex.io.CatalogOffHeapMemoryManager;
 import io.evitadb.store.offsetIndex.io.OffHeapWithFileBackupReference;
 import io.evitadb.store.settings.StorageSettings;
 import io.evitadb.store.shared.kryo.KryoFactory;
@@ -54,9 +57,12 @@ import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.OffsetDateTime;
+import java.util.List;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService.getWalFileName;
@@ -337,6 +343,107 @@ class CatalogWriteAheadLogTest implements EvitaTestSupport {
 			assertTrue(
 				exception.getMessage().contains(orphanWalPath.toFile().getName()),
 				"Exception message should identify the offending file: " + exception.getMessage()
+			);
+		}
+	}
+
+	/**
+	 * Reproduces a same-JVM visibility race between a WAL writer and a reader that already believes a
+	 * given catalog version was durably written.
+	 *
+	 * A transaction-processing caller that treats {@code lastWrittenCatalogVersion == N} as a durable
+	 * promise that transaction {@code N} is fully readable will ask the mutation stream for exactly that
+	 * version. If that call returns a dry stream, such a caller can misread "nothing visible yet" as
+	 * "already processed everything" and stop without retrying — which in turn leaves anything waiting for
+	 * transaction {@code N} to be finalized spinning forever, since nothing will ever finalize it.
+	 *
+	 * These tests freeze the exact window deterministically: a transaction is appended through the
+	 * real {@link CatalogWriteAheadLog#append} API (so it is genuinely, legitimately written — no
+	 * mock WAL layer), then its trailing cumulative checksum alone is stripped off — the very last thing
+	 * {@link AbstractMutationLog#append} writes, strictly after the header and content. This reproduces
+	 * the on-disk state a torn/partially-visible flush would leave behind without depending on real
+	 * thread timing.
+	 *
+	 * Unlike the sibling nested classes, these tests **consume the transaction content as mutations**.
+	 * The shared {@link #setUp()} fixture fills transaction content with opaque test bytes — fine for
+	 * header/positioning tests, but unreadable by Kryo — so the fixture below replaces the WAL with
+	 * one whose content consists of genuinely serialized entity mutations written through the real
+	 * isolated-WAL pipeline (see {@link CatalogWriteAheadLogIntegrationTest#writeWal}).
+	 */
+	@Nested
+	@DisplayName("Dry-read visibility race: requested version durable but trailing checksum not yet visible")
+	class DryReadVisibilityRaceTests {
+		/**
+		 * Off-heap memory manager backing the isolated-WAL writes of the real-mutation fixture.
+		 */
+		private final CatalogOffHeapMemoryManager offHeapMemoryManager = new CatalogOffHeapMemoryManager(
+			TEST_CATALOG, 10_000_000, 4, Crc32CChecksumFactory.INSTANCE
+		);
+		/**
+		 * Keeper of observable outputs used by the isolated-WAL write handle.
+		 */
+		private final ObservableOutputKeeper observableOutputKeeper = ObservableOutputKeeper._internalBuild(
+			Mockito.mock(Scheduler.class)
+		);
+
+		/**
+		 * Replaces the WAL created by the outer {@link #setUp()} with one holding the same number of
+		 * transactions (catalog versions `1..txSizes.length`) whose content is real serialized entity
+		 * mutations, so the mutation stream under test can deserialize what it reads.
+		 */
+		@BeforeEach
+		void rebuildWalWithRealMutationContent() throws IOException {
+			CatalogWriteAheadLogTest.this.tested.close();
+			cleanTestSubDirectory(CatalogWriteAheadLogTest.class.getSimpleName());
+			CatalogWriteAheadLogTest.this.walDirectory.toFile().mkdirs();
+			CatalogWriteAheadLogTest.this.tested = createTestWal();
+			CatalogWriteAheadLogIntegrationTest.writeWal(
+				this.offHeapMemoryManager,
+				CatalogWriteAheadLogTest.this.txSizes,
+				null,
+				CatalogWriteAheadLogTest.this.walDirectory.resolve("isolatedWal.tmp"),
+				this.observableOutputKeeper,
+				CatalogWriteAheadLogTest.this.tested
+			);
+		}
+
+		@AfterEach
+		void releaseWriteInfrastructure() {
+			this.observableOutputKeeper.close();
+		}
+
+		@Test
+		@DisplayName("getCommittedMutationStreamAvoidingPartiallyWrittenBuffer(N,N) must not go dry for a " +
+			"version whose content is on disk but whose trailing checksum has not landed yet")
+		void shouldNotReturnDryStreamForLastAppendedVersionMissingOnlyTrailingChecksum() throws IOException {
+			// version = 1 + transactionIndex in setUp(), so the last transaction appended is at this version
+			final long lastAppendedVersion = CatalogWriteAheadLogTest.this.txSizes.length;
+
+			// strip only the trailing 8-byte cumulative checksum of the last transaction - its header
+			// and content are fully durable on disk, exactly mirroring the moment append() has written
+			// everything except the final checksum write
+			modifyWalFile(raf -> {
+				raf.setLength(raf.length() - AbstractMutationLog.CUMULATIVE_CRC32_SIZE);
+				return null;
+			});
+
+			final List<CatalogBoundMutation> mutations;
+			try (
+				final Stream<CatalogBoundMutation> stream = CatalogWriteAheadLogTest.this.tested
+					.getCommittedMutationStreamAvoidingPartiallyWrittenBuffer(lastAppendedVersion, lastAppendedVersion)
+			) {
+				mutations = stream.toList();
+			}
+
+			assertFalse(
+				mutations.isEmpty(),
+				"getCommittedMutationStreamAvoidingPartiallyWrittenBuffer(" + lastAppendedVersion + ", " +
+					lastAppendedVersion + ") returned a DRY stream even though transaction " +
+					lastAppendedVersion + "'s header and content are durably on disk (only its trailing " +
+					"checksum is momentarily missing). A caller that already believes this version is " +
+					"written (as a production catalog-version tracker would) has no way to distinguish " +
+					"this from \"nothing left to process\" and will silently drop the transaction instead " +
+					"of retrying."
 			);
 		}
 	}

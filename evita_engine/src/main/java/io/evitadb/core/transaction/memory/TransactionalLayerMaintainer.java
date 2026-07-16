@@ -23,6 +23,7 @@
 
 package io.evitadb.core.transaction.memory;
 
+import io.evitadb.core.exception.DataStructureCorruptedException;
 import io.evitadb.core.exception.StaleTransactionMemoryException;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
@@ -31,12 +32,15 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
 import java.io.Closeable;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.IdentityHashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static java.util.Optional.ofNullable;
@@ -85,12 +89,72 @@ public class TransactionalLayerMaintainer {
 	 * savepoint can be rolled back independently of the surrounding transaction.
 	 */
 	@Nullable private Savepoint currentSavepoint;
+	/**
+	 * Per-transaction dirty-scope registry feeding the pre-commit (pre-WAL) and post-replay (merge-time) structural
+	 * integrity validation. Maps each participant (a {@link DirtyScopeValidator}) to the identity set of opaque tokens
+	 * it registered at its invariant-changing mutation seams during this transaction. Both axes are identity-keyed and
+	 * the whole structure is lazily instantiated on first registration (a transaction that touches no participant
+	 * pays nothing). Registration feeds both the pre-commit and post-replay validation passes, which each run
+	 * unconditionally whenever at least one participant was dirtied.
+	 */
+	@Nullable private Map<DirtyScopeValidator, Set<Object>> dirtyScopes;
 
 	TransactionalLayerMaintainer(
 		@Nonnull TransactionalLayerMaintainerFinalizer finalizer
 	) {
 		this.finalizer = finalizer;
 		this.transactionalLayer = new HashMap<>(4096);
+	}
+
+	/**
+	 * Registers an opaque scope token as dirtied by the given participant during this transaction, so the pre-commit
+	 * (pre-WAL) and post-replay (merge-time) validation can re-derive its invariants at commit. Called unconditionally
+	 * from the participant's invariant-changing mutation seams; the registered object is used only as a scope token
+	 * (see {@link DirtyScopeValidator}).
+	 *
+	 * @param owner      the participant the token belongs to
+	 * @param scopeToken the dirtied scope token
+	 */
+	public void registerDirtyScopeToken(@Nonnull DirtyScopeValidator owner, @Nonnull Object scopeToken) {
+		if (this.dirtyScopes == null) {
+			this.dirtyScopes = new IdentityHashMap<>(64);
+		}
+		this.dirtyScopes
+			.computeIfAbsent(owner, it -> Collections.newSetFromMap(new IdentityHashMap<>(64)))
+			.add(scopeToken);
+	}
+
+	/**
+	 * Returns the scope tokens registered for the given participant during this transaction, or an empty set when it
+	 * dirtied none. Used by the participant's post-replay validation to relocate each token in the freshly merged
+	 * copy.
+	 *
+	 * @param owner the participant whose registered dirty scope tokens are requested
+	 * @return the registered scope tokens for the participant; never {@code null}
+	 */
+	@Nonnull
+	public Set<Object> getDirtyScopeTokens(@Nonnull DirtyScopeValidator owner) {
+		if (this.dirtyScopes == null) {
+			return Collections.emptySet();
+		}
+		final Set<Object> tokens = this.dirtyScopes.get(owner);
+		return tokens == null ? Collections.emptySet() : tokens;
+	}
+
+	/**
+	 * Runs the pre-commit (pre-WAL) dirty-scope validation: for every participant that dirtied at least one scope
+	 * token, re-derives its invariants over the registered scope against the still-live transactional view. Runs
+	 * unconditionally; a no-op only when no participant was touched. A violation surfaces as
+	 * {@link DataStructureCorruptedException}, which the caller must translate into an exceptional commit completion
+	 * so the shared WAL never receives the transaction.
+	 */
+	public void validateDirtyScopesBeforeCommit() {
+		if (this.dirtyScopes == null) {
+			return;
+		}
+		for (final Entry<DirtyScopeValidator, Set<Object>> entry : this.dirtyScopes.entrySet()) {
+			entry.getKey().validateDirtyScope(entry.getValue());
+		}
 	}
 
 	/**

@@ -46,6 +46,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.AbstractExecutorService;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Flow;
 import java.util.concurrent.TimeUnit;
@@ -200,6 +201,8 @@ class ClientChangeCapturePublisherTest implements TestConstants {
 			// must already have its subscription field wired so `onNext` does not NPE.
 			final TestHarness harness = new TestHarness(0L, true);
 			harness.start();
+			// the ACK was delivered during init, so subscribe() has already returned on its thread
+			harness.joinSubscribe();
 
 			// the ACK was consumed during init — the subscription must have been assigned
 			// its server-side id and the flow window must have been primed
@@ -227,6 +230,14 @@ class ClientChangeCapturePublisherTest implements TestConstants {
 			assertEquals(
 				"Expected ACKNOWLEDGEMENT as first message but got something else.",
 				thrown.getPrivateMessage()
+			);
+			// the same protocol violation must release the blocked subscribe() rather than let it
+			// wait out the streaming timeout
+			harness.joinSubscribe();
+			assertInstanceOf(
+				GenericEvitaInternalError.class,
+				harness.subscribeError.get(),
+				"subscribe() must fail fast with the protocol-violation error"
 			);
 		}
 
@@ -376,8 +387,14 @@ class ClientChangeCapturePublisherTest implements TestConstants {
 
 	/**
 	 * Wires the publisher, a mock gRPC observer and a recording delegate together so each
-	 * test reads cleanly. `start()` performs `subscribe`, which synchronously triggers
-	 * the supplied stream initializer.
+	 * test reads cleanly.
+	 *
+	 * `subscribe()` now blocks until the server acknowledges the subscription, so `start()` runs it
+	 * on a background thread — mirroring production, where the acknowledgement arrives on a gRPC
+	 * inbound thread distinct from the caller — and returns once the stream initializer has run so
+	 * the test can assert against the primed subscriber and deliver the remaining messages (ACK,
+	 * heartbeats, captures) from the main thread. `deliverAck()` joins the subscribe thread so the
+	 * follow-up assertions run single-threaded once the acknowledgement gate has been released.
 	 */
 	private static final class TestHarness {
 		final ClientCallStreamObserver<Object> observer;
@@ -385,6 +402,18 @@ class ClientChangeCapturePublisherTest implements TestConstants {
 		private final SystemCapturePublisher publisher;
 		private final AtomicReference<ClientResponseObserver<Object, Object>> subscriberRef =
 			new AtomicReference<>();
+		/**
+		 * Counted down by the stream initializer once the subscriber is wired (`beforeStart` done and,
+		 * for the ack-during-init case, the ACK consumed), so `start()` can return with a fully primed
+		 * subscriber even though `subscribe()` is still blocked on the acknowledgement.
+		 */
+		private final CountDownLatch initialized = new CountDownLatch(1);
+		/**
+		 * Captures any throwable the background `subscribe()` call surfaces (e.g. a protocol violation
+		 * or an acknowledgement timeout) instead of letting it escape uncaught on the daemon thread.
+		 */
+		private final AtomicReference<Throwable> subscribeError = new AtomicReference<>();
+		private volatile Thread subscribeThread;
 
 		TestHarness() {
 			this(0L);
@@ -414,17 +443,43 @@ class ClientChangeCapturePublisherTest implements TestConstants {
 						// fire the ACK from the initializer itself — must NOT NPE
 						subscriber.onNext(buildHeartbeat(0));
 					}
+					// signal that the subscriber is fully wired so start() can return; subscribe()
+					// keeps blocking on the acknowledgement on this background thread
+					this.initialized.countDown();
 				}
 			);
 		}
 
 		void start() {
-			this.publisher.subscribe(this.delegate);
+			this.subscribeThread = new Thread(
+				() -> {
+					try {
+						this.publisher.subscribe(this.delegate);
+					} catch (Throwable t) {
+						this.subscribeError.set(t);
+					}
+				},
+				"test-cdc-subscribe"
+			);
+			this.subscribeThread.setDaemon(true);
+			this.subscribeThread.start();
+			try {
+				assertTrue(
+					this.initialized.await(5, TimeUnit.SECONDS),
+					"stream initializer did not run in time"
+				);
+			} catch (InterruptedException e) {
+				Thread.currentThread().interrupt();
+				throw new AssertionError("interrupted while waiting for stream initialization", e);
+			}
 		}
 
 		void deliverAck() {
-			// first message: ACKNOWLEDGEMENT — its presence sets the subscription id
+			// first message: ACKNOWLEDGEMENT — its presence sets the subscription id and releases the
+			// acknowledgement gate; join the subscribe thread so it has fully returned before the test
+			// makes its (from here on single-threaded) assertions and further deliveries
 			this.subscriberRef.get().onNext(buildHeartbeat(0));
+			joinSubscribe();
 		}
 
 		void deliverHeartbeat(long index) {
@@ -435,6 +490,23 @@ class ClientChangeCapturePublisherTest implements TestConstants {
 			this.subscriberRef.get().onNext(
 				new ChangeSystemCapture(payload, payload, FIXED_TS, Operation.UPSERT, null)
 			);
+		}
+
+		/**
+		 * Waits for the background `subscribe()` call to return so the test's remaining work runs
+		 * without racing it.
+		 */
+		void joinSubscribe() {
+			final Thread thread = this.subscribeThread;
+			if (thread != null) {
+				try {
+					thread.join(TimeUnit.SECONDS.toMillis(5));
+				} catch (InterruptedException e) {
+					Thread.currentThread().interrupt();
+					throw new AssertionError("interrupted while joining the subscribe thread", e);
+				}
+				assertFalse(thread.isAlive(), "the subscribe thread did not return in time");
+			}
 		}
 
 		private static HeartBeat buildHeartbeat(long index) {

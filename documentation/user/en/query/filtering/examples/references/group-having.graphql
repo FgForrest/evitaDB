@@ -8,7 +8,7 @@
       },
       referenceParameterValuesHaving: [
         {
-          entityGroupHaving: {
+          groupHaving: {
             attributeCodeEquals: "ram-memory"
           }
         }

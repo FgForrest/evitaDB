@@ -35,6 +35,7 @@ import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
 import io.evitadb.dataType.ConsistencySensitiveDataStructure;
 import io.evitadb.dataType.array.CompositeObjectArray;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.IndexDataStructure;
 import io.evitadb.index.bPlusTree.IntRecordBucketTree;
 import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree;
@@ -52,6 +53,7 @@ import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
+import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -106,6 +108,7 @@ import java.util.function.Predicate;
  */
 @SuppressWarnings({"rawtypes", "unchecked"})
 @ThreadSafe
+@Slf4j
 public class InvertedIndex implements
 	IndexDataStructure,
 	ConsistencySensitiveDataStructure,
@@ -526,7 +529,9 @@ public class InvertedIndex implements
 		}
 		// assemble the spine over the per-page leaves, preserving boundaries and stamping each leaf's page sequence
 		final TransactionalBucketBPlusTree tree =
-			createEmptyTree(plainType, comparator).assembleFromSingleLeafTrees(pageTrees, orderedPageSequences);
+			createEmptyTree(plainType, comparator).assembleFromSingleLeafTrees(
+				pageTrees, orderedPageSequences, "inverted index for type `" + plainType.getName() + "`"
+			);
 		final PageStreamRegistry pageStreamRegistry = PageStreamRegistry.restoredFrom(
 			BUCKET_PAGE_STREAM, highWaterPageSequence, tree.leafPageHandles()
 		);

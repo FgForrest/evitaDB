@@ -102,6 +102,7 @@ import io.evitadb.driver.config.ClientTimeoutOptions;
 import io.evitadb.driver.config.EvitaClientConfiguration;
 import io.evitadb.driver.exception.EvitaClientServerCallException;
 import io.evitadb.driver.exception.EvitaClientTimedOutException;
+import io.evitadb.driver.exception.TransportException;
 import io.evitadb.driver.interceptor.ClientSessionInterceptor.SessionIdHolder;
 import io.evitadb.driver.requestResponse.schema.ClientCatalogSchemaDecorator;
 import io.evitadb.exception.EvitaInvalidUsageException;
@@ -2361,6 +2362,20 @@ public class EvitaClientSession implements EvitaSessionContract {
 			return Objects.requireNonNull(result);
 		} catch (ExecutionException e) {
 			final Throwable theException = e.getCause() == null ? e : e.getCause();
+			if (EvitaClient.isTransportFailure(theException)) {
+				// The connection died mid-call: the server-side invocation is orphaned and the outcome is
+				// indeterminate for us. Mark the session dead locally (terminateLocally() completes the close
+				// future without a server round-trip and flips isActive() to false) so the try-with-resources
+				// close becomes a local no-op instead of racing the orphan with a remote close — the source of
+				// the ConcurrentSessionAccessException cascade. The server's SessionKiller reaps the orphaned
+				// session on inactivity.
+				terminateLocally();
+				throw new TransportException(
+					"Connection to the evitaDB server was lost while executing a session call; the session has " +
+						"been closed locally and the outcome of the call is indeterminate.",
+					theException
+				);
+			}
 			throw EvitaClient.transformException(
 				theException,
 				() -> {
@@ -2412,6 +2427,20 @@ public class EvitaClientSession implements EvitaSessionContract {
 			return lambda.apply(this.evitaSessionServiceStub.withDeadlineAfter(this.streamingTimeout));
 		} catch (ExecutionException e) {
 			final Throwable theException = e.getCause() == null ? e : e.getCause();
+			if (EvitaClient.isTransportFailure(theException)) {
+				// The connection died mid-call: the server-side invocation is orphaned and the outcome is
+				// indeterminate for us. Mark the session dead locally (terminateLocally() completes the close
+				// future without a server round-trip and flips isActive() to false) so the try-with-resources
+				// close becomes a local no-op instead of racing the orphan with a remote close — the source of
+				// the ConcurrentSessionAccessException cascade. The server's SessionKiller reaps the orphaned
+				// session on inactivity.
+				terminateLocally();
+				throw new TransportException(
+					"Connection to the evitaDB server was lost while executing a session call; the session has " +
+						"been closed locally and the outcome of the call is indeterminate.",
+					theException
+				);
+			}
 			throw EvitaClient.transformException(
 				theException,
 				() -> {

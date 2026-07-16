@@ -207,7 +207,7 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 	private static final int PRODUCT_COUNT = 10;
 	private static DataGenerator DATA_GENERATOR;
 
-	@DataSet(value = EVITA_CLIENT_DATA_SET, openWebApi = {GrpcProvider.CODE, SystemProvider.CODE}, readOnly = false, destroyAfterClass = true)
+	@DataSet(value = EVITA_CLIENT_DATA_SET, openWebApi = {GrpcProvider.CODE, SystemProvider.CODE}, readOnly = false, destroyAfterClass = true, useRealThreadPools = true)
 	static DataCarrier initDataSet(EvitaServer evitaServer) {
 		DATA_GENERATOR = new DataGenerator.Builder()
 			.registerValueGenerator(

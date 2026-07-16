@@ -125,6 +125,34 @@ public class TransactionWalFinalizer implements TransactionHandler {
 	@Override
 	public void commit(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		try {
+			// pre-commit (pre-WAL): re-derive the invariants for every dirty scope this transaction registered, while
+			// the isolated diff layers are still live and BEFORE any mutation reaches the shared WAL. A rejection here
+			// leaves the shared WAL verifiably without this transaction, so the client can recover.
+			transactionalLayer.validateDirtyScopesBeforeCommit();
+		} catch (Throwable ex) {
+			// a raw throw would hang the commit future (nothing between here and the client completes it on an
+			// unexpected exception from commit) and leak the isolated WAL's off-heap region / temp file. Mirror
+			// rollback's resource discipline EXACTLY: close the transactional resources in the try, and release the
+			// isolated WAL + complete the commit progress exceptionally in the finally, so a throwing closeable can
+			// never prevent the WAL release or leave the commit future hanging.
+			try {
+				closeRegisteredCloseables();
+			} finally {
+				if (this.walPersistenceService != null) {
+					this.walPersistenceService.close();
+					this.walPersistenceService = null;
+				}
+				this.commitProgress.completeExceptionally(
+					new RollbackException(
+						"Transaction changes have been rolled back: a transactional data structure failed pre-commit " +
+							"integrity validation; the change was not written to the write-ahead log.",
+						ex
+					)
+				);
+			}
+			return;
+		}
+		try {
 			// here we close all registered closeables - i.e. transactional OffsetIndexes along with their data
 			// (i.e. OffHeapManager regions and temporary files) - we will not need them anymore, they were used only
 			// for the client's transaction that is being closed right now

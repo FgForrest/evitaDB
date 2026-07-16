@@ -76,6 +76,9 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.File;
 import java.io.IOException;
+import java.io.RandomAccessFile;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.file.Path;
 import java.time.OffsetDateTime;
 import java.util.Arrays;
@@ -89,6 +92,7 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.function.LongConsumer;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService.WAL_FILE_SUFFIX;
 import static io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService.getWalFileName;
@@ -520,6 +524,85 @@ public class CatalogWriteAheadLogIntegrationTest implements EvitaTestSupport {
 				)
 			);
 			assertFalse(txId.isPresent());
+		}
+	}
+
+	/**
+	 * Reproduces a reader advancing past an already-delivered transaction into a next transaction record
+	 * that is genuinely truncated or underflowing — the same shape of failure a reader would hit if it
+	 * observed a concurrent, in-progress write mid-flush. The corruption is a real Kryo-level buffer
+	 * underflow during deserialization (not merely a coarse length pre-check failure), triggered while
+	 * {@link MutationSupplier#get()} advances past an already-delivered transaction to look for the next
+	 * one.
+	 */
+	@Nested
+	@DisplayName("Forward-read visibility race: advancing into a genuinely underflowing transaction")
+	class MisalignedReadSwallowTests {
+
+		/**
+		 * Writes two genuine transactions (real entity mutations, not synthetic bytes), then corrupts
+		 * transaction 2's on-disk record surgically: its 4-byte content-length prefix is overwritten
+		 * with a small LIE, and the file is truncated to exactly match that lie. This makes the coarse
+		 * length pre-check that gates deserialization pass — a plausible content length, with enough raw
+		 * bytes on disk per that (lying) declaration — while the REAL, unmodified leading bytes of
+		 * transaction 2's serialized {@code TransactionMutation} genuinely run out mid-deserialization,
+		 * because a `TransactionMutation` needs far more than a handful of bytes (a UUID alone is 16).
+		 * This is a deterministic stand-in for what a torn/partially-visible concurrent write of
+		 * transaction 2 would look like to a reader mid-scan.
+		 *
+		 * Transaction 1 is left completely untouched and must be delivered in full. Only reading
+		 * PAST it — advancing into transaction 2 inside {@link MutationSupplier#get()}'s
+		 * checksum-validation-and-advancement step — hits the corruption.
+		 */
+		@Test
+		@DisplayName("must not silently end the stream when advancing into a genuinely underflowing transaction")
+		void shouldNotSilentlyEndStreamWhenAdvancingIntoAGenuinelyUnderflowingTransaction() throws IOException {
+			final int[] txSizes = {2, 3};
+			final Map<Long, List<Mutation>> txInMutations = writeWal(
+				CatalogWriteAheadLogIntegrationTest.this.bigOffHeapMemoryManager, txSizes
+			);
+
+			final TransactionMutationWithLocation tx2Location =
+				(TransactionMutationWithLocation) txInMutations.get(2L).get(0);
+			final long tx2Start = tx2Location.getTransactionSpan().startingPosition();
+
+			final Path walFilePath = CatalogWriteAheadLogIntegrationTest.this.wal.getWalFilePath();
+			try (RandomAccessFile raf = new RandomAccessFile(walFilePath.toFile(), "rw")) {
+				// lie about transaction 2's declared content length so the coarse length pre-check
+				// is satisfied by a handful of genuine (unmodified) leading bytes, then truncate the
+				// file to match the lie - Kryo will start deserializing real bytes and run out
+				// part-way through, exactly like a torn concurrent write would look
+				final int lyingContentLength = 4;
+				raf.seek(tx2Start);
+				final byte[] prefix = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN)
+					.putInt(lyingContentLength).array();
+				raf.write(prefix);
+				raf.setLength(tx2Start + 4 + lyingContentLength + AbstractMutationLog.CUMULATIVE_CRC32_SIZE);
+			}
+
+			List<CatalogBoundMutation> mutations = null;
+			Exception thrown = null;
+			try (
+				final Stream<CatalogBoundMutation> stream = CatalogWriteAheadLogIntegrationTest.this.wal
+					.getCommittedMutationStreamAvoidingPartiallyWrittenBuffer(1L, 2L)
+			) {
+				mutations = stream.toList();
+			} catch (Exception ex) {
+				thrown = ex;
+			}
+
+			assertNotNull(
+				thrown,
+				"getCommittedMutationStreamAvoidingPartiallyWrittenBuffer(1, 2) silently ended the " +
+					"stream after " + (mutations == null ? "?" : mutations.size()) + " element(s) " +
+					"(transaction 1 only) instead of surfacing the read failure it hit while advancing " +
+					"into transaction 2's genuinely underflowing header. A broad catch-and-return-null " +
+					"around the checksum-validation-and-advancement step swallowed whatever underflow or " +
+					"deserialization error the buffered input produced and reported an exhausted stream " +
+					"instead of a failure. A caller that already believes the requested version was " +
+					"durably written cannot distinguish this from \"nothing more to process\" and would " +
+					"silently finalize at a stale version instead of retrying or failing loudly."
+			);
 		}
 	}
 

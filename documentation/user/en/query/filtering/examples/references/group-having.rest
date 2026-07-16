@@ -9,7 +9,7 @@ POST /rest/evita/Product/query
     },
     "referenceParameterValuesHaving" : [
       {
-        "entityGroupHaving" : {
+        "groupHaving" : {
           "attributeCodeEquals" : "ram-memory"
         }
       }

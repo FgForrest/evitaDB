@@ -25,6 +25,7 @@ package io.evitadb.index.bPlusTree;
 
 
 import io.evitadb.core.transaction.Transaction;
+import io.evitadb.core.transaction.memory.DirtyScopeValidator;
 import io.evitadb.core.transaction.memory.Snapshotable;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
@@ -46,6 +47,7 @@ import java.io.Serializable;
 import java.lang.reflect.Array;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.IdentityHashMap;
@@ -99,7 +101,8 @@ import static io.evitadb.utils.ArrayUtils.*;
 @NotThreadSafe
 public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	IntRecordBucketTree<K>,
-	LongPayloadBucketTree<K>
+	LongPayloadBucketTree<K>,
+	DirtyScopeValidator
 {
 	@Serial private static final long serialVersionUID = -2030749900648110509L;
 	/**
@@ -856,6 +859,12 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		final BPlusLeafTreeNode<K> leaf = cursor.leafNode();
 		if (leaf.addRecord(value, pk)) {
 			this.size.set(size() + 1);
+			// op-time boundary-mutation asserts run on the new-bucket branch before the (possible) split, while the
+			// cursor still reflects the pre-split spine — a mis-routed new bucket corrupts cross-leaf order with no
+			// structural op firing
+			assertInsertBoundaries(cursor, value);
+			// register the dirtied leaf as a dirty-scope token for this transaction
+			registerDirtyLeafInScope(leaf);
 		}
 		if (leaf.isFull()) {
 			splitLeafNode(leaf, cursor);
@@ -879,6 +888,11 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		final BPlusLeafTreeNode<K> leaf = cursor.leafNode();
 		if (leaf.addRecords(value, pks)) {
 			this.size.set(size() + 1);
+			// op-time boundary-mutation asserts — see addRecord(K, int); the new-bucket branch validates cross-leaf
+			// order before the (possible) split
+			assertInsertBoundaries(cursor, value);
+			// register the dirtied leaf as a dirty-scope token for this transaction
+			registerDirtyLeafInScope(leaf);
 		}
 		if (leaf.isFull()) {
 			splitLeafNode(leaf, cursor);
@@ -905,6 +919,10 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		final boolean headRemoved = leaf.size() > 1 && value.equals(leaf.keyAt(0));
 		if (leaf.removeRecords(value, pks)) {
 			this.size.set(size() - 1);
+			// register the dirtied leaf as a dirty-scope token for this transaction: a removal
+			// narrows the leaf's key range, but a later reverted layer could restore the wider pre-transaction range
+			// and overlap a neighbour that split during the transaction — so removals are validated too
+			registerDirtyLeafInScope(leaf);
 			// the head of the leaf may have been removed, update parent keys accordingly
 			if (headRemoved) {
 				updateParentKeys(cursor.toCursorWithLevel());
@@ -947,6 +965,11 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		final BPlusLeafTreeNode<K> leaf = cursor.leafNode();
 		leaf.addLongRecord(value, payload);
 		this.size.set(size() + 1);
+		// op-time boundary-mutation asserts — a long-payload add always inserts a new bucket (or throws on a duplicate),
+		// so validate cross-leaf order unconditionally before the (possible) split
+		assertInsertBoundaries(cursor, value);
+		// register the dirtied leaf as a dirty-scope token for this transaction
+		registerDirtyLeafInScope(leaf);
 		if (leaf.isFull()) {
 			splitLeafNode(leaf, cursor);
 		}
@@ -987,6 +1010,10 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		final boolean headRemoved = leaf.size() > 1 && value.equals(leaf.keyAt(0));
 		if (leaf.removeLongRecord(value)) {
 			this.size.set(size() - 1);
+			// register the dirtied leaf as a dirty-scope token for this transaction: a removal
+			// narrows the leaf's key range, but a later reverted layer could restore the wider pre-transaction range
+			// and overlap a neighbour that split during the transaction — so removals are validated too
+			registerDirtyLeafInScope(leaf);
 			// the head of the leaf may have been removed, update parent keys accordingly
 			if (headRemoved) {
 				updateParentKeys(cursor.toCursorWithLevel());
@@ -1126,10 +1153,11 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		@Nullable Void layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		final BPlusTreeNode<K, ?> theRoot = transactionalLayer.getStateCopyWithCommittedChanges(this.root)
 			.orElseThrow();
+		final TransactionalBucketBPlusTree<K> merged;
 		if (theRoot instanceof BPlusLeafTreeNode<?> leafNode) {
 			//noinspection unchecked
 			final BPlusLeafTreeNode<K> theLeafNode = (BPlusLeafTreeNode<K>) leafNode;
-			return new TransactionalBucketBPlusTree<>(
+			merged = new TransactionalBucketBPlusTree<>(
 				this.valueBlockSize, this.minValueBlockSize,
 				this.internalNodeBlockSize, this.minInternalNodeBlockSize,
 				this.keyType,
@@ -1141,7 +1169,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			);
 		} else if (theRoot instanceof BPlusInternalTreeNode<?> internalNode) {
 			//noinspection unchecked
-			return new TransactionalBucketBPlusTree<>(
+			merged = new TransactionalBucketBPlusTree<>(
 				this.valueBlockSize, this.minValueBlockSize,
 				this.internalNodeBlockSize, this.minInternalNodeBlockSize,
 				this.keyType,
@@ -1154,6 +1182,15 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		} else {
 			throw new GenericEvitaInternalError("Unknown node type: " + theRoot);
 		}
+		// post-replay (merge-time): before this merged version can propagate to the live view, re-derive the cross-leaf boundary
+		// invariants for every leaf this transaction dirtied — against the freshly merged structure (plain reads;
+		// the merged nodes are fresh or unchanged-and-layer-free, so the descent never consults a diff layer).
+		// Registered objects are key sources only; each is relocated by its current key in the merged tree.
+		final Set<Object> dirtyScope = transactionalLayer.getDirtyScopeTokens(this);
+		if (!dirtyScope.isEmpty()) {
+			merged.validateDirtyScope(dirtyScope);
+		}
+		return merged;
 	}
 
 	/**
@@ -1407,14 +1444,24 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	 * into the assembled tree exactly as in {@link #assembleFromLeaves} — do not keep mutating the source trees
 	 * afterwards.
 	 *
+	 * The reassembled leaves are validated for strict cross-leaf key order BEFORE the spine is built: the last key of a
+	 * key-bearing leaf must sort strictly before the first key of the next key-bearing leaf (per the tree's comparator or
+	 * the keys' natural order). A violation means the persisted page list carries a stale leaf-page twin (a frozen
+	 * snapshot of a leaf persisted next to the page that superseded it) or other index corruption; it is not silently
+	 * repaired but reported via {@link #assertCrossLeafBoundaries} — see the defensive-design rationale there.
+	 *
 	 * @param orderedSingleLeafTrees the per-page single-leaf trees in ascending key order
-	 * @param pageSequences               the persisted page sequence for each tree, positionally aligned; same length
+	 * @param pageSequences          the persisted page sequence for each tree, positionally aligned; same length
+	 * @param structureDescription   a full identification of the index for diagnostics, reading like a noun phrase after
+	 *                               `persisted ` (e.g. `inverted index for type \`X\``)
 	 * @return a new tree whose leaves are exactly those of the supplied trees, each stamped with its page sequence
+	 * @throws GenericEvitaInternalError when the persisted leaf pages violate strict cross-leaf key order
 	 */
 	@Nonnull
 	public TransactionalBucketBPlusTree<K> assembleFromSingleLeafTrees(
 		@Nonnull List<TransactionalBucketBPlusTree<K>> orderedSingleLeafTrees,
-		@Nonnull int[] pageSequences
+		@Nonnull int[] pageSequences,
+		@Nonnull String structureDescription
 	) {
 		Assert.isPremiseValid(
 			orderedSingleLeafTrees.size() == pageSequences.length,
@@ -1432,7 +1479,338 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			leaf.setPageSequence(pageSequences[i]);
 			leaves.add(leaf);
 		}
+		// validate cross-leaf key order BEFORE assembly, so the corruption diagnostic fires ahead of any left-boundary
+		// separator invariant the spine builder would otherwise trip on with a less actionable message
+		assertCrossLeafBoundaries(leaves, structureDescription);
 		return assembleFromLeaves(leaves);
+	}
+
+	/**
+	 * Validates that the supplied leaves are in strict cross-leaf key order: the last key of each key-bearing leaf must
+	 * sort strictly before the first key of the next key-bearing leaf (per the tree's comparator, or the keys' natural
+	 * order when no comparator is set). Empty leaves carry no key and impose no boundary constraint, so they are skipped
+	 * when locating the previous key-bearing leaf.
+	 *
+	 * A paged index persists one storage part per B+ tree leaf plus a root part listing the ordered leaf-page sequence;
+	 * the reload path re-assembles one in-memory leaf per persisted page. A writer race on a `@NotThreadSafe` warm-up
+	 * session can leave a frozen stale snapshot of a leaf reachable next to the page that superseded it, and a one-shot
+	 * flush persists BOTH — every subsequent reload then rebuilds a tree whose leaves overlap, silently serving corrupt
+	 * data until it crashes later with a confusing signature far from the cause. Because the paged persistence layout has
+	 * never shipped in a released version, no production catalog can carry such a twin; silently repairing one would
+	 * contradict the defensive-design rule, so any detected overlap fails fast here with full diagnostics and an operator
+	 * remediation hint.
+	 *
+	 * @param leaves               the reassembled leaves in persisted list order
+	 * @param structureDescription a full identification of the index for diagnostics (see
+	 *                             {@link #assembleFromSingleLeafTrees})
+	 * @throws GenericEvitaInternalError when a leaf's last key does not sort strictly before the next leaf's first key
+	 */
+	private void assertCrossLeafBoundaries(
+		@Nonnull List<BPlusLeafTreeNode<K>> leaves,
+		@Nonnull String structureDescription
+	) {
+		BPlusLeafTreeNode<K> previousKeyBearing = null;
+		for (final BPlusLeafTreeNode<K> leaf : leaves) {
+			final int peek = leaf.getPeek();
+			if (peek < 0) {
+				// empty leaf carries no key and cannot violate cross-leaf ordering
+				continue;
+			}
+			final K[] keys = leaf.getKeys();
+			// intra-leaf order: a serializer bug, truncated write or bit rot can leave a leaf whose interior keys
+			// are out of order, while the cross-leaf walk alone would pass it — binary search inside such a leaf
+			// then silently returns wrong answers. Assert each key sorts strictly after its predecessor within the
+			// leaf (one comparison per key, once per load).
+			for (int i = 1; i <= peek; i++) {
+				if (compareKeys(keys[i - 1], keys[i], this.comparator) >= 0) {
+					throw new GenericEvitaInternalError(
+						"Corrupted persisted " + structureDescription + ": leaf-page sequence " +
+							leaf.getPageSequence() + " has out-of-order keys — the key at position " + (i - 1) + " (" +
+							keys[i - 1] + ") does not sort before the key at position " + i + " (" + keys[i] + "). This " +
+							"is index corruption. Restore the catalog from a backup, or fully rebuild / reindex the " +
+							"affected catalog."
+					);
+				}
+			}
+			if (previousKeyBearing != null) {
+				final K previousLastKey = previousKeyBearing.getKeys()[previousKeyBearing.getPeek()];
+				final K currentFirstKey = keys[0];
+				if (compareKeys(previousLastKey, currentFirstKey, this.comparator) >= 0) {
+					throw new GenericEvitaInternalError(
+						"Corrupted persisted " + structureDescription + ": leaf-page sequence " +
+							previousKeyBearing.getPageSequence() + " overlaps its successor leaf-page sequence " +
+							leaf.getPageSequence() + " — its last key (" + previousLastKey + ") does not sort before the " +
+							"first key (" + currentFirstKey + ") of the next leaf page. This is a stale leaf-page twin or " +
+							"other index corruption. Restore the catalog from a backup, or fully rebuild / reindex the " +
+							"affected catalog."
+					);
+				}
+			}
+			previousKeyBearing = leaf;
+		}
+	}
+
+	/**
+	 * Compares two keys using the supplied comparator when present, otherwise the keys' natural [Comparable] order.
+	 * This is the single key-comparison mechanism every boundary / separator assert routes through (it mirrors the
+	 * ternary used inside {@link #assertCrossLeafBoundaries}), so the object-keyed tree never falls back to a raw
+	 * `>=` on object references.
+	 *
+	 * @param left       the left operand
+	 * @param right      the right operand
+	 * @param comparator the total order to use, or `null` for the keys' natural order
+	 * @param <M>        the key type
+	 * @return a negative, zero or positive int as `left` sorts before, equal to, or after `right`
+	 */
+	private static <M extends Comparable<M>> int compareKeys(
+		@Nonnull M left, @Nonnull M right, @Nullable Comparator<M> comparator) {
+		return comparator != null ? comparator.compare(left, right) : left.compareTo(right);
+	}
+
+	/**
+	 * Tail-boundary assert. On any leaf mutation that RAISES the leaf's last key (a new bucket inserted at the
+	 * tail, including the insert into an empty leaf), verifies the new last key still sorts strictly below the leaf's
+	 * upper fence. The fence is the separator at the nearest ancestor whose descent was not into the rightmost child —
+	 * which, by the separator-from-first-key invariant, equals the first key of the successor leaf, even when that
+	 * successor lives under a different parent, grandparent, etc. A rightmost descent at every level means the leaf is
+	 * the tree's last leaf and has no successor, so nothing is checked.
+	 *
+	 * A violation means a key was routed into a leaf whose successor should hold it (a search-path corruption); it would
+	 * overlap the successor's page on flush, so it fails fast here. Zero allocation and no cross-parent leaf navigation:
+	 * the fence is pure index arithmetic over the cursor arrays (the internal node's `getKeys()` returns its backing
+	 * separator array, not a copy). Sequential bulk append descends into the rightmost child at every level, so the walk
+	 * finds no fence and returns after a few comparisons.
+	 *
+	 * @param cursor     the descent path to the mutated leaf
+	 * @param newLastKey the leaf's new last key after the mutation
+	 * @throws GenericEvitaInternalError when the new last key does not sort strictly before the successor fence
+	 */
+	void assertTailBoundary(@Nonnull Cursor<K> cursor, @Nonnull K newLastKey) {
+		final List<CursorLevel<K>> path = cursor.path();
+		for (int level = path.size() - 1; level >= 1; level--) {
+			final CursorLevel<K> cursorLevel = path.get(level);
+			final int childIndex = cursorLevel.index();
+			if (childIndex < cursorLevel.peek()) {
+				// the ancestor whose children are this level's siblings holds the fence separator at childIndex
+				final CursorLevel<K> ancestorLevel = path.get(level - 1);
+				//noinspection unchecked
+				final BPlusInternalTreeNode<K> ancestor =
+					(BPlusInternalTreeNode<K>) ancestorLevel.siblings()[ancestorLevel.index()];
+				final K fence = ancestor.getKeys()[childIndex];
+				if (compareKeys(newLastKey, fence, this.comparator) >= 0) {
+					throw boundaryMutationError("tail", newLastKey, "before the successor leaf boundary", fence);
+				}
+				return;
+			}
+		}
+	}
+
+	/**
+	 * Head-boundary assert. On any leaf mutation that LOWERS the leaf's first key (a new bucket inserted at the
+	 * head, including the insert into an empty leaf), verifies the new first key still sorts strictly above the
+	 * predecessor leaf's last key. In a sound tree a head insert can only land on the tree's leftmost leaf (the
+	 * separator-from-first-key invariant routes every key at-or-above the leaf's own first key), so this check passes
+	 * trivially; it fires only on a mis-routed insert that undercuts a real predecessor.
+	 *
+	 * The predecessor's last key is the only meaningful operand: checking the parent separator would be circular, as the
+	 * maintained invariant makes it equal the leaf's own first key.
+	 *
+	 * @param cursor      the descent path to the mutated leaf
+	 * @param newFirstKey the leaf's new first key after the mutation
+	 * @throws GenericEvitaInternalError when the new first key does not sort strictly after the predecessor boundary
+	 */
+	void assertHeadBoundary(@Nonnull Cursor<K> cursor, @Nonnull K newFirstKey) {
+		final BPlusLeafTreeNode<K> predecessor = predecessorLeaf(cursor);
+		if (predecessor == null) {
+			// leftmost leaf — no predecessor to violate
+			return;
+		}
+		final int predecessorPeek = predecessor.getPeek();
+		if (predecessorPeek < 0) {
+			// an empty predecessor carries no key (mirrors the load-time empty-leaf skip)
+			return;
+		}
+		final K predecessorLastKey = predecessor.keyAt(predecessorPeek);
+		if (compareKeys(predecessorLastKey, newFirstKey, this.comparator) >= 0) {
+			throw boundaryMutationError(
+				"head", newFirstKey, "after the predecessor leaf boundary", predecessorLastKey);
+		}
+	}
+
+	/**
+	 * Resolves the predecessor leaf of the cursor's leaf. Common case (`ci > 0`): the same-parent left sibling is the
+	 * predecessor, read in O(1) from the cursor's already-materialized sibling array. Rare case (`ci == 0`): walk up to
+	 * the nearest ancestor whose descent was into a non-leftmost child (the clamp ancestor), then follow that ancestor's
+	 * left-neighbour subtree down its right spine to the predecessor leaf. That rare branch is O(height) and is never
+	 * taken by sequential append (append never lowers a first key); only a random workload that undercuts a leaf minimum
+	 * at a parent edge reaches it.
+	 *
+	 * @param cursor the descent path to the leaf whose predecessor is sought
+	 * @return the predecessor leaf, or `null` when the cursor's leaf is the tree's leftmost leaf
+	 */
+	@Nullable
+	private BPlusLeafTreeNode<K> predecessorLeaf(@Nonnull Cursor<K> cursor) {
+		final List<CursorLevel<K>> path = cursor.path();
+		final CursorLevel<K> leafLevel = path.get(path.size() - 1);
+		final int leafIndex = leafLevel.index();
+		if (leafIndex > 0) {
+			//noinspection unchecked
+			return (BPlusLeafTreeNode<K>) leafLevel.siblings()[leafIndex - 1];
+		}
+		for (int level = path.size() - 1; level >= 1; level--) {
+			final CursorLevel<K> cursorLevel = path.get(level);
+			final int childIndex = cursorLevel.index();
+			if (childIndex > 0) {
+				BPlusTreeNode<K, ?> node = cursorLevel.siblings()[childIndex - 1];
+				while (node instanceof BPlusInternalTreeNode<?> internal) {
+					//noinspection unchecked
+					final BPlusInternalTreeNode<K> internalNode = (BPlusInternalTreeNode<K>) internal;
+					node = internalNode.getChildren()[internalNode.getPeek()];
+				}
+				//noinspection unchecked
+				return (BPlusLeafTreeNode<K>) node;
+			}
+		}
+		return null;
+	}
+
+	/**
+	 * Builds the shared boundary-mutation corruption error (offending key, the neighbour boundary it collides
+	 * with, remediation hint).
+	 *
+	 * @param side        `tail` or `head` — which boundary the mutation changed
+	 * @param boundaryKey the leaf's new boundary key that violates cross-leaf order
+	 * @param relation    the ordering relation that was expected (e.g. `before the successor leaf boundary`)
+	 * @param neighborKey the adjacent leaf boundary that `boundaryKey` failed to sort against
+	 * @return the corruption error to throw
+	 */
+	@Nonnull
+	private AbstractTransactionalBPlusTree.BPlusTreeCorruptedException boundaryMutationError(
+		@Nonnull String side, @Nonnull K boundaryKey, @Nonnull String relation, @Nonnull K neighborKey) {
+		return new AbstractTransactionalBPlusTree.BPlusTreeCorruptedException(
+			"Corrupted in-memory B+ tree: a leaf's " + side + " boundary key " + boundaryKey + " does not sort " +
+				relation + " (" + neighborKey + "). This indicates cross-leaf key overlap (a mis-routed insertion, a " +
+				"reverted transactional layer, or a merge defect) that would overlap an adjacent leaf page on flush. " +
+				"Restore the catalog from a backup, or fully rebuild / reindex the affected catalog."
+		);
+	}
+
+	/**
+	 * Registers a dirtied leaf as a dirty-scope token for this transaction. This standalone tree does
+	 * not extend {@link AbstractTransactionalBPlusTree}, so it cannot reuse the base's static registration helper (whose
+	 * parameter is the base-package leaf type this tree's nested leaf does not implement); it inlines the same semantics
+	 * instead. A no-op when no transaction is active — warm-up bulk load and other non-transactional mutations have
+	 * neither a registry nor a WAL, so the pre-commit (pre-WAL) and post-replay (merge-time) validations do not apply and pay nothing. The registered object is the leaf's write
+	 * LAYER when one exists (it holds the effective in-transaction keys and survives the layer discard the trunk merge
+	 * performs), otherwise the leaf itself (a split-born leaf holds its keys directly). Registered objects are key
+	 * sources only, so registering a not-strictly-current object cannot cause a false positive.
+	 *
+	 * @param leaf the dirtied leaf node
+	 */
+	private void registerDirtyLeafInScope(@Nonnull BPlusLeafTreeNode<K> leaf) {
+		final TransactionalLayerMaintainer maintainer = Transaction.getTransactionalLayerMaintainer();
+		if (maintainer == null) {
+			return;
+		}
+		final Object writable = Transaction.getTransactionalMemoryLayerIfExists(leaf);
+		maintainer.registerDirtyScopeToken(this, writable != null ? writable : leaf);
+	}
+
+	/**
+	 * Dirty-scope validation for this tree. For each registered key source (a writable leaf
+	 * this transaction dirtied) it reads the current first key, descends from this tree's root to the leaf that key
+	 * routes to, and re-derives both cross-leaf half-invariants on the leaf the descent actually landed on — reusing
+	 * the op-time machinery with the leaf's ACTUAL boundary keys ({@link #assertTailBoundary} against the successor
+	 * fence, {@link #assertHeadBoundary} against the predecessor's last key). Empty key sources and descents that land
+	 * on an empty leaf are skipped (nothing to relocate by / assert). Called on the live baseline tree for the
+	 * pre-commit (pre-WAL) pass (the descent resolves diff layers) and on a freshly merged tree for the post-replay
+	 * (merge-time) pass (plain reads); both use read-path accessors only.
+	 *
+	 * @param registeredLeafKeySources the writable leaf objects registered for this tree; used only as key sources
+	 * @throws AbstractTransactionalBPlusTree.BPlusTreeCorruptedException when a relocated leaf overlaps an adjacent leaf
+	 */
+	@Override
+	public void validateDirtyScope(@Nonnull Collection<Object> registeredLeafKeySources) {
+		for (final Object keySource : registeredLeafKeySources) {
+			//noinspection unchecked
+			final BPlusLeafTreeNode<K> registered = (BPlusLeafTreeNode<K>) keySource;
+			if (registered.getPeek() < 0) {
+				// empty key source — nothing to relocate by (key-source-only rule)
+				continue;
+			}
+			final K probeKey = registered.keyAt(0);
+			final Cursor<K> cursor = createCursor(probeKey);
+			final BPlusLeafTreeNode<K> leaf = cursor.leafNode();
+			final int peek = leaf.getPeek();
+			if (peek < 0) {
+				// the descent landed on an empty leaf — validating it is sound and vacuous
+				continue;
+			}
+			assertTailBoundary(cursor, leaf.keyAt(peek));
+			assertHeadBoundary(cursor, leaf.keyAt(0));
+		}
+	}
+
+	/**
+	 * Separator-order belt. After a parent separator at `slot` is rewritten (head-key propagation), asserts strict
+	 * local order against its existing neighbours. This catches stale/aliased internal-node state — the historical
+	 * stale-leaf-page twin bugs were object aliasing, whose first symptom is a separator that no longer matches the live
+	 * leaf it fronts. It is a belt, not the head-side check: it cannot detect a mis-routed head insert that keeps the
+	 * separators individually ordered (that is what {@link #assertHeadBoundary} covers). The comparator is passed in
+	 * rather than read from `this` so the static belt can run inside the internal node's key-update path.
+	 *
+	 * @param keys       the internal node's live separator array
+	 * @param peek       the internal node's peek (separator count is `peek`, valid indices `0..peek-1`)
+	 * @param slot       the just-rewritten separator index
+	 * @param comparator the total order to use, or `null` for the keys' natural order
+	 * @param <M>        the key type
+	 * @throws GenericEvitaInternalError when the rewritten separator breaks strict local order
+	 */
+	static <M extends Comparable<M>> void assertSeparatorOrder(
+		@Nonnull M[] keys, int peek, int slot, @Nullable Comparator<M> comparator) {
+		if (slot > 0 && compareKeys(keys[slot - 1], keys[slot], comparator) >= 0) {
+			throw separatorOrderError(keys[slot - 1], keys[slot]);
+		}
+		if (slot < peek - 1 && compareKeys(keys[slot], keys[slot + 1], comparator) >= 0) {
+			throw separatorOrderError(keys[slot], keys[slot + 1]);
+		}
+	}
+
+	/**
+	 * Builds the separator-order corruption error.
+	 *
+	 * @param leftKey  the separator that should sort strictly before `rightKey`
+	 * @param rightKey the separator that `leftKey` collides with
+	 * @return the corruption error to throw
+	 */
+	@Nonnull
+	private static GenericEvitaInternalError separatorOrderError(@Nonnull Object leftKey, @Nonnull Object rightKey) {
+		return new GenericEvitaInternalError(
+			"Corrupted in-memory B+ tree: internal separator keys are out of order (" + leftKey + " does not sort " +
+				"before " + rightKey + "). This indicates stale/aliased internal-node state. Restore the catalog " +
+				"from a backup, or fully rebuild / reindex the affected catalog."
+		);
+	}
+
+	/**
+	 * Runs the op-time boundary-mutation asserts for a freshly inserted bucket key. A tail insert raises the leaf's last
+	 * key, a head insert lowers its first key, and the insert into an empty leaf (the 0→1 transition) does both; an
+	 * interior insert cannot violate cross-leaf order in a sound tree and is not checked. Called on the new-bucket branch
+	 * shared by warm-up bulk load, transactional ops and trunk replay. The leaf accessors are transaction-layer-aware, so
+	 * this reflects the post-insert state whether the mutation landed on the node or on its transactional layer.
+	 *
+	 * @param cursor the descent path to the mutated leaf
+	 * @param key    the bucket key just inserted
+	 */
+	void assertInsertBoundaries(@Nonnull Cursor<K> cursor, @Nonnull K key) {
+		final BPlusLeafTreeNode<K> leaf = cursor.leafNode();
+		final int peek = leaf.getPeek();
+		if (compareKeys(key, leaf.keyAt(peek), this.comparator) == 0) {
+			assertTailBoundary(cursor, key);
+		}
+		if (compareKeys(key, leaf.keyAt(0), this.comparator) == 0) {
+			assertHeadBoundary(cursor, key);
+		}
 	}
 
 	/**
@@ -1644,6 +2022,14 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 								previousNode
 							);
 							updateParentKeys(cursorWithLevel);
+							if (!isInternal) {
+								// a steal shifts both this leaf's and the donor's boundary keys — register both as
+								// dirty-scope tokens for this transaction
+								//noinspection unchecked
+								registerDirtyLeafInScope((BPlusLeafTreeNode<K>) node);
+								//noinspection unchecked
+								registerDirtyLeafInScope((BPlusLeafTreeNode<K>) previousNode);
+							}
 							return;
 						}
 					}
@@ -1659,6 +2045,14 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 							updateParentKeys(nextNodeCursor);
 							if (isInternal || nodeIsEmpty) {
 								updateParentKeys(cursorWithLevel);
+							}
+							if (!isInternal) {
+								// a steal shifts both this leaf's and the donor's boundary keys — register both as
+								// dirty-scope tokens for this transaction
+								//noinspection unchecked
+								registerDirtyLeafInScope((BPlusLeafTreeNode<K>) node);
+								//noinspection unchecked
+								registerDirtyLeafInScope((BPlusLeafTreeNode<K>) nextNode);
 							}
 							return;
 						}
@@ -1678,6 +2072,12 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 							updateParentKeys(
 								previousNodeCursor.withReplacedCurrentNode(node)
 							);
+							if (!isInternal) {
+								// a merge lowers this surviving leaf's head boundary — register it as a
+								// dirty-scope token for this transaction
+								//noinspection unchecked
+								registerDirtyLeafInScope((BPlusLeafTreeNode<K>) node);
+							}
 							cursorWithLevel = cursorWithLevel.toParentLevel();
 							continue;
 						}
@@ -1697,6 +2097,12 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 							updateParentKeys(
 								cursorWithLevel.withReplacedCurrentNode(node)
 							);
+							if (!isInternal) {
+								// a merge raises this surviving leaf's tail boundary — register it as a
+								// dirty-scope token for this transaction
+								//noinspection unchecked
+								registerDirtyLeafInScope((BPlusLeafTreeNode<K>) node);
+							}
 							cursorWithLevel = cursorWithLevel.toParentLevel();
 						}
 					}
@@ -1778,7 +2184,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	 * @return a cursor to the leaf node responsible for storing the provided key
 	 */
 	@Nonnull
-	private Cursor<K> createCursor(@Nonnull K key) {
+	Cursor<K> createCursor(@Nonnull K key) {
 		final ArrayList<CursorLevel<K>> path = new ArrayList<>(this.size() == 0 ? 1 : (int) (Math.log(
 			this.size()) + 1));
 		final BPlusTreeNode<K, ?> theRoot = this.getRoot();
@@ -1807,6 +2213,21 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		final ValueColumn<K> originKeys = leaf.getKeyColumn();
 		final RecordColumn originRecords = leaf.getRecords();
 		final TransactionalBitmap[] originOverflow = leaf.getOverflow();
+
+		// Structural assert: the split partitions a sorted leaf into a left half [0, mid) and a right half
+		// [mid, capacity); the left leaf's last key must sort strictly before the right leaf's first key, and the
+		// promoted separator is exactly that right first key. A violation means the leaf being split was already out of
+		// order — fail fast rather than persist two overlapping pages.
+		final K leftHalfLastKey = originKeys.keyAt(mid - 1);
+		final K rightHalfFirstKey = originKeys.keyAt(mid);
+		if (compareKeys(leftHalfLastKey, rightHalfFirstKey, this.comparator) >= 0) {
+			throw new GenericEvitaInternalError(
+				"Corrupted in-memory B+ tree: splitting a leaf produced overlapping halves — the left half's last " +
+					"key (" + leftHalfLastKey + ") does not sort before the right half's first key (" +
+					rightHalfFirstKey + "). The leaf being split was already out of order. Restore the catalog from a " +
+					"backup, or fully rebuild / reindex the affected catalog."
+			);
+		}
 
 		// Move half the buckets to fresh arrays of the left leaf node
 		final BPlusLeafTreeNode<K> leftLeaf = new BPlusLeafTreeNode<>(
@@ -1862,6 +2283,10 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				cursor.toCursorWithLevel()
 			);
 		}
+		// a split creates a brand-new adjacent leaf pair with a fresh separator between them — register both halves
+		// as dirty-scope tokens for this transaction
+		registerDirtyLeafInScope(leftLeaf);
+		registerDirtyLeafInScope(rightLeaf);
 	}
 
 	/**
@@ -2798,6 +3223,8 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 					"Node to update key for must match the child node at the specified index!"
 				);
 				this.keys[index - 1] = node.getLeftBoundaryKey();
+				// separator-order belt: the rewritten separator must keep strict local order
+				assertSeparatorOrder(this.keys, this.peek, index - 1, this.comparator);
 			} else {
 				decoupleTransactionalArrays();
 				Assert.isPremiseValid(
@@ -2805,6 +3232,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 					"Node to update key for must match the child node at the specified index!"
 				);
 				layer.keys[index - 1] = node.getLeftBoundaryKey();
+				assertSeparatorOrder(layer.keys, layer.peek, index - 1, this.comparator);
 			}
 		}
 
@@ -4869,7 +5297,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	 * @param path the path representing the sequence of nodes traversed to reach the leaf node
 	 * @param <M>  the type of key stored in the B+ tree nodes
 	 */
-	private record Cursor<M extends Comparable<M>>(
+	record Cursor<M extends Comparable<M>>(
 		@Nonnull List<CursorLevel<M>> path
 	) {
 

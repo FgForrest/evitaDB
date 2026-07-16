@@ -55,6 +55,10 @@ class ClientConnectionOptionsTest {
 		assertEquals(ClientConnectionOptions.DEFAULT_HOST, options.host());
 		assertEquals(ClientConnectionOptions.DEFAULT_PORT, options.port());
 		assertEquals(ClientConnectionOptions.DEFAULT_SYSTEM_API_PORT, options.systemApiPort());
+		assertEquals(ClientConnectionOptions.DEFAULT_PING_INTERVAL_MILLIS, options.pingIntervalMillis());
+		assertEquals(30_000, options.pingIntervalMillis());
+		assertEquals(ClientConnectionOptions.DEFAULT_IDLE_TIMEOUT_MILLIS, options.idleTimeoutMillis());
+		assertEquals(300_000, options.idleTimeoutMillis());
 	}
 
 	@Test
@@ -66,6 +70,8 @@ class ClientConnectionOptionsTest {
 		assertEquals("localhost", options.host());
 		assertEquals(5555, options.port());
 		assertEquals(5555, options.systemApiPort());
+		assertEquals(30_000, options.pingIntervalMillis());
+		assertEquals(300_000, options.idleTimeoutMillis());
 	}
 
 	@Nested
@@ -115,6 +121,77 @@ class ClientConnectionOptionsTest {
 
 			assertEquals("my-custom-client", options.clientId());
 		}
+
+		@Test
+		@DisplayName("should set custom ping interval via builder")
+		void shouldSetCustomPingInterval() {
+			final ClientConnectionOptions options =
+				ClientConnectionOptions.builder()
+					.pingIntervalMillis(1000)
+					.build();
+
+			assertEquals(1000, options.pingIntervalMillis());
+		}
+
+		@Test
+		@DisplayName("should allow disabling the ping via a zero interval")
+		void shouldAllowDisablingPing() {
+			final ClientConnectionOptions options =
+				ClientConnectionOptions.builder()
+					.pingIntervalMillis(0)
+					.build();
+
+			assertEquals(0, options.pingIntervalMillis());
+		}
+
+		@Test
+		@DisplayName("should raise a positive ping interval below the Armeria minimum to the 1000 ms floor")
+		void shouldClampSubMinimumPingIntervalToArmeriaFloor() {
+			assertEquals(
+				1000,
+				ClientConnectionOptions.builder().pingIntervalMillis(500).build().pingIntervalMillis()
+			);
+		}
+
+		@Test
+		@DisplayName("should fall back to the default for a negative ping interval")
+		void shouldFallBackToDefaultForNegativePingInterval() {
+			assertEquals(
+				ClientConnectionOptions.DEFAULT_PING_INTERVAL_MILLIS,
+				ClientConnectionOptions.builder().pingIntervalMillis(-1).build().pingIntervalMillis()
+			);
+		}
+
+		@Test
+		@DisplayName("should fall back to the default for a negative idle timeout")
+		void shouldFallBackToDefaultForNegativeIdleTimeout() {
+			assertEquals(
+				ClientConnectionOptions.DEFAULT_IDLE_TIMEOUT_MILLIS,
+				ClientConnectionOptions.builder().idleTimeoutMillis(-1).build().idleTimeoutMillis()
+			);
+		}
+
+		@Test
+		@DisplayName("should set custom idle timeout via builder")
+		void shouldSetCustomIdleTimeout() {
+			final ClientConnectionOptions options =
+				ClientConnectionOptions.builder()
+					.idleTimeoutMillis(120_000)
+					.build();
+
+			assertEquals(120_000, options.idleTimeoutMillis());
+		}
+
+		@Test
+		@DisplayName("should allow disabling the idle timeout via a zero value")
+		void shouldAllowDisablingIdleTimeout() {
+			final ClientConnectionOptions options =
+				ClientConnectionOptions.builder()
+					.idleTimeoutMillis(0)
+					.build();
+
+			assertEquals(0, options.idleTimeoutMillis());
+		}
 	}
 
 	@Nested
@@ -130,6 +207,8 @@ class ClientConnectionOptionsTest {
 					.host("remotehost")
 					.port(1234)
 					.systemApiPort(5678)
+					.pingIntervalMillis(2500)
+					.idleTimeoutMillis(90_000)
 					.build();
 
 			final ClientConnectionOptions copy = ClientConnectionOptions.builder(source).build();
@@ -138,6 +217,8 @@ class ClientConnectionOptionsTest {
 			assertEquals("remotehost", copy.host());
 			assertEquals(1234, copy.port());
 			assertEquals(5678, copy.systemApiPort());
+			assertEquals(2500, copy.pingIntervalMillis());
+			assertEquals(90_000, copy.idleTimeoutMillis());
 		}
 
 		@Test

@@ -52,6 +52,7 @@ import io.evitadb.utils.NumberUtils;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -60,9 +61,6 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.Supplier;
-import java.util.stream.Stream;
-
-import static java.util.Optional.ofNullable;
 
 /**
  * Co-locates the procedural, index-maintenance routines for attribute mutations, keeping
@@ -515,34 +513,32 @@ public interface AttributeIndexMutator {
 
 		final EntitySchema entitySchema = executor.getEntitySchema();
 		final Scope scope = entityIndex.getIndexKey().scope();
-		final Stream<SortableAttributeCompoundSchema> allCompounds = sortableAttributeCompounds
-			.values()
-			.stream()
-			// we retrieve schemas from EntitySchema, so we can safely cast them here
-			.map(SortableAttributeCompoundSchema.class::cast)
-			.filter(it -> it.isIndexedInScope(scope));
-
-		final Stream<SortableAttributeCompoundSchema> filteredCompounds = locale == null ?
-			allCompounds.filter(it -> !it.isLocalized(attributeSchemaProvider::getAttributeSchema)) :
-			// filter only localized compound schemas
-			allCompounds.filter(it -> it.isLocalized(attributeSchemaProvider::getAttributeSchema));
-
 		final int entityPrimaryKey = executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_SORT_INDEX, Target.NEW);
-		filteredCompounds.forEach(
-			it -> insertNewCompound(
-				entityPrimaryKey, entityIndex, it,
+		// schema resolver and value provider are loop invariant - allocate them once instead of per compound
+		final Function<String, ? extends AttributeSchemaContract> schemaResolver = attributeSchemaProvider::getAttributeSchema;
+		final boolean wantLocalized = locale != null;
+		final Function<AttributeElement, AttributeValue> attributeElementValueProvider = createAttributeElementToAttributeValueProvider(
+			attributeSchemaProvider,
+			attributeKey -> entityAttributeValueSupplier.getAttributeValue(attributeKey).orElse(null),
+			locale
+		);
+		for (final SortableAttributeCompoundSchemaContract rawCompound : sortableAttributeCompounds.values()) {
+			// we retrieve schemas from EntitySchema, so we can safely cast them here
+			final SortableAttributeCompoundSchema compound = (SortableAttributeCompoundSchema) rawCompound;
+			// index only compounds active in this scope, matching the requested localization
+			if (!compound.isIndexedInScope(scope) || compound.isLocalized(schemaResolver) != wantLocalized) {
+				continue;
+			}
+			insertNewCompound(
+				entityPrimaryKey, entityIndex, compound,
 				null, null,
 				locale,
 				entitySchema,
 				referenceSchema,
 				attributeSchemaProvider,
-				createAttributeElementToAttributeValueProvider(
-					attributeSchemaProvider,
-					attributeKey -> entityAttributeValueSupplier.getAttributeValue(attributeKey).orElse(null),
-					locale
-				)
-			)
-		);
+				attributeElementValueProvider
+			);
+		}
 	}
 
 	/**
@@ -587,33 +583,30 @@ public interface AttributeIndexMutator {
 	) {
 		final EntitySchema entitySchema = executor.getEntitySchema();
 		final Scope scope = entityIndex.getIndexKey().scope();
-		final Stream<SortableAttributeCompoundSchema> allCompounds = compoundProvider.getSortableAttributeCompounds()
-			.values()
-			.stream()
-			// we retrieve schemas from EntitySchema, so we can safely cast them here
-			.map(SortableAttributeCompoundSchema.class::cast)
-			.filter(it -> it.isIndexedInScope(scope));
-
-		final Stream<SortableAttributeCompoundSchema> filteredCompounds = locale == null ?
-			allCompounds.filter(it -> !it.isLocalized(attributeSchemaProvider::getAttributeSchema)) :
-			// filter only localized compound schemas
-			allCompounds.filter(it -> it.isLocalized(attributeSchemaProvider::getAttributeSchema));
-
 		final int entityPrimaryKey = executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_SORT_INDEX, Target.EXISTING);
-		filteredCompounds.forEach(
-			it -> removeOldCompound(
-				entityPrimaryKey, entityIndex, it,
+		// schema resolver and value provider are loop invariant - allocate them once instead of per compound
+		final Function<String, ? extends AttributeSchemaContract> schemaResolver = attributeSchemaProvider::getAttributeSchema;
+		final boolean wantLocalized = locale != null;
+		final Function<AttributeElement, AttributeValue> attributeElementValueProvider = createAttributeElementToAttributeValueProvider(
+			attributeSchemaProvider,
+			attributeKey -> entityAttributeValueSupplier.getAttributeValue(attributeKey).orElse(null),
+			locale
+		);
+		for (final SortableAttributeCompoundSchemaContract rawCompound : compoundProvider.getSortableAttributeCompounds().values()) {
+			// we retrieve schemas from EntitySchema, so we can safely cast them here
+			final SortableAttributeCompoundSchema compound = (SortableAttributeCompoundSchema) rawCompound;
+			// remove only compounds active in this scope, matching the requested localization
+			if (!compound.isIndexedInScope(scope) || compound.isLocalized(schemaResolver) != wantLocalized) {
+				continue;
+			}
+			removeOldCompound(
+				entityPrimaryKey, entityIndex, compound,
 				locale,
 				entitySchema,
 				referenceSchema,
-				attributeSchemaProvider,
-				createAttributeElementToAttributeValueProvider(
-					attributeSchemaProvider,
-					attributeKey -> entityAttributeValueSupplier.getAttributeValue(attributeKey).orElse(null),
-					locale
-				)
-			)
-		);
+				attributeElementValueProvider
+			);
+		}
 	}
 
 	/**
@@ -763,7 +756,7 @@ public interface AttributeIndexMutator {
 			removeOldCompound(
 				executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_SORT_INDEX, Target.EXISTING),
 				indexForRemoval, compound, locale,
-				entitySchema, referenceSchema, attributeSchemaProvider, attributeElementValueProvider
+				entitySchema, referenceSchema, attributeElementValueProvider
 			);
 
 			insertNewCompound(
@@ -810,16 +803,17 @@ public interface AttributeIndexMutator {
 		@Nonnull AttributeAndCompoundSchemaProvider attributeSchemaProvider,
 		@Nonnull Function<AttributeElement, AttributeValue> attributeElementValueProvider
 	) {
-		final Serializable[] newCompoundValues = compound.getAttributeElements()
-			.stream()
-			.map(
-				it -> Objects.equals(it.attributeName(), updatedAttributeName) ?
-					valueToUpdate :
-					ofNullable(attributeElementValueProvider.apply(it))
-						.map(AttributeValue::value)
-						.orElse(null)
-			)
-			.toArray(Serializable[]::new);
+		final List<AttributeElement> attributeElements = compound.getAttributeElements();
+		final Serializable[] newCompoundValues = new Serializable[attributeElements.size()];
+		for (int i = 0; i < attributeElements.size(); i++) {
+			final AttributeElement element = attributeElements.get(i);
+			if (Objects.equals(element.attributeName(), updatedAttributeName)) {
+				newCompoundValues[i] = valueToUpdate;
+			} else {
+				final AttributeValue elementValue = attributeElementValueProvider.apply(element);
+				newCompoundValues[i] = elementValue == null ? null : elementValue.value();
+			}
+		}
 
 		if (!ArrayUtils.isEmptyOrItsValuesNull(newCompoundValues)) {
 			entityIndex.insertSortAttributeCompound(
@@ -846,7 +840,6 @@ public interface AttributeIndexMutator {
 	 * @param locale                       the locale of the compound entry; `null` for non-localized compounds
 	 * @param entitySchema                 the entity schema (required for index persistence metadata)
 	 * @param referenceSchema              the reference schema for reference attributes, `null` for entity attributes
-	 * @param attributeSchemaProvider      supplies attribute schemas for type resolution during undo registration
 	 * @param attributeElementValueProvider resolves pre-mutation attribute values for each compound element
 	 */
 	private static void removeOldCompound(
@@ -856,17 +849,14 @@ public interface AttributeIndexMutator {
 		@Nullable Locale locale,
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nullable ReferenceSchemaContract referenceSchema,
-		@Nonnull AttributeAndCompoundSchemaProvider attributeSchemaProvider,
 		@Nonnull Function<AttributeElement, AttributeValue> attributeElementValueProvider
 	) {
-		final Serializable[] oldCompoundValues = compound.getAttributeElements()
-			.stream()
-			.map(
-				it -> ofNullable(attributeElementValueProvider.apply(it))
-					.map(AttributeValue::value)
-					.orElse(null)
-			)
-			.toArray(Serializable[]::new);
+		final List<AttributeElement> attributeElements = compound.getAttributeElements();
+		final Serializable[] oldCompoundValues = new Serializable[attributeElements.size()];
+		for (int i = 0; i < attributeElements.size(); i++) {
+			final AttributeValue elementValue = attributeElementValueProvider.apply(attributeElements.get(i));
+			oldCompoundValues[i] = elementValue == null ? null : elementValue.value();
+		}
 
 		if (!ArrayUtils.isEmptyOrItsValuesNull(oldCompoundValues)) {
 			entityIndex.removeSortAttributeCompound(

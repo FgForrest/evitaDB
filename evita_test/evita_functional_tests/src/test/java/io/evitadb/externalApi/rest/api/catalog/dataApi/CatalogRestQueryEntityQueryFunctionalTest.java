@@ -42,6 +42,7 @@ import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.PriceRangeForSale;
+import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.extraResult.AttributeHistogram;
@@ -102,6 +103,7 @@ import static io.evitadb.utils.AssertionUtils.assertSortedResultEquals;
 import static io.evitadb.utils.MapBuilder.map;
 import static org.hamcrest.Matchers.*;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static io.evitadb.test.TestTags.REST;
 import static io.evitadb.test.TestTags.EXTERNAL_API;
@@ -4906,6 +4908,90 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 				resultPath(ResponseDescriptor.EXTRA_RESULTS, ExtraResultsDescriptor.REFERENCE_SUMMARY) +
 					".parameter.findAll { it.histogramStatistics?.priceIndex?.min != null }.size()",
 				greaterThan(0)
+			);
+	}
+
+	@Test
+	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@DisplayName("Should narrow results via groupHaving nested in the generic referenceParameterHaving container")
+	void shouldApplyGroupHavingInReferenceHaving(Evita evita, RestTester tester, List<SealedEntity> originalProductEntities) {
+		// Regression: the schema builder never generated the GROUP constraint slot for generic
+		// referenceXxxHaving/facetXxxHaving containers — only histogramHaving's own dedicated
+		// groupSelector slot worked. This exercises groupHaving nested in referenceParameterHaving.
+		final SealedEntity sampleProduct = originalProductEntities.stream()
+			.filter(it -> it.getReferences(Entities.PARAMETER).stream()
+				.anyMatch(reference -> reference.getGroup().isPresent()))
+			.findFirst()
+			.orElseThrow();
+		final ReferenceContract sampleParameterReference = sampleProduct.getReferences(Entities.PARAMETER)
+			.stream()
+			.filter(reference -> reference.getGroup().isPresent())
+			.findFirst()
+			.orElseThrow();
+		final int groupPk = sampleParameterReference.getGroup().orElseThrow().getPrimaryKey();
+		final String groupCode = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.getEntity(Entities.PARAMETER_GROUP, groupPk, attributeContent(ATTRIBUTE_CODE));
+			}
+		).orElseThrow().getAttribute(ATTRIBUTE_CODE);
+		assertNotNull(groupCode, "sampled parameter group must carry a code — fixture sanity check");
+
+		final EvitaResponse<EntityClassifier> baselineResponse = queryEntities(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				filterBy(
+					referenceHaving(
+						Entities.PARAMETER,
+						groupHaving(attributeEquals(ATTRIBUTE_CODE, groupCode))
+					)
+				),
+				require(page(1, 1))
+			)
+		);
+		final int expectedCount = baselineResponse.getTotalRecordCount();
+		assertTrue(expectedCount > 0, "baseline query must match at least the sample product — fixture sanity check");
+
+		final EvitaResponse<EntityClassifier> catalogWideResponse = queryEntities(
+			evita,
+			query(collection(Entities.PRODUCT), require(page(1, 1)))
+		);
+		assertTrue(expectedCount < catalogWideResponse.getTotalRecordCount(),
+			"groupHaving must strictly narrow the result set (got " + expectedCount +
+				" with the group filter vs " + catalogWideResponse.getTotalRecordCount() + " catalog-wide)");
+
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/PRODUCT/query")
+			.httpMethod(Request.METHOD_POST)
+			.requestBody(
+				"""
+					{
+						"filterBy": {
+							"referenceParameterHaving": [
+								{
+									"groupHaving": {
+										"attributeCodeEquals": "%s"
+									}
+								}
+							]
+						},
+						"require": {
+							"page": {
+								"number": 1,
+								"size": %d
+							}
+						}
+					}
+					""",
+				groupCode,
+				Integer.MAX_VALUE
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(
+				resultPath(ResponseDescriptor.RECORD_PAGE) + ".totalRecordCount",
+				equalTo(expectedCount)
 			);
 	}
 

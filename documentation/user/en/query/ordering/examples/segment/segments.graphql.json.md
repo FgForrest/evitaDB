@@ -8,7 +8,7 @@
             "primaryKey" : 106106,
             "attributes" : {
               "code" : "alcatel-3-1",
-              "published" : "2026-04-27T14:40:57.813+02:00",
+              "published" : "2026-07-13T16:52:05.289+02:00",
               "orderedQuantity" : "0.00000"
             },
             "stocks" : [
@@ -29,7 +29,7 @@
             "primaryKey" : 113762,
             "attributes" : {
               "code" : "logitech-mx-keys",
-              "published" : "2026-04-27T14:40:46.174+02:00",
+              "published" : "2026-07-13T16:51:53.258+02:00",
               "orderedQuantity" : "0.00000"
             },
             "stocks" : [
@@ -50,7 +50,7 @@
             "primaryKey" : 113725,
             "attributes" : {
               "code" : "immax-neo-lite-smart-christmas-led-tree",
-              "published" : "2026-04-27T14:40:46.075+02:00",
+              "published" : "2026-07-13T16:51:53.154+02:00",
               "orderedQuantity" : "0.00000"
             },
             "stocks" : [
@@ -71,7 +71,7 @@
             "primaryKey" : 113660,
             "attributes" : {
               "code" : "genius-sp-hf2800bt",
-              "published" : "2026-04-27T14:40:45.789+02:00",
+              "published" : "2026-07-13T16:51:52.873+02:00",
               "orderedQuantity" : "0.00000"
             },
             "stocks" : [
@@ -92,7 +92,7 @@
             "primaryKey" : 113302,
             "attributes" : {
               "code" : "24v5c",
-              "published" : "2026-04-27T14:40:41.443+02:00",
+              "published" : "2026-07-13T16:51:48.833+02:00",
               "orderedQuantity" : "0.00000"
             },
             "stocks" : [
@@ -113,7 +113,7 @@
             "primaryKey" : 113110,
             "attributes" : {
               "code" : "logitech-mx-anywhere-3",
-              "published" : "2026-04-27T14:40:40.613+02:00",
+              "published" : "2026-07-13T16:51:48+02:00",
               "orderedQuantity" : "0.00000"
             },
             "stocks" : [
@@ -134,7 +134,7 @@
             "primaryKey" : 108599,
             "attributes" : {
               "code" : "fitbit-luxe",
-              "published" : "2026-04-27T14:40:19.418+02:00",
+              "published" : "2026-07-13T16:51:27.036+02:00",
               "orderedQuantity" : "0.00000"
             },
             "stocks" : [
@@ -155,7 +155,7 @@
             "primaryKey" : 107130,
             "attributes" : {
               "code" : "oppo-a16e",
-              "published" : "2026-04-27T14:40:10.858+02:00",
+              "published" : "2026-07-13T16:51:18.888+02:00",
               "orderedQuantity" : "0.00000"
             },
             "stocks" : [
@@ -176,7 +176,7 @@
             "primaryKey" : 106105,
             "attributes" : {
               "code" : "alcatel-3",
-              "published" : "2026-04-27T14:40:03.546+02:00",
+              "published" : "2026-07-13T16:51:13.563+02:00",
               "orderedQuantity" : "0.00000"
             },
             "stocks" : [
@@ -197,7 +197,7 @@
             "primaryKey" : 105148,
             "attributes" : {
               "code" : "amazon-kindle-paperwhite-signature-edition",
-              "published" : "2026-04-27T14:40:01.088+02:00",
+              "published" : "2026-07-13T16:51:11.421+02:00",
               "orderedQuantity" : "0.00000"
             },
             "stocks" : [

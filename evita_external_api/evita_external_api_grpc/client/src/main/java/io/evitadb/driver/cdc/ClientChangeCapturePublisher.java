@@ -145,8 +145,15 @@ public abstract class ClientChangeCapturePublisher<C extends ChangeCapture, REQ,
 	 * on a synchronous init failure, `onNext` dereferencing the subscription
 	 * field) must already be in place when it does.
 	 *
+	 * This call is **blocking**: it returns only once the server has acknowledged the
+	 * subscription, so a subsequent call issued by the same thread on the same session is
+	 * guaranteed to run after the server-side subscription is established. See
+	 * {@link ClientChangeCaptureSubscriber#awaitAcknowledgement()} for the races this closes.
+	 *
 	 * @param subscriber the subscriber to register
 	 * @throws IllegalStateException if the publisher has been closed
+	 * @throws io.evitadb.exception.GenericEvitaInternalError if the server does not acknowledge the
+	 *         subscription within the streaming timeout or the stream fails during setup
 	 */
 	@Override
 	public void subscribe(Subscriber<? super C> subscriber) {
@@ -192,6 +199,20 @@ public abstract class ClientChangeCapturePublisher<C extends ChangeCapture, REQ,
 		}
 		// notify the delegate that it has a subscription it can drive
 		internalSubscriber.onSubscribe(subscription);
+		// block until the server acknowledges the subscription so that a subsequent call issued on
+		// the same session runs strictly after the server-side subscription is established —
+		// otherwise it would race the still-pending registration offloaded onto the server request
+		// pool (concurrent session access), or fire a mutation before this subscriber is wired into
+		// the change observer (a missed event). See ClientChangeCaptureSubscriber#awaitAcknowledgement.
+		try {
+			internalSubscriber.awaitAcknowledgement();
+		} catch (RuntimeException ex) {
+			// the server never confirmed the subscription within the streaming timeout, or the
+			// stream failed during setup — tear the half-open subscription down (which removes it
+			// from `subscriptions` and cancels the gRPC stream) before rethrowing to the caller
+			subscription.cancel();
+			throw ex;
+		}
 	}
 
 	/**

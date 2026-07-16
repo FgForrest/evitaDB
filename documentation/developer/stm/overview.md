@@ -17,6 +17,7 @@ layer. For the user-facing transaction lifecycle (WAL, conflict resolution, cata
 | [overview.md](overview.md) (this file)         | High-level architecture and design principles                       |
 | [core-interfaces.md](core-interfaces.md)       | `TransactionalLayerCreator`, `TransactionalLayerProducer` contracts |
 | [layer-lifecycle.md](layer-lifecycle.md)        | How diff layers are created, consumed, and verified                 |
+| [savepoints.md](savepoints.md)                 | `Snapshotable` SPI and partial rollback (savepoints) within a transaction |
 | [data-structures.md](data-structures.md)       | Concrete transactional data structures and their diff strategies    |
 | [champ-persistent-map.md](champ-persistent-map.md) | The CHAMP persistent immutable map (structural sharing; backs `OffsetIndex`) |
 | [debugging.md](debugging.md)                   | `TransactionalObjectVersion`, stale-layer diagnosis, debugging tips |
@@ -50,6 +51,11 @@ layer. For the user-facing transaction lifecycle (WAL, conflict resolution, cata
    recursively invoke the same method on any nested `TransactionalLayerProducer` instances it contains.
    This ensures the entire object graph is merged atomically.
 
+6. **Partial rollback via savepoints** -- a diff layer may opt in to the `Snapshotable` SPI, which lets
+   a savepoint capture and later restore the changes made inside a bracket of the transaction. This
+   reverts a single failed entity mutation (e.g. in a batch upsert) while the surrounding transaction
+   keeps running. See [savepoints.md](savepoints.md).
+
 ---
 
 ## Key classes at a glance
@@ -73,6 +79,8 @@ io.evitadb.core.transaction.memory
   TransactionalLayerWrapper<T>        -- envelope tracking ALIVE/DISCARDED state
   TransactionalLayerState             -- enum {ALIVE, DISCARDED}
   TransactionalObjectVersion          -- global sequence for unique creator IDs
+  Snapshotable<M>                     -- opt-in SPI: snapshot/restore a diff layer for savepoints
+  UndoJournal                         -- inverse-op log for delta-bounded savepoint snapshot/restore
 
 io.evitadb.core.exception
   StaleTransactionMemoryException     -- thrown when layers are not fully swept

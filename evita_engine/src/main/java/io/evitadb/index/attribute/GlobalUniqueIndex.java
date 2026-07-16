@@ -302,7 +302,10 @@ public class GlobalUniqueIndex implements
 			pageTrees.add(pageTree);
 		}
 		final TransactionalBucketBPlusTree tree =
-			createEmptyTree(plainType, comparator).assembleFromSingleLeafTrees(pageTrees, orderedPageSequences);
+			createEmptyTree(plainType, comparator).assembleFromSingleLeafTrees(
+				pageTrees, orderedPageSequences,
+				"global unique index for attribute " + attributeKey + " in scope " + scope
+			);
 		final PageStreamRegistry pageStreamRegistry = PageStreamRegistry.restoredFrom(
 			UNIQUE_PAGE_STREAM, highWaterPageSequence, tree.leafPageHandles()
 		);

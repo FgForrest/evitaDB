@@ -26,6 +26,7 @@ package io.evitadb.index.attribute;
 import com.carrotsearch.hppc.IntArrayDeque;
 import com.carrotsearch.hppc.IntArrayList;
 import com.carrotsearch.hppc.IntHashSet;
+import com.carrotsearch.hppc.IntIntHashMap;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.core.catalog.Catalog;
@@ -35,6 +36,7 @@ import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.dataType.ChainableType;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.dataType.ConsistencySensitiveDataStructure;
 import io.evitadb.dataType.ReferencedEntityPredecessor;
 import io.evitadb.index.AbstractReducedEntityIndex;
@@ -341,6 +343,11 @@ public class ChainIndex implements
 		@Nonnull List<ChainIndexLeafPagePart> pages,
 		int highWaterPageSequence
 	) {
+		// 0. a chain page is positional and carries no ordering invariant, so the stale leaf-page twin corruption
+		// manifests as duplicate record ids across pages; assert none exists before assembly (fails fast otherwise — the
+		// paged layout never shipped in a released version, so a duplicate is never a production catalog and is not
+		// silently repaired)
+		assertNoDuplicateChainRecords(pages, attributeIndexKey);
 		// 1. assemble the element array 1:1 from the pages (boundary-stable, one leaf per page, dirty=false)
 		final List<LeafPageInput> pageInputs = new ArrayList<>(pages.size());
 		for (final ChainIndexLeafPagePart page : pages) {
@@ -419,6 +426,60 @@ public class ChainIndex implements
 		return new ChainIndex(
 			referenceKey, attributeIndexKey, elements, descriptors, predecessorMap, inverseMap, pageStreamRegistry
 		);
+	}
+
+	/**
+	 * Asserts that no record id appears in more than one persisted chain-index leaf page. Unlike the key-ordered paged
+	 * indexes a chain page is positional and carries no ordering invariant to violate, so the stale leaf-page twin
+	 * corruption — a writer race persisting a frozen stale snapshot of a leaf page alongside the page that superseded it
+	 * — manifests instead as DUPLICATE record ids across pages. Because the paged persistence layout has never shipped
+	 * in a released version, no production catalog can carry such a twin; a duplicate is index corruption that is not
+	 * silently repaired but fails fast here with a {@link GenericEvitaInternalError} naming the record id, both
+	 * offending page sequences, the attribute identity and an operator remediation hint.
+	 *
+	 * @param pages             the persisted leaf pages in ascending logical order
+	 * @param attributeIndexKey the attribute identity of this index (diagnostics)
+	 * @throws GenericEvitaInternalError when a record id appears in more than one leaf page
+	 */
+	private static void assertNoDuplicateChainRecords(
+		@Nonnull List<ChainIndexLeafPagePart> pages,
+		@Nonnull AttributeIndexKey attributeIndexKey
+	) {
+		// fast path: scan every record id against one set; when no record id repeats there is no corruption — the
+		// overwhelmingly common case, O(N) over the ints
+		final IntHashSet seen = new IntHashSet();
+		boolean duplicateFound = false;
+		for (final ChainIndexLeafPagePart page : pages) {
+			for (final int recordId : page.getRecordIds()) {
+				if (!seen.add(recordId)) {
+					duplicateFound = true;
+					break;
+				}
+			}
+			if (duplicateFound) {
+				break;
+			}
+		}
+		if (!duplicateFound) {
+			return;
+		}
+		// a record id repeats across pages — re-scan to attribute the first duplicate to its two page sequences for a
+		// precise diagnostic, then fail fast
+		final IntIntHashMap firstPageOfRecord = new IntIntHashMap();
+		for (final ChainIndexLeafPagePart page : pages) {
+			final int pageSequence = page.getPageSequence();
+			for (final int recordId : page.getRecordIds()) {
+				if (firstPageOfRecord.containsKey(recordId)) {
+					throw new GenericEvitaInternalError(
+						"Corrupted persisted chain index for attribute " + attributeIndexKey + ": record id " + recordId +
+							" appears in more than one leaf page (sequences " + firstPageOfRecord.get(recordId) + " and " +
+							pageSequence + "). This is a stale leaf-page twin or other index corruption. Restore the " +
+							"catalog from a backup, or fully rebuild / reindex the affected catalog."
+					);
+				}
+				firstPageOfRecord.put(recordId, pageSequence);
+			}
+		}
 	}
 
 	/**

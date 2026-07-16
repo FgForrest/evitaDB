@@ -228,6 +228,9 @@ class LongRunningEvitaClientReadWriteTest implements TestConstants, EvitaTestSup
 			.host(grpcHost.hostAddress())
 			.port(grpcHost.port())
 			.systemApiPort(systemHost.port())
+			// disable the keep-alive ping in the test lane: a long inline call on a direct-executor
+			// test server can stall the event loop past the ping budget and self-cancel the connection
+			.pingIntervalMillis(0)
 			.tls(
 				ClientTlsOptions.builder()
 					.mtlsEnabled(false)
@@ -430,6 +433,9 @@ class LongRunningEvitaClientReadWriteTest implements TestConstants, EvitaTestSup
 			.host(grpcHost.hostAddress())
 			.port(grpcHost.port())
 			.systemApiPort(systemHost.port())
+			// disable the keep-alive ping in the test lane: a long inline call on a direct-executor
+			// test server can stall the event loop past the ping budget and self-cancel the connection
+			.pingIntervalMillis(0)
 			.tls(
 				ClientTlsOptions.builder()
 					.mtlsEnabled(false)
@@ -848,6 +854,9 @@ class LongRunningEvitaClientReadWriteTest implements TestConstants, EvitaTestSup
 					.host(evitaClient.getConfiguration().host())
 					.port(evitaClient.getConfiguration().port())
 					.systemApiPort(evitaClient.getConfiguration().systemApiPort())
+					// disable the HTTP/2 keep-alive ping in the test lane so it does not confound the
+					// app-level CDC heartbeat under test on this direct-executor server
+					.pingIntervalMillis(0)
 					.timeouts(
 						ClientTimeoutOptions.builder()
 							.streamingTimeout(6, TimeUnit.SECONDS)

@@ -44,8 +44,11 @@ import javax.annotation.concurrent.ThreadSafe;
 import java.time.Duration;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Flow;
 import java.util.concurrent.Flow.Subscription;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 
@@ -116,6 +119,15 @@ public class ClientChangeCaptureSubscriber<C extends ChangeCapture, REQ, RES>
 	 * This is used to differentiate between client-initiated and server-initiated closures.
 	 */
 	private final AtomicBoolean serverSideClosed = new AtomicBoolean(false);
+
+	/**
+	 * Completed when the server acknowledges the subscription (the first {@link #onNext} carrying the
+	 * ACKNOWLEDGEMENT), or completed exceptionally if the stream fails before that acknowledgement
+	 * arrives. {@link ClientChangeCapturePublisher#subscribe} blocks on this future via
+	 * {@link #awaitAcknowledgement()} so it returns only once the server-side subscription is
+	 * established — see that method for the ordering guarantees this provides.
+	 */
+	private final CompletableFuture<Void> acknowledged = new CompletableFuture<>();
 
 	/**
 	 * The gRPC observer that sends requests to and receives responses from the server.
@@ -194,7 +206,7 @@ public class ClientChangeCaptureSubscriber<C extends ChangeCapture, REQ, RES>
 	 * @throws GenericEvitaInternalError if the subscriber has already been started
 	 */
 	@Override
-	public void beforeStart(@Nonnull ClientCallStreamObserver<REQ> observer) {
+	public void beforeStart(ClientCallStreamObserver<REQ> observer) {
 		Assert.isPremiseValid(
 			this.serverObserver == null,
 			"ClientChangeCaptureSubscriber can only be started once. It is already started."
@@ -232,8 +244,59 @@ public class ClientChangeCaptureSubscriber<C extends ChangeCapture, REQ, RES>
 	 * @param subscription the subscription created by the publisher
 	 */
 	@Override
-	public void onSubscribe(@Nonnull Subscription subscription) {
+	public void onSubscribe(Subscription subscription) {
 		this.delegate.onSubscribe(subscription);
+	}
+
+	/**
+	 * Blocks the calling thread until the server acknowledges the subscription — the first
+	 * {@link #onNext} carrying the ACKNOWLEDGEMENT response — or until the stream fails or the
+	 * streaming timeout elapses during setup.
+	 *
+	 * Gating {@link ClientChangeCapturePublisher#subscribe} on this acknowledgement makes the
+	 * client-side `subscribe` return only once the server-side subscription is established. This
+	 * closes two races that only surface when the caller immediately issues another call on the
+	 * same session (the offloaded server-side registration otherwise runs on the request pool
+	 * after `subscribe` has already returned):
+	 *
+	 * 1. a concurrent same-session call racing the still-pending registration on the server
+	 *    request pool (rejected with a concurrent-session-access error), and
+	 * 2. a mutation firing before this subscriber is wired into the change observer, so its event
+	 *    is never delivered.
+	 *
+	 * The acknowledgement is delivered on the gRPC inbound thread — never on the caller thread that
+	 * runs `subscribe` — so this wait cannot deadlock the delivery of the acknowledgement it awaits.
+	 *
+	 * @throws GenericEvitaInternalError if the server does not acknowledge the subscription within
+	 *         the streaming timeout, the stream fails before the acknowledgement arrives, or the
+	 *         waiting thread is interrupted
+	 */
+	void awaitAcknowledgement() {
+		try {
+			this.acknowledged.get(this.streamingTimeout.toMillis(), TimeUnit.MILLISECONDS);
+		} catch (java.util.concurrent.TimeoutException ex) {
+			throw new GenericEvitaInternalError(
+				"The evitaDB server did not acknowledge the change data capture subscription within " +
+					this.streamingTimeout.toMillis() + " ms.",
+				"The evitaDB server did not acknowledge the change data capture subscription in time.",
+				ex
+			);
+		} catch (ExecutionException ex) {
+			final Throwable cause = ex.getCause() == null ? ex : ex.getCause();
+			throw new GenericEvitaInternalError(
+				"The change data capture subscription failed before it was acknowledged by the server: " +
+					cause.getMessage(),
+				"The change data capture subscription failed before it was acknowledged by the server.",
+				cause
+			);
+		} catch (InterruptedException ex) {
+			Thread.currentThread().interrupt();
+			throw new GenericEvitaInternalError(
+				"Interrupted while waiting for the change data capture subscription acknowledgement.",
+				"Interrupted while waiting for the change data capture subscription acknowledgement.",
+				ex
+			);
+		}
 	}
 
 	/**
@@ -294,20 +357,27 @@ public class ClientChangeCaptureSubscriber<C extends ChangeCapture, REQ, RES>
 				}
 			});
 		if (activeSubscription.getSubscriptionId() == null) {
-			// the very first message MUST be the acknowledgement — otherwise the
-			// protocol is being violated and the heartbeat field is still null;
-			// `isPremiseValid` is the project's idiomatic precondition check and
-			// surfaces the violation as `GenericEvitaInternalError` with the descriptive message
-			Assert.isPremiseValid(
-				this.lastHeartBeat != null,
-				"Expected ACKNOWLEDGEMENT as first message but got something else."
-			);
-			// IDE-friendly capture: the assert above already proved non-null, so this
+			// the very first message MUST be the acknowledgement — otherwise the protocol is being
+			// violated and the heartbeat field is still null. Fail the acknowledgement future so a
+			// caller blocked in `awaitAcknowledgement` is released immediately instead of waiting out
+			// the streaming timeout, and surface the same descriptive `GenericEvitaInternalError` on
+			// the gRPC delivery thread as before.
+			if (this.lastHeartBeat == null) {
+				final GenericEvitaInternalError protocolViolation = new GenericEvitaInternalError(
+					"Expected ACKNOWLEDGEMENT as first message but got something else."
+				);
+				this.acknowledged.completeExceptionally(protocolViolation);
+				throw protocolViolation;
+			}
+			// IDE-friendly capture: the null-check above already proved non-null, so this
 			// `requireNonNull` is a no-op at runtime but tells static analyzers the dereference is safe
 			final HeartBeat acknowledgement = Objects.requireNonNull(this.lastHeartBeat);
 			activeSubscription.setSubscriptionId(acknowledgement.subscriptionId());
 			// ACK consumed: open the full window so the server may start streaming captures
 			observer.request(this.flowControlWindow);
+			// release any caller blocked in `awaitAcknowledgement` — the server-side subscription
+			// is now established, so a subsequent same-session call is safe to issue
+			this.acknowledged.complete(null);
 		} else {
 			final Optional<C> capture = this.deserializeCaptureResponse.apply(itemResponse);
 			if (capture.isPresent()) {
@@ -329,8 +399,9 @@ public class ClientChangeCaptureSubscriber<C extends ChangeCapture, REQ, RES>
 	 * draining the queue after the stream has been torn down cannot resurrect the channel.
 	 */
 	void requestOneMore() {
-		if (this.serverObserver != null && !this.closed.get() && !this.serverSideClosed.get()) {
-			this.serverObserver.request(1);
+		final ClientCallStreamObserver<REQ> theServerRequest = this.serverObserver;
+		if (theServerRequest != null && !this.closed.get() && !this.serverSideClosed.get()) {
+			theServerRequest.request(1);
 		}
 	}
 
@@ -350,6 +421,10 @@ public class ClientChangeCaptureSubscriber<C extends ChangeCapture, REQ, RES>
 	public void onError(Throwable throwable) {
 		this.serverSideClosed.set(true);
 		final Throwable rootCause = ExceptionUtils.getRootCause(throwable);
+		// unblock a caller still waiting in `awaitAcknowledgement`: the stream failed before the
+		// server acknowledged the subscription, so the subscribe() call must fail rather than wait
+		// out the full streaming timeout (no-op once the ACK has already completed the future)
+		this.acknowledged.completeExceptionally(rootCause);
 		if (rootCause instanceof PublisherClosedByClientException) {
 			// this is expected, we closed the publisher manually
 			// apparently, gRPC server doesn't know if cancellation was initiated by the client or by some network error
@@ -393,6 +468,8 @@ public class ClientChangeCaptureSubscriber<C extends ChangeCapture, REQ, RES>
 	 * @param cause exception describing the client-internal failure
 	 */
 	void notifyClientFailureAndClose(@Nonnull Throwable cause) {
+		// unblock a caller still waiting in `awaitAcknowledgement` (no-op once the ACK completed it)
+		this.acknowledged.completeExceptionally(cause);
 		if (!this.closed.get()) {
 			log.error("Client-side change capture subscription failed.", cause);
 			// invoked from `ClientSubscription.consume`, which can only exist once the
@@ -420,6 +497,12 @@ public class ClientChangeCaptureSubscriber<C extends ChangeCapture, REQ, RES>
 	@Override
 	public void onComplete() {
 		this.serverSideClosed.set(true);
+		// unblock a caller still waiting in `awaitAcknowledgement`: the stream completed before the
+		// server acknowledged the subscription, which is abnormal — fail the subscribe() rather than
+		// wait out the streaming timeout (no-op once the ACK has already completed the future)
+		this.acknowledged.completeExceptionally(
+			new GenericEvitaInternalError("The change data capture stream completed before it was acknowledged.")
+		);
 		if (!this.closed.get()) {
 			// gRPC calls `onComplete` only after `beforeStart` returned, by which point
 			// the publisher has already attached the subscription
@@ -467,9 +550,13 @@ public class ClientChangeCaptureSubscriber<C extends ChangeCapture, REQ, RES>
 	 */
 	@Override
 	public void close() {
+		// unblock a caller still waiting in `awaitAcknowledgement` if the subscriber is torn down
+		// before the server acknowledged the subscription (no-op once the ACK completed the future)
+		this.acknowledged.completeExceptionally(new PublisherClosedByClientException());
 		// cancel the subscription if not already cancelled - this will call this close method again
-		if (this.subscription != null && !this.subscription.isCanceled()) {
-			this.subscription.cancel();
+		final ClientSubscription<C, REQ, RES> theSubscription = this.subscription;
+		if (theSubscription != null && !theSubscription.isCanceled()) {
+			theSubscription.cancel();
 		} else if (this.closed.compareAndSet(false, true)) {
 			// `close()` can legitimately fire before `beforeStart` (user-initiated abort during
 			// stream setup), so the observer and the subscription may both still be null here.
@@ -489,9 +576,10 @@ public class ClientChangeCaptureSubscriber<C extends ChangeCapture, REQ, RES>
 
 	@Override
 	public String toString() {
-		return this.subscription == null || this.subscription.getSubscriptionId() == null ?
+		final ClientSubscription<C, REQ, RES> theSubscription = this.subscription;
+		return theSubscription == null || theSubscription.getSubscriptionId() == null ?
 			"Change capture not yet started or acknowledged." :
-			"Change capture: " + this.subscription.getSubscriptionId();
+			"Change capture: " + theSubscription.getSubscriptionId();
 	}
 
 }

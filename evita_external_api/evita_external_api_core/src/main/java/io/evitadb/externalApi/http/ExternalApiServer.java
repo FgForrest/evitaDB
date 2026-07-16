@@ -596,7 +596,7 @@ public class ExternalApiServer implements AutoCloseable {
 			.gracefulShutdownTimeout(gracefulShutdown ? Duration.ofSeconds(1) : Duration.ZERO, gracefulShutdown ? Duration.ofSeconds(1) : Duration.ZERO)
 			.idleTimeoutMillis(apiOptions.idleTimeoutInMillis())
 			.requestTimeoutMillis(apiOptions.requestTimeoutInMillis())
-			.pingIntervalMillis(1000)
+			.pingIntervalMillis(apiOptions.pingIntervalMillis())
 			.serviceWorkerGroup(workerGroup, true)
 			.maxRequestLength(apiOptions.maxEntitySizeInBytes())
 			.workerGroup(workerGroup, true)
