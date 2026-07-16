@@ -23,6 +23,7 @@
 
 package io.evitadb.api.requestResponse.data.annotation;
 
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
@@ -143,5 +144,16 @@ public @interface Attribute {
 	 * non-indexed; the general settings are not used as a fallback.
 	 */
 	ScopeAttributeSettings[] scope() default {};
+
+	/**
+	 * Per-item conflict resolution granularity override for this attribute. {@link ConflictResolutionOverride#INHERITED}
+	 * (the default) follows the conflict resolution resolved from the entity schema, catalog schema and engine
+	 * configuration; {@link ConflictResolutionOverride#GRANULAR} opts this attribute into its own attribute-scoped
+	 * conflict key (finer-grained detection); {@link ConflictResolutionOverride#ENTITY} pins it to the whole-entity
+	 * conflict key. For a {@link #global()} attribute the override behaves identically — a global attribute is shared
+	 * configuration whose conflict behavior is the same as a locally declared attribute.
+	 * Propagates to {@link AttributeSchemaContract#getConflictResolutionOverride()}.
+	 */
+	ConflictResolutionOverride conflictResolution() default ConflictResolutionOverride.INHERITED;
 
 }

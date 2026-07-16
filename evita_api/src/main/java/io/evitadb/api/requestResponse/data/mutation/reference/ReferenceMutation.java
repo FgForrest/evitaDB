@@ -29,7 +29,6 @@ import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.data.structure.Reference;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictGenerationContext;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
-import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
 import io.evitadb.api.requestResponse.mutation.conflict.ReferenceConflictKey;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -41,7 +40,6 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
 import java.util.Map;
-import java.util.Set;
 import java.util.stream.Stream;
 
 /**
@@ -87,10 +85,9 @@ public abstract class ReferenceMutation<T extends Comparable<T>> implements Name
 	@Nonnull
 	@Override
 	public Stream<ConflictKey> collectConflictKeys(
-		@Nonnull ConflictGenerationContext context,
-		@Nonnull Set<ConflictPolicy> conflictPolicies
+		@Nonnull ConflictGenerationContext context
 	) {
-		return conflictPolicies.contains(ConflictPolicy.REFERENCE) && context.getEntityPrimaryKey() != null ?
+		return context.shouldEmitReferenceKey(this.referenceKey.referenceName()) && context.getEntityPrimaryKey() != null ?
 			Stream.of(
 				new ReferenceConflictKey(
 					context.getEntityType(),

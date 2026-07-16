@@ -30,7 +30,6 @@ import io.evitadb.api.requestResponse.data.structure.Price;
 import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictGenerationContext;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
-import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
 import io.evitadb.api.requestResponse.mutation.conflict.PriceConflictKey;
 import io.evitadb.dataType.ContainerType;
 import lombok.EqualsAndHashCode;
@@ -38,7 +37,6 @@ import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
-import java.util.Set;
 import java.util.stream.Stream;
 
 /**
@@ -69,10 +67,9 @@ public abstract class PriceMutation implements LocalMutation<PriceContract, Pric
 	@Nonnull
 	@Override
 	public Stream<ConflictKey> collectConflictKeys(
-		@Nonnull ConflictGenerationContext context,
-		@Nonnull Set<ConflictPolicy> conflictPolicies
+		@Nonnull ConflictGenerationContext context
 	) {
-		return conflictPolicies.contains(ConflictPolicy.PRICE) && context.getEntityPrimaryKey() != null ?
+		return context.shouldEmitPriceKey() && context.getEntityPrimaryKey() != null ?
 			Stream.of(
 				new PriceConflictKey(
 					context.getEntityType(),

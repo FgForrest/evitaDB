@@ -81,6 +81,7 @@ class SortableAttributeCompoundSchemaBuilderTest {
 			NamingConvention.generate(
 				APITestConstants.TEST_CATALOG
 			),
+			null,
 			EnumSet.allOf(CatalogEvolutionMode.class),
 			new EntitySchemaProvider() {
 				@Nonnull

@@ -49,7 +49,7 @@ import java.util.Locale;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-public interface AssociatedDataSchemaContract extends NamedSchemaWithDeprecationContract {
+public interface AssociatedDataSchemaContract extends NamedSchemaWithDeprecationContract, ConflictResolutionOverrideAwareSchemaContract {
 
 	/**
 	 * Contains the data type of the entity. Must be one of {@link EvitaDataTypes#getSupportedDataTypes()} types or may

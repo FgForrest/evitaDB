@@ -69,6 +69,29 @@ Fetch all unresolved review comments with `gh` CLI and address them one by one (
 1. Examine whether each comment is valid (operate as self-confident experienced developer, don't blindly address all)
 2. For each addressed comment: create a commit and reply explaining how you addressed it
 3. For each declined comment: reply explaining why you decided not to address it
+4. Once a thread is fully handled (fix committed + reply posted, or declined with a reasoned reply), mark it **resolved**. Review threads can only be resolved through the GraphQL API — REST has no endpoint for it — and the mutation needs the thread's node id. List the unresolved threads, then resolve each one you handled:
+
+   ```shell
+   # unresolved review-thread node ids on the PR (with the anchoring file + first comment for matching)
+   gh api graphql -f query='
+     query($owner:String!,$repo:String!,$pr:Int!){
+       repository(owner:$owner,name:$repo){
+         pullRequest(number:$pr){
+           reviewThreads(first:100){
+             nodes{ id isResolved isOutdated path comments(first:1){ nodes{ author{ login } body } } }
+           }
+         }
+       }
+     }' -f owner=FgForrest -f repo=evitaDB -F pr=<PR_NUMBER> \
+     --jq '.data.repository.pullRequest.reviewThreads.nodes[] | select(.isResolved == false) | {id, path}'
+
+   # resolve a single thread by its node id
+   gh api graphql -f query='
+     mutation($id:ID!){ resolveReviewThread(input:{threadId:$id}){ thread{ id isResolved } } }' \
+     -f id=<THREAD_NODE_ID>
+   ```
+
+   Resolve only threads you actually handled — never bulk-resolve every unresolved thread, since that would silently close concerns you never read.
 
 ## Issue Tracking
 

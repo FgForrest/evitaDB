@@ -27,7 +27,6 @@ import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictGenerationContext;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
-import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.dataType.ContainerType;
 import io.evitadb.dataType.Scope;
@@ -37,7 +36,6 @@ import lombok.Getter;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
-import java.util.Set;
 import java.util.stream.Stream;
 
 /**
@@ -100,11 +98,18 @@ public class SetEntityScopeMutation implements LocalMutation<Scope, Scope> {
 		return new SetEntityScopeMutation(this.scope, newDecisiveTimestamp);
 	}
 
+	/**
+	 * {@inheritDoc}
+	 *
+	 * A scope change contributes no dedicated conflict key: concurrent scope contention is instead covered
+	 * by the coarse entity-level fallback in `EntityMutation#getConflictKeyStream` (the absent granular key
+	 * forces the whole-entity key to be emitted). The empty stream here is therefore deliberate, not an
+	 * unimplemented stub.
+	 */
 	@Nonnull
 	@Override
 	public Stream<ConflictKey> collectConflictKeys(
-		@Nonnull ConflictGenerationContext context,
-		@Nonnull Set<ConflictPolicy> conflictPolicies
+		@Nonnull ConflictGenerationContext context
 	) {
 		return Stream.empty();
 	}

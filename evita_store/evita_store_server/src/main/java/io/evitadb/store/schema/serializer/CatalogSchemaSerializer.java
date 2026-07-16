@@ -28,6 +28,7 @@ import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.CatalogContract;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolution;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
@@ -73,6 +74,7 @@ public class CatalogSchemaSerializer extends Serializer<CatalogSchema> {
 		} else {
 			output.writeBoolean(false);
 		}
+		EntitySchemaSerializer.writeConflictResolution(kryo, output, catalogSchema.getConflictResolution().orElse(null));
 		kryo.writeObject(output, catalogSchema.getCatalogEvolutionMode());
 		kryo.writeObject(output, catalogSchema.getAttributes());
 	}
@@ -90,12 +92,13 @@ public class CatalogSchemaSerializer extends Serializer<CatalogSchema> {
 			);
 		}
 		final String description = input.readBoolean() ? input.readString() : null;
+		final ConflictResolution conflictResolution = EntitySchemaSerializer.readConflictResolution(kryo, input);
 		@SuppressWarnings("unchecked") final Set<CatalogEvolutionMode> catalogEvolutionMode = kryo.readObject(input, Set.class);
 		@SuppressWarnings("unchecked") final Map<String, GlobalAttributeSchemaContract> attributeSchema = kryo.readObject(input, LinkedHashMap.class);
 		final CatalogContract theCatalog = CatalogSchemaStoragePart.getDeserializationContextCatalog();
 		return CatalogSchema._internalBuild(
 			version,
-			catalogName, nameVariants, description, catalogEvolutionMode,
+			catalogName, nameVariants, description, conflictResolution, catalogEvolutionMode,
 			attributeSchema,
 			new DeserializedEntitySchemaAccessor(theCatalog)
 		);

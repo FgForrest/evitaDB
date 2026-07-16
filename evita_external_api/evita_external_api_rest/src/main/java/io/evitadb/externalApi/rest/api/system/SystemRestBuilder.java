@@ -47,6 +47,7 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.reference.Remov
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.reference.SetReferenceGroupMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.model.cdc.ChangeCatalogCaptureDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.AttributeElementDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.ConflictResolutionDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.NameVariantsDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.LocalCatalogSchemaMutationUnionDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.LocalEntitySchemaMutationUnionDescriptor;
@@ -56,12 +57,14 @@ import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedDat
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.ModifyAssociatedDataSchemaNameMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.ModifyAssociatedDataSchemaTypeMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.RemoveAssociatedDataSchemaMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.SetAssociatedDataSchemaConflictResolutionOverrideMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.SetAssociatedDataSchemaLocalizedMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.SetAssociatedDataSchemaNullableMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.*;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.AllowEvolutionModeInCatalogSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.CreateEntitySchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.DisallowEvolutionModeInCatalogSchemaMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.ModifyCatalogSchemaConflictResolutionMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.ModifyCatalogSchemaDescriptionMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.ModifyEntitySchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.ModifyEntitySchemaNameMutationDescriptor;
@@ -169,6 +172,8 @@ public class SystemRestBuilder extends FinalRestBuilder<SystemRestBuildingContex
 		this.buildingContext.registerType(CatalogSchemaUpdatedDescriptor.THIS.to(this.objectBuilderTransformer).build());
 		this.buildingContext.registerType(HostSystemEventDescriptor.THIS.to(this.unionBuilderTransformer).build());
 		this.buildingContext.registerType(buildChangeSystemCaptureObject());
+		this.buildingContext.registerType(ConflictResolutionDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(ConflictResolutionDescriptor.THIS_INPUT.to(this.objectBuilderTransformer).build());
 		buildMutationInterface();
 		buildOutputMutations();
 	}
@@ -250,6 +255,7 @@ public class SystemRestBuilder extends FinalRestBuilder<SystemRestBuildingContex
 			SetEntitySchemaWithGeneratedPrimaryKeyMutationDescriptor.THIS,
 			SetEntitySchemaWithHierarchyMutationDescriptor.THIS,
 			SetEntitySchemaWithPriceMutationDescriptor.THIS,
+			ModifyEntitySchemaConflictResolutionMutationDescriptor.THIS,
 
 			// associated data schema mutations
 			CreateAssociatedDataSchemaMutationDescriptor.THIS,
@@ -260,6 +266,7 @@ public class SystemRestBuilder extends FinalRestBuilder<SystemRestBuildingContex
 			RemoveAssociatedDataSchemaMutationDescriptor.THIS,
 			SetAssociatedDataSchemaLocalizedMutationDescriptor.THIS,
 			SetAssociatedDataSchemaNullableMutationDescriptor.THIS,
+			SetAssociatedDataSchemaConflictResolutionOverrideMutationDescriptor.THIS,
 
 			// attribute schema mutations
 			CreateAttributeSchemaMutationDescriptor.THIS,
@@ -276,6 +283,7 @@ public class SystemRestBuilder extends FinalRestBuilder<SystemRestBuildingContex
 			SetAttributeSchemaSortableMutationDescriptor.THIS,
 			UseGlobalAttributeSchemaMutationDescriptor.THIS,
 			SetAttributeSchemaUniqueMutationDescriptor.THIS,
+			SetAttributeSchemaConflictResolutionOverrideMutationDescriptor.THIS,
 
 			// sortable attribute compound schema mutations
 			CreateSortableAttributeCompoundSchemaMutationDescriptor.THIS,
@@ -301,12 +309,14 @@ public class SystemRestBuilder extends FinalRestBuilder<SystemRestBuildingContex
 			SetReferenceSchemaBucketedMutationDescriptor.THIS,
 			SetReferenceSchemaFacetedMutationDescriptor.THIS,
 			SetReferenceSchemaIndexedMutationDescriptor.THIS,
+			SetReferenceSchemaConflictResolutionOverrideMutationDescriptor.THIS,
 
 			// catalog schema mutations
 			CreateEntitySchemaMutationDescriptor.THIS,
 			ModifyEntitySchemaMutationDescriptor.THIS,
 			RemoveEntitySchemaMutationDescriptor.THIS,
 			ModifyCatalogSchemaDescriptionMutationDescriptor.THIS,
+			ModifyCatalogSchemaConflictResolutionMutationDescriptor.THIS,
 			AllowEvolutionModeInCatalogSchemaMutationDescriptor.THIS,
 			DisallowEvolutionModeInCatalogSchemaMutationDescriptor.THIS,
 

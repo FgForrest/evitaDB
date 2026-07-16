@@ -39,6 +39,7 @@ import io.evitadb.api.requestResponse.schema.dto.EntityAttributeSchema;
 import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -266,7 +267,8 @@ class ExistingAttributesBuilderTest extends AbstractBuilderTest {
 					"int", null,
 					Scope.NO_SCOPE, Scope.NO_SCOPE,
 					false, false, false,
-					Integer.class, null
+					Integer.class, null,
+					ConflictResolutionOverride.INHERITED
 				),
 				attributes.getAttributeSchema("int")
 					.orElse(null)
@@ -276,7 +278,8 @@ class ExistingAttributesBuilderTest extends AbstractBuilderTest {
 					"short", null,
 					Scope.NO_SCOPE, Scope.NO_SCOPE,
 					false, false, false,
-					Short.class, null
+					Short.class, null,
+					ConflictResolutionOverride.INHERITED
 				),
 				attributes.getAttributeSchema("short")
 					.orElse(null)
@@ -286,7 +289,8 @@ class ExistingAttributesBuilderTest extends AbstractBuilderTest {
 					"range", null,
 					Scope.NO_SCOPE, Scope.NO_SCOPE,
 					false, false, false,
-					IntegerNumberRange.class, null
+					IntegerNumberRange.class, null,
+					ConflictResolutionOverride.INHERITED
 				),
 				attributes.getAttributeSchema("range")
 					.orElse(null)
@@ -296,7 +300,8 @@ class ExistingAttributesBuilderTest extends AbstractBuilderTest {
 					"bigDecimal", null,
 					Scope.NO_SCOPE, Scope.NO_SCOPE,
 					false, false, false,
-					BigDecimal.class, null
+					BigDecimal.class, null,
+					ConflictResolutionOverride.INHERITED
 				),
 				attributes.getAttributeSchema(
 					"bigDecimal"
@@ -307,7 +312,8 @@ class ExistingAttributesBuilderTest extends AbstractBuilderTest {
 					"greetings", null,
 					Scope.NO_SCOPE, Scope.NO_SCOPE,
 					true, false, false,
-					String.class, null
+					String.class, null,
+					ConflictResolutionOverride.INHERITED
 				),
 				attributes.getAttributeSchema(
 					"greetings"

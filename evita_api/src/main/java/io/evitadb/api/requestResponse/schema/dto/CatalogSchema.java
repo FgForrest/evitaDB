@@ -26,6 +26,7 @@ package io.evitadb.api.requestResponse.schema.dto;
 import io.evitadb.api.EvitaContract;
 import io.evitadb.api.exception.CatalogAlreadyPresentException;
 import io.evitadb.api.exception.SchemaAlteringException;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolution;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
@@ -51,6 +52,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -70,12 +72,18 @@ import static java.util.Optional.ofNullable;
 @ThreadSafe
 @EqualsAndHashCode(of = {"version", "name"})
 public final class CatalogSchema implements CatalogSchemaContract {
-	@Serial private static final long serialVersionUID = -1582409928666780012L;
+	@Serial private static final long serialVersionUID = -1582409928666780011L;
 
 	private final int version;
 	@Getter @Nonnull private final String name;
 	@Getter private final Map<NamingConvention, String> nameVariants;
 	@Getter @Nullable private final String description;
+	/**
+	 * Catalog-level transaction conflict resolution override, or `null` when the catalog inherits the engine-level
+	 * default declared on {@link io.evitadb.api.configuration.TransactionOptions}. The field is deliberately stored as
+	 * a bare nullable reference and exposed as an {@link Optional} through {@link #getConflictResolution()}.
+	 */
+	@Nullable private final ConflictResolution conflictResolution;
 	@Getter @Nonnull private final Set<CatalogEvolutionMode> catalogEvolutionMode;
 	@Nonnull private final Map<String, GlobalAttributeSchema> attributes;
 	/**
@@ -100,11 +108,12 @@ public final class CatalogSchema implements CatalogSchemaContract {
 	public static CatalogSchema _internalBuild(
 		@Nonnull String name,
 		@Nonnull Map<NamingConvention, String> nameVariants,
+		@Nullable ConflictResolution conflictResolution,
 		@Nonnull Set<CatalogEvolutionMode> evolutionMode,
 		@Nonnull EntitySchemaProvider entitySchemaAccessor
 	) {
 		return new CatalogSchema(
-			1, name, nameVariants, null, evolutionMode,
+			1, name, nameVariants, null, conflictResolution, evolutionMode,
 			Collections.emptyMap(),
 			entitySchemaAccessor
 		);
@@ -121,12 +130,13 @@ public final class CatalogSchema implements CatalogSchemaContract {
 		@Nonnull String name,
 		@Nonnull Map<NamingConvention, String> nameVariants,
 		@Nullable String description,
+		@Nullable ConflictResolution conflictResolution,
 		@Nonnull Set<CatalogEvolutionMode> evolutionMode,
 		@Nonnull Map<String, GlobalAttributeSchemaContract> attributes,
 		@Nonnull EntitySchemaProvider entitySchemaAccessor
 	) {
 		return new CatalogSchema(
-			version, name, nameVariants, description, evolutionMode,
+			version, name, nameVariants, description, conflictResolution, evolutionMode,
 			attributes,
 			entitySchemaAccessor
 		);
@@ -149,6 +159,7 @@ public final class CatalogSchema implements CatalogSchemaContract {
 				baseSchema.getName(),
 				baseSchema.getNameVariants(),
 				baseSchema.getDescription(),
+				baseSchema.getConflictResolution().orElse(null),
 				baseSchema.getCatalogEvolutionMode(),
 				baseSchema.getAttributes(),
 				new EntitySchemaProvider() {
@@ -184,6 +195,7 @@ public final class CatalogSchema implements CatalogSchemaContract {
 				baseSchema.getName(),
 				baseSchema.getNameVariants(),
 				baseSchema.getDescription(),
+				baseSchema.getConflictResolution().orElse(null),
 				baseSchema.getCatalogEvolutionMode(),
 				baseSchema.getAttributes(),
 				entitySchemaAccessor
@@ -206,6 +218,7 @@ public final class CatalogSchema implements CatalogSchemaContract {
 			baseSchema.getName(),
 			baseSchema.getNameVariants(),
 			baseSchema.getDescription(),
+			baseSchema.getConflictResolution().orElse(null),
 			baseSchema.getCatalogEvolutionMode(),
 			baseSchema.getAttributes(),
 			entitySchemaAccessor
@@ -299,7 +312,8 @@ public final class CatalogSchema implements CatalogSchemaContract {
 				attributeSchemaContract.isRepresentative(),
 				(Class) attributeSchemaContract.getType(),
 				attributeSchemaContract.getDefaultValue(),
-				attributeSchemaContract.getIndexedDecimalPlaces()
+				attributeSchemaContract.getIndexedDecimalPlaces(),
+				attributeSchemaContract.getConflictResolutionOverride()
 			);
 	}
 
@@ -308,6 +322,7 @@ public final class CatalogSchema implements CatalogSchemaContract {
 		@Nonnull String name,
 		@Nonnull Map<NamingConvention, String> nameVariants,
 		@Nullable String description,
+		@Nullable ConflictResolution conflictResolution,
 		@Nonnull Set<CatalogEvolutionMode> catalogEvolutionMode,
 		@Nonnull Map<String, GlobalAttributeSchemaContract> attributes,
 		@Nonnull EntitySchemaProvider entitySchemaAccessor
@@ -316,6 +331,7 @@ public final class CatalogSchema implements CatalogSchemaContract {
 		this.name = name;
 		this.nameVariants = nameVariants;
 		this.description = description;
+		this.conflictResolution = conflictResolution;
 		this.catalogEvolutionMode = Collections.unmodifiableSet(catalogEvolutionMode);
 		this.attributes = attributes.entrySet()
 			.stream()
@@ -333,6 +349,12 @@ public final class CatalogSchema implements CatalogSchemaContract {
 	@Override
 	public int version() {
 		return this.version;
+	}
+
+	@Nonnull
+	@Override
+	public Optional<ConflictResolution> getConflictResolution() {
+		return Optional.ofNullable(this.conflictResolution);
 	}
 
 	@Nonnull
@@ -383,7 +405,10 @@ public final class CatalogSchema implements CatalogSchemaContract {
 		return !(
 			this.version == otherObject.version() &&
 				this.name.equals(otherObject.getName()) &&
-				this.attributes.equals(otherObject.getAttributes())
+				this.attributes.equals(otherObject.getAttributes()) &&
+				// a change to the catalog-level conflict resolution (e.g. via
+				// ModifyCatalogSchemaConflictResolutionMutation alone) is a real schema difference
+				Objects.equals(this.conflictResolution, otherObject.getConflictResolution().orElse(null))
 		);
 	}
 

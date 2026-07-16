@@ -142,7 +142,7 @@ public interface ReferenceAttributeSchemaMutation extends
 		@Nonnull AttributeSchemaContract updatedAttributeSchema
 	) {
 		if (existingAttributeSchema.equals(updatedAttributeSchema)) {
-			// we don't need to update entity schema - the associated data already contains the requested change
+			// we don't need to update reference schema - the attribute already contains the requested change
 			return referenceSchema;
 		} else {
 			if (referenceSchema instanceof ReflectedReferenceSchema reflectedReferenceSchema) {
@@ -188,7 +188,8 @@ public interface ReferenceAttributeSchemaMutation extends
 								Function.identity()
 							)
 						),
-					referenceSchema.getSortableAttributeCompounds()
+					referenceSchema.getSortableAttributeCompounds(),
+					referenceSchema.getConflictResolutionOverride()
 				);
 			}
 		}

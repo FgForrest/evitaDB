@@ -32,6 +32,7 @@ import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.store.entity.exception.StoredVersionNotSupportedException;
 import io.evitadb.store.schema.serializer.AttributeSchemaSerializer;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import lombok.Data;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -137,7 +138,7 @@ class SerialVersionBasedSerializerTest {
 		public AttributeSchema read(Kryo kryo, Input input, Class<? extends AttributeSchema> type) {
 			final String name = kryo.readObject(input, String.class);
 			@SuppressWarnings("unchecked") final Class<? extends Serializable> attrType = kryo.readClass(input).getType();
-			return AttributeSchema._internalBuild(name, attrType, false);
+			return AttributeSchema._internalBuild(name, attrType, false, ConflictResolutionOverride.INHERITED);
 		}
 
 	}

@@ -23,6 +23,8 @@
 
 package io.evitadb.externalApi.graphql.api.catalog.schemaApi;
 
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
+import io.evitadb.api.requestResponse.mutation.conflict.GranularConflictPolicy;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeUniquenessType;
@@ -171,6 +173,62 @@ public class CatalogGraphQLUpdateCatalogSchemaQueryFunctionalTest extends Catalo
 				)
 			);
 
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS_CATALOG_SCHEMA_CHANGE)
+	@DisplayName("Should change conflict resolution of catalog schema")
+	void shouldChangeConflictResolutionOfCatalogSchema(GraphQLTester tester) {
+		final int initialCatalogSchemaVersion = getCatalogSchemaVersion(tester);
+
+		// set a non-default catalog-level conflict resolution with a non-empty granularity refinement
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/schema")
+			.document(
+				"""
+				mutation {
+					updateCatalogSchema (
+						mutations: [
+							{
+								modifyCatalogSchemaConflictResolutionMutation: {
+									conflictResolution: {
+										policy: ENTITY
+										granularity: [REFERENCE_ATTRIBUTE]
+									}
+								}
+							}
+						]
+					) {
+						version
+						conflictResolution {
+							policy
+							granularity
+						}
+					}
+				}
+				"""
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(
+				UPDATE_CATALOG_SCHEMA_PATH,
+				equalTo(
+					map()
+						.e(VersionedDescriptor.VERSION.name(), initialCatalogSchemaVersion + 1)
+						.e(
+							CatalogSchemaDescriptor.CONFLICT_RESOLUTION.name(),
+							map()
+								.e(ConflictResolutionDescriptor.POLICY.name(), ConflictPolicy.ENTITY.name())
+								.e(
+									ConflictResolutionDescriptor.GRANULARITY.name(),
+									List.of(GranularConflictPolicy.REFERENCE_ATTRIBUTE.name())
+								)
+								.build()
+						)
+						.build()
+				)
+			);
 	}
 
 	@Test

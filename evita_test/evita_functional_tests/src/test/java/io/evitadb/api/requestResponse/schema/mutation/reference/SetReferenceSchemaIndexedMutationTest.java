@@ -28,6 +28,8 @@ import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.mutation.conflict.CollectionConflictKey;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictGenerationContext;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolution;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
@@ -50,6 +52,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
 import io.evitadb.utils.NamingConvention;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 
 import java.util.Collections;
 import java.util.List;
@@ -306,10 +309,12 @@ class SetReferenceSchemaIndexedMutationTest {
 							new Scope[]{Scope.LIVE},
 							Scope.NO_SCOPE,
 							false, false, false,
-							Integer.class, null, 0
+							Integer.class, null, 0,
+							ConflictResolutionOverride.INHERITED
 						)
 					),
-					Collections.emptyMap()
+					Collections.emptyMap(),
+					ConflictResolutionOverride.INHERITED
 				);
 			// Mutate with different indexed scopes to trigger verification
 			final SetReferenceSchemaIndexedMutation mutation =
@@ -378,10 +383,12 @@ class SetReferenceSchemaIndexedMutationTest {
 							new Scope[]{Scope.LIVE},
 							Scope.NO_SCOPE,
 							false, false, false,
-							Integer.class, null, 0
+							Integer.class, null, 0,
+							ConflictResolutionOverride.INHERITED
 						)
 					),
-					Collections.emptyMap()
+					Collections.emptyMap(),
+					ConflictResolutionOverride.INHERITED
 				);
 			// Mutation changes LIVE from FOR_FILTERING to NONE — should reject because
 			// the NEW state has NONE for LIVE but a filterable attribute exists there
@@ -448,10 +455,12 @@ class SetReferenceSchemaIndexedMutationTest {
 							new Scope[]{Scope.LIVE},
 							Scope.NO_SCOPE,
 							false, false, false,
-							Integer.class, null, 0
+							Integer.class, null, 0,
+							ConflictResolutionOverride.INHERITED
 						)
 					),
-					Collections.emptyMap()
+					Collections.emptyMap(),
+					ConflictResolutionOverride.INHERITED
 				);
 			// Same mutation but with SKIP — should NOT throw
 			final SetReferenceSchemaIndexedMutation mutation =
@@ -829,7 +838,8 @@ class SetReferenceSchemaIndexedMutationTest {
 				Collections.emptyMap(),
 				Collections.emptyMap(),
 				Collections.emptyMap(),
-				Collections.emptyMap(), Collections.emptyMap()
+				Collections.emptyMap(), Collections.emptyMap(),
+				ConflictResolutionOverride.INHERITED
 			);
 			// mutation sets LIVE to NONE but carries explicit LIVE components
 			final SetReferenceSchemaIndexedMutation mutation =
@@ -940,7 +950,8 @@ class SetReferenceSchemaIndexedMutationTest {
 					Scope.NO_SCOPE,
 					null,
 					null, null,
-					Collections.emptyMap(), Collections.emptyMap()
+					Collections.emptyMap(), Collections.emptyMap(),
+					ConflictResolutionOverride.INHERITED
 				)
 			);
 		}
@@ -974,7 +985,8 @@ class SetReferenceSchemaIndexedMutationTest {
 				Scope.NO_SCOPE,
 				null,
 				null, null,
-				Collections.emptyMap(), Collections.emptyMap()
+				Collections.emptyMap(), Collections.emptyMap(),
+				ConflictResolutionOverride.INHERITED
 			);
 
 			assertNotNull(schema);
@@ -1052,9 +1064,9 @@ class SetReferenceSchemaIndexedMutationTest {
 		void shouldReturnCollectionConflictKey() {
 			final SetReferenceSchemaIndexedMutation mutation =
 				new SetReferenceSchemaIndexedMutation(REFERENCE_NAME, true);
-			final List<ConflictKey> keys = new ConflictGenerationContext().withEntityType(
+			final List<ConflictKey> keys = new ConflictGenerationContext(new ConflictResolution(ConflictPolicy.NONE)).withEntityType(
 				"testEntity", null,
-				ctx -> mutation.collectConflictKeys(ctx, Set.of()).toList()
+				ctx -> mutation.collectConflictKeys(ctx).toList()
 			);
 
 			assertEquals(1, keys.size());

@@ -27,6 +27,8 @@ import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.mutation.conflict.CollectionConflictKey;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictGenerationContext;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolution;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -231,9 +233,9 @@ class RemoveReferenceSchemaMutationTest {
 		void shouldReturnCollectionConflictKey() {
 			final RemoveReferenceSchemaMutation mutation =
 				new RemoveReferenceSchemaMutation(REFERENCE_NAME);
-			final List<ConflictKey> keys = new ConflictGenerationContext().withEntityType(
+			final List<ConflictKey> keys = new ConflictGenerationContext(new ConflictResolution(ConflictPolicy.NONE)).withEntityType(
 				"testEntity", null,
-				ctx -> mutation.collectConflictKeys(ctx, Set.of()).toList()
+				ctx -> mutation.collectConflictKeys(ctx).toList()
 			);
 
 			assertEquals(1, keys.size());

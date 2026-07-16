@@ -35,6 +35,9 @@ import io.evitadb.api.requestResponse.mutation.StreamDirection;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictGenerationContext;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolution;
+import io.evitadb.api.requestResponse.mutation.conflict.GranularConflictPolicy;
+import io.evitadb.api.requestResponse.mutation.infrastructure.TransactionMutation;
 import io.evitadb.store.shared.model.FileLocation;
 import io.evitadb.store.wal.supplier.TransactionMutationWithLocation;
 import io.evitadb.test.EvitaTestSupport;
@@ -47,7 +50,6 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.EnumSet;
 import java.util.List;
-import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Tag;
@@ -419,12 +421,10 @@ class TransactionMutationTest implements EvitaTestSupport {
 		void shouldReturnEmptyConflictKeys() {
 			final TransactionMutation mutation = createDefault();
 			final ConflictGenerationContext context =
-				new ConflictGenerationContext();
+				new ConflictGenerationContext(new ConflictResolution(ConflictPolicy.CATALOG));
 
 			final Stream<ConflictKey> keys =
-				mutation.collectConflictKeys(
-					context, Set.of(ConflictPolicy.CATALOG)
-				);
+				mutation.collectConflictKeys(context);
 
 			assertEquals(0L, keys.count());
 		}
@@ -436,12 +436,15 @@ class TransactionMutationTest implements EvitaTestSupport {
 		void shouldReturnEmptyConflictKeysWithMultiplePolicies() {
 			final TransactionMutation mutation = createDefault();
 			final ConflictGenerationContext context =
-				new ConflictGenerationContext();
-			final Set<ConflictPolicy> allPolicies =
-				EnumSet.allOf(ConflictPolicy.class);
+				new ConflictGenerationContext(
+					new ConflictResolution(
+						ConflictPolicy.ENTITY,
+						EnumSet.allOf(GranularConflictPolicy.class)
+					)
+				);
 
 			final Stream<ConflictKey> keys =
-				mutation.collectConflictKeys(context, allPolicies);
+				mutation.collectConflictKeys(context);
 
 			assertEquals(0L, keys.count());
 		}

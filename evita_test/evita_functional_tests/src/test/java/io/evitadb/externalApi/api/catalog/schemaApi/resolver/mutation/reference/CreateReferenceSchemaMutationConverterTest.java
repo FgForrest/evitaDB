@@ -27,6 +27,7 @@ import io.evitadb.api.query.expression.ExpressionFactory;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.schema.mutation.reference.CreateReferenceSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedBucketedPartially;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedFacetedPartially;
@@ -282,8 +283,38 @@ class CreateReferenceSchemaMutationConverterTest {
 						list())
 					.e(CreateReferenceSchemaMutationDescriptor.BUCKETED_PARTIALLY_IN_SCOPES.name(),
 						list())
+					.e(CreateReferenceSchemaMutationDescriptor.CONFLICT_RESOLUTION_OVERRIDE.name(),
+						ConflictResolutionOverride.INHERITED.name())
 					.build()
 			);
+	}
+
+	@Test
+	void shouldRoundTripNonDefaultConflictResolutionOverride() {
+		final CreateReferenceSchemaMutation inputMutation = new CreateReferenceSchemaMutation(
+			"tags",
+			"desc",
+			"depr",
+			Cardinality.ZERO_OR_MORE,
+			"tag",
+			true,
+			"tagGroup",
+			true,
+			new ScopedReferenceIndexType[]{
+				new ScopedReferenceIndexType(Scope.LIVE, ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING)
+			},
+			null,
+			new Scope[]{Scope.LIVE},
+			null,
+			null,
+			null,
+			ConflictResolutionOverride.ENTITY
+		);
+
+		final CreateReferenceSchemaMutation roundTripped =
+			this.converter.convertFromInput(this.converter.convertToOutput(inputMutation));
+		assertEquals(ConflictResolutionOverride.ENTITY, roundTripped.getConflictResolutionOverride());
+		assertEquals(inputMutation, roundTripped);
 	}
 
 	/**

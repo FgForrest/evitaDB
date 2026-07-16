@@ -76,4 +76,18 @@ public interface CommutativeConflictKey<T> extends ConflictKey {
         @Nonnull T accumulatedValue
     )
         throws ConflictingCatalogCommutativeMutationException;
+
+    /**
+     * Returns the identity under which concurrent deltas that target the same slot accumulate for range
+     * checking. Two commutative keys addressing the same entity, primary key and attribute (and reference,
+     * for a reference attribute) but differing in their {@link #deltaValue()} or allowed range MUST return
+     * equal aggregation keys, so their deltas sum into a single running total. This is intentionally distinct
+     * from {@link #equals(Object)}, which stays delta-sensitive so per-transaction conflict-key sets and the
+     * conflict ring buffer keep individual deltas apart, and from {@link ConflictKey#parentConflictKey()},
+     * which is coarser (it drops the attribute locale) and serves containment rather than accumulation.
+     *
+     * @return a value object whose equality groups the deltas that must accumulate together, never null
+     */
+    @Nonnull
+    Object aggregationKey();
 }

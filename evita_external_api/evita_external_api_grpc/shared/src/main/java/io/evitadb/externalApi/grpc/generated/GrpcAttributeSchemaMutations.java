@@ -99,6 +99,11 @@ public final class GrpcAttributeSchemaMutations {
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcSetAttributeSchemaNullableMutation_fieldAccessorTable;
   static final com.google.protobuf.Descriptors.Descriptor
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcSetAttributeSchemaConflictResolutionOverrideMutation_descriptor;
+  static final 
+    com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
+      internal_static_io_evitadb_externalApi_grpc_generated_GrpcSetAttributeSchemaConflictResolutionOverrideMutation_fieldAccessorTable;
+  static final com.google.protobuf.Descriptors.Descriptor
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcSetAttributeSchemaRepresentativeMutation_descriptor;
   static final 
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
@@ -135,7 +140,7 @@ public final class GrpcAttributeSchemaMutations {
       "\n\"GrpcAttributeSchemaMutations.proto\022%io" +
       ".evitadb.externalApi.grpc.generated\032\030Grp" +
       "cEvitaDataTypes.proto\032\017GrpcEnums.proto\032\036" +
-      "google/protobuf/wrappers.proto\"\233\006\n!GrpcC" +
+      "google/protobuf/wrappers.proto\"\206\007\n!GrpcC" +
       "reateAttributeSchemaMutation\022\014\n\004name\030\001 \001" +
       "(\t\0221\n\013description\030\002 \001(\0132\034.google.protobu" +
       "f.StringValue\0227\n\021deprecationNotice\030\003 \001(\013" +
@@ -155,124 +160,138 @@ public final class GrpcAttributeSchemaMutations {
       "opes\030\016 \003(\01626.io.evitadb.externalApi.grpc" +
       ".generated.GrpcEntityScope\022P\n\020sortableIn" +
       "Scopes\030\017 \003(\01626.io.evitadb.externalApi.gr" +
-      "pc.generated.GrpcEntityScope\"\367\007\n\'GrpcCre" +
-      "ateGlobalAttributeSchemaMutation\022\014\n\004name" +
-      "\030\001 \001(\t\0221\n\013description\030\002 \001(\0132\034.google.pro" +
-      "tobuf.StringValue\0227\n\021deprecationNotice\030\003" +
-      " \001(\0132\034.google.protobuf.StringValue\022V\n\006un" +
-      "ique\030\004 \001(\0162B.io.evitadb.externalApi.grpc" +
-      ".generated.GrpcAttributeUniquenessTypeB\002" +
-      "\030\001\022d\n\016uniqueGlobally\030\005 \001(\0162H.io.evitadb." +
-      "externalApi.grpc.generated.GrpcGlobalAtt" +
-      "ributeUniquenessTypeB\002\030\001\022\026\n\nfilterable\030\006" +
-      " \001(\010B\002\030\001\022\024\n\010sortable\030\007 \001(\010B\002\030\001\022\021\n\tlocali" +
-      "zed\030\010 \001(\010\022\020\n\010nullable\030\t \001(\010\022\026\n\016represent" +
-      "ative\030\n \001(\010\022F\n\004type\030\013 \001(\01628.io.evitadb.e" +
-      "xternalApi.grpc.generated.GrpcEvitaDataT" +
-      "ype\022\034\n\024indexedDecimalPlaces\030\014 \001(\005\022K\n\014def" +
-      "aultValue\030\r \001(\01325.io.evitadb.externalApi" +
-      ".grpc.generated.GrpcEvitaValue\022`\n\016unique" +
-      "InScopes\030\016 \003(\0132H.io.evitadb.externalApi." +
-      "grpc.generated.GrpcScopedAttributeUnique" +
-      "nessType\022n\n\026uniqueGloballyInScopes\030\017 \003(\013" +
-      "2N.io.evitadb.externalApi.grpc.generated" +
-      ".GrpcScopedGlobalAttributeUniquenessType" +
-      "\022R\n\022filterableInScopes\030\020 \003(\01626.io.evitad" +
-      "b.externalApi.grpc.generated.GrpcEntityS" +
-      "cope\022P\n\020sortableInScopes\030\021 \003(\01626.io.evit" +
-      "adb.externalApi.grpc.generated.GrpcEntit" +
-      "yScope\"\212\001\n-GrpcModifyAttributeSchemaDefa" +
-      "ultValueMutation\022\014\n\004name\030\001 \001(\t\022K\n\014defaul" +
-      "tValue\030\002 \001(\01325.io.evitadb.externalApi.gr" +
-      "pc.generated.GrpcEvitaValue\"{\n2GrpcModif" +
-      "yAttributeSchemaDeprecationNoticeMutatio" +
-      "n\022\014\n\004name\030\001 \001(\t\0227\n\021deprecationNotice\030\002 \001" +
-      "(\0132\034.google.protobuf.StringValue\"o\n,Grpc" +
-      "ModifyAttributeSchemaDescriptionMutation" +
-      "\022\014\n\004name\030\001 \001(\t\0221\n\013description\030\002 \001(\0132\034.go" +
-      "ogle.protobuf.StringValue\"F\n%GrpcModifyA" +
-      "ttributeSchemaNameMutation\022\014\n\004name\030\001 \001(\t" +
-      "\022\017\n\007newName\030\002 \001(\t\"\233\001\n%GrpcModifyAttribut" +
-      "eSchemaTypeMutation\022\014\n\004name\030\001 \001(\t\022F\n\004typ" +
-      "e\030\002 \001(\01628.io.evitadb.externalApi.grpc.ge" +
-      "nerated.GrpcEvitaDataType\022\034\n\024indexedDeci" +
-      "malPlaces\030\003 \001(\005\"1\n!GrpcRemoveAttributeSc" +
-      "hemaMutation\022\014\n\004name\030\001 \001(\t\"\244\001\n(GrpcSetAt" +
-      "tributeSchemaFilterableMutation\022\014\n\004name\030" +
-      "\001 \001(\t\022\026\n\nfilterable\030\002 \001(\010B\002\030\001\022R\n\022filtera" +
-      "bleInScopes\030\003 \003(\01626.io.evitadb.externalA" +
-      "pi.grpc.generated.GrpcEntityScope\"\222\002\n,Gr" +
-      "pcSetAttributeSchemaGloballyUniqueMutati" +
-      "on\022\014\n\004name\030\001 \001(\t\022d\n\016uniqueGlobally\030\002 \001(\016" +
-      "2H.io.evitadb.externalApi.grpc.generated" +
-      ".GrpcGlobalAttributeUniquenessTypeB\002\030\001\022n" +
-      "\n\026uniqueGloballyInScopes\030\017 \003(\0132N.io.evit" +
+      "pc.generated.GrpcEntityScope\022i\n\032conflict" +
+      "ResolutionOverride\030\020 \001(\0162E.io.evitadb.ex" +
+      "ternalApi.grpc.generated.GrpcConflictRes" +
+      "olutionOverride\"\342\010\n\'GrpcCreateGlobalAttr" +
+      "ibuteSchemaMutation\022\014\n\004name\030\001 \001(\t\0221\n\013des" +
+      "cription\030\002 \001(\0132\034.google.protobuf.StringV" +
+      "alue\0227\n\021deprecationNotice\030\003 \001(\0132\034.google" +
+      ".protobuf.StringValue\022V\n\006unique\030\004 \001(\0162B." +
+      "io.evitadb.externalApi.grpc.generated.Gr" +
+      "pcAttributeUniquenessTypeB\002\030\001\022d\n\016uniqueG" +
+      "lobally\030\005 \001(\0162H.io.evitadb.externalApi.g" +
+      "rpc.generated.GrpcGlobalAttributeUniquen" +
+      "essTypeB\002\030\001\022\026\n\nfilterable\030\006 \001(\010B\002\030\001\022\024\n\010s" +
+      "ortable\030\007 \001(\010B\002\030\001\022\021\n\tlocalized\030\010 \001(\010\022\020\n\010" +
+      "nullable\030\t \001(\010\022\026\n\016representative\030\n \001(\010\022F" +
+      "\n\004type\030\013 \001(\01628.io.evitadb.externalApi.gr" +
+      "pc.generated.GrpcEvitaDataType\022\034\n\024indexe" +
+      "dDecimalPlaces\030\014 \001(\005\022K\n\014defaultValue\030\r \001" +
+      "(\01325.io.evitadb.externalApi.grpc.generat" +
+      "ed.GrpcEvitaValue\022`\n\016uniqueInScopes\030\016 \003(" +
+      "\0132H.io.evitadb.externalApi.grpc.generate" +
+      "d.GrpcScopedAttributeUniquenessType\022n\n\026u" +
+      "niqueGloballyInScopes\030\017 \003(\0132N.io.evitadb" +
+      ".externalApi.grpc.generated.GrpcScopedGl" +
+      "obalAttributeUniquenessType\022R\n\022filterabl" +
+      "eInScopes\030\020 \003(\01626.io.evitadb.externalApi" +
+      ".grpc.generated.GrpcEntityScope\022P\n\020sorta" +
+      "bleInScopes\030\021 \003(\01626.io.evitadb.externalA" +
+      "pi.grpc.generated.GrpcEntityScope\022i\n\032con" +
+      "flictResolutionOverride\030\022 \001(\0162E.io.evita" +
+      "db.externalApi.grpc.generated.GrpcConfli" +
+      "ctResolutionOverride\"\212\001\n-GrpcModifyAttri" +
+      "buteSchemaDefaultValueMutation\022\014\n\004name\030\001" +
+      " \001(\t\022K\n\014defaultValue\030\002 \001(\01325.io.evitadb." +
+      "externalApi.grpc.generated.GrpcEvitaValu" +
+      "e\"{\n2GrpcModifyAttributeSchemaDeprecatio" +
+      "nNoticeMutation\022\014\n\004name\030\001 \001(\t\0227\n\021depreca" +
+      "tionNotice\030\002 \001(\0132\034.google.protobuf.Strin" +
+      "gValue\"o\n,GrpcModifyAttributeSchemaDescr" +
+      "iptionMutation\022\014\n\004name\030\001 \001(\t\0221\n\013descript" +
+      "ion\030\002 \001(\0132\034.google.protobuf.StringValue\"" +
+      "F\n%GrpcModifyAttributeSchemaNameMutation" +
+      "\022\014\n\004name\030\001 \001(\t\022\017\n\007newName\030\002 \001(\t\"\233\001\n%Grpc" +
+      "ModifyAttributeSchemaTypeMutation\022\014\n\004nam" +
+      "e\030\001 \001(\t\022F\n\004type\030\002 \001(\01628.io.evitadb.exter" +
+      "nalApi.grpc.generated.GrpcEvitaDataType\022" +
+      "\034\n\024indexedDecimalPlaces\030\003 \001(\005\"1\n!GrpcRem" +
+      "oveAttributeSchemaMutation\022\014\n\004name\030\001 \001(\t" +
+      "\"\244\001\n(GrpcSetAttributeSchemaFilterableMut" +
+      "ation\022\014\n\004name\030\001 \001(\t\022\026\n\nfilterable\030\002 \001(\010B" +
+      "\002\030\001\022R\n\022filterableInScopes\030\003 \003(\01626.io.evi" +
+      "tadb.externalApi.grpc.generated.GrpcEnti" +
+      "tyScope\"\222\002\n,GrpcSetAttributeSchemaGlobal" +
+      "lyUniqueMutation\022\014\n\004name\030\001 \001(\t\022d\n\016unique" +
+      "Globally\030\002 \001(\0162H.io.evitadb.externalApi." +
+      "grpc.generated.GrpcGlobalAttributeUnique" +
+      "nessTypeB\002\030\001\022n\n\026uniqueGloballyInScopes\030\017" +
+      " \003(\0132N.io.evitadb.externalApi.grpc.gener" +
+      "ated.GrpcScopedGlobalAttributeUniqueness" +
+      "Type\"J\n\'GrpcSetAttributeSchemaLocalizedM" +
+      "utation\022\014\n\004name\030\001 \001(\t\022\021\n\tlocalized\030\002 \001(\010" +
+      "\"H\n&GrpcSetAttributeSchemaNullableMutati" +
+      "on\022\014\n\004name\030\001 \001(\t\022\020\n\010nullable\030\002 \001(\010\"\263\001\n8G" +
+      "rpcSetAttributeSchemaConflictResolutionO" +
+      "verrideMutation\022\014\n\004name\030\001 \001(\t\022i\n\032conflic" +
+      "tResolutionOverride\030\002 \001(\0162E.io.evitadb.e" +
+      "xternalApi.grpc.generated.GrpcConflictRe" +
+      "solutionOverride\"T\n,GrpcSetAttributeSche" +
+      "maRepresentativeMutation\022\014\n\004name\030\001 \001(\t\022\026" +
+      "\n\016representative\030\002 \001(\010\"\236\001\n&GrpcSetAttrib" +
+      "uteSchemaSortableMutation\022\014\n\004name\030\001 \001(\t\022" +
+      "\024\n\010sortable\030\002 \001(\010B\002\030\001\022P\n\020sortableInScope" +
+      "s\030\003 \003(\01626.io.evitadb.externalApi.grpc.ge" +
+      "nerated.GrpcEntityScope\"\356\001\n$GrpcSetAttri" +
+      "buteSchemaUniqueMutation\022\014\n\004name\030\001 \001(\t\022V" +
+      "\n\006unique\030\002 \001(\0162B.io.evitadb.externalApi." +
+      "grpc.generated.GrpcAttributeUniquenessTy" +
+      "peB\002\030\001\022`\n\016uniqueInScopes\030\r \003(\0132H.io.evit" +
       "adb.externalApi.grpc.generated.GrpcScope" +
-      "dGlobalAttributeUniquenessType\"J\n\'GrpcSe" +
-      "tAttributeSchemaLocalizedMutation\022\014\n\004nam" +
-      "e\030\001 \001(\t\022\021\n\tlocalized\030\002 \001(\010\"H\n&GrpcSetAtt" +
-      "ributeSchemaNullableMutation\022\014\n\004name\030\001 \001" +
-      "(\t\022\020\n\010nullable\030\002 \001(\010\"T\n,GrpcSetAttribute" +
-      "SchemaRepresentativeMutation\022\014\n\004name\030\001 \001" +
-      "(\t\022\026\n\016representative\030\002 \001(\010\"\236\001\n&GrpcSetAt" +
-      "tributeSchemaSortableMutation\022\014\n\004name\030\001 " +
-      "\001(\t\022\024\n\010sortable\030\002 \001(\010B\002\030\001\022P\n\020sortableInS" +
-      "copes\030\003 \003(\01626.io.evitadb.externalApi.grp" +
-      "c.generated.GrpcEntityScope\"\356\001\n$GrpcSetA" +
-      "ttributeSchemaUniqueMutation\022\014\n\004name\030\001 \001" +
-      "(\t\022V\n\006unique\030\002 \001(\0162B.io.evitadb.external" +
-      "Api.grpc.generated.GrpcAttributeUniquene" +
-      "ssTypeB\002\030\001\022`\n\016uniqueInScopes\030\r \003(\0132H.io." +
+      "dAttributeUniquenessType\"4\n$GrpcUseGloba" +
+      "lAttributeSchemaMutation\022\014\n\004name\030\001 \001(\t\"\311" +
+      "\017\n\033GrpcAttributeSchemaMutation\022q\n\035create" +
+      "AttributeSchemaMutation\030\003 \001(\0132H.io.evita" +
+      "db.externalApi.grpc.generated.GrpcCreate" +
+      "AttributeSchemaMutationH\000\022\211\001\n)modifyAttr" +
+      "ibuteSchemaDefaultValueMutation\030\004 \001(\0132T." +
+      "io.evitadb.externalApi.grpc.generated.Gr" +
+      "pcModifyAttributeSchemaDefaultValueMutat" +
+      "ionH\000\022\223\001\n.modifyAttributeSchemaDeprecati" +
+      "onNoticeMutation\030\005 \001(\0132Y.io.evitadb.exte" +
+      "rnalApi.grpc.generated.GrpcModifyAttribu" +
+      "teSchemaDeprecationNoticeMutationH\000\022\207\001\n(" +
+      "modifyAttributeSchemaDescriptionMutation" +
+      "\030\006 \001(\0132S.io.evitadb.externalApi.grpc.gen" +
+      "erated.GrpcModifyAttributeSchemaDescript" +
+      "ionMutationH\000\022y\n!modifyAttributeSchemaNa" +
+      "meMutation\030\007 \001(\0132L.io.evitadb.externalAp" +
+      "i.grpc.generated.GrpcModifyAttributeSche" +
+      "maNameMutationH\000\022y\n!modifyAttributeSchem" +
+      "aTypeMutation\030\010 \001(\0132L.io.evitadb.externa" +
+      "lApi.grpc.generated.GrpcModifyAttributeS" +
+      "chemaTypeMutationH\000\022q\n\035removeAttributeSc" +
+      "hemaMutation\030\t \001(\0132H.io.evitadb.external" +
+      "Api.grpc.generated.GrpcRemoveAttributeSc" +
+      "hemaMutationH\000\022\177\n$setAttributeSchemaFilt" +
+      "erableMutation\030\n \001(\0132O.io.evitadb.extern" +
+      "alApi.grpc.generated.GrpcSetAttributeSch" +
+      "emaFilterableMutationH\000\022}\n#setAttributeS" +
+      "chemaLocalizedMutation\030\013 \001(\0132N.io.evitad" +
+      "b.externalApi.grpc.generated.GrpcSetAttr" +
+      "ibuteSchemaLocalizedMutationH\000\022{\n\"setAtt" +
+      "ributeSchemaNullableMutation\030\014 \001(\0132M.io." +
       "evitadb.externalApi.grpc.generated.GrpcS" +
-      "copedAttributeUniquenessType\"4\n$GrpcUseG" +
-      "lobalAttributeSchemaMutation\022\014\n\004name\030\001 \001" +
-      "(\t\"\247\016\n\033GrpcAttributeSchemaMutation\022q\n\035cr" +
-      "eateAttributeSchemaMutation\030\003 \001(\0132H.io.e" +
-      "vitadb.externalApi.grpc.generated.GrpcCr" +
-      "eateAttributeSchemaMutationH\000\022\211\001\n)modify" +
-      "AttributeSchemaDefaultValueMutation\030\004 \001(" +
-      "\0132T.io.evitadb.externalApi.grpc.generate" +
-      "d.GrpcModifyAttributeSchemaDefaultValueM" +
-      "utationH\000\022\223\001\n.modifyAttributeSchemaDepre" +
-      "cationNoticeMutation\030\005 \001(\0132Y.io.evitadb." +
-      "externalApi.grpc.generated.GrpcModifyAtt" +
-      "ributeSchemaDeprecationNoticeMutationH\000\022" +
-      "\207\001\n(modifyAttributeSchemaDescriptionMuta" +
-      "tion\030\006 \001(\0132S.io.evitadb.externalApi.grpc" +
-      ".generated.GrpcModifyAttributeSchemaDesc" +
-      "riptionMutationH\000\022y\n!modifyAttributeSche" +
-      "maNameMutation\030\007 \001(\0132L.io.evitadb.extern" +
-      "alApi.grpc.generated.GrpcModifyAttribute" +
-      "SchemaNameMutationH\000\022y\n!modifyAttributeS" +
-      "chemaTypeMutation\030\010 \001(\0132L.io.evitadb.ext" +
-      "ernalApi.grpc.generated.GrpcModifyAttrib" +
-      "uteSchemaTypeMutationH\000\022q\n\035removeAttribu" +
-      "teSchemaMutation\030\t \001(\0132H.io.evitadb.exte" +
-      "rnalApi.grpc.generated.GrpcRemoveAttribu" +
-      "teSchemaMutationH\000\022\177\n$setAttributeSchema" +
-      "FilterableMutation\030\n \001(\0132O.io.evitadb.ex" +
-      "ternalApi.grpc.generated.GrpcSetAttribut" +
-      "eSchemaFilterableMutationH\000\022}\n#setAttrib" +
-      "uteSchemaLocalizedMutation\030\013 \001(\0132N.io.ev" +
-      "itadb.externalApi.grpc.generated.GrpcSet" +
-      "AttributeSchemaLocalizedMutationH\000\022{\n\"se" +
-      "tAttributeSchemaNullableMutation\030\014 \001(\0132M" +
-      ".io.evitadb.externalApi.grpc.generated.G" +
-      "rpcSetAttributeSchemaNullableMutationH\000\022" +
-      "\207\001\n(setAttributeSchemaRepresentativeMuta" +
-      "tion\030\r \001(\0132S.io.evitadb.externalApi.grpc" +
-      ".generated.GrpcSetAttributeSchemaReprese" +
-      "ntativeMutationH\000\022{\n\"setAttributeSchemaS" +
-      "ortableMutation\030\016 \001(\0132M.io.evitadb.exter" +
-      "nalApi.grpc.generated.GrpcSetAttributeSc" +
-      "hemaSortableMutationH\000\022w\n setAttributeSc" +
-      "hemaUniqueMutation\030\017 \001(\0132K.io.evitadb.ex" +
-      "ternalApi.grpc.generated.GrpcSetAttribut" +
-      "eSchemaUniqueMutationH\000\022w\n useGlobalAttr" +
-      "ibuteSchemaMutation\030\020 \001(\0132K.io.evitadb.e" +
-      "xternalApi.grpc.generated.GrpcUseGlobalA" +
-      "ttributeSchemaMutationH\000B\n\n\010mutationB\014P\001" +
-      "\252\002\007EvitaDBb\006proto3"
+      "etAttributeSchemaNullableMutationH\000\022\207\001\n(" +
+      "setAttributeSchemaRepresentativeMutation" +
+      "\030\r \001(\0132S.io.evitadb.externalApi.grpc.gen" +
+      "erated.GrpcSetAttributeSchemaRepresentat" +
+      "iveMutationH\000\022{\n\"setAttributeSchemaSorta" +
+      "bleMutation\030\016 \001(\0132M.io.evitadb.externalA" +
+      "pi.grpc.generated.GrpcSetAttributeSchema" +
+      "SortableMutationH\000\022w\n setAttributeSchema" +
+      "UniqueMutation\030\017 \001(\0132K.io.evitadb.extern" +
+      "alApi.grpc.generated.GrpcSetAttributeSch" +
+      "emaUniqueMutationH\000\022w\n useGlobalAttribut" +
+      "eSchemaMutation\030\020 \001(\0132K.io.evitadb.exter" +
+      "nalApi.grpc.generated.GrpcUseGlobalAttri" +
+      "buteSchemaMutationH\000\022\237\001\n4setAttributeSch" +
+      "emaConflictResolutionOverrideMutation\030\021 " +
+      "\001(\0132_.io.evitadb.externalApi.grpc.genera" +
+      "ted.GrpcSetAttributeSchemaConflictResolu" +
+      "tionOverrideMutationH\000B\n\n\010mutationB\014P\001\252\002" +
+      "\007EvitaDBb\006proto3"
     };
     descriptor = com.google.protobuf.Descriptors.FileDescriptor
       .internalBuildGeneratedFileFrom(descriptorData,
@@ -286,13 +305,13 @@ public final class GrpcAttributeSchemaMutations {
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcCreateAttributeSchemaMutation_fieldAccessorTable = new
       com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
         internal_static_io_evitadb_externalApi_grpc_generated_GrpcCreateAttributeSchemaMutation_descriptor,
-        new java.lang.String[] { "Name", "Description", "DeprecationNotice", "Unique", "Filterable", "Sortable", "Localized", "Nullable", "Representative", "Type", "IndexedDecimalPlaces", "DefaultValue", "UniqueInScopes", "FilterableInScopes", "SortableInScopes", });
+        new java.lang.String[] { "Name", "Description", "DeprecationNotice", "Unique", "Filterable", "Sortable", "Localized", "Nullable", "Representative", "Type", "IndexedDecimalPlaces", "DefaultValue", "UniqueInScopes", "FilterableInScopes", "SortableInScopes", "ConflictResolutionOverride", });
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcCreateGlobalAttributeSchemaMutation_descriptor =
       getDescriptor().getMessageTypes().get(1);
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcCreateGlobalAttributeSchemaMutation_fieldAccessorTable = new
       com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
         internal_static_io_evitadb_externalApi_grpc_generated_GrpcCreateGlobalAttributeSchemaMutation_descriptor,
-        new java.lang.String[] { "Name", "Description", "DeprecationNotice", "Unique", "UniqueGlobally", "Filterable", "Sortable", "Localized", "Nullable", "Representative", "Type", "IndexedDecimalPlaces", "DefaultValue", "UniqueInScopes", "UniqueGloballyInScopes", "FilterableInScopes", "SortableInScopes", });
+        new java.lang.String[] { "Name", "Description", "DeprecationNotice", "Unique", "UniqueGlobally", "Filterable", "Sortable", "Localized", "Nullable", "Representative", "Type", "IndexedDecimalPlaces", "DefaultValue", "UniqueInScopes", "UniqueGloballyInScopes", "FilterableInScopes", "SortableInScopes", "ConflictResolutionOverride", });
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcModifyAttributeSchemaDefaultValueMutation_descriptor =
       getDescriptor().getMessageTypes().get(2);
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcModifyAttributeSchemaDefaultValueMutation_fieldAccessorTable = new
@@ -353,36 +372,42 @@ public final class GrpcAttributeSchemaMutations {
       com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
         internal_static_io_evitadb_externalApi_grpc_generated_GrpcSetAttributeSchemaNullableMutation_descriptor,
         new java.lang.String[] { "Name", "Nullable", });
-    internal_static_io_evitadb_externalApi_grpc_generated_GrpcSetAttributeSchemaRepresentativeMutation_descriptor =
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcSetAttributeSchemaConflictResolutionOverrideMutation_descriptor =
       getDescriptor().getMessageTypes().get(12);
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcSetAttributeSchemaConflictResolutionOverrideMutation_fieldAccessorTable = new
+      com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
+        internal_static_io_evitadb_externalApi_grpc_generated_GrpcSetAttributeSchemaConflictResolutionOverrideMutation_descriptor,
+        new java.lang.String[] { "Name", "ConflictResolutionOverride", });
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcSetAttributeSchemaRepresentativeMutation_descriptor =
+      getDescriptor().getMessageTypes().get(13);
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcSetAttributeSchemaRepresentativeMutation_fieldAccessorTable = new
       com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
         internal_static_io_evitadb_externalApi_grpc_generated_GrpcSetAttributeSchemaRepresentativeMutation_descriptor,
         new java.lang.String[] { "Name", "Representative", });
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcSetAttributeSchemaSortableMutation_descriptor =
-      getDescriptor().getMessageTypes().get(13);
+      getDescriptor().getMessageTypes().get(14);
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcSetAttributeSchemaSortableMutation_fieldAccessorTable = new
       com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
         internal_static_io_evitadb_externalApi_grpc_generated_GrpcSetAttributeSchemaSortableMutation_descriptor,
         new java.lang.String[] { "Name", "Sortable", "SortableInScopes", });
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcSetAttributeSchemaUniqueMutation_descriptor =
-      getDescriptor().getMessageTypes().get(14);
+      getDescriptor().getMessageTypes().get(15);
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcSetAttributeSchemaUniqueMutation_fieldAccessorTable = new
       com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
         internal_static_io_evitadb_externalApi_grpc_generated_GrpcSetAttributeSchemaUniqueMutation_descriptor,
         new java.lang.String[] { "Name", "Unique", "UniqueInScopes", });
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcUseGlobalAttributeSchemaMutation_descriptor =
-      getDescriptor().getMessageTypes().get(15);
+      getDescriptor().getMessageTypes().get(16);
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcUseGlobalAttributeSchemaMutation_fieldAccessorTable = new
       com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
         internal_static_io_evitadb_externalApi_grpc_generated_GrpcUseGlobalAttributeSchemaMutation_descriptor,
         new java.lang.String[] { "Name", });
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcAttributeSchemaMutation_descriptor =
-      getDescriptor().getMessageTypes().get(16);
+      getDescriptor().getMessageTypes().get(17);
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcAttributeSchemaMutation_fieldAccessorTable = new
       com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
         internal_static_io_evitadb_externalApi_grpc_generated_GrpcAttributeSchemaMutation_descriptor,
-        new java.lang.String[] { "CreateAttributeSchemaMutation", "ModifyAttributeSchemaDefaultValueMutation", "ModifyAttributeSchemaDeprecationNoticeMutation", "ModifyAttributeSchemaDescriptionMutation", "ModifyAttributeSchemaNameMutation", "ModifyAttributeSchemaTypeMutation", "RemoveAttributeSchemaMutation", "SetAttributeSchemaFilterableMutation", "SetAttributeSchemaLocalizedMutation", "SetAttributeSchemaNullableMutation", "SetAttributeSchemaRepresentativeMutation", "SetAttributeSchemaSortableMutation", "SetAttributeSchemaUniqueMutation", "UseGlobalAttributeSchemaMutation", "Mutation", });
+        new java.lang.String[] { "CreateAttributeSchemaMutation", "ModifyAttributeSchemaDefaultValueMutation", "ModifyAttributeSchemaDeprecationNoticeMutation", "ModifyAttributeSchemaDescriptionMutation", "ModifyAttributeSchemaNameMutation", "ModifyAttributeSchemaTypeMutation", "RemoveAttributeSchemaMutation", "SetAttributeSchemaFilterableMutation", "SetAttributeSchemaLocalizedMutation", "SetAttributeSchemaNullableMutation", "SetAttributeSchemaRepresentativeMutation", "SetAttributeSchemaSortableMutation", "SetAttributeSchemaUniqueMutation", "UseGlobalAttributeSchemaMutation", "SetAttributeSchemaConflictResolutionOverrideMutation", "Mutation", });
     io.evitadb.externalApi.grpc.generated.GrpcEvitaDataTypes.getDescriptor();
     io.evitadb.externalApi.grpc.generated.GrpcEnums.getDescriptor();
     com.google.protobuf.WrappersProto.getDescriptor();

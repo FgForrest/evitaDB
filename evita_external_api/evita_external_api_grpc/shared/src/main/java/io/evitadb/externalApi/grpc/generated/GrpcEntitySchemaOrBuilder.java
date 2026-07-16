@@ -935,4 +935,34 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
    * @return The catalogSchemaVersion.
    */
   long getCatalogSchemaVersion();
+
+  /**
+   * <pre>
+   * Contains the entity-level conflict resolution setting. When not set (absent), the entity schema inherits the
+   * resolved conflict resolution from the catalog / transaction options.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcConflictResolution conflictResolution = 20;</code>
+   * @return Whether the conflictResolution field is set.
+   */
+  boolean hasConflictResolution();
+  /**
+   * <pre>
+   * Contains the entity-level conflict resolution setting. When not set (absent), the entity schema inherits the
+   * resolved conflict resolution from the catalog / transaction options.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcConflictResolution conflictResolution = 20;</code>
+   * @return The conflictResolution.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcConflictResolution getConflictResolution();
+  /**
+   * <pre>
+   * Contains the entity-level conflict resolution setting. When not set (absent), the entity schema inherits the
+   * resolved conflict resolution from the catalog / transaction options.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcConflictResolution conflictResolution = 20;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcConflictResolutionOrBuilder getConflictResolutionOrBuilder();
 }

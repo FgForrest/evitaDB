@@ -46,6 +46,17 @@ public record CatalogConflictKey(
 ) implements ConflictKey {
 
 	/**
+	 * {@inheritDoc}
+	 *
+	 * @return {@link ConflictScope#CATALOG}
+	 */
+	@Nonnull
+	@Override
+	public ConflictScope conflictScope() {
+		return ConflictScope.CATALOG;
+	}
+
+	/**
 	 * Returns a concise, human-readable representation of this conflict key.
 	 *
 	 * @return non-null string representation

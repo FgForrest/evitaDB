@@ -32,14 +32,12 @@ import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.api.requestResponse.mutation.conflict.AttributeConflictKey;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictGenerationContext;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
-import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
 import io.evitadb.dataType.ContainerType;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
-import java.util.Set;
 import java.util.stream.Stream;
 
 /**
@@ -99,10 +97,9 @@ public abstract class AttributeMutation implements NamedLocalMutation<AttributeV
 	@Nonnull
 	@Override
 	public Stream<ConflictKey> collectConflictKeys(
-		@Nonnull ConflictGenerationContext context,
-		@Nonnull Set<ConflictPolicy> conflictPolicies
+		@Nonnull ConflictGenerationContext context
 	) {
-		return conflictPolicies.contains(ConflictPolicy.ENTITY_ATTRIBUTE) && context.getEntityPrimaryKey() != null ?
+		return context.shouldEmitEntityAttributeKey(this.attributeKey.attributeName()) && context.getEntityPrimaryKey() != null ?
 			Stream.of(
 				new AttributeConflictKey(
 					context.getEntityType(),

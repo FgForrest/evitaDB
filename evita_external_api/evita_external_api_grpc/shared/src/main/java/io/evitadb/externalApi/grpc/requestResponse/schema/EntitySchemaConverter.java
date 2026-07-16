@@ -26,6 +26,7 @@ package io.evitadb.externalApi.grpc.requestResponse.schema;
 import com.google.protobuf.StringValue;
 import io.evitadb.api.query.expression.ExpressionFactory;
 import io.evitadb.api.requestResponse.schema.*;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.api.requestResponse.schema.dto.*;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
@@ -125,6 +126,8 @@ public class EntitySchemaConverter {
 		if (entitySchema.getDeprecationNotice() != null) {
 			builder.setDeprecationNotice(StringValue.newBuilder().setValue(entitySchema.getDeprecationNotice()).build());
 		}
+		entitySchema.getConflictResolution()
+			.ifPresent(cr -> builder.setConflictResolution(ConflictResolutionConverter.toGrpcConflictResolution(cr)));
 
 		if (includeNameVariants) {
 			entitySchema.getNameVariants()
@@ -147,6 +150,7 @@ public class EntitySchemaConverter {
 			NamingConvention.generate(entitySchema.getName()),
 			entitySchema.hasDescription() ? entitySchema.getDescription().getValue() : null,
 			entitySchema.hasDeprecationNotice() ? entitySchema.getDeprecationNotice().getValue() : null,
+			entitySchema.hasConflictResolution() ? ConflictResolutionConverter.toConflictResolution(entitySchema.getConflictResolution()) : null,
 			entitySchema.getWithGeneratedPrimaryKey(),
 			entitySchema.getWithHierarchy(),
 			entitySchema.getHierarchyIndexedInScopesList()
@@ -309,7 +313,8 @@ public class EntitySchemaConverter {
 			.setRepresentative(attributeSchema.isRepresentative())
 			.setType(EvitaDataTypesConverter.toGrpcEvitaDataType(attributeSchema.getType()))
 			.setIndexedDecimalPlaces(attributeSchema.getIndexedDecimalPlaces())
-			.setInherited(inheritedPredicate.test(attributeSchema.getName()));
+			.setInherited(inheritedPredicate.test(attributeSchema.getName()))
+			.setConflictResolutionOverride(EvitaEnumConverter.toGrpcConflictResolutionOverride(attributeSchema.getConflictResolutionOverride()));
 
 		ofNullable(attributeSchema.getDefaultValue())
 			.ifPresent(it -> builder.setDefaultValue(EvitaDataTypesConverter.toGrpcEvitaValue(it)));
@@ -444,7 +449,8 @@ public class EntitySchemaConverter {
 			.setName(associatedDataSchema.getName())
 			.setType(EvitaDataTypesConverter.toGrpcEvitaAssociatedDataDataType(associatedDataSchema.getType()))
 			.setLocalized(associatedDataSchema.isLocalized())
-			.setNullable(associatedDataSchema.isNullable());
+			.setNullable(associatedDataSchema.isNullable())
+			.setConflictResolutionOverride(EvitaEnumConverter.toGrpcConflictResolutionOverride(associatedDataSchema.getConflictResolutionOverride()));
 
 		if (associatedDataSchema.getDescription() != null) {
 			builder.setDescription(StringValue.newBuilder().setValue(associatedDataSchema.getDescription()).build());
@@ -530,7 +536,8 @@ public class EntitySchemaConverter {
 			)
 			.setIndexed(referenceSchema.isIndexed())
 			.addAllFacetedInScopes(Arrays.stream(Scope.values()).filter(referenceSchema::isFacetedInScope).map(EvitaEnumConverter::toGrpcScope).toList())
-			.setFaceted(referenceSchema.isFaceted());
+			.setFaceted(referenceSchema.isFaceted())
+			.setConflictResolutionOverride(EvitaEnumConverter.toGrpcConflictResolutionOverride(referenceSchema.getConflictResolutionOverride()));
 
 		// convert facetedPartially expressions per scope
 		final Map<Scope, Expression> facetedPartiallyInScopes = referenceSchema.getFacetedPartiallyInScopes();
@@ -678,7 +685,8 @@ public class EntitySchemaConverter {
 					attributeSchema.getRepresentative(),
 					EvitaDataTypesConverter.toEvitaDataType(attributeSchema.getType()),
 					attributeSchema.hasDefaultValue() ? EvitaDataTypesConverter.toEvitaValue(attributeSchema.getDefaultValue()) : null,
-					attributeSchema.getIndexedDecimalPlaces()
+					attributeSchema.getIndexedDecimalPlaces(),
+					EvitaEnumConverter.toConflictResolutionOverride(attributeSchema.getConflictResolutionOverride())
 				);
 			} else {
 				throw new EvitaInvalidUsageException("Expected global attribute, but `" + attributeSchema.getSchemaType() + "` was provided!");
@@ -699,7 +707,8 @@ public class EntitySchemaConverter {
 					attributeSchema.getRepresentative(),
 					EvitaDataTypesConverter.toEvitaDataType(attributeSchema.getType()),
 					attributeSchema.hasDefaultValue() ? EvitaDataTypesConverter.toEvitaValue(attributeSchema.getDefaultValue()) : null,
-					attributeSchema.getIndexedDecimalPlaces()
+					attributeSchema.getIndexedDecimalPlaces(),
+					EvitaEnumConverter.toConflictResolutionOverride(attributeSchema.getConflictResolutionOverride())
 				);
 			} else {
 				throw new EvitaInvalidUsageException("Expected global attribute, but `" + attributeSchema.getSchemaType() + "` was provided!");
@@ -720,7 +729,8 @@ public class EntitySchemaConverter {
 					attributeSchema.getRepresentative(),
 					EvitaDataTypesConverter.toEvitaDataType(attributeSchema.getType()),
 					attributeSchema.hasDefaultValue() ? EvitaDataTypesConverter.toEvitaValue(attributeSchema.getDefaultValue()) : null,
-					attributeSchema.getIndexedDecimalPlaces()
+					attributeSchema.getIndexedDecimalPlaces(),
+					EvitaEnumConverter.toConflictResolutionOverride(attributeSchema.getConflictResolutionOverride())
 				);
 			} else {
 				throw new EvitaInvalidUsageException("Expected global attribute, but `" + attributeSchema.getSchemaType() + "` was provided!");
@@ -741,7 +751,8 @@ public class EntitySchemaConverter {
 			associatedDataSchema.hasDeprecationNotice() ? associatedDataSchema.getDeprecationNotice().getValue() : null,
 			javaType,
 			associatedDataSchema.getLocalized(),
-			associatedDataSchema.getNullable()
+			associatedDataSchema.getNullable(),
+			EvitaEnumConverter.toConflictResolutionOverride(associatedDataSchema.getConflictResolutionOverride())
 		);
 	}
 
@@ -852,7 +863,8 @@ public class EntitySchemaConverter {
 								Entry::getKey,
 								it -> toSortableAttributeCompoundSchema(it.getValue())
 							)
-						)
+						),
+					ConflictResolutionOverride.INHERITED
 				)
 			);
 		} else {
@@ -894,7 +906,8 @@ public class EntitySchemaConverter {
 							Entry::getKey,
 							it -> toSortableAttributeCompoundSchema(it.getValue())
 						)
-					)
+					),
+				EvitaEnumConverter.toConflictResolutionOverride(referenceSchema.getConflictResolutionOverride())
 			);
 		}
 	}

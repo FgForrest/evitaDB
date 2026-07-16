@@ -24,6 +24,7 @@
 package io.evitadb.api.requestResponse.schema.builder;
 
 import io.evitadb.api.exception.InvalidSchemaMutationException;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
@@ -368,6 +369,26 @@ public final class ReflectedReferenceSchemaBuilder
 	@Nonnull
 	public ReflectedReferenceSchemaBuilder notDeprecatedAnymore() {
 		return withDeprecatedInherited();
+	}
+
+	/**
+	 * A reflected reference always inherits its conflict resolution from the target reference and can never
+	 * carry an explicit per-reference override, so this operation is not applicable on reflected references.
+	 *
+	 * @param conflictResolutionOverride ignored - the operation is unsupported on reflected references
+	 * @return never returns normally
+	 * @throws InvalidSchemaMutationException always, because the conflict resolution override cannot be set on a
+	 *                                        reflected reference
+	 */
+	@Override
+	@Nonnull
+	public ReflectedReferenceSchemaBuilder withConflictResolutionOverride(
+		@Nonnull ConflictResolutionOverride conflictResolutionOverride
+	) {
+		throw new InvalidSchemaMutationException(
+			"Conflict resolution override cannot be set on reflected reference schema - it is always " +
+				"inherited from the target reference!"
+		);
 	}
 
 	/**

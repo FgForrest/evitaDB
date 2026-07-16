@@ -37,6 +37,7 @@ import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.result.CardinalityChange;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -154,7 +155,8 @@ class ReducedGroupEntityIndexTest
 			new Scope[]{Scope.LIVE},
 			null,
 			false, false, false,
-			type, null
+			type, null,
+			ConflictResolutionOverride.INHERITED
 		);
 	}
 

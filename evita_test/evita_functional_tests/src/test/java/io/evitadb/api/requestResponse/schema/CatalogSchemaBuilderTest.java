@@ -52,6 +52,7 @@ class CatalogSchemaBuilderTest {
 	private static final CatalogSchema CATALOG_SCHEMA = CatalogSchema._internalBuild(
 		APITestConstants.TEST_CATALOG,
 		NamingConvention.generate(APITestConstants.TEST_CATALOG),
+		null,
 		EnumSet.allOf(CatalogEvolutionMode.class),
 		EmptyEntitySchemaAccessor.INSTANCE
 	);

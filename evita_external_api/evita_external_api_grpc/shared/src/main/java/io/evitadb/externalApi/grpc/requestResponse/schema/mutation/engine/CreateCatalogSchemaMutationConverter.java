@@ -23,8 +23,10 @@
 
 package io.evitadb.externalApi.grpc.requestResponse.schema.mutation.engine;
 
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolution;
 import io.evitadb.api.requestResponse.schema.mutation.engine.CreateCatalogSchemaMutation;
 import io.evitadb.externalApi.grpc.generated.GrpcCreateCatalogSchemaMutation;
+import io.evitadb.externalApi.grpc.requestResponse.schema.ConflictResolutionConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.SchemaMutationConverter;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
@@ -43,14 +45,21 @@ public class CreateCatalogSchemaMutationConverter implements SchemaMutationConve
 	@Nonnull
 	public CreateCatalogSchemaMutation convert(@Nonnull GrpcCreateCatalogSchemaMutation mutation) {
 		return new CreateCatalogSchemaMutation(
-			mutation.getCatalogName()
+			mutation.getCatalogName(),
+			mutation.hasConflictResolution()
+				? ConflictResolutionConverter.toConflictResolution(mutation.getConflictResolution())
+				: null
 		);
 	}
 
 	@Nonnull
 	public GrpcCreateCatalogSchemaMutation convert(@Nonnull CreateCatalogSchemaMutation mutation) {
-		return GrpcCreateCatalogSchemaMutation.newBuilder()
-			.setCatalogName(mutation.getCatalogName())
-			.build();
+		final GrpcCreateCatalogSchemaMutation.Builder builder = GrpcCreateCatalogSchemaMutation.newBuilder()
+			.setCatalogName(mutation.getCatalogName());
+		final ConflictResolution conflictResolution = mutation.getConflictResolution();
+		if (conflictResolution != null) {
+			builder.setConflictResolution(ConflictResolutionConverter.toGrpcConflictResolution(conflictResolution));
+		}
+		return builder.build();
 	}
 }

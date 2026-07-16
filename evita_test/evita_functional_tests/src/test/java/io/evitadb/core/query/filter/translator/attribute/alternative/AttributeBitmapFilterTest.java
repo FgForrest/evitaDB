@@ -102,6 +102,7 @@ class AttributeBitmapFilterTest {
 		final CatalogSchema catalogSchema = CatalogSchema._internalBuild(
 			TestConstants.TEST_CATALOG,
 			NamingConvention.generate(TestConstants.TEST_CATALOG),
+			null,
 			EnumSet.allOf(CatalogEvolutionMode.class),
 			new EmptyEntitySchemaAccessor()
 		);

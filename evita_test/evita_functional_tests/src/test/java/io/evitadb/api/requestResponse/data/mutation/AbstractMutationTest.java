@@ -39,6 +39,7 @@ import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexType;
 import io.evitadb.dataType.Scope;
 import io.evitadb.utils.NamingConvention;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 
 import javax.annotation.Nonnull;
 import java.util.Collection;
@@ -63,6 +64,7 @@ public abstract class AbstractMutationTest {
 	protected final EntitySchema productSchema = EntitySchema._internalBuild(
 		1, "PRODUCT",
 		null, null,
+		null,
 		true,
 		false, Scope.NO_SCOPE,
 		true, new Scope[] { Scope.LIVE }, 0,
@@ -108,10 +110,12 @@ public abstract class AbstractMutationTest {
 					AttributeSchema._internalBuild(
 						"categoryPriority",
 						Long.class,
-						false
+						false,
+						ConflictResolutionOverride.INHERITED
 					)
 				),
-				Map.of()
+				Map.of(),
+				ConflictResolutionOverride.INHERITED
 			)
 		),
 		EnumSet.allOf(EvolutionMode.class),
@@ -124,6 +128,7 @@ public abstract class AbstractMutationTest {
 		CatalogSchema._internalBuild(
 			APITestConstants.TEST_CATALOG,
 			Collections.emptyMap(),
+			null,
 			EnumSet.allOf(CatalogEvolutionMode.class),
 			new EntitySchemaProvider() {
 				@Nonnull

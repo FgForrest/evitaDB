@@ -111,7 +111,7 @@ class RestEntityMutationConverterTest {
 	@BeforeEach
 	void init() {
 		final EntitySchemaContract entitySchema = new InternalEntitySchemaBuilder(
-			CatalogSchema._internalBuild(TestConstants.TEST_CATALOG, Map.of(), EnumSet.allOf(CatalogEvolutionMode.class), EmptyEntitySchemaAccessor.INSTANCE),
+			CatalogSchema._internalBuild(TestConstants.TEST_CATALOG, Map.of(), null, EnumSet.allOf(CatalogEvolutionMode.class), EmptyEntitySchemaAccessor.INSTANCE),
 			EntitySchema._internalBuild(Entities.PRODUCT)
 		)
 			.withAssociatedData(ASSOCIATED_DATA_LABELS, Dummy.class)

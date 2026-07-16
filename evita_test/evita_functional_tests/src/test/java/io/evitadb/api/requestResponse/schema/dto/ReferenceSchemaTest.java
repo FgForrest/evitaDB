@@ -38,6 +38,7 @@ import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceI
 import io.evitadb.dataType.Scope;
 import io.evitadb.dataType.expression.Expression;
 import io.evitadb.utils.NamingConvention;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -121,7 +122,8 @@ class ReferenceSchemaTest {
 				Collections.emptyMap(),
 				Collections.emptyMap(),
 				Collections.emptyMap(),
-				Collections.emptyMap()
+				Collections.emptyMap(),
+				ConflictResolutionOverride.INHERITED
 			);
 
 			assertEquals("Category reference", schema.getDescription());
@@ -178,7 +180,8 @@ class ReferenceSchemaTest {
 				Collections.emptyMap(),
 				Collections.emptyMap(),
 				Collections.emptyMap(),
-				Collections.emptyMap()
+				Collections.emptyMap(),
+				ConflictResolutionOverride.INHERITED
 			);
 
 			assertTrue(schema.isFacetedInScope(Scope.LIVE));
@@ -452,7 +455,8 @@ class ReferenceSchemaTest {
 				null,
 				null, null,
 				Collections.emptyMap(),
-				Collections.emptyMap()
+				Collections.emptyMap(),
+				ConflictResolutionOverride.INHERITED
 			);
 
 			final Set<ReferenceIndexedComponents> components = schema.getIndexedComponents(Scope.LIVE);
@@ -491,7 +495,8 @@ class ReferenceSchemaTest {
 				null,
 				null, null,
 				Collections.emptyMap(),
-				Collections.emptyMap()
+				Collections.emptyMap(),
+				ConflictResolutionOverride.INHERITED
 			);
 
 			final Set<ReferenceIndexedComponents> components = schema.getIndexedComponents(Scope.LIVE);
@@ -536,7 +541,8 @@ class ReferenceSchemaTest {
 				null,
 				null, null,
 				Collections.emptyMap(),
-				Collections.emptyMap()
+				Collections.emptyMap(),
+				ConflictResolutionOverride.INHERITED
 			);
 
 			final Map<Scope, Set<ReferenceIndexedComponents>> allComponents = schema.getIndexedComponentsInScopes();
@@ -604,7 +610,8 @@ class ReferenceSchemaTest {
 				},
 				null, null,
 				Collections.emptyMap(),
-				Collections.emptyMap()
+				Collections.emptyMap(),
+				ConflictResolutionOverride.INHERITED
 			);
 
 			final Expression actual = schema.getFacetedPartiallyInScope(Scope.LIVE);
@@ -712,7 +719,8 @@ class ReferenceSchemaTest {
 				},
 				null, null,
 				Collections.emptyMap(),
-				Collections.emptyMap()
+				Collections.emptyMap(),
+				ConflictResolutionOverride.INHERITED
 			);
 			final ReferenceSchema withoutPartially = ReferenceSchema._internalBuild(
 				"brand",
@@ -735,7 +743,8 @@ class ReferenceSchemaTest {
 				null,
 				null, null,
 				Collections.emptyMap(),
-				Collections.emptyMap()
+				Collections.emptyMap(),
+				ConflictResolutionOverride.INHERITED
 			);
 
 			assertNotEquals(withPartially, withoutPartially);
@@ -781,6 +790,16 @@ class ReferenceSchemaTest {
 			assertNotEquals(a, b);
 		}
 
+		@Test
+		@DisplayName("should not be equal when conflict resolution override differs")
+		void shouldNotBeEqualWhenConflictResolutionOverrideDiffers() {
+			final ReferenceSchema a = createBrandRefWithOverride(ConflictResolutionOverride.INHERITED);
+			final ReferenceSchema b = createBrandRefWithOverride(ConflictResolutionOverride.GRANULAR);
+
+			assertNotEquals(a, b);
+			assertNotEquals(a.hashCode(), b.hashCode());
+		}
+
 		private static ReferenceSchema createBrandRef() {
 			return ReferenceSchema._internalBuild(
 				"brand", "Brand", true,
@@ -790,6 +809,41 @@ class ReferenceSchemaTest {
 					new ScopedReferenceIndexType(Scope.LIVE, ReferenceIndexType.FOR_FILTERING)
 				},
 				null
+			);
+		}
+
+		/**
+		 * Builds a managed "brand" reference identical in every respect except the supplied
+		 * conflict resolution override, so equality and hash-code differences can be attributed
+		 * solely to that field.
+		 *
+		 * @param override the per-reference conflict resolution override to apply
+		 * @return a reference schema carrying the given override
+		 */
+		private static ReferenceSchema createBrandRefWithOverride(
+			@Nonnull ConflictResolutionOverride override
+		) {
+			return ReferenceSchema._internalBuild(
+				"brand",
+				NamingConvention.generate("brand"),
+				null, null, Cardinality.ZERO_OR_ONE,
+				"Brand",
+				Collections.emptyMap(),
+				true,
+				null,
+				Collections.emptyMap(),
+				false,
+				Map.of(Scope.LIVE, ReferenceIndexType.FOR_FILTERING),
+				ReferenceSchema.defaultIndexedComponents(
+					Map.of(Scope.LIVE, ReferenceIndexType.FOR_FILTERING)
+				),
+				Collections.emptySet(),
+				Collections.emptyMap(),
+				Collections.emptyMap(),
+				Collections.emptyMap(),
+				Collections.emptyMap(),
+				Collections.emptyMap(),
+				override
 			);
 		}
 	}
@@ -826,13 +880,15 @@ class ReferenceSchemaTest {
 				Collections.emptyMap(),
 				Collections.emptyMap(),
 				Collections.emptyMap(),
-				Collections.emptyMap()
+				Collections.emptyMap(),
+				ConflictResolutionOverride.INHERITED
 			);
 
 			final EntitySchema entitySchema = EntitySchema._internalBuild("TestEntity");
 			final CatalogSchema catalogSchema = CatalogSchema._internalBuild(
 				"testCatalog",
 				NamingConvention.generate("testCatalog"),
+				null,
 				EnumSet.allOf(CatalogEvolutionMode.class),
 				new EntitySchemaProvider() {
 					@Nonnull
@@ -887,13 +943,15 @@ class ReferenceSchemaTest {
 				Collections.emptyMap(), // NOT bucketed in any scope
 				Map.of(Scope.LIVE, expression), // but bucketedPartially is set for LIVE
 				Collections.emptyMap(),
-				Collections.emptyMap()
+				Collections.emptyMap(),
+				ConflictResolutionOverride.INHERITED
 			);
 
 			final EntitySchema entitySchema = EntitySchema._internalBuild("TestEntity");
 			final CatalogSchema catalogSchema = CatalogSchema._internalBuild(
 				"testCatalog",
 				NamingConvention.generate("testCatalog"),
+				null,
 				EnumSet.allOf(CatalogEvolutionMode.class),
 				new EntitySchemaProvider() {
 					@Nonnull
@@ -978,7 +1036,8 @@ class ReferenceSchemaTest {
 				bucketedMap,
 				Collections.emptyMap(),
 				Collections.emptyMap(),
-				Collections.emptyMap()
+				Collections.emptyMap(),
+				ConflictResolutionOverride.INHERITED
 			);
 
 			assertTrue(schema.isBucketedInScope(Scope.LIVE));
@@ -1027,7 +1086,8 @@ class ReferenceSchemaTest {
 					new ScopedBucketedPartially(Scope.LIVE, partiallyExpr)
 				},
 				Collections.emptyMap(),
-				Collections.emptyMap()
+				Collections.emptyMap(),
+				ConflictResolutionOverride.INHERITED
 			);
 
 			assertNotNull(schema.getBucketedPartiallyInScope(Scope.LIVE));
@@ -1071,7 +1131,8 @@ class ReferenceSchemaTest {
 				bucketedMap,
 				Collections.emptyMap(),
 				Collections.emptyMap(),
-				Collections.emptyMap()
+				Collections.emptyMap(),
+				ConflictResolutionOverride.INHERITED
 			);
 
 			assertTrue(schema.isBucketedInScope(Scope.LIVE));
@@ -1143,7 +1204,8 @@ class ReferenceSchemaTest {
 				bucketedMap,
 				Collections.emptyMap(),
 				Collections.emptyMap(),
-				Collections.emptyMap()
+				Collections.emptyMap(),
+				ConflictResolutionOverride.INHERITED
 			);
 
 			assertTrue(schema.isBucketedInScope(Scope.LIVE));
@@ -1199,7 +1261,8 @@ class ReferenceSchemaTest {
 				bucketedMap,
 				Collections.emptyMap(),
 				Collections.emptyMap(),
-				Collections.emptyMap()
+				Collections.emptyMap(),
+				ConflictResolutionOverride.INHERITED
 			);
 			final ReferenceSchema withoutBucketed = ReferenceSchema._internalBuild(
 				"brand",
@@ -1220,7 +1283,8 @@ class ReferenceSchemaTest {
 				Collections.emptyMap(),
 				Collections.emptyMap(),
 				Collections.emptyMap(),
-				Collections.emptyMap()
+				Collections.emptyMap(),
+				ConflictResolutionOverride.INHERITED
 			);
 
 			assertNotEquals(withBucketed, withoutBucketed);
@@ -1245,7 +1309,8 @@ class ReferenceSchemaTest {
 				bucketedMap,
 				Collections.emptyMap(),
 				Collections.emptyMap(),
-				Collections.emptyMap()
+				Collections.emptyMap(),
+				ConflictResolutionOverride.INHERITED
 			);
 			assertEquals(withBucketed, withBucketed2);
 			assertEquals(withBucketed.hashCode(), withBucketed2.hashCode());
@@ -1281,7 +1346,8 @@ class ReferenceSchemaTest {
 				bucketedMap,
 				Collections.emptyMap(),
 				Collections.emptyMap(),
-				Collections.emptyMap()
+				Collections.emptyMap(),
+				ConflictResolutionOverride.INHERITED
 			);
 
 			assertFalse(
@@ -1320,7 +1386,8 @@ class ReferenceSchemaTest {
 				bucketedMap,
 				Map.of(Scope.LIVE, expression),
 				Collections.emptyMap(),
-				Collections.emptyMap()
+				Collections.emptyMap(),
+				ConflictResolutionOverride.INHERITED
 			);
 			final ReferenceSchema withoutPartially = ReferenceSchema._internalBuild(
 				"brand",
@@ -1341,7 +1408,8 @@ class ReferenceSchemaTest {
 				bucketedMap,
 				Collections.emptyMap(),
 				Collections.emptyMap(),
-				Collections.emptyMap()
+				Collections.emptyMap(),
+				ConflictResolutionOverride.INHERITED
 			);
 
 			assertNotEquals(withPartially, withoutPartially);
@@ -1758,7 +1826,8 @@ class ReferenceSchemaTest {
 				bucketedMap,
 				Collections.emptyMap(),
 				Collections.emptyMap(),
-				Collections.emptyMap()
+				Collections.emptyMap(),
+				ConflictResolutionOverride.INHERITED
 			);
 		}
 
@@ -1796,7 +1865,8 @@ class ReferenceSchemaTest {
 				bucketedMap,
 				Collections.emptyMap(),
 				Collections.emptyMap(),
-				Collections.emptyMap()
+				Collections.emptyMap(),
+				ConflictResolutionOverride.INHERITED
 			);
 		}
 	}

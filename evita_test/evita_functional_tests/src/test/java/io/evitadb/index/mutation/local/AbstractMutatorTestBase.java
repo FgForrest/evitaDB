@@ -83,6 +83,7 @@ abstract class AbstractMutatorTestBase {
 			CatalogSchema._internalBuild(
 				TestConstants.TEST_CATALOG,
 				NamingConvention.generate(TestConstants.TEST_CATALOG),
+				null,
 				EnumSet.allOf(CatalogEvolutionMode.class),
 				new EntitySchemaProvider() {
 					@Nonnull

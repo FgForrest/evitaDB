@@ -31,6 +31,7 @@ import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedDat
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.ModifyAssociatedDataSchemaTypeMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.RemoveAssociatedDataSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.SetAssociatedDataSchemaLocalizedMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.SetAssociatedDataSchemaConflictResolutionOverrideMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.SetAssociatedDataSchemaNullableMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.*;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.ModifyEntitySchemaNameMutationDescriptor;
@@ -94,6 +95,10 @@ public interface LocalEntitySchemaMutationInputAggregateDescriptor {
 		"modifyEntitySchemaDescriptionMutation",
 		ModifyEntitySchemaDescriptionMutationDescriptor.THIS_INPUT
 	);
+	PropertyDescriptor MODIFY_ENTITY_SCHEMA_CONFLICT_RESOLUTION_MUTATION = PropertyDescriptor.nullableFromObject(
+		"modifyEntitySchemaConflictResolutionMutation",
+		ModifyEntitySchemaConflictResolutionMutationDescriptor.THIS_INPUT
+	);
 	PropertyDescriptor MODIFY_ENTITY_SCHEMA_NAME_MUTATION = PropertyDescriptor.nullableFromObject(
 		"modifyEntitySchemaNameMutation",
 		ModifyEntitySchemaNameMutationDescriptor.THIS_INPUT
@@ -151,6 +156,10 @@ public interface LocalEntitySchemaMutationInputAggregateDescriptor {
 		"setAssociatedDataSchemaNullableMutation",
 		SetAssociatedDataSchemaNullableMutationDescriptor.THIS_INPUT
 	);
+	PropertyDescriptor SET_ASSOCIATED_DATA_SCHEMA_CONFLICT_RESOLUTION_OVERRIDE_MUTATION = PropertyDescriptor.nullableFromObject(
+		"setAssociatedDataSchemaConflictResolutionOverrideMutation",
+		SetAssociatedDataSchemaConflictResolutionOverrideMutationDescriptor.THIS_INPUT
+	);
 
 	/**
 	 * Attribute schema mutations
@@ -195,6 +204,10 @@ public interface LocalEntitySchemaMutationInputAggregateDescriptor {
 	PropertyDescriptor SET_ATTRIBUTE_SCHEMA_NULLABLE_MUTATION = PropertyDescriptor.nullableFromObject(
 		"setAttributeSchemaNullableMutation",
 		SetAttributeSchemaNullableMutationDescriptor.THIS_INPUT
+	);
+	PropertyDescriptor SET_ATTRIBUTE_SCHEMA_CONFLICT_RESOLUTION_OVERRIDE_MUTATION = PropertyDescriptor.nullableFromObject(
+		"setAttributeSchemaConflictResolutionOverrideMutation",
+		SetAttributeSchemaConflictResolutionOverrideMutationDescriptor.THIS_INPUT
 	);
 	PropertyDescriptor SET_ATTRIBUTE_SCHEMA_REPRESENTATIVE_MUTATION = PropertyDescriptor.nullableFromObject(
 		"setAttributeSchemaRepresentativeMutation",
@@ -306,6 +319,10 @@ public interface LocalEntitySchemaMutationInputAggregateDescriptor {
 		"setReferenceSchemaIndexedMutation",
 		SetReferenceSchemaIndexedMutationDescriptor.THIS_INPUT
 	);
+	PropertyDescriptor SET_REFERENCE_SCHEMA_CONFLICT_RESOLUTION_OVERRIDE_MUTATION = PropertyDescriptor.nullableFromObject(
+		"setReferenceSchemaConflictResolutionOverrideMutation",
+		SetReferenceSchemaConflictResolutionOverrideMutationDescriptor.THIS_INPUT
+	);
 
 	ObjectDescriptor THIS_INPUT = ObjectDescriptor.builder()
 		.name("LocalEntitySchemaMutationInputAggregate")
@@ -323,6 +340,7 @@ public interface LocalEntitySchemaMutationInputAggregateDescriptor {
 			DISALLOW_LOCALE_IN_ENTITY_SCHEMA_MUTATION,
 			MODIFY_ENTITY_SCHEMA_DEPRECATION_NOTICE_MUTATION,
 			MODIFY_ENTITY_SCHEMA_DESCRIPTION_MUTATION,
+			MODIFY_ENTITY_SCHEMA_CONFLICT_RESOLUTION_MUTATION,
 			SET_ENTITY_SCHEMA_WITH_GENERATED_PRIMARY_KEY_MUTATION,
 			SET_ENTITY_SCHEMA_WITH_HIERARCHY_MUTATION,
 			SET_ENTITY_SCHEMA_WITH_PRICE_MUTATION,
@@ -335,6 +353,7 @@ public interface LocalEntitySchemaMutationInputAggregateDescriptor {
 			REMOVE_ASSOCIATED_DATA_SCHEMA_MUTATION,
 			SET_ASSOCIATED_DATA_SCHEMA_LOCALIZED_MUTATION,
 			SET_ASSOCIATED_DATA_SCHEMA_NULLABLE_MUTATION,
+			SET_ASSOCIATED_DATA_SCHEMA_CONFLICT_RESOLUTION_OVERRIDE_MUTATION,
 
 			CREATE_ATTRIBUTE_SCHEMA_MUTATION,
 			MODIFY_ATTRIBUTE_SCHEMA_DEFAULT_VALUE_MUTATION,
@@ -346,6 +365,7 @@ public interface LocalEntitySchemaMutationInputAggregateDescriptor {
 			SET_ATTRIBUTE_SCHEMA_FILTERABLE_MUTATION,
 			SET_ATTRIBUTE_SCHEMA_LOCALIZED_MUTATION,
 			SET_ATTRIBUTE_SCHEMA_NULLABLE_MUTATION,
+			SET_ATTRIBUTE_SCHEMA_CONFLICT_RESOLUTION_OVERRIDE_MUTATION,
 			SET_ATTRIBUTE_SCHEMA_REPRESENTATIVE_MUTATION,
 			SET_ATTRIBUTE_SCHEMA_SORTABLE_MUTATION,
 			SET_ATTRIBUTE_SCHEMA_UNIQUE_MUTATION,
@@ -372,7 +392,8 @@ public interface LocalEntitySchemaMutationInputAggregateDescriptor {
 			MODIFY_REFERENCE_SCHEMA_ATTRIBUTE_INHERITANCE_MUTATION,
 			SET_REFERENCE_SCHEMA_BUCKETED_MUTATION,
 			SET_REFERENCE_SCHEMA_FACETED_MUTATION,
-			SET_REFERENCE_SCHEMA_INDEXED_MUTATION
+			SET_REFERENCE_SCHEMA_INDEXED_MUTATION,
+			SET_REFERENCE_SCHEMA_CONFLICT_RESOLUTION_OVERRIDE_MUTATION
 		))
 		.build();
 }

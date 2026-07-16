@@ -27,7 +27,6 @@ import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.mutation.conflict.CollectionConflictKey;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictGenerationContext;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
-import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
@@ -45,7 +44,6 @@ import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
 import java.util.Objects;
-import java.util.Set;
 import java.util.stream.Stream;
 
 /**
@@ -92,6 +90,7 @@ public class ModifyEntitySchemaDescriptionMutation implements CombinableLocalEnt
 				entitySchema.getNameVariants(),
 				this.description,
 				entitySchema.getDeprecationNotice(),
+				entitySchema.getConflictResolution().orElse(null),
 				entitySchema.isWithGeneratedPrimaryKey(),
 				entitySchema.isWithHierarchy(),
 				entitySchema.getHierarchyIndexedInScopes(),
@@ -118,8 +117,7 @@ public class ModifyEntitySchemaDescriptionMutation implements CombinableLocalEnt
 	@Nonnull
 	@Override
 	public Stream<ConflictKey> collectConflictKeys(
-		@Nonnull ConflictGenerationContext context,
-		@Nonnull Set<ConflictPolicy> conflictPolicies
+		@Nonnull ConflictGenerationContext context
 	) {
 		return Stream.of(new CollectionConflictKey(context.getEntityType()));
 	}

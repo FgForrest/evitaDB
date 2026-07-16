@@ -61,11 +61,13 @@ import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedDat
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.ModifyAssociatedDataSchemaTypeMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.RemoveAssociatedDataSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.SetAssociatedDataSchemaLocalizedMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.SetAssociatedDataSchemaConflictResolutionOverrideMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.SetAssociatedDataSchemaNullableMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.*;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.AllowEvolutionModeInCatalogSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.CreateEntitySchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.DisallowEvolutionModeInCatalogSchemaMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.ModifyCatalogSchemaConflictResolutionMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.ModifyCatalogSchemaDescriptionMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.ModifyEntitySchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.ModifyEntitySchemaNameMutationDescriptor;
@@ -188,6 +190,7 @@ public class CatalogRestBuilder extends FinalRestBuilder<CatalogRestBuildingCont
 					typeRefTo(ModifyCatalogSchemaMutationDescriptor.THIS.name()),
 					typeRefTo(ModifyEntitySchemaMutationDescriptor.THIS.name()),
 					typeRefTo(ModifyCatalogSchemaDescriptionMutationDescriptor.THIS.name()),
+					typeRefTo(ModifyCatalogSchemaConflictResolutionMutationDescriptor.THIS.name()),
 					typeRefTo(AllowEvolutionModeInCatalogSchemaMutationDescriptor.THIS.name()),
 					typeRefTo(DisallowEvolutionModeInCatalogSchemaMutationDescriptor.THIS.name()),
 
@@ -206,6 +209,7 @@ public class CatalogRestBuilder extends FinalRestBuilder<CatalogRestBuildingCont
 					typeRefTo(ModifyEntitySchemaDeprecationNoticeMutationDescriptor.THIS.name()),
 					typeRefTo(ModifyEntitySchemaDescriptionMutationDescriptor.THIS.name()),
 					typeRefTo(ModifyEntitySchemaNameMutationDescriptor.THIS.name()),
+					typeRefTo(ModifyEntitySchemaConflictResolutionMutationDescriptor.THIS.name()),
 					typeRefTo(RemoveEntitySchemaMutationDescriptor.THIS.name()),
 					typeRefTo(SetEntitySchemaWithGeneratedPrimaryKeyMutationDescriptor.THIS.name()),
 					typeRefTo(SetEntitySchemaWithHierarchyMutationDescriptor.THIS.name()),
@@ -220,6 +224,7 @@ public class CatalogRestBuilder extends FinalRestBuilder<CatalogRestBuildingCont
 					typeRefTo(RemoveAssociatedDataSchemaMutationDescriptor.THIS.name()),
 					typeRefTo(SetAssociatedDataSchemaLocalizedMutationDescriptor.THIS.name()),
 					typeRefTo(SetAssociatedDataSchemaNullableMutationDescriptor.THIS.name()),
+					typeRefTo(SetAssociatedDataSchemaConflictResolutionOverrideMutationDescriptor.THIS.name()),
 
 					// attribute schema mutations
 					typeRefTo(CreateAttributeSchemaMutationDescriptor.THIS.name()),
@@ -232,6 +237,7 @@ public class CatalogRestBuilder extends FinalRestBuilder<CatalogRestBuildingCont
 					typeRefTo(SetAttributeSchemaFilterableMutationDescriptor.THIS.name()),
 					typeRefTo(SetAttributeSchemaLocalizedMutationDescriptor.THIS.name()),
 					typeRefTo(SetAttributeSchemaNullableMutationDescriptor.THIS.name()),
+					typeRefTo(SetAttributeSchemaConflictResolutionOverrideMutationDescriptor.THIS.name()),
 					typeRefTo(SetAttributeSchemaRepresentativeMutationDescriptor.THIS.name()),
 					typeRefTo(SetAttributeSchemaSortableMutationDescriptor.THIS.name()),
 					typeRefTo(SetAttributeSchemaUniqueMutationDescriptor.THIS.name()),
@@ -260,6 +266,7 @@ public class CatalogRestBuilder extends FinalRestBuilder<CatalogRestBuildingCont
 					typeRefTo(SetReferenceSchemaBucketedMutationDescriptor.THIS.name()),
 					typeRefTo(SetReferenceSchemaFacetedMutationDescriptor.THIS.name()),
 					typeRefTo(SetReferenceSchemaIndexedMutationDescriptor.THIS.name()),
+					typeRefTo(SetReferenceSchemaConflictResolutionOverrideMutationDescriptor.THIS.name()),
 
 					// data mutations
 
@@ -317,6 +324,7 @@ public class CatalogRestBuilder extends FinalRestBuilder<CatalogRestBuildingCont
 			ModifyEntitySchemaDeprecationNoticeMutationDescriptor.THIS_INPUT,
 			ModifyEntitySchemaDescriptionMutationDescriptor.THIS_INPUT,
 			ModifyEntitySchemaNameMutationDescriptor.THIS_INPUT,
+			ModifyEntitySchemaConflictResolutionMutationDescriptor.THIS_INPUT,
 			RemoveEntitySchemaMutationDescriptor.THIS_INPUT,
 			SetEntitySchemaWithGeneratedPrimaryKeyMutationDescriptor.THIS_INPUT,
 			SetEntitySchemaWithHierarchyMutationDescriptor.THIS_INPUT,
@@ -331,6 +339,7 @@ public class CatalogRestBuilder extends FinalRestBuilder<CatalogRestBuildingCont
 			RemoveAssociatedDataSchemaMutationDescriptor.THIS_INPUT,
 			SetAssociatedDataSchemaLocalizedMutationDescriptor.THIS_INPUT,
 			SetAssociatedDataSchemaNullableMutationDescriptor.THIS_INPUT,
+			SetAssociatedDataSchemaConflictResolutionOverrideMutationDescriptor.THIS_INPUT,
 
 			// attribute schema mutations
 			CreateAttributeSchemaMutationDescriptor.THIS_INPUT,
@@ -343,6 +352,7 @@ public class CatalogRestBuilder extends FinalRestBuilder<CatalogRestBuildingCont
 			SetAttributeSchemaFilterableMutationDescriptor.THIS_INPUT,
 			SetAttributeSchemaLocalizedMutationDescriptor.THIS_INPUT,
 			SetAttributeSchemaNullableMutationDescriptor.THIS_INPUT,
+			SetAttributeSchemaConflictResolutionOverrideMutationDescriptor.THIS_INPUT,
 			SetAttributeSchemaRepresentativeMutationDescriptor.THIS_INPUT,
 			SetAttributeSchemaSortableMutationDescriptor.THIS_INPUT,
 			SetAttributeSchemaUniqueMutationDescriptor.THIS_INPUT,
@@ -374,12 +384,14 @@ public class CatalogRestBuilder extends FinalRestBuilder<CatalogRestBuildingCont
 			SetReferenceSchemaBucketedMutationDescriptor.THIS_INPUT,
 			SetReferenceSchemaFacetedMutationDescriptor.THIS_INPUT,
 			SetReferenceSchemaIndexedMutationDescriptor.THIS_INPUT,
+			SetReferenceSchemaConflictResolutionOverrideMutationDescriptor.THIS_INPUT,
 
 			LocalEntitySchemaMutationInputAggregateDescriptor.THIS_INPUT,
 
 			// catalog schema mutations
 			ModifyEntitySchemaMutationDescriptor.THIS_INPUT,
 			ModifyCatalogSchemaDescriptionMutationDescriptor.THIS_INPUT,
+			ModifyCatalogSchemaConflictResolutionMutationDescriptor.THIS_INPUT,
 			AllowEvolutionModeInCatalogSchemaMutationDescriptor.THIS_INPUT,
 			DisallowEvolutionModeInCatalogSchemaMutationDescriptor.THIS_INPUT,
 
@@ -424,6 +436,7 @@ public class CatalogRestBuilder extends FinalRestBuilder<CatalogRestBuildingCont
 			ModifyEntitySchemaMutationDescriptor.THIS,
 			RemoveEntitySchemaMutationDescriptor.THIS,
 			ModifyCatalogSchemaDescriptionMutationDescriptor.THIS,
+			ModifyCatalogSchemaConflictResolutionMutationDescriptor.THIS,
 			AllowEvolutionModeInCatalogSchemaMutationDescriptor.THIS,
 			DisallowEvolutionModeInCatalogSchemaMutationDescriptor.THIS,
 
@@ -441,6 +454,7 @@ public class CatalogRestBuilder extends FinalRestBuilder<CatalogRestBuildingCont
 			ModifyEntitySchemaDeprecationNoticeMutationDescriptor.THIS,
 			ModifyEntitySchemaDescriptionMutationDescriptor.THIS,
 			ModifyEntitySchemaNameMutationDescriptor.THIS,
+			ModifyEntitySchemaConflictResolutionMutationDescriptor.THIS,
 			SetEntitySchemaWithGeneratedPrimaryKeyMutationDescriptor.THIS,
 			SetEntitySchemaWithHierarchyMutationDescriptor.THIS,
 			SetEntitySchemaWithPriceMutationDescriptor.THIS,
@@ -454,6 +468,7 @@ public class CatalogRestBuilder extends FinalRestBuilder<CatalogRestBuildingCont
 			RemoveAssociatedDataSchemaMutationDescriptor.THIS,
 			SetAssociatedDataSchemaLocalizedMutationDescriptor.THIS,
 			SetAssociatedDataSchemaNullableMutationDescriptor.THIS,
+			SetAssociatedDataSchemaConflictResolutionOverrideMutationDescriptor.THIS,
 
 			// attribute schema mutations
 			CreateAttributeSchemaMutationDescriptor.THIS,
@@ -466,6 +481,7 @@ public class CatalogRestBuilder extends FinalRestBuilder<CatalogRestBuildingCont
 			SetAttributeSchemaFilterableMutationDescriptor.THIS,
 			SetAttributeSchemaLocalizedMutationDescriptor.THIS,
 			SetAttributeSchemaNullableMutationDescriptor.THIS,
+			SetAttributeSchemaConflictResolutionOverrideMutationDescriptor.THIS,
 			SetAttributeSchemaRepresentativeMutationDescriptor.THIS,
 			SetAttributeSchemaSortableMutationDescriptor.THIS,
 			SetAttributeSchemaUniqueMutationDescriptor.THIS,
@@ -494,7 +510,8 @@ public class CatalogRestBuilder extends FinalRestBuilder<CatalogRestBuildingCont
 			RemoveReferenceSchemaMutationDescriptor.THIS,
 			SetReferenceSchemaBucketedMutationDescriptor.THIS,
 			SetReferenceSchemaFacetedMutationDescriptor.THIS,
-			SetReferenceSchemaIndexedMutationDescriptor.THIS
+			SetReferenceSchemaIndexedMutationDescriptor.THIS,
+			SetReferenceSchemaConflictResolutionOverrideMutationDescriptor.THIS
 		);
 
 		this.buildingContext.registerType(

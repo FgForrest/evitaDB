@@ -31,6 +31,7 @@ import io.evitadb.api.configuration.TransactionOptions;
 import io.evitadb.api.requestResponse.mutation.EngineMutation;
 import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolution;
 import io.evitadb.api.requestResponse.schema.mutation.engine.SetCatalogMutabilityMutation;
 import io.evitadb.api.requestResponse.system.MaterializedVersionBlock;
 import io.evitadb.api.requestResponse.system.WriteAheadLogVersionDescriptor;
@@ -242,7 +243,7 @@ class EngineMutationLogTest implements EvitaTestSupport {
 		final DefaultIsolatedWalService walPersistenceService = new DefaultIsolatedWalService(
 			TEST_CATALOG,
 			UUID.randomUUID(),
-			EnumSet.noneOf(ConflictPolicy.class),
+			new ConflictResolution(ConflictPolicy.NONE),
 			KryoFactory.createKryo(WalKryoConfigurer.INSTANCE),
 			new WriteOnlyOffHeapWithFileBackupHandle(
 				this.isolatedWalFilePath,

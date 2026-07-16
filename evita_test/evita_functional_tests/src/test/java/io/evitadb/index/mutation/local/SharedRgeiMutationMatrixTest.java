@@ -46,6 +46,7 @@ import io.evitadb.index.price.PriceSuperIndex;
 import io.evitadb.index.price.model.PriceIndexKey;
 import io.evitadb.index.result.CardinalityChange;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -729,7 +730,8 @@ class SharedRgeiMutationMatrixTest {
 	) {
 		return AttributeSchema._internalBuild(
 			name, null, new Scope[]{Scope.LIVE}, null,
-			false, false, false, type, null
+			false, false, false, type, null,
+			ConflictResolutionOverride.INHERITED
 		);
 	}
 

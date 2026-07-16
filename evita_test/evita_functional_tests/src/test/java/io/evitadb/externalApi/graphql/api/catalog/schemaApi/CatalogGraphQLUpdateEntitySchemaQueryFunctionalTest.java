@@ -24,6 +24,9 @@
 package io.evitadb.externalApi.graphql.api.catalog.schemaApi;
 
 import io.evitadb.api.query.order.OrderDirection;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
+import io.evitadb.api.requestResponse.mutation.conflict.GranularConflictPolicy;
 import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.OrderBehaviour;
@@ -203,6 +206,109 @@ public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends Catalog
 					map()
 						.e(VersionedDescriptor.VERSION.name(), initialEntitySchemaVersion + 2)
 						.e(EntitySchemaDescriptor.LOCALES.name(), List.of())
+						.build()
+				)
+			);
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS_FOR_SCHEMA_CHANGE)
+	@DisplayName("Should change conflict resolution of entity schema and attribute override")
+	void shouldChangeConflictResolutionOfEntitySchema(GraphQLTester tester) {
+		final int initialEntitySchemaVersion = getEntitySchemaVersion(tester, ENTITY_EMPTY);
+
+		// create an attribute we can attach a non-default conflict resolution override to
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/schema")
+			.document(
+				"""
+				mutation {
+					updateEmptySchema (
+						mutations: [
+							{
+								createAttributeSchemaMutation: {
+									name: "conflictAttribute"
+									type: String
+									indexedDecimalPlaces: 0
+								}
+							}
+						]
+					) {
+						version
+					}
+				}
+				"""
+			)
+			.executeAndExpectOkAndThen()
+			.body(
+				UPDATE_EMPTY_SCHEMA_PATH + "." + VersionedDescriptor.VERSION.name(),
+				equalTo(initialEntitySchemaVersion + 1)
+			);
+
+		// set a non-default entity-level conflict resolution and a non-default attribute override, then read both back
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/schema")
+			.document(
+				"""
+				mutation {
+					updateEmptySchema (
+						mutations: [
+							{
+								modifyEntitySchemaConflictResolutionMutation: {
+									conflictResolution: {
+										policy: ENTITY
+										granularity: [ENTITY_ATTRIBUTE]
+									}
+								}
+							},
+							{
+								setAttributeSchemaConflictResolutionOverrideMutation: {
+									name: "conflictAttribute"
+									conflictResolutionOverride: GRANULAR
+								}
+							}
+						]
+					) {
+						version
+						conflictResolution {
+							policy
+							granularity
+						}
+						attributes {
+							conflictAttribute {
+								conflictResolutionOverride
+							}
+						}
+					}
+				}
+				"""
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(
+				UPDATE_EMPTY_SCHEMA_PATH,
+				equalTo(
+					map()
+						.e(VersionedDescriptor.VERSION.name(), initialEntitySchemaVersion + 3)
+						.e(
+							EntitySchemaDescriptor.CONFLICT_RESOLUTION.name(),
+							map()
+								.e(ConflictResolutionDescriptor.POLICY.name(), ConflictPolicy.ENTITY.name())
+								.e(
+									ConflictResolutionDescriptor.GRANULARITY.name(),
+									List.of(GranularConflictPolicy.ENTITY_ATTRIBUTE.name())
+								)
+								.build()
+						)
+						.e(EntitySchemaDescriptor.ATTRIBUTES.name(), map()
+							.e("conflictAttribute", map()
+								.e(
+									AttributeSchemaDescriptor.CONFLICT_RESOLUTION_OVERRIDE.name(),
+									ConflictResolutionOverride.GRANULAR.name()
+								)
+								.build())
+							.build())
 						.build()
 				)
 			);

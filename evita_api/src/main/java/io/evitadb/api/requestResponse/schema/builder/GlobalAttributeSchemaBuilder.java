@@ -23,6 +23,7 @@
 
 package io.evitadb.api.requestResponse.schema.builder;
 
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaEditor;
@@ -77,7 +78,7 @@ public final class GlobalAttributeSchemaBuilder
 		@Nonnull String name,
 		@Nonnull Class<? extends Serializable> ofType
 	) {
-		super(catalogSchema, null, GlobalAttributeSchema._internalBuild(name, ofType, false));
+		super(catalogSchema, null, GlobalAttributeSchema._internalBuild(name, ofType, false, ConflictResolutionOverride.INHERITED));
 		this.catalogSchema = catalogSchema;
 		this.mutations.add(
 			new CreateGlobalAttributeSchemaMutation(

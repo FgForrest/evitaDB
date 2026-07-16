@@ -31,7 +31,6 @@ import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.mutation.conflict.CatalogConflictKey;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictGenerationContext;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
-import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.mutation.TopLevelCatalogSchemaMutation;
@@ -48,7 +47,6 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
-import java.util.Set;
 import java.util.stream.Stream;
 
 /**
@@ -123,6 +121,7 @@ public class ModifyCatalogSchemaNameMutation implements TopLevelCatalogSchemaMut
 					this.newCatalogName,
 					NamingConvention.generate(this.newCatalogName),
 					catalogSchema.getDescription(),
+					catalogSchema.getConflictResolution().orElse(null),
 					catalogSchema.getCatalogEvolutionMode(),
 					catalogSchema.getAttributes(),
 					MutationEntitySchemaAccessor.INSTANCE
@@ -140,8 +139,7 @@ public class ModifyCatalogSchemaNameMutation implements TopLevelCatalogSchemaMut
 	@Nonnull
 	@Override
 	public Stream<ConflictKey> collectConflictKeys(
-		@Nonnull ConflictGenerationContext context,
-		@Nonnull Set<ConflictPolicy> conflictPolicies
+		@Nonnull ConflictGenerationContext context
 	) {
 		return Stream.of(
 			new CatalogConflictKey(this.catalogName),

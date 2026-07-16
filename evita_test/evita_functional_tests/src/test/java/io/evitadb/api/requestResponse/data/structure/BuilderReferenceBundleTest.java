@@ -32,6 +32,7 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentMatchers;
@@ -74,7 +75,8 @@ class BuilderReferenceBundleTest {
 				true,
 				true,
 				String.class,
-				null
+				null,
+				ConflictResolutionOverride.INHERITED
 			)
 		);
 		// non-representative noise attribute
@@ -89,7 +91,8 @@ class BuilderReferenceBundleTest {
 				true,
 				false,
 				String.class,
-				null
+				null,
+				ConflictResolutionOverride.INHERITED
 			)
 		);
 		return Collections.unmodifiableMap(attrs);

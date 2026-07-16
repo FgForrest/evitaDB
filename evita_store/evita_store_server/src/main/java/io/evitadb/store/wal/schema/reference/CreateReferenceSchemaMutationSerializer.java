@@ -27,6 +27,7 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.mutation.reference.CreateReferenceSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedHistogramIndexDefinition;
@@ -72,6 +73,7 @@ public class CreateReferenceSchemaMutationSerializer extends Serializer<CreateRe
 		writeScopedHistogramIndexDefinitionArray(kryo, output, mutation.getBucketedInScopes());
 		// write bucketedPartially expressions
 		writeScopedBucketedPartiallyArray(kryo, output, mutation.getBucketedPartiallyInScopes());
+		kryo.writeObject(output, mutation.getConflictResolutionOverride());
 	}
 
 	@Override
@@ -96,6 +98,7 @@ public class CreateReferenceSchemaMutationSerializer extends Serializer<CreateRe
 		final ScopedHistogramIndexDefinition[] bucketedInScopes = readScopedHistogramIndexDefinitionArray(kryo, input);
 		// read bucketedPartially expressions
 		final ScopedBucketedPartially[] bucketedPartiallyInScopes = readScopedBucketedPartiallyArray(kryo, input);
+		final ConflictResolutionOverride conflictResolutionOverride = kryo.readObject(input, ConflictResolutionOverride.class);
 
 		return new CreateReferenceSchemaMutation(
 			name,
@@ -111,7 +114,8 @@ public class CreateReferenceSchemaMutationSerializer extends Serializer<CreateRe
 			facetedInScopes,
 			facetedPartiallyInScopes,
 			bucketedInScopes,
-			bucketedPartiallyInScopes
+			bucketedPartiallyInScopes,
+			conflictResolutionOverride
 		);
 	}
 

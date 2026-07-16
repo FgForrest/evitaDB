@@ -65,6 +65,7 @@ public class DelegatingAttributeSchemaMutationConverter extends
 		registerConverter(SetAttributeSchemaFilterableMutation.class, new SetAttributeSchemaFilterableMutationConverter(objectParser, exceptionFactory));
 		registerConverter(SetAttributeSchemaLocalizedMutation.class, new SetAttributeSchemaLocalizedMutationConverter(objectParser, exceptionFactory));
 		registerConverter(SetAttributeSchemaNullableMutation.class, new SetAttributeSchemaNullableMutationConverter(objectParser, exceptionFactory));
+		registerConverter(SetAttributeSchemaConflictResolutionOverrideMutation.class, new SetAttributeSchemaConflictResolutionOverrideMutationConverter(objectParser, exceptionFactory));
 		registerConverter(SetAttributeSchemaRepresentativeMutation.class, new SetAttributeSchemaRepresentativeMutationConverter(objectParser, exceptionFactory));
 		registerConverter(SetAttributeSchemaSortableMutation.class, new SetAttributeSchemaSortableMutationConverter(objectParser, exceptionFactory));
 		registerConverter(SetAttributeSchemaUniqueMutation.class, new SetAttributeSchemaUniqueMutationConverter(objectParser, exceptionFactory));

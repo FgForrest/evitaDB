@@ -94,7 +94,7 @@ public interface GlobalAttributeSchemaMutation extends AttributeSchemaMutation, 
 		@Nonnull EntityAttributeSchemaMutation attributeSchemaMutation
 	) {
 		if (existingAttributeSchema.equals(updatedAttributeSchema)) {
-			// we don't need to update entity schema - the associated data already contains the requested change
+			// we don't need to update entity schema - the attribute already contains the requested change
 			return new CatalogSchemaWithImpactOnEntitySchemas(catalogSchema);
 		} else {
 			return new CatalogSchemaWithImpactOnEntitySchemas(
@@ -103,6 +103,7 @@ public interface GlobalAttributeSchemaMutation extends AttributeSchemaMutation, 
 					catalogSchema.getName(),
 					catalogSchema.getNameVariants(),
 					catalogSchema.getDescription(),
+					catalogSchema.getConflictResolution().orElse(null),
 					catalogSchema.getCatalogEvolutionMode(),
 					Stream.concat(
 							catalogSchema.getAttributes()

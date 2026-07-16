@@ -29,7 +29,6 @@ import io.evitadb.api.requestResponse.data.mutation.SchemaEvolvingLocalMutation;
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictGenerationContext;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
-import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
 import io.evitadb.api.requestResponse.mutation.conflict.HierarchyConflictKey;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -43,7 +42,6 @@ import javax.annotation.Nonnull;
 import java.io.Serial;
 import java.io.Serializable;
 import java.util.OptionalInt;
-import java.util.Set;
 import java.util.stream.Stream;
 
 /**
@@ -79,10 +77,9 @@ public abstract class ParentMutation implements SchemaEvolvingLocalMutation<Opti
 	@Nonnull
 	@Override
 	public Stream<ConflictKey> collectConflictKeys(
-		@Nonnull ConflictGenerationContext context,
-		@Nonnull Set<ConflictPolicy> conflictPolicies
+		@Nonnull ConflictGenerationContext context
 	) {
-		return conflictPolicies.contains(ConflictPolicy.HIERARCHY) && context.getEntityPrimaryKey() != null ?
+		return context.shouldEmitHierarchyKey() && context.getEntityPrimaryKey() != null ?
 			Stream.of(
 				new HierarchyConflictKey(
 					context.getEntityType(),

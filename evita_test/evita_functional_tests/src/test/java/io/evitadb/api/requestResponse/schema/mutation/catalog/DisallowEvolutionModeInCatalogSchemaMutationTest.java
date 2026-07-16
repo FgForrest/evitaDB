@@ -27,6 +27,8 @@ import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.mutation.conflict.CatalogConflictKey;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictGenerationContext;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolution;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.mutation.CatalogSchemaMutation.CatalogSchemaWithImpactOnEntitySchemas;
@@ -114,9 +116,9 @@ class DisallowEvolutionModeInCatalogSchemaMutationTest {
 		void shouldReturnCatalogConflictKey() {
 			final DisallowEvolutionModeInCatalogSchemaMutation mutation =
 				new DisallowEvolutionModeInCatalogSchemaMutation(CatalogEvolutionMode.ADDING_ENTITY_TYPES);
-			final List<ConflictKey> keys = new ConflictGenerationContext().withCatalogName(
+			final List<ConflictKey> keys = new ConflictGenerationContext(new ConflictResolution(ConflictPolicy.NONE)).withCatalogName(
 				"testCatalog",
-				ctx -> mutation.collectConflictKeys(ctx, Set.of()).toList()
+				ctx -> mutation.collectConflictKeys(ctx).toList()
 			);
 			assertEquals(1, keys.size());
 			assertInstanceOf(CatalogConflictKey.class, keys.get(0));

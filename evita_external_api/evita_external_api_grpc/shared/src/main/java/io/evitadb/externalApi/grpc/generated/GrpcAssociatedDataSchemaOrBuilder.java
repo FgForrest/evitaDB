@@ -192,4 +192,25 @@ public interface GrpcAssociatedDataSchemaOrBuilder extends
    */
   io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder getNameVariantOrBuilder(
       int index);
+
+  /**
+   * <pre>
+   * Contains the per-associated-data override of the conflict resolution granularity. Defaults to inherited (follow
+   * the resolved conflict resolution).
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcConflictResolutionOverride conflictResolutionOverride = 8;</code>
+   * @return The enum numeric value on the wire for conflictResolutionOverride.
+   */
+  int getConflictResolutionOverrideValue();
+  /**
+   * <pre>
+   * Contains the per-associated-data override of the conflict resolution granularity. Defaults to inherited (follow
+   * the resolved conflict resolution).
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcConflictResolutionOverride conflictResolutionOverride = 8;</code>
+   * @return The conflictResolutionOverride.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcConflictResolutionOverride getConflictResolutionOverride();
 }

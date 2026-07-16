@@ -43,6 +43,7 @@ import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.dataType.Scope;
 import io.evitadb.dataType.expression.Expression;
 import io.evitadb.utils.NamingConvention;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -331,7 +332,8 @@ class AssignedWhenPropagationTest {
 			},
 			null,
 			Collections.emptyMap(),
-			Collections.emptyMap()
+			Collections.emptyMap(),
+			ConflictResolutionOverride.INHERITED
 		);
 
 		final List<LocalEntitySchemaMutation> mutations = invokeReferenceSchemaBuilderCreateNew(
@@ -528,6 +530,7 @@ class AssignedWhenPropagationTest {
 		return CatalogSchema._internalBuild(
 			"testCatalog",
 			NamingConvention.generate("testCatalog"),
+			null,
 			EnumSet.noneOf(CatalogEvolutionMode.class),
 			new EntitySchemaProvider() {
 				@Nonnull
@@ -556,6 +559,7 @@ class AssignedWhenPropagationTest {
 			1,
 			"product",
 			null, null,
+			null,
 			false, false, null,
 			false, null, 2,
 			Collections.emptySet(),

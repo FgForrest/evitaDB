@@ -26,6 +26,7 @@ package io.evitadb.api.requestResponse.schema.dto;
 
 import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.exception.SchemaAlteringException;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
@@ -679,7 +680,10 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 					reflectedReference.getSortableAttributeCompounds(),
 					attributesInheritanceBehavior,
 					attributeInheritanceFilter == null ? ArrayUtils.EMPTY_STRING_ARRAY : attributeInheritanceFilter
-				)
+				),
+			// a reflected reference always inherits its conflict resolution; the override is never
+			// declared on the reflected side (see ReflectedReferenceSchemaBuilder)
+			ConflictResolutionOverride.INHERITED
 		);
 		Assert.isTrue(
 			reflectedReference == null || reflectedReference.getName().equals(reflectedReferenceName),
@@ -778,7 +782,10 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			bucketedInScopes,
 			bucketedPartiallyInScopes,
 			attributes,
-			sortableAttributeCompounds
+			sortableAttributeCompounds,
+			// a reflected reference always inherits its conflict resolution; the override is never
+			// declared on the reflected side (see ReflectedReferenceSchemaBuilder)
+			ConflictResolutionOverride.INHERITED
 		);
 		this.reflectedReferenceName = reflectedReferenceName;
 		this.reflectedReference = reflectedReference;
@@ -1975,7 +1982,6 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			this.facetedInScopes;
 		// bucketed is always explicit for reflected references (not inherited)
 		final Map<Scope, Map<String, HistogramIndexDefinition>> resolvedBucketed = this.bucketedInScopes;
-		final Map<Scope, Expression> resolvedBucketedPartially = this.bucketedPartiallyInScopes;
 		validateScopeSettings(facetedScopes, resolvedBucketed, indexedScopes, indexedComponents);
 		Assert.isTrue(
 			!this.facetedInherited || originalReference.getFacetedPartiallyInScopes().isEmpty(),
@@ -2009,7 +2015,7 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 				originalReference.getFacetedPartiallyInScopes() :
 				this.facetedPartiallyInScopes,
 			resolvedBucketed,
-			resolvedBucketedPartially,
+			this.bucketedPartiallyInScopes,
 			this.reflectedReference == null ?
 				// when reflected reference is not present, only attributes unique for reflected ones are present
 				union(

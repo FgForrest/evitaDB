@@ -23,6 +23,7 @@
 
 package io.evitadb.api.requestResponse.schema.dto;
 
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
 import io.evitadb.dataType.ComplexDataObject;
 import io.evitadb.dataType.EvitaDataTypes;
@@ -45,7 +46,7 @@ import java.util.Map;
 @ThreadSafe
 @EqualsAndHashCode
 public class AssociatedDataSchema implements Serializable, AssociatedDataSchemaContract {
-	@Serial private static final long serialVersionUID = -995599294301442064L;
+	@Serial private static final long serialVersionUID = -995599294301442063L;
 
 	@Getter @Nonnull private final String name;
 	@Getter @Nonnull private final Map<NamingConvention, String> nameVariants;
@@ -55,6 +56,7 @@ public class AssociatedDataSchema implements Serializable, AssociatedDataSchemaC
 	@Getter @Nonnull private final Class<? extends Serializable> plainType;
 	@Getter private final boolean localized;
 	@Getter private final boolean nullable;
+	@Getter @Nonnull private final ConflictResolutionOverride conflictResolutionOverride;
 
 	/**
 	 * This method is for internal purposes only. It could be used for reconstruction of AssociatedDataSchema from
@@ -68,10 +70,11 @@ public class AssociatedDataSchema implements Serializable, AssociatedDataSchemaC
 		@Nullable String deprecationNotice,
 		@Nonnull Class<? extends Serializable> type,
 		boolean localized,
-		boolean nullable
+		boolean nullable,
+		@Nonnull ConflictResolutionOverride conflictResolutionOverride
 	) {
 		return new AssociatedDataSchema(
-			name, description, deprecationNotice, type, localized, nullable
+			name, description, deprecationNotice, type, localized, nullable, conflictResolutionOverride
 		);
 	}
 
@@ -88,11 +91,12 @@ public class AssociatedDataSchema implements Serializable, AssociatedDataSchemaC
 		@Nullable String deprecationNotice,
 		@Nonnull Class<? extends Serializable> type,
 		boolean localized,
-		boolean nullable
+		boolean nullable,
+		@Nonnull ConflictResolutionOverride conflictResolutionOverride
 	) {
 		return new AssociatedDataSchema(
 			name, nameVariants,
-			description, deprecationNotice, type, localized, nullable
+			description, deprecationNotice, type, localized, nullable, conflictResolutionOverride
 		);
 	}
 
@@ -104,10 +108,11 @@ public class AssociatedDataSchema implements Serializable, AssociatedDataSchemaC
 	 */
 	public static AssociatedDataSchemaContract _internalBuild(
 		@Nonnull String name,
-		@Nonnull Class<? extends Serializable> type
+		@Nonnull Class<? extends Serializable> type,
+		@Nonnull ConflictResolutionOverride conflictResolutionOverride
 	) {
 		return new AssociatedDataSchema(
-			name, null, null, type, false, false
+			name, null, null, type, false, false, conflictResolutionOverride
 		);
 	}
 
@@ -117,10 +122,11 @@ public class AssociatedDataSchema implements Serializable, AssociatedDataSchemaC
 		@Nullable String deprecationNotice,
 		@Nonnull Class<? extends Serializable> type,
 		boolean localized,
-		boolean nullable) {
+		boolean nullable,
+		@Nonnull ConflictResolutionOverride conflictResolutionOverride) {
 		this(
 			name, NamingConvention.generate(name),
-			description, deprecationNotice, type, localized, nullable
+			description, deprecationNotice, type, localized, nullable, conflictResolutionOverride
 		);
 	}
 
@@ -131,7 +137,8 @@ public class AssociatedDataSchema implements Serializable, AssociatedDataSchemaC
 		@Nullable String deprecationNotice,
 		@Nonnull Class<? extends Serializable> type,
 		boolean localized,
-		boolean nullable
+		boolean nullable,
+		@Nonnull ConflictResolutionOverride conflictResolutionOverride
 	) {
 		this.name = name;
 		this.nameVariants = nameVariants;
@@ -144,6 +151,7 @@ public class AssociatedDataSchema implements Serializable, AssociatedDataSchemaC
 		this.plainType = (Class<? extends Serializable>) (this.type.isArray() ? this.type.getComponentType() : this.type);
 		this.localized = localized;
 		this.nullable = nullable;
+		this.conflictResolutionOverride = conflictResolutionOverride;
 	}
 
 	@Override

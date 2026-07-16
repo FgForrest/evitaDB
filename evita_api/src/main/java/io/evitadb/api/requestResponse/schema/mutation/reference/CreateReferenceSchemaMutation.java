@@ -24,6 +24,7 @@
 package io.evitadb.api.requestResponse.schema.mutation.reference;
 
 import io.evitadb.api.requestResponse.cdc.Operation;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -79,7 +80,7 @@ import static io.evitadb.dataType.Scope.NO_SCOPE;
 public class CreateReferenceSchemaMutation
 	extends AbstractReferenceDataSchemaMutation
 	implements ReferenceSchemaMutation, CombinableLocalEntitySchemaMutation, CreateMutation {
-	@Serial private static final long serialVersionUID = -4158068801437475008L;
+	@Serial private static final long serialVersionUID = -4158068801437475007L;
 
 	@Getter @Nullable private final String description;
 	@Getter @Nullable private final String deprecationNotice;
@@ -94,6 +95,7 @@ public class CreateReferenceSchemaMutation
 	@Getter @Nonnull private final ScopedFacetedPartially[] facetedPartiallyInScopes;
 	@Getter @Nonnull private final ScopedHistogramIndexDefinition[] bucketedInScopes;
 	@Getter @Nonnull private final ScopedBucketedPartially[] bucketedPartiallyInScopes;
+	@Getter @Nonnull private final ConflictResolutionOverride conflictResolutionOverride;
 
 	/**
 	 * Creates mutation that sets up a new reference schema with the given properties using simple boolean
@@ -128,7 +130,40 @@ public class CreateReferenceSchemaMutation
 
 	/**
 	 * Creates mutation that sets up a new reference schema with detailed per-scope indexed/faceted configuration
-	 * including per-scope facetedPartially and bucketed histogram expressions.
+	 * including per-scope facetedPartially and bucketed histogram expressions. The conflict resolution override
+	 * defaults to {@link ConflictResolutionOverride#INHERITED}.
+	 */
+	public CreateReferenceSchemaMutation(
+		@Nonnull String name,
+		@Nullable String description,
+		@Nullable String deprecationNotice,
+		@Nullable Cardinality cardinality,
+		@Nonnull String referencedEntityType,
+		boolean referencedEntityTypeManaged,
+		@Nullable String referencedGroupType,
+		boolean referencedGroupTypeManaged,
+		@Nullable ScopedReferenceIndexType[] indexedInScopes,
+		@Nullable ScopedReferenceIndexedComponents[] indexedComponentsInScopes,
+		@Nullable Scope[] facetedInScopes,
+		@Nullable ScopedFacetedPartially[] facetedPartiallyInScopes,
+		@Nullable ScopedHistogramIndexDefinition[] bucketedInScopes,
+		@Nullable ScopedBucketedPartially[] bucketedPartiallyInScopes
+	) {
+		this(
+			name, description, deprecationNotice, cardinality,
+			referencedEntityType, referencedEntityTypeManaged,
+			referencedGroupType, referencedGroupTypeManaged,
+			indexedInScopes, indexedComponentsInScopes,
+			facetedInScopes, facetedPartiallyInScopes,
+			bucketedInScopes, bucketedPartiallyInScopes,
+			ConflictResolutionOverride.INHERITED
+		);
+	}
+
+	/**
+	 * Creates mutation that sets up a new reference schema with detailed per-scope indexed/faceted configuration
+	 * including per-scope facetedPartially and bucketed histogram expressions and a per-reference conflict
+	 * resolution override.
 	 */
 	@SerializableCreator
 	public CreateReferenceSchemaMutation(
@@ -145,7 +180,8 @@ public class CreateReferenceSchemaMutation
 		@Nullable Scope[] facetedInScopes,
 		@Nullable ScopedFacetedPartially[] facetedPartiallyInScopes,
 		@Nullable ScopedHistogramIndexDefinition[] bucketedInScopes,
-		@Nullable ScopedBucketedPartially[] bucketedPartiallyInScopes
+		@Nullable ScopedBucketedPartially[] bucketedPartiallyInScopes,
+		@Nonnull ConflictResolutionOverride conflictResolutionOverride
 	) {
 		super(name);
 		ClassifierUtils.validateClassifierFormat(ClassifierType.REFERENCE, name);
@@ -177,6 +213,7 @@ public class CreateReferenceSchemaMutation
 			? ScopedHistogramIndexDefinition.EMPTY : bucketedInScopes;
 		this.bucketedPartiallyInScopes = bucketedPartiallyInScopes == null
 			? ScopedBucketedPartially.EMPTY : bucketedPartiallyInScopes;
+		this.conflictResolutionOverride = conflictResolutionOverride;
 	}
 
 	/**
@@ -255,6 +292,12 @@ public class CreateReferenceSchemaMutation
 									newValue -> new ModifyReferenceSchemaRelatedEntityGroupMutation(
 										this.name, newValue, this.referencedGroupTypeManaged
 									)
+								),
+								makeMutationIfDifferent(
+									ReferenceSchemaContract.class,
+									createdVersion, existingVersion,
+									ReferenceSchemaContract::getConflictResolutionOverride,
+									newValue -> new SetReferenceSchemaConflictResolutionOverrideMutation(this.name, newValue)
 								),
 								makeMutationIfDifferent(
 									ReferenceSchemaContract.class,
@@ -382,7 +425,8 @@ public class CreateReferenceSchemaMutation
 			this.facetedInScopes, this.facetedPartiallyInScopes,
 			this.bucketedInScopes, this.bucketedPartiallyInScopes,
 			Collections.emptyMap(),
-			Collections.emptyMap()
+			Collections.emptyMap(),
+			this.conflictResolutionOverride
 		);
 	}
 
@@ -421,7 +465,8 @@ public class CreateReferenceSchemaMutation
 			", faceted=" + Arrays.toString(this.facetedInScopes) +
 			", facetedPartially=" + Arrays.toString(this.facetedPartiallyInScopes) +
 			", bucketed=" + Arrays.toString(this.bucketedInScopes) +
-			", bucketedPartially=" + Arrays.toString(this.bucketedPartiallyInScopes);
+			", bucketedPartially=" + Arrays.toString(this.bucketedPartiallyInScopes) +
+			", conflictResolutionOverride=" + this.conflictResolutionOverride;
 	}
 
 }

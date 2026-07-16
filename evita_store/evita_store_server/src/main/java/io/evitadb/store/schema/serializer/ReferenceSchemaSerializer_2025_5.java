@@ -32,6 +32,7 @@ import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.dto.SortableAttributeCompoundSchema;
 import io.evitadb.dataType.Scope;
@@ -133,7 +134,7 @@ public class ReferenceSchemaSerializer_2025_5 extends Serializer<ReferenceSchema
 			Collections.emptyMap(),
 			Collections.emptyMap(),
 			Collections.emptyMap(),
-			attributes, sortableAttributeCompounds
+			attributes, sortableAttributeCompounds, ConflictResolutionOverride.INHERITED
 		);
 	}
 

@@ -27,7 +27,6 @@ package io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound
 import io.evitadb.api.requestResponse.mutation.conflict.CollectionConflictKey;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictGenerationContext;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
-import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
 import io.evitadb.api.requestResponse.schema.mutation.NamedSchemaMutation;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -36,7 +35,6 @@ import javax.annotation.Nonnull;
 import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
-import java.util.Set;
 import java.util.stream.Stream;
 
 /**
@@ -50,7 +48,7 @@ import java.util.stream.Stream;
  * - Keeps the target compound's {@link #name}
  * - Exposes the container name via {@link #containerName()} so the mutation framework can route
  *   the change to the correct schema part
- * - Produces collection-scoped conflict keys in {@link #collectConflictKeys(ConflictGenerationContext, Set)}
+ * - Produces collection-scoped conflict keys in {@link #collectConflictKeys(ConflictGenerationContext)}
  *   so that mutations affecting the same entity type are detected and handled by the conflict engine
  *
  * Concurrency and safety:
@@ -87,8 +85,7 @@ abstract class AbstractSortableAttributeCompoundSchemaMutation implements NamedS
 	@Nonnull
 	@Override
 	public Stream<ConflictKey> collectConflictKeys(
-		@Nonnull ConflictGenerationContext context,
-		@Nonnull Set<ConflictPolicy> conflictPolicies
+		@Nonnull ConflictGenerationContext context
 	) {
 		return Stream.of(new CollectionConflictKey(context.getEntityType()));
 	}

@@ -32,6 +32,9 @@ import io.evitadb.api.requestResponse.schema.OrderBehaviour;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract.AttributeInheritanceBehavior;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
+import io.evitadb.api.requestResponse.mutation.conflict.GranularConflictPolicy;
 import io.evitadb.api.requestResponse.schema.dto.*;
 import io.evitadb.spi.store.catalog.persistence.storageParts.schema.CatalogSchemaStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.schema.EntitySchemaStoragePart;
@@ -57,13 +60,19 @@ public class SchemaKryoConfigurer implements Consumer<Kryo> {
 	@Override
 	public void accept(Kryo kryo) {
 		int index = SCHEMA_BASE;
-		kryo.register(CatalogSchema.class, new SerialVersionBasedSerializer<>(new CatalogSchemaSerializer(), CatalogSchema.class), index++);
+		kryo.register(
+			CatalogSchema.class,
+			new SerialVersionBasedSerializer<>(new CatalogSchemaSerializer(), CatalogSchema.class)
+				.addBackwardCompatibleSerializer(-1582409928666780012L, new CatalogSchemaSerializer_2026_1()),
+			index++
+		);
 		kryo.register(CatalogSchemaStoragePart.class, new SerialVersionBasedSerializer<>(new CatalogSchemaStoragePartSerializer(), CatalogSchemaStoragePart.class), index++);
 		kryo.register(
 			EntitySchema.class,
 			new SerialVersionBasedSerializer<>(new EntitySchemaSerializer(), EntitySchema.class)
 				.addBackwardCompatibleSerializer(-209500573660545111L, new EntitySchemaSerializer_2024_11())
-				.addBackwardCompatibleSerializer(-7519764827214964135L, new EntitySchemaSerializer_2025_6()),
+				.addBackwardCompatibleSerializer(-7519764827214964135L, new EntitySchemaSerializer_2025_6())
+				.addBackwardCompatibleSerializer(8694215716025515883L, new EntitySchemaSerializer_2026_1()),
 			index++
 		);
 		kryo.register(EntitySchemaStoragePart.class, new SerialVersionBasedSerializer<>(new EntitySchemaStoragePartSerializer(), EntitySchemaStoragePart.class), index++);
@@ -71,28 +80,37 @@ public class SchemaKryoConfigurer implements Consumer<Kryo> {
 			AttributeSchema.class,
 			new SerialVersionBasedSerializer<>(new AttributeSchemaSerializer(), AttributeSchema.class)
 				.addBackwardCompatibleSerializer(-4646684142378649904L, new AttributeSchemaSerializer_2025_6())
-				.addBackwardCompatibleSerializer(1340876688998990217L, new AttributeSchemaSerializer_2024_11()),
+				.addBackwardCompatibleSerializer(1340876688998990217L, new AttributeSchemaSerializer_2024_11())
+				.addBackwardCompatibleSerializer(-4825670975814791474L, new AttributeSchemaSerializer_2026_1()),
 			index++
 		);
 		kryo.register(
 			GlobalAttributeSchema.class,
 			new SerialVersionBasedSerializer<>(new GlobalAttributeSchemaSerializer(), GlobalAttributeSchema.class)
-				.addBackwardCompatibleSerializer(-4016156218004708457L, new GlobalAttributeSchemaSerializer_2024_11()),
+				.addBackwardCompatibleSerializer(-4016156218004708457L, new GlobalAttributeSchemaSerializer_2024_11())
+				.addBackwardCompatibleSerializer(-6027390261318420826L, new GlobalAttributeSchemaSerializer_2026_1()),
 			index++
 		);
 		kryo.register(
 			EntityAttributeSchema.class,
 			new SerialVersionBasedSerializer<>(new EntityAttributeSchemaSerializer(), EntityAttributeSchema.class)
-				.addBackwardCompatibleSerializer(8204057625761013999L, new EntityAttributeSchemaSerializer_2024_11()),
+				.addBackwardCompatibleSerializer(8204057625761013999L, new EntityAttributeSchemaSerializer_2024_11())
+				.addBackwardCompatibleSerializer(8168305590483159082L, new EntityAttributeSchemaSerializer_2026_1()),
 			index++
 		);
-		kryo.register(AssociatedDataSchema.class, new SerialVersionBasedSerializer<>(new AssociatedDataSchemaSerializer(), AssociatedDataSchema.class), index++);
+		kryo.register(
+			AssociatedDataSchema.class,
+			new SerialVersionBasedSerializer<>(new AssociatedDataSchemaSerializer(), AssociatedDataSchema.class)
+				.addBackwardCompatibleSerializer(-995599294301442064L, new AssociatedDataSchemaSerializer_2026_1()),
+			index++
+		);
 		kryo.register(
 			ReferenceSchema.class,
 			new SerialVersionBasedSerializer<>(new ReferenceSchemaSerializer(), ReferenceSchema.class)
 				.addBackwardCompatibleSerializer(2018566260261489037L, new ReferenceSchemaSerializer_2024_11())
 				.addBackwardCompatibleSerializer(-5640763435228403921L, new ReferenceSchemaSerializer_2025_5())
-				.addBackwardCompatibleSerializer(6899584103779653340L, new ReferenceSchemaSerializer_2026_1()),
+				.addBackwardCompatibleSerializer(6899584103779653340L, new ReferenceSchemaSerializer_2026_1())
+				.addBackwardCompatibleSerializer(5443565766311111159L, new ReferenceSchemaSerializer_2026_2()),
 			index++
 		);
 		kryo.register(
@@ -123,6 +141,12 @@ public class SchemaKryoConfigurer implements Consumer<Kryo> {
 		);
 		kryo.register(ReferenceIndexedComponents.class, new EnumNameSerializer<>(), index++);
 		kryo.register(Expression.class, new SerialVersionBasedSerializer<>(new ExpressionSerializer(), Expression.class), index++);
+		// registered last so that adding them does not shift the registration ids of the entries above (which would
+		// break already persisted schemas); name-based serialization keeps them resilient to future enum evolution
+		// (e.g. the transitional granular constants of ConflictPolicy that are scheduled for removal)
+		kryo.register(ConflictResolutionOverride.class, new EnumNameSerializer<>(), index++);
+		kryo.register(ConflictPolicy.class, new EnumNameSerializer<>(), index++);
+		kryo.register(GranularConflictPolicy.class, new EnumNameSerializer<>(), index++);
 
 		Assert.isPremiseValid(index < 500, "Index count overflow.");
 	}

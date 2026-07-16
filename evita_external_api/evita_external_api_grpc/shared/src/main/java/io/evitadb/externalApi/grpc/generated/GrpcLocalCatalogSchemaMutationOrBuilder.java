@@ -640,5 +640,59 @@ public interface GrpcLocalCatalogSchemaMutationOrBuilder extends
    */
   io.evitadb.externalApi.grpc.generated.GrpcRemoveEntitySchemaMutationOrBuilder getRemoveEntitySchemaMutationOrBuilder();
 
+  /**
+   * <pre>
+   * Mutation is responsible for setting value `AttributeSchema.conflictResolutionOverride` in `CatalogSchema`.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaConflictResolutionOverrideMutation setAttributeSchemaConflictResolutionOverrideMutation = 34;</code>
+   * @return Whether the setAttributeSchemaConflictResolutionOverrideMutation field is set.
+   */
+  boolean hasSetAttributeSchemaConflictResolutionOverrideMutation();
+  /**
+   * <pre>
+   * Mutation is responsible for setting value `AttributeSchema.conflictResolutionOverride` in `CatalogSchema`.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaConflictResolutionOverrideMutation setAttributeSchemaConflictResolutionOverrideMutation = 34;</code>
+   * @return The setAttributeSchemaConflictResolutionOverrideMutation.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaConflictResolutionOverrideMutation getSetAttributeSchemaConflictResolutionOverrideMutation();
+  /**
+   * <pre>
+   * Mutation is responsible for setting value `AttributeSchema.conflictResolutionOverride` in `CatalogSchema`.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaConflictResolutionOverrideMutation setAttributeSchemaConflictResolutionOverrideMutation = 34;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaConflictResolutionOverrideMutationOrBuilder getSetAttributeSchemaConflictResolutionOverrideMutationOrBuilder();
+
+  /**
+   * <pre>
+   * Mutation is responsible for setting value to a `CatalogSchema.conflictResolution` in `CatalogSchema`.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyCatalogSchemaConflictResolutionMutation modifyCatalogSchemaConflictResolutionMutation = 35;</code>
+   * @return Whether the modifyCatalogSchemaConflictResolutionMutation field is set.
+   */
+  boolean hasModifyCatalogSchemaConflictResolutionMutation();
+  /**
+   * <pre>
+   * Mutation is responsible for setting value to a `CatalogSchema.conflictResolution` in `CatalogSchema`.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyCatalogSchemaConflictResolutionMutation modifyCatalogSchemaConflictResolutionMutation = 35;</code>
+   * @return The modifyCatalogSchemaConflictResolutionMutation.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcModifyCatalogSchemaConflictResolutionMutation getModifyCatalogSchemaConflictResolutionMutation();
+  /**
+   * <pre>
+   * Mutation is responsible for setting value to a `CatalogSchema.conflictResolution` in `CatalogSchema`.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyCatalogSchemaConflictResolutionMutation modifyCatalogSchemaConflictResolutionMutation = 35;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcModifyCatalogSchemaConflictResolutionMutationOrBuilder getModifyCatalogSchemaConflictResolutionMutationOrBuilder();
+
   io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation.MutationCase getMutationCase();
 }

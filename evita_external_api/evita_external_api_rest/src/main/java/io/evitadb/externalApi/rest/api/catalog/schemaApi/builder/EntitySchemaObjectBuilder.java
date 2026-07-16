@@ -98,6 +98,12 @@ public class EntitySchemaObjectBuilder {
 		this.buildingContext.registerType(
 			ScopedBucketedPartiallyDescriptor.THIS_INPUT.to(this.objectBuilderTransformer).build()
 		);
+		this.buildingContext.registerType(
+			ConflictResolutionDescriptor.THIS.to(this.objectBuilderTransformer).build()
+		);
+		this.buildingContext.registerType(
+			ConflictResolutionDescriptor.THIS_INPUT.to(this.objectBuilderTransformer).build()
+		);
 		this.buildingContext.registerType(AttributeSchemaDescriptor.THIS.to(this.objectBuilderTransformer).build());
 		this.buildingContext.registerType(EntityAttributeSchemaDescriptor.THIS.to(this.objectBuilderTransformer).build());
 		this.buildingContext.registerType(GlobalAttributeSchemaDescriptor.THIS.to(this.objectBuilderTransformer).build());
@@ -152,7 +158,7 @@ public class EntitySchemaObjectBuilder {
 		final OpenApiSimpleType attributeSchemaType;
 		if (attributeSchema instanceof GlobalAttributeSchemaContract) {
 			attributeSchemaType = nonNull(typeRefTo(GlobalAttributeSchemaDescriptor.THIS.name()));
-		} else if (attributeSchema instanceof  EntityAttributeSchemaContract) {
+		} else if (attributeSchema instanceof EntityAttributeSchemaContract) {
 			attributeSchemaType = nonNull(typeRefTo(EntityAttributeSchemaDescriptor.THIS.name()));
 		} else {
 			attributeSchemaType = nonNull(typeRefTo(AttributeSchemaDescriptor.THIS.name()));

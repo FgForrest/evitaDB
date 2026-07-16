@@ -79,7 +79,7 @@ public class LocalMutationInputAggregateConverterTest {
 	@BeforeEach
 	void init() {
 		this.entitySchema = new InternalEntitySchemaBuilder(
-			CatalogSchema._internalBuild(TestConstants.TEST_CATALOG, Map.of(), EnumSet.allOf(CatalogEvolutionMode.class), EmptyEntitySchemaAccessor.INSTANCE),
+			CatalogSchema._internalBuild(TestConstants.TEST_CATALOG, Map.of(), null, EnumSet.allOf(CatalogEvolutionMode.class), EmptyEntitySchemaAccessor.INSTANCE),
 			EntitySchema._internalBuild(Entities.PRODUCT)
 		)
 			.withAttribute(ATTRIBUTE_QUANTITY, Integer.class)

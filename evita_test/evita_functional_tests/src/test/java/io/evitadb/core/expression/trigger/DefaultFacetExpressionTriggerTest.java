@@ -53,6 +53,7 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.entity.EntityBodySt
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.PricesStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.ReferencesStoragePart;
 import io.evitadb.utils.NamingConvention;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -105,6 +106,7 @@ class DefaultFacetExpressionTriggerTest {
 	private static final CatalogSchema CATALOG_SCHEMA = CatalogSchema._internalBuild(
 		"testCatalog",
 		NamingConvention.generate("testCatalog"),
+		null,
 		EnumSet.allOf(CatalogEvolutionMode.class),
 		EmptyEntitySchemaAccessor.INSTANCE
 	);
@@ -754,7 +756,8 @@ class DefaultFacetExpressionTriggerTest {
 		for (final AttributeValue value : values) {
 			final Class<? extends Serializable> type = value.value().getClass();
 			final AttributeSchema attrSchema = AttributeSchema._internalBuild(
-				value.key().attributeName(), type, false
+				value.key().attributeName(), type, false,
+				ConflictResolutionOverride.INHERITED
 			);
 			part.upsertAttribute(value.key(), attrSchema, existing -> value);
 		}

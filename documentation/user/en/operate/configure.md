@@ -83,7 +83,7 @@ transaction:                                      # [see Transaction configurati
   walFileCountKept: 8
   waitForTransactionAcceptanceInMillis: 20s
   flushFrequencyInMillis: 1s
-  conflictPolicy: [ENTITY]
+  conflictPolicy: ENTITY
 
 cache:                                            # [see Cache configuration](#cache-configuration)
   enabled: false
@@ -806,21 +806,22 @@ This section contains configuration options for the storage layer of the databas
     </dd>
     <dt>conflictPolicy</dt>
     <dd>
-        <p>**Default:** `[ENTITY]`</p>
-        <p>Set of conflict policies that will be used to resolve conflicts with other parallel sessions during
-            the transaction commit. The conflict policy controls the granularity at which write conflicts are detected
-            and serialized. The finer the scope, the more mutations can be processed concurrently without blocking;
-            the coarser the scope, the fewer conflicts are possible, but at the cost of lower concurrency.
-            See [Conflict Policies](#conflict-policies) section for detailed description of available policies.</p>
-        <p>You can specify multiple policies as an array. An empty array means "last writer wins" - no conflict
-            detection is performed. Examples:</p>
+        <p>**Default:** `{ policy: ENTITY }`</p>
+        <p>The engine-wide default conflict resolution used to resolve conflicts with other parallel sessions during
+            the transaction commit. It controls the granularity at which write conflicts are detected and serialized:
+            the finer the scope, the more mutations can be processed concurrently without blocking; the coarser the
+            scope, the fewer conflicts are possible, but at the cost of lower concurrency. The engine default can be
+            overridden per catalog, per entity type and per schema item (attribute / associated data / reference) — see
+            the [conflict resolution deep-dive](../deep-dive/transactions.md#1-conflict-resolution) for the full model.
+            See the [Conflict Policies](#conflict-policies) section for a description of the available policies.</p>
+        <p>The value is an object with a mandatory coarse `policy` (`NONE` / `CATALOG` / `COLLECTION` / `ENTITY`) and an
+            optional `granularity` list refining the `ENTITY` scope. A bare scalar is accepted as shorthand for a
+            coarse-only policy. Examples:</p>
         <ul>
-            <li>`[ENTITY]` - default, conflicts detected at entity level</li>
-            <li>`[ENTITY_ATTRIBUTE, REFERENCE_ATTRIBUTE]` - fine-grained conflicts for attributes only, mutations of 
-                 other data generate no conflicts (last writer wins)</li>
-            <li>`[ENTITY, ENTITY_ATTRIBUTE, REFERENCE_ATTRIBUTE]` - fine-grained conflicts for attributes only, 
-                 mutations of other data generate conflicts on entire entity level</li>
-            <li>`[]` - no conflict detection (last writer wins)</li>
+            <li>`{ policy: ENTITY }` (or simply `ENTITY`) - default, conflicts detected at entity level</li>
+            <li>`{ policy: ENTITY, granularity: [ENTITY_ATTRIBUTE, REFERENCE_ATTRIBUTE] }` - entity-level conflicts,
+                 refined so writes to different attributes of the same entity do not conflict</li>
+            <li>`{ policy: NONE }` (or simply `NONE`) - no conflict detection (last writer wins)</li>
         </ul>
     </dd>
 </dl>

@@ -84,6 +84,13 @@ message GrpcModifyEntitySchemaDescriptionMutation {
   google.protobuf.StringValue description = 1;
 }
 
+// Mutation is responsible for setting value to a `EntitySchema.conflictResolution` in `EntitySchema`.
+message GrpcModifyEntitySchemaConflictResolutionMutation {
+  // The entity-level conflict resolution setting. When not set (absent), the entity schema conflict resolution is
+  // cleared (inherits the resolved conflict resolution).
+  GrpcConflictResolution conflictResolution = 1;
+}
+
 // Mutation is responsible for setting a `EntitySchema.withGeneratedPrimaryKey` in `EntitySchema`.
 message GrpcSetEntitySchemaWithGeneratedPrimaryKeyMutation {
   // Whether primary keys of entities of this type will not be provided by the external systems and Evita

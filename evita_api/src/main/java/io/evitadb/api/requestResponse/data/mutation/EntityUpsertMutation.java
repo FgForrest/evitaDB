@@ -27,14 +27,12 @@ import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.requestResponse.cdc.ChangeCaptureContent;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
 import io.evitadb.api.requestResponse.cdc.Operation;
-import io.evitadb.api.requestResponse.data.Droppable;
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.mutation.MutationPredicate;
 import io.evitadb.api.requestResponse.mutation.MutationPredicateContext;
 import io.evitadb.api.requestResponse.mutation.StreamDirection;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictGenerationContext;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
-import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
@@ -55,7 +53,6 @@ import java.util.List;
 import java.util.ListIterator;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -63,9 +60,9 @@ import static java.util.Optional.empty;
 import static java.util.Optional.of;
 
 /**
- * EntityUpsertMutation represents a terminal mutation when existing entity is removed in the evitaDB. The entity is
- * and all its internal data are marked as TRUE for {@link Droppable#dropped()}, stored to the storage file and
- * removed from the mem-table.
+ * EntityUpsertMutation represents a terminal mutation that either inserts a new entity or updates an
+ * existing one in evitaDB. It carries the collection of {@link LocalMutation}s that are applied to the
+ * entity contents; the resulting entity is stored to the storage file and indexed in the mem-table.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
@@ -233,14 +230,13 @@ public class EntityUpsertMutation implements EntityMutation {
 	@Nonnull
 	@Override
 	public Stream<ConflictKey> collectConflictKeys(
-		@Nonnull ConflictGenerationContext context,
-		@Nonnull Set<ConflictPolicy> conflictPolicies
+		@Nonnull ConflictGenerationContext context
 	) {
 		return context.withEntityType(
 			this.entityType,
 			this.entityPrimaryKey,
 			ctx -> EntityMutation.getConflictKeyStream(
-				this.entityType, this.entityPrimaryKey, this.localMutations, conflictPolicies, ctx
+				this.entityType, this.entityPrimaryKey, this.localMutations, this.entityExistence, ctx
 			)
 		);
 	}

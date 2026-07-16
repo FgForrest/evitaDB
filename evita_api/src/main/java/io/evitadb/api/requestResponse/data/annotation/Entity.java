@@ -46,7 +46,7 @@ import java.lang.annotation.Target;
 public @interface Entity {
 
 	/**
-	 * Name of the attribute. Use camel-case naming style.
+	 * Name of the entity. Use camel-case naming style.
 	 * Propagates to {@link EntitySchemaContract#getName()}
 	 * If left empty the name is taken from the name of the simple class name.
 	 */
@@ -87,5 +87,14 @@ public @interface Entity {
 		EvolutionMode.ADDING_PRICES,
 		EvolutionMode.UPDATING_REFERENCE_CARDINALITY
 	};
+
+	/**
+	 * Entity-level conflict resolution for the entity as a whole. By default ({@link EntityConflictResolution#inherited()}
+	 * `== true`) nothing is set and the entity follows the conflict resolution resolved from the catalog schema and
+	 * engine configuration. Declare `@EntityConflictResolution(inherited = false, policy = …, granularity = {…})` to pin
+	 * the entity to an explicit resolution.
+	 * Propagates to {@link EntitySchemaContract#getConflictResolution()}.
+	 */
+	EntityConflictResolution conflictResolution() default @EntityConflictResolution;
 
 }

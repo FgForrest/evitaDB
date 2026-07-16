@@ -26,6 +26,8 @@ package io.evitadb.externalApi.rest.api.catalog.schemaApi.resolver.serializer;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolution;
+import io.evitadb.api.requestResponse.mutation.conflict.GranularConflictPolicy;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
@@ -38,6 +40,7 @@ import io.evitadb.api.requestResponse.schema.dto.HistogramIndexDefinition;
 import io.evitadb.dataType.Scope;
 import io.evitadb.dataType.expression.Expression;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.AttributeSchemaDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.ConflictResolutionDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.EntityAttributeSchemaDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.GlobalAttributeSchemaDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.NamedSchemaDescriptor;
@@ -58,6 +61,7 @@ import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.Optional;
@@ -124,8 +128,39 @@ public abstract class SchemaJsonSerializer {
 				.orElse(null)
 		);
 		attributeSchemaNode.put(AttributeSchemaDescriptor.INDEXED_DECIMAL_PLACES.name(), attributeSchema.getIndexedDecimalPlaces());
+		attributeSchemaNode.put(AttributeSchemaDescriptor.CONFLICT_RESOLUTION_OVERRIDE.name(), attributeSchema.getConflictResolutionOverride().name());
 
 		return attributeSchemaNode;
+	}
+
+	/**
+	 * Serializes the optional entity/catalog level {@link ConflictResolution} into the given node under the
+	 * property named by `propertyName`. When the schema does not declare its own conflict
+	 * resolution a JSON `null` is emitted; otherwise a nested object combining the coarse
+	 * {@link ConflictResolutionDescriptor#POLICY} and the {@link ConflictResolutionDescriptor#GRANULARITY} array is
+	 * written. The helper lives in the shared ancestor so both entity and catalog serializers reuse it.
+	 *
+	 * @param node               the node the conflict resolution is written into
+	 * @param propertyName        the name of the property the nested object (or `null`) is stored under
+	 * @param conflictResolution  the conflict resolution to serialize, or `null` when the schema inherits it
+	 */
+	protected void serializeConflictResolution(
+		@Nonnull ObjectNode node,
+		@Nonnull String propertyName,
+		@Nullable ConflictResolution conflictResolution
+	) {
+		if (conflictResolution == null) {
+			node.putNull(propertyName);
+			return;
+		}
+		final ObjectNode conflictResolutionNode = this.objectJsonSerializer.objectNode();
+		conflictResolutionNode.put(ConflictResolutionDescriptor.POLICY.name(), conflictResolution.policy().name());
+		final ArrayNode granularityArray = this.objectJsonSerializer.arrayNode();
+		for (final GranularConflictPolicy granularity : conflictResolution.granularity()) {
+			granularityArray.add(granularity.name());
+		}
+		conflictResolutionNode.set(ConflictResolutionDescriptor.GRANULARITY.name(), granularityArray);
+		node.set(propertyName, conflictResolutionNode);
 	}
 
 	/**

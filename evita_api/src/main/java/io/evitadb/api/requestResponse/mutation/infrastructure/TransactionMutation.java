@@ -34,7 +34,6 @@ import io.evitadb.api.requestResponse.mutation.MutationPredicate;
 import io.evitadb.api.requestResponse.mutation.MutationPredicateContext;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictGenerationContext;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
-import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 
@@ -43,7 +42,6 @@ import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
 import java.time.OffsetDateTime;
-import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Stream;
 
@@ -147,8 +145,7 @@ public non-sealed class TransactionMutation implements EngineMutation<Void>, Cat
 	@Nonnull
 	@Override
 	public Stream<ConflictKey> collectConflictKeys(
-		@Nonnull ConflictGenerationContext context,
-		@Nonnull Set<ConflictPolicy> conflictPolicies
+		@Nonnull ConflictGenerationContext context
 	) {
 		return Stream.empty();
 	}

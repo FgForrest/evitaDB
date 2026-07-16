@@ -24,13 +24,15 @@
 package io.evitadb.api.configuration;
 
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolution;
+import io.evitadb.api.requestResponse.mutation.conflict.GranularConflictPolicy;
 import lombok.ToString;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.Collections;
+import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.Optional;
 
@@ -67,9 +69,11 @@ import java.util.Optional;
  *                                              in volatile memory. Amount of necessary conflict keys is dependent on
  *                                              granularity of conflict keys, the number of concurrent transactions,
  *                                              and the age of the oldest writable session (e.g. transaction).
- * @param conflictPolicy                        Set of conflict policies that will be used to resolve conflicts with
- *                                              other parallel sessions during the transaction commit. By default,
- *                                              {@link ConflictPolicy#ENTITY} is enabled.
+ * @param conflictPolicy                        Conflict resolution setting that will be used to resolve conflicts with
+ *                                              other parallel sessions during the transaction commit. It combines the
+ *                                              coarse {@link ConflictPolicy} scope with an optional set of
+ *                                              {@link GranularConflictPolicy} refinements (see {@link ConflictResolution}).
+ *                                              By default, conflicts are detected at {@link ConflictPolicy#ENTITY} level.
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 public record TransactionOptions(
@@ -81,7 +85,7 @@ public record TransactionOptions(
 	long waitForTransactionAcceptanceInMillis,
 	long flushFrequencyInMillis,
 	int conflictRingBufferSize,
-	@Nonnull EnumSet<ConflictPolicy> conflictPolicy
+	@Nonnull ConflictResolution conflictPolicy
 ) {
 	public static final Path DEFAULT_TX_DIRECTORY = Paths.get(System.getProperty("java.io.tmpdir"), "evita/transaction");
 	public static final long DEFAULT_TRANSACTION_MEMORY_BUFFER_LIMIT_SIZE = 16_777_216;
@@ -91,7 +95,7 @@ public record TransactionOptions(
 	public static final int DEFAULT_WAIT_FOR_TRANSACTION_ACCEPTANCE = 20_000;
 	public static final int DEFAULT_FLUSH_FREQUENCY = 1_000;
 	public static final int DEFAULT_CONFLICT_RING_BUFFER_SIZE = 65_536;
-	public static final EnumSet<ConflictPolicy> DEFAULT_CONFLICT_POLICY = EnumSet.of(ConflictPolicy.ENTITY);
+	public static final ConflictResolution DEFAULT_CONFLICT_RESOLUTION = new ConflictResolution(ConflictPolicy.ENTITY);
 
 	/**
 	 * Builder method is planned to be used only in tests.
@@ -106,7 +110,7 @@ public record TransactionOptions(
 			100,
 			100,
 			256,
-			DEFAULT_CONFLICT_POLICY
+			DEFAULT_CONFLICT_RESOLUTION
 		);
 	}
 
@@ -134,7 +138,7 @@ public record TransactionOptions(
 			DEFAULT_WAIT_FOR_TRANSACTION_ACCEPTANCE,
 			DEFAULT_FLUSH_FREQUENCY,
 			DEFAULT_CONFLICT_RING_BUFFER_SIZE,
-			DEFAULT_CONFLICT_POLICY
+			DEFAULT_CONFLICT_RESOLUTION
 		);
 	}
 
@@ -147,7 +151,7 @@ public record TransactionOptions(
 		long waitForTransactionAcceptanceInMillis,
 		long flushFrequencyInMillis,
 		int conflictRingBufferSize,
-		@Nonnull EnumSet<ConflictPolicy> conflictPolicy
+		@Nullable ConflictResolution conflictPolicy
 	) {
 		this.transactionWorkDirectory = Optional.ofNullable(transactionWorkDirectory).orElse(DEFAULT_TX_DIRECTORY);
 		this.transactionMemoryBufferLimitSizeBytes = transactionMemoryBufferLimitSizeBytes;
@@ -157,10 +161,8 @@ public record TransactionOptions(
 		this.waitForTransactionAcceptanceInMillis = waitForTransactionAcceptanceInMillis;
 		this.flushFrequencyInMillis = flushFrequencyInMillis;
 		this.conflictRingBufferSize = conflictRingBufferSize;
-		// defensive copy to prevent mutation of the record state
-		this.conflictPolicy = conflictPolicy.isEmpty()
-			? EnumSet.noneOf(ConflictPolicy.class)
-			: EnumSet.copyOf(conflictPolicy);
+		// ConflictResolution is immutable, no defensive copy required; null falls back to the default
+		this.conflictPolicy = Optional.ofNullable(conflictPolicy).orElse(DEFAULT_CONFLICT_RESOLUTION);
 	}
 
 	/**
@@ -176,7 +178,7 @@ public record TransactionOptions(
 		private long waitForTransactionAcceptance = DEFAULT_WAIT_FOR_TRANSACTION_ACCEPTANCE;
 		private long flushFrequency = DEFAULT_FLUSH_FREQUENCY;
 		private int conflictRingBufferSize = DEFAULT_CONFLICT_RING_BUFFER_SIZE;
-		private final EnumSet<ConflictPolicy> conflictPolicy = EnumSet.copyOf(DEFAULT_CONFLICT_POLICY);
+		private ConflictResolution conflictPolicy = DEFAULT_CONFLICT_RESOLUTION;
 
 		Builder() {
 		}
@@ -190,8 +192,7 @@ public record TransactionOptions(
 			this.waitForTransactionAcceptance = transactionOptions.waitForTransactionAcceptanceInMillis;
 			this.flushFrequency = transactionOptions.flushFrequencyInMillis;
 			this.conflictRingBufferSize = transactionOptions.conflictRingBufferSize;
-			this.conflictPolicy.clear();
-			this.conflictPolicy.addAll(transactionOptions.conflictPolicy);
+			this.conflictPolicy = transactionOptions.conflictPolicy;
 		}
 
 		@Nonnull
@@ -242,16 +243,42 @@ public record TransactionOptions(
 			return this;
 		}
 
+		/**
+		 * Sets the complete conflict resolution setting used during the transaction commit.
+		 *
+		 * @param conflictResolution the conflict resolution to use, never null
+		 */
 		@Nonnull
-		public TransactionOptions.Builder conflictPolicy(@Nonnull ConflictPolicy... conflictPolicy) {
-			this.conflictPolicy.clear();
-			Collections.addAll(this.conflictPolicy, conflictPolicy);
+		public TransactionOptions.Builder conflictResolution(@Nonnull ConflictResolution conflictResolution) {
+			this.conflictPolicy = conflictResolution;
 			return this;
 		}
 
+		/**
+		 * Sets the coarse conflict resolution scope with no sub-entity refinements.
+		 *
+		 * @param policy the coarse conflict scope, never null
+		 */
 		@Nonnull
-		public TransactionOptions.Builder conflictPolicyLastWriterWins() {
-			this.conflictPolicy.clear();
+		public TransactionOptions.Builder conflictResolution(@Nonnull ConflictPolicy policy) {
+			this.conflictPolicy = new ConflictResolution(policy);
+			return this;
+		}
+
+		/**
+		 * Sets an entity-scoped conflict resolution with the provided sub-entity refinements. Passing no
+		 * refinement is equivalent to a plain {@link ConflictPolicy#ENTITY} scope.
+		 *
+		 * @param policy      the coarse conflict scope, never null (must be {@link ConflictPolicy#ENTITY}
+		 *                    when any refinement is supplied)
+		 * @param granularity the sub-entity refinements to apply
+		 */
+		@Nonnull
+		public TransactionOptions.Builder conflictResolution(@Nonnull ConflictPolicy policy, @Nonnull GranularConflictPolicy... granularity) {
+			final EnumSet<GranularConflictPolicy> granularitySet = granularity.length == 0
+				? EnumSet.noneOf(GranularConflictPolicy.class)
+				: EnumSet.copyOf(Arrays.asList(granularity));
+			this.conflictPolicy = new ConflictResolution(policy, granularitySet);
 			return this;
 		}
 

@@ -26,11 +26,13 @@ package io.evitadb.core.transaction.stage;
 import io.evitadb.api.CommitProgress.CommitVersions;
 import io.evitadb.api.CommitProgressRecord;
 import io.evitadb.api.TransactionContract.CommitBehavior;
+import io.evitadb.api.exception.ConflictingCatalogMutationException;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
 import io.evitadb.api.requestResponse.mutation.infrastructure.TransactionMutation;
 import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.metric.event.transaction.TransactionAcceptedEvent;
 import io.evitadb.core.metric.event.transaction.TransactionAppendedToWalEvent;
+import io.evitadb.core.metric.event.transaction.TransactionConflictEvent;
 import io.evitadb.core.metric.event.transaction.TransactionQueuedEvent;
 import io.evitadb.core.metric.event.transaction.TransactionResolution;
 import io.evitadb.core.transaction.TransactionManager;
@@ -152,6 +154,12 @@ public final class ConflictResolutionAndWalAppendingTransactionStage
 				this.publisher
 			);
 		} catch (RuntimeException ex) {
+			// count only genuine conflict-induced rollbacks - not WAL mismatches or other runtime failures -
+			// with the resolved policy/layer/scope read straight off the caught exception's diagnostics.
+			// Emitted before the rollback so the counter is independent of rollback success.
+			if (ex instanceof ConflictingCatalogMutationException conflict) {
+				new TransactionConflictEvent(task.catalogName(), conflict).commit();
+			}
 			rollbackFailedTask(
 				task,
 				expectedCatalogVersion,
@@ -319,8 +327,12 @@ public final class ConflictResolutionAndWalAppendingTransactionStage
 	private CommitVersions resolveConflicts(@Nonnull ConflictResolutionAndWalAppendingTransactionTask task, long expectedCatalogVersion) {
 		final TransactionAcceptedEvent conflictResolutionEvent = new TransactionAcceptedEvent(task.catalogName());
 
+		// the expected catalog version doubles as the reservation under which the transaction's conflict
+		// keys are registered in the ring buffer — the successor check compares later snapshots against
+		// this commit version, and rollbackFailedTask releases exactly the keys registered under it
 		this.transactionManager.identifyConflicts(
 			task.sessionCatalogVersion(),
+			expectedCatalogVersion,
 			task.commitProgress().getCommitStartTime(),
 			task.conflictKeys()
 		);

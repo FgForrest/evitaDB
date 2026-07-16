@@ -86,6 +86,7 @@ class EntitySchemaBuilderTest {
 	private final CatalogSchema catalogSchema = CatalogSchema._internalBuild(
 		APITestConstants.TEST_CATALOG,
 		NamingConvention.generate(APITestConstants.TEST_CATALOG),
+		null,
 		EnumSet.allOf(CatalogEvolutionMode.class),
 		new EntitySchemaProvider() {
 			@Nonnull

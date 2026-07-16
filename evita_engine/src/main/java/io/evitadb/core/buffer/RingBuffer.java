@@ -393,40 +393,36 @@ public abstract class RingBuffer<DATA, BOUNDARY extends Comparable<BOUNDARY> & S
 	}
 
 	/**
-	 * Clears all entries in the ring buffer with boundary values greater than the specified boundary.
-	 * Entries with boundary values greater than the specified boundary are logically removed by
-	 * adjusting the end index of the buffer. If the buffer is wrapped around, it processes
-	 * entries in two segments: first from the start index to the end of the array, then
-	 * from the beginning of the array to the end index.
+	 * Clears all entries in the ring buffer with boundary values greater than or equal to the specified
+	 * boundary. Matching entries are logically removed by adjusting the end index of the buffer. If
+	 * the buffer is wrapped around, it processes entries in two segments: first from the start index
+	 * to the end of the array (the oldest entries), then from the beginning of the array to the end
+	 * index (the newest entries).
 	 *
 	 * Note: This method doesn't physically clear the buffer, it only adjusts the start and end indexes.
 	 *
 	 * This method acquires a lock to ensure thread safety during the operation.
 	 *
-	 * @param boundary the boundary value after which entries in the buffer should be cleared
+	 * @param boundary the boundary value at or after which entries in the buffer should be cleared
 	 */
 	public void clearAllAfter(@Nonnull BOUNDARY boundary) {
 		this.lock.lock();
 		try {
 			if (this.startIndex >= this.endIndex && this.wrappedAround) {
-				// Buffer has wrapped around, clear in two segments
-				int lastValidEntry = findLastValidEntry(this.startIndex, this.workspace.length, boundary);
-				if (lastValidEntry < 0) {
-					lastValidEntry = findLastValidEntry(0, this.endIndex, boundary);
-					if (lastValidEntry < 0) {
-						this.endIndex = this.startIndex;
-						this.wrappedAround = false;
-					} else {
-						this.endIndex = lastValidEntry;
-					}
-				} else {
-					this.endIndex = lastValidEntry;
+				// Buffer has wrapped around, clear in two segments — the tail segment holds the oldest
+				// entries, the head segment the newest ones
+				final int tailCut = findFirstEntryAtOrAfter(this.startIndex, this.workspace.length, boundary);
+				if (tailCut < this.workspace.length) {
+					// removal starts in the tail segment — the entire (newer) head segment goes with it
+					this.endIndex = tailCut;
 					this.wrappedAround = false;
+				} else {
+					// the tail segment is fully retained — removal (if any) starts in the head segment
+					this.endIndex = findFirstEntryAtOrAfter(0, this.endIndex, boundary);
 				}
 			} else if (this.startIndex < this.endIndex) {
 				// Buffer hasn't wrapped around, clear in a single segment
-				final int lastValidEntry = findLastValidEntry(this.startIndex, this.endIndex, boundary);
-				this.endIndex = lastValidEntry < 0 ? this.startIndex : lastValidEntry;
+				this.endIndex = findFirstEntryAtOrAfter(this.startIndex, this.endIndex, boundary);
 				this.wrappedAround = false;
 			}
 			// update cached gauges (even if nothing was cleared, indices may have been adjusted)
@@ -437,24 +433,30 @@ public abstract class RingBuffer<DATA, BOUNDARY extends Comparable<BOUNDARY> & S
 	}
 
 	/**
-	 * Finds the last valid entry in the specified segment of the ring buffer and returns its index.
-	 * An entry is considered valid if its boundary value is less than or equal to the specified boundary.
+	 * Finds the index of the first entry in the specified segment whose boundary value is greater than
+	 * or equal to the specified boundary — i.e. the position where removal must start when clearing all
+	 * entries at or after the boundary. When every entry in the segment lies below the boundary,
+	 * `toIndex` is returned, meaning there is nothing to remove in the segment. An absent boundary must
+	 * resolve to its insertion point rather than a miss: treating it as a miss would discard entries
+	 * below the boundary that are still valid.
 	 *
 	 * @param fromIndex the starting index of the segment to search (inclusive)
 	 * @param toIndex the ending index of the segment to search (exclusive)
-	 * @param boundary the boundary value threshold; entries with greater boundaries are invalid
-	 * @return the index of the last valid entry, or -1 if no valid entry exists
+	 * @param boundary the boundary value threshold; entries at or above it are subject to removal
+	 * @return the index of the first entry at or above the boundary, or `toIndex` when there is none
 	 */
-	private int findLastValidEntry(
+	private int findFirstEntryAtOrAfter(
 		int fromIndex,
 		int toIndex,
 		@Nonnull BOUNDARY boundary
 	) {
-		return ArrayUtils.binarySearch(
+		final int result = ArrayUtils.binarySearch(
 			this.workspace, boundary,
 			fromIndex, toIndex,
 			(data, b) -> this.boundaryExtractor.apply(data).compareTo(b)
 		);
+		// an exact match is the first entry to remove; otherwise the insertion point marks the cut
+		return result >= 0 ? result : -result - 1;
 	}
 
 	/**

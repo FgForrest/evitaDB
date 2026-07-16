@@ -74,7 +74,7 @@ import static io.evitadb.test.TestTags.PRICE;
 class SellingPriceAvailableBitmapFilterTest {
 	private static final EntitySchema PRODUCT_SCHEMA = EntitySchema._internalBuild(Entities.PRODUCT);
 	private static final CatalogSchema CATALOG_SCHEMA = CatalogSchema._internalBuild(
-		TestConstants.TEST_CATALOG, Collections.emptyMap(), EnumSet.allOf(CatalogEvolutionMode.class),
+		TestConstants.TEST_CATALOG, Collections.emptyMap(), null, EnumSet.allOf(CatalogEvolutionMode.class),
 		new EntitySchemaProvider() {
 			@Nonnull
 			@Override

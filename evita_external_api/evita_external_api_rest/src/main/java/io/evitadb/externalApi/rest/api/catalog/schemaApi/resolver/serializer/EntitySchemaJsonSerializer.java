@@ -44,7 +44,7 @@ import java.util.function.Function;
 import static io.evitadb.externalApi.api.ExternalApiNamingConventions.PROPERTY_NAME_NAMING_CONVENTION;
 
 /**
- * Handles serializing of {@link io.evitadb.api.requestResponse.schema.EntitySchemaContract} into JSON structure
+ * Handles serializing of {@link EntitySchemaContract} into JSON structure
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
@@ -56,9 +56,9 @@ public class EntitySchemaJsonSerializer extends SchemaJsonSerializer {
 	}
 
 	/**
-	 * Performs serialization and returns serialized entity in form of JsonNode
+	 * Serializes the given entity schema into a `JsonNode`.
 	 *
-	 * @return serialized entity or list of entities
+	 * @return the serialized entity schema
 	 */
 	public JsonNode serialize(@Nonnull EntitySchemaContract entitySchema,
 	                          @Nonnull Function<String, EntitySchemaContract> entitySchemaFetcher) {
@@ -78,6 +78,12 @@ public class EntitySchemaJsonSerializer extends SchemaJsonSerializer {
 		rootNode.set(EntitySchemaDescriptor.LOCALES.name(), this.objectJsonSerializer.serializeCollection(entitySchema.getLocales().stream().map(Locale::toLanguageTag).toList()));
 		rootNode.set(EntitySchemaDescriptor.CURRENCIES.name(), this.objectJsonSerializer.serializeCollection(entitySchema.getCurrencies().stream().map(Currency::toString).toList()));
 		rootNode.set(EntitySchemaDescriptor.EVOLUTION_MODE.name(), this.objectJsonSerializer.serializeCollection(entitySchema.getEvolutionMode().stream().map(EvolutionMode::name).toList()));
+
+		serializeConflictResolution(
+			rootNode,
+			EntitySchemaDescriptor.CONFLICT_RESOLUTION.name(),
+			entitySchema.getConflictResolution().orElse(null)
+		);
 
 		rootNode.set(EntitySchemaDescriptor.ATTRIBUTES.name(), serializeAttributeSchemas(entitySchema));
 		rootNode.set(SortableAttributeCompoundsSchemaProviderDescriptor.SORTABLE_ATTRIBUTE_COMPOUNDS.name(), serializeSortableAttributeCompoundSchemas(entitySchema));
@@ -161,6 +167,7 @@ public class EntitySchemaJsonSerializer extends SchemaJsonSerializer {
 		associatedDataSchemaNode.put(AssociatedDataSchemaDescriptor.TYPE.name(), DataTypeSerializer.serialize(associatedDataSchema.getType()));
 		associatedDataSchemaNode.putIfAbsent(AssociatedDataSchemaDescriptor.LOCALIZED.name(), this.objectJsonSerializer.serializeObject(associatedDataSchema.isLocalized()));
 		associatedDataSchemaNode.putIfAbsent(AssociatedDataSchemaDescriptor.NULLABLE.name(), this.objectJsonSerializer.serializeObject(associatedDataSchema.isNullable()));
+		associatedDataSchemaNode.put(AssociatedDataSchemaDescriptor.CONFLICT_RESOLUTION_OVERRIDE.name(), associatedDataSchema.getConflictResolutionOverride().name());
 
 		return associatedDataSchemaNode;
 	}
@@ -200,6 +207,7 @@ public class EntitySchemaJsonSerializer extends SchemaJsonSerializer {
 		referenceSchemaNode.set(ReferenceSchemaDescriptor.FACETED_PARTIALLY.name(), serializeFacetedPartially(referenceSchema));
 		referenceSchemaNode.set(ReferenceSchemaDescriptor.BUCKETED.name(), serializeBucketedHistogram(referenceSchema));
 		referenceSchemaNode.set(ReferenceSchemaDescriptor.BUCKETED_PARTIALLY.name(), serializeBucketedPartially(referenceSchema));
+		referenceSchemaNode.put(ReferenceSchemaDescriptor.CONFLICT_RESOLUTION_OVERRIDE.name(), referenceSchema.getConflictResolutionOverride().name());
 
 		referenceSchemaNode.set(ReferenceSchemaDescriptor.ATTRIBUTES.name(), serializeAttributeSchemas(referenceSchema));
 		referenceSchemaNode.set(SortableAttributeCompoundsSchemaProviderDescriptor.SORTABLE_ATTRIBUTE_COMPOUNDS.name(), serializeSortableAttributeCompoundSchemas(referenceSchema));

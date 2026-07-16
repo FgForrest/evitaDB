@@ -25,6 +25,7 @@ package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.attribute
 
 import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeUniquenessType;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.CreateGlobalAttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedGlobalAttributeUniquenessType;
@@ -249,7 +250,37 @@ class CreateGlobalAttributeSchemaMutationConverterTest {
 					.e(CreateGlobalAttributeSchemaMutationDescriptor.TYPE.name(), String.class.getSimpleName())
 					.e(CreateGlobalAttributeSchemaMutationDescriptor.DEFAULT_VALUE.name(), "defaultCode")
 					.e(CreateGlobalAttributeSchemaMutationDescriptor.INDEXED_DECIMAL_PLACES.name(), 2)
+					.e(CreateGlobalAttributeSchemaMutationDescriptor.CONFLICT_RESOLUTION_OVERRIDE.name(), ConflictResolutionOverride.INHERITED.name())
 					.build()
 			);
+	}
+
+	@Test
+	void shouldRoundTripNonDefaultConflictResolutionOverride() {
+		final CreateGlobalAttributeSchemaMutation inputMutation = new CreateGlobalAttributeSchemaMutation(
+			"code",
+			"desc",
+			"depr",
+			new ScopedAttributeUniquenessType[]{
+				new ScopedAttributeUniquenessType(Scope.LIVE, AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION)
+			},
+			new ScopedGlobalAttributeUniquenessType[]{
+				new ScopedGlobalAttributeUniquenessType(Scope.LIVE, GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG)
+			},
+			new Scope[]{Scope.LIVE},
+			new Scope[]{Scope.LIVE},
+			true,
+			false,
+			true,
+			String.class,
+			"defaultCode",
+			2,
+			ConflictResolutionOverride.ENTITY
+		);
+
+		final CreateGlobalAttributeSchemaMutation roundTripped =
+			this.converter.convertFromInput(this.converter.convertToOutput(inputMutation));
+		assertEquals(ConflictResolutionOverride.ENTITY, roundTripped.getConflictResolutionOverride());
+		assertEquals(inputMutation, roundTripped);
 	}
 }

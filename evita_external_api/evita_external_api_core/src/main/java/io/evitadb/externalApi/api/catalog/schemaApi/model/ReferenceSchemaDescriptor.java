@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.api.catalog.schemaApi.model;
 
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.dataType.Scope;
@@ -240,6 +241,16 @@ public interface ReferenceSchemaDescriptor extends NamedSchemaWithDeprecationDes
 		.type(nonNullListRef(AttributeSchemaDescriptor.THIS))
 		.build();
 
+	PropertyDescriptor CONFLICT_RESOLUTION_OVERRIDE = PropertyDescriptor.builder()
+		.name("conflictResolutionOverride")
+		.description("""
+			Determines the granularity at which transaction conflicts are detected for this reference. When set to
+			`INHERITED` the reference follows the conflict resolution resolved for the entity, otherwise it overrides
+			the resolved granularity for this reference alone.
+			""")
+		.type(nonNull(ConflictResolutionOverride.class))
+		.build();
+
 	ObjectDescriptor THIS_SPECIFIC = ObjectDescriptor.builder()
 		.name("*ReferenceSchema")
 		.staticProperties(List.of(
@@ -259,7 +270,8 @@ public interface ReferenceSchemaDescriptor extends NamedSchemaWithDeprecationDes
 			BUCKETED,
 			BUCKETED_PARTIALLY,
 			ENTITY_TYPE_NAME_VARIANTS,
-			GROUP_TYPE_NAME_VARIANTS
+			GROUP_TYPE_NAME_VARIANTS,
+			CONFLICT_RESOLUTION_OVERRIDE
 		))
 		.build();
 
@@ -303,7 +315,8 @@ public interface ReferenceSchemaDescriptor extends NamedSchemaWithDeprecationDes
 			BUCKETED,
 			BUCKETED_PARTIALLY,
 			ALL_ATTRIBUTES,
-			ALL_SORTABLE_ATTRIBUTE_COMPOUNDS
+			ALL_SORTABLE_ATTRIBUTE_COMPOUNDS,
+			CONFLICT_RESOLUTION_OVERRIDE
 		))
 		.build();
 }

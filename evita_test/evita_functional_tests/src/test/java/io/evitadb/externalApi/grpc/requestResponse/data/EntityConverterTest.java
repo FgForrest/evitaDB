@@ -66,6 +66,7 @@ import io.evitadb.externalApi.grpc.generated.GrpcSealedEntity;
 import io.evitadb.externalApi.grpc.testUtils.GrpcAssertions;
 import io.evitadb.test.Entities;
 import io.evitadb.utils.VersionUtils.SemVer;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -184,6 +185,7 @@ class EntityConverterTest {
 			Entities.PRODUCT,
 			"Lorem ipsum dolor sit amet.",
 			"Alert! Deprecated!",
+			null,
 			false,
 			false,
 			Scope.NO_SCOPE,
@@ -193,12 +195,12 @@ class EntityConverterTest {
 			Set.of(Locale.ENGLISH, Locale.GERMAN),
 			Set.of(Currency.getInstance("EUR"), Currency.getInstance("USD"), Currency.getInstance("CZK")),
 			Map.of(
-				"test1", EntityAttributeSchema._internalBuild("test1", LocalDateTime.class, true),
-				"test2", EntityAttributeSchema._internalBuild("test2", Boolean[].class, true)
+				"test1", EntityAttributeSchema._internalBuild("test1", LocalDateTime.class, true, ConflictResolutionOverride.INHERITED),
+				"test2", EntityAttributeSchema._internalBuild("test2", Boolean[].class, true, ConflictResolutionOverride.INHERITED)
 			),
 			Map.of(
-				"test1", AssociatedDataSchema._internalBuild("test1", "Lorem ipsum", "Alert", Integer.class, false, true),
-				"test2", AssociatedDataSchema._internalBuild("test2", "Lorem ipsum", "Alert", String[].class, true, true)
+				"test1", AssociatedDataSchema._internalBuild("test1", "Lorem ipsum", "Alert", Integer.class, false, true, ConflictResolutionOverride.INHERITED),
+				"test2", AssociatedDataSchema._internalBuild("test2", "Lorem ipsum", "Alert", String[].class, true, true, ConflictResolutionOverride.INHERITED)
 			),
 			Map.of(
 				"test1", ReferenceSchema._internalBuild("test1", Entities.PARAMETER, true, Cardinality.ZERO_OR_MORE, Entities.PARAMETER_GROUP, false, new ScopedReferenceIndexType[] { new ScopedReferenceIndexType(Scope.DEFAULT_SCOPE, ReferenceIndexType.FOR_FILTERING) }, new Scope[] { Scope.LIVE }),

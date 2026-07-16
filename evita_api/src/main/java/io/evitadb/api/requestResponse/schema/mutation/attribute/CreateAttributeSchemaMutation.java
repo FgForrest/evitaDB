@@ -25,6 +25,7 @@ package io.evitadb.api.requestResponse.schema.mutation.attribute;
 
 import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.requestResponse.cdc.Operation;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
@@ -81,7 +82,7 @@ import static io.evitadb.dataType.Scope.NO_SCOPE;
 @EqualsAndHashCode(callSuper = true)
 public class CreateAttributeSchemaMutation extends AbstractAttributeSchemaMutation
 	implements ReferenceAttributeSchemaMutation, CombinableLocalEntitySchemaMutation, CreateMutation {
-	@Serial private static final long serialVersionUID = -469815390440407270L;
+	@Serial private static final long serialVersionUID = -469815390440407269L;
 
 	@Getter @Nullable private final String description;
 	@Getter @Nullable private final String deprecationNotice;
@@ -94,6 +95,7 @@ public class CreateAttributeSchemaMutation extends AbstractAttributeSchemaMutati
 	@Getter @Nonnull private final Class<? extends Serializable> type;
 	@Getter @Nullable private final Serializable defaultValue;
 	@Getter private final int indexedDecimalPlaces;
+	@Getter @Nonnull private final ConflictResolutionOverride conflictResolutionOverride;
 
 	public CreateAttributeSchemaMutation(
 		@Nonnull String name,
@@ -123,7 +125,25 @@ public class CreateAttributeSchemaMutation extends AbstractAttributeSchemaMutati
 		);
 	}
 
-	@SerializableCreator
+	/**
+	 * Creates a mutation that will set up a new attribute schema with the given properties. The conflict
+	 * resolution override defaults to {@link ConflictResolutionOverride#INHERITED}.
+	 *
+	 * @param name                 unique name of the attribute
+	 * @param description          optional human-readable description of the attribute
+	 * @param deprecationNotice    optional deprecation notice if the attribute is deprecated
+	 * @param uniqueInScopes       the scopes in which the attribute must be unique (may be `null`)
+	 * @param filterableInScopes   the scopes in which the attribute is filterable (may be `null`)
+	 * @param sortableInScopes     the scopes in which the attribute is sortable (may be `null`)
+	 * @param localized            whether the attribute values are locale-specific
+	 * @param nullable             whether the attribute value can be null
+	 * @param representative       whether the attribute is representative for the entity
+	 * @param type                 the data type stored in this attribute (must be a supported evitaDB
+	 *                             type or its array)
+	 * @param defaultValue         optional default value for the attribute
+	 * @param indexedDecimalPlaces number of decimal places indexed for number-based attribute types
+	 * @throws InvalidSchemaMutationException if the type is not allowed in attributes
+	 */
 	public CreateAttributeSchemaMutation(
 		@Nonnull String name,
 		@Nullable String description,
@@ -137,6 +157,52 @@ public class CreateAttributeSchemaMutation extends AbstractAttributeSchemaMutati
 		@Nonnull Class<? extends Serializable> type,
 		@Nullable Serializable defaultValue,
 		int indexedDecimalPlaces
+	) {
+		this(
+			name, description, deprecationNotice,
+			uniqueInScopes, filterableInScopes, sortableInScopes,
+			localized, nullable, representative, type, defaultValue, indexedDecimalPlaces,
+			ConflictResolutionOverride.INHERITED
+		);
+	}
+
+	/**
+	 * Creates a mutation that will set up a new attribute schema with the given properties.
+	 *
+	 * @param name                       unique name of the attribute
+	 * @param description                optional human-readable description of the attribute
+	 * @param deprecationNotice          optional deprecation notice if the attribute is deprecated
+	 * @param uniqueInScopes             the scopes in which the attribute must be unique (may be `null`)
+	 * @param filterableInScopes         the scopes in which the attribute is filterable (may be `null`)
+	 * @param sortableInScopes           the scopes in which the attribute is sortable (may be `null`)
+	 * @param localized                  whether the attribute values are locale-specific
+	 * @param nullable                   whether the attribute value can be null
+	 * @param representative             whether the attribute is representative for the entity
+	 * @param type                       the data type stored in this attribute (must be a supported
+	 *                                   evitaDB type or its array)
+	 * @param defaultValue               optional default value for the attribute
+	 * @param indexedDecimalPlaces       number of decimal places indexed for number-based attribute types
+	 * @param conflictResolutionOverride the per-item override of the conflict resolution granularity
+	 *                                   applied to this attribute (never `null`; use
+	 *                                   {@link ConflictResolutionOverride#INHERITED} to follow the
+	 *                                   resolved conflict resolution)
+	 * @throws InvalidSchemaMutationException if the type is not allowed in attributes
+	 */
+	@SerializableCreator
+	public CreateAttributeSchemaMutation(
+		@Nonnull String name,
+		@Nullable String description,
+		@Nullable String deprecationNotice,
+		@Nullable ScopedAttributeUniquenessType[] uniqueInScopes,
+		@Nullable Scope[] filterableInScopes,
+		@Nullable Scope[] sortableInScopes,
+		boolean localized,
+		boolean nullable,
+		boolean representative,
+		@Nonnull Class<? extends Serializable> type,
+		@Nullable Serializable defaultValue,
+		int indexedDecimalPlaces,
+		@Nonnull ConflictResolutionOverride conflictResolutionOverride
 	) {
 		super(name);
 		ClassifierUtils.validateClassifierFormat(ClassifierType.ATTRIBUTE, name);
@@ -156,6 +222,7 @@ public class CreateAttributeSchemaMutation extends AbstractAttributeSchemaMutati
 		this.type = type;
 		this.defaultValue = defaultValue;
 		this.indexedDecimalPlaces = indexedDecimalPlaces;
+		this.conflictResolutionOverride = conflictResolutionOverride;
 	}
 
 	@Nonnull
@@ -257,6 +324,12 @@ public class CreateAttributeSchemaMutation extends AbstractAttributeSchemaMutati
 							createdVersion, existingSchema,
 							AttributeSchemaContract::isRepresentative,
 							newValue -> new SetAttributeSchemaRepresentativeMutation(this.name, newValue)
+						),
+						makeMutationIfDifferent(
+							AttributeSchemaContract.class,
+							createdVersion, existingSchema,
+							AttributeSchemaContract::getConflictResolutionOverride,
+							newValue -> new SetAttributeSchemaConflictResolutionOverrideMutation(this.name, newValue)
 						)
 					)
 					.filter(Objects::nonNull)
@@ -277,7 +350,8 @@ public class CreateAttributeSchemaMutation extends AbstractAttributeSchemaMutati
 				this.uniqueInScopes, this.filterableInScopes, this.sortableInScopes,
 				this.localized, this.nullable, this.representative,
 				(Class) this.type, this.defaultValue,
-				this.indexedDecimalPlaces
+				this.indexedDecimalPlaces,
+				this.conflictResolutionOverride
 			);
 		} else if (AttributeSchemaContract.class.isAssignableFrom(schemaType)) {
 			//noinspection unchecked,rawtypes
@@ -286,7 +360,8 @@ public class CreateAttributeSchemaMutation extends AbstractAttributeSchemaMutati
 				this.uniqueInScopes, this.filterableInScopes, this.sortableInScopes,
 				this.localized, this.nullable, this.representative,
 				(Class) this.type, this.defaultValue,
-				this.indexedDecimalPlaces
+				this.indexedDecimalPlaces,
+				this.conflictResolutionOverride
 			);
 		} else {
 			throw new InvalidSchemaMutationException("Unsupported schema type: " + schemaType);
@@ -306,6 +381,7 @@ public class CreateAttributeSchemaMutation extends AbstractAttributeSchemaMutati
 				entitySchema.getNameVariants(),
 				entitySchema.getDescription(),
 				entitySchema.getDeprecationNotice(),
+				entitySchema.getConflictResolution().orElse(null),
 				entitySchema.isWithGeneratedPrimaryKey(),
 				entitySchema.isWithHierarchy(),
 				entitySchema.getHierarchyIndexedInScopes(),
@@ -350,7 +426,8 @@ public class CreateAttributeSchemaMutation extends AbstractAttributeSchemaMutati
 			this.uniqueInScopes, this.filterableInScopes, this.sortableInScopes,
 			this.localized, this.nullable, this.representative,
 			(Class) this.type, this.defaultValue,
-			this.indexedDecimalPlaces
+			this.indexedDecimalPlaces,
+			this.conflictResolutionOverride
 		);
 		final Optional<AttributeSchemaContract> existingAttributeSchema = getReferenceAttributeSchema(referenceSchema, this.name);
 		if (existingAttributeSchema.isEmpty()) {
@@ -397,7 +474,8 @@ public class CreateAttributeSchemaMutation extends AbstractAttributeSchemaMutati
 								Function.identity()
 							)
 						),
-					referenceSchema.getSortableAttributeCompounds()
+					referenceSchema.getSortableAttributeCompounds(),
+					referenceSchema.getConflictResolutionOverride()
 				);
 			}
 		} else if (existingAttributeSchema.get().equals(newAttributeSchema)) {
@@ -433,7 +511,8 @@ public class CreateAttributeSchemaMutation extends AbstractAttributeSchemaMutati
 			", representative=" + this.representative +
 			", type=" + this.type +
 			", defaultValue=" + this.defaultValue +
-			", indexedDecimalPlaces=" + this.indexedDecimalPlaces;
+			", indexedDecimalPlaces=" + this.indexedDecimalPlaces +
+			", conflictResolutionOverride=" + this.conflictResolutionOverride;
 	}
 
 }

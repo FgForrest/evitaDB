@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,7 +24,11 @@
 package io.evitadb.externalApi.api.system.model.mutation.engine;
 
 import io.evitadb.api.requestResponse.schema.mutation.engine.CreateCatalogSchemaMutation;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.ConflictResolutionDescriptor;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
+import io.evitadb.externalApi.api.model.PropertyDescriptor;
+
+import static io.evitadb.externalApi.api.model.TypePropertyDataTypeDescriptor.nullableRef;
 
 /**
  * Descriptor for {@link CreateCatalogSchemaMutation}
@@ -33,6 +37,18 @@ import io.evitadb.externalApi.api.model.ObjectDescriptor;
  */
 public interface CreateCatalogSchemaMutationDescriptor extends EngineMutationDescriptor {
 
+	PropertyDescriptor CONFLICT_RESOLUTION = PropertyDescriptor.builder()
+		.name("conflictResolution")
+		.description("""
+			The transaction conflict resolution declared for the newly created catalog. A `null` value means the
+			catalog inherits the engine-level default; a non-null value overrides that default for the whole catalog.
+			""")
+		.type(nullableRef(ConflictResolutionDescriptor.THIS))
+		.build();
+	PropertyDescriptor CONFLICT_RESOLUTION_INPUT = PropertyDescriptor.from(CONFLICT_RESOLUTION)
+		.type(nullableRef(ConflictResolutionDescriptor.THIS_INPUT))
+		.build();
+
 	ObjectDescriptor THIS = ObjectDescriptor.implementing(THIS_INTERFACE)
 		.representedClass(CreateCatalogSchemaMutation.class)
 		.description("""
@@ -40,8 +56,10 @@ public interface CreateCatalogSchemaMutationDescriptor extends EngineMutationDes
 			itself.
 			""")
 		.staticProperty(CATALOG_NAME)
+		.staticProperty(CONFLICT_RESOLUTION)
 		.build();
 	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS, INPUT_OBJECT_PROPERTIES_FILTER)
 		.name("CreateCatalogSchemaMutationInput")
+		.staticProperty(CONFLICT_RESOLUTION_INPUT)
 		.build();
 }

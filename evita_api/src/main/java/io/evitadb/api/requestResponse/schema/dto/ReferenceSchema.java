@@ -25,6 +25,7 @@ package io.evitadb.api.requestResponse.schema.dto;
 
 import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.exception.SchemaAlteringException;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
@@ -74,7 +75,7 @@ import static java.util.Optional.ofNullable;
 @Immutable
 @ThreadSafe
 public sealed class ReferenceSchema implements ReferenceSchemaContract permits ReflectedReferenceSchema {
-	@Serial private static final long serialVersionUID = 5443565766311111159L;
+	@Serial private static final long serialVersionUID = 5443565766311111160L;
 	/**
 	 * Reference name distinguishing relations of the same target type.
 	 */
@@ -91,6 +92,13 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 	 * Human‑readable reference description.
 	 */
 	@Getter @Nullable protected final String description;
+	/**
+	 * Per-item override of the conflict resolution granularity applied to this reference. When set to
+	 * {@link ConflictResolutionOverride#INHERITED} (the default) the reference follows the conflict
+	 * resolution resolved from the enclosing entity schema, catalog schema and engine configuration. See
+	 * {@link ReferenceSchemaContract#getConflictResolutionOverride()} for the meaning of the individual values.
+	 */
+	@Getter @Nonnull protected final ConflictResolutionOverride conflictResolutionOverride;
 	/**
 	 * Index type configured per scope for this reference.
 	 */
@@ -538,7 +546,8 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 			facetedInScopes != null ? facetedInScopes : Scope.NO_SCOPE,
 			null,
 			null, null,
-			Collections.emptyMap(), Collections.emptyMap()
+			Collections.emptyMap(), Collections.emptyMap(),
+			ConflictResolutionOverride.INHERITED
 		);
 	}
 
@@ -568,7 +577,8 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 		@Nonnull Map<Scope, Map<String, HistogramIndexDefinition>> bucketedInScopes,
 		@Nonnull Map<Scope, Expression> bucketedPartiallyInScopes,
 		@Nonnull Map<String, AttributeSchemaContract> attributes,
-		@Nonnull Map<String, SortableAttributeCompoundSchemaContract> sortableAttributeCompounds
+		@Nonnull Map<String, SortableAttributeCompoundSchemaContract> sortableAttributeCompounds,
+		@Nonnull ConflictResolutionOverride conflictResolutionOverride
 	) {
 		return new ReferenceSchema(
 			name, nameVariants,
@@ -586,7 +596,8 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 			bucketedInScopes,
 			bucketedPartiallyInScopes,
 			attributes,
-			sortableAttributeCompounds
+			sortableAttributeCompounds,
+			conflictResolutionOverride
 		);
 	}
 
@@ -616,7 +627,8 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 		@Nullable ScopedHistogramIndexDefinition[] bucketedInScopes,
 		@Nullable ScopedBucketedPartially[] bucketedPartiallyInScopes,
 		@Nonnull Map<String, AttributeSchemaContract> attributes,
-		@Nonnull Map<String, SortableAttributeCompoundSchemaContract> sortableAttributeCompounds
+		@Nonnull Map<String, SortableAttributeCompoundSchemaContract> sortableAttributeCompounds,
+		@Nonnull ConflictResolutionOverride conflictResolutionOverride
 	) {
 		validateEntityTypeClassifiers(entityType, groupType);
 
@@ -646,7 +658,8 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 			bucketedMap,
 			bucketedPartiallyMap,
 			attributes,
-			sortableAttributeCompounds
+			sortableAttributeCompounds,
+			conflictResolutionOverride
 		);
 	}
 
@@ -683,7 +696,8 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 			referenceSchema.getAllHistogramIndexDefinitions(),
 			referenceSchema.getBucketedPartiallyInScopes(),
 			referenceSchema.getAttributes(),
-			referenceSchema.getSortableAttributeCompounds()
+			referenceSchema.getSortableAttributeCompounds(),
+			referenceSchema.getConflictResolutionOverride()
 		);
 	}
 
@@ -835,13 +849,15 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 		@Nonnull Map<Scope, Map<String, HistogramIndexDefinition>> bucketedInScopes,
 		@Nonnull Map<Scope, Expression> bucketedPartiallyInScopes,
 		@Nonnull Map<String, AttributeSchemaContract> attributes,
-		@Nonnull Map<String, SortableAttributeCompoundSchemaContract> sortableAttributeCompounds
+		@Nonnull Map<String, SortableAttributeCompoundSchemaContract> sortableAttributeCompounds,
+		@Nonnull ConflictResolutionOverride conflictResolutionOverride
 	) {
 		ClassifierUtils.validateClassifierFormat(ClassifierType.ENTITY, referencedEntityType);
 		this.name = name;
 		this.nameVariants = Collections.unmodifiableMap(nameVariants);
 		this.description = description;
 		this.deprecationNotice = deprecationNotice;
+		this.conflictResolutionOverride = conflictResolutionOverride;
 		this.cardinality = cardinality == null ? Cardinality.ZERO_OR_MORE : cardinality;
 		this.referencedEntityType = referencedEntityType;
 		this.entityTypeNameVariants = Collections.unmodifiableMap(entityTypeNameVariants);
@@ -1240,7 +1256,8 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 			this.bucketedInScopes,
 			this.bucketedPartiallyInScopes,
 			this.getAttributes(),
-			this.getSortableAttributeCompounds()
+			this.getSortableAttributeCompounds(),
+			this.conflictResolutionOverride
 		);
 	}
 
@@ -1277,7 +1294,8 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 			this.bucketedInScopes,
 			this.bucketedPartiallyInScopes,
 			this.getAttributes(),
-			this.getSortableAttributeCompounds()
+			this.getSortableAttributeCompounds(),
+			this.conflictResolutionOverride
 		);
 	}
 
@@ -1302,6 +1320,7 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 		result = 31 * result + this.bucketedPartiallyInScopes.hashCode();
 		result = 31 * result + this.sortableAttributeCompounds.hashCode();
 		result = 31 * result + this.attributes.hashCode();
+		result = 31 * result + this.conflictResolutionOverride.hashCode();
 		return result;
 	}
 
@@ -1329,7 +1348,8 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 			Objects.equals(this.referencedGroupType, that.referencedGroupType) &&
 			this.groupTypeNameVariants.equals(that.groupTypeNameVariants) &&
 			this.sortableAttributeCompounds.equals(that.sortableAttributeCompounds) &&
-			this.attributes.equals(that.attributes);
+			this.attributes.equals(that.attributes) &&
+			this.conflictResolutionOverride == that.conflictResolutionOverride;
 	}
 
 	/**

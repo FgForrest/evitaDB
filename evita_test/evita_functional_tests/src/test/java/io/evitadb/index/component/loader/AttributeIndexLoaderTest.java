@@ -355,6 +355,7 @@ class AttributeIndexLoaderTest {
 	private static EntitySchema buildSchema(@Nonnull EntityIndexStoragePart manifest) {
 		final CatalogSchema catalogSchema = CatalogSchema._internalBuild(
 			APITestConstants.TEST_CATALOG, NamingConvention.generate(APITestConstants.TEST_CATALOG),
+			null,
 			EnumSet.allOf(CatalogEvolutionMode.class), EmptyEntitySchemaAccessor.INSTANCE
 		);
 		EntitySchemaBuilder builder = new InternalEntitySchemaBuilder(
@@ -868,6 +869,7 @@ class AttributeIndexLoaderTest {
 		private static EntitySchema buildReferenceSchema() {
 			final CatalogSchema catalogSchema = CatalogSchema._internalBuild(
 				APITestConstants.TEST_CATALOG, NamingConvention.generate(APITestConstants.TEST_CATALOG),
+				null,
 				EnumSet.allOf(CatalogEvolutionMode.class), EmptyEntitySchemaAccessor.INSTANCE
 			);
 			final EntitySchemaBuilder builder = new InternalEntitySchemaBuilder(

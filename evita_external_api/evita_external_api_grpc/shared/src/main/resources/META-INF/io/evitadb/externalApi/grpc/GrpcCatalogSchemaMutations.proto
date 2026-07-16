@@ -14,6 +14,13 @@ message GrpcModifyCatalogSchemaDescriptionMutation {
   google.protobuf.StringValue description = 1;
 }
 
+// Mutation is responsible for setting value to a `CatalogSchema.conflictResolution` in `CatalogSchema`.
+message GrpcModifyCatalogSchemaConflictResolutionMutation {
+  // The catalog-level conflict resolution setting. When not set (absent), the catalog schema conflict resolution is
+  // cleared (inherits the resolved conflict resolution).
+  GrpcConflictResolution conflictResolution = 1;
+}
+
 // Mutation is responsible for adding one or more modes to a `CatalogSchema.catalogEvolutionMode` in `CatalogSchema`.
 message GrpcAllowEvolutionModeInCatalogSchemaMutation {
   // Set of allowed catalog evolution modes. These allow to specify how strict is evitaDB when unknown

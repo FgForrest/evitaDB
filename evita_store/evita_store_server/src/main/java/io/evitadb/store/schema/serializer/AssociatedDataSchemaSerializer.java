@@ -27,6 +27,7 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.schema.dto.AssociatedDataSchema;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.NamingConvention;
@@ -67,6 +68,7 @@ public class AssociatedDataSchemaSerializer extends Serializer<AssociatedDataSch
 		} else {
 			output.writeBoolean(false);
 		}
+		kryo.writeObject(output, associatedDataSchema.getConflictResolutionOverride());
 	}
 
 	@Override
@@ -86,8 +88,9 @@ public class AssociatedDataSchemaSerializer extends Serializer<AssociatedDataSch
 		final boolean nullable = input.readBoolean();
 		final String description = input.readBoolean() ? input.readString() : null;
 		final String deprecationNotice = input.readBoolean() ? input.readString() : null;
+		final ConflictResolutionOverride conflictResolutionOverride = kryo.readObject(input, ConflictResolutionOverride.class);
 		return AssociatedDataSchema._internalBuild(
-			name, nameVariants, description, deprecationNotice, type, localized, nullable
+			name, nameVariants, description, deprecationNotice, type, localized, nullable, conflictResolutionOverride
 		);
 	}
 

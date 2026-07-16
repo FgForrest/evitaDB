@@ -432,4 +432,23 @@ public interface GrpcCreateAttributeSchemaMutationOrBuilder extends
    * @return The enum numeric value on the wire of sortableInScopes at the given index.
    */
   int getSortableInScopesValue(int index);
+
+  /**
+   * <pre>
+   * The per-attribute override of the conflict resolution granularity.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcConflictResolutionOverride conflictResolutionOverride = 16;</code>
+   * @return The enum numeric value on the wire for conflictResolutionOverride.
+   */
+  int getConflictResolutionOverrideValue();
+  /**
+   * <pre>
+   * The per-attribute override of the conflict resolution granularity.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcConflictResolutionOverride conflictResolutionOverride = 16;</code>
+   * @return The conflictResolutionOverride.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcConflictResolutionOverride getConflictResolutionOverride();
 }

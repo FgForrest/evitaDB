@@ -23,6 +23,7 @@
 
 package io.evitadb.api.requestResponse.schema.dto;
 
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
@@ -49,7 +50,7 @@ import java.util.Set;
 @ThreadSafe
 @EqualsAndHashCode(callSuper = true)
 public final class EntityAttributeSchema extends AttributeSchema implements EntityAttributeSchemaContract {
-	@Serial private static final long serialVersionUID = 8168305590483159082L;
+	@Serial private static final long serialVersionUID = 8168305590483159083L;
 
 	/**
 	 * This method is for internal purposes only. It could be used for reconstruction of EntityAttributeSchema from
@@ -61,7 +62,8 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 	public static EntityAttributeSchema _internalBuild(
 		@Nonnull String name,
 		@Nonnull Class<? extends Serializable> type,
-		boolean localized
+		boolean localized,
+		@Nonnull ConflictResolutionOverride conflictResolutionOverride
 	) {
 		return new EntityAttributeSchema(
 			name, NamingConvention.generate(name),
@@ -69,7 +71,8 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 			null, null, null,
 			localized, false, false,
 			type, null,
-			0
+			0,
+			conflictResolutionOverride
 		);
 	}
 
@@ -89,7 +92,8 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 		boolean nullable,
 		boolean representative,
 		@Nonnull Class<T> type,
-		@Nullable T defaultValue
+		@Nullable T defaultValue,
+		@Nonnull ConflictResolutionOverride conflictResolutionOverride
 	) {
 		final EnumMap<Scope, AttributeUniquenessType> theUniquenessType = toUniquenessEnumMap(uniqueInScopes);
 		final EnumSet<Scope> theFilterableInScopes = ArrayUtils.toEnumSet(Scope.class, filterableInScopes);
@@ -103,7 +107,8 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 			theSortableInScopes,
 			localized, nullable, representative,
 			type, defaultValue,
-			0
+			0,
+			conflictResolutionOverride
 		);
 	}
 
@@ -126,7 +131,8 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 		boolean representative,
 		@Nonnull Class<T> type,
 		@Nullable T defaultValue,
-		int indexedDecimalPlaces
+		int indexedDecimalPlaces,
+		@Nonnull ConflictResolutionOverride conflictResolutionOverride
 	) {
 		final EnumMap<Scope, AttributeUniquenessType> theUniquenessType = toUniquenessEnumMap(uniqueInScopes);
 		final EnumSet<Scope> theFilterableInScopes = ArrayUtils.toEnumSet(Scope.class, filterableInScopes);
@@ -140,7 +146,8 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 			theSortableInScopes,
 			localized, nullable, representative,
 			type, defaultValue,
-			indexedDecimalPlaces
+			indexedDecimalPlaces,
+			conflictResolutionOverride
 		);
 	}
 
@@ -163,7 +170,8 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 		boolean representative,
 		@Nonnull Class<T> type,
 		@Nullable T defaultValue,
-		int indexedDecimalPlaces
+		int indexedDecimalPlaces,
+		@Nonnull ConflictResolutionOverride conflictResolutionOverride
 	) {
 		return new EntityAttributeSchema(
 			name, NamingConvention.generate(name),
@@ -173,7 +181,8 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 			sortableInScopes,
 			localized, nullable, representative,
 			type, defaultValue,
-			indexedDecimalPlaces
+			indexedDecimalPlaces,
+			conflictResolutionOverride
 		);
 	}
 
@@ -197,7 +206,8 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 		boolean representative,
 		@Nonnull Class<T> type,
 		@Nullable T defaultValue,
-		int indexedDecimalPlaces
+		int indexedDecimalPlaces,
+		@Nonnull ConflictResolutionOverride conflictResolutionOverride
 	) {
 		return new EntityAttributeSchema(
 			name, nameVariants,
@@ -207,7 +217,8 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 			sortableInScopes,
 			localized, nullable, representative,
 			type, defaultValue,
-			indexedDecimalPlaces
+			indexedDecimalPlaces,
+			conflictResolutionOverride
 		);
 	}
 
@@ -231,7 +242,8 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 		boolean representative,
 		@Nonnull Class<T> type,
 		@Nullable T defaultValue,
-		int indexedDecimalPlaces
+		int indexedDecimalPlaces,
+		@Nonnull ConflictResolutionOverride conflictResolutionOverride
 	) {
 		final EnumMap<Scope, AttributeUniquenessType> theUniquenessType = toUniquenessEnumMap(uniqueInScopes);
 		final EnumSet<Scope> theFilterableInScopes = ArrayUtils.toEnumSet(Scope.class, filterableInScopes);
@@ -245,7 +257,8 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 			theSortableInScopes,
 			localized, nullable, representative,
 			type, defaultValue,
-			indexedDecimalPlaces
+			indexedDecimalPlaces,
+			conflictResolutionOverride
 		);
 	}
 
@@ -262,13 +275,15 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 		boolean representative,
 		@Nonnull Class<T> type,
 		@Nullable T defaultValue,
-		int indexedDecimalPlaces
+		int indexedDecimalPlaces,
+		@Nonnull ConflictResolutionOverride conflictResolutionOverride
 	) {
 		super(
 			name, nameVariants, description, deprecationNotice,
 			uniqueInScopes, filterableInScopes, sortableInScopes,
 			localized, nullable, representative,
-			type, defaultValue, indexedDecimalPlaces
+			type, defaultValue, indexedDecimalPlaces,
+			conflictResolutionOverride
 		);
 	}
 
@@ -287,6 +302,7 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 			", type=" + this.type +
 			", indexedDecimalPlaces=" + this.indexedDecimalPlaces +
 			", defaultValue=" + this.defaultValue +
+			", conflictResolutionOverride=" + this.conflictResolutionOverride +
 			'}';
 	}
 

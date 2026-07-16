@@ -57,6 +57,7 @@ import io.evitadb.store.index.serializer.PriceLeafStreamKeySerializer;
 import io.evitadb.store.index.serializer.ReferenceTypeCardinalityLeafStreamKeySerializer;
 import io.evitadb.store.model.header.EntityCollectionFileHeader;
 import io.evitadb.store.schema.serializer.CatalogSchemaSerializer;
+import io.evitadb.store.schema.serializer.CatalogSchemaSerializer_2026_1;
 import io.evitadb.utils.Assert;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
@@ -84,7 +85,12 @@ public class CatalogHeaderKryoConfigurer implements Consumer<Kryo> {
 				.addBackwardCompatibleSerializer(4115945765677481853L, new CatalogHeaderSerializer_2025_6()),
 			index++
 		);
-		kryo.register(CatalogSchema.class, new SerialVersionBasedSerializer<>(new CatalogSchemaSerializer(), CatalogSchema.class), index++);
+		kryo.register(
+			CatalogSchema.class,
+			new SerialVersionBasedSerializer<>(new CatalogSchemaSerializer(), CatalogSchema.class)
+				.addBackwardCompatibleSerializer(-1582409928666780012L, new CatalogSchemaSerializer_2026_1()),
+			index++
+		);
 		kryo.register(CatalogState.class, new EnumNameSerializer<>(), index++);
 		kryo.register(
 			EntityCollectionFileHeader.class,

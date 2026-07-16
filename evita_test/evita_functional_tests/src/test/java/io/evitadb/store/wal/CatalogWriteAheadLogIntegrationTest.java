@@ -32,6 +32,7 @@ import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.mutation.CatalogBoundMutation;
 import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolution;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaDecorator;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
@@ -167,6 +168,7 @@ public class CatalogWriteAheadLogIntegrationTest implements EvitaTestSupport {
 		final CatalogSchema catalogSchema = CatalogSchema._internalBuild(
 			TEST_CATALOG,
 			NamingConvention.generate(TEST_CATALOG),
+			null,
 			EnumSet.allOf(CatalogEvolutionMode.class),
 			EmptyEntitySchemaAccessor.INSTANCE
 		);
@@ -176,7 +178,7 @@ public class CatalogWriteAheadLogIntegrationTest implements EvitaTestSupport {
 		final DefaultIsolatedWalService walPersistenceService = new DefaultIsolatedWalService(
 			TEST_CATALOG,
 			UUID.randomUUID(),
-			EnumSet.noneOf(ConflictPolicy.class),
+			new ConflictResolution(ConflictPolicy.NONE),
 			KryoFactory.createKryo(WalKryoConfigurer.INSTANCE),
 			new WriteOnlyOffHeapWithFileBackupHandle(
 				isolatedWalFilePath,

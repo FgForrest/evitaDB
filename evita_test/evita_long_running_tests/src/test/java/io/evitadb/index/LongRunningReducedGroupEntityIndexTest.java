@@ -35,6 +35,7 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeInde
 import io.evitadb.test.duration.TimeArgumentProvider;
 import io.evitadb.test.duration.TimeArgumentProvider.GenerationalTestInput;
 import io.evitadb.test.duration.TimeBoundedTestSupport;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -117,7 +118,8 @@ class LongRunningReducedGroupEntityIndexTest implements TimeBoundedTestSupport {
 			new Scope[]{Scope.LIVE},
 			null,
 			false, false, false,
-			type, null
+			type, null,
+			ConflictResolutionOverride.INHERITED
 		);
 	}
 

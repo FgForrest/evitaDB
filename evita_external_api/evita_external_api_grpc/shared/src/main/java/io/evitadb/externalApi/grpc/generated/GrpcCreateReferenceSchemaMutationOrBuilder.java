@@ -663,4 +663,23 @@ public interface GrpcCreateReferenceSchemaMutationOrBuilder extends
    */
   io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartiallyOrBuilder getBucketedPartiallyInScopesOrBuilder(
       int index);
+
+  /**
+   * <pre>
+   * The per-reference override of the conflict resolution granularity.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcConflictResolutionOverride conflictResolutionOverride = 18;</code>
+   * @return The enum numeric value on the wire for conflictResolutionOverride.
+   */
+  int getConflictResolutionOverrideValue();
+  /**
+   * <pre>
+   * The per-reference override of the conflict resolution granularity.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcConflictResolutionOverride conflictResolutionOverride = 18;</code>
+   * @return The conflictResolutionOverride.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcConflictResolutionOverride getConflictResolutionOverride();
 }

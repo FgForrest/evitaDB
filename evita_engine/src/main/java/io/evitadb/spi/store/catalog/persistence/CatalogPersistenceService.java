@@ -25,13 +25,14 @@ package io.evitadb.spi.store.catalog.persistence;
 
 import io.evitadb.api.CatalogContract;
 import io.evitadb.api.CatalogState;
-import io.evitadb.api.EntityCollectionContract;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.exception.EntityTypeAlreadyPresentInCatalogSchemaException;
 import io.evitadb.api.exception.TemporalDataNotAvailableException;
 import io.evitadb.api.file.FileForFetch;
 import io.evitadb.api.requestResponse.mutation.CatalogBoundMutation;
 import io.evitadb.api.requestResponse.progress.ProgressingFuture;
+import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
+import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.system.MaterializedVersionBlock;
 import io.evitadb.api.requestResponse.system.TimeFlow;
@@ -66,6 +67,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.Function;
 import java.util.function.IntConsumer;
 import java.util.function.LongConsumer;
 import java.util.regex.Matcher;
@@ -368,10 +370,23 @@ public non-sealed interface CatalogPersistenceService<S extends LogRecordReferen
 	);
 
 	/**
-	 * Method creates the service allowing to store and read Write-Ahead-Log entries.
+	 * Method creates the service allowing to store and read Write-Ahead-Log entries. The catalog schema and
+	 * entity schema accessor are threaded in so the WAL write path can resolve the effective, schema-declared
+	 * conflict resolution per entity type — the conflict keys emitted per mutation depend on the
+	 * per-catalog / per-entity / per-item conflict resolution declared in the schema, not just the engine
+	 * default.
+	 *
+	 * @param transactionId        the unique identifier of the transaction the WAL service serves
+	 * @param catalogSchema        the current catalog schema, source of the catalog-level conflict resolution
+	 * @param entitySchemaAccessor accessor returning the entity schema for a given entity type, or null when
+	 *                             the type has no schema yet (e.g. during creation with schema evolution)
 	 */
 	@Nonnull
-	IsolatedWalPersistenceService createIsolatedWalPersistenceService(@Nonnull UUID transactionId);
+	IsolatedWalPersistenceService createIsolatedWalPersistenceService(
+		@Nonnull UUID transactionId,
+		@Nonnull CatalogSchemaContract catalogSchema,
+		@Nonnull Function<String, EntitySchemaContract> entitySchemaAccessor
+	);
 
 	/**
 	 * Method deletes entire catalog persistent storage and closes the persistence factory.

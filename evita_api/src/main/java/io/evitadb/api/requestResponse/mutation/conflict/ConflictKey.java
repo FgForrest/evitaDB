@@ -23,6 +23,9 @@
 
 package io.evitadb.api.requestResponse.mutation.conflict;
 
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+
 
 /**
  * This interface is used to mark keys that are used to identify conflicts in the evitaDB system.
@@ -30,5 +33,60 @@ package io.evitadb.api.requestResponse.mutation.conflict;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 public interface ConflictKey {
+
+	/**
+	 * Returns the immediate ancestor of this key in the conflict containment hierarchy, or {@code null} when this key
+	 * already sits at the top of the field-derivable chain.
+	 *
+	 * The chain climbs from the finest granularity toward the coarsest **within a single entity / collection**:
+	 * reference-attribute → reference → entity; attribute / associated-data / price / price-inner-record-handling /
+	 * hierarchy → entity; entity → collection. A range-constrained delta additionally reaches the absolute
+	 * attribute-level key it can conflict with (see {@link AttributeDeltaConflictKey#parentConflictKey()}).
+	 *
+	 * The walk deliberately stops at {@link CollectionConflictKey}: the collection → catalog step is not
+	 * field-derivable ({@link CollectionConflictKey} carries no catalog name), so catalog-wide containment is handled
+	 * by the matcher as a dedicated {@link CatalogConflictKey} special case rather than through this chain.
+	 *
+	 * The returned parent is understood to *contain* the receiver: any conflict recorded on the parent scope implies a
+	 * conflict on this finer key. Walking {@code parentConflictKey()} until it yields {@code null} therefore
+	 * enumerates every coarser scope that, if independently written, conflicts with this key.
+	 *
+	 * @return the containing parent key, or {@code null} at the top of the derivable chain
+	 */
+	@Nullable
+	default ConflictKey parentConflictKey() {
+		return null;
+	}
+
+	/**
+	 * Returns the entity type this key is scoped to, or {@code null} for a catalog-wide key that is not
+	 * bound to any single collection. Every key except {@link CatalogConflictKey} is a record carrying an
+	 * {@code entityType} component, so the record accessor satisfies this method automatically; the
+	 * catalog-wide key falls back to this {@code null} default.
+	 *
+	 * Used by the conflict-reporting path to look up the entity schema and resolve which policy was in
+	 * force; it is not consulted during matching.
+	 *
+	 * @return the scoped entity type, or {@code null} for a catalog-wide key
+	 */
+	@Nullable
+	default String entityType() {
+		return null;
+	}
+
+	/**
+	 * Returns the bounded {@link ConflictScope} this key sits at — the low-cardinality granularity label
+	 * (attribute / entity / price / reference / …) as opposed to the unbounded coordinates (primary key,
+	 * attribute name) the concrete key also carries.
+	 *
+	 * Deliberately declared without a default: every {@link ConflictKey} implementation must map itself onto
+	 * exactly one scope, so a newly added key type fails to compile until its scope is decided rather than
+	 * silently defaulting to a wrong or catch-all label. The value is stable across class renames and is the
+	 * source of the exported conflict-metric label.
+	 *
+	 * @return the bounded scope this key represents, never null
+	 */
+	@Nonnull
+	ConflictScope conflictScope();
 
 }

@@ -48,7 +48,8 @@ public interface ReferenceSchemaEditor<T extends ReferenceSchemaEditor<T>> exten
 	ReferenceSchemaContract,
 	NamedSchemaWithDeprecationEditor<T>,
 	AttributeProviderSchemaEditor<T, AttributeSchemaContract, AttributeSchemaEditor.AttributeSchemaBuilder>,
-	SortableAttributeCompoundSchemaProviderEditor<T, AttributeSchemaContract, SortableAttributeCompoundSchemaContract>
+	SortableAttributeCompoundSchemaProviderEditor<T, AttributeSchemaContract, SortableAttributeCompoundSchemaContract>,
+	ConflictResolutionOverrideAwareSchemaEditor<T>
 {
 
 	/**

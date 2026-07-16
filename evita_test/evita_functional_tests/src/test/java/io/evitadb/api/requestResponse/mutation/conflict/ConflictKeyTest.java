@@ -27,6 +27,7 @@ import io.evitadb.api.exception.ConflictingCatalogCommutativeMutationException;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.dataType.IntegerNumberRange;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.test.EvitaTestSupport;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -446,18 +447,41 @@ class ConflictKeyTest implements EvitaTestSupport {
 		}
 
 		@Test
-		@DisplayName("custom hashCode excludes deltaValue for bucket stability")
-		void customHashCodeExcludesDeltaValueForBucketStability() {
-			// hashCode intentionally excludes deltaValue/allowedRange so that keys with different
-			// deltas land in the same hash bucket, enabling aggregation lookups
+		@DisplayName("aggregation key groups deltas that differ only in value or range")
+		void aggregationKeyGroupsDeltasByAttribute() {
+			// the aggregation key deliberately drops deltaValue and allowedRange so that concurrent deltas
+			// on the same attribute accumulate into a single running total; equals()/hashCode() stay
+			// delta-sensitive for per-transaction key sets and the conflict ring buffer
 			final AttributeDeltaConflictKey key1 = new AttributeDeltaConflictKey(
 				"Product", 1, new AttributeKey("quantity"), 5, null
 			);
 			final AttributeDeltaConflictKey key2 = new AttributeDeltaConflictKey(
-				"Product", 1, new AttributeKey("quantity"), 10, null
+				"Product", 1, new AttributeKey("quantity"), 10, IntegerNumberRange.between(0, 100)
+			);
+			final AttributeDeltaConflictKey differentAttribute = new AttributeDeltaConflictKey(
+				"Product", 1, new AttributeKey("weight"), 5, null
 			);
 
-			assertEquals(key1.hashCode(), key2.hashCode());
+			assertEquals(key1.aggregationKey(), key2.aggregationKey());
+			assertEquals(key1.aggregationKey().hashCode(), key2.aggregationKey().hashCode());
+			assertNotEquals(key1.aggregationKey(), differentAttribute.aggregationKey());
+			// hashCode is now consistent with the delta-sensitive equals: identical keys share a hash
+			assertEquals(
+				key1.hashCode(),
+				new AttributeDeltaConflictKey("Product", 1, new AttributeKey("quantity"), 5, null).hashCode()
+			);
+		}
+
+		@Test
+		@DisplayName("aggregation key rejects an unresolved (null) primary key as a programming error")
+		void aggregationKeyRequiresResolvedPrimaryKey() {
+			// the commit-time accumulation slot must be keyed by a resolved primary key; a generated key is
+			// assigned during upsert before the mutation is read back from the WAL, so a null primary key
+			// here would collapse every concurrently-created entity into one slot and is rejected fail-fast
+			final AttributeDeltaConflictKey unresolved = new AttributeDeltaConflictKey(
+				"Product", null, new AttributeKey("quantity"), 5, IntegerNumberRange.between(0, 100)
+			);
+			assertThrows(GenericEvitaInternalError.class, unresolved::aggregationKey);
 		}
 
 		@Test
@@ -514,6 +538,28 @@ class ConflictKeyTest implements EvitaTestSupport {
 		}
 
 		@Test
+		@DisplayName("should be constrained to range when allowedRange is present")
+		void shouldBeConstrainedWhenRangePresent() {
+			final ReferenceAttributeDeltaConflictKey key = new ReferenceAttributeDeltaConflictKey(
+				"Product", 1, new ReferenceKey("brand", 10), new AttributeKey("priority"), 5,
+				IntegerNumberRange.between(0, 100)
+			);
+
+			assertTrue(key.isConstrainedToRange());
+		}
+
+		@Test
+		@DisplayName("should not throw when value is within allowed range")
+		void shouldNotThrowWhenValueWithinRange() {
+			final ReferenceAttributeDeltaConflictKey key = new ReferenceAttributeDeltaConflictKey(
+				"Product", 1, new ReferenceKey("brand", 10), new AttributeKey("priority"), 5,
+				IntegerNumberRange.between(0, 100)
+			);
+
+			assertDoesNotThrow(() -> key.assertInAllowedRange("catalog", 1L, 50));
+		}
+
+		@Test
 		@DisplayName("custom equals includes deltaValue and allowedRange")
 		void customEqualsIncludesDeltaValueAndAllowedRange() {
 			final ReferenceAttributeDeltaConflictKey key1 = new ReferenceAttributeDeltaConflictKey(
@@ -527,16 +573,40 @@ class ConflictKeyTest implements EvitaTestSupport {
 		}
 
 		@Test
-		@DisplayName("custom hashCode excludes deltaValue for bucket stability")
-		void customHashCodeExcludesDeltaValueForBucketStability() {
+		@DisplayName("aggregation key groups reference-attribute deltas that differ only in value or range")
+		void aggregationKeyGroupsDeltasByReferenceAttribute() {
 			final ReferenceAttributeDeltaConflictKey key1 = new ReferenceAttributeDeltaConflictKey(
 				"Product", 1, new ReferenceKey("brand", 10), new AttributeKey("priority"), 5, null
 			);
 			final ReferenceAttributeDeltaConflictKey key2 = new ReferenceAttributeDeltaConflictKey(
-				"Product", 1, new ReferenceKey("brand", 10), new AttributeKey("priority"), 10, null
+				"Product", 1, new ReferenceKey("brand", 10), new AttributeKey("priority"), 10,
+				IntegerNumberRange.between(0, 100)
+			);
+			final ReferenceAttributeDeltaConflictKey differentReference = new ReferenceAttributeDeltaConflictKey(
+				"Product", 1, new ReferenceKey("brand", 20), new AttributeKey("priority"), 5, null
 			);
 
-			assertEquals(key1.hashCode(), key2.hashCode());
+			assertEquals(key1.aggregationKey(), key2.aggregationKey());
+			assertEquals(key1.aggregationKey().hashCode(), key2.aggregationKey().hashCode());
+			assertNotEquals(key1.aggregationKey(), differentReference.aggregationKey());
+			assertEquals(
+				key1.hashCode(),
+				new ReferenceAttributeDeltaConflictKey(
+					"Product", 1, new ReferenceKey("brand", 10), new AttributeKey("priority"), 5, null
+				).hashCode()
+			);
+		}
+
+		@Test
+		@DisplayName("aggregation key rejects an unresolved (null) primary key as a programming error")
+		void aggregationKeyRequiresResolvedPrimaryKey() {
+			// same invariant as the plain attribute delta: accumulation demands a resolved primary key, so a
+			// null one (never produced once the mutation is read back from the WAL) fails fast
+			final ReferenceAttributeDeltaConflictKey unresolved = new ReferenceAttributeDeltaConflictKey(
+				"Product", null, new ReferenceKey("brand", 10), new AttributeKey("priority"), 5,
+				IntegerNumberRange.between(0, 100)
+			);
+			assertThrows(GenericEvitaInternalError.class, unresolved::aggregationKey);
 		}
 
 		@Test
@@ -558,23 +628,144 @@ class ConflictKeyTest implements EvitaTestSupport {
 	class ConflictPolicyTest {
 
 		@Test
-		@DisplayName("should have correct granularity flags")
-		void shouldHaveCorrectGranularityFlags() {
-			assertFalse(ConflictPolicy.CATALOG.isGranular());
-			assertFalse(ConflictPolicy.COLLECTION.isGranular());
-			assertFalse(ConflictPolicy.ENTITY.isGranular());
-			assertTrue(ConflictPolicy.ENTITY_ATTRIBUTE.isGranular());
-			assertTrue(ConflictPolicy.REFERENCE.isGranular());
-			assertTrue(ConflictPolicy.REFERENCE_ATTRIBUTE.isGranular());
-			assertTrue(ConflictPolicy.ASSOCIATED_DATA.isGranular());
-			assertTrue(ConflictPolicy.PRICE.isGranular());
-			assertTrue(ConflictPolicy.HIERARCHY.isGranular());
+		@DisplayName("should expose exactly the four coarse scopes")
+		void shouldExposeOnlyCoarseScopes() {
+			assertEquals(4, ConflictPolicy.values().length);
+			assertArrayEquals(
+				new ConflictPolicy[] {
+					ConflictPolicy.NONE,
+					ConflictPolicy.CATALOG,
+					ConflictPolicy.COLLECTION,
+					ConflictPolicy.ENTITY
+				},
+				ConflictPolicy.values()
+			);
+		}
+	}
+
+	@Nested
+	@DisplayName("parentConflictKey containment chain")
+	class ParentConflictKeyTest {
+
+		@Test
+		@DisplayName("catalog and collection keys sit at the top of the chain")
+		void shouldReturnNullAtTopOfChain() {
+			assertNull(new CatalogConflictKey("testCatalog").parentConflictKey());
+			assertNull(new CollectionConflictKey("Product").parentConflictKey());
 		}
 
 		@Test
-		@DisplayName("should have nine enum values")
-		void shouldHaveNineEnumValues() {
-			assertEquals(9, ConflictPolicy.values().length);
+		@DisplayName("entity key is contained by its collection")
+		void shouldChainEntityToCollection() {
+			assertEquals(
+				new CollectionConflictKey("Product"),
+				new EntityConflictKey("Product", 1).parentConflictKey()
+			);
+		}
+
+		@Test
+		@DisplayName("entity-level granular keys are contained by their entity")
+		void shouldChainEntityLevelKeysToEntity() {
+			final EntityConflictKey expected = new EntityConflictKey("Product", 1);
+			assertEquals(expected, new AttributeConflictKey("Product", 1, "name").parentConflictKey());
+			assertEquals(expected, new AssociatedDataConflictKey("Product", 1, "gallery").parentConflictKey());
+			assertEquals(
+				expected,
+				new PriceConflictKey("Product", 1, 100, Currency.getInstance("EUR"), "basic").parentConflictKey()
+			);
+			assertEquals(expected, new PriceInnerRecordHandlingStrategyConflictKey("Product", 1).parentConflictKey());
+			assertEquals(expected, new HierarchyConflictKey("Product", 1).parentConflictKey());
+			assertEquals(expected, new ReferenceConflictKey("Product", 1, "brand", 10).parentConflictKey());
+		}
+
+		@Test
+		@DisplayName("reference attribute is contained by its reference")
+		void shouldChainReferenceAttributeToReference() {
+			assertEquals(
+				new ReferenceConflictKey("Product", 1, "brand", 10),
+				new ReferenceAttributeConflictKey("Product", 1, "brand", 10, "priority").parentConflictKey()
+			);
+		}
+
+		@Test
+		@DisplayName("attribute key walks up to the collection and terminates")
+		void shouldWalkAttributeChainToRoot() {
+			ConflictKey key = new AttributeConflictKey("Product", 1, "name");
+			key = key.parentConflictKey();
+			assertEquals(new EntityConflictKey("Product", 1), key);
+			key = key.parentConflictKey();
+			assertEquals(new CollectionConflictKey("Product"), key);
+			assertNull(key.parentConflictKey());
+		}
+
+		@Test
+		@DisplayName("reference-attribute key walks reference → entity → collection and terminates")
+		void shouldWalkReferenceAttributeChainToRoot() {
+			ConflictKey key = new ReferenceAttributeConflictKey("Product", 1, "brand", 10, "priority");
+			key = key.parentConflictKey();
+			assertEquals(new ReferenceConflictKey("Product", 1, "brand", 10), key);
+			key = key.parentConflictKey();
+			assertEquals(new EntityConflictKey("Product", 1), key);
+			key = key.parentConflictKey();
+			assertEquals(new CollectionConflictKey("Product"), key);
+			assertNull(key.parentConflictKey());
+		}
+
+		@Test
+		@DisplayName("attribute delta with known primary key reaches the absolute attribute key")
+		void shouldChainAttributeDeltaToAbsoluteAttribute() {
+			final AttributeDeltaConflictKey delta =
+				new AttributeDeltaConflictKey("Product", 1, new AttributeKey("stock"), 5, null);
+			assertEquals(new AttributeConflictKey("Product", 1, "stock"), delta.parentConflictKey());
+		}
+
+		@Test
+		@DisplayName("attribute delta without primary key falls back to the collection")
+		void shouldChainPklessAttributeDeltaToCollection() {
+			final AttributeDeltaConflictKey delta =
+				new AttributeDeltaConflictKey("Product", null, new AttributeKey("stock"), 5, null);
+			assertEquals(new CollectionConflictKey("Product"), delta.parentConflictKey());
+		}
+
+		@Test
+		@DisplayName("reference-attribute delta with known primary key reaches the absolute reference attribute key")
+		void shouldChainReferenceAttributeDeltaToAbsoluteReferenceAttribute() {
+			final ReferenceAttributeDeltaConflictKey delta = new ReferenceAttributeDeltaConflictKey(
+				"Product", 1, new ReferenceKey("brand", 10), new AttributeKey("priority"), 5, null
+			);
+			assertEquals(
+				new ReferenceAttributeConflictKey("Product", 1, "brand", 10, "priority"),
+				delta.parentConflictKey()
+			);
+		}
+
+		@Test
+		@DisplayName("reference-attribute delta without primary key falls back to the collection")
+		void shouldChainPklessReferenceAttributeDeltaToCollection() {
+			final ReferenceAttributeDeltaConflictKey delta = new ReferenceAttributeDeltaConflictKey(
+				"Product", null, new ReferenceKey("brand", 10), new AttributeKey("priority"), 5, null
+			);
+			assertEquals(new CollectionConflictKey("Product"), delta.parentConflictKey());
+		}
+	}
+
+	@Nested
+	@DisplayName("entityType accessor")
+	class EntityTypeAccessorTest {
+
+		@Test
+		@DisplayName("entity-scoped keys report their entity type")
+		void shouldReportEntityTypeForEntityScopedKeys() {
+			assertEquals("Product", new EntityConflictKey("Product", 1).entityType());
+			assertEquals("Product", new CollectionConflictKey("Product").entityType());
+			assertEquals("Product", new AttributeConflictKey("Product", 1, "name").entityType());
+		}
+
+		@Test
+		@DisplayName("catalog-wide key reports no entity type")
+		void shouldReportNoEntityTypeForCatalogKey() {
+			// the catalog-wide key is not bound to any single collection, so it falls back to the null default
+			assertNull(new CatalogConflictKey("someCatalog").entityType());
 		}
 	}
 }

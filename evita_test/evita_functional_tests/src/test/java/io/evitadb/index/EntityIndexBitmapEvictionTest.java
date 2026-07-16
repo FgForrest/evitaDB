@@ -36,6 +36,7 @@ import io.evitadb.index.price.PriceSuperIndex;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIdsStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIndexStoragePart;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -134,7 +135,8 @@ class EntityIndexBitmapEvictionTest {
 			name, null,
 			new Scope[]{Scope.LIVE}, Scope.NO_SCOPE,
 			false, false, false,
-			String.class, null
+			String.class, null,
+			ConflictResolutionOverride.INHERITED
 		);
 	}
 

@@ -145,6 +145,7 @@ public interface SortableAttributeCompoundSchemaMutation extends SchemaMutation 
 				entitySchema.getNameVariants(),
 				entitySchema.getDescription(),
 				entitySchema.getDeprecationNotice(),
+				entitySchema.getConflictResolution().orElse(null),
 				entitySchema.isWithGeneratedPrimaryKey(),
 				entitySchema.isWithHierarchy(),
 				entitySchema.getHierarchyIndexedInScopes(),

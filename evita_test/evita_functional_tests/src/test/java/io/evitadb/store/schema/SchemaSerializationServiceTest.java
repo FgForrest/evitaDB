@@ -26,12 +26,18 @@ package io.evitadb.store.schema;
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
+import io.evitadb.api.CatalogContract;
 import io.evitadb.api.proxy.mock.EmptyEntitySchemaAccessor;
 import io.evitadb.api.query.expression.ExpressionFactory;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolution;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
+import io.evitadb.api.requestResponse.mutation.conflict.GranularConflictPolicy;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
+import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract.AttributeInheritanceBehavior;
@@ -39,6 +45,7 @@ import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder
 import io.evitadb.api.requestResponse.schema.dto.HistogramIndexDefinition;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
+import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.dto.ReflectedReferenceSchema;
 import io.evitadb.dataType.DateTimeRange;
@@ -46,12 +53,14 @@ import io.evitadb.dataType.Scope;
 import io.evitadb.dataType.expression.Expression;
 import io.evitadb.store.shared.kryo.KryoFactory;
 import io.evitadb.store.shared.kryo.SharedClassesConfigurer;
+import io.evitadb.spi.store.catalog.persistence.storageParts.schema.CatalogSchemaStoragePart;
 import io.evitadb.test.Entities;
 import io.evitadb.test.TestConstants;
 import io.evitadb.utils.NamingConvention;
 import lombok.Data;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -89,7 +98,7 @@ class SchemaSerializationServiceTest {
 		final Kryo kryo = KryoFactory.createKryo(SchemaKryoConfigurer.INSTANCE.andThen(SharedClassesConfigurer.INSTANCE));
 		final EntitySchemaContract createdSchema = constructSomeSchema(
 				new InternalEntitySchemaBuilder(
-						CatalogSchema._internalBuild(TestConstants.TEST_CATALOG, NamingConvention.generate(TestConstants.TEST_CATALOG), EnumSet.allOf(CatalogEvolutionMode.class), EmptyEntitySchemaAccessor.INSTANCE),
+						CatalogSchema._internalBuild(TestConstants.TEST_CATALOG, NamingConvention.generate(TestConstants.TEST_CATALOG), null, EnumSet.allOf(CatalogEvolutionMode.class), EmptyEntitySchemaAccessor.INSTANCE),
 						productSchema
 				)
 		);
@@ -107,6 +116,124 @@ class SchemaSerializationServiceTest {
 		}
 		assertEquals(createdSchema, deserializedSchema);
 		assertExactlyEquals(createdSchema, deserializedSchema);
+	}
+
+	@Test
+	@DisplayName("should round-trip non-default conflict resolution settings through the schema serializers")
+	void shouldRoundTripNonDefaultConflictResolutionSettings() {
+		// non-default values on every axis: catalog/entity nullable ConflictResolution and per-item override enums
+		final ConflictResolution entityResolution = new ConflictResolution(
+			ConflictPolicy.ENTITY,
+			EnumSet.of(GranularConflictPolicy.PRICE, GranularConflictPolicy.REFERENCE)
+		);
+		final EntitySchemaContract createdSchema = createEntitySchemaBuilder()
+			.withConflictResolution(entityResolution)
+			.withAttribute(
+				"code", String.class,
+				whichIs -> whichIs.withConflictResolutionOverride(ConflictResolutionOverride.GRANULAR)
+			)
+			.withAssociatedData(
+				"labels", String.class,
+				whichIs -> whichIs.withConflictResolutionOverride(ConflictResolutionOverride.ENTITY)
+			)
+			.withReferenceToEntity(
+				Entities.BRAND, Entities.BRAND, Cardinality.ZERO_OR_ONE,
+				whichIs -> whichIs
+					.withConflictResolutionOverride(ConflictResolutionOverride.ENTITY)
+					.withAttribute(
+						"brandCode", String.class,
+						thatIs -> thatIs.withConflictResolutionOverride(ConflictResolutionOverride.GRANULAR)
+					)
+			)
+			.toInstance();
+
+		final EntitySchema deserialized = roundTripEntitySchema(createKryo(), createdSchema);
+
+		assertEquals(createdSchema, deserialized);
+		assertExactlyEquals(createdSchema, deserialized);
+
+		// explicit non-default assertions — a silent drop would default these back to empty / INHERITED and,
+		// because the field would still be readable at its default, the equals checks alone might not surface it
+		assertEquals(
+			entityResolution,
+			deserialized.getConflictResolution().orElseThrow()
+		);
+		// entity-level attribute (EntityAttributeSchema → EntityAttributeSchemaSerializer)
+		assertEquals(
+			ConflictResolutionOverride.GRANULAR,
+			deserialized.getAttribute("code").orElseThrow().getConflictResolutionOverride()
+		);
+		// per-reference override on the reference itself (ReferenceSchema → ReferenceSchemaSerializer)
+		assertEquals(
+			ConflictResolutionOverride.ENTITY,
+			deserialized.getReference(Entities.BRAND).orElseThrow().getConflictResolutionOverride()
+		);
+		// reference-level (plain) attribute (AttributeSchema → AttributeSchemaSerializer) — distinct serializer from
+		// the entity-level `code` attribute above, so it must be asserted independently
+		assertEquals(
+			ConflictResolutionOverride.GRANULAR,
+			deserialized.getReference(Entities.BRAND).orElseThrow()
+				.getAttribute("brandCode").orElseThrow().getConflictResolutionOverride()
+		);
+		// associated data (AssociatedDataSchema → AssociatedDataSchemaSerializer)
+		assertEquals(
+			ConflictResolutionOverride.ENTITY,
+			deserialized.getAssociatedData("labels").orElseThrow().getConflictResolutionOverride()
+		);
+	}
+
+	@Test
+	@DisplayName("should round-trip a non-default catalog-level conflict resolution through the schema serializers")
+	void shouldRoundTripNonDefaultCatalogLevelConflictResolution() {
+		// a non-default catalog-level resolution on every axis: coarse policy plus a granularity subset
+		final ConflictResolution catalogResolution = new ConflictResolution(
+			ConflictPolicy.ENTITY,
+			EnumSet.of(GranularConflictPolicy.PRICE, GranularConflictPolicy.REFERENCE)
+		);
+		final CatalogSchema createdSchema = CatalogSchema._internalBuild(
+			TestConstants.TEST_CATALOG,
+			NamingConvention.generate(TestConstants.TEST_CATALOG),
+			catalogResolution,
+			EnumSet.allOf(CatalogEvolutionMode.class),
+			EmptyEntitySchemaAccessor.INSTANCE
+		);
+
+		final CatalogSchema deserialized = roundTripCatalogSchema(createKryo(), createdSchema);
+
+		// a silent drop would default this back to empty (inherited); read it explicitly so the loss surfaces
+		assertEquals(
+			catalogResolution,
+			deserialized.getConflictResolution().orElseThrow()
+		);
+	}
+
+	@Test
+	@DisplayName("should round-trip a non-default global attribute conflict resolution override through the schema serializers")
+	void shouldRoundTripGlobalAttributeConflictResolutionOverride() {
+		// a global attribute embedded in the catalog schema carrying a non-default override — a serializer that silently
+		// dropped the override on GlobalAttributeSchema would still pass every catalog-level ConflictResolution test
+		final GlobalAttributeSchema globalAttribute = GlobalAttributeSchema._internalBuild(
+			"url", String.class, false, ConflictResolutionOverride.GRANULAR
+		);
+		final Map<String, GlobalAttributeSchemaContract> attributes = Map.of("url", globalAttribute);
+		final CatalogSchema createdSchema = CatalogSchema._internalBuild(
+			1,
+			TestConstants.TEST_CATALOG,
+			NamingConvention.generate(TestConstants.TEST_CATALOG),
+			null,
+			null,
+			EnumSet.allOf(CatalogEvolutionMode.class),
+			attributes,
+			EmptyEntitySchemaAccessor.INSTANCE
+		);
+
+		final CatalogSchema deserialized = roundTripCatalogSchema(createKryo(), createdSchema);
+
+		// a silent drop would default this back to INHERITED; read it explicitly so the loss surfaces
+		assertEquals(
+			ConflictResolutionOverride.GRANULAR,
+			deserialized.getAttribute("url").orElseThrow().getConflictResolutionOverride()
+		);
 	}
 
 	/**
@@ -432,6 +559,7 @@ class SchemaSerializationServiceTest {
 			CatalogSchema._internalBuild(
 				TestConstants.TEST_CATALOG,
 				NamingConvention.generate(TestConstants.TEST_CATALOG),
+				null,
 				EnumSet.allOf(CatalogEvolutionMode.class),
 				EmptyEntitySchemaAccessor.INSTANCE
 			),
@@ -457,6 +585,32 @@ class SchemaSerializationServiceTest {
 		assertTrue(bytes.length > 0);
 		try (final Input input = new Input(new ByteArrayInputStream(bytes))) {
 			return kryo.readObject(input, EntitySchema.class);
+		}
+	}
+
+	/**
+	 * Serializes and deserializes a {@link CatalogSchema} via Kryo, returning the deserialized result. The read is
+	 * wrapped in a deserialization context supplying a mock catalog, mirroring the real catalog-storage read path
+	 * that {@code CatalogSchemaSerializer} relies on to resolve nested entity schemas.
+	 *
+	 * @param kryo   the Kryo instance to use
+	 * @param schema the catalog schema to round-trip
+	 * @return the deserialized catalog schema
+	 */
+	@Nonnull
+	private static CatalogSchema roundTripCatalogSchema(@Nonnull Kryo kryo, @Nonnull CatalogSchema schema) {
+		final ByteArrayOutputStream baos = new ByteArrayOutputStream(2048);
+		try (final Output output = new Output(baos)) {
+			kryo.writeObject(output, schema);
+		}
+		final byte[] bytes = baos.toByteArray();
+		assertNotNull(bytes);
+		assertTrue(bytes.length > 0);
+		try (final Input input = new Input(new ByteArrayInputStream(bytes))) {
+			return CatalogSchemaStoragePart.deserializeWithCatalog(
+				Mockito.mock(CatalogContract.class),
+				() -> kryo.readObject(input, CatalogSchema.class)
+			);
 		}
 	}
 

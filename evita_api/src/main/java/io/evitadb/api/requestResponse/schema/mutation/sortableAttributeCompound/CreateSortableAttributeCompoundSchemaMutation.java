@@ -194,6 +194,7 @@ public class CreateSortableAttributeCompoundSchemaMutation
 				entitySchema.getNameVariants(),
 				entitySchema.getDescription(),
 				entitySchema.getDeprecationNotice(),
+				entitySchema.getConflictResolution().orElse(null),
 				entitySchema.isWithGeneratedPrimaryKey(),
 				entitySchema.isWithHierarchy(),
 				entitySchema.getHierarchyIndexedInScopes(),
@@ -280,7 +281,8 @@ public class CreateSortableAttributeCompoundSchemaMutation
 							SortableAttributeCompoundSchemaContract::getName,
 							Function.identity()
 						)
-					)
+					),
+					referenceSchema.getConflictResolutionOverride()
 				);
 			}
 		} else if (existingCompoundSchema.get().equals(newCompoundSchema)) {

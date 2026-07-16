@@ -78,6 +78,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Predicate;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -100,6 +101,13 @@ import static io.evitadb.test.TestTags.MANAGEMENT;
 class EvitaServerTest implements TestConstants, EvitaTestSupport {
 	private static final String DIR_EVITA_SERVER_TEST = "evitaServerTest";
 	public static final int TIMEOUT_IN_MILLIS = 30_000;
+	/**
+	 * Time budget for polling a health probe (`readiness` / `liveness` / `status`) until it settles.
+	 * The probes are eventually-consistent right after start-up — a probe can briefly return a non-2xx
+	 * status (surfaced as an empty result) or a transitional payload before the server settles — so a
+	 * single request is prone to spurious failures. Retrying within this window removes the flakiness.
+	 */
+	private static final long PROBE_POLL_BUDGET_MILLIS = 20_000L;
 
 	@Nonnull
 	private static String replaceVariables(@Nonnull String status) {
@@ -112,6 +120,47 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 		output = Pattern.compile("(\"uptimeForHuman\": \")(.+?)\"").matcher(output).replaceAll("$1VARIABLE\"");
 		output = Pattern.compile("(//)(.+:[0-9]+)(/)").matcher(output).replaceAll("$1VARIABLE$3");
 		return output;
+	}
+
+	/**
+	 * Polls the given health-probe URL until the fetched body satisfies `accept` or the
+	 * `budgetInMillis` window elapses. The `readiness` / `liveness` / `status` probes are
+	 * eventually-consistent right after start-up, so a single request is prone to spurious failures: a
+	 * probe can momentarily return a non-2xx status ({@link NetworkUtils#fetchContent} surfaces that as
+	 * an empty result) or a transitional payload before the server settles. Retrying within a bounded
+	 * window removes that flakiness without masking a genuinely unhealthy server — one that never
+	 * satisfies `accept` returns the last observed result here and still fails the caller's assertions.
+	 *
+	 * @param url            the probe URL to fetch
+	 * @param accept         predicate the fetched body must satisfy for the poll to stop early
+	 * @param budgetInMillis the maximum time to keep retrying
+	 * @return the last fetched content — present and accepted when the poll succeeded, otherwise the
+	 *         last observed result so the caller's assertions report the actual state
+	 */
+	@Nonnull
+	private static Optional<String> fetchContentUntil(
+		@Nonnull String url,
+		@Nonnull Predicate<String> accept,
+		long budgetInMillis
+	) {
+		final long start = System.currentTimeMillis();
+		Optional<String> content;
+		do {
+			log.info("Probing {}", url);
+			content = NetworkUtils.fetchContent(
+				url,
+				"GET",
+				"application/json",
+				null,
+				TIMEOUT_IN_MILLIS,
+				error -> log.error("Error while probing API: {}", error),
+				timeout -> log.error("Timeout while probing API: {}", timeout)
+			);
+			if (content.isPresent() && accept.test(content.get())) {
+				return content;
+			}
+		} while (System.currentTimeMillis() - start < budgetInMillis);
+		return content;
 	}
 
 	/**
@@ -735,26 +784,11 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 				.getConfiguration()
 				.getBaseUrls();
 
-			Optional<String> readiness;
-			final long start = System.currentTimeMillis();
-			do {
-				final String url = baseUrls[0] + "readiness";
-				log.info("Checking readiness at {}", url);
-				readiness = NetworkUtils.fetchContent(
-					url,
-					"GET",
-					"application/json",
-					null,
-					TIMEOUT_IN_MILLIS,
-					error -> log.error("Error while checking readiness of API: {}", error),
-					timeout -> log.error("Error while checking readiness of API: {}", timeout)
-				);
-
-				if (readiness.isPresent() && readiness.get().contains("\"status\": \"READY\"")) {
-					break;
-				}
-
-			} while (System.currentTimeMillis() - start < 20000);
+			final Optional<String> readiness = fetchContentUntil(
+				baseUrls[0] + "readiness",
+				content -> content.contains("\"status\": \"READY\""),
+				PROBE_POLL_BUDGET_MILLIS
+			);
 
 			assertTrue(readiness.isPresent());
 			assertEquals(
@@ -773,14 +807,10 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 				readiness.get().trim()
 			);
 
-			final Optional<String> liveness = NetworkUtils.fetchContent(
+			final Optional<String> liveness = fetchContentUntil(
 				baseUrls[0] + "liveness",
-				"GET",
-				"application/json",
-				null,
-				TIMEOUT_IN_MILLIS,
-				error -> log.error("Error while checking readiness of API: {}", error),
-				timeout -> log.error("Error while checking readiness of API: {}", timeout)
+				content -> content.contains("\"status\": \"healthy\""),
+				PROBE_POLL_BUDGET_MILLIS
 			);
 
 			assertTrue(liveness.isPresent());
@@ -789,14 +819,10 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 				liveness.get().trim()
 			);
 
-			final Optional<String> status = NetworkUtils.fetchContent(
+			final Optional<String> status = fetchContentUntil(
 				baseUrls[0] + "status",
-				"GET",
-				"application/json",
-				null,
-				TIMEOUT_IN_MILLIS,
-				error -> log.error("Error while checking readiness of API: {}", error),
-				timeout -> log.error("Error while checking readiness of API: {}", timeout)
+				content -> content.contains("\"serverName\""),
+				PROBE_POLL_BUDGET_MILLIS
 			);
 
 			assertTrue(status.isPresent());

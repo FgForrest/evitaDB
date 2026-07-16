@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.reference;
 
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.schema.mutation.reference.CreateReferenceSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedHistogramIndexDefinition;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedBucketedPartially;
@@ -124,7 +125,8 @@ public class CreateReferenceSchemaMutationConverter
 			input.getProperty(CreateReferenceSchemaMutationDescriptor.FACETED_IN_SCOPES),
 			facetedPartiallyInScopes,
 			bucketedInScopes,
-			bucketedPartiallyInScopes
+			bucketedPartiallyInScopes,
+			input.getProperty(CreateReferenceSchemaMutationDescriptor.CONFLICT_RESOLUTION_OVERRIDE, ConflictResolutionOverride.INHERITED)
 		);
 	}
 

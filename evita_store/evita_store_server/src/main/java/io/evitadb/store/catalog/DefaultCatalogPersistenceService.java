@@ -39,6 +39,7 @@ import io.evitadb.api.file.FileForFetch;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.mutation.CatalogBoundMutation;
 import io.evitadb.api.requestResponse.progress.ProgressingFuture;
+import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
@@ -2036,11 +2037,17 @@ public class DefaultCatalogPersistenceService
 
 	@Nonnull
 	@Override
-	public IsolatedWalPersistenceService createIsolatedWalPersistenceService(@Nonnull UUID transactionId) {
+	public IsolatedWalPersistenceService createIsolatedWalPersistenceService(
+		@Nonnull UUID transactionId,
+		@Nonnull CatalogSchemaContract catalogSchema,
+		@Nonnull Function<String, EntitySchemaContract> entitySchemaAccessor
+	) {
 		return new DefaultIsolatedWalService(
 			this.catalogName,
 			transactionId,
 			this.storageSettings.conflictPolicy(),
+			catalogSchema,
+			entitySchemaAccessor,
 			this.walKryoPool.obtain(),
 			new WriteOnlyOffHeapWithFileBackupHandle(
 				this.storageSettings.transactionWorkDirectory()
@@ -3312,6 +3319,7 @@ public class DefaultCatalogPersistenceService
 				this.catalogName,
 				NamingConvention.generate(this.catalogName),
 				catalogSchema.getDescription(),
+				null,
 				catalogSchema.getCatalogEvolutionMode(),
 				catalogSchema.getAttributes(),
 				MutationEntitySchemaAccessor.INSTANCE

@@ -39,6 +39,7 @@ import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.mutation.EngineMutation;
 import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolution;
 import io.evitadb.api.requestResponse.mutation.infrastructure.TransactionMutation;
 import io.evitadb.api.requestResponse.progress.ProgressRecord;
 import io.evitadb.api.requestResponse.progress.ProgressingFuture;
@@ -157,7 +158,7 @@ import static org.mockito.Mockito.when;
 @Tag(STORAGE)
 @Tag(MANAGEMENT)
 class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
-	public static final CatalogSchema CATALOG_SCHEMA = CatalogSchema._internalBuild(TEST_CATALOG, NamingConvention.generate(TestConstants.TEST_CATALOG), EnumSet.allOf(CatalogEvolutionMode.class), EmptyEntitySchemaAccessor.INSTANCE);
+	public static final CatalogSchema CATALOG_SCHEMA = CatalogSchema._internalBuild(TEST_CATALOG, NamingConvention.generate(TestConstants.TEST_CATALOG), null, EnumSet.allOf(CatalogEvolutionMode.class), EmptyEntitySchemaAccessor.INSTANCE);
 	public static final String DIR_DEFAULT_CATALOG_PERSISTENCE_SERVICE_TEST = "defaultCatalogPersistenceServiceTest";
 	public static final String TX_DIR_DEFAULT_CATALOG_PERSISTENCE_SERVICE_TEST = "txDefaultCatalogPersistenceServiceTest";
 	private static final String RENAMED_CATALOG = "somethingElse";
@@ -184,7 +185,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 	private final DefaultIsolatedWalService walService = new DefaultIsolatedWalService(
 		TEST_CATALOG,
 		this.transactionId,
-		EnumSet.noneOf(ConflictPolicy.class),
+		new ConflictResolution(ConflictPolicy.NONE),
 		this.kryo,
 		this.writeHandle
 	);
@@ -880,7 +881,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			TransactionOptions.DEFAULT_WAIT_FOR_TRANSACTION_ACCEPTANCE,
 			TransactionOptions.DEFAULT_FLUSH_FREQUENCY,
 			TransactionOptions.DEFAULT_CONFLICT_RING_BUFFER_SIZE,
-			TransactionOptions.DEFAULT_CONFLICT_POLICY
+			TransactionOptions.DEFAULT_CONFLICT_RESOLUTION
 		);
 	}
 

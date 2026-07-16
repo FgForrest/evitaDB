@@ -115,6 +115,7 @@ public class EntitySchemaSerializer_2025_6 extends Serializer<EntitySchema> {
 		return EntitySchema._internalBuild(
 			version,
 			entityName, nameVariants, description, deprecationNotice,
+			null,
 			withGeneratedPrimaryKey,
 			withHierarchy,
 			hierarchyIndexedInScopes,

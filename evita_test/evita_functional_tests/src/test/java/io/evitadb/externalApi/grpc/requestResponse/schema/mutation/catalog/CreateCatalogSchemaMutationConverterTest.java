@@ -23,11 +23,16 @@
 
 package io.evitadb.externalApi.grpc.requestResponse.schema.mutation.catalog;
 
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolution;
+import io.evitadb.api.requestResponse.mutation.conflict.GranularConflictPolicy;
 import io.evitadb.api.requestResponse.schema.mutation.engine.CreateCatalogSchemaMutation;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.engine.CreateCatalogSchemaMutationConverter;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Tag;
+
+import java.util.EnumSet;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static io.evitadb.test.TestTags.GRPC;
@@ -54,5 +59,17 @@ class CreateCatalogSchemaMutationConverterTest {
 			"testCatalog"
 		);
 		assertEquals(mutation1, converter.convert(converter.convert(mutation1)));
+	}
+
+	@Test
+	void shouldConvertMutationWithConflictResolution() {
+		final CreateCatalogSchemaMutation mutation = new CreateCatalogSchemaMutation(
+			"testCatalog",
+			new ConflictResolution(
+				ConflictPolicy.ENTITY,
+				EnumSet.of(GranularConflictPolicy.REFERENCE, GranularConflictPolicy.PRICE)
+			)
+		);
+		assertEquals(mutation, converter.convert(converter.convert(mutation)));
 	}
 }

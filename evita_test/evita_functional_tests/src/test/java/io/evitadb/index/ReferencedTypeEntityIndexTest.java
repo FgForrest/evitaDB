@@ -42,6 +42,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 
 import javax.annotation.Nonnull;
 import java.io.Serializable;
@@ -115,7 +116,8 @@ class ReferencedTypeEntityIndexTest extends AbstractEntityIndexTest<ReferencedTy
 			new Scope[]{Scope.LIVE},
 			null,
 			false, false, false,
-			type, null
+			type, null,
+			ConflictResolutionOverride.INHERITED
 		);
 	}
 

@@ -38,6 +38,7 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeInde
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.ChainIndexLeafPagePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.ChainIndexStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIndexStoragePart;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -115,7 +116,8 @@ class EntityIndexManifestInvariantTest {
 			new Scope[]{Scope.LIVE},
 			new Scope[]{Scope.LIVE},
 			false, false, false,
-			type, null
+			type, null,
+			ConflictResolutionOverride.INHERITED
 		);
 	}
 

@@ -23,6 +23,7 @@
 
 package io.evitadb.api.requestResponse.data.annotation;
 
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
@@ -185,5 +186,16 @@ public @interface Reference {
 	 * the general settings are not used as a fallback.
 	 */
 	ScopeReferenceSettings[] scope() default {};
+
+	/**
+	 * Per-item conflict resolution granularity override for this reference. {@link ConflictResolutionOverride#INHERITED}
+	 * (the default) follows the conflict resolution resolved from the entity schema, catalog schema and engine
+	 * configuration; {@link ConflictResolutionOverride#GRANULAR} opts this reference into its own reference-scoped
+	 * conflict key (finer-grained detection); {@link ConflictResolutionOverride#ENTITY} pins it to the whole-entity
+	 * conflict key. Attributes of the reference carry their own {@link Attribute#conflictResolution()} override
+	 * independently.
+	 * Propagates to {@link ReferenceSchemaContract#getConflictResolutionOverride()}.
+	 */
+	ConflictResolutionOverride conflictResolution() default ConflictResolutionOverride.INHERITED;
 
 }

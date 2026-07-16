@@ -33,6 +33,9 @@ import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
 
+import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toConflictResolutionOverride;
+import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toGrpcConflictResolutionOverride;
+
 /**
  * Converts between {@link CreateAssociatedDataSchemaMutation} and {@link GrpcCreateAssociatedDataSchemaMutation} in both directions.
  *
@@ -50,7 +53,8 @@ public class CreateAssociatedDataSchemaMutationConverter implements SchemaMutati
 			mutation.hasDeprecationNotice() ? mutation.getDeprecationNotice().getValue() : null,
 			EvitaDataTypesConverter.toEvitaDataType(mutation.getType()),
 			mutation.getLocalized(),
-			mutation.getNullable()
+			mutation.getNullable(),
+			toConflictResolutionOverride(mutation.getConflictResolutionOverride())
 		);
 	}
 
@@ -60,7 +64,8 @@ public class CreateAssociatedDataSchemaMutationConverter implements SchemaMutati
 			.setName(mutation.getName())
 			.setType(EvitaDataTypesConverter.toGrpcEvitaAssociatedDataDataType(mutation.getType()))
 			.setLocalized(mutation.isLocalized())
-			.setNullable(mutation.isNullable());
+			.setNullable(mutation.isNullable())
+			.setConflictResolutionOverride(toGrpcConflictResolutionOverride(mutation.getConflictResolutionOverride()));
 
 		if (mutation.getDescription() != null) {
 			builder.setDescription(StringValue.of(mutation.getDescription()));

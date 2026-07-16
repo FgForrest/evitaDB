@@ -23,6 +23,7 @@
 
 package io.evitadb.spike.mock;
 
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
@@ -78,7 +79,7 @@ public class BucketsRecordState {
 	public void setUp() {
 		this.entityIds = generateBitmap(VALUE_COUNT, 1);
 		this.request = new AttributeHistogramRequest(
-			AttributeSchema._internalBuild("whatever", Integer.class, false),
+			AttributeSchema._internalBuild("whatever", Integer.class, false, ConflictResolutionOverride.INHERITED),
 			Comparator.naturalOrder(),
 			Arrays.asList(
 				new OwnerFilterIndex(new AttributeIndexKey(null, "whatever", null), generateBuckets(BUCKET_COUNT, VALUE_COUNT / 5), new RangeIndex(), Integer.class),

@@ -50,4 +50,34 @@ public interface GrpcCreateCatalogSchemaMutationOrBuilder extends
    */
   com.google.protobuf.ByteString
       getCatalogNameBytes();
+
+  /**
+   * <pre>
+   * Optional catalog-level transaction conflict resolution override applied to the new catalog. When not set, the
+   * catalog inherits the engine-level default.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcConflictResolution conflictResolution = 2;</code>
+   * @return Whether the conflictResolution field is set.
+   */
+  boolean hasConflictResolution();
+  /**
+   * <pre>
+   * Optional catalog-level transaction conflict resolution override applied to the new catalog. When not set, the
+   * catalog inherits the engine-level default.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcConflictResolution conflictResolution = 2;</code>
+   * @return The conflictResolution.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcConflictResolution getConflictResolution();
+  /**
+   * <pre>
+   * Optional catalog-level transaction conflict resolution override applied to the new catalog. When not set, the
+   * catalog inherits the engine-level default.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcConflictResolution conflictResolution = 2;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcConflictResolutionOrBuilder getConflictResolutionOrBuilder();
 }

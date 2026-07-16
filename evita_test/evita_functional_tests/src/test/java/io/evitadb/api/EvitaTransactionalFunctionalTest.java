@@ -30,51 +30,44 @@ import io.evitadb.api.CommitProgress.CommitVersions;
 import io.evitadb.api.SessionTraits.SessionFlags;
 import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.api.configuration.EvitaConfiguration;
-import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.configuration.StorageOptions;
-import io.evitadb.api.configuration.ThreadPoolOptions;
 import io.evitadb.api.configuration.TransactionOptions;
 import io.evitadb.api.exception.ConflictingCatalogCommutativeMutationException;
 import io.evitadb.api.exception.ConflictingCatalogMutationException;
 import io.evitadb.api.exception.ReadOnlyException;
 import io.evitadb.api.exception.RollbackException;
-import io.evitadb.api.file.FileForFetch;
 import io.evitadb.api.query.QueryConstraints;
 import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.data.EntityContract;
-import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.InstanceEditor;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
-import io.evitadb.api.requestResponse.data.SealedInstance;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
 import io.evitadb.api.requestResponse.data.mutation.attribute.ApplyDeltaAttributeMutation;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceAttributeMutation;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.mutation.EngineMutation;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolution;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
+import io.evitadb.api.requestResponse.mutation.conflict.GranularConflictPolicy;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.api.requestResponse.mutation.infrastructure.TransactionMutation;
 import io.evitadb.core.Evita;
-import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.core.session.EvitaSession;
 import io.evitadb.core.transaction.Transaction;
 import io.evitadb.dataType.LongNumberRange;
 import io.evitadb.exception.EvitaInvalidUsageException;
-import io.evitadb.export.file.configuration.FileSystemExportOptions;
 import io.evitadb.function.Functions;
-import io.evitadb.function.TriConsumer;
 import io.evitadb.function.TriFunction;
 import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService;
 import io.evitadb.spi.store.catalog.persistence.PersistenceService;
-import io.evitadb.store.catalog.DefaultCatalogPersistenceService;
 import io.evitadb.store.catalog.DefaultIsolatedWalService;
-import io.evitadb.store.catalog.model.CatalogBootstrap;
 import io.evitadb.store.checksum.ChecksumFactory;
 import io.evitadb.store.checksum.Crc32CChecksumFactory;
 import io.evitadb.store.compression.CompressionFactory;
@@ -106,16 +99,12 @@ import org.mockito.Mockito;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.IOException;
-import java.io.InputStream;
 import java.math.BigDecimal;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.time.Duration;
-import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
@@ -123,7 +112,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
@@ -133,8 +121,6 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static io.evitadb.api.query.QueryConstraints.attributeContentAll;
-import static io.evitadb.api.query.QueryConstraints.dataInLocales;
 import static io.evitadb.api.query.QueryConstraints.entityFetchAllContent;
 import static io.evitadb.test.generator.DataGenerator.*;
 import static org.junit.jupiter.api.Assertions.*;
@@ -266,6 +252,52 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 	}
 
 	/**
+	 * Stages an update of the `priority` attribute of the given product in the passed session. The write
+	 * is only buffered in the session's transaction — it competes for the entity-level conflict key at
+	 * the time the session commits.
+	 *
+	 * @param session       the session to stage the write in
+	 * @param productSchema the product schema identifying the entity type
+	 * @param primaryKey    the primary key of the product to update
+	 * @param priority      the new priority value
+	 */
+	private static void setPriority(
+		@Nonnull EvitaSessionContract session,
+		@Nonnull SealedEntitySchema productSchema,
+		int primaryKey,
+		long priority
+	) {
+		session.getEntity(productSchema.getName(), primaryKey, entityFetchAllContent())
+			.orElseThrow()
+			.openForWrite()
+			.setAttribute(ATTRIBUTE_PRIORITY, priority)
+			.upsertVia(session);
+	}
+
+	/**
+	 * Closes the passed session expecting its commit to be rejected with
+	 * a {@link ConflictingCatalogMutationException}. The exception may surface directly or wrapped
+	 * (e.g. in a completion or transaction exception), so the cause chain is walked to find it.
+	 *
+	 * @param session the session whose commit is expected to conflict
+	 */
+	private static void assertConflictOnClose(@Nonnull EvitaSessionContract session) {
+		try {
+			session.close();
+			fail("ConflictingCatalogMutationException expected, but the commit succeeded!");
+		} catch (Throwable ex) {
+			Throwable cause = ex;
+			while (cause != null && !(cause instanceof ConflictingCatalogMutationException)) {
+				cause = cause.getCause();
+			}
+			assertNotNull(
+				cause,
+				"Expected ConflictingCatalogMutationException in the cause chain, but got: " + ex
+			);
+		}
+	}
+
+	/**
 	 * Executes a concurrent update in a separate thread and waits for it to complete.
 	 * This is a common pattern in conflict testing where one thread updates while another
 	 * thread waits and then attempts a conflicting operation.
@@ -320,6 +352,36 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 		final Evita evita = new Evita(configurationBuilder.apply(builder).build());
 		evita.waitUntilFullyInitialized();
 		return evita;
+	}
+
+	/**
+	 * Upserts a single generated product entity into the test catalog and returns it fully fetched.
+	 * Mirrors the entity-seeding block shared by the concurrent-conflict tests so those tests can focus
+	 * on the conflict assertions rather than repeating the entity generation boilerplate.
+	 *
+	 * @param evita         the evita instance to write into
+	 * @param productSchema the product schema used to generate the entity
+	 * @return the upserted product entity, fully fetched
+	 */
+	@Nonnull
+	private SealedEntity upsertSingleGeneratedProduct(
+		@Nonnull EvitaContract evita,
+		@Nonnull SealedEntitySchema productSchema
+	) {
+		return evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				final BiFunction<String, Faker, Integer> randomEntityPicker = (entityType, faker) -> RANDOM_ENTITY_PICKER.apply(
+					entityType, session, faker);
+				final Optional<SealedEntity> upsertedEntity = this.dataGenerator.generateEntities(
+						productSchema, randomEntityPicker, SEED)
+					.limit(1)
+					.map(session::upsertAndFetchEntity)
+					.findFirst();
+				assertTrue(upsertedEntity.isPresent());
+				return upsertedEntity.get();
+			}
+		);
 	}
 
 	/**
@@ -1092,6 +1154,91 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 	/* CONFLICT DETECTION TESTS */
 	/* ======================================================================================== */
 
+	@DisplayName("Commit of a long-running transaction conflicts with sessions whose snapshot predates that commit.")
+	@UseDataSet(value = TRANSACTIONAL_DATA_SET, destroyAfterTest = true)
+	@Test
+	void shouldDetectConflictOfLongRunningTransactionAgainstNewerSnapshot(
+		EvitaContract evita, SealedEntitySchema productSchema
+	) {
+		// seed two products - the contended one and an unrelated one used to advance the catalog version
+		final List<SealedEntity> addedEntities = evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				return this.dataGenerator.generateEntities(
+						productSchema,
+						(entityType, faker) -> RANDOM_ENTITY_PICKER.apply(entityType, session, faker),
+						SEED
+					)
+					.limit(2)
+					.map(session::upsertAndFetchEntity)
+					.toList();
+			}
+		);
+		final int contendedPk = addedEntities.get(0).getPrimaryKeyOrThrowException();
+		final int unrelatedPk = addedEntities.get(1).getPrimaryKeyOrThrowException();
+
+		// the long-running writer opens its snapshot first and stages a write to the contended product
+		final EvitaSessionContract longRunningSession = evita.createSession(
+			new SessionTraits(TEST_CATALOG, CommitBehavior.WAIT_FOR_CHANGES_VISIBLE, SessionFlags.READ_WRITE)
+		);
+		setPriority(longRunningSession, productSchema, contendedPk, 1000L);
+		final long longRunningSnapshotVersion = longRunningSession.getCatalogVersion();
+
+		// an unrelated transaction commits meanwhile and becomes visible, so sessions opened from
+		// now on start at a newer snapshot than the long-running writer's
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				setPriority(session, productSchema, unrelatedPk, 2000L);
+			}
+		);
+
+		// two competing sessions open their snapshots AFTER the unrelated commit became visible,
+		// but BEFORE the long-running writer commits
+		final EvitaSessionContract firstCompetingSession = evita.createSession(
+			new SessionTraits(TEST_CATALOG, CommitBehavior.WAIT_FOR_CHANGES_VISIBLE, SessionFlags.READ_WRITE)
+		);
+		setPriority(firstCompetingSession, productSchema, contendedPk, 3000L);
+		final EvitaSessionContract secondCompetingSession = evita.createSession(
+			new SessionTraits(TEST_CATALOG, CommitBehavior.WAIT_FOR_CHANGES_VISIBLE, SessionFlags.READ_WRITE)
+		);
+		setPriority(secondCompetingSession, productSchema, contendedPk, 4000L);
+		// the interleaving this test exists for requires the competing snapshots to be strictly newer
+		// than the long-running writer's snapshot while still predating its commit
+		assertTrue(
+			firstCompetingSession.getCatalogVersion() > longRunningSnapshotVersion,
+			"Competing sessions must open a newer snapshot than the long-running writer!"
+		);
+
+		// the long-running writer commits first and wins
+		longRunningSession.close();
+
+		// both competing snapshots predate the long-running commit version, so they are concurrent
+		// with it and must be rejected; the second rejection also guards the rollback path - the
+		// first rejected commit must not release the long-running transaction's conflict keys
+		assertConflictOnClose(firstCompetingSession);
+		assertConflictOnClose(secondCompetingSession);
+
+		// a session opened after the long-running commit is its successor and must pass
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				setPriority(session, productSchema, contendedPk, 5000L);
+			}
+		);
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final Long priority = session.getEntity(
+						productSchema.getName(), contendedPk, entityFetchAllContent()
+					)
+					.orElseThrow()
+					.getAttribute(ATTRIBUTE_PRIORITY);
+				assertEquals(5000L, priority);
+			}
+		);
+	}
+
 	@DisplayName("When parallel transactions remove and update same product, conflict is raised.")
 	@UseDataSet(value = TRANSACTIONAL_DATA_SET, destroyAfterTest = true)
 	@Test
@@ -1220,7 +1367,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 			originalEvita,
 			builder -> builder.transaction(
 				TransactionOptions.builder(builder.build().transaction())
-					.conflictPolicy(ConflictPolicy.ENTITY, ConflictPolicy.ENTITY_ATTRIBUTE)
+					.conflictResolution(ConflictPolicy.ENTITY, GranularConflictPolicy.ENTITY_ATTRIBUTE)
 					.build()
 			)
 		);
@@ -1344,6 +1491,346 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 		);
 	}
 
+	@DisplayName("When the catalog schema declares an ENTITY conflict policy, it overrides a NONE engine default and concurrent writes to the same product conflict.")
+	@UseDataSet(value = TRANSACTIONAL_DATA_SET, destroyAfterTest = true)
+	@Test
+	void shouldRaiseConflictWhenCatalogSchemaDeclaresEntityPolicyOverridingNoneEngineDefault(
+		EvitaContract originalEvita, SealedEntitySchema productSchema) throws Exception {
+		// the engine default disables conflict detection entirely (last-writer-wins)...
+		final Evita evita = reinitializeEvitaWithConfig(
+			originalEvita,
+			builder -> builder.transaction(
+				TransactionOptions.builder(builder.build().transaction())
+					.conflictResolution(ConflictPolicy.NONE)
+					.build()
+			)
+		);
+
+		// ...but the catalog schema re-enables entity-level conflict detection on the live write path
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.getCatalogSchema()
+					.openForWrite()
+					.withConflictResolution(new ConflictResolution(ConflictPolicy.ENTITY))
+					.updateVia(session);
+			}
+		);
+
+		final SealedEntity addedEntity = upsertSingleGeneratedProduct(evita, productSchema);
+
+		assertThrows(
+			ConflictingCatalogMutationException.class,
+			() -> evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.getEntity(productSchema.getName(), addedEntity.getPrimaryKey(), entityFetchAllContent())
+						.orElseThrow()
+						.openForWrite()
+						.setAttribute(ATTRIBUTE_PRIORITY, 19846L)
+						.upsertVia(session);
+
+					try {
+						// concurrent session touches a different attribute of the SAME entity and commits first;
+						// under the whole-entity key mandated by the catalog schema this still conflicts
+						executeConcurrentUpdate(
+							evita, TEST_CATALOG, concurrentSession -> {
+								concurrentSession.getEntity(
+										productSchema.getName(), addedEntity.getPrimaryKey(), entityFetchAllContent())
+									.orElseThrow()
+									.openForWrite()
+									.setAttribute(ATTRIBUTE_CODE, "catalog-schema-conflict-code")
+									.upsertVia(concurrentSession);
+							}
+						);
+					} catch (InterruptedException e) {
+						fail("Test thread was interrupted!", e);
+					}
+
+					log.info("Attempting to commit transaction expected to conflict via catalog-schema policy...");
+				}
+			)
+		);
+	}
+
+	@DisplayName("When the engine default is NONE and no schema declares a conflict policy, concurrent writes to the same product do not conflict.")
+	@UseDataSet(value = TRANSACTIONAL_DATA_SET, destroyAfterTest = true)
+	@Test
+	void shouldNotRaiseConflictWhenEngineDefaultIsNoneAndNoSchemaDeclaresPolicy(
+		EvitaContract originalEvita, SealedEntitySchema productSchema) throws Exception {
+		// engine default disables conflict detection and, unlike the previous test, no schema overrides it
+		final Evita evita = reinitializeEvitaWithConfig(
+			originalEvita,
+			builder -> builder.transaction(
+				TransactionOptions.builder(builder.build().transaction())
+					.conflictResolution(ConflictPolicy.NONE)
+					.build()
+			)
+		);
+
+		final SealedEntity addedEntity = upsertSingleGeneratedProduct(evita, productSchema);
+
+		// two concurrent writes to the SAME attribute of the SAME entity would conflict under any
+		// entity-or-coarser policy, yet the NONE engine default lets the last writer silently win
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.getEntity(productSchema.getName(), addedEntity.getPrimaryKey(), entityFetchAllContent())
+					.orElseThrow()
+					.openForWrite()
+					.setAttribute(ATTRIBUTE_PRIORITY, 19846L)
+					.upsertVia(session);
+
+				try {
+					executeConcurrentUpdate(
+						evita, TEST_CATALOG, concurrentSession -> {
+							concurrentSession.getEntity(
+									productSchema.getName(), addedEntity.getPrimaryKey(), entityFetchAllContent())
+								.orElseThrow()
+								.openForWrite()
+								.setAttribute(ATTRIBUTE_PRIORITY, 27954L)
+								.upsertVia(concurrentSession);
+						}
+					);
+				} catch (InterruptedException e) {
+					fail("Test thread was interrupted!", e);
+				}
+
+				log.info("Committing transaction expected NOT to conflict under the NONE engine default...");
+			}
+		);
+	}
+
+	@DisplayName("When the entity schema declares a NONE conflict policy, it overrides an ENTITY catalog-schema policy and concurrent writes to the same product do not conflict.")
+	@UseDataSet(value = TRANSACTIONAL_DATA_SET, destroyAfterTest = true)
+	@Test
+	void shouldNotRaiseConflictWhenEntitySchemaDeclaresNonePolicyOverridingCatalogEntityPolicy(
+		EvitaContract evita, SealedEntitySchema productSchema) {
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				// catalog schema would force entity-level conflicts for every collection...
+				session.getCatalogSchema()
+					.openForWrite()
+					.withConflictResolution(new ConflictResolution(ConflictPolicy.ENTITY))
+					.updateVia(session);
+				// ...but the entity schema relaxes conflict detection entirely for this collection
+				session.getEntitySchema(productSchema.getName())
+					.orElseThrow()
+					.openForWrite()
+					.withConflictResolution(new ConflictResolution(ConflictPolicy.NONE))
+					.updateVia(session);
+			}
+		);
+
+		final SealedEntity addedEntity = upsertSingleGeneratedProduct(evita, productSchema);
+
+		// two concurrent writes to the SAME attribute of the SAME entity would conflict under the
+		// catalog policy, but the more specific entity-schema NONE override wins whole-record
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.getEntity(productSchema.getName(), addedEntity.getPrimaryKey(), entityFetchAllContent())
+					.orElseThrow()
+					.openForWrite()
+					.setAttribute(ATTRIBUTE_PRIORITY, 19846L)
+					.upsertVia(session);
+
+				try {
+					executeConcurrentUpdate(
+						evita, TEST_CATALOG, concurrentSession -> {
+							concurrentSession.getEntity(
+									productSchema.getName(), addedEntity.getPrimaryKey(), entityFetchAllContent())
+								.orElseThrow()
+								.openForWrite()
+								.setAttribute(ATTRIBUTE_PRIORITY, 27954L)
+								.upsertVia(concurrentSession);
+						}
+					);
+				} catch (InterruptedException e) {
+					fail("Test thread was interrupted!", e);
+				}
+
+				log.info("Committing transaction expected NOT to conflict via entity-schema NONE override...");
+			}
+		);
+	}
+
+	@DisplayName("When two entity attributes each declare a GRANULAR per-item conflict override, concurrent writes to different attributes of the same product do not conflict.")
+	@UseDataSet(value = TRANSACTIONAL_DATA_SET, destroyAfterTest = true)
+	@Test
+	void shouldNotRaiseConflictWhenPerItemGranularOverrideIsolatesDistinctAttributes(
+		EvitaContract originalEvita, SealedEntitySchema productSchema) throws Exception {
+		// coarse ENTITY policy with no granular refinements => every write emits the whole-entity key...
+		final Evita evita = reinitializeEvitaWithConfig(
+			originalEvita,
+			builder -> builder.transaction(
+				TransactionOptions.builder(builder.build().transaction())
+					.conflictResolution(ConflictPolicy.ENTITY)
+					.build()
+			)
+		);
+
+		// ...but two attributes opt themselves into their own attribute-scoped conflict keys
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.getEntitySchema(productSchema.getName())
+					.orElseThrow()
+					.openForWrite()
+					.withAttribute(
+						ATTRIBUTE_PRIORITY, Long.class,
+						whichIs -> whichIs.withConflictResolutionOverride(ConflictResolutionOverride.GRANULAR))
+					.withAttribute(
+						ATTRIBUTE_QUANTITY, BigDecimal.class,
+						whichIs -> whichIs.withConflictResolutionOverride(ConflictResolutionOverride.GRANULAR))
+					.updateVia(session);
+			}
+		);
+
+		final SealedEntity addedEntity = upsertSingleGeneratedProduct(evita, productSchema);
+
+		// writes to two distinct GRANULAR-overridden attributes emit disjoint keys => no conflict
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.getEntity(productSchema.getName(), addedEntity.getPrimaryKey(), entityFetchAllContent())
+					.orElseThrow()
+					.openForWrite()
+					.setAttribute(ATTRIBUTE_PRIORITY, 19846L)
+					.upsertVia(session);
+
+				try {
+					executeConcurrentUpdate(
+						evita, TEST_CATALOG, concurrentSession -> {
+							concurrentSession.getEntity(
+									productSchema.getName(), addedEntity.getPrimaryKey(), entityFetchAllContent())
+								.orElseThrow()
+								.openForWrite()
+								.setAttribute(ATTRIBUTE_QUANTITY, new BigDecimal("123.45"))
+								.upsertVia(concurrentSession);
+						}
+					);
+				} catch (InterruptedException e) {
+					fail("Test thread was interrupted!", e);
+				}
+
+				log.info("Committing transaction expected NOT to conflict via per-item GRANULAR overrides...");
+			}
+		);
+	}
+
+	@DisplayName("When an entity attribute declares a GRANULAR per-item conflict override, concurrent writes to that same attribute of the same product still conflict.")
+	@UseDataSet(value = TRANSACTIONAL_DATA_SET, destroyAfterTest = true)
+	@Test
+	void shouldRaiseConflictWhenPerItemGranularOverrideStillGuardsSameAttribute(
+		EvitaContract originalEvita, SealedEntitySchema productSchema) throws Exception {
+		// coarse ENTITY policy with no granular refinements as the baseline...
+		final Evita evita = reinitializeEvitaWithConfig(
+			originalEvita,
+			builder -> builder.transaction(
+				TransactionOptions.builder(builder.build().transaction())
+					.conflictResolution(ConflictPolicy.ENTITY)
+					.build()
+			)
+		);
+
+		// ...and a GRANULAR override on the priority attribute, isolating it into its own key
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.getEntitySchema(productSchema.getName())
+					.orElseThrow()
+					.openForWrite()
+					.withAttribute(
+						ATTRIBUTE_PRIORITY, Long.class,
+						whichIs -> whichIs.withConflictResolutionOverride(ConflictResolutionOverride.GRANULAR))
+					.updateVia(session);
+			}
+		);
+
+		final SealedEntity addedEntity = upsertSingleGeneratedProduct(evita, productSchema);
+
+		// both writes touch the SAME granular-overridden attribute => same key => conflict
+		assertThrows(
+			ConflictingCatalogMutationException.class,
+			() -> evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.getEntity(productSchema.getName(), addedEntity.getPrimaryKey(), entityFetchAllContent())
+						.orElseThrow()
+						.openForWrite()
+						.setAttribute(ATTRIBUTE_PRIORITY, 19846L)
+						.upsertVia(session);
+
+					try {
+						executeConcurrentUpdate(
+							evita, TEST_CATALOG, concurrentSession -> {
+								concurrentSession.getEntity(
+										productSchema.getName(), addedEntity.getPrimaryKey(), entityFetchAllContent())
+									.orElseThrow()
+									.openForWrite()
+									.setAttribute(ATTRIBUTE_PRIORITY, 27954L)
+									.upsertVia(concurrentSession);
+							}
+						);
+					} catch (InterruptedException e) {
+						fail("Test thread was interrupted!", e);
+					}
+
+					log.info("Attempting to commit conflicting write to the same granular attribute...");
+				}
+			)
+		);
+	}
+
+	@DisplayName("When two transactions concurrently create an entity with the same explicitly-assigned primary key under a fully granular policy, the second commit is rejected.")
+	@UseDataSet(value = TRANSACTIONAL_DATA_SET, destroyAfterTest = true)
+	@Test
+	void shouldRaiseConflictWhenTwoTransactionsCreateEntityWithSamePrimaryKeyUnderGranularPolicy(
+		EvitaContract originalEvita, SealedEntitySchema productSchema) throws Exception {
+		// fully granular policy: attribute writes to the same entity would NOT conflict...
+		final Evita evita = reinitializeEvitaWithConfig(
+			originalEvita,
+			builder -> builder.transaction(
+				TransactionOptions.builder(builder.build().transaction())
+					.conflictResolution(ConflictPolicy.ENTITY, GranularConflictPolicy.ENTITY_ATTRIBUTE)
+					.build()
+			)
+		);
+
+		final int sharedPrimaryKey = 1000;
+
+		// ...yet forced creation (MUST_NOT_EXIST) still emits the coarse whole-entity key, so two
+		// concurrent creations of the same primary key can never both succeed
+		assertThrows(
+			ConflictingCatalogMutationException.class,
+			() -> evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.createNewEntity(productSchema.getName(), sharedPrimaryKey)
+						.setAttribute(ATTRIBUTE_PRIORITY, 19846L)
+						.upsertVia(session);
+
+					try {
+						// concurrent session creates the same primary key and commits first
+						executeConcurrentUpdate(
+							evita, TEST_CATALOG, concurrentSession -> {
+								concurrentSession.createNewEntity(productSchema.getName(), sharedPrimaryKey)
+									.setAttribute(ATTRIBUTE_PRIORITY, 27954L)
+									.upsertVia(concurrentSession);
+							}
+						);
+					} catch (InterruptedException e) {
+						fail("Test thread was interrupted!", e);
+					}
+
+					log.info("Attempting to commit a second creation of the same primary key...");
+				}
+			)
+		);
+	}
+
 	@DisplayName("When two parallel transactions update same product on conflicting granular level (same attributes) via delta mutation, no conflict is raised.")
 	@UseDataSet(value = TRANSACTIONAL_DATA_SET, destroyAfterTest = true)
 	@Test
@@ -1358,7 +1845,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 				.name(originalConfiguration.name())
 				.transaction(
 					TransactionOptions.builder(originalConfiguration.transaction())
-						.conflictPolicy(ConflictPolicy.ENTITY, ConflictPolicy.ENTITY_ATTRIBUTE)
+						.conflictResolution(ConflictPolicy.ENTITY, GranularConflictPolicy.ENTITY_ATTRIBUTE)
 						.build()
 				)
 				.storage(originalConfiguration.storage())
@@ -1431,7 +1918,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 				.name(originalConfiguration.name())
 				.transaction(
 					TransactionOptions.builder(originalConfiguration.transaction())
-						.conflictPolicy(ConflictPolicy.ENTITY, ConflictPolicy.ENTITY_ATTRIBUTE)
+						.conflictResolution(ConflictPolicy.ENTITY, GranularConflictPolicy.ENTITY_ATTRIBUTE)
 						.build()
 				)
 				.storage(originalConfiguration.storage())
@@ -1516,6 +2003,386 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 		);
 	}
 
+	@DisplayName("A lone range-constrained delta whose result lands on the range boundary commits without a false conflict")
+	@UseDataSet(value = TRANSACTIONAL_DATA_SET, destroyAfterTest = true)
+	@Test
+	void shouldCommitLoneRangeConstrainedDeltaOnBoundaryWithoutFalseConflict(
+		EvitaContract originalEvita, SealedEntitySchema productSchema) throws Exception {
+		final TransactionOptions txOptions = ((Evita) originalEvita).getConfiguration().transaction();
+		final Evita evita = reinitializeEvitaWithConfig(
+			originalEvita,
+			builder -> builder.transaction(
+				TransactionOptions.builder(txOptions)
+					.conflictResolution(ConflictPolicy.ENTITY, GranularConflictPolicy.ENTITY_ATTRIBUTE)
+					.build()
+			)
+		);
+
+		final SealedEntity addedEntity = evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				final BiFunction<String, Faker, Integer> randomEntityPicker = (entityType, faker) -> RANDOM_ENTITY_PICKER.apply(
+					entityType, session, faker);
+				final Optional<SealedEntity> upsertedEntity = this.dataGenerator.generateEntities(
+						productSchema, randomEntityPicker, SEED)
+					.limit(1)
+					.map(session::upsertAndFetchEntity)
+					.findFirst();
+				assertTrue(upsertedEntity.isPresent());
+				return upsertedEntity.get();
+			}
+		);
+
+		final Long basePriority = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.getEntity(productSchema.getName(), addedEntity.getPrimaryKey(), entityFetchAllContent())
+					.orElseThrow()
+					.getAttribute(ATTRIBUTE_PRIORITY, Long.class);
+			}
+		);
+
+		// a single, uncontended delta of +1 whose post-application value lands exactly on the inclusive
+		// upper bound must be accepted: the only accumulated value is basePriority + 1, never + 2
+		assertDoesNotThrow(
+			() -> evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.getEntity(
+							productSchema.getName(), addedEntity.getPrimaryKey(), entityFetchAllContent()
+						)
+						.orElseThrow()
+						.openForWrite()
+						.mutate(
+							new ApplyDeltaAttributeMutation<>(
+								ATTRIBUTE_PRIORITY, 1L, LongNumberRange.to(basePriority + 1L)
+							)
+						)
+						.upsertVia(session);
+				}
+			)
+		);
+
+		final Long updatedPriority = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.getEntity(productSchema.getName(), addedEntity.getPrimaryKey(), entityFetchAllContent())
+					.orElseThrow()
+					.getAttribute(ATTRIBUTE_PRIORITY, Long.class);
+			}
+		);
+		assertEquals(Long.valueOf(basePriority + 1L), updatedPriority);
+	}
+
+	@DisplayName("Two committed deltas of different values on the same attribute accumulate against an incoming delta's range")
+	@UseDataSet(value = TRANSACTIONAL_DATA_SET, destroyAfterTest = true)
+	@Test
+	void shouldAccumulateDistinctCommittedDeltasAgainstIncomingDeltaRange(
+		EvitaContract originalEvita, SealedEntitySchema productSchema) throws Exception {
+		final TransactionOptions txOptions = ((Evita) originalEvita).getConfiguration().transaction();
+		final Evita evita = reinitializeEvitaWithConfig(
+			originalEvita,
+			builder -> builder.transaction(
+				TransactionOptions.builder(txOptions)
+					.conflictResolution(ConflictPolicy.ENTITY, GranularConflictPolicy.ENTITY_ATTRIBUTE)
+					.build()
+			)
+		);
+
+		final SealedEntity addedEntity = evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				final BiFunction<String, Faker, Integer> randomEntityPicker = (entityType, faker) -> RANDOM_ENTITY_PICKER.apply(
+					entityType, session, faker);
+				final Optional<SealedEntity> upsertedEntity = this.dataGenerator.generateEntities(
+						productSchema, randomEntityPicker, SEED)
+					.limit(1)
+					.map(session::upsertAndFetchEntity)
+					.findFirst();
+				assertTrue(upsertedEntity.isPresent());
+				return upsertedEntity.get();
+			}
+		);
+
+		// the incoming transaction snapshots the pre-conflict value and stages a +1 delta whose own result
+		// (base + 1) sits well within the range; only the two concurrently committed deltas of distinct
+		// values (+5, +3) push the true accumulated value (base + 9) past the upper bound base + 5. Because
+		// the two committed deltas differ they occupy the same accumulation slot only when grouped by the
+		// delta-agnostic aggregation key, so this asserts they are summed rather than each looked up alone.
+		assertThrows(
+			ConflictingCatalogCommutativeMutationException.class,
+			() -> evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					final SealedEntity theEntity = session.getEntity(
+							productSchema.getName(), addedEntity.getPrimaryKey(), entityFetchAllContent()
+						)
+						.orElseThrow();
+					final Long basePriority = theEntity.getAttribute(ATTRIBUTE_PRIORITY, Long.class);
+
+					theEntity
+						.openForWrite()
+						.mutate(
+							new ApplyDeltaAttributeMutation<>(
+								ATTRIBUTE_PRIORITY, 1L, LongNumberRange.to(basePriority + 5L)
+							)
+						)
+						.upsertVia(session);
+
+					try {
+						// first concurrent transaction commits a +5 delta on the same attribute
+						executeConcurrentUpdate(
+							evita, TEST_CATALOG, concurrentSession -> {
+								concurrentSession.getEntity(
+										productSchema.getName(), addedEntity.getPrimaryKey(), entityFetchAllContent()
+									)
+									.orElseThrow()
+									.openForWrite()
+									.mutate(new ApplyDeltaAttributeMutation<>(ATTRIBUTE_PRIORITY, 5L))
+									.upsertVia(concurrentSession);
+							}
+						);
+						// second concurrent transaction commits a distinct +3 delta on the same attribute
+						executeConcurrentUpdate(
+							evita, TEST_CATALOG, concurrentSession -> {
+								concurrentSession.getEntity(
+										productSchema.getName(), addedEntity.getPrimaryKey(), entityFetchAllContent()
+									)
+									.orElseThrow()
+									.openForWrite()
+									.mutate(new ApplyDeltaAttributeMutation<>(ATTRIBUTE_PRIORITY, 3L))
+									.upsertVia(concurrentSession);
+							}
+						);
+					} catch (InterruptedException e) {
+						fail("Test thread was interrupted!", e);
+					}
+
+					log.info("Attempting to commit conflicting transaction...");
+				}
+			)
+		);
+	}
+
+	@DisplayName("When a committed range-constrained delta races an incoming absolute set of the same attribute, conflict is raised (committed-delta direction).")
+	@UseDataSet(value = TRANSACTIONAL_DATA_SET, destroyAfterTest = true)
+	@Test
+	void shouldRaiseConflictWhenCommittedDeltaRacesIncomingAbsoluteSet(
+		EvitaContract originalEvita, SealedEntitySchema productSchema) throws Exception {
+		// refine the coarse ENTITY policy with ENTITY_ATTRIBUTE granularity so that both the absolute set
+		// and the delta produce attribute-level (not entity-level) conflict keys — this is the granular
+		// level at which the commutative-vs-absolute containment probe must fire
+		final TransactionOptions txOptions = ((Evita) originalEvita).getConfiguration().transaction();
+		final Evita evita = reinitializeEvitaWithConfig(
+			originalEvita,
+			builder -> builder.transaction(
+				TransactionOptions.builder(txOptions)
+					.conflictResolution(ConflictPolicy.ENTITY, GranularConflictPolicy.ENTITY_ATTRIBUTE)
+					.build()
+			)
+		);
+
+		final SealedEntity addedEntity = evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				final BiFunction<String, Faker, Integer> randomEntityPicker = (entityType, faker) -> RANDOM_ENTITY_PICKER.apply(
+					entityType, session, faker);
+				final Optional<SealedEntity> upsertedEntity = this.dataGenerator.generateEntities(
+						productSchema, randomEntityPicker, SEED)
+					.limit(1)
+					.map(session::upsertAndFetchEntity)
+					.findFirst();
+				assertTrue(upsertedEntity.isPresent());
+				return upsertedEntity.get();
+			}
+		);
+
+		assertThrows(
+			ConflictingCatalogMutationException.class,
+			() -> evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					final SealedEntity theEntity = session.getEntity(
+							productSchema.getName(), addedEntity.getPrimaryKey(), entityFetchAllContent()
+						)
+						.orElseThrow();
+					final Long basePriority = theEntity.getAttribute(ATTRIBUTE_PRIORITY, Long.class);
+
+					// incoming transaction absolutely overwrites the attribute
+					theEntity
+						.openForWrite()
+						.setAttribute(ATTRIBUTE_PRIORITY, basePriority + 100L)
+						.upsertVia(session);
+
+					try {
+						// concurrent transaction commits a range-constrained delta on the same attribute first
+						executeConcurrentUpdate(
+							evita, TEST_CATALOG, concurrentSession -> {
+								final SealedEntity concurrentEntity = concurrentSession.getEntity(
+										productSchema.getName(), addedEntity.getPrimaryKey(), entityFetchAllContent()
+									)
+									.orElseThrow();
+								final Long concurrentBase = concurrentEntity.getAttribute(ATTRIBUTE_PRIORITY, Long.class);
+								concurrentEntity
+									.openForWrite()
+									.mutate(new ApplyDeltaAttributeMutation<>(
+										ATTRIBUTE_PRIORITY, 1L, LongNumberRange.to(concurrentBase + 5L)
+									))
+									.upsertVia(concurrentSession);
+							}
+						);
+					} catch (InterruptedException e) {
+						fail("Test thread was interrupted!", e);
+					}
+
+					log.info("Attempting to commit conflicting transaction...");
+				}
+			)
+		);
+	}
+
+	@DisplayName("When a committed absolute set races an incoming range-constrained delta of the same attribute, conflict is raised (committed-absolute direction).")
+	@UseDataSet(value = TRANSACTIONAL_DATA_SET, destroyAfterTest = true)
+	@Test
+	void shouldRaiseConflictWhenCommittedAbsoluteSetRacesIncomingDelta(
+		EvitaContract originalEvita, SealedEntitySchema productSchema) throws Exception {
+		final TransactionOptions txOptions = ((Evita) originalEvita).getConfiguration().transaction();
+		final Evita evita = reinitializeEvitaWithConfig(
+			originalEvita,
+			builder -> builder.transaction(
+				TransactionOptions.builder(txOptions)
+					.conflictResolution(ConflictPolicy.ENTITY, GranularConflictPolicy.ENTITY_ATTRIBUTE)
+					.build()
+			)
+		);
+
+		final SealedEntity addedEntity = evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				final BiFunction<String, Faker, Integer> randomEntityPicker = (entityType, faker) -> RANDOM_ENTITY_PICKER.apply(
+					entityType, session, faker);
+				final Optional<SealedEntity> upsertedEntity = this.dataGenerator.generateEntities(
+						productSchema, randomEntityPicker, SEED)
+					.limit(1)
+					.map(session::upsertAndFetchEntity)
+					.findFirst();
+				assertTrue(upsertedEntity.isPresent());
+				return upsertedEntity.get();
+			}
+		);
+
+		assertThrows(
+			ConflictingCatalogMutationException.class,
+			() -> evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					final SealedEntity theEntity = session.getEntity(
+							productSchema.getName(), addedEntity.getPrimaryKey(), entityFetchAllContent()
+						)
+						.orElseThrow();
+					final Long basePriority = theEntity.getAttribute(ATTRIBUTE_PRIORITY, Long.class);
+
+					// incoming transaction applies a range-constrained delta on the attribute
+					theEntity
+						.openForWrite()
+						.mutate(new ApplyDeltaAttributeMutation<>(
+							ATTRIBUTE_PRIORITY, 1L, LongNumberRange.to(basePriority + 5L)
+						))
+						.upsertVia(session);
+
+					try {
+						// concurrent transaction commits an absolute overwrite of the same attribute first
+						executeConcurrentUpdate(
+							evita, TEST_CATALOG, concurrentSession -> {
+								final SealedEntity concurrentEntity = concurrentSession.getEntity(
+										productSchema.getName(), addedEntity.getPrimaryKey(), entityFetchAllContent()
+									)
+									.orElseThrow();
+								final Long concurrentBase = concurrentEntity.getAttribute(ATTRIBUTE_PRIORITY, Long.class);
+								concurrentEntity
+									.openForWrite()
+									.setAttribute(ATTRIBUTE_PRIORITY, concurrentBase + 100L)
+									.upsertVia(concurrentSession);
+							}
+						);
+					} catch (InterruptedException e) {
+						fail("Test thread was interrupted!", e);
+					}
+
+					log.info("Attempting to commit conflicting transaction...");
+				}
+			)
+		);
+	}
+
+	@DisplayName("When a committed entity removal races an incoming granular attribute update under granular policy, conflict is raised.")
+	@UseDataSet(value = TRANSACTIONAL_DATA_SET, destroyAfterTest = true)
+	@Test
+	void shouldRaiseConflictWhenRemovalRacesGranularAttributeUpdate(
+		EvitaContract originalEvita, SealedEntitySchema productSchema) throws Exception {
+		// under a granular policy an entity removal emits only the coarse entity conflict key; scope
+		// containment must still make it conflict with a concurrent finer-grained attribute update to the
+		// same entity (the entity key contains the attribute key)
+		final TransactionOptions txOptions = ((Evita) originalEvita).getConfiguration().transaction();
+		final Evita evita = reinitializeEvitaWithConfig(
+			originalEvita,
+			builder -> builder.transaction(
+				TransactionOptions.builder(txOptions)
+					.conflictResolution(ConflictPolicy.ENTITY, GranularConflictPolicy.ENTITY_ATTRIBUTE)
+					.build()
+			)
+		);
+
+		final SealedEntity addedEntity = evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				final BiFunction<String, Faker, Integer> randomEntityPicker = (entityType, faker) -> RANDOM_ENTITY_PICKER.apply(
+					entityType, session, faker);
+				final Optional<SealedEntity> upsertedEntity = this.dataGenerator.generateEntities(
+						productSchema, randomEntityPicker, SEED)
+					.limit(1)
+					.map(session::upsertAndFetchEntity)
+					.findFirst();
+				assertTrue(upsertedEntity.isPresent());
+				return upsertedEntity.get();
+			}
+		);
+
+		assertThrows(
+			ConflictingCatalogMutationException.class,
+			() -> evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					final SealedEntity theEntity = session.getEntity(
+							productSchema.getName(), addedEntity.getPrimaryKey(), entityFetchAllContent()
+						)
+						.orElseThrow();
+					final Long basePriority = theEntity.getAttribute(ATTRIBUTE_PRIORITY, Long.class);
+
+					// incoming transaction updates a single attribute (granular scope)
+					theEntity
+						.openForWrite()
+						.setAttribute(ATTRIBUTE_PRIORITY, basePriority + 100L)
+						.upsertVia(session);
+
+					try {
+						// concurrent transaction removes the whole entity and commits first
+						executeConcurrentUpdate(
+							evita, TEST_CATALOG,
+							concurrentSession -> concurrentSession.deleteEntity(
+								productSchema.getName(), addedEntity.getPrimaryKey()
+							)
+						);
+					} catch (InterruptedException e) {
+						fail("Test thread was interrupted!", e);
+					}
+
+					log.info("Attempting to commit conflicting transaction...");
+				}
+			)
+		);
+	}
+
 	@DisplayName("When two parallel transactions update same product on conflicting granular level (same attributes) via reference attribute delta mutation, no conflict is raised.")
 	@UseDataSet(value = TRANSACTIONAL_DATA_SET, destroyAfterTest = true)
 	@Test
@@ -1530,7 +2397,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 				.name(originalConfiguration.name())
 				.transaction(
 					TransactionOptions.builder(originalConfiguration.transaction())
-						.conflictPolicy(ConflictPolicy.ENTITY, ConflictPolicy.REFERENCE_ATTRIBUTE)
+						.conflictResolution(ConflictPolicy.ENTITY, GranularConflictPolicy.REFERENCE_ATTRIBUTE)
 						.build()
 				)
 				.storage(originalConfiguration.storage())
@@ -1633,7 +2500,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 				.name(originalConfiguration.name())
 				.transaction(
 					TransactionOptions.builder(originalConfiguration.transaction())
-						.conflictPolicy(ConflictPolicy.ENTITY, ConflictPolicy.REFERENCE_ATTRIBUTE)
+						.conflictResolution(ConflictPolicy.ENTITY, GranularConflictPolicy.REFERENCE_ATTRIBUTE)
 						.build()
 				)
 				.storage(originalConfiguration.storage())
@@ -1741,7 +2608,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 				.name(originalConfiguration.name())
 				.transaction(
 					TransactionOptions.builder(originalConfiguration.transaction())
-						.conflictPolicy(ConflictPolicy.ENTITY, ConflictPolicy.REFERENCE_ATTRIBUTE)
+						.conflictResolution(ConflictPolicy.ENTITY, GranularConflictPolicy.REFERENCE_ATTRIBUTE)
 						.build()
 				)
 				.storage(originalConfiguration.storage())
@@ -1839,6 +2706,88 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 		);
 	}
 
+	@DisplayName("When a committed reference removal races an incoming update of an attribute on the same reference, conflict is raised.")
+	@UseDataSet(value = TRANSACTIONAL_DATA_SET, destroyAfterTest = true)
+	@Test
+	void shouldRaiseConflictWhenReferenceRemovalRacesReferenceAttributeUpdate(
+		EvitaContract originalEvita, SealedEntitySchema productSchema
+	) throws Exception {
+		// removing a reference must conflict with a concurrent update to that reference's attribute: the
+		// coarse reference key contains the finer reference-attribute key through the ancestor chain
+		final Evita evita = reinitializeEvitaWithConfig(
+			originalEvita,
+			builder -> builder.transaction(
+				TransactionOptions.builder(builder.build().transaction())
+					.conflictResolution(ConflictPolicy.ENTITY, GranularConflictPolicy.REFERENCE, GranularConflictPolicy.REFERENCE_ATTRIBUTE)
+					.build()
+			)
+		);
+
+		final SealedEntity addedEntity = evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				final BiFunction<String, Faker, Integer> randomEntityPicker = (entityType, faker) -> RANDOM_ENTITY_PICKER.apply(
+					entityType, session, faker);
+				final Optional<SealedEntity> upsertedEntity = this.dataGenerator.generateEntities(
+						productSchema, randomEntityPicker, SEED)
+					.limit(1)
+					.map(session::upsertAndFetchEntity)
+					.findFirst();
+				assertTrue(upsertedEntity.isPresent());
+				return upsertedEntity.get();
+			}
+		);
+
+		assertThrows(
+			ConflictingCatalogMutationException.class,
+			() -> evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					final SealedEntity theEntity = session.getEntity(
+							productSchema.getName(), addedEntity.getPrimaryKey(), entityFetchAllContent())
+						.orElseThrow();
+					final ReferenceKey referenceKey = theEntity
+						.getReferences(Entities.STORE)
+						.stream()
+						.filter(it -> it.getAttribute(STORE_PRIORITY) != null)
+						.map(ReferenceContract::getReferenceKey)
+						.findFirst()
+						.orElseThrow();
+
+					// the incoming transaction updates the attribute of the store reference
+					theEntity
+						.openForWrite()
+						.mutate(
+							new ReferenceAttributeMutation(
+								referenceKey,
+								new ApplyDeltaAttributeMutation<>(STORE_PRIORITY, 1L)
+							)
+						)
+						.upsertVia(session);
+
+					try {
+						// the concurrent transaction removes that very reference and commits first
+						executeConcurrentUpdate(
+							evita, TEST_CATALOG, concurrentSession ->
+								concurrentSession.getEntity(
+										productSchema.getName(), addedEntity.getPrimaryKey(),
+										entityFetchAllContent()
+									)
+									.orElseThrow()
+									.openForWrite()
+									.removeReference(referenceKey)
+									.upsertVia(concurrentSession)
+						);
+					} catch (InterruptedException e) {
+						fail("Test thread was interrupted!", e);
+					}
+
+					log.info("Attempting to commit reference-attribute update after concurrent reference removal...");
+				}
+			)
+		);
+	}
+
 	@DisplayName("When parallel transactions update product on granular level (different attributes), and remove it completely, conflict is raised.")
 	@UseDataSet(value = TRANSACTIONAL_DATA_SET, destroyAfterTest = true)
 	@Test
@@ -1855,7 +2804,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 				.name(originalConfiguration.name())
 				.transaction(
 					TransactionOptions.builder(originalConfiguration.transaction())
-						.conflictPolicy(ConflictPolicy.ENTITY, ConflictPolicy.ENTITY_ATTRIBUTE)
+						.conflictResolution(ConflictPolicy.ENTITY, GranularConflictPolicy.ENTITY_ATTRIBUTE)
 						.build()
 				)
 				.storage(originalConfiguration.storage())
@@ -1940,7 +2889,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 				.name(originalConfiguration.name())
 				.transaction(
 					TransactionOptions.builder(originalConfiguration.transaction())
-						.conflictPolicy(ConflictPolicy.ENTITY, ConflictPolicy.ENTITY_ATTRIBUTE)
+						.conflictResolution(ConflictPolicy.ENTITY, GranularConflictPolicy.ENTITY_ATTRIBUTE)
 						.build()
 				)
 				.storage(originalConfiguration.storage())
@@ -2592,7 +3541,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 		final DefaultIsolatedWalService walPersistenceService = new DefaultIsolatedWalService(
 			TEST_CATALOG,
 			UUID.randomUUID(),
-			EnumSet.noneOf(ConflictPolicy.class),
+			new ConflictResolution(ConflictPolicy.NONE),
 			KryoFactory.createKryo(WalKryoConfigurer.INSTANCE),
 			new WriteOnlyOffHeapWithFileBackupHandle(
 				isolatedWalFilePath,

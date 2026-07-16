@@ -96,7 +96,8 @@ public class SetAssociatedDataSchemaLocalizedMutation
 			associatedDataSchema.getDeprecationNotice(),
 			associatedDataSchema.getType(),
 			this.localized,
-			associatedDataSchema.isNullable()
+			associatedDataSchema.isNullable(),
+			associatedDataSchema.getConflictResolutionOverride()
 		);
 	}
 

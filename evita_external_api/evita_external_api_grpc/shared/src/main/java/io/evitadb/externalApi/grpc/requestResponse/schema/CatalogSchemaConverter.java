@@ -83,6 +83,8 @@ public class CatalogSchemaConverter {
 		if (catalogSchema.getDescription() != null) {
 			builder.setDescription(StringValue.of(catalogSchema.getDescription()));
 		}
+		catalogSchema.getConflictResolution()
+			.ifPresent(cr -> builder.setConflictResolution(ConflictResolutionConverter.toGrpcConflictResolution(cr)));
 
 		for (CatalogEvolutionMode catalogEvolutionMode : catalogSchema.getCatalogEvolutionMode()) {
 			builder.addCatalogEvolutionMode(EvitaEnumConverter.toGrpcCatalogEvolutionMode(catalogEvolutionMode));
@@ -108,6 +110,7 @@ public class CatalogSchemaConverter {
 			catalogSchema.getName(),
 			NamingConvention.generate(catalogSchema.getName()),
 			catalogSchema.hasDescription() ? catalogSchema.getDescription().getValue() : null,
+			catalogSchema.hasConflictResolution() ? ConflictResolutionConverter.toConflictResolution(catalogSchema.getConflictResolution()) : null,
 			catalogSchema.getCatalogEvolutionModeList()
 				.stream()
 				.map(EvitaEnumConverter::toCatalogEvolutionMode)
@@ -196,7 +199,8 @@ public class CatalogSchemaConverter {
 			.setLocalized(attributeSchema.isLocalized())
 			.setNullable(attributeSchema.isNullable())
 			.setType(EvitaDataTypesConverter.toGrpcEvitaDataType(attributeSchema.getType()))
-			.setIndexedDecimalPlaces(attributeSchema.getIndexedDecimalPlaces());
+			.setIndexedDecimalPlaces(attributeSchema.getIndexedDecimalPlaces())
+			.setConflictResolutionOverride(EvitaEnumConverter.toGrpcConflictResolutionOverride(attributeSchema.getConflictResolutionOverride()));
 
 		ofNullable(attributeSchema.getDefaultValue())
 			.ifPresent(it -> builder.setDefaultValue(EvitaDataTypesConverter.toGrpcEvitaValue(it, null)));
@@ -238,7 +242,8 @@ public class CatalogSchemaConverter {
 			attributeSchema.getRepresentative(),
 			EvitaDataTypesConverter.toEvitaDataType(attributeSchema.getType()),
 			attributeSchema.hasDefaultValue() ? EvitaDataTypesConverter.toEvitaValue(attributeSchema.getDefaultValue()) : null,
-			attributeSchema.getIndexedDecimalPlaces()
+			attributeSchema.getIndexedDecimalPlaces(),
+			EvitaEnumConverter.toConflictResolutionOverride(attributeSchema.getConflictResolutionOverride())
 		);
 	}
 

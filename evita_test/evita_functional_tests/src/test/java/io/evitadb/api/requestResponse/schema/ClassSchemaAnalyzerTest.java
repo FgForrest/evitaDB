@@ -33,6 +33,10 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuil
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.api.requestResponse.schema.dto.EntityAttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolution;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
+import io.evitadb.api.requestResponse.mutation.conflict.GranularConflictPolicy;
 import io.evitadb.api.requestResponse.schema.model.*;
 import io.evitadb.api.requestResponse.schema.model.evolution.*;
 import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
@@ -78,6 +82,7 @@ import java.lang.reflect.Method;
 import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.Currency;
+import java.util.EnumSet;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
@@ -4868,6 +4873,199 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 			}
 			throw new AssertionError(
 				"Expected histogram entry named `" + name + "` in: " + Arrays.toString(entries)
+			);
+		}
+
+	}
+
+	@Nested
+	@DisplayName("Conflict resolution")
+	class ConflictResolutionAnalysis {
+
+		@DisplayName("Entity-level conflict resolution is derived from the annotation")
+		@Test
+		void shouldDeriveEntityLevelConflictResolutionFromAnnotation() {
+			ClassSchemaAnalyzerTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.defineEntitySchemaFromModelClass(ConflictResolutionAnnotatedEntity.class);
+
+					final SealedEntitySchema entitySchema = session.getEntitySchema("ConflictResolutionEntity")
+						.orElseThrow();
+					final ConflictResolution resolution = entitySchema.getConflictResolution().orElseThrow();
+
+					assertEquals(ConflictPolicy.ENTITY, resolution.policy());
+					assertEquals(EnumSet.of(GranularConflictPolicy.PRICE), resolution.granularity());
+				}
+			);
+		}
+
+		@DisplayName("Per-item conflict resolution overrides are derived from the annotations")
+		@Test
+		void shouldDerivePerItemConflictResolutionOverrides() {
+			ClassSchemaAnalyzerTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.defineEntitySchemaFromModelClass(ConflictResolutionAnnotatedEntity.class);
+
+					final SealedEntitySchema entitySchema = session.getEntitySchema("ConflictResolutionEntity")
+						.orElseThrow();
+
+					// entity attribute without the annotation follows the resolved policy
+					assertEquals(
+						ConflictResolutionOverride.INHERITED,
+						entitySchema.getAttribute("inheritedCode").orElseThrow().getConflictResolutionOverride()
+					);
+					// GRANULAR opts the attribute into its own key
+					assertEquals(
+						ConflictResolutionOverride.GRANULAR,
+						entitySchema.getAttribute("granularQuantity").orElseThrow().getConflictResolutionOverride()
+					);
+					// ENTITY pins the attribute to the whole-entity key
+					assertEquals(
+						ConflictResolutionOverride.ENTITY,
+						entitySchema.getAttribute("entityPinnedName").orElseThrow().getConflictResolutionOverride()
+					);
+
+					// a global attribute honors the override identically to a locally declared attribute
+					final AttributeSchemaContract globalAttribute = entitySchema.getAttribute("globalGranularCode")
+						.orElseThrow();
+					assertInstanceOf(GlobalAttributeSchemaContract.class, globalAttribute);
+					assertEquals(
+						ConflictResolutionOverride.GRANULAR,
+						globalAttribute.getConflictResolutionOverride()
+					);
+
+					// associated data
+					assertEquals(
+						ConflictResolutionOverride.GRANULAR,
+						entitySchema.getAssociatedData("granularData").orElseThrow().getConflictResolutionOverride()
+					);
+
+					// a reference and one of its attributes carry independent overrides
+					final ReferenceSchemaContract reference = entitySchema.getReference("granularBrand").orElseThrow();
+					assertEquals(ConflictResolutionOverride.GRANULAR, reference.getConflictResolutionOverride());
+					assertEquals(
+						ConflictResolutionOverride.ENTITY,
+						reference.getAttribute("pinnedRefAttr").orElseThrow().getConflictResolutionOverride()
+					);
+				}
+			);
+		}
+
+		@DisplayName("Absent conflict annotations leave items inherited and the entity resolution unset")
+		@Test
+		void shouldLeaveConflictResolutionInheritedByDefault() {
+			ClassSchemaAnalyzerTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.defineEntitySchemaFromModelClass(ConflictResolutionDefaultEntity.class);
+
+					final SealedEntitySchema entitySchema = session.getEntitySchema("ConflictResolutionDefaultEntity")
+						.orElseThrow();
+
+					assertTrue(entitySchema.getConflictResolution().isEmpty());
+					assertEquals(
+						ConflictResolutionOverride.INHERITED,
+						entitySchema.getAttribute("plainCode").orElseThrow().getConflictResolutionOverride()
+					);
+					assertEquals(
+						ConflictResolutionOverride.INHERITED,
+						entitySchema.getAttribute("plainName").orElseThrow().getConflictResolutionOverride()
+					);
+				}
+			);
+		}
+
+		@DisplayName("Granular refinements under a coarser-than-entity policy are rejected")
+		@Test
+		void shouldRejectGranularConflictResolutionUnderCoarserPolicy() {
+			ClassSchemaAnalyzerTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					assertThrows(
+						SchemaClassInvalidException.class,
+						() -> session.defineEntitySchemaFromModelClass(ConflictResolutionIllegalEntity.class)
+					);
+				}
+			);
+		}
+
+		@DisplayName("Re-deriving from a model class whose annotation omits a conflict resolution preserves an explicit per-item override")
+		@Test
+		void shouldPreservePerItemOverrideWhenReDerivedFromDefaultAnnotation() {
+			ClassSchemaAnalyzerTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					// derive the schema from a model class that carries no conflict-resolution annotation
+					session.defineEntitySchemaFromModelClass(ConflictResolutionDefaultEntity.class);
+
+					// explicitly opt an attribute and an associated data into their own conflict key through the
+					// fluent schema builder - these route through two distinct reconciliation sites in the analyzer
+					session.getEntitySchema("ConflictResolutionDefaultEntity")
+						.orElseThrow()
+						.openForWrite()
+						.withAttribute(
+							"plainCode", String.class,
+							whichIs -> whichIs.withConflictResolutionOverride(ConflictResolutionOverride.GRANULAR))
+						.withAssociatedData(
+							"plainData", String.class,
+							whichIs -> whichIs.withConflictResolutionOverride(ConflictResolutionOverride.GRANULAR))
+						.updateVia(session);
+
+					// sanity: the explicit overrides are now in place
+					final SealedEntitySchema afterOverride = session.getEntitySchema("ConflictResolutionDefaultEntity")
+						.orElseThrow();
+					assertEquals(
+						ConflictResolutionOverride.GRANULAR,
+						afterOverride.getAttribute("plainCode").orElseThrow().getConflictResolutionOverride()
+					);
+					assertEquals(
+						ConflictResolutionOverride.GRANULAR,
+						afterOverride.getAssociatedData("plainData").orElseThrow().getConflictResolutionOverride()
+					);
+
+					// re-derive from the same annotation-free model class
+					session.defineEntitySchemaFromModelClass(ConflictResolutionDefaultEntity.class);
+
+					// the annotation attributes default to INHERITED, which carries no opinion; reconciliation must
+					// leave the explicitly-set GRANULAR overrides untouched rather than resetting them to INHERITED
+					final SealedEntitySchema afterReDerive = session.getEntitySchema("ConflictResolutionDefaultEntity")
+						.orElseThrow();
+					assertEquals(
+						ConflictResolutionOverride.GRANULAR,
+						afterReDerive.getAttribute("plainCode").orElseThrow().getConflictResolutionOverride()
+					);
+					assertEquals(
+						ConflictResolutionOverride.GRANULAR,
+						afterReDerive.getAssociatedData("plainData").orElseThrow().getConflictResolutionOverride()
+					);
+				}
+			);
+		}
+
+		@DisplayName("Reflected references never receive a conflict resolution override")
+		@Test
+		void shouldLeaveReflectedReferenceConflictResolutionInherited() {
+			ClassSchemaAnalyzerTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.defineEntitySchemaFromModelClass(FieldBasedEntityWithReflectedReferencedEntity.Brand.class);
+					session.defineEntitySchemaFromModelClass(
+						FieldBasedEntityWithReflectedReferencedEntity.BrandGroup.class);
+					session.defineEntitySchemaFromModelClass(FieldBasedEntityWithReflectedReferencedEntity.class);
+
+					final SealedEntitySchema entitySchema = session.getEntitySchema(
+						"FieldBasedEntityWithReflectedReferencedEntity").orElseThrow();
+					final ReferenceSchemaContract reflectedReference = entitySchema.getReference("marketingBrand")
+						.orElseThrow();
+
+					assertInstanceOf(ReflectedReferenceSchemaContract.class, reflectedReference);
+					assertEquals(
+						ConflictResolutionOverride.INHERITED,
+						reflectedReference.getConflictResolutionOverride()
+					);
+				}
 			);
 		}
 

@@ -33,6 +33,7 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.schema.dto.HistogramIndexDefinition;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.dataType.Scope;
@@ -117,6 +118,8 @@ public class ReferenceSchemaSerializer extends Serializer<ReferenceSchema> {
 		}
 
 		writeSortableAttributeCompounds(kryo, output, referenceSchema.getSortableAttributeCompounds().values());
+
+		kryo.writeObject(output, referenceSchema.getConflictResolutionOverride());
 	}
 
 	@Override
@@ -146,6 +149,8 @@ public class ReferenceSchemaSerializer extends Serializer<ReferenceSchema> {
 
 		final Map<String, SortableAttributeCompoundSchemaContract> sortableAttributeCompounds = readSortableAttributeCompounds(kryo, input);
 
+		final ConflictResolutionOverride conflictResolutionOverride = kryo.readObject(input, ConflictResolutionOverride.class);
+
 		return ReferenceSchema._internalBuild(
 			name, nameVariants, description, deprecationNotice,
 			cardinality,
@@ -157,7 +162,7 @@ public class ReferenceSchemaSerializer extends Serializer<ReferenceSchema> {
 			facetedPartiallyInScopes,
 			bucketedInScopes,
 			bucketedPartiallyInScopes,
-			attributes, sortableAttributeCompounds
+			attributes, sortableAttributeCompounds, conflictResolutionOverride
 		);
 	}
 

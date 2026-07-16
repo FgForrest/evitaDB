@@ -71,7 +71,8 @@ public class CreateGlobalAttributeSchemaMutationConverter implements SchemaMutat
 			mutation.getRepresentative(),
 			EvitaDataTypesConverter.toEvitaDataType(mutation.getType()),
 			mutation.hasDefaultValue() ? EvitaDataTypesConverter.toEvitaValue(mutation.getDefaultValue()) : null,
-			mutation.getIndexedDecimalPlaces()
+			mutation.getIndexedDecimalPlaces(),
+			toConflictResolutionOverride(mutation.getConflictResolutionOverride())
 		);
 	}
 
@@ -115,8 +116,10 @@ public class CreateGlobalAttributeSchemaMutationConverter implements SchemaMutat
 			)
 			.setLocalized(mutation.isLocalized())
 			.setNullable(mutation.isNullable())
+			.setRepresentative(mutation.isRepresentative())
 			.setType(EvitaDataTypesConverter.toGrpcEvitaDataType(mutation.getType()))
-			.setIndexedDecimalPlaces(mutation.getIndexedDecimalPlaces());
+			.setIndexedDecimalPlaces(mutation.getIndexedDecimalPlaces())
+			.setConflictResolutionOverride(toGrpcConflictResolutionOverride(mutation.getConflictResolutionOverride()));
 
 		if (mutation.getDescription() != null) {
 			builder.setDescription(StringValue.of(mutation.getDescription()));

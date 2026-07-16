@@ -27,6 +27,7 @@ package io.evitadb.api.requestResponse.mutation.conflict;
 import io.evitadb.api.exception.ConflictingCatalogCommutativeMutationException;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.dataType.NumberRange;
+import io.evitadb.utils.Assert;
 import io.evitadb.utils.NumberUtils;
 
 import javax.annotation.Nonnull;
@@ -46,6 +47,25 @@ public record AttributeDeltaConflictKey(
 	@Nonnull Number deltaValue,
 	@Nullable NumberRange<?> allowedRange
 ) implements CommutativeConflictKey<Number> {
+
+    /**
+     * A range-constrained attribute delta is contained by the absolute attribute-level write it can conflict with: an
+     * unconditional overwrite of the same attribute invalidates the delta's post-application range guard, so the two
+     * must serialize. The owning {@link AttributeConflictKey} is keyed by name only, so the delta's locale-bearing
+     * {@link AttributeKey} is projected to its name. When the entity primary key is not yet assigned (delta applied
+     * during entity creation) no entity- or attribute-level key can be formed, so the finest derivable containing
+     * scope is the collection.
+     *
+     * @return an {@link AttributeConflictKey} for the same attribute when the primary key is known, otherwise a
+     *         {@link CollectionConflictKey} for the entity's collection
+     */
+    @Nonnull
+    @Override
+    public ConflictKey parentConflictKey() {
+        return this.entityPrimaryKey == null ?
+            new CollectionConflictKey(this.entityType) :
+            new AttributeConflictKey(this.entityType, this.entityPrimaryKey, this.attributeKey.attributeName());
+    }
 
     @Nonnull
     @Override
@@ -76,7 +96,7 @@ public record AttributeDeltaConflictKey(
     }
 
     @Override
-    public boolean equals(Object o) {
+    public boolean equals(@Nullable Object o) {
         if (!(o instanceof AttributeDeltaConflictKey that)) return false;
 
         return this.entityType.equals(that.entityType) &&
@@ -86,15 +106,56 @@ public record AttributeDeltaConflictKey(
             Objects.equals(this.allowedRange, that.allowedRange);
     }
 
-    // hashCode intentionally excludes deltaValue and allowedRange so that keys differing only
-    // in the delta/range land in the same hash bucket, enabling efficient aggregation lookups
+    /**
+     * Hashes the full identity, consistent with {@link #equals(Object)} (including the delta value and
+     * allowed range). Accumulation grouping is handled separately by {@link #aggregationKey()}, so the hash
+     * no longer needs to collapse keys that differ only in their delta.
+     */
     @Override
     public int hashCode() {
         int result = this.entityType.hashCode();
         result = 31 * result + Objects.hashCode(this.entityPrimaryKey);
         result = 31 * result + this.attributeKey.hashCode();
+        result = 31 * result + this.deltaValue.hashCode();
+        result = 31 * result + Objects.hashCode(this.allowedRange);
         return result;
     }
+
+    /**
+     * {@inheritDoc}
+     *
+     * Requires a resolved {@link #entityPrimaryKey()}: commit-time accumulation is the sole consumer of the
+     * aggregation key, and by then a generated primary key has already been assigned during upsert (see
+     * {@code EntityCollection.verifyPrimaryKeyAssignment}) — well before the mutation is read back from the
+     * WAL for conflict resolution. A null primary key here would collapse the accumulation slot of every
+     * concurrently-created entity of the same type into one, so it is rejected as a programming error rather
+     * than silently mis-merged. This precondition is deliberately stricter than {@link #parentConflictKey()},
+     * which stays null-tolerant because it serves the scope/containment path, not accumulation.
+     *
+     * @return a {@link DeltaAggregationKey} over the entity type, primary key and attribute key, so deltas on
+     *         the same attribute accumulate regardless of their individual delta value or allowed range
+     */
+    @Nonnull
+    @Override
+    public Object aggregationKey() {
+        Assert.isPremiseValid(
+            this.entityPrimaryKey != null,
+            "A commutative attribute-delta conflict key must carry a resolved entity primary key before it " +
+                "can take part in commit-time accumulation."
+        );
+        return new DeltaAggregationKey(this.entityType, this.entityPrimaryKey, null, this.attributeKey);
+    }
+
+	/**
+	 * {@inheritDoc}
+	 *
+	 * @return {@link ConflictScope#ATTRIBUTE}
+	 */
+	@Nonnull
+	@Override
+	public ConflictScope conflictScope() {
+		return ConflictScope.ATTRIBUTE;
+	}
 
     /**
 	 * Returns a concise, human-readable representation of this conflict key.

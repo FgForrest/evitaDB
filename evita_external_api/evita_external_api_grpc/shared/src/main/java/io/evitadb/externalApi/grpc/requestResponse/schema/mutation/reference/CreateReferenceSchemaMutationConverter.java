@@ -42,6 +42,8 @@ import lombok.NoArgsConstructor;
 import javax.annotation.Nonnull;
 import java.util.Arrays;
 
+import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toConflictResolutionOverride;
+import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toGrpcConflictResolutionOverride;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -117,7 +119,8 @@ public class CreateReferenceSchemaMutationConverter implements SchemaMutationCon
 			facetedInScopes,
 			facetedPartiallyInScopes,
 			bucketedInScopes,
-			bucketedPartiallyInScopes
+			bucketedPartiallyInScopes,
+			toConflictResolutionOverride(mutation.getConflictResolutionOverride())
 		);
 	}
 
@@ -148,7 +151,8 @@ public class CreateReferenceSchemaMutationConverter implements SchemaMutationCon
 				Arrays.stream(mutation.getFacetedInScopes())
 					.map(EvitaEnumConverter::toGrpcScope)
 					.toList()
-			);
+			)
+			.setConflictResolutionOverride(toGrpcConflictResolutionOverride(mutation.getConflictResolutionOverride()));
 
 		if (mutation.getDescription() != null) {
 			builder.setDescription(StringValue.of(mutation.getDescription()));

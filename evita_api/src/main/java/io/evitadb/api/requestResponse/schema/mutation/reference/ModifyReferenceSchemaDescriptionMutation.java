@@ -130,7 +130,8 @@ public class ModifyReferenceSchemaDescriptionMutation
 					referenceSchema.getAllHistogramIndexDefinitions(),
 					referenceSchema.getBucketedPartiallyInScopes(),
 					referenceSchema.getAttributes(),
-					referenceSchema.getSortableAttributeCompounds()
+					referenceSchema.getSortableAttributeCompounds(),
+					referenceSchema.getConflictResolutionOverride()
 				);
 			}
 		}

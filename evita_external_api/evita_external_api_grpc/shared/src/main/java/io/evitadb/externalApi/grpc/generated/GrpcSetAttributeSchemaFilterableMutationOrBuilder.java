@@ -61,7 +61,7 @@ public interface GrpcSetAttributeSchemaFilterableMutationOrBuilder extends
    *
    * <code>bool filterable = 2 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaFilterableMutation.filterable is deprecated.
-   *     See GrpcAttributeSchemaMutations.proto;l=203
+   *     See GrpcAttributeSchemaMutations.proto;l=207
    * @return The filterable.
    */
   @java.lang.Deprecated boolean getFilterable();

@@ -24,6 +24,7 @@
 package io.evitadb.api.requestResponse.schema.builder;
 
 import io.evitadb.api.exception.InvalidSchemaMutationException;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolution;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor.CatalogSchemaBuilder;
@@ -41,6 +42,7 @@ import io.evitadb.api.requestResponse.schema.mutation.attribute.RemoveAttributeS
 import io.evitadb.api.requestResponse.schema.mutation.catalog.AllowEvolutionModeInCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.CreateEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.DisallowEvolutionModeInCatalogSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyCatalogSchemaConflictResolutionMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyCatalogSchemaDescriptionMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.MutationEntitySchemaAccessor;
 import io.evitadb.api.requestResponse.schema.mutation.engine.ModifyCatalogSchemaMutation;
@@ -131,6 +133,32 @@ public final class InternalCatalogSchemaBuilder implements CatalogSchemaBuilder,
 			addMutations(
 				this.baseSchema, this.mutations,
 				new ModifyCatalogSchemaDescriptionMutation(description)
+			)
+		);
+		return this;
+	}
+
+	@Nonnull
+	@Override
+	public CatalogSchemaBuilder withConflictResolution(@Nonnull ConflictResolution conflictResolution) {
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				this.baseSchema, this.mutations,
+				new ModifyCatalogSchemaConflictResolutionMutation(conflictResolution)
+			)
+		);
+		return this;
+	}
+
+	@Nonnull
+	@Override
+	public CatalogSchemaBuilder withoutConflictResolution() {
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				this.baseSchema, this.mutations,
+				new ModifyCatalogSchemaConflictResolutionMutation(null)
 			)
 		);
 		return this;

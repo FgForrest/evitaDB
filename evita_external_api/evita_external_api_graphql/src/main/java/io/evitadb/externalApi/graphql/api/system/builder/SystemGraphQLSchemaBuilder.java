@@ -69,6 +69,7 @@ import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedHistogramIndexDe
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedBucketedPartiallyDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedFacetedPartiallyDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedGlobalAttributeUniquenessTypeDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.ConflictResolutionDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedReferenceIndexTypeDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedReferenceIndexedComponentsDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.LocalCatalogSchemaMutationUnionDescriptor;
@@ -79,12 +80,14 @@ import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedDat
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.ModifyAssociatedDataSchemaNameMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.ModifyAssociatedDataSchemaTypeMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.RemoveAssociatedDataSchemaMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.SetAssociatedDataSchemaConflictResolutionOverrideMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.SetAssociatedDataSchemaLocalizedMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.SetAssociatedDataSchemaNullableMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.*;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.AllowEvolutionModeInCatalogSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.CreateEntitySchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.DisallowEvolutionModeInCatalogSchemaMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.ModifyCatalogSchemaConflictResolutionMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.ModifyCatalogSchemaDescriptionMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.ModifyEntitySchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.ModifyEntitySchemaNameMutationDescriptor;
@@ -198,6 +201,7 @@ public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQ
 		this.buildingContext.registerType(ScopedHistogramIndexDefinitionDescriptor.THIS.to(this.objectBuilderTransformer).build());
 		this.buildingContext.registerType(ScopedBucketedPartiallyDescriptor.THIS.to(this.objectBuilderTransformer).build());
 		this.buildingContext.registerType(AttributeElementDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(ConflictResolutionDescriptor.THIS.to(this.objectBuilderTransformer).build());
 
 		buildMutationInterface();
 		final Map<Class<? extends Mutation>, GraphQLObjectType> registeredOutputMutations = buildOutputMutations();
@@ -231,6 +235,7 @@ public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQ
 		this.buildingContext.registerType(ChangeCatalogCaptureCriteriaDescriptor.THIS.to(this.inputObjectBuilderTransformer).build());
 		// system criteria input — registering this also auto-registers the `SystemCaptureArea` enum
 		this.buildingContext.registerType(ChangeSystemCaptureCriteriaDescriptor.THIS.to(this.inputObjectBuilderTransformer).build());
+		this.buildingContext.registerType(ConflictResolutionDescriptor.THIS_INPUT.to(this.inputObjectBuilderTransformer).build());
 
 		this.buildingContext.registerQueryField(buildLivenessField());
 		this.buildingContext.registerQueryField(buildCatalogField());
@@ -286,6 +291,7 @@ public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQ
 			SetEntitySchemaWithGeneratedPrimaryKeyMutationDescriptor.THIS,
 			SetEntitySchemaWithHierarchyMutationDescriptor.THIS,
 			SetEntitySchemaWithPriceMutationDescriptor.THIS,
+			ModifyEntitySchemaConflictResolutionMutationDescriptor.THIS,
 
 			// associated data schema mutations
 			CreateAssociatedDataSchemaMutationDescriptor.THIS,
@@ -296,6 +302,7 @@ public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQ
 			RemoveAssociatedDataSchemaMutationDescriptor.THIS,
 			SetAssociatedDataSchemaLocalizedMutationDescriptor.THIS,
 			SetAssociatedDataSchemaNullableMutationDescriptor.THIS,
+			SetAssociatedDataSchemaConflictResolutionOverrideMutationDescriptor.THIS,
 
 			// attribute schema mutations
 			CreateAttributeSchemaMutationDescriptor.THIS,
@@ -312,6 +319,7 @@ public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQ
 			SetAttributeSchemaSortableMutationDescriptor.THIS,
 			UseGlobalAttributeSchemaMutationDescriptor.THIS,
 			SetAttributeSchemaUniqueMutationDescriptor.THIS,
+			SetAttributeSchemaConflictResolutionOverrideMutationDescriptor.THIS,
 
 			// sortable attribute compound schema mutations
 			CreateSortableAttributeCompoundSchemaMutationDescriptor.THIS,
@@ -337,12 +345,14 @@ public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQ
 			SetReferenceSchemaBucketedMutationDescriptor.THIS,
 			SetReferenceSchemaFacetedMutationDescriptor.THIS,
 			SetReferenceSchemaIndexedMutationDescriptor.THIS,
+			SetReferenceSchemaConflictResolutionOverrideMutationDescriptor.THIS,
 
 			// catalog schema mutations
 			CreateEntitySchemaMutationDescriptor.THIS,
 			ModifyEntitySchemaMutationDescriptor.THIS,
 			RemoveEntitySchemaMutationDescriptor.THIS,
 			ModifyCatalogSchemaDescriptionMutationDescriptor.THIS,
+			ModifyCatalogSchemaConflictResolutionMutationDescriptor.THIS,
 			AllowEvolutionModeInCatalogSchemaMutationDescriptor.THIS,
 			DisallowEvolutionModeInCatalogSchemaMutationDescriptor.THIS,
 

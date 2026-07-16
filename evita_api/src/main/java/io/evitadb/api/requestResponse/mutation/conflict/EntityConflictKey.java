@@ -40,6 +40,28 @@ public record EntityConflictKey(
 ) implements ConflictKey {
 
 	/**
+	 * An entity is contained by its collection: any collection-wide conflict implies a conflict on this entity.
+	 *
+	 * @return a {@link CollectionConflictKey} for this entity's collection
+	 */
+	@Nonnull
+	@Override
+	public ConflictKey parentConflictKey() {
+		return new CollectionConflictKey(this.entityType);
+	}
+
+	/**
+	 * {@inheritDoc}
+	 *
+	 * @return {@link ConflictScope#ENTITY}
+	 */
+	@Nonnull
+	@Override
+	public ConflictScope conflictScope() {
+		return ConflictScope.ENTITY;
+	}
+
+	/**
 	 * Returns a concise, human-readable representation of this conflict key.
 	 *
 	 * @return non-null string representation

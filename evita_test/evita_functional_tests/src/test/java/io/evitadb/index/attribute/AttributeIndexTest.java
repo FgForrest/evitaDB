@@ -62,6 +62,7 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.index.UniqueIndexLe
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.UniqueIndexStoragePart;
 import io.evitadb.test.duration.TimeBoundedTestSupport;
 import io.evitadb.utils.NamingConvention;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
@@ -119,6 +120,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 	 */
 	private static final CatalogSchema CATALOG_SCHEMA = CatalogSchema._internalBuild(
 		APITestConstants.TEST_CATALOG, NamingConvention.generate(APITestConstants.TEST_CATALOG),
+		null,
 		EnumSet.allOf(CatalogEvolutionMode.class), EmptyEntitySchemaAccessor.INSTANCE
 	);
 	private static final EntitySchema PRODUCT_SCHEMA = EntitySchema._internalBuild(ENTITY_TYPE);
@@ -1234,7 +1236,8 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 				new Scope[]{Scope.LIVE},
 				false, false, false,
 				BigDecimal.class, null,
-				indexedDecimalPlaces
+				indexedDecimalPlaces,
+				ConflictResolutionOverride.INHERITED
 			);
 		}
 

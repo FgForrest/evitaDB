@@ -25,6 +25,7 @@ package io.evitadb.api.requestResponse.schema.dto;
 
 import io.evitadb.dataType.ComplexDataObject;
 import io.evitadb.utils.NamingConvention;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -52,7 +53,7 @@ class AssociatedDataSchemaTest {
 		@DisplayName("should build minimal schema with name and type")
 		void shouldBuildMinimalSchema() {
 			final AssociatedDataSchema schema =
-				(AssociatedDataSchema) AssociatedDataSchema._internalBuild("labels", String.class);
+				(AssociatedDataSchema) AssociatedDataSchema._internalBuild("labels", String.class, ConflictResolutionOverride.INHERITED);
 
 			assertEquals("labels", schema.getName());
 			assertSame(String.class, schema.getType());
@@ -71,7 +72,8 @@ class AssociatedDataSchemaTest {
 				"Product description",
 				"Use richDescription instead",
 				String.class,
-				true, true
+				true, true,
+				ConflictResolutionOverride.INHERITED
 			);
 
 			assertEquals("description", schema.getName());
@@ -88,7 +90,8 @@ class AssociatedDataSchemaTest {
 			final AssociatedDataSchema schema = AssociatedDataSchema._internalBuild(
 				"productData", variants,
 				null, null,
-				String.class, false, false
+				String.class, false, false,
+				ConflictResolutionOverride.INHERITED
 			);
 
 			assertEquals(
@@ -101,7 +104,8 @@ class AssociatedDataSchemaTest {
 		@DisplayName("should wrap primitive types to wrapper types")
 		void shouldWrapPrimitiveTypes() {
 			final AssociatedDataSchema schema = AssociatedDataSchema._internalBuild(
-				"count", null, null, int.class, false, false
+				"count", null, null, int.class, false, false,
+				ConflictResolutionOverride.INHERITED
 			);
 
 			assertSame(Integer.class, schema.getType());
@@ -111,7 +115,8 @@ class AssociatedDataSchemaTest {
 		@DisplayName("should resolve plain type from array type")
 		void shouldResolvePlainTypeFromArray() {
 			final AssociatedDataSchema schema = AssociatedDataSchema._internalBuild(
-				"tags", null, null, String[].class, false, false
+				"tags", null, null, String[].class, false, false,
+				ConflictResolutionOverride.INHERITED
 			);
 
 			assertSame(String[].class, schema.getType());
@@ -122,7 +127,8 @@ class AssociatedDataSchemaTest {
 		@DisplayName("should use ComplexDataObject for unsupported types")
 		void shouldUseComplexDataObjectForUnsupportedTypes() {
 			final AssociatedDataSchema schema = AssociatedDataSchema._internalBuild(
-				"metadata", null, null, java.util.HashMap.class, false, false
+				"metadata", null, null, java.util.HashMap.class, false, false,
+				ConflictResolutionOverride.INHERITED
 			);
 
 			assertSame(ComplexDataObject.class, schema.getType());
@@ -137,10 +143,12 @@ class AssociatedDataSchemaTest {
 		@DisplayName("should be equal for same parameters")
 		void shouldBeEqual() {
 			final AssociatedDataSchema a = AssociatedDataSchema._internalBuild(
-				"data", null, null, String.class, false, false
+				"data", null, null, String.class, false, false,
+				ConflictResolutionOverride.INHERITED
 			);
 			final AssociatedDataSchema b = AssociatedDataSchema._internalBuild(
-				"data", null, null, String.class, false, false
+				"data", null, null, String.class, false, false,
+				ConflictResolutionOverride.INHERITED
 			);
 
 			assertEquals(a, b);
@@ -151,10 +159,12 @@ class AssociatedDataSchemaTest {
 		@DisplayName("should not be equal when names differ")
 		void shouldNotBeEqualWhenNamesDiffer() {
 			final AssociatedDataSchema a = AssociatedDataSchema._internalBuild(
-				"data1", null, null, String.class, false, false
+				"data1", null, null, String.class, false, false,
+				ConflictResolutionOverride.INHERITED
 			);
 			final AssociatedDataSchema b = AssociatedDataSchema._internalBuild(
-				"data2", null, null, String.class, false, false
+				"data2", null, null, String.class, false, false,
+				ConflictResolutionOverride.INHERITED
 			);
 
 			assertNotEquals(a, b);
@@ -164,13 +174,31 @@ class AssociatedDataSchemaTest {
 		@DisplayName("should not be equal when localized differs")
 		void shouldNotBeEqualWhenLocalizedDiffers() {
 			final AssociatedDataSchema a = AssociatedDataSchema._internalBuild(
-				"data", null, null, String.class, true, false
+				"data", null, null, String.class, true, false,
+				ConflictResolutionOverride.INHERITED
 			);
 			final AssociatedDataSchema b = AssociatedDataSchema._internalBuild(
-				"data", null, null, String.class, false, false
+				"data", null, null, String.class, false, false,
+				ConflictResolutionOverride.INHERITED
 			);
 
 			assertNotEquals(a, b);
+		}
+
+		@Test
+		@DisplayName("should not be equal when conflict resolution override differs")
+		void shouldNotBeEqualWhenConflictResolutionOverrideDiffers() {
+			final AssociatedDataSchema a = AssociatedDataSchema._internalBuild(
+				"data", null, null, String.class, false, false,
+				ConflictResolutionOverride.INHERITED
+			);
+			final AssociatedDataSchema b = AssociatedDataSchema._internalBuild(
+				"data", null, null, String.class, false, false,
+				ConflictResolutionOverride.GRANULAR
+			);
+
+			assertNotEquals(a, b);
+			assertNotEquals(a.hashCode(), b.hashCode());
 		}
 	}
 }

@@ -100,7 +100,7 @@ class ConflictResolutionAndWalAppendingTransactionStageTest {
 			);
 
 		// T1 — identifyConflicts succeeds, WAL append throws a generic RuntimeException
-		doNothing().when(tm).identifyConflicts(anyLong(), any(), any());
+		doNothing().when(tm).identifyConflicts(anyLong(), anyLong(), any(), any());
 		doThrow(new RuntimeException("simulated WAL fsync failure"))
 			.when(tm).appendWalAndDiscard(any(), any(), any());
 
@@ -112,7 +112,7 @@ class ConflictResolutionAndWalAppendingTransactionStageTest {
 
 		// T2..T7 — identifyConflicts throws, so the assignment step is never reached.
 		doThrow(new RuntimeException("simulated conflict"))
-			.when(tm).identifyConflicts(anyLong(), any(), any());
+			.when(tm).identifyConflicts(anyLong(), anyLong(), any(), any());
 
 		for (int i = 2; i <= 7; i++) {
 			feed(stage, newTask());
@@ -145,7 +145,7 @@ class ConflictResolutionAndWalAppendingTransactionStageTest {
 			);
 
 		// T1 succeeds end-to-end.
-		doNothing().when(tm).identifyConflicts(anyLong(), any(), any());
+		doNothing().when(tm).identifyConflicts(anyLong(), anyLong(), any(), any());
 		doAnswer(inv -> {
 			lastWritten.set(313L);
 			return 0L;
@@ -158,7 +158,7 @@ class ConflictResolutionAndWalAppendingTransactionStageTest {
 
 		// T2 fails inside identifyConflicts — no assignment should happen, no rollback either.
 		doThrow(new RuntimeException("simulated conflict"))
-			.when(tm).identifyConflicts(anyLong(), any(), any());
+			.when(tm).identifyConflicts(anyLong(), anyLong(), any(), any());
 
 		feed(stage, newTask());
 

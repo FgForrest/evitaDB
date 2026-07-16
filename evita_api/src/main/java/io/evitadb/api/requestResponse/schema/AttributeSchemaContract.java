@@ -65,7 +65,7 @@ import java.util.Set;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-public interface AttributeSchemaContract extends NamedSchemaWithDeprecationContract {
+public interface AttributeSchemaContract extends NamedSchemaWithDeprecationContract, ConflictResolutionOverrideAwareSchemaContract {
 
 	/**
 	 * Representative flag marks the attribute as one of the most important attributes in the entity, or when used

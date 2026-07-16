@@ -25,6 +25,10 @@ package io.evitadb.externalApi.grpc.requestResponse.schema;
 
 import io.evitadb.api.query.expression.ExpressionFactory;
 import io.evitadb.api.query.order.OrderDirection;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolution;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
+import io.evitadb.api.requestResponse.mutation.conflict.GranularConflictPolicy;
 import io.evitadb.api.requestResponse.schema.*;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.api.requestResponse.schema.dto.*;
@@ -72,7 +76,7 @@ class EntitySchemaConverterTest {
 
 	@Nonnull
 	private static CatalogSchema createCatalogSchemaWithSingleEntitySchema(EntitySchema entitySchema) {
-		return CatalogSchema._internalBuild("test", Collections.emptyMap(), EnumSet.allOf(CatalogEvolutionMode.class), new EntitySchemaProvider() {
+		return CatalogSchema._internalBuild("test", Collections.emptyMap(), null, EnumSet.allOf(CatalogEvolutionMode.class), new EntitySchemaProvider() {
 			@Nonnull
 			@Override
 			public Collection<EntitySchemaContract> getEntitySchemas() {
@@ -94,6 +98,7 @@ class EntitySchemaConverterTest {
 			Entities.PRODUCT,
 			"Lorem ipsum dolor sit amet.",
 			"Alert! Deprecated!",
+			new ConflictResolution(ConflictPolicy.ENTITY, EnumSet.of(GranularConflictPolicy.PRICE)),
 			true,
 			false,
 			Scope.NO_SCOPE,
@@ -103,7 +108,7 @@ class EntitySchemaConverterTest {
 			Set.of(Locale.ENGLISH, Locale.GERMAN),
 			Set.of(Currency.getInstance("EUR"), Currency.getInstance("USD")),
 			Map.of(
-				"test1", EntityAttributeSchema._internalBuild("test1", LocalDateTime.class, true),
+				"test1", EntityAttributeSchema._internalBuild("test1", LocalDateTime.class, true, ConflictResolutionOverride.INHERITED),
 				"test2", GlobalAttributeSchema._internalBuild(
 					"test2",
 					"description",
@@ -121,12 +126,16 @@ class EntitySchemaConverterTest {
 					false,
 					String.class,
 					null,
-					0
+					0,
+					ConflictResolutionOverride.ENTITY
 				)
 			),
 			Map.of(
-				"test1", AssociatedDataSchema._internalBuild("test1", "Lorem ipsum", "Alert", Integer.class, false, true),
-				"test2", AssociatedDataSchema._internalBuild("test2", "Lorem ipsum", "Alert", String[].class, true, true)
+				"test1", AssociatedDataSchema._internalBuild(
+					"test1", "Lorem ipsum", "Alert", Integer.class, false, true,
+					ConflictResolutionOverride.GRANULAR
+				),
+				"test2", AssociatedDataSchema._internalBuild("test2", "Lorem ipsum", "Alert", String[].class, true, true, ConflictResolutionOverride.INHERITED)
 			),
 			Map.of(
 				"test1", ReferenceSchema._internalBuild(
@@ -181,12 +190,14 @@ class EntitySchemaConverterTest {
 							true,
 							String.class,
 							null,
-							0
+							0,
+							ConflictResolutionOverride.INHERITED
 						),
 						"priority", EntityAttributeSchema._internalBuild(
 							"code",
 							Long[].class,
-							false
+							false,
+							ConflictResolutionOverride.INHERITED
 						)
 					),
 					Map.of(
@@ -206,7 +217,8 @@ class EntitySchemaConverterTest {
 								new AttributeElement("age", OrderDirection.ASC, OrderBehaviour.NULLS_FIRST)
 							)
 						)
-					)
+					),
+					ConflictResolutionOverride.ENTITY
 				)
 			),
 			Set.of(EvolutionMode.ADDING_ASSOCIATED_DATA, EvolutionMode.ADDING_ATTRIBUTES),
@@ -238,6 +250,7 @@ class EntitySchemaConverterTest {
 		assertEquals(expected.getCurrencies(), actual.getCurrencies());
 		assertEquals(expected.getEvolutionMode(), actual.getEvolutionMode());
 		assertEquals(expected.getSortableAttributeCompounds(), actual.getSortableAttributeCompounds());
+		assertEquals(expected.getConflictResolution(), actual.getConflictResolution());
 
 		assertEquals(expected.getAttributes().size(), actual.getAttributes().size());
 		expected.getAttributes().forEach((attributeName, attribute) ->
@@ -281,6 +294,7 @@ class EntitySchemaConverterTest {
 		);
 		assertEquals(expected.getDefaultValue(), actual.getDefaultValue(), "Attribute `" + expected.getName() + "` is expected to have default value `" + expected.getDefaultValue() + "`!");
 		assertEquals(expected.getIndexedDecimalPlaces(), actual.getIndexedDecimalPlaces(), "Attribute `" + expected.getName() + "` is expected to have indexed decimal places `" + expected.getIndexedDecimalPlaces() + "`!");
+		assertEquals(expected.getConflictResolutionOverride(), actual.getConflictResolutionOverride(), "Attribute `" + expected.getName() + "` is expected to have conflict resolution override `" + expected.getConflictResolutionOverride() + "`!");
 	}
 
 	private static void assertSortableAttributeCompoundSchema(@Nonnull SortableAttributeCompoundSchemaContract expected, @Nonnull SortableAttributeCompoundSchemaContract actual) {
@@ -301,6 +315,7 @@ class EntitySchemaConverterTest {
 		assertEquals(expected.isLocalized(), actual.isLocalized());
 		assertEquals(expected.isNullable(), actual.isNullable());
 		assertSame(expected.getType(), actual.getType());
+		assertEquals(expected.getConflictResolutionOverride(), actual.getConflictResolutionOverride());
 	}
 
 	private static void assertReferenceSchema(@Nonnull ReferenceSchemaContract expected, @Nonnull ReferenceSchemaContract actual) {
@@ -319,6 +334,7 @@ class EntitySchemaConverterTest {
 		assertEquals(expected.isFaceted(), actual.isFaceted());
 		assertEquals(expected.getFacetedPartiallyInScopes(), actual.getFacetedPartiallyInScopes());
 		assertEquals(expected.getSortableAttributeCompounds(), actual.getSortableAttributeCompounds());
+		assertEquals(expected.getConflictResolutionOverride(), actual.getConflictResolutionOverride());
 
 		assertEquals(expected.getAttributes().size(), actual.getAttributes().size());
 		expected.getAttributes().forEach((attributeName, attribute) ->
@@ -459,6 +475,7 @@ class EntitySchemaConverterTest {
 			1,
 			Entities.PRODUCT,
 			null, null,
+			null,
 			true,
 			false,
 			Scope.NO_SCOPE,
@@ -494,7 +511,8 @@ class EntitySchemaConverterTest {
 					},
 					ScopedBucketedPartially.EMPTY,
 					Collections.emptyMap(),
-					Collections.emptyMap()
+					Collections.emptyMap(),
+					ConflictResolutionOverride.INHERITED
 				)
 			),
 			Collections.emptySet(),
