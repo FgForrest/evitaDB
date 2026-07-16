@@ -60,9 +60,9 @@ public class CatalogSchemaJsonSerializer extends SchemaJsonSerializer {
 	}
 
 	/**
-	 * Performs serialization and returns serialized entity in form of JsonNode
+	 * Serializes the given catalog schema into a `JsonNode`.
 	 *
-	 * @return serialized entity or list of entities
+	 * @return the serialized catalog schema
 	 */
 	public JsonNode serialize(@Nonnull CatalogSchemaContract catalogSchema,
 							  @Nonnull Function<String, EntitySchemaContract> entitySchemaFetcher,

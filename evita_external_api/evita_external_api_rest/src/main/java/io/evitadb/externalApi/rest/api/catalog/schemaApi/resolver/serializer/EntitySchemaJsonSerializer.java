@@ -44,7 +44,7 @@ import java.util.function.Function;
 import static io.evitadb.externalApi.api.ExternalApiNamingConventions.PROPERTY_NAME_NAMING_CONVENTION;
 
 /**
- * Handles serializing of {@link io.evitadb.api.requestResponse.schema.EntitySchemaContract} into JSON structure
+ * Handles serializing of {@link EntitySchemaContract} into JSON structure
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
@@ -56,9 +56,9 @@ public class EntitySchemaJsonSerializer extends SchemaJsonSerializer {
 	}
 
 	/**
-	 * Performs serialization and returns serialized entity in form of JsonNode
+	 * Serializes the given entity schema into a `JsonNode`.
 	 *
-	 * @return serialized entity or list of entities
+	 * @return the serialized entity schema
 	 */
 	public JsonNode serialize(@Nonnull EntitySchemaContract entitySchema,
 	                          @Nonnull Function<String, EntitySchemaContract> entitySchemaFetcher) {

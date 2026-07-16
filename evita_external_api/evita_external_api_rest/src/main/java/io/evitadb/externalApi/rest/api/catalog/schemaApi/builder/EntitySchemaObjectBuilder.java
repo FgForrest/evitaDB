@@ -158,7 +158,7 @@ public class EntitySchemaObjectBuilder {
 		final OpenApiSimpleType attributeSchemaType;
 		if (attributeSchema instanceof GlobalAttributeSchemaContract) {
 			attributeSchemaType = nonNull(typeRefTo(GlobalAttributeSchemaDescriptor.THIS.name()));
-		} else if (attributeSchema instanceof  EntityAttributeSchemaContract) {
+		} else if (attributeSchema instanceof EntityAttributeSchemaContract) {
 			attributeSchemaType = nonNull(typeRefTo(EntityAttributeSchemaDescriptor.THIS.name()));
 		} else {
 			attributeSchemaType = nonNull(typeRefTo(AttributeSchemaDescriptor.THIS.name()));
