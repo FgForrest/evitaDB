@@ -27,6 +27,7 @@ import io.evitadb.api.exception.ConflictingCatalogCommutativeMutationException;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.dataType.IntegerNumberRange;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.test.EvitaTestSupport;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -472,6 +473,18 @@ class ConflictKeyTest implements EvitaTestSupport {
 		}
 
 		@Test
+		@DisplayName("aggregation key rejects an unresolved (null) primary key as a programming error")
+		void aggregationKeyRequiresResolvedPrimaryKey() {
+			// the commit-time accumulation slot must be keyed by a resolved primary key; a generated key is
+			// assigned during upsert before the mutation is read back from the WAL, so a null primary key
+			// here would collapse every concurrently-created entity into one slot and is rejected fail-fast
+			final AttributeDeltaConflictKey unresolved = new AttributeDeltaConflictKey(
+				"Product", null, new AttributeKey("quantity"), 5, IntegerNumberRange.between(0, 100)
+			);
+			assertThrows(GenericEvitaInternalError.class, unresolved::aggregationKey);
+		}
+
+		@Test
 		@DisplayName("should produce readable toString")
 		void shouldProduceReadableToString() {
 			final AttributeDeltaConflictKey key = new AttributeDeltaConflictKey(
@@ -582,6 +595,18 @@ class ConflictKeyTest implements EvitaTestSupport {
 					"Product", 1, new ReferenceKey("brand", 10), new AttributeKey("priority"), 5, null
 				).hashCode()
 			);
+		}
+
+		@Test
+		@DisplayName("aggregation key rejects an unresolved (null) primary key as a programming error")
+		void aggregationKeyRequiresResolvedPrimaryKey() {
+			// same invariant as the plain attribute delta: accumulation demands a resolved primary key, so a
+			// null one (never produced once the mutation is read back from the WAL) fails fast
+			final ReferenceAttributeDeltaConflictKey unresolved = new ReferenceAttributeDeltaConflictKey(
+				"Product", null, new ReferenceKey("brand", 10), new AttributeKey("priority"), 5,
+				IntegerNumberRange.between(0, 100)
+			);
+			assertThrows(GenericEvitaInternalError.class, unresolved::aggregationKey);
 		}
 
 		@Test

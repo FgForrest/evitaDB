@@ -105,7 +105,16 @@ class TransactionManagerConflictWindowTest {
 	 */
 	@Nonnull
 	private static AttributeDeltaConflictKey quantityDelta(int delta) {
-		return new AttributeDeltaConflictKey(ENTITY_TYPE, 1, QUANTITY, delta, ALLOWED_RANGE);
+		return quantityDeltaForEntity(1, delta);
+	}
+
+	/**
+	 * Creates a range-constrained commutative delta key on the shared `quantity` attribute of the entity
+	 * identified by the given primary key.
+	 */
+	@Nonnull
+	private static AttributeDeltaConflictKey quantityDeltaForEntity(int entityPrimaryKey, int delta) {
+		return new AttributeDeltaConflictKey(ENTITY_TYPE, entityPrimaryKey, QUANTITY, delta, ALLOWED_RANGE);
 	}
 
 	@BeforeEach
@@ -289,6 +298,39 @@ class TransactionManagerConflictWindowTest {
 		assertDoesNotThrow(
 			() -> this.transactionManager.identifyConflicts(
 				INITIAL_VERSION, 12L, OffsetDateTime.now(), keys(quantityDelta(40))
+			)
+		);
+	}
+
+	/**
+	 * Range-constrained delta accumulation is partitioned by the entity primary key: a delta committed on
+	 * one entity must never count against an incoming delta on a *different* entity of the same type and
+	 * attribute. This is what keeps two concurrently-created entities' identically range-guarded deltas in
+	 * separate accumulation slots — {@link AttributeDeltaConflictKey#aggregationKey()} carries the resolved
+	 * primary key precisely so the slots cannot collide. With a committed `+60` on entity #1, an incoming
+	 * `+60` on entity #2 stays at its own `60` (within `[0, 100]`) and must pass, even though the very same
+	 * `+60` applied again to entity #1 accumulates to `120` and is rejected.
+	 */
+	@Test
+	@DisplayName("range-constrained deltas accumulate per entity primary key, not across entities")
+	void shouldAccumulateDeltasPerEntityPrimaryKeyNotAcrossEntities() {
+		// committed at version 11 on entity #1, invisible in the living catalog pinned at version 10
+		acceptTransaction(INITIAL_VERSION, quantityDeltaForEntity(1, 60));
+
+		// entity #2's slot holds only its own 60 (0 base + 60) → within [0, 100] → must pass, proving the
+		// committed +60 on entity #1 does not bleed into a different entity's accumulation slot
+		assertDoesNotThrow(
+			() -> this.transactionManager.identifyConflicts(
+				INITIAL_VERSION, 12L, OffsetDateTime.now(), keys(quantityDeltaForEntity(2, 60))
+			)
+		);
+		this.transactionManager.rollbackConflictKeys(12L);
+
+		// same-entity contrast: entity #1's slot already holds 60, so an incoming +60 overflows to 120
+		assertThrows(
+			ConflictingCatalogCommutativeMutationException.class,
+			() -> this.transactionManager.identifyConflicts(
+				INITIAL_VERSION, 12L, OffsetDateTime.now(), keys(quantityDeltaForEntity(1, 60))
 			)
 		);
 	}

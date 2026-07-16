@@ -27,6 +27,7 @@ package io.evitadb.api.requestResponse.mutation.conflict;
 import io.evitadb.api.exception.ConflictingCatalogCommutativeMutationException;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.dataType.NumberRange;
+import io.evitadb.utils.Assert;
 import io.evitadb.utils.NumberUtils;
 
 import javax.annotation.Nonnull;
@@ -123,12 +124,25 @@ public record AttributeDeltaConflictKey(
     /**
      * {@inheritDoc}
      *
+     * Requires a resolved {@link #entityPrimaryKey()}: commit-time accumulation is the sole consumer of the
+     * aggregation key, and by then a generated primary key has already been assigned during upsert (see
+     * {@code EntityCollection.verifyPrimaryKeyAssignment}) — well before the mutation is read back from the
+     * WAL for conflict resolution. A null primary key here would collapse the accumulation slot of every
+     * concurrently-created entity of the same type into one, so it is rejected as a programming error rather
+     * than silently mis-merged. This precondition is deliberately stricter than {@link #parentConflictKey()},
+     * which stays null-tolerant because it serves the scope/containment path, not accumulation.
+     *
      * @return a {@link DeltaAggregationKey} over the entity type, primary key and attribute key, so deltas on
      *         the same attribute accumulate regardless of their individual delta value or allowed range
      */
     @Nonnull
     @Override
     public Object aggregationKey() {
+        Assert.isPremiseValid(
+            this.entityPrimaryKey != null,
+            "A commutative attribute-delta conflict key must carry a resolved entity primary key before it " +
+                "can take part in commit-time accumulation."
+        );
         return new DeltaAggregationKey(this.entityType, this.entityPrimaryKey, null, this.attributeKey);
     }
 
