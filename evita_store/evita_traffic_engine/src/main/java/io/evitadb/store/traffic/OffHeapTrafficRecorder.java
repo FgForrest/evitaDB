@@ -52,6 +52,7 @@ import io.evitadb.core.executor.Scheduler;
 import io.evitadb.core.management.FileManagementService;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.spi.store.catalog.trafficRecorder.RandomAccessFileSessionSink;
 import io.evitadb.spi.store.catalog.trafficRecorder.SessionSink;
 import io.evitadb.spi.store.catalog.trafficRecorder.TrafficRecorder;
@@ -711,6 +712,7 @@ public class OffHeapTrafficRecorder
 								this.blockSizeBytes : finalizedSession.getCurrentByteBufferPosition();
 						}
 
+						int freedBlocks = 0;
 						try {
 							final SessionLocation sessionLocation = this.diskBuffer.appendSession(
 								finalizedSession.getRecordCount(), totalSize);
@@ -725,6 +727,7 @@ public class OffHeapTrafficRecorder
 									memoryByteBuffer.slice(blockStart, blockLength)
 								);
 								this.freeBlocks.offer(freeBlock);
+								freedBlocks++;
 							}
 							this.diskBuffer.sessionWritten(
 								sessionLocation,
@@ -736,25 +739,30 @@ public class OffHeapTrafficRecorder
 								finalizedSession.getFetchCount(),
 								finalizedSession.getBytesFetchedTotal()
 							);
-						} catch (MemoryNotAvailableException ex) {
-							// The finalized session is larger than the whole disk ring buffer, so it can
-							// never be persisted. Drop it, but ALWAYS return its memory blocks to the free
-							// pool - the session was already polled off the finalized queue, and without
-							// this the blocks would leak permanently (the exception would otherwise abort
-							// the whole drain and is even swallowed by updateIndexTransactionally). Because
-							// the disk buffer is guaranteed to hold at least one whole memory block (see the
-							// premise check in init), only the whole-session appendSession above can throw
-							// this - it does so before any block has been written to disk or returned here,
-							// so returning every block is correct and never double-frees.
-							final OfInt leakedBlocks = finalizedSession.getMemoryBlockIds();
-							while (leakedBlocks.hasNext()) {
-								this.freeBlocks.offer(leakedBlocks.nextInt());
+						} catch (MemoryNotAvailableException | UnexpectedIOException ex) {
+							// The finalized session could not be fully persisted: either it is larger than the whole
+							// disk ring buffer (MemoryNotAvailableException from appendSession, before any block was
+							// written) or a disk write failed part-way through (UnexpectedIOException from append). Drop
+							// it, but ALWAYS return its still-held memory blocks to the free pool - the session was already
+							// polled off the finalized queue, so without this the blocks would leak permanently (the
+							// exception is otherwise swallowed by updateIndexTransactionally and aborts the whole drain).
+							// The first `freedBlocks` blocks were already offered back inside the loop above; skip exactly
+							// those when re-iterating (getMemoryBlockIds() yields insertion order) so none is double-freed.
+							final OfInt remainingBlocks = finalizedSession.getMemoryBlockIds();
+							int blocksToSkip = freedBlocks;
+							while (remainingBlocks.hasNext()) {
+								final int block = remainingBlocks.nextInt();
+								if (blocksToSkip > 0) {
+									blocksToSkip--;
+								} else {
+									this.freeBlocks.offer(block);
+								}
 							}
 							this.droppedSessions.incrementAndGet();
 							this.missedRecords.addAndGet(finalizedSession.getRecordCount());
 							log.warn(
-								"Finalized session {} ({} bytes) exceeds the traffic disk buffer size and was dropped.",
-								finalizedSession.getSessionId(), totalSize
+								"Finalized session {} ({} bytes) could not be persisted to the traffic disk buffer and was dropped: {}",
+								finalizedSession.getSessionId(), totalSize, ex.getMessage()
 							);
 						}
 					}

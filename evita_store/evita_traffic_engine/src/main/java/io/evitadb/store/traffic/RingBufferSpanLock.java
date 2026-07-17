@@ -38,8 +38,11 @@ import java.util.function.Predicate;
  * across processes, which this single-process transient buffer never has. This class provides the equivalent
  * span-granular locking entirely in-JVM, with an asymmetric conflict policy tailored to the writer/reader roles:
  *
- * - a reader/exporter that finds its span exclusively held gives up immediately (never blocks a request thread);
- * - the writer (flush drain) that finds its span shared-held waits, bounded in practice by one session copy;
+ * - a reader/exporter gives up immediately (never blocks a request thread) if its span is exclusively held
+ *   *or* an exclusive acquisition is already pending on a conflicting span (writer preference);
+ * - the writer (flush drain) that finds its span shared-held waits until the sharers release; writer preference
+ *   guarantees no new conflicting sharer can be granted while it waits, so the wait is bounded by the in-flight
+ *   session copies that were already holding the span when the writer arrived;
  * - two readers on overlapping spans always share freely.
  *
  * A span may wrap the physical end of the ring buffer file, in which case it is represented as two segments;
@@ -64,6 +67,13 @@ final class RingBufferSpanLock {
 	 * Currently held spans. Guarded by (and only ever accessed while holding) this instance's own monitor.
 	 */
 	private final List<Token> held = new ArrayList<>();
+	/**
+	 * Spans of exclusive acquisitions that are currently waiting in {@link #acquireExclusive(long, long)}. A new
+	 * shared acquisition that conflicts with any of these gives up immediately (writer preference), so a steady
+	 * stream of overlapping readers cannot starve a pending writer. Guarded by this instance's own monitor; holds
+	 * at most one entry in practice, since {@code freeMemory()} is {@code synchronized} (single writer).
+	 */
+	private final List<Span> pendingExclusive = new ArrayList<>();
 
 	RingBufferSpanLock(long fileSize) {
 		this.fileSize = fileSize;
@@ -80,7 +90,9 @@ final class RingBufferSpanLock {
 	@Nullable
 	synchronized Token tryAcquireShared(long start, long length) {
 		final Span span = toSpan(start, length);
-		if (conflicts(span, Token::exclusive)) {
+		// give up immediately if the span is exclusively held, or if an exclusive acquisition is already
+		// pending on a conflicting span (writer preference - prevents a steady read stream from starving it)
+		if (conflicts(span, Token::exclusive) || conflictsWithPending(span)) {
 			return null;
 		}
 		final Token token = new Token(span, false);
@@ -99,15 +111,23 @@ final class RingBufferSpanLock {
 	@Nonnull
 	synchronized Token acquireExclusive(long start, long length) {
 		final Span span = toSpan(start, length);
-		while (conflicts(span, token -> true)) {
-			try {
-				wait();
-			} catch (InterruptedException e) {
-				Thread.currentThread().interrupt();
-				throw new GenericEvitaInternalError(
-					"Interrupted while waiting for an exclusive span lock on the traffic recording disk buffer."
-				);
+		// register as a pending exclusive before waiting so that new shared acquisitions on conflicting spans
+		// give up immediately (writer preference); the finally guarantees the marker is cleared on every exit,
+		// including the interrupted path, so an aborted writer never leaves a phantom span blocking readers
+		this.pendingExclusive.add(span);
+		try {
+			while (conflicts(span, token -> true)) {
+				try {
+					wait();
+				} catch (InterruptedException e) {
+					Thread.currentThread().interrupt();
+					throw new GenericEvitaInternalError(
+						"Interrupted while waiting for an exclusive span lock on the traffic recording disk buffer."
+					);
+				}
 			}
+		} finally {
+			this.pendingExclusive.remove(span);
 		}
 		final Token token = new Token(span, true);
 		this.held.add(token);
@@ -148,6 +168,20 @@ final class RingBufferSpanLock {
 	private boolean conflicts(@Nonnull Span candidate, @Nonnull Predicate<Token> filter) {
 		for (Token existing : this.held) {
 			if (filter.test(existing) && spansOverlap(candidate, existing.span())) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * Checks whether the candidate span overlaps any span whose exclusive acquisition is currently pending in
+	 * {@link #acquireExclusive(long, long)} - the basis of the writer-preference give-up in
+	 * {@link #tryAcquireShared(long, long)}.
+	 */
+	private boolean conflictsWithPending(@Nonnull Span candidate) {
+		for (Span pending : this.pendingExclusive) {
+			if (spansOverlap(candidate, pending)) {
 				return true;
 			}
 		}

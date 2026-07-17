@@ -112,10 +112,9 @@ public class RingBufferInputStream extends InputStream {
 		if (n <= 0L) {
 			return 0L;
 		}
-		this.position += n;
-		if (this.position >= this.inputBufferSize) {
-			this.position = this.position % this.inputBufferSize;
-		}
+		// reduce n modulo the buffer size before advancing so a very large n cannot overflow `position`
+		// past Long.MAX_VALUE (which would turn it negative and bypass the wrap guard)
+		this.position = (this.position + n % this.inputBufferSize) % this.inputBufferSize;
 		// always move the delegate's file pointer - even when the skip stays within the region -
 		// otherwise the subsequent read would come from the un-skipped offset
 		this.delegatingInputStream.seek(this.position);
@@ -128,10 +127,9 @@ public class RingBufferInputStream extends InputStream {
 		if (n <= 0L) {
 			return;
 		}
-		this.position += n;
-		if (this.position >= this.inputBufferSize) {
-			this.position = this.position % this.inputBufferSize;
-		}
+		// reduce n modulo the buffer size before advancing so a very large n cannot overflow `position`
+		// past Long.MAX_VALUE (which would turn it negative and bypass the wrap guard)
+		this.position = (this.position + n % this.inputBufferSize) % this.inputBufferSize;
 		// always move the delegate's file pointer (see #skip)
 		this.delegatingInputStream.seek(this.position);
 	}

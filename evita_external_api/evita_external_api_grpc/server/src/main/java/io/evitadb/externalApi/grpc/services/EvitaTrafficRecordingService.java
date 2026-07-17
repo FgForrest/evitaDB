@@ -259,7 +259,7 @@ public class EvitaTrafficRecordingService extends GrpcEvitaTrafficRecordingServi
 						Duration.ofMillis(request.getMaxDurationInMilliseconds().getValue()) : null,
 					request.hasMaxFileSizeInBytes() ?
 						request.getMaxFileSizeInBytes().getValue() : null,
-					request.hasChunkFileSizeInBytes() ?
+					request.hasChunkFileSizeInBytes() && request.getChunkFileSizeInBytes().getValue() > 0 ?
 						request.getChunkFileSizeInBytes().getValue() :
 						this.evita.getConfiguration().server().trafficRecording().exportFileChunkSizeInBytes()
 				);
@@ -317,7 +317,7 @@ public class EvitaTrafficRecordingService extends GrpcEvitaTrafficRecordingServi
 			session -> {
 				GetTrafficRecordingStatusResponse.Builder builder = GetTrafficRecordingStatusResponse.newBuilder();
 				final ServerTask<TrafficRecordingExportSettings, FileForFetch> task = session.exportTrafficRecording(
-					request.hasChunkFileSizeInBytes() ?
+					request.hasChunkFileSizeInBytes() && request.getChunkFileSizeInBytes().getValue() > 0 ?
 						request.getChunkFileSizeInBytes().getValue() :
 						this.evita.getConfiguration().server().trafficRecording().exportFileChunkSizeInBytes()
 				);

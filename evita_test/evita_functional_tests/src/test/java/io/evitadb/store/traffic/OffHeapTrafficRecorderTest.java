@@ -40,6 +40,7 @@ import io.evitadb.core.executor.ImmediateScheduledThreadPoolExecutor;
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.core.management.FileManagementService;
 import io.evitadb.dataType.EvitaDataTypes;
+import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.externalApi.graphql.GraphQLProvider;
 import io.evitadb.externalApi.rest.RestProvider;
 import io.evitadb.spi.store.catalog.trafficRecorder.model.SessionLocation;
@@ -53,6 +54,7 @@ import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
 
 import javax.annotation.Nonnull;
 import java.io.IOException;
@@ -630,6 +632,16 @@ public class OffHeapTrafficRecorderTest implements EvitaTestSupport {
 		return field.get(target);
 	}
 
+	/**
+	 * Reflectively overwrites a declared field (used to inject a failing disk buffer spy into the recorder).
+	 */
+	private static void writeField(
+		@Nonnull Object target, @Nonnull String fieldName, @Nonnull Object value) throws Exception {
+		final Field field = target.getClass().getDeclaredField(fieldName);
+		field.setAccessible(true);
+		field.set(target, value);
+	}
+
 	@Test
 	void shouldRecordMoreDataThanBufferSizeForcingWrapAround() {
 		final UUID sessionId = writeBunchOfData(10, 100);
@@ -755,6 +767,78 @@ public class OffHeapTrafficRecorderTest implements EvitaTestSupport {
 			@SuppressWarnings("unchecked") final Deque<SessionLocation> sessionLocations =
 				(Deque<SessionLocation>) readField(diskBuffer, "sessionLocations");
 			assertTrue(sessionLocations.isEmpty(), "No part of the oversized session may reach the disk buffer");
+		} finally {
+			FileUtils.deleteDirectory(work);
+		}
+	}
+
+	@Test
+	@DisplayName("Should drop a finalized session and return every memory block when a disk write fails mid-drain")
+	void shouldReturnMemoryBlocksWhenDiskWriteFailsMidDrain() throws Exception {
+		// dedicated recorder whose disk buffer is comfortably large enough to hold the session, so the drain
+		// gets past appendSession and into the per-block append loop - where an injected disk I/O failure
+		// (UnexpectedIOException) on the second block must not leak the session's remaining memory blocks.
+		final Path work = getPathInTargetDirectory(UUID.randomUUID() + "/work");
+		try (
+			OffHeapTrafficRecorder recorder = newIsolatedRecorder(2_048, 32_768L, 65_536L, work)
+		) {
+			@SuppressWarnings("unchecked") final Collection<Integer> freeBlocks = (Collection<Integer>) readField(
+				recorder, "freeBlocks");
+			final int totalBlocks = freeBlocks.size();
+
+			// build one session whose serialized form spans several memory blocks, so the drain calls
+			// diskBuffer.append() more than once and the injected failure lands mid-session
+			final UUID sessionId = UUIDUtil.randomUUID();
+			recorder.createSession(sessionId, 1, OffsetDateTime.now());
+			final String[] largePayload = new String[256];
+			for (int i = 0; i < largePayload.length; i++) {
+				largePayload[i] = "traffic-recording-payload-chunk-" + i;
+			}
+			recorder.recordMutation(
+				sessionId,
+				OffsetDateTime.now(),
+				new EntityUpsertMutation(
+					Entities.PRODUCT, 1, EntityExistence.MUST_NOT_EXIST,
+					new UpsertAssociatedDataMutation("payload", largePayload)
+				),
+				null
+			);
+			recorder.closeSession(sessionId, null);
+
+			// the finalized session is queued and still holding more than one memory block (no auto-drain)
+			assertTrue(
+				freeBlocks.size() < totalBlocks - 1, "Sanity: the finalized session must span more than one block");
+			final AtomicLong droppedSessions = (AtomicLong) readField(recorder, "droppedSessions");
+			final long droppedBefore = droppedSessions.get();
+
+			// swap in a disk buffer spy that fails the second per-block append with a disk I/O error, leaving
+			// the remaining blocks unwritten - the exact path the plain MemoryNotAvailableException catch missed
+			final DiskRingBuffer realDiskBuffer = (DiskRingBuffer) readField(recorder, "diskBuffer");
+			final DiskRingBuffer spyDiskBuffer = Mockito.spy(realDiskBuffer);
+			final AtomicInteger appendCalls = new AtomicInteger();
+			Mockito.doAnswer(invocation -> {
+				if (appendCalls.incrementAndGet() == 2) {
+					throw new UnexpectedIOException(
+						"Injected disk write failure.", "Injected disk write failure.");
+				}
+				return invocation.callRealMethod();
+			}).when(spyDiskBuffer).append(Mockito.any());
+			writeField(recorder, "diskBuffer", spyDiskBuffer);
+
+			// drain: the second block write fails, so the session must be dropped - but every one of its
+			// memory blocks (the one already written before the failure and all not-yet-written ones) must be
+			// returned to the free pool, with no leak and no double-free
+			recorder.drainFinalizedSessionsToDisk();
+
+			assertTrue(appendCalls.get() >= 2, "The injected failure must have been reached on the second append");
+			assertEquals(
+				totalBlocks, freeBlocks.size(),
+				"Every memory block of the failed session must be returned to the free pool (no leak, no double-free)"
+			);
+			assertEquals(
+				droppedBefore + 1, droppedSessions.get(),
+				"A session that fails to persist mid-drain must be counted as dropped exactly once"
+			);
 		} finally {
 			FileUtils.deleteDirectory(work);
 		}

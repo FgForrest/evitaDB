@@ -48,6 +48,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.concurrent.TimeUnit;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -116,7 +117,9 @@ public class TrafficRecordingExportTask extends ClientCallableTask<TrafficRecord
 			}
 
 			try {
-				return exportFileHandle.fileForFetchFuture().get();
+				// bound the wait so a stalled async publish (e.g. a hung upload) cannot pin this task thread
+				// indefinitely; on timeout the outer catch deletes the partial file and rethrows
+				return exportFileHandle.fileForFetchFuture().get(1L, TimeUnit.HOURS);
 			} catch (Exception e) {
 				throw new GenericEvitaInternalError(
 					"Unexpected error when retrieving the traffic recording export file for catalog `" +
