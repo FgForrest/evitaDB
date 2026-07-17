@@ -124,7 +124,6 @@ import java.util.PrimitiveIterator.OfInt;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
-import java.util.function.BiPredicate;
 import java.util.function.Function;
 import java.util.function.IntFunction;
 import java.util.function.IntSupplier;
@@ -299,7 +298,8 @@ public final class ContainerizedLocalMutationExecutor
 	 * content to read internal primary keys of those entities.
 	 *
 	 * @param entityPrimaryKey           the primary key of the entity to which the references should point
-	 * @param scope                      the scope in which the reference index should be looked up
+	 * @param scope                      the scope this entity lives in (or is being moved to)
+	 * @param catalogSchema              the catalog schema used to resolve the counterpart reference schema
 	 * @param referenceSchema            the reference schema, must not be {@code null}
 	 * @param referencesStorageContainer the references storage container if exists
 	 * @param mutationCollector          the mutation collector, must not be {@code null}
@@ -308,19 +308,42 @@ public final class ContainerizedLocalMutationExecutor
 	private void createAndRegisterReferencePropagationMutation(
 		int entityPrimaryKey,
 		@Nonnull Scope scope,
+		@Nonnull CatalogSchema catalogSchema,
 		@Nonnull ReflectedReferenceSchema referenceSchema,
 		@Nullable ReferencesStoragePart referencesStorageContainer,
 		@Nonnull DataStoreReader dataStoreReader,
 		@Nonnull MutationCollector mutationCollector,
 		@Nonnull BiConsumer<List<ReferenceKey>, DataStoreReader> eachReferenceConsumer
 	) {
-		// we need to access index in target entity collection, because we need to retrieve index with primary references
-		final List<ReducedEntityIndex> indexes = getAllReducedIndexes(
-			dataStoreReader, scope,
-			referenceSchema.getReflectedReferenceName(),
-			this.entityPrimaryKey,
-			referenceSchema.getCardinality().allowsDuplicates()
-		);
+		// resolve the counterpart (primary) reference schema in the referenced collection - the visibility rule is
+		// evaluated on both schemas for every scope the primary holders may live in
+		final Optional<ReferenceSchemaContract> counterpartSchemaRef = catalogSchema
+			.getEntitySchema(referenceSchema.getReferencedEntityType())
+			.map(it -> ((EntitySchemaDecorator) it).getDelegate())
+			.flatMap(it -> it.getReference(referenceSchema.getReflectedReferenceName()));
+
+		// we need to access index in target entity collection, because we need to retrieve index with primary
+		// references; the primary holders may live in any scope, so all scopes where the relation is maintained
+		// for this entity's scope are searched
+		final List<ReducedEntityIndex> indexes;
+		if (counterpartSchemaRef.isEmpty()) {
+			indexes = Collections.emptyList();
+		} else {
+			final ReferenceSchemaContract counterpartSchema = counterpartSchemaRef.get();
+			indexes = new ArrayList<>(4);
+			for (Scope counterpartScope : Scope.values()) {
+				if (isRelationMaintained(referenceSchema, counterpartSchema, scope, counterpartScope)) {
+					indexes.addAll(
+						getAllReducedIndexes(
+							dataStoreReader, counterpartScope,
+							referenceSchema.getReflectedReferenceName(),
+							this.entityPrimaryKey,
+							referenceSchema.getCardinality().allowsDuplicates()
+						)
+					);
+				}
+			}
+		}
 
 		for (ReducedEntityIndex referenceIndexWithPrimaryReferences : indexes) {
 			// for each such entity create internal (reflected) reference to it (if it doesn't exist)
@@ -355,7 +378,7 @@ public final class ContainerizedLocalMutationExecutor
 				final ReferenceKey insertedRefKey = new ReferenceKey(
 					referenceSchema.getName(), epk, primaryRefKeyWithInternalPk.internalPrimaryKey()
 				);
-				if (referencesStorageContainer == null || !referencesStorageContainer.contains(insertedRefKey)) {
+				if (referencesStorageContainer == null || !containsExistingReference(referencesStorageContainer, insertedRefKey)) {
 					mutationCollector.addLocalMutation(new InsertReferenceMutation(insertedRefKey));
 					referenceKeys.add(insertedRefKey);
 				}
@@ -835,6 +858,205 @@ public final class ContainerizedLocalMutationExecutor
 				);
 			}
 		}
+	}
+
+	/**
+	 * Checks the single governing visibility rule for reflected references: the relation between an entity living in
+	 * `entityScope` and its counterpart living in `counterpartScope` is *maintained* if and only if both reference
+	 * schemas (the primary one and the reflected one) are indexed in every scope the relation spans. When the rule is
+	 * not met the mirror cannot be kept in sync and must be discarded rather than left in a silently divergent state.
+	 *
+	 * @param referenceSchema  reference schema on the side of the currently mutated entity
+	 * @param counterpartSchema reference schema on the side of the counterpart (referenced) entity
+	 * @param entityScope      scope the currently mutated entity lives in (or is being moved to)
+	 * @param counterpartScope scope the counterpart entity currently lives in
+	 * @return true when the reflected reference relation is maintained for the given scope span
+	 */
+	private static boolean isRelationMaintained(
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull ReferenceSchemaContract counterpartSchema,
+		@Nonnull Scope entityScope,
+		@Nonnull Scope counterpartScope
+	) {
+		return referenceSchema.isIndexedInScope(entityScope) &&
+			referenceSchema.isIndexedInScope(counterpartScope) &&
+			counterpartSchema.isIndexedInScope(entityScope) &&
+			counterpartSchema.isIndexedInScope(counterpartScope);
+	}
+
+	/**
+	 * Partitions the provided referenced primary keys by the scope the referenced entity currently exists in. Result
+	 * is an array indexed by {@link Scope#ordinal()}; primary keys not present in any scope's global index (removed
+	 * or not yet created entities) are collected in the extra bitmap at index {@code Scope.values().length}. Slots
+	 * for scopes with no matching primary keys are left {@code null} to avoid unnecessary allocations.
+	 *
+	 * @param referencedDataStoreReader reader of the referenced entity collection
+	 * @param referencedPrimaryKeys     referenced primary keys to partition
+	 * @return array of bitmaps indexed by scope ordinal, with non-existent primary keys at the last index
+	 */
+	@Nonnull
+	private static RoaringBitmap[] partitionReferencedPksByScope(
+		@Nonnull DataStoreReader referencedDataStoreReader,
+		@Nonnull RoaringBitmap referencedPrimaryKeys
+	) {
+		final Scope[] scopes = Scope.values();
+		final RoaringBitmap[] result = new RoaringBitmap[scopes.length + 1];
+		RoaringBitmap remaining = referencedPrimaryKeys;
+		for (Scope scope : scopes) {
+			if (remaining.isEmpty()) {
+				break;
+			}
+			final GlobalEntityIndex globalIndex = referencedDataStoreReader.getIndexIfExists(
+				new EntityIndexKey(EntityIndexType.GLOBAL, scope),
+				entityIndexKey -> null
+			);
+			if (globalIndex != null) {
+				final RoaringBitmap pksInScope = RoaringBitmap.and(
+					remaining,
+					getRoaringBitmap(globalIndex.getAllPrimaryKeys())
+				);
+				if (!pksInScope.isEmpty()) {
+					result[scope.ordinal()] = pksInScope;
+					remaining = RoaringBitmap.andNot(remaining, pksInScope);
+				}
+			}
+		}
+		result[scopes.length] = remaining;
+		return result;
+	}
+
+	/**
+	 * Creates a predicate testing whether the counterpart side of the relation is already established in the reduced
+	 * index of the referenced collection in the given scope. The reduced indexes follow the scope of the entity they
+	 * index, so the check must always be performed in the scope the counterpart entity currently lives in.
+	 *
+	 * @param hardReference        true when the reference name equals the counterpart schema name
+	 * @param dataStoreReader      reader of the referenced entity collection
+	 * @param referencedSchemaName name of the counterpart reference schema
+	 * @param entityPrimaryKey     primary key of the currently mutated entity
+	 * @param usedScope            scope the counterpart entity lives in
+	 * @return predicate testing counterpart reduced index membership
+	 */
+	@Nonnull
+	private static IntObjPredicate<Serializable[]> createCounterpartPresencePredicate(
+		boolean hardReference,
+		@Nonnull DataStoreReader dataStoreReader,
+		@Nonnull String referencedSchemaName,
+		int entityPrimaryKey,
+		@Nonnull Scope usedScope
+	) {
+		if (hardReference) {
+			// provide reduced entity index related to provided entity primary key
+			return (epk, representativeAttributeValues) -> {
+				final ReducedEntityIndex targetReducedIndex = dataStoreReader.getIndexIfExists(
+					new EntityIndexKey(
+						EntityIndexType.REFERENCED_ENTITY,
+						usedScope,
+						new RepresentativeReferenceKey(
+							new ReferenceKey(referencedSchemaName, epk),
+							representativeAttributeValues
+						)
+					),
+					__ -> null
+				);
+				// always check this entity primary key
+				return targetReducedIndex != null && targetReducedIndex.getAllPrimaryKeys().contains(entityPrimaryKey);
+			};
+		} else {
+			// always provide the same reference index
+			return (epk, representativeAttributeValues) -> {
+				final ReducedEntityIndex targetReducedIndex = dataStoreReader.getIndexIfExists(
+					new EntityIndexKey(
+						EntityIndexType.REFERENCED_ENTITY,
+						usedScope,
+						new RepresentativeReferenceKey(
+							new ReferenceKey(referencedSchemaName, entityPrimaryKey),
+							representativeAttributeValues
+						)
+					),
+					__ -> null
+				);
+				return targetReducedIndex != null && targetReducedIndex.getAllPrimaryKeys().contains(epk);
+			};
+		}
+	}
+
+	/**
+	 * Discards this entity's own reflected references pointing to the provided referenced primary keys by emitting
+	 * local {@link RemoveReferenceMutation} mutations. Used when a scope transition breaks the visibility rule - the
+	 * mirror is removed from this entity only, the primary reference on the counterpart entity is left untouched so
+	 * the mirror can be recreated from it when visibility is regained.
+	 *
+	 * @param referenceName         name of the reflected reference schema
+	 * @param referencedPrimaryKeys primary keys of the counterpart entities whose mirrors are to be discarded
+	 * @param mutationCollector     collector for the generated local mutations
+	 */
+	private void discardLocalReflectedReferences(
+		@Nonnull String referenceName,
+		@Nonnull RoaringBitmap referencedPrimaryKeys,
+		@Nonnull MutationCollector mutationCollector
+	) {
+		final PeekableIntIterator iterator = referencedPrimaryKeys.getIntIterator();
+		while (iterator.hasNext()) {
+			final int epk = iterator.next();
+			final List<ReferenceContract> localReferences = this.referencesStorageContainer.findAllReferences(
+				new ReferenceKey(referenceName, epk), Droppable::exists
+			);
+			for (ReferenceContract localReference : localReferences) {
+				mutationCollector.addLocalMutation(
+					new RemoveReferenceMutation(localReference.getReferenceKey())
+				);
+			}
+		}
+	}
+
+	/**
+	 * Finds the scope the referenced entity with the given primary key currently exists in by probing the global
+	 * indexes of the referenced collection in all scopes.
+	 *
+	 * @param referencedDataStoreReader reader of the referenced entity collection
+	 * @param referencedPrimaryKey      primary key of the referenced entity
+	 * @return scope the referenced entity lives in, or null when it does not exist in any scope
+	 */
+	@Nullable
+	private static Scope findScopeOfReferencedEntity(
+		@Nonnull DataStoreReader referencedDataStoreReader,
+		int referencedPrimaryKey
+	) {
+		for (Scope scope : Scope.values()) {
+			final GlobalEntityIndex globalIndex = referencedDataStoreReader.getIndexIfExists(
+				new EntityIndexKey(EntityIndexType.GLOBAL, scope),
+				entityIndexKey -> null
+			);
+			if (globalIndex != null && globalIndex.contains(referencedPrimaryKey)) {
+				return scope;
+			}
+		}
+		return null;
+	}
+
+	/**
+	 * Checks whether the references storage container holds an existing (non-dropped) reference with the given key.
+	 * Unlike {@link ReferencesStoragePart#contains(ReferenceKey)} this method ignores references dropped earlier in
+	 * the same transaction, so a previously discarded mirror does not block its own recreation.
+	 *
+	 * @param referencesStorageContainer container with the entity references
+	 * @param referenceKey               reference key to look up
+	 * @return true when an existing reference with the given key is present
+	 */
+	private static boolean containsExistingReference(
+		@Nonnull ReferencesStoragePart referencesStorageContainer,
+		@Nonnull ReferenceKey referenceKey
+	) {
+		final List<ReferenceContract> references = referencesStorageContainer.findAllReferences(
+			new ReferenceKey(referenceKey.referenceName(), referenceKey.primaryKey()), Droppable::exists
+		);
+		for (ReferenceContract reference : references) {
+			if (reference.getReferenceKey().equals(referenceKey)) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	public ContainerizedLocalMutationExecutor(
@@ -1775,6 +1997,7 @@ public final class ContainerizedLocalMutationExecutor
 						dataStoreReader -> createAndRegisterReferencePropagationMutation(
 							entityPrimaryKey,
 							scope,
+							catalogSchema,
 							reflectedReferenceSchema,
 							referencesStorageContainer,
 							dataStoreReader,
@@ -2039,126 +2262,120 @@ public final class ContainerizedLocalMutationExecutor
 				);
 			// if there is any reflected reference schemas
 			if (referencedSchemaRef.isPresent()) {
-				final BiPredicate<ReferenceSchemaContract, ReferenceSchemaContract> propagationPredicate;
-				switch (createMode) {
-					case INSERT_MISSING -> propagationPredicate = (rs1, rs2) ->
-						rs1.isIndexedInScope(targetEntityScope) && rs2.isIndexedInScope(targetEntityScope);
-					case REMOVE_NON_INDEXED -> propagationPredicate = (rs1, rs2) ->
-						!rs1.isIndexedInScope(targetEntityScope) || !rs2.isIndexedInScope(targetEntityScope);
-					case REMOVE_ALL_EXISTING -> propagationPredicate = (rs1, rs2) ->
-						true;
-					default -> throw new GenericEvitaInternalError("Unknown create mode: " + createMode);
-				}
-				// test the predicate
 				final ReferenceSchema referencedSchema = referencedSchemaRef.get();
-				if (propagationPredicate.test(referenceSchema, referencedSchema)) {
-					final String referencedSchemaName = referencedSchema.getName();
-					final boolean allowsDuplicates = referencedSchema.getCardinality().allowsDuplicates();
-					// lets collect all primary keys of the reference with the same name into a bitmap
-					final ReferenceBlock<T> referenceBlock = referenceBlockSupplier.get();
-					final GlobalEntityIndex globalIndex = dataStoreReader.getIndexIfExists(
-						new EntityIndexKey(EntityIndexType.GLOBAL, targetEntityScope),
-						entityIndexKey -> null
-					);
-					// if global index is found there is at least one entity of such type
-					final RoaringBitmap referencedPrimaryKeys = referenceBlock.getReferencedPrimaryKeys();
-					// but we need to match only those our entity refers to via this reference
-					final RoaringBitmap existingEntityPks = globalIndex == null ?
-						null :
-						RoaringBitmap.and(
-							referencedPrimaryKeys,
-							getRoaringBitmap(globalIndex.getAllPrimaryKeys())
-						);
+				final String referencedSchemaName = referencedSchema.getName();
+				final boolean allowsDuplicates = referencedSchema.getCardinality().allowsDuplicates();
+				// lets collect all primary keys of the reference with the same name into a bitmap
+				final ReferenceBlock<T> referenceBlock = referenceBlockSupplier.get();
+				final RoaringBitmap referencedPrimaryKeys = referenceBlock.getReferencedPrimaryKeys();
+				// the referenced (counterpart) entities may live in a different scope than this entity - the relation
+				// may span both scopes (e.g. an archived holder referencing a live target); partition the referenced
+				// primary keys by the scope the referenced entity currently exists in and evaluate the visibility
+				// rule for each (entity scope, counterpart scope) pair separately
+				final Scope[] scopes = Scope.values();
+				final RoaringBitmap[] pksByScope = partitionReferencedPksByScope(dataStoreReader, referencedPrimaryKeys);
+				final RoaringBitmap missingPks = pksByScope[scopes.length];
 
-					// when the reflected reference is used, we can reuse shared reduced entity index
-					final boolean hardReference = referenceName.equals(referencedSchemaName);
-					final Scope usedScope = createMode == CreateMode.INSERT_MISSING ? targetEntityScope : sourceEntityScope;
-					final IntObjPredicate<Serializable[]> primaryKeyPredicate;
-					if (hardReference) {
-						// provide reduced entity index related to provided entity primary key
-						primaryKeyPredicate = (epk, representativeAttributeValues) -> {
-							final ReducedEntityIndex targetReducedIndex = dataStoreReader.getIndexIfExists(
-								new EntityIndexKey(
-									EntityIndexType.REFERENCED_ENTITY,
-									usedScope,
-									new RepresentativeReferenceKey(
-										new ReferenceKey(referencedSchemaName, epk),
-										representativeAttributeValues
-									)
-								),
-								__ -> null
+				// when the reflected reference is used, we can reuse shared reduced entity index
+				final boolean hardReference = referenceName.equals(referencedSchemaName);
+				switch (createMode) {
+					case INSERT_MISSING -> {
+						// a reflected reference may never point to a non-existent counterpart entity
+						if (referenceSchema instanceof ReflectedReferenceSchema && !missingPks.isEmpty()) {
+							throw new EntityMissingException(
+								referencedEntityType, missingPks.toArray(),
+								"Cannot set up main reference via reflected reference with name `" + referenceName + "`!"
 							);
-							// always check this entity primary key
-							return targetReducedIndex != null && targetReducedIndex.getAllPrimaryKeys().contains(entityPrimaryKey);
-						};
-					} else {
-						// always provide the same reference index
-						primaryKeyPredicate = (epk, representativeAttributeValues) -> {
-							final ReducedEntityIndex targetReducedIndex = dataStoreReader.getIndexIfExists(
-								new EntityIndexKey(
-									EntityIndexType.REFERENCED_ENTITY,
-									usedScope,
-									new RepresentativeReferenceKey(
-										new ReferenceKey(referencedSchemaName, entityPrimaryKey),
-										representativeAttributeValues
-									)
-								),
-								__ -> null
-							);
-							return targetReducedIndex != null && targetReducedIndex.getAllPrimaryKeys().contains(epk);
-						};
-					}
-					switch (createMode) {
-						case INSERT_MISSING -> {
-							if (existingEntityPks == null && referenceSchema instanceof ReflectedReferenceSchema && !referencedPrimaryKeys.isEmpty()) {
-								throw new EntityMissingException(
-									referencedEntityType, referencedPrimaryKeys.toArray(),
-									"Cannot set up main reference via reflected reference with name `" + referenceName + "`!"
-								);
-							} else if (existingEntityPks != null) {
+						}
+						for (Scope counterpartScope : scopes) {
+							final RoaringBitmap pksInScope = pksByScope[counterpartScope.ordinal()];
+							// the counterpart reference is created only when the relation is maintained in the scope span
+							if (pksInScope != null && isRelationMaintained(referenceSchema, referencedSchema, targetEntityScope, counterpartScope)) {
 								generateMissing(
 									entityPrimaryKey,
 									mutationCollector,
 									dataStoreReader,
-									existingEntityPks,
+									pksInScope,
 									referenceSchema,
 									referencedSchemaName,
 									referencedEntityType,
 									epk ->
 										getAllReducedIndexes(
 											this.dataStoreReader,
-											usedScope,
+											targetEntityScope,
 											referenceName,
 											epk,
 											allowsDuplicates
 										),
 									referenceBlock.getAttributeSupplier(),
 									// we need to negate the predicate, because we want to insert missing references
-									primaryKeyPredicate.negate(),
+									createCounterpartPresencePredicate(
+										hardReference, dataStoreReader, referencedSchemaName, entityPrimaryKey, counterpartScope
+									).negate(),
 									// we need to take into account references removed in this turn
 									getReferenceKeyManager()::isRepresentativeReferenceKeyRemoved,
 									implicitMutations
 								);
 							}
 						}
-						case REMOVE_ALL_EXISTING -> removeExistingEntityPks(
-							entityPrimaryKey, mutationCollector,
-							existingEntityPks == null ? referencedPrimaryKeys : existingEntityPks,
-							referenceSchema,
-							referencedSchemaName,
-							referencedEntityType,
-							primaryKeyPredicate,
-							Droppable::dropped
-						);
-						case REMOVE_NON_INDEXED -> removeExistingEntityPks(
-							entityPrimaryKey, mutationCollector,
-							existingEntityPks == null ? referencedPrimaryKeys : existingEntityPks,
-							referenceSchema,
-							referencedSchemaName,
-							referencedEntityType,
-							primaryKeyPredicate,
-							Droppable::exists
-						);
+					}
+					case REMOVE_NON_INDEXED -> {
+						if (referenceSchema instanceof ReflectedReferenceSchema) {
+							// this entity owns the reflected (mirror) side - when the visibility rule is broken the
+							// mirror is discarded locally; a scope transition must never remove the primary reference
+							// on the counterpart entity (the primary reference stays the source of truth the mirror
+							// can be recreated from when visibility is regained)
+							for (Scope counterpartScope : scopes) {
+								final RoaringBitmap pksInScope = pksByScope[counterpartScope.ordinal()];
+								if (pksInScope != null && !isRelationMaintained(referenceSchema, referencedSchema, targetEntityScope, counterpartScope)) {
+									discardLocalReflectedReferences(referenceName, pksInScope, mutationCollector);
+								}
+							}
+							// mirrors pointing to counterpart entities that no longer exist are discarded as well
+							if (!missingPks.isEmpty()) {
+								discardLocalReflectedReferences(referenceName, missingPks, mutationCollector);
+							}
+						} else {
+							// this entity owns the primary side - mirrors on counterpart entities that lost mutual
+							// visibility are removed there; the primary reference itself is always retained
+							for (Scope counterpartScope : scopes) {
+								final RoaringBitmap pksInScope = pksByScope[counterpartScope.ordinal()];
+								if (pksInScope != null && !isRelationMaintained(referenceSchema, referencedSchema, targetEntityScope, counterpartScope)) {
+									removeExistingEntityPks(
+										entityPrimaryKey, mutationCollector,
+										pksInScope,
+										referenceSchema,
+										referencedSchemaName,
+										referencedEntityType,
+										createCounterpartPresencePredicate(
+											hardReference, dataStoreReader, referencedSchemaName, entityPrimaryKey, counterpartScope
+										),
+										Droppable::exists
+									);
+								}
+							}
+						}
+					}
+					case REMOVE_ALL_EXISTING -> {
+						// explicit removal (reference removed or entity deleted) is propagated to the counterpart only
+						// when the relation is maintained - a discarded mirror has nothing to clean up on the other
+						// side and a dangling reference to a removed counterpart must remain freely removable
+						for (Scope counterpartScope : scopes) {
+							final RoaringBitmap pksInScope = pksByScope[counterpartScope.ordinal()];
+							if (pksInScope != null && isRelationMaintained(referenceSchema, referencedSchema, sourceEntityScope, counterpartScope)) {
+								removeExistingEntityPks(
+									entityPrimaryKey, mutationCollector,
+									pksInScope,
+									referenceSchema,
+									referencedSchemaName,
+									referencedEntityType,
+									createCounterpartPresencePredicate(
+										hardReference, dataStoreReader, referencedSchemaName, entityPrimaryKey, counterpartScope
+									),
+									Droppable::dropped
+								);
+							}
+						}
 					}
 				}
 			}
@@ -2276,26 +2493,59 @@ public final class ContainerizedLocalMutationExecutor
 					final DataStoreReader dataStoreReader = this.dataStoreReaderAccessor.apply(referenceSchema.getReferencedEntityType());
 					// and if such is found (collection might not yet exist, but we can still reference to it)
 					if (dataStoreReader != null) {
-						// check whether global index exists (there is at least one entity of such type)
-						final GlobalEntityIndex globalIndex = dataStoreReader.getIndexIfExists(
-							new EntityIndexKey(EntityIndexType.GLOBAL, scope),
-							entityIndexKey -> null
-						);
-						if (globalIndex != null) {
-							// and whether it contains the entity we are referencing to
-							if (globalIndex.contains(referenceKey.primaryKey())) {
-								// if the current reference is a reflected reference
-								if (referenceSchema instanceof ReflectedReferenceSchemaContract rrsc) {
-									final boolean attributeVisibleFromOtherSide = catalogSchema
-										.getEntitySchema(rrsc.getReferencedEntityType())
-										.flatMap(it -> it.getReference(rrsc.getReflectedReferenceName()))
-										.flatMap(it -> it.getAttribute(ram.getAttributeKey().attributeName()))
-										.isPresent();
-									// create a mutation to counterpart reference in the referenced entity
-									// but only if the attribute is visible from that point of view
-									if (attributeVisibleFromOtherSide) {
+						// the referenced entity may live in a different scope than this entity - locate it first
+						final Scope counterpartScope = findScopeOfReferencedEntity(dataStoreReader, referenceKey.primaryKey());
+						if (counterpartScope != null) {
+							// if the current reference is a reflected reference
+							if (referenceSchema instanceof ReflectedReferenceSchemaContract rrsc) {
+								final Optional<ReferenceSchemaContract> counterpartSchema = catalogSchema
+									.getEntitySchema(rrsc.getReferencedEntityType())
+									.flatMap(it -> it.getReference(rrsc.getReflectedReferenceName()));
+								final boolean attributeVisibleFromOtherSide = counterpartSchema
+									.flatMap(it -> it.getAttribute(ram.getAttributeKey().attributeName()))
+									.isPresent();
+								// create a mutation to counterpart reference in the referenced entity, but only if
+								// the attribute is visible from that point of view and the relation is maintained
+								// for the current scope span (an invisible mirror would not exist to update)
+								if (attributeVisibleFromOtherSide &&
+									isRelationMaintained(referenceSchema, counterpartSchema.get(), scope, counterpartScope)) {
+									final ReferenceKey referenceKeyToUpdate = new ReferenceKey(
+										rrsc.getReflectedReferenceName(), this.entityPrimaryKey,
+										ram.getReferenceKey().internalPrimaryKey()
+									);
+									if (getReferenceKeyManager().isReferenceKeyNotRemoved(referenceKeyToUpdate)) {
+										// only if the counterpart reference wasn't removed in the same update
+										registerPropagatedReferenceAttributeMutation(
+											referenceSchema, ram, referenceAttributeMutationsByEntityReference,
+											referenceKey, referenceKeyToUpdate
+										);
+									}
+								}
+							} else {
+								// otherwise check whether there is reflected reference in the referenced entity
+								// that relates to our standard reference
+								final Optional<ReflectedReferenceSchema> reflectedReferenceSchema =
+									catalogSchema.getEntitySchema(referenceSchema.getReferencedEntityType())
+									             .map(it -> ((EntitySchemaDecorator) it).getDelegate())
+									             .flatMap(it -> it.getReflectedReferenceFor(
+										                      entitySchema.getName(),
+										                      referenceName
+									                      )
+									             );
+								if (reflectedReferenceSchema.isPresent()) {
+									final ReflectedReferenceSchema rrsc = reflectedReferenceSchema.get();
+									// if such is found, create a mutation to counterpart reflected reference
+									// in the referenced entity
+									final boolean attributeVisibleFromOtherSide = rrsc.getAttribute(
+										ram.getAttributeKey().attributeName()
+									).isPresent();
+									// create a mutation to counterpart reference in the referenced entity, but only
+									// if the attribute is visible from that point of view and the relation is
+									// maintained for the current scope span (a discarded mirror cannot be updated)
+									if (attributeVisibleFromOtherSide &&
+										isRelationMaintained(referenceSchema, rrsc, scope, counterpartScope)) {
 										final ReferenceKey referenceKeyToUpdate = new ReferenceKey(
-											rrsc.getReflectedReferenceName(), this.entityPrimaryKey,
+											rrsc.getName(), this.entityPrimaryKey,
 											ram.getReferenceKey().internalPrimaryKey()
 										);
 										if (getReferenceKeyManager().isReferenceKeyNotRemoved(referenceKeyToUpdate)) {
@@ -2304,41 +2554,6 @@ public final class ContainerizedLocalMutationExecutor
 												referenceSchema, ram, referenceAttributeMutationsByEntityReference,
 												referenceKey, referenceKeyToUpdate
 											);
-										}
-									}
-								} else {
-									// otherwise check whether there is reflected reference in the referenced entity
-									// that relates to our standard reference
-									final Optional<ReflectedReferenceSchema> reflectedReferenceSchema =
-										catalogSchema.getEntitySchema(referenceSchema.getReferencedEntityType())
-										             .map(it -> ((EntitySchemaDecorator) it).getDelegate())
-										             .flatMap(it -> it.getReflectedReferenceFor(
-											                      entitySchema.getName(),
-											                      referenceName
-										                      )
-										             );
-									if (reflectedReferenceSchema.isPresent()) {
-										final ReflectedReferenceSchema rrsc = reflectedReferenceSchema.get();
-										// if such is found, create a mutation to counterpart reflected reference
-										// in the referenced entity
-										final boolean attributeVisibleFromOtherSide = rrsc.getAttribute(
-											ram.getAttributeKey().attributeName()
-										).isPresent();
-										// create a mutation to counterpart reference in the referenced entity
-										// but only if the attribute is visible from that point of view
-										if (attributeVisibleFromOtherSide) {
-											final ReferenceKey referenceKeyToUpdate = new ReferenceKey(
-												rrsc.getName(), this.entityPrimaryKey,
-												ram.getReferenceKey().internalPrimaryKey()
-											);
-											if (getReferenceKeyManager().isReferenceKeyNotRemoved(referenceKeyToUpdate)) {
-												// only if the counterpart reference wasn't removed in the same update
-												// only if the counterpart reference wasn't removed in the same update
-												registerPropagatedReferenceAttributeMutation(
-													referenceSchema, ram, referenceAttributeMutationsByEntityReference,
-													referenceKey, referenceKeyToUpdate
-												);
-											}
 										}
 									}
 								}

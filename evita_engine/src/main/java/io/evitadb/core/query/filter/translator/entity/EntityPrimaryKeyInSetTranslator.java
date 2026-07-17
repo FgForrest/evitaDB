@@ -91,7 +91,6 @@ public class EntityPrimaryKeyInSetTranslator implements FilteringConstraintTrans
 							     filterByVisitor::getGlobalEntityIndexIfExists,
 							     it,
 							     standardResult,
-							     processingScope.getScopes(),
 							     processingScope.getReferencedEntityExpansionFunction()
 						     )
 						)

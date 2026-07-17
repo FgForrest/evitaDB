@@ -224,7 +224,6 @@ public class EntityHavingTranslator implements FilteringConstraintTranslator<Ent
 										     filterByVisitor::getGlobalEntityIndexIfExists,
 										     it,
 										     nestedResult.filter(),
-										     processingScope.getScopes(),
 										     processingScope.getReferencedEntityExpansionFunction()
 									     )
 									)
