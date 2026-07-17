@@ -78,6 +78,12 @@ public class ReferencedEntityIndexPrimaryKeyTranslatingFormula
 	 */
 	private static final long CLASS_ID = 2738491562847195632L;
 	/**
+	 * Placeholder transactional id recorded for a scope whose GLOBAL index does not exist yet. It makes the
+	 * cache-invalidation hash (see {@link #includeAdditionalHash(LongHashFunction)}) change once the index is
+	 * created later, so a cached empty superset is not incorrectly reused when the referenced entity appears.
+	 */
+	private static final long INDEX_ABSENT_TRANSACTIONAL_ID = -1L;
+	/**
 	 * Error message thrown when {@link #getCloneWithInnerFormulas(Formula...)} receives more than one inner formula.
 	 */
 	public static final String ERROR_SINGLE_FORMULA_EXPECTED = "Exactly one inner formula is expected!";
@@ -146,7 +152,7 @@ public class ReferencedEntityIndexPrimaryKeyTranslatingFormula
 	 *
 	 * When the target entity type is managed, this constructor also builds a superset of allowed
 	 * entity primary keys by querying {@link GlobalEntityIndex} for the target entity type in
-	 * <b>all</b> scopes. The scope of the query constrains only the queried entities - a reference may
+	 * **all** scopes. The scope of the query constrains only the queried entities - a reference may
 	 * point to an entity living in a different scope (e.g. an archived product referencing a live
 	 * category), so the existence check must not be limited to the scopes the query is evaluated in.
 	 * The union of these bitmaps is used to filter the inner result during evaluation. Transactional
@@ -183,6 +189,10 @@ public class ReferencedEntityIndexPrimaryKeyTranslatingFormula
 				final Optional<GlobalEntityIndex> globalEntityIndex = referencedEntitySuperSetSupplier
 					.apply(targetEntityType, theScope);
 				if (globalEntityIndex.isEmpty()) {
+					// the GLOBAL index for this scope does not exist yet - record a deterministic placeholder so the
+					// cache-invalidation hash changes once the index is created later (otherwise a cached empty
+					// superset could be reused after the referenced entity appears)
+					transactionalIds[transactionalIdIndex++] = INDEX_ABSENT_TRANSACTIONAL_ID;
 					continue;
 				}
 				final Bitmap allPrimaryKeys = globalEntityIndex.get().getAllPrimaryKeys();
