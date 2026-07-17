@@ -84,8 +84,9 @@ public class ReferencedEntityIndexPrimaryKeyTranslatingFormula
 	/**
 	 * Optional union bitmap of all referenced entity primary keys that are allowed to participate
 	 * in the translation. The bitmap is built from {@link GlobalEntityIndex#getAllPrimaryKeys()}
-	 * across all scopes where the reference is indexed. When {@code null}, no additional
-	 * restriction applies (either the referenced type is not managed or the index is unavailable).
+	 * across all scopes (a reference may point to an entity living in a different scope than the
+	 * queried entity). When {@code null} the referenced type is not managed and no restriction
+	 * applies; for a managed type the superset is always present (possibly empty).
 	 */
 	private final Bitmap referencedEntitySuperSet;
 	/**
@@ -144,11 +145,13 @@ public class ReferencedEntityIndexPrimaryKeyTranslatingFormula
 	 * inner formula and lazily maps them to primary keys of the referenced-type entity index.
 	 *
 	 * When the target entity type is managed, this constructor also builds a superset of allowed
-	 * entity primary keys by querying {@link GlobalEntityIndex} for the target entity type in all
-	 * provided scopes where the reference is indexed. The union of these bitmaps is used to filter
-	 * the inner result during evaluation. Transactional ids of the contributing indices are captured
-	 * so that {@link #includeAdditionalHash(LongHashFunction)} can properly invalidate caches when
-	 * any of them changes.
+	 * entity primary keys by querying {@link GlobalEntityIndex} for the target entity type in
+	 * <b>all</b> scopes. The scope of the query constrains only the queried entities - a reference may
+	 * point to an entity living in a different scope (e.g. an archived product referencing a live
+	 * category), so the existence check must not be limited to the scopes the query is evaluated in.
+	 * The union of these bitmaps is used to filter the inner result during evaluation. Transactional
+	 * ids of the contributing indices are captured so that {@link #includeAdditionalHash(LongHashFunction)}
+	 * can properly invalidate caches when any of them changes.
 	 *
 	 * @param referenceSchema schema of the processed reference
 	 * @param targetEntityType the entity type to resolve the superset for (referenced entity type
