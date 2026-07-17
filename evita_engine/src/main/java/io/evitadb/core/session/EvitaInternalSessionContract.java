@@ -42,6 +42,7 @@ import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.system.WriteAheadLogVersionDescriptor;
 import io.evitadb.api.task.ServerTask;
 import io.evitadb.api.task.TaskStatus;
+import io.evitadb.core.traffic.TrafficRecordingExportSettings;
 import io.evitadb.core.traffic.TrafficRecordingSettings;
 import io.evitadb.exception.EvitaInvalidUsageException;
 
@@ -299,5 +300,23 @@ public interface EvitaInternalSessionContract extends EvitaSessionContract, Traf
 	 */
 	@Nonnull
 	TaskStatus<TrafficRecordingSettings, FileForFetch> stopRecording(@Nonnull UUID taskId) throws EvitaInvalidUsageException;
+
+	/**
+	 * Exports a consistent, on-demand snapshot of the currently buffered traffic recording window to a
+	 * downloadable zip archive. Unlike {@link #startRecording}/{@link #stopRecording}, this is **not** gated by
+	 * any singleton-task guard - multiple exports (and an ongoing {@link #startRecording} task) may run
+	 * concurrently, mirroring the always-available access {@link #getRecordings}/{@link #getRecordingsReversed}
+	 * already provide.
+	 *
+	 * @param chunkFileSizeInBytes size of each chunk file used to store the exported data within the resulting
+	 *                             zip archive
+	 * @return a {@code ServerTask} instance that will resolve to a reference of the produced export file
+	 * @throws EvitaInvalidUsageException if traffic recording is disabled in configuration and no on-demand
+	 *                                     recording has been started
+	 */
+	@Nonnull
+	ServerTask<TrafficRecordingExportSettings, FileForFetch> exportTrafficRecording(
+		long chunkFileSizeInBytes
+	) throws EvitaInvalidUsageException;
 
 }

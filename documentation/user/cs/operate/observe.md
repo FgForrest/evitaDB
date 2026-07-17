@@ -528,6 +528,27 @@ Zaznamenaný provoz lze procházet a filtrovat v evitaLab a jakýkoli dotaz lze 
 Záznamy lze filtrovat také podle vlastních [štítků](../query/header/label.md#štítek), traceId nebo typů protokolu.
 Snadno tak můžete izolovat sady záznamů provozu, které souvisejí s jedním obchodním případem, například jedním vykreslením stránky nebo jedním voláním API.
 
+### Export záznamu provozu na vyžádání
+
+Výše popsaná úloha pro export provozu *spouští* nový záznam a streamuje jej do ZIP souboru v průběhu jeho vzniku. Když
+místo toho potřebujete provoz, který je *již* uložen v bufferu — nedávné okno, které si server drží na disku bez ohledu
+na to, zda běží nějaká exportní úloha — použijte export na vyžádání. Ten pořídí konzistentní jednorázový snímek aktuálního
+okna bufferu a zapíše jej do stažitelného ZIP souboru, aniž by spouštěl, zastavoval nebo jakkoli přerušoval živý záznam.
+
+Export se spouští přes gRPC API pro záznam provozu (`ExportTrafficRecording` na `GrpcEvitaTrafficRecordingService`),
+volitelně s předáním cílové velikosti chunk souboru v bajtech; uložené session jsou v archivu rozděleny do několika souborů
+`traffic_recording_*.bin` přibližně této velikosti. Výsledný ZIP se získává stejně jako jakýkoli jiný exportní soubor serveru
+prostřednictvím file-fetch API (`ListFilesToFetch` pro jeho nalezení, `FetchFile` pro stažení) a je automaticky odstraněn
+z exportní složky serveru po uplynutí nakonfigurované doby uchování.
+
+Každý `.bin` chunk obsahuje surové, doslovné záznamy session, které lze přehrát na jiné instanci evitaDB. Archiv rovněž
+obsahuje soubor `metadata.txt` shrnující daný běh; nad rámec časových a bajtových součtů sdílených se streamovaným reportem
+export na vyžádání navíc uvádí, kolik session bylo `skipped` (vytlačeno z bufferu nebo zamčeno k zápisu živým rekordérem
+během procházení snímku — takové session jsou započítány, nikdy nejsou vyexportovány jen zčásti) a kolik session zmražený
+snímek celkem obsahoval (`snapshot contained`). Vygenerovaný soubor je označen původem exportní úlohy
+(`TrafficRecordingExportTask`, na rozdíl od `TrafficRecorderTask` u streamovaného reportu), takže klient vypisující soubory
+přes `ListFilesToFetch` dokáže odlišit exporty na vyžádání od streamovaných záznamů.
+
 ## Change data capture
 
 Change data capture umožňuje sledovat změny probíhající v databázi téměř v reálném čase. Můžete se přihlásit k odběru změn

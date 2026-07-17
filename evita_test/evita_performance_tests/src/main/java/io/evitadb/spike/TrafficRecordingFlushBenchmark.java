@@ -51,10 +51,10 @@ import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Phase 0 (issue #1282) baseline: cost of {@code OffHeapTrafficRecorder#freeMemory()} - the drain that moves
+ * Baseline benchmark (issue #1282): cost of {@code OffHeapTrafficRecorder#freeMemory()} - the drain that moves
  * finalized in-memory sessions into the {@code DiskRingBuffer} - as a function of how many sessions are
  * outstanding and how large they are. Quantifies `DiskRingBuffer.append` + eviction scan + file-lock overhead
- * per drained batch (see plan Phase 0, benchmark 2).
+ * per drained batch.
  *
  * <p>`freeMemory()` is private (it is only ever invoked internally, on a schedule) so this benchmark reaches it
  * via reflection - the same technique `DiskRingBufferTest`/`OffHeapTrafficRecorderTest` already use to reach
@@ -75,8 +75,8 @@ public class TrafficRecordingFlushBenchmark {
 
 	/**
 	 * A rough estimate of how many bytes a single sample query record occupies once serialized, used only to
-	 * translate the `sessionSizeBytes` parameter into a record count for pre-population; the plan only requires
-	 * an approximate session size sweep, not an exact one.
+	 * translate the `sessionSizeBytes` parameter into a record count for pre-population; only an approximate
+	 * session size sweep is required, not an exact one.
 	 */
 	private static final int APPROX_BYTES_PER_RECORD = 300;
 

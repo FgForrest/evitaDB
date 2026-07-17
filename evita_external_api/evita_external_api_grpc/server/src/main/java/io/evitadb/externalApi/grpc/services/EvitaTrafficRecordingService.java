@@ -32,6 +32,7 @@ import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingCaptureRe
 import io.evitadb.api.task.ServerTask;
 import io.evitadb.api.task.TaskStatus;
 import io.evitadb.core.Evita;
+import io.evitadb.core.traffic.TrafficRecordingExportSettings;
 import io.evitadb.core.traffic.TrafficRecordingSettings;
 import io.evitadb.externalApi.configuration.HeaderOptions;
 import io.evitadb.externalApi.grpc.generated.*;
@@ -294,7 +295,37 @@ public class EvitaTrafficRecordingService extends GrpcEvitaTrafficRecordingServi
 						.setTaskStatus(toGrpcTaskStatus(taskStatus))
 						.build()
 				);
-				responseObserver.onNext(builder.build());
+				responseObserver.onCompleted();
+			},
+			this.evita.getRequestExecutor(),
+			responseObserver,
+			this.tracingContext
+		);
+	}
+
+	/**
+	 * Exports a consistent, on-demand snapshot of the currently buffered traffic recording window to a
+	 * downloadable zip archive. Unlike {@link #startTrafficRecording}/{@link #stopTrafficRecording}, this is
+	 * not gated by any running recording task - it may be called at any time.
+	 *
+	 * @param request          request object containing the parameters required to export the traffic recording.
+	 * @param responseObserver the stream observer used to send the export task status response back to the client.
+	 */
+	@Override
+	public void exportTrafficRecording(GrpcExportTrafficRecordingRequest request, StreamObserver<GetTrafficRecordingStatusResponse> responseObserver) {
+		executeWithClientContext(
+			session -> {
+				GetTrafficRecordingStatusResponse.Builder builder = GetTrafficRecordingStatusResponse.newBuilder();
+				final ServerTask<TrafficRecordingExportSettings, FileForFetch> task = session.exportTrafficRecording(
+					request.hasChunkFileSizeInBytes() ?
+						request.getChunkFileSizeInBytes().getValue() :
+						this.evita.getConfiguration().server().trafficRecording().exportFileChunkSizeInBytes()
+				);
+				responseObserver.onNext(
+					builder
+						.setTaskStatus(toGrpcTaskStatus(task.getStatus()))
+						.build()
+				);
 				responseObserver.onCompleted();
 			},
 			this.evita.getRequestExecutor(),

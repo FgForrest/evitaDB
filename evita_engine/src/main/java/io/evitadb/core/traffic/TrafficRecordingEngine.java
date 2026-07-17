@@ -26,6 +26,7 @@ package io.evitadb.core.traffic;
 
 import io.evitadb.api.CatalogState;
 import io.evitadb.api.traffic.LabelIntrospector;
+import io.evitadb.api.traffic.TrafficRecordingExporter;
 import io.evitadb.api.traffic.TrafficRecordingReader;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.StorageOptions;
@@ -59,6 +60,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.IOException;
 import java.io.Serializable;
 import java.time.OffsetDateTime;
 import java.util.Arrays;
@@ -526,6 +528,33 @@ public class TrafficRecordingEngine implements TrafficRecordingReader {
 	public Stream<TrafficRecording> getRecordingsReversed(@Nonnull TrafficRecordingCaptureRequest request) throws TemporalDataNotAvailableException, IndexNotReady {
 		if (this.trafficRecorder.get() instanceof TrafficRecordingReader trr) {
 			return trr.getRecordingsReversed(request);
+		} else {
+			throw new EvitaInvalidUsageException(
+				"Traffic recording is disabled in configuration settings and no on-demand traffic recording has been started!"
+			);
+		}
+	}
+
+	/**
+	 * Exports a consistent, on-demand snapshot of the currently buffered traffic recording window - see
+	 * {@link TrafficRecordingExporter} for the full contract. Unlike {@link #startRecording(int, SessionSink)}
+	 * / {@link #stopRecording()}, this is **not** gated by {@link #recordingActive} - it operates on whatever
+	 * window the active recorder currently holds, regardless of whether an explicit recording session is
+	 * running, mirroring the same always-available access {@link #getRecordings}/{@link #getRecordingsReversed}
+	 * already provide.
+	 *
+	 * @param sessionConsumer  invoked once per exported session
+	 * @param progressListener invoked after each processed (exported or skipped) session
+	 * @return a summary of how many sessions were exported/skipped and how many bytes were copied
+	 * @throws IOException if the sessionConsumer's own I/O (e.g. writing to a zip stream) fails
+	 */
+	@Nonnull
+	public TrafficRecordingExporter.ExportSummary exportTrafficRecording(
+		@Nonnull TrafficRecordingExporter.ExportedSessionConsumer sessionConsumer,
+		@Nonnull TrafficRecordingExporter.ExportProgressListener progressListener
+	) throws IOException {
+		if (this.trafficRecorder.get() instanceof TrafficRecordingExporter exporter) {
+			return exporter.exportTrafficRecording(sessionConsumer, progressListener);
 		} else {
 			throw new EvitaInvalidUsageException(
 				"Traffic recording is disabled in configuration settings and no on-demand traffic recording has been started!"

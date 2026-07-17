@@ -51,8 +51,8 @@ import static io.evitadb.api.query.QueryConstraints.orderBy;
 import static io.evitadb.api.query.QueryConstraints.require;
 
 /**
- * Shared construction helpers for the traffic-recording JMH benchmarks (issue #1282, Phase 0). Mirrors the
- * `OffHeapTrafficRecorderTest.setUp` (D6 construction template) so benchmark states stand up the same object graph
+ * Shared construction helpers for the traffic-recording JMH benchmarks (issue #1282). Mirrors
+ * `OffHeapTrafficRecorderTest.setUp` so benchmark states stand up the same object graph
  * as the functional tests do, without needing a running server.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
@@ -64,7 +64,7 @@ public final class TrafficRecordingBenchSupport {
 	 */
 	public static final String ENTITY_TYPE = "Product";
 	/**
-	 * Two labels attached to every sample query so the label-merging path flagged in the plan
+	 * Two labels attached to every sample query so the label-merging path
 	 * (`OffHeapTrafficRecorder.recordQuery` stream allocation) is actually exercised.
 	 */
 	public static final Label[] SAMPLE_LABELS = new Label[]{label("a", "b"), label("c", "d")};

@@ -559,6 +559,27 @@ query console on the current dataset. Records can also be filtered by custom [la
 traceIds or protocol types. You can easily isolate sets of traffic records that relate to a single business case, such 
 as a single page rendering or a single API call.
 
+### On-demand traffic recording export
+
+The traffic reporting task described above *starts* a fresh recording and streams it to a ZIP as it happens. When you 
+instead need the traffic that is *already* buffered — the recent window the server keeps on disk regardless of whether a 
+reporting task is running — use the on-demand export. It takes a consistent, one-shot snapshot of the current buffer 
+window and writes it to a downloadable ZIP without starting, stopping or otherwise interrupting live recording.
+
+The export is triggered over the gRPC traffic-recording API (`ExportTrafficRecording` on `GrpcEvitaTrafficRecordingService`), 
+optionally passing a target chunk-file size in bytes; the buffered sessions are split into several `traffic_recording_*.bin` 
+files of approximately that size within the archive. The resulting ZIP is retrieved like any other server export file, 
+through the file-fetch API (`ListFilesToFetch` to discover it, `FetchFile` to download it), and is automatically removed 
+from the server's export folder after the configured retention period.
+
+Each `.bin` chunk contains raw, verbatim session records that can be replayed on another evitaDB instance. The archive 
+also carries a `metadata.txt` summarising the run; on top of the timing and byte totals shared with the streaming report, 
+the on-demand export additionally reports how many sessions were `skipped` (evicted from the buffer or write-locked by the 
+live recorder while the snapshot was being walked — such sessions are counted, never partially emitted) and how many 
+sessions the frozen `snapshot contained` in total. The generated file is tagged with the export task origin 
+(`TrafficRecordingExportTask`, as opposed to the streaming report's `TrafficRecorderTask`), so a client listing files via 
+`ListFilesToFetch` can tell on-demand exports apart from streamed recordings.
+
 ## Change data capture
 
 Change data capture allows you to track changes happening in the database in near real-time. You can subscribe to changes

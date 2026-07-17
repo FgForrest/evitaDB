@@ -50,12 +50,12 @@ import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Phase 0 (issue #1282) baseline: write throughput/allocation of {@link OffHeapTrafficRecorder#recordQuery},
+ * Baseline benchmark (issue #1282): write throughput/allocation of {@link OffHeapTrafficRecorder#recordQuery},
  * {@link OffHeapTrafficRecorder#recordFetch} and {@link OffHeapTrafficRecorder#recordMutation} against an
- * initialized recorder at 100% sampling - the query hot path the plan calls out as the primary target for
+ * initialized recorder at 100% sampling - the query hot path is the primary target for
  * `-prof gc` allocation-rate measurement.
  *
- * <p>The `recordQuery` scenario carries the {@code @Threads(1/4/16)} sweep required by the plan since it is the
+ * <p>The `recordQuery` scenario carries the {@code @Threads(1/4/16)} sweep since it is the
  * dominant call in production traffic; `recordFetch`/`recordMutation` are covered single-threaded only - the
  * exact thread fan-out is a local micro-decision left to the implementer.
  *

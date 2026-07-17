@@ -54,14 +54,22 @@ import javax.annotation.Nullable;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.channels.FileLock;
-import java.nio.channels.OverlappingFileLockException;
 import java.nio.file.Path;
 import java.time.OffsetDateTime;
-import java.util.*;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Deque;
+import java.util.List;
+import java.util.Objects;
+import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -156,15 +164,38 @@ public class DiskRingBuffer {
 	 */
 	private final AtomicInteger indexedSessions = new AtomicInteger();
 	/**
-	 * Head of the ring buffer.
+	 * In-JVM span-aware lock guarding the disk buffer file (see {@link RingBufferSpanLock} javadoc for the rationale).
 	 */
-	@Getter(AccessLevel.PROTECTED)
-	private long ringBufferHead = 0L;
+	private final RingBufferSpanLock spanLock;
 	/**
-	 * Tail of the ring buffer.
+	 * Number of times a reader/exporter gave up on acquiring a shared span lock because the span was
+	 * exclusively held by the writer. Surfaced for diagnostics/export metadata.
+	 */
+	private final AtomicLong sharedLockGiveUpCount = new AtomicLong();
+	/**
+	 * Number of sessions skipped during an export because the on-disk lead descriptor at the session's
+	 * recorded starting position no longer matched the expected sequence order - i.e. the session had
+	 * been evicted and its physical slot already reused by a newer session under rotation. Being
+	 * *in the valid ring-buffer window* does not imply *still being the same session*, so this identity
+	 * re-check (performed while the shared span token is held) is what prevents a torn/mismatched session
+	 * from being copied verbatim into the export. Surfaced for diagnostics.
+	 */
+	private final AtomicLong exportIdentityMismatchSkipCount = new AtomicLong();
+	/**
+	 * Head of the ring buffer. Volatile because it's written by the writer thread - at most one at a time,
+	 * since {@code OffHeapTrafficRecorder}'s {@code freeMemory()}/{@code drainFinalizedSessionsToDisk()} are
+	 * both {@code synchronized} on the same monitor, so writer-vs-writer can never race this field - and read
+	 * by reader threads outside of any lock (e.g. between per-record lock acquisitions); with only one writer
+	 * ever in flight, {@code volatile} exists purely to give those plain reads correct visibility and atomic
+	 * 64-bit reads of the writer's updates, not to arbitrate between concurrent writers.
 	 */
 	@Getter(AccessLevel.PROTECTED)
-	private long ringBufferTail = 0L;
+	private volatile long ringBufferHead = 0L;
+	/**
+	 * Tail of the ring buffer. See {@link #ringBufferHead} for the visibility rationale.
+	 */
+	@Getter(AccessLevel.PROTECTED)
+	private volatile long ringBufferTail = 0L;
 	/**
 	 * Last real sampling rate to be propagated to the sink.
 	 */
@@ -188,6 +219,70 @@ public class DiskRingBuffer {
 		}
 		return locationA.startingPosition() <= locationB.endPosition()
 			&& locationB.startingPosition() <= locationA.endPosition();
+	}
+
+	/**
+	 * Checks whether two inclusive ranges [from1, to1] and [from2, to2] overlap.
+	 *
+	 * @param from1 start of the first range (inclusive)
+	 * @param to1   end of the first range (inclusive)
+	 * @param from2 start of the second range (inclusive)
+	 * @param to2   end of the second range (inclusive)
+	 * @return true if the ranges overlap; false otherwise
+	 */
+	static boolean rangesOverlap(long from1, long to1, long from2, long to2) {
+		return from1 <= to2 && from2 <= to1;
+	}
+
+	/**
+	 * Copies exactly {@code length} bytes starting at {@code position} (a single non-wrapping physical
+	 * segment) from the read handle into the output stream, using the given reusable buffer.
+	 */
+	private static void copySegment(
+		@Nonnull RandomAccessFileInputStream readHandle,
+		@Nonnull byte[] copyBuffer,
+		long position,
+		int length,
+		@Nonnull OutputStream outputStream
+	) throws IOException {
+		readHandle.seek(position);
+		int remaining = length;
+		while (remaining > 0) {
+			final int lengthToRead = Math.min(remaining, copyBuffer.length);
+			final int bytesRead = readHandle.read(copyBuffer, 0, lengthToRead);
+			isPremiseValid(
+				bytesRead > 0,
+				"Unexpected end of the traffic recording disk buffer file during export - the file has a " +
+					"fixed length, so this indicates a logic bug, not a transient I/O condition."
+			);
+			outputStream.write(copyBuffer, 0, bytesRead);
+			remaining -= bytesRead;
+		}
+	}
+
+	/**
+	 * Reads exactly {@code length} bytes from physical file position {@code filePosition} into
+	 * {@code buffer} at {@code offset}, looping over short reads. The disk buffer file has a fixed length,
+	 * so a premature end-of-file signals a logic bug rather than a transient I/O condition.
+	 */
+	private static void readFullyAt(
+		@Nonnull RandomAccessFileInputStream readHandle,
+		@Nonnull byte[] buffer,
+		int offset,
+		int length,
+		long filePosition
+	) {
+		readHandle.seek(filePosition);
+		int read = 0;
+		while (read < length) {
+			final int bytesRead = readHandle.read(buffer, offset + read, length - read);
+			isPremiseValid(
+				bytesRead > 0,
+				"Unexpected end of the traffic recording disk buffer file while reading a session lead " +
+					"descriptor during export - the file has a fixed length, so this indicates a logic bug."
+			);
+			read += bytesRead;
+		}
 	}
 
 	/**
@@ -228,6 +323,7 @@ public class DiskRingBuffer {
 			// Initialize the file size (allocate space on disk)
 			this.diskBufferFile.setLength(diskBufferFileSize);
 			this.fileChannel = this.diskBufferFile.getChannel();
+			this.spanLock = new RingBufferSpanLock(diskBufferFileSize);
 		} catch (Exception e) {
 			throw new UnexpectedIOException(
 				"Failed to create traffic recording buffer file: " + e.getMessage(),
@@ -325,7 +421,8 @@ public class DiskRingBuffer {
 
 		final long sessionSequenceOrder = this.sequenceOrder.incrementAndGet();
 		final SessionFileLocation fileLocation = new SessionFileLocation(this.ringBufferTail, totalSizeWithHeader);
-		final SessionLocation sessionLocation = new SessionLocation(sessionSequenceOrder, sessionRecordsCount, fileLocation);
+		final SessionLocation sessionLocation = new SessionLocation(
+			sessionSequenceOrder, sessionRecordsCount, fileLocation);
 
 		// Prepare descriptor
 		this.descriptorByteBuffer.putLong(sessionSequenceOrder);
@@ -352,7 +449,8 @@ public class DiskRingBuffer {
 				throw MemoryNotAvailableException.DATA_TOO_LARGE;
 			}
 
-			final int lengthToWrite = Math.min(Math.toIntExact(this.diskBufferFileSize - this.ringBufferTail), totalBytesToWrite);
+			final int lengthToWrite = Math.min(
+				Math.toIntExact(this.diskBufferFileSize - this.ringBufferTail), totalBytesToWrite);
 			updateSessionLocations(totalBytesToWrite);
 
 			if (lengthToWrite < totalBytesToWrite) {
@@ -365,7 +463,8 @@ public class DiskRingBuffer {
 					new FileLocation(this.fileChannel.position(), totalBytesToWrite - lengthToWrite),
 					() -> {
 						final int restLengthToWrite = totalBytesToWrite - lengthToWrite;
-						writeDataToFileChannel(memoryByteBuffer.slice(lengthToWrite, restLengthToWrite), restLengthToWrite);
+						writeDataToFileChannel(
+							memoryByteBuffer.slice(lengthToWrite, restLengthToWrite), restLengthToWrite);
 					}
 				);
 			} else {
@@ -460,7 +559,8 @@ public class DiskRingBuffer {
 		notNull(sessionIndex, () -> new IndexNotReady(calculateIndexingPercentage()));
 
 		final RandomAccessFileInputStream inputStream = this.getDiskBufferFileReadInputStream();
-		final Predicate<TrafficRecording> requestPredicate = TrafficRecorder.createRequestPredicate(request, StreamDirection.FORWARD);
+		final Predicate<TrafficRecording> requestPredicate = TrafficRecorder.createRequestPredicate(
+			request, StreamDirection.FORWARD);
 		return sessionIndex.getSessionStream(request)
 			.flatMap(
 				it -> this.readSessionRecords(
@@ -492,7 +592,8 @@ public class DiskRingBuffer {
 		notNull(sessionIndex, () -> new IndexNotReady(calculateIndexingPercentage()));
 
 		final RandomAccessFileInputStream inputStream = this.getDiskBufferFileReadInputStream();
-		final Predicate<TrafficRecording> requestPredicate = TrafficRecorder.createRequestPredicate(request, StreamDirection.REVERSE);
+		final Predicate<TrafficRecording> requestPredicate = TrafficRecorder.createRequestPredicate(
+			request, StreamDirection.REVERSE);
 		return sessionIndex.getSessionReversedStream(request)
 			.flatMap(
 				it -> {
@@ -573,7 +674,8 @@ public class DiskRingBuffer {
 				}
 
 				// index is ready, process postponed updates
-				final Deque<Consumer<TrafficRecordingIndex>> theLambdasToExecute = this.postponedIndexUpdates.getAndSet(null);
+				final Deque<Consumer<TrafficRecordingIndex>> theLambdasToExecute = this.postponedIndexUpdates.getAndSet(
+					null);
 				notNull(theLambdasToExecute, "Postponed index updates are null. This is not expected!");
 				theLambdasToExecute.forEach(lambda -> {
 					lambda.accept(index);
@@ -647,6 +749,106 @@ public class DiskRingBuffer {
 	}
 
 	/**
+	 * Exports a consistent snapshot of the ring buffer's current window (as of the moment this method is
+	 * called) by walking the session locations oldest -> newest and handing each session's raw, verbatim
+	 * {@code <lead descriptor><payload>} bytes to the given {@code sessionConsumer}. The finish line is the
+	 * sequence order frozen at the start of the call - sessions appended after that point (e.g. by a
+	 * flush racing the walk) are simply not part of the snapshot, they are not awaited and not skipped.
+	 *
+	 * A session is skipped (never causing a truncated `.bin` entry) when either its span is currently
+	 * exclusively held by the writer (lock conflict - the caller is expected to have already run a
+	 * synchronous pre-export drain, so this should be rare), or the session was evicted before the shared
+	 * span token could be validated. Once the shared token is held AND {@link #isSessionLocationStillInValidArea}
+	 * passes, the bytes cannot change underneath the copy - the writer needs the exclusive span lock to
+	 * physically overwrite them, and that lock is blocked by our held token - so no re-validation after the
+	 * copy is necessary or performed.
+	 *
+	 * <p>Does NOT use {@link TrafficRecordingIndex} - the export needs no filtering, and this keeps it
+	 * fully decoupled from the {@code IndexNotReady} lifecycle.
+	 *
+	 * @param copyBuffer       reusable buffer for the raw byte copy (caller-owned - e.g. borrowed from a pool -
+	 *                         so this method stays decoupled from any specific pool implementation)
+	 * @param sessionConsumer  invoked once per exported session with a {@link SessionByteSource} that can
+	 *                         stream that session's raw bytes into any {@link OutputStream}
+	 * @param progressListener invoked after each processed (exported or skipped) session
+	 * @return a summary of how many sessions were exported/skipped and how many bytes were copied
+	 * @throws IOException if the sessionConsumer's own I/O (e.g. writing to a zip stream) fails
+	 */
+	@Nonnull
+	public ExportSummary exportSnapshot(
+		@Nonnull byte[] copyBuffer,
+		@Nonnull ExportedSessionConsumer sessionConsumer,
+		@Nonnull ExportProgressListener progressListener
+	) throws IOException {
+		final long maxSeq = this.sequenceOrder.get();
+		final List<SessionLocation> snapshot = new ArrayList<>(this.sessionLocations.size());
+		for (SessionLocation location : this.sessionLocations) {
+			if (location.sequenceOrder() <= maxSeq) {
+				snapshot.add(location);
+			}
+		}
+
+		final int totalCount = snapshot.size();
+		int exported = 0;
+		int skipped = 0;
+		long exportedBytes = 0L;
+
+		final byte[] descriptorScratch = new byte[LEAD_DESCRIPTOR_BYTE_SIZE];
+		try (RandomAccessFileInputStream readHandle = getDiskBufferFileReadInputStream()) {
+			for (SessionLocation location : snapshot) {
+				final SessionFileLocation fileLocation = location.location();
+				final RingBufferSpanLock.Token token = this.spanLock.tryAcquireShared(
+					fileLocation.startingPosition(), fileLocation.recordLength()
+				);
+				if (token == null) {
+					this.sharedLockGiveUpCount.incrementAndGet();
+					skipped++;
+				} else {
+					try {
+						if (!isSessionLocationStillInValidArea(fileLocation)) {
+							// the session's byte range has fallen out of the live ring-buffer window
+							skipped++;
+						} else if (!onDiskSessionIdentityMatches(
+							readHandle, descriptorScratch, fileLocation, location.sequenceOrder())) {
+							// the range is back inside the window, but the on-disk descriptor no longer
+							// matches this session's sequence order - the slot was evicted and already
+							// reused by a newer session under rotation. Copying it verbatim would splice a
+							// foreign session's bytes into the export (a torn `.bin`), so skip it. The held
+							// shared token means the descriptor cannot change between this check and a copy,
+							// so a match guarantees the whole session is still intact (writes are
+							// contiguous-forward, so any incursion clobbers the descriptor first).
+							this.exportIdentityMismatchSkipCount.incrementAndGet();
+							skipped++;
+						} else {
+							sessionConsumer.accept(
+								location,
+								outputStream -> copySessionBytes(readHandle, copyBuffer, fileLocation, outputStream)
+							);
+							exported++;
+							exportedBytes += fileLocation.recordLength();
+						}
+					} finally {
+						this.spanLock.release(token);
+					}
+				}
+				progressListener.onProgress(exported + skipped, totalCount);
+			}
+		}
+
+		return new ExportSummary(exported, exportedBytes, skipped, totalCount);
+	}
+
+	/**
+	 * Number of sessions skipped during exports because their on-disk lead descriptor no longer matched the
+	 * expected sequence order (evicted-and-reused slot under rotation). Cumulative across all export runs.
+	 *
+	 * @return the cumulative identity-mismatch skip count
+	 */
+	long getExportIdentityMismatchSkipCount() {
+		return this.exportIdentityMismatchSkipCount.get();
+	}
+
+	/**
 	 * Calculates the percentage of indexed sessions in relation to the total number of sessions
 	 * including postponed index updates.
 	 *
@@ -668,7 +870,8 @@ public class DiskRingBuffer {
 	 * @param totalBytesToWrite the total number of bytes to write from the ByteBuffer to the FileChannel.
 	 * @throws IOException if an I/O error occurs during the write operation.
 	 */
-	private void writeDataToFileChannel(@Nonnull ByteBuffer memoryByteBuffer, int totalBytesToWrite) throws IOException {
+	private void writeDataToFileChannel(
+		@Nonnull ByteBuffer memoryByteBuffer, int totalBytesToWrite) throws IOException {
 		int totalBytesWritten = 0;
 		while (totalBytesWritten < totalBytesToWrite) {
 			int writtenBytes = this.fileChannel.write(memoryByteBuffer);
@@ -734,9 +937,13 @@ public class DiskRingBuffer {
 			}
 		}
 
+		//we're the single writer thread here
+
+		//noinspection NonAtomicOperationOnVolatileField
 		this.ringBufferHead = this.sessionLocations.isEmpty()
 			? this.ringBufferHead
 			: this.sessionLocations.peekFirst().location().startingPosition();
+		//noinspection NonAtomicOperationOnVolatileField
 		this.ringBufferTail = (this.ringBufferTail + totalBytesToWrite) % this.diskBufferFileSize;
 
 		final SessionSink theSink = this.sessionSink.get();
@@ -751,12 +958,12 @@ public class DiskRingBuffer {
 	 * Both the waste area and the record position may wrap around the end of the buffer,
 	 * so each is represented as one or two inclusive range segments using primitive longs.
 	 *
-	 * @param erased1From             start of the first erased segment (inclusive)
-	 * @param erased1To               end of the first erased segment (inclusive)
-	 * @param hasSecondErasedSegment   true if a second erased segment exists (wrap-around)
-	 * @param erased2From             start of the second erased segment (inclusive)
-	 * @param erased2To               end of the second erased segment (inclusive)
-	 * @param recordPosition          the record position to check for overlap with the waste area
+	 * @param erased1From            start of the first erased segment (inclusive)
+	 * @param erased1To              end of the first erased segment (inclusive)
+	 * @param hasSecondErasedSegment true if a second erased segment exists (wrap-around)
+	 * @param erased2From            start of the second erased segment (inclusive)
+	 * @param erased2To              end of the second erased segment (inclusive)
+	 * @param recordPosition         the record position to check for overlap with the waste area
 	 * @return true if the record position overlaps with the waste area; false otherwise
 	 */
 	private boolean isWasted(
@@ -817,6 +1024,7 @@ public class DiskRingBuffer {
 		@Nonnull Function<Exception, TrafficRecording> onError
 	) {
 		final AtomicLong lastLocationRead = new AtomicLong(-1);
+		final byte[] descriptorScratch = new byte[LEAD_DESCRIPTOR_BYTE_SIZE];
 		return Stream.generate(
 				() -> lockAndRead(
 					fileLocation,
@@ -828,6 +1036,18 @@ public class DiskRingBuffer {
 							final long lastFileLocation = lastLocationRead.get();
 							// finalize stream when the expected session end position is reached
 							if (lastFileLocation != -1L && lastFileLocation == fileLocation.endPosition() % this.diskBufferFileSize) {
+								// normal end - the whole session has been read
+								return null;
+							} else if (!identityMatchesOrTerminate(
+								inputStream, descriptorScratch, fileLocation, sessionSequenceId)) {
+								// verify the physical slot still holds THIS session and was not
+								// evicted-and-reused under rotation (validity != identity, see exportSnapshot) -
+								// otherwise we would deserialize a foreign session's bytes. Re-checked on EVERY
+								// record, not just the first: the shared token is released between records
+								// (Stream.generate -> lockAndRead releases each element), so a full-lap
+								// evict+reuse could otherwise slip foreign bytes into a later record while the
+								// range still passes the validity check. Cheap (a 16-byte descriptor read) and
+								// never false-drops a valid session, whose sequence order matches for every record.
 								return null;
 							} else {
 								// read the next record from the file
@@ -842,7 +1062,8 @@ public class DiskRingBuffer {
 										// finalize the stream on first error
 										return null;
 									} else {
-										lastLocationRead.set((startPosition + tr.fileLocation().recordLength()) % this.diskBufferFileSize);
+										lastLocationRead.set(
+											(startPosition + tr.fileLocation().recordLength()) % this.diskBufferFileSize);
 										// return the payload of the record
 										return tr.payload();
 									}
@@ -877,20 +1098,23 @@ public class DiskRingBuffer {
 			? fileLocation.endPosition() - this.diskBufferFileSize
 			: fileLocation.endPosition();
 
-		if (this.ringBufferHead <= this.ringBufferTail) {
+		if (this.ringBufferHead == this.ringBufferTail) {
+			// a single modular head/tail value can't distinguish "0 valid bytes" from "the entire buffer
+			// is valid" - both collapse to the same pair. The empty case only ever coincides with an empty
+			// `sessionLocations` (the initial state); reaching head == tail with sessions present means the
+			// buffer is completely packed edge-to-edge (e.g. right after a write exactly fills it for the
+			// first time, before any eviction), in which case every position is valid.
+			return !this.sessionLocations.isEmpty();
+		} else if (this.ringBufferHead < this.ringBufferTail) {
 			// non-wrapping valid area: [head, tail]
 			return fileStart >= this.ringBufferHead && fileStart <= this.ringBufferTail
 				&& effectiveEnd >= this.ringBufferHead && effectiveEnd <= this.ringBufferTail;
 		} else {
 			// wrapping valid area: [head, fileSize] ∪ [0, tail]
-			final boolean startInFirst = fileStart >= this.ringBufferHead
-				&& fileStart <= this.diskBufferFileSize;
-			final boolean startInSecond = fileStart >= 0L
-				&& fileStart <= this.ringBufferTail;
-			final boolean endInFirst = effectiveEnd >= this.ringBufferHead
-				&& effectiveEnd <= this.diskBufferFileSize;
-			final boolean endInSecond = effectiveEnd >= 0L
-				&& effectiveEnd <= this.ringBufferTail;
+			final boolean startInFirst = fileStart >= this.ringBufferHead && fileStart <= this.diskBufferFileSize;
+			final boolean startInSecond = fileStart >= 0L && fileStart <= this.ringBufferTail;
+			final boolean endInFirst = effectiveEnd >= this.ringBufferHead && effectiveEnd <= this.diskBufferFileSize;
+			final boolean endInSecond = effectiveEnd >= 0L && effectiveEnd <= this.ringBufferTail;
 
 			// both in same segment, or start in first and end in second (spans wrap point)
 			return (startInFirst && endInFirst)
@@ -900,10 +1124,11 @@ public class DiskRingBuffer {
 	}
 
 	/**
-	 * Acquires a lock on the specified write segment and writes data to it using the provided
-	 * write lambda function. The method ensures that the write segment is not currently being read or
-	 * being written by a different session before proceeding. After writing, it releases the lock
-	 * on the write segment.
+	 * Acquires an exclusive {@link #spanLock} span over the specified write segment and writes data to it
+	 * using the provided write lambda function, waiting (bounded in practice by one session copy) while the
+	 * span conflicts with any currently held span, shared or exclusive. Unlike the previous OS
+	 * {@link FileLock}-based implementation, a failed write now propagates instead of being logged and
+	 * swallowed - a write failure must fail the session, not silently register a corrupt location.
 	 *
 	 * @param writeSegment the file location to be locked and written to
 	 * @param writeLambda  the lambda function that performs the write operation
@@ -913,75 +1138,124 @@ public class DiskRingBuffer {
 		@Nonnull FileLocation writeSegment,
 		@Nonnull IOExceptionThrowingLambda writeLambda
 	) throws IOException {
-		FileLock lock = null;
+		final RingBufferSpanLock.Token token = this.spanLock.acquireExclusive(
+			writeSegment.startingPosition(), writeSegment.recordLength()
+		);
 		try {
-			lock = this.fileChannel.lock(
-				writeSegment.startingPosition(),
-				writeSegment.recordLength(),
-				false
-			);
-
 			writeLambda.run();
-
-		} catch (IOException e) {
-			log.error("Failed to finalize writing of session: " + e.getMessage(), e);
 		} finally {
-			if (lock != null) {
-				IOUtils.closeQuietly(lock::release);
-			}
+			this.spanLock.release(token);
 		}
 	}
 
 	/**
-	 * Acquires a shared lock on a specified read segment and attempts to execute a given operation
-	 * while ensuring that no write operations are in progress on the segment. A shared lock allows
-	 * concurrent reads but blocks exclusive (write) locks. If successful, executes the provided
-	 * lambda function and subsequently releases the lock.
+	 * Attempts to acquire a shared {@link #spanLock} span over a specified read segment and, if successful,
+	 * executes the given lambda while holding it. Shared spans never conflict with one another; only a
+	 * currently held exclusive (writer) span causes an immediate give-up - this method never blocks a
+	 * request thread.
 	 *
 	 * @param readSegment the file location to be locked for reading
 	 * @param readLambda  the operation to be performed while the read segment is locked
 	 * @return the result of the readLambda execution if successfully executed while the segment
-	 * is locked, otherwise returns null if the lock could not be acquired
+	 * is locked, otherwise returns null if the span is currently exclusively held by the writer
 	 */
 	@Nullable
 	private <T> T lockAndRead(
 		@Nonnull SessionFileLocation readSegment,
 		@Nonnull Supplier<T> readLambda
 	) {
-		FileLock lock = null;
+		final RingBufferSpanLock.Token token = this.spanLock.tryAcquireShared(
+			readSegment.startingPosition(), readSegment.recordLength()
+		);
+		if (token == null) {
+			this.sharedLockGiveUpCount.incrementAndGet();
+			return null;
+		}
 		try {
-			lock = this.fileChannel.lock(
-				readSegment.startingPosition(),
-				readSegment.recordLength(),
-				true
-			);
-
 			return readLambda.get();
-
-		} catch (OverlappingFileLockException e) {
-			log.debug("Failed to acquire lock on read segment: " + e.getMessage());
-			return null;
-		} catch (IOException e) {
-			log.error("Failed to read session from disk buffer: " + e.getMessage(), e);
-			return null;
 		} finally {
-			if (lock != null) {
-				IOUtils.closeQuietly(lock::release);
-			}
+			this.spanLock.release(token);
 		}
 	}
 
 	/**
-	 * Checks whether two inclusive ranges [from1, to1] and [from2, to2] overlap.
-	 *
-	 * @param from1 start of the first range (inclusive)
-	 * @param to1   end of the first range (inclusive)
-	 * @param from2 start of the second range (inclusive)
-	 * @param to2   end of the second range (inclusive)
-	 * @return true if the ranges overlap; false otherwise
+	 * Copies one session's raw bytes (the {@link #LEAD_DESCRIPTOR_BYTE_SIZE}-byte lead descriptor followed
+	 * by its payload, verbatim, no Kryo) into the given output stream, splitting the copy into two segments
+	 * when the session wraps around the physical end of the disk buffer file.
 	 */
-	private static boolean rangesOverlap(long from1, long to1, long from2, long to2) {
-		return from1 <= to2 && from2 <= to1;
+	private void copySessionBytes(
+		@Nonnull RandomAccessFileInputStream readHandle,
+		@Nonnull byte[] copyBuffer,
+		@Nonnull SessionFileLocation fileLocation,
+		@Nonnull OutputStream outputStream
+	) throws IOException {
+		final long start = fileLocation.startingPosition();
+		final int length = fileLocation.recordLength();
+		final long endExclusive = start + length;
+		if (endExclusive <= this.diskBufferFileSize) {
+			copySegment(readHandle, copyBuffer, start, length, outputStream);
+		} else {
+			final int firstSegmentLength = Math.toIntExact(this.diskBufferFileSize - start);
+			copySegment(readHandle, copyBuffer, start, firstSegmentLength, outputStream);
+			copySegment(readHandle, copyBuffer, 0L, length - firstSegmentLength, outputStream);
+		}
+	}
+
+	/**
+	 * Streaming-friendly wrapper around {@link #onDiskSessionIdentityMatches} for the record-read path: an
+	 * I/O failure while checking identity is treated as "does not match", terminating the record stream
+	 * gracefully rather than propagating a checked exception out of the {@link Stream#generate} supplier.
+	 *
+	 * @return {@code true} iff the slot still holds the expected session and the descriptor read succeeded
+	 */
+	private boolean identityMatchesOrTerminate(
+		@Nonnull RandomAccessFileInputStream inputStream,
+		@Nonnull byte[] descriptorScratch,
+		@Nonnull SessionFileLocation fileLocation,
+		long expectedSequenceOrder
+	) {
+		try {
+			return onDiskSessionIdentityMatches(inputStream, descriptorScratch, fileLocation, expectedSequenceOrder);
+		} catch (IOException ex) {
+			log.error(
+				"Error reading session #{} lead descriptor from disk buffer at position {}: {}",
+				expectedSequenceOrder, fileLocation.startingPosition(), ex.getMessage()
+			);
+			return false;
+		}
+	}
+
+	/**
+	 * Verifies that the session still physically occupying {@code fileLocation.startingPosition()} is the
+	 * one the caller intends to read/export, by reading the on-disk lead descriptor's sequence order and
+	 * comparing it to {@code expectedSequenceOrder}. Sequence orders are globally monotonic and never
+	 * reused, so a match is definitive: the slot still holds this session (or an intact, not-yet-overwritten
+	 * remnant of it), while a mismatch means the slot was evicted and already reused by a newer session
+	 * under rotation - being inside the valid ring-buffer window does not imply still being the same
+	 * session. Must be called while the session's shared span token is held, so the descriptor cannot change
+	 * mid-check.
+	 *
+	 * @return {@code true} iff the on-disk descriptor's sequence order equals {@code expectedSequenceOrder}
+	 */
+	private boolean onDiskSessionIdentityMatches(
+		@Nonnull RandomAccessFileInputStream readHandle,
+		@Nonnull byte[] descriptorScratch,
+		@Nonnull SessionFileLocation fileLocation,
+		long expectedSequenceOrder
+	) throws IOException {
+		final long start = fileLocation.startingPosition();
+		if (start + LEAD_DESCRIPTOR_BYTE_SIZE <= this.diskBufferFileSize) {
+			readFullyAt(readHandle, descriptorScratch, 0, LEAD_DESCRIPTOR_BYTE_SIZE, start);
+		} else {
+			// the lead descriptor itself wraps the physical end of the buffer - reassemble it from two reads
+			final int firstSegmentLength = Math.toIntExact(this.diskBufferFileSize - start);
+			readFullyAt(readHandle, descriptorScratch, 0, firstSegmentLength, start);
+			readFullyAt(
+				readHandle, descriptorScratch, firstSegmentLength, LEAD_DESCRIPTOR_BYTE_SIZE - firstSegmentLength, 0L);
+		}
+		// the sequence order is the first 8 bytes of the descriptor (see appendSession)
+		final long onDiskSequenceOrder = ByteBuffer.wrap(descriptorScratch).getLong();
+		return onDiskSequenceOrder == expectedSequenceOrder;
 	}
 
 	/**
@@ -1003,6 +1277,68 @@ public class DiskRingBuffer {
 		 */
 		void run() throws IOException;
 
+	}
+
+	/**
+	 * Invoked once per exported session by {@link #exportSnapshot}, with a {@link SessionByteSource} that
+	 * can stream that session's raw bytes into any destination the implementation chooses (e.g. deciding
+	 * whether to open a new zip entry before writing).
+	 */
+	@FunctionalInterface
+	public interface ExportedSessionConsumer {
+
+		/**
+		 * @param sessionLocation location/metadata of the session being exported
+		 * @param byteSource      source that streams the session's raw bytes on demand
+		 * @throws IOException if writing the bytes to the implementation's destination fails
+		 */
+		void accept(@Nonnull SessionLocation sessionLocation, @Nonnull SessionByteSource byteSource) throws IOException;
+
+	}
+
+	/**
+	 * Streams one session's raw, verbatim bytes (including its lead descriptor) into the given output stream.
+	 * Wrap-aware: internally splits the copy into two segments when the session spans the buffer's physical end.
+	 */
+	@FunctionalInterface
+	public interface SessionByteSource {
+
+		/**
+		 * @param outputStream destination to copy the session's raw bytes into
+		 * @throws IOException if reading from the disk buffer or writing to the output stream fails
+		 */
+		void copyTo(@Nonnull OutputStream outputStream) throws IOException;
+
+	}
+
+	/**
+	 * Reports {@link #exportSnapshot} progress after each processed (exported or skipped) session.
+	 */
+	@FunctionalInterface
+	public interface ExportProgressListener {
+
+		/**
+		 * @param processed number of sessions processed so far (exported + skipped)
+		 * @param total     total number of sessions in the snapshot
+		 */
+		void onProgress(int processed, int total);
+
+	}
+
+	/**
+	 * Summary of one {@link #exportSnapshot} run.
+	 *
+	 * @param exportedSessionCount number of sessions whose raw bytes were handed to the session consumer
+	 * @param exportedByteCount    total number of raw bytes (including lead descriptors) copied
+	 * @param skippedSessionCount  number of sessions skipped (writer-locked or evicted during the walk)
+	 * @param totalSessionCount    total number of sessions in the frozen snapshot (exported + skipped)
+	 */
+	public record ExportSummary(
+		int exportedSessionCount,
+		long exportedByteCount,
+		int skippedSessionCount,
+		int totalSessionCount
+	) {
 	}
 
 }

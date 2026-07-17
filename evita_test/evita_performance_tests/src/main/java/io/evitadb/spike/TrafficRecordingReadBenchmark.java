@@ -54,11 +54,16 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
 /**
- * Phase 0 (issue #1282) baseline: forward ({@code getRecordings}) vs reverse ({@code getRecordingsReversed})
- * read cost over an already-indexed disk buffer (plan Phase 0, benchmark 4). Reverse reads buffer every
+ * Baseline benchmark (issue #1282): forward ({@code getRecordings}) vs reverse ({@code getRecordingsReversed})
+ * read cost over an already-indexed disk buffer. Reverse reads buffer every
  * session's records into an {@code ArrayList} and {@code Collections.reverse} them
  * (`DiskRingBuffer.java:499-507`); this benchmark quantifies that extra cost against the forward, purely
  * streamed path.
+ *
+ * The {@code recordsPerSession} parameter exists because with a single record per session the reverse
+ * buffering is nearly free (reversing a one-element list), which
+ * structurally hides the very cost this benchmark exists to measure. A multi-record variant is required
+ * before drawing any conclusion about the reverse-read buffering optimization.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -73,6 +78,9 @@ public class TrafficRecordingReadBenchmark {
 	@Param({"100", "1000", "5000"})
 	private int sessionCount;
 
+	@Param({"1", "20"})
+	private int recordsPerSession;
+
 	private Path workDirectory;
 	private OffHeapTrafficRecorder recorder;
 	private TrafficRecordingCaptureRequest request;
@@ -80,7 +88,12 @@ public class TrafficRecordingReadBenchmark {
 	@Setup(Level.Trial)
 	public void setUpTrial() throws IOException {
 		this.workDirectory = Files.createTempDirectory("traffic-read-bench");
-		final long diskBufferSizeInBytes = Math.max(8L * 1024 * 1024, (long) this.sessionCount * 1024);
+		// size the disk buffer so nothing is evicted for any parameter combination - otherwise the number of
+		// streamed sessions would differ across params and the forward/reverse comparison would be muddied
+		final long diskBufferSizeInBytes = Math.max(
+			8L * 1024 * 1024,
+			(long) this.sessionCount * this.recordsPerSession * 2_048
+		);
 		this.recorder = TrafficRecordingBenchSupport.newRecorder(
 			this.workDirectory,
 			TrafficRecordingBenchSupport.immediateScheduler(),
@@ -95,11 +108,15 @@ public class TrafficRecordingReadBenchmark {
 		for (int s = 0; s < this.sessionCount; s++) {
 			final UUID sessionId = UUID.randomUUID();
 			this.recorder.createSession(sessionId, 1L, OffsetDateTime.now());
-			this.recorder.recordQuery(
-				sessionId, "read-bench query", query,
-				TrafficRecordingBenchSupport.SAMPLE_LABELS, OffsetDateTime.now(),
-				1, 1, 128, new int[]{1}, null
-			);
+			// multiple records per session make the reverse path's per-session ArrayList + Collections.reverse
+			// buffering actually observable (a single-record session reverses a one-element list for free)
+			for (int r = 0; r < this.recordsPerSession; r++) {
+				this.recorder.recordQuery(
+					sessionId, "read-bench query", query,
+					TrafficRecordingBenchSupport.SAMPLE_LABELS, OffsetDateTime.now(),
+					1, 1, 128, new int[]{1}, null
+				);
+			}
 			this.recorder.closeSession(sessionId, null);
 		}
 

@@ -29,6 +29,7 @@ import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.configuration.TrafficRecordingOptions;
 import io.evitadb.api.exception.IndexNotReady;
 import io.evitadb.api.exception.TemporalDataNotAvailableException;
+import io.evitadb.api.query.HeadConstraint;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.QueryUtils;
 import io.evitadb.api.query.head.Collection;
@@ -44,6 +45,7 @@ import io.evitadb.api.requestResponse.trafficRecording.SourceQueryContainer;
 import io.evitadb.api.requestResponse.trafficRecording.TrafficRecording;
 import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingCaptureRequest;
 import io.evitadb.api.traffic.LabelIntrospector;
+import io.evitadb.api.traffic.TrafficRecordingExporter;
 import io.evitadb.api.traffic.TrafficRecordingReader;
 import io.evitadb.core.executor.DelayedAsyncTask;
 import io.evitadb.core.executor.Scheduler;
@@ -77,7 +79,6 @@ import java.nio.ByteBuffer;
 import java.time.OffsetDateTime;
 import java.util.Arrays;
 import java.util.Map;
-import java.util.Objects;
 import java.util.PrimitiveIterator.OfInt;
 import java.util.Queue;
 import java.util.UUID;
@@ -90,7 +91,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
-import static java.util.Optional.ofNullable;
 
 /**
  * Implementation of the {@link TrafficRecorder} that stores traffic data in off-heap memory in different memory blocks
@@ -100,7 +100,8 @@ import static java.util.Optional.ofNullable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 @Slf4j
-public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecordingReader, LabelIntrospector, Closeable {
+public class OffHeapTrafficRecorder
+	implements TrafficRecorder, TrafficRecordingReader, TrafficRecordingExporter, LabelIntrospector, Closeable {
 	/**
 	 * Constant that defines the duration of inactivity after which the disk buffer index is released.
 	 */
@@ -176,8 +177,10 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 	 */
 	private String catalogName;
 	/**
-	 * Sampling percentage used to determine how many records are stored in the memory buffer from 0 to 99.
-	 * Zero means that all records are stored, 99 means that almost no records are stored.
+	 * Sampling percentage that determines the target fraction of traffic that is recorded, from 0 to 100.
+	 * Zero means that nothing is recorded (recording effectively disabled), 100 means that all traffic is
+	 * recorded. A new session is recorded only while the current recorded fraction
+	 * ({@link #computeCurrentSamplingRate()}) has not yet exceeded this target - see {@link #createSession}.
 	 */
 	private int samplingPercentage;
 	/**
@@ -193,6 +196,21 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 	 * Last time when the data from the {@link #diskBuffer} was read.
 	 */
 	private long lastRead = -1;
+
+	/**
+	 * Converts an {@link OffsetDateTime} to epoch milliseconds without allocating an intermediate
+	 * {@link java.time.Instant}, unlike {@code offsetDateTime.toInstant().toEpochMilli()}. The result is
+	 * exactly equal to that expression: {@link OffsetDateTime#toEpochSecond()} yields the same UTC
+	 * epoch-second as the corresponding {@code Instant}, and {@link OffsetDateTime#getNano()} is the
+	 * nano-of-second. Called once per recorded traffic record on the hot write path, so avoiding the
+	 * per-call {@code Instant} allocation is worthwhile.
+	 *
+	 * @param offsetDateTime the timestamp to convert
+	 * @return milliseconds since the epoch
+	 */
+	private static long epochMillis(@Nonnull OffsetDateTime offsetDateTime) {
+		return offsetDateTime.toEpochSecond() * 1000L + offsetDateTime.getNano() / 1_000_000;
+	}
 
 	public OffHeapTrafficRecorder() {
 		this(16_384);
@@ -331,30 +349,45 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 		doRecord(
 			this.trackedSessionsIndex.get(sessionId),
 			sessionTraffic -> {
-				final io.evitadb.api.requestResponse.trafficRecording.Label entityTypeLabel = ofNullable(query.getHead())
-					.flatMap(it -> ofNullable(QueryUtils.findConstraint(it, Collection.class)))
-					.map(it -> new io.evitadb.api.requestResponse.trafficRecording.Label("entity-type", it.getEntityType()))
-					.orElse(null);
+				final HeadConstraint head = query.getHead();
+				final Collection collectionConstraint = head == null ?
+					null : QueryUtils.findConstraint(head, Collection.class);
+				final io.evitadb.api.requestResponse.trafficRecording.Label entityTypeLabel = collectionConstraint == null
+					?
+					null
+					:
+						new io.evitadb.api.requestResponse.trafficRecording.Label(
+							"entity-type", collectionConstraint.getEntityType());
 
-				final io.evitadb.api.requestResponse.trafficRecording.Label[] finalLabels = labels.length == 0 ?
-					(entityTypeLabel == null ?
+				// merge the caller-supplied labels with the derived entity-type label into a single sized array,
+				// avoiding the per-call Optional chain + double Stream allocation on this hot write path; the
+				// order (caller labels first, then the entity-type label) matches the previous stream-concat
+				final io.evitadb.api.requestResponse.trafficRecording.Label[] finalLabels;
+				if (labels.length == 0) {
+					finalLabels = entityTypeLabel == null ?
 						io.evitadb.api.requestResponse.trafficRecording.Label.EMPTY_LABELS :
-						new io.evitadb.api.requestResponse.trafficRecording.Label[]{entityTypeLabel}
-					) :
-					Stream.concat(
-							Arrays.stream(labels)
-								.map(label -> new io.evitadb.api.requestResponse.trafficRecording.Label(label.getLabelName(), label.getLabelValue())),
-							Stream.of(entityTypeLabel)
-						)
-						.filter(Objects::nonNull)
-						.toArray(io.evitadb.api.requestResponse.trafficRecording.Label[]::new);
+						new io.evitadb.api.requestResponse.trafficRecording.Label[]{entityTypeLabel};
+				} else {
+					final int extra = entityTypeLabel == null ? 0 : 1;
+					final io.evitadb.api.requestResponse.trafficRecording.Label[] merged =
+						new io.evitadb.api.requestResponse.trafficRecording.Label[labels.length + extra];
+					for (int i = 0; i < labels.length; i++) {
+						merged[i] = new io.evitadb.api.requestResponse.trafficRecording.Label(
+							labels[i].getLabelName(), labels[i].getLabelValue()
+						);
+					}
+					if (entityTypeLabel != null) {
+						merged[labels.length] = entityTypeLabel;
+					}
+					finalLabels = merged;
+				}
 				return new QueryContainer(
 					sessionId,
 					sessionTraffic.nextRecordingId(),
 					queryDescription,
 					query,
 					finalLabels,
-					now, (int) (System.currentTimeMillis() - now.toInstant().toEpochMilli()),
+					now, (int) (System.currentTimeMillis() - epochMillis(now)),
 					totalRecordCount, ioFetchCount, ioFetchedSizeBytes, primaryKeys,
 					finishedWithError
 				);
@@ -379,7 +412,7 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 				sessionTraffic.nextRecordingId(),
 				query,
 				now,
-				(int) (System.currentTimeMillis() - now.toInstant().toEpochMilli()),
+				(int) (System.currentTimeMillis() - epochMillis(now)),
 				ioFetchCount, ioFetchedSizeBytes, primaryKey,
 				finishedWithError
 			)
@@ -403,7 +436,7 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 				sessionTraffic.nextRecordingId(),
 				query,
 				now,
-				(int) (System.currentTimeMillis() - now.toInstant().toEpochMilli()),
+				(int) (System.currentTimeMillis() - epochMillis(now)),
 				ioFetchCount, ioFetchedSizeBytes, primaryKey,
 				finishedWithError
 			)
@@ -423,7 +456,7 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 				sessionId,
 				sessionTraffic.nextRecordingId(),
 				now,
-				(int) (System.currentTimeMillis() - now.toInstant().toEpochMilli()),
+				(int) (System.currentTimeMillis() - epochMillis(now)),
 				mutation,
 				finishedWithError
 			)
@@ -451,7 +484,10 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 					now,
 					sourceQuery,
 					Arrays.stream(labels)
-						.map(label -> new io.evitadb.api.requestResponse.trafficRecording.Label(label.getLabelName(), label.getLabelValue()))
+						.map(label -> new io.evitadb.api.requestResponse.trafficRecording.Label(
+							label.getLabelName(),
+							label.getLabelValue()
+						))
 						.toArray(io.evitadb.api.requestResponse.trafficRecording.Label[]::new),
 					finishedWithError
 				);
@@ -485,7 +521,9 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 
 	@Nonnull
 	@Override
-	public Stream<TrafficRecording> getRecordings(@Nonnull TrafficRecordingCaptureRequest request) throws TemporalDataNotAvailableException, IndexNotReady {
+	public Stream<TrafficRecording> getRecordings(
+		@Nonnull TrafficRecordingCaptureRequest request
+	) throws TemporalDataNotAvailableException, IndexNotReady {
 		try {
 			this.lastRead = System.currentTimeMillis();
 			return this.diskBuffer.getSessionRecordsStream(
@@ -500,7 +538,9 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 
 	@Nonnull
 	@Override
-	public Stream<TrafficRecording> getRecordingsReversed(@Nonnull TrafficRecordingCaptureRequest request) throws TemporalDataNotAvailableException, IndexNotReady {
+	public Stream<TrafficRecording> getRecordingsReversed(
+		@Nonnull TrafficRecordingCaptureRequest request
+	) throws TemporalDataNotAvailableException, IndexNotReady {
 		try {
 			this.lastRead = System.currentTimeMillis();
 			return this.diskBuffer.getSessionRecordsReversedStream(
@@ -515,7 +555,8 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 
 	@Nonnull
 	@Override
-	public java.util.Collection<String> getLabelsNamesOrderedByCardinality(@Nullable String nameStartingWith, int limit) throws IndexNotReady {
+	public java.util.Collection<String> getLabelsNamesOrderedByCardinality(
+		@Nullable String nameStartingWith, int limit) throws IndexNotReady {
 		try {
 			this.lastRead = System.currentTimeMillis();
 			return this.diskBuffer.getLabelsNamesOrderedByCardinality(nameStartingWith, limit);
@@ -527,7 +568,8 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 
 	@Nonnull
 	@Override
-	public java.util.Collection<String> getLabelValuesOrderedByCardinality(@Nonnull String nameEquals, @Nullable String valueStartingWith, int limit) throws IndexNotReady {
+	public java.util.Collection<String> getLabelValuesOrderedByCardinality(
+		@Nonnull String nameEquals, @Nullable String valueStartingWith, int limit) throws IndexNotReady {
 		try {
 			this.lastRead = System.currentTimeMillis();
 			return this.diskBuffer.getLabelValuesOrderedByCardinality(
@@ -536,6 +578,51 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 		} catch (IndexNotReady ex) {
 			this.indexTask.scheduleImmediately();
 			throw ex;
+		}
+	}
+
+	/**
+	 * Exports a consistent snapshot of the disk ring buffer's current window (the window "as of now") into
+	 * the caller's sink. Always preceded by a synchronous drain (see {@link #drainFinalizedSessionsToDisk()})
+	 * so that sessions closed before this call are guaranteed to be part of the exported window - this is
+	 * what delivers "recent closed sessions are included" without a load-dependent tail-chase. Open
+	 * in-flight sessions are never exported. The walk itself runs *outside* the drain's synchronized
+	 * block/monitor, so it never stalls the live recorder for its whole duration - only individual
+	 * per-session shared span locks are taken, and those never block a concurrent writer for longer than
+	 * one session's worth of copying.
+	 *
+	 * <p>Adapts between the {@link TrafficRecordingExporter} contract (which uses only types visible from
+	 * {@code evita_api}, since callers such as {@code TrafficRecordingEngine} never depend on this module)
+	 * and {@link DiskRingBuffer}'s own richer nested types.
+	 *
+	 * @param sessionConsumer  invoked once per exported session
+	 * @param progressListener invoked after each processed (exported or skipped) session
+	 * @return a summary of how many sessions were exported/skipped and how many bytes were copied
+	 * @throws IOException if the sessionConsumer's own I/O (e.g. writing to a zip stream) fails
+	 */
+	@Nonnull
+	@Override
+	public TrafficRecordingExporter.ExportSummary exportTrafficRecording(
+		@Nonnull TrafficRecordingExporter.ExportedSessionConsumer sessionConsumer,
+		@Nonnull TrafficRecordingExporter.ExportProgressListener progressListener
+	) throws IOException {
+		drainFinalizedSessionsToDisk();
+
+		final byte[] copyBuffer = this.copyBufferPool.obtain();
+		try {
+			final DiskRingBuffer.ExportSummary summary = this.diskBuffer.exportSnapshot(
+				copyBuffer,
+				(location, byteSource) -> sessionConsumer.accept(location.sequenceOrder(), byteSource::copyTo),
+				progressListener::onProgress
+			);
+			return new TrafficRecordingExporter.ExportSummary(
+				summary.exportedSessionCount(),
+				summary.exportedByteCount(),
+				summary.skippedSessionCount(),
+				summary.totalSessionCount()
+			);
+		} finally {
+			this.copyBufferPool.free(copyBuffer);
 		}
 	}
 
@@ -566,6 +653,15 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 		for (int i = 0; i < blockCount; i++) {
 			this.freeBlocks.offer(i);
 		}
+		// the disk buffer must be able to hold at least one whole memory block append; this guarantees
+		// that the per-block append in drainFinalizedSessionsToDisk can never trip DATA_TOO_LARGE, so
+		// the only place that exception can originate during a drain is the whole-session appendSession
+		// check - which is what the drain's leak-safe recovery relies on
+		Assert.isPremiseValid(
+			recordingOptions.trafficDiskBufferSizeInBytes() >= this.blockSizeBytes,
+			"Traffic disk buffer size (" + recordingOptions.trafficDiskBufferSizeInBytes() +
+				" B) must be at least the memory block size (" + this.blockSizeBytes + " B)."
+		);
 		// create ring buffer on disk
 		this.diskBuffer = new DiskRingBuffer(
 			fileManagementService.createManagedTempFile("traffic-recording-buffer-" + catalogName + ".bin"),
@@ -588,6 +684,83 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 				return new byte[storageOptions.outputBufferSize()];
 			}
 		};
+	}
+
+	/**
+	 * Synchronously drains all currently finalized (closed) sessions from the off-heap memory buffer into
+	 * the disk ring buffer, freeing their memory blocks for reuse. This is the body previously inlined in
+	 * {@link #freeMemory()}, promoted to a directly callable method so the on-demand export can force a
+	 * drain (guaranteeing "recent closed sessions are included") without scheduling-and-polling the
+	 * background {@link #freeMemoryTask}. Being {@code synchronized} on the same monitor as
+	 * {@link #freeMemory()} already serializes the two call sites - no additional coordination needed.
+	 */
+	synchronized void drainFinalizedSessionsToDisk() {
+		this.diskBuffer.updateIndexTransactionally(
+			() -> {
+				this.diskBuffer.setLastRealSamplingRate(computeCurrentSamplingRate());
+				final ByteBuffer memoryByteBuffer = this.memoryBlock.get();
+				do {
+					//noinspection resource
+					final SessionTraffic finalizedSession = this.finalizedSessions.poll();
+					if (finalizedSession != null) {
+						int totalSize = 0;
+						final OfInt memoryBlockIds = finalizedSession.getMemoryBlockIds();
+						while (memoryBlockIds.hasNext()) {
+							memoryBlockIds.nextInt();
+							totalSize += memoryBlockIds.hasNext() ?
+								this.blockSizeBytes : finalizedSession.getCurrentByteBufferPosition();
+						}
+
+						try {
+							final SessionLocation sessionLocation = this.diskBuffer.appendSession(
+								finalizedSession.getRecordCount(), totalSize);
+							final OfInt memoryBlockIdsToFree = finalizedSession.getMemoryBlockIds();
+							while (memoryBlockIdsToFree.hasNext()) {
+								final int freeBlock = memoryBlockIdsToFree.nextInt();
+								final int blockStart = freeBlock * this.blockSizeBytes;
+								// the last block may not be fully occupied
+								final int blockLength = memoryBlockIdsToFree.hasNext() ?
+									this.blockSizeBytes : finalizedSession.getCurrentByteBufferPosition();
+								this.diskBuffer.append(
+									memoryByteBuffer.slice(blockStart, blockLength)
+								);
+								this.freeBlocks.offer(freeBlock);
+							}
+							this.diskBuffer.sessionWritten(
+								sessionLocation,
+								finalizedSession.getSessionId(),
+								finalizedSession.getCreated(),
+								finalizedSession.getDurationInMillis(),
+								finalizedSession.getRecordingTypes(),
+								finalizedSession.getLabels(),
+								finalizedSession.getFetchCount(),
+								finalizedSession.getBytesFetchedTotal()
+							);
+						} catch (MemoryNotAvailableException ex) {
+							// The finalized session is larger than the whole disk ring buffer, so it can
+							// never be persisted. Drop it, but ALWAYS return its memory blocks to the free
+							// pool - the session was already polled off the finalized queue, and without
+							// this the blocks would leak permanently (the exception would otherwise abort
+							// the whole drain and is even swallowed by updateIndexTransactionally). Because
+							// the disk buffer is guaranteed to hold at least one whole memory block (see the
+							// premise check in init), only the whole-session appendSession above can throw
+							// this - it does so before any block has been written to disk or returned here,
+							// so returning every block is correct and never double-frees.
+							final OfInt leakedBlocks = finalizedSession.getMemoryBlockIds();
+							while (leakedBlocks.hasNext()) {
+								this.freeBlocks.offer(leakedBlocks.nextInt());
+							}
+							this.droppedSessions.incrementAndGet();
+							this.missedRecords.addAndGet(finalizedSession.getRecordCount());
+							log.warn(
+								"Finalized session {} ({} bytes) exceeds the traffic disk buffer size and was dropped.",
+								finalizedSession.getSessionId(), totalSize
+							);
+						}
+					}
+				} while (!this.finalizedSessions.isEmpty());
+			}
+		);
 	}
 
 	/**
@@ -616,7 +789,9 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 	/**
 	 * Calculates the current sampling rate as a percentage.
 	 * The sampling rate is determined based on the ratio of recorded records to the total of recorded and missed records.
-	 * If no records have been recorded or missed, the method returns 100% by default.
+	 * If no records have been recorded or missed yet, the method returns 0 - this makes the very first session pass
+	 * the {@code currentRate <= samplingPercentage} gate in {@link #createSession} (for any target above zero) and
+	 * start recording, after which the ratio tracks the configured target.
 	 *
 	 * @return the current sampling rate as an integer percentage (0-100)
 	 */
@@ -744,57 +919,14 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 	}
 
 	/**
-	 * Frees up memory blocks that have been allocated to finalized sessions. It processes each
-	 * session to calculate the total size of blocks used, appends the session data to a disk buffer,
-	 * and then marks those blocks as free for future use. The method also publishes statistical
-	 * information about traffic sessions.
+	 * Frees up memory blocks that have been allocated to finalized sessions by draining them to the disk
+	 * buffer, then publishes statistical information about traffic sessions and purges the disk buffer
+	 * index if it wasn't read for a long time.
 	 *
 	 * @return Always returns -1 as a placeholder for future implementations or changes.
 	 */
 	private synchronized long freeMemory() {
-		this.diskBuffer.updateIndexTransactionally(
-			() -> {
-				this.diskBuffer.setLastRealSamplingRate(computeCurrentSamplingRate());
-				final ByteBuffer memoryByteBuffer = this.memoryBlock.get();
-				do {
-					//noinspection resource
-					final SessionTraffic finalizedSession = this.finalizedSessions.poll();
-					if (finalizedSession != null) {
-						int totalSize = 0;
-						final OfInt memoryBlockIds = finalizedSession.getMemoryBlockIds();
-						while (memoryBlockIds.hasNext()) {
-							memoryBlockIds.nextInt();
-							totalSize += memoryBlockIds.hasNext() ?
-								this.blockSizeBytes : finalizedSession.getCurrentByteBufferPosition();
-						}
-
-						final SessionLocation sessionLocation = this.diskBuffer.appendSession(finalizedSession.getRecordCount(), totalSize);
-						final OfInt memoryBlockIdsToFree = finalizedSession.getMemoryBlockIds();
-						while (memoryBlockIdsToFree.hasNext()) {
-							final int freeBlock = memoryBlockIdsToFree.nextInt();
-							final int blockStart = freeBlock * this.blockSizeBytes;
-							// the last block may not be fully occupied
-							final int blockLength = memoryBlockIdsToFree.hasNext() ?
-								this.blockSizeBytes : finalizedSession.getCurrentByteBufferPosition();
-							this.diskBuffer.append(
-								memoryByteBuffer.slice(blockStart, blockLength)
-							);
-							this.freeBlocks.offer(freeBlock);
-						}
-						this.diskBuffer.sessionWritten(
-							sessionLocation,
-							finalizedSession.getSessionId(),
-							finalizedSession.getCreated(),
-							finalizedSession.getDurationInMillis(),
-							finalizedSession.getRecordingTypes(),
-							finalizedSession.getLabels(),
-							finalizedSession.getFetchCount(),
-							finalizedSession.getBytesFetchedTotal()
-						);
-					}
-				} while (!this.finalizedSessions.isEmpty());
-			}
-		);
+		drainFinalizedSessionsToDisk();
 
 		// publish statistic information
 		new TrafficRecorderStatisticsEvent(
@@ -840,10 +972,17 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 	 *
 	 * The exception can be constructed with a specific message or can carry the
 	 * context of a failed operation with an associated buffer state.
+	 *
+	 * Note: the two static instances are pre-built and shared. They are used purely for control flow
+	 * (never surfaced to a client), so the fact that their captured stack traces point at class-load
+	 * time rather than the actual throw site is intentional and acceptable - it avoids the cost of
+	 * filling in a stack trace on every memory-shortage occurrence on the hot recording path.
 	 */
 	public static class MemoryNotAvailableException extends EvitaInternalError {
-		public static final MemoryNotAvailableException NO_SLOT_FREE = new MemoryNotAvailableException("No free slot in memory buffer!");
-		public static final MemoryNotAvailableException DATA_TOO_LARGE = new MemoryNotAvailableException("No free slot in memory buffer!");
+		public static final MemoryNotAvailableException NO_SLOT_FREE = new MemoryNotAvailableException(
+			"No free slot in memory buffer!");
+		public static final MemoryNotAvailableException DATA_TOO_LARGE = new MemoryNotAvailableException(
+			"Session data is too large to fit into the traffic disk buffer!");
 
 		@Serial private static final long serialVersionUID = 567086221625997669L;
 

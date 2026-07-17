@@ -51,9 +51,9 @@ import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Phase 0 (issue #1282) baseline: cost of rebuilding the in-memory {@code TrafficRecordingIndex} from a
- * pre-filled disk buffer - i.e. the window during which reads throw {@code IndexNotReady} (plan Phase 0,
- * benchmark 3). The whole 32 MiB (default) buffer gets Kryo-deserialized to build the index; this benchmark
+ * Baseline benchmark (issue #1282): cost of rebuilding the in-memory {@code TrafficRecordingIndex} from a
+ * pre-filled disk buffer - i.e. the window during which reads throw {@code IndexNotReady}. The whole
+ * 32 MiB (default) buffer gets Kryo-deserialized to build the index; this benchmark
  * quantifies that cost as a function of how many sessions the buffer holds.
  *
  * <p>Reaches the private, no-arg {@code OffHeapTrafficRecorder#index()} (which just wraps
@@ -74,6 +74,9 @@ public class TrafficRecordingIndexBenchmark {
 	@Param({"100", "1000", "5000"})
 	private int sessionCount;
 
+	@Param({"1", "20"})
+	private int recordsPerSession;
+
 	private Path workDirectory;
 	private OffHeapTrafficRecorder recorder;
 	private Method indexMethod;
@@ -81,8 +84,13 @@ public class TrafficRecordingIndexBenchmark {
 	@Setup(Level.Trial)
 	public void setUpTrial() throws NoSuchMethodException, IOException {
 		this.workDirectory = Files.createTempDirectory("traffic-index-bench");
-		// disk buffer sized so `sessionCount` small sessions fit without the ring wrapping mid-fill
-		final long diskBufferSizeInBytes = Math.max(8L * 1024 * 1024, (long) this.sessionCount * 1024);
+		// disk buffer sized so every session fits without the ring wrapping mid-fill; a realistic client
+		// session holds many records, so the recordsPerSession sweep exercises the per-record index-build cost
+		// (the per-record identity re-read + Kryo walk) that dominates a full 32 MiB buffer re-index
+		final long diskBufferSizeInBytes = Math.max(
+			8L * 1024 * 1024,
+			(long) this.sessionCount * this.recordsPerSession * 2_048
+		);
 		this.recorder = TrafficRecordingBenchSupport.newRecorder(
 			this.workDirectory,
 			TrafficRecordingBenchSupport.immediateScheduler(),
@@ -97,11 +105,13 @@ public class TrafficRecordingIndexBenchmark {
 		for (int s = 0; s < this.sessionCount; s++) {
 			final UUID sessionId = UUID.randomUUID();
 			this.recorder.createSession(sessionId, 1L, OffsetDateTime.now());
-			this.recorder.recordQuery(
-				sessionId, "index-bench query", query,
-				TrafficRecordingBenchSupport.SAMPLE_LABELS, OffsetDateTime.now(),
-				1, 1, 128, new int[]{1}, null
-			);
+			for (int r = 0; r < this.recordsPerSession; r++) {
+				this.recorder.recordQuery(
+					sessionId, "index-bench query", query,
+					TrafficRecordingBenchSupport.SAMPLE_LABELS, OffsetDateTime.now(),
+					1, 1, 128, new int[]{1}, null
+				);
+			}
 			// synchronous drain (flushIntervalMs = 0 + immediate scheduler) - by the time createSession
 			// returns from closeSession, the record is already on disk and in `sessionLocations`
 			this.recorder.closeSession(sessionId, null);
