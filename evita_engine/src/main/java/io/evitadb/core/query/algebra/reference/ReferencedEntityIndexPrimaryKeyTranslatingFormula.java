@@ -43,7 +43,6 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Arrays;
 import java.util.Optional;
-import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.UnaryOperator;
 
@@ -58,9 +57,11 @@ import java.util.function.UnaryOperator;
  * {@link ReferenceOwnerTranslatingFormula}, but the resulting bitmap contains primary keys of the
  * referenced-entity index, not owner entity primary keys.
  *
- * If the reference is indexed only in selected {@link io.evitadb.dataType.Scope scopes} or the
- * referenced entity type is managed, the translation can be restricted by a precomputed superset of
- * referenced entities available in those scopes. Only ids present in that superset are considered.
+ * If the referenced entity type is managed, the translation is restricted by a precomputed superset of
+ * referenced entities that exist in **any** scope. The scope of the query constrains the queried entities
+ * only - the referenced entity may legitimately live in a different scope than the queried entity (e.g.
+ * an archived product referencing a live category), so referenced-entity existence must be checked across
+ * all scopes. Only ids present in that superset are considered.
  *
  * The final result is a bitmap of primary keys that identify rows inside
  * {@link ReferencedTypeEntityIndex}.
@@ -157,7 +158,6 @@ public class ReferencedEntityIndexPrimaryKeyTranslatingFormula
 	 *        target entity type and a scope
 	 * @param referencedTypeEntityIndex target referenced-type entity index
 	 * @param innerFormula inner formula producing referenced entity primary keys
-	 * @param scopes scopes the query is evaluated in
 	 */
 	public ReferencedEntityIndexPrimaryKeyTranslatingFormula(
 		@Nonnull ReferenceSchemaContract referenceSchema,
@@ -166,36 +166,39 @@ public class ReferencedEntityIndexPrimaryKeyTranslatingFormula
 		@Nonnull BiFunction<String, Scope, Optional<GlobalEntityIndex>> referencedEntitySuperSetSupplier,
 		@Nonnull ReferencedTypeEntityIndex referencedTypeEntityIndex,
 		@Nonnull Formula innerFormula,
-		@Nonnull Set<Scope> scopes,
 		@Nullable UnaryOperator<Bitmap> expansionFunction
 	) {
 		if (isTargetManaged) {
+			final Scope[] allScopes = Scope.values();
 			PersistentRoaringBitmap bitmap = null;
-			final long[] transactionalIds = new long[scopes.size()];
+			final long[] transactionalIds = new long[allScopes.length];
 			int transactionalIdIndex = 0;
-			for (Scope theScope : scopes) {
-				// if the schema is not indexed in particular scope, we must keep original formula results in place
-				// to avoid their removal from the final result
-				if (referenceSchema.isIndexedInScope(theScope)) {
-					final Optional<GlobalEntityIndex> globalEntityIndex = referencedEntitySuperSetSupplier
-						.apply(targetEntityType, theScope);
-					final Bitmap allPrimaryKeys;
-					if (globalEntityIndex.isPresent()) {
-						allPrimaryKeys = globalEntityIndex.get().getAllPrimaryKeys();
-						transactionalIds[transactionalIdIndex++] = globalEntityIndex.get().getId();
-					} else {
-						allPrimaryKeys = EmptyBitmap.INSTANCE;
-					}
-					bitmap = bitmap == null ?
-						RoaringBitmapBackedBitmap.getRoaringBitmap(allPrimaryKeys) :
-						PersistentRoaringBitmap.or(bitmap, RoaringBitmapBackedBitmap.getRoaringBitmap(allPrimaryKeys));
+			for (Scope theScope : allScopes) {
+				// the scope of the query constrains only the queried entities - a reference may point to an entity
+				// living in a different scope (e.g. an archived product referencing a live category), so the
+				// existence check must span all scopes, not just the scopes the query is evaluated in
+				final Optional<GlobalEntityIndex> globalEntityIndex = referencedEntitySuperSetSupplier
+					.apply(targetEntityType, theScope);
+				if (globalEntityIndex.isEmpty()) {
+					continue;
 				}
+				final Bitmap allPrimaryKeys = globalEntityIndex.get().getAllPrimaryKeys();
+				transactionalIds[transactionalIdIndex++] = globalEntityIndex.get().getId();
+				if (allPrimaryKeys.isEmpty()) {
+					// an empty contribution would not change the union - skipping it keeps the common
+					// single-contributing-scope case zero-copy (no OR with an empty bitmap)
+					continue;
+				}
+				bitmap = bitmap == null ?
+					RoaringBitmapBackedBitmap.getRoaringBitmap(allPrimaryKeys) :
+					PersistentRoaringBitmap.or(bitmap, RoaringBitmapBackedBitmap.getRoaringBitmap(allPrimaryKeys));
 			}
-			this.referencedEntitySuperSet = bitmap == null ?
-				null : new BaseBitmap(bitmap);
-			this.referencedEntityTypeSuperSetTransactionalIds = transactionalIdIndex == transactionalIds.length ?
-				transactionalIds :
-				Arrays.copyOfRange(transactionalIds, 0, transactionalIdIndex);
+			// for a managed referenced type the superset always applies - when no scope contributed any primary
+			// keys the superset is empty (no referenced entity exists anywhere), never unrestricted
+			this.referencedEntitySuperSet = bitmap == null ? EmptyBitmap.INSTANCE : new BaseBitmap(bitmap);
+			this.referencedEntityTypeSuperSetTransactionalIds = transactionalIdIndex == transactionalIds.length
+				? transactionalIds
+				: Arrays.copyOfRange(transactionalIds, 0, transactionalIdIndex);
 		} else {
 			this.referencedEntitySuperSet = null;
 			this.referencedEntityTypeSuperSetTransactionalIds = ArrayUtils.EMPTY_LONG_ARRAY;

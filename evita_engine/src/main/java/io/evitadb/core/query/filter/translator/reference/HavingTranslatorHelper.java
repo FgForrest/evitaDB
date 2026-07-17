@@ -322,7 +322,6 @@ class HavingTranslatorHelper {
 											filterByVisitor::getGlobalEntityIndexIfExists,
 											it,
 											nestedResult.filter(),
-											processingScope.getScopes(),
 											processingScope.getReferencedEntityExpansionFunction()
 										)
 									)
