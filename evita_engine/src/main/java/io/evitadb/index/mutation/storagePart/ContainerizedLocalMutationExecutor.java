@@ -327,7 +327,6 @@ public final class ContainerizedLocalMutationExecutor
 		// evaluated on both schemas for every scope the primary holders may live in
 		final Optional<ReferenceSchemaContract> counterpartSchemaRef = catalogSchema
 			.getEntitySchema(referenceSchema.getReferencedEntityType())
-			.map(it -> ((EntitySchemaDecorator) it).getDelegate())
 			.flatMap(it -> it.getReference(referenceSchema.getReflectedReferenceName()));
 
 		// we need to access index in target entity collection, because we need to retrieve index with primary

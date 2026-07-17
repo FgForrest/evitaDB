@@ -3255,7 +3255,7 @@ public class EvitaArchivingTest implements EvitaTestSupport, IndexingTestSupport
 	}
 
 	/**
-	 * Missing E2E coverage for archiving/removal behaviour of plain (non-reflected) references. These scenarios act as
+	 * End-to-end coverage for archiving/removal behaviour of plain (non-reflected) references. These scenarios act as
 	 * the control group for the reflected-reference scenarios: a plain reference carries no reflected mirror, so the
 	 * cross-scope reflected maintenance is never triggered and the primary-side bookkeeping must stay consistent.
 	 */
@@ -3648,7 +3648,7 @@ public class EvitaArchivingTest implements EvitaTestSupport, IndexingTestSupport
 	}
 
 	/**
-	 * Missing E2E coverage for archiving/removal behaviour of reflected references across the LIVE and ARCHIVED scopes.
+	 * End-to-end coverage for archiving/removal behaviour of reflected references across the LIVE and ARCHIVED scopes.
 	 * The holder (product) owns the primary reference to the target (category); the target carries the reflected mirror
 	 * back to the holder. These scenarios exercise the full lifecycle matrix across the three legal indexing
 	 * configurations (primary+reflected LIVE-only, primary+reflected both-scopes, primary both-scopes / reflected
