@@ -44,6 +44,7 @@ import java.io.Closeable;
 import java.io.FilterOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
@@ -189,14 +190,15 @@ public class TrafficRecordingExportTask extends ClientCallableTask<TrafficRecord
 			}
 			final OffsetDateTime finishTime = OffsetDateTime.now();
 			this.outputStream.putNextEntry(new ZipEntry("metadata.txt"));
-			this.outputStream.write("Traffic recording export: \n".getBytes());
-			this.outputStream.write(("\n   - started at " + this.startTime.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)).getBytes());
-			this.outputStream.write(("\n   - finished at " + finishTime.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)).getBytes());
-			this.outputStream.write(("\n   - duration " + StringUtils.formatDuration(Duration.between(this.startTime, finishTime))).getBytes());
-			this.outputStream.write(("\n   - exported " + summary.exportedSessionCount() + " sessions").getBytes());
-			this.outputStream.write(("\n   - exported " + StringUtils.formatByteSize(summary.exportedByteCount()) + " of data").getBytes());
-			this.outputStream.write(("\n   - skipped " + summary.skippedSessionCount() + " sessions (evicted or write-locked during export)").getBytes());
-			this.outputStream.write(("\n   - snapshot contained " + summary.totalSessionCount() + " sessions").getBytes());
+			// write with an explicit charset so the archive is portable regardless of the platform default
+			this.outputStream.write("Traffic recording export: \n".getBytes(StandardCharsets.UTF_8));
+			this.outputStream.write(("\n   - started at " + this.startTime.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)).getBytes(StandardCharsets.UTF_8));
+			this.outputStream.write(("\n   - finished at " + finishTime.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)).getBytes(StandardCharsets.UTF_8));
+			this.outputStream.write(("\n   - duration " + StringUtils.formatDuration(Duration.between(this.startTime, finishTime))).getBytes(StandardCharsets.UTF_8));
+			this.outputStream.write(("\n   - exported " + summary.exportedSessionCount() + " sessions").getBytes(StandardCharsets.UTF_8));
+			this.outputStream.write(("\n   - exported " + StringUtils.formatByteSize(summary.exportedByteCount()) + " of data").getBytes(StandardCharsets.UTF_8));
+			this.outputStream.write(("\n   - skipped " + summary.skippedSessionCount() + " sessions (evicted or write-locked during export)").getBytes(StandardCharsets.UTF_8));
+			this.outputStream.write(("\n   - snapshot contained " + summary.totalSessionCount() + " sessions").getBytes(StandardCharsets.UTF_8));
 			this.outputStream.closeEntry();
 		}
 

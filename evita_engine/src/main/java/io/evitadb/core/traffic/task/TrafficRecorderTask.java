@@ -48,6 +48,7 @@ import java.io.BufferedOutputStream;
 import java.io.Closeable;
 import java.io.FileNotFoundException;
 import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
@@ -443,15 +444,16 @@ public class TrafficRecorderTask extends ClientInfiniteCallableTask<TrafficRecor
 						}
 						final OffsetDateTime finishTime = OffsetDateTime.now();
 						this.outputStream.putNextEntry(new ZipEntry("metadata.txt"));
-						this.outputStream.write("Traffic recording: \n".getBytes());
-						this.outputStream.write(("\n   - started at " + this.startTime.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)).getBytes());
-						this.outputStream.write(("\n   - finished at " + finishTime.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)).getBytes());
-						this.outputStream.write(("\n   - requested sampling rate " + this.settings.samplingRate() + "%").getBytes());
-						this.outputStream.write(("\n   - real sampling rate " + this.lastSamplingRate + "%").getBytes());
-						this.outputStream.write(("\n   - duration " + StringUtils.formatDuration(Duration.between(this.startTime, finishTime))).getBytes());
-						this.outputStream.write(("\n   - exported " + this.exportedSessionCount + " sessions").getBytes());
-						this.outputStream.write(("\n   - exported " + StringUtils.formatByteSize(this.exportedSessionOriginalSize) + " of data").getBytes());
-						this.outputStream.write(("\n   - task was" + getFinishCondition(this.settings)).getBytes());
+						// write with an explicit charset so the archive is portable regardless of the platform default
+						this.outputStream.write("Traffic recording: \n".getBytes(StandardCharsets.UTF_8));
+						this.outputStream.write(("\n   - started at " + this.startTime.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)).getBytes(StandardCharsets.UTF_8));
+						this.outputStream.write(("\n   - finished at " + finishTime.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)).getBytes(StandardCharsets.UTF_8));
+						this.outputStream.write(("\n   - requested sampling rate " + this.settings.samplingRate() + "%").getBytes(StandardCharsets.UTF_8));
+						this.outputStream.write(("\n   - real sampling rate " + this.lastSamplingRate + "%").getBytes(StandardCharsets.UTF_8));
+						this.outputStream.write(("\n   - duration " + StringUtils.formatDuration(Duration.between(this.startTime, finishTime))).getBytes(StandardCharsets.UTF_8));
+						this.outputStream.write(("\n   - exported " + this.exportedSessionCount + " sessions").getBytes(StandardCharsets.UTF_8));
+						this.outputStream.write(("\n   - exported " + StringUtils.formatByteSize(this.exportedSessionOriginalSize) + " of data").getBytes(StandardCharsets.UTF_8));
+						this.outputStream.write(("\n   - task was" + getFinishCondition(this.settings)).getBytes(StandardCharsets.UTF_8));
 					},
 					this.outputStream::close
 				);

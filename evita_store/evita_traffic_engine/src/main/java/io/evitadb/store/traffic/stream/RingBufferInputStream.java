@@ -107,6 +107,11 @@ public class RingBufferInputStream extends InputStream {
 
 	@Override
 	public long skip(long n) throws IOException {
+		// honor the InputStream#skip contract: a non-positive request skips nothing and returns 0
+		// (a negative value would otherwise walk `position` backwards past the modulo guard and seek negative)
+		if (n <= 0L) {
+			return 0L;
+		}
 		this.position += n;
 		if (this.position >= this.inputBufferSize) {
 			this.position = this.position % this.inputBufferSize;
@@ -119,6 +124,10 @@ public class RingBufferInputStream extends InputStream {
 
 	@Override
 	public void skipNBytes(long n) throws IOException {
+		// honor the InputStream#skipNBytes contract: a non-positive request skips nothing (see #skip)
+		if (n <= 0L) {
+			return;
+		}
 		this.position += n;
 		if (this.position >= this.inputBufferSize) {
 			this.position = this.position % this.inputBufferSize;

@@ -72,8 +72,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * Pins the on-demand {@link TrafficRecordingExportTask#doExport()} contract in isolation, driving the task's
  * callable directly against a stubbed {@link TrafficRecordingEngine} and a fake {@link ExportService}:
  *
- * - a successful export streams every session the engine yields into a zip archive (one `.bin` entry per
- *   session plus a trailing `metadata.txt`) and returns the finished {@link FileForFetch},
+ * - a successful export streams every session the engine yields into a zip archive - sessions are packed
+ *   into chunked `traffic_recording_*.bin` entries (multiple sessions per entry until the configured chunk
+ *   size rolls over) plus a trailing `metadata.txt` - and returns the finished {@link FileForFetch},
  * - a failing export (the engine raises {@link IOException}) is wrapped in an {@link UnexpectedIOException}
  *   and the partially written zip already registered in the export storage is deleted so it does not leak
  *   (mirrors {@code BackupTask}'s failure-cleanup model).
@@ -101,7 +102,7 @@ class TrafficRecordingExportTaskTest {
 	}
 
 	@Test
-	@DisplayName("A successful export writes a per-session entry plus metadata and returns the finished file")
+	@DisplayName("A successful export writes chunked .bin entries plus metadata and returns the finished file")
 	void shouldExportSessionsAndReturnFinishedFile() throws Exception {
 		final UUID fileId = UUID.randomUUID();
 		final FileForFetch finishedFile = fileForFetch(fileId);
@@ -140,7 +141,7 @@ class TrafficRecordingExportTaskTest {
 		final Set<String> entries = readZipEntryNames(this.zipFile);
 		assertTrue(
 			entries.contains("traffic_recording_1.bin"),
-			"The export must contain one .bin entry per exported session, got " + entries
+			"The single exported session must be packed into the first chunk .bin entry, got " + entries
 		);
 		assertTrue(
 			entries.contains("metadata.txt"),
