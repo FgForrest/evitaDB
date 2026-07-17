@@ -42,6 +42,7 @@ import io.evitadb.api.requestResponse.extraResult.AttributeHistogram;
 import io.evitadb.api.requestResponse.extraResult.FacetSummary;
 import io.evitadb.api.requestResponse.extraResult.Hierarchy;
 import io.evitadb.api.requestResponse.extraResult.PriceHistogram;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.OrderBehaviour;
@@ -64,6 +65,7 @@ import io.evitadb.utils.ArrayUtils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
@@ -85,6 +87,7 @@ import static org.junit.jupiter.api.Assertions.*;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
+@SuppressWarnings("SameParameterValue")
 public class EvitaArchivingTest implements EvitaTestSupport {
 	private static final String DIR_EVITA_ARCHIVING_TEST = "evitaArchivingTest";
 	private static final String DIR_EVITA_ARCHIVING_TEST_EXPORT = "evitaArchivingTest_export";
@@ -459,9 +462,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 
 		this.evita.updateCatalog(
 			TEST_CATALOG,
-			session -> {
-				session.goLiveAndClose();
-			}
+			EvitaSessionContract::goLiveAndClose
 		);
 
 		// check live indexes exist and previous indexes are removed
@@ -491,9 +492,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 
 		this.evita.updateCatalog(
 			TEST_CATALOG,
-			session -> {
-				session.goLiveAndClose();
-			}
+			EvitaSessionContract::goLiveAndClose
 		);
 
 		// upsert entities product depends on
@@ -1020,7 +1019,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 						thatIs -> thatIs
 							.indexedForFilteringAndPartitioning()
 							.withAttribute(ATTRIBUTE_CATEGORY_MARKET, String.class, whichIs -> whichIs.filterable().sortable())
-							.withAttribute(ATTRIBUTE_CATEGORY_OPEN, Boolean.class, whichIs -> whichIs.filterable())
+							.withAttribute(ATTRIBUTE_CATEGORY_OPEN, Boolean.class, AttributeSchemaEditor::filterable)
 							.withSortableAttributeCompound(
 								ATTRIBUTE_CATEGORY_MARKET_OPEN,
 								new AttributeElement(ATTRIBUTE_CATEGORY_MARKET, OrderDirection.ASC, OrderBehaviour.NULLS_LAST),
@@ -1147,7 +1146,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 								thatIs -> thatIs
 									.indexedInScope(Scope.LIVE)
 									.withAttribute(ATTRIBUTE_CATEGORY_MARKET, String.class, whichIs -> whichIs.filterable().sortable())
-									.withAttribute(ATTRIBUTE_CATEGORY_OPEN, Boolean.class, whichIs -> whichIs.filterable())
+									.withAttribute(ATTRIBUTE_CATEGORY_OPEN, Boolean.class,AttributeSchemaEditor::filterable)
 							)
 							.updateVia(session);
 					}
@@ -1305,11 +1304,13 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 		// client can query for category by having product
 		assertCategoryContainsProduct(new EntityReference(Entities.CATEGORY, 2), 100, Scope.LIVE, Scope.ARCHIVED);
 		assertProductContainsCategory(new EntityReference(Entities.PRODUCT, 100), 2, Scope.LIVE, Scope.ARCHIVED);
-		// but not in each scope separately
-		assertCategoryDoesNotContainProduct(100, Scope.LIVE);
+		// each entity is reachable only in its own scope, but the cross-scope relation is visible from both ends:
+		// the live category keeps its maintained mirror to the archived product, and the archived product keeps its
+		// primary reference queryable in the archived scope (invariant I1)
+		assertCategoryContainsProduct(new EntityReference(Entities.CATEGORY, 2), 100, Scope.LIVE);
 		assertCategoryDoesNotContainProduct(100, Scope.ARCHIVED);
 		assertProductDoesNotContainCategory(2, Scope.LIVE);
-		assertProductDoesNotContainCategory(2, Scope.ARCHIVED);
+		assertProductContainsCategory(new EntityReference(Entities.PRODUCT, 100), 2, Scope.ARCHIVED);
 
 		// archive category entity
 		this.evita.updateCatalog(
@@ -1383,6 +1384,446 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 		// but not in archived scope
 		assertCategoryDoesNotContainProduct(100, Scope.ARCHIVED);
 		assertProductDoesNotContainCategory(2, Scope.ARCHIVED);
+	}
+
+	@DisplayName("HYPOTHESIS: removing a dangling primary reference on an ARCHIVED entity whose reflected target was removed must not fail")
+	@Test
+	void shouldRemovePrimaryReferenceOnArchivedEntityWhenReflectedTargetWasRemoved() {
+		// schema: PRODUCT holds the PRIMARY reference to CATEGORY, CATEGORY holds the REFLECTED reference back;
+		// both indexed in LIVE scope only, so archiving the holder drops the reflected reference on the target side
+		defineLiveOnlyReflectedSchema();
+		createArchivingFixtureEntities();
+
+		// sanity: category 2 (reflected side) sees product 100 in LIVE
+		final SealedEntity categoryBefore = this.evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.getEntity(Entities.CATEGORY, 2, entityFetchAllContent()).orElse(null);
+			}
+		);
+		assertNotNull(categoryBefore);
+		assertNotNull(categoryBefore.getReference(REFLECTED_REFERENCE_NAME, 100).orElse(null));
+
+		// STEP 1: archive product 100 -> reflected reference on category 2 is dropped (LIVE-only indexing)
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.archiveEntity(Entities.PRODUCT, 100);
+			}
+		);
+		final SealedEntity categoryAfterArchiving = this.evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.getEntity(Entities.CATEGORY, 2, entityFetchAllContent()).orElse(null);
+			}
+		);
+		assertNotNull(categoryAfterArchiving);
+		assertNull(categoryAfterArchiving.getReference(REFLECTED_REFERENCE_NAME, 100).orElse(null));
+
+		// STEP 2: remove the reflected-target entity (category 2) while product 100 sits in the ARCHIVED scope
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				assertTrue(session.deleteEntity(Entities.CATEGORY, 2));
+			}
+		);
+
+		// STEP 3a: the archived product 100 STILL holds the now-dangling PRIMARY reference category:2
+		final SealedEntity archivedProduct = this.evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.getEntity(Entities.PRODUCT, 100, new Scope[]{Scope.ARCHIVED}, entityFetchAllContent()).orElse(null);
+			}
+		);
+		assertNotNull(archivedProduct);
+		assertNotNull(archivedProduct.getReference(Entities.CATEGORY, 2).orElse(null));
+
+		// remove the now-dangling primary reference from the archived product; the removal must succeed and must not
+		// try to touch the already-removed category 2
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.getEntity(Entities.PRODUCT, 100, new Scope[]{Scope.ARCHIVED}, entityFetchAllContent())
+					.orElseThrow()
+					.openForWrite()
+					.removeReference(Entities.CATEGORY, 2)
+					.upsertVia(session);
+			}
+		);
+
+		// the dangling primary reference is gone and the archived product is otherwise intact
+		final SealedEntity archivedProductAfter = this.evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.getEntity(Entities.PRODUCT, 100, new Scope[]{Scope.ARCHIVED}, entityFetchAllContent()).orElse(null);
+			}
+		);
+		assertNotNull(archivedProductAfter);
+		assertNull(archivedProductAfter.getReference(Entities.CATEGORY, 2).orElse(null));
+	}
+
+	@DisplayName("CONTROL: removing a dangling primary reference in LIVE scope whose reflected target was removed must not fail")
+	@Test
+	void shouldRemovePrimaryReferenceInLiveScopeWhenReflectedTargetWasRemoved() {
+		// same schema, but the product is NEVER archived - isolates whether the throw is scope-specific
+		defineLiveOnlyReflectedSchema();
+		createArchivingFixtureEntities();
+
+		// remove the reflected-target entity (category 2) while product 100 stays in LIVE scope
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				assertTrue(session.deleteEntity(Entities.CATEGORY, 2));
+			}
+		);
+
+		// observe whether the primary reference on the LIVE product survived the target removal
+		final SealedEntity liveProduct = this.evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.getEntity(Entities.PRODUCT, 100, new Scope[]{Scope.LIVE}, entityFetchAllContent()).orElse(null);
+			}
+		);
+		assertNotNull(liveProduct);
+
+		// if the dangling reference is still present, removing it explicitly must not fail
+		if (liveProduct.getReference(Entities.CATEGORY, 2).isPresent()) {
+			this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.getEntity(Entities.PRODUCT, 100, new Scope[]{Scope.LIVE}, entityFetchAllContent())
+						.orElseThrow()
+						.openForWrite()
+						.removeReference(Entities.CATEGORY, 2)
+						.upsertVia(session);
+				}
+			);
+		}
+
+		// either way, the LIVE product must end up without the reference to the removed category 2
+		final SealedEntity liveProductAfter = this.evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.getEntity(Entities.PRODUCT, 100, new Scope[]{Scope.LIVE}, entityFetchAllContent()).orElse(null);
+			}
+		);
+		assertNotNull(liveProductAfter);
+		assertNull(liveProductAfter.getReference(Entities.CATEGORY, 2).orElse(null));
+	}
+
+	@DisplayName("MATRIX: removing a dangling primary reference on an ARCHIVED entity (reflected ref indexed in both scopes) whose target was removed must not fail")
+	@Test
+	void shouldRemovePrimaryReferenceOnArchivedEntityWhenReflectedTargetRemovedBothScopesIndexed() {
+		defineBothScopesReflectedSchema();
+		createArchivingFixtureEntities();
+
+		// archive product 100 (with both-scopes indexing the reflected reference is retained across scopes)
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.archiveEntity(Entities.PRODUCT, 100);
+			}
+		);
+		// remove the reflected-target entity (category 2)
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				assertTrue(session.deleteEntity(Entities.CATEGORY, 2));
+			}
+		);
+		// with both-scopes indexing the relation is maintained across the scope split, so removing the target
+		// propagates the removal of the primary reference automatically; if the reference still dangles, removing
+		// it explicitly must not throw
+		final SealedEntity archivedProduct = this.evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.getEntity(Entities.PRODUCT, 100, new Scope[]{Scope.ARCHIVED}, entityFetchAllContent()).orElse(null);
+			}
+		);
+		assertNotNull(archivedProduct);
+		if (archivedProduct.getReference(Entities.CATEGORY, 2).isPresent()) {
+			this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.getEntity(Entities.PRODUCT, 100, new Scope[]{Scope.ARCHIVED}, entityFetchAllContent())
+						.orElseThrow()
+						.openForWrite()
+						.removeReference(Entities.CATEGORY, 2)
+						.upsertVia(session);
+				}
+			);
+		}
+
+		final SealedEntity archivedProductAfter = this.evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.getEntity(Entities.PRODUCT, 100, new Scope[]{Scope.ARCHIVED}, entityFetchAllContent()).orElse(null);
+			}
+		);
+		assertNotNull(archivedProductAfter);
+		assertNull(archivedProductAfter.getReference(Entities.CATEGORY, 2).orElse(null));
+	}
+
+	@DisplayName("MATRIX: removing an ARCHIVED holder entirely after its reflected target was removed must not fail")
+	@Test
+	void shouldRemoveArchivedHolderEntirelyWhenReflectedTargetWasRemoved() {
+		defineLiveOnlyReflectedSchema();
+		createArchivingFixtureEntities();
+
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.archiveEntity(Entities.PRODUCT, 100);
+			}
+		);
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				assertTrue(session.deleteEntity(Entities.CATEGORY, 2));
+			}
+		);
+		// delete the whole archived product -> reflected-removal propagation must tolerate the removed target
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				assertTrue(session.deleteEntity(Entities.PRODUCT, 100));
+			}
+		);
+
+		final SealedEntity productAfter = this.evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.getEntity(Entities.PRODUCT, 100, new Scope[]{Scope.LIVE, Scope.ARCHIVED}, entityFetchAllContent()).orElse(null);
+			}
+		);
+		assertNull(productAfter);
+	}
+
+	@DisplayName("MATRIX: restoring an ARCHIVED holder to LIVE after its reflected target was removed must not fail")
+	@Test
+	void shouldRestoreArchivedHolderToLiveWhenReflectedTargetWasRemoved() {
+		defineLiveOnlyReflectedSchema();
+		createArchivingFixtureEntities();
+
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.archiveEntity(Entities.PRODUCT, 100);
+			}
+		);
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				assertTrue(session.deleteEntity(Entities.CATEGORY, 2));
+			}
+		);
+		// restore the archived holder to LIVE -> reflected-reference re-creation must tolerate the removed target
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.restoreEntity(Entities.PRODUCT, 100);
+			}
+		);
+
+		final SealedEntity liveProduct = this.evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.getEntity(Entities.PRODUCT, 100, new Scope[]{Scope.LIVE}, entityFetchAllContent()).orElse(null);
+			}
+		);
+		assertNotNull(liveProduct);
+	}
+
+	/**
+	 * Defines a catalog schema where {@link Entities#PRODUCT} owns the primary reference to {@link Entities#CATEGORY}
+	 * and {@link Entities#CATEGORY} carries the reflected reference back to the product. Both references are indexed in
+	 * the {@link Scope#LIVE} scope only, so archiving the product drops the reflected reference on the target side.
+	 */
+	private void defineLiveOnlyReflectedSchema() {
+		this.evita.defineCatalog(TEST_CATALOG)
+			.withAttribute(ATTRIBUTE_CODE, String.class, thatIs -> thatIs.uniqueGlobally().sortable())
+			.updateViaNewSession(this.evita);
+
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.defineEntitySchema(Entities.CATEGORY)
+					.withoutGeneratedPrimaryKey()
+					.withGlobalAttribute(ATTRIBUTE_CODE)
+					.withReflectedReferenceToEntity(
+						REFLECTED_REFERENCE_NAME,
+						Entities.PRODUCT,
+						Entities.CATEGORY,
+						whichIs -> whichIs.indexedForFilteringAndPartitioning().withAttributesInherited()
+					)
+					.updateVia(session);
+
+				session.defineEntitySchema(Entities.PRODUCT)
+					.withoutGeneratedPrimaryKey()
+					.withGlobalAttribute(ATTRIBUTE_CODE)
+					.withAttribute(ATTRIBUTE_NAME, String.class, thatIs -> thatIs.localized().filterable().sortable())
+					.withPriceInCurrency(CURRENCY_CZK, CURRENCY_EUR)
+					.withReferenceToEntity(
+						Entities.CATEGORY,
+						Entities.CATEGORY,
+						Cardinality.ZERO_OR_MORE,
+						thatIs -> thatIs
+							.indexedForFilteringAndPartitioning()
+							.withAttribute(ATTRIBUTE_CATEGORY_MARKET, String.class, whichIs -> whichIs.filterable().sortable())
+							.withAttribute(ATTRIBUTE_CATEGORY_OPEN, Boolean.class, AttributeSchemaEditor::filterable)
+					)
+					.updateVia(session);
+			}
+		);
+	}
+
+	/**
+	 * Creates category 2 and product 100 with the product holding a primary reference to that category (the product
+	 * references a reflected-target entity that some scenarios later remove).
+	 */
+	private void createArchivingFixtureEntities() {
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.createNewEntity(Entities.CATEGORY, 2)
+					.setAttribute(ATTRIBUTE_CODE, "TV")
+					.upsertVia(session);
+			}
+		);
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.createNewEntity(Entities.PRODUCT, 100)
+					.setAttribute(ATTRIBUTE_CODE, "TV-123")
+					.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "TV")
+					.setReference(Entities.CATEGORY, 2, whichIs -> whichIs.setAttribute(ATTRIBUTE_CATEGORY_MARKET, "EU").setAttribute(ATTRIBUTE_CATEGORY_OPEN, true))
+					.setPrice(1, PRICE_LIST_BASIC, CURRENCY_CZK, new BigDecimal("100"), new BigDecimal("21"), new BigDecimal("121"), true)
+					.setPrice(1, PRICE_LIST_BASIC, CURRENCY_EUR, new BigDecimal("10"), new BigDecimal("21"), new BigDecimal("12.1"), true)
+					.upsertVia(session);
+			}
+		);
+	}
+
+	/**
+	 * Variant of {@link #defineLiveOnlyReflectedSchema()} where both the primary reference and the reflected reference
+	 * are indexed in the {@link Scope#LIVE} and {@link Scope#ARCHIVED} scopes. In this configuration archiving the
+	 * holder retains the reflected reference across scopes instead of dropping it.
+	 */
+	private void defineBothScopesReflectedSchema() {
+		final Scope[] scopes = new Scope[]{Scope.LIVE, Scope.ARCHIVED};
+		this.evita.defineCatalog(TEST_CATALOG)
+			.withAttribute(ATTRIBUTE_CODE, String.class, thatIs -> thatIs.uniqueGloballyInScope(scopes).sortableInScope(scopes))
+			.updateViaNewSession(this.evita);
+
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.defineEntitySchema(Entities.CATEGORY)
+					.withoutGeneratedPrimaryKey()
+					.withGlobalAttribute(ATTRIBUTE_CODE)
+					.withReflectedReferenceToEntity(
+						REFLECTED_REFERENCE_NAME,
+						Entities.PRODUCT,
+						Entities.CATEGORY,
+						whichIs -> whichIs.indexedInScope(scopes).withAttributesInherited()
+					)
+					.updateVia(session);
+
+				session.defineEntitySchema(Entities.PRODUCT)
+					.withoutGeneratedPrimaryKey()
+					.withGlobalAttribute(ATTRIBUTE_CODE)
+					.withAttribute(ATTRIBUTE_NAME, String.class, thatIs -> thatIs.localized().filterableInScope(scopes).sortableInScope(scopes))
+					.withPriceInCurrency(CURRENCY_CZK, CURRENCY_EUR)
+					.withReferenceToEntity(
+						Entities.CATEGORY,
+						Entities.CATEGORY,
+						Cardinality.ZERO_OR_MORE,
+						thatIs -> thatIs
+							.indexedInScope(scopes)
+							.withAttribute(ATTRIBUTE_CATEGORY_MARKET, String.class, whichIs -> whichIs.filterableInScope(scopes).sortableInScope(scopes))
+							.withAttribute(ATTRIBUTE_CATEGORY_OPEN, Boolean.class, whichIs -> whichIs.filterableInScope(scopes))
+					)
+					.updateVia(session);
+			}
+		);
+	}
+
+	/**
+	 * Variant of the reflected schema where the primary reference is indexed in both the {@link Scope#LIVE} and
+	 * {@link Scope#ARCHIVED} scopes while the reflected reference is indexed in the {@link Scope#LIVE} scope only. This
+	 * is the third legal indexing configuration (the reflected scopes must be a subset of the primary scopes): archiving
+	 * the holder drops the reflected mirror on the target yet keeps the holder's primary reference indexed in the
+	 * archived scope.
+	 */
+	private void defineMixedScopeReflectedSchema() {
+		final Scope[] bothScopes = new Scope[]{Scope.LIVE, Scope.ARCHIVED};
+		this.evita.defineCatalog(TEST_CATALOG)
+			.withAttribute(ATTRIBUTE_CODE, String.class, thatIs -> thatIs.uniqueGloballyInScope(bothScopes).sortableInScope(bothScopes))
+			.updateViaNewSession(this.evita);
+
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.defineEntitySchema(Entities.CATEGORY)
+					.withoutGeneratedPrimaryKey()
+					.withGlobalAttribute(ATTRIBUTE_CODE)
+					.withReflectedReferenceToEntity(
+						REFLECTED_REFERENCE_NAME,
+						Entities.PRODUCT,
+						Entities.CATEGORY,
+						whichIs -> whichIs.indexedForFilteringAndPartitioning().withAttributesInherited()
+					)
+					.updateVia(session);
+
+				session.defineEntitySchema(Entities.PRODUCT)
+					.withoutGeneratedPrimaryKey()
+					.withGlobalAttribute(ATTRIBUTE_CODE)
+					.withAttribute(ATTRIBUTE_NAME, String.class, thatIs -> thatIs.localized().filterableInScope(bothScopes).sortableInScope(bothScopes))
+					.withPriceInCurrency(CURRENCY_CZK, CURRENCY_EUR)
+					.withReferenceToEntity(
+						Entities.CATEGORY,
+						Entities.CATEGORY,
+						Cardinality.ZERO_OR_MORE,
+						thatIs -> thatIs
+							.indexedInScope(bothScopes)
+							.withAttribute(ATTRIBUTE_CATEGORY_MARKET, String.class, whichIs -> whichIs.filterableInScope(bothScopes).sortableInScope(bothScopes))
+							.withAttribute(ATTRIBUTE_CATEGORY_OPEN, Boolean.class, whichIs -> whichIs.filterableInScope(bothScopes))
+					)
+					.updateVia(session);
+			}
+		);
+	}
+
+	/**
+	 * Variant of {@link #createArchivingFixtureEntities()} that creates two reflected-target categories (2 and 3) and a
+	 * product 100 holding a primary reference to both. Used by the cardinality scenarios that remove one target while
+	 * the other survives.
+	 */
+	private void createTwoTargetArchivingFixture() {
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.createNewEntity(Entities.CATEGORY, 2)
+					.setAttribute(ATTRIBUTE_CODE, "TV")
+					.upsertVia(session);
+				session.createNewEntity(Entities.CATEGORY, 3)
+					.setAttribute(ATTRIBUTE_CODE, "Radio")
+					.upsertVia(session);
+			}
+		);
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.createNewEntity(Entities.PRODUCT, 100)
+					.setAttribute(ATTRIBUTE_CODE, "TV-123")
+					.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "TV")
+					.setReference(Entities.CATEGORY, 2, whichIs -> whichIs.setAttribute(ATTRIBUTE_CATEGORY_MARKET, "EU").setAttribute(ATTRIBUTE_CATEGORY_OPEN, true))
+					.setReference(Entities.CATEGORY, 3, whichIs -> whichIs.setAttribute(ATTRIBUTE_CATEGORY_MARKET, "US").setAttribute(ATTRIBUTE_CATEGORY_OPEN, true))
+					.setPrice(1, PRICE_LIST_BASIC, CURRENCY_CZK, new BigDecimal("100"), new BigDecimal("21"), new BigDecimal("121"), true)
+					.setPrice(1, PRICE_LIST_BASIC, CURRENCY_EUR, new BigDecimal("10"), new BigDecimal("21"), new BigDecimal("12.1"), true)
+					.upsertVia(session);
+			}
+		);
 	}
 
 	@DisplayName("Entity querying should respect scope requirement")
@@ -2634,6 +3075,1913 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 					.build()
 			)
 			.build();
+	}
+
+	/**
+	 * Missing E2E coverage for archiving/removal behaviour of plain (non-reflected) references. These scenarios act as
+	 * the control group for the reflected-reference scenarios: a plain reference carries no reflected mirror, so the
+	 * cross-scope reflected maintenance is never triggered and the primary-side bookkeeping must stay consistent.
+	 */
+	@Nested
+	@DisplayName("Simple (non-reflected) reference behaviour across scopes")
+	class SimpleReferenceArchivingScenarios {
+
+		@DisplayName("Removing a dangling simple reference from an archived holder whose target was removed from the archived scope must not fail")
+		@Test
+		void shouldRemoveDanglingSimpleReferenceWhenTargetRemovedFromArchivedScope() {
+			createSimpleReferenceFixture(Scope.LIVE, Scope.ARCHIVED);
+
+			// archive both the holder and the target so the target is removed later from the ARCHIVED scope
+			EvitaArchivingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.archiveEntity(Entities.PRODUCT, 100);
+					session.archiveEntity(Entities.CATEGORY, 2);
+				}
+			);
+			EvitaArchivingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					assertTrue(session.deleteEntity(Entities.CATEGORY, 2));
+				}
+			);
+
+			final SealedEntity archivedProduct = EvitaArchivingTest.this.evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					return session.getEntity(Entities.PRODUCT, 100, new Scope[]{Scope.ARCHIVED}, entityFetchAllContent()).orElse(null);
+				}
+			);
+			assertNotNull(archivedProduct);
+			assertNotNull(archivedProduct.getReference(Entities.CATEGORY, 2).orElse(null));
+
+			EvitaArchivingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.getEntity(Entities.PRODUCT, 100, new Scope[]{Scope.ARCHIVED}, entityFetchAllContent())
+						.orElseThrow()
+						.openForWrite()
+						.removeReference(Entities.CATEGORY, 2)
+						.upsertVia(session);
+				}
+			);
+
+			final SealedEntity archivedProductAfter = EvitaArchivingTest.this.evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					return session.getEntity(Entities.PRODUCT, 100, new Scope[]{Scope.ARCHIVED}, entityFetchAllContent()).orElse(null);
+				}
+			);
+			assertNotNull(archivedProductAfter);
+			assertNull(archivedProductAfter.getReference(Entities.CATEGORY, 2).orElse(null));
+		}
+
+		@DisplayName("Deleting an archived holder with a simple reference to a live target must not fail")
+		@Test
+		void shouldDeleteArchivedHolderWithSimpleReferenceWhenTargetAlive() {
+			createSimpleReferenceFixture(Scope.LIVE, Scope.ARCHIVED);
+
+			EvitaArchivingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.archiveEntity(Entities.PRODUCT, 100);
+				}
+			);
+
+			// delete the archived holder while the target is alive
+			assertDoesNotThrow(
+				() -> EvitaArchivingTest.this.evita.updateCatalog(
+					TEST_CATALOG,
+					session -> {
+						assertTrue(session.deleteEntity(Entities.PRODUCT, 100));
+					}
+				),
+				"Deleting an archived holder with a live simple-reference target must not fail"
+			);
+
+			// the holder is gone from every scope, the target is untouched
+			final SealedEntity product = EvitaArchivingTest.this.evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					return session.getEntity(Entities.PRODUCT, 100, new Scope[]{Scope.LIVE, Scope.ARCHIVED}, entityFetchAllContent()).orElse(null);
+				}
+			);
+			assertNull(product);
+			final SealedEntity category = EvitaArchivingTest.this.evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					return session.getEntity(Entities.CATEGORY, 2, entityFetchAllContent()).orElse(null);
+				}
+			);
+			assertNotNull(category);
+		}
+
+		@DisplayName("Removing a dangling sibling simple reference from an archived holder keeps the surviving sibling intact")
+		@Test
+		void shouldRemoveOnlyDanglingSimpleSiblingAndKeepLiveSibling() {
+			createSimpleTwoTargetFixture(Scope.LIVE, Scope.ARCHIVED);
+
+			EvitaArchivingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.archiveEntity(Entities.PRODUCT, 100);
+				}
+			);
+			// remove one target (category 3) -> its reference on the archived holder becomes dangling
+			EvitaArchivingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					assertTrue(session.deleteEntity(Entities.CATEGORY, 3));
+				}
+			);
+			// remove the dangling sibling reference (category 3) from the archived holder
+			EvitaArchivingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.getEntity(Entities.PRODUCT, 100, new Scope[]{Scope.ARCHIVED}, entityFetchAllContent())
+						.orElseThrow()
+						.openForWrite()
+						.removeReference(Entities.CATEGORY, 3)
+						.upsertVia(session);
+				}
+			);
+
+			// EXACT: the surviving sibling reference stays, the dead sibling reference is gone
+			final SealedEntity archivedProduct = EvitaArchivingTest.this.evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					return session.getEntity(Entities.PRODUCT, 100, new Scope[]{Scope.ARCHIVED}, entityFetchAllContent()).orElse(null);
+				}
+			);
+			assertNotNull(archivedProduct);
+			assertNotNull(archivedProduct.getReference(Entities.CATEGORY, 2).orElse(null));
+			assertNull(archivedProduct.getReference(Entities.CATEGORY, 3).orElse(null));
+		}
+
+		@DisplayName("Removing a dangling simple reference from an archived holder must not fail when the target was removed before archiving")
+		@Test
+		void shouldRemoveDanglingSimpleReferenceWhenTargetRemovedBeforeHolderArchived() {
+			createSimpleReferenceFixture(Scope.LIVE);
+
+			// remove the target first while the holder is live (reverse order)
+			EvitaArchivingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					assertTrue(session.deleteEntity(Entities.CATEGORY, 2));
+				}
+			);
+			EvitaArchivingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.archiveEntity(Entities.PRODUCT, 100);
+				}
+			);
+
+			final SealedEntity archivedProduct = EvitaArchivingTest.this.evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					return session.getEntity(Entities.PRODUCT, 100, new Scope[]{Scope.ARCHIVED}, entityFetchAllContent()).orElse(null);
+				}
+			);
+			assertNotNull(archivedProduct);
+			if (archivedProduct.getReference(Entities.CATEGORY, 2).isPresent()) {
+				assertDoesNotThrow(
+					() -> EvitaArchivingTest.this.evita.updateCatalog(
+						TEST_CATALOG,
+						session -> {
+							session.getEntity(Entities.PRODUCT, 100, new Scope[]{Scope.ARCHIVED}, entityFetchAllContent())
+								.orElseThrow()
+								.openForWrite()
+								.removeReference(Entities.CATEGORY, 2)
+								.upsertVia(session);
+						}
+					),
+					"Removing the dangling simple reference after reverse-order removal must not fail"
+				);
+			}
+			final SealedEntity archivedProductAfter = EvitaArchivingTest.this.evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					return session.getEntity(Entities.PRODUCT, 100, new Scope[]{Scope.ARCHIVED}, entityFetchAllContent()).orElse(null);
+				}
+			);
+			assertNotNull(archivedProductAfter);
+			assertNull(archivedProductAfter.getReference(Entities.CATEGORY, 2).orElse(null));
+		}
+
+		@DisplayName("Restoring an archived holder whose simple-reference target was removed must not fail")
+		@Test
+		void shouldRestoreArchivedHolderWithSimpleReferenceWhenTargetRemoved() {
+			createSimpleReferenceFixture(Scope.LIVE);
+
+			EvitaArchivingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.archiveEntity(Entities.PRODUCT, 100);
+				}
+			);
+			EvitaArchivingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					assertTrue(session.deleteEntity(Entities.CATEGORY, 2));
+				}
+			);
+
+			// restore the archived holder to live even though its simple-reference target no longer exists
+			assertDoesNotThrow(
+				() -> EvitaArchivingTest.this.evita.updateCatalog(
+					TEST_CATALOG,
+					session -> {
+						session.restoreEntity(Entities.PRODUCT, 100);
+					}
+				),
+				"Restoring an archived holder whose simple-reference target was removed must not fail"
+			);
+
+			final SealedEntity liveProduct = EvitaArchivingTest.this.evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					return session.getEntity(Entities.PRODUCT, 100, entityFetchAllContent()).orElse(null);
+				}
+			);
+			assertNotNull(liveProduct);
+		}
+
+		@DisplayName("Archiving a simple-reference target while the holder stays live must keep both entities consistent")
+		@Test
+		void shouldArchiveSimpleReferenceTargetWhileHolderStaysLive() {
+			createSimpleReferenceFixture(Scope.LIVE, Scope.ARCHIVED);
+
+			// archive the referenced target while the holder stays live
+			assertDoesNotThrow(
+				() -> EvitaArchivingTest.this.evita.updateCatalog(
+					TEST_CATALOG,
+					session -> {
+						session.archiveEntity(Entities.CATEGORY, 2);
+					}
+				),
+				"Archiving a simple-reference target must not fail"
+			);
+
+			final SealedEntity liveHolder = EvitaArchivingTest.this.evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					return session.getEntity(Entities.PRODUCT, 100, entityFetchAllContent()).orElse(null);
+				}
+			);
+			assertNotNull(liveHolder);
+			final SealedEntity archivedTarget = EvitaArchivingTest.this.evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					return session.getEntity(Entities.CATEGORY, 2, new Scope[]{Scope.ARCHIVED}, entityFetchAllContent()).orElse(null);
+				}
+			);
+			assertNotNull(archivedTarget);
+
+			// the holder's simple reference must remain removable without error
+			assertDoesNotThrow(
+				() -> EvitaArchivingTest.this.evita.updateCatalog(
+					TEST_CATALOG,
+					session -> {
+						session.getEntity(Entities.PRODUCT, 100, entityFetchAllContent())
+							.orElseThrow()
+							.openForWrite()
+							.removeReference(Entities.CATEGORY, 2)
+							.upsertVia(session);
+					}
+				),
+				"Removing the simple reference after the target was archived must not fail"
+			);
+		}
+
+		/**
+		 * Builds the plain-reference fixture with two target categories (2 and 3) referenced by product 100. Used by the
+		 * cardinality scenario that removes one target while the other survives.
+		 *
+		 * @param indexScope the scopes in which the schema elements are indexed
+		 */
+		private void createSimpleTwoTargetFixture(@Nonnull Scope... indexScope) {
+			createSchemaForEntityArchiving(indexScope);
+			EvitaArchivingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.createNewEntity(Entities.CATEGORY, 2)
+						.setAttribute(ATTRIBUTE_CODE, "TV")
+						.upsertVia(session);
+					session.createNewEntity(Entities.CATEGORY, 3)
+						.setAttribute(ATTRIBUTE_CODE, "Radio")
+						.upsertVia(session);
+				}
+			);
+			EvitaArchivingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.createNewEntity(Entities.PRODUCT, 100)
+						.setAttribute(ATTRIBUTE_CODE, "TV-123")
+						.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "TV")
+						.setReference(Entities.CATEGORY, 2, whichIs -> whichIs.setAttribute(ATTRIBUTE_CATEGORY_MARKET, "EU").setAttribute(ATTRIBUTE_CATEGORY_OPEN, true))
+						.setReference(Entities.CATEGORY, 3, whichIs -> whichIs.setAttribute(ATTRIBUTE_CATEGORY_MARKET, "US").setAttribute(ATTRIBUTE_CATEGORY_OPEN, true))
+						.setPrice(1, PRICE_LIST_BASIC, CURRENCY_CZK, new BigDecimal("100"), new BigDecimal("21"), new BigDecimal("121"), true)
+						.setPrice(1, PRICE_LIST_BASIC, CURRENCY_EUR, new BigDecimal("10"), new BigDecimal("21"), new BigDecimal("12.1"), true)
+						.upsertVia(session);
+				}
+			);
+		}
+
+		@DisplayName("Removing a dangling simple reference from an archived holder after its target was removed must not fail")
+		@Test
+		void shouldRemoveDanglingSimpleReferenceOnArchivedHolderWhenTargetRemoved() {
+			createSimpleReferenceFixture(Scope.LIVE);
+
+			// archive the holder
+			EvitaArchivingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.archiveEntity(Entities.PRODUCT, 100);
+				}
+			);
+			// remove the referenced target entity
+			EvitaArchivingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					assertTrue(session.deleteEntity(Entities.CATEGORY, 2));
+				}
+			);
+			// the archived holder still carries the now-dangling simple reference
+			final SealedEntity archivedProduct = EvitaArchivingTest.this.evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					return session.getEntity(Entities.PRODUCT, 100, new Scope[]{Scope.ARCHIVED}, entityFetchAllContent()).orElse(null);
+				}
+			);
+			assertNotNull(archivedProduct);
+			assertNotNull(archivedProduct.getReference(Entities.CATEGORY, 2).orElse(null));
+
+			// removing the dangling simple reference must succeed - no reflected maintenance is involved here
+			EvitaArchivingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.getEntity(Entities.PRODUCT, 100, new Scope[]{Scope.ARCHIVED}, entityFetchAllContent())
+						.orElseThrow()
+						.openForWrite()
+						.removeReference(Entities.CATEGORY, 2)
+						.upsertVia(session);
+				}
+			);
+
+			final SealedEntity archivedProductAfter = EvitaArchivingTest.this.evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					return session.getEntity(Entities.PRODUCT, 100, new Scope[]{Scope.ARCHIVED}, entityFetchAllContent()).orElse(null);
+				}
+			);
+			assertNotNull(archivedProductAfter);
+			assertNull(archivedProductAfter.getReference(Entities.CATEGORY, 2).orElse(null));
+		}
+
+		/**
+		 * Builds the plain-reference fixture: the {@link #createSchemaForEntityArchiving(Scope...)} schema (product owns
+		 * a plain reference to a category), categories 1 and 2, and product 100 referencing category 2.
+		 *
+		 * @param indexScope the scopes in which the schema elements are indexed
+		 */
+		private void createSimpleReferenceFixture(@Nonnull Scope... indexScope) {
+			createSchemaForEntityArchiving(indexScope);
+			EvitaArchivingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.createNewEntity(Entities.CATEGORY, 2)
+						.setAttribute(ATTRIBUTE_CODE, "TV")
+						.upsertVia(session);
+				}
+			);
+			EvitaArchivingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.createNewEntity(Entities.PRODUCT, 100)
+						.setAttribute(ATTRIBUTE_CODE, "TV-123")
+						.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "TV")
+						.setReference(Entities.CATEGORY, 2, whichIs -> whichIs.setAttribute(ATTRIBUTE_CATEGORY_MARKET, "EU").setAttribute(ATTRIBUTE_CATEGORY_OPEN, true))
+						.setPrice(1, PRICE_LIST_BASIC, CURRENCY_CZK, new BigDecimal("100"), new BigDecimal("21"), new BigDecimal("121"), true)
+						.setPrice(1, PRICE_LIST_BASIC, CURRENCY_EUR, new BigDecimal("10"), new BigDecimal("21"), new BigDecimal("12.1"), true)
+						.upsertVia(session);
+				}
+			);
+		}
+	}
+
+	/**
+	 * Missing E2E coverage for archiving/removal behaviour of reflected references across the LIVE and ARCHIVED scopes.
+	 * The holder (product) owns the primary reference to the target (category); the target carries the reflected mirror
+	 * back to the holder. These scenarios exercise the full lifecycle matrix across the three legal indexing
+	 * configurations (primary+reflected LIVE-only, primary+reflected both-scopes, primary both-scopes / reflected
+	 * LIVE-only).
+	 */
+	@SuppressWarnings("SameParameterValue")
+	@Nested
+	@DisplayName("Reflected reference behaviour across scopes")
+	class ReflectedReferenceArchivingScenarios {
+
+		@DisplayName("Removing a primary reference from a live holder removes the reflected mirror on a live target (both scopes indexed) - LIVE control")
+		@Test
+		void shouldRemoveReflectedMirrorFromLiveTargetWhenPrimaryRemovedFromLiveHolder() {
+			defineBothScopesReflectedSchema();
+			createArchivingFixtureEntities();
+
+			// holder stays LIVE; the reflected mirror is present in the LIVE scope
+			assertCategoryContainsProduct(new EntityReference(Entities.CATEGORY, 2), 100, Scope.LIVE);
+
+			EvitaArchivingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.getEntity(Entities.PRODUCT, 100, entityFetchAllContent())
+						.orElseThrow()
+						.openForWrite()
+						.removeReference(Entities.CATEGORY, 2)
+						.upsertVia(session);
+				}
+			);
+
+			// EXACT: the reflected mirror on the live target must be gone
+			assertCategoryDoesNotContainProduct(100, Scope.LIVE);
+
+			final SealedEntity liveProduct = EvitaArchivingTest.this.evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					return session.getEntity(Entities.PRODUCT, 100, entityFetchAllContent()).orElse(null);
+				}
+			);
+			assertNotNull(liveProduct);
+			assertNull(liveProduct.getReference(Entities.CATEGORY, 2).orElse(null));
+		}
+
+		@DisplayName("Deleting an archived holder removes the reflected mirror on a live target (both scopes indexed)")
+		@Test
+		void shouldRemoveReflectedMirrorFromLiveTargetWhenArchivedHolderDeleted() {
+			defineBothScopesReflectedSchema();
+			createArchivingFixtureEntities();
+
+			EvitaArchivingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.archiveEntity(Entities.PRODUCT, 100);
+				}
+			);
+			assertCategoryContainsProduct(new EntityReference(Entities.CATEGORY, 2), 100, Scope.LIVE, Scope.ARCHIVED);
+
+			// delete the archived holder entirely
+			EvitaArchivingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					assertTrue(session.deleteEntity(Entities.PRODUCT, 100));
+				}
+			);
+
+			// EXACT: the reflected mirror on the live target must be gone in every scope
+			assertCategoryDoesNotContainProduct(100, Scope.LIVE);
+			assertCategoryDoesNotContainProduct(100, Scope.ARCHIVED);
+			// the target category itself is untouched
+			final SealedEntity category = EvitaArchivingTest.this.evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					return session.getEntity(Entities.CATEGORY, 2, entityFetchAllContent()).orElse(null);
+				}
+			);
+			assertNotNull(category);
+		}
+
+		@DisplayName("Deleting a live holder removes the reflected mirror on a live target (both scopes indexed) - LIVE control")
+		@Test
+		void shouldRemoveReflectedMirrorFromLiveTargetWhenLiveHolderDeleted() {
+			defineBothScopesReflectedSchema();
+			createArchivingFixtureEntities();
+
+			assertCategoryContainsProduct(new EntityReference(Entities.CATEGORY, 2), 100, Scope.LIVE);
+
+			EvitaArchivingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					assertTrue(session.deleteEntity(Entities.PRODUCT, 100));
+				}
+			);
+
+			assertCategoryDoesNotContainProduct(100, Scope.LIVE);
+			final SealedEntity category = EvitaArchivingTest.this.evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					return session.getEntity(Entities.CATEGORY, 2, entityFetchAllContent()).orElse(null);
+				}
+			);
+			assertNotNull(category);
+		}
+
+		@DisplayName("Archiving a holder drops the LIVE-only reflected mirror while keeping the primary reference indexed in the archived scope (mixed scopes)")
+		@Test
+		void shouldDropReflectedMirrorButRetainIndexedPrimaryWhenHolderArchivedWithMixedScopes() {
+			defineMixedScopeReflectedSchema();
+			createArchivingFixtureEntities();
+
+			// before archiving: mirror present in LIVE and the holder is queryable by its primary reference in LIVE
+			assertCategoryContainsProduct(new EntityReference(Entities.CATEGORY, 2), 100, Scope.LIVE);
+			assertProductContainsCategory(new EntityReference(Entities.PRODUCT, 100), 2, Scope.LIVE);
+
+			EvitaArchivingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.archiveEntity(Entities.PRODUCT, 100);
+				}
+			);
+
+			// EXACT: the LIVE-only reflected mirror is dropped in the LIVE scope (it is not indexed in ARCHIVED, so the
+			// reflected reference cannot be queried there at all)
+			assertCategoryDoesNotContainProduct(100, Scope.LIVE);
+			// EXACT: the primary reference is indexed in ARCHIVED, so the archived holder is still queryable by it
+			assertProductContainsCategory(new EntityReference(Entities.PRODUCT, 100), 2, Scope.ARCHIVED);
+		}
+
+		@DisplayName("Removing a dangling primary reference from an archived holder whose target was removed must not fail (mixed scopes)")
+		@Test
+		void shouldRemoveDanglingPrimaryReferenceOnArchivedHolderWithMixedScopesWhenTargetRemoved() {
+			defineMixedScopeReflectedSchema();
+			createArchivingFixtureEntities();
+
+			EvitaArchivingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.archiveEntity(Entities.PRODUCT, 100);
+				}
+			);
+			EvitaArchivingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					assertTrue(session.deleteEntity(Entities.CATEGORY, 2));
+				}
+			);
+
+			// the archived holder still carries the now-dangling primary reference
+			final SealedEntity archivedProduct = EvitaArchivingTest.this.evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					return session.getEntity(Entities.PRODUCT, 100, new Scope[]{Scope.ARCHIVED}, entityFetchAllContent()).orElse(null);
+				}
+			);
+			assertNotNull(archivedProduct);
+			assertNotNull(archivedProduct.getReference(Entities.CATEGORY, 2).orElse(null));
+
+			// removing the dangling primary reference must succeed
+			EvitaArchivingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.getEntity(Entities.PRODUCT, 100, new Scope[]{Scope.ARCHIVED}, entityFetchAllContent())
+						.orElseThrow()
+						.openForWrite()
+						.removeReference(Entities.CATEGORY, 2)
+						.upsertVia(session);
+				}
+			);
+
+			final SealedEntity archivedProductAfter = EvitaArchivingTest.this.evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					return session.getEntity(Entities.PRODUCT, 100, new Scope[]{Scope.ARCHIVED}, entityFetchAllContent()).orElse(null);
+				}
+			);
+			assertNotNull(archivedProductAfter);
+			assertNull(archivedProductAfter.getReference(Entities.CATEGORY, 2).orElse(null));
+		}
+
+		@DisplayName("Archiving the reflected target while the holder stays live must keep both entities consistent and the primary reference removable")
+		@Test
+		void shouldArchiveReflectedTargetWhileHolderStaysLive() {
+			defineBothScopesReflectedSchema();
+			createArchivingFixtureEntities();
+
+			// archive the TARGET (the reflected-mirror holder) while the primary holder stays LIVE
+			assertDoesNotThrow(
+				() -> EvitaArchivingTest.this.evita.updateCatalog(
+					TEST_CATALOG,
+					session -> {
+						session.archiveEntity(Entities.CATEGORY, 2);
+					}
+				),
+				"Archiving the reflected target must not fail"
+			);
+
+			// INVARIANT: both entities remain retrievable in their respective scopes
+			final SealedEntity liveHolder = EvitaArchivingTest.this.evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					return session.getEntity(Entities.PRODUCT, 100, entityFetchAllContent()).orElse(null);
+				}
+			);
+			assertNotNull(liveHolder);
+			final SealedEntity archivedTarget = EvitaArchivingTest.this.evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					return session.getEntity(Entities.CATEGORY, 2, new Scope[]{Scope.ARCHIVED}, entityFetchAllContent()).orElse(null);
+				}
+			);
+			assertNotNull(archivedTarget);
+
+			// INVARIANT: whatever the mirror state, the holder's primary reference must remain removable without error
+			assertDoesNotThrow(
+				() -> EvitaArchivingTest.this.evita.updateCatalog(
+					TEST_CATALOG,
+					session -> {
+						session.getEntity(Entities.PRODUCT, 100, entityFetchAllContent())
+							.orElseThrow()
+							.openForWrite()
+							.removeReference(Entities.CATEGORY, 2)
+							.upsertVia(session);
+					}
+				),
+				"Removing the primary reference after the reflected target was archived must not fail"
+			);
+		}
+
+		@DisplayName("Removing a dangling primary reference from an archived holder whose target was removed from the archived scope must not fail")
+		@Test
+		void shouldRemoveDanglingPrimaryReferenceWhenTargetRemovedFromArchivedScope() {
+			defineBothScopesReflectedSchema();
+			createArchivingFixtureEntities();
+
+			// archive BOTH the holder and the target; with both-scopes indexing the mirror lives in the archived scope
+			EvitaArchivingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.archiveEntity(Entities.PRODUCT, 100);
+					session.archiveEntity(Entities.CATEGORY, 2);
+				}
+			);
+			assertCategoryContainsProduct(new EntityReference(Entities.CATEGORY, 2), 100, Scope.ARCHIVED);
+
+			// remove the target from the ARCHIVED scope
+			EvitaArchivingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					assertTrue(session.deleteEntity(Entities.CATEGORY, 2));
+				}
+			);
+
+			// the archived holder must stay consistent: whether the reference dangles or was auto-cleaned by the
+			// reflected maintenance, the holder must remain retrievable and must not keep a reference that cannot be removed
+			final SealedEntity archivedProduct = EvitaArchivingTest.this.evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					return session.getEntity(Entities.PRODUCT, 100, new Scope[]{Scope.ARCHIVED}, entityFetchAllContent()).orElse(null);
+				}
+			);
+			assertNotNull(archivedProduct);
+			if (archivedProduct.getReference(Entities.CATEGORY, 2).isPresent()) {
+				EvitaArchivingTest.this.evita.updateCatalog(
+					TEST_CATALOG,
+					session -> {
+						session.getEntity(Entities.PRODUCT, 100, new Scope[]{Scope.ARCHIVED}, entityFetchAllContent())
+							.orElseThrow()
+							.openForWrite()
+							.removeReference(Entities.CATEGORY, 2)
+							.upsertVia(session);
+					}
+				);
+			}
+
+			final SealedEntity archivedProductAfter = EvitaArchivingTest.this.evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					return session.getEntity(Entities.PRODUCT, 100, new Scope[]{Scope.ARCHIVED}, entityFetchAllContent()).orElse(null);
+				}
+			);
+			assertNotNull(archivedProductAfter);
+			assertNull(archivedProductAfter.getReference(Entities.CATEGORY, 2).orElse(null));
+		}
+
+		@DisplayName("Restoring the holder to live while the reflected target stays archived must keep both entities consistent")
+		@Test
+		void shouldRestoreHolderToLiveWhileReflectedTargetStaysArchived() {
+			defineBothScopesReflectedSchema();
+			createArchivingFixtureEntities();
+
+			// archive both holder and target
+			EvitaArchivingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.archiveEntity(Entities.PRODUCT, 100);
+					session.archiveEntity(Entities.CATEGORY, 2);
+				}
+			);
+			assertCategoryContainsProduct(new EntityReference(Entities.CATEGORY, 2), 100, Scope.ARCHIVED);
+
+			// restore ONLY the holder to LIVE; the target remains ARCHIVED
+			assertDoesNotThrow(
+				() -> EvitaArchivingTest.this.evita.updateCatalog(
+					TEST_CATALOG,
+					session -> {
+						session.restoreEntity(Entities.PRODUCT, 100);
+					}
+				),
+				"Restoring the holder while its reflected target stays archived must not fail"
+			);
+
+			// INVARIANT: holder retrievable in LIVE, target retrievable in ARCHIVED
+			final SealedEntity liveHolder = EvitaArchivingTest.this.evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					return session.getEntity(Entities.PRODUCT, 100, entityFetchAllContent()).orElse(null);
+				}
+			);
+			assertNotNull(liveHolder);
+			final SealedEntity archivedTarget = EvitaArchivingTest.this.evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					return session.getEntity(Entities.CATEGORY, 2, new Scope[]{Scope.ARCHIVED}, entityFetchAllContent()).orElse(null);
+				}
+			);
+			assertNotNull(archivedTarget);
+
+			// INVARIANT: the holder's primary reference must remain removable without error
+			assertDoesNotThrow(
+				() -> EvitaArchivingTest.this.evita.updateCatalog(
+					TEST_CATALOG,
+					session -> {
+						session.getEntity(Entities.PRODUCT, 100, entityFetchAllContent())
+							.orElseThrow()
+							.openForWrite()
+							.removeReference(Entities.CATEGORY, 2)
+							.upsertVia(session);
+					}
+				),
+				"Removing the primary reference after asymmetric restore must not fail"
+			);
+		}
+
+		@DisplayName("Restoring a holder recreates the reflected mirror only on the surviving target, skipping the removed one")
+		@Test
+		void shouldRecreateReflectedMirrorOnlyForSurvivingTargetWhenHolderRestored() {
+			defineLiveOnlyReflectedSchema();
+			createTwoTargetArchivingFixture();
+
+			// both targets carry the reflected mirror while the holder is live
+			assertReflectedMirrorOnCategory(2, true);
+			assertReflectedMirrorOnCategory(3, true);
+
+			// archive the holder -> LIVE-only mirrors are dropped
+			EvitaArchivingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.archiveEntity(Entities.PRODUCT, 100);
+				}
+			);
+			assertCategoryDoesNotContainProduct(100, Scope.LIVE);
+
+			// remove ONE target (category 3) while the holder is archived
+			EvitaArchivingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					assertTrue(session.deleteEntity(Entities.CATEGORY, 3));
+				}
+			);
+
+			// restore the holder to LIVE
+			EvitaArchivingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.restoreEntity(Entities.PRODUCT, 100);
+				}
+			);
+
+			// EXACT: exactly the surviving target (category 2) mirrors the product again; the removed one does not
+			final List<Integer> categoriesReferencingProduct = EvitaArchivingTest.this.evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					return session.queryList(
+						Query.query(
+							collection(Entities.CATEGORY),
+							filterBy(
+								referenceHaving(REFLECTED_REFERENCE_NAME, entityPrimaryKeyInSet(100)),
+								scope(Scope.LIVE)
+							)
+						),
+						EntityReference.class
+					).stream().map(EntityReference::getPrimaryKey).toList();
+				}
+			);
+			assertEquals(List.of(2), categoriesReferencingProduct);
+		}
+
+		@DisplayName("Removing a dangling sibling reference from an archived holder keeps the surviving sibling and its reflected mirror intact")
+		@Test
+		void shouldRemoveOnlyDanglingSiblingReferenceAndKeepLiveSiblingOnArchivedHolder() {
+			defineBothScopesReflectedSchema();
+			createTwoTargetArchivingFixture();
+
+			// archive the holder -> both mirrors retained across scopes
+			EvitaArchivingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.archiveEntity(Entities.PRODUCT, 100);
+				}
+			);
+			// the mirrors live on the (still LIVE) categories - they are retained across the scope span; both
+			// categories mirror the product, so their presence is asserted on the entity bodies directly
+			assertReflectedMirrorOnCategory(2, true);
+			assertReflectedMirrorOnCategory(3, true);
+
+			// remove ONE target (category 3); with both-scopes indexing the relation is maintained across the scope
+			// split, so the removal may propagate to the holder's primary reference automatically
+			EvitaArchivingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					assertTrue(session.deleteEntity(Entities.CATEGORY, 3));
+				}
+			);
+
+			// if the sibling reference (category 3) still dangles on the archived holder, remove it explicitly
+			final SealedEntity archivedProductBefore = EvitaArchivingTest.this.evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					return session.getEntity(Entities.PRODUCT, 100, new Scope[]{Scope.ARCHIVED}, entityFetchAllContent()).orElse(null);
+				}
+			);
+			assertNotNull(archivedProductBefore);
+			if (archivedProductBefore.getReference(Entities.CATEGORY, 3).isPresent()) {
+				EvitaArchivingTest.this.evita.updateCatalog(
+					TEST_CATALOG,
+					session -> {
+						session.getEntity(Entities.PRODUCT, 100, new Scope[]{Scope.ARCHIVED}, entityFetchAllContent())
+							.orElseThrow()
+							.openForWrite()
+							.removeReference(Entities.CATEGORY, 3)
+							.upsertVia(session);
+					}
+				);
+			}
+
+			// EXACT (adversarial for the existence-filter fix): the surviving sibling and its mirror must stay intact
+			final SealedEntity archivedProduct = EvitaArchivingTest.this.evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					return session.getEntity(Entities.PRODUCT, 100, new Scope[]{Scope.ARCHIVED}, entityFetchAllContent()).orElse(null);
+				}
+			);
+			assertNotNull(archivedProduct);
+			assertNotNull(archivedProduct.getReference(Entities.CATEGORY, 2).orElse(null));
+			assertNull(archivedProduct.getReference(Entities.CATEGORY, 3).orElse(null));
+			// after removing the dangling sibling only category 2 mirrors the product - now queryOne is unambiguous
+			assertCategoryContainsProduct(new EntityReference(Entities.CATEGORY, 2), 100, Scope.LIVE, Scope.ARCHIVED);
+		}
+
+		@DisplayName("Updating an inherited reference attribute on an archived holder propagates to the reflected mirror on a live target")
+		@Test
+		void shouldPropagateInheritedAttributeToReflectedMirrorWhenArchivedHolderReferenceUpdated() {
+			defineBothScopesReflectedSchema();
+			createArchivingFixtureEntities();
+
+			EvitaArchivingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.archiveEntity(Entities.PRODUCT, 100);
+				}
+			);
+			// the mirror initially inherits market = "EU"
+			assertReflectedMirrorMarket("EU");
+
+			// update the inherited attribute on the archived holder's primary reference
+			EvitaArchivingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.getEntity(Entities.PRODUCT, 100, new Scope[]{Scope.ARCHIVED}, entityFetchAllContent())
+						.orElseThrow()
+						.openForWrite()
+						.setReference(Entities.CATEGORY, 2, whichIs -> whichIs.setAttribute(ATTRIBUTE_CATEGORY_MARKET, "US").setAttribute(ATTRIBUTE_CATEGORY_OPEN, true))
+						.upsertVia(session);
+				}
+			);
+
+			// the primary-side write must have landed on the archived holder itself (isolates "write dropped" from
+			// "mirror propagation skipped")
+			final SealedEntity archivedHolder = EvitaArchivingTest.this.evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					return session.getEntity(Entities.PRODUCT, 100, new Scope[]{Scope.ARCHIVED}, entityFetchAllContent()).orElse(null);
+				}
+			);
+			assertNotNull(archivedHolder);
+			assertEquals("US", archivedHolder.getReference(Entities.CATEGORY, 2).orElseThrow().getAttribute(ATTRIBUTE_CATEGORY_MARKET));
+
+			// EXACT: the reflected mirror on the live target reflects the updated inherited attribute
+			assertReflectedMirrorMarket("US");
+		}
+
+		@DisplayName("Updating an inherited reference attribute on a live holder propagates to the reflected mirror - LIVE control")
+		@Test
+		void shouldPropagateInheritedAttributeToReflectedMirrorWhenLiveHolderReferenceUpdated() {
+			defineBothScopesReflectedSchema();
+			createArchivingFixtureEntities();
+
+			assertReflectedMirrorMarket("EU");
+
+			EvitaArchivingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.getEntity(Entities.PRODUCT, 100, entityFetchAllContent())
+						.orElseThrow()
+						.openForWrite()
+						.setReference(Entities.CATEGORY, 2, whichIs -> whichIs.setAttribute(ATTRIBUTE_CATEGORY_MARKET, "US").setAttribute(ATTRIBUTE_CATEGORY_OPEN, true))
+						.upsertVia(session);
+				}
+			);
+
+			assertReflectedMirrorMarket("US");
+		}
+
+		@DisplayName("Removing a dangling primary reference from an archived holder must not fail when the target was removed before archiving")
+		@Test
+		void shouldRemoveDanglingPrimaryReferenceWhenTargetRemovedBeforeHolderArchived() {
+			defineLiveOnlyReflectedSchema();
+			createArchivingFixtureEntities();
+
+			// remove the target FIRST while the holder is live (reverse of the usual archive-then-remove order)
+			EvitaArchivingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					assertTrue(session.deleteEntity(Entities.CATEGORY, 2));
+				}
+			);
+
+			// archive the holder (its reference to the removed target may still dangle)
+			EvitaArchivingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.archiveEntity(Entities.PRODUCT, 100);
+				}
+			);
+
+			// INVARIANT: the archived holder must not end up with a reference that cannot be removed
+			final SealedEntity archivedProduct = EvitaArchivingTest.this.evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					return session.getEntity(Entities.PRODUCT, 100, new Scope[]{Scope.ARCHIVED}, entityFetchAllContent()).orElse(null);
+				}
+			);
+			assertNotNull(archivedProduct);
+			if (archivedProduct.getReference(Entities.CATEGORY, 2).isPresent()) {
+				assertDoesNotThrow(
+					() -> EvitaArchivingTest.this.evita.updateCatalog(
+						TEST_CATALOG,
+						session -> {
+							session.getEntity(Entities.PRODUCT, 100, new Scope[]{Scope.ARCHIVED}, entityFetchAllContent())
+								.orElseThrow()
+								.openForWrite()
+								.removeReference(Entities.CATEGORY, 2)
+								.upsertVia(session);
+						}
+					),
+					"Removing the dangling reference after reverse-order removal must not fail"
+				);
+			}
+			final SealedEntity archivedProductAfter = EvitaArchivingTest.this.evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					return session.getEntity(Entities.PRODUCT, 100, new Scope[]{Scope.ARCHIVED}, entityFetchAllContent()).orElse(null);
+				}
+			);
+			assertNotNull(archivedProductAfter);
+			assertNull(archivedProductAfter.getReference(Entities.CATEGORY, 2).orElse(null));
+		}
+
+		@DisplayName("Adding a primary reference to an archived holder creates the reflected mirror on the target")
+		@Test
+		void shouldCreateReflectedMirrorWhenPrimaryReferenceAddedToArchivedHolder() {
+			defineBothScopesReflectedSchema();
+			createArchivingFixtureEntities();
+
+			// add a second live target the holder does not yet reference
+			EvitaArchivingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.createNewEntity(Entities.CATEGORY, 3)
+						.setAttribute(ATTRIBUTE_CODE, "Radio")
+						.upsertVia(session);
+				}
+			);
+
+			// archive the holder
+			EvitaArchivingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.archiveEntity(Entities.PRODUCT, 100);
+				}
+			);
+
+			// before: category 3 carries no reflected mirror to the holder
+			final SealedEntity categoryBefore = EvitaArchivingTest.this.evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					return session.getEntity(Entities.CATEGORY, 3, entityFetchAllContent()).orElse(null);
+				}
+			);
+			assertNotNull(categoryBefore);
+			assertNull(categoryBefore.getReference(REFLECTED_REFERENCE_NAME, 100).orElse(null));
+
+			// add a primary reference to category 3 on the archived holder
+			EvitaArchivingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.getEntity(Entities.PRODUCT, 100, new Scope[]{Scope.ARCHIVED}, entityFetchAllContent())
+						.orElseThrow()
+						.openForWrite()
+						.setReference(Entities.CATEGORY, 3, whichIs -> whichIs.setAttribute(ATTRIBUTE_CATEGORY_MARKET, "US").setAttribute(ATTRIBUTE_CATEGORY_OPEN, true))
+						.upsertVia(session);
+				}
+			);
+
+			// the primary-side write must have landed on the archived holder itself (isolates "write dropped" from
+			// "mirror not created")
+			final SealedEntity archivedHolder = EvitaArchivingTest.this.evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					return session.getEntity(Entities.PRODUCT, 100, new Scope[]{Scope.ARCHIVED}, entityFetchAllContent()).orElse(null);
+				}
+			);
+			assertNotNull(archivedHolder);
+			assertNotNull(archivedHolder.getReference(Entities.CATEGORY, 3).orElse(null));
+
+			// EXACT: the reflected mirror on category 3 is created
+			final SealedEntity categoryAfter = EvitaArchivingTest.this.evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					return session.getEntity(Entities.CATEGORY, 3, entityFetchAllContent()).orElse(null);
+				}
+			);
+			assertNotNull(categoryAfter);
+			assertNotNull(categoryAfter.getReference(REFLECTED_REFERENCE_NAME, 100).orElse(null));
+		}
+
+		/**
+		 * Asserts that the reflected mirror on category 2 pointing back to product 100 inherits the given market
+		 * attribute value.
+		 *
+		 * @param expectedMarket the expected inherited market attribute value on the reflected mirror
+		 */
+		private void assertReflectedMirrorMarket(@Nonnull String expectedMarket) {
+			final SealedEntity category = EvitaArchivingTest.this.evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					return session.getEntity(Entities.CATEGORY, 2, entityFetchAllContent()).orElse(null);
+				}
+			);
+			assertNotNull(category);
+			final ReferenceContract mirror = category.getReference(REFLECTED_REFERENCE_NAME, 100).orElse(null);
+			assertNotNull(mirror);
+			assertEquals(expectedMarket, mirror.getAttribute(ATTRIBUTE_CATEGORY_MARKET));
+		}
+
+		/**
+		 * Asserts the presence or absence of the reflected mirror to product 100 on the given category, checking the
+		 * category entity body directly (works even when several categories mirror the same product, where a
+		 * reference-having query would match more than one record).
+		 *
+		 * @param categoryPk      the primary key of the category to inspect
+		 * @param expectedPresent whether the reflected mirror to product 100 is expected on the category
+		 */
+		private void assertReflectedMirrorOnCategory(int categoryPk, boolean expectedPresent) {
+			final SealedEntity category = EvitaArchivingTest.this.evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					return session.getEntity(Entities.CATEGORY, categoryPk, entityFetchAllContent()).orElse(null);
+				}
+			);
+			assertNotNull(category);
+			if (expectedPresent) {
+				assertNotNull(category.getReference(REFLECTED_REFERENCE_NAME, 100).orElse(null));
+			} else {
+				assertNull(category.getReference(REFLECTED_REFERENCE_NAME, 100).orElse(null));
+			}
+		}
+
+		@DisplayName("Removing a primary reference from an archived holder removes the reflected mirror on a live target (both scopes indexed)")
+		@Test
+		void shouldRemoveReflectedMirrorFromLiveTargetWhenPrimaryRemovedFromArchivedHolder() {
+			defineBothScopesReflectedSchema();
+			createArchivingFixtureEntities();
+
+			// archive the holder: with both-scopes indexing the reflected mirror is retained across scopes
+			EvitaArchivingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.archiveEntity(Entities.PRODUCT, 100);
+				}
+			);
+			// the reflected mirror on the (still live) category 2 must be present across scopes
+			assertCategoryContainsProduct(new EntityReference(Entities.CATEGORY, 2), 100, Scope.LIVE, Scope.ARCHIVED);
+
+			// remove the primary reference from the archived holder while the target is still alive
+			EvitaArchivingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.getEntity(Entities.PRODUCT, 100, new Scope[]{Scope.ARCHIVED}, entityFetchAllContent())
+						.orElseThrow()
+						.openForWrite()
+						.removeReference(Entities.CATEGORY, 2)
+						.upsertVia(session);
+				}
+			);
+
+			// EXACT: the reflected mirror on the live target must be gone in every scope
+			assertCategoryDoesNotContainProduct(100, Scope.LIVE);
+			assertCategoryDoesNotContainProduct(100, Scope.ARCHIVED);
+
+			// and the archived holder no longer carries the reference
+			final SealedEntity archivedProduct = EvitaArchivingTest.this.evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					return session.getEntity(Entities.PRODUCT, 100, new Scope[]{Scope.ARCHIVED}, entityFetchAllContent()).orElse(null);
+				}
+			);
+			assertNotNull(archivedProduct);
+			assertNull(archivedProduct.getReference(Entities.CATEGORY, 2).orElse(null));
+		}
+
+		/**
+		 * Asserts the presence or absence of the reflected mirror to product 100 on the given category fetched from the
+		 * given scope, reading the category entity body directly. Unlike {@link #assertReflectedMirrorOnCategory(int,
+		 * boolean)} this variant works when the category itself was archived and therefore cannot be reached in the
+		 * default {@link Scope#LIVE} scope.
+		 *
+		 * @param categoryPk      the primary key of the category to inspect
+		 * @param scope           the scope from which the category is fetched
+		 * @param expectedPresent whether the reflected mirror to product 100 is expected on the category
+		 */
+		private void assertReflectedMirrorOnCategoryInScope(int categoryPk, @Nonnull Scope scope, boolean expectedPresent) {
+			final SealedEntity category = EvitaArchivingTest.this.evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					return session.getEntity(Entities.CATEGORY, categoryPk, new Scope[]{scope}, entityFetchAllContent()).orElse(null);
+				}
+			);
+			assertNotNull(category);
+			if (expectedPresent) {
+				assertNotNull(category.getReference(REFLECTED_REFERENCE_NAME, 100).orElse(null));
+			} else {
+				assertNull(category.getReference(REFLECTED_REFERENCE_NAME, 100).orElse(null));
+			}
+		}
+
+		/**
+		 * Asserts that the reflected mirror to product 100 on the given category fetched from the given scope inherits
+		 * the expected market attribute value. Complements {@link #assertReflectedMirrorMarket(String)} for cases where
+		 * the category was archived and therefore is not reachable in the default {@link Scope#LIVE} scope.
+		 *
+		 * @param categoryPk     the primary key of the category to inspect
+		 * @param scope          the scope from which the category is fetched
+		 * @param expectedMarket the expected inherited market attribute value on the reflected mirror
+		 */
+		private void assertReflectedMirrorMarketInScope(int categoryPk, @Nonnull Scope scope, @Nonnull String expectedMarket) {
+			final SealedEntity category = EvitaArchivingTest.this.evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					return session.getEntity(Entities.CATEGORY, categoryPk, new Scope[]{scope}, entityFetchAllContent()).orElse(null);
+				}
+			);
+			assertNotNull(category);
+			final ReferenceContract mirror = category.getReference(REFLECTED_REFERENCE_NAME, 100).orElse(null);
+			assertNotNull(mirror);
+			assertEquals(expectedMarket, mirror.getAttribute(ATTRIBUTE_CATEGORY_MARKET));
+		}
+
+		@DisplayName("Restoring a mixed-scope holder to live recreates the reflected mirror discarded on archiving")
+		@Test
+		void shouldRecreateReflectedMirrorWhenMixedScopeHolderRestoredToLive() {
+			defineMixedScopeReflectedSchema();
+			createArchivingFixtureEntities();
+
+			// before archiving: the LIVE-only mirror is present on the live target
+			assertReflectedMirrorOnCategory(2, true);
+
+			// archive the holder -> the LIVE-only mirror is discarded
+			EvitaArchivingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.archiveEntity(Entities.PRODUCT, 100);
+				}
+			);
+			assertReflectedMirrorOnCategory(2, false);
+
+			// restore the holder back to LIVE -> both ends are LIVE again, so the mirror must be recreated
+			EvitaArchivingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.restoreEntity(Entities.PRODUCT, 100);
+				}
+			);
+
+			// EXACT: the reflected mirror is recreated on the target with its inherited attribute intact
+			assertReflectedMirrorOnCategory(2, true);
+			assertReflectedMirrorMarket("EU");
+		}
+
+		@DisplayName("Archiving a mixed-scope reflected target while the holder stays live discards the mirror yet keeps the primary reference queryable")
+		@Test
+		void shouldArchiveReflectedTargetWithMixedScopesWhileHolderStaysLive() {
+			defineMixedScopeReflectedSchema();
+			createArchivingFixtureEntities();
+
+			// before archiving: the LIVE-only mirror is present on the still-live target
+			assertReflectedMirrorOnCategory(2, true);
+
+			// archive the TARGET while the holder stays LIVE -> the relation spans two scopes, reflected is LIVE-only
+			assertDoesNotThrow(
+				() -> EvitaArchivingTest.this.evita.updateCatalog(
+					TEST_CATALOG,
+					session -> {
+						session.archiveEntity(Entities.CATEGORY, 2);
+					}
+				),
+				"Archiving the mixed-scope reflected target must not fail"
+			);
+
+			// INVARIANT: discarding the mirror must never remove the holder's primary reference (spec section 3); the
+			// live holder keeps its primary reference on its body regardless of the target moving to the archived scope
+			final SealedEntity liveHolder = EvitaArchivingTest.this.evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					return session.getEntity(Entities.PRODUCT, 100, entityFetchAllContent()).orElse(null);
+				}
+			);
+			assertNotNull(liveHolder);
+			assertNotNull(liveHolder.getReference(Entities.CATEGORY, 2).orElse(null));
+
+			// EXACT: the mirror is discarded on the now-archived target
+			assertReflectedMirrorOnCategoryInScope(2, Scope.ARCHIVED, false);
+		}
+
+		@DisplayName("Archiving a LIVE-only reflected target while the holder stays live discards the mirror without failing")
+		@Test
+		void shouldArchiveReflectedTargetWithLiveOnlyScopesWhileHolderStaysLive() {
+			defineLiveOnlyReflectedSchema();
+			createArchivingFixtureEntities();
+
+			// before archiving: the LIVE-only mirror is present on the still-live target
+			assertReflectedMirrorOnCategory(2, true);
+
+			// archive the TARGET while the holder stays LIVE -> the relation spans two scopes, reflected is LIVE-only
+			assertDoesNotThrow(
+				() -> EvitaArchivingTest.this.evita.updateCatalog(
+					TEST_CATALOG,
+					session -> {
+						session.archiveEntity(Entities.CATEGORY, 2);
+					}
+				),
+				"Archiving the LIVE-only reflected target must not fail"
+			);
+
+			// INVARIANT: the live holder remains retrievable and keeps its primary reference (LIVE index)
+			final SealedEntity liveHolder = EvitaArchivingTest.this.evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					return session.getEntity(Entities.PRODUCT, 100, entityFetchAllContent()).orElse(null);
+				}
+			);
+			assertNotNull(liveHolder);
+			assertNotNull(liveHolder.getReference(Entities.CATEGORY, 2).orElse(null));
+
+			// EXACT: the mirror is discarded on the now-archived target
+			assertReflectedMirrorOnCategoryInScope(2, Scope.ARCHIVED, false);
+		}
+
+		@DisplayName("Adding a primary reference to an archived mixed-scope holder lands the write but creates no LIVE-only mirror")
+		@Test
+		void shouldNotCreateReflectedMirrorWhenPrimaryReferenceAddedToArchivedMixedScopeHolder() {
+			defineMixedScopeReflectedSchema();
+			createArchivingFixtureEntities();
+
+			// add a second live target the holder does not yet reference
+			EvitaArchivingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.createNewEntity(Entities.CATEGORY, 3)
+						.setAttribute(ATTRIBUTE_CODE, "Radio")
+						.upsertVia(session);
+				}
+			);
+
+			// archive the holder
+			EvitaArchivingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.archiveEntity(Entities.PRODUCT, 100);
+				}
+			);
+
+			// add a primary reference to the live category 3 on the archived holder
+			assertDoesNotThrow(
+				() -> EvitaArchivingTest.this.evita.updateCatalog(
+					TEST_CATALOG,
+					session -> {
+						session.getEntity(Entities.PRODUCT, 100, new Scope[]{Scope.ARCHIVED}, entityFetchAllContent())
+							.orElseThrow()
+							.openForWrite()
+							.setReference(Entities.CATEGORY, 3, whichIs -> whichIs.setAttribute(ATTRIBUTE_CATEGORY_MARKET, "US").setAttribute(ATTRIBUTE_CATEGORY_OPEN, true))
+							.upsertVia(session);
+					}
+				),
+				"Adding a primary reference to the archived mixed-scope holder must not fail"
+			);
+
+			// EXACT: the primary-side write lands on the archived holder and is queryable in the ARCHIVED scope
+			final SealedEntity archivedHolder = EvitaArchivingTest.this.evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					return session.getEntity(Entities.PRODUCT, 100, new Scope[]{Scope.ARCHIVED}, entityFetchAllContent()).orElse(null);
+				}
+			);
+			assertNotNull(archivedHolder);
+			assertNotNull(archivedHolder.getReference(Entities.CATEGORY, 3).orElse(null));
+
+			// EXACT: the reflected reference is LIVE-only, so no mirror is created on the live target
+			assertReflectedMirrorOnCategory(3, false);
+
+			// EXACT: the primary schema is indexed in ARCHIVED, so the newly added primary reference is queryable there
+			assertProductContainsCategory(new EntityReference(Entities.PRODUCT, 100), 3, Scope.ARCHIVED);
+		}
+
+		@DisplayName("Deleting an archived mixed-scope holder while its reflected target is alive must not fail")
+		@Test
+		void shouldDeleteArchivedMixedScopeHolderWhenReflectedTargetAlive() {
+			defineMixedScopeReflectedSchema();
+			createArchivingFixtureEntities();
+
+			// archive the holder while the target stays LIVE
+			EvitaArchivingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.archiveEntity(Entities.PRODUCT, 100);
+				}
+			);
+
+			// delete the archived holder entirely
+			assertDoesNotThrow(
+				() -> EvitaArchivingTest.this.evita.updateCatalog(
+					TEST_CATALOG,
+					session -> {
+						assertTrue(session.deleteEntity(Entities.PRODUCT, 100));
+					}
+				),
+				"Deleting the archived mixed-scope holder must not fail"
+			);
+
+			// EXACT: the holder is gone from both scopes
+			final SealedEntity liveHolder = EvitaArchivingTest.this.evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					return session.getEntity(Entities.PRODUCT, 100, entityFetchAllContent()).orElse(null);
+				}
+			);
+			assertNull(liveHolder);
+			final SealedEntity archivedHolder = EvitaArchivingTest.this.evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					return session.getEntity(Entities.PRODUCT, 100, new Scope[]{Scope.ARCHIVED}, entityFetchAllContent()).orElse(null);
+				}
+			);
+			assertNull(archivedHolder);
+
+			// EXACT: the target category is untouched
+			final SealedEntity category = EvitaArchivingTest.this.evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					return session.getEntity(Entities.CATEGORY, 2, entityFetchAllContent()).orElse(null);
+				}
+			);
+			assertNotNull(category);
+		}
+
+		@DisplayName("Removing a dangling sibling reference from an archived mixed-scope holder keeps the surviving primary reference intact")
+		@Test
+		void shouldRemoveOnlyDanglingSiblingReferenceWithMixedScopesOnArchivedHolder() {
+			defineMixedScopeReflectedSchema();
+			createTwoTargetArchivingFixture();
+
+			// archive the holder -> LIVE-only mirrors are discarded but the primary references remain in the archived scope
+			EvitaArchivingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.archiveEntity(Entities.PRODUCT, 100);
+				}
+			);
+			// the archived holder retains both primary references on its body; the references are inspected on the entity
+			// body directly to isolate sibling handling from the archived-scope primary reference index
+			final SealedEntity archivedHolderBefore = EvitaArchivingTest.this.evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					return session.getEntity(Entities.PRODUCT, 100, new Scope[]{Scope.ARCHIVED}, entityFetchAllContent()).orElse(null);
+				}
+			);
+			assertNotNull(archivedHolderBefore);
+			assertNotNull(archivedHolderBefore.getReference(Entities.CATEGORY, 2).orElse(null));
+			assertNotNull(archivedHolderBefore.getReference(Entities.CATEGORY, 3).orElse(null));
+
+			// remove ONE target (category 3) -> its reference on the archived holder becomes dangling
+			EvitaArchivingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					assertTrue(session.deleteEntity(Entities.CATEGORY, 3));
+				}
+			);
+
+			// remove the dangling sibling reference (category 3) from the archived holder
+			assertDoesNotThrow(
+				() -> EvitaArchivingTest.this.evita.updateCatalog(
+					TEST_CATALOG,
+					session -> {
+						session.getEntity(Entities.PRODUCT, 100, new Scope[]{Scope.ARCHIVED}, entityFetchAllContent())
+							.orElseThrow()
+							.openForWrite()
+							.removeReference(Entities.CATEGORY, 3)
+							.upsertVia(session);
+					}
+				),
+				"Removing the dangling sibling reference on the archived mixed-scope holder must not fail"
+			);
+
+			// EXACT: the surviving sibling reference stays intact, only the dangling one is gone
+			final SealedEntity archivedProduct = EvitaArchivingTest.this.evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					return session.getEntity(Entities.PRODUCT, 100, new Scope[]{Scope.ARCHIVED}, entityFetchAllContent()).orElse(null);
+				}
+			);
+			assertNotNull(archivedProduct);
+			assertNotNull(archivedProduct.getReference(Entities.CATEGORY, 2).orElse(null));
+			assertNull(archivedProduct.getReference(Entities.CATEGORY, 3).orElse(null));
+		}
+
+		@DisplayName("Updating an inherited attribute while both holder and target are archived propagates to the mirror (both scopes indexed)")
+		@Test
+		void shouldPropagateInheritedAttributeToReflectedMirrorWhenBothHolderAndTargetArchived() {
+			defineBothScopesReflectedSchema();
+			createArchivingFixtureEntities();
+
+			// archive BOTH the holder and the target; with both-scopes indexing the mirror lives in the archived scope
+			EvitaArchivingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.archiveEntity(Entities.PRODUCT, 100);
+					session.archiveEntity(Entities.CATEGORY, 2);
+				}
+			);
+			// the mirror on the archived target initially inherits market = "EU"
+			assertReflectedMirrorMarketInScope(2, Scope.ARCHIVED, "EU");
+
+			// update the inherited attribute on the archived holder's primary reference
+			EvitaArchivingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.getEntity(Entities.PRODUCT, 100, new Scope[]{Scope.ARCHIVED}, entityFetchAllContent())
+						.orElseThrow()
+						.openForWrite()
+						.setReference(Entities.CATEGORY, 2, whichIs -> whichIs.setAttribute(ATTRIBUTE_CATEGORY_MARKET, "US").setAttribute(ATTRIBUTE_CATEGORY_OPEN, true))
+						.upsertVia(session);
+				}
+			);
+
+			// the primary-side write must have landed on the archived holder itself
+			final SealedEntity archivedHolder = EvitaArchivingTest.this.evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					return session.getEntity(Entities.PRODUCT, 100, new Scope[]{Scope.ARCHIVED}, entityFetchAllContent()).orElse(null);
+				}
+			);
+			assertNotNull(archivedHolder);
+			assertEquals("US", archivedHolder.getReference(Entities.CATEGORY, 2).orElseThrow().getAttribute(ATTRIBUTE_CATEGORY_MARKET));
+
+			// EXACT: the reflected mirror on the archived target reflects the updated inherited attribute
+			assertReflectedMirrorMarketInScope(2, Scope.ARCHIVED, "US");
+		}
+
+		@DisplayName("Adding a primary reference while both holder and target are archived creates the mirror (both scopes indexed)")
+		@Test
+		void shouldCreateReflectedMirrorWhenPrimaryReferenceAddedToBothArchivedHolderAndTarget() {
+			defineBothScopesReflectedSchema();
+			createArchivingFixtureEntities();
+
+			// add a second target the holder does not yet reference
+			EvitaArchivingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.createNewEntity(Entities.CATEGORY, 3)
+						.setAttribute(ATTRIBUTE_CODE, "Radio")
+						.upsertVia(session);
+				}
+			);
+
+			// archive BOTH the holder and the new target
+			EvitaArchivingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.archiveEntity(Entities.PRODUCT, 100);
+					session.archiveEntity(Entities.CATEGORY, 3);
+				}
+			);
+
+			// before: the archived category 3 carries no reflected mirror to the holder
+			assertReflectedMirrorOnCategoryInScope(3, Scope.ARCHIVED, false);
+
+			// add a primary reference to the archived category 3 on the archived holder
+			EvitaArchivingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.getEntity(Entities.PRODUCT, 100, new Scope[]{Scope.ARCHIVED}, entityFetchAllContent())
+						.orElseThrow()
+						.openForWrite()
+						.setReference(Entities.CATEGORY, 3, whichIs -> whichIs.setAttribute(ATTRIBUTE_CATEGORY_MARKET, "US").setAttribute(ATTRIBUTE_CATEGORY_OPEN, true))
+						.upsertVia(session);
+				}
+			);
+
+			// the primary-side write must have landed on the archived holder itself
+			final SealedEntity archivedHolder = EvitaArchivingTest.this.evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					return session.getEntity(Entities.PRODUCT, 100, new Scope[]{Scope.ARCHIVED}, entityFetchAllContent()).orElse(null);
+				}
+			);
+			assertNotNull(archivedHolder);
+			assertNotNull(archivedHolder.getReference(Entities.CATEGORY, 3).orElse(null));
+
+			// EXACT: the reflected mirror is created on the archived target (both schemas indexed in ARCHIVED)
+			assertReflectedMirrorOnCategoryInScope(3, Scope.ARCHIVED, true);
+		}
+
+		@DisplayName("Adding a primary reference to an archived LIVE-only holder lands the write but creates no mirror")
+		@Test
+		void shouldNotCreateReflectedMirrorWhenPrimaryReferenceAddedToArchivedLiveOnlyHolder() {
+			defineLiveOnlyReflectedSchema();
+			createArchivingFixtureEntities();
+
+			// archive the holder
+			EvitaArchivingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.archiveEntity(Entities.PRODUCT, 100);
+				}
+			);
+
+			// add a fresh live target the holder does not yet reference
+			EvitaArchivingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.createNewEntity(Entities.CATEGORY, 3)
+						.setAttribute(ATTRIBUTE_CODE, "Radio")
+						.upsertVia(session);
+				}
+			);
+
+			// add a primary reference to the live category 3 on the archived holder
+			assertDoesNotThrow(
+				() -> EvitaArchivingTest.this.evita.updateCatalog(
+					TEST_CATALOG,
+					session -> {
+						session.getEntity(Entities.PRODUCT, 100, new Scope[]{Scope.ARCHIVED}, entityFetchAllContent())
+							.orElseThrow()
+							.openForWrite()
+							.setReference(Entities.CATEGORY, 3, whichIs -> whichIs.setAttribute(ATTRIBUTE_CATEGORY_MARKET, "US").setAttribute(ATTRIBUTE_CATEGORY_OPEN, true))
+							.upsertVia(session);
+					}
+				),
+				"Adding a primary reference to the archived LIVE-only holder must not fail"
+			);
+
+			// EXACT: the primary-side write lands on the archived holder body (the primary is LIVE-only, so it is not
+			// queryable in the ARCHIVED scope, but the reference is stored on the entity)
+			final SealedEntity archivedHolder = EvitaArchivingTest.this.evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					return session.getEntity(Entities.PRODUCT, 100, new Scope[]{Scope.ARCHIVED}, entityFetchAllContent()).orElse(null);
+				}
+			);
+			assertNotNull(archivedHolder);
+			assertNotNull(archivedHolder.getReference(Entities.CATEGORY, 3).orElse(null));
+
+			// EXACT: the ends are not mutually visible, so no mirror is created on the live target
+			assertReflectedMirrorOnCategory(3, false);
+		}
+
+		@DisplayName("Restoring a LIVE-only reflected target while the holder stays live recreates the discarded mirror")
+		@Test
+		void shouldRecreateReflectedMirrorWhenLiveOnlyTargetRestoredWhileHolderStaysLive() {
+			defineLiveOnlyReflectedSchema();
+			createArchivingFixtureEntities();
+
+			// before archiving: the LIVE-only mirror is present on the live target
+			assertReflectedMirrorOnCategory(2, true);
+
+			// archive the TARGET while the holder stays LIVE -> the mirror is discarded
+			EvitaArchivingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.archiveEntity(Entities.CATEGORY, 2);
+				}
+			);
+			assertReflectedMirrorOnCategoryInScope(2, Scope.ARCHIVED, false);
+
+			// restore the TARGET back to LIVE -> both ends are LIVE again, so the mirror must be recreated
+			EvitaArchivingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.restoreEntity(Entities.CATEGORY, 2);
+				}
+			);
+
+			// EXACT: the reflected mirror is recreated on the restored target with its inherited attribute intact
+			assertReflectedMirrorOnCategory(2, true);
+			assertReflectedMirrorMarket("EU");
+		}
+
+		@DisplayName("Updating an inherited attribute on an archived mixed-scope holder lands the primary write without a LIVE-only mirror")
+		@Test
+		void shouldLandPrimaryWriteWithoutMirrorWhenArchivedMixedScopeHolderAttributeUpdated() {
+			defineMixedScopeReflectedSchema();
+			createArchivingFixtureEntities();
+
+			// archive the holder -> the LIVE-only mirror is discarded, the primary reference stays in the archived scope
+			EvitaArchivingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.archiveEntity(Entities.PRODUCT, 100);
+				}
+			);
+			assertReflectedMirrorOnCategory(2, false);
+
+			// update the inherited attribute on the archived holder's primary reference
+			assertDoesNotThrow(
+				() -> EvitaArchivingTest.this.evita.updateCatalog(
+					TEST_CATALOG,
+					session -> {
+						session.getEntity(Entities.PRODUCT, 100, new Scope[]{Scope.ARCHIVED}, entityFetchAllContent())
+							.orElseThrow()
+							.openForWrite()
+							.setReference(Entities.CATEGORY, 2, whichIs -> whichIs.setAttribute(ATTRIBUTE_CATEGORY_MARKET, "US").setAttribute(ATTRIBUTE_CATEGORY_OPEN, true))
+							.upsertVia(session);
+					}
+				),
+				"Updating the inherited attribute on the archived mixed-scope holder must not fail"
+			);
+
+			// EXACT: the primary-side write lands and is queryable in the ARCHIVED scope
+			final SealedEntity archivedHolder = EvitaArchivingTest.this.evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					return session.getEntity(Entities.PRODUCT, 100, new Scope[]{Scope.ARCHIVED}, entityFetchAllContent()).orElse(null);
+				}
+			);
+			assertNotNull(archivedHolder);
+			assertEquals("US", archivedHolder.getReference(Entities.CATEGORY, 2).orElseThrow().getAttribute(ATTRIBUTE_CATEGORY_MARKET));
+
+			// EXACT: the reflected reference is LIVE-only and the mirror was discarded, so none exists on the live target
+			assertReflectedMirrorOnCategory(2, false);
+		}
+
+		@DisplayName("Updating an inherited attribute on a live holder propagates to the archived target's mirror (both scopes indexed)")
+		@Test
+		void shouldPropagateInheritedAttributeToArchivedTargetWhenLiveHolderReferenceUpdated() {
+			defineBothScopesReflectedSchema();
+			createArchivingFixtureEntities();
+
+			// archive ONLY the target; with both-scopes indexing the mirror is retained cross-scope on the archived target
+			EvitaArchivingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.archiveEntity(Entities.CATEGORY, 2);
+				}
+			);
+			assertReflectedMirrorMarketInScope(2, Scope.ARCHIVED, "EU");
+
+			// update the inherited attribute on the live holder's primary reference
+			EvitaArchivingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.getEntity(Entities.PRODUCT, 100, entityFetchAllContent())
+						.orElseThrow()
+						.openForWrite()
+						.setReference(Entities.CATEGORY, 2, whichIs -> whichIs.setAttribute(ATTRIBUTE_CATEGORY_MARKET, "US").setAttribute(ATTRIBUTE_CATEGORY_OPEN, true))
+						.upsertVia(session);
+				}
+			);
+
+			// EXACT: the cross-scope mirror on the archived target reflects the updated inherited attribute
+			assertReflectedMirrorMarketInScope(2, Scope.ARCHIVED, "US");
+		}
+
+		@DisplayName("Removing a primary reference from an archived LIVE-only holder whose target is alive must not fail")
+		@Test
+		void shouldRemovePrimaryReferenceOnArchivedLiveOnlyHolderWhenTargetAlive() {
+			defineLiveOnlyReflectedSchema();
+			createArchivingFixtureEntities();
+
+			// archive the holder while the target stays LIVE (the LIVE-only mirror is discarded on archiving)
+			EvitaArchivingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.archiveEntity(Entities.PRODUCT, 100);
+				}
+			);
+
+			// the archived holder still carries the primary reference on its body
+			final SealedEntity archivedProduct = EvitaArchivingTest.this.evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					return session.getEntity(Entities.PRODUCT, 100, new Scope[]{Scope.ARCHIVED}, entityFetchAllContent()).orElse(null);
+				}
+			);
+			assertNotNull(archivedProduct);
+			assertNotNull(archivedProduct.getReference(Entities.CATEGORY, 2).orElse(null));
+
+			// remove the primary reference on the archived holder while the target is alive
+			assertDoesNotThrow(
+				() -> EvitaArchivingTest.this.evita.updateCatalog(
+					TEST_CATALOG,
+					session -> {
+						session.getEntity(Entities.PRODUCT, 100, new Scope[]{Scope.ARCHIVED}, entityFetchAllContent())
+							.orElseThrow()
+							.openForWrite()
+							.removeReference(Entities.CATEGORY, 2)
+							.upsertVia(session);
+					}
+				),
+				"Removing the primary reference on the archived LIVE-only holder must not fail"
+			);
+
+			// EXACT: the reference is gone from the archived holder body; the target category is untouched
+			final SealedEntity archivedProductAfter = EvitaArchivingTest.this.evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					return session.getEntity(Entities.PRODUCT, 100, new Scope[]{Scope.ARCHIVED}, entityFetchAllContent()).orElse(null);
+				}
+			);
+			assertNotNull(archivedProductAfter);
+			assertNull(archivedProductAfter.getReference(Entities.CATEGORY, 2).orElse(null));
+			final SealedEntity category = EvitaArchivingTest.this.evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					return session.getEntity(Entities.CATEGORY, 2, entityFetchAllContent()).orElse(null);
+				}
+			);
+			assertNotNull(category);
+		}
+
+		@DisplayName("Removing a primary reference from an archived mixed-scope holder whose target is alive must not fail")
+		@Test
+		void shouldRemovePrimaryReferenceOnArchivedMixedScopeHolderWhenTargetAlive() {
+			defineMixedScopeReflectedSchema();
+			createArchivingFixtureEntities();
+
+			// archive the holder while the target stays LIVE
+			EvitaArchivingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.archiveEntity(Entities.PRODUCT, 100);
+				}
+			);
+			// the archived holder retains the primary reference on its body; the reference is inspected on the entity
+			// body directly to isolate removal handling from the archived-scope primary reference index
+			final SealedEntity archivedProductBefore = EvitaArchivingTest.this.evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					return session.getEntity(Entities.PRODUCT, 100, new Scope[]{Scope.ARCHIVED}, entityFetchAllContent()).orElse(null);
+				}
+			);
+			assertNotNull(archivedProductBefore);
+			assertNotNull(archivedProductBefore.getReference(Entities.CATEGORY, 2).orElse(null));
+
+			// remove the primary reference on the archived holder while the target is alive
+			assertDoesNotThrow(
+				() -> EvitaArchivingTest.this.evita.updateCatalog(
+					TEST_CATALOG,
+					session -> {
+						session.getEntity(Entities.PRODUCT, 100, new Scope[]{Scope.ARCHIVED}, entityFetchAllContent())
+							.orElseThrow()
+							.openForWrite()
+							.removeReference(Entities.CATEGORY, 2)
+							.upsertVia(session);
+					}
+				),
+				"Removing the primary reference on the archived mixed-scope holder must not fail"
+			);
+
+			// EXACT: the reference is gone from the holder body; the target is untouched
+			final SealedEntity archivedProductAfter = EvitaArchivingTest.this.evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					return session.getEntity(Entities.PRODUCT, 100, new Scope[]{Scope.ARCHIVED}, entityFetchAllContent()).orElse(null);
+				}
+			);
+			assertNotNull(archivedProductAfter);
+			assertNull(archivedProductAfter.getReference(Entities.CATEGORY, 2).orElse(null));
+			final SealedEntity category = EvitaArchivingTest.this.evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					return session.getEntity(Entities.CATEGORY, 2, entityFetchAllContent()).orElse(null);
+				}
+			);
+			assertNotNull(category);
+		}
+
+		@DisplayName("Removing a primary reference from a live LIVE-only holder removes the reflected mirror on the live target - LIVE control")
+		@Test
+		void shouldRemoveReflectedMirrorFromLiveTargetWhenPrimaryRemovedFromLiveOnlyHolder() {
+			defineLiveOnlyReflectedSchema();
+			createArchivingFixtureEntities();
+
+			// holder stays LIVE; the reflected mirror is present in the LIVE scope
+			assertCategoryContainsProduct(new EntityReference(Entities.CATEGORY, 2), 100, Scope.LIVE);
+
+			EvitaArchivingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.getEntity(Entities.PRODUCT, 100, entityFetchAllContent())
+						.orElseThrow()
+						.openForWrite()
+						.removeReference(Entities.CATEGORY, 2)
+						.upsertVia(session);
+				}
+			);
+
+			// EXACT: the reflected mirror on the live target must be gone
+			assertCategoryDoesNotContainProduct(100, Scope.LIVE);
+		}
+
+		@DisplayName("Deleting a live LIVE-only holder removes the reflected mirror on the live target - LIVE control")
+		@Test
+		void shouldRemoveReflectedMirrorFromLiveTargetWhenLiveOnlyHolderDeleted() {
+			defineLiveOnlyReflectedSchema();
+			createArchivingFixtureEntities();
+
+			assertCategoryContainsProduct(new EntityReference(Entities.CATEGORY, 2), 100, Scope.LIVE);
+
+			EvitaArchivingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					assertTrue(session.deleteEntity(Entities.PRODUCT, 100));
+				}
+			);
+
+			assertCategoryDoesNotContainProduct(100, Scope.LIVE);
+			final SealedEntity category = EvitaArchivingTest.this.evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					return session.getEntity(Entities.CATEGORY, 2, entityFetchAllContent()).orElse(null);
+				}
+			);
+			assertNotNull(category);
+		}
+
+		@DisplayName("Removing a primary reference from a live mixed-scope holder removes the reflected mirror on the live target - LIVE control")
+		@Test
+		void shouldRemoveReflectedMirrorFromLiveTargetWhenPrimaryRemovedFromLiveMixedScopeHolder() {
+			defineMixedScopeReflectedSchema();
+			createArchivingFixtureEntities();
+
+			assertCategoryContainsProduct(new EntityReference(Entities.CATEGORY, 2), 100, Scope.LIVE);
+
+			EvitaArchivingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.getEntity(Entities.PRODUCT, 100, entityFetchAllContent())
+						.orElseThrow()
+						.openForWrite()
+						.removeReference(Entities.CATEGORY, 2)
+						.upsertVia(session);
+				}
+			);
+
+			assertCategoryDoesNotContainProduct(100, Scope.LIVE);
+		}
+
+		@DisplayName("Deleting a live mixed-scope holder removes the reflected mirror on the live target - LIVE control")
+		@Test
+		void shouldRemoveReflectedMirrorFromLiveTargetWhenLiveMixedScopeHolderDeleted() {
+			defineMixedScopeReflectedSchema();
+			createArchivingFixtureEntities();
+
+			assertCategoryContainsProduct(new EntityReference(Entities.CATEGORY, 2), 100, Scope.LIVE);
+
+			EvitaArchivingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					assertTrue(session.deleteEntity(Entities.PRODUCT, 100));
+				}
+			);
+
+			assertCategoryDoesNotContainProduct(100, Scope.LIVE);
+			final SealedEntity category = EvitaArchivingTest.this.evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					return session.getEntity(Entities.CATEGORY, 2, entityFetchAllContent()).orElse(null);
+				}
+			);
+			assertNotNull(category);
+		}
 	}
 
 }
