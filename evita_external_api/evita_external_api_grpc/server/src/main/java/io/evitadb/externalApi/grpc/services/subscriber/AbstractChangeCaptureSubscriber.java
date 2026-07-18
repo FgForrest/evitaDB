@@ -23,13 +23,13 @@
 
 package io.evitadb.externalApi.grpc.services.subscriber;
 
-import com.linecorp.armeria.common.util.TimeoutMode;
 import com.linecorp.armeria.server.ServiceRequestContext;
 import io.evitadb.api.requestResponse.cdc.ChangeCaptureSubscription;
 import io.evitadb.core.executor.DelayedAsyncTask;
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.externalApi.grpc.exception.ClosedGrpcStreamException;
 import io.evitadb.externalApi.grpc.generated.GrpcHeartBeat;
+import io.evitadb.externalApi.grpc.utils.GrpcTimeoutUtil;
 import io.evitadb.utils.IOUtils;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
@@ -38,7 +38,6 @@ import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -273,12 +272,7 @@ public abstract class AbstractChangeCaptureSubscriber<CAPTURE, RESPONSE>
 			markStreamDead(ex);
 			return;
 		}
-		// a responseTimeoutMillis of 0 means the Armeria request timeout is disabled for this
-		// stream (e.g. no client-supplied gRPC deadline); SET_FROM_NOW rejects a zero/negative
-		// duration (unlike SET_FROM_START), so there is nothing to (re-)extend in that case
-		if (this.responseTimeoutMillis > 0) {
-			this.serviceContext.setRequestTimeout(TimeoutMode.SET_FROM_NOW, Duration.ofMillis(this.responseTimeoutMillis));
-		}
+		GrpcTimeoutUtil.reArmRequestTimeoutIfEnabled(this.serviceContext, this.responseTimeoutMillis);
 		this.subscription.request(1);
 	}
 
@@ -419,10 +413,7 @@ public abstract class AbstractChangeCaptureSubscriber<CAPTURE, RESPONSE>
 			markStreamDead(ex);
 			return -1L;
 		}
-		// see the identical guard in onNext() for why a disabled (0) timeout must not be re-armed
-		if (this.responseTimeoutMillis > 0) {
-			this.serviceContext.setRequestTimeout(TimeoutMode.SET_FROM_NOW, Duration.ofMillis(this.responseTimeoutMillis));
-		}
+		GrpcTimeoutUtil.reArmRequestTimeoutIfEnabled(this.serviceContext, this.responseTimeoutMillis);
 		// reschedule at the regular interval
 		return 0L;
 	}

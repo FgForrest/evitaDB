@@ -26,7 +26,6 @@ package io.evitadb.externalApi.grpc.services;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.Empty;
 import com.google.protobuf.StringValue;
-import com.linecorp.armeria.common.util.TimeoutMode;
 import com.linecorp.armeria.server.ServiceRequestContext;
 import io.evitadb.api.CatalogStatistics;
 import io.evitadb.api.EvitaManagementContract;
@@ -55,6 +54,7 @@ import io.evitadb.externalApi.grpc.generated.GrpcTaskStatusesResponse.Builder;
 import io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter;
 import io.evitadb.externalApi.http.ExternalApiProvider;
 import io.evitadb.externalApi.http.ExternalApiServer;
+import io.evitadb.externalApi.grpc.utils.GrpcTimeoutUtil;
 import io.evitadb.externalApi.trace.ExternalApiTracingContextProvider;
 import io.evitadb.externalApi.utils.ExternalApiTracingContext;
 import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceServiceFactory.FileIdCarrier;
@@ -74,7 +74,6 @@ import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
-import java.time.Duration;
 import java.util.Arrays;
 import java.util.Map.Entry;
 import java.util.Optional;
@@ -327,13 +326,7 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 							final ByteString backupFile = request.getBackupFile();
 							backupFile.writeTo(outputStream);
 							bytesRead.addAndGet(backupFile.size());
-							// a requestTimeoutMillis() of 0 means the timeout is disabled; SET_FROM_NOW
-							// requires a strictly positive duration, so there is nothing to re-extend
-							if (serviceContext.requestTimeoutMillis() > 0) {
-								serviceContext.setRequestTimeout(
-									TimeoutMode.SET_FROM_NOW, Duration.ofMillis(serviceContext.requestTimeoutMillis())
-								);
-							}
+							GrpcTimeoutUtil.reArmRequestTimeoutIfEnabled(serviceContext, serviceContext.requestTimeoutMillis());
 
 						} catch (IOException e) {
 							throw new UnexpectedIOException(
