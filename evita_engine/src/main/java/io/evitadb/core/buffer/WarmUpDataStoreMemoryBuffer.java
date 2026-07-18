@@ -24,6 +24,7 @@
 package io.evitadb.core.buffer;
 
 import io.evitadb.core.collection.EntityCollection;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.Index;
 import io.evitadb.index.IndexKey;
 import io.evitadb.spi.store.catalog.persistence.StoragePartPersistenceService;
@@ -54,6 +55,10 @@ public class WarmUpDataStoreMemoryBuffer implements DataStoreMemoryBuffer {
 	 * DTO contains all trapped changes in this memory buffer.
 	 */
 	@Nonnull private final DataStoreChanges dataStoreChanges;
+	/**
+	 * The failure of a previous flush, or {@code null} while this buffer is healthy.
+	 */
+	@Nullable private Throwable flushFailure;
 
 	public WarmUpDataStoreMemoryBuffer(
 		@Nonnull StoragePartPersistenceService persistenceService
@@ -172,7 +177,26 @@ public class WarmUpDataStoreMemoryBuffer implements DataStoreMemoryBuffer {
 	@Nonnull
 	@Override
 	public TrappedChanges popTrappedChanges() {
+		// every warm-up collect passes through here, whatever triggered it - a session close, a collection being
+		// created / removed / replaced, going live or terminating - so this is the single point at which a collection
+		// whose flush failed can be stopped before it writes again
+		if (this.flushFailure != null) {
+			throw new GenericEvitaInternalError(
+				"Cannot collect changes: a previous flush of this collection failed, so the changes it had already " +
+					"collected are lost and its persisted state is incomplete. Reload the catalog from disk to recover.",
+				this.flushFailure
+			);
+		}
 		return this.dataStoreChanges.popTrappedUpdates();
+	}
+
+	@Override
+	public void poison(@Nonnull Throwable cause) {
+		// keep the FIRST failure: it is the one that actually lost the collected changes, and every later refusal is
+		// merely its consequence
+		if (this.flushFailure == null) {
+			this.flushFailure = cause;
+		}
 	}
 
 }

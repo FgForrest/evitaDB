@@ -495,7 +495,11 @@ public final class OwnerSortIndex extends SortIndex {
 		// SINGLE shape (possibly just collapsed from PAGED): remove every leaf page from its prior PAGED life (the SINGLE
 		// root no longer references them) BEFORE dropping the page bookkeeping, then forget the stream so a later regrow
 		// into PAGED starts from a clean baseline and re-emits every leaf
-		for (final int freedPageSequence : this.ownedTree.livePageSequences()) {
+		// Reclaim against what the previous flush left ON DISK: its staged set while still unpublished (a warm-up
+		// flush never reaches the commit-merge that publishes), else the published set. The published set alone lags a
+		// whole flush behind, so every page of the collapsed stream would leak — the append-only OffsetIndex never
+		// reclaims a record that is neither superseded nor explicitly removed.
+		for (final int freedPageSequence : this.ownedTree.currentLeafPageSequences()) {
 			sink.addChangeToStore(new SortIndexLeafPageRemoval(entityIndexPrimaryKey, streamKey, freedPageSequence));
 		}
 		this.ownedTree.forgetPageStream();

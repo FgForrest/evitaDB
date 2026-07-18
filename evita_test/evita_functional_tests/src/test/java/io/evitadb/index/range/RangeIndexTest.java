@@ -1573,6 +1573,22 @@ class RangeIndexTest {
 			return index;
 		}
 
+		/**
+		 * Builds a range index with one distinct threshold per record: `addRecord(v, v, v)` upserts the same
+		 * threshold twice, so the second upsert finds the point the first one just created and adds the end to it
+		 * instead of inserting a second point — a single point carries both the start and the end for record `v`.
+		 * This makes the leaf boundaries fall on exact record counts, which the split/merge arithmetic in
+		 * `shouldReportFreedPagesWhenLeafMergesAwayBetweenTwoUnpublishedWarmUpFlushes` depends on.
+		 */
+		@Nonnull
+		private static RangeIndex denseSingleThresholdRange(int recordCount) {
+			final RangeIndex index = new RangeIndex();
+			for (int i = 1; i <= recordCount; i++) {
+				index.addRecord(i, i, i);
+			}
+			return index;
+		}
+
 		@Test
 		@Tag(INDEXING)
 		@Tag(ATTRIBUTE)
@@ -1709,6 +1725,77 @@ class RangeIndexTest {
 			for (final int freed : afterShrink.freedPageSequences()) {
 				assertFalse(live.contains(freed), "A freed page must not be live.");
 				assertTrue(baseline.contains(freed), "A freed page must have been live in the prior baseline.");
+			}
+		}
+
+		@Test
+		@Tag(INDEXING)
+		@Tag(ATTRIBUTE)
+		@DisplayName(
+			"a leaf merge staged by one warm-up flush and never published before the next warm-up flush still " +
+				"reports the dropped page as freed and re-emits the changed page list"
+		)
+		void shouldReportFreedPagesWhenLeafMergesAwayBetweenTwoUnpublishedWarmUpFlushes() {
+			// a warm-up (bulk-load) flush never runs the transactional commit-merge that publishes the staged
+			// baseline (see RangeIndex#createCopyWithMergedTransactionalMemory) - collectChangedPages() is called
+			// directly, flush after flush, with nothing in between to publish it. This reproduces exactly that:
+			// two collectChangedPages() calls back to back, no publishStaged() in between.
+			//
+			// valueBlockSize = 512, split mid = 256: growing the empty tree's two border sentinels (MIN, MAX) with
+			// an ascending stream of 1022 single-threshold records (see denseSingleThresholdRange) lays the tree
+			// out as four leaves of 256 keys each:
+			//   leaf0 = {MIN, 1..255}     (256 keys)
+			//   leaf1 = {256..511}        (256 keys)
+			//   leaf2 = {512..767}        (256 keys)
+			//   leaf3 = {768..1022, MAX}  (256 keys)
+			final RangeIndex index = denseSingleThresholdRange(1022);
+			assertTrue(index.isPaged(), "The threshold tree must be PAGED before the merge!");
+
+			// FIRST warm-up flush: stages the four-leaf layout. A warm-up flush never publishes it.
+			final int[] pagesBeforeMerge = index.collectChangedPages().orderedPageSequences();
+			assertEquals(4, pagesBeforeMerge.length, "The tree must start out as four leaf pages!");
+
+			// SECOND warm-up flush: minValueBlockSize = 255. Force leaf0 to merge its right sibling (leaf1) while
+			// both stay far below their own capacity, so no further split can mask the defect under test:
+			// - leaf1: 256 -> 255 keys, exactly at the minimum, so it can no longer donate to a neighbor
+			index.removeRecord(256, 256, 256);
+			// - leaf0: 256 -> 255 keys, still exactly at the minimum, not yet an underflow
+			index.removeRecord(1, 1, 1);
+			// - leaf0: 255 -> 254 keys, underflow. leaf0 has no left sibling and leaf1 sits at the minimum (cannot
+			//   donate), but leaf1's 255 + leaf0's 254 = 509 < 512, so they merge: leaf0 absorbs leaf1 IN PLACE
+			//   (keeps its own page, is marked dirty), leaf1 is detached. No leaf is born, so nothing is allocated.
+			index.removeRecord(2, 2, 2);
+
+			// the tree must still span several leaves: a further collapse would force-emit the root and mask the
+			// defect under test
+			assertTrue(index.isPaged(), "The threshold tree must stay PAGED after the merge!");
+
+			final PageEmission<RangeIndex.RangePage> afterMerge = index.collectChangedPages();
+			assertEquals(
+				3, afterMerge.orderedPageSequences().length,
+				"The merge must have dropped exactly one leaf page (four leaves -> three)!"
+			);
+			assertTrue(
+				afterMerge.freedPageSequences().length > 0,
+				"The page the merge dropped must be reported as freed, not silently kept on the persisted root!"
+			);
+			assertTrue(
+				afterMerge.pageListChanged(),
+				"The ordered leaf-page list changed (a page was dropped) - the PAGED root must be re-emitted!"
+			);
+
+			// every freed page must have been live before the merge and must not be live afterwards
+			final Set<Integer> before = new HashSet<>();
+			for (final int sequence : pagesBeforeMerge) {
+				before.add(sequence);
+			}
+			final Set<Integer> afterwards = new HashSet<>();
+			for (final int sequence : afterMerge.orderedPageSequences()) {
+				afterwards.add(sequence);
+			}
+			for (final int freed : afterMerge.freedPageSequences()) {
+				assertTrue(before.contains(freed), "A freed page must have been live before the merge!");
+				assertFalse(afterwards.contains(freed), "A freed page must not still be live after the merge!");
 			}
 		}
 

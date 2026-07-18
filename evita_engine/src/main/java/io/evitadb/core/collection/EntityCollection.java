@@ -1657,36 +1657,47 @@ public final class EntityCollection implements
 		@Nonnull IntConsumer progressObserver,
 		@Nonnull TrappedChanges trappedChanges
 	) {
-		this.persistenceService.flushTrappedUpdates(0L, trappedChanges, progressObserver);
-		final EntityCollectionHeader entityCollectionHeader = this.persistenceService.getEntityCollectionHeader();
-		final long previousVersion = entityCollectionHeader.version();
-		return this.catalogPersistenceService.flush(
-				0L,
-				this.headerInfoSupplier,
-				entityCollectionHeader,
-				this.dataStoreBuffer
-			)
-			.map(
-				it -> {
-					final EntityCollectionHeader newHeader = it.getEntityCollectionHeader();
-					return this.persistenceService == it ?
-						new EntityCollectionHeaderWithCollection(
-							newHeader,
-							this,
-							newHeader.version() > previousVersion
-						) :
-						new EntityCollectionHeaderWithCollection(
-							newHeader,
-							this.createCopyWithNewPersistenceService(newHeader.version(), CatalogState.WARMING_UP, it),
-							true
-						);
-				}
-			)
-			.orElseGet(
-				() -> new EntityCollectionHeaderWithCollection(
-					this.getEntityCollectionHeader(), this, false
+		// the caller has already popped `trappedChanges` off the buffer, destructively and along with every index's
+		// change-detection baseline, so nothing below can be re-collected if it fails. Both flush shapes - the
+		// asynchronous `createFlushFuture` and the synchronous `flush` - run their write through here, which makes this
+		// the single point where such a failure can be recorded against the collection that suffered it.
+		try {
+			this.persistenceService.flushTrappedUpdates(0L, trappedChanges, progressObserver);
+			final EntityCollectionHeader entityCollectionHeader = this.persistenceService.getEntityCollectionHeader();
+			final long previousVersion = entityCollectionHeader.version();
+			return this.catalogPersistenceService.flush(
+					0L,
+					this.headerInfoSupplier,
+					entityCollectionHeader,
+					this.dataStoreBuffer
 				)
-			);
+				.map(
+					it -> {
+						final EntityCollectionHeader newHeader = it.getEntityCollectionHeader();
+						return this.persistenceService == it ?
+							new EntityCollectionHeaderWithCollection(
+								newHeader,
+								this,
+								newHeader.version() > previousVersion
+							) :
+							new EntityCollectionHeaderWithCollection(
+								newHeader,
+								this.createCopyWithNewPersistenceService(newHeader.version(), CatalogState.WARMING_UP, it),
+								true
+							);
+					}
+				)
+				.orElseGet(
+					() -> new EntityCollectionHeaderWithCollection(
+						this.getEntityCollectionHeader(), this, false
+					)
+				);
+		} catch (Throwable ex) {
+			// the collected changes are lost and this collection's persisted state is now incomplete: refuse every
+			// later flush of it rather than write on top of baselines that claim the lost changes were persisted
+			this.dataStoreBuffer.poison(ex);
+			throw ex;
+		}
 	}
 
 	@Override

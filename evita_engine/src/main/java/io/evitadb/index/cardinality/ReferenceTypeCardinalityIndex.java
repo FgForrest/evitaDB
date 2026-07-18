@@ -590,7 +590,11 @@ public class ReferenceTypeCardinalityIndex
 			// SINGLE shape: the index spans one leaf. If it just collapsed from PAGED, remove every prior leaf page (the
 			// inline root no longer references them) BEFORE dropping the bookkeeping, then forget the stream so a later
 			// regrow into PAGED starts from a clean baseline and re-emits every leaf.
-			for (final int freedPageSequence : this.pageStreamRegistry.livePageSequences(CARDINALITY_PAGE_STREAM)) {
+			// Reclaim against what the previous flush left ON DISK: its staged set while still unpublished (a warm-up
+			// flush never reaches the commit-merge that publishes), else the published set. The published set alone lags a
+			// whole flush behind, so every page of the collapsed stream would leak — the append-only OffsetIndex never
+			// reclaims a record that is neither superseded nor explicitly removed.
+			for (final int freedPageSequence : this.pageStreamRegistry.pendingLivePageSequences(CARDINALITY_PAGE_STREAM)) {
 				sink.addChangeToStore(
 					new ReferenceTypeCardinalityIndexLeafPageRemoval(entityIndexPrimaryKey, referenceName, freedPageSequence)
 				);
@@ -640,6 +644,12 @@ public class ReferenceTypeCardinalityIndex
 			// publish the page baseline staged by this commit's flush: the merge runs only AFTER the flush has durably
 			// written the changed leaf pages + root, so the staged live set now reflects what is on disk. The registry is
 			// then carried BY REFERENCE into the committed copy, so the surviving index keeps it (mirrors OwnerUniqueIndex).
+			// This is the EARLIEST publish point on the transactional path only; it is not the only one — a staged set
+			// that never reaches a merge (the warm-up path has no merge at all) is published by the next flush instead,
+			// see `publishPreviousFlush`. (No discard counterpart is needed: a pre-flush abort never stages, and a
+			// failed flush suspends this catalog's transaction processing — on the warm-up path it poisons the
+			// collection's buffer instead, the same invariant in another dress — so no later flush ever diffs against
+			// the baseline a failed one left behind; restart rebuilds a clean registry from disk.)
 			this.pageStreamRegistry.publishStaged();
 			return new ReferenceTypeCardinalityIndex(
 				committedTree,
@@ -720,15 +730,63 @@ public class ReferenceTypeCardinalityIndex
 	}
 
 	/**
+	 * Promotes the page set staged by the PREVIOUS flush to the live change-detection baseline, so this flush's
+	 * freed-page diff is taken against what disk actually holds.
+	 *
+	 * The registry's live set answers "which leaf pages does this stream have on disk", and the write path derives the
+	 * freed-page reclaim from it — which pages a leaf merge dropped from the `(key, count)` bucket tree, so a
+	 * {@link ReferenceTypeCardinalityIndexLeafPageRemoval} is emitted for each and their entries stop being copied
+	 * forward. It advances solely by publishing, which {@link #createCopyWithMergedTransactionalMemory} does at the
+	 * commit-merge.
+	 *
+	 * A WARM_UP (bulk) flush never reaches a commit-merge: it runs the very same collect pipeline as a transaction, but
+	 * the merge that publishes only ever runs for one. Left alone, the live set of a freshly re-indexed catalog would
+	 * therefore stay EMPTY for the whole warm-up while disk moved on, making the freed-page diff of every warm-up flush
+	 * of this cardinality tree vacuously empty. A leaf MERGE is the one structural event that drops a page without
+	 * creating one — the survivor absorbs its sibling IN PLACE, keeping its own page and dirty flag, so nothing is
+	 * allocated — which leaves the dropped page unremoved and therefore ORPHANED on disk. Unlike a pure page-list root
+	 * (Chain / OwnerUnique / OwnerSort / FilterIndex), this `PAGED` root can never go stale on a cold reload: it also
+	 * carries the inline {@link #referencedPrimaryKeysIndex}, so it is re-emitted every dirty commit regardless of
+	 * whether the leaf list changed, and its `leafPageSequences` is always derived from the CURRENT tree rather than the
+	 * registry — so {@link #fromPersistedPages} never re-reads the dropped page and no cross-leaf overlap can occur. The
+	 * observable failure here is therefore not a reload-time corruption but a silent storage LEAK: the orphaned leaf
+	 * page is unreferenced by the root yet was never explicitly removed, so the append-only OffsetIndex — which
+	 * reclaims space only for records it is told to remove, never by reachability — copies it forward at every future
+	 * compaction.
+	 *
+	 * Publishing a staged set HERE — rather than only at the merge — is correct for every path, because of one
+	 * invariant: **a failed flush is never followed by another flush of the same data**. Note that this publish runs at
+	 * COLLECT time, before this flush has written anything (the baseline-capture pass re-enters this pipeline), so it
+	 * cannot lean on the previous flush's bytes having landed by now. It does not need to: a flush that fails during
+	 * trunk incorporation SUSPENDS the catalog's transaction processing ({@code TransactionManager.suspend}), and a
+	 * flush that fails on the warm-up path POISONS the collection's buffer
+	 * ({@code WarmUpDataStoreMemoryBuffer.poison}), so every later collect of it refuses deterministically. Those two
+	 * are the same invariant in different dresses: after a failed flush no later flush of that data ever runs, so
+	 * nothing can ever diff against the baselines it left behind. A flush that does NOT fail leaves `staged` holding
+	 * exactly the page set it wrote — the baseline the next flush must diff against — regardless of which path staged
+	 * it, and regardless of whether a merge ever ran. (Should the process die instead, {@link #fromPersistedPages}
+	 * rebuilds the registry from disk on restart — page allocation is advance-only, so a burnt id is harmless.) That is
+	 * what makes this safe in its own right — not the fact that it happens to be a no-op on the transactional path
+	 * (where the merge published first, leaving nothing staged). The commit handshake is untouched.
+	 */
+	private void publishPreviousFlush() {
+		this.pageStreamRegistry.publishStaged();
+	}
+
+	/**
 	 * Walks the cardinality tree leaf-by-leaf and returns the granular write-path emission for this commit: the leaf
 	 * pages that changed since the last flush, the full ordered list of live leaf-page sequences (the `PAGED` root's leaf
 	 * list), the stream high-water, and the freed page sequences a leaf merge dropped. Mirrors
 	 * {@code OwnerUniqueIndex.collectChangedPages} with the slim `(key, count)` columns.
 	 *
+	 * Before staging, any set still staged by the PREVIOUS flush is promoted to live: see
+	 * {@link #publishPreviousFlush()} for why that is both necessary and safe.
+	 *
 	 * @return the changed leaf pages, the ordered live page-sequence list, the high-water, and the freed pages
 	 */
 	@Nonnull
 	private PageEmission<LeafPage> collectChangedPages() {
+		publishPreviousFlush();
 		// this.cardinalities is a raw bucket tree, so the handle list and its cursors are raw too — bucket keys are read
 		// as Object and cast to Long exactly as the whole-tree snapshot does
 		final List<LeafPageHandle> handles = this.cardinalities.leafPageHandles();

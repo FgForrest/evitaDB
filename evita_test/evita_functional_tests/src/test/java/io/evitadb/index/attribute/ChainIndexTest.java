@@ -2710,6 +2710,52 @@ class ChainIndexTest {
 			assertZeroEmission(reloaded);
 		}
 
+		@Test
+		@DisplayName(
+			"a leaf dropped by one warm-up flush and never published before the next warm-up flush still reports " +
+				"the removal and re-emits the changed PAGED root"
+		)
+		void shouldReportFreedLeafPagesWhenTwoWarmUpFlushesRunBackToBackWithoutAnIntermediatePublish() {
+			// every other test in this nested class models a "commit" as flush + store.reload(...): the reload rebuilds
+			// the index via ChainIndex#fromPersistedPages, which reseeds the page-stream registry from scratch and so
+			// incidentally sidesteps the very bug this test targets. A warm-up (bulk-load) flush never goes through a
+			// reload or a transactional commit-merge (see ChainIndex#createCopyWithMergedTransactionalMemory, the only
+			// place that publishes a staged page set) - appendStorageParts() is simply called again, flush after flush,
+			// directly on the SAME instance. This test reproduces exactly that: two flushes back to back, no reload (and
+			// therefore no publish) in between.
+			final AttributeIndexKey key = new AttributeIndexKey(null, "warm-up-merge", null);
+			final ChainIndex big = new ChainIndex(key);
+			appendConsecutiveChain(big, 1, 3200); // > 3 leaves (leafCapacity = 1024)
+
+			final ChainStore store = new ChainStore();
+			// FIRST warm-up flush: stages the live leaf-page set (never published).
+			store.flush(big);
+			assertTrue(store.root.isPaged(), "a >3-page chain must persist as PAGED");
+			final int[] pagesBeforeShrink = store.root.getPageSequencesOrThrowException();
+			assertTrue(pagesBeforeShrink.length >= 3, "the chain must span at least three live leaf pages");
+
+			// shrink from the TAIL so the chain stays ONE consistent chain (1 -> 2 -> ... -> 1300) yet empties and drops
+			// its trailing leaf pages - the same mutation the mid-life-shrink test above uses, proven to free at least
+			// one leaf page while staying comfortably above one leaf (root stays PAGED); applied directly to `big`
+			// (not a reloaded copy) so nothing publishes the first flush's staged baseline in between
+			for (int pk = 3200; pk >= 1301; pk--) {
+				big.removePredecessor(pk);
+			}
+			// SECOND warm-up flush: collects again on the very same instance with the first flush's set still staged.
+			store.flush(big);
+
+			assertTrue(store.root.isPaged(), "1300 elements still span more than one leaf, so the root must stay PAGED");
+			assertTrue(
+				store.lastRemovalCount > 0,
+				"the leaf page the shrink dropped must be reported as freed, not silently kept on the persisted root!"
+			);
+			final int[] pagesAfterShrink = store.root.getPageSequencesOrThrowException();
+			assertTrue(
+				pagesAfterShrink.length < pagesBeforeShrink.length,
+				"the persisted root must be re-emitted to reflect the drop, not skipped as unchanged!"
+			);
+		}
+
 		/**
 		 * Appends a consecutive head-first chain `fromPk -> fromPk+1 -> … -> toPk` to `idx` (pk 1 is the head; every other
 		 * pk follows its immediate predecessor), one {@link ChainIndex#upsertPredecessor} per element.

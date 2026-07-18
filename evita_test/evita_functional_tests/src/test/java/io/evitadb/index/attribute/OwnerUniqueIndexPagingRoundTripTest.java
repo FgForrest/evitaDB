@@ -32,6 +32,7 @@ import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.spi.store.catalog.persistence.storageParts.DeferredRemovalStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.AbstractLeafPagePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStoragePart.AttributeIndexType;
@@ -128,6 +129,16 @@ class OwnerUniqueIndexPagingRoundTripTest implements EvitaTestSupport {
 	 */
 	private static final int MERGE_REMOVE_TO = 700;
 	/**
+	 * Enough distinct keys to page the value tree out across several leaves (the 256-entry block splits at 128, so an
+	 * ascending run of this many keys lays out as ~7 leaves) before the warm-up collapse scenario shrinks it back.
+	 */
+	private static final int COLLAPSE_KEY_COUNT = 900;
+	/**
+	 * Distinct keys kept after the collapse shrink — well within the 256-entry leaf, so the value tree collapses out of
+	 * the `PAGED` shape back to the inline `SINGLE` one.
+	 */
+	private static final int COLLAPSE_KEEP = 40;
+	/**
 	 * The catalog version the parts are flushed at (and reopened at).
 	 */
 	private static final long PERSISTED_VERSION = 1L;
@@ -206,7 +217,7 @@ class OwnerUniqueIndexPagingRoundTripTest implements EvitaTestSupport {
 			for (int i = 0; i < orderedPageSequences.length; i++) {
 				final UniqueIndexLeafPagePart leafPage = reloaded.get(
 					PERSISTED_VERSION,
-					UniqueIndexLeafPagePart.computeUniquePartId(streamId, orderedPageSequences[i]),
+					AbstractLeafPagePart.computeUniquePartId(streamId, orderedPageSequences[i]),
 					UniqueIndexLeafPagePart.class
 				);
 				assertNotNull(leafPage, "leaf page " + orderedPageSequences[i] + " must be readable after reload");
@@ -379,7 +390,7 @@ class OwnerUniqueIndexPagingRoundTripTest implements EvitaTestSupport {
 				assertNull(
 					reopened.get(
 						SECOND_VERSION,
-						UniqueIndexLeafPagePart.computeUniquePartId(streamId, freedSequence),
+						AbstractLeafPagePart.computeUniquePartId(streamId, freedSequence),
 						UniqueIndexLeafPagePart.class
 					),
 					"freed leaf page " + freedSequence + " must be removed from storage"
@@ -424,6 +435,80 @@ class OwnerUniqueIndexPagingRoundTripTest implements EvitaTestSupport {
 				IOUtils.closeQuietly(reopened::close);
 			}
 		}
+	}
+
+	@Test
+	@DisplayName("Collapsing PAGED -> SINGLE across two warm-up flushes still removes every prior leaf page")
+	void shouldRemovePriorLeafPagesWhenCollapsingAcrossTwoWarmUpFlushesWithoutAnIntermediateReload() {
+		// every other collapse test RELOADS the index before collapsing it, and the loader seeds the page-stream live-set
+		// baseline from disk — so the published set is correct there and the collapse reclaims correctly either way. A
+		// WARM_UP (bulk) catalog never reloads and never reaches a commit-merge — the only place the staged page set is
+		// PUBLISHED — so its collapse must reclaim against the set the previous flush STAGED, not the published one, which
+		// stays empty for the whole warm-up and would silently reclaim NOTHING.
+		final AttributeIndexKey attributeIndexKey = new AttributeIndexKey(null, "url", Locale.ENGLISH);
+		final OwnerUniqueIndex index = new OwnerUniqueIndex(ENTITY_TYPE, attributeIndexKey, String.class);
+		for (int i = 0; i < COLLAPSE_KEY_COUNT; i++) {
+			index.registerUniqueKey(keyForIndex(i), i + 1);
+		}
+		assertTrue(index.isPaged(), "the index must span multiple leaves to exercise the paged layout");
+
+		// first WARM_UP flush: allocates + STAGES one leaf page per leaf and publishes nothing (publishing happens only at
+		// the commit-merge, which a warm-up flush never reaches)
+		final TrappedChanges firstChanges = new TrappedChanges();
+		index.appendStorageParts(ENTITY_INDEX_PK, firstChanges);
+		final List<StoragePart> firstEmission = collectAllParts(firstChanges);
+		index.resetDirty();
+
+		// the prior page count is taken from the EMISSION (which the flush derives by walking the tree's leaves), never
+		// from the registry accessor under test — sourcing it there would make the removal assertion below `0 == 0` and
+		// leave this test green with or without the fix
+		final int priorLeafPageCount = (int) firstEmission.stream()
+			.filter(UniqueIndexLeafPagePart.class::isInstance).count();
+		assertTrue(priorLeafPageCount >= 3, "the source index must start paged across several leaf pages");
+		final UniqueIndexStoragePart firstRoot = firstEmission.stream()
+			.filter(UniqueIndexStoragePart.class::isInstance)
+			.map(UniqueIndexStoragePart.class::cast)
+			.findFirst()
+			.orElseThrow();
+		assertTrue(firstRoot.isPaged(), "the first warm-up flush must emit a PAGED root");
+		assertEquals(
+			priorLeafPageCount, firstRoot.getLeafPageSequences().length,
+			"the PAGED root must list exactly the leaf pages the first warm-up flush wrote"
+		);
+		assertEquals(
+			0, firstEmission.stream().filter(UniqueIndexLeafPageRemoval.class::isInstance).count(),
+			"a first warm-up flush frees no leaf page — nothing was on disk before it"
+		);
+
+		// collapse the SAME in-memory index — NO reload in between, exactly what a warm-up catalog does: drop all but a
+		// handful of keys so the survivors fit within a single leaf
+		for (int i = COLLAPSE_KEEP; i < COLLAPSE_KEY_COUNT; i++) {
+			index.unregisterUniqueKey(keyForIndex(i), i + 1);
+		}
+		assertFalse(index.isPaged(), "an index that fits a single leaf must collapse out of the PAGED shape");
+
+		final TrappedChanges secondChanges = new TrappedChanges();
+		index.appendStorageParts(ENTITY_INDEX_PK, secondChanges);
+		final List<StoragePart> secondEmission = collectAllParts(secondChanges);
+		final UniqueIndexStoragePart collapsedRoot = secondEmission.stream()
+			.filter(UniqueIndexStoragePart.class::isInstance)
+			.map(UniqueIndexStoragePart.class::cast)
+			.findFirst()
+			.orElseThrow();
+		assertFalse(collapsedRoot.isPaged(), "the collapsed index must emit a single inline (SINGLE) root");
+		assertNotNull(collapsedRoot.getValues(), "a SINGLE root carries the value column inline");
+		assertEquals(
+			COLLAPSE_KEEP, collapsedRoot.getValues().length, "the SINGLE root must carry every surviving value inline"
+		);
+		assertEquals(
+			0, secondEmission.stream().filter(UniqueIndexLeafPagePart.class::isInstance).count(),
+			"a collapsed index must not re-emit any leaf page"
+		);
+		assertEquals(
+			priorLeafPageCount, (int) secondEmission.stream().filter(UniqueIndexLeafPageRemoval.class::isInstance).count(),
+			"the collapse must remove every leaf page the previous warm-up flush wrote — the append-only OffsetIndex never " +
+				"reclaims a record that is neither superseded nor explicitly removed, so a missed removal leaks the page forever"
+		);
 	}
 
 	/*
@@ -506,7 +591,7 @@ class OwnerUniqueIndexPagingRoundTripTest implements EvitaTestSupport {
 	 * page-stream live-set baseline, so a later flush can detect (and remove) the pages a merge frees.
 	 */
 	@Nonnull
-	private OwnerUniqueIndex loadPagedIndex(
+	private static OwnerUniqueIndex loadPagedIndex(
 		@Nonnull OffsetIndex offsetIndex,
 		long catalogVersion,
 		@Nonnull AttributeIndexKey attributeIndexKey,
@@ -519,7 +604,7 @@ class OwnerUniqueIndexPagingRoundTripTest implements EvitaTestSupport {
 		for (int i = 0; i < orderedPageSequences.length; i++) {
 			final UniqueIndexLeafPagePart leafPage = offsetIndex.get(
 				catalogVersion,
-				UniqueIndexLeafPagePart.computeUniquePartId(streamId, orderedPageSequences[i]),
+				AbstractLeafPagePart.computeUniquePartId(streamId, orderedPageSequences[i]),
 				UniqueIndexLeafPagePart.class
 			);
 			assertNotNull(leafPage, "leaf page " + orderedPageSequences[i] + " must be readable");
@@ -537,7 +622,9 @@ class OwnerUniqueIndexPagingRoundTripTest implements EvitaTestSupport {
 	 * {@code put}, while each {@link DeferredRemovalStoragePart} resolves its store-side primary key against the live
 	 * read-only key compressor and is {@code remove}d — exactly what the production flush drain does.
 	 */
-	private void writeEmission(@Nonnull OffsetIndex offsetIndex, long catalogVersion, @Nonnull List<StoragePart> parts) {
+	private static void writeEmission(
+		@Nonnull OffsetIndex offsetIndex, long catalogVersion, @Nonnull List<StoragePart> parts
+	) {
 		for (final StoragePart part : parts) {
 			if (part instanceof DeferredRemovalStoragePart deferredRemoval) {
 				final long removedPartPK =
@@ -639,7 +726,7 @@ class OwnerUniqueIndexPagingRoundTripTest implements EvitaTestSupport {
 	}
 
 	@Nonnull
-	private Function<VersionedKryoKeyInputs, VersionedKryo> createKryo() {
+	private static Function<VersionedKryoKeyInputs, VersionedKryo> createKryo() {
 		return keyInputs -> VersionedKryoFactory.createKryo(
 			keyInputs.version(),
 			SchemaKryoConfigurer.INSTANCE

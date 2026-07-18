@@ -488,9 +488,110 @@ class ReferenceTypeCardinalityIndexPagingRoundTripTest implements EvitaTestSuppo
 		}
 	}
 
+	@Test
+	@DisplayName("A PAGED -> SINGLE collapse across two warm-up flushes still removes every prior leaf page")
+	void shouldRemovePriorLeafPagesWhenCollapsingAcrossTwoWarmUpFlushesWithoutAnIntermediateReload() {
+		// The sibling collapse test above shrinks a RELOADED index, whose page baseline `fromPersistedPages` seeded from
+		// disk — so it stays green whether the collapse reclaims the published live set or the staged one, and therefore
+		// cannot see this bug at all. A warm-up (bulk) catalog never reloads and never reaches the transactional
+		// commit-merge, the only place `publishStaged` runs; its collapse must consequently reclaim against the set the
+		// PREVIOUS flush staged. Reclaiming from the published set alone finds it still EMPTY here and frees NOTHING,
+		// leaking every prior leaf page forever — the append-only OffsetIndex never reclaims a record that is neither
+		// superseded nor explicitly removed. No reload happens anywhere below; that is the whole point.
+		final ReferenceTypeCardinalityIndex index = new ReferenceTypeCardinalityIndex();
+		for (int i = 0; i < KEY_COUNT; i++) {
+			index.addRecord(indexPkForOrdinal(i), refPkForOrdinal(i));
+		}
+		assertTrue(index.isPaged(), "the index must span multiple leaves to exercise the collapse");
+
+		// first warm-up flush: allocates and stages one page per fresh leaf, but publishes nothing
+		final TrappedChanges firstChanges = new TrappedChanges();
+		index.appendStorageParts(ENTITY_INDEX_PK, REFERENCE_NAME, firstChanges);
+		final List<StoragePart> firstEmission = collectAllParts(firstChanges);
+		final int priorLeafPageCount = countLeafPages(firstEmission);
+		assertTrue(priorLeafPageCount >= 2, "the source index must start paged across several leaves");
+		assertEquals(
+			priorLeafPageCount, singleRoot(firstEmission).getLeafPageSequences().length,
+			"a first flush writes every one of the live leaf pages its root lists (every leaf is brand new)"
+		);
+		assertEquals(0, countRemovals(firstEmission), "a first flush frees no leaf page");
+
+		// collapse the SAME in-memory index with NO reload in between: remove enough tuples that the survivors fit
+		// within a single leaf, so the leaves cascade-merge and the root falls back to that single surviving leaf
+		for (int i = COLLAPSE_KEEP; i < KEY_COUNT; i++) {
+			index.removeRecord(indexPkForOrdinal(i), refPkForOrdinal(i));
+		}
+		assertFalse(index.isPaged(), "the shrunken index must collapse to a single leaf (PAGED -> SINGLE)");
+
+		// an index built directly from only the surviving tuples is the oracle: it proves both that this survivor count
+		// is genuinely SINGLE-sized (independently of the shrink path) and that the collapsed index holds exactly it
+		final ReferenceTypeCardinalityIndex expected = new ReferenceTypeCardinalityIndex();
+		for (int i = 0; i < COLLAPSE_KEEP; i++) {
+			expected.addRecord(indexPkForOrdinal(i), refPkForOrdinal(i));
+		}
+		assertFalse(expected.isPaged(), "a " + COLLAPSE_KEEP + "-tuple index is genuinely SINGLE-sized");
+		assertSameCardinalityIndex(expected, index, "warm-up collapse survivors");
+
+		// second warm-up flush: the collapse must reclaim what the FIRST flush staged
+		final TrappedChanges secondChanges = new TrappedChanges();
+		index.appendStorageParts(ENTITY_INDEX_PK, REFERENCE_NAME, secondChanges);
+		final List<StoragePart> secondEmission = collectAllParts(secondChanges);
+		final ReferenceTypeCardinalityIndexStoragePart collapsedRoot = singleRoot(secondEmission);
+		assertFalse(collapsedRoot.isPaged(), "the collapsed index must emit an inline (SINGLE) root");
+		assertNotNull(collapsedRoot.getKeys(), "a SINGLE root carries the key column inline");
+		assertNotNull(collapsedRoot.getPayloads(), "a SINGLE root carries the count column inline");
+		assertEquals(0, countLeafPages(secondEmission), "a collapsed index must not re-emit any leaf page");
+		assertEquals(
+			priorLeafPageCount, countRemovals(secondEmission),
+			"the collapse must remove every leaf page the previous warm-up flush wrote — the append-only OffsetIndex " +
+				"never reclaims a record that is neither superseded nor explicitly removed, so a missed removal leaks " +
+				"the page forever"
+		);
+	}
+
 	/*
 		PRIVATE HELPERS
 	 */
+
+	/**
+	 * Extracts the single {@link ReferenceTypeCardinalityIndexStoragePart} root emitted by a flush, failing if none or
+	 * more than one is present.
+	 *
+	 * @param parts the emitted storage parts
+	 * @return the sole root part
+	 */
+	@Nonnull
+	private static ReferenceTypeCardinalityIndexStoragePart singleRoot(@Nonnull List<StoragePart> parts) {
+		ReferenceTypeCardinalityIndexStoragePart root = null;
+		for (final StoragePart part : parts) {
+			if (part instanceof ReferenceTypeCardinalityIndexStoragePart rootPart) {
+				assertNull(root, "a flush must emit exactly one root part");
+				root = rootPart;
+			}
+		}
+		assertNotNull(root, "a dirty flush must emit a root part");
+		return root;
+	}
+
+	/**
+	 * Counts the leaf pages ({@link ReferenceTypeCardinalityIndexLeafPagePart}) among the emitted parts.
+	 *
+	 * @param parts the emitted storage parts
+	 * @return the number of leaf pages
+	 */
+	private static int countLeafPages(@Nonnull List<StoragePart> parts) {
+		return (int) parts.stream().filter(ReferenceTypeCardinalityIndexLeafPagePart.class::isInstance).count();
+	}
+
+	/**
+	 * Counts the leaf-page removals ({@link ReferenceTypeCardinalityIndexLeafPageRemoval}) among the emitted parts.
+	 *
+	 * @param parts the emitted storage parts
+	 * @return the number of freed-page removal instructions
+	 */
+	private static int countRemovals(@Nonnull List<StoragePart> parts) {
+		return (int) parts.stream().filter(ReferenceTypeCardinalityIndexLeafPageRemoval.class::isInstance).count();
+	}
 
 	/**
 	 * The (never-zero) index primary key for the given 0-based ordinal — index PKs start at 1.

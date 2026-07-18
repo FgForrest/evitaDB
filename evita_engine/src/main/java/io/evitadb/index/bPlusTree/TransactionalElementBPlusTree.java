@@ -329,7 +329,7 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 		}
 		// validate cross-leaf key order BEFORE assembly, so the corruption diagnostic fires ahead of any left-boundary
 		// separator invariant the spine builder would otherwise trip on with a less actionable message
-		assertCrossLeafBoundaries(leaves, structureDescription);
+		assertCrossLeafBoundaries(leaves, pageSequences, structureDescription);
 		return assembleFromLeaves(leaves);
 	}
 
@@ -349,12 +349,14 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 	 * remediation hint.
 	 *
 	 * @param leaves               the reassembled leaves in persisted list order
+	 * @param pageSequences        the root's ordered leaf-page sequence list, reported as overlap context on failure
 	 * @param structureDescription a full identification of the index for diagnostics (see
 	 *                             {@link #assembleFromSingleLeafTrees})
 	 * @throws GenericEvitaInternalError when a leaf's last key does not sort strictly before the next leaf's first key
 	 */
 	private void assertCrossLeafBoundaries(
 		@Nonnull List<BPlusLeafTreeNode<E>> leaves,
+		@Nonnull int[] pageSequences,
 		@Nonnull String structureDescription
 	) {
 		BPlusLeafTreeNode<E> previousKeyBearing = null;
@@ -389,13 +391,20 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 				);
 				final int currentFirstKey = leaf.getLeftBoundaryKey();
 				if (previousLastKey >= currentFirstKey) {
+					// error path only: gather the full overlap context (ranges, counts, containment) here, never on a
+					// healthy load
+					final int predecessorFirstKey = this.keyExtractor.applyAsInt(previousKeyBearing.getValues()[0]);
+					final int successorLastKey = this.keyExtractor.applyAsInt(values[peek]);
+					final boolean successorWithinPredecessor =
+						currentFirstKey >= predecessorFirstKey && successorLastKey <= previousLastKey;
 					throw new GenericEvitaInternalError(
-						"Corrupted persisted " + structureDescription + ": leaf-page sequence " +
-							previousKeyBearing.getPageSequence() + " overlaps its successor leaf-page sequence " +
-							leaf.getPageSequence() + " — its last key (" + previousLastKey + ") does not sort before the " +
-							"first key (" + currentFirstKey + ") of the next leaf page. This is a stale leaf-page twin or " +
-							"other index corruption. Restore the catalog from a backup, or fully rebuild / reindex the " +
-							"affected catalog."
+						AbstractTransactionalBPlusTree.overlappingLeafPagesDiagnostic(
+							structureDescription, pageSequences,
+							previousKeyBearing.getPageSequence(), predecessorFirstKey, previousLastKey,
+							previousKeyBearing.getPeek() + 1,
+							leaf.getPageSequence(), currentFirstKey, successorLastKey, peek + 1,
+							successorWithinPredecessor
+						)
 					);
 				}
 			}

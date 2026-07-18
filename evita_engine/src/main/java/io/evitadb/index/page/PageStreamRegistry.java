@@ -58,12 +58,19 @@ import java.util.Set;
  *   transaction-aware dirty flag (`BPlusLeafTreeNode.isDirty()`), an exact signal that, unlike a content hash, can
  *   never miss a real change. The live set serves only the freed-page reclaim: pages present last commit but absent
  *   this commit were dropped by a leaf merge and must be removed from storage ({@link #freedPageSequences(int, Set)}).
+ * - the **ordered live-page list**, the same pages in ascending key order — the list the last published `PAGED` root
+ *   record carries. It is what decides whether the root must be re-emitted this commit: the root is rewritten iff the
+ *   list the flush collected differs from it. Kept alongside the set rather than derived from it because the set is
+ *   unordered and the root's list is not.
  *
- * **Commit handshake.** A flush stages the next live set for each touched stream ({@link #stage(int, Set)}); the
- * staged sets become live only when the commit is known durable ({@link #publishStaged()}), and are dropped wholesale
- * if the commit aborts after staging ({@link #discardStaged()}). The high-water, by contrast, advances *live* at
- * allocation time — an aborted transaction never reaches flush so it allocates nothing, while a flush that allocates
- * then crashes before its durable write merely burns an id harmlessly (advance-only).
+ * **Commit handshake.** A flush stages the next live set for each touched stream ({@link #stage(int, int[])}); the
+ * staged sets become live only when the commit is known durable ({@link #publishStaged()}). A failed flush is never
+ * followed by another flush of the same data — a failure during trunk incorporation suspends the catalog's transaction
+ * processing, and one on the warm-up path poisons the collection's buffer — so a staged set that never publishes is
+ * simply abandoned in memory and the registry is rebuilt from disk on restart; nothing ever diffs against it. The
+ * high-water, by contrast, advances *live* at allocation time — an aborted transaction never reaches flush so it
+ * allocates nothing, while a flush that allocates then crashes before its durable write merely burns an id harmlessly
+ * (advance-only).
  *
  * **Residence.** The registry is **owner-resident**: it lives on the committed owner
  * {@code InvertedIndex} (this engine module) and is carried by reference through the index's
@@ -124,22 +131,15 @@ public class PageStreamRegistry implements Serializable {
 	}
 
 	/**
-	 * Returns every page sequence currently live in the given stream's published set — all leaf pages the stream has on
-	 * disk — or an empty array when it has none. Used by the `PAGED -> SINGLE` fallback to remove all prior leaf pages
-	 * before a sub-index collapses back to its inline shape.
-	 *
-	 * @param streamId the stream to inspect
-	 * @return the live page sequences, or an empty array when the stream has no leaf pages
-	 */
-	@Nonnull
-	public int[] livePageSequences(int streamId) {
-		return liveSequencesExcluding(streamId, Collections.emptySet());
-	}
-
-	/**
 	 * Returns the page sequences live in the given stream's published set that are NOT among {@code liveSequences} — the
 	 * pages a leaf merge dropped this commit (freed pages, to be removed from storage). Reads the published set (not
 	 * the staged one), so the result is stable across the flush and merge passes of a single commit.
+	 *
+	 * Single pass: fill an upper-bound-sized buffer, then return it as-is or as a trimmed copy.
+	 *
+	 * Note this is the FREED-page difference only. A `PAGED -> SINGLE` collapse must not reclaim from the published set:
+	 * that set lags a whole flush behind for as long as nothing publishes, so the collapse would silently reclaim
+	 * nothing. It uses {@link #pendingLivePageSequences(int)} instead.
 	 *
 	 * @param streamId the stream to inspect
 	 * @param liveSequences the page sequences still live this commit
@@ -147,23 +147,6 @@ public class PageStreamRegistry implements Serializable {
 	 */
 	@Nonnull
 	public int[] freedPageSequences(int streamId, @Nonnull Set<Integer> liveSequences) {
-		return liveSequencesExcluding(streamId, liveSequences);
-	}
-
-	/**
-	 * Shared live-set difference: the published live page sequences of {@code streamId} with every sequence in
-	 * {@code excluded} removed, in the set's iteration order. The single helper behind {@link #livePageSequences(int)}
-	 * (empty exclusion) and {@link #freedPageSequences(int, Set)} (live-set exclusion).
-	 *
-	 * Single pass: fill an upper-bound-sized buffer, then return it as-is when nothing was excluded (the common
-	 * {@link #livePageSequences(int)} path) or a trimmed copy when a leaf merge dropped some pages.
-	 *
-	 * @param streamId the stream whose published live set is scanned
-	 * @param excluded the page sequences to omit from the result
-	 * @return the matching page sequences, or an empty array when none match
-	 */
-	@Nonnull
-	private int[] liveSequencesExcluding(int streamId, @Nonnull Set<Integer> excluded) {
 		final Set<Integer> publishedLive = livePages(streamId);
 		if (publishedLive.isEmpty()) {
 			return ArrayUtils.EMPTY_INT_ARRAY;
@@ -171,7 +154,7 @@ public class PageStreamRegistry implements Serializable {
 		final int[] result = new int[publishedLive.size()];
 		int count = 0;
 		for (final Integer sequence : publishedLive) {
-			if (!excluded.contains(sequence)) {
+			if (!liveSequences.contains(sequence)) {
 				result[count++] = sequence;
 			}
 		}
@@ -184,8 +167,8 @@ public class PageStreamRegistry implements Serializable {
 	/**
 	 * Returns the page sequences the given stream WILL have on disk once the in-flight flush is durable — its staged set
 	 * when a flush has already staged this commit, otherwise its published live set (and an empty array for an unknown /
-	 * page-less stream). Unlike {@link #livePageSequences(int)} (which always reads the published set and so lags behind
-	 * a flush that has staged but not yet published), this reflects the CURRENT tree shape at any point of the flush, so
+	 * page-less stream). Unlike the published live set alone ({@link #livePages(int)}, which lags behind a flush that has
+	 * staged but not yet published), this reflects the CURRENT tree shape at any point of the flush, so
 	 * an owner can snapshot "what disk holds after this commit" for a sub-index whose pages it must reclaim if the
 	 * sub-index is later dropped.
 	 *
@@ -215,15 +198,19 @@ public class PageStreamRegistry implements Serializable {
 	 * live-page set (rebuilt by the caller from the persisted leaf-page sequence list). Replaces any existing state for
 	 * the stream.
 	 *
+	 * The list is taken in the root's own order and seeds BOTH the live set and the ordered baseline the next flush
+	 * diffs against — a stream restored with only its set would leave the first post-load flush comparing its collected
+	 * list against an empty baseline and re-emitting a root that never changed.
+	 *
 	 * @param streamId  the stream to restore
 	 * @param highWater the persisted high-water ({@link #NO_PAGE} when the stream has no pages)
-	 * @param livePages the live page sequences on disk (copied defensively)
+	 * @param livePages the live page sequences on disk, in the persisted root's ascending key order (copied defensively)
 	 */
-	public void restore(int streamId, int highWater, @Nonnull Set<Integer> livePages) {
+	public void restore(int streamId, int highWater, @Nonnull int[] livePages) {
 		Assert.isPremiseValid(highWater >= NO_PAGE, "High-water must be >= " + NO_PAGE + ".");
 		final PageStream stream = new PageStream();
 		stream.highWater = highWater;
-		for (final Integer pageSequence : livePages) {
+		for (final int pageSequence : livePages) {
 			// every live page must be a real, allocated page: non-negative and within the high-water envelope
 			Assert.isPremiseValid(
 				pageSequence >= 0 && pageSequence <= highWater,
@@ -231,6 +218,12 @@ public class PageStreamRegistry implements Serializable {
 			);
 			stream.live.add(pageSequence);
 		}
+		// a page listed twice would silently shrink the set and desync it from the ordered list
+		Assert.isPremiseValid(
+			stream.live.size() == livePages.length,
+			"Restored live page list contains a duplicate page sequence."
+		);
+		stream.liveOrdered = Arrays.copyOf(livePages, livePages.length);
 		this.streams.put(streamId, stream);
 	}
 
@@ -238,7 +231,7 @@ public class PageStreamRegistry implements Serializable {
 	 * Read-path twin of {@link #collectChangedPages} and the single shared skeleton behind every paged index's reload:
 	 * builds a fresh registry seeded for a just-reassembled paged index. A tree rebuilt from its persisted leaf pages
 	 * has every leaf flagged dirty by the replaying inserts even though the leaves are byte-identical to what is already
-	 * on disk; this clears each leaf's dirty flag, collects the live-page set and {@link #restore(int, int, Set)
+	 * on disk; this clears each leaf's dirty flag, collects the live-page list and {@link #restore(int, int, int[])
 	 * restores} the stream, so the first post-load commit suppresses every untouched leaf. Like
 	 * {@link #collectChangedPages} it consumes the value-agnostic {@link PagedLeafHandle} contract rather than a concrete
 	 * tree, so it serves the bucket-, long- and element-keyed trees alike.
@@ -253,10 +246,12 @@ public class PageStreamRegistry implements Serializable {
 	public static <H extends PagedLeafHandle> PageStreamRegistry restoredFrom(
 		int streamId, int highWaterPageSequence, @Nonnull List<H> handles
 	) {
-		final Set<Integer> livePages = new HashSet<>(handles.size());
+		// the handles arrive in ascending key order, so collecting them in order yields the persisted root's own page list
+		final int[] livePages = new int[handles.size()];
+		int idx = 0;
 		for (final H handle : handles) {
 			handle.clearDirty();
-			livePages.add(handle.getPageSequence());
+			livePages[idx++] = handle.getPageSequence();
 		}
 		final PageStreamRegistry registry = new PageStreamRegistry();
 		registry.restore(streamId, highWaterPageSequence, livePages);
@@ -284,13 +279,16 @@ public class PageStreamRegistry implements Serializable {
 	 * to {@link #livePages(int)} until {@link #publishStaged()}. Staging again before publishing replaces the pending
 	 * set.
 	 *
+	 * The list is taken in ascending key order — the order the root record persists — and stages the set and the ordered
+	 * baseline together, so the two can never drift apart.
+	 *
 	 * @param streamId the stream being flushed
-	 * @param liveSequences the full next live-page set (copied defensively)
+	 * @param liveSequences the full next live-page list, in ascending key order (copied defensively)
 	 */
-	public void stage(int streamId, @Nonnull Set<Integer> liveSequences) {
+	public void stage(int streamId, @Nonnull int[] liveSequences) {
 		final PageStream stream = this.streams.computeIfAbsent(streamId, id -> new PageStream());
-		final Set<Integer> staged = new HashSet<>(liveSequences.size());
-		for (final Integer pageSequence : liveSequences) {
+		final Set<Integer> staged = new HashSet<>(liveSequences.length);
+		for (final int pageSequence : liveSequences) {
 			// a staged page must be a real, allocated page: non-negative and within this stream's high-water envelope
 			Assert.isPremiseValid(
 				pageSequence >= 0 && pageSequence <= stream.highWater,
@@ -298,7 +296,13 @@ public class PageStreamRegistry implements Serializable {
 			);
 			staged.add(pageSequence);
 		}
+		// a page listed twice would silently shrink the set and desync it from the ordered list
+		Assert.isPremiseValid(
+			staged.size() == liveSequences.length,
+			"Staged live page list contains a duplicate page sequence."
+		);
 		stream.staged = staged;
+		stream.stagedOrdered = Arrays.copyOf(liveSequences, liveSequences.length);
 	}
 
 	/**
@@ -309,7 +313,7 @@ public class PageStreamRegistry implements Serializable {
 	 * live-page list and the next live-page set. A leaf is (re)written — its {@code pageBuilder} payload collected and its
 	 * dirty flag cleared — iff it is brand new or its transaction-aware dirty flag is set, an exact signal a content hash
 	 * cannot match: every mutation site sets it, so a real change can never be suppressed. The complete next live-page set
-	 * is {@link #stage(int, Set) staged} here and becomes live only when the commit is published; the pages a leaf merge
+	 * is {@link #stage(int, int[]) staged} here and becomes live only when the commit is published; the pages a leaf merge
 	 * dropped are returned as {@link #freedPageSequences(int, Set) freed} so the caller can remove them from storage.
 	 *
 	 * A clean (non-dirty) index must not call this — the caller gates on its own dirty signal.
@@ -353,13 +357,80 @@ public class PageStreamRegistry implements Serializable {
 		// must be REMOVED from storage, not merely unreferenced — the append-only OffsetIndex never reclaims a record
 		// that is neither superseded (page ids are advance-only, never re-keyed) nor explicitly removed
 		final int[] freedPageSequences = freedPageSequences(streamId, nextLive);
-		stage(streamId, nextLive);
-		// the ordered live-page list is byte-identical to the persisted root iff no leaf was allocated (split/first page)
-		// and none was freed (merge); when unchanged a caller with a pure page-list root can skip re-emitting it (O(1))
-		final boolean pageListChanged = anyFreshLeaf || freedPageSequences.length > 0;
+		stage(streamId, orderedPageSequences);
+		// the root must be re-emitted iff the list this flush collected differs from the one the published root carries;
+		// when unchanged a caller with a pure page-list root can skip re-emitting it (O(1))
+		final PageStream stream = this.streams.get(streamId);
+		final boolean pageListChanged = !Arrays.equals(orderedPageSequences, stream.liveOrdered);
+		// `anyFreshLeaf` is reassigned in the collect loop above, so it is not effectively final; snapshot it into a
+		// final local the failure-path supplier can capture (the eager cross-check below still reads the loop variable)
+		final boolean anyFreshLeafSnapshot = anyFreshLeaf;
+		// the same predicate derived from the live-set bookkeeping instead: a leaf was allocated (split / first page) or
+		// one was dropped (merge). It cannot disagree with the direct comparison while the baseline is sound — leaves are
+		// key-ordered, and a steal/merge/split each either preserves that order or changes the membership, so there is no
+		// order-only change for the set-difference to miss. A disagreement therefore means the published baseline no
+		// longer describes what is on disk, and the freed-page difference silently under-reports against a stale baseline
+		// (`∅ - anything = ∅` reads as "nothing changed"), which would skip the root and strand the dropped page listed
+		// in it. Surface it here, at the flush that caused it, rather than let it reach storage and fail at cold load.
+		Assert.isPremiseValid(
+			pageListChanged == (anyFreshLeaf || freedPageSequences.length > 0),
+			// the whole diagnostic is built INSIDE the supplier: it runs only when the premise is already violated, so
+			// this branch pays for information gathering solely on the error path, never on a healthy flush
+			() -> "Page stream " + streamId + " has a stale published page baseline: the collected page list " +
+				Arrays.toString(orderedPageSequences) + " disagrees with the published baseline " +
+				Arrays.toString(stream.liveOrdered) + ". Cross-check inputs (why the disagreement was caught): " +
+				"pageListChanged=" + pageListChanged + ", anyFreshLeaf=" + anyFreshLeafSnapshot + ", freedPages=" +
+				Arrays.toString(freedPageSequences) + ", highWater=" + stream.highWater +
+				", pagesInCollectedNotBaseline=" +
+				Arrays.toString(pageSequenceDifference(orderedPageSequences, stream.liveOrdered)) +
+				", pagesInBaselineNotCollected=" +
+				Arrays.toString(pageSequenceDifference(stream.liveOrdered, orderedPageSequences)) +
+				". A collected list that differs from the baseline while the freed/fresh signals report no structural " +
+				"change means the published baseline no longer describes what is on disk — the known cause is a flush " +
+				"that failed after staging its next baseline, which a later flush then promoted before re-collecting."
+		);
 		return new PageEmission<>(
 			changedPages, orderedPageSequences, highWater(streamId), freedPageSequences, pageListChanged
 		);
+	}
+
+	/**
+	 * Returns the ascending set difference `from \ remove` — every value present in `from` but not in `remove`. Used
+	 * only to build the stale-baseline diagnostic on the failure path (see {@link #collectChangedPages}), so a plain
+	 * nested scan over the two short page-sequence lists is preferred to any allocation-heavier set machinery.
+	 *
+	 * A null `from` (the published baseline is null before the stream's first publish) yields an empty result; a null
+	 * `remove` excludes nothing. This keeps the failure-path diagnostic from throwing a second, less useful exception
+	 * that would mask the stale-baseline report it exists to produce.
+	 *
+	 * @param from   the source page-sequence list, or null
+	 * @param remove the page-sequence list whose members are excluded, or null
+	 * @return the ascending difference (never null)
+	 */
+	@Nonnull
+	private static int[] pageSequenceDifference(@Nullable int[] from, @Nullable int[] remove) {
+		if (from == null || from.length == 0) {
+			return ArrayUtils.EMPTY_INT_ARRAY;
+		}
+		final int[] result = new int[from.length];
+		int count = 0;
+		for (final int candidate : from) {
+			boolean present = false;
+			if (remove != null) {
+				for (final int excluded : remove) {
+					if (candidate == excluded) {
+						present = true;
+						break;
+					}
+				}
+			}
+			if (!present) {
+				result[count++] = candidate;
+			}
+		}
+		final int[] trimmed = Arrays.copyOf(result, count);
+		Arrays.sort(trimmed);
+		return trimmed;
 	}
 
 	/**
@@ -381,18 +452,10 @@ public class PageStreamRegistry implements Serializable {
 		for (final PageStream stream : this.streams.values()) {
 			if (stream.staged != null) {
 				stream.live = stream.staged;
+				stream.liveOrdered = stream.stagedOrdered;
 				stream.staged = null;
+				stream.stagedOrdered = null;
 			}
-		}
-	}
-
-	/**
-	 * Drops every pending staged live-page set, leaving each stream's live set intact — the commit-aborted half of the
-	 * handshake. The high-water is deliberately not rolled back (allocation is advance-only).
-	 */
-	public void discardStaged() {
-		for (final PageStream stream : this.streams.values()) {
-			stream.staged = null;
 		}
 	}
 
@@ -421,10 +484,20 @@ public class PageStreamRegistry implements Serializable {
 		 */
 		private Set<Integer> live = new HashSet<>();
 		/**
+		 * The published live-page list in ascending key order — the page list the root record on disk carries. Always the
+		 * ordered view of {@link #live}: both are written together, so they can never drift apart.
+		 */
+		@Nullable private int[] liveOrdered = ArrayUtils.EMPTY_INT_ARRAY;
+		/**
 		 * The pending live-page set staged by the in-flight flush; {@code null} when nothing is staged. Promoted to
-		 * {@link #live} on {@link PageStreamRegistry#publishStaged()}, dropped on
-		 * {@link PageStreamRegistry#discardStaged()}.
+		 * {@link #live} on {@link PageStreamRegistry#publishStaged()}; a staged set whose flush never completes is
+		 * abandoned when the catalog suspends and the registry is rebuilt from disk on restart.
 		 */
 		@Nullable private Set<Integer> staged;
+		/**
+		 * The ordered view of {@link #staged}; {@code null} exactly when {@link #staged} is. Promoted to
+		 * {@link #liveOrdered} in lockstep with it.
+		 */
+		@Nullable private int[] stagedOrdered;
 	}
 }

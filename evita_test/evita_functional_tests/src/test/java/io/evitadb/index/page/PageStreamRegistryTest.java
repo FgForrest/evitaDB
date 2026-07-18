@@ -24,12 +24,13 @@
 package io.evitadb.index.page;
 
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.index.bPlusTree.PagedLeafHandle;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
-import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 import static io.evitadb.index.page.PageStreamRegistry.NO_PAGE;
@@ -56,17 +57,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class PageStreamRegistryTest {
 
 	/**
-	 * Builds a mutable live-page set from the given page sequences.
+	 * Builds a live-page list from the given page sequences, in the order they are passed.
 	 *
-	 * @param pageSequences the page sequences
-	 * @return the assembled set
+	 * @param pageSequences the page sequences in ascending key order
+	 * @return the assembled list
 	 */
-	private static Set<Integer> liveSetOf(int... pageSequences) {
-		final Set<Integer> set = new HashSet<>();
-		for (final int pageSequence : pageSequences) {
-			set.add(pageSequence);
-		}
-		return set;
+	private static int[] livePagesOf(int... pageSequences) {
+		return pageSequences;
 	}
 
 	@Nested
@@ -99,7 +96,7 @@ class PageStreamRegistryTest {
 			registry.allocate(1); // 1
 			registry.allocate(1); // 2
 			// page 1 is freed: the next published live set simply omits it
-			registry.stage(1, liveSetOf(0, 2));
+			registry.stage(1, livePagesOf(0, 2));
 			registry.publishStaged();
 
 			assertFalse(registry.livePages(1).contains(1), "Freed page must drop out of the live set.");
@@ -133,7 +130,7 @@ class PageStreamRegistryTest {
 		void shouldHideStagedLiveSetUntilPublished() {
 			final PageStreamRegistry registry = new PageStreamRegistry();
 			registry.allocate(1); // 0
-			registry.stage(1, liveSetOf(0));
+			registry.stage(1, livePagesOf(0));
 
 			assertTrue(registry.hasStaged(1), "Stream must report a pending staged live set.");
 			assertTrue(registry.livePages(1).isEmpty(), "Staged page must not be visible before publish.");
@@ -144,27 +141,6 @@ class PageStreamRegistryTest {
 		}
 
 		@Test
-		@DisplayName("discards a staged live set on abort, leaving the live set and high-water intact")
-		@Tag(INDEXING)
-		@Tag(SERIALIZATION)
-		void shouldDiscardStagedLiveSetOnAbort() {
-			final PageStreamRegistry registry = new PageStreamRegistry();
-			registry.allocate(1); // 0
-			registry.stage(1, liveSetOf(0));
-			registry.publishStaged(); // first commit lands page 0
-
-			// a second flush stages a change and allocates a page, then the commit aborts
-			registry.allocate(1); // 1
-			registry.stage(1, liveSetOf(0, 1));
-			registry.discardStaged();
-
-			assertFalse(registry.hasStaged(1), "Discard must clear the pending flag.");
-			assertTrue(registry.livePages(1).contains(0), "Live set must survive an aborted commit.");
-			assertFalse(registry.livePages(1).contains(1), "The aborted page must not enter the live set.");
-			assertEquals(1, registry.highWater(1), "High-water must not roll back on abort (advance-only).");
-		}
-
-		@Test
 		@DisplayName("replaces a pending staged live set when staged again before publishing")
 		@Tag(INDEXING)
 		@Tag(SERIALIZATION)
@@ -172,8 +148,8 @@ class PageStreamRegistryTest {
 			final PageStreamRegistry registry = new PageStreamRegistry();
 			registry.allocate(1); // 0
 			registry.allocate(1); // 1
-			registry.stage(1, liveSetOf(0, 1));
-			registry.stage(1, liveSetOf(0));
+			registry.stage(1, livePagesOf(0, 1));
+			registry.stage(1, livePagesOf(0));
 			registry.publishStaged();
 
 			assertEquals(Set.of(0), registry.livePages(1), "The last staged set must win.");
@@ -187,8 +163,8 @@ class PageStreamRegistryTest {
 			final PageStreamRegistry registry = new PageStreamRegistry();
 			registry.allocate(1); // stream 1, page 0
 			registry.allocate(2); // stream 2, page 0
-			registry.stage(1, liveSetOf(0));
-			registry.stage(2, liveSetOf(0));
+			registry.stage(1, livePagesOf(0));
+			registry.stage(2, livePagesOf(0));
 
 			registry.publishStaged();
 			assertEquals(Set.of(0), registry.livePages(1));
@@ -196,14 +172,13 @@ class PageStreamRegistryTest {
 		}
 
 		@Test
-		@DisplayName("treats publish and discard as no-ops when nothing is staged")
+		@DisplayName("treats publish as a no-op when nothing is staged")
 		@Tag(INDEXING)
 		@Tag(SERIALIZATION)
 		void shouldTreatEmptyHandshakeAsNoOp() {
 			final PageStreamRegistry registry = new PageStreamRegistry();
 			registry.allocate(1);
 			registry.publishStaged();
-			registry.discardStaged();
 			assertTrue(registry.livePages(1).isEmpty(), "No staging means the live set stays empty.");
 			assertEquals(0, registry.highWater(1), "Empty handshake must not touch the high-water.");
 		}
@@ -217,7 +192,7 @@ class PageStreamRegistryTest {
 			registry.allocate(1); // high-water 0
 			assertThrows(
 				GenericEvitaInternalError.class,
-				() -> registry.stage(1, liveSetOf(5)),
+				() -> registry.stage(1, livePagesOf(5)),
 				"Staging an unallocated page sequence must fail."
 			);
 		}
@@ -233,7 +208,7 @@ class PageStreamRegistryTest {
 		@Tag(SERIALIZATION)
 		void shouldRestoreAndContinue() {
 			final PageStreamRegistry registry = new PageStreamRegistry();
-			registry.restore(1, 4, liveSetOf(0, 2, 4));
+			registry.restore(1, 4, livePagesOf(0, 2, 4));
 
 			assertTrue(registry.isKnown(1));
 			assertEquals(4, registry.highWater(1));
@@ -249,7 +224,7 @@ class PageStreamRegistryTest {
 		@Tag(SERIALIZATION)
 		void shouldRestoreEmptyStream() {
 			final PageStreamRegistry registry = new PageStreamRegistry();
-			registry.restore(1, NO_PAGE, liveSetOf());
+			registry.restore(1, NO_PAGE, livePagesOf());
 			assertEquals(NO_PAGE, registry.highWater(1));
 			assertEquals(0, registry.allocate(1), "First allocation after an empty restore must be zero.");
 		}
@@ -262,8 +237,115 @@ class PageStreamRegistryTest {
 			final PageStreamRegistry registry = new PageStreamRegistry();
 			assertThrows(
 				GenericEvitaInternalError.class,
-				() -> registry.restore(1, 2, liveSetOf(3)),
+				() -> registry.restore(1, 2, livePagesOf(3)),
 				"A live page above the high-water is impossible and must fail."
+			);
+		}
+	}
+
+	/**
+	 * Minimal {@link PagedLeafHandle} double: a leaf carrying a page sequence and a dirty flag, with no tree behind it.
+	 */
+	private static final class TestLeafHandle implements PagedLeafHandle {
+		private int pageSequence;
+		private boolean dirty;
+
+		private TestLeafHandle(int pageSequence, boolean dirty) {
+			this.pageSequence = pageSequence;
+			this.dirty = dirty;
+		}
+
+		@Override
+		public int getPageSequence() {
+			return this.pageSequence;
+		}
+
+		@Override
+		public void setPageSequence(int pageSequence) {
+			this.pageSequence = pageSequence;
+		}
+
+		@Override
+		public boolean isDirty() {
+			return this.dirty;
+		}
+
+		@Override
+		public void clearDirty() {
+			this.dirty = false;
+		}
+	}
+
+	@Nested
+	@DisplayName("Page-list change detection")
+	class ChangeDetection {
+
+		@Test
+		@DisplayName("throws when the published baseline disagrees with the collected page list")
+		@Tag(INDEXING)
+		@Tag(SERIALIZATION)
+		void shouldThrowWhenPublishedBaselineDesyncsFromCollectedPageList() {
+			final PageStreamRegistry registry = new PageStreamRegistry();
+			// a previous flush allocated pages 0 and 1 and wrote them to disk, but never published its staged set —
+			// the exact warm-up baseline desync: the pages are on disk while the live set still claims the stream is empty
+			registry.allocate(1); // 0
+			registry.allocate(1); // 1
+			registry.stage(1, livePagesOf(0, 1));
+
+			// the next flush finds a merged tree: page 1 was merged away and page 0 absorbed its keys. Against the stale
+			// (empty) baseline the freed-page proxy computes `∅ - {0} = ∅` and reports "page list unchanged" — which would
+			// skip the root and leave it listing the dropped page 1. The direct comparison sees [0] != [] and disagrees:
+			// a disagreement is only possible when a baseline is wrong, so it must surface here rather than on disk.
+			final List<TestLeafHandle> handles = List.of(new TestLeafHandle(0, true));
+			assertThrows(
+				GenericEvitaInternalError.class,
+				() -> registry.collectChangedPages(1, handles, (pageSequence, handle) -> pageSequence),
+				"A page list that disagrees with the published baseline must fail the flush, never reach storage."
+			);
+		}
+
+		@Test
+		@DisplayName("agrees with the freed-page proxy across a merge, a split and an untouched flush")
+		@Tag(INDEXING)
+		@Tag(SERIALIZATION)
+		void shouldAgreeWithProxyAcrossMergeSplitAndUntouchedFlush() {
+			final PageStreamRegistry registry = new PageStreamRegistry();
+			registry.restore(1, 1, livePagesOf(0, 1));
+
+			// an untouched flush re-collects the same pages: nothing allocated, nothing freed, list identical
+			assertFalse(
+				registry.collectChangedPages(
+					1,
+					List.of(new TestLeafHandle(0, false), new TestLeafHandle(1, false)),
+					(pageSequence, handle) -> pageSequence
+				).pageListChanged(),
+				"An untouched flush must not re-emit the root."
+			);
+			registry.publishStaged();
+
+			// a split adds a fresh leaf: the allocator stamps it and the list grows
+			assertTrue(
+				registry.collectChangedPages(
+					1,
+					List.of(
+						new TestLeafHandle(0, true),
+						new TestLeafHandle(PagedLeafHandle.UNASSIGNED_PAGE_SEQUENCE, true),
+						new TestLeafHandle(1, false)
+					),
+					(pageSequence, handle) -> pageSequence
+				).pageListChanged(),
+				"A split must re-emit the root."
+			);
+			registry.publishStaged();
+
+			// a merge drops page 1: nothing is allocated, so only the freed page makes the list change
+			assertTrue(
+				registry.collectChangedPages(
+					1,
+					List.of(new TestLeafHandle(0, true), new TestLeafHandle(2, false)),
+					(pageSequence, handle) -> pageSequence
+				).pageListChanged(),
+				"A merge must re-emit the root."
 			);
 		}
 	}
@@ -279,7 +361,7 @@ class PageStreamRegistryTest {
 		void shouldForgetStream() {
 			final PageStreamRegistry registry = new PageStreamRegistry();
 			registry.allocate(1);
-			registry.stage(1, liveSetOf(0));
+			registry.stage(1, livePagesOf(0));
 			registry.publishStaged();
 
 			registry.forget(1);

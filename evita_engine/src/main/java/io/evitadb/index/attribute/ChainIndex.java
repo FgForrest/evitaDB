@@ -894,6 +894,45 @@ public class ChainIndex implements
 	}
 
 	/**
+	 * Promotes the page set staged by the PREVIOUS flush of the element-tree page stream to the live
+	 * change-detection baseline, so this flush's freed-page diff and `pageListChanged` verdict are taken against
+	 * what disk actually holds.
+	 *
+	 * The registry's live set answers "which leaf pages does this chain's element tree have on disk", and both the
+	 * pages a leaf drop freed (so the corresponding {@link ChainIndexLeafPageRemoval} is emitted instead of leaving an
+	 * unreferenced-but-never-removed record in the append-only OffsetIndex) and whether the ordered page list changed
+	 * at all (so the PAGED {@link ChainIndexStoragePart} root carrying it is re-emitted rather than skipped as
+	 * unchanged) are derived from it. It advances solely by publishing, which
+	 * {@link #createCopyWithMergedTransactionalMemory} does at the commit-merge.
+	 *
+	 * A WARM_UP (bulk) flush never reaches a commit-merge — {@link #appendStorageParts} is called directly, flush
+	 * after flush, and the merge that publishes only ever runs for a transaction. Left alone, the live set of a
+	 * freshly re-indexed chain would therefore stay EMPTY for the whole warm-up while disk moved on, so a leaf that a
+	 * mid-life shrink or rebalance drops without a fresh leaf being born would never be removed from storage and
+	 * would stay listed on a root skipped as "unchanged". The next cold load would then reassemble a stale, no
+	 * longer valid leaf-page sequence alongside its live neighbours.
+	 *
+	 * Publishing a staged set HERE — rather than only at the merge — is correct for every path, because of one
+	 * invariant: **a failed flush is never followed by another flush of the same data**. Note that this publish runs
+	 * at COLLECT time, before this flush has written anything (the baseline-capture pass re-enters this pipeline), so
+	 * it cannot lean on the previous flush's bytes having landed by now. It does not need to: a flush that fails
+	 * during trunk incorporation SUSPENDS the catalog's transaction processing ({@code TransactionManager.suspend}),
+	 * and a flush that fails on the warm-up path POISONS the collection's buffer
+	 * ({@code WarmUpDataStoreMemoryBuffer.poison}), so every later collect of it refuses deterministically. Those two
+	 * are the same invariant in different dresses: after a failed flush no later flush of that data ever runs, so
+	 * nothing can ever diff against the baselines it left behind. A flush that does NOT fail leaves `staged` holding
+	 * exactly the page set it wrote — the baseline the next flush must diff against — regardless of which path staged
+	 * it, and regardless of whether the commit-merge ever ran. (Should the process die instead,
+	 * {@link #fromPersistedPages} rebuilds the registry from disk on restart — page allocation is advance-only, so a
+	 * burnt id is harmless.) That is what makes this safe in its own right — not the fact that it happens to be a
+	 * no-op on the transactional path (where the merge published first, leaving nothing staged). The commit
+	 * handshake is untouched.
+	 */
+	private void publishPreviousFlush() {
+		this.pageStreamRegistry.publishStaged();
+	}
+
+	/**
 	 * Emits this (dirty) index's modified storage parts into `sink`. The SINGLE/PAGED decision mirrors
 	 * {@link OwnerSortIndex#doAppendStorageParts}: a multi-leaf element tree
 	 * ({@link TransactionalUnorderedIntArray#isRootInternal()}) persists granularly (one leaf page per changed leaf +
@@ -903,10 +942,14 @@ public class ChainIndex implements
 	 * collapse first removes every prior live leaf page and forgets the page stream (the registry AND the per-leaf
 	 * bookkeeping) so a later regrow into PAGED starts from a clean baseline and re-emits every leaf.
 	 *
+	 * Before deciding SINGLE vs PAGED, any set still staged by the PREVIOUS flush is promoted to live: see
+	 * {@link #publishPreviousFlush()} for why that is both necessary and safe.
+	 *
 	 * @param entityIndexPrimaryKey the owning entity index primary key
 	 * @param sink                  the trapped-changes accumulator for this commit
 	 */
 	private void doAppendStorageParts(int entityIndexPrimaryKey, @Nonnull TrappedChanges sink) {
+		publishPreviousFlush();
 		// every leaf page (and removal) carries the CHAIN-typed sub-index identity, so its stream id is disjoint from the
 		// FILTER / SORT streams of the same attribute and resolved store-side when the page's primary key is assigned
 		final AttributeKeyWithIndexType streamKey =
@@ -950,7 +993,9 @@ public class ChainIndex implements
 		// root no longer references them) BEFORE dropping the page bookkeeping, then forget the stream - both the registry
 		// live set / high-water AND the per-leaf page sequences + dirty flags - so a later regrow into PAGED starts from a
 		// clean baseline and re-emits every leaf
-		for (final int freedPageSequence : this.pageStreamRegistry.livePageSequences(ELEMENTS_PAGE_STREAM)) {
+		// Reclaim against the staged-or-published set, uniformly with every other paged index: this flush already
+		// published the previous one above, so the two coincide here.
+		for (final int freedPageSequence : this.pageStreamRegistry.pendingLivePageSequences(ELEMENTS_PAGE_STREAM)) {
 			sink.addChangeToStore(new ChainIndexLeafPageRemoval(entityIndexPrimaryKey, streamKey, freedPageSequence));
 		}
 		this.pageStreamRegistry.forget(ELEMENTS_PAGE_STREAM);
@@ -1114,11 +1159,15 @@ public class ChainIndex implements
 	) {
 		transactionalLayer.getStateCopyWithCommittedChanges(this.dirty);
 		// the merge runs only AFTER this commit's flush has durably written the changed leaf pages + root, so the live set
-		// staged by that flush now reflects what is on disk and may become the change-detection baseline for the next
+		// staged by that flush now reflects what is on disk and becomes the change-detection baseline for the next
 		// commit; publish it, then carry the registry BY REFERENCE into the committed copy so the surviving owner keeps it.
-		// A SINGLE flush stages nothing (it forgets the stream), so this is a no-op in that case. No discard counterpart is
-		// needed: a pre-flush abort never stages, a flush failure is fatal (restart rebuilds a clean registry) and a stale
-		// staged set is harmlessly replaced by the next commit's stage - mirrors InvertedIndex.
+		// A SINGLE flush stages nothing (it forgets the stream), so this is a no-op in that case. This is the EARLIEST
+		// publish point on the transactional path only; it is not the only one — a staged set that never reaches a merge
+		// (the warm-up path has no merge at all) is published by the next flush instead, see `publishPreviousFlush`. (No
+		// discard counterpart is needed: a pre-flush abort never stages, and a failed flush suspends this catalog's
+		// transaction processing — on the warm-up path it poisons the collection's buffer instead, the same invariant
+		// in another dress — so no later flush ever diffs against the baseline a failed one left behind; restart
+		// rebuilds a clean registry from disk.)
 		this.pageStreamRegistry.publishStaged();
 		return new ChainIndex(
 			this.referenceKey,
