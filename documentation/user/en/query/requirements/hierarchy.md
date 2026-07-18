@@ -943,7 +943,8 @@ distance(
     <dd>
         defines a maximum relative distance from the pivot node that can be traversed;
         the pivot node itself is at distance zero, its direct child or direct parent is at distance one, each additional
-        step adds a one to the distance
+        step adds a one to the distance. A distance of `0` is allowed and stops the traversal right at the pivot node -
+        the pivot (or, in a `siblings` traversal, each sibling) is returned without any of its descendants.
     </dd>
 </dl>
 
@@ -952,7 +953,10 @@ The `distance` constraint can only be used within the `stopAt`
 and limits the hierarchy traversal to stop when
 the number of levels traversed reaches the specified constant. The distance is always relative to the pivot node
 (the node where the hierarchy traversal starts) and is the same whether we are traversing the hierarchy top-down or
-bottom-up. The distance between any two nodes in the hierarchy can be calculated as `abs(level(nodeA) - level(nodeB))`.
+bottom-up. Along a direct ancestor/descendant line, distance equals `abs(level(node) - level(pivot))` - but it is
+not a general distance between two arbitrary nodes in the tree (siblings, for example, sit in different branches
+and are two edges apart despite sharing the same level). In a `siblings` traversal, distance is measured from each
+sibling as its own local pivot, not from the original one.
 See the following figure when the pivot node is *Audio*:
 
 <Note type="info">
@@ -1019,6 +1023,32 @@ That returns simply:
 <MDInclude sourceVariable="extraResults.hierarchy.categories.parent">[Direct parent](/documentation/user/en/query/requirements/examples/hierarchy/hierarchy-parent.rest.json.md)</MDInclude>
 
 </LS>
+
+</Note>
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### Why would I use `distance(0)`?
+</NoteTitle>
+
+Because `distance` limits how deep the traversal expands, `distance(0)` stops right at the pivot - you get the focused
+node itself with no descendants. Combined with [`statistics`](#statistics) (whose counts still reflect the whole
+subtree), it is the way to render the current node on its own - e.g. as a menu header or breadcrumb showing how many
+items sit below it - without listing its children:
+
+```evitaql
+children(
+    "currentCategory",
+    entityFetch(attributeContent("code")),
+    stopAt(distance(0)),
+    statistics(CHILDREN_COUNT, QUERIED_ENTITY_COUNT)
+)
+```
+
+Inside a [`siblings`](#siblings) traversal `distance(0)` means "the sibling row only, unexpanded" - the explicit
+equivalent of omitting `stopAt` there.
 
 </Note>
 
