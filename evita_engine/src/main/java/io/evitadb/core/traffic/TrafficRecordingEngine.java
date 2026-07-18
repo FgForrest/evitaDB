@@ -198,15 +198,45 @@ public class TrafficRecordingEngine implements TrafficRecordingReader {
 					this.catalogInfo.get().catalogName(),
 					this.fileManagementService, this.scheduler, this.storageOptions, this.trafficOptions
 				);
+				// fully configure the fresh recorder BEFORE publishing it into the shared reference, so a
+				// concurrent createSession that observes the swapped-in recorder is guaranteed to also see
+				// the applied sampling rate and session sink (the AtomicReference.set below is the publish
+				// point and establishes the necessary happens-before edge). Publishing first and configuring
+				// afterwards left a window in which sessions were recorded at the wrong sampling rate / without
+				// the sink, and it also made isRecordingActive() report ready before the recorder truly was.
+				richTrafficRecorderInstance.setSamplingPercentage(samplingRate);
+				richTrafficRecorderInstance.setSessionSink(sessionSink);
 				this.suppressedTrafficRecorder.set(defaultTrafficRecorder);
 				this.trafficRecorder.set(richTrafficRecorderInstance);
+			} else {
+				// a rich recorder is already installed (ambient recording enabled from catalog-alive time):
+				// there is nothing to swap, just reconfigure the live recorder in place
+				defaultTrafficRecorder.setSamplingPercentage(samplingRate);
+				defaultTrafficRecorder.setSessionSink(sessionSink);
 			}
-			final TrafficRecorder theFinalRecorder = this.trafficRecorder.get();
-			theFinalRecorder.setSamplingPercentage(samplingRate);
-			theFinalRecorder.setSessionSink(sessionSink);
 		} else {
 			throw new SingletonTaskAlreadyRunningException("Traffic recording is already active!");
 		}
+	}
+
+	/**
+	 * Returns whether traffic recording is currently active, i.e. a session created from this point on is
+	 * captured by a rich (non-no-op) traffic recorder. This is {@code true} both while an ambient recorder
+	 * is installed (traffic recording enabled from catalog-alive time) and after a manual
+	 * {@link #startRecording(int, SessionSink)} has taken effect, and returns to {@code false} once
+	 * {@link #stopRecording()} restores the suppressed no-op recorder.
+	 *
+	 * The state is read directly from the installed recorder rather than from the internal single-run
+	 * guard: {@code startRecording} is submitted as an asynchronous {@code TrafficRecorderTask} and runs
+	 * on a scheduler thread, so the recorder is not necessarily active the instant the submitting call
+	 * returns. Because the recorder is published only after it has been fully configured, observing
+	 * {@code true} here guarantees a newly created session will be recorded; callers can therefore poll
+	 * this method to wait for an asynchronous start to take effect.
+	 *
+	 * @return {@code true} if a newly created session would be recorded, {@code false} otherwise
+	 */
+	public boolean isRecordingActive() {
+		return !(this.trafficRecorder.get() instanceof NoOpTrafficRecorder);
 	}
 
 	/**

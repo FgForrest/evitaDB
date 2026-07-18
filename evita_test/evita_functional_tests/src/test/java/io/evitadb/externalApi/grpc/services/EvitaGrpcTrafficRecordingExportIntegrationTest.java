@@ -29,7 +29,9 @@ import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.trafficRecording.TrafficRecording;
 import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingCaptureRequest;
 import io.evitadb.core.Evita;
+import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.session.EvitaInternalSessionContract;
+import io.evitadb.core.traffic.TrafficRecordingEngine;
 import io.evitadb.driver.config.EvitaClientConfiguration;
 import io.evitadb.driver.interceptor.ClientSessionInterceptor;
 import io.evitadb.driver.interceptor.ClientSessionInterceptor.SessionIdHolder;
@@ -159,6 +161,23 @@ public class EvitaGrpcTrafficRecordingExportIntegrationTest {
 				((EvitaInternalSessionContract) session).startRecording(100, false, null, null, 16_000L);
 			}
 		);
+		// startRecording only submits an asynchronous TrafficRecorderTask to the scheduler and returns
+		// immediately; the rich recorder is not swapped in until that task runs. Wait until recording is
+		// genuinely active before generating traffic, otherwise the queries below race ahead of activation,
+		// get handled by the no-op recorder, and the exported zip comes back empty (totalRecordCount == 0).
+		final TrafficRecordingEngine recordingEngine =
+			((Catalog) evita.getCatalogInstance(TEST_CATALOG).orElseThrow()).getTrafficRecordingEngine();
+		final long recordingActivationStart = System.currentTimeMillis();
+		while (!recordingEngine.isRecordingActive()
+			&& System.currentTimeMillis() - recordingActivationStart < 30_000L) {
+			try {
+				Thread.sleep(20L);
+			} catch (InterruptedException e) {
+				Thread.currentThread().interrupt();
+				throw new IllegalStateException("Interrupted while waiting for traffic recording to activate", e);
+			}
+		}
+		assertTrue(recordingEngine.isRecordingActive(), "Traffic recording did not activate within 30s");
 		for (int i = 0; i < 5; i++) {
 			final int primaryKey = i + 1;
 			evita.queryCatalog(
