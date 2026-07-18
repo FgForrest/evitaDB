@@ -2280,9 +2280,80 @@ class TransactionalBucketBPlusTreeTest {
 				),
 				"Overlapping single-leaf trees must fail the cross-leaf-order validation."
 			);
+			final String message = ex.getMessage();
 			assertTrue(
-				ex.getMessage().contains("overlaps its successor leaf-page sequence"),
-				"The failure must be the cross-leaf-order corruption diagnostic, got: " + ex.getMessage()
+				message.contains("overlaps its successor leaf-page sequence"),
+				"The failure must be the cross-leaf-order corruption diagnostic, got: " + message
+			);
+			// the enriched diagnostic must carry the full error-path context: both page sequences, the ordered page
+			// list, both leaves' key ranges with counts, and the (partial-overlap) containment fact
+			assertTrue(
+				message.contains("leaf-page sequence 0 overlaps its successor leaf-page sequence 1"),
+				"Both offending page sequences must be named, got: " + message
+			);
+			assertTrue(
+				message.contains("orderedLeafPageList=[0, 1]"),
+				"The ordered leaf-page list must be reported as overlap context, got: " + message
+			);
+			assertTrue(
+				message.contains("predecessorKeyRange=[1 .. 3] (3 keys)"),
+				"The predecessor leaf's key range and count must be reported, got: " + message
+			);
+			assertTrue(
+				message.contains("successorKeyRange=[2 .. 4] (3 keys)"),
+				"The successor leaf's key range and count must be reported, got: " + message
+			);
+			assertTrue(
+				message.contains("successorRangeWithinPredecessorRange=false"),
+				"A successor that extends beyond the predecessor is a partial overlap, not a nested twin, got: " + message
+			);
+		}
+
+		@Test
+		@DisplayName("reports containment as a fact when the successor's range nests inside the predecessor's")
+		@Tag(INDEXING)
+		@Tag(SERIALIZATION)
+		void shouldReportContainmentWhenSuccessorRangeNestsInsidePredecessor() {
+			// predecessor page 0 spans [1..10]; successor page 1 spans [3..5], entirely inside it — the nested shape a
+			// stale-donor twin leaves behind. The overlap trigger still fires (10 does not sort before 3) but the
+			// containment fact must now read true, distinguishing this shape from a partial overlap
+			final TransactionalBucketBPlusTree<Integer> treeA = new TransactionalBucketBPlusTree<>(9, Integer.class);
+			treeA.addRecord(1, 10);
+			treeA.addRecord(2, 20);
+			treeA.addRecord(10, 100);
+			final TransactionalBucketBPlusTree<Integer> treeB = new TransactionalBucketBPlusTree<>(9, Integer.class);
+			treeB.addRecord(3, 30);
+			treeB.addRecord(4, 40);
+			treeB.addRecord(5, 50);
+
+			final TransactionalBucketBPlusTree<Integer> target = new TransactionalBucketBPlusTree<>(9, Integer.class);
+			final GenericEvitaInternalError ex = assertThrows(
+				GenericEvitaInternalError.class,
+				() -> target.assembleFromSingleLeafTrees(
+					List.of(treeA, treeB), new int[]{7, 9}, "bucket B+ tree containment test"
+				),
+				"A successor nested inside the predecessor must still fail the cross-leaf-order validation."
+			);
+			final String message = ex.getMessage();
+			assertTrue(
+				message.contains("leaf-page sequence 7 overlaps its successor leaf-page sequence 9"),
+				"Both offending page sequences must be named, got: " + message
+			);
+			assertTrue(
+				message.contains("orderedLeafPageList=[7, 9]"),
+				"The ordered leaf-page list must be reported, got: " + message
+			);
+			assertTrue(
+				message.contains("predecessorKeyRange=[1 .. 10] (3 keys)"),
+				"The predecessor's key range must be reported, got: " + message
+			);
+			assertTrue(
+				message.contains("successorKeyRange=[3 .. 5] (3 keys)"),
+				"The successor's key range must be reported, got: " + message
+			);
+			assertTrue(
+				message.contains("successorRangeWithinPredecessorRange=true"),
+				"A successor nested inside the predecessor must be reported as contained, got: " + message
 			);
 		}
 

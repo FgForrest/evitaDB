@@ -415,6 +415,89 @@ class HistogramIndexLoaderPagingRoundTripTest implements EvitaTestSupport {
 		}
 
 		@Test
+		@DisplayName("collapsing PAGED -> SINGLE across two warm-up flushes still removes every prior bucket leaf page")
+		void shouldRemovePriorLeafPagesWhenCollapsingAcrossTwoWarmUpFlushesWithoutAnIntermediateReload() {
+			// the sibling test above collapses a RELOADED index, whose page baseline the loader restored from disk. A
+			// warm-up catalog never reloads and never reaches a commit-merge — the only place the staged page set is
+			// published — so its collapse must reclaim against the set the previous flush STAGED, not the published one.
+			final SimpleHistogramIndex source = pagedSource();
+
+			// first warm-up flush: stages every bucket leaf page, publishes nothing
+			final List<StoragePart> firstEmission = emit(source);
+			final int priorLeafPageCount = leafPages(firstEmission).size();
+			assertTrue(priorLeafPageCount >= 3, "the source histogram must start paged across several leaves");
+
+			// collapse the SAME in-memory index: drop all but a handful of buckets so the survivors fit a single leaf
+			for (int i = COLLAPSE_KEEP + 1; i <= VALUE_COUNT; i++) {
+				source.removeValue(null, i, i);
+			}
+
+			final List<StoragePart> secondEmission = emit(source);
+			assertFalse(
+				histogramRoot(secondEmission).isPaged(),
+				"the collapsed histogram must emit a single inline (SINGLE) root"
+			);
+			assertEquals(
+				0, leafPages(secondEmission).size(),
+				"a collapsed histogram must not re-emit any bucket leaf page"
+			);
+			assertEquals(
+				priorLeafPageCount, leafPageRemovals(secondEmission).size(),
+				"the collapse must remove every leaf page the previous warm-up flush wrote — the append-only OffsetIndex " +
+					"never reclaims a record that is neither superseded nor explicitly removed, so a missed removal leaks " +
+					"the page forever"
+			);
+		}
+
+		@Test
+		@DisplayName("collapsing a range-typed PAGED -> SINGLE across two warm-up flushes removes every prior RANGE leaf page")
+		void shouldRemovePriorRangeLeafPagesWhenCollapsingAcrossTwoWarmUpFlushesWithoutAnIntermediateReload() {
+			// the bucket-axis sibling above pins this defect on the BUCKET page stream; a range-typed histogram pages a
+			// SECOND, independent stream (the RangeIndex threshold tree) whose collapse site must reclaim against the
+			// same staged-not-published set — a warm-up catalog never reloads and never reaches the commit-merge that
+			// publishes, so a published-set reclaim would free NOTHING and leak every range page ever written.
+			final SimpleHistogramIndex source = pagedRangeSource();
+
+			// first warm-up flush: stages every bucket AND range leaf page, publishes nothing
+			final List<StoragePart> firstEmission = emit(source);
+			final HistogramIndexStoragePart firstRoot = histogramRoot(firstEmission);
+			assertTrue(firstRoot.isPaged(), "the source histogram must start with a paged bucket axis");
+			assertTrue(firstRoot.isRangePaged(), "the source histogram must start with a paged range axis");
+			final int priorBucketPageCount = leafPages(firstEmission).size();
+			final int priorRangePageCount = rangeLeafPages(firstEmission).size();
+			assertTrue(priorBucketPageCount >= 3, "the bucket axis must start paged across several leaves");
+			assertTrue(priorRangePageCount >= 3, "the range axis must start paged across several leaves");
+			assertEquals(0, leafPageRemovals(firstEmission).size(), "a first flush frees no leaf page");
+
+			// collapse the SAME in-memory index: drop all but a handful of ranges. The survivors' values fit a single
+			// bucket leaf and their thresholds a single range leaf, so BOTH axes fall back to the inline SINGLE shape
+			// and NEITHER re-enters the paged branch (which would publish the staged set instead of reclaiming it).
+			for (int i = COLLAPSE_KEEP + 1; i <= VALUE_COUNT; i++) {
+				source.removeValue(null, IntegerNumberRange.between(i, i + 1), i);
+			}
+
+			final List<StoragePart> secondEmission = emit(source);
+			final HistogramIndexStoragePart collapsedRoot = histogramRoot(secondEmission);
+			assertFalse(collapsedRoot.isRangePaged(), "the collapsed range axis must be carried inline (SINGLE)");
+			assertFalse(collapsedRoot.isPaged(), "the collapsed bucket axis must be carried inline (SINGLE)");
+			assertEquals(
+				0, rangeLeafPages(secondEmission).size(),
+				"a collapsed range axis must not re-emit any range leaf page"
+			);
+			assertEquals(
+				priorRangePageCount, leafPageRemovalsOfKind(secondEmission, StreamKind.RANGE).size(),
+				"the collapse must remove every RANGE leaf page the previous warm-up flush wrote — the append-only " +
+					"OffsetIndex never reclaims a record that is neither superseded nor explicitly removed, so a missed " +
+					"removal leaks the page forever"
+			);
+			assertEquals(
+				priorBucketPageCount, leafPageRemovalsOfKind(secondEmission, StreamKind.BUCKET).size(),
+				"the same collapse must reclaim the bucket axis' own prior leaf pages — the two page streams are " +
+					"independent and each has to free its own"
+			);
+		}
+
+		@Test
 		@DisplayName("collapsing PAGED -> SINGLE removes every prior bucket leaf page and carries the buckets inline")
 		void shouldRemovePriorLeafPagesAndCarryInlineWhenCollapsingFromPagedToSingle() {
 			final OffsetIndex offsetIndex = openWritableOffsetIndex();
@@ -932,6 +1015,22 @@ class HistogramIndexLoaderPagingRoundTripTest implements EvitaTestSupport {
 		);
 		for (int i = 1; i <= VALUE_COUNT; i++) {
 			source.insertValue(null, i, i);
+		}
+		return source;
+	}
+
+	/**
+	 * Builds a fresh non-localized RANGE-typed histogram paged on BOTH axes: one distinct range per owner pages the
+	 * bucket axis, while each range's two thresholds page the range axis. Consecutive ranges deliberately abut
+	 * (`[i, i+1]`, `[i+1, i+2]`) so they share a threshold, exactly as the range-typed reload test's source does.
+	 */
+	@Nonnull
+	private static SimpleHistogramIndex pagedRangeSource() {
+		final SimpleHistogramIndex source = new SimpleHistogramIndex(
+			HISTOGRAM_NAME, REFERENCE_NAME, IntegerNumberRange.class, 0
+		);
+		for (int i = 1; i <= VALUE_COUNT; i++) {
+			source.insertValue(null, IntegerNumberRange.between(i, i + 1), i);
 		}
 		return source;
 	}

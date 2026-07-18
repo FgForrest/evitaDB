@@ -931,10 +931,14 @@ public class InvertedIndex implements
 				(TransactionalBucketBPlusTree) transactionalLayer.getStateCopyWithCommittedChanges(this.buckets);
 			// publish the page baseline staged by this commit's flush: the merge runs only AFTER the
 			// flush has durably written the changed leaf pages + root, so the staged `pageSequence -> nodeId` map now
-			// reflects what is on disk and may become the live change-detection baseline for the next commit. The
-			// registry is then carried BY REFERENCE into the committed copy, so the surviving owner keeps it. (No
-			// discard counterpart is needed: a pre-flush abort never stages, a flush failure is fatal — restart rebuilds
-			// a clean registry — and a stale staged map is harmlessly replaced by the next commit's stage.)
+			// reflects what is on disk and becomes the live change-detection baseline for the next commit. The
+			// registry is then carried BY REFERENCE into the committed copy, so the surviving owner keeps it. This is
+			// the EARLIEST publish point on the transactional path only; it is not the only one — a staged set that
+			// never reaches a merge (the warm-up path has no merge at all) is published by the next flush instead, see
+			// `publishPreviousFlush`. (No discard counterpart is needed: a pre-flush abort never stages, and a failed
+			// flush suspends this catalog's transaction processing — on the warm-up path it poisons the collection's
+			// buffer instead, the same invariant in another dress — so no later flush ever diffs against the baseline
+			// a failed one left behind; restart rebuilds a clean registry from disk.)
 			this.pageStreamRegistry.publishStaged();
 			return new InvertedIndex(
 				this.plainType,
@@ -971,11 +975,51 @@ public class InvertedIndex implements
 	/**
 	 * Drops this index's page bookkeeping (allocator, high-water, baseline). Called when the index falls back to the
 	 * inline `SINGLE` shape so a later regrow into `PAGED` starts from a clean baseline and re-emits every leaf. The
-	 * caller is expected to have already issued removals for the prior `PAGED` leaf pages (see {@link #livePageSequences()})
+	 * caller is expected to have already issued removals for the prior `PAGED` leaf pages (see
+	 * {@link #currentLeafPageSequences()})
 	 * BEFORE calling this — once the bookkeeping is forgotten those page sequences can no longer be enumerated.
 	 */
 	public void forgetPageStream() {
 		this.pageStreamRegistry.forget(BUCKET_PAGE_STREAM);
+	}
+
+	/**
+	 * Promotes the page set staged by the PREVIOUS flush to the live change-detection baseline, so this flush's
+	 * freed-page diff is taken against what disk actually holds.
+	 *
+	 * The registry's live set answers "which leaf pages does this stream have on disk", and everything the write path
+	 * derives from it — which pages a leaf merge freed (so their records are REMOVED, the append-only OffsetIndex never
+	 * reclaiming an unreferenced-but-never-removed record) and whether the ordered page list changed at all (so the
+	 * `PAGED` root carrying it is re-emitted) — is only as good as that baseline. It advances solely by publishing,
+	 * which {@link #createCopyWithMergedTransactionalMemory} does at the commit-merge.
+	 *
+	 * A WARM_UP (bulk) flush never reaches a commit-merge: it runs the very same collect pipeline
+	 * ({@code DataStoreChanges.popTrappedUpdates} -> {@code getModifiedStorageParts}) but the merge that publishes only
+	 * ever runs for a transaction. Left alone, the live set of a freshly re-indexed catalog would therefore stay EMPTY
+	 * for the whole warm-up while disk moved on, making the freed-page diff of every warm-up flush vacuously empty. A
+	 * leaf MERGE is the one structural event that drops a page without creating one — the survivor absorbs its sibling
+	 * IN PLACE, keeping its own page and dirty flag, so nothing is allocated — which leaves the dropped page both
+	 * unremoved on disk and still listed on a root that is skipped as "unchanged". The next cold load then assembles the
+	 * survivor (holding the absorbed keys) followed by its stale, still-listed sibling, whose first key no longer sorts
+	 * after the survivor's last — the overlapping-leaf-page corruption.
+	 *
+	 * Publishing a staged set HERE — rather than only at the merge — is correct for every path, because of one
+	 * invariant: **a failed flush is never followed by another flush of the same data**. Note that this publish runs at
+	 * COLLECT time, before this flush has written anything (the baseline-capture pass re-enters this pipeline), so it
+	 * cannot and does not lean on the previous flush's bytes having landed by now. It does not need to: a flush that
+	 * fails during trunk incorporation SUSPENDS the catalog's transaction processing ({@code TransactionManager.suspend}),
+	 * and a flush that fails on the warm-up path POISONS the collection's buffer
+	 * ({@code WarmUpDataStoreMemoryBuffer.poison}), so every later collect of it refuses deterministically. Those two are
+	 * the same invariant in different dresses: after a failed flush no later flush of that data ever runs, so nothing can
+	 * ever diff against the baselines it left behind. A flush that does NOT fail leaves `staged` holding exactly the page
+	 * set it wrote — the baseline the next flush must diff against — regardless of which path staged it, and regardless
+	 * of whether a merge ever ran. (Should the process die instead, {@link #fromPersistedPages} rebuilds the registry
+	 * from disk on restart — page allocation is advance-only, so a burnt id is harmless.) That is what makes this safe in
+	 * its own right — not the fact that it happens to be a no-op on the transactional path (where the merge published
+	 * first, leaving nothing staged). The commit handshake is untouched.
+	 */
+	private void publishPreviousFlush() {
+		this.pageStreamRegistry.publishStaged();
 	}
 
 	/**
@@ -989,10 +1033,14 @@ public class InvertedIndex implements
 	 * the registry here and becomes live only when the commit is published (see the commit handshake). A clean
 	 * (non-dirty) index must not call this — the caller gates on {@link #isDirty()}.
 	 *
+	 * Before staging, any set still staged by the PREVIOUS flush is promoted to live: see
+	 * {@link #publishPreviousFlush()} for why that is both necessary and safe.
+	 *
 	 * @return the changed leaf pages, the ordered live page-sequence list, and the high-water
 	 */
 	@Nonnull
 	public PageEmission<LeafPage> collectChangedPages() {
+		publishPreviousFlush();
 		// this.buckets is a raw tree, so the handle list and its cursors are raw too — bucket values are read as Object
 		// and cast to Serializable exactly as the whole-tree materializer does
 		final List<LeafPageHandle> handles = this.buckets.leafPageHandles();
@@ -1015,21 +1063,9 @@ public class InvertedIndex implements
 	}
 
 	/**
-	 * Returns the page sequences currently live in the published baseline — every leaf page this index has on disk. Used
-	 * by the `PAGED -> SINGLE` fallback to remove all prior leaf pages before the index collapses back to the inline
-	 * shape (after which {@link #forgetPageStream()} clears the bookkeeping).
-	 *
-	 * @return the live page sequences, or an empty array when the index has no leaf pages on disk
-	 */
-	@Nonnull
-	public int[] livePageSequences() {
-		return this.pageStreamRegistry.livePageSequences(BUCKET_PAGE_STREAM);
-	}
-
-	/**
 	 * Returns the leaf-page sequences this inverted index WILL have on disk once the in-flight commit is durable (the
 	 * staged set mid-flush, else the published live set), or an empty array when it is inline (SINGLE) / never paged.
-	 * Unlike {@link #livePageSequences()} (always the published set), this reflects the CURRENT tree shape at any point
+	 * The published set alone lags a whole flush behind, so this reflects the CURRENT tree shape at any point
 	 * of the flush, so the owning {@link io.evitadb.index.attribute.AttributeIndex} can snapshot "what disk holds after
 	 * this commit" and, when the sub-index is later emptied and dropped from its map — after which this index's own
 	 * flush never runs again — still reclaim the now-orphaned leaf pages instead of leaking them forever.

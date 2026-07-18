@@ -380,6 +380,61 @@ class SortIndexOwnerPagingRoundTripTest implements EvitaTestSupport {
 	}
 
 	@Test
+	@DisplayName("Collapsing PAGED -> SINGLE across two warm-up flushes still removes every prior leaf page")
+	void shouldRemovePriorLeafPagesWhenCollapsingAcrossTwoWarmUpFlushesWithoutAnIntermediateReload() {
+		// the sibling collapse test above collapses a RELOADED owner, whose page-stream live-set baseline the loader
+		// restored from disk. A WARM_UP (bulk) catalog never reloads and never reaches a commit-merge — the only place the
+		// staged page set is PUBLISHED — so the collapse must reclaim against the set the previous flush STAGED, not the
+		// published one, which stays empty for the whole warm-up and would silently reclaim NOTHING. The owner holds no
+		// registry of its own: it delegates to its inner `ownedTree` InvertedIndex, so this pins that delegation too.
+		final OwnerSortIndex source = scalarOwner();
+		for (int i = 0; i < KEY_COUNT; i++) {
+			source.addRecord(valueForOrdinal(i), recordForOrdinal(i));
+		}
+
+		// first WARM_UP flush: allocates + STAGES one leaf page per leaf and publishes nothing (publishing happens only at
+		// the commit-merge, which a warm-up flush never reaches)
+		final List<StoragePart> firstEmission = emit(source);
+		source.resetDirty();
+
+		// the prior page count is taken from the EMISSION (which the flush derives by walking the tree's leaves), never
+		// from the registry accessor under test — sourcing it there would make the removal assertion below `0 == 0` and
+		// leave this test green with or without the fix
+		final int priorLeafPageCount = leafPages(firstEmission).size();
+		assertTrue(priorLeafPageCount >= 3, "the source owner must start paged across several leaf pages");
+		final SortIndexStoragePart firstRoot = root(firstEmission);
+		assertTrue(firstRoot.isPaged(), "the first warm-up flush must emit a PAGED root");
+		assertEquals(
+			priorLeafPageCount, firstRoot.getLeafPageSequences().length,
+			"the PAGED root must list exactly the leaf pages the first warm-up flush wrote"
+		);
+		assertTrue(
+			removals(firstEmission).isEmpty(),
+			"a first warm-up flush frees no leaf page — nothing was on disk before it"
+		);
+
+		// collapse the SAME in-memory owner — NO reload in between, exactly what a warm-up catalog does: drop all but a
+		// handful of values so the survivors fit within a single leaf
+		for (int i = COLLAPSE_KEEP; i < KEY_COUNT; i++) {
+			source.removeRecord(valueForOrdinal(i), recordForOrdinal(i));
+		}
+
+		final List<StoragePart> secondEmission = emit(source);
+		final SortIndexStoragePart collapsedRoot = root(secondEmission);
+		assertFalse(collapsedRoot.isPaged(), "the collapsed owner must emit an inline (SINGLE) root");
+		assertEquals(
+			COLLAPSE_KEEP, collapsedRoot.getSortedRecordsValues().length,
+			"the SINGLE root must carry every surviving distinct value inline"
+		);
+		assertTrue(leafPages(secondEmission).isEmpty(), "a collapsed owner must not re-emit any leaf page");
+		assertEquals(
+			priorLeafPageCount, removals(secondEmission).size(),
+			"the collapse must remove every leaf page the previous warm-up flush wrote — the append-only OffsetIndex never " +
+				"reclaims a record that is neither superseded nor explicitly removed, so a missed removal leaks the page forever"
+		);
+	}
+
+	@Test
 	@DisplayName("A sortable compound owner pages out and reloads identically (compound value leaf serializer)")
 	void shouldRoundTripCompoundPagedOwnerThroughOffsetIndex() {
 		final OwnerSortIndex source = compoundOwner();

@@ -1193,7 +1193,11 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 		// SINGLE shape: the index collapsed back to a single leaf. Remove every leaf page from its prior PAGED life
 		// (the SINGLE root no longer references them) BEFORE dropping the page bookkeeping, then forget the stream so a
 		// later regrow into PAGED starts from a clean baseline and re-emits every leaf.
-		for (final int freedPageSequence : this.invertedIndex.livePageSequences()) {
+		// Reclaim against what the previous flush left ON DISK: its staged set while still unpublished (a warm-up
+		// flush never reaches the commit-merge that publishes), else the published set. The published set alone lags a
+		// whole flush behind, so every page of the collapsed stream would leak — the append-only OffsetIndex never
+		// reclaims a record that is neither superseded nor explicitly removed.
+		for (final int freedPageSequence : this.invertedIndex.currentLeafPageSequences()) {
 			sink.addChangeToStore(new FilterIndexLeafPageRemoval(entityIndexPrimaryKey, streamKey, freedPageSequence));
 		}
 		this.invertedIndex.forgetPageStream();
@@ -1239,7 +1243,11 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 			// SINGLE range that may have just collapsed from PAGED: remove every prior leaf page (the inline root no
 			// longer references them) BEFORE dropping the bookkeeping, then forget the stream so a later regrow starts
 			// from a clean baseline and re-emits every leaf
-			for (final int freedPageSequence : this.rangeIndex.livePageSequences()) {
+			// Reclaim against what the previous flush left ON DISK: its staged set while still unpublished (a warm-up
+			// flush never reaches the commit-merge that publishes), else the published set. The published set alone lags a
+			// whole flush behind, so every page of the collapsed stream would leak — the append-only OffsetIndex never
+			// reclaims a record that is neither superseded nor explicitly removed.
+			for (final int freedPageSequence : this.rangeIndex.currentLeafPageSequences()) {
 				sink.addChangeToStore(new RangeIndexLeafPageRemoval(entityIndexPrimaryKey, streamKey, freedPageSequence));
 			}
 			this.rangeIndex.forgetPageStream();

@@ -30,8 +30,10 @@ import io.evitadb.index.price.model.priceRecord.PriceRecord;
 import io.evitadb.index.price.model.priceRecord.PriceRecordContract;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.PriceListAndCurrencySuperIndexLeafPagePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.PriceListAndCurrencySuperIndexLeafPageRemoval;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.PriceListAndCurrencySuperIndexStoragePart;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
@@ -242,6 +244,220 @@ class PriceListAndCurrencyPriceSuperIndexPagingTest {
 		final PriceListAndCurrencySuperIndexStoragePart root = (PriceListAndCurrencySuperIndexStoragePart) parts.get(0);
 		assertFalse(root.isPaged(), "the root is the inline SINGLE shape");
 		assertEquals(10, root.getPriceRecords().length, "a SINGLE root carries every record inline");
+	}
+
+	/**
+	 * A warm-up (bulk) flush never reaches the transactional commit-merge — {@code publishStaged} runs only there — so
+	 * two consecutive {@link PriceListAndCurrencyPriceSuperIndex#appendStorageParts} calls on the same live index, with a
+	 * leaf merge happening in between, must still correctly detect and free the page the merge dropped even though
+	 * nothing was ever published between the two flushes.
+	 */
+	@Nested
+	@DisplayName("A leaf merge between two warm-up flushes with no intermediate publish")
+	class WarmUpFlushLeafMergeTest {
+
+		/** Default element-tree block size ({@code DEFAULT_VALUE_BLOCK_SIZE}); a full leaf splits into two 32-halves. */
+		private static final int VALUE_BLOCK_SIZE = 64;
+		/** Three leaves of exactly half capacity (32) — the layout an ascending append of this many records produces. */
+		private static final int MERGE_RECORD_COUNT = 3 * (VALUE_BLOCK_SIZE / 2);
+
+		@Test
+		@DisplayName("the leaf page a merge drops between two warm-up flushes must still be reported as freed")
+		void shouldReportFreedLeafPageAcrossConsecutiveWarmUpFlushesWithoutAnIntermediatePublish() {
+			final PriceListAndCurrencyPriceSuperIndex index = new PriceListAndCurrencyPriceSuperIndex(PRICE_INDEX_KEY);
+			for (int internalPriceId = 1; internalPriceId <= MERGE_RECORD_COUNT; internalPriceId++) {
+				index.addPrice(rec(internalPriceId), null);
+			}
+			assertTrue(index.isPaged(), "96 ascending records must span three leaves (leaf 0 [1..32], 1 [33..64], 2 [65..96]).");
+
+			// first warm-up flush: stages page sequences 0, 1, 2 for the three fresh leaves but — mirroring a real
+			// warm-up, which never reaches the transactional commit-merge — is never published
+			final List<StoragePart> firstFlush = flush(index);
+			assertEquals(
+				3, countLeafPages(firstFlush), "The first flush must write every one of the three fresh leaves."
+			);
+			assertEquals(
+				3, singleRoot(firstFlush).getLeafPageSequences().length,
+				"The first flush's root must list all three leaf pages."
+			);
+
+			// force leaf 0 [1..32] to merge with leaf 1 [33..64] while leaf 2 [65..96] stays untouched: bring leaf 1
+			// down to exactly the minimum (31) first so it can no longer donate, then push leaf 0 one below the
+			// minimum (30) so it underflows and merges into leaf 1 (mergeWithRight)
+			index.removePrice(33, 33, null); // leaf 1: 32 -> 31 (== minValueBlockSize, can no longer donate)
+			index.removePrice(1, 1, null);   // leaf 0: 32 -> 31 (still at the minimum, no underflow yet)
+			index.removePrice(2, 2, null);   // leaf 0: 31 -> 30 (< minValueBlockSize) -> merges with leaf 1
+
+			assertTrue(index.isPaged(), "The index must stay PAGED (two leaves) after the merge, not collapse to SINGLE.");
+
+			// second warm-up flush: without the fix, the freed-page diff is computed against the still-EMPTY published
+			// live set (nothing was ever published after the first flush), so the page the merge dropped is silently
+			// never reported and therefore never removed from storage
+			final List<StoragePart> secondFlush = flush(index);
+			assertEquals(
+				2, singleRoot(secondFlush).getLeafPageSequences().length,
+				"The merge must have dropped the tree to two live leaves."
+			);
+			assertEquals(
+				1, countRemovals(secondFlush),
+				"The leaf page the merge dropped must be reported as freed, or it leaks in storage forever."
+			);
+		}
+
+		/**
+		 * Extracts the single {@link PriceListAndCurrencySuperIndexStoragePart} root emitted by a flush, failing if none
+		 * or more than one is present.
+		 *
+		 * @param parts the emitted storage parts
+		 * @return the sole root part
+		 */
+		@Nonnull
+		private static PriceListAndCurrencySuperIndexStoragePart singleRoot(@Nonnull List<StoragePart> parts) {
+			PriceListAndCurrencySuperIndexStoragePart root = null;
+			for (final StoragePart part : parts) {
+				if (part instanceof PriceListAndCurrencySuperIndexStoragePart rootPart) {
+					assertNull(root, "A flush must emit exactly one root part.");
+					root = rootPart;
+				}
+			}
+			assertNotNull(root, "A dirty PAGED flush must emit a root part.");
+			return root;
+		}
+
+		/**
+		 * Counts the leaf pages ({@link PriceListAndCurrencySuperIndexLeafPagePart}) among the emitted parts.
+		 *
+		 * @param parts the emitted storage parts
+		 * @return the number of leaf pages
+		 */
+		private static long countLeafPages(@Nonnull List<StoragePart> parts) {
+			return parts.stream().filter(PriceListAndCurrencySuperIndexLeafPagePart.class::isInstance).count();
+		}
+
+		/**
+		 * Counts the leaf-page removals ({@link PriceListAndCurrencySuperIndexLeafPageRemoval}) among the emitted parts.
+		 *
+		 * @param parts the emitted storage parts
+		 * @return the number of freed-page removal instructions
+		 */
+		private static long countRemovals(@Nonnull List<StoragePart> parts) {
+			return parts.stream().filter(PriceListAndCurrencySuperIndexLeafPageRemoval.class::isInstance).count();
+		}
+
+	}
+
+	/**
+	 * A `PAGED -> SINGLE` collapse in the WARM-UP shape: two consecutive
+	 * {@link PriceListAndCurrencyPriceSuperIndex#appendStorageParts} calls on the SAME live index with NO reload in
+	 * between. When the price-record tree shrinks back inside a single leaf, the inline `SINGLE` root references none of
+	 * the leaf pages the index previously wrote, so the collapse must emit a removal for EVERY one of them — the
+	 * append-only `OffsetIndex` never reclaims a record that is neither superseded nor explicitly removed, so a missed
+	 * removal leaks that page forever.
+	 *
+	 * The reclaim must therefore be taken against the page set the PREVIOUS flush left ON DISK (its staged set), not
+	 * against the published live set: publishing only ever happens at a transactional commit-merge, which a warming-up
+	 * catalog never reaches, so a published-set reclaim would free NOTHING here.
+	 *
+	 * This is precisely the gap a reload-based collapse test cannot see — reassembling an index through
+	 * {@link PriceListAndCurrencyPriceSuperIndex#fromPersistedPages} seeds the live-page baseline from disk, so the
+	 * published set happens to be correct there and such a test stays green either way. The shape below never reloads,
+	 * which is what makes it discriminating. Note this index re-emits its `PAGED` root unconditionally (the root carries
+	 * the inline validity index), so a missed reclaim can never CORRUPT a reload here — it is a pure storage LEAK, which
+	 * is why this pins removal counts rather than reload correctness.
+	 */
+	@Nested
+	@DisplayName("A PAGED -> SINGLE collapse between two warm-up flushes with no intermediate publish")
+	class WarmUpFlushCollapseTest {
+
+		/**
+		 * Price records kept after the collapse. Ten records fit comfortably inside a single 64-entry leaf — the same
+		 * count the sibling small-index test uses to prove a ten-record index persists as the inline SINGLE shape — so
+		 * the shrunken tree cannot retain an internal root and must fall back to a single leaf.
+		 */
+		private static final int COLLAPSE_KEEP = 10;
+
+		@Test
+		@DisplayName("every leaf page the previous warm-up flush wrote must be removed when the index collapses to SINGLE")
+		void shouldRemovePriorLeafPagesWhenCollapsingAcrossTwoWarmUpFlushesWithoutAnIntermediateReload() {
+			final PriceListAndCurrencyPriceSuperIndex index = buildLargeSuperIndex();
+			assertTrue(index.isPaged(), RECORD_COUNT + " records must span multiple leaves -> PAGED");
+
+			// first warm-up flush: allocates and stages one page per fresh leaf but — mirroring a real warm-up, which
+			// never reaches the transactional commit-merge — never publishes them
+			final List<StoragePart> firstFlush = flush(index);
+			final int priorLeafPageCount = countLeafPages(firstFlush);
+			assertTrue(priorLeafPageCount >= 3, "The source index must start paged across several leaves.");
+			assertEquals(
+				priorLeafPageCount, singleRoot(firstFlush).getLeafPageSequences().length,
+				"A first flush writes every one of the live leaf pages its root lists (every leaf is brand new)."
+			);
+			assertEquals(0, countRemovals(firstFlush), "A first flush frees no leaf page.");
+
+			// collapse the SAME in-memory index, with NO reload in between: drop all but a handful of records so the
+			// survivors fit one leaf — the leaves cascade-merge and the root falls back to that single surviving leaf
+			for (int internalPriceId = COLLAPSE_KEEP + 1; internalPriceId <= RECORD_COUNT; internalPriceId++) {
+				index.removePrice(internalPriceId, internalPriceId, null);
+			}
+			assertFalse(index.isPaged(), "The shrunken index must collapse to a single leaf (PAGED -> SINGLE).");
+
+			// second warm-up flush: the collapse must reclaim what the FIRST flush staged. Reading the published live
+			// set instead finds it still EMPTY — nothing published between the two flushes — and silently frees nothing.
+			final List<StoragePart> secondFlush = flush(index);
+			final PriceListAndCurrencySuperIndexStoragePart collapsedRoot = singleRoot(secondFlush);
+			assertFalse(collapsedRoot.isPaged(), "The collapsed index must emit the inline (SINGLE) root.");
+			assertEquals(
+				COLLAPSE_KEEP, collapsedRoot.getPriceRecords().length,
+				"The SINGLE root must carry every surviving price record inline."
+			);
+			assertEquals(0, countLeafPages(secondFlush), "A collapsed index must not re-emit any leaf page.");
+			assertEquals(
+				priorLeafPageCount, countRemovals(secondFlush),
+				"The collapse must remove every leaf page the previous warm-up flush wrote — the append-only " +
+					"OffsetIndex never reclaims a record that is neither superseded nor explicitly removed, so a " +
+					"missed removal leaks the page forever."
+			);
+		}
+
+		/**
+		 * Extracts the single {@link PriceListAndCurrencySuperIndexStoragePart} root emitted by a flush, failing if none
+		 * or more than one is present.
+		 *
+		 * @param parts the emitted storage parts
+		 * @return the sole root part
+		 */
+		@Nonnull
+		private static PriceListAndCurrencySuperIndexStoragePart singleRoot(@Nonnull List<StoragePart> parts) {
+			PriceListAndCurrencySuperIndexStoragePart root = null;
+			for (final StoragePart part : parts) {
+				if (part instanceof PriceListAndCurrencySuperIndexStoragePart rootPart) {
+					assertNull(root, "A flush must emit exactly one root part.");
+					root = rootPart;
+				}
+			}
+			assertNotNull(root, "A dirty flush must emit a root part.");
+			return root;
+		}
+
+		/**
+		 * Counts the leaf pages ({@link PriceListAndCurrencySuperIndexLeafPagePart}) among the emitted parts.
+		 *
+		 * @param parts the emitted storage parts
+		 * @return the number of leaf pages
+		 */
+		private static int countLeafPages(@Nonnull List<StoragePart> parts) {
+			return (int) parts.stream().filter(PriceListAndCurrencySuperIndexLeafPagePart.class::isInstance).count();
+		}
+
+		/**
+		 * Counts the leaf-page removals ({@link PriceListAndCurrencySuperIndexLeafPageRemoval}) among the emitted parts.
+		 *
+		 * @param parts the emitted storage parts
+		 * @return the number of freed-page removal instructions
+		 */
+		private static int countRemovals(@Nonnull List<StoragePart> parts) {
+			return (int) parts.stream().filter(PriceListAndCurrencySuperIndexLeafPageRemoval.class::isInstance).count();
+		}
+
 	}
 
 }

@@ -628,7 +628,11 @@ public class GlobalUniqueIndex implements
 			// SINGLE shape: the index spans one leaf. If it just collapsed from PAGED, remove every prior leaf page (the
 			// inline root no longer references them) BEFORE dropping the bookkeeping, then forget the stream so a later
 			// regrow into PAGED starts from a clean baseline and re-emits every leaf.
-			for (final int freedPageSequence : this.pageStreamRegistry.livePageSequences(UNIQUE_PAGE_STREAM)) {
+			// Reclaim against what the previous flush left ON DISK: its staged set while still unpublished (a warm-up
+			// flush never reaches the commit-merge that publishes), else the published set. The published set alone lags a
+			// whole flush behind, so every page of the collapsed stream would leak — the append-only OffsetIndex never
+			// reclaims a record that is neither superseded nor explicitly removed.
+			for (final int freedPageSequence : this.pageStreamRegistry.pendingLivePageSequences(UNIQUE_PAGE_STREAM)) {
 				sink.addChangeToStore(new GlobalUniqueIndexLeafPageRemoval(this.scope, attribute, freedPageSequence));
 			}
 			this.pageStreamRegistry.forget(UNIQUE_PAGE_STREAM);
@@ -785,15 +789,58 @@ public class GlobalUniqueIndex implements
 	}
 
 	/**
+	 * Promotes the page set staged by the PREVIOUS flush to the live change-detection baseline, so this flush's freed
+	 * -page diff is taken against what disk actually holds.
+	 *
+	 * {@link #pageStreamRegistry}'s live set answers "which leaf pages does this stream have on disk". {@link
+	 * #collectChangedPages()} relies on it for exactly one thing: which pages a leaf merge dropped, so a {@link
+	 * GlobalUniqueIndexLeafPageRemoval} is emitted and the page is actually removed from storage — the ordered
+	 * leaf-page list carried by the `PAGED` root, by contrast, is read straight off the current tree leaves every time
+	 * (see {@link #appendStorageParts}, which re-emits that root unconditionally because it also carries the inline
+	 * locale map), so it is never stale regardless of this baseline. That live set only ever advances by {@link
+	 * PageStreamRegistry#publishStaged()}, which {@link #createCopyWithMergedTransactionalMemory} calls at the
+	 * transactional commit-merge.
+	 *
+	 * A WARM_UP (bulk) flush never reaches a commit-merge — it runs the same collect path but is never wrapped in a
+	 * transaction, so nothing ever calls {@code createCopyWithMergedTransactionalMemory} for it. Left alone, the live
+	 * set of a freshly re-indexed catalog would stay EMPTY for the whole warm-up while disk moved on underneath it. A
+	 * leaf MERGE (unlike a split) drops a page without creating one: the surviving leaf absorbs its sibling IN PLACE,
+	 * keeping its own page sequence and dirty flag, so nothing is freshly allocated. With an empty live baseline the
+	 * freed-page diff for that merge is vacuously empty, so the dropped page is never removed from storage — an
+	 * unreferenced leaf-page record that every future compaction copies forward forever even though the (always
+	 * correctly re-emitted) root no longer points at it.
+	 *
+	 * Publishing HERE, before every flush rather than only at the commit-merge, is safe for every path because a failed
+	 * flush is never followed by another flush of the same data. This call runs at COLLECT time, before this flush has
+	 * written anything (the baseline-capture pass re-enters the collect path), so it cannot rest on the previous
+	 * flush's bytes having landed — and it does not need to. A flush that fails during trunk incorporation SUSPENDS the
+	 * catalog's transaction processing ({@code TransactionManager.suspend}); a flush that fails during warm-up POISONS
+	 * the collection's buffer ({@code WarmUpDataStoreMemoryBuffer.poison}), so every later collect of it refuses
+	 * deterministically. The two are the same invariant in different dresses: after a failed flush nothing ever diffs
+	 * against the baseline it left behind, because no later flush of that data runs at all. Whatever a SUCCEEDING flush
+	 * leaves staged is exactly the page set it wrote, regardless of whether a commit-merge ever ran for it. (If the
+	 * process crashes instead, the registry itself is gone and gets rebuilt from disk on restart, where a burnt page
+	 * sequence is harmless since allocation is advance-only.) On the transactional path this call is simply a no-op
+	 * (the merge already published, so nothing is left staged) — that is a side effect, not the reason it is safe.
+	 */
+	private void publishPreviousFlush() {
+		this.pageStreamRegistry.publishStaged();
+	}
+
+	/**
 	 * Walks the value tree leaf-by-leaf and returns the granular write-path emission for this commit: the leaf pages that
 	 * changed since the last flush, the full ordered list of live leaf-page sequences (the `PAGED` root's leaf list), the
 	 * stream high-water, and the freed page sequences a leaf merge dropped. Mirrors
 	 * {@code OwnerUniqueIndex.collectChangedPages} with the slim value + packed-`long`-payload columns.
 	 *
+	 * Before staging, any set still staged by the PREVIOUS flush is promoted to live — see
+	 * {@link #publishPreviousFlush()} for why that is both necessary and safe.
+	 *
 	 * @return the changed leaf pages, the ordered live page-sequence list, the high-water, and the freed pages
 	 */
 	@Nonnull
 	private PageEmission<LeafPage> collectChangedPages() {
+		publishPreviousFlush();
 		// this.tree is a raw bucket tree, so the handle list and its cursors are raw too — bucket values are read as
 		// Object and cast to Serializable exactly as the whole-tree snapshot does
 		final List<LeafPageHandle> handles = this.tree.leafPageHandles();

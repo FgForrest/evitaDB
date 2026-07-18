@@ -254,6 +254,16 @@ public class TransactionManager implements Closeable {
 	 */
 	@Getter private final PendingCommitProgressRegistry pendingCommitProgressRegistry = new PendingCommitProgressRegistry();
 	/**
+	 * Set once a trunk-incorporation flush or merge has failed, which suspends all further transaction processing for
+	 * this catalog; `null` while the catalog is healthy.
+	 *
+	 * A failed flush leaves the persisted page baselines describing a write that never landed. A retry against those
+	 * baselines is what turns a transient I/O failure into a corrupt catalog, so once one has failed no further
+	 * transaction may be processed until an operator reloads the catalog. Reads are deliberately unaffected: the
+	 * in-memory tree is correct — only the persisted state and the baselines lie — so readers keep being served.
+	 */
+	private final AtomicReference<CatalogSuspension> suspension = new AtomicReference<>();
+	/**
 	 * Conflict ring buffer that holds the conflict keys for recent catalog versions.
 	 */
 	private final ConflictRingBuffer conflictRingBuffer;
@@ -479,6 +489,10 @@ public class TransactionManager implements Closeable {
 		long nextCatalogVersion,
 		@Nonnull LongConsumer progressCallback
 	) {
+		Assert.isPremiseValid(
+			this.suspension.get() == null,
+			"Cannot process the write-ahead log of a suspended catalog."
+		);
 		return processTransactions(
 			nextCatalogVersion,
 			Long.MAX_VALUE,
@@ -486,6 +500,91 @@ public class TransactionManager implements Closeable {
 			true, // we should obtain lock here easily, since this is called only on catalog instantiation
 			progressCallback
 		);
+	}
+
+	/**
+	 * Suspends all further transaction processing for this catalog after a trunk-incorporation flush or merge failed,
+	 * and fails every commit already parked on the pipeline so no client waits forever. Only the FIRST failure is kept:
+	 * it is the one that describes what actually broke.
+	 *
+	 * Deliberately does NOT stop readers. The in-memory catalog is still correct — it is the persisted state and the
+	 * page baselines that no longer agree — so the safe move is to stop writing, not to stop serving.
+	 *
+	 * @param cause the flush/merge failure that forced the suspension
+	 * @param durable whether the failed version had already reached disk when the failure struck
+	 * @param failedCatalogVersion the catalog version whose incorporation failed
+	 */
+	public void suspend(@Nonnull Throwable cause, boolean durable, long failedCatalogVersion) {
+		final long servingCatalogVersion = getLastFinalizedCatalogVersion();
+		final CatalogSuspension theSuspension = new CatalogSuspension(
+			cause, durable, failedCatalogVersion, servingCatalogVersion
+		);
+		if (this.suspension.compareAndSet(null, theSuspension)) {
+			if (durable) {
+				// the version reached disk but its merge into the live catalog failed: the bytes on disk describe a
+				// state whose validation did not pass, and a deterministic failure will re-fail on replay, so a plain
+				// reload may not be enough
+				log.error(
+					"Catalog `{}` SUSPENDED after version {} failed to be incorporated AFTER it reached disk (serving " +
+						"version {}). Reads continue to be served from memory, writes are refused. Disk holds a SUSPECT " +
+						"version {} - verify it before reloading; a restore may be required.",
+					this.catalogName, failedCatalogVersion, servingCatalogVersion, failedCatalogVersion, cause
+				);
+			} else {
+				log.error(
+					"Catalog `{}` SUSPENDED after version {} failed to be written (serving version {}). Reads continue " +
+						"to be served from memory, writes are refused. Disk is intact at version {} - reloading the " +
+						"catalog replays the transaction from the WAL.",
+					this.catalogName, failedCatalogVersion, servingCatalogVersion, servingCatalogVersion, cause
+				);
+			}
+		}
+		// whether or not we won the race, no parked client may be left waiting on a pipeline that will never run again
+		this.pendingCommitProgressRegistry.failAllPending(
+			"the catalog has been suspended after a failed transaction incorporation"
+		);
+	}
+
+	/**
+	 * Returns the suspension that stopped this catalog's transaction processing, if any.
+	 *
+	 * @return the suspension, or empty while the catalog is healthy
+	 */
+	@Nonnull
+	public Optional<CatalogSuspension> getSuspension() {
+		return Optional.ofNullable(this.suspension.get());
+	}
+
+	/**
+	 * Tells whether the given catalog version had already reached disk — i.e. whether a failure struck AFTER the write
+	 * was durable (during the merge into the live catalog) or BEFORE it (during the write itself). The two are not
+	 * symmetric and the operator needs to tell them apart: a pre-durability failure leaves disk at the previous version
+	 * and reloading simply replays the transaction, whereas a post-durability failure leaves disk holding a version
+	 * whose incorporation did not pass, which a reload would land straight back on.
+	 *
+	 * @param catalogVersion the version whose incorporation failed
+	 * @return true when the version is already on disk
+	 */
+	private boolean isVersionPersisted(long catalogVersion) {
+		return getLastFinalizedCatalog().getLastPersistedCatalogVersion() >= catalogVersion;
+	}
+
+	/**
+	 * Describes why a catalog stopped processing transactions, and what an operator is left holding.
+	 *
+	 * @param cause                the flush/merge failure that forced the suspension
+	 * @param durable              whether {@link #failedCatalogVersion} had already reached disk when it failed; when
+	 *                             true the disk holds a SUSPECT version, when false the disk is intact at
+	 *                             {@link #servingCatalogVersion}
+	 * @param failedCatalogVersion the catalog version whose incorporation failed
+	 * @param servingCatalogVersion the version readers continue to be served from memory
+	 */
+	public record CatalogSuspension(
+		@Nonnull Throwable cause,
+		boolean durable,
+		long failedCatalogVersion,
+		long servingCatalogVersion
+	) {
 	}
 
 	/**
@@ -498,6 +597,20 @@ public class TransactionManager implements Closeable {
 		@Nonnull IsolatedWalPersistenceService walPersistenceService,
 		@Nonnull CommitProgressRecord commitProgress
 	) {
+		// a suspended catalog will never incorporate another transaction, so accepting this one would park the client
+		// on a pipeline that cannot run; refuse it here, at the point of acceptance, exactly as an overloaded queue does
+		final CatalogSuspension theSuspension = this.suspension.get();
+		if (theSuspension != null) {
+			commitProgress.completeExceptionally(
+				new TransactionException(
+					"Catalog `" + this.catalogName + "` is suspended after a failed transaction incorporation at " +
+						"version " + theSuspension.failedCatalogVersion() + " and accepts no further writes until it " +
+						"is reloaded. Reads are unaffected.",
+					theSuspension.cause()
+				)
+			);
+			return;
+		}
 		this.transactionalPipeline.offer(
 			new ConflictResolutionAndWalAppendingTransactionTask(
 				getCatalogName(),
@@ -1170,6 +1283,13 @@ public class TransactionManager implements Closeable {
 		boolean waitForLock,
 		@Nonnull LongConsumer progressCallback
 	) {
+		// Gate every drain of the WAL, before the trunk lock is taken or a single mutation is read. This is the point
+		// the suspension has to bite: a freshly appended transaction schedules the draining task on its own, entirely
+		// independently of the path that failed, so refusing commits alone would not stop the catalog from trying
+		// again. Returning empty (rather than throwing) is what makes the draining task PAUSE instead of rescheduling.
+		if (this.suspension.get() != null) {
+			return Optional.empty();
+		}
 		try {
 			final boolean locked;
 			if (waitForLock) {
@@ -1183,6 +1303,9 @@ public class TransactionManager implements Closeable {
 				TransactionMutation lastTransactionMutation;
 				Transaction lastTransaction = null;
 				final Catalog newCatalog;
+				// the version whose changes we got as far as collecting + writing, or -1 if we never got that far;
+				// see the catch below
+				long collectingVersion = -1;
 
 				int atomicMutationCount = 0;
 				int localMutationCount = 0;
@@ -1290,6 +1413,11 @@ public class TransactionManager implements Closeable {
 
 					// we've run out of mutation, or the timeout has been exceeded, create a new catalog version now
 					// and update the last finalized transaction ID and catalog version
+					// From here on the collect has begun: the flush pops every trapped change, advances every page
+					// baseline and writes, and the merge then publishes those baselines. A failure anywhere inside
+					// leaves the baselines describing a write that may never have landed, which is precisely the state
+					// no retry may run against - so the scope is POSITIONAL (where we failed), never by exception type.
+					collectingVersion = lastTransactionMutation.getVersion();
 					newCatalog = commitChangesToSharedCatalog(lastTransactionMutation, lastTransaction, transactionHandler);
 					updateLastFinalizedCatalog(
 						newCatalog,
@@ -1305,7 +1433,14 @@ public class TransactionManager implements Closeable {
 					final Catalog catalog = this.lastFinalizedCatalog.get();
 					this.changeObserver.forgetMutationsAfter(catalog, catalog.getVersion());
 
-					// rethrow the exception - we will have to re-try the transaction
+					if (collectingVersion >= 0) {
+						// a failed flush/merge: suspend rather than retry. The retry is what would diff the next flush
+						// against the baselines this one left behind, and it can never succeed by repetition anyway -
+						// a deterministic failure spins forever, a transient one corrupts.
+						suspend(ex, isVersionPersisted(collectingVersion), collectingVersion);
+					}
+					// rethrow the exception - a failure BEFORE the collect (an unreadable WAL tail, a replay error) is
+					// still safely retryable and keeps its bounded retry
 					throw ex;
 				} finally {
 					if (committedMutationStream != null) {

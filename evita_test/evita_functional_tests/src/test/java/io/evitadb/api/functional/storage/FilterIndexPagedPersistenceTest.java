@@ -38,6 +38,7 @@ import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.EntityIndexType;
 import io.evitadb.index.attribute.FilterIndex;
+import io.evitadb.index.invertedIndex.InvertedIndex;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.test.Entities;
 import io.evitadb.test.EvitaTestSupport;
@@ -48,7 +49,10 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Set;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.attributeEquals;
@@ -90,6 +94,24 @@ class FilterIndexPagedPersistenceTest implements EvitaTestSupport {
 	 * thresholds per range, block size 512) becomes multi-leaf → range-PAGED.
 	 */
 	private static final String ATTRIBUTE_RANGE = "validity";
+	/**
+	 * A filterable {@link OffsetDateTime} attribute, one distinct strictly-ascending value per entity — the
+	 * near-unique timestamp shape a re-indexing job writes. Every bucket therefore holds a single record, so deleting
+	 * an entity drops its bucket outright and can shrink a leaf below its minimum occupancy into a merge.
+	 */
+	private static final String ATTRIBUTE_TIMESTAMP = "published";
+	/** Base of the ascending {@link #ATTRIBUTE_TIMESTAMP} stream. */
+	private static final OffsetDateTime BASE_TIMESTAMP = OffsetDateTime.of(
+		2026, 7, 16, 18, 20, 0, 0, ZoneOffset.UTC
+	);
+	/**
+	 * Distinct timestamps inserted during warm-up. With valueBlockSize=256 (split at 128) an ascending stream of 513
+	 * values lays the bucket tree out as four leaves — [1..128], [129..256], [257..384], [385..513] — which is the
+	 * smallest layout that can lose a leaf to a merge and still stay PAGED afterwards.
+	 */
+	private static final int TIMESTAMP_COUNT = 513;
+	/** The primary keys deleted to force the leaf merge; their timestamps must resolve to nothing afterwards. */
+	private static final Set<Integer> DELETED_TIMESTAMP_PKS = Set.of(1, 2, 129);
 	/** distinct values inserted during warm-up; > 256 so the InvertedIndex root becomes internal → PAGED. */
 	private static final int WARMUP_COUNT = 300;
 	/** additional distinct values inserted transactionally after go-live to exercise the merge/page-publish path. */
@@ -248,6 +270,76 @@ class FilterIndexPagedPersistenceTest implements EvitaTestSupport {
 		assertSurvivingRangesResolve();
 	}
 
+	@Test
+	@DisplayName("A leaf merge in a warm-up flush must not leave the dropped leaf page listed on the persisted root")
+	void shouldReloadAfterAWarmUpFlushMergedALeaf() {
+		// 1) FIRST warm-up flush: closing a warming-up session flushes synchronously (Catalog.flush ->
+		//    EntityCollection.createFlushFuture -> popTrappedChanges), so this lands pages 0..3 + the root on disk.
+		//    Ascending timestamps fill the leaves left to right, giving the deterministic layout asserted below.
+		this.evita.defineCatalog(TEST_CATALOG);
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.defineEntitySchema(Entities.PRODUCT)
+					.withoutGeneratedPrimaryKey()
+					.withAttribute(ATTRIBUTE_TIMESTAMP, OffsetDateTime.class, AttributeSchemaEditor::filterable)
+					.updateVia(session);
+				for (int pk = 1; pk <= TIMESTAMP_COUNT; pk++) {
+					session.upsertEntity(
+						session.createNewEntity(Entities.PRODUCT, pk)
+							.setAttribute(ATTRIBUTE_TIMESTAMP, timestamp(pk))
+					);
+				}
+			}
+		);
+		assertTrue(isTimestampIndexPaged(), "The timestamp index must be PAGED before the merge!");
+		assertEquals(
+			4, timestampIndexLeafPageCount(),
+			"The first warm-up flush must lay the bucket tree out as four leaf pages — the layout the deletes below " +
+				"are calibrated against!"
+		);
+
+		// 2) SECOND warm-up flush: delete exactly enough distinct values to force leaf 0 to merge its right sibling.
+		//    Each timestamp is unique, so its bucket holds a single record and deleting the entity drops the bucket
+		//    outright — the shrink that a low-cardinality attribute practically never sees. With valueBlockSize=256 /
+		//    minValueBlockSize=127 the leaves start out [1..128], [129..256], [257..384], [385..513]:
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				// leaf 1: 128 -> 127, so it sits exactly at the minimum and can no longer donate a key
+				session.deleteEntity(Entities.PRODUCT, 129);
+				// leaf 0: 128 -> 127 (still at the minimum, no underflow yet)
+				session.deleteEntity(Entities.PRODUCT, 1);
+				// leaf 0: 127 -> 126 -> underflow. It has no left sibling, the right sibling cannot donate
+				// (127 > 127 is false) and 127 + 126 = 253 < 256, so consolidate takes `mergeWithRight`: leaf 0
+				// absorbs leaf 1 IN PLACE — it keeps page 0 and is marked dirty, while leaf 1 is detached and its
+				// page 1 must be freed. No leaf is born, so nothing is allocated.
+				session.deleteEntity(Entities.PRODUCT, 2);
+			}
+		);
+		// pin that a leaf really was merged away: without this the test would still pass if the block-size constants
+		// ever drifted so the deletes no longer underflow a leaf — the tree would simply stay intact, reload cleanly
+		// and never exercise the defect at all
+		assertEquals(
+			3, timestampIndexLeafPageCount(),
+			"The deletes must have merged a leaf away (four leaf pages -> three); if this still reports four, no " +
+				"merge happened and the test is not exercising the freed-page path!"
+		);
+		// the tree must still span several leaves: had it collapsed to the inline SINGLE shape, that path force-emits
+		// the root (listChanged=true) and would mask the defect under test
+		assertTrue(isTimestampIndexPaged(), "The timestamp index must stay PAGED after the merge!");
+
+		// 3) reopen: the persisted root must no longer list the page the merge dropped, and that page's record must be
+		//    gone. Otherwise the cold load assembles leaf 0 (holding the absorbed keys) followed by the stale leaf 1,
+		//    whose first key now sorts *before* leaf 0's last key -> the cross-page overlap check fires.
+		this.evita.close();
+		this.evita = new Evita(configuration());
+		this.evita.waitUntilFullyInitialized();
+
+		assertTrue(isTimestampIndexPaged(), "The reloaded timestamp index must still be PAGED!");
+		assertSurvivingTimestampsResolve();
+	}
+
 	/**
 	 * Builds the per-test Evita configuration wired to the (stable across restarts) test path triplet.
 	 *
@@ -256,6 +348,81 @@ class FilterIndexPagedPersistenceTest implements EvitaTestSupport {
 	@Nonnull
 	private EvitaConfiguration configuration() {
 		return newTestEvitaConfigurationBuilder(this.paths).build();
+	}
+
+	/**
+	 * Produces a distinct, strictly ascending timestamp for the given primary key, mirroring the near-monotonic
+	 * near-unique timestamp stream a re-indexing job writes.
+	 *
+	 * @param pk the primary key (1-based)
+	 * @return a distinct timestamp; never null
+	 */
+	@Nonnull
+	private static OffsetDateTime timestamp(int pk) {
+		return BASE_TIMESTAMP.plusSeconds(pk);
+	}
+
+	/**
+	 * Reports whether the {@link io.evitadb.index.invertedIndex.InvertedIndex} backing {@link #ATTRIBUTE_TIMESTAMP}
+	 * currently uses the PAGED (granular) representation.
+	 *
+	 * @return {@code true} when the backing bucket tree is multi-leaf (PAGED)
+	 */
+	private boolean isTimestampIndexPaged() {
+		return timestampInvertedIndex().isPaged();
+	}
+
+	/**
+	 * Returns how many leaf pages the {@link #ATTRIBUTE_TIMESTAMP} bucket tree currently occupies on disk (the set the
+	 * last flush staged). A drop across a flush is the observable fingerprint of a leaf merge.
+	 *
+	 * @return the current on-disk leaf-page count
+	 */
+	private int timestampIndexLeafPageCount() {
+		return timestampInvertedIndex().currentLeafPageSequences().length;
+	}
+
+	/**
+	 * Resolves the {@link InvertedIndex} backing {@link #ATTRIBUTE_TIMESTAMP} in the global entity index.
+	 *
+	 * @return the backing inverted index; never null
+	 */
+	@Nonnull
+	private InvertedIndex timestampInvertedIndex() {
+		final Catalog catalog = (Catalog) this.evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
+		final EntityCollection collection = (EntityCollection) catalog.getCollectionForEntity(Entities.PRODUCT).orElseThrow();
+		final EntityIndex globalIndex = collection.getIndexByKeyIfExists(new EntityIndexKey(EntityIndexType.GLOBAL));
+		assertNotNull(globalIndex, "Global entity index must exist!");
+		final FilterIndex filterIndex = globalIndex.getFilterIndex(new AttributeIndexKey(null, ATTRIBUTE_TIMESTAMP, null));
+		assertNotNull(filterIndex, "Filter index for the timestamp attribute must exist!");
+		return filterIndex.getInvertedIndex();
+	}
+
+	/**
+	 * Asserts that every timestamp that was not deleted still resolves to exactly the primary key it was written with,
+	 * and that the deleted ones resolve to nothing — the round-trip check across the merged leaf boundary.
+	 */
+	private void assertSurvivingTimestampsResolve() {
+		this.evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				for (int pk = 1; pk <= TIMESTAMP_COUNT; pk++) {
+					final List<EntityReferenceContract> matches = session.queryListOfEntityReferences(
+						query(
+							collection(Entities.PRODUCT),
+							filterBy(attributeEquals(ATTRIBUTE_TIMESTAMP, timestamp(pk)))
+						)
+					);
+					if (DELETED_TIMESTAMP_PKS.contains(pk)) {
+						assertEquals(0, matches.size(), "Deleted timestamp of pk " + pk + " must match nothing!");
+					} else {
+						assertEquals(1, matches.size(), "Exactly one entity should match timestamp of pk " + pk);
+						assertEquals(pk, matches.get(0).getPrimaryKey(), "Wrong primary key for timestamp of pk " + pk);
+					}
+				}
+				return null;
+			}
+		);
 	}
 
 	/**

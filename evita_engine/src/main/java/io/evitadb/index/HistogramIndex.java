@@ -333,8 +333,11 @@ public abstract class HistogramIndex
 			inlineBuckets = HistogramIndexStoragePart.emptyHistogram();
 		} else {
 			// SINGLE shape (possibly just collapsed from PAGED): remove every prior leaf page BEFORE forgetting the
-			// stream, then carry the whole bucket array inline on the root
-			for (final int freedPageSequence : invertedIndex.livePageSequences()) {
+			// stream, then carry the whole bucket array inline on the root. Reclaim against the pages the previous flush
+			// left ON DISK: its STAGED set while it is still unpublished (a warm-up flush never reaches the commit-merge
+			// that publishes), else the published set. Reading only the published set reclaims nothing for a whole warm-up
+			// and leaks every page the collapsed stream ever wrote — the same set the drop path above already reclaims from.
+			for (final int freedPageSequence : invertedIndex.currentLeafPageSequences()) {
 				sink.addChangeToStore(
 					new HistogramIndexLeafPageRemoval(entityIndexPrimaryKey, name, locale, StreamKind.BUCKET, freedPageSequence)
 				);
@@ -375,8 +378,9 @@ public abstract class HistogramIndex
 			inlineRange = null;
 		} else {
 			if (rangeIndex != null) {
-				// SINGLE range that may have just collapsed from PAGED: remove prior leaf pages before forgetting
-				for (final int freedPageSequence : rangeIndex.livePageSequences()) {
+				// SINGLE range that may have just collapsed from PAGED: remove prior leaf pages before forgetting, against
+				// the staged-or-published set for the same reason as the bucket axis above
+				for (final int freedPageSequence : rangeIndex.currentLeafPageSequences()) {
 					sink.addChangeToStore(
 						new HistogramIndexLeafPageRemoval(entityIndexPrimaryKey, name, locale, StreamKind.RANGE, freedPageSequence)
 					);

@@ -1798,8 +1798,12 @@ public final class Catalog
 			"Cannot flush catalog in transactional mode. Any changes could occur only in transaction!"
 		);
 
+		// this pops the CATALOG's own trapped changes here and now, on this thread, before a single collection future is
+		// even constructed - while they are written only in the combine step below, once every collection has flushed.
+		// A collection whose write fails therefore strands these already-popped changes with no combine step to persist
+		// them, so the catalog buffer must be poisoned alongside the collection's own (see whenComplete below).
 		final TrappedChanges trappedChanges = this.dataStoreBuffer.popTrappedChanges();
-		return new ProgressingFuture<>(
+		final ProgressingFuture<Void> flushFuture = new ProgressingFuture<>(
 			trappedChanges.getTrappedChangesCount(),
 			// first flush all entity collections
 			this.entityCollections
@@ -1847,6 +1851,26 @@ public final class Catalog
 			},
 			Functions.noOpConsumer()
 		);
+		// whether a collection's write failed or the combine step itself did, this catalog's own popped changes are lost
+		// either way: refuse every later catalog flush rather than store a header describing a state never written
+		flushFuture.whenComplete(
+			(result, ex) -> {
+				if (ex != null) {
+					this.dataStoreBuffer.poison(ex);
+				}
+			}
+		);
+		return flushFuture;
+	}
+
+	/**
+	 * Returns the newest catalog version that has actually reached disk, which may lag {@link #getVersion()} while a
+	 * commit is in flight. Tells apart a failure that struck before its version was durable from one that struck after.
+	 *
+	 * @return the last catalog version present in persistent storage
+	 */
+	public long getLastPersistedCatalogVersion() {
+		return this.persistenceService.getLastCatalogVersion();
 	}
 
 	/**

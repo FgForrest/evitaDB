@@ -39,6 +39,7 @@ import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
@@ -1386,6 +1387,55 @@ public abstract class AbstractTransactionalBPlusTree implements Serializable {
 			super(publicMessage);
 		}
 
+	}
+
+	/**
+	 * Builds the operator-facing diagnostic for an overlapping-leaf-page corruption detected while reassembling a paged
+	 * B+ tree from disk (the "stale leaf-page twin" class: a leaf whose key range overlaps the leaf listed after it).
+	 *
+	 * This is called ONLY once an overlap has already been detected — on the failure path — so it gathers the full
+	 * context a healthy cold load never pays for: the whole ordered leaf-page list (where in the layout the overlap
+	 * sits), both offending page sequences, and each leaf's key range and key count. The containment relationship is
+	 * reported as a raw fact (`successorRangeWithinPredecessorRange`) computed by the caller with its own comparator,
+	 * NOT as an interpreted verdict — the paged layout is new and the next corruption may not be the known twin, so the
+	 * shape is left for the reader to classify. Page/leaf versions are deliberately absent: they are not threaded down
+	 * to the reassembly layer, and the message says so rather than leaving their absence to look accidental.
+	 *
+	 * The shared shape is used identically by every tree that reassembles paged leaves; each passes its own keys as
+	 * plain objects so this method stays free of the trees' key-type generics.
+	 *
+	 * @param structureDescription         a full identification of the index for diagnostics
+	 * @param orderedPageSequences         the root's ordered leaf-page sequence list (the persisted layout)
+	 * @param predecessorPageSequence      the page sequence of the earlier (overlapping) leaf
+	 * @param predecessorFirstKey          the earlier leaf's first key
+	 * @param predecessorLastKey           the earlier leaf's last key (the one that fails to sort before the successor)
+	 * @param predecessorKeyCount          the number of keys in the earlier leaf
+	 * @param successorPageSequence        the page sequence of the next leaf in the list
+	 * @param successorFirstKey            the next leaf's first key (the one the predecessor's last key overran)
+	 * @param successorLastKey             the next leaf's last key
+	 * @param successorKeyCount            the number of keys in the next leaf
+	 * @param successorWithinPredecessor   whether the successor's key range lies entirely within the predecessor's
+	 * @return the full diagnostic message; never null
+	 */
+	@Nonnull
+	static String overlappingLeafPagesDiagnostic(
+		@Nonnull String structureDescription,
+		@Nonnull int[] orderedPageSequences,
+		int predecessorPageSequence, @Nonnull Object predecessorFirstKey, @Nonnull Object predecessorLastKey,
+		int predecessorKeyCount,
+		int successorPageSequence, @Nonnull Object successorFirstKey, @Nonnull Object successorLastKey,
+		int successorKeyCount,
+		boolean successorWithinPredecessor
+	) {
+		return "Corrupted persisted " + structureDescription + ": leaf-page sequence " + predecessorPageSequence +
+			" overlaps its successor leaf-page sequence " + successorPageSequence + " — its last key (" +
+			predecessorLastKey + ") does not sort before the first key (" + successorFirstKey + ") of the next leaf " +
+			"page. Overlap context: orderedLeafPageList=" + Arrays.toString(orderedPageSequences) +
+			", predecessorKeyRange=[" + predecessorFirstKey + " .. " + predecessorLastKey + "] (" + predecessorKeyCount +
+			" keys), successorKeyRange=[" + successorFirstKey + " .. " + successorLastKey + "] (" + successorKeyCount +
+			" keys), successorRangeWithinPredecessorRange=" + successorWithinPredecessor + "; page/leaf versions are " +
+			"not available at the reassembly layer. This is a stale leaf-page twin or other index corruption. Restore " +
+			"the catalog from a backup, or fully rebuild / reindex the affected catalog.";
 	}
 
 }
