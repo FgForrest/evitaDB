@@ -1850,7 +1850,10 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		if (level.size() == 1) {
 			return level.get(0);
 		}
-		final int maxChildren = this.internalNodeBlockSize + 1;
+		// Pack at most internalNodeBlockSize children per parent (one below the node's children capacity of
+		// internalNodeBlockSize + 1). An assembled node must be born non-full so the first child split can still call
+		// adaptToLeafSplit (which requires !isFull()) before the parent overflows and splits in turn.
+		final int maxChildren = this.internalNodeBlockSize;
 		final int childTotal = level.size();
 		final int parentCount = (childTotal + maxChildren - 1) / maxChildren;
 		final int baseChildren = childTotal / parentCount;
@@ -2266,7 +2269,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		if (leaf == this.getRoot()) {
 			this.setRoot(
 				new BPlusInternalTreeNode<>(
-					this.valueBlockSize,
+					this.internalNodeBlockSize,
 					rightLeaf.keyAt(0),
 					leftLeaf, rightLeaf,
 					this.keyType,
@@ -2326,7 +2329,13 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		@Nonnull BPlusInternalTreeNode<K> internal,
 		@Nonnull CursorWithLevel<K> cursor
 	) {
-		final int mid = (this.valueBlockSize + 1) / 2;
+		// The node is full at split time (the only caller guards with isFull()), so occupancy equals capacity. Derive the
+		// midpoint from the actual key count rather than valueBlockSize: internal nodes are sized by internalNodeBlockSize,
+		// and spines bulk-assembled from persisted pages carry that (smaller) capacity, so a valueBlockSize-derived midpoint
+		// overruns their arrays. keyCount is the number of separator keys (children = keyCount + 1). Only keys and child
+		// pointers move here — the columnar bucket store lives in the leaves, untouched by an internal-node split.
+		final int keyCount = internal.keyCount();
+		final int mid = (keyCount + 1) / 2;
 		final K[] originKeys = internal.getKeys();
 		final BPlusTreeNode<K, ?>[] originChildren = internal.getChildren();
 
@@ -2342,13 +2351,16 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			true
 		);
 
+		// End bounds are the origin's actual occupancy (keyCount separators, keyCount + 1 children), not the array
+		// capacity — capacity may exceed occupancy after the internalNodeBlockSize sizing fix, and only the live range
+		// must be copied.
 		final BPlusInternalTreeNode<K> rightInternal = new BPlusInternalTreeNode<>(
 			originKeys,
 			originChildren,
 			mid,
-			leftInternal.getKeys().length,
+			keyCount,
 			mid,
-			leftInternal.getChildren().length,
+			keyCount + 1,
 			this.keyType,
 			this.comparator,
 			true
@@ -2361,7 +2373,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		if (internal == this.getRoot()) {
 			this.setRoot(
 				new BPlusInternalTreeNode<>(
-					this.valueBlockSize,
+					this.internalNodeBlockSize,
 					rightInternal.getLeftBoundaryKey(),
 					leftInternal, rightInternal,
 					this.keyType,

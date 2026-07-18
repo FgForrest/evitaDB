@@ -26,12 +26,21 @@ package io.evitadb.core.transaction;
 import io.evitadb.api.configuration.ChangeDataCaptureOptions;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.ServerOptions;
+import io.evitadb.api.configuration.TransactionOptions;
 import io.evitadb.api.exception.ConflictingCatalogCommutativeMutationException;
 import io.evitadb.api.exception.ConflictingCatalogMutationException;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
+import io.evitadb.api.requestResponse.data.mutation.EntityRemoveMutation;
+import io.evitadb.api.requestResponse.data.mutation.EntityUpsertMutation;
+import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExistence;
+import io.evitadb.api.requestResponse.data.mutation.attribute.UpsertAttributeMutation;
+import io.evitadb.api.requestResponse.mutation.CatalogBoundMutation;
+import io.evitadb.api.requestResponse.mutation.conflict.AssociatedDataConflictKey;
 import io.evitadb.api.requestResponse.mutation.conflict.AttributeDeltaConflictKey;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
 import io.evitadb.api.requestResponse.mutation.conflict.EntityConflictKey;
+import io.evitadb.api.requestResponse.mutation.conflict.GranularConflictPolicy;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
 import io.evitadb.core.Evita;
 import io.evitadb.core.catalog.Catalog;
@@ -41,6 +50,7 @@ import io.evitadb.core.executor.Scheduler;
 import io.evitadb.dataType.IntegerNumberRange;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
@@ -50,6 +60,7 @@ import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Stream;
 
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.TRANSACTION;
@@ -114,7 +125,7 @@ class TransactionManagerConflictWindowTest {
 	 */
 	@Nonnull
 	private static AttributeDeltaConflictKey quantityDeltaForEntity(int entityPrimaryKey, int delta) {
-		return new AttributeDeltaConflictKey(ENTITY_TYPE, entityPrimaryKey, QUANTITY, delta, ALLOWED_RANGE);
+		return new AttributeDeltaConflictKey(ENTITY_TYPE, entityPrimaryKey, QUANTITY, delta, ALLOWED_RANGE, false);
 	}
 
 	@BeforeEach
@@ -333,6 +344,110 @@ class TransactionManagerConflictWindowTest {
 				INITIAL_VERSION, 12L, OffsetDateTime.now(), keys(quantityDeltaForEntity(1, 60))
 			)
 		);
+	}
+
+	/**
+	 * Drives {@link TransactionManager#identifyConflicts} through the historical recompute path
+	 * ({@code identifyConflictsInOldCommittedTransactions}) rather than the conflict ring buffer: the
+	 * committing transaction's snapshot version is older than the ring buffer's effective start (seeded
+	 * from the living catalog's version at construction time), so the very first scan throws the ring
+	 * buffer's {@code OutsideScopeException} and the manager falls back to recomputing conflict keys from
+	 * {@link Catalog#getCommittedLiveMutationStream(long, long)}. This is the same code path a real,
+	 * genuinely aged-out ring-buffer entry would take; forcing it via the snapshot/effective-start gap
+	 * avoids depending on the ring buffer's internal eviction/capacity bookkeeping.
+	 *
+	 * The engine default is configured with {@link GranularConflictPolicy#ASSOCIATED_DATA} carved out, so
+	 * the recomputed historical mutation and the incoming granular write can disagree on scope exactly as
+	 * the write-time path would.
+	 */
+	@Nested
+	@DisplayName("Recompute path for aged-out entries")
+	class RecomputePath {
+		private static final long RECOMPUTE_LIVING_VERSION = 10L;
+		private static final long AGED_OUT_SESSION_VERSION = 5L;
+
+		/**
+		 * Builds a {@link TransactionManager} whose ring buffer's effective start already sits ahead of
+		 * {@link #AGED_OUT_SESSION_VERSION}, so any {@code identifyConflicts} call with that snapshot
+		 * immediately falls back to the recompute path, replaying the given committed mutation.
+		 */
+		@Nonnull
+		private TransactionManager recomputeTransactionManagerFor(@Nonnull CatalogBoundMutation committedMutation) {
+			final SealedCatalogSchema catalogSchema = mock(SealedCatalogSchema.class);
+			when(catalogSchema.version()).thenReturn(1);
+			when(catalogSchema.getConflictResolution()).thenReturn(Optional.empty());
+
+			final Catalog catalog = mock(Catalog.class);
+			when(catalog.getName()).thenReturn(CATALOG_NAME);
+			when(catalog.getVersion()).thenReturn(RECOMPUTE_LIVING_VERSION);
+			when(catalog.getSchema()).thenReturn(catalogSchema);
+			when(catalog.getLastCatalogVersionInMutationStream()).thenReturn(RECOMPUTE_LIVING_VERSION);
+			when(catalog.getFirstCatalogVersionInMutationStream()).thenReturn(RECOMPUTE_LIVING_VERSION);
+			when(catalog.getEntitySchema(anyString())).thenReturn(Optional.empty());
+			when(catalog.getCommittedLiveMutationStream(anyLong(), anyLong()))
+				.thenReturn(Stream.of(committedMutation));
+
+			final EvitaConfiguration configuration = EvitaConfiguration.builder()
+				.server(
+					ServerOptions.builder()
+						.changeDataCapture(ChangeDataCaptureOptions.builder().enabled(false).build())
+						.build()
+				)
+				.transaction(
+					TransactionOptions.builder()
+						.conflictResolution(ConflictPolicy.ENTITY, GranularConflictPolicy.ASSOCIATED_DATA)
+						.build()
+				)
+				.build();
+			final Evita evita = mock(Evita.class);
+			when(evita.getConfiguration()).thenReturn(configuration);
+
+			final ObservableExecutorService synchronousExecutor = mock(ObservableExecutorService.class);
+			doAnswer(invocation -> {
+				((Runnable) invocation.getArgument(0)).run();
+				return null;
+			}).when(synchronousExecutor).execute(any(Runnable.class));
+
+			return new TransactionManager(
+				catalog, evita, mock(Scheduler.class), synchronousExecutor, synchronousExecutor,
+				newCatalog -> {
+				},
+				RECOMPUTE_LIVING_VERSION
+			);
+		}
+
+		@Test
+		@DisplayName("aged-out coarse writer recomputes to the residual key, which does not conflict with an incoming granular write")
+		void shouldNotConflictAgedOutResidualWriterVsIncomingGranularWrite() {
+			// the historical mutation only touches a plain, non-carved-out attribute: it recomputes to
+			// EntityResidualConflictKey, a sibling of - not an ancestor of - the incoming granular key
+			final TransactionManager manager = recomputeTransactionManagerFor(
+				new EntityUpsertMutation(
+					ENTITY_TYPE, 1, EntityExistence.MAY_EXIST, new UpsertAttributeMutation("name", "foo")
+				)
+			);
+			assertDoesNotThrow(
+				() -> manager.identifyConflicts(
+					AGED_OUT_SESSION_VERSION, RECOMPUTE_LIVING_VERSION + 1, OffsetDateTime.now(),
+					keys(new AssociatedDataConflictKey(ENTITY_TYPE, 1, "feed-heureka"))
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("aged-out removal recomputes to the full entity key, which conflicts with an incoming granular write")
+		void shouldConflictAgedOutRemovalVsIncomingGranularWrite() {
+			// the historical mutation removed the entity: it recomputes to the full EntityConflictKey, which
+			// contains every carved-out item, including the incoming granular associated-data write
+			final TransactionManager manager = recomputeTransactionManagerFor(new EntityRemoveMutation(ENTITY_TYPE, 1));
+			assertThrows(
+				ConflictingCatalogMutationException.class,
+				() -> manager.identifyConflicts(
+					AGED_OUT_SESSION_VERSION, RECOMPUTE_LIVING_VERSION + 1, OffsetDateTime.now(),
+					keys(new AssociatedDataConflictKey(ENTITY_TYPE, 1, "feed-heureka"))
+				)
+			);
+		}
 	}
 
 }

@@ -2945,7 +2945,7 @@ class TransactionalLongBPlusTreeTest {
 		 * @return a single-leaf tree
 		 */
 		@Nonnull
-		private TransactionalLongBPlusTree<String> singleLeaf(@Nonnull long... keys) {
+		private static TransactionalLongBPlusTree<String> singleLeaf(@Nonnull long... keys) {
 			final TransactionalLongBPlusTree<String> tree =
 				new TransactionalLongBPlusTree<>(10, 1, 3, 1, String.class);
 			for (final long key : keys) {
@@ -2964,8 +2964,9 @@ class TransactionalLongBPlusTreeTest {
 		 * @return the assembled tree
 		 */
 		@Nonnull
-		private TransactionalLongBPlusTree<String> assembleSound(
-			@Nonnull List<TransactionalLongBPlusTree<String>> leaves) {
+		private static TransactionalLongBPlusTree<String> assembleSound(
+			@Nonnull List<TransactionalLongBPlusTree<String>> leaves
+		) {
 			final int[] pageSequences = new int[leaves.size()];
 			for (int i = 0; i < pageSequences.length; i++) {
 				pageSequences[i] = i;
@@ -3092,7 +3093,7 @@ class TransactionalLongBPlusTreeTest {
 	class DirtyLeafScopeValidationTest {
 
 		@Nonnull
-		private TransactionalLongBPlusTree<String> singleLeaf(@Nonnull long... keys) {
+		private static TransactionalLongBPlusTree<String> singleLeaf(@Nonnull long... keys) {
 			final TransactionalLongBPlusTree<String> tree =
 				new TransactionalLongBPlusTree<>(10, 1, 3, 1, String.class);
 			for (final long key : keys) {
@@ -3102,8 +3103,9 @@ class TransactionalLongBPlusTreeTest {
 		}
 
 		@Nonnull
-		private TransactionalLongBPlusTree<String> assembleSound(
-			@Nonnull List<TransactionalLongBPlusTree<String>> leaves) {
+		private static TransactionalLongBPlusTree<String> assembleSound(
+			@Nonnull List<TransactionalLongBPlusTree<String>> leaves
+		) {
 			final int[] pageSequences = new int[leaves.size()];
 			for (int i = 0; i < pageSequences.length; i++) {
 				pageSequences[i] = i;
@@ -3113,7 +3115,7 @@ class TransactionalLongBPlusTreeTest {
 		}
 
 		@Nonnull
-		private TransactionalLongBPlusTree.BPlusLeafTreeNode<String> leafAt(
+		private static TransactionalLongBPlusTree.BPlusLeafTreeNode<String> leafAt(
 			@Nonnull TransactionalLongBPlusTree<String> tree, long key) {
 			return tree.createCursor(key).leafNode();
 		}
@@ -3192,7 +3194,7 @@ class TransactionalLongBPlusTreeTest {
 		 * lifecycle bug that reverted / corrupted the leaf's write layer so its range overlaps the successor. Mutates
 		 * the write layer when one exists (the transactional case), otherwise the leaf itself.
 		 */
-		private void corruptLastKey(
+		private static void corruptLastKey(
 			@Nonnull TransactionalLongBPlusTree<String> tree, long leafKey, long newLastKey) {
 			final TransactionalLongBPlusTree.BPlusLeafTreeNode<String> leaf = tree.createCursor(leafKey).leafNode();
 			final TransactionalLongBPlusTree.BPlusLeafTreeNode<String> layer =
@@ -3331,6 +3333,109 @@ class TransactionalLongBPlusTreeTest {
 				},
 				(t, committed) -> assertNotNull(committed)
 			);
+		}
+
+	}
+
+	@Nested
+	@DisplayName("Assembled-spine split integrity")
+	class AssembledSpineSplitIntegrityTest {
+
+		/**
+		 * Builds a single-leaf source tree holding four consecutive keys starting at {@code base}, using the block
+		 * sizes (8 value / 3 minimum value / 3 internal / 1 minimum internal) shared by every tree in this class.
+		 * Four keys per leaf keeps every source tree well under its leaf capacity, exactly like a persisted page
+		 * that has not yet grown to its full size.
+		 *
+		 * @param base the first of the four consecutive keys to store
+		 * @return a single-leaf tree holding keys {@code base} through {@code base + 3}
+		 */
+		@Nonnull
+		private static TransactionalLongBPlusTree<String> singleLeafOfFour(long base) {
+			final TransactionalLongBPlusTree<String> tree =
+				new TransactionalLongBPlusTree<>(8, 3, 3, 1, String.class);
+			for (long key = base; key < base + 4; key++) {
+				tree.insert(key, "Value" + key);
+			}
+			return tree;
+		}
+
+		@Test
+		@DisplayName("splits an assembled internal node once new writes push it to capacity")
+		void shouldSplitInternalNodeAfterLeafSplitPushesParentToCapacity() {
+			// six single-leaf pages assembled into a two-level spine: two internal nodes of three leaves each
+			// (two separator keys, one below their three-key capacity) under a root - the same shape a granular
+			// index reload produces for a range that has outgrown a handful of leaf pages
+			final List<TransactionalLongBPlusTree<String>> leaves = List.of(
+				singleLeafOfFour(0), singleLeafOfFour(100), singleLeafOfFour(200),
+				singleLeafOfFour(300), singleLeafOfFour(400), singleLeafOfFour(500)
+			);
+			final TransactionalLongBPlusTree<String> tree =
+				new TransactionalLongBPlusTree<String>(8, 3, 3, 1, String.class)
+					.assembleFromSingleLeafTrees(
+						leaves, new int[]{0, 1, 2, 3, 4, 5}, "spine split integrity test");
+
+			// filling the first leaf (keys 0-3) to its value block size of 8 forces it to split; the extra child
+			// this hands to its parent internal node fills that parent to ITS OWN capacity (three keys, four
+			// children) too, so the parent must split immediately afterwards to keep the spine balanced
+			assertDoesNotThrow(() -> {
+				tree.insert(4, "Value4");
+				tree.insert(5, "Value5");
+				tree.insert(6, "Value6");
+				tree.insert(7, "Value7");
+			});
+
+			final long[] expectedKeys = {
+				0, 1, 2, 3, 4, 5, 6, 7,
+				100, 101, 102, 103,
+				200, 201, 202, 203,
+				300, 301, 302, 303,
+				400, 401, 402, 403,
+				500, 501, 502, 503
+			};
+			assertEquals(expectedKeys.length, tree.size());
+			verifyTreeConsistency(tree, expectedKeys);
+		}
+
+	}
+
+	@Nested
+	@DisplayName("Internal node fan-out invariants")
+	class InternalNodeFanOutInvariantTest {
+
+		/**
+		 * Recursively walks the spine rooted at {@code node}, asserting that every internal node's key count stays
+		 * within the tree's configured internal node block size. Internal nodes are routing structures sized
+		 * independently of the leaf value block size, and growing past their own capacity would overflow their
+		 * backing arrays the next time such a node needs to split.
+		 *
+		 * @param node                  the node to inspect; an internal node is checked and its children are
+		 *                              recursed into, a leaf ends the walk
+		 * @param internalNodeBlockSize the maximum number of keys an internal node may hold
+		 */
+		private static void assertInternalNodeCapacity(@Nonnull BPlusTreeNode<?> node, int internalNodeBlockSize) {
+			if (node instanceof TransactionalLongBPlusTree.BPlusInternalTreeNode internalNode) {
+				assertTrue(
+					internalNode.keyCount() <= internalNodeBlockSize,
+					"Internal node holds " + internalNode.keyCount() + " keys, exceeding the internal node " +
+						"block size " + internalNodeBlockSize + "."
+				);
+				for (int i = 0; i <= internalNode.getPeek(); i++) {
+					assertInternalNodeCapacity(internalNode.getChildren()[i], internalNodeBlockSize);
+				}
+			}
+		}
+
+		@Test
+		@DisplayName("keeps every internal node within its configured block size through incremental growth")
+		void shouldRespectInternalNodeBlockSizeThroughIncrementalGrowth() {
+			final TransactionalLongBPlusTree<String> tree =
+				new TransactionalLongBPlusTree<>(8, 3, 3, 1, String.class);
+			for (long key = 0; key <= 500; key++) {
+				tree.insert(key, "Value" + key);
+			}
+
+			assertInternalNodeCapacity(tree.getRoot(), tree.getInternalNodeBlockSize());
 		}
 
 	}

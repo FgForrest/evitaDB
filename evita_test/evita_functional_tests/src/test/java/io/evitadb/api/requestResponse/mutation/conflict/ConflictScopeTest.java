@@ -87,11 +87,11 @@ class ConflictScopeTest {
 	void shouldCollapseDeltaKeysOntoAbsoluteScope() {
 		assertEquals(
 			ConflictScope.ATTRIBUTE,
-			new AttributeDeltaConflictKey("Product", 1, ATTRIBUTE_KEY, 5, null).conflictScope()
+			new AttributeDeltaConflictKey("Product", 1, ATTRIBUTE_KEY, 5, null, false).conflictScope()
 		);
 		assertEquals(
 			ConflictScope.REFERENCE_ATTRIBUTE,
-			new ReferenceAttributeDeltaConflictKey("Product", 1, REFERENCE_KEY, ATTRIBUTE_KEY, 5, null)
+			new ReferenceAttributeDeltaConflictKey("Product", 1, REFERENCE_KEY, ATTRIBUTE_KEY, 5, null, false)
 				.conflictScope()
 		);
 	}

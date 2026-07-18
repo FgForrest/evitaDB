@@ -120,9 +120,19 @@ public class ReferenceAttributeMutation extends ReferenceMutation<ReferenceKeyWi
 		if (this.attributeMutation instanceof ApplyDeltaAttributeMutation<?> adam) {
 			// A range-constrained delta must always emit its conflict key, regardless of the resolved
 			// conflict policy: keeping the accumulated value inside the required range is a hard
-			// invariant, not something relaxed conflict granularity opts out of.
-			return adam.getRequiredRangeAfterApplication() != null
-				|| context.shouldEmitReferenceAttributeKey(this.referenceKey.referenceName(), this.attributeKey.attributeName()) ?
+			// invariant, not something relaxed conflict granularity opts out of. Whether the reference
+			// attribute was carved out of the entity's shared surface is still resolved so the key's parent
+			// chain reaches the right coarse fallback (the absolute reference-attribute key when carved out,
+			// the shared-surface residual otherwise) even when the range guard is the sole reason the key
+			// is emitted.
+			final boolean shouldEmit = context.shouldEmitReferenceAttributeKey(
+				this.referenceKey.referenceName(), this.attributeKey.attributeName()
+			);
+			// a reference attribute that is not carved out into its own granular key belongs to the entity's
+			// shared surface, so its delta key must route through the residual rather than the absolute
+			// reference-attribute key
+			final boolean sharedSurface = !shouldEmit;
+			return adam.getRequiredRangeAfterApplication() != null || shouldEmit ?
 				Stream.of(
 					new ReferenceAttributeDeltaConflictKey(
 						context.getEntityType(),
@@ -130,7 +140,8 @@ public class ReferenceAttributeMutation extends ReferenceMutation<ReferenceKeyWi
 						this.referenceKey,
 						this.attributeKey,
 						adam.getDelta(),
-						adam.getRequiredRangeAfterApplication()
+						adam.getRequiredRangeAfterApplication(),
+						sharedSurface
 					)
 				) :
 				Stream.empty();

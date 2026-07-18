@@ -2379,6 +2379,53 @@ class TransactionalIntToLongBPlusTreeTest {
 	}
 
 	@Nested
+	@DisplayName("Internal node capacity")
+	class InternalNodeCapacityTest {
+
+		/**
+		 * Recursively walks the tree's spine starting at the given node and asserts that every internal
+		 * (routing) node's key count stays within the tree's configured internal node block size. Leaf nodes
+		 * carry no such bound and are not descended into further.
+		 *
+		 * @param tree the tree whose configured internal node block size every internal node must respect
+		 * @param node the node to inspect; an internal node is checked and its children are visited
+		 *             recursively, a leaf node is a no-op
+		 */
+		private static void assertInternalNodeFanOutWithinBounds(
+			@Nonnull TransactionalIntToLongBPlusTree tree, @Nonnull BPlusTreeNode<?> node
+		) {
+			if (node instanceof InternalBPlusTreeNode<?> internalNode) {
+				assertTrue(
+					internalNode.keyCount() <= tree.getInternalNodeBlockSize(),
+					"Internal node holds " + internalNode.keyCount() + " keys, exceeding the configured " +
+						"internal node block size of " + tree.getInternalNodeBlockSize() + "!"
+				);
+				final BPlusTreeNode<?>[] children = internalNode.getChildren();
+				for (int i = 0; i <= internalNode.getPeek(); i++) {
+					assertInternalNodeFanOutWithinBounds(tree, children[i]);
+				}
+			}
+		}
+
+		@Test
+		@DisplayName("keeps every internal node within the configured internal node block size as the tree grows one key at a time")
+		void shouldRespectInternalNodeBlockSizeDuringIncrementalGrowth() {
+			// internal (routing) nodes are capacity-bound by internalNodeBlockSize independently of the leaf
+			// value block size; growing the tree one ascending key at a time - forcing repeated leaf and
+			// internal node splits - must never let an internal node's key count exceed that configured bound,
+			// however roomy the leaf value block size is
+			final TransactionalIntToLongBPlusTree tree = new TransactionalIntToLongBPlusTree(8, 3, 3, 1);
+			for (int key = 0; key < 500; key++) {
+				tree.insert(key, valueOf(key));
+			}
+
+			assertEquals(500, tree.size());
+			assertInternalNodeFanOutWithinBounds(tree, tree.getRoot());
+		}
+
+	}
+
+	@Nested
 	@DisplayName("Consistency oracle")
 	class ConsistencyOracleTest {
 

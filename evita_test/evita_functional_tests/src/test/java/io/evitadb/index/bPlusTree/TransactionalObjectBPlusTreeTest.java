@@ -141,6 +141,30 @@ class TransactionalObjectBPlusTreeTest {
 	}
 
 	/**
+	 * Recursively walks every internal (routing) node of the tree, starting at the given node, and asserts that
+	 * none of them carries more keys than the tree's configured internal node block size. The consistency oracle
+	 * only guards the lower occupancy bound of internal nodes, so this walk is the dedicated check for the upper
+	 * fan-out ceiling.
+	 *
+	 * @param tree the tree whose configured internal node block size is the ceiling under test
+	 * @param node the node to inspect; recursion stops once a leaf node is reached
+	 */
+	private static void verifyInternalNodeFanOut(
+		@Nonnull TransactionalObjectBPlusTree<Integer, String> tree, @Nonnull BPlusTreeNode<?> node
+	) {
+		if (node instanceof InternalBPlusTreeNode<?> internalNode) {
+			assertTrue(
+				internalNode.keyCount() <= tree.getInternalNodeBlockSize(),
+				"Internal node holds " + internalNode.keyCount() + " keys, exceeding the configured " +
+					"internal node block size of " + tree.getInternalNodeBlockSize() + "!"
+			);
+			for (int i = 0; i <= internalNode.getPeek(); i++) {
+				verifyInternalNodeFanOut(tree, internalNode.getChildren()[i]);
+			}
+		}
+	}
+
+	/**
 	 * Creates a random tree using the default block sizes and the given random seed and element count.
 	 *
 	 * @param seed          the random seed
@@ -467,6 +491,23 @@ class TransactionalObjectBPlusTreeTest {
 					assertEquals(0, original.size());
 				}
 			);
+		}
+
+		@Test
+		@DisplayName("keeps internal node fan-out within the configured block size during incremental growth")
+		void shouldRespectInternalNodeBlockSizeDuringIncrementalGrowth() {
+			final TransactionalObjectBPlusTree<Integer, String> bPlusTree =
+				new TransactionalObjectBPlusTree<>(8, 3, 3, 1, Integer.class, String.class);
+
+			final int totalElements = 500;
+			final int[] keys = new int[totalElements];
+			for (int i = 0; i < totalElements; i++) {
+				bPlusTree.insert(i, "Value" + i);
+				keys[i] = i;
+			}
+
+			verifyTreeConsistency(bPlusTree, keys);
+			verifyInternalNodeFanOut(bPlusTree, bPlusTree.getRoot());
 		}
 
 	}

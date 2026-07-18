@@ -118,7 +118,7 @@ class TransactionConflictEventTest {
 		final ConflictingCatalogCommutativeMutationException conflict =
 			new ConflictingCatalogCommutativeMutationException(
 				"testCatalog",
-				new AttributeDeltaConflictKey("Product", 42, new AttributeKey("count"), 5, null),
+				new AttributeDeltaConflictKey("Product", 42, new AttributeKey("count"), 5, null, false),
 				11L,
 				"The accumulated value is outside the allowed range."
 			);

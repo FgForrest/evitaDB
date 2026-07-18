@@ -25,8 +25,11 @@ package io.evitadb.api.requestResponse.data.mutation.scope;
 
 import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
+import io.evitadb.api.requestResponse.mutation.conflict.CollectionConflictKey;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictGenerationContext;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
+import io.evitadb.api.requestResponse.mutation.conflict.EntityConflictKey;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.dataType.ContainerType;
 import io.evitadb.dataType.Scope;
@@ -101,17 +104,32 @@ public class SetEntityScopeMutation implements LocalMutation<Scope, Scope> {
 	/**
 	 * {@inheritDoc}
 	 *
-	 * A scope change contributes no dedicated conflict key: concurrent scope contention is instead covered
-	 * by the coarse entity-level fallback in `EntityMutation#getConflictKeyStream` (the absent granular key
-	 * forces the whole-entity key to be emitted). The empty stream here is therefore deliberate, not an
-	 * unimplemented stub.
+	 * A scope change (archive/restore) is a whole-entity operation, not an ordinary field write: it must
+	 * conflict with every writer of the entity, including one touching a carved-out granular item. The
+	 * coarse fallback in `EntityMutation#getConflictKeyStream` only covers the entity's shared surface (it
+	 * emits the finer {@link io.evitadb.api.requestResponse.mutation.conflict.EntityResidualConflictKey}
+	 * for a merely-missing granular key), so this mutation cannot rely on that fallback and emits the full
+	 * entity/collection key itself, mirroring
+	 * {@link io.evitadb.api.requestResponse.data.mutation.EntityRemoveMutation#collectConflictKeys}.
+	 * A null primary key under {@link ConflictPolicy#ENTITY} means the entity is brand new (no scope change
+	 * can target it yet), so no key is emitted in that case either.
 	 */
 	@Nonnull
 	@Override
 	public Stream<ConflictKey> collectConflictKeys(
 		@Nonnull ConflictGenerationContext context
 	) {
-		return Stream.empty();
+		final ConflictPolicy coarsePolicy = context.coarsePolicy();
+		if (coarsePolicy == ConflictPolicy.ENTITY) {
+			final Integer entityPrimaryKey = context.getEntityPrimaryKey();
+			return entityPrimaryKey == null ?
+				Stream.empty() :
+				Stream.of(new EntityConflictKey(context.getEntityType(), entityPrimaryKey));
+		} else if (coarsePolicy == ConflictPolicy.COLLECTION) {
+			return Stream.of(new CollectionConflictKey(context.getEntityType()));
+		} else {
+			return Stream.empty();
+		}
 	}
 
 	@Override

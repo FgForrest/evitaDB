@@ -368,7 +368,12 @@ abstract class AbstractIntKeyedBPlusTree extends AbstractTransactionalBPlusTree
 		@Nonnull AbstractIntKeyedInternalNode<?> internal,
 		@Nonnull CursorWithLevel cursor
 	) {
-		final int mid = (this.valueBlockSize + 1) / 2;
+		// The node is full at split time (the only caller guards with isFull()), so occupancy equals capacity. Derive the
+		// midpoint from the actual key count rather than valueBlockSize: internal nodes are sized by internalNodeBlockSize,
+		// and spines bulk-assembled from persisted pages carry that (smaller) capacity, so a valueBlockSize-derived midpoint
+		// overruns their arrays. keyCount is the number of separator keys (children = keyCount + 1).
+		final int keyCount = internal.keyCount();
+		final int mid = (keyCount + 1) / 2;
 		final int[] originKeys = internal.getKeys();
 		final BPlusTreeNode<?>[] originChildren = internal.getChildren();
 
@@ -388,14 +393,17 @@ abstract class AbstractIntKeyedBPlusTree extends AbstractTransactionalBPlusTree
 			splitNodesTransactional
 		);
 
-		// Move the other half to the start of existing arrays of the former internal node in the right internal node
+		// Move the other half to the start of existing arrays of the former internal node in the right internal node.
+		// End bounds are the origin's actual occupancy (keyCount separators, keyCount + 1 children), not the array
+		// capacity — capacity may exceed occupancy after the internalNodeBlockSize sizing fix, and only the live range
+		// must be copied.
 		final AbstractIntKeyedInternalNode<?> rightInternal = createInternalNode(
 			originKeys,
 			originChildren,
 			mid,
-			leftInternal.getKeys().length,
+			keyCount,
 			mid,
-			leftInternal.getChildren().length,
+			keyCount + 1,
 			splitNodesTransactional
 		);
 
@@ -408,7 +416,7 @@ abstract class AbstractIntKeyedBPlusTree extends AbstractTransactionalBPlusTree
 		if (internal == this.getRoot()) {
 			this.setRoot(
 				createInternalNode(
-					this.valueBlockSize,
+					this.internalNodeBlockSize,
 					rightInternal.getLeftBoundaryKey(),
 					leftInternal, rightInternal,
 					splitNodesTransactional

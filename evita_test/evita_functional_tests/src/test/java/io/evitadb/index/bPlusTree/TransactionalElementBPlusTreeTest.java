@@ -797,7 +797,7 @@ class TransactionalElementBPlusTreeTest {
 		 * @return a single-leaf tree
 		 */
 		@Nonnull
-		private TransactionalElementBPlusTree<PriceRecordContract> singleLeaf(@Nonnull int... keys) {
+		private static TransactionalElementBPlusTree<PriceRecordContract> singleLeaf(@Nonnull int... keys) {
 			final TransactionalElementBPlusTree<PriceRecordContract> tree =
 				new TransactionalElementBPlusTree<>(10, 1, 3, 1, PriceRecordContract.class, KEY);
 			for (final int key : keys) {
@@ -817,8 +817,9 @@ class TransactionalElementBPlusTreeTest {
 		 * @return the assembled tree
 		 */
 		@Nonnull
-		private TransactionalElementBPlusTree<PriceRecordContract> assembleSound(
-			@Nonnull List<TransactionalElementBPlusTree<PriceRecordContract>> leaves) {
+		private static TransactionalElementBPlusTree<PriceRecordContract> assembleSound(
+			@Nonnull List<TransactionalElementBPlusTree<PriceRecordContract>> leaves
+		) {
 			final int[] pageSequences = new int[leaves.size()];
 			for (int i = 0; i < pageSequences.length; i++) {
 				pageSequences[i] = i;
@@ -945,7 +946,7 @@ class TransactionalElementBPlusTreeTest {
 	class DirtyLeafScopeValidationTest {
 
 		@Nonnull
-		private TransactionalElementBPlusTree<PriceRecordContract> singleLeaf(@Nonnull int... keys) {
+		private static TransactionalElementBPlusTree<PriceRecordContract> singleLeaf(@Nonnull int... keys) {
 			final TransactionalElementBPlusTree<PriceRecordContract> tree =
 				new TransactionalElementBPlusTree<>(10, 1, 3, 1, PriceRecordContract.class, KEY);
 			for (final int key : keys) {
@@ -955,8 +956,9 @@ class TransactionalElementBPlusTreeTest {
 		}
 
 		@Nonnull
-		private TransactionalElementBPlusTree<PriceRecordContract> assembleSound(
-			@Nonnull List<TransactionalElementBPlusTree<PriceRecordContract>> leaves) {
+		private static TransactionalElementBPlusTree<PriceRecordContract> assembleSound(
+			@Nonnull List<TransactionalElementBPlusTree<PriceRecordContract>> leaves
+		) {
 			final int[] pageSequences = new int[leaves.size()];
 			for (int i = 0; i < pageSequences.length; i++) {
 				pageSequences[i] = i;
@@ -966,7 +968,7 @@ class TransactionalElementBPlusTreeTest {
 		}
 
 		@Nonnull
-		private TransactionalElementBPlusTree.BPlusLeafTreeNode<PriceRecordContract> leafAt(
+		private static TransactionalElementBPlusTree.BPlusLeafTreeNode<PriceRecordContract> leafAt(
 			@Nonnull TransactionalElementBPlusTree<PriceRecordContract> tree, int key) {
 			return tree.createCursor(key).leafNode();
 		}
@@ -1047,7 +1049,7 @@ class TransactionalElementBPlusTreeTest {
 		 * Mutates the write layer when one exists (the transactional case), otherwise the leaf itself; the key is
 		 * derived from the value, so the peek slot's value is replaced with one deriving {@code newLastKey}.
 		 */
-		private void corruptLastKey(
+		private static void corruptLastKey(
 			@Nonnull TransactionalElementBPlusTree<PriceRecordContract> tree, int leafKey, int newLastKey) {
 			final TransactionalElementBPlusTree.BPlusLeafTreeNode<PriceRecordContract> leaf =
 				tree.createCursor(leafKey).leafNode();
@@ -1168,6 +1170,271 @@ class TransactionalElementBPlusTreeTest {
 				},
 				(t, committed) -> assertNotNull(committed)
 			);
+		}
+
+	}
+
+	@Nested
+	@DisplayName("internal-node split correctness")
+	class InternalNodeSplitTest {
+
+		/**
+		 * Creates an empty tree with an explicit block-size configuration (bypassing the family's derived defaults), so
+		 * the resulting spine shape is fully deterministic for the scenarios below.
+		 *
+		 * @param valueBlockSize           the leaf block size
+		 * @param minValueBlockSize        the minimum leaf occupancy
+		 * @param internalNodeBlockSize    the internal (routing) node block size
+		 * @param minInternalNodeBlockSize the minimum internal node occupancy
+		 * @return a fresh empty tree
+		 */
+		@Nonnull
+		private static TransactionalElementBPlusTree<PriceRecordContract> treeOf(
+			int valueBlockSize, int minValueBlockSize, int internalNodeBlockSize, int minInternalNodeBlockSize
+		) {
+			return new TransactionalElementBPlusTree<>(
+				valueBlockSize, minValueBlockSize, internalNodeBlockSize, minInternalNodeBlockSize,
+				PriceRecordContract.class, KEY
+			);
+		}
+
+		/**
+		 * Builds a single-leaf source tree holding the supplied keys, at the given explicit block-size configuration. A
+		 * source tree stays a single leaf as long as the supplied keys never exceed {@code valueBlockSize}, which is the
+		 * shape {@link TransactionalElementBPlusTree#assembleFromSingleLeafTrees} requires of every source tree.
+		 *
+		 * @param valueBlockSize           the leaf block size
+		 * @param minValueBlockSize        the minimum leaf occupancy
+		 * @param internalNodeBlockSize    the internal (routing) node block size
+		 * @param minInternalNodeBlockSize the minimum internal node occupancy
+		 * @param keys                     the keys to place in the leaf, in any order
+		 * @return a single-leaf tree
+		 */
+		@Nonnull
+		private static TransactionalElementBPlusTree<PriceRecordContract> singleLeaf(
+			int valueBlockSize, int minValueBlockSize, int internalNodeBlockSize, int minInternalNodeBlockSize,
+			@Nonnull int... keys
+		) {
+			final TransactionalElementBPlusTree<PriceRecordContract> tree = treeOf(
+				valueBlockSize, minValueBlockSize, internalNodeBlockSize, minInternalNodeBlockSize
+			);
+			for (final int key : keys) {
+				tree.insert(rec(key));
+			}
+			return tree;
+		}
+
+		/**
+		 * Recursively verifies that every internal node reachable from {@code node} holds at most
+		 * {@code internalNodeBlockSize} keys — the fan-out the tree's constructor was configured with. Leaf nodes impose
+		 * no constraint here and end the recursion.
+		 *
+		 * @param node                  the subtree root to verify
+		 * @param internalNodeBlockSize the configured internal node fan-out
+		 */
+		private static void assertInternalFanOutWithinBlockSize(
+			@Nonnull BPlusTreeNode<?> node, int internalNodeBlockSize) {
+			if (node instanceof AbstractIntKeyedInternalNode<?> internal) {
+				assertTrue(
+					internal.keyCount() <= internalNodeBlockSize,
+					"Internal node holds " + internal.keyCount() + " keys, exceeding its configured fan-out of " +
+						internalNodeBlockSize + "."
+				);
+				final BPlusTreeNode<?>[] children = internal.getChildren();
+				for (int i = 0; i <= internal.getPeek(); i++) {
+					assertInternalFanOutWithinBlockSize(children[i], internalNodeBlockSize);
+				}
+			}
+		}
+
+		/**
+		 * Counts the internal (routing) nodes reachable from {@code node}, inclusive. A test uses the growth of this
+		 * count across a batch of inserts to prove an internal-node split actually fired — a consistency check alone
+		 * would pass even if the inserts never reached the split path.
+		 *
+		 * @param node the subtree root to count from
+		 * @return the number of internal nodes in the subtree (0 for a leaf)
+		 */
+		private static int countInternalNodes(@Nonnull BPlusTreeNode<?> node) {
+			if (node instanceof AbstractIntKeyedInternalNode<?> internal) {
+				int count = 1;
+				final BPlusTreeNode<?>[] children = internal.getChildren();
+				for (int i = 0; i <= internal.getPeek(); i++) {
+					count += countInternalNodes(children[i]);
+				}
+				return count;
+			}
+			return 0;
+		}
+
+		@Test
+		@DisplayName("an assembled spine absorbs a leaf split that fills its parent internal node to capacity")
+		void shouldSurviveInternalNodeSplitAfterAssembly() {
+			final int valueBlockSize = 8;
+			final int minValueBlockSize = 3;
+			final int internalNodeBlockSize = 3;
+			final int minInternalNodeBlockSize = 1;
+
+			// six single-leaf source pages, four elements each, disjoint ascending ranges
+			final List<TransactionalElementBPlusTree<PriceRecordContract>> leaves = new ArrayList<>(6);
+			final int[] pageSequences = new int[6];
+			for (int i = 0; i < 6; i++) {
+				leaves.add(
+					singleLeaf(
+						valueBlockSize, minValueBlockSize, internalNodeBlockSize, minInternalNodeBlockSize,
+						i * 100, i * 100 + 1, i * 100 + 2, i * 100 + 3
+					)
+				);
+				pageSequences[i] = i;
+			}
+			// assembly splits the six leaves into two internal nodes of three children each (two keys, short of the
+			// four-child capacity) under a root
+			final TransactionalElementBPlusTree<PriceRecordContract> tree =
+				treeOf(valueBlockSize, minValueBlockSize, internalNodeBlockSize, minInternalNodeBlockSize)
+					.assembleFromSingleLeafTrees(leaves, pageSequences, "internal-node split regression test");
+
+			// filling the first leaf to its own capacity forces it to split, handing its parent a fourth child and
+			// pushing that parent itself to capacity, which must in turn split without corrupting the spine
+			assertDoesNotThrow(() -> {
+				for (int key = 4; key < valueBlockSize; key++) {
+					tree.insert(rec(key));
+				}
+			});
+
+			final int[] expectedKeys = new int[valueBlockSize + 5 * 4];
+			int index = 0;
+			for (int key = 0; key < valueBlockSize; key++) {
+				expectedKeys[index++] = key;
+			}
+			for (int leafIndex = 1; leafIndex < 6; leafIndex++) {
+				final int base = leafIndex * 100;
+				for (int k = 0; k < 4; k++) {
+					expectedKeys[index++] = base + k;
+				}
+			}
+			verifyTreeConsistency(tree, expectedKeys);
+		}
+
+		@Test
+		@DisplayName("an assembled spine survives chained leaf splits at production-scale capacity")
+		void shouldSurviveInternalNodeSplitAtProductionBlockSizes() {
+			final int valueBlockSize = 64;
+			final int minValueBlockSize = 31;
+			final int internalNodeBlockSize = 31;
+			final int minInternalNodeBlockSize = 15;
+			final int leafCount = 33;
+			// each source page must hold at least minValueBlockSize elements, otherwise the assembled (non-root) leaf is
+			// structurally under-occupied and the final consistency report fails regardless of the split fix
+			final int elementsPerLeaf = minValueBlockSize;
+			final int leafSpacing = 1000;
+
+			// thirty-three single-leaf source pages, minValueBlockSize elements each, disjoint ascending ranges
+			final List<TransactionalElementBPlusTree<PriceRecordContract>> leaves = new ArrayList<>(leafCount);
+			final int[] pageSequences = new int[leafCount];
+			for (int i = 0; i < leafCount; i++) {
+				final int[] keys = new int[elementsPerLeaf];
+				for (int k = 0; k < elementsPerLeaf; k++) {
+					keys[k] = i * leafSpacing + k;
+				}
+				leaves.add(
+					singleLeaf(valueBlockSize, minValueBlockSize, internalNodeBlockSize, minInternalNodeBlockSize, keys)
+				);
+				pageSequences[i] = i;
+			}
+			// assembly splits the thirty-three leaves into two internal nodes (seventeen and sixteen children) under a
+			// root
+			final TransactionalElementBPlusTree<PriceRecordContract> tree =
+				treeOf(valueBlockSize, minValueBlockSize, internalNodeBlockSize, minInternalNodeBlockSize)
+					.assembleFromSingleLeafTrees(leaves, pageSequences, "internal-node split production geometry test");
+			final int internalNodesAfterAssembly = countInternalNodes(tree.getRoot());
+
+			// ascending inserts stay below the second leaf's first key (1000), so they keep landing in the growing tail
+			// of the first internal node's subtree; enough of them chain leaf splits until that internal node itself
+			// reaches its capacity and must split
+			assertDoesNotThrow(() -> {
+				for (int key = elementsPerLeaf; key < 651; key++) {
+					tree.insert(rec(key));
+				}
+			});
+
+			// teeth: the run must actually exercise splitInternalNode — the internal-node count has to grow beyond what
+			// assembly produced, otherwise a green consistency check would be a false positive (the split never fired)
+			assertTrue(
+				countInternalNodes(tree.getRoot()) > internalNodesAfterAssembly,
+				"Expected the chained leaf splits to split at least one internal node, but the internal-node count did " +
+					"not grow beyond the " + internalNodesAfterAssembly + " produced by assembly."
+			);
+
+			final int[] expectedKeys = new int[651 + (leafCount - 1) * elementsPerLeaf];
+			int index = 0;
+			for (int key = 0; key < 651; key++) {
+				expectedKeys[index++] = key;
+			}
+			for (int i = 1; i < leafCount; i++) {
+				for (int k = 0; k < elementsPerLeaf; k++) {
+					expectedKeys[index++] = i * leafSpacing + k;
+				}
+			}
+			verifyTreeConsistency(tree, expectedKeys);
+		}
+
+		@Test
+		@DisplayName("incrementally grown internal nodes never exceed their configured fan-out")
+		void shouldRespectInternalNodeBlockSizeOnIncrementalGrowth() {
+			final int internalNodeBlockSize = 3;
+			final TransactionalElementBPlusTree<PriceRecordContract> tree = treeOf(8, 3, internalNodeBlockSize, 1);
+			for (int key = 0; key <= 500; key++) {
+				tree.insert(rec(key));
+			}
+			assertTrue(tree.isRootInternal(), "Test needs a multi-level tree to exercise the spine");
+			assertInternalFanOutWithinBlockSize(tree.getRoot(), internalNodeBlockSize);
+		}
+
+		@Test
+		@DisplayName("a leaf split under a fully packed assembled root does not violate the no-full-node invariant")
+		void shouldSplitChildUnderFullyPackedAssembledInternalNode() {
+			final int valueBlockSize = 8;
+			final int minValueBlockSize = 3;
+			final int internalNodeBlockSize = 3;
+			final int minInternalNodeBlockSize = 1;
+
+			// four single-leaf source pages, four elements each, disjoint ascending ranges
+			final List<TransactionalElementBPlusTree<PriceRecordContract>> leaves = new ArrayList<>(4);
+			final int[] pageSequences = new int[4];
+			for (int i = 0; i < 4; i++) {
+				leaves.add(
+					singleLeaf(
+						valueBlockSize, minValueBlockSize, internalNodeBlockSize, minInternalNodeBlockSize,
+						i * 100, i * 100 + 1, i * 100 + 2, i * 100 + 3
+					)
+				);
+				pageSequences[i] = i;
+			}
+			// with a four-child capacity, all four leaves assemble under a single root that is already at capacity
+			final TransactionalElementBPlusTree<PriceRecordContract> tree =
+				treeOf(valueBlockSize, minValueBlockSize, internalNodeBlockSize, minInternalNodeBlockSize)
+					.assembleFromSingleLeafTrees(leaves, pageSequences, "fully packed root regression test");
+
+			// the first leaf splitting under the already-full root must still be absorbed, without the root ever being
+			// asked to accommodate a child it has no room for
+			assertDoesNotThrow(() -> {
+				for (int key = 4; key < valueBlockSize; key++) {
+					tree.insert(rec(key));
+				}
+			});
+
+			final int[] expectedKeys = new int[valueBlockSize + 3 * 4];
+			int index = 0;
+			for (int key = 0; key < valueBlockSize; key++) {
+				expectedKeys[index++] = key;
+			}
+			for (int leafIndex = 1; leafIndex < 4; leafIndex++) {
+				final int base = leafIndex * 100;
+				for (int k = 0; k < 4; k++) {
+					expectedKeys[index++] = base + k;
+				}
+			}
+			verifyTreeConsistency(tree, expectedKeys);
 		}
 
 	}

@@ -2425,7 +2425,7 @@ class TransactionalBucketBPlusTreeTest {
 		 * @return a single-leaf tree
 		 */
 		@Nonnull
-		private TransactionalBucketBPlusTree<Integer> singleLeaf(@Nonnull int... keys) {
+		private static TransactionalBucketBPlusTree<Integer> singleLeaf(@Nonnull int... keys) {
 			final TransactionalBucketBPlusTree<Integer> tree =
 				new TransactionalBucketBPlusTree<>(10, 1, 3, 1, Integer.class, null);
 			for (final int key : keys) {
@@ -2444,13 +2444,14 @@ class TransactionalBucketBPlusTreeTest {
 		 * @return the assembled tree
 		 */
 		@Nonnull
-		private TransactionalBucketBPlusTree<Integer> assembleSound(
-			@Nonnull List<TransactionalBucketBPlusTree<Integer>> leaves) {
+		private static TransactionalBucketBPlusTree<Integer> assembleSound(
+			@Nonnull List<TransactionalBucketBPlusTree<Integer>> leaves
+		) {
 			final int[] pageSequences = new int[leaves.size()];
 			for (int i = 0; i < pageSequences.length; i++) {
 				pageSequences[i] = i;
 			}
-			return new TransactionalBucketBPlusTree<Integer>(10, 1, 3, 1, Integer.class, null)
+			return new TransactionalBucketBPlusTree<>(10, 1, 3, 1, Integer.class, null)
 				.assembleFromSingleLeafTrees(leaves, pageSequences, "bucket B+ tree op-time boundary test");
 		}
 
@@ -2568,6 +2569,162 @@ class TransactionalBucketBPlusTreeTest {
 
 	}
 
+	/**
+	 * Verifies the internal-node fan-out invariant: an internal node never carries more than
+	 * {@code internalNodeBlockSize} keys ({@code internalNodeBlockSize + 1} children), on both the paths that grow a
+	 * spine — {@link TransactionalBucketBPlusTree#assembleFromSingleLeafTrees} (the persisted FilterIndex reload
+	 * path, which builds a spine directly from a set of leaf pages) and a tree grown purely by incremental
+	 * {@link TransactionalBucketBPlusTree#addRecord(Comparable, int)} calls. A child leaf split is absorbed into its
+	 * parent internal node and, once that parent itself reaches capacity, the parent is split in turn — both steps
+	 * are keyed to the configured internal node block size, not the leaf's.
+	 */
+	@Nested
+	@DisplayName("Internal node fan-out invariant")
+	class InternalNodeFanOutTest {
+
+		private static final int VALUE_BLOCK_SIZE = 8;
+		private static final int MIN_VALUE_BLOCK_SIZE = 3;
+		private static final int INTERNAL_NODE_BLOCK_SIZE = 3;
+		private static final int MIN_INTERNAL_NODE_BLOCK_SIZE = 1;
+
+		/**
+		 * Builds a fresh tree at this class's fixed block-size configuration ({@code valueBlockSize=8},
+		 * {@code minValueBlockSize=3}, {@code internalNodeBlockSize=3}, {@code minInternalNodeBlockSize=1}).
+		 *
+		 * @return a new empty tree at the fixed configuration
+		 */
+		@Nonnull
+		private static TransactionalBucketBPlusTree<Integer> newConfiguredTree() {
+			return new TransactionalBucketBPlusTree<>(
+				VALUE_BLOCK_SIZE, MIN_VALUE_BLOCK_SIZE, INTERNAL_NODE_BLOCK_SIZE, MIN_INTERNAL_NODE_BLOCK_SIZE,
+				Integer.class, null
+			);
+		}
+
+		/**
+		 * Builds a single-leaf source tree at the fixed block-size configuration holding `keyCount` consecutive
+		 * single-record buckets (`key -> key*10`) starting at `firstKey`.
+		 *
+		 * @param firstKey the first (smallest) key placed in the leaf
+		 * @param keyCount the number of consecutive keys placed in the leaf
+		 * @return a single-leaf tree
+		 */
+		@Nonnull
+		private static TransactionalBucketBPlusTree<Integer> singleLeaf(int firstKey, int keyCount) {
+			final TransactionalBucketBPlusTree<Integer> tree = newConfiguredTree();
+			for (int i = 0; i < keyCount; i++) {
+				final int key = firstKey + i;
+				tree.addRecord(key, key * 10);
+			}
+			return tree;
+		}
+
+		/**
+		 * Recursively asserts every internal node reachable from `node` holds at most `internalNodeBlockSize` keys.
+		 *
+		 * @param node                  the subtree root to check
+		 * @param internalNodeBlockSize the configured internal node block size (the fan-out limit is
+		 *                              {@code internalNodeBlockSize + 1} children)
+		 */
+		private static void assertInternalFanOutWithinBlockSize(
+			@Nonnull BPlusTreeNode<?, ?> node, int internalNodeBlockSize
+		) {
+			if (node instanceof BPlusInternalTreeNode<?> internalNode) {
+				assertTrue(
+					internalNode.keyCount() <= internalNodeBlockSize,
+					"Internal node holds " + internalNode.keyCount() + " keys, exceeding the configured internal " +
+						"node block size of " + internalNodeBlockSize + "."
+				);
+				final BPlusTreeNode<?, ?>[] children = internalNode.getChildren();
+				for (int i = 0; i <= internalNode.getPeek(); i++) {
+					assertInternalFanOutWithinBlockSize(children[i], internalNodeBlockSize);
+				}
+			}
+		}
+
+		@Test
+		@DisplayName("splits an assembled parent internal node when a child leaf overflows and cascades a split into it")
+		void shouldSplitAssembledParentInternalNodeWhenChildLeafOverflows() {
+			final List<TransactionalBucketBPlusTree<Integer>> sourceLeaves = new ArrayList<>(6);
+			final TreeSet<Integer> keys = new TreeSet<>();
+			for (int i = 0; i < 6; i++) {
+				sourceLeaves.add(singleLeaf(i * 100, 4));
+				for (int j = 0; j < 4; j++) {
+					keys.add(i * 100 + j);
+				}
+			}
+			final int[] pageSequences = {0, 1, 2, 3, 4, 5};
+			final TransactionalBucketBPlusTree<Integer> tree = newConfiguredTree().assembleFromSingleLeafTrees(
+				sourceLeaves, pageSequences, "bucket B+ tree assembled-spine split test"
+			);
+			// the assembled spine is two internal nodes of three leaves each (two keys, below capacity) under a root
+			assertInstanceOf(
+				BPlusInternalTreeNode.class, tree.getRoot(),
+				"The fixture must assemble a multi-level spine."
+			);
+
+			// fill the FIRST leaf's key range to the leaf's capacity: the last insert splits that leaf, its assembled
+			// parent gains a fourth child and reaches its own capacity, and the tree immediately splits that parent too
+			assertDoesNotThrow(() -> {
+				for (int j = 4; j < VALUE_BLOCK_SIZE; j++) {
+					tree.addRecord(j, j * 10);
+					keys.add(j);
+				}
+			});
+
+			final ConsistencyReport report = tree.getConsistencyReport();
+			assertEquals(ConsistencyState.CONSISTENT, report.state(), report.report());
+			final int[] expectedKeys = keys.stream().mapToInt(Integer::intValue).toArray();
+			verifyTreeConsistency(tree, expectedKeys);
+			for (final int key : expectedKeys) {
+				assertArrayEquals(new int[]{key * 10}, recordsOf(tree, key), "Records must survive for key " + key);
+			}
+		}
+
+		@Test
+		@DisplayName("keeps every internal node's key count within the configured block size as a tree grows incrementally")
+		void shouldKeepInternalNodeKeyCountWithinBlockSizeDuringIncrementalGrowth() {
+			final TransactionalBucketBPlusTree<Integer> tree = newConfiguredTree();
+			for (int i = 0; i < 500; i++) {
+				tree.addRecord(i, i * 10);
+			}
+			assertInstanceOf(BPlusInternalTreeNode.class, tree.getRoot(), "Fixture must build a multi-level spine.");
+			assertInternalFanOutWithinBlockSize(tree.getRoot(), INTERNAL_NODE_BLOCK_SIZE);
+		}
+
+		@Test
+		@DisplayName("splits a child leaf under an internal node built directly by leaf-page assembly")
+		void shouldSplitChildLeafUnderAnAssembledInternalNode() {
+			final List<TransactionalBucketBPlusTree<Integer>> sourceLeaves = new ArrayList<>(4);
+			final TreeSet<Integer> keys = new TreeSet<>();
+			for (int i = 0; i < 4; i++) {
+				sourceLeaves.add(singleLeaf(i * 100, 4));
+				for (int j = 0; j < 4; j++) {
+					keys.add(i * 100 + j);
+				}
+			}
+			final int[] pageSequences = {0, 1, 2, 3};
+			final TransactionalBucketBPlusTree<Integer> tree = newConfiguredTree().assembleFromSingleLeafTrees(
+				sourceLeaves, pageSequences, "bucket B+ tree assembled-root split test"
+			);
+			assertInstanceOf(
+				BPlusInternalTreeNode.class, tree.getRoot(), "The assembled spine must be an internal root.");
+
+			// fill the FIRST leaf's key range to the leaf's capacity: the split must be absorbed by its assembled
+			// parent internal node without corrupting the tree
+			assertDoesNotThrow(() -> {
+				for (int j = 4; j < VALUE_BLOCK_SIZE; j++) {
+					tree.addRecord(j, j * 10);
+					keys.add(j);
+				}
+			});
+
+			final ConsistencyReport report = tree.getConsistencyReport();
+			assertEquals(ConsistencyState.CONSISTENT, report.state(), report.report());
+			verifyTreeConsistency(tree, keys.stream().mapToInt(Integer::intValue).toArray());
+		}
+	}
+
 	@Nested
 	@DisplayName("commit-time structural integrity validation")
 	class DirtyLeafScopeValidationTest {
@@ -2607,7 +2764,7 @@ class TransactionalBucketBPlusTreeTest {
 		}
 
 		@Nonnull
-		private TransactionalBucketBPlusTree<MutableIntKey> singleLeaf(@Nonnull int... keys) {
+		private static TransactionalBucketBPlusTree<MutableIntKey> singleLeaf(@Nonnull int... keys) {
 			final TransactionalBucketBPlusTree<MutableIntKey> tree =
 				new TransactionalBucketBPlusTree<>(10, 1, 3, 1, MutableIntKey.class, null);
 			for (final int key : keys) {
@@ -2617,18 +2774,19 @@ class TransactionalBucketBPlusTreeTest {
 		}
 
 		@Nonnull
-		private TransactionalBucketBPlusTree<MutableIntKey> assembleSound(
-			@Nonnull List<TransactionalBucketBPlusTree<MutableIntKey>> leaves) {
+		private static TransactionalBucketBPlusTree<MutableIntKey> assembleSound(
+			@Nonnull List<TransactionalBucketBPlusTree<MutableIntKey>> leaves
+		) {
 			final int[] pageSequences = new int[leaves.size()];
 			for (int i = 0; i < pageSequences.length; i++) {
 				pageSequences[i] = i;
 			}
-			return new TransactionalBucketBPlusTree<MutableIntKey>(10, 1, 3, 1, MutableIntKey.class, null)
+			return new TransactionalBucketBPlusTree<>(10, 1, 3, 1, MutableIntKey.class, null)
 				.assembleFromSingleLeafTrees(leaves, pageSequences, "bucket B+ tree scope test");
 		}
 
 		@Nonnull
-		private BPlusLeafTreeNode<MutableIntKey> leafAt(
+		private static BPlusLeafTreeNode<MutableIntKey> leafAt(
 			@Nonnull TransactionalBucketBPlusTree<MutableIntKey> tree, int key) {
 			return tree.createCursor(new MutableIntKey(key)).leafNode();
 		}
