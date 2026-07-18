@@ -163,9 +163,12 @@ class ConcurrentSessionAccessTest implements EvitaTestSupport {
 					try {
 						final int primaryKey = round % PRODUCT_COUNT + 1;
 						if (threadIndex == 0) {
-							// writer thread mutates an existing entity
-							session.createNewEntity(Entities.PRODUCT, primaryKey)
-								.setAttribute(ATTRIBUTE_NAME, "updated-" + round)
+							// writer thread inserts a brand-new entity on a unique primary key: reusing a
+							// pre-seeded key would make createNewEntity()'s MUST_NOT_EXIST semantics throw
+							// InvalidMutationException for a reason unrelated to concurrency, which both masks
+							// and races the ConcurrentSessionAccessException guard this test asserts on
+							session.createNewEntity(Entities.PRODUCT, PRODUCT_COUNT + round + 1)
+								.setAttribute(ATTRIBUTE_NAME, "created-" + round)
 								.upsertVia(session);
 						} else {
 							// reader thread races the writer on the very same session

@@ -68,8 +68,11 @@ import java.util.stream.Stream;
  * - **Labels**: Filter by trace ID, client ID, IP address, URI, entity type, or custom labels
  * - **Recording type**: Include only queries, mutations, fetches, enrichments, or sessions
  *
- * Multiple criteria within a request are combined with **logical OR** — a recording matches if it satisfies any
- * of the specified conditions.
+ * Different criteria within a request are combined with **logical AND** — a recording matches only if it
+ * satisfies every specified criterion (e.g. time range AND labels AND recording type). Within a single
+ * multi-valued criterion the values are combined with OR (e.g. any of the requested session ids or
+ * recording types matches), and a label filter requires every requested label name to match (with OR
+ * across the values supplied for each name).
  *
  * **Ordering Guarantees**
  *
@@ -87,12 +90,6 @@ import java.util.stream.Stream;
  *
  * Implementations are thread-safe for querying, but the returned streams are not. Each stream should be consumed
  * by a single thread.
- *
- * **Usage Context**
- *
- * This interface is implemented by:
- * - {@link io.evitadb.core.traffic.TrafficRecordingEngine} (primary engine for live catalog traffic)
- * - {@link io.evitadb.store.traffic.InputStreamTrafficRecordReader} (read-only access to exported traffic files)
  *
  * **Example Usage**
  *
@@ -113,8 +110,6 @@ import java.util.stream.Stream;
  * ```
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
- * @see io.evitadb.core.traffic.TrafficRecordingEngine
- * @see io.evitadb.store.traffic.InputStreamTrafficRecordReader
  * @see io.evitadb.api.requestResponse.trafficRecording.TrafficRecording
  * @see io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingCaptureRequest
  */
@@ -128,11 +123,13 @@ public interface TrafficRecordingReader {
 	 * **Resource Management**: The returned stream must be closed after use to release file handles and memory.
 	 * Use try-with-resources for automatic cleanup.
 	 *
-	 * **Filtering Logic**: Multiple criteria in the request are combined with logical OR — a recording is included
-	 * if it matches any of the specified conditions (time range, labels, recording types).
+	 * **Filtering Logic**: Different criteria in the request are combined with logical AND — a recording is
+	 * included only if it matches every specified criterion (time range AND labels AND recording types).
+	 * Within a single multi-valued criterion the values are OR-ed (any requested session id / recording type
+	 * matches), and a label filter requires every requested label name to match.
 	 *
-	 * @param request criteria specifying which recordings to return (time range, labels, recording types); multiple
-	 *                criteria are combined with logical OR
+	 * @param request criteria specifying which recordings to return (time range, labels, recording types);
+	 *                different criteria are combined with logical AND (values within one criterion with OR)
 	 * @return stream of matching recordings in chronological order (oldest sessions and operations first); must be
 	 * closed by the caller
 	 * @throws TemporalDataNotAvailableException if the requested time range is no longer available (overwritten by
@@ -156,11 +153,13 @@ public interface TrafficRecordingReader {
 	 * **Resource Management**: The returned stream must be closed after use to release file handles and memory.
 	 * Use try-with-resources for automatic cleanup.
 	 *
-	 * **Filtering Logic**: Multiple criteria in the request are combined with logical OR — a recording is included
-	 * if it matches any of the specified conditions (time range, labels, recording types).
+	 * **Filtering Logic**: Different criteria in the request are combined with logical AND — a recording is
+	 * included only if it matches every specified criterion (time range AND labels AND recording types).
+	 * Within a single multi-valued criterion the values are OR-ed (any requested session id / recording type
+	 * matches), and a label filter requires every requested label name to match.
 	 *
-	 * @param request criteria specifying which recordings to return (time range, labels, recording types); multiple
-	 *                criteria are combined with logical OR
+	 * @param request criteria specifying which recordings to return (time range, labels, recording types);
+	 *                different criteria are combined with logical AND (values within one criterion with OR)
 	 * @return stream of matching recordings in reverse chronological order (newest sessions and operations first);
 	 * must be closed by the caller
 	 * @throws TemporalDataNotAvailableException if the requested time range is no longer available (overwritten by

@@ -93,8 +93,10 @@ import io.evitadb.core.metric.event.query.EntityEnrichEvent;
 import io.evitadb.core.metric.event.query.EntityFetchEvent;
 import io.evitadb.core.query.response.ServerEntityDecorator;
 import io.evitadb.core.traffic.TrafficRecordingEngine;
+import io.evitadb.core.traffic.TrafficRecordingExportSettings;
 import io.evitadb.core.traffic.TrafficRecordingSettings;
 import io.evitadb.core.traffic.task.TrafficRecorderTask;
+import io.evitadb.core.traffic.task.TrafficRecordingExportTask;
 import io.evitadb.core.transaction.Transaction;
 import io.evitadb.core.transaction.TransactionWalFinalizer;
 import io.evitadb.dataType.Scope;
@@ -1715,6 +1717,26 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 				"Traffic recording is not running. You have to start it first."
 			);
 		}
+	}
+
+	@Nonnull
+	@Override
+	public ServerTask<TrafficRecordingExportSettings, FileForFetch> exportTrafficRecording(
+		long chunkFileSizeInBytes
+	) {
+		isTrue(
+			!isReadOnly(),
+			ReadOnlyException::sessionReadOnly
+		);
+
+		final Scheduler scheduler = this.evita.getServiceExecutor();
+		final ServerTask<TrafficRecordingExportSettings, FileForFetch> trafficRecordingExportTask = new TrafficRecordingExportTask(
+			getCatalogName(), chunkFileSizeInBytes,
+			this.catalog.getTrafficRecordingEngine(),
+			this.evita.management().exportService()
+		);
+		scheduler.submit(trafficRecordingExportTask);
+		return trafficRecordingExportTask;
 	}
 
 	/**

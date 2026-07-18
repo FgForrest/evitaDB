@@ -84,6 +84,11 @@
 		</dependency>
 		<dependency>
 			<groupId>${project.groupId}</groupId>
+			<artifactId>evita_traffic_engine</artifactId>
+			<version>${project.parent.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>${project.groupId}</groupId>
 			<artifactId>evita_store_key_value</artifactId>
 			<version>${project.parent.version}</version>
 		</dependency>

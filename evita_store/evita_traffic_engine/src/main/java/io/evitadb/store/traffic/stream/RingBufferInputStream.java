@@ -57,45 +57,81 @@ public class RingBufferInputStream extends InputStream {
 
 	@Override
 	public int read() throws IOException {
-		this.position++;
-		if (this.position > this.inputBufferSize) {
+		// `position` is the physical offset of the next byte to read; wrap BEFORE reading so it
+		// stays in lock-step with the delegate's file pointer (otherwise the next wrap fires late
+		// and reads one byte past the physical end of the ring buffer)
+		if (this.position >= this.inputBufferSize) {
 			this.position = 0L;
 			this.delegatingInputStream.seek(this.position);
 		}
-		return this.delegatingInputStream.read();
+		final int result = this.delegatingInputStream.read();
+		if (result >= 0) {
+			this.position++;
+		}
+		return result;
 	}
 
 	public int read(@Nonnull byte[] buffer, int off, int len) throws IOException {
+		// sitting exactly on the physical end of the region - restart from the beginning first
+		if (this.position >= this.inputBufferSize) {
+			this.position = 0L;
+			this.delegatingInputStream.seek(this.position);
+		}
 		if (this.position + len > this.inputBufferSize) {
+			// the requested range straddles the physical end of the ring buffer - split it into a
+			// tail read (up to the end of the region) and a head read (from the beginning)
 			final int bytesUpToEOF = (int) (this.inputBufferSize - this.position);
 			final int tailRead = this.delegatingInputStream.read(buffer, off, bytesUpToEOF);
+			if (tailRead < bytesUpToEOF) {
+				// short tail read - advance by what was actually returned and stop; the caller will
+				// re-invoke read() to obtain the remaining bytes
+				this.position += Math.max(tailRead, 0);
+				return tailRead;
+			}
 			this.position = 0L;
 			this.delegatingInputStream.seek(this.position);
 			final int headRead = this.delegatingInputStream.read(buffer, off + bytesUpToEOF, len - bytesUpToEOF);
-			return tailRead + headRead;
+			// advance `position` by the bytes actually read from the head segment (never leave it at 0)
+			this.position = Math.max(headRead, 0);
+			return tailRead + Math.max(headRead, 0);
 		} else {
-			this.position += len;
-			return this.delegatingInputStream.read(buffer, off, len);
+			// advance by the bytes actually read, not the requested length, so a short read cannot
+			// desync `position` from the delegate's file pointer
+			final int bytesRead = this.delegatingInputStream.read(buffer, off, len);
+			if (bytesRead > 0) {
+				this.position += bytesRead;
+			}
+			return bytesRead;
 		}
 	}
 
 	@Override
 	public long skip(long n) throws IOException {
-		this.position += n;
-		if (this.position > this.inputBufferSize) {
-			this.position = this.position % this.inputBufferSize;
-			this.delegatingInputStream.seek(this.position);
+		// honor the InputStream#skip contract: a non-positive request skips nothing and returns 0
+		// (a negative value would otherwise walk `position` backwards past the modulo guard and seek negative)
+		if (n <= 0L) {
+			return 0L;
 		}
+		// reduce n modulo the buffer size before advancing so a very large n cannot overflow `position`
+		// past Long.MAX_VALUE (which would turn it negative and bypass the wrap guard)
+		this.position = (this.position + n % this.inputBufferSize) % this.inputBufferSize;
+		// always move the delegate's file pointer - even when the skip stays within the region -
+		// otherwise the subsequent read would come from the un-skipped offset
+		this.delegatingInputStream.seek(this.position);
 		return n;
 	}
 
 	@Override
 	public void skipNBytes(long n) throws IOException {
-		this.position += n;
-		if (this.position > this.inputBufferSize) {
-			this.position = this.position % this.inputBufferSize;
-			this.delegatingInputStream.seek(this.position);
+		// honor the InputStream#skipNBytes contract: a non-positive request skips nothing (see #skip)
+		if (n <= 0L) {
+			return;
 		}
+		// reduce n modulo the buffer size before advancing so a very large n cannot overflow `position`
+		// past Long.MAX_VALUE (which would turn it negative and bypass the wrap guard)
+		this.position = (this.position + n % this.inputBufferSize) % this.inputBufferSize;
+		// always move the delegate's file pointer (see #skip)
+		this.delegatingInputStream.seek(this.position);
 	}
 
 	@Override
@@ -103,19 +139,26 @@ public class RingBufferInputStream extends InputStream {
 		return Math.toIntExact(this.inputBufferSize);
 	}
 
+	/**
+	 * Mark/reset is intentionally unsupported. This stream keeps its own ring-buffer {@link #position} to
+	 * decide when to wrap back to the start of the region; the inherited (delegate-forwarding) mark/reset
+	 * would restore only the delegate's file pointer and leave {@code position} out of step, which would
+	 * silently read past the physical end of the ring-buffer window into unrelated bytes. We therefore report
+	 * {@link #markSupported()} as {@code false} and let {@link #reset()} fail fast rather than corrupt reads.
+	 */
+	@Override
+	public boolean markSupported() {
+		return false;
+	}
+
 	@Override
 	public synchronized void mark(int readlimit) {
-		this.delegatingInputStream.mark(readlimit);
+		// no-op: mark/reset is unsupported (see markSupported()); the inherited InputStream default is also a no-op
 	}
 
 	@Override
 	public synchronized void reset() throws IOException {
-		this.delegatingInputStream.reset();
-	}
-
-	@Override
-	public boolean markSupported() {
-		return this.delegatingInputStream.markSupported();
+		throw new IOException("mark/reset is not supported by the ring buffer input stream");
 	}
 
 	@Override

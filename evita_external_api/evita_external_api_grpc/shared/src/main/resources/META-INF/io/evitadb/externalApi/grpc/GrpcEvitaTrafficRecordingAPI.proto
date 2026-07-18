@@ -85,6 +85,12 @@ message GrpcStopTrafficRecordingRequest {
   GrpcUuid taskStatusId = 1;
 }
 
+// Request to ExportTrafficRecording request.
+message GrpcExportTrafficRecordingRequest {
+  // The size of the chunk file in bytes. Individual files in the export file will be approximately this size.
+  google.protobuf.Int64Value chunkFileSizeInBytes = 1;
+}
+
 // Response to StartTrafficRecording and  request.
 message GetTrafficRecordingStatusResponse {
   // The status of the recording task
@@ -113,5 +119,8 @@ service GrpcEvitaTrafficRecordingService {
   rpc StartTrafficRecording(GrpcStartTrafficRecordingRequest) returns (GetTrafficRecordingStatusResponse);
   // Procedure that stops the traffic recording
   rpc StopTrafficRecording(GrpcStopTrafficRecordingRequest) returns (GetTrafficRecordingStatusResponse);
+  // Procedure that exports a consistent, on-demand snapshot of the currently buffered traffic recording window
+  // to a downloadable zip archive - not gated by any running recording task.
+  rpc ExportTrafficRecording(GrpcExportTrafficRecordingRequest) returns (GetTrafficRecordingStatusResponse);
 
 }

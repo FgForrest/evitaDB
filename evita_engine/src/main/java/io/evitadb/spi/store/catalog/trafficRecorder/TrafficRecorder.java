@@ -168,11 +168,12 @@ public interface TrafficRecorder extends Closeable {
 	);
 
 	/**
-	 * Sets the sampling rate for the traffic recording. The sampling rate determines how many sessions are recorded.
+	 * Sets the sampling rate for the traffic recording. The sampling rate is the target percentage of traffic
+	 * that is recorded: 0 records nothing (recording disabled), 100 records everything.
 	 * Initial values is set in {@link #init(String, FileManagementService, Scheduler, StorageOptions, TrafficRecordingOptions)}
 	 * from {@link TrafficRecordingOptions#trafficSamplingPercentage()}
 	 *
-	 * @param samplingPercentage sampling rate in percentage (1 - 100)
+	 * @param samplingPercentage target percentage of recorded traffic (0 - 100; 0 disables recording)
 	 */
 	void setSamplingPercentage(int samplingPercentage);
 
