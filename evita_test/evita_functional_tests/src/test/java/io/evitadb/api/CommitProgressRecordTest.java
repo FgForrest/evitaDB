@@ -32,7 +32,9 @@ import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Deque;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
@@ -191,6 +193,41 @@ class CommitProgressRecordTest implements EvitaTestSupport {
 				record.onChangesVisible().toCompletableFuture().get(1, TimeUnit.SECONDS)
 			);
 			assertTrue(record.isCompletedSuccessfully());
+		}
+
+		/**
+		 * Reproduces the production bug where a gRPC bridge (or any other consumer) registers a
+		 * listener on each stage up front, then the engine completes stage 2 while stage 1 is
+		 * still pending. Internally this used to register a NEW "advance to stage 2" listener on
+		 * stage 1's future — and since {@link CompletableFuture} fires multiple pending listeners
+		 * in an unspecified (in practice most-recently-registered-first) order, that internal
+		 * listener could fire before the consumer's own, earlier-registered stage 1 listener,
+		 * letting the stage 2 notification win the race and fire before the stage 1 notification.
+		 * `DeferredExecutor` makes the race deterministic instead of timing-dependent: stage 1's
+		 * completion is queued but never run until `runAll()`, so stage 2 is guaranteed to be
+		 * requested while stage 1 is still pending, every time.
+		 */
+		@Test
+		@DisplayName("Should fire external listeners in stage order even when a later stage is completed while the earlier stage is still pending")
+		void shouldFireExternalListenersInStageOrderWhenLaterStageRacesPendingEarlierStage() {
+			final DeferredExecutor executor = new DeferredExecutor();
+			final CommitProgressRecord record = new CommitProgressRecord();
+			final CommitVersions versions = new CommitVersions(1L, 1);
+			final List<String> worklog = new ArrayList<>();
+
+			// a consumer (e.g. the gRPC bridge) subscribes to both stages up front
+			record.onConflictResolved().thenAccept(v -> worklog.add("conflict resolved"));
+			record.onWalAppended().thenAccept(v -> worklog.add("wal appended"));
+
+			// stage 1 scheduled async, not yet run
+			record.complete(CommitBehavior.WAIT_FOR_CONFLICT_RESOLUTION, versions, executor);
+			// stage 2 requested while stage 1 is still pending — the race window
+			record.complete(CommitBehavior.WAIT_FOR_WAL_PERSISTENCE, versions, executor);
+
+			// let stage 1's async completion (and the cascade it triggers) run
+			executor.runAll();
+
+			assertEquals(List.of("conflict resolved", "wal appended"), worklog);
 		}
 	}
 
