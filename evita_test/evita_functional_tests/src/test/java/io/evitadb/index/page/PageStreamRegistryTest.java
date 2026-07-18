@@ -30,12 +30,14 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 
 import static io.evitadb.index.page.PageStreamRegistry.NO_PAGE;
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.SERIALIZATION;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -60,7 +62,7 @@ class PageStreamRegistryTest {
 	 * Builds a live-page list from the given page sequences, in the order they are passed.
 	 *
 	 * @param pageSequences the page sequences in ascending key order
-	 * @return the assembled list
+	 * @return the same page sequences as an ordered {@code int[]} live-page list
 	 */
 	private static int[] livePagesOf(int... pageSequences) {
 		return pageSequences;
@@ -196,6 +198,48 @@ class PageStreamRegistryTest {
 				"Staging an unallocated page sequence must fail."
 			);
 		}
+
+		@Test
+		@DisplayName("reports the staged set for a collapse reclaim before any publish, then the published set after")
+		@Tag(INDEXING)
+		@Tag(SERIALIZATION)
+		void shouldReportPendingLiveSetFromStagedSetBeforePublish() {
+			final PageStreamRegistry registry = new PageStreamRegistry();
+			assertArrayEquals(
+				new int[0], registry.pendingLivePageSequences(1),
+				"An unknown stream must report no pending live pages."
+			);
+
+			registry.allocate(1); // 0
+			registry.allocate(1); // 1
+			registry.stage(1, livePagesOf(0, 1));
+
+			// a PAGED -> SINGLE collapse reclaims against what THIS flush staged, before it publishes: the published
+			// live set still lags a whole flush behind (empty here), so only the staged set names the pages to remove
+			assertTrue(registry.livePages(1).isEmpty(), "The staged set must stay invisible to the published live set.");
+			assertArrayEquals(
+				new int[]{0, 1}, sorted(registry.pendingLivePageSequences(1)),
+				"Before publish, the pending live set must be the staged set, not the lagging published set."
+			);
+
+			registry.publishStaged();
+			assertArrayEquals(
+				new int[]{0, 1}, sorted(registry.pendingLivePageSequences(1)),
+				"After publish, the pending live set must fall back to the now-current published set."
+			);
+		}
+	}
+
+	/**
+	 * Sorts a page-sequence array in place and returns it, so assertions can ignore the {@link java.util.HashSet}
+	 * iteration order behind {@link PageStreamRegistry#pendingLivePageSequences(int)}.
+	 *
+	 * @param pageSequences the page sequences to sort
+	 * @return the same array, sorted ascending
+	 */
+	private static int[] sorted(int[] pageSequences) {
+		Arrays.sort(pageSequences);
+		return pageSequences;
 	}
 
 	@Nested

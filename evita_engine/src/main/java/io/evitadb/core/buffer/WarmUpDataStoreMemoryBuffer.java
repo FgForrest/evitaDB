@@ -56,9 +56,12 @@ public class WarmUpDataStoreMemoryBuffer implements DataStoreMemoryBuffer {
 	 */
 	@Nonnull private final DataStoreChanges dataStoreChanges;
 	/**
-	 * The failure of a previous flush, or {@code null} while this buffer is healthy.
+	 * The failure of a previous flush, or {@code null} while this buffer is healthy. Declared {@code volatile} because
+	 * the catalog-level buffer is poisoned from inside a flush-future completion callback that may run on a worker
+	 * thread, while {@link #popTrappedChanges()} reads this field on the catalog writer thread — a plain field would not
+	 * guarantee the writer observes the poison.
 	 */
-	@Nullable private Throwable flushFailure;
+	@Nullable private volatile Throwable flushFailure;
 
 	public WarmUpDataStoreMemoryBuffer(
 		@Nonnull StoragePartPersistenceService persistenceService
@@ -178,12 +181,13 @@ public class WarmUpDataStoreMemoryBuffer implements DataStoreMemoryBuffer {
 	@Override
 	public TrappedChanges popTrappedChanges() {
 		// every warm-up collect passes through here, whatever triggered it - a session close, a collection being
-		// created / removed / replaced, going live or terminating - so this is the single point at which a collection
-		// whose flush failed can be stopped before it writes again
+		// created / removed / replaced, going live or terminating - so this is the single point at which a warm-up
+		// buffer whose flush failed can be stopped before it writes again (this buffer backs both an entity collection
+		// and the catalog, so the refusal is phrased for either)
 		if (this.flushFailure != null) {
 			throw new GenericEvitaInternalError(
-				"Cannot collect changes: a previous flush of this collection failed, so the changes it had already " +
-					"collected are lost and its persisted state is incomplete. Reload the catalog from disk to recover.",
+				"Cannot collect changes: a previous warm-up flush failed, so the changes it had already collected are " +
+					"lost and the persisted state is incomplete. Reload the catalog from disk to recover.",
 				this.flushFailure
 			);
 		}

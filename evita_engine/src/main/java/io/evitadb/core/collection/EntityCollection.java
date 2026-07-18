@@ -1694,7 +1694,10 @@ public final class EntityCollection implements
 				);
 		} catch (Throwable ex) {
 			// the collected changes are lost and this collection's persisted state is now incomplete: refuse every
-			// later flush of it rather than write on top of baselines that claim the lost changes were persisted
+			// later flush of it rather than write on top of baselines that claim the lost changes were persisted.
+			// Catching Throwable rather than RuntimeException is deliberate: an Error such as an OutOfMemoryError mid
+			// flush must poison too, otherwise a later collect could silently write over baselines. The cause is always
+			// rethrown, so this never uses exceptions for control flow
 			this.dataStoreBuffer.poison(ex);
 			throw ex;
 		}
