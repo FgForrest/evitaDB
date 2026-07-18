@@ -195,9 +195,13 @@ jobs:
 
     # Resolve previous release tag and milestone. Used both to build the
     # skeleton body below and later by the release-notes enrichment skill.
+    # Best-effort: only feeds release-notes generation, so a failure here
+    # (e.g. a transient git/gh hiccup) must not abort the release — the
+    # skeleton step and downstream steps tolerate empty outputs.
     - name: Resolve release notes inputs
       id: notes_inputs
       if: success()
+      continue-on-error: true
       env:
         VERSION: ${{ steps.release_version.outputs.version }}
         IS_MAJOR: ${{ github.event.workflow_run.conclusion == 'success' }}
@@ -345,12 +349,57 @@ jobs:
           echo "Release tag_name normalized to $VERSION"
         fi
 
+    # These uploads complete the irreversible part of the release (Maven
+    # deploy to Central + draft release both already happened above) and are
+    # placed ahead of the release-notes enrichment block below on purpose:
+    # enrichment is best-effort, but a hard failure anywhere still taints the
+    # job's overall conclusion, and the Docker publish workflow only triggers
+    # on a successful conclusion. Uploading the release-completing assets
+    # first means a failure in the enrichment tail can no longer prevent the
+    # release from being usable or block the Docker publish.
+    - name: Upload dist.zip to release
+      uses: actions/upload-release-asset@e8f9f06c4b078e705bd2ea027f0926603fc9b4d5 # v1.0.2
+      if: success()
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./dist.zip
+        asset_name: evitaDB-${{ steps.release_version.outputs.version }}.zip
+        asset_content_type: application/zip
+
+    - name: Upload dist.tar.gz to release
+      uses: actions/upload-release-asset@e8f9f06c4b078e705bd2ea027f0926603fc9b4d5 # v1.0.2
+      if: success()
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./dist.tar.gz
+        asset_name: evitaDB-${{ steps.release_version.outputs.version }}.tar.gz
+        asset_content_type: application/gzip
+
+    - name: Upload evitaDB server artifact
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      if: success()
+      with:
+        name: evita-server.jar
+        path: 'evita_server/target/evita-server.jar'
+
+    - name: Upload evitaDB version.txt
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      if: success()
+      with:
+        name: version.txt
+        path: 'version.txt'
+
     # Cache the Claude Code CLI binary so we don't re-download it on every
     # release run. The cache key is pinned to CLAUDE_CODE_VERSION below; bump
     # that version to roll forward and auto-invalidate the cache.
+    # Best-effort: everything from here to the end of the job only affects
+    # the enriched release-notes body, never the release itself (already
+    # created and populated with assets above) — soft-fail so a cache
+    # service hiccup can't taint the job conclusion.
     - name: Cache Claude Code CLI
       id: cache_claude_cli
       if: success()
+      continue-on-error: true
       uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: |
@@ -363,22 +412,40 @@ jobs:
     # issue/PR/workflow_dispatch events and errors on `push` (which is what
     # triggers this workflow). DISABLE_AUTOUPDATER keeps the cached binary
     # pinned so the cache key stays valid across runs.
+    # Soft-fail (load-bearing, not decorative): this only runs on a cache
+    # miss, so it's the one step in the enrichment block that hits an
+    # external network endpoint on a cold cache — a transient connection
+    # blip here must never abort a release that has already deployed to
+    # Maven Central. The retry flags absorb short blips; continue-on-error
+    # is what survives everything else. The enrichment step below checks
+    # this step's `outcome` (not just `success()`) so it fails fast on a
+    # missing binary instead of erroring out.
     - name: Install Claude Code CLI
+      id: install_claude
       if: success() && steps.cache_claude_cli.outputs.cache-hit != 'true'
-      run: curl -fsSL https://claude.ai/install.sh | bash -s 2.1.89
+      continue-on-error: true
+      run: |
+        curl -fsSL --retry 5 --retry-all-errors --retry-delay 3 \
+             --connect-timeout 10 --max-time 120 \
+             https://claude.ai/install.sh | bash -s 2.1.89
 
     - name: Add Claude Code CLI to PATH
       if: success()
+      continue-on-error: true
       run: echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
     # Generate enriched release notes via the .claude/skills/release-notes
     # skill. The skeleton draft from the Create release step is the
     # safety net — this step is allowed to fail without affecting the
     # release build. Uses Sonnet (cheaper than Opus) because release-notes
-    # enrichment is a straightforward summarise/rewrite task.
+    # enrichment is a straightforward summarise/rewrite task. Gated on the
+    # install step's outcome (not just success()) so a soft-failed install
+    # skips straight past this instead of erroring out on a missing binary.
+    # A continue-on-error step that fails reports outcome=failure but
+    # conclusion=success, so success() alone would still let this run.
     - name: Generate enriched release notes with Claude
       id: claude_notes
-      if: success()
+      if: success() && steps.install_claude.outcome != 'failure'
       continue-on-error: true
       env:
         CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -410,6 +477,7 @@ jobs:
     # easy to inspect without re-running the workflow.
     - name: Show generated release notes
       if: always() && steps.claude_notes.outcome != 'skipped'
+      continue-on-error: true
       run: |
         echo "claude_notes outcome: ${{ steps.claude_notes.outcome }}"
         if [ -s release-notes.md ]; then
@@ -424,6 +492,7 @@ jobs:
     # offline for inspection — even if the PATCH step skipped or failed.
     - name: Upload release-notes.md artifact
       if: always() && hashFiles('release-notes.md') != ''
+      continue-on-error: true
       uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
       with:
         name: release-notes-${{ steps.release_version.outputs.version }}
@@ -467,35 +536,3 @@ jobs:
           exit 1
         fi
         echo "Release body updated; tag_name pinned to $VERSION."
-
-    - name: Upload dist.zip to release
-      uses: actions/upload-release-asset@e8f9f06c4b078e705bd2ea027f0926603fc9b4d5 # v1.0.2
-      if: success()
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: ./dist.zip
-        asset_name: evitaDB-${{ steps.release_version.outputs.version }}.zip
-        asset_content_type: application/zip
-
-    - name: Upload dist.tar.gz to release
-      uses: actions/upload-release-asset@e8f9f06c4b078e705bd2ea027f0926603fc9b4d5 # v1.0.2
-      if: success()
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: ./dist.tar.gz
-        asset_name: evitaDB-${{ steps.release_version.outputs.version }}.tar.gz
-        asset_content_type: application/gzip
-
-    - name: Upload evitaDB server artifact
-      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-      if: success()
-      with:
-        name: evita-server.jar
-        path: 'evita_server/target/evita-server.jar'
-
-    - name: Upload evitaDB version.txt
-      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-      if: success()
-      with:
-        name: version.txt
-        path: 'version.txt'
