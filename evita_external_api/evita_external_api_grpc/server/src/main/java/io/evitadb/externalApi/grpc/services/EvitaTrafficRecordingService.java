@@ -24,7 +24,6 @@
 package io.evitadb.externalApi.grpc.services;
 
 
-import com.linecorp.armeria.common.util.TimeoutMode;
 import com.linecorp.armeria.server.ServiceRequestContext;
 import io.evitadb.api.file.FileForFetch;
 import io.evitadb.api.requestResponse.trafficRecording.TrafficRecording;
@@ -37,6 +36,7 @@ import io.evitadb.core.traffic.TrafficRecordingSettings;
 import io.evitadb.externalApi.configuration.HeaderOptions;
 import io.evitadb.externalApi.grpc.generated.*;
 import io.evitadb.externalApi.grpc.services.converter.TrafficCaptureConverter;
+import io.evitadb.externalApi.grpc.utils.GrpcTimeoutUtil;
 import io.evitadb.externalApi.trace.ExternalApiTracingContextProvider;
 import io.evitadb.externalApi.utils.ExternalApiTracingContext;
 import io.grpc.Metadata;
@@ -175,9 +175,7 @@ public class EvitaTrafficRecordingService extends GrpcEvitaTrafficRecordingServi
 						builder.addTrafficRecord(event);
 						responseObserver.onNext(builder.build());
 
-						serviceContext.setRequestTimeout(
-							TimeoutMode.SET_FROM_NOW, Duration.ofMillis(serviceContext.requestTimeoutMillis())
-						);
+						GrpcTimeoutUtil.reArmRequestTimeoutIfEnabled(serviceContext, serviceContext.requestTimeoutMillis());
 					}
 				);
 				responseObserver.onCompleted();

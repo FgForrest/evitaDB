@@ -108,6 +108,34 @@ class ClientTimeoutOptionsTest {
 			assertEquals(1, options.streamingTimeout());
 			assertEquals(TimeUnit.HOURS, options.streamingTimeoutUnit());
 		}
+
+		@Test
+		@DisplayName("should normalize a zero streaming timeout to the default")
+		void shouldNormalizeZeroStreamingTimeoutToDefault() {
+			// streamed calls re-arm their deadline via TimeoutMode.SET_FROM_NOW after every
+			// message, which requires a strictly positive duration — a disabled (0) streaming
+			// timeout would crash the very first re-arm, so it is normalized away at construction
+			// instead, mirroring how ApiOptions normalizes the server's own request timeout
+			final ClientTimeoutOptions options =
+				ClientTimeoutOptions.builder()
+					.streamingTimeout(0, TimeUnit.MINUTES)
+					.build();
+
+			assertEquals(ClientTimeoutOptions.DEFAULT_STREAMING_TIMEOUT, options.streamingTimeout());
+			assertEquals(ClientTimeoutOptions.DEFAULT_STREAMING_TIMEOUT_UNIT, options.streamingTimeoutUnit());
+		}
+
+		@Test
+		@DisplayName("should normalize a negative streaming timeout to the default")
+		void shouldNormalizeNegativeStreamingTimeoutToDefault() {
+			final ClientTimeoutOptions options =
+				ClientTimeoutOptions.builder()
+					.streamingTimeout(-5, TimeUnit.MINUTES)
+					.build();
+
+			assertEquals(ClientTimeoutOptions.DEFAULT_STREAMING_TIMEOUT, options.streamingTimeout());
+			assertEquals(ClientTimeoutOptions.DEFAULT_STREAMING_TIMEOUT_UNIT, options.streamingTimeoutUnit());
+		}
 	}
 
 	@Nested

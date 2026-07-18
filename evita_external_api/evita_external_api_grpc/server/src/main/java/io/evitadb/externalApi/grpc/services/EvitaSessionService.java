@@ -25,7 +25,6 @@ package io.evitadb.externalApi.grpc.services;
 
 import com.google.protobuf.Empty;
 import com.google.protobuf.GeneratedMessageV3;
-import com.linecorp.armeria.common.util.TimeoutMode;
 import com.linecorp.armeria.server.ServiceRequestContext;
 import io.evitadb.api.CatalogState;
 import io.evitadb.api.CommitProgress;
@@ -95,6 +94,7 @@ import io.evitadb.externalApi.grpc.services.converter.WriteAheadLogVersionDescri
 import io.evitadb.externalApi.grpc.services.interceptors.GlobalExceptionHandlerInterceptor;
 import io.evitadb.externalApi.grpc.services.interceptors.ServerSessionInterceptor;
 import io.evitadb.externalApi.grpc.services.subscriber.ChangeCatalogCaptureSubscriber;
+import io.evitadb.externalApi.grpc.utils.GrpcTimeoutUtil;
 import io.evitadb.externalApi.grpc.utils.QueryUtil;
 import io.evitadb.externalApi.grpc.utils.QueryWithParameters;
 import io.evitadb.externalApi.http.CancellationSupport;
@@ -114,7 +114,6 @@ import lombok.extern.slf4j.Slf4j;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
-import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -125,9 +124,7 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Flow.Subscription;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
@@ -786,9 +783,7 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 									responseObserver.onNext(response);
 									this.lastUpdate = System.currentTimeMillis();
 								}
-								serviceContext.setRequestTimeout(
-									TimeoutMode.SET_FROM_NOW, Duration.ofMillis(serviceContext.requestTimeoutMillis())
-								);
+								GrpcTimeoutUtil.reArmRequestTimeoutIfEnabled(serviceContext, serviceContext.requestTimeoutMillis());
 							}
 						}
 					);
@@ -947,8 +942,8 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 
 	/**
 	 * Streams backup task progress updates to the client. Sends an initial status, then polls the
-	 * task at ~1 second intervals, sending updates when progress changes. Extends the server request
-	 * timeout with each sent message.
+	 * task at ~1 second intervals, sending updates when progress changes. Re-arms the server request
+	 * timeout to a fresh deadline with each sent message.
 	 *
 	 * @param backupTask       the backup task to monitor
 	 * @param responseBuilder  function to build the gRPC response from a task status
@@ -981,10 +976,7 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 						responseBuilder.apply(toGrpcTaskStatus(backupTask.getStatus()))
 					);
 				}
-				serviceContext.setRequestTimeout(
-					TimeoutMode.EXTEND,
-					Duration.ofMillis(serviceContext.requestTimeoutMillis())
-				);
+				GrpcTimeoutUtil.reArmRequestTimeoutIfEnabled(serviceContext, serviceContext.requestTimeoutMillis());
 			} catch (ExecutionException e) {
 				// task failed
 				GlobalExceptionHandlerInterceptor.sendErrorToClient(
@@ -2297,9 +2289,7 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 						// we send mutations one by one, but we may want to send them in batches in the future
 						builder.addChangeCapture(event);
 						responseObserver.onNext(builder.build());
-						serviceContext.setRequestTimeout(
-							TimeoutMode.SET_FROM_NOW, Duration.ofMillis(serviceContext.requestTimeoutMillis())
-						);
+						GrpcTimeoutUtil.reArmRequestTimeoutIfEnabled(serviceContext, serviceContext.requestTimeoutMillis());
 					}
 				);
 				responseObserver.onCompleted();

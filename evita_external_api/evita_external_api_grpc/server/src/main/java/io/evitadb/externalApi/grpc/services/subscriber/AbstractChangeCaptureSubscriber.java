@@ -23,13 +23,13 @@
 
 package io.evitadb.externalApi.grpc.services.subscriber;
 
-import com.linecorp.armeria.common.util.TimeoutMode;
 import com.linecorp.armeria.server.ServiceRequestContext;
 import io.evitadb.api.requestResponse.cdc.ChangeCaptureSubscription;
 import io.evitadb.core.executor.DelayedAsyncTask;
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.externalApi.grpc.exception.ClosedGrpcStreamException;
 import io.evitadb.externalApi.grpc.generated.GrpcHeartBeat;
+import io.evitadb.externalApi.grpc.utils.GrpcTimeoutUtil;
 import io.evitadb.utils.IOUtils;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
@@ -38,7 +38,6 @@ import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -129,7 +128,13 @@ public abstract class AbstractChangeCaptureSubscriber<CAPTURE, RESPONSE>
 	private final long responseTimeoutMillis;
 	/**
 	 * The delay between heartbeat messages in milliseconds — computed as 5 seconds less than
-	 * the response timeout, clamped to [1 second, 5 minutes].
+	 * the tighter of the request timeout and the server's connection idle timeout (whichever of
+	 * the two would actually tear the stream down first), clamped to [1 second, 5 minutes]. A
+	 * disabled (0) request timeout — the normal case for an open-ended CDC subscription, see the
+	 * {@link #responseTimeoutMillis} guard in {@link #onNext} / {@link #sendHeartbeat} — no longer
+	 * collapses this to the 1-second floor; the idle timeout (always positive, see
+	 * {@link io.evitadb.externalApi.configuration.ApiOptions#idleTimeoutInMillis()}) takes over as
+	 * the basis instead.
 	 */
 	private final long heartBeatDelay;
 	/**
@@ -162,9 +167,8 @@ public abstract class AbstractChangeCaptureSubscriber<CAPTURE, RESPONSE>
 		this.versionSupplier = versionSupplier;
 		this.serviceContext = serviceContext;
 		this.responseTimeoutMillis = this.serviceContext.requestTimeoutMillis();
-		// heartbeat delay is 5 seconds less than request timeout,
-		// clamped to [1 second, 5 minutes]
-		this.heartBeatDelay = Math.min(Math.max(this.responseTimeoutMillis - 5000L, 1000L), 300000L);
+		final long idleTimeoutMillis = this.serviceContext.config().server().config().idleTimeoutMillis();
+		this.heartBeatDelay = resolveHeartBeatDelay(this.responseTimeoutMillis, idleTimeoutMillis);
 		this.heartBeatTask = new DelayedAsyncTask(
 			taskOwner,
 			taskName,
@@ -175,6 +179,35 @@ public abstract class AbstractChangeCaptureSubscriber<CAPTURE, RESPONSE>
 		);
 
 		this.heartBeatTask.schedule();
+	}
+
+	/**
+	 * Computes the heartbeat delay in milliseconds: 5 seconds less than the tighter of
+	 * `requestTimeoutMillis` and `idleTimeoutMillis`, clamped to [1 second, 5 minutes]. Either
+	 * input may be `0` (disabled) — a disabled request timeout is the norm for an open-ended CDC
+	 * subscription (see the class JavaDoc), and Armeria's {@code ServerConfig#idleTimeoutMillis()}
+	 * itself permits `0` even though evitaDB's own {@code ApiOptions} never configures it that way.
+	 * A disabled input is treated as "no bound from this source" rather than as `0`, since taking
+	 * the raw minimum would collapse the delay to the 1-second floor regardless of the other input.
+	 * If both are disabled, there is no natural bound and the result falls back to the 5-minute
+	 * ceiling.
+	 *
+	 * @param requestTimeoutMillis the dynamic, per-call Armeria request timeout (0 = disabled)
+	 * @param idleTimeoutMillis    the server's connection idle timeout (0 = disabled)
+	 * @return the heartbeat delay in milliseconds
+	 */
+	private static long resolveHeartBeatDelay(long requestTimeoutMillis, long idleTimeoutMillis) {
+		final long effectiveTimeoutMillis;
+		if (requestTimeoutMillis > 0 && idleTimeoutMillis > 0) {
+			effectiveTimeoutMillis = Math.min(requestTimeoutMillis, idleTimeoutMillis);
+		} else if (requestTimeoutMillis > 0) {
+			effectiveTimeoutMillis = requestTimeoutMillis;
+		} else if (idleTimeoutMillis > 0) {
+			effectiveTimeoutMillis = idleTimeoutMillis;
+		} else {
+			effectiveTimeoutMillis = Long.MAX_VALUE;
+		}
+		return Math.min(Math.max(effectiveTimeoutMillis - 5000L, 1000L), 300000L);
 	}
 
 	/**
@@ -239,7 +272,7 @@ public abstract class AbstractChangeCaptureSubscriber<CAPTURE, RESPONSE>
 			markStreamDead(ex);
 			return;
 		}
-		this.serviceContext.setRequestTimeout(TimeoutMode.SET_FROM_NOW, Duration.ofMillis(this.responseTimeoutMillis));
+		GrpcTimeoutUtil.reArmRequestTimeoutIfEnabled(this.serviceContext, this.responseTimeoutMillis);
 		this.subscription.request(1);
 	}
 
@@ -380,7 +413,7 @@ public abstract class AbstractChangeCaptureSubscriber<CAPTURE, RESPONSE>
 			markStreamDead(ex);
 			return -1L;
 		}
-		this.serviceContext.setRequestTimeout(TimeoutMode.SET_FROM_NOW, Duration.ofMillis(this.responseTimeoutMillis));
+		GrpcTimeoutUtil.reArmRequestTimeoutIfEnabled(this.serviceContext, this.responseTimeoutMillis);
 		// reschedule at the regular interval
 		return 0L;
 	}

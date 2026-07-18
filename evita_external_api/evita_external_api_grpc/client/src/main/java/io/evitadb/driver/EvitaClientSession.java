@@ -3087,7 +3087,8 @@ public class EvitaClientSession implements EvitaSessionContract {
 	/**
 	 * Stream observer for backup progress updates. On the first received message, it creates
 	 * a {@link ClientTask} and completes the task future so the calling method can return.
-	 * Subsequent messages update the task status. Extends the client timeout with each message.
+	 * Subsequent messages update the task status. Re-arms the client timeout to a fresh
+	 * per-message deadline with each message received.
 	 *
 	 * @param <R> the gRPC response type (e.g. {@link GrpcBackupCatalogResponse})
 	 */
@@ -3099,7 +3100,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 		@Nonnull
 		private final CompletableFuture<Task<?, FileForFetch>> taskFuture;
 		/**
-		 * Duration to extend the response timeout for each received message.
+		 * Duration to re-arm the response timeout to (from now) for each received message.
 		 */
 		@Nonnull
 		private final Duration timeout;
@@ -3128,8 +3129,8 @@ public class EvitaClientSession implements EvitaSessionContract {
 				this.clientTask.updateStatus(toTaskStatus(grpcTaskStatus));
 			}
 
-			// postpone timeout with each message received
-			ClientRequestContext.current().setResponseTimeout(TimeoutMode.EXTEND, this.timeout);
+			// re-arm to a fresh per-message deadline with each message received
+			ClientRequestContext.current().setResponseTimeout(TimeoutMode.SET_FROM_NOW, this.timeout);
 		}
 
 		@Override
