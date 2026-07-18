@@ -3638,16 +3638,26 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 
 		log.info("WAL cleaned up, letting the system breathe.");
 
-		// and when that happens wait another while to let the other files to be cleaned
-		synchronized (this) {
-			Thread.sleep(250);
+		// the oldest catalog + collection data files are dropped by the same background compaction that
+		// trims the WAL above; a fixed short sleep is racy under load, so poll (bounded) until both first
+		// indices advance past 0 rather than asserting on a single 250ms-delayed snapshot
+		final long compactionStart = System.currentTimeMillis();
+		while ((firstIndexOfCatalogDataFile(catalogPath) <= 0
+			|| firstIndexOfCollectionDataFile(catalogPath, Entities.PRODUCT) <= 0)
+			&& System.currentTimeMillis() - compactionStart < 60_000) {
+			synchronized (this) {
+				Thread.sleep(250);
+			}
 		}
 
 		log.info("Verifying the previous data files were removed as well.");
 
 		// verify that the old data is not present
-		assertTrue(firstIndexOfCatalogDataFile(catalogPath) > 0);
-		assertTrue(firstIndexOfCollectionDataFile(catalogPath, Entities.PRODUCT) > 0);
+		assertTrue(firstIndexOfCatalogDataFile(catalogPath) > 0, "Old catalog data file was not removed!");
+		assertTrue(
+			firstIndexOfCollectionDataFile(catalogPath, Entities.PRODUCT) > 0,
+			"Old collection data file was not removed!"
+		);
 
 		evita.close();
 	}
