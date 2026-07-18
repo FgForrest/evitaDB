@@ -1713,6 +1713,71 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 		);
 	}
 
+	@DisplayName("Should return requested category itself in distance 0 (without its children)")
+	@UseDataSet(THOUSAND_CATEGORIES)
+	@ParameterizedTest
+	@MethodSource("statisticTypeVariants")
+	void shouldReturnCardinalitiesForRequestedCategoriesInDistanceZero(EnumSet<StatisticsType> statisticsType, Evita evita, Map<Integer, SealedEntity> originalCategoryIndex, one.edee.oss.pmptt.model.Hierarchy categoryHierarchy) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.CATEGORY),
+						filterBy(
+							and(
+								entityLocaleEquals(CZECH_LOCALE),
+								hierarchyWithinSelf(entityPrimaryKeyInSet(1))
+							)
+						),
+						require(
+							// we don't need the results whatsoever
+							page(1, 0),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
+							// we need only data about cardinalities
+							hierarchyOfSelf(
+								children(
+									"megaMenu",
+									entityFetch(attributeContentAll()),
+									stopAt(distance(0)),
+									statisticsType.isEmpty() ? null : statistics(statisticsType.toArray(StatisticsType[]::new))
+								)
+							)
+						)
+					),
+					EntityReference.class
+				);
+
+				final TestHierarchyPredicate languagePredicate = (entity, parentItems) -> entity.getLocales().contains(CZECH_LOCALE);
+				// distance 0 stops the traversal right at the pivot: only category 1 itself is part of the returned
+				// tree (no children), yet its childrenCount / queriedEntityCount still reflect the whole subtree below it
+				final TestHierarchyPredicate treePredicate = (sealedEntity, parentItems) ->
+					languagePredicate.test(sealedEntity, parentItems) && sealedEntity.getPrimaryKey() == 1;
+
+				final Hierarchy expectedStatistics = computeExpectedStatistics(
+					categoryHierarchy, originalCategoryIndex,
+					languagePredicate, treePredicate,
+					categoryCardinalities -> new HierarchyStatisticsTuple(
+						"megaMenu",
+						computeChildren(
+							session, 1, categoryHierarchy,
+							categoryCardinalities, false,
+							statisticsType.contains(StatisticsType.CHILDREN_COUNT),
+							statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT),
+							1
+						)
+					)
+				);
+
+				final Hierarchy statistics = result.getExtraResult(Hierarchy.class);
+				assertNotNull(statistics);
+				assertEquals(expectedStatistics, statistics);
+
+				return null;
+			}
+		);
+	}
+
 	@DisplayName("Should return children for requested category siblings in distance 1")
 	@UseDataSet(THOUSAND_CATEGORIES)
 	@ParameterizedTest

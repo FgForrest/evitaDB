@@ -943,7 +943,8 @@ distance(
     <dd>
         defines a maximum relative distance from the pivot node that can be traversed;
         the pivot node itself is at distance zero, its direct child or direct parent is at distance one, each additional
-        step adds a one to the distance
+        step adds a one to the distance. A distance of `0` is allowed and stops the traversal right at the pivot node -
+        the pivot (or, in a `siblings` traversal, each sibling) is returned without any of its descendants.
     </dd>
 </dl>
 
@@ -1019,6 +1020,32 @@ That returns simply:
 <MDInclude sourceVariable="extraResults.hierarchy.categories.parent">[Direct parent](/documentation/user/en/query/requirements/examples/hierarchy/hierarchy-parent.rest.json.md)</MDInclude>
 
 </LS>
+
+</Note>
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### Why would I use `distance(0)`?
+</NoteTitle>
+
+Because `distance` limits how deep the traversal expands, `distance(0)` stops right at the pivot - you get the focused
+node itself with no descendants. Combined with [`statistics`](#statistics) (whose counts still reflect the whole
+subtree), it is the way to render the current node on its own - e.g. as a menu header or breadcrumb showing how many
+items sit below it - without listing its children:
+
+```evitaql
+children(
+    "currentCategory",
+    entityFetch(attributeContent("code")),
+    stopAt(distance(0)),
+    statistics(CHILDREN_COUNT, QUERIED_ENTITY_COUNT)
+)
+```
+
+Inside a [`siblings`](#siblings) traversal `distance(0)` means "the sibling row only, unexpanded" - the explicit
+equivalent of omitting `stopAt` there.
 
 </Note>
 

@@ -71,9 +71,11 @@ class HierarchyDistanceTest {
 		}
 
 		@Test
-		@DisplayName("should fail to create with zero distance")
-		void shouldFailToCreateDistanceWithZero() {
-			assertThrows(EvitaInvalidUsageException.class, () -> distance(0));
+		@DisplayName("should create with zero distance (stops at the pivot node)")
+		void shouldCreateDistanceWithZero() {
+			final HierarchyDistance hierarchyDistance = distance(0);
+
+			assertEquals(0, hierarchyDistance.getDistance());
 		}
 	}
 

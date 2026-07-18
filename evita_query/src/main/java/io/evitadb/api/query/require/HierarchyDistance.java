@@ -45,8 +45,9 @@ import java.io.Serializable;
  * - Distance N: nodes N hops away from the pivot
  *
  * The distance between any two nodes in the hierarchy can be computed as `abs(level(nodeA) - level(nodeB))`.
- * The distance value must be greater than zero (a distance of zero would include only the pivot node itself,
- * which is always included automatically).
+ * The distance value must be zero or greater. A distance of zero stops the traversal right at the pivot node:
+ * the pivot (or, in a `siblings` traversal, each sibling) is returned without any of its descendants — handy
+ * when you want just the focused node, optionally accompanied by its statistics, but none of its children.
  *
  * This constraint can only be used as the single inner constraint of a {@link HierarchyStopAt} container.
  * It is the right choice when you need a traversal depth that is _relative_ to wherever the pivot sits in the
@@ -102,7 +103,7 @@ public class HierarchyDistance extends AbstractRequireConstraintLeaf implements 
 		// because this query can be used only within some other hierarchy query, it would be
 		// unnecessary to duplicate the hierarchy prefix
 		super(CONSTRAINT_NAME, distance);
-		Assert.isTrue(distance > 0, () -> new EvitaInvalidUsageException("Distance must be greater than zero."));
+		Assert.isTrue(distance >= 0, () -> new EvitaInvalidUsageException("Distance must be zero or greater."));
 	}
 
 	/**

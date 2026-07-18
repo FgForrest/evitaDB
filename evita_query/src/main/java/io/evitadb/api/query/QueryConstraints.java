@@ -3516,7 +3516,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Limits hierarchy traversal to nodes within the specified number of edge hops from the pivot node, regardless of traversal direction. Use this to fetch relatives at a distance relative to the pivot's position (e.g., direct children with distance 1). Must be used as the sole inner constraint of `HierarchyStopAt`. Distance must be greater than zero.
+	 * Limits hierarchy traversal to nodes within the specified number of edge hops from the pivot node, regardless of traversal direction. Use this to fetch relatives at a distance relative to the pivot's position (e.g., direct children with distance 1, or just the pivot itself with distance 0). Must be used as the sole inner constraint of `HierarchyStopAt`. Distance must be zero or greater.
 	 *
 	 * ```evitaql
 	 * stopAt(distance(1))
