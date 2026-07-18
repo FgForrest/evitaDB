@@ -139,19 +139,26 @@ public class RingBufferInputStream extends InputStream {
 		return Math.toIntExact(this.inputBufferSize);
 	}
 
+	/**
+	 * Mark/reset is intentionally unsupported. This stream keeps its own ring-buffer {@link #position} to
+	 * decide when to wrap back to the start of the region; the inherited (delegate-forwarding) mark/reset
+	 * would restore only the delegate's file pointer and leave {@code position} out of step, which would
+	 * silently read past the physical end of the ring-buffer window into unrelated bytes. We therefore report
+	 * {@link #markSupported()} as {@code false} and let {@link #reset()} fail fast rather than corrupt reads.
+	 */
+	@Override
+	public boolean markSupported() {
+		return false;
+	}
+
 	@Override
 	public synchronized void mark(int readlimit) {
-		this.delegatingInputStream.mark(readlimit);
+		// no-op: mark/reset is unsupported (see markSupported()); the inherited InputStream default is also a no-op
 	}
 
 	@Override
 	public synchronized void reset() throws IOException {
-		this.delegatingInputStream.reset();
-	}
-
-	@Override
-	public boolean markSupported() {
-		return this.delegatingInputStream.markSupported();
+		throw new IOException("mark/reset is not supported by the ring buffer input stream");
 	}
 
 	@Override
