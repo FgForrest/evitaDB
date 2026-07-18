@@ -953,7 +953,10 @@ The `distance` constraint can only be used within the `stopAt`
 and limits the hierarchy traversal to stop when
 the number of levels traversed reaches the specified constant. The distance is always relative to the pivot node
 (the node where the hierarchy traversal starts) and is the same whether we are traversing the hierarchy top-down or
-bottom-up. The distance between any two nodes in the hierarchy can be calculated as `abs(level(nodeA) - level(nodeB))`.
+bottom-up. Along a direct ancestor/descendant line, distance equals `abs(level(node) - level(pivot))` - but it is
+not a general distance between two arbitrary nodes in the tree (siblings, for example, sit in different branches
+and are two edges apart despite sharing the same level). In a `siblings` traversal, distance is measured from each
+sibling as its own local pivot, not from the original one.
 See the following figure when the pivot node is *Audio*:
 
 <Note type="info">

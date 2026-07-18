@@ -44,7 +44,10 @@ import java.io.Serializable;
  * - Distance 2: grandchildren (or grandparent) of the pivot node
  * - Distance N: nodes N hops away from the pivot
  *
- * The distance between any two nodes in the hierarchy can be computed as `abs(level(nodeA) - level(nodeB))`.
+ * Along a direct ancestor/descendant line, distance equals `abs(level(node) - level(pivot))` — but it is not
+ * a general shortest-path distance between two arbitrary nodes in the tree (siblings, for example, sit in
+ * different branches and are two edges apart despite sharing a level). In a `siblings` traversal, distance is
+ * measured from each sibling as its own local pivot, not from the original one.
  * The distance value must be zero or greater. A distance of zero stops the traversal right at the pivot node:
  * the pivot (or, in a `siblings` traversal, each sibling) is returned without any of its descendants — handy
  * when you want just the focused node, optionally accompanied by its statistics, but none of its children.
