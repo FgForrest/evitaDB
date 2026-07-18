@@ -3129,7 +3129,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 			}
 
 			// postpone timeout with each message received
-			ClientRequestContext.current().setResponseTimeout(TimeoutMode.EXTEND, this.timeout);
+			ClientRequestContext.current().setResponseTimeout(TimeoutMode.SET_FROM_NOW, this.timeout);
 		}
 
 		@Override

@@ -129,7 +129,13 @@ public abstract class AbstractChangeCaptureSubscriber<CAPTURE, RESPONSE>
 	private final long responseTimeoutMillis;
 	/**
 	 * The delay between heartbeat messages in milliseconds — computed as 5 seconds less than
-	 * the response timeout, clamped to [1 second, 5 minutes].
+	 * the tighter of the request timeout and the server's connection idle timeout (whichever of
+	 * the two would actually tear the stream down first), clamped to [1 second, 5 minutes]. A
+	 * disabled (0) request timeout — the normal case for an open-ended CDC subscription, see the
+	 * {@link #responseTimeoutMillis} guard in {@link #onNext} / {@link #sendHeartbeat} — no longer
+	 * collapses this to the 1-second floor; the idle timeout (always positive, see
+	 * {@link io.evitadb.externalApi.configuration.ApiOptions#idleTimeoutInMillis()}) takes over as
+	 * the basis instead.
 	 */
 	private final long heartBeatDelay;
 	/**
@@ -162,9 +168,8 @@ public abstract class AbstractChangeCaptureSubscriber<CAPTURE, RESPONSE>
 		this.versionSupplier = versionSupplier;
 		this.serviceContext = serviceContext;
 		this.responseTimeoutMillis = this.serviceContext.requestTimeoutMillis();
-		// heartbeat delay is 5 seconds less than request timeout,
-		// clamped to [1 second, 5 minutes]
-		this.heartBeatDelay = Math.min(Math.max(this.responseTimeoutMillis - 5000L, 1000L), 300000L);
+		final long idleTimeoutMillis = this.serviceContext.config().server().config().idleTimeoutMillis();
+		this.heartBeatDelay = resolveHeartBeatDelay(this.responseTimeoutMillis, idleTimeoutMillis);
 		this.heartBeatTask = new DelayedAsyncTask(
 			taskOwner,
 			taskName,
@@ -175,6 +180,35 @@ public abstract class AbstractChangeCaptureSubscriber<CAPTURE, RESPONSE>
 		);
 
 		this.heartBeatTask.schedule();
+	}
+
+	/**
+	 * Computes the heartbeat delay in milliseconds: 5 seconds less than the tighter of
+	 * `requestTimeoutMillis` and `idleTimeoutMillis`, clamped to [1 second, 5 minutes]. Either
+	 * input may be `0` (disabled) — a disabled request timeout is the norm for an open-ended CDC
+	 * subscription (see the class JavaDoc), and Armeria's {@code ServerConfig#idleTimeoutMillis()}
+	 * itself permits `0` even though evitaDB's own {@code ApiOptions} never configures it that way.
+	 * A disabled input is treated as "no bound from this source" rather than as `0`, since taking
+	 * the raw minimum would collapse the delay to the 1-second floor regardless of the other input.
+	 * If both are disabled, there is no natural bound and the result falls back to the 5-minute
+	 * ceiling.
+	 *
+	 * @param requestTimeoutMillis the dynamic, per-call Armeria request timeout (0 = disabled)
+	 * @param idleTimeoutMillis    the server's connection idle timeout (0 = disabled)
+	 * @return the heartbeat delay in milliseconds
+	 */
+	private static long resolveHeartBeatDelay(long requestTimeoutMillis, long idleTimeoutMillis) {
+		final long effectiveTimeoutMillis;
+		if (requestTimeoutMillis > 0 && idleTimeoutMillis > 0) {
+			effectiveTimeoutMillis = Math.min(requestTimeoutMillis, idleTimeoutMillis);
+		} else if (requestTimeoutMillis > 0) {
+			effectiveTimeoutMillis = requestTimeoutMillis;
+		} else if (idleTimeoutMillis > 0) {
+			effectiveTimeoutMillis = idleTimeoutMillis;
+		} else {
+			effectiveTimeoutMillis = Long.MAX_VALUE;
+		}
+		return Math.min(Math.max(effectiveTimeoutMillis - 5000L, 1000L), 300000L);
 	}
 
 	/**
@@ -239,7 +273,12 @@ public abstract class AbstractChangeCaptureSubscriber<CAPTURE, RESPONSE>
 			markStreamDead(ex);
 			return;
 		}
-		this.serviceContext.setRequestTimeout(TimeoutMode.SET_FROM_NOW, Duration.ofMillis(this.responseTimeoutMillis));
+		// a responseTimeoutMillis of 0 means the Armeria request timeout is disabled for this
+		// stream (e.g. no client-supplied gRPC deadline); SET_FROM_NOW rejects a zero/negative
+		// duration (unlike SET_FROM_START), so there is nothing to (re-)extend in that case
+		if (this.responseTimeoutMillis > 0) {
+			this.serviceContext.setRequestTimeout(TimeoutMode.SET_FROM_NOW, Duration.ofMillis(this.responseTimeoutMillis));
+		}
 		this.subscription.request(1);
 	}
 
@@ -380,7 +419,10 @@ public abstract class AbstractChangeCaptureSubscriber<CAPTURE, RESPONSE>
 			markStreamDead(ex);
 			return -1L;
 		}
-		this.serviceContext.setRequestTimeout(TimeoutMode.SET_FROM_NOW, Duration.ofMillis(this.responseTimeoutMillis));
+		// see the identical guard in onNext() for why a disabled (0) timeout must not be re-armed
+		if (this.responseTimeoutMillis > 0) {
+			this.serviceContext.setRequestTimeout(TimeoutMode.SET_FROM_NOW, Duration.ofMillis(this.responseTimeoutMillis));
+		}
 		// reschedule at the regular interval
 		return 0L;
 	}

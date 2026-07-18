@@ -175,9 +175,13 @@ public class EvitaTrafficRecordingService extends GrpcEvitaTrafficRecordingServi
 						builder.addTrafficRecord(event);
 						responseObserver.onNext(builder.build());
 
-						serviceContext.setRequestTimeout(
-							TimeoutMode.SET_FROM_NOW, Duration.ofMillis(serviceContext.requestTimeoutMillis())
-						);
+						// a requestTimeoutMillis() of 0 means the timeout is disabled; SET_FROM_NOW
+						// requires a strictly positive duration, so there is nothing to re-extend
+						if (serviceContext.requestTimeoutMillis() > 0) {
+							serviceContext.setRequestTimeout(
+								TimeoutMode.SET_FROM_NOW, Duration.ofMillis(serviceContext.requestTimeoutMillis())
+							);
+						}
 					}
 				);
 				responseObserver.onCompleted();

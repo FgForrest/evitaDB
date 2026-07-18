@@ -24,6 +24,9 @@
 package io.evitadb.externalApi.grpc.services.subscriber;
 
 import com.linecorp.armeria.common.util.TimeoutMode;
+import com.linecorp.armeria.server.Server;
+import com.linecorp.armeria.server.ServerConfig;
+import com.linecorp.armeria.server.ServiceConfig;
 import com.linecorp.armeria.server.ServiceRequestContext;
 import io.evitadb.api.configuration.ThreadPoolOptions;
 import io.evitadb.core.executor.Scheduler;
@@ -132,12 +135,31 @@ class AbstractChangeCaptureSubscriberTest implements TestConstants {
 			ThreadPoolOptions.requestThreadPoolBuilder().minThreadCount(1).build()
 		);
 		when(this.serviceContext.requestTimeoutMillis()).thenReturn(LONG_REQUEST_TIMEOUT_MILLIS);
+		// idle timeout stubbed to the same generous value as the request timeout, so
+		// min(request, idle) still clamps to the 5-minute ceiling the other tests rely on
+		stubIdleTimeoutMillis(this.serviceContext, LONG_REQUEST_TIMEOUT_MILLIS);
 		this.subscriber = new TestSubscriber(this.scheduler, this.responseObserver, this.serviceContext);
 	}
 
 	@AfterEach
 	void tearDown() {
 		this.scheduler.shutdownNow();
+	}
+
+	/**
+	 * Stubs the {@code serviceContext.config().server().config().idleTimeoutMillis()} chain that
+	 * the subscriber constructor now reads to derive the heartbeat delay. {@link ServiceConfig}
+	 * and {@link Server} are final Armeria classes; mocking them relies on the project's
+	 * {@code mockito-inline} dependency (Mockito's inline mock maker).
+	 */
+	private static void stubIdleTimeoutMillis(@Nonnull ServiceRequestContext context, long idleTimeoutMillis) {
+		final ServiceConfig serviceConfig = mock(ServiceConfig.class);
+		final Server server = mock(Server.class);
+		final ServerConfig serverConfig = mock(ServerConfig.class);
+		when(context.config()).thenReturn(serviceConfig);
+		when(serviceConfig.server()).thenReturn(server);
+		when(server.config()).thenReturn(serverConfig);
+		when(serverConfig.idleTimeoutMillis()).thenReturn(idleTimeoutMillis);
 	}
 
 	@Nested
@@ -380,6 +402,138 @@ class AbstractChangeCaptureSubscriberTest implements TestConstants {
 				.filter(r -> r.startsWith(HB_PREFIX))
 				.toList();
 			assertEquals(List.of("HB:1", "HB:2", "HB:3"), heartbeats);
+		}
+	}
+
+	@Nested
+	@DisplayName("Disabled request timeout (requestTimeoutMillis() == 0)")
+	class DisabledRequestTimeout {
+
+		/**
+		 * A realistic connection idle timeout (matches {@code ApiOptions.DEFAULT_IDLE_TIMEOUT}),
+		 * used so these tests exercise the same idle-timeout fallback that production takes once
+		 * the request timeout is disabled, rather than an arbitrary stand-in value.
+		 */
+		private static final long REALISTIC_IDLE_TIMEOUT_MILLIS = 20_000L;
+
+		/**
+		 * Armeria treats a request timeout of `0` as "disabled" and legitimately reports it from
+		 * {@link ServiceRequestContext#requestTimeoutMillis()} (e.g. a streaming call with no
+		 * client-supplied deadline under {@code useClientTimeoutHeader(true)}). But
+		 * {@code setRequestTimeout(SET_FROM_NOW, Duration.ZERO)} does NOT accept that same `0` —
+		 * {@code DefaultCancellationScheduler.setTimeoutNanosFromNow} requires a strictly positive
+		 * duration and throws {@link IllegalArgumentException} otherwise (verified against the
+		 * real Armeria 1.40.0 class: {@code timeoutNanos: 0 (expected: > 0)}). This mock
+		 * reproduces that real contract so the test fails for the same reason production does.
+		 */
+		private void stubDisabledTimeoutRejection(@Nonnull ServiceRequestContext context) {
+			doThrow(new IllegalArgumentException("timeoutNanos: 0 (expected: > 0)"))
+				.when(context).setRequestTimeout(eq(TimeoutMode.SET_FROM_NOW), eq(Duration.ZERO));
+		}
+
+		/**
+		 * A mocked {@link Scheduler} never actually runs the scheduled heartbeat lambda — needed
+		 * because at a realistic idle timeout the heartbeat delay is 15 seconds (see
+		 * {@link HeartbeatDelay}), far short of the 5-minute ceiling the other tests rely on to
+		 * keep the background task from racing them.
+		 */
+		@Nonnull
+		private TestSubscriber newSubscriberWithDisabledTimeout(
+			@Nonnull ServerCallStreamObserver<String> responseObserver,
+			@Nonnull ServiceRequestContext context
+		) {
+			@SuppressWarnings("unchecked")
+			final Scheduler noopScheduler = mock(Scheduler.class);
+			when(context.requestTimeoutMillis()).thenReturn(0L);
+			stubIdleTimeoutMillis(context, REALISTIC_IDLE_TIMEOUT_MILLIS);
+			return new TestSubscriber(noopScheduler, responseObserver, context);
+		}
+
+		@Test
+		@DisplayName("sendHeartbeat reschedules instead of throwing when the request timeout is disabled")
+		void shouldRescheduleInsteadOfThrowingWhenHeartbeatFiresWithDisabledTimeout() {
+			final ServerCallStreamObserver<String> localObserver = mock(ServerCallStreamObserver.class);
+			final ServiceRequestContext localContext = mock(ServiceRequestContext.class);
+			stubDisabledTimeoutRejection(localContext);
+			final TestSubscriber localSubscriber = newSubscriberWithDisabledTimeout(localObserver, localContext);
+			localSubscriber.onSubscribe(AbstractChangeCaptureSubscriberTest.this.subscription);
+
+			final long result = localSubscriber.sendHeartbeat();
+
+			assertEquals(0L, result);
+			verify(localObserver, times(1)).onNext(argThat(hasPrefix(HB_PREFIX)));
+			verify(localContext, never()).setRequestTimeout(any(), any());
+		}
+
+		@Test
+		@DisplayName("onNext keeps requesting items instead of throwing when the request timeout is disabled")
+		void shouldKeepRequestingItemsInsteadOfThrowingWhenOnNextFiresWithDisabledTimeout() {
+			final ServerCallStreamObserver<String> localObserver = mock(ServerCallStreamObserver.class);
+			final ServiceRequestContext localContext = mock(ServiceRequestContext.class);
+			stubDisabledTimeoutRejection(localContext);
+			final TestSubscriber localSubscriber = newSubscriberWithDisabledTimeout(localObserver, localContext);
+			final Subscription localSubscription = mock(Subscription.class);
+			localSubscriber.onSubscribe(localSubscription);
+
+			localSubscriber.onNext("item");
+
+			verify(localObserver, times(1)).onNext(argThat(hasPrefix(MSG_PREFIX)));
+			verify(localContext, never()).setRequestTimeout(any(), any());
+			// once from the ACK in onSubscribe, once from this onNext
+			verify(localSubscription, times(2)).request(1);
+		}
+	}
+
+	@Nested
+	@DisplayName("Heartbeat delay derivation (request timeout vs. idle timeout)")
+	class HeartbeatDelay {
+
+		@Nonnull
+		private TestSubscriber newSubscriberWithTimeouts(long requestTimeoutMillis, long idleTimeoutMillis) {
+			final ServerCallStreamObserver<String> localObserver = mock(ServerCallStreamObserver.class);
+			final ServiceRequestContext localContext = mock(ServiceRequestContext.class);
+			@SuppressWarnings("unchecked")
+			final Scheduler noopScheduler = mock(Scheduler.class);
+			when(localContext.requestTimeoutMillis()).thenReturn(requestTimeoutMillis);
+			stubIdleTimeoutMillis(localContext, idleTimeoutMillis);
+			return new TestSubscriber(noopScheduler, localObserver, localContext);
+		}
+
+		/**
+		 * Reads back the delay the constructor computed, via the `millisToNextHeartbeat` field
+		 * every heartbeat message carries — avoids reflecting into the private field directly.
+		 */
+		private long triggerAndReadDelay(@Nonnull TestSubscriber subscriber) {
+			subscriber.onSubscribe(mock(Subscription.class));
+			subscriber.sendHeartbeat();
+			return subscriber.lastHeartBeat.getMillisToNextHeartbeat();
+		}
+
+		@Test
+		@DisplayName("derives the delay from the idle timeout when the request timeout is disabled")
+		void shouldDeriveDelayFromIdleTimeoutWhenRequestTimeoutDisabled() {
+			final TestSubscriber subscriber = newSubscriberWithTimeouts(0L, 20_000L);
+
+			// 20s idle timeout - 5s safety margin
+			assertEquals(15_000L, triggerAndReadDelay(subscriber));
+		}
+
+		@Test
+		@DisplayName("derives the delay from whichever of request/idle timeout is tighter")
+		void shouldDeriveDelayFromTighterOfRequestAndIdleTimeout() {
+			// a generous request timeout must not override a much tighter idle timeout —
+			// the idle timeout is what will actually tear the connection down first
+			final TestSubscriber subscriber = newSubscriberWithTimeouts(600_000L, 20_000L);
+
+			assertEquals(15_000L, triggerAndReadDelay(subscriber));
+		}
+
+		@Test
+		@DisplayName("falls back to the 5-minute ceiling when both timeouts are disabled")
+		void shouldFallBackToCeilingWhenBothTimeoutsDisabled() {
+			final TestSubscriber subscriber = newSubscriberWithTimeouts(0L, 0L);
+
+			assertEquals(300_000L, triggerAndReadDelay(subscriber));
 		}
 	}
 
@@ -725,6 +879,13 @@ class AbstractChangeCaptureSubscriberTest implements TestConstants {
 	 */
 	private static class TestSubscriber extends AbstractChangeCaptureSubscriber<String, String> {
 
+		/**
+		 * Captures the most recently built heartbeat message so tests can assert on
+		 * {@link GrpcHeartBeat#getMillisToNextHeartbeat()} — the only externally observable trace
+		 * of the private {@code heartBeatDelay} the constructor computes.
+		 */
+		private GrpcHeartBeat lastHeartBeat;
+
 		TestSubscriber(
 			@Nonnull Scheduler scheduler,
 			@Nonnull ServerCallStreamObserver<String> responseObserver,
@@ -754,6 +915,7 @@ class AbstractChangeCaptureSubscriberTest implements TestConstants {
 			@Nullable UUID subscriptionId,
 			@Nonnull GrpcHeartBeat heartBeat
 		) {
+			this.lastHeartBeat = heartBeat;
 			return "HB:" + heartBeat.getIndex();
 		}
 	}

@@ -327,9 +327,13 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 							final ByteString backupFile = request.getBackupFile();
 							backupFile.writeTo(outputStream);
 							bytesRead.addAndGet(backupFile.size());
-							serviceContext.setRequestTimeout(
-								TimeoutMode.SET_FROM_NOW, Duration.ofMillis(serviceContext.requestTimeoutMillis())
-							);
+							// a requestTimeoutMillis() of 0 means the timeout is disabled; SET_FROM_NOW
+							// requires a strictly positive duration, so there is nothing to re-extend
+							if (serviceContext.requestTimeoutMillis() > 0) {
+								serviceContext.setRequestTimeout(
+									TimeoutMode.SET_FROM_NOW, Duration.ofMillis(serviceContext.requestTimeoutMillis())
+								);
+							}
 
 						} catch (IOException e) {
 							throw new UnexpectedIOException(

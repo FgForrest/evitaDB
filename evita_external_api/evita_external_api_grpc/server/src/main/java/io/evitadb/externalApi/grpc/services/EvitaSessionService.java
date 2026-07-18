@@ -125,9 +125,7 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Flow.Subscription;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
@@ -786,9 +784,14 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 									responseObserver.onNext(response);
 									this.lastUpdate = System.currentTimeMillis();
 								}
-								serviceContext.setRequestTimeout(
-									TimeoutMode.SET_FROM_NOW, Duration.ofMillis(serviceContext.requestTimeoutMillis())
-								);
+								// a requestTimeoutMillis() of 0 means the timeout is disabled;
+								// SET_FROM_NOW requires a strictly positive duration, so there is
+								// nothing to re-extend
+								if (serviceContext.requestTimeoutMillis() > 0) {
+									serviceContext.setRequestTimeout(
+										TimeoutMode.SET_FROM_NOW, Duration.ofMillis(serviceContext.requestTimeoutMillis())
+									);
+								}
 							}
 						}
 					);
@@ -981,10 +984,14 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 						responseBuilder.apply(toGrpcTaskStatus(backupTask.getStatus()))
 					);
 				}
-				serviceContext.setRequestTimeout(
-					TimeoutMode.EXTEND,
-					Duration.ofMillis(serviceContext.requestTimeoutMillis())
-				);
+				// a requestTimeoutMillis() of 0 means the timeout is disabled; SET_FROM_NOW requires
+				// a strictly positive duration, so there is nothing to re-extend
+				if (serviceContext.requestTimeoutMillis() > 0) {
+					serviceContext.setRequestTimeout(
+						TimeoutMode.SET_FROM_NOW,
+						Duration.ofMillis(serviceContext.requestTimeoutMillis())
+					);
+				}
 			} catch (ExecutionException e) {
 				// task failed
 				GlobalExceptionHandlerInterceptor.sendErrorToClient(
@@ -2297,9 +2304,13 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 						// we send mutations one by one, but we may want to send them in batches in the future
 						builder.addChangeCapture(event);
 						responseObserver.onNext(builder.build());
-						serviceContext.setRequestTimeout(
-							TimeoutMode.SET_FROM_NOW, Duration.ofMillis(serviceContext.requestTimeoutMillis())
-						);
+						// a requestTimeoutMillis() of 0 means the timeout is disabled; SET_FROM_NOW
+						// requires a strictly positive duration, so there is nothing to re-extend
+						if (serviceContext.requestTimeoutMillis() > 0) {
+							serviceContext.setRequestTimeout(
+								TimeoutMode.SET_FROM_NOW, Duration.ofMillis(serviceContext.requestTimeoutMillis())
+							);
+						}
 					}
 				);
 				responseObserver.onCompleted();
