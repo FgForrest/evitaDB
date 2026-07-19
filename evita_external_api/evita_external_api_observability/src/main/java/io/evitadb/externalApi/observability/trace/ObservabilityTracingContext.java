@@ -40,6 +40,7 @@ import org.slf4j.MDC;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Optional;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 /**
@@ -123,6 +124,16 @@ public class ObservabilityTracingContext implements TracingContext {
 	@Override
 	public TracingBlockReference createAndActivateBlock(@Nonnull String taskName, @Nullable SpanAttribute... attributes) {
 		return createAndActivateBlockOpeningParentContext(taskName, attributes, null);
+	}
+
+	@Nonnull
+	@Override
+	public <T> TracingBlockReference createAndActivateBlock(
+		@Nonnull T subject, @Nonnull Function<? super T, String> taskNamer,
+		@Nullable SpanAttribute... attributes
+	) {
+		// spans are really recorded here, so the name has to be composed
+		return createAndActivateBlockOpeningParentContext(taskNamer.apply(subject), attributes, null);
 	}
 
 	@Nonnull
@@ -363,6 +374,15 @@ public class ObservabilityTracingContext implements TracingContext {
 	@Override
 	public <T> T executeWithinBlockIfParentContextAvailable(@Nonnull String taskName, @Nonnull Supplier<T> lambda, @Nullable Supplier<SpanAttribute[]> attributes) {
 		return executeWithinBlockInternal(taskName, lambda, null, attributes);
+	}
+
+	@Override
+	public <S, T> T executeWithinBlockIfParentContextAvailable(
+		@Nonnull S subject, @Nonnull Function<? super S, String> taskNamer, @Nonnull Supplier<T> lambda,
+		@Nullable Supplier<SpanAttribute[]> attributes
+	) {
+		// spans are really recorded here, so the name has to be composed
+		return executeWithinBlockInternal(taskNamer.apply(subject), lambda, null, attributes);
 	}
 
 	@Override
@@ -635,7 +655,7 @@ public class ObservabilityTracingContext implements TracingContext {
 	                                                             @Nullable Supplier<SpanAttribute[]> attributeSupplier,
 	                                                             @Nullable Runnable closeCallback) {
 		if (!OpenTelemetryTracerSetup.isTracingEnabled() || !Boolean.TRUE.equals(this.parentContextAvailable.get())) {
-			return new DefaultTracingBlockReference();
+			return DefaultTracingBlockReference.INSTANCE;
 		}
 
 		// the context will contain `traceId` provided by the client, if the propagation has been orchestrated on his side

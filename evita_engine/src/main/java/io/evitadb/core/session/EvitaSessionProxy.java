@@ -58,6 +58,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 /**
@@ -87,6 +88,13 @@ final class EvitaSessionProxy implements InvocationHandler {
 	);
 	private static final Method INACTIVITY_IN_SECONDS = resolveMethod("getInactivityDurationInSeconds");
 	private static final Method IS_INACTIVE_AND_IDLE = resolveMethod("isInactiveAndIdle", long.class);
+	/**
+	 * Composes the span name for a proxied session call. Every single call through this proxy would
+	 * otherwise concatenate a string that no-one reads while tracing is off. Held in a constant so
+	 * the lambda captures nothing and the disabled path stays allocation-free.
+	 */
+	private static final Function<Method, String> SESSION_CALL_SPAN_NAMER =
+		method -> "session call - " + method.getName();
 
 	private final EvitaSession evitaSession;
 	private final TracingContext tracingContext;
@@ -380,7 +388,8 @@ final class EvitaSessionProxy implements InvocationHandler {
 		@Nonnull Supplier<Object> invocation
 	) {
 		return this.tracingContext.executeWithinBlockIfParentContextAvailable(
-			"session call - " + method.getName(),
+			method,
+			SESSION_CALL_SPAN_NAMER,
 			invocation,
 			() -> buildSpanAttributes(method, args, session)
 		);

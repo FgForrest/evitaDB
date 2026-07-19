@@ -72,6 +72,7 @@ import java.util.ServiceLoader;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
@@ -93,6 +94,36 @@ public class TrafficRecordingEngine implements TrafficRecordingReader {
 	public static final String LABEL_CLIENT_ID = "client-id";
 	public static final String LABEL_IP_ADDRESS = "ip-address";
 	public static final String LABEL_URI = "uri";
+	/**
+	 * Composes the span name for a single mutation application. `Mutation.toString()` walks the
+	 * whole mutation (`EntityUpsertMutation` joins every local mutation into a human-readable
+	 * string) and this runs once per mutation of every commit, so the name must not be built when
+	 * no tracing backend will read it. Held in a constant so the lambda captures nothing and the
+	 * disabled path stays allocation-free.
+	 */
+	private static final Function<Mutation, String> MUTATION_SPAN_NAMER =
+		mutation -> "mutation - " + mutation;
+	/**
+	 * Composes the span name for a fetch. `Arrays.toString` over the requested primary keys is the
+	 * expensive part, and this runs once per fetch. Held in a constant so the lambda captures
+	 * nothing and the disabled path stays allocation-free.
+	 */
+	private static final Function<EvitaRequest, String> FETCH_SPAN_NAMER =
+		request -> "enrich - " + request.getEntityType() +
+			" (pk: " + Arrays.toString(request.getPrimaryKeys()) + ")";
+	/**
+	 * Composes the span name for an enrichment, which runs once per enriched entity. The entity is
+	 * the sole subject so the lambda stays capture-free — it carries both its type and its primary
+	 * key, and its own type is the more faithful label for a span describing it.
+	 */
+	private static final Function<EntityContract, String> ENRICHMENT_SPAN_NAMER =
+		entity -> "enrich - " + entity.getType() +
+			" (pk: " + entity.getPrimaryKeyOrThrowException() + ")";
+	/**
+	 * Attribute supplier for spans that carry no attributes. Captures nothing, so it is allocated
+	 * once rather than per traced call.
+	 */
+	private static final Supplier<SpanAttribute[]> EMPTY_ATTRIBUTES = () -> SpanAttribute.EMPTY_ARRAY;
 	private final AtomicReference<CatalogInfo> catalogInfo;
 	private final StorageOptions storageOptions;
 	@Getter private final TrafficRecordingOptions trafficOptions;
@@ -377,9 +408,7 @@ public class TrafficRecordingEngine implements TrafficRecordingReader {
 		String finishedWithError = null;
 		try {
 			result = this.tracingContext.executeWithinBlockIfParentContextAvailable(
-				"enrich - " + evitaRequest.getEntityType() + " (pk: " + Arrays.toString(evitaRequest.getPrimaryKeys()) + ")",
-				lambda,
-				() -> SpanAttribute.EMPTY_ARRAY
+				evitaRequest, FETCH_SPAN_NAMER, lambda, EMPTY_ATTRIBUTES
 			);
 			return result;
 		} catch (RuntimeException ex) {
@@ -417,9 +446,7 @@ public class TrafficRecordingEngine implements TrafficRecordingReader {
 		String finishedWithError = null;
 		try {
 			result = this.tracingContext.executeWithinBlockIfParentContextAvailable(
-				"enrich - " + evitaRequest.getEntityType() + " (pk: " + entity.getPrimaryKeyOrThrowException() + ")",
-				lambda,
-				() -> SpanAttribute.EMPTY_ARRAY
+				entity, ENRICHMENT_SPAN_NAMER, lambda, EMPTY_ATTRIBUTES
 			);
 			return result;
 		} catch (RuntimeException ex) {
@@ -470,8 +497,7 @@ public class TrafficRecordingEngine implements TrafficRecordingReader {
 	) {
 		return new MutationApplicationRecord(
 			this.tracingContext.createAndActivateBlock(
-				"mutation - " + mutation,
-				SpanAttribute.EMPTY_ARRAY
+				mutation, MUTATION_SPAN_NAMER, SpanAttribute.EMPTY_ARRAY
 			),
 			this.trafficRecorder.get(),
 			sessionId,
