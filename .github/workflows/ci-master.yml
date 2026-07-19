@@ -140,3 +140,4 @@ jobs:
         path: |
           release_branch.txt
           released_version.txt
+        retention-days: 14

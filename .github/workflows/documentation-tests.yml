@@ -46,6 +46,7 @@ jobs:
         with:
           name: test-results
           path: 'evita*/**/target/surefire-reports/TEST-*.xml'
+          retention-days: 14
 
       - name: Publish Test Report
         uses: ./.github/actions/publish-test-report

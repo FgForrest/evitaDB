@@ -53,6 +53,7 @@ jobs:
       with:
         name: logs
         path: /tmp/logs
+        retention-days: 14
 
     - name: delete Kubernetes cluster in DO
       run: |

@@ -90,6 +90,7 @@ jobs:
       with:
         name: test-results
         path: 'evita*/**/target/surefire-reports/TEST-*.xml'
+        retention-days: 14
 
     - name: Publish Test Report
       uses: ./.github/actions/publish-test-report
@@ -101,6 +102,7 @@ jobs:
       with:
         name: evita-server.jar
         path: 'evita_server/target/evita-server.jar'
+        retention-days: 14
 
     - name: Upload coverage to Codecov    # upload code coverage from Jacoco to codecov
       uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
