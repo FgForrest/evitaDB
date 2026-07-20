@@ -915,6 +915,7 @@ public class LongRunningEvitaTransactionalFunctionalTest implements EvitaTestSup
 				.cache(originalConfiguration.cache())
 				.build()
 		);
+		evita.waitUntilFullyInitialized();
 
 		try {
 			final AtomicReference<CompletableFuture<FileForFetch>> lastBackupProcess = new AtomicReference<>();
@@ -1017,6 +1018,7 @@ public class LongRunningEvitaTransactionalFunctionalTest implements EvitaTestSup
 				.cache(originalConfiguration.cache())
 				.build()
 		);
+		evita.waitUntilFullyInitialized();
 
 		try {
 			final AtomicReference<CompletableFuture<FileForFetch>> lastBackupProcess = new AtomicReference<>();
