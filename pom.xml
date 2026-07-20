@@ -141,7 +141,7 @@
 		<swagger.version>2.2.43</swagger.version>
 		<armeria.version>1.40.0</armeria.version>
 		<prometheus.version>1.8.0</prometheus.version>
-		<micrometer.version>1.16.5</micrometer.version>
+		<micrometer.version>1.17.0</micrometer.version>
 		<byteBuddy.version>1.17.8</byteBuddy.version>
 		<graphql.version>25.0</graphql.version>
 		<okhttp.version>5.3.2</okhttp.version>
