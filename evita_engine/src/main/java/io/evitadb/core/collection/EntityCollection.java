@@ -594,6 +594,19 @@ public final class EntityCollection implements
 		return this.dataStoreReader;
 	}
 
+	/**
+	 * Returns the service this collection persists its storage parts through. Unlike {@link #getDataStoreReader()},
+	 * which resolves single parts by key, this exposes the store itself — the only way to enumerate the collection's
+	 * live record set, which diagnostics and storage-reclaim tests need in order to assert the ABSENCE of records they
+	 * cannot name in advance. Read-only use only; mutating the store behind the collection's back corrupts it.
+	 *
+	 * @return the storage-part persistence service backing this collection
+	 */
+	@Nonnull
+	public StoragePartPersistenceService<StorageDescriptor> getStoragePartPersistenceService() {
+		return this.persistenceService.getStoragePartPersistenceService();
+	}
+
 	@Override
 	@Nonnull
 	public <S extends Serializable, T extends EvitaResponse<S>> T getEntities(@Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session) {
@@ -2915,7 +2928,9 @@ public final class EntityCollection implements
 		@Override
 		public void removeIndex(@Nonnull EntityIndexKey entityIndexKey) {
 			final EntityIndex removedIndex = EntityCollection.this.dataStoreBuffer.removeIndex(
-				entityIndexKey, eik -> {
+				EntityCollection.this.catalog.getVersion(),
+				entityIndexKey,
+				eik -> {
 					final EntityIndex index = Objects.requireNonNull(EntityCollection.this.indexes.remove(eik));
 					final EntityIndex indexByPk = EntityCollection.this.indexesByPrimaryKey.remove(index.getPrimaryKey());
 					Assert.isPremiseValid(

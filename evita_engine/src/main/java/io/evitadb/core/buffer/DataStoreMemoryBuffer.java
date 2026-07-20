@@ -30,6 +30,7 @@ import io.evitadb.index.IndexKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.function.Function;
 import java.util.function.IntFunction;
 
@@ -64,9 +65,11 @@ public interface DataStoreMemoryBuffer extends DataStoreReader {
 	/**
 	 * Removes {@link EntityIndex} from the change set. After removal (either successfully or unsuccessful)
 	 * `removalPropagation` function is called to propagate deletion to the origin collection.
+	 *
+	 * @return the removed index, or `null` when no index existed under the given key
 	 */
-	@Nonnull
-	<IK extends IndexKey, I extends Index<IK>> I removeIndex(@Nonnull IK entityIndexKey, @Nonnull Function<IK, I> removalPropagation);
+	@Nullable
+	<IK extends IndexKey, I extends Index<IK>> I removeIndex(long catalogVersion, @Nonnull IK entityIndexKey, @Nonnull Function<IK, I> removalPropagation);
 
 	/**
 	 * Removes container from the target storage. If transaction is open, it just marks the container as removed but

@@ -30,6 +30,7 @@ import io.evitadb.core.query.algebra.price.priceIndex.PriceIdContainerFormula;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.champ.ChampMap;
+import io.evitadb.index.EntityIndex;
 import io.evitadb.index.bPlusTree.TransactionalElementBPlusTree;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
@@ -334,6 +335,33 @@ public class PriceListAndCurrencyPriceSuperIndex
 			sink.addChangeToStore(
 				new PriceListAndCurrencySuperIndexStoragePart(
 					entityIndexPrimaryKey, this.priceIndexKey, this.validityIndex, this.priceRecords.toArray()
+				)
+			);
+		}
+	}
+
+	/**
+	 * Whole-index-drop reclaim: emits a {@link PriceListAndCurrencySuperIndexLeafPageRemoval} for EVERY persisted leaf
+	 * page of this super index's price-record tree, as if nothing survives. Called when the owning
+	 * {@link EntityIndex} is dropped: this sub-index's own {@link #appendStorageParts} will never run
+	 * again, so the append-only OffsetIndex would copy every orphaned leaf page forward forever unless each is removed
+	 * explicitly. The `PAGED` root itself is manifest-listed and reclaimed by `EntityIndex.emitVanishedRootRemovals`, so
+	 * this method emits only leaf pages.
+	 *
+	 * Unlike {@link #appendStorageParts}, this enumerates the persisted page baseline unconditionally — no `dirty`
+	 * guard, no `isPaged()` branch — and has NO side effects: no `forget`, no bookkeeping mutation. A SINGLE-shaped
+	 * index has no persisted leaf pages, so the registry's live set is empty and nothing is emitted.
+	 *
+	 * @param entityIndexPrimaryKey the owning entity index pk
+	 * @param sink                  the trapped-changes accumulator collecting the removal instructions
+	 */
+	public void emitPersistedLeafPageRemovals(int entityIndexPrimaryKey, @Nonnull TrappedChanges sink) {
+		assertNotTerminated();
+		// reclaim every leaf page the registry still holds ON DISK for this stream — the persisted baseline, read-only
+		for (final int freedPageSequence : this.pageStreamRegistry.pendingLivePageSequences(PRICE_PAGE_STREAM)) {
+			sink.addChangeToStore(
+				new PriceListAndCurrencySuperIndexLeafPageRemoval(
+					entityIndexPrimaryKey, this.priceIndexKey, freedPageSequence
 				)
 			);
 		}

@@ -45,6 +45,8 @@ import io.evitadb.store.shared.model.FileLocation;
 import io.evitadb.store.shared.model.PersistentStorageDescriptor;
 import io.evitadb.store.wal.TransactionalStoragePartPersistenceService;
 
+import lombok.Getter;
+
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.OutputStream;
@@ -84,9 +86,10 @@ public class OffsetIndexStoragePartPersistenceService implements StoragePartPers
 	@Nonnull
 	protected final StorageSettings storageSettings;
 	/**
-	 * Memory key-value store for entities.
+	 * Memory key-value store for entities. Exposed through {@link #getOffsetIndex()} so that diagnostics and
+	 * storage-reclaim tests can enumerate the live record set; read-only use only.
 	 */
-	@Nonnull protected final OffsetIndex offsetIndex;
+	@Getter @Nonnull protected final OffsetIndex offsetIndex;
 	/**
 	 * Memory manager for off-heap memory.
 	 */

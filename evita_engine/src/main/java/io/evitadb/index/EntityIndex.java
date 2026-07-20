@@ -59,7 +59,12 @@ import io.evitadb.index.map.TransactionalMap;
 import io.evitadb.index.price.PriceIndexContract;
 import io.evitadb.index.price.model.PriceIndexKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexRootRemoval;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStorageKey;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.FacetIndexRootRemoval;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.HierarchyIndexRootRemoval;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.HistogramRootRemoval;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.PriceIndexRootRemoval;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIdsStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIndexStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.HistogramIndexStorageKey;
@@ -900,7 +905,94 @@ public abstract class EntityIndex implements
 				trappedChanges.addChangeToStore(createBitmapsPart());
 			}
 		}
+
+		// Reclaim the roots of sub-indexes that vanished this commit (churn-vanish): when a sub-index is emptied
+		// out of its family while this entity index survives, its leaf pages are reclaimed by that family's own
+		// page reclaim, but its stable-keyed root part is neither superseded (never re-flushed) nor removed, so it
+		// would be copied forward by every compaction forever. The manifest baseline is the only place that tracks
+		// SINGLE-shaped roots (which own no leaf pages), so the diff must run here, not in the leaf-page reclaim.
+		emitVanishedRootRemovals(
+			attributeIndexStorageKeys, priceIndexKeys, facetIndexReferencedEntities,
+			histogramIndexStorageKeys, !hierarchyIndexEmpty, trappedChanges
+		);
 	}
+
+	/**
+	 * Emits a root-part removal for every persisted sub-index whose manifest key is in the change-detection
+	 * baseline ({@code original*}) but not in the passed surviving set — i.e. a sub-index that was on disk and has
+	 * now vanished. Called two ways: from {@link #getModifiedStorageParts(TrappedChanges)} with the freshly
+	 * collected manifest sets (churn-vanish of one sub-index while the index survives) and from
+	 * {@link #emitFootprintRemovals(TrappedChanges)} with empty surviving sets (the whole index is dropped, so
+	 * every persisted root vanishes). Reads only the persisted baseline, never live/transactional state.
+	 *
+	 * @param survivingAttributes the attribute sub-index keys that remain after this commit
+	 * @param survivingPrices     the price sub-index keys that remain
+	 * @param survivingFacets     the facet referenced-entity types that remain
+	 * @param survivingHistograms the histogram sub-index keys that remain
+	 * @param hierarchyPresent    whether a hierarchy is still present
+	 * @param sink                the accumulator collecting the removal instructions
+	 */
+	private void emitVanishedRootRemovals(
+		@Nonnull Set<AttributeIndexStorageKey> survivingAttributes,
+		@Nonnull Set<PriceIndexKey> survivingPrices,
+		@Nonnull Set<String> survivingFacets,
+		@Nonnull Set<HistogramIndexStorageKey> survivingHistograms,
+		boolean hierarchyPresent,
+		@Nonnull TrappedChanges sink
+	) {
+		for (final AttributeIndexStorageKey key : this.originalAttributeIndexes) {
+			if (!survivingAttributes.contains(key)) {
+				sink.addChangeToStore(new AttributeIndexRootRemoval(this.primaryKey, key.attribute(), key.indexType()));
+			}
+		}
+		for (final PriceIndexKey key : this.originalPriceIndexes) {
+			if (!survivingPrices.contains(key)) {
+				sink.addChangeToStore(new PriceIndexRootRemoval(this.primaryKey, key, getPriceRootStoragePartType()));
+			}
+		}
+		for (final String referencedEntityType : this.originalFacetIndexes) {
+			if (!survivingFacets.contains(referencedEntityType)) {
+				sink.addChangeToStore(new FacetIndexRootRemoval(this.primaryKey, referencedEntityType));
+			}
+		}
+		for (final HistogramIndexStorageKey key : this.originalHistogramKeys) {
+			if (!survivingHistograms.contains(key)) {
+				sink.addChangeToStore(new HistogramRootRemoval(this.primaryKey, key.histogramName(), key.locale()));
+			}
+		}
+		// a hierarchy root was persisted (baseline non-empty) and is now gone
+		if (!this.originalHierarchyIndexEmpty && !hierarchyPresent) {
+			sink.addChangeToStore(new HierarchyIndexRootRemoval(this.primaryKey));
+		}
+	}
+
+	/**
+	 * Emits removal instructions reclaiming the ENTIRE persisted footprint of this index when it is dropped: every
+	 * persisted sub-index root (via {@link #emitVanishedRootRemovals} against empty surviving sets) plus every
+	 * persisted leaf page and every non-manifest sub-index root (e.g. reference-type cardinality) via each
+	 * {@link IndexComponent#emitPersistedFootprintRemovals(int, TrappedChanges)}. The manifest and membership
+	 * bitmaps are reclaimed separately by the caller (they are primary-key-addressable). Reads only persisted
+	 * baselines, so it is safe whether or not the transactional layers are still attached.
+	 *
+	 * @param sink the accumulator collecting the removal instructions
+	 */
+	public final void emitFootprintRemovals(@Nonnull TrappedChanges sink) {
+		emitVanishedRootRemovals(
+			Collections.emptySet(), Collections.emptySet(), Collections.emptySet(),
+			Collections.emptySet(), false, sink
+		);
+		for (final IndexComponent component : this.components) {
+			component.emitPersistedFootprintRemovals(this.primaryKey, sink);
+		}
+	}
+
+	/**
+	 * @return the concrete price root storage-part class this index persists its price sub-indexes under (the super
+	 * variant for the global index, the reference variant for reduced indexes). Consulted only to target the correct
+	 * record type when reclaiming a dropped price sub-index, so it is never called on an index that persisted none.
+	 */
+	@Nonnull
+	protected abstract Class<? extends StoragePart> getPriceRootStoragePartType();
 
 	/**
 	 * Advances the change-detection baseline to the state that was just persisted. Invoked by the flush

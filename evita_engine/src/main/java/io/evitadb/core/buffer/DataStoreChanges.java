@@ -33,14 +33,18 @@ import com.carrotsearch.hppc.cursors.ObjectCursor;
 import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.core.transaction.memory.Snapshotable;
 import io.evitadb.core.transaction.memory.UndoJournal;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.Index;
 import io.evitadb.index.IndexKey;
 import io.evitadb.spi.store.catalog.persistence.StorageDescriptor;
 import io.evitadb.spi.store.catalog.persistence.StoragePartPersistenceService;
+import io.evitadb.spi.store.catalog.persistence.storageParts.DeferredRemovalStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePartKey;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIdsStoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIndexStoragePart;
 import io.evitadb.utils.Assert;
 import lombok.RequiredArgsConstructor;
 
@@ -48,8 +52,10 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
 import java.io.Serial;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.function.IntFunction;
@@ -83,6 +89,16 @@ public class DataStoreChanges implements Snapshotable<DataStoreChanges.DataStore
 	 * store some of them in memory and flush them once in a while to the persistent storage.
 	 */
 	@Nullable private Map<Class<? extends StoragePart>, LongObjectMap<StoragePart>> trappedChanges;
+	/**
+	 * Deferred-removal parts accumulated when a whole {@link EntityIndex} is dropped via {@link #removeIndex}: one
+	 * removal per persisted sub-index root and per persisted leaf page of that index. Unlike {@link #trappedChanges},
+	 * these are {@link DeferredRemovalStoragePart}s whose primary
+	 * key is resolved store-side at drain time, so they carry no resolvable key here and cannot ride the per-type
+	 * primary-key map. They are drained into the {@link TrappedChanges} returned by {@link #popTrappedUpdates()} and
+	 * truncated back on a savepoint rollback through the {@link #undoJournal} (mirroring how a removed dirty index is
+	 * reinstated). Lazily allocated; {@code null} until the first index drop.
+	 */
+	@Nullable private List<StoragePart> pendingIndexRemovalParts;
 	/**
 	 * Contains reference to the I/O service, that allows reading/writing records to the persistent storage.
 	 */
@@ -224,6 +240,15 @@ public class DataStoreChanges implements Snapshotable<DataStoreChanges.DataStore
 			for (LongObjectMap<StoragePart> changesIndex : theTrappedChanges.values()) {
 				final ObjectContainer<StoragePart> values = changesIndex.values();
 				trappedChanges.addIterator(new LongObjectIterator<>(values.iterator()), values.size());
+			}
+		}
+
+		// deferred removals staged by dropping whole indexes (sub-index roots + leaf pages) — resolved store-side at drain
+		if (this.pendingIndexRemovalParts != null) {
+			final List<StoragePart> removals = this.pendingIndexRemovalParts;
+			this.pendingIndexRemovalParts = null;
+			for (final StoragePart removal : removals) {
+				trappedChanges.addChangeToStore(removal);
 			}
 		}
 
@@ -502,20 +527,80 @@ public class DataStoreChanges implements Snapshotable<DataStoreChanges.DataStore
 	/**
 	 * Removes {@link EntityIndex} from the change set. After removal (either successfully or unsuccessful)
 	 * `removalPropagation` function is called to propagate deletion to the origin collection.
+	 *
+	 * @return the removed index — the dirty one when it was in the change set, otherwise whatever
+	 * `removalPropagation` yielded from the origin collection; `null` when the index was found in neither, which
+	 * callers must treat as "nothing was removed"
 	 */
-	@Nonnull
+	@Nullable
 	public <IK extends IndexKey, I extends Index<IK>> I removeIndex(
+		long catalogVersion,
 		@Nonnull IK entityIndexKey,
 		@Nonnull Function<IK, I> removalPropagation
 	) {
 		//noinspection unchecked
 		final I dirtyIndexesRemoval = (I) this.dirtyEntityIndexes.remove(entityIndexKey);
 		if (dirtyIndexesRemoval != null && this.undoJournal != null) {
-			// removeIndex only drops the by-key entry (never the by-pk one); a savepoint rollback re-inserts exactly it
+			// removeIndex only drops the by-key entry (never the by-pk one); a savepoint rollback re-inserts exactly it.
+			// Re-inserting the SAME instance is what keeps the reclaim symmetric on rollback: the reclaim baselines
+			// (the persisted leaf-page sets and the `original*` manifest sets) live on the index object itself, and the
+			// surrounding diff-layer savepoint reverts that object's content in lockstep — so a rolled-back drop rewinds
+			// index state and reclaim state together, and the next flush diffs against the pre-drop baseline.
 			this.undoJournal.push(() -> this.dirtyEntityIndexes.put(entityIndexKey, dirtyIndexesRemoval));
 		}
 		final I baseIndexesRemoval = removalPropagation.apply(entityIndexKey);
-		return ofNullable(dirtyIndexesRemoval).orElse(baseIndexesRemoval);
+		final I removed = ofNullable(dirtyIndexesRemoval).orElse(baseIndexesRemoval);
+		if (removed instanceof EntityIndex entityIndex) {
+			// The append-only store reclaims a record only when it is superseded or explicitly removed. A dropped
+			// index is never re-flushed, so its manifest, membership bitmaps, every sub-index root and every leaf
+			// page it persisted would be copied forward by every compaction forever. Emit the removals here, while
+			// the index's persisted baselines are still intact and before the caller discards its transactional
+			// layers.
+			reclaimRemovedIndexFootprint(catalogVersion, entityIndex);
+		} else if (removed != null) {
+			// every present-day caller drops an EntityIndex; any other index type would silently reintroduce the
+			// permanent-orphan leak the branch above exists to prevent, so it must be taught to reclaim its own
+			// persisted footprint before it may be routed here
+			throw new GenericEvitaInternalError(
+				"Removal of index type `" + removed.getClass().getName() + "` does not reclaim its persisted " +
+					"footprint - implement the reclaim before removing indexes of this type!"
+			);
+		}
+		return removed;
+	}
+
+	/**
+	 * Emits the removal instructions that reclaim, from the append-only storage, the complete persisted footprint of a
+	 * dropped {@link EntityIndex}. The sub-index roots and leaf pages are {@link DeferredRemovalStoragePart}s
+	 * (store-side primary-key resolution) collected into {@link #pendingIndexRemovalParts}; the manifest and membership
+	 * bitmaps are plain primary-key removals routed through {@link #trapRemoveStoragePart} (which self-skips a
+	 * never-persisted part via its {@code containsStoragePart} gate and is reverted by a savepoint rollback).
+	 *
+	 * @param catalogVersion the version whose existence view gates the manifest/bitmaps removal
+	 * @param entityIndex    the index being dropped
+	 */
+	private void reclaimRemovedIndexFootprint(long catalogVersion, @Nonnull EntityIndex entityIndex) {
+		final TrappedChanges footprint = new TrappedChanges();
+		entityIndex.emitFootprintRemovals(footprint);
+		final int count = footprint.getTrappedChangesCount();
+		if (count > 0) {
+			if (this.pendingIndexRemovalParts == null) {
+				this.pendingIndexRemovalParts = new ArrayList<>(count);
+			}
+			final List<StoragePart> pending = this.pendingIndexRemovalParts;
+			final int mark = pending.size();
+			final Iterator<StoragePart> it = footprint.getTrappedChangesIterator();
+			while (it.hasNext()) {
+				pending.add(it.next());
+			}
+			if (this.undoJournal != null) {
+				// a savepoint rollback must drop exactly the removals this drop staged (mirrors the dirty-index reinstate)
+				this.undoJournal.push(() -> pending.subList(mark, pending.size()).clear());
+			}
+		}
+		final long indexPrimaryKey = entityIndex.getPrimaryKey();
+		trapRemoveStoragePart(catalogVersion, indexPrimaryKey, EntityIndexStoragePart.class);
+		trapRemoveStoragePart(catalogVersion, indexPrimaryKey, EntityIdsStoragePart.class);
 	}
 
 	/**

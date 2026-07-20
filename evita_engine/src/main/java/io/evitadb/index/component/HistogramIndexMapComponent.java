@@ -213,4 +213,16 @@ public final class HistogramIndexMapComponent implements IndexComponent {
 		this.histogramIndexes.removeLayer(transactionalLayer);
 	}
 
+	@Override
+	public void emitPersistedFootprintRemovals(
+		int entityIndexPrimaryKey,
+		@Nonnull TrappedChanges trappedChanges
+	) {
+		// whole-index drop: reclaim every persisted bucket / range leaf page + cardinality sibling of every persisted
+		// `(histogram, locale)` sub-index by diffing the persisted baseline against an empty survivor set (nothing
+		// survives). The histogram root is manifest-listed and reclaimed by EntityIndex.emitVanishedRootRemovals.
+		// Reads only the persisted baseline and has no side effects — the baseline field is left untouched.
+		emitDroppedReclaims(entityIndexPrimaryKey, this.persistedLeafPages, Map.of(), trappedChanges);
+	}
+
 }

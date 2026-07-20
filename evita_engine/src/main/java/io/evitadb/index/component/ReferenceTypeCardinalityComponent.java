@@ -26,6 +26,7 @@ package io.evitadb.index.component;
 import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.index.cardinality.ReferenceTypeCardinalityIndex;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.ReferenceTypeCardinalityRootRemoval;
 
 import javax.annotation.Nonnull;
 
@@ -78,6 +79,23 @@ public final class ReferenceTypeCardinalityComponent implements IndexComponent {
 		// one inline root.
 		this.indexPrimaryKeyCardinality.appendStorageParts(
 			entityIndexPrimaryKey, this.referenceName, trappedChanges
+		);
+	}
+
+	@Override
+	public void emitPersistedFootprintRemovals(
+		int entityIndexPrimaryKey,
+		@Nonnull TrappedChanges trappedChanges
+	) {
+		// every leaf page the paged cardinality tree currently has on disk
+		this.indexPrimaryKeyCardinality.emitPersistedLeafPageRemovals(
+			entityIndexPrimaryKey, this.referenceName, trappedChanges
+		);
+		// ...and the root. Unlike the attribute / price / facet / histogram / hierarchy roots this part contributes
+		// nothing to the EntityIndexManifest (it is addressed by its own storage key), so the manifest-baseline diff
+		// in EntityIndex cannot see it vanish — it has to be reclaimed here or it would be orphaned forever.
+		trappedChanges.addChangeToStore(
+			new ReferenceTypeCardinalityRootRemoval(entityIndexPrimaryKey, this.referenceName)
 		);
 	}
 

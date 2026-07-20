@@ -114,13 +114,13 @@ public class TransactionalDataStoreMemoryBuffer implements DataStoreMemoryBuffer
 			.getIndexIfExists(entityIndexPrimaryKey, accessorWhenMissing);
 	}
 
-	@Nonnull
+	@Nullable
 	@Override
-	public <IK extends IndexKey, I extends Index<IK>> I removeIndex(@Nonnull IK entityIndexKey, @Nonnull Function<IK, I> removalPropagation) {
+	public <IK extends IndexKey, I extends Index<IK>> I removeIndex(long catalogVersion, @Nonnull IK entityIndexKey, @Nonnull Function<IK, I> removalPropagation) {
 		// removal MUTATES the layer, so the write-variant fetch is required: it records the layer's pre-mutation
 		// snapshot into an open savepoint on first touch (a read-path fetch would leave the removal unrevertable)
 		final DataStoreChanges layer = Transaction.getTransactionalMemoryLayerForWriteIfExists(this.transactionalMemoryDataSource);
-		return Objects.requireNonNullElse(layer, this.dataStoreChanges).removeIndex(entityIndexKey, removalPropagation);
+		return Objects.requireNonNullElse(layer, this.dataStoreChanges).removeIndex(catalogVersion, entityIndexKey, removalPropagation);
 	}
 
 	@Override

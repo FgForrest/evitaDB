@@ -47,6 +47,8 @@ import io.evitadb.index.facet.FacetIndex;
 import io.evitadb.index.hierarchy.HierarchyIndex;
 import io.evitadb.index.price.PriceIndexContract;
 import io.evitadb.index.price.PriceSuperIndex;
+import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.PriceListAndCurrencySuperIndexStoragePart;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.Delegate;
@@ -156,6 +158,12 @@ public class GlobalEntityIndex extends EntityIndex
 	 */
 	@Delegate(types = PriceIndexContract.class)
 	@Getter private final PriceSuperIndex priceIndex;
+
+	@Nonnull
+	@Override
+	protected Class<? extends StoragePart> getPriceRootStoragePartType() {
+		return PriceListAndCurrencySuperIndexStoragePart.class;
+	}
 
 	/**
 	 * Creates a proxy instance of {@link GlobalEntityIndex} that throws a {@link EntityNotManagedException}
