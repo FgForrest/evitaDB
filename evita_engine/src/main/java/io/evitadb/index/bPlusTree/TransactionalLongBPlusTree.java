@@ -645,39 +645,53 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 	}
 
 	/**
-	 * Registers a rebalanced leaf as a dirty-scope token for this transaction.
-	 * Invoked by the base {@link #consolidate(Cursor)} for each leaf whose boundary keys a steal / merge shifted.
+	 * Registers a rebalanced leaf's current boundary key as a dirty-scope probe key for this transaction. Invoked by the
+	 * base {@link #consolidate(Cursor)} for each leaf whose boundary keys a steal / merge shifted (always a leaf — the
+	 * base guards the call with {@code !isInternal}).
 	 *
 	 * @param leaf the rebalanced leaf node
 	 */
 	@Override
 	protected void registerConsolidatedLeaf(@Nonnull BPlusTreeNode<?> leaf) {
-		registerDirtyLeafInScope(this, leaf);
+		//noinspection unchecked
+		registerDirtyLeafInScope((BPlusLeafTreeNode<V>) leaf);
 	}
 
 	/**
-	 * Dirty-scope validation for this tree. For each registered key source (a writable leaf
-	 * this transaction dirtied) it reads the current first key, descends from this tree's root to the leaf that key
-	 * routes to, and re-derives both cross-leaf half-invariants on the leaf the descent actually landed on — reusing
-	 * the op-time machinery with the leaf's ACTUAL boundary keys ({@link #assertTailBoundary} against the successor
-	 * fence, {@link #assertHeadBoundary} against the predecessor's last key). Empty key sources and descents that land
-	 * on an empty leaf are skipped (nothing to relocate by / assert). Called on the live baseline tree for the
-	 * pre-commit (pre-WAL) pass (the descent resolves diff layers) and on a freshly merged tree for the post-replay
-	 * (merge-time) pass (plain reads); both use read-path accessors only.
+	 * Registers the dirtied leaf's CURRENT first key as a dirty-scope probe key for this transaction. Called from every
+	 * boundary-changing seam (insert, upsert-insert, delete, split, steal / merge). Reads the key through the
+	 * transaction-aware {@link BPlusLeafTreeNode#getKeys()}, so it captures the post-mutation boundary; an emptied leaf
+	 * carries no boundary key and is skipped — nothing needs relocating by a key that no longer exists.
 	 *
-	 * @param registeredLeafKeySources the writable leaf objects registered for this tree; used only as key sources
+	 * @param leaf the dirtied leaf node
+	 */
+	private void registerDirtyLeafInScope(@Nonnull BPlusLeafTreeNode<V> leaf) {
+		final TransactionalLayerMaintainer maintainer = Transaction.getTransactionalLayerMaintainer();
+		// gate on the cheap checks before deriving (and boxing) the probe key: outside a transaction there is no
+		// registry (warm-up bulk load pays nothing), and an emptied leaf has no boundary key to relocate by
+		if (maintainer == null || leaf.getPeek() < 0) {
+			return;
+		}
+		maintainer.registerDirtyScopeToken(this, leaf.getKeys()[0]);
+	}
+
+	/**
+	 * Dirty-scope validation for this tree. For each registered probe key (the first key of a leaf this transaction
+	 * dirtied, captured at op time) it descends from this tree's root to the leaf that key routes to, and re-derives
+	 * both cross-leaf half-invariants on the leaf the descent actually landed on — reusing the op-time machinery with
+	 * the leaf's ACTUAL boundary keys ({@link #assertTailBoundary} against the successor fence,
+	 * {@link #assertHeadBoundary} against the predecessor's last key). Descents that land on an empty leaf are skipped
+	 * (nothing to assert). Called on the live baseline tree for the pre-commit (pre-WAL) pass (the descent resolves diff
+	 * layers) and on a freshly merged tree for the post-replay (merge-time) pass (plain reads); both use read-path
+	 * accessors only.
+	 *
+	 * @param registeredProbeKeys the first keys registered for this tree; used only to relocate the leaf to check
 	 * @throws BPlusTreeCorruptedException when a relocated leaf overlaps an adjacent leaf
 	 */
 	@Override
-	public void validateDirtyScope(@Nonnull Collection<Object> registeredLeafKeySources) {
-		for (final Object keySource : registeredLeafKeySources) {
-			//noinspection unchecked
-			final BPlusLeafTreeNode<V> registered = (BPlusLeafTreeNode<V>) keySource;
-			if (registered.getPeek() < 0) {
-				// empty key source — nothing to relocate by (key-source-only rule)
-				continue;
-			}
-			final long probeKey = registered.getKeys()[0];
+	public void validateDirtyScope(@Nonnull Collection<Object> registeredProbeKeys) {
+		for (final Object token : registeredProbeKeys) {
+			final long probeKey = (Long) token;
 			final Cursor cursor = createCursor(probeKey);
 			final BPlusLeafTreeNode<V> leaf = cursor.leafNode();
 			final int peek = leaf.getPeek();
@@ -802,8 +816,8 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 			// op-time boundary-mutation asserts run before the (possible) split, while the cursor still reflects
 			// the pre-split spine — a mis-routed insert corrupts cross-leaf order without any structural op firing
 			assertInsertBoundaries(cursor, key);
-			// register the dirtied leaf as a dirty-scope token for this transaction
-			registerDirtyLeafInScope(this, leaf);
+			// register the dirtied leaf's current boundary key as a dirty-scope probe key for this transaction
+			registerDirtyLeafInScope(leaf);
 		}
 
 		// Split the leaf node if it exceeds the block size
@@ -872,8 +886,8 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 				this.size.set(size() + 1);
 				// op-time boundary-mutation asserts — see insert(long, V)
 				assertInsertBoundaries(cursor, key);
-				// register the dirtied leaf as a dirty-scope token for this transaction
-				registerDirtyLeafInScope(this, leaf);
+				// register the dirtied leaf's current boundary key as a dirty-scope probe key for this transaction
+				registerDirtyLeafInScope(leaf);
 			}
 
 			// Split the leaf node if it exceeds the block size
@@ -898,11 +912,11 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 		final boolean headRemoved = leaf.size() > 1 && key == leaf.getKeys()[0];
 		if (leaf.delete(key)) {
 			this.size.set(size() - 1);
-			// register the dirtied leaf as a dirty-scope token for this transaction: a
+			// register the dirtied leaf's current boundary key as a dirty-scope probe key for this transaction: a
 			// removal narrows the leaf's key range, but a later reverted layer could restore the wider
 			// pre-transaction range and overlap a neighbour that split during the transaction — so removals are
 			// validated too
-			registerDirtyLeafInScope(this, leaf);
+			registerDirtyLeafInScope(leaf);
 		}
 
 		// if the head of the leaf has been removed, we need to update parent keys accordingly
@@ -1142,7 +1156,8 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 		// cross-leaf boundary invariants for every leaf this transaction dirtied — against the freshly merged
 		// structure (plain reads; the merged nodes are fresh or unchanged-and-layer-free, so the descent never
 		// consults a diff layer).
-		// Registered objects are key sources only; each is relocated by its current key in the merged tree.
+		// The registry holds boundary keys, not nodes; each key routes to whatever leaf currently owns it in the
+		// merged tree, and that landed leaf is validated on its own re-derived boundaries.
 		final Set<Object> dirtyScope = transactionalLayer.getDirtyScopeTokens(this);
 		if (!dirtyScope.isEmpty()) {
 			merged.validateDirtyScope(dirtyScope);
@@ -1277,10 +1292,10 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 				cursor.toCursorWithLevel()
 			);
 		}
-		// a split creates a brand-new adjacent leaf pair with a fresh separator between them — register both halves
-		// as dirty-scope tokens for this transaction
-		registerDirtyLeafInScope(this, leftLeaf);
-		registerDirtyLeafInScope(this, rightLeaf);
+		// a split creates a brand-new adjacent leaf pair with a fresh separator between them — register both halves'
+		// current boundary keys as dirty-scope probe keys for this transaction
+		registerDirtyLeafInScope(leftLeaf);
+		registerDirtyLeafInScope(rightLeaf);
 	}
 
 	/**

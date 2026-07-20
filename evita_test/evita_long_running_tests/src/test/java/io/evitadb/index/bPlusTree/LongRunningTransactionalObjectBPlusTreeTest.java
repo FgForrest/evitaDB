@@ -41,12 +41,15 @@ import java.util.Iterator;
 import java.util.NoSuchElementException;
 import java.util.Random;
 import java.util.TreeMap;
+import java.util.TreeSet;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static io.evitadb.test.TestTags.COMPARATOR;
 import static io.evitadb.test.TestTags.DATA_TYPE;
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.SLOW;
 import static io.evitadb.test.TestTags.TRANSACTION;
+import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -62,6 +65,11 @@ import static org.junit.jupiter.api.Assertions.fail;
 @Tag(DATA_TYPE)
 @Tag(TRANSACTION)
 class LongRunningTransactionalObjectBPlusTreeTest implements TimeBoundedTestSupport {
+	/**
+	 * Block sizes drawn per generation in the transactional axis; all odd (internal-node constraint) and small enough
+	 * to force frequent splits and merges.
+	 */
+	private static final int[] BLOCK_SIZES = {3, 5, 7};
 
 	@ParameterizedTest(
 		name = "TransactionalObjectBPlusTreeTest should survive generational randomized test applying "
@@ -86,6 +94,7 @@ class LongRunningTransactionalObjectBPlusTreeTest implements TimeBoundedTestSupp
 				final boolean delete =
 					(startArray.length > 0 && random.nextInt(3) == 0)
 						|| (testState.limitReached() && startArray.length > limitElements / 2);
+				final boolean useUpsert = !delete && random.nextBoolean();
 
 				try {
 					if (delete) {
@@ -96,13 +105,19 @@ class LongRunningTransactionalObjectBPlusTreeTest implements TimeBoundedTestSupp
 					} else {
 						key = random.nextInt(limitElements * 2);
 						endArray = ArrayUtils.insertIntIntoOrderedArray(key, startArray);
-						theTree.insert(key, "Value" + key);
+						if (useUpsert) {
+							// value-preserving upsert exercises the insert-or-update public path (may split the leaf)
+							final int upsertKey = key;
+							theTree.upsert(upsertKey, existing -> "Value" + upsertKey);
+						} else {
+							theTree.insert(key, "Value" + key);
+						}
 					}
 
 					verifyTreeConsistency(theTree, endArray);
 
 					return new TestState(
-						testState.code().append(delete ? "D:" : "I:").append(key),
+						testState.code().append(delete ? "D:" : useUpsert ? "U:" : "I:").append(key),
 						endArray,
 						testState.limitReached()
 							? endArray.length > limitElements / 2
@@ -110,7 +125,7 @@ class LongRunningTransactionalObjectBPlusTreeTest implements TimeBoundedTestSupp
 					);
 				} catch (Exception ex) {
 					fail(
-						"Failed to " + (delete ? "delete" : "insert") + " key " + key
+						"Failed to " + (delete ? "delete" : useUpsert ? "upsert" : "insert") + " key " + key
 							+ " with initial state: " + theTree,
 						ex
 					);
@@ -183,6 +198,149 @@ class LongRunningTransactionalObjectBPlusTreeTest implements TimeBoundedTestSupp
 				}
 			}
 		);
+	}
+
+	@ParameterizedTest(
+		name = "TransactionalObjectBPlusTreeTest should survive transactional generational insert/upsert/delete churn"
+	)
+	@Tag(SLOW)
+	@ArgumentsSource(TimeArgumentProvider.class)
+	@DisplayName("survives randomized transactional insert/upsert/delete churn swept cleanly on commit")
+	void generationalTransactionalProofTest(@Nonnull GenerationalTestInput input) {
+		final int limitElements = 1000;
+		final long seed = input.randomSeed();
+		// print the seed so a failing run can be reproduced deterministically
+		System.out.println("LongRunningTransactionalObjectBPlusTreeTest (transactional) seed: " + seed);
+
+		final Random seedRandom = new Random(seed);
+		final TreeSet<Integer> initialReference = new TreeSet<>();
+		do {
+			initialReference.add(seedRandom.nextInt(limitElements << 1));
+		} while (initialReference.size() < limitElements);
+
+		runFor(
+			input, 1000, new TestState(new StringBuilder(512), toArray(initialReference), true),
+			(random, testState) -> {
+				// draw a small block size per generation so every generation is a high-split-density tree
+				final int blockSize = BLOCK_SIZES[random.nextInt(BLOCK_SIZES.length)];
+				final int[] startKeys = testState.initialArray();
+				final TransactionalObjectBPlusTree<Integer, String> tree = buildTree(startKeys, blockSize);
+				verifyTreeConsistency(tree, startKeys);
+
+				// oracle mutated in lockstep with the transaction; verified against the committed tree
+				final TreeSet<Integer> oracle = new TreeSet<>();
+				for (final int key : startKeys) {
+					oracle.add(key);
+				}
+				final AtomicReference<int[]> committedKeys = new AtomicReference<>();
+				final StringBuilder code = testState.code();
+				code.setLength(0);
+
+				try {
+					assertStateAfterCommit(
+						tree,
+						original -> {
+							final int operations = 1 + random.nextInt(6);
+							for (int op = 0; op < operations; op++) {
+								final boolean delete =
+									(!oracle.isEmpty() && random.nextInt(3) == 0)
+										|| (testState.limitReached() && oracle.size() > limitElements / 2);
+								if (delete) {
+									final int key = pickRandomKey(oracle, random);
+									original.delete(key);
+									oracle.remove(key);
+									code.append("D:").append(key).append(' ');
+								} else {
+									final int key = random.nextInt(limitElements << 1);
+									if (random.nextBoolean()) {
+										original.insert(key, "Value" + key);
+										code.append("I:").append(key).append(' ');
+									} else {
+										// value-preserving upsert keeps the oracle exact on both insert and update
+										original.upsert(key, existing -> "Value" + key);
+										code.append("U:").append(key).append(' ');
+									}
+									oracle.add(key);
+								}
+							}
+						},
+						(original, committed) -> {
+							final int[] expectedKeys = toArray(oracle);
+							verifyTreeConsistency(committed, expectedKeys);
+							committedKeys.set(expectedKeys);
+						}
+					);
+				} catch (Exception ex) {
+					fail(
+						"Generation failed for seed " + seed + " blockSize=" + blockSize
+							+ " with operations [" + code + "]",
+						ex
+					);
+					throw ex;
+				}
+
+				final int[] nextKeys = committedKeys.get();
+				return new TestState(
+					testState.code(),
+					nextKeys,
+					testState.limitReached()
+						? nextKeys.length > limitElements / 2
+						: nextKeys.length >= limitElements
+				);
+			}
+		);
+	}
+
+	/**
+	 * Builds a fresh object tree of the given block size holding one deterministic value per key from the given
+	 * ascending key set.
+	 *
+	 * @param keys      the ascending distinct keys
+	 * @param blockSize the leaf and internal node block size
+	 * @return a tree seeded with `"Value" + key` per key
+	 */
+	@Nonnull
+	private static TransactionalObjectBPlusTree<Integer, String> buildTree(@Nonnull int[] keys, int blockSize) {
+		final TransactionalObjectBPlusTree<Integer, String> tree = new TransactionalObjectBPlusTree<>(
+			blockSize, 1, blockSize, 1, Integer.class, String.class
+		);
+		for (final int key : keys) {
+			tree.insert(key, "Value" + key);
+		}
+		return tree;
+	}
+
+	/**
+	 * Picks a random key present in the reference double.
+	 *
+	 * @param reference the reference double
+	 * @param random    the randomizer
+	 * @return a key that currently exists in the reference
+	 */
+	private static int pickRandomKey(@Nonnull TreeSet<Integer> reference, @Nonnull Random random) {
+		final int index = random.nextInt(reference.size());
+		final Iterator<Integer> it = reference.iterator();
+		int key = 0;
+		for (int i = 0; i <= index; i++) {
+			key = it.next();
+		}
+		return key;
+	}
+
+	/**
+	 * Converts an ascending set of keys into a sorted primitive array.
+	 *
+	 * @param set the ascending key set
+	 * @return the ascending keys
+	 */
+	@Nonnull
+	private static int[] toArray(@Nonnull TreeSet<Integer> set) {
+		final int[] array = new int[set.size()];
+		int index = 0;
+		for (final Integer value : set) {
+			array[index++] = value;
+		}
+		return array;
 	}
 
 	/**

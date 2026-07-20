@@ -605,8 +605,13 @@ class TransactionalLongBPlusTreeTest {
 					if (delete) {
 						tree.delete(key);
 						reference.remove(key);
-					} else {
+					} else if (random.nextBoolean()) {
 						tree.insert(key, "Value" + key);
+						reference.put(key, "Value" + key);
+					} else {
+						// upsert exercises the insert-or-update public path; a value-preserving updater keeps the
+						// oracle exact whether the key was absent (insert + possible split) or already present
+						tree.upsert(key, existing -> "Value" + key);
 						reference.put(key, "Value" + key);
 					}
 
@@ -625,6 +630,81 @@ class TransactionalLongBPlusTreeTest {
 				verifyForwardValueIterator(tree, expectedKeys);
 				verifyReverseValueIterator(tree, expectedKeys);
 			}
+		}
+
+		@Test
+		@DisplayName("survives large randomized insert/delete churn committed as one transaction")
+		void shouldSurviveRandomizedTransactionalChurn() {
+			// The dirty-scope validation runs only at commit, so a fuzzer that never commits (like the bare-tree
+			// consistency-report churn above) is blind to it. This churns hundreds of random insert / upsert / delete
+			// operations at small block sizes inside a single committed transaction, so leaves split and merge within
+			// the transaction; the commit-time dirty-scope passes must re-derive every dirtied leaf's boundaries
+			// cleanly and the committed content must match the oracle.
+			for (final int blockSize : new int[]{3, 5, 7}) {
+				for (long seed = 0; seed < 25; seed++) {
+					exerciseTransactionalChurn(blockSize, seed);
+				}
+			}
+		}
+
+		/**
+		 * Churns 400 random insert / upsert / delete operations against a fresh tree of the given block size inside a
+		 * single transaction and asserts the committed tree matches the maintained oracle. Unlike the bare-tree churn
+		 * that validates a consistency report after every operation, this drives the whole batch through one commit so
+		 * the commit-merge and dirty-scope validation paths must reconcile every leaf split and merge accumulated
+		 * within the transaction.
+		 *
+		 * @param blockSize the leaf and internal node block size for the tree
+		 * @param seed      the random seed for reproducibility
+		 */
+		private void exerciseTransactionalChurn(int blockSize, long seed) {
+			final TransactionalLongBPlusTree<String> tree = new TransactionalLongBPlusTree<>(
+				blockSize, 1, blockSize, 1, String.class
+			);
+			final TreeMap<Long, String> oracle = new TreeMap<>();
+			final Random random = new Random(seed);
+
+			assertStateAfterCommit(
+				tree,
+				tested -> {
+					for (int op = 0; op < 400; op++) {
+						final long key = random.nextInt(120);
+						// bias towards delete once the tree has grown so merges and borrows are exercised heavily
+						final boolean delete = oracle.size() > 40
+							? random.nextInt(3) > 0
+							: random.nextBoolean();
+						if (delete) {
+							tested.delete(key);
+							oracle.remove(key);
+						} else if (random.nextBoolean()) {
+							tested.insert(key, "Value" + key);
+							oracle.put(key, "Value" + key);
+						} else {
+							// upsert exercises the insert-or-update public path (and, for this validating tree, its
+							// own dirty-scope registration on the upsert-insert seam); value-preserving keeps the
+							// oracle exact
+							tested.upsert(key, existing -> "Value" + key);
+							oracle.put(key, "Value" + key);
+						}
+					}
+					// the whole batch is verified after commit; only the running size is checked mid-transaction
+					assertEquals(
+						oracle.size(), tested.size(),
+						"Size mismatch inside transaction at blockSize=" + blockSize + " seed=" + seed
+					);
+				},
+				(original, committed) -> {
+					// every mutation happened inside the transaction, so the pre-transaction tree is still empty
+					assertEquals(
+						0, original.size(),
+						"Original tree changed at blockSize=" + blockSize + " seed=" + seed
+					);
+					// the committed tree must match the oracle's ascending keys through the consistency report and
+					// both forward and reverse value iterators
+					final long[] expectedKeys = oracle.keySet().stream().mapToLong(Long::longValue).toArray();
+					verifyTreeConsistency(committed, expectedKeys);
+				}
+			);
 		}
 
 		@Test
@@ -3126,9 +3206,8 @@ class TransactionalLongBPlusTreeTest {
 			final TransactionalLongBPlusTree<String> tree = assembleSound(List.of(
 				singleLeaf(1, 2), singleLeaf(5, 6), singleLeaf(10, 11)
 			));
-			assertDoesNotThrow(() -> tree.validateDirtyScope(List.<Object>of(
-				leafAt(tree, 1), leafAt(tree, 5), leafAt(tree, 10)
-			)));
+			// the registry keeps probe KEYS, not node objects; each key relocates to the leaf that owns it
+			assertDoesNotThrow(() -> tree.validateDirtyScope(List.<Object>of(1L, 5L, 10L)));
 		}
 
 		@Test
@@ -3143,9 +3222,10 @@ class TransactionalLongBPlusTreeTest {
 			// leaf's own first key (5) still lands on it and the tail half-invariant fires
 			final long[] keys = middle.getKeys();
 			keys[1] = 10L;
+			// relocate by the leaf's own (unchanged) first key 5 — the descent lands on it and the tail half-invariant fires
 			final AbstractTransactionalBPlusTree.BPlusTreeCorruptedException ex = assertThrows(
 				AbstractTransactionalBPlusTree.BPlusTreeCorruptedException.class,
-				() -> tree.validateDirtyScope(List.<Object>of(middle))
+				() -> tree.validateDirtyScope(List.<Object>of(5L))
 			);
 			assertTrue(
 				ex.getMessage().contains("successor leaf boundary"),
@@ -3164,10 +3244,11 @@ class TransactionalLongBPlusTreeTest {
 			// the predecessor's corrupted last key
 			final long[] predecessorKeys = leafAt(tree, 1).getKeys();
 			predecessorKeys[1] = 5L;
-			final TransactionalLongBPlusTree.BPlusLeafTreeNode<String> middle = leafAt(tree, 5);
+			// relocate the middle leaf by its unchanged first key 5; the head half-invariant compares against the
+			// predecessor's corrupted last key
 			final AbstractTransactionalBPlusTree.BPlusTreeCorruptedException ex = assertThrows(
 				AbstractTransactionalBPlusTree.BPlusTreeCorruptedException.class,
-				() -> tree.validateDirtyScope(List.<Object>of(middle))
+				() -> tree.validateDirtyScope(List.<Object>of(5L))
 			);
 			assertTrue(
 				ex.getMessage().contains("predecessor leaf boundary"),
@@ -3176,17 +3257,12 @@ class TransactionalLongBPlusTreeTest {
 		}
 
 		@Test
-		@DisplayName("an empty key source is skipped, not dereferenced")
-		void shouldSkipEmptyKeySource() {
-			final TransactionalLongBPlusTree<String> tree = assembleSound(List.of(
-				singleLeaf(1, 2), singleLeaf(5, 6)
-			));
-			// an empty single-leaf source carries no key (peek < 0) — the scope validation must skip it rather than
-			// dereference keys[0]
-			final TransactionalLongBPlusTree<String> empty = new TransactionalLongBPlusTree<>(10, 1, 3, 1, String.class);
-			final TransactionalLongBPlusTree.BPlusLeafTreeNode<String> emptyLeaf =
-				(TransactionalLongBPlusTree.BPlusLeafTreeNode<String>) empty.getRoot();
-			assertDoesNotThrow(() -> tree.validateDirtyScope(List.<Object>of(emptyLeaf)));
+		@DisplayName("a probe key landing on an empty leaf is skipped, not dereferenced")
+		void shouldSkipWhenDescentLandsOnEmptyLeaf() {
+			// an empty tree routes any probe key to its empty root leaf (peek < 0) — the scope validation must skip
+			// it rather than dereference keys[0]
+			final TransactionalLongBPlusTree<String> tree = new TransactionalLongBPlusTree<>(10, 1, 3, 1, String.class);
+			assertDoesNotThrow(() -> tree.validateDirtyScope(List.<Object>of(42L)));
 		}
 
 		/**

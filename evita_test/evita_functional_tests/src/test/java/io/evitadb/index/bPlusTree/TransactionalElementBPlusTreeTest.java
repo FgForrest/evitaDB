@@ -482,6 +482,68 @@ class TransactionalElementBPlusTreeTest {
 				}
 			);
 		}
+
+		@Test
+		@DisplayName("survives large randomized insert/delete churn committed as one transaction")
+		void shouldSurviveRandomizedTransactionalChurn() {
+			// The dirty-scope validation runs only at commit, so a fuzzer that never commits (like the bare-tree
+			// consistency-report churn) is blind to it. This churns hundreds of random insert / delete operations at
+			// small block sizes inside a single committed transaction, so leaves are repeatedly split and merged
+			// within the transaction; the commit-time pre-WAL and post-replay dirty-scope passes must re-derive every
+			// dirtied leaf's boundaries cleanly, and the committed content must match the oracle.
+			for (final int blockSize : new int[]{3, 4, 6}) {
+				for (long seed = 0; seed < 25; seed++) {
+					exerciseTransactionalChurn(blockSize, seed);
+				}
+			}
+		}
+
+		/**
+		 * Runs one big transaction of randomized insert / delete churn against a fresh tree of the given block size,
+		 * mirroring every operation into an oracle map, then commits and asserts the committed tree matches the oracle
+		 * exactly. The commit triggers both dirty-scope validation passes.
+		 *
+		 * @param blockSize the leaf block size (small values force frequent splits and merges)
+		 * @param seed      the RNG seed for reproducibility
+		 */
+		private void exerciseTransactionalChurn(int blockSize, long seed) {
+			final TransactionalElementBPlusTree<PriceRecordContract> tree = treeOf(blockSize);
+			final TreeMap<Integer, PriceRecordContract> oracle = new TreeMap<>();
+			final Random random = new Random(seed);
+			final int range = 120;
+			assertStateAfterCommit(
+				tree,
+				tested -> {
+					for (int op = 0; op < 400; op++) {
+						final int key = random.nextInt(range);
+						// bias towards delete once the tree has grown so merges (donor blanks) run heavily
+						final boolean delete = oracle.size() > 40 ? random.nextInt(3) > 0 : random.nextBoolean();
+						if (delete) {
+							tested.delete(key);
+							oracle.remove(key);
+						} else {
+							final PriceRecordContract record = rec(key);
+							tested.insert(record);
+							oracle.put(key, record);
+						}
+					}
+					// read-your-writes: the in-transaction view must already match the oracle size
+					assertEquals(
+						oracle.size(), tested.size(),
+						"In-transaction size mismatch at blockSize=" + blockSize + " seed=" + seed
+					);
+				},
+				(original, committed) -> {
+					assertEquals(0, original.size(), "The original tree must be untouched before commit-merge");
+					final int[] expectedKeys = new int[oracle.size()];
+					int index = 0;
+					for (final Integer key : oracle.keySet()) {
+						expectedKeys[index++] = key;
+					}
+					verifyTreeConsistency(committed, expectedKeys);
+				}
+			);
+		}
 	}
 
 	@Nested
@@ -550,6 +612,49 @@ class TransactionalElementBPlusTreeTest {
 				result[index++] = key;
 			}
 			return result;
+		}
+	}
+
+	@Nested
+	@DisplayName("Warm-up randomized churn")
+	class WarmUpChurnTest {
+
+		@Test
+		@DisplayName("keeps separators and occupancy consistent through non-transactional insert/delete churn")
+		void shouldKeepConsistentThroughRandomizedChurn() {
+			// The non-transactional (warm-up / bulk-load) path: churn random insert and delete directly on the tree
+			// (no transaction), asserting the consistency report and the exact content after every structural change.
+			// Delete-biased once the tree has grown so borrows and merges are exercised as heavily as splits.
+			for (long seed = 0; seed < 50; seed++) {
+				final Random random = new Random(seed);
+				final TransactionalElementBPlusTree<PriceRecordContract> tree = treeOf(3);
+				final TreeMap<Integer, PriceRecordContract> oracle = new TreeMap<>();
+				for (int op = 0; op < 400; op++) {
+					final int key = random.nextInt(60);
+					final boolean delete = oracle.size() > 20 ? random.nextInt(3) > 0 : random.nextBoolean();
+					if (delete) {
+						tree.delete(key);
+						oracle.remove(key);
+					} else {
+						final PriceRecordContract record = rec(key);
+						tree.insert(record);
+						oracle.put(key, record);
+					}
+					final ConsistencyReport report = tree.getConsistencyReport();
+					assertEquals(
+						ConsistencyState.CONSISTENT, report.state(),
+						"Inconsistent at seed " + seed + " op " + op + ": " + report.report()
+					);
+					assertEquals(oracle.size(), tree.size(), "Size mismatch at seed " + seed + " op " + op);
+				}
+				// final content must match the oracle exactly, in ascending order
+				final int[] expectedKeys = new int[oracle.size()];
+				int index = 0;
+				for (final Integer key : oracle.keySet()) {
+					expectedKeys[index++] = key;
+				}
+				verifyTreeConsistency(tree, expectedKeys);
+			}
 		}
 	}
 
@@ -979,9 +1084,8 @@ class TransactionalElementBPlusTreeTest {
 			final TransactionalElementBPlusTree<PriceRecordContract> tree = assembleSound(List.of(
 				singleLeaf(1, 2), singleLeaf(5, 6), singleLeaf(10, 11)
 			));
-			assertDoesNotThrow(() -> tree.validateDirtyScope(List.<Object>of(
-				leafAt(tree, 1), leafAt(tree, 5), leafAt(tree, 10)
-			)));
+			// the registry keeps probe KEYS, not node objects; each key relocates to the leaf that owns it
+			assertDoesNotThrow(() -> tree.validateDirtyScope(List.<Object>of(1, 5, 10)));
 		}
 
 		@Test
@@ -996,9 +1100,10 @@ class TransactionalElementBPlusTreeTest {
 			// last key reach the successor's first key; the separator is untouched, so relocating by the leaf's own
 			// first key (5) still lands on it and the tail half-invariant fires
 			middle.getValues()[middle.getPeek()] = rec(10);
+			// relocate by the leaf's own (unchanged) first key 5 — the descent lands on it and the tail half-invariant fires
 			final AbstractTransactionalBPlusTree.BPlusTreeCorruptedException ex = assertThrows(
 				AbstractTransactionalBPlusTree.BPlusTreeCorruptedException.class,
-				() -> tree.validateDirtyScope(List.<Object>of(middle))
+				() -> tree.validateDirtyScope(List.<Object>of(5))
 			);
 			assertTrue(
 				ex.getMessage().contains("successor leaf boundary"),
@@ -1017,10 +1122,11 @@ class TransactionalElementBPlusTreeTest {
 			// the predecessor's corrupted last key
 			final TransactionalElementBPlusTree.BPlusLeafTreeNode<PriceRecordContract> predecessor = leafAt(tree, 1);
 			predecessor.getValues()[predecessor.getPeek()] = rec(5);
-			final TransactionalElementBPlusTree.BPlusLeafTreeNode<PriceRecordContract> middle = leafAt(tree, 5);
+			// relocate the middle leaf by its unchanged first key 5; the head half-invariant compares against the
+			// predecessor's corrupted last key
 			final AbstractTransactionalBPlusTree.BPlusTreeCorruptedException ex = assertThrows(
 				AbstractTransactionalBPlusTree.BPlusTreeCorruptedException.class,
-				() -> tree.validateDirtyScope(List.<Object>of(middle))
+				() -> tree.validateDirtyScope(List.<Object>of(5))
 			);
 			assertTrue(
 				ex.getMessage().contains("predecessor leaf boundary"),
@@ -1029,18 +1135,13 @@ class TransactionalElementBPlusTreeTest {
 		}
 
 		@Test
-		@DisplayName("an empty key source is skipped, not dereferenced")
-		void shouldSkipEmptyKeySource() {
-			final TransactionalElementBPlusTree<PriceRecordContract> tree = assembleSound(List.of(
-				singleLeaf(1, 2), singleLeaf(5, 6)
-			));
-			// an empty single-leaf source carries no key (peek < 0) — the scope validation must skip it rather than
-			// dereference the peek slot
-			final TransactionalElementBPlusTree<PriceRecordContract> empty =
+		@DisplayName("a probe key landing on an empty leaf is skipped, not dereferenced")
+		void shouldSkipWhenDescentLandsOnEmptyLeaf() {
+			// an empty tree routes any probe key to its empty root leaf (peek < 0) — the scope validation must skip
+			// it rather than dereference the peek slot
+			final TransactionalElementBPlusTree<PriceRecordContract> tree =
 				new TransactionalElementBPlusTree<>(10, 1, 3, 1, PriceRecordContract.class, KEY);
-			final TransactionalElementBPlusTree.BPlusLeafTreeNode<PriceRecordContract> emptyLeaf =
-				(TransactionalElementBPlusTree.BPlusLeafTreeNode<PriceRecordContract>) empty.getRoot();
-			assertDoesNotThrow(() -> tree.validateDirtyScope(List.<Object>of(emptyLeaf)));
+			assertDoesNotThrow(() -> tree.validateDirtyScope(List.<Object>of(42)));
 		}
 
 		/**
