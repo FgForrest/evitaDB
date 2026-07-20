@@ -539,9 +539,10 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 
 	/**
 	 * Builds the typed, diagnosable error raised when a leaf a dirty-scope descent landed on reports a non-negative peek
-	 * yet carries no element to derive its boundary key from. Without it, that state surfaces as a bare
-	 * {@link NullPointerException} from inside the key extractor, telling the operator nothing about which tree, which
-	 * leaf, or which slot went wrong.
+	 * yet carries no element to derive one of its boundary keys from — either the head (slot 0) or the tail (the peek
+	 * slot), including a peek that points past the end of the value array. Without it, that state surfaces as a bare
+	 * {@link NullPointerException} from inside the key extractor (or an {@link ArrayIndexOutOfBoundsException} from the
+	 * array read), telling the operator nothing about which tree, which leaf, or which slot went wrong.
 	 *
 	 * Composed only on the failure path — the caller's guard is a plain array read it needed anyway, so the healthy
 	 * path pays nothing for this belt.
@@ -551,16 +552,17 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 	 * value array was still shared with the base, or an array truncated by a decouple that copied the wrong length.
 	 *
 	 * @param leaf the leaf whose boundary key could not be derived
+	 * @param slot the value slot that could not be read (`0` for the head key, the peek slot for the tail key)
 	 * @return the typed corruption error to throw
 	 */
 	@Nonnull
-	private BPlusTreeCorruptedException boundaryKeyUnreadableError(@Nonnull BPlusLeafTreeNode<E> leaf) {
+	private BPlusTreeCorruptedException boundaryKeyUnreadableError(@Nonnull BPlusLeafTreeNode<E> leaf, int slot) {
 		final E[] values = leaf.getValues();
 		final BPlusLeafTreeNode<E> layer = Transaction.getTransactionalMemoryLayerIfExists(leaf);
 		//noinspection ArrayEquality
 		final String sb = "Corrupted in-memory B+ tree: a live leaf reached by a dirty-scope descent reports peek " +
-			leaf.getPeek() + " but carries no element at slot 0, so its boundary key cannot be " +
-			"derived. Leaf id: " + leaf.getId() +
+			leaf.getPeek() + " but carries no readable element at slot " + slot + ", so its " +
+			(slot == 0 ? "head" : "tail") + " boundary key cannot be derived. Leaf id: " + leaf.getId() +
 			", base peek: " + leaf.peek +
 			", layer peek: " + (layer == null ? "<no layer>" : String.valueOf(layer.peek)) +
 			", base values: " + (leaf.values == null ? "null" : "length " + leaf.values.length) +
@@ -647,11 +649,19 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 				// the descent landed on an empty leaf — validating it is sound and vacuous
 				continue;
 			}
-			// a live leaf reached by a descent must carry its head element; a null head is genuine corruption, so raise
-			// a typed, diagnosable error rather than let the key extractor throw a bare NullPointerException
+			// a live leaf reached by a descent must carry both of its boundary elements; a peek pointing past the value
+			// array, or a null head / tail element, is genuine corruption - raise a typed, diagnosable error naming the
+			// unreadable slot rather than let the key extractor throw a bare NullPointerException (or the array read an
+			// ArrayIndexOutOfBoundsException)
 			final E[] values = leaf.getValues();
-			if (values.length == 0 || values[0] == null) {
-				throw boundaryKeyUnreadableError(leaf);
+			if (peek >= values.length) {
+				throw boundaryKeyUnreadableError(leaf, peek);
+			}
+			if (values[0] == null) {
+				throw boundaryKeyUnreadableError(leaf, 0);
+			}
+			if (values[peek] == null) {
+				throw boundaryKeyUnreadableError(leaf, peek);
 			}
 			final int firstKey = this.keyExtractor.applyAsInt(values[0]);
 			final int lastKey = this.keyExtractor.applyAsInt(values[peek]);
