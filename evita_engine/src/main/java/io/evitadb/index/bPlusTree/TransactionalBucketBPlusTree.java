@@ -1185,7 +1185,8 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		// post-replay (merge-time): before this merged version can propagate to the live view, re-derive the cross-leaf boundary
 		// invariants for every leaf this transaction dirtied — against the freshly merged structure (plain reads;
 		// the merged nodes are fresh or unchanged-and-layer-free, so the descent never consults a diff layer).
-		// Registered objects are key sources only; each is relocated by its current key in the merged tree.
+		// The registry holds boundary keys, not nodes; each key routes to whatever leaf currently owns it in the
+		// merged tree, and that landed leaf is validated on its own re-derived boundaries.
 		final Set<Object> dirtyScope = transactionalLayer.getDirtyScopeTokens(this);
 		if (!dirtyScope.isEmpty()) {
 			merged.validateDirtyScope(dirtyScope);
@@ -1706,49 +1707,45 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	}
 
 	/**
-	 * Registers a dirtied leaf as a dirty-scope token for this transaction. This standalone tree does
-	 * not extend {@link AbstractTransactionalBPlusTree}, so it cannot reuse the base's static registration helper (whose
-	 * parameter is the base-package leaf type this tree's nested leaf does not implement); it inlines the same semantics
-	 * instead. A no-op when no transaction is active — warm-up bulk load and other non-transactional mutations have
-	 * neither a registry nor a WAL, so the pre-commit (pre-WAL) and post-replay (merge-time) validations do not apply and pay nothing. The registered object is the leaf's write
-	 * LAYER when one exists (it holds the effective in-transaction keys and survives the layer discard the trunk merge
-	 * performs), otherwise the leaf itself (a split-born leaf holds its keys directly). Registered objects are key
-	 * sources only, so registering a not-strictly-current object cannot cause a false positive.
+	 * Registers the dirtied leaf's CURRENT first key as a dirty-scope probe key for this transaction. This standalone
+	 * tree does not extend {@link AbstractTransactionalBPlusTree}, so it cannot reuse the base's static registration
+	 * helper; it inlines the same semantics instead. A no-op when no transaction is active — warm-up bulk load and other
+	 * non-transactional mutations have neither a registry nor a WAL, so the pre-commit (pre-WAL) and post-replay
+	 * (merge-time) validations do not apply and pay nothing. Reads the key through the transaction-aware
+	 * {@link BPlusLeafTreeNode#keyAt(int)}, so it captures the post-mutation boundary; an emptied leaf carries no
+	 * boundary key and is skipped — nothing needs relocating by a key that no longer exists. Keeping the key rather than
+	 * the leaf means nothing pins the leaf or its columns to the registry until commit.
 	 *
 	 * @param leaf the dirtied leaf node
 	 */
 	private void registerDirtyLeafInScope(@Nonnull BPlusLeafTreeNode<K> leaf) {
 		final TransactionalLayerMaintainer maintainer = Transaction.getTransactionalLayerMaintainer();
-		if (maintainer == null) {
+		// gate on the cheap checks before deriving (and boxing) the probe key: outside a transaction there is no
+		// registry (warm-up bulk load pays nothing), and an emptied leaf has no boundary key to relocate by
+		if (maintainer == null || leaf.getPeek() < 0) {
 			return;
 		}
-		final Object writable = Transaction.getTransactionalMemoryLayerIfExists(leaf);
-		maintainer.registerDirtyScopeToken(this, writable != null ? writable : leaf);
+		maintainer.registerDirtyScopeToken(this, leaf.keyAt(0));
 	}
 
 	/**
-	 * Dirty-scope validation for this tree. For each registered key source (a writable leaf
-	 * this transaction dirtied) it reads the current first key, descends from this tree's root to the leaf that key
-	 * routes to, and re-derives both cross-leaf half-invariants on the leaf the descent actually landed on — reusing
-	 * the op-time machinery with the leaf's ACTUAL boundary keys ({@link #assertTailBoundary} against the successor
-	 * fence, {@link #assertHeadBoundary} against the predecessor's last key). Empty key sources and descents that land
-	 * on an empty leaf are skipped (nothing to relocate by / assert). Called on the live baseline tree for the
-	 * pre-commit (pre-WAL) pass (the descent resolves diff layers) and on a freshly merged tree for the post-replay
-	 * (merge-time) pass (plain reads); both use read-path accessors only.
+	 * Dirty-scope validation for this tree. For each registered probe key (the first key of a leaf this transaction
+	 * dirtied, captured at op time) it descends from this tree's root to the leaf that key routes to, and re-derives
+	 * both cross-leaf half-invariants on the leaf the descent actually landed on — reusing the op-time machinery with
+	 * the leaf's ACTUAL boundary keys ({@link #assertTailBoundary} against the successor fence,
+	 * {@link #assertHeadBoundary} against the predecessor's last key). Descents that land on an empty leaf are skipped
+	 * (nothing to assert). Called on the live baseline tree for the pre-commit (pre-WAL) pass (the descent resolves diff
+	 * layers) and on a freshly merged tree for the post-replay (merge-time) pass (plain reads); both use read-path
+	 * accessors only.
 	 *
-	 * @param registeredLeafKeySources the writable leaf objects registered for this tree; used only as key sources
+	 * @param registeredProbeKeys the first keys registered for this tree; used only to relocate the leaf to check
 	 * @throws AbstractTransactionalBPlusTree.BPlusTreeCorruptedException when a relocated leaf overlaps an adjacent leaf
 	 */
 	@Override
-	public void validateDirtyScope(@Nonnull Collection<Object> registeredLeafKeySources) {
-		for (final Object keySource : registeredLeafKeySources) {
+	public void validateDirtyScope(@Nonnull Collection<Object> registeredProbeKeys) {
+		for (final Object token : registeredProbeKeys) {
 			//noinspection unchecked
-			final BPlusLeafTreeNode<K> registered = (BPlusLeafTreeNode<K>) keySource;
-			if (registered.getPeek() < 0) {
-				// empty key source — nothing to relocate by (key-source-only rule)
-				continue;
-			}
-			final K probeKey = registered.keyAt(0);
+			final K probeKey = (K) token;
 			final Cursor<K> cursor = createCursor(probeKey);
 			final BPlusLeafTreeNode<K> leaf = cursor.leafNode();
 			final int peek = leaf.getPeek();

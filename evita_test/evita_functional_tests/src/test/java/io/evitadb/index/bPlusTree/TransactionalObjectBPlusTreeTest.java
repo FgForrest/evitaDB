@@ -796,8 +796,13 @@ class TransactionalObjectBPlusTreeTest {
 					if (delete) {
 						tree.delete(key);
 						reference.remove(key);
-					} else {
+					} else if (random.nextBoolean()) {
 						tree.insert(key, "Value" + key);
+						reference.put(key, "Value" + key);
+					} else {
+						// upsert exercises the insert-or-update public path; a value-preserving updater keeps the
+						// oracle exact whether the key was absent (insert + possible split) or already present
+						tree.upsert(key, existing -> "Value" + key);
 						reference.put(key, "Value" + key);
 					}
 
@@ -816,6 +821,74 @@ class TransactionalObjectBPlusTreeTest {
 				verifyForwardValueIterator(tree, expectedKeys);
 				verifyReverseValueIterator(tree, expectedKeys);
 			}
+		}
+
+		@Test
+		@DisplayName("survives large randomized insert/delete churn committed as one transaction")
+		void shouldSurviveRandomizedTransactionalChurn() {
+			// Runs the same random insert / upsert / delete churn as the bare-tree consistency fuzzer above, but
+			// inside a single committed transaction, so it exercises the transactional commit-merge path (layer merge
+			// and leaf split/merge within a transaction) that the non-transactional churn never reaches. The committed
+			// content must match the oracle exactly.
+			for (final int blockSize : new int[]{3, 5, 7}) {
+				for (long seed = 0; seed < 25; seed++) {
+					exerciseTransactionalChurn(blockSize, seed);
+				}
+			}
+		}
+
+		/**
+		 * Drives a batch of randomized insert / upsert / delete operations against a fresh tree of the given block
+		 * size, all inside a single transaction, then commits and verifies the committed tree against an in-memory
+		 * oracle. This exercises the transactional commit-merge path (layer merge plus leaf split/merge accumulated
+		 * within one transaction) that the non-transactional churn fuzzer never reaches.
+		 *
+		 * @param blockSize the value and internal node block size; the minimum occupancy is derived as `blockSize / 2`
+		 * @param seed      the random seed driving the operation stream
+		 */
+		private static void exerciseTransactionalChurn(int blockSize, long seed) {
+			final TransactionalObjectBPlusTree<Integer, String> tree =
+				new TransactionalObjectBPlusTree<>(blockSize, Integer.class, String.class);
+			final TreeMap<Integer, String> oracle = new TreeMap<>();
+			final Random random = new Random(seed);
+
+			assertStateAfterCommit(
+				tree,
+				tested -> {
+					for (int op = 0; op < 400; op++) {
+						final int key = random.nextInt(120);
+						// bias towards delete once the oracle has grown so merges and borrows are exercised heavily
+						final boolean delete = oracle.size() > 40
+							? random.nextInt(3) > 0
+							: random.nextBoolean();
+						if (delete) {
+							tested.delete(key);
+							oracle.remove(key);
+						} else if (random.nextBoolean()) {
+							tested.insert(key, "Value" + key);
+							oracle.put(key, "Value" + key);
+						} else {
+							// upsert exercises the insert-or-update public path; value-preserving keeps the oracle exact
+							tested.upsert(key, existing -> "Value" + key);
+							oracle.put(key, "Value" + key);
+						}
+					}
+					assertEquals(
+						oracle.size(), tested.size(),
+						"Size mismatch within transaction at blockSize=" + blockSize + " seed=" + seed
+					);
+				},
+				(original, committed) -> {
+					// every mutation landed in the transactional layer, so the original still reflects the empty tree
+					assertEquals(
+						0, original.size(),
+						"Original tree leaked mutations at blockSize=" + blockSize + " seed=" + seed
+					);
+					// the committed tree must match the oracle exactly, in ascending order, and stay consistent
+					final int[] expectedKeys = oracle.keySet().stream().mapToInt(Integer::intValue).toArray();
+					verifyTreeConsistency(committed, expectedKeys);
+				}
+			);
 		}
 
 	}

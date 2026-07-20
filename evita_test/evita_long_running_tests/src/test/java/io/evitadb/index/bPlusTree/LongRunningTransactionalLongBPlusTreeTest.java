@@ -31,6 +31,7 @@ import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.test.duration.TimeArgumentProvider;
 import io.evitadb.test.duration.TimeArgumentProvider.GenerationalTestInput;
 import io.evitadb.test.duration.TimeBoundedTestSupport;
+import io.evitadb.utils.ArrayUtils;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -50,6 +51,8 @@ import static io.evitadb.test.TestTags.TRANSACTION;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 /**
@@ -71,18 +74,27 @@ import static org.junit.jupiter.api.Assertions.fail;
 class LongRunningTransactionalLongBPlusTreeTest implements TimeBoundedTestSupport {
 
 	/**
-	 * Builds a fresh transactional tree holding a producer-bitmap value per key from the given reference snapshot.
+	 * Block sizes drawn per generation in the transactional axis; all odd (internal-node constraint) and small enough
+	 * to force frequent splits and merges - the churn density where the dirty-scope validation is exercised.
+	 */
+	private static final int[] BLOCK_SIZES = {3, 5, 7};
+
+	/**
+	 * Builds a fresh transactional tree of the given block size holding a producer-bitmap value per key from the given
+	 * reference snapshot. The small block size forces frequent leaf splits and merges.
 	 *
 	 * @param reference the key to bitmap-contents snapshot
+	 * @param blockSize the leaf and internal node block size
 	 * @return a tree seeded with the snapshot
 	 */
 	@Nonnull
 	private static TransactionalLongBPlusTree<TransactionalBitmap> buildTree(
-		@Nonnull TreeMap<Long, int[]> reference
+		@Nonnull TreeMap<Long, int[]> reference, int blockSize
 	) {
 		// the committed state of a TransactionalBitmap is a plain Bitmap, so the wrapper must reconstruct a
 		// fresh TransactionalBitmap from it on every commit (mirroring how production indexes wrap producer values)
 		final TransactionalLongBPlusTree<TransactionalBitmap> tree = new TransactionalLongBPlusTree<>(
+			blockSize, 1, blockSize, 1,
 			TransactionalBitmap.class,
 			o -> o instanceof TransactionalBitmap transactionalBitmap
 				? transactionalBitmap
@@ -153,7 +165,7 @@ class LongRunningTransactionalLongBPlusTreeTest implements TimeBoundedTestSuppor
 				for (final Map.Entry<Long, int[]> entry : testState.reference().entrySet()) {
 					reference.put(entry.getKey(), entry.getValue().clone());
 				}
-				final TransactionalLongBPlusTree<TransactionalBitmap> tree = buildTree(reference);
+				final TransactionalLongBPlusTree<TransactionalBitmap> tree = buildTree(reference, BLOCK_SIZES[random.nextInt(BLOCK_SIZES.length)]);
 				verifyTreeMatchesReference(tree, reference);
 
 				final AtomicReference<TreeMap<Long, int[]>> committedReference = new AtomicReference<>();
@@ -181,9 +193,21 @@ class LongRunningTransactionalLongBPlusTreeTest implements TimeBoundedTestSuppor
 									final long key = random.nextInt(limitElements << 1);
 									final int[] existing = reference.get(key);
 									if (existing == null) {
-										original.insert(key, new TransactionalBitmap(new int[]{(int) key}));
+										if (random.nextBoolean()) {
+											original.insert(key, new TransactionalBitmap(new int[]{(int) key}));
+											code.append("I:").append(key).append(' ');
+										} else {
+											// value-preserving upsert exercises the insert-or-update public path; the
+											// updater's null branch inserts a fresh producer value (and may split the leaf)
+											original.upsert(
+												key,
+												existingValue -> existingValue == null
+													? new TransactionalBitmap(new int[]{(int) key})
+													: existingValue
+											);
+											code.append("U:").append(key).append(' ');
+										}
 										reference.put(key, new int[]{(int) key});
-										code.append("I:").append(key).append(' ');
 									} else {
 										// mutate the existing producer value in place (mutate-and-keep-instance)
 										final int extra = (int) (limitElements * 2 + key);
@@ -222,6 +246,103 @@ class LongRunningTransactionalLongBPlusTreeTest implements TimeBoundedTestSuppor
 		);
 	}
 
+	@ParameterizedTest(
+		name = "TransactionalLongBPlusTree should survive non-transactional generational insert/upsert/delete churn"
+	)
+	@Tag(SLOW)
+	@ArgumentsSource(TimeArgumentProvider.class)
+	@DisplayName("survives randomized non-transactional (warm-up) insert/upsert/delete churn")
+	void generationalWarmUpProofTest(@Nonnull GenerationalTestInput input) {
+		final int limitElements = 1000;
+		final long seed = input.randomSeed();
+		// print the seed so a failing run can be reproduced deterministically
+		System.out.println("LongRunningTransactionalLongBPlusTreeTest (warm-up) seed: " + seed);
+
+		// one long-lived bare tree of plain String values churned directly (no transaction) at a small block size so
+		// splits / merges are dense; the value is deterministically derived from the key so a bare key set is a
+		// sufficient reference double and a value-preserving upsert keeps it exact
+		final TransactionalLongBPlusTree<String> tree = new TransactionalLongBPlusTree<>(3, 1, 3, 1, String.class);
+		final Random seedRandom = new Random(seed);
+		int[] initialKeys = new int[0];
+		do {
+			final int key = seedRandom.nextInt(limitElements << 1);
+			tree.insert(key, "Value" + key);
+			initialKeys = ArrayUtils.insertIntIntoOrderedArray(key, initialKeys);
+		} while (initialKeys.length < limitElements);
+		verifyStringTreeMatches(tree, initialKeys);
+
+		runFor(
+			input, 1000, new WarmUpState(new StringBuilder(512), initialKeys, true),
+			(random, state) -> {
+				final int[] startArray = state.keys();
+				int key = -1;
+				final boolean delete =
+					(startArray.length > 0 && random.nextInt(3) == 0)
+						|| (state.limitReached() && startArray.length > limitElements / 2);
+				final boolean useUpsert = !delete && random.nextBoolean();
+				try {
+					final int[] endArray;
+					if (delete) {
+						key = startArray[random.nextInt(startArray.length)];
+						endArray = ArrayUtils.removeIntFromOrderedArray(key, startArray);
+						tree.delete(key);
+					} else {
+						key = random.nextInt(limitElements << 1);
+						endArray = ArrayUtils.insertIntIntoOrderedArray(key, startArray);
+						if (useUpsert) {
+							// value-preserving upsert exercises the insert-or-update public path (may split the leaf)
+							final int upsertKey = key;
+							tree.upsert(upsertKey, existing -> "Value" + upsertKey);
+						} else {
+							tree.insert(key, "Value" + key);
+						}
+					}
+
+					verifyStringTreeMatches(tree, endArray);
+
+					return new WarmUpState(
+						state.code().append(delete ? "D:" : useUpsert ? "U:" : "I:").append(key).append(' '),
+						endArray,
+						state.limitReached()
+							? endArray.length > limitElements / 2
+							: endArray.length >= limitElements
+					);
+				} catch (Exception ex) {
+					fail(
+						"Failed to " + (delete ? "delete" : useUpsert ? "upsert" : "insert") + " key " + key
+							+ " for seed " + seed,
+						ex
+					);
+					throw ex;
+				}
+			}
+		);
+	}
+
+	/**
+	 * Verifies the String-valued tree reports a CONSISTENT internal state and that its forward entry iteration matches
+	 * the expected ascending key array exactly, including the deterministically-derived value per key.
+	 *
+	 * @param tree         the tree to verify
+	 * @param expectedKeys the expected ascending key array
+	 */
+	private static void verifyStringTreeMatches(
+		@Nonnull TransactionalLongBPlusTree<String> tree, @Nonnull int[] expectedKeys
+	) {
+		final ConsistencyReport report = tree.getConsistencyReport();
+		assertEquals(ConsistencyState.CONSISTENT, report.state(), report.report());
+		assertEquals(expectedKeys.length, tree.size(), "Size mismatch between tree and reference!");
+
+		final Iterator<Entry<String>> it = tree.entryIterator();
+		for (int i = 0; i < expectedKeys.length; i++) {
+			assertTrue(it.hasNext(), "Tree iterator exhausted before reference at " + i);
+			final Entry<String> entry = it.next();
+			assertEquals(expectedKeys[i], entry.key(), "Key order mismatch at " + i);
+			assertEquals("Value" + expectedKeys[i], entry.value(), "Value mismatch for key " + expectedKeys[i]);
+		}
+		assertFalse(it.hasNext(), "Tree iterator has more entries than reference!");
+	}
+
 	/**
 	 * Picks a random key present in the reference double.
 	 *
@@ -251,6 +372,21 @@ class LongRunningTransactionalLongBPlusTreeTest implements TimeBoundedTestSuppor
 	private record TestState(
 		@Nonnull StringBuilder code,
 		@Nonnull TreeMap<Long, int[]> reference,
+		boolean limitReached
+	) {
+	}
+
+	/**
+	 * Carries the chained warm-up generation state: the running operation log, the committed ascending key snapshot and
+	 * whether the element-count growth limit has been reached.
+	 *
+	 * @param code         the running operation log used for failure reproduction
+	 * @param keys         the committed ascending key snapshot fed to the next generation
+	 * @param limitReached whether the growth limit has been reached (switches the churn to delete-biased)
+	 */
+	private record WarmUpState(
+		@Nonnull StringBuilder code,
+		@Nonnull int[] keys,
 		boolean limitReached
 	) {
 	}

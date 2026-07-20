@@ -392,32 +392,14 @@ public abstract class AbstractTransactionalBPlusTree implements Serializable {
 	protected abstract BPlusTreeNode<?> newEmptyLeaf();
 
 	/**
-	 * Registers a leaf as dirtied for the current transaction's pre-commit / post-replay dirty-scope validation. A
-	 * no-op when no transaction is active — warm-up bulk load and other non-transactional mutations have neither a
-	 * registry nor a WAL, so the validation does not apply and pays nothing. The registered object is the leaf's write
-	 * LAYER when one exists (it holds the effective in-transaction keys and survives the layer discard the trunk merge
-	 * performs), otherwise the leaf itself (a split-born leaf holds its keys directly). Registered objects are key
-	 * sources only, so registering a not-strictly-current object cannot cause a false positive (see
-	 * {@link DirtyScopeValidator}).
-	 *
-	 * @param tree the owner tree the leaf belongs to
-	 * @param leaf the dirtied leaf node
-	 */
-	static void registerDirtyLeafInScope(@Nonnull DirtyScopeValidator tree, @Nonnull BPlusTreeNode<?> leaf) {
-		final TransactionalLayerMaintainer maintainer = Transaction.getTransactionalLayerMaintainer();
-		if (maintainer == null) {
-			return;
-		}
-		final Object writable = Transaction.getTransactionalMemoryLayerIfExists(leaf);
-		maintainer.registerDirtyScopeToken(tree, writable != null ? writable : leaf);
-	}
-
-	/**
 	 * Hook invoked by {@link #consolidate(Cursor)} for each leaf whose boundary keys a rebalance (steal / merge)
 	 * changed, so the concrete tree can register it in the transaction's dirty-scope validation. The default is a
 	 * no-op: the out-of-scope trees ({@code TransactionalObjectBPlusTree}, {@code TransactionalIntToLongBPlusTree}) do
-	 * not participate in the dirty-leaf validation. The in-scope paged trees override it to call
-	 * {@link #registerDirtyLeafInScope(DirtyScopeValidator, BPlusTreeNode)}.
+	 * not participate in the dirty-leaf validation. The in-scope paged trees override it to register the leaf's current
+	 * boundary key with {@link TransactionalLayerMaintainer#registerDirtyScopeToken}. Registration is a no-op outside a
+	 * transaction — warm-up bulk load and other non-transactional mutations have neither a registry nor a WAL — and the
+	 * registry keeps the key, not the leaf, so nothing pins the leaf, its array or its elements until commit (see
+	 * {@link DirtyScopeValidator}).
 	 *
 	 * @param leaf the rebalanced leaf node
 	 */

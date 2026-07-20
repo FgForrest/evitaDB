@@ -35,6 +35,7 @@ import java.io.Closeable;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.LinkedList;
 import java.util.List;
@@ -91,11 +92,12 @@ public class TransactionalLayerMaintainer {
 	@Nullable private Savepoint currentSavepoint;
 	/**
 	 * Per-transaction dirty-scope registry feeding the pre-commit (pre-WAL) and post-replay (merge-time) structural
-	 * integrity validation. Maps each participant (a {@link DirtyScopeValidator}) to the identity set of opaque tokens
-	 * it registered at its invariant-changing mutation seams during this transaction. Both axes are identity-keyed and
-	 * the whole structure is lazily instantiated on first registration (a transaction that touches no participant
-	 * pays nothing). Registration feeds both the pre-commit and post-replay validation passes, which each run
-	 * unconditionally whenever at least one participant was dirtied.
+	 * integrity validation. Maps each participant (a {@link DirtyScopeValidator}) to the set of probe keys it registered
+	 * at its invariant-changing mutation seams during this transaction. The participant axis is identity-keyed (the
+	 * validators are per-tree singletons), while the probe-key axis uses value semantics so equal keys registered by
+	 * successive ops on the same boundary dedup. The whole structure is lazily instantiated on first registration (a
+	 * transaction that touches no participant pays nothing). Registration feeds both the pre-commit and post-replay
+	 * validation passes, which each run unconditionally whenever at least one participant was dirtied.
 	 */
 	@Nullable private Map<DirtyScopeValidator, Set<Object>> dirtyScopes;
 
@@ -107,21 +109,22 @@ public class TransactionalLayerMaintainer {
 	}
 
 	/**
-	 * Registers an opaque scope token as dirtied by the given participant during this transaction, so the pre-commit
-	 * (pre-WAL) and post-replay (merge-time) validation can re-derive its invariants at commit. Called unconditionally
-	 * from the participant's invariant-changing mutation seams; the registered object is used only as a scope token
-	 * (see {@link DirtyScopeValidator}).
+	 * Registers a probe key as dirtied by the given participant during this transaction, so the pre-commit (pre-WAL)
+	 * and post-replay (merge-time) validation can relocate the affected leaf and re-derive its invariants at commit.
+	 * Called unconditionally from the participant's invariant-changing mutation seams; the registered object is the
+	 * boundary key of the dirtied leaf, captured at op time (see {@link DirtyScopeValidator}). Equal keys dedup by
+	 * value — validation is idempotent, so a boundary touched by several ops is validated once.
 	 *
-	 * @param owner      the participant the token belongs to
-	 * @param scopeToken the dirtied scope token
+	 * @param owner    the participant the key belongs to
+	 * @param probeKey the boundary key of the dirtied leaf
 	 */
-	public void registerDirtyScopeToken(@Nonnull DirtyScopeValidator owner, @Nonnull Object scopeToken) {
+	public void registerDirtyScopeToken(@Nonnull DirtyScopeValidator owner, @Nonnull Object probeKey) {
 		if (this.dirtyScopes == null) {
 			this.dirtyScopes = new IdentityHashMap<>(64);
 		}
 		this.dirtyScopes
-			.computeIfAbsent(owner, it -> Collections.newSetFromMap(new IdentityHashMap<>(64)))
-			.add(scopeToken);
+			.computeIfAbsent(owner, it -> new HashSet<>(64))
+			.add(probeKey);
 	}
 
 	/**

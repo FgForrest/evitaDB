@@ -104,10 +104,10 @@ public class WarmUpDataStoreMemoryBuffer implements DataStoreMemoryBuffer {
 		return this.dataStoreChanges.getIndexForModification(entityIndexPrimaryKey, accessorWhenMissing);
 	}
 
-	@Nonnull
+	@Nullable
 	@Override
-	public <IK extends IndexKey, I extends Index<IK>> I removeIndex(@Nonnull IK entityIndexKey, @Nonnull Function<IK, I> removalPropagation) {
-		return this.dataStoreChanges.removeIndex(entityIndexKey, removalPropagation);
+	public <IK extends IndexKey, I extends Index<IK>> I removeIndex(long catalogVersion, @Nonnull IK entityIndexKey, @Nonnull Function<IK, I> removalPropagation) {
+		return this.dataStoreChanges.removeIndex(catalogVersion, entityIndexKey, removalPropagation);
 	}
 
 	@Override
@@ -184,11 +184,12 @@ public class WarmUpDataStoreMemoryBuffer implements DataStoreMemoryBuffer {
 		// created / removed / replaced, going live or terminating - so this is the single point at which a warm-up
 		// buffer whose flush failed can be stopped before it writes again (this buffer backs both an entity collection
 		// and the catalog, so the refusal is phrased for either)
-		if (this.flushFailure != null) {
+		final Throwable theFlushFailure = this.flushFailure;
+		if (theFlushFailure != null) {
 			throw new GenericEvitaInternalError(
 				"Cannot collect changes: a previous warm-up flush failed, so the changes it had already collected are " +
 					"lost and the persisted state is incomplete. Reload the catalog from disk to recover.",
-				this.flushFailure
+				theFlushFailure
 			);
 		}
 		return this.dataStoreChanges.popTrappedUpdates();

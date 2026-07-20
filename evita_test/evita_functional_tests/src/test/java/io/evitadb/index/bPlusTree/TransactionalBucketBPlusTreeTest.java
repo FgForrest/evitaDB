@@ -2868,8 +2868,9 @@ class TransactionalBucketBPlusTreeTest {
 			final TransactionalBucketBPlusTree<MutableIntKey> tree = assembleSound(List.of(
 				singleLeaf(1, 2), singleLeaf(5, 6), singleLeaf(10, 11)
 			));
+			// the registry keeps probe KEYS, not node objects; each key relocates to the leaf that owns it
 			assertDoesNotThrow(() -> tree.validateDirtyScope(List.<Object>of(
-				leafAt(tree, 1), leafAt(tree, 5), leafAt(tree, 10)
+				new MutableIntKey(1), new MutableIntKey(5), new MutableIntKey(10)
 			)));
 		}
 
@@ -2884,9 +2885,10 @@ class TransactionalBucketBPlusTreeTest {
 			// separator is untouched, so relocating by the leaf's own first key (5) still lands on it and the tail
 			// half-invariant fires
 			middle.keyAt(middle.getPeek()).value = 10;
+			// relocate by the leaf's own (unchanged) first key 5 — the descent lands on it and the tail half-invariant fires
 			final AbstractTransactionalBPlusTree.BPlusTreeCorruptedException ex = assertThrows(
 				AbstractTransactionalBPlusTree.BPlusTreeCorruptedException.class,
-				() -> tree.validateDirtyScope(List.<Object>of(middle))
+				() -> tree.validateDirtyScope(List.<Object>of(new MutableIntKey(5)))
 			);
 			assertTrue(
 				ex.getMessage().contains("successor leaf boundary"),
@@ -2905,10 +2907,11 @@ class TransactionalBucketBPlusTreeTest {
 			// against the predecessor's corrupted last key
 			final BPlusLeafTreeNode<MutableIntKey> predecessor = leafAt(tree, 1);
 			predecessor.keyAt(predecessor.getPeek()).value = 5;
-			final BPlusLeafTreeNode<MutableIntKey> middle = leafAt(tree, 5);
+			// relocate the middle leaf by its unchanged first key 5; the head half-invariant compares against the
+			// predecessor's corrupted last key
 			final AbstractTransactionalBPlusTree.BPlusTreeCorruptedException ex = assertThrows(
 				AbstractTransactionalBPlusTree.BPlusTreeCorruptedException.class,
-				() -> tree.validateDirtyScope(List.<Object>of(middle))
+				() -> tree.validateDirtyScope(List.<Object>of(new MutableIntKey(5)))
 			);
 			assertTrue(
 				ex.getMessage().contains("predecessor leaf boundary"),
@@ -2917,19 +2920,13 @@ class TransactionalBucketBPlusTreeTest {
 		}
 
 		@Test
-		@DisplayName("an empty key source is skipped, not dereferenced")
-		void shouldSkipEmptyKeySource() {
-			final TransactionalBucketBPlusTree<MutableIntKey> tree = assembleSound(List.of(
-				singleLeaf(1, 2), singleLeaf(5, 6)
-			));
-			// an empty single-leaf source carries no key (peek < 0) — the scope validation must skip it rather than
-			// dereference the peek slot
-			final TransactionalBucketBPlusTree<MutableIntKey> empty =
+		@DisplayName("a probe key landing on an empty leaf is skipped, not dereferenced")
+		void shouldSkipWhenDescentLandsOnEmptyLeaf() {
+			// an empty tree routes any probe key to its empty root leaf (peek < 0) — the scope validation must skip
+			// it rather than dereference the peek slot
+			final TransactionalBucketBPlusTree<MutableIntKey> tree =
 				new TransactionalBucketBPlusTree<>(10, 1, 3, 1, MutableIntKey.class, null);
-			//noinspection unchecked
-			final BPlusLeafTreeNode<MutableIntKey> emptyLeaf =
-				(BPlusLeafTreeNode<MutableIntKey>) empty.getRoot();
-			assertDoesNotThrow(() -> tree.validateDirtyScope(List.<Object>of(emptyLeaf)));
+			assertDoesNotThrow(() -> tree.validateDirtyScope(List.<Object>of(new MutableIntKey(42))));
 		}
 
 		@Test

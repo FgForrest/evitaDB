@@ -47,6 +47,13 @@ import javax.annotation.Nonnull;
 public class DefaultTracingBlockReference implements TracingBlockReference {
 
 	/**
+	 * Reusable no-op block reference. Because this class carries no state and every method is a
+	 * no-op, a single shared instance serves all callers — there is no reason to allocate a fresh
+	 * object per span on the disabled path, where span creation happens on every traced call site.
+	 */
+	public static final TracingBlockReference INSTANCE = new DefaultTracingBlockReference();
+
+	/**
 	 * No-op implementation that does nothing. The error is not recorded anywhere.
 	 *
 	 * @param error the exception to record (ignored in this implementation)

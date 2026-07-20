@@ -429,7 +429,7 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 	 * @param newLastKey the leaf's new last key after the mutation
 	 * @throws GenericEvitaInternalError when the new last key does not sort strictly before the successor fence
 	 */
-	void assertTailBoundary(@Nonnull Cursor cursor, int newLastKey) {
+	static void assertTailBoundary(@Nonnull Cursor cursor, int newLastKey) {
 		final List<CursorLevel> path = cursor.path();
 		for (int level = path.size() - 1; level >= 1; level--) {
 			final CursorLevel cursorLevel = path.get(level);
@@ -527,7 +527,7 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 	 * @return the corruption error to throw
 	 */
 	@Nonnull
-	private BPlusTreeCorruptedException boundaryMutationError(
+	private static BPlusTreeCorruptedException boundaryMutationError(
 		@Nonnull String side, int boundaryKey, @Nonnull String relation, int neighborKey) {
 		return new BPlusTreeCorruptedException(
 			"Corrupted in-memory B+ tree: a leaf's " + side + " boundary key " + boundaryKey + " does not sort " +
@@ -538,41 +538,110 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 	}
 
 	/**
-	 * Registers a rebalanced leaf as a dirty-scope token for this transaction. Invoked by the base
-	 * {@link #consolidate(Cursor)} for each leaf whose boundary keys a steal / merge shifted.
+	 * Builds the typed, diagnosable error raised when a leaf a dirty-scope descent landed on reports a non-negative peek
+	 * yet carries no element to derive one of its boundary keys from — either the head (slot 0) or the tail (the peek
+	 * slot), including a peek that points past the end of the value array. Without it, that state surfaces as a bare
+	 * {@link NullPointerException} from inside the key extractor (or an {@link ArrayIndexOutOfBoundsException} from the
+	 * array read), telling the operator nothing about which tree, which leaf, or which slot went wrong.
+	 *
+	 * Composed only on the failure path — the caller's guard is a plain array read it needed anyway, so the healthy
+	 * path pays nothing for this belt.
+	 *
+	 * The state is reported from both sides of the transactional layer, because the interesting failures in this seam
+	 * are disagreements between a leaf's committed state and its diff layer: a peek that grew in the layer while the
+	 * value array was still shared with the base, or an array truncated by a decouple that copied the wrong length.
+	 *
+	 * @param leaf the leaf whose boundary key could not be derived
+	 * @param slot the value slot that could not be read (`0` for the head key, the peek slot for the tail key)
+	 * @return the typed corruption error to throw
+	 */
+	@Nonnull
+	private BPlusTreeCorruptedException boundaryKeyUnreadableError(@Nonnull BPlusLeafTreeNode<E> leaf, int slot) {
+		final E[] values = leaf.getValues();
+		final BPlusLeafTreeNode<E> layer = Transaction.getTransactionalMemoryLayerIfExists(leaf);
+		//noinspection ArrayEquality
+		final String sb = "Corrupted in-memory B+ tree: a live leaf reached by a dirty-scope descent reports peek " +
+			leaf.getPeek() + " but carries no readable element at slot " + slot + ", so its " +
+			(slot == 0 ? "head" : "tail") + " boundary key cannot be derived. Leaf id: " + leaf.getId() +
+			", base peek: " + leaf.peek +
+			", layer peek: " + (layer == null ? "<no layer>" : String.valueOf(layer.peek)) +
+			", base values: " + (leaf.values == null ? "null" : "length " + leaf.values.length) +
+			", layer values: " +
+			(layer == null ? "<no layer>" : (layer.values == null ? "null" : "length " + layer.values.length)) +
+			", arrays shared: " + (layer != null && layer.values == leaf.values) +
+			", first null slot: " + firstNullSlot(values) +
+			". This indicates a transactional layer that was left partially populated (a decouple that copied " +
+			"the wrong length, or a peek advanced without the matching values). Restore the catalog from a backup, " +
+			"or fully rebuild / reindex the affected catalog.";
+		return new BPlusTreeCorruptedException(sb);
+	}
+
+	/**
+	 * Returns the index of the first `null` slot in the passed array, or `-1` when the array is fully populated. Used
+	 * only to enrich a corruption report.
+	 *
+	 * @param values the value array to scan
+	 * @return index of the first `null` element, or `-1`
+	 */
+	private int firstNullSlot(@Nonnull E[] values) {
+		for (int i = 0; i < values.length; i++) {
+			if (values[i] == null) {
+				return i;
+			}
+		}
+		return -1;
+	}
+
+	/**
+	 * Registers a rebalanced leaf's current boundary key as a dirty-scope probe key for this transaction. Invoked by the
+	 * base {@link #consolidate(Cursor)} for each leaf whose boundary keys a steal / merge shifted (always a leaf — the
+	 * base guards the call with {@code !isInternal}).
 	 *
 	 * @param leaf the rebalanced leaf node
 	 */
 	@Override
 	protected void registerConsolidatedLeaf(@Nonnull BPlusTreeNode<?> leaf) {
-		registerDirtyLeafInScope(this, leaf);
+		//noinspection unchecked
+		registerDirtyLeafInScope((BPlusLeafTreeNode<E>) leaf);
 	}
 
 	/**
-	 * Dirty-scope validation for this tree. For each registered key source (a writable leaf
-	 * this transaction dirtied) it reads the current first key, descends from this tree's root to the leaf that key
-	 * routes to, and re-derives both cross-leaf half-invariants on the leaf the descent actually landed on — reusing
-	 * the op-time machinery with the leaf's ACTUAL boundary keys ({@link #assertTailBoundary} against the successor
-	 * fence, {@link #assertHeadBoundary} against the predecessor's last key). This tree keeps no parallel key array,
-	 * so the boundary keys are re-derived on demand: the first key via {@link BPlusLeafTreeNode#getLeftBoundaryKey()},
-	 * the last via the key extractor over the peek slot. Empty key sources and descents that land on an empty leaf are
-	 * skipped (nothing to relocate by / assert). Called on the live baseline tree for the pre-commit (pre-WAL) pass,
+	 * Registers the dirtied leaf's CURRENT left boundary key as a dirty-scope probe key for this transaction. Called
+	 * from every boundary-changing seam (insert, delete, split, steal / merge). Derives the key from the
+	 * transaction-aware read-your-writes state, so it captures the post-mutation boundary; an emptied leaf carries no
+	 * boundary key and is skipped — nothing needs relocating by a key that no longer exists, and the leaf that key would
+	 * have named is validated on its own merits when a surviving sibling op registers it.
+	 *
+	 * @param leaf the dirtied leaf node
+	 */
+	private void registerDirtyLeafInScope(@Nonnull BPlusLeafTreeNode<E> leaf) {
+		final TransactionalLayerMaintainer maintainer = Transaction.getTransactionalLayerMaintainer();
+		// gate on the cheap checks before deriving (and boxing) the probe key: outside a transaction there is no
+		// registry (warm-up bulk load pays nothing), and an emptied leaf has no boundary key to relocate by
+		if (maintainer == null || leaf.getPeek() < 0) {
+			return;
+		}
+		maintainer.registerDirtyScopeToken(this, leaf.getLeftBoundaryKey());
+	}
+
+	/**
+	 * Dirty-scope validation for this tree. For each registered probe key (the boundary key of a leaf this transaction
+	 * dirtied, captured at op time) it descends from this tree's root to the leaf that key routes to, and re-derives
+	 * both cross-leaf half-invariants on the leaf the descent actually landed on — reusing the op-time machinery with
+	 * the leaf's ACTUAL boundary keys ({@link #assertTailBoundary} against the successor fence,
+	 * {@link #assertHeadBoundary} against the predecessor's last key). This tree keeps no parallel key array, so the
+	 * boundary keys are re-derived on demand via the key extractor over slot 0 and the peek slot. Descents that land on
+	 * an empty leaf are skipped (nothing to assert). Called on the live baseline tree for the pre-commit (pre-WAL) pass,
 	 * where the descent resolves diff layers, and on a freshly merged tree for the post-replay (merge-time) pass with
 	 * plain reads; both use read-path accessors only.
 	 *
-	 * @param registeredLeafKeySources the writable leaf objects registered for this tree; used only as key sources
+	 * @param registeredProbeKeys the boundary keys registered for this tree; used only to relocate the leaf to check
 	 * @throws BPlusTreeCorruptedException when a relocated leaf overlaps an adjacent leaf
 	 */
 	@Override
-	public void validateDirtyScope(@Nonnull Collection<Object> registeredLeafKeySources) {
-		for (final Object keySource : registeredLeafKeySources) {
-			//noinspection unchecked
-			final BPlusLeafTreeNode<E> registered = (BPlusLeafTreeNode<E>) keySource;
-			if (registered.getPeek() < 0) {
-				// empty key source — nothing to relocate by (key-source-only rule)
-				continue;
-			}
-			final int probeKey = registered.getLeftBoundaryKey();
+	public void validateDirtyScope(@Nonnull Collection<Object> registeredProbeKeys) {
+		for (final Object token : registeredProbeKeys) {
+			final int probeKey = (Integer) token;
 			final Cursor cursor = createCursor(probeKey);
 			final BPlusLeafTreeNode<E> leaf = cursor.leafNode();
 			final int peek = leaf.getPeek();
@@ -580,8 +649,22 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 				// the descent landed on an empty leaf — validating it is sound and vacuous
 				continue;
 			}
-			final int firstKey = leaf.getLeftBoundaryKey();
-			final int lastKey = this.keyExtractor.applyAsInt(leaf.getValues()[peek]);
+			// a live leaf reached by a descent must carry both of its boundary elements; a peek pointing past the value
+			// array, or a null head / tail element, is genuine corruption - raise a typed, diagnosable error naming the
+			// unreadable slot rather than let the key extractor throw a bare NullPointerException (or the array read an
+			// ArrayIndexOutOfBoundsException)
+			final E[] values = leaf.getValues();
+			if (peek >= values.length) {
+				throw boundaryKeyUnreadableError(leaf, peek);
+			}
+			if (values[0] == null) {
+				throw boundaryKeyUnreadableError(leaf, 0);
+			}
+			if (values[peek] == null) {
+				throw boundaryKeyUnreadableError(leaf, peek);
+			}
+			final int firstKey = this.keyExtractor.applyAsInt(values[0]);
+			final int lastKey = this.keyExtractor.applyAsInt(values[peek]);
 			assertTailBoundary(cursor, lastKey);
 			assertHeadBoundary(cursor, firstKey);
 		}
@@ -721,8 +804,8 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 			// op-time boundary-mutation asserts run before the (possible) split, while the cursor still reflects
 			// the pre-split spine — a mis-routed insert corrupts cross-leaf order without any structural op firing
 			assertInsertBoundaries(cursor, key);
-			// register the dirtied leaf as a dirty-scope token for this transaction
-			registerDirtyLeafInScope(this, leaf);
+			// register the dirtied leaf's current boundary key as a dirty-scope probe key for this transaction
+			registerDirtyLeafInScope(leaf);
 		}
 
 		// Split the leaf node if it exceeds the block size
@@ -745,10 +828,10 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 		final boolean headRemoved = leaf.size() > 1 && key == leaf.getLeftBoundaryKey();
 		if (leaf.delete(key)) {
 			this.size.set(size() - 1);
-			// register the dirtied leaf as a dirty-scope token for this transaction: a removal
+			// register the dirtied leaf's current boundary key as a dirty-scope probe key for this transaction: a removal
 			// narrows the leaf's key range, but a later reverted layer could restore the wider pre-transaction range
 			// and overlap a neighbour that split during the transaction — so removals are validated too
-			registerDirtyLeafInScope(this, leaf);
+			registerDirtyLeafInScope(leaf);
 		}
 
 		// if the head of the leaf has been removed, we need to update parent keys accordingly
@@ -930,8 +1013,8 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 		// post-replay (merge-time): before this merged version can propagate to the live view, re-derive the
 		// cross-leaf boundary invariants for every leaf this transaction dirtied — against the freshly merged
 		// structure (plain reads; the merged nodes are fresh or unchanged-and-layer-free, so the descent never
-		// consults a diff layer). Registered objects are key sources only; each is relocated by its current key
-		// in the merged tree.
+		// consults a diff layer). The registry holds boundary keys, not nodes; each key routes to whatever leaf
+		// currently owns it in the merged tree, and that landed leaf is validated on its own re-derived boundaries.
 		final Set<Object> dirtyScope = transactionalLayer.getDirtyScopeTokens(this);
 		if (!dirtyScope.isEmpty()) {
 			merged.validateDirtyScope(dirtyScope);
@@ -964,6 +1047,22 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 	) {
 		final int mid = this.valueBlockSize / 2;
 		final E[] originValues = leaf.getValues();
+
+		// invariant assert: inside a transaction the right leaf below adopts `originValues` in place, so that array must
+		// be this leaf's DECOUPLED layer copy, never the still-shared committed base — otherwise a concurrent reader of
+		// the committed version would observe the in-place adoption as corruption. insert()/upsert() run leaf.insert(),
+		// which decouples the layer, before this split fires, so the premise holds; assert it so a future reordering
+		// fails fast here rather than silently corrupting the committed version (the dirty-scope registry no longer
+		// observes orphaned arrays, so this assert is the sole guard of that ordering).
+		if (leaf.transactionalLayer && Transaction.isTransactionAvailable()) {
+			final BPlusLeafTreeNode<E> leafLayer = Transaction.getTransactionalMemoryLayerIfExists(leaf);
+			//noinspection ArrayEquality
+			Assert.isPremiseValid(
+				leafLayer != null && leafLayer.values != leaf.values,
+				() -> "Corrupted in-memory B+ tree: splitting leaf " + leaf.getId() + " would adopt its committed " +
+					"value array in place because the leaf's transactional layer was not decoupled before the split."
+			);
+		}
 
 		// structural assert: the split partitions a sorted leaf into a left half [0, mid) and a right half
 		// [mid, length); the left leaf's last key must sort strictly before the right leaf's first key, and the
@@ -1026,10 +1125,10 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 				cursor.toCursorWithLevel()
 			);
 		}
-		// a split creates a brand-new adjacent leaf pair with a fresh separator between them — register both halves
-		// as dirty-scope tokens for this transaction
-		registerDirtyLeafInScope(this, leftLeaf);
-		registerDirtyLeafInScope(this, rightLeaf);
+		// a split creates a brand-new adjacent leaf pair with a fresh separator between them — register both halves'
+		// current boundary keys as dirty-scope probe keys for this transaction
+		registerDirtyLeafInScope(leftLeaf);
+		registerDirtyLeafInScope(rightLeaf);
 	}
 
 	/**
@@ -1273,6 +1372,11 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 				final int originPeek = this.peek;
 				this.peek = peek;
 				if (peek < originPeek) {
+					// blank the vacated tail so the leaf holds no stale references past its shrunk range. This array may
+					// still be shared with another holder (`createLayer` hands the diff layer the same array), but the
+					// dirty-scope registry keeps only boundary KEYS, never node objects, so no observer ever reads a
+					// shrunk holder's tail — the in-place blank is safe. Merge donors emptied here are detached from the
+					// tree in the same consolidate step and never read again.
 					Arrays.fill(this.values, peek + 1, originPeek + 1, null);
 				}
 			} else {

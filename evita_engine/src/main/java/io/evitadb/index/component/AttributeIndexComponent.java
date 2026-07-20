@@ -88,4 +88,14 @@ public final class AttributeIndexComponent implements IndexComponent {
 		this.attributeIndex.removeLayer(transactionalLayer);
 	}
 
+	@Override
+	public void emitPersistedFootprintRemovals(
+		int entityIndexPrimaryKey,
+		@Nonnull TrappedChanges trappedChanges
+	) {
+		// whole-index drop: reclaim every persisted leaf page of all five paged families (CHAIN / UNIQUE / SORT /
+		// FILTER inverted + range); the manifest-listed roots are reclaimed by EntityIndex.emitVanishedRootRemovals
+		this.attributeIndex.emitPersistedLeafPageRemovals(entityIndexPrimaryKey, trappedChanges);
+	}
+
 }

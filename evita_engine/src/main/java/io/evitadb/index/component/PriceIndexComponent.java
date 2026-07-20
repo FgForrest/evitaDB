@@ -30,6 +30,7 @@ import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.IndexDataStructure;
 import io.evitadb.index.price.PriceIndexContract;
 import io.evitadb.index.price.PriceListAndCurrencyPriceIndex;
+import io.evitadb.index.price.PriceListAndCurrencyPriceSuperIndex;
 import io.evitadb.index.price.PriceRefIndex;
 import io.evitadb.index.price.PriceSuperIndex;
 import io.evitadb.index.price.VoidPriceIndex;
@@ -105,6 +106,30 @@ public final class PriceIndexComponent implements IndexComponent {
 		// only the non-void flavours implement TransactionalLayerProducer.removeLayer
 		if (this.priceIndex instanceof TransactionalLayerProducer<?, ?> producer) {
 			producer.removeLayer(transactionalLayer);
+		}
+	}
+
+	@Override
+	public void emitPersistedFootprintRemovals(
+		int entityIndexPrimaryKey,
+		@Nonnull TrappedChanges trappedChanges
+	) {
+		// only the SUPER flavour is paged: each of its per-list super indexes holds persisted leaf pages that must be
+		// reclaimed when the whole entity index is dropped (the PAGED roots are manifest-listed and reclaimed elsewhere)
+		if (this.priceIndex instanceof PriceSuperIndex superIndex) {
+			// under a PriceSuperIndex every per-list index is a super (paged) index — its narrowed accessor states that
+			// statically, so no cast (and no ClassCastException risk) is involved here
+			for (final PriceListAndCurrencyPriceSuperIndex pli : superIndex.getPriceListAndCurrencyIndexes()) {
+				pli.emitPersistedLeafPageRemovals(entityIndexPrimaryKey, trappedChanges);
+			}
+		} else if (this.priceIndex instanceof PriceRefIndex) {
+			// intentional no-op: PriceRefIndex per-list indexes are SINGLE-only (inline root, no persisted leaf pages)
+		} else if (this.priceIndex instanceof VoidPriceIndex) {
+			// intentional no-op: VoidPriceIndex carries no state and persists nothing
+		} else {
+			throw new GenericEvitaInternalError(
+				"Unexpected PriceIndexContract impl: " + this.priceIndex.getClass()
+			);
 		}
 	}
 

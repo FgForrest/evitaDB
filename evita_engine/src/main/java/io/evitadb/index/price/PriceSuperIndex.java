@@ -43,6 +43,7 @@ import io.evitadb.index.price.model.priceRecord.PriceRecordInnerRecordSpecific;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Function;
@@ -161,6 +162,20 @@ public class PriceSuperIndex
 	@Override
 	protected Map<PriceIndexKey, PriceListAndCurrencyPriceSuperIndex> getPriceIndexes() {
 		return this.priceIndexes;
+	}
+
+	/**
+	 * Narrows the contract's wildcard element type to the concrete super index this implementation maintains. Every
+	 * per-price-list index held by a super index is a {@link PriceListAndCurrencyPriceSuperIndex} - the class generic
+	 * bound already guarantees it, and this override lets callers that need the super-index API (such as reclaiming
+	 * the persisted leaf pages of a dropped index) rely on it statically instead of casting.
+	 *
+	 * @return the per-price-list super indexes maintained by this index
+	 */
+	@Nonnull
+	@Override
+	public Collection<PriceListAndCurrencyPriceSuperIndex> getPriceListAndCurrencyIndexes() {
+		return this.priceIndexes.values();
 	}
 
 	/**

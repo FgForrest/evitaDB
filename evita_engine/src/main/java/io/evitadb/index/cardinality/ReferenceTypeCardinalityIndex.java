@@ -546,6 +546,29 @@ public class ReferenceTypeCardinalityIndex
 		return this.cardinalities.isRootInternal();
 	}
 
+
+	/**
+	 * Emits a removal for every leaf page this index currently has ON DISK, used when the owning entity index is
+	 * dropped and its whole persisted footprint must be reclaimed from the append-only storage. Reads only the
+	 * persisted page baseline (never the live tree) and has no side effects — in particular it does NOT
+	 * {@code forget} the stream, because the index is being discarded rather than reshaped.
+	 *
+	 * @param entityIndexPrimaryKey primary key of the owning entity index
+	 * @param referenceName         the reference this cardinality index belongs to
+	 * @param sink                  the accumulator collecting the removal instructions
+	 */
+	public void emitPersistedLeafPageRemovals(
+		int entityIndexPrimaryKey,
+		@Nonnull String referenceName,
+		@Nonnull TrappedChanges sink
+	) {
+		for (final int persistedPageSequence : this.pageStreamRegistry.pendingLivePageSequences(CARDINALITY_PAGE_STREAM)) {
+			sink.addChangeToStore(
+				new ReferenceTypeCardinalityIndexLeafPageRemoval(entityIndexPrimaryKey, referenceName, persistedPageSequence)
+			);
+		}
+	}
+
 	/**
 	 * Appends this index's modified storage parts to the flush sink. PAGED: one leaf page per CHANGED leaf, a removal per
 	 * freed leaf, plus a PAGED root carrying the high-water, the ordered live leaf-page list and the INLINE companion

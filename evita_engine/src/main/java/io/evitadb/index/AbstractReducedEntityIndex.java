@@ -56,6 +56,8 @@ import io.evitadb.index.map.TransactionalMap;
 import io.evitadb.index.price.PriceIndexReadContract;
 import io.evitadb.index.price.PriceRefIndex;
 import io.evitadb.index.price.model.PriceIndexKey;
+import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.PriceListAndCurrencyRefIndexStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStorageKey;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
@@ -237,6 +239,12 @@ public abstract class AbstractReducedEntityIndex extends EntityIndex
 	@Override
 	public boolean isEmpty() {
 		return super.isEmpty() && this.priceIndex.isPriceIndexEmpty();
+	}
+
+	@Nonnull
+	@Override
+	protected Class<? extends StoragePart> getPriceRootStoragePartType() {
+		return PriceListAndCurrencyRefIndexStoragePart.class;
 	}
 
 	@Override

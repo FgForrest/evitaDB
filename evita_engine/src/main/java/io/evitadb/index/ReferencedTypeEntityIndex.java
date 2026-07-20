@@ -30,6 +30,7 @@ import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaCont
 import io.evitadb.core.exception.ReferenceNotIndexedException;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.attribute.ReferenceAttributeIndex;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.bitmap.Bitmap;
@@ -54,6 +55,7 @@ import io.evitadb.index.map.TransactionalMap;
 import io.evitadb.core.expression.trigger.DependencyType;
 import io.evitadb.index.price.PriceIndexContract;
 import io.evitadb.index.price.VoidPriceIndex;
+import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.index.result.CardinalityChange;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.utils.Assert;
@@ -362,6 +364,18 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 	public boolean isEmpty() {
 		// null check required: parent constructor calls isEmpty() before subclass fields are initialized
 		return super.isEmpty() && this.indexPrimaryKeyCardinality.isEmpty() && this.histogramIndexes.isEmpty();
+	}
+
+	@Nonnull
+	@Override
+	protected Class<? extends StoragePart> getPriceRootStoragePartType() {
+		// a referenced-type index carries a VoidPriceIndex, so its persisted price baseline is always empty and no
+		// price-root removal can ever be emitted for it — reaching this point means that invariant broke, and silently
+		// answering with a plausible container type would target the wrong record on removal
+		throw new GenericEvitaInternalError(
+			"Referenced type entity index never persists a price sub-index, so its price root storage part type " +
+				"must never be requested!"
+		);
 	}
 
 	/**

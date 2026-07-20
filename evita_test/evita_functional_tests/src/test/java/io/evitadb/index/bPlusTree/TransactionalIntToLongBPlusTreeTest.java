@@ -652,8 +652,13 @@ class TransactionalIntToLongBPlusTreeTest {
 					if (delete) {
 						tree.delete(key);
 						reference.remove(key);
-					} else {
+					} else if (random.nextBoolean()) {
 						tree.insert(key, valueOf(key));
+						reference.put(key, valueOf(key));
+					} else {
+						// upsert exercises the insert-or-update public path; a value-preserving updater keeps the
+						// oracle exact whether the key was absent (insert + possible split) or already present
+						tree.upsert(key, existing -> valueOf(key));
 						reference.put(key, valueOf(key));
 					}
 
@@ -672,6 +677,74 @@ class TransactionalIntToLongBPlusTreeTest {
 				verifyForwardValueIterator(tree, expectedKeys);
 				verifyReverseValueIterator(tree, expectedKeys);
 			}
+		}
+
+		@Test
+		@DisplayName("survives large randomized insert/delete churn committed as one transaction")
+		void shouldSurviveRandomizedTransactionalChurn() {
+			// Runs the same random insert / upsert / delete churn as the bare-tree consistency fuzzer above, but
+			// inside a single committed transaction, so it exercises the transactional commit-merge path (layer merge
+			// and leaf split/merge within a transaction) that the non-transactional churn never reaches. The committed
+			// content must match the oracle exactly.
+			for (final int blockSize : new int[]{3, 5, 7}) {
+				for (long seed = 0; seed < 25; seed++) {
+					exerciseTransactionalChurn(blockSize, seed);
+				}
+			}
+		}
+
+		/**
+		 * Drives a fixed number of random insert / upsert / delete operations against a fresh tree of the given block
+		 * size inside a single transaction, mirroring the mutations into a `TreeMap` oracle. After the commit the
+		 * original (transactional) view must be empty and the committed tree must match the oracle's ascending key set
+		 * exactly. This exercises the transactional commit-merge and layer-merge path under random churn.
+		 *
+		 * @param blockSize the leaf and internal node block size to build the tree with
+		 * @param seed      the random seed driving the churn for reproducibility
+		 */
+		private void exerciseTransactionalChurn(int blockSize, long seed) {
+			final TransactionalIntToLongBPlusTree tree = new TransactionalIntToLongBPlusTree(
+				blockSize, 1, blockSize, 1);
+			final TreeMap<Integer, Long> oracle = new TreeMap<>();
+			final Random random = new Random(seed);
+
+			assertStateAfterCommit(
+				tree,
+				tested -> {
+					for (int op = 0; op < 400; op++) {
+						final int key = random.nextInt(120);
+						// bias towards delete once the tree has grown so merges and borrows are exercised heavily
+						final boolean delete = oracle.size() > 40
+							? random.nextInt(3) > 0
+							: random.nextBoolean();
+						if (delete) {
+							tested.delete(key);
+							oracle.remove(key);
+						} else if (random.nextBoolean()) {
+							tested.insert(key, valueOf(key));
+							oracle.put(key, valueOf(key));
+						} else {
+							// upsert exercises the insert-or-update public path; value-preserving keeps the oracle exact
+							tested.upsert(key, existing -> valueOf(key));
+							oracle.put(key, valueOf(key));
+						}
+					}
+					assertEquals(
+						oracle.size(), tested.size(),
+						"Size mismatch in transaction at blockSize=" + blockSize + " seed=" + seed
+					);
+				},
+				(original, committed) -> {
+					// the transactional view is empty once the transaction is committed
+					assertEquals(
+						0, original.size(),
+						"Original not empty after commit at blockSize=" + blockSize + " seed=" + seed
+					);
+					// the committed tree must match the oracle's ascending keys exactly and stay structurally consistent
+					final int[] expectedKeys = oracle.keySet().stream().mapToInt(Integer::intValue).toArray();
+					verifyTreeConsistency(committed, expectedKeys);
+				}
+			);
 		}
 
 		@Test

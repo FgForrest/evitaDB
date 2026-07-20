@@ -31,7 +31,6 @@ import org.junit.jupiter.api.Tag;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static io.evitadb.test.TestTags.CONTRACT;
 import static io.evitadb.test.TestTags.OBSERVABILITY;
-import static io.evitadb.test.TestTags.REFERENCE;
 
 /**
  * Tests for {@link DefaultTracingBlockReference} verifying that
@@ -44,7 +43,6 @@ import static io.evitadb.test.TestTags.REFERENCE;
 @DisplayName("DefaultTracingBlockReference - no-op tracing")
 @Tag(CONTRACT)
 @Tag(OBSERVABILITY)
-@Tag(REFERENCE)
 class DefaultTracingBlockReferenceTest {
 
 	@Nested

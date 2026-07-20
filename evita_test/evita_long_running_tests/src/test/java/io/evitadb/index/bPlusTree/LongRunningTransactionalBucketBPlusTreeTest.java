@@ -259,6 +259,114 @@ class LongRunningTransactionalBucketBPlusTreeTest implements TimeBoundedTestSupp
 		);
 	}
 
+	@ParameterizedTest(
+		name = "TransactionalBucketBPlusTree should survive non-transactional generational churn on it"
+	)
+	@Tag(SLOW)
+	@ArgumentsSource(TimeArgumentProvider.class)
+	@DisplayName("survives randomized non-transactional (warm-up) insert/grow/remove/drain churn")
+	void generationalWarmUpProofTest(@Nonnull GenerationalTestInput input) {
+		final int limitElements = 1000;
+		final long seed = input.randomSeed();
+		// print the seed so a failing run can be reproduced deterministically
+		System.out.println("LongRunningTransactionalBucketBPlusTreeTest (warm-up) seed: " + seed);
+
+		// one long-lived bare tree churned directly (no transaction) at a small block size so splits / merges are dense
+		final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(3, Integer.class);
+		final TreeMap<Integer, TreeSet<Integer>> reference = new TreeMap<>();
+		final Random seedRandom = new Random(seed);
+		do {
+			final int key = seedRandom.nextInt(limitElements << 1);
+			if (!reference.containsKey(key)) {
+				final TreeSet<Integer> records = new TreeSet<>();
+				records.add(key);
+				reference.put(key, records);
+				tree.addRecord(key, key);
+			}
+		} while (reference.size() < limitElements);
+		verifyTreeMatchesReference(tree, reference);
+
+		runFor(
+			input, 1000, new WarmUpState(new StringBuilder(512), true),
+			(random, state) -> {
+				final StringBuilder code = state.code();
+				code.setLength(0);
+				try {
+					final boolean drain =
+						(!reference.isEmpty() && random.nextInt(3) == 0)
+							|| (state.limitReached() && reference.size() > limitElements / 2);
+					if (drain) {
+						// promote-then-drain in one shot: grow the bucket so its overflow bitmap layer is opened, then
+						// remove every record so the bucket is deleted - stressing the discardRemovedValueLayer release
+						final Integer key = pickRandomKey(reference, random);
+						final int probe = (limitElements << 1) + key;
+						tree.addRecord(key, probe);
+						final TreeSet<Integer> drainSet = new TreeSet<>(reference.get(key));
+						drainSet.add(probe);
+						tree.removeRecord(key, toArray(drainSet));
+						reference.remove(key);
+						code.append("D:").append(key).append(' ');
+					} else {
+						final int key = random.nextInt(limitElements << 1);
+						final TreeSet<Integer> existing = reference.get(key);
+						if (existing == null) {
+							// insert a new bucket - single or multi from the start
+							if (random.nextBoolean()) {
+								tree.addRecord(key, key);
+								final TreeSet<Integer> records = new TreeSet<>();
+								records.add(key);
+								reference.put(key, records);
+								code.append("I:").append(key).append(' ');
+							} else {
+								final int second = (limitElements << 1) + key;
+								tree.addRecord(key, key, second);
+								final TreeSet<Integer> records = new TreeSet<>();
+								records.add(key);
+								records.add(second);
+								reference.put(key, records);
+								code.append("I2:").append(key).append(' ');
+							}
+						} else {
+							final int choice = random.nextInt(3);
+							if (choice == 0) {
+								// grow: add a distinct record (single->multi promote or multi grow); a duplicate is
+								// deduped on both sides and stays consistent
+								final int extra = (limitElements << 1) + random.nextInt(limitElements << 2);
+								tree.addRecord(key, extra);
+								existing.add(extra);
+								code.append("M:").append(key).append(':').append(extra).append(' ');
+							} else if (existing.size() > 1) {
+								// partial remove: drop one record, the bucket survives
+								final int victim = pickFromSet(existing, random);
+								tree.removeRecord(key, victim);
+								existing.remove(victim);
+								code.append("R:").append(key).append(':').append(victim).append(' ');
+							} else {
+								// remove the sole record - the bucket is deleted
+								final int sole = existing.first();
+								tree.removeRecord(key, sole);
+								reference.remove(key);
+								code.append("R0:").append(key).append(' ');
+							}
+						}
+					}
+
+					verifyTreeMatchesReference(tree, reference);
+
+					return new WarmUpState(
+						state.code(),
+						state.limitReached()
+							? reference.size() > limitElements / 2
+							: reference.size() >= limitElements
+					);
+				} catch (Exception ex) {
+					fail("Generation failed for seed " + seed + " with operation [" + code + "]", ex);
+					throw ex;
+				}
+			}
+		);
+	}
+
 	/**
 	 * Picks a random key present in the reference double.
 	 *
@@ -321,6 +429,20 @@ class LongRunningTransactionalBucketBPlusTreeTest implements TimeBoundedTestSupp
 	private record TestState(
 		@Nonnull StringBuilder code,
 		@Nonnull TreeMap<Integer, TreeSet<Integer>> reference,
+		boolean limitReached
+	) {
+	}
+
+	/**
+	 * Carries the chained warm-up generation state for the non-transactional axis: the running operation log (reset to
+	 * the single current op each generation) and whether the bucket-count growth limit has been reached. The tree and
+	 * its reference double are captured directly and mutated in place across generations.
+	 *
+	 * @param code         the current operation log used for failure reproduction
+	 * @param limitReached whether the growth limit has been reached (switches the churn to drain-biased)
+	 */
+	private record WarmUpState(
+		@Nonnull StringBuilder code,
 		boolean limitReached
 	) {
 	}

@@ -1324,6 +1324,47 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 		this.persistedSortLeafPages = snapshotLeafPages(this.sortIndex, SortIndex::currentLeafPageSequences);
 	}
 
+	/**
+	 * Whole-index-drop reclaim: emits a leaf-page removal for EVERY persisted page of all five paged families
+	 * (CHAIN, owner UNIQUE, owner SORT, and both FILTER axes — shared value tree + range companion), as if nothing
+	 * survives. Called when the owning {@link io.evitadb.index.EntityIndex} is dropped: no sub-index flush will run
+	 * again, so the append-only OffsetIndex would copy every orphaned leaf page forward forever unless each is removed
+	 * explicitly. Reuses the same {@link #emitDroppedLeafPageRemovals} helper as the per-commit empty-drop reclaim, but
+	 * with a `stillPresent` predicate that always returns `false` so every persisted key is treated as vanished.
+	 *
+	 * The paged FILTER / SORT / UNIQUE / CHAIN roots themselves are manifest-listed and reclaimed by
+	 * `EntityIndex.emitVanishedRootRemovals`, so this method emits only leaf pages — never roots. It reads exclusively
+	 * the persisted baselines (the `persisted*LeafPages` fields) and has NO side effects: no `forget`, no baseline
+	 * mutation.
+	 *
+	 * @param entityIndexPrimaryKey the owning entity index pk
+	 * @param sink                  the trapped-changes accumulator collecting the removal instructions
+	 */
+	public void emitPersistedLeafPageRemovals(int entityIndexPrimaryKey, @Nonnull TrappedChanges sink) {
+		// nothing survives — treat every persisted key of every family as vanished
+		final Predicate<AttributeIndexKey> nothingSurvives = key -> false;
+		emitDroppedLeafPageRemovals(
+			entityIndexPrimaryKey, this.persistedChainLeafPages, nothingSurvives,
+			AttributeIndexType.CHAIN, sink, ChainIndexLeafPageRemoval::new
+		);
+		emitDroppedLeafPageRemovals(
+			entityIndexPrimaryKey, this.persistedUniqueLeafPages, nothingSurvives,
+			AttributeIndexType.UNIQUE, sink, UniqueIndexLeafPageRemoval::new
+		);
+		emitDroppedLeafPageRemovals(
+			entityIndexPrimaryKey, this.persistedSortLeafPages, nothingSurvives,
+			AttributeIndexType.SORT, sink, SortIndexLeafPageRemoval::new
+		);
+		emitDroppedLeafPageRemovals(
+			entityIndexPrimaryKey, this.persistedFilterInvertedLeafPages, nothingSurvives,
+			AttributeIndexType.FILTER, sink, FilterIndexLeafPageRemoval::new
+		);
+		emitDroppedLeafPageRemovals(
+			entityIndexPrimaryKey, this.persistedFilterRangeLeafPages, nothingSurvives,
+			AttributeIndexType.FILTER, sink, RangeIndexLeafPageRemoval::new
+		);
+	}
+
 	@Nullable
 	public UniqueIndex getUniqueIndex(
 		@Nullable ReferenceSchemaContract referenceSchema,

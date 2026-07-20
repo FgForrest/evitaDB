@@ -30,6 +30,7 @@ import org.slf4j.MDC;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Optional;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 /**
@@ -348,7 +349,38 @@ public interface TracingContext {
 	@Nonnull
 	default TracingBlockReference createAndActivateBlock(
 		@Nonnull String taskName, @Nullable SpanAttribute... attributes) {
-		return new DefaultTracingBlockReference();
+		return DefaultTracingBlockReference.INSTANCE;
+	}
+
+	/**
+	 * Creates and activates a new trace span whose name is derived from `subject` only if the span
+	 * is actually recorded. Attributes are set immediately when the span is created.
+	 *
+	 * **Use Case:**
+	 * A span name is an ordinary method argument, so Java composes it eagerly — even when the
+	 * receiving implementation is the no-op one that throws it away unread. Use this variant when
+	 * the name is expensive to build (string concatenation over a whole mutation, a `toString()`
+	 * that walks a collection) and the call site is hot.
+	 *
+	 * **Why not a `Supplier<String>`:**
+	 * A supplier that closes over the value to be named is a *capturing* lambda, so the JVM
+	 * allocates one instance per call — before the implementation gets to decide not to invoke it.
+	 * Passing the subject separately keeps `taskNamer` free of captured state, which lets the
+	 * compiler hoist it into a constant and makes the disabled path allocation-free. Hold the namer
+	 * in a `static final` field for that to hold.
+	 *
+	 * @param subject    the value the span name is derived from
+	 * @param taskNamer  composes the span name from `subject`; invoked only when spans are recorded
+	 * @param attributes optional key-value pairs to attach to the span
+	 * @param <T>        type of the value the name is derived from
+	 * @return a reference to the active span (must be closed by caller)
+	 */
+	@Nonnull
+	default <T> TracingBlockReference createAndActivateBlock(
+		@Nonnull T subject, @Nonnull Function<? super T, String> taskNamer,
+		@Nullable SpanAttribute... attributes
+	) {
+		return DefaultTracingBlockReference.INSTANCE;
 	}
 
 	/**
@@ -370,7 +402,7 @@ public interface TracingContext {
 	@Nonnull
 	default TracingBlockReference createAndActivateBlock(
 		@Nonnull String taskName, @Nullable Supplier<SpanAttribute[]> attributes) {
-		return new DefaultTracingBlockReference();
+		return DefaultTracingBlockReference.INSTANCE;
 	}
 
 	/**
@@ -381,7 +413,7 @@ public interface TracingContext {
 	 */
 	@Nonnull
 	default TracingBlockReference createAndActivateBlock(@Nonnull String taskName) {
-		return new DefaultTracingBlockReference();
+		return DefaultTracingBlockReference.INSTANCE;
 	}
 
 	/**
@@ -489,7 +521,7 @@ public interface TracingContext {
 		@Nonnull TracingContextReference<?> contextHolderToUse, @Nonnull String taskName,
 		@Nullable SpanAttribute... attributes
 	) {
-		return new DefaultTracingBlockReference();
+		return DefaultTracingBlockReference.INSTANCE;
 	}
 
 	/**
@@ -506,7 +538,7 @@ public interface TracingContext {
 		@Nonnull TracingContextReference<?> contextHolderToUse, @Nonnull String taskName,
 		@Nullable Supplier<SpanAttribute[]> attributes
 	) {
-		return new DefaultTracingBlockReference();
+		return DefaultTracingBlockReference.INSTANCE;
 	}
 
 	/**
@@ -520,7 +552,7 @@ public interface TracingContext {
 	@Nonnull
 	default TracingBlockReference createAndActivateBlockWithParentContext(
 		@Nonnull TracingContextReference<?> contextHolderToUse, @Nonnull String taskName) {
-		return new DefaultTracingBlockReference();
+		return DefaultTracingBlockReference.INSTANCE;
 	}
 
 	/**
@@ -717,6 +749,34 @@ public interface TracingContext {
 	 */
 	<T> T executeWithinBlockIfParentContextAvailable(
 		@Nonnull String taskName, @Nonnull Supplier<T> lambda, @Nullable Supplier<SpanAttribute[]> attributes);
+
+	/**
+	 * Executes a supplier within a new child trace span only if a parent span is already active,
+	 * deriving the span name from `subject` only when the span is actually recorded. Attributes
+	 * are computed lazily when the span closes.
+	 *
+	 * **Use Case:**
+	 * The lazily-named counterpart of
+	 * {@link #executeWithinBlockIfParentContextAvailable(String, Supplier, Supplier)}, for hot call
+	 * sites whose span name is expensive to compose. See
+	 * {@link #createAndActivateBlock(Object, Function, SpanAttribute...)} for why the subject is
+	 * passed separately instead of wrapping the name in a `Supplier`.
+	 *
+	 * @param subject    the value the span name is derived from
+	 * @param taskNamer  composes the span name from `subject`; invoked only when spans are recorded
+	 * @param lambda     the code to trace (or execute untraced)
+	 * @param attributes supplier invoked after lambda completes to produce attributes (not invoked
+	 *                   if no parent span exists)
+	 * @param <S>        type of the value the name is derived from
+	 * @param <T>        return type
+	 * @return the result of invoking the supplier
+	 */
+	default <S, T> T executeWithinBlockIfParentContextAvailable(
+		@Nonnull S subject, @Nonnull Function<? super S, String> taskNamer, @Nonnull Supplier<T> lambda,
+		@Nullable Supplier<SpanAttribute[]> attributes
+	) {
+		return lambda.get();
+	}
 
 	/**
 	 * Executes a runnable within a new child trace span only if a parent span is already active,
