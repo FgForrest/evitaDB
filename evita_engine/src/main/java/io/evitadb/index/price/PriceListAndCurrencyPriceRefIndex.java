@@ -261,7 +261,7 @@ public class PriceListAndCurrencyPriceRefIndex
 		// remove the presence of the record
 		this.indexedPriceIds.remove(priceRecord.internalPriceId());
 
-		if (!entityPrices.containsAnyOf(this.priceRecords.toArray())) {
+		if (!containsAnyPriceOf(entityPrices)) {
 			// remove the presence of the record
 			this.indexedPriceEntityIds.remove(priceRecord.entityPrimaryKey());
 		}
@@ -271,6 +271,27 @@ public class PriceListAndCurrencyPriceRefIndex
 		markDirtyAndInvalidateCache();
 
 		return priceRecord;
+	}
+
+	/**
+	 * Tells whether any price of `entityPrices` is still present in this index's price-record tree.
+	 *
+	 * The entity holds a handful of prices while the tree holds every price record of the whole
+	 * price-list/currency combination, so the containment is resolved by probing the tree for each of
+	 * the entity's internal price ids rather than by materializing the tree and scanning it - the
+	 * latter is O(tree size) in both time and allocation on a path that runs once per removed price.
+	 *
+	 * @param entityPrices prices of the entity whose price is being removed
+	 * @return true when at least one price of the entity remains indexed here
+	 */
+	private boolean containsAnyPriceOf(@Nonnull EntityPrices entityPrices) {
+		final int[] internalPriceIds = entityPrices.getInternalPriceIds();
+		for (final int internalPriceId : internalPriceIds) {
+			if (this.priceRecords.search(internalPriceId) != null) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	@Nonnull

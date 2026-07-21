@@ -532,6 +532,77 @@ class PriceListAndCurrencyPriceRefIndexTest implements TimeBoundedTestSupport {
 			);
 			assertFalse(PriceListAndCurrencyPriceRefIndexTest.this.refIndex.isEmpty());
 		}
+
+		@Test
+		@DisplayName("should evict entity whose remaining prices live only in the super index")
+		void shouldEvictEntityWhenRemainingPricesAreNotInThisIndex() {
+			// entity 42 owns three prices in the super index, but this ref index tracks only one of
+			// them - the eviction decision must therefore be answered against *this index's* content,
+			// never against the entity's total price count
+			PriceListAndCurrencyPriceRefIndexTest.this.superIndex.addPrice(createPriceRecord(10, 10, 42), null);
+			PriceListAndCurrencyPriceRefIndexTest.this.superIndex.addPrice(createPriceRecord(20, 20, 42), null);
+			PriceListAndCurrencyPriceRefIndexTest.this.superIndex.addPrice(createPriceRecord(30, 30, 42), null);
+
+			final PriceListAndCurrencyPriceRefIndex tested = createAttachedRefIndexFromPriceIds(
+				PriceListAndCurrencyPriceRefIndexTest.this.superIndex,
+				new int[]{20}
+			);
+			assertArrayEquals(new int[]{42}, tested.getIndexedPriceEntityIds().getArray());
+
+			tested.removePrice(20, null);
+
+			// entity 42 still has prices 10 and 30 in the SUPER index, yet none in this one - so it
+			// must be evicted here regardless
+			assertArrayEquals(new int[]{}, tested.getIndexedPriceEntityIds().getArray());
+			assertTrue(tested.isEmpty());
+		}
+
+		@Test
+		@DisplayName("should keep entity until its last price in this index is removed")
+		void shouldKeepEntityUntilLastPriceInThisIndexRemoved() {
+			// the entity's id set stays constant while the index shrinks, so each removal must be
+			// judged against the prices still present rather than against the entity's id set
+			PriceListAndCurrencyPriceRefIndexTest.this.superIndex.addPrice(createPriceRecord(10, 10, 42), null);
+			PriceListAndCurrencyPriceRefIndexTest.this.superIndex.addPrice(createPriceRecord(20, 20, 42), null);
+			PriceListAndCurrencyPriceRefIndexTest.this.superIndex.addPrice(createPriceRecord(30, 30, 42), null);
+
+			final PriceListAndCurrencyPriceRefIndex tested = createAttachedRefIndexFromPriceIds(
+				PriceListAndCurrencyPriceRefIndexTest.this.superIndex,
+				new int[]{10, 20, 30}
+			);
+
+			tested.removePrice(20, null);
+			assertArrayEquals(new int[]{42}, tested.getIndexedPriceEntityIds().getArray());
+			tested.removePrice(10, null);
+			assertArrayEquals(new int[]{42}, tested.getIndexedPriceEntityIds().getArray());
+
+			tested.removePrice(30, null);
+			assertArrayEquals(new int[]{}, tested.getIndexedPriceEntityIds().getArray());
+			assertTrue(tested.isEmpty());
+		}
+
+		@Test
+		@DisplayName("should evict entity irrespective of the order prices are removed in")
+		void shouldEvictEntityIrrespectiveOfRemovalOrder() {
+			// guards against any assumption that the removed price, the entity's id set and the
+			// index content are traversed in a compatible ascending order
+			PriceListAndCurrencyPriceRefIndexTest.this.superIndex.addPrice(createPriceRecord(5, 5, 42), null);
+			PriceListAndCurrencyPriceRefIndexTest.this.superIndex.addPrice(createPriceRecord(1000, 1000, 42), null);
+			PriceListAndCurrencyPriceRefIndexTest.this.superIndex.addPrice(createPriceRecord(7, 7, 99), null);
+
+			final PriceListAndCurrencyPriceRefIndex tested = createAttachedRefIndexFromPriceIds(
+				PriceListAndCurrencyPriceRefIndexTest.this.superIndex,
+				new int[]{5, 7, 1000}
+			);
+
+			// remove the highest internal price id first, then the lowest one of the same entity
+			tested.removePrice(1000, null);
+			assertArrayEquals(new int[]{42, 99}, tested.getIndexedPriceEntityIds().getArray());
+
+			tested.removePrice(5, null);
+			assertArrayEquals(new int[]{99}, tested.getIndexedPriceEntityIds().getArray());
+			assertArrayEquals(new int[]{7}, tested.getIndexedPriceIds());
+		}
 	}
 
 	/**
