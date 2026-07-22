@@ -23,6 +23,7 @@
 
 package io.evitadb.index.attribute;
 
+import io.evitadb.api.CatalogState;
 import io.evitadb.api.exception.UniqueValueViolationException;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.core.catalog.Catalog;
@@ -38,6 +39,7 @@ import org.mockito.Mockito;
 
 import java.util.Locale;
 
+import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
 import static org.junit.jupiter.api.Assertions.*;
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.ATTRIBUTE;
@@ -201,6 +203,93 @@ class GlobalUniqueIndexTest {
 		final Bitmap productRecords = localized.getRecordIds(Entities.PRODUCT);
 		assertTrue(productRecords.contains(2));
 		assertTrue(productRecords.contains(3));
+	}
+
+	@Test
+	void shouldAssignFreshLocaleIdToShellCopyInsteadOfCollidingWithExisting() {
+		// a localized globally-unique index with two locales already registered: en -> 1, fr -> 2
+		final GlobalUniqueIndex localized = new GlobalUniqueIndex(
+			Scope.LIVE, new AttributeKey("localizedCode", Locale.ENGLISH), String.class
+		);
+		localized.attachToCatalog(null, this.catalog);
+		localized.registerUniqueKey("en-value", Entities.PRODUCT, Locale.ENGLISH, 1);
+		localized.registerUniqueKey("fr-value", Entities.PRODUCT, Locale.FRENCH, 2);
+		assertEquals(Locale.ENGLISH, localized.getLocaleIndex().get(1));
+		assertEquals(Locale.FRENCH, localized.getLocaleIndex().get(2));
+
+		// the detached shell copy shares the locale maps by reference; its sequence must be primed past id 2
+		final GlobalUniqueIndex shell = localized.createCopyForNewCatalogAttachment(CatalogState.ALIVE);
+		shell.attachToCatalog(null, this.catalog);
+
+		// registering a never-before-seen locale must receive a FRESH id (3), not collide with the existing id 1
+		shell.registerUniqueKey("de-value", Entities.PRODUCT, Locale.GERMAN, 3);
+		assertEquals(Locale.GERMAN, shell.getLocaleIndex().get(3), "new locale must receive a fresh id");
+		assertEquals(Locale.ENGLISH, shell.getLocaleIndex().get(1), "existing locale id must stay untouched");
+
+		// a pre-existing english value still decodes to its original locale rather than the freshly registered one
+		assertEquals(
+			new EntityReferenceWithLocale(Entities.PRODUCT, 1, Locale.ENGLISH),
+			shell.getEntityReferenceByUniqueValue("en-value", Locale.ENGLISH).orElse(null)
+		);
+
+		// the same value under the new locale must not trip the within-locale uniqueness guard against the old locale
+		assertDoesNotThrow(() -> shell.registerUniqueKey("en-value", Entities.PRODUCT, Locale.GERMAN, 4));
+	}
+
+	@Test
+	void shouldStartShellCopyLocaleSequencePastHighestExistingId() {
+		// two locales already assigned ids 1 and 2 on the source index
+		final GlobalUniqueIndex localized = new GlobalUniqueIndex(
+			Scope.LIVE, new AttributeKey("localizedCode", Locale.ENGLISH), String.class
+		);
+		localized.attachToCatalog(null, this.catalog);
+		localized.registerUniqueKey("en-value", Entities.PRODUCT, Locale.ENGLISH, 1);
+		localized.registerUniqueKey("fr-value", Entities.PRODUCT, Locale.FRENCH, 2);
+
+		final GlobalUniqueIndex shell = localized.createCopyForNewCatalogAttachment(CatalogState.ALIVE);
+		shell.attachToCatalog(null, this.catalog);
+		shell.registerUniqueKey("de-value", Entities.PRODUCT, Locale.GERMAN, 3);
+
+		// the next assigned locale id equals max(existing ids) + 1, leaving exactly three distinct ids
+		assertEquals(3, shell.getLocaleIndex().size());
+		assertEquals(Locale.GERMAN, shell.getLocaleIndex().get(3));
+	}
+
+	@Test
+	void shouldPersistFreshLocaleIdThroughCommitMergeForShellCopy() {
+		// two locales already assigned ids 1 and 2 on the source index
+		final GlobalUniqueIndex localized = new GlobalUniqueIndex(
+			Scope.LIVE, new AttributeKey("localizedCode", Locale.ENGLISH), String.class
+		);
+		localized.attachToCatalog(null, this.catalog);
+		localized.registerUniqueKey("en-value", Entities.PRODUCT, Locale.ENGLISH, 1);
+		localized.registerUniqueKey("fr-value", Entities.PRODUCT, Locale.FRENCH, 2);
+
+		final GlobalUniqueIndex shell = localized.createCopyForNewCatalogAttachment(CatalogState.ALIVE);
+		shell.attachToCatalog(null, this.catalog);
+		shell.registerUniqueKey("de-value", Entities.PRODUCT, Locale.GERMAN, 3);
+
+		// a full commit-merge must bake the CORRECT locale ids into committed state; the merge re-primes from
+		// idToLocaleIndex, so a broken shell would persist the corruption permanently rather than repair it
+		assertStateAfterCommit(
+			shell,
+			s -> {
+				// nothing further mutated; the merge alone must preserve the primed sequence and locale mapping
+			},
+			(s, committed) -> {
+				committed.attachToCatalog(null, this.catalog);
+				assertEquals(Locale.ENGLISH, committed.getLocaleIndex().get(1));
+				assertEquals(Locale.GERMAN, committed.getLocaleIndex().get(3));
+				assertEquals(
+					new EntityReferenceWithLocale(Entities.PRODUCT, 1, Locale.ENGLISH),
+					committed.getEntityReferenceByUniqueValue("en-value", Locale.ENGLISH).orElse(null)
+				);
+				assertEquals(
+					new EntityReferenceWithLocale(Entities.PRODUCT, 3, Locale.GERMAN),
+					committed.getEntityReferenceByUniqueValue("de-value", Locale.GERMAN).orElse(null)
+				);
+			}
+		);
 	}
 
 }

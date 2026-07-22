@@ -78,6 +78,7 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.OptionalLong;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
@@ -371,9 +372,9 @@ public class GlobalUniqueIndex implements
 		this.pageStreamRegistry = new PageStreamRegistry();
 		seedTree(values, payloads);
 		this.idToLocaleIndex = new TransactionalMap<>(localeIndex);
+		primeLocaleSequence(localeIndex.keySet());
 		this.localeToIdIndex = new TransactionalMap<>(
 			localeIndex.entrySet().stream()
-				.peek(it -> this.localePkSequence.getAndUpdate(currentValue -> currentValue < it.getKey() ? it.getKey() : currentValue))
 				.collect(
 					Collectors.toMap(
 						Entry::getValue,
@@ -424,9 +425,9 @@ public class GlobalUniqueIndex implements
 		this.pageStreamRegistry = pageStreamRegistry;
 		this.entitiesPerType = new TransactionalMap<>(entitiesPerType, TransactionalBitmap.class, TransactionalBitmap::new);
 		this.idToLocaleIndex = new TransactionalMap<>(localeIndex);
+		primeLocaleSequence(localeIndex.keySet());
 		this.localeToIdIndex = new TransactionalMap<>(
 			localeIndex.entrySet().stream()
-				.peek(it -> this.localePkSequence.getAndUpdate(currentValue -> currentValue < it.getKey() ? it.getKey() : currentValue))
 				.collect(
 					Collectors.toMap(
 						Entry::getValue,
@@ -449,6 +450,7 @@ public class GlobalUniqueIndex implements
 	 * @param entitiesPerType per-entity-type record id bitmaps to adopt
 	 * @param localeToIdIndex {@link Locale} to internal locale id mapping to adopt
 	 * @param idToLocaleIndex reverse internal locale id to {@link Locale} mapping to adopt
+	 * @param localePkSequenceSeed the source index's current locale-id high-water used to seed this copy's sequence
 	 */
 	private GlobalUniqueIndex(
 		@Nonnull Scope scope,
@@ -458,7 +460,8 @@ public class GlobalUniqueIndex implements
 		@Nonnull PageStreamRegistry pageStreamRegistry,
 		@Nonnull TransactionalMap<Integer, TransactionalBitmap> entitiesPerType,
 		@Nonnull TransactionalMap<Locale, Integer> localeToIdIndex,
-		@Nonnull TransactionalMap<Integer, Locale> idToLocaleIndex
+		@Nonnull TransactionalMap<Integer, Locale> idToLocaleIndex,
+		int localePkSequenceSeed
 	) {
 		this.attributeKey = attributeKey;
 		this.scope = scope;
@@ -471,6 +474,31 @@ public class GlobalUniqueIndex implements
 		this.entitiesPerType = entitiesPerType;
 		this.localeToIdIndex = localeToIdIndex;
 		this.idToLocaleIndex = idToLocaleIndex;
+		// the locale maps are adopted BY REFERENCE and already carry assigned ids; the sequence must start past the
+		// highest id ever assigned by the source (which the source's high-water reflects even for ids added but not yet
+		// committed to the shared map), otherwise a first-time locale registered through this copy would be handed an
+		// id that already belongs to another locale and overwrite it in the shared reverse map. The source high-water is
+		// read from a plain (non-transactional) sequence, so seeding never touches the transactional layer of the shared
+		// maps — a layer that may be mid-commit when this shell is created.
+		this.localePkSequence.set(localePkSequenceSeed);
+	}
+
+	/**
+	 * Primes {@link #localePkSequence} so the next locale registered through {@link #fromLocale} receives an id past
+	 * every id already present in the adopted locale map. The sequence must start past the highest adopted locale id;
+	 * otherwise a newly seen locale would be handed an id that already belongs to another locale, overwriting it in the
+	 * shared reverse map and corrupting locale decoding of every tuple that carries the clobbered id.
+	 *
+	 * @param assignedLocaleIds the internal locale ids already in use (keys of the id to {@link Locale} map)
+	 */
+	private void primeLocaleSequence(@Nonnull Set<Integer> assignedLocaleIds) {
+		int highestId = this.localePkSequence.get();
+		for (final Integer localeId : assignedLocaleIds) {
+			if (localeId > highestId) {
+				highestId = localeId;
+			}
+		}
+		this.localePkSequence.set(highestId);
 	}
 
 	/**
@@ -500,7 +528,8 @@ public class GlobalUniqueIndex implements
 			this.pageStreamRegistry,
 			this.entitiesPerType,
 			this.localeToIdIndex,
-			this.idToLocaleIndex
+			this.idToLocaleIndex,
+			this.localePkSequence.get()
 		);
 	}
 
