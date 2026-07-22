@@ -27,6 +27,7 @@ import io.evitadb.core.transaction.Transaction;
 import io.evitadb.core.transaction.memory.TransactionalLayerCreator;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
+import io.evitadb.core.transaction.memory.TransactionalStateProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
@@ -64,7 +65,6 @@ import static java.util.Optional.ofNullable;
 @ThreadSafe
 public class TransactionalMap<K, V> implements Map<K, V>,
 	Serializable,
-	Cloneable,
 	TransactionalLayerCreator<MapChanges<K, V>>,
 	TransactionalLayerProducer<MapChanges<K, V>, Map<K, V>>
 {
@@ -100,13 +100,13 @@ public class TransactionalMap<K, V> implements Map<K, V>,
 	 * @param <S> the state type produced by the transactional layer producer
 	 * @param <T> the concrete type of the transactional layer producer
 	 */
-	public <S, T extends TransactionalLayerProducer<?, S>> TransactionalMap(
+	public <S, T extends TransactionalStateProducer<S>> TransactionalMap(
 		@Nonnull Map<K, V> mapDelegate,
 		@Nonnull Class<T> valueType,
 		@Nonnull Function<S, V> transactionalLayerWrapper
 	) {
 		Assert.isTrue(
-			TransactionalLayerProducer.class.isAssignableFrom(valueType),
+			TransactionalStateProducer.class.isAssignableFrom(valueType),
 			"Value type is expected to implement TransactionalLayerProducer!"
 		);
 		this.valueType = valueType;
@@ -164,18 +164,18 @@ public class TransactionalMap<K, V> implements Map<K, V>,
 		// iterate over inserted or updated keys
 		if (layer != null) {
 			return layer.createMergedMap(transactionalLayer);
-		} else if (this.valueType == null || TransactionalLayerProducer.class.isAssignableFrom(this.valueType)) {
+		} else if (this.valueType == null || TransactionalStateProducer.class.isAssignableFrom(this.valueType)) {
 			// iterate original map and copy all values from it
 			List<Tuple<K, V>> modifiedEntries = null;
 			for (Entry<K, V> entry : this.mapDelegate.entrySet()) {
 				K key = entry.getKey();
 				// we need to always create copy - something in the referenced object might have changed
 				// even the removed values need to be evaluated (in order to discard them from transactional memory set)
-				if (key instanceof TransactionalLayerProducer) {
+				if (key instanceof TransactionalStateProducer) {
 					throw new IllegalStateException("Transactional layer producer is not expected to be used as a key!");
 				}
 				V value = entry.getValue();
-				if (value instanceof TransactionalLayerProducer<?,?> transactionalLayerProducer) {
+				if (value instanceof TransactionalStateProducer<?> transactionalLayerProducer) {
 					value = this.transactionalLayerWrapper.apply(
 						transactionalLayer.getStateCopyWithCommittedChanges(transactionalLayerProducer)
 					);
@@ -212,7 +212,7 @@ public class TransactionalMap<K, V> implements Map<K, V>,
 		ofNullable(changes).ifPresent(it -> it.cleanAll(transactionalLayer));
 		for (Entry<K, V> entry : this.mapDelegate.entrySet()) {
 			V value = entry.getValue();
-			if (value instanceof TransactionalLayerProducer<?,?> transactionalLayerProducer) {
+			if (value instanceof TransactionalStateProducer<?> transactionalLayerProducer) {
 				transactionalLayerProducer.removeLayer(transactionalLayer);
 			}
 		}
@@ -403,24 +403,6 @@ public class TransactionalMap<K, V> implements Map<K, V>,
 		}
 
 		return true;
-	}
-
-	/**
-	 * Creates a shallow clone of this transactional map. If an active transaction exists, the current diff
-	 * layer state is copied into the clone's own layer so that both instances share the same logical snapshot
-	 * but can diverge independently afterward.
-	 */
-	@Override
-	public Object clone() throws CloneNotSupportedException {
-		@SuppressWarnings("unchecked") final TransactionalMap<K, V> clone = (TransactionalMap<K, V>) super.clone();
-		final MapChanges<K, V> layer = getTransactionalMemoryLayerIfExists(this);
-		if (layer != null) {
-			final MapChanges<K, V> clonedLayer = Transaction.getOrCreateTransactionalMemoryLayer(clone);
-			if (clonedLayer != null) {
-				layer.copyState(clonedLayer);
-			}
-		}
-		return clone;
 	}
 
 	/**

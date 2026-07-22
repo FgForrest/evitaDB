@@ -660,14 +660,13 @@ class TransactionalComplexObjArrayNoTransactionTest {
 	 * @param object the wrapped integer value
 	 */
 	private record TransactionalInteger(Integer object)
-		implements TransactionalObject<TransactionalInteger, Void>,
+		implements TransactionalObject<TransactionalInteger>,
 		VoidTransactionMemoryProducer<TransactionalInteger>,
 		Comparable<TransactionalInteger> {
 
 		@Nonnull
 		@Override
 		public TransactionalInteger createCopyWithMergedTransactionalMemory(
-			Void layer,
 			@Nonnull TransactionalLayerMaintainer transactionalLayer
 		) {
 			return this;
@@ -699,7 +698,7 @@ class TransactionalComplexObjArrayNoTransactionTest {
 	 */
 	@Data
 	private static class DistinctValueHolder
-		implements TransactionalObject<DistinctValueHolder, Void>,
+		implements TransactionalObject<DistinctValueHolder>,
 		VoidTransactionMemoryProducer<DistinctValueHolder>,
 		Comparable<DistinctValueHolder> {
 
@@ -714,7 +713,6 @@ class TransactionalComplexObjArrayNoTransactionTest {
 		@Nonnull
 		@Override
 		public DistinctValueHolder createCopyWithMergedTransactionalMemory(
-			Void layer,
 			@Nonnull TransactionalLayerMaintainer transactionalLayer
 		) {
 			return this;

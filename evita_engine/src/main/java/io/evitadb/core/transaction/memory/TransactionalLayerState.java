@@ -24,7 +24,7 @@
 package io.evitadb.core.transaction.memory;
 
 /**
- * Describes the state of the {@link TransactionalLayerWrapper}.
+ * Describes the state of the {@link TransactionalLayerEntry}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */

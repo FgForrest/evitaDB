@@ -165,19 +165,9 @@ public final class UniqueIndexView extends UniqueIndex {
 		// a view owns no dirty flag - the shared tree's dirtiness is reset through the FilterIndex view
 	}
 
-	@Nullable
-	@Override
-	public Void createLayer() {
-		// a view never participates in a commit: it owns no transactional state, so it yields no layer (its enclosing
-		// transactional cache map deep-commits it as an identity and rebuilds it fresh over the committed shared tree).
-		// Overrides the VoidTransactionMemoryProducer default (which throws) to stay defensive if ever reached.
-		return null;
-	}
-
 	@Nonnull
 	@Override
 	public UniqueIndex createCopyWithMergedTransactionalMemory(
-		@Nullable Void layer,
 		@Nonnull TransactionalLayerMaintainer transactionalLayer
 	) {
 		// view instances are non-transactional and rebuilt fresh over the committed shared tree by AttributeIndex;
@@ -188,7 +178,6 @@ public final class UniqueIndexView extends UniqueIndex {
 	@Override
 	public void removeLayer(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		// a view never registered its placeholder structures with the layer - nothing else to discard
-		transactionalLayer.removeTransactionalMemoryLayerIfExists(this);
 	}
 
 	@Nonnull

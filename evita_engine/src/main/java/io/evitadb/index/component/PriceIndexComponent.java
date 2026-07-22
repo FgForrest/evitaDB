@@ -26,6 +26,7 @@ package io.evitadb.index.component;
 import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
+import io.evitadb.core.transaction.memory.TransactionalStateProducer;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.IndexDataStructure;
 import io.evitadb.index.price.PriceIndexContract;
@@ -104,7 +105,7 @@ public final class PriceIndexComponent implements IndexComponent {
 	@Override
 	public void removeLayer(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		// only the non-void flavours implement TransactionalLayerProducer.removeLayer
-		if (this.priceIndex instanceof TransactionalLayerProducer<?, ?> producer) {
+		if (this.priceIndex instanceof TransactionalStateProducer<?> producer) {
 			producer.removeLayer(transactionalLayer);
 		}
 	}

@@ -24,24 +24,17 @@
 package io.evitadb.core.transaction.memory;
 
 /**
- * This extension of {@link TransactionalLayerProducer} produces {@link Void} transactional memory diff piece. It should
- * be used in all all objects that maintain transactionally modifiable internal data fields but cannot be modified by
- * themselves. I.e. their transactional diff piece is Void (NULL), but they need to provide
- * {@link TransactionalLayerProducer#createCopyWithMergedTransactionalMemory(Object, TransactionalLayerMaintainer)} implementation
- * so that the could create new instance consisting of new internal objects.
+ * This extension of {@link TransactionalStateProducer} owns **no** transactional memory diff piece. It should be used in
+ * all objects that maintain transactionally modifiable internal data fields but cannot be modified by themselves. I.e.
+ * they hold no diff of their own, but they need to provide a `createCopyWithMergedTransactionalMemory` implementation so
+ * that they can create a new instance consisting of new internal objects.
+ *
+ * Such objects deliberately are **not** {@link TransactionalLayerCreator}s: having no id, they cannot be looked up in
+ * the diff-layer registry at all, which is what makes it impossible for one of them to be handed a layer belonging to a
+ * different object. They also skip the registry lookup entirely during the merge cascade, where it would be guaranteed
+ * to miss.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2019
  */
-public interface VoidTransactionMemoryProducer<S> extends TransactionalLayerProducer<Void, S> {
-
-	@Override
-	default long getId() {
-		return 1L;
-	}
-
-	@Override
-	default Void createLayer() {
-		throw new UnsupportedOperationException("This object doesn't handle changes directly!");
-	}
-
+public interface VoidTransactionMemoryProducer<S> extends TransactionalStateProducer<S> {
 }

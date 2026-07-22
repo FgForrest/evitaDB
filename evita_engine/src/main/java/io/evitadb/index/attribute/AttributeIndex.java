@@ -1898,11 +1898,11 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 	public static class AttributeIndexChanges implements Snapshotable<AttributeIndexChanges.AttributeIndexChangesMemento> {
 		// five producer containers: UNIQUE is standalone, FILTER data lives in the shared value-index container, the
 		// range structure is its own producer container, plus sort and chain.
-		private final TransactionalContainerChanges<Void, UniqueIndex, UniqueIndex> uniqueIndexChanges = new TransactionalContainerChanges<>();
-		private final TransactionalContainerChanges<Void, InvertedIndex, InvertedIndex> sharedValueIndexChanges = new TransactionalContainerChanges<>();
-		private final TransactionalContainerChanges<Void, RangeIndex, RangeIndex> sharedRangeIndexChanges = new TransactionalContainerChanges<>();
-		private final TransactionalContainerChanges<SortIndexChanges, SortIndex, SortIndex> sortIndexChanges = new TransactionalContainerChanges<>();
-		private final TransactionalContainerChanges<ChainIndexChanges, ChainIndex, ChainIndex> chainIndexChanges = new TransactionalContainerChanges<>();
+		private final TransactionalContainerChanges<UniqueIndex, UniqueIndex> uniqueIndexChanges = new TransactionalContainerChanges<>();
+		private final TransactionalContainerChanges<InvertedIndex, InvertedIndex> sharedValueIndexChanges = new TransactionalContainerChanges<>();
+		private final TransactionalContainerChanges<RangeIndex, RangeIndex> sharedRangeIndexChanges = new TransactionalContainerChanges<>();
+		private final TransactionalContainerChanges<SortIndex, SortIndex> sortIndexChanges = new TransactionalContainerChanges<>();
+		private final TransactionalContainerChanges<ChainIndex, ChainIndex> chainIndexChanges = new TransactionalContainerChanges<>();
 
 		public void addCreatedItem(@Nonnull UniqueIndex uniqueIndex) {
 			this.uniqueIndexChanges.addCreatedItem(uniqueIndex);

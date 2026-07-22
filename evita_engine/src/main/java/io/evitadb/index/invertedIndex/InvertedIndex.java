@@ -921,7 +921,6 @@ public class InvertedIndex implements
 	@Nonnull
 	@Override
 	public InvertedIndex createCopyWithMergedTransactionalMemory(
-		@Nullable Void layer,
 		@Nonnull TransactionalLayerMaintainer transactionalLayer
 	) {
 		final boolean isDirty = transactionalLayer
@@ -958,7 +957,6 @@ public class InvertedIndex implements
 	@Override
 	public void removeLayer(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		transactionalLayer.removeTransactionalMemoryLayerIfExists(this.dirty);
-		transactionalLayer.removeTransactionalMemoryLayerIfExists(this);
 		this.buckets.removeLayer(transactionalLayer);
 	}
 

@@ -29,6 +29,7 @@ import io.evitadb.core.transaction.memory.DirtyScopeValidator;
 import io.evitadb.core.transaction.memory.Snapshotable;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
+import io.evitadb.core.transaction.memory.TransactionalStateProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.bitmap.Bitmap;
@@ -724,7 +725,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			"Internal node block size must not exceed the value block size, otherwise internal node merges overflow the node arrays."
 		);
 		Assert.isPremiseValid(
-			!TransactionalLayerProducer.class.isAssignableFrom(keyType),
+			!TransactionalStateProducer.class.isAssignableFrom(keyType),
 			"Key type cannot implement TransactionalLayerProducer."
 		);
 		Assert.isPremiseValid(

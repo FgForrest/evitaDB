@@ -23,20 +23,20 @@
 
 package io.evitadb.index.array;
 
-import io.evitadb.core.transaction.memory.TransactionalLayerCreator;
-
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.ThreadSafe;
 
 /**
  * This interface must be implemented by all objects in order to be placed inside {@link TransactionalComplexObjArray}.
  *
+ * It carries no transactional-memory role of its own - implementations declare that separately, typically as
+ * {@link io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer}.
+ *
  * @param <T>          the concrete type of the transactional object (self-referencing bound)
- * @param <DIFF_LAYER> the type of the transactional diff layer created by this object
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2019
  */
 @ThreadSafe
-public interface TransactionalObject<T, DIFF_LAYER> extends TransactionalLayerCreator<DIFF_LAYER> {
+public interface TransactionalObject<T> {
 
 	/**
 	 * Method implementation must create deep clone of the object itself and all transactionally active inner objects.

@@ -28,6 +28,7 @@ import io.evitadb.core.transaction.Transaction;
 import io.evitadb.core.transaction.memory.DirtyScopeValidator;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
+import io.evitadb.core.transaction.memory.TransactionalStateProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.index.reference.TransactionalReference;
 import io.evitadb.utils.ArrayUtils.InsertionPosition;
@@ -439,7 +440,7 @@ public abstract class AbstractTransactionalBPlusTree implements Serializable {
 				final int peek = node.getPeek();
 				for (int i = 0; i <= peek; i++) {
 					// value producers guard their own (and their children's) layer removal internally
-					if (values[i] instanceof final TransactionalLayerProducer<?, ?> producer) {
+					if (values[i] instanceof final TransactionalStateProducer<?> producer) {
 						producer.removeLayer(transactionalLayer);
 					}
 				}

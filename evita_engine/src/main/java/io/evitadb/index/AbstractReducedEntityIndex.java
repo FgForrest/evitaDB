@@ -249,7 +249,6 @@ public abstract class AbstractReducedEntityIndex extends EntityIndex
 
 	@Override
 	public void removeLayer(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
-		transactionalLayer.removeTransactionalMemoryLayerIfExists(this);
 		// the price index is removed by the component-loop inside the super call — no extra hop
 		super.removeTransactionalMemoryOfReferencedProducers(transactionalLayer);
 	}

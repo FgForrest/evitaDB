@@ -202,7 +202,7 @@ public class PriceIdToEntityIdTranslateFormula extends AbstractCacheableFormula 
 			// iterate through prices
 			for (PriceIdContainerFormula priceIdFormula : priceIdFormulas) {
 				// collect array of price records that were used in the input formula (only some of them will be in current input)
-				final PriceListAndCurrencyPriceIndex<?, ?> priceIndex = priceIdFormula.getPriceIndex();
+				final PriceListAndCurrencyPriceIndex<?> priceIndex = priceIdFormula.getPriceIndex();
 				final RoaringBitmapWriter<PersistentRoaringBitmap> notFound = RoaringBitmapBackedBitmap.buildWriter();
 				priceIndex.forEachPriceRecord(
 					priceIdBitmap,

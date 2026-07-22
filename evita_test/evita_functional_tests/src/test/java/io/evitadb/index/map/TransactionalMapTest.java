@@ -923,49 +923,6 @@ class TransactionalMapTest {
 	}
 
 	/**
-	 * Tests verifying the clone behaviour of {@link TransactionalMap} both inside and outside a transaction.
-	 */
-	@Nested
-	@DisplayName("Clone")
-	class CloneTest {
-
-		@Test
-		@DisplayName("clone outside a transaction produces a copy with the same entries")
-		void shouldCloneOutsideTransaction() throws CloneNotSupportedException {
-			@SuppressWarnings("unchecked")
-			final TransactionalMap<String, Integer> clone = (TransactionalMap<String, Integer>) TransactionalMapTest.this.tested.clone();
-
-			assertMapContains(clone, new Tuple("a", 1), new Tuple("b", 2));
-			assertNotSame(TransactionalMapTest.this.tested, clone);
-		}
-
-		@Test
-		@DisplayName("clone inside a transaction carries the transactional changes into the clone")
-		void shouldCloneInsideTransaction() {
-			assertStateAfterCommit(
-				TransactionalMapTest.this.tested,
-				original -> {
-					original.put("c", 3);
-
-					try {
-						@SuppressWarnings("unchecked")
-						final TransactionalMap<String, Integer> clone =
-							(TransactionalMap<String, Integer>) original.clone();
-						// clone must see the transactional change
-						assertMapContains(clone, new Tuple("a", 1), new Tuple("b", 2), new Tuple("c", 3));
-					} catch (CloneNotSupportedException ex) {
-						fail("Clone should be supported: " + ex.getMessage());
-					}
-				},
-				(original, committedVersion) -> {
-					assertMapContains(committedVersion, new Tuple("a", 1), new Tuple("b", 2), new Tuple("c", 3));
-				}
-			);
-		}
-
-	}
-
-	/**
 	 * Tests verifying correct behaviour in boundary and edge-case scenarios.
 	 */
 	@Nested

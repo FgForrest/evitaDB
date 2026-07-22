@@ -37,7 +37,6 @@ import io.evitadb.function.TriFunction;
 import io.evitadb.index.IndexDataStructure;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
-import io.evitadb.index.facet.FacetGroupIndex.FacetGroupIndexChanges;
 import io.evitadb.index.facet.FacetReferenceIndex.FacetEntityTypeIndexChanges;
 import io.evitadb.index.map.TransactionalMap;
 import io.evitadb.core.expression.trigger.DependencyType;
@@ -438,7 +437,7 @@ public class FacetReferenceIndex implements TransactionalLayerProducer<FacetEnti
 	 * This class collects changes in {@link #groupedFacets} transactional map and its sub structure.
 	 */
 	public static class FacetEntityTypeIndexChanges implements Snapshotable<FacetEntityTypeIndexChanges.FacetEntityTypeIndexChangesMemento> {
-		private final TransactionalContainerChanges<FacetGroupIndexChanges, FacetGroupIndex, FacetGroupIndex> items = new TransactionalContainerChanges<>();
+		private final TransactionalContainerChanges<FacetGroupIndex, FacetGroupIndex> items = new TransactionalContainerChanges<>();
 
 		public void addCreatedItem(@Nonnull FacetGroupIndex baseIndex) {
 			this.items.addCreatedItem(baseIndex);

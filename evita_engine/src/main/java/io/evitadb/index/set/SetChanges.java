@@ -27,6 +27,7 @@ import io.evitadb.api.requestResponse.data.ContentComparator;
 import io.evitadb.core.transaction.memory.Snapshotable;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
+import io.evitadb.core.transaction.memory.TransactionalStateProducer;
 import io.evitadb.core.transaction.memory.UndoJournal;
 import lombok.Getter;
 
@@ -272,9 +273,9 @@ public class SetChanges<K> implements Serializable, Snapshotable<SetChanges.SetC
 			// referenced object might have changed; even the removed
 			// values need to be evaluated (to discard them from
 			// transactional memory set)
-			if (key instanceof TransactionalLayerProducer) {
+			if (key instanceof TransactionalStateProducer) {
 				key = (K) transactionalLayer.getStateCopyWithCommittedChanges(
-					(TransactionalLayerProducer<?, ?>) key
+					(TransactionalStateProducer<?>) key
 				);
 			}
 			// except those that were removed
@@ -285,8 +286,8 @@ public class SetChanges<K> implements Serializable, Snapshotable<SetChanges.SetC
 
 		// iterate over inserted keys
 		for (K key : getCreatedKeys()) {
-			if (key instanceof TransactionalLayerProducer) {
-				key = (K) transactionalLayer.getStateCopyWithCommittedChanges((TransactionalLayerProducer<?, ?>) key);
+			if (key instanceof TransactionalStateProducer) {
+				key = (K) transactionalLayer.getStateCopyWithCommittedChanges((TransactionalStateProducer<?>) key);
 			}
 			copy.add(key);
 		}
@@ -357,18 +358,6 @@ public class SetChanges<K> implements Serializable, Snapshotable<SetChanges.SetC
 	 */
 	boolean containsRemoved(@Nonnull K key) {
 		return this.removedKeys != null && this.removedKeys.contains(key);
-	}
-
-	/**
-	 * Copies the changes from this layer to another one.
-	 */
-	void copyState(@Nonnull SetChanges<K> layer) {
-		if (this.createdKeys != null && !this.createdKeys.isEmpty()) {
-			layer.getOrCreateCreatedKeys().addAll(this.createdKeys);
-		}
-		if (this.removedKeys != null && !this.removedKeys.isEmpty()) {
-			layer.getOrCreateRemovedKeys().addAll(this.removedKeys);
-		}
 	}
 
 	/**

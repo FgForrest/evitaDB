@@ -36,12 +36,13 @@ import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.TRANSACTION;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Verifies the small leaf types of the software transactional memory: {@link TransactionalLayerWrapper} state
+ * Verifies the small leaf types of the software transactional memory: {@link TransactionalLayerEntry} state
  * transitions, the {@link VoidTransactionMemoryProducer} contract and {@link TransactionalContainerChanges} clean-up
  * semantics.
  *
@@ -53,40 +54,77 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class TransactionalLeafTypesTest {
 
 	@Nested
-	@DisplayName("TransactionalLayerWrapper")
-	class TransactionalLayerWrapperTest {
+	@DisplayName("TransactionalLayerEntry")
+	class TransactionalLayerEntryTest {
 
 		@Test
-		@DisplayName("exposes the wrapped item and starts in the ALIVE state")
-		void shouldExposeItemAndStartAlive() {
+		@DisplayName("exposes the owning creator, the diff item and starts in the ALIVE state")
+		void shouldExposeCreatorAndItemAndStartAlive() {
 			final Object item = new Object();
-			final TransactionalLayerWrapper<Object> wrapper = new TransactionalLayerWrapper<>(item);
+			final TransactionalLayerCreator<Object> creator = createLayerCreator(item);
+			final TransactionalLayerEntry<Object> entry = new TransactionalLayerEntry<>(creator, item);
 
-			assertSame(item, wrapper.getItem());
-			assertEquals(TransactionalLayerState.ALIVE, wrapper.getState());
+			// the registry is keyed by the creator's id alone, so the entry is the only thing keeping the creator
+			// reachable for StaleTransactionMemoryException reporting and the one-id-one-creator assertion
+			assertSame(creator, entry.getCreator());
+			assertSame(item, entry.getItem());
+			assertEquals(TransactionalLayerState.ALIVE, entry.getState());
 		}
 
 		@Test
 		@DisplayName("transitions to DISCARDED on the first discard")
 		void shouldTransitionToDiscardedOnce() {
-			final TransactionalLayerWrapper<Object> wrapper = new TransactionalLayerWrapper<>(new Object());
+			final TransactionalLayerEntry<Object> entry = createEntry();
 
-			wrapper.discard();
+			entry.discard();
 
-			assertEquals(TransactionalLayerState.DISCARDED, wrapper.getState());
+			assertEquals(TransactionalLayerState.DISCARDED, entry.getState());
 		}
 
 		@Test
 		@DisplayName("throws on a repeated discard")
 		void shouldThrowOnDoubleDiscard() {
-			final TransactionalLayerWrapper<Object> wrapper = new TransactionalLayerWrapper<>(new Object());
-			wrapper.discard();
+			final TransactionalLayerEntry<Object> entry = createEntry();
+			entry.discard();
 
 			final GenericEvitaInternalError ex = assertThrows(
 				GenericEvitaInternalError.class,
-				wrapper::discard
+				entry::discard
 			);
 			assertTrue(ex.getPrivateMessage().contains("already discarded"));
+		}
+
+		/**
+		 * Creates an entry over a throw-away diff item and its creator.
+		 *
+		 * @return newly created entry in the ALIVE state
+		 */
+		@Nonnull
+		private static TransactionalLayerEntry<Object> createEntry() {
+			final Object item = new Object();
+			return new TransactionalLayerEntry<>(createLayerCreator(item), item);
+		}
+
+		/**
+		 * Creates a minimal layer creator handing out a real sequence id and the passed diff layer.
+		 *
+		 * @param layer the diff layer the creator reports
+		 * @return newly created layer creator
+		 */
+		@Nonnull
+		private static TransactionalLayerCreator<Object> createLayerCreator(@Nonnull Object layer) {
+			final long id = TransactionalObjectVersion.SEQUENCE.nextId();
+			return new TransactionalLayerCreator<>() {
+				@Override
+				public long getId() {
+					return id;
+				}
+
+				@Override
+				public Object createLayer() {
+					return layer;
+				}
+			};
 		}
 	}
 
@@ -95,8 +133,8 @@ class TransactionalLeafTypesTest {
 	class VoidTransactionMemoryProducerTest {
 
 		@Test
-		@DisplayName("throws when asked to create a layer and reports the fixed id")
-		void shouldThrowOnCreateLayer() {
+		@DisplayName("owns no layer, so it is not a layer creator at all")
+		void shouldNotBeLayerCreator() {
 			// VoidTransactionMemoryProducer is NOT a functional interface (it leaves both
 			// removeLayer(TransactionalLayerMaintainer) and createCopyWithMergedTransactionalMemory abstract),
 			// so it must be implemented with an anonymous class rather than a lambda.
@@ -104,7 +142,6 @@ class TransactionalLeafTypesTest {
 				@Nonnull
 				@Override
 				public Object createCopyWithMergedTransactionalMemory(
-					@Nullable Void layer,
 					@Nonnull TransactionalLayerMaintainer transactionalLayer
 				) {
 					return new Object();
@@ -116,12 +153,13 @@ class TransactionalLeafTypesTest {
 				}
 			};
 
-			final UnsupportedOperationException ex = assertThrows(
-				UnsupportedOperationException.class,
-				producer::createLayer
+			// having no identity at all is what makes it impossible for such an object to be handed a diff layer
+			// belonging to another object - it cannot be looked up in the id-keyed registry in the first place,
+			// which is stronger than the previous arrangement of reporting a constant id and throwing on createLayer()
+			assertFalse(
+				producer instanceof TransactionalLayerCreator<?>,
+				"a producer that owns no layer must not be a TransactionalLayerCreator!"
 			);
-			assertTrue(ex.getMessage().contains("doesn't handle changes directly"));
-			assertEquals(1L, producer.getId());
 		}
 	}
 
@@ -136,7 +174,7 @@ class TransactionalLeafTypesTest {
 			final RecordingProducer removedOnly = new RecordingProducer();
 			final RecordingProducer both = new RecordingProducer();
 
-			final TransactionalContainerChanges<Void, Object, RecordingProducer> changes =
+			final TransactionalContainerChanges<Object, RecordingProducer> changes =
 				new TransactionalContainerChanges<>();
 			changes.addCreatedItem(createdOnly);
 			changes.addCreatedItem(both);
@@ -157,7 +195,7 @@ class TransactionalLeafTypesTest {
 			final RecordingProducer removedOnly = new RecordingProducer();
 			final RecordingProducer both = new RecordingProducer();
 
-			final TransactionalContainerChanges<Void, Object, RecordingProducer> changes =
+			final TransactionalContainerChanges<Object, RecordingProducer> changes =
 				new TransactionalContainerChanges<>();
 			changes.addCreatedItem(createdOnly);
 			changes.addCreatedItem(both);
@@ -175,7 +213,7 @@ class TransactionalLeafTypesTest {
 		@Test
 		@DisplayName("does nothing when no items were registered")
 		void shouldDoNothingWhenNoItemsRegistered() {
-			final TransactionalContainerChanges<Void, Object, RecordingProducer> changes =
+			final TransactionalContainerChanges<Object, RecordingProducer> changes =
 				new TransactionalContainerChanges<>();
 
 			// neither call must throw when nothing was registered

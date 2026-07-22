@@ -221,7 +221,7 @@ public class PriceRefIndex extends AbstractPriceIndex<PriceListAndCurrencyPriceR
 	 * This class collects changes in {@link #priceIndexes} transactional map.
 	 */
 	public static class PriceIndexChanges implements Snapshotable<PriceIndexChanges.PriceIndexChangesMemento> {
-		private final TransactionalContainerChanges<Void, PriceListAndCurrencyPriceRefIndex, PriceListAndCurrencyPriceRefIndex> collectedPriceIndexChanges = new TransactionalContainerChanges<>();
+		private final TransactionalContainerChanges<PriceListAndCurrencyPriceRefIndex, PriceListAndCurrencyPriceRefIndex> collectedPriceIndexChanges = new TransactionalContainerChanges<>();
 
 		public void addCreatedItem(@Nonnull PriceListAndCurrencyPriceRefIndex priceIndex) {
 			this.collectedPriceIndexChanges.addCreatedItem(priceIndex);

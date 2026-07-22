@@ -26,6 +26,7 @@ package io.evitadb.index.array;
 import io.evitadb.core.transaction.memory.Snapshotable;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
+import io.evitadb.core.transaction.memory.TransactionalStateProducer;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.ArrayUtils.InsertionPosition;
 import io.evitadb.utils.Assert;
@@ -44,7 +45,6 @@ import java.util.function.Predicate;
 import static io.evitadb.core.transaction.Transaction.getTransactionalLayerMaintainer;
 import static io.evitadb.core.transaction.Transaction.suppressTransactionalMemoryLayerFor;
 import static io.evitadb.core.transaction.Transaction.suppressTransactionalMemoryLayerForWithResult;
-import static java.util.Optional.ofNullable;
 
 /**
  * Collects insertions, removals, and combine/reduce operations recorded against
@@ -55,7 +55,7 @@ import static java.util.Optional.ofNullable;
  */
 @NotThreadSafe
 @SuppressWarnings("unchecked")
-class ComplexObjArrayChanges<T extends TransactionalObject<T, ?> & Comparable<T>>
+class ComplexObjArrayChanges<T extends TransactionalObject<T> & Comparable<T>>
 	implements Snapshotable<ComplexObjArrayChanges.ComplexObjArrayChangesMemento<T>> {
 	/**
 	 * Keeps type of the object that is monitored in changes.
@@ -133,7 +133,7 @@ class ComplexObjArrayChanges<T extends TransactionalObject<T, ?> & Comparable<T>
 			final T[] delegateCopy = (T[]) Array.newInstance(objectType, values.length);
 			for (int i = 0; i < values.length; i++) {
 				final T item = values[i];
-				if (item instanceof TransactionalLayerProducer<?, ?> producer) {
+				if (item instanceof TransactionalStateProducer<?> producer) {
 					delegateCopy[i] = getTransactionalCopy(transactionalLayer, producer);
 				} else {
 					delegateCopy[i] = item;
@@ -152,7 +152,7 @@ class ComplexObjArrayChanges<T extends TransactionalObject<T, ?> & Comparable<T>
 	@Nonnull
 	private static <T> T getTransactionalCopy(
 		@Nullable TransactionalLayerMaintainer transactionalLayer,
-		@Nonnull TransactionalLayerProducer<?, ?> value
+		@Nonnull TransactionalStateProducer<?> value
 	) {
 		return transactionalLayer == null
 			? (T) value
@@ -166,38 +166,11 @@ class ComplexObjArrayChanges<T extends TransactionalObject<T, ?> & Comparable<T>
 	@Nonnull
 	private static <T> T getTransactionalCopyWithoutDiscardingState(
 		@Nullable TransactionalLayerMaintainer transactionalLayer,
-		@Nonnull TransactionalLayerProducer<?, ?> value
+		@Nonnull TransactionalStateProducer<?> value
 	) {
 		return transactionalLayer == null
 			? (T) value
 			: (T) transactionalLayer.getStateCopyWithCommittedChangesWithoutDiscardingState(value);
-	}
-
-	/**
-	 * Computes closest modification operation that should occur upon the original array.
-	 *
-	 * @param nextInsertionPosition index of next non-processed insertion
-	 * @param nextRemovalPosition   index of next non-processed removal
-	 * @param plan                  plan to populate
-	 */
-	private static void getNextOperations(
-		int nextInsertionPosition,
-		int nextRemovalPosition,
-		@Nonnull ChangePlan plan
-	) {
-		if (nextInsertionPosition >= 0) {
-			if (nextRemovalPosition == -1 || nextRemovalPosition > nextInsertionPosition) {
-				plan.planInsertOperation(nextInsertionPosition);
-			} else if (nextInsertionPosition == nextRemovalPosition) {
-				plan.planBothOperations(nextInsertionPosition);
-			} else {
-				plan.planRemovalOperation(nextRemovalPosition);
-			}
-		} else if (nextRemovalPosition >= 0 && nextInsertionPosition == -1) {
-			plan.planRemovalOperation(nextRemovalPosition);
-		} else {
-			plan.noOperations();
-		}
 	}
 
 	/**
@@ -324,18 +297,49 @@ class ComplexObjArrayChanges<T extends TransactionalObject<T, ?> & Comparable<T>
 	}
 
 	/**
+	 * Propagates diff-layer removal to the passed element, if the element participates in the transactional memory.
+	 *
+	 * Elements of this array are only required to be {@link TransactionalObject}s - producing transactional state is
+	 * **not** part of that contract, so the capability has to be tested rather than assumed. Assuming it would break
+	 * arrays of non-producing elements, which are a supported case.
+	 *
+	 * @param value              element to propagate the removal to; may be NULL
+	 * @param transactionalLayer object that provides access to entire transactional memory
+	 */
+	private static void removeLayerIfProducer(
+		@Nullable Object value,
+		@Nonnull TransactionalLayerMaintainer transactionalLayer
+	) {
+		if (value instanceof TransactionalStateProducer<?> transactionalStateProducer) {
+			transactionalStateProducer.removeLayer(transactionalLayer);
+		}
+	}
+
+	/**
+	 * Propagates diff-layer removal to the passed element within the current transaction, if the element participates
+	 * in the transactional memory. See {@link #removeLayerIfProducer(Object, TransactionalLayerMaintainer)}.
+	 *
+	 * @param value element to propagate the removal to; may be NULL
+	 */
+	private static void removeLayerIfProducer(@Nullable Object value) {
+		if (value instanceof TransactionalStateProducer<?> transactionalStateProducer) {
+			transactionalStateProducer.removeLayer();
+		}
+	}
+
+	/**
 	 * Cleans information of all internal original and inserted data.
 	 */
 	public void cleanAll(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		for (T originalValue : this.original) {
-			originalValue.removeLayer(transactionalLayer);
+			removeLayerIfProducer(originalValue, transactionalLayer);
 		}
 		for (T removedValue : this.removedValues) {
-			removedValue.removeLayer(transactionalLayer);
+			removeLayerIfProducer(removedValue, transactionalLayer);
 		}
 		for (T[] insertedValues : this.insertedValues) {
 			for (T insertedValue : insertedValues) {
-				insertedValue.removeLayer(transactionalLayer);
+				removeLayerIfProducer(insertedValue, transactionalLayer);
 			}
 		}
 	}
@@ -501,7 +505,7 @@ class ComplexObjArrayChanges<T extends TransactionalObject<T, ?> & Comparable<T>
 
 				// get first position with change operations
 				final ChangePlan plan = new ChangePlan();
-				getNextOperations(nextInsertionPosition, nextRemovalPosition, plan);
+				plan.planNextOperation(nextInsertionPosition, nextRemovalPosition);
 
 				// create new array instance
 				T[] delegateArray = getTransactionalCopy(
@@ -658,7 +662,7 @@ class ComplexObjArrayChanges<T extends TransactionalObject<T, ?> & Comparable<T>
 						: -1;
 
 					// plan next operations
-					getNextOperations(nextInsertionPosition, nextRemovalPosition, plan);
+					plan.planNextOperation(nextInsertionPosition, nextRemovalPosition);
 				}
 
 				// copy rest of the original array
@@ -738,10 +742,10 @@ class ComplexObjArrayChanges<T extends TransactionalObject<T, ?> & Comparable<T>
 		final int removalIndex = Arrays.binarySearch(this.removals, position);
 		if (removalIndex >= 0) {
 			final T removedValue = this.removedValues[removalIndex];
-			if (transactionalLayer == null || !(removedValue instanceof TransactionalLayerProducer<?, ?>)) {
+			if (transactionalLayer == null || !(removedValue instanceof TransactionalStateProducer<?>)) {
 				return removedValue;
 			}
-			return getTransactionalCopy(transactionalLayer, (TransactionalLayerProducer<?, ?>) removedValue);
+			return getTransactionalCopy(transactionalLayer, (TransactionalStateProducer<?>) removedValue);
 		} else {
 			return null;
 		}
@@ -759,11 +763,11 @@ class ComplexObjArrayChanges<T extends TransactionalObject<T, ?> & Comparable<T>
 		final int removalIndex = Arrays.binarySearch(this.removals, position);
 		if (removalIndex >= 0) {
 			final T removedValue = this.removedValues[removalIndex];
-			if (transactionalLayer == null || !(removedValue instanceof TransactionalLayerProducer<?, ?>)) {
+			if (transactionalLayer == null || !(removedValue instanceof TransactionalStateProducer<?>)) {
 				return removedValue;
 			}
 			return getTransactionalCopyWithoutDiscardingState(
-				transactionalLayer, (TransactionalLayerProducer<?, ?>) removedValue
+				transactionalLayer, (TransactionalStateProducer<?>) removedValue
 			);
 		} else {
 			return null;
@@ -820,7 +824,7 @@ class ComplexObjArrayChanges<T extends TransactionalObject<T, ?> & Comparable<T>
 				final T delegateClone = insertedValuesBefore[innerPosition.position()];
 				this.combiner.accept(delegateClone, recordId);
 				// remove orphan transactional memory
-				recordId.removeLayer();
+				removeLayerIfProducer(recordId);
 			}
 		} else {
 			// no existing record, add at target place
@@ -859,9 +863,9 @@ class ComplexObjArrayChanges<T extends TransactionalObject<T, ?> & Comparable<T>
 			if (reducedValue == null
 				|| (this.obsoleteChecker != null && this.obsoleteChecker.test(reducedValue))) {
 				// remove removed value
-				ofNullable(reducedValue).ifPresent(TransactionalObject::removeLayer);
+				removeLayerIfProducer(reducedValue);
 				// remove added value (negates removal)
-				recordId.removeLayer();
+				removeLayerIfProducer(recordId);
 
 				final int[] newRemovals = new int[this.removals.length - 1];
 				System.arraycopy(this.removals, 0, newRemovals, 0, removalIndex);
@@ -959,7 +963,7 @@ class ComplexObjArrayChanges<T extends TransactionalObject<T, ?> & Comparable<T>
 			// no reducer or reduced record is obsolete
 			if (reducedValue == null
 				|| (this.obsoleteChecker != null && this.obsoleteChecker.test(reducedValue))) {
-				ofNullable(reducedValue).ifPresent(TransactionalObject::removeLayer);
+				removeLayerIfProducer(reducedValue);
 
 				// remove from the insertion set
 				final T[] insertedValuesAfter = ArrayUtils.removeRecordFromOrderedArray(
@@ -1125,7 +1129,7 @@ class ComplexObjArrayChanges<T extends TransactionalObject<T, ?> & Comparable<T>
 	 *                           reduce family)
 	 * @param <T>                element runtime type, a transactional, comparable object
 	 */
-	public record ComplexObjArrayChangesMemento<T extends TransactionalObject<T, ?> & Comparable<T>>(
+	public record ComplexObjArrayChangesMemento<T extends TransactionalObject<T> & Comparable<T>>(
 		@Nonnull int[] insertions,
 		@Nonnull T[][] insertedValues,
 		@Nonnull int[] removals,

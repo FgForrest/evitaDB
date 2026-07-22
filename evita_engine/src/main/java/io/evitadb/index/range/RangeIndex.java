@@ -862,7 +862,7 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 
 	@Nonnull
 	@Override
-	public RangeIndex createCopyWithMergedTransactionalMemory(Void layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
+	public RangeIndex createCopyWithMergedTransactionalMemory(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		// consume the dirty layer first (mirrors InvertedIndex): when this index was not touched in the transaction,
 		// return THIS instance unchanged - preserving identity so the enclosing map can structurally share it, and
 		// sparing the full B+ tree rebuild that getStateCopyWithCommittedChanges(this.ranges) would otherwise perform.
@@ -893,7 +893,6 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 	public void removeLayer(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		this.dirty.removeLayer(transactionalLayer);
 		this.ranges.removeLayer(transactionalLayer);
-		transactionalLayer.removeTransactionalMemoryLayerIfExists(this);
 	}
 
 	/**

@@ -89,19 +89,9 @@ public class MockPriceListAndCurrencyPriceIndex implements PriceListAndCurrencyP
 		throw new UnsupportedOperationException();
 	}
 
-	@Override
-	public long getId() {
-		return 0;
-	}
-
-	@Override
-	public Void createLayer() {
-		throw new UnsupportedOperationException();
-	}
-
 	@Nonnull
 	@Override
-	public MockPriceListAndCurrencyPriceIndex createCopyWithMergedTransactionalMemory(@Nullable Void layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
+	public MockPriceListAndCurrencyPriceIndex createCopyWithMergedTransactionalMemory(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		throw new UnsupportedOperationException();
 	}
 

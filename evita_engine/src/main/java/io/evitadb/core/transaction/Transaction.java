@@ -31,6 +31,7 @@ import io.evitadb.core.transaction.memory.TransactionalLayerCreator;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainerFinalizer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
+import io.evitadb.core.transaction.memory.TransactionalStateProducer;
 import io.evitadb.core.transaction.memory.TransactionalMemory;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.GenericEvitaInternalError;
@@ -377,7 +378,7 @@ public final class Transaction implements TransactionContract {
 	 *
 	 * @param txRoot root of the transactional object tree whose changes are committed or rolled back
 	 */
-	public <S, X, T extends TransactionalLayerProducer<X, S>> Transaction(@Nonnull T txRoot) {
+	public <S, T extends TransactionalStateProducer<S>> Transaction(@Nonnull T txRoot) {
 		this.transactionId = UUID.randomUUID();
 		this.transactionHandler = null;
 		this.transactionalMemory = new TransactionalMemory(
@@ -518,7 +519,7 @@ public final class Transaction implements TransactionContract {
 	 */
 	@Nullable
 	public <S> S getCommitedState() {
-		if (this.transactionalMemory.getFinalizer() instanceof IsolatedTransactionalLayerMaintainerFinalizer<?,?,?> finalizer) {
+		if (this.transactionalMemory.getFinalizer() instanceof IsolatedTransactionalLayerMaintainerFinalizer<?,?> finalizer) {
 			//noinspection unchecked
 			return (S) finalizer.getCommitted();
 		} else {
@@ -548,11 +549,10 @@ public final class Transaction implements TransactionContract {
 	 * commit and rollback operations in a transactional context.
 	 *
 	 * @param <S> the type of the state object being managed
-	 * @param <X> the type of the transactional layer's intermediate representation
 	 * @param <T> the type of the transactional layer producer
 	 */
 	@Slf4j
-	private static class IsolatedTransactionalLayerMaintainerFinalizer<S, X, T extends TransactionalLayerProducer<X, S>>
+	private static class IsolatedTransactionalLayerMaintainerFinalizer<S, T extends TransactionalStateProducer<S>>
 		implements TransactionalLayerMaintainerFinalizer {
 		/**
 		 * Root of the transactional object tree. Changes of this object will be subject to commit / rollback.

@@ -24,8 +24,8 @@
 package io.evitadb.index.list;
 
 import io.evitadb.core.transaction.memory.Snapshotable;
-import io.evitadb.core.transaction.memory.TransactionalLayerCreator;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
+import io.evitadb.core.transaction.memory.TransactionalStateProducer;
 import io.evitadb.core.transaction.memory.UndoJournal;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
@@ -304,8 +304,8 @@ class ListChanges<V> implements Serializable, Snapshotable<ListChanges.ListChang
 		final Iterator<Entry<Integer, V>> it = this.addedItems.entrySet().iterator();
 		while (it.hasNext()) {
 			final Entry<Integer, V> entry = it.next();
-			if (entry.getValue() instanceof TransactionalLayerCreator<?> transactionalLayerCreator) {
-				transactionalLayerCreator.removeLayer(transactionalLayer);
+			if (entry.getValue() instanceof TransactionalStateProducer<?> transactionalStateProducer) {
+				transactionalStateProducer.removeLayer(transactionalLayer);
 			}
 			it.remove();
 		}

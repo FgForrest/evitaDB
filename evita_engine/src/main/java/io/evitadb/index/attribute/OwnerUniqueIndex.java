@@ -408,7 +408,6 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 	@Nonnull
 	@Override
 	public UniqueIndex createCopyWithMergedTransactionalMemory(
-		@Nullable Void layer,
 		@Nonnull TransactionalLayerMaintainer transactionalLayer
 	) {
 		final boolean isDirty = transactionalLayer.getStateCopyWithCommittedChanges(this.dirty);
@@ -432,7 +431,6 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 	@Override
 	public void removeLayer(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		transactionalLayer.removeTransactionalMemoryLayerIfExists(this.dirty);
-		transactionalLayer.removeTransactionalMemoryLayerIfExists(this);
 		this.tree.removeLayer(transactionalLayer);
 		this.recordIds.removeLayer(transactionalLayer);
 	}

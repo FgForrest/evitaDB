@@ -52,7 +52,7 @@ import java.util.PrimitiveIterator.OfInt;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2019
  */
 public class ValueToRecordBitmap implements ValueToRecord,
-	TransactionalObject<ValueToRecordBitmap, Void>,
+	TransactionalObject<ValueToRecordBitmap>,
 	TransactionalCreatorMaintainer {
 	@Serial private static final long serialVersionUID = 8584161806399686698L;
 	/**
@@ -247,7 +247,6 @@ public class ValueToRecordBitmap implements ValueToRecord,
 	@Nonnull
 	@Override
 	public ValueToRecordBitmap createCopyWithMergedTransactionalMemory(
-		@Nullable Void layer,
 		@Nonnull TransactionalLayerMaintainer transactionalLayer
 	) {
 		return new ValueToRecordBitmap(
@@ -258,7 +257,6 @@ public class ValueToRecordBitmap implements ValueToRecord,
 
 	@Override
 	public void removeLayer(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
-		transactionalLayer.removeTransactionalMemoryLayerIfExists(this);
 		this.recordIds.removeLayer(transactionalLayer);
 	}
 

@@ -160,7 +160,7 @@ public class PriceListAndCurrencyPriceRefIndex
 		assertNotTerminated();
 		Assert.isPremiseValid(entityType != null, "Entity type must be provided!");
 		Assert.isPremiseValid(this.superIndex == null, "Catalog was already attached to this index!");
-		final PriceListAndCurrencyPriceIndex<?, ?> superIndex = catalog.getEntityIndexIfExists(
+		final PriceListAndCurrencyPriceIndex<?> superIndex = catalog.getEntityIndexIfExists(
 			entityType,
 			new EntityIndexKey(EntityIndexType.GLOBAL, this.scope),
 			GlobalEntityIndex.class
@@ -340,7 +340,6 @@ public class PriceListAndCurrencyPriceRefIndex
 	@Nonnull
 	@Override
 	public PriceListAndCurrencyPriceRefIndex createCopyWithMergedTransactionalMemory(
-		@Nullable Void layer,
 		@Nonnull TransactionalLayerMaintainer transactionalLayer
 	) {
 		// we can safely throw away dirty flag now

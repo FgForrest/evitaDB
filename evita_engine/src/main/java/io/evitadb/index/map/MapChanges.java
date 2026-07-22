@@ -24,9 +24,9 @@
 package io.evitadb.index.map;
 
 import io.evitadb.core.transaction.memory.Snapshotable;
-import io.evitadb.core.transaction.memory.TransactionalLayerCreator;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
+import io.evitadb.core.transaction.memory.TransactionalStateProducer;
 import io.evitadb.core.transaction.memory.UndoJournal;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
@@ -122,13 +122,13 @@ public class MapChanges<K, V>
 	 * @param mapDelegate original map
 	 * @param transactionalLayerWrapper the function that wraps result of {@link TransactionalLayerProducer#createCopyWithMergedTransactionalMemory(Object, TransactionalLayerMaintainer)} into a V type
 	 */
-	public <S, T extends TransactionalLayerProducer<?, S>> MapChanges(
+	public <S, T extends TransactionalStateProducer<S>> MapChanges(
 		@Nonnull Map<K, V> mapDelegate,
 		@Nonnull Class<T> valueType,
 		@Nonnull Function<S, V> transactionalLayerWrapper
 	) {
 		Assert.isTrue(
-			TransactionalLayerProducer.class.isAssignableFrom(valueType),
+			TransactionalStateProducer.class.isAssignableFrom(valueType),
 			"Value type is expected to implement TransactionalLayerProducer!"
 		);
 		this.mapDelegate = mapDelegate;
@@ -205,7 +205,7 @@ public class MapChanges<K, V>
 				// while still guaranteeing it is swept (releaseLayer is idempotent, so a caller's explicit release is
 				// harmless).
 				originalValue = removeCreatedKey((K) key);
-				if (originalValue instanceof TransactionalLayerProducer) {
+				if (originalValue instanceof TransactionalStateProducer) {
 					stashCreatedThenRemovedProducer(originalValue);
 				}
 			}
@@ -241,7 +241,7 @@ public class MapChanges<K, V>
 			// the key was removed earlier in this transaction and is now being re-inserted with a (potentially)
 			// different value — the original instance is discarded, so release its layer. The release is
 			// identity-based: keep the layer if some surviving key still references the very same instance.
-			if (originalValue instanceof TransactionalLayerProducer<?, ?> transactionalLayerProducer
+			if (originalValue instanceof TransactionalStateProducer<?> transactionalLayerProducer
 				&& originalValue != value
 				&& isInstanceNotReferencedBySurvivingKey(key, originalValue)
 			) {
@@ -367,7 +367,7 @@ public class MapChanges<K, V>
 			return;
 		}
 		for (final Object instance : this.createdThenRemovedProducers) {
-			if (instance instanceof TransactionalLayerProducer<?, ?> transactionalLayerProducer
+			if (instance instanceof TransactionalStateProducer<?> transactionalLayerProducer
 				&& isInstanceNotReferencedBySurvivingKey(null, instance)) {
 				transactionalLayerProducer.removeLayer(transactionalLayer);
 			}
@@ -413,11 +413,11 @@ public class MapChanges<K, V>
 				final boolean wasRemoved = containsRemoved(key);
 				// we need to always create copy - something in the referenced object might have changed
 				// even the removed values need to be evaluated (in order to discard them from transactional memory set)
-				if (key instanceof TransactionalLayerProducer) {
+				if (key instanceof TransactionalStateProducer) {
 					throw new IllegalStateException("Transactional layer producer is not expected to be used as a key!");
 				}
 				V value = entry.getValue();
-				if (value instanceof TransactionalLayerProducer<?, ?> transactionalLayerProducer) {
+				if (value instanceof TransactionalStateProducer<?> transactionalLayerProducer) {
 					if (wasRemoved) {
 						// release the removed value's transactional layer, but only when no surviving key still
 						// references the very same instance. The decision must be identity-based (`==`): a
@@ -444,11 +444,11 @@ public class MapChanges<K, V>
 		for (Entry<K, V> entry : this.modifiedKeys.entrySet()) {
 			final K key = entry.getKey();
 			// we need to always create copy - something in the referenced object might have changed
-			if (key instanceof TransactionalLayerProducer) {
+			if (key instanceof TransactionalStateProducer) {
 				throw new IllegalStateException("Transactional layer producer is not expected to be used as a key!");
 			}
 			V value = entry.getValue();
-			if (value instanceof TransactionalLayerProducer<?, ?> transactionalLayerProducer) {
+			if (value instanceof TransactionalStateProducer<?> transactionalLayerProducer) {
 				value = this.transactionalLayerWrapper.apply(
 					transactionalLayer.getStateCopyWithCommittedChanges(transactionalLayerProducer)
 				);
@@ -543,21 +543,6 @@ public class MapChanges<K, V>
 	V removeModifiedKey(@Nonnull K key) {
 		journalModifiedEntry(key);
 		return this.modifiedKeys.remove(key);
-	}
-
-	/**
-	 * Copies the changes from this layer to another one.
-	 */
-	void copyState(@Nonnull MapChanges<K, V> layer) {
-		layer.createdKeyCount = this.createdKeyCount;
-		layer.removedKeys.addAll(this.removedKeys);
-		layer.modifiedKeys.putAll(this.modifiedKeys);
-		if (this.createdThenRemovedProducers != null) {
-			layer.createdThenRemovedProducers = Collections.newSetFromMap(
-				new IdentityHashMap<>(this.createdThenRemovedProducers.size())
-			);
-			layer.createdThenRemovedProducers.addAll(this.createdThenRemovedProducers);
-		}
 	}
 
 	/**
@@ -781,16 +766,16 @@ public class MapChanges<K, V>
 		final Iterator<Entry<K, V>> it = this.modifiedKeys.entrySet().iterator();
 		while (it.hasNext()) {
 			final Entry<K, V> entry = it.next();
-			if (entry.getValue() instanceof TransactionalLayerCreator<?> transactionalLayerCreator) {
-				transactionalLayerCreator.removeLayer(transactionalLayer);
+			if (entry.getValue() instanceof TransactionalStateProducer<?> transactionalStateProducer) {
+				transactionalStateProducer.removeLayer(transactionalLayer);
 			}
 			it.remove();
 		}
 		// drop the layers of any created-then-removed producers stashed for the deferred commit-time release
 		if (this.createdThenRemovedProducers != null) {
 			for (final Object instance : this.createdThenRemovedProducers) {
-				if (instance instanceof TransactionalLayerCreator<?> transactionalLayerCreator) {
-					transactionalLayerCreator.removeLayer(transactionalLayer);
+				if (instance instanceof TransactionalStateProducer<?> transactionalStateProducer) {
+					transactionalStateProducer.removeLayer(transactionalLayer);
 				}
 			}
 			this.createdThenRemovedProducers = null;

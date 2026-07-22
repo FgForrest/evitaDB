@@ -531,11 +531,11 @@ class PersistentTransactionalMapTest {
 	}
 
 	/**
-	 * equals, hashCode, toString, and clone.
+	 * equals, hashCode and toString.
 	 */
 	@Nested
-	@DisplayName("equals, hashCode, toString and clone")
-	class EqualsHashCodeCloneTest {
+	@DisplayName("equals, hashCode and toString")
+	class EqualsHashCodeTest {
 
 		@Test
 		@DisplayName("equals a plain map with identical entries")
@@ -565,17 +565,6 @@ class PersistentTransactionalMapTest {
 			assertTrue(str.endsWith("}"));
 			assertTrue(str.contains("a=1"));
 			assertTrue(str.contains("b=2"));
-		}
-
-		@Test
-		@DisplayName("clone outside a transaction produces a copy with the same entries")
-		void shouldCloneOutsideTransaction() throws CloneNotSupportedException {
-			@SuppressWarnings("unchecked")
-			final PersistentTransactionalMap<String, Integer> clone =
-				(PersistentTransactionalMap<String, Integer>) PersistentTransactionalMapTest.this.tested.clone();
-
-			assertMapContains(clone, new Tuple("a", 1), new Tuple("b", 2));
-			assertNotSame(PersistentTransactionalMapTest.this.tested, clone);
 		}
 
 	}

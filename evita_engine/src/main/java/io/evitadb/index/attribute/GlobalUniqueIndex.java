@@ -670,7 +670,7 @@ public class GlobalUniqueIndex implements
 	 */
 	@Nonnull
 	@Override
-	public GlobalUniqueIndex createCopyWithMergedTransactionalMemory(@Nullable Void layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
+	public GlobalUniqueIndex createCopyWithMergedTransactionalMemory(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		final TransactionalBucketBPlusTree committedTree =
 			(TransactionalBucketBPlusTree) transactionalLayer.getStateCopyWithCommittedChanges(this.tree);
 		// publish the page baseline staged by this commit's flush: the merge runs only AFTER the flush has durably
@@ -695,7 +695,6 @@ public class GlobalUniqueIndex implements
 	 */
 	@Override
 	public void removeLayer(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
-		transactionalLayer.removeTransactionalMemoryLayerIfExists(this);
 		this.dirty.removeLayer(transactionalLayer);
 		this.tree.removeLayer(transactionalLayer);
 		this.entitiesPerType.removeLayer(transactionalLayer);

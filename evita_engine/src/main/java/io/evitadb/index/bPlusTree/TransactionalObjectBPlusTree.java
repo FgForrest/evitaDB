@@ -28,6 +28,7 @@ import io.evitadb.core.transaction.Transaction;
 import io.evitadb.core.transaction.memory.Snapshotable;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
+import io.evitadb.core.transaction.memory.TransactionalStateProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.dataType.ConsistencySensitiveDataStructure;
 import io.evitadb.exception.GenericEvitaInternalError;
@@ -476,11 +477,11 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> extends Ab
 	) {
 		super(valueBlockSize, minValueBlockSize, internalNodeBlockSize, minInternalNodeBlockSize, root, size);
 		Assert.isPremiseValid(
-			!TransactionalLayerProducer.class.isAssignableFrom(keyType),
+			!TransactionalStateProducer.class.isAssignableFrom(keyType),
 			"Key type cannot implement TransactionalLayerProducer."
 		);
 		Assert.isPremiseValid(
-			transactionalLayerWrapper != null || !TransactionalLayerProducer.class.isAssignableFrom(valueType),
+			transactionalLayerWrapper != null || !TransactionalStateProducer.class.isAssignableFrom(valueType),
 			"Value type cannot implement TransactionalLayerProducer if no transactional layer wrapper is provided."
 		);
 		Assert.isPremiseValid(
@@ -2549,13 +2550,13 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> extends Ab
 			}
 
 			N[] newValues = null;
-			if (TransactionalLayerProducer.class.isAssignableFrom(this.values.getClass().getComponentType())) {
+			if (TransactionalStateProducer.class.isAssignableFrom(this.values.getClass().getComponentType())) {
 				for (int i = 0; i < thePeek + 1; i++) {
 					// this.transactionalLayerWrapper is not null, because the values are transactional layers
 					//noinspection unchecked,DataFlowIssue
 					final N value = this.transactionalLayerWrapper.apply(
 						transactionalLayer.getStateCopyWithCommittedChanges(
-							(TransactionalLayerProducer<?, ? extends N>) theValues[i]
+							(TransactionalStateProducer<? extends N>) theValues[i]
 						)
 					);
 					if (newValues == null && value != theValues[i]) {
@@ -2677,7 +2678,7 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> extends Ab
 		 * @param removed the value removed from the leaf, may be null
 		 */
 		private static void discardRemovedValueLayer(@Nullable Object removed) {
-			if (removed instanceof final TransactionalLayerProducer<?, ?> producer) {
+			if (removed instanceof final TransactionalStateProducer<?> producer) {
 				producer.removeLayer();
 			}
 		}

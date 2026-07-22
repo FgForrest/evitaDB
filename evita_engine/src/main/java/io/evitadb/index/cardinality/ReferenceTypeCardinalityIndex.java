@@ -645,7 +645,6 @@ public class ReferenceTypeCardinalityIndex
 
 	@Override
 	public void removeLayer(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
-		transactionalLayer.removeTransactionalMemoryLayerIfExists(this);
 		this.cardinalities.removeLayer(transactionalLayer);
 		this.referencedPrimaryKeysIndex.removeLayer(transactionalLayer);
 		this.dirty.removeLayer(transactionalLayer);
@@ -658,7 +657,7 @@ public class ReferenceTypeCardinalityIndex
 	@Nonnull
 	@Override
 	public ReferenceTypeCardinalityIndex createCopyWithMergedTransactionalMemory(
-		@Nullable Void layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
+		@Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		// we can safely throw away dirty flag now
 		final boolean isDirty = transactionalLayer.getStateCopyWithCommittedChanges(this.dirty);
 		if (isDirty) {

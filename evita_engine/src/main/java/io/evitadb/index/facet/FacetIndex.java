@@ -43,7 +43,6 @@ import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.component.EntityIndexManifest;
 import io.evitadb.index.component.IndexComponent;
 import io.evitadb.index.facet.FacetIndex.FacetIndexChanges;
-import io.evitadb.index.facet.FacetReferenceIndex.FacetEntityTypeIndexChanges;
 import io.evitadb.index.map.TransactionalMap;
 import io.evitadb.index.set.TransactionalSet;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.FacetIndexStoragePart;
@@ -357,7 +356,7 @@ public class FacetIndex implements FacetIndexContract, TransactionalLayerProduce
 	 * This class collects changes in {@link #facetingEntities} transactional map and its sub structure.
 	 */
 	public static class FacetIndexChanges implements Snapshotable<FacetIndexChanges.FacetIndexChangesMemento> {
-		private final TransactionalContainerChanges<FacetEntityTypeIndexChanges, FacetReferenceIndex, FacetReferenceIndex> facetGroupIndexChanges = new TransactionalContainerChanges<>();
+		private final TransactionalContainerChanges<FacetReferenceIndex, FacetReferenceIndex> facetGroupIndexChanges = new TransactionalContainerChanges<>();
 
 		public void addCreatedItem(@Nonnull FacetReferenceIndex index) {
 			this.facetGroupIndexChanges.addCreatedItem(index);

@@ -41,7 +41,6 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ArgumentsSource;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -644,13 +643,13 @@ class LongRunningSavepointLeafDeltaTest implements TimeBoundedTestSupport {
 	 * @param object the integer value
 	 */
 	private record TxInteger(@Nonnull Integer object)
-		implements TransactionalObject<TxInteger, Void>,
+		implements TransactionalObject<TxInteger>,
 		VoidTransactionMemoryProducer<TxInteger>,
 		Comparable<TxInteger> {
 
 		@Nonnull
 		@Override
-		public TxInteger createCopyWithMergedTransactionalMemory(@Nullable Void layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
+		public TxInteger createCopyWithMergedTransactionalMemory(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
 			return this;
 		}
 

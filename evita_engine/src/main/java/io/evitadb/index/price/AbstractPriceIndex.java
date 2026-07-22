@@ -176,7 +176,7 @@ abstract class AbstractPriceIndex<T extends PriceListAndCurrencyPriceIndex> impl
 
 	@Override
 	public void resetDirty() {
-		for (PriceListAndCurrencyPriceIndex<?,?> priceIndex : getPriceIndexes().values()) {
+		for (PriceListAndCurrencyPriceIndex<?> priceIndex : getPriceIndexes().values()) {
 			priceIndex.resetDirty();
 		}
 	}

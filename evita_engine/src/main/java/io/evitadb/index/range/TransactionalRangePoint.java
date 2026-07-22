@@ -58,7 +58,7 @@ import java.util.Objects;
 @ThreadSafe
 @EqualsAndHashCode(of = "threshold")
 public class TransactionalRangePoint
-	implements TransactionalObject<TransactionalRangePoint, Void>,
+	implements TransactionalObject<TransactionalRangePoint>,
 	VoidTransactionMemoryProducer<TransactionalRangePoint>,
 	RangePoint<TransactionalRangePoint>,
 	TransactionalCreatorMaintainer,
@@ -171,7 +171,6 @@ public class TransactionalRangePoint
 	@Nonnull
 	@Override
 	public TransactionalRangePoint createCopyWithMergedTransactionalMemory(
-		@Nullable Void layer,
 		@Nonnull TransactionalLayerMaintainer transactionalLayer
 	) {
 		final boolean isDirty = transactionalLayer
@@ -189,7 +188,6 @@ public class TransactionalRangePoint
 
 	@Override
 	public void removeLayer(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
-		transactionalLayer.removeTransactionalMemoryLayerIfExists(this);
 		this.dirty.removeLayer(transactionalLayer);
 		this.starts.removeLayer(transactionalLayer);
 		this.ends.removeLayer(transactionalLayer);

@@ -940,7 +940,6 @@ public class HierarchyIndex
 	@Nonnull
 	@Override
 	public HierarchyIndex createCopyWithMergedTransactionalMemory(
-		@Nullable Void layer,
 		@Nonnull TransactionalLayerMaintainer transactionalLayer
 	) {
 		// we can safely throw away dirty flag now
@@ -964,7 +963,6 @@ public class HierarchyIndex
 	 */
 	@Override
 	public void removeLayer(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
-		transactionalLayer.removeTransactionalMemoryLayerIfExists(this);
 		this.dirty.removeLayer(transactionalLayer);
 		this.roots.removeLayer(transactionalLayer);
 		this.levelIndex.removeLayer(transactionalLayer);

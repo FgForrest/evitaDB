@@ -42,7 +42,6 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicReference;
 
 import static io.evitadb.test.TestTags.DATA_TYPE;
 import static io.evitadb.test.TestTags.INDEXING;
@@ -664,7 +663,6 @@ class TransactionalSetTest {
 		@Test
 		@DisplayName("equals returns true for self-reference")
 		void shouldEqualItself() {
-			//noinspection EqualsWithItself
 			assertEquals(
 				TransactionalSetTest.this.tested,
 				TransactionalSetTest.this.tested
@@ -756,51 +754,6 @@ class TransactionalSetTest {
 			assertTrue(str.startsWith("{"));
 			assertTrue(str.endsWith("}"));
 			assertFalse(str.isEmpty());
-		}
-
-	}
-
-	/**
-	 * Tests verifying clone behaviour.
-	 */
-	@Nested
-	@DisplayName("Clone")
-	class CloneTest {
-
-		@Test
-		@DisplayName("clone outside a transaction produces a copy")
-		void shouldCloneOutsideTransaction()
-			throws CloneNotSupportedException {
-
-			@SuppressWarnings("unchecked") final TransactionalSet<String> clone =
-				(TransactionalSet<String>)
-					TransactionalSetTest.this.tested.clone();
-
-			assertSetContains(clone, "a", "b");
-			assertNotSame(TransactionalSetTest.this.tested, clone);
-		}
-
-		@Test
-		@DisplayName("clone inside a transaction carries changes")
-		void shouldCloneInsideTransaction() {
-			assertStateAfterCommit(
-				TransactionalSetTest.this.tested,
-				original -> {
-					original.add("c");
-
-					try {
-						@SuppressWarnings("unchecked") final TransactionalSet<String> clone =
-							(TransactionalSet<String>) original.clone();
-						assertSetContains(clone, "a", "b", "c");
-					} catch (CloneNotSupportedException ex) {
-						fail("Clone should be supported: "
-							     + ex.getMessage());
-					}
-				},
-				(original, committedVersion) -> {
-					assertSetContains(committedVersion, "a", "b", "c");
-				}
-			);
 		}
 
 	}

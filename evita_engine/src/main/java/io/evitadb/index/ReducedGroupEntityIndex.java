@@ -851,7 +851,6 @@ public class ReducedGroupEntityIndex extends AbstractReducedEntityIndex implemen
 	@Nonnull
 	@Override
 	public ReducedGroupEntityIndex createCopyWithMergedTransactionalMemory(
-		@Nullable Void layer,
 		@Nonnull TransactionalLayerMaintainer transactionalLayer
 	) {
 		// we can safely throw away dirty flag now

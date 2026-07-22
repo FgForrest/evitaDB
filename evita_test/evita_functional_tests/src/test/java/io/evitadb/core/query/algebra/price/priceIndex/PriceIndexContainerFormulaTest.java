@@ -93,7 +93,7 @@ class PriceIndexContainerFormulaTest {
 		@Test
 		@DisplayName("should expose price index via getter")
 		void shouldExposePriceIndexViaGetter() {
-			final PriceListAndCurrencyPriceIndex<?, ?> index = createPriceIndex("basic", CZK);
+			final PriceListAndCurrencyPriceIndex<?> index = createPriceIndex("basic", CZK);
 			final PriceIndexContainerFormula formula = new PriceIndexContainerFormula(
 				index, createConstantFormula(1)
 			);
@@ -126,7 +126,7 @@ class PriceIndexContainerFormulaTest {
 		@Test
 		@DisplayName("should preserve price index in clone")
 		void shouldPreservePriceIndexInClone() {
-			final PriceListAndCurrencyPriceIndex<?, ?> index = createPriceIndex("vip", EUR);
+			final PriceListAndCurrencyPriceIndex<?> index = createPriceIndex("vip", EUR);
 			final PriceIndexContainerFormula original = new PriceIndexContainerFormula(
 				index, createConstantFormula(1, 2)
 			);
@@ -207,7 +207,7 @@ class PriceIndexContainerFormulaTest {
 	 * @return new price index instance
 	 */
 	@Nonnull
-	private static PriceListAndCurrencyPriceIndex<?, ?> createPriceIndex(
+	private static PriceListAndCurrencyPriceIndex<?> createPriceIndex(
 		@Nonnull String priceList,
 		@Nonnull Currency currency
 	) {

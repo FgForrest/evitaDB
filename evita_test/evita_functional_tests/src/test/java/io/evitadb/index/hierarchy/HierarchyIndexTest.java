@@ -27,7 +27,6 @@ import io.evitadb.api.query.order.TraversalMode;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.deferred.DeferredFormula;
-import io.evitadb.dataType.array.CompositeIntArray;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
@@ -41,14 +40,15 @@ import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
+import javax.annotation.Nullable;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -672,7 +672,7 @@ class HierarchyIndexTest implements TimeBoundedTestSupport {
 				index -> {
 					// perform no modifications
 				},
-				(orig, committed) -> assertSame(orig, committed)
+				Assertions::assertSame
 			);
 		}
 
@@ -687,7 +687,7 @@ class HierarchyIndexTest implements TimeBoundedTestSupport {
 				original -> {
 					// no changes, verifying the null layer code path
 				},
-				(original, committed) -> assertSame(original, committed)
+				Assertions::assertSame
 			);
 		}
 
@@ -806,16 +806,6 @@ class HierarchyIndexTest implements TimeBoundedTestSupport {
 			final HierarchyIndex index2 = new HierarchyIndex();
 			// each instance gets a unique id from TransactionalObjectVersion.SEQUENCE
 			assertNotEquals(index1.getId(), index2.getId());
-		}
-
-		@Test
-		@DisplayName("createLayer() throws UnsupportedOperationException")
-		void shouldThrowOnCreateLayer() {
-			final HierarchyIndex index = new HierarchyIndex();
-			assertThrows(
-				UnsupportedOperationException.class,
-				index::createLayer
-			);
 		}
 
 		@Test
@@ -1522,7 +1512,7 @@ class HierarchyIndexTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("traverseHierarchyToRoot for node not in index skips silently")
 		void shouldSilentlySkipTraverseToRootForAbsentNode() {
-			final StringBuilder visited = new StringBuilder();
+			final StringBuilder visited = new StringBuilder(128);
 			// node 999 is not in the index
 			HierarchyIndexTest.this.hierarchyIndex.traverseHierarchyToRoot(
 				(node, level, distance, childrenTraverser) -> visited.append(node.entityPrimaryKey()),
@@ -1534,7 +1524,7 @@ class HierarchyIndexTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("traverseHierarchyFromNode for absent rootNode traverses nothing")
 		void shouldTraverseNothingForAbsentRootNode() {
-			final StringBuilder visited = new StringBuilder();
+			final StringBuilder visited = new StringBuilder(128);
 			// node 999 does not exist
 			HierarchyIndexTest.this.hierarchyIndex.traverseHierarchyFromNode(
 				(node, level, distance, childrenTraverser) -> visited.append(node.entityPrimaryKey()),
@@ -1629,28 +1619,25 @@ class HierarchyIndexTest implements TimeBoundedTestSupport {
 		}
 	}
 
-	private void setHierarchyFor(HierarchyIndex hierarchyIndex, TestHierarchyNode testRoot, int entityPrimaryKey, Integer parent) {
+	private static void setHierarchyFor(
+		HierarchyIndex hierarchyIndex, TestHierarchyNode testRoot, int entityPrimaryKey, Integer parent
+	) {
 		hierarchyIndex.addNode(entityPrimaryKey, parent);
 		// first remove the node if already exists
-		if (testRoot.find(entityPrimaryKey, testRoot) != null) {
+		if (testRoot.find(entityPrimaryKey) != null) {
 			testRoot.removeNode(entityPrimaryKey, testRoot);
 		}
 		if (parent == null) {
 			testRoot.addChild(entityPrimaryKey, testRoot);
 		} else {
 			// now place it on the proper place
-			final TestHierarchyNode parentNode = testRoot.find(parent, testRoot);
+			final TestHierarchyNode parentNode = testRoot.find(parent);
 			if (parentNode == null) {
 				testRoot.addOrphan(entityPrimaryKey, parent);
 			} else {
 				parentNode.addChild(entityPrimaryKey, testRoot);
 			}
 		}
-	}
-
-	private void removeHierarchyFor(HierarchyIndex hierarchyIndex, TestHierarchyNode testRoot, int entityPrimaryKey) {
-		hierarchyIndex.removeNode(entityPrimaryKey);
-		testRoot.removeNode(entityPrimaryKey, testRoot);
 	}
 
 	@RequiredArgsConstructor
@@ -1679,56 +1666,31 @@ class HierarchyIndexTest implements TimeBoundedTestSupport {
 			placeOrphansRecursively(newNode, rootNode);
 		}
 
-		public int[] getChildrenIds() {
-			final CompositeIntArray intArray = new CompositeIntArray();
-			appendIdRecursively(this, intArray);
-			this.orphans.keySet().stream().mapToInt(it -> it).forEach(intArray::add);
-			return intArray.toArray();
-		}
-
 		public void removeNode(int nodeId, TestHierarchyNode rootNode) {
 			final TestHierarchyNode removedOrphan = rootNode.orphans.remove(nodeId);
 			if (removedOrphan == null) {
-				final TestHierarchyNode nodeInTree = find(nodeId, rootNode);
+				final TestHierarchyNode nodeInTree = find(nodeId);
 				Assert.notNull(nodeInTree, "Node " + nodeId + " not found in the tree!");
-				final TestHierarchyNode nodeParent = find(nodeInTree.getParentId(), rootNode);
+				final TestHierarchyNode nodeParent = find(nodeInTree.getParentId());
 				Assert.notNull(nodeParent, "Node parent " + nodeId + " not found in the tree!");
 				nodeParent.children.removeIf(it -> it.getId() == nodeId);
 				makeOrphansRecursively(nodeInTree, rootNode);
 			}
 		}
 
-		public boolean contains(int lookedUpId) {
-			if (this.id == lookedUpId) {
-				return true;
-			}
-			for (TestHierarchyNode child : this.children) {
-				if (child.contains(lookedUpId)) {
-					return true;
-				}
-			}
-			return false;
-		}
-
-		public TestHierarchyNode find(int nodeId, TestHierarchyNode rootNode) {
+		@Nullable
+		public TestHierarchyNode find(int nodeId) {
 			if (this.id == nodeId) {
 				return this;
 			} else {
 				for (TestHierarchyNode child : this.children) {
-					final TestHierarchyNode foundNode = child.find(nodeId, rootNode);
+					final TestHierarchyNode foundNode = child.find(nodeId);
 					if (foundNode != null) {
 						return foundNode;
 					}
 				}
 			}
 			return null;
-		}
-
-		public Collection<TestHierarchyNode> getAllChildren() {
-			final List<TestHierarchyNode> result = new LinkedList<>();
-			addChildrenRecursively(this, result);
-			result.addAll(this.orphans.values());
-			return result;
 		}
 
 		public void assertIdentical(HierarchyIndex theIndex, String errorMessage) {
@@ -1746,7 +1708,7 @@ class HierarchyIndexTest implements TimeBoundedTestSupport {
 
 		@Override
 		public String toString() {
-			final StringBuilder sb = new StringBuilder();
+			final StringBuilder sb = new StringBuilder(128);
 			toStringChildrenRecursively(this.children, 0, sb);
 			sb.append("Orphans: ").append(Arrays.toString(this.orphans.keySet().stream().mapToInt(it -> it).sorted().toArray()));
 			return sb.toString();
@@ -1756,7 +1718,8 @@ class HierarchyIndexTest implements TimeBoundedTestSupport {
 			this.orphans.put(entityPrimaryKey, new TestHierarchyNode(entityPrimaryKey, parentPrimaryKey));
 		}
 
-		private void assertIdenticalChildrenRecursively(TestHierarchyNode theNode, HierarchyIndex theIndex, String errorMessage) {
+		private static void assertIdenticalChildrenRecursively(
+			TestHierarchyNode theNode, HierarchyIndex theIndex, String errorMessage) {
 			final int[] thisChildrenIds = theNode.children.stream().mapToInt(TestHierarchyNode::getId).sorted().toArray();
 			final int[] thatChildrenIds = theIndex.listHierarchyNodesFromParentDownTo(theNode.getId(), 0).getArray();
 			assertArrayEquals(
@@ -1769,14 +1732,7 @@ class HierarchyIndexTest implements TimeBoundedTestSupport {
 			}
 		}
 
-		private void addChildrenRecursively(TestHierarchyNode node, List<TestHierarchyNode> result) {
-			result.addAll(node.children);
-			for (TestHierarchyNode child : node.children) {
-				addChildrenRecursively(child, result);
-			}
-		}
-
-		private void toStringChildrenRecursively(List<TestHierarchyNode> nodeIds, int indent, StringBuilder sb) {
+		private static void toStringChildrenRecursively(List<TestHierarchyNode> nodeIds, int indent, StringBuilder sb) {
 			nodeIds
 				.stream()
 				.sorted(Comparator.comparingInt(TestHierarchyNode::getId))
@@ -1786,7 +1742,7 @@ class HierarchyIndexTest implements TimeBoundedTestSupport {
 				});
 		}
 
-		private void makeOrphansRecursively(TestHierarchyNode nodeInTree, TestHierarchyNode rootNode) {
+		private static void makeOrphansRecursively(TestHierarchyNode nodeInTree, TestHierarchyNode rootNode) {
 			nodeInTree.getChildren()
 				.forEach(it -> {
 					rootNode.orphans.put(it.getId(), new TestHierarchyNode(it.getId(), it.getParentId()));
@@ -1795,7 +1751,7 @@ class HierarchyIndexTest implements TimeBoundedTestSupport {
 
 		}
 
-		private void placeOrphansRecursively(TestHierarchyNode newNode, TestHierarchyNode rootNode) {
+		private static void placeOrphansRecursively(TestHierarchyNode newNode, TestHierarchyNode rootNode) {
 			final Iterator<TestHierarchyNode> it = rootNode.orphans.values().iterator();
 			while (it.hasNext()) {
 				final TestHierarchyNode orphan = it.next();
@@ -1809,18 +1765,6 @@ class HierarchyIndexTest implements TimeBoundedTestSupport {
 			}
 		}
 
-		private void appendIdRecursively(TestHierarchyNode parentNode, CompositeIntArray intArray) {
-			for (TestHierarchyNode child : parentNode.getChildren()) {
-				intArray.add(child.getId());
-				appendIdRecursively(child, intArray);
-			}
-		}
-	}
-
-	private record TestState(
-		StringBuilder code,
-		HierarchyIndex initialState
-	) {
 	}
 
 }

@@ -185,11 +185,24 @@ public class TransactionalMemory {
 	 * function.
 	 */
 	public <T, U> U suppressTransactionalMemoryLayerForWithResult(@Nonnull T object, @Nonnull Function<T, U> objectConsumer) {
-		Assert.isPremiseValid(object instanceof TransactionalLayerCreator, "Object " + object.getClass() + " doesn't implement TransactionalLayerCreator interface!");
-		Assert.isPremiseValid(getTransactionalMemoryLayerIfExists((TransactionalLayerCreator<?>) object) == null, "There already exists transactional memory for passed creator!");
+		Assert.isPremiseValid(
+			object instanceof TransactionalLayerCreator || object instanceof TransactionalStateProducer,
+			"Object " + object.getClass() + " doesn't implement TransactionalLayerCreator nor TransactionalStateProducer interface!"
+		);
+		// an object that owns no diff layer has nothing to suppress for itself - only the creators it maintains have,
+		// and those are collected below. Both checks must run before the stack is pushed, so that the finally block
+		// below never pops a frame that was never pushed.
+		final TransactionalLayerCreator<?> layerCreator = object instanceof TransactionalLayerCreator<?> creator ?
+			creator : null;
+		Assert.isPremiseValid(
+			layerCreator == null || getTransactionalMemoryLayerIfExists(layerCreator) == null,
+			"There already exists transactional memory for passed creator!"
+		);
 		try {
 			final ObjectIdentityHashSet<TransactionalLayerCreator<?>> suppressedSet = new ObjectIdentityHashSet<>(16, 0.8d);
-			suppressedSet.add((TransactionalLayerCreator<?>) object);
+			if (layerCreator != null) {
+				suppressedSet.add(layerCreator);
+			}
 			if (object instanceof TransactionalCreatorMaintainer) {
 				final Collection<TransactionalLayerCreator<?>> creators = ((TransactionalCreatorMaintainer) object).getMaintainedTransactionalCreators();
 				for (TransactionalLayerCreator<?> creator : creators) {

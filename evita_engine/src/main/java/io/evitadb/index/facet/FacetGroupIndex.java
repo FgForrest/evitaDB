@@ -249,7 +249,7 @@ public class FacetGroupIndex implements TransactionalLayerProducer<FacetGroupInd
 	 * This class collects changes in {@link #facetIdIndexes} transactional map and its sub structure.
 	 */
 	public static class FacetGroupIndexChanges implements Snapshotable<FacetGroupIndexChanges.FacetGroupIndexChangesMemento> {
-		private final TransactionalContainerChanges<Void, FacetIdIndex, FacetIdIndex> items = new TransactionalContainerChanges<>();
+		private final TransactionalContainerChanges<FacetIdIndex, FacetIdIndex> items = new TransactionalContainerChanges<>();
 
 		public void addCreatedItem(@Nonnull FacetIdIndex baseIndex) {
 			this.items.addCreatedItem(baseIndex);

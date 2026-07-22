@@ -283,7 +283,7 @@ public class CatalogIndex implements
 	 * This class collects changes in {@link #uniqueIndex} transactional maps.
 	 */
 	public static class CatalogIndexChanges implements Snapshotable<CatalogIndexChanges.CatalogIndexChangesMemento> {
-		private final TransactionalContainerChanges<Void, GlobalUniqueIndex, GlobalUniqueIndex> uniqueIndexChanges = new TransactionalContainerChanges<>();
+		private final TransactionalContainerChanges<GlobalUniqueIndex, GlobalUniqueIndex> uniqueIndexChanges = new TransactionalContainerChanges<>();
 
 		public void addCreatedItem(@Nonnull GlobalUniqueIndex uniqueIndex) {
 			this.uniqueIndexChanges.addCreatedItem(uniqueIndex);
