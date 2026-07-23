@@ -113,7 +113,7 @@ public class PersistentTransactionalProducerMap<K, V> extends PersistentTransact
 		super(source);
 		Assert.isTrue(
 			TransactionalStateProducer.class.isAssignableFrom(valueType),
-			"Value type is expected to implement TransactionalLayerProducer!"
+			"Value type is expected to implement TransactionalStateProducer!"
 		);
 		this.valueType = valueType;
 		//noinspection unchecked

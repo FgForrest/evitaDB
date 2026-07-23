@@ -107,7 +107,7 @@ public class TransactionalMap<K, V> implements Map<K, V>,
 	) {
 		Assert.isTrue(
 			TransactionalStateProducer.class.isAssignableFrom(valueType),
-			"Value type is expected to implement TransactionalLayerProducer!"
+			"Value type is expected to implement TransactionalStateProducer!"
 		);
 		this.valueType = valueType;
 		this.mapDelegate = mapDelegate;

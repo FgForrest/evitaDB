@@ -343,7 +343,7 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 		super(valueBlockSize, minValueBlockSize, internalNodeBlockSize, minInternalNodeBlockSize, root, size);
 		Assert.isPremiseValid(
 			transactionalLayerWrapper != null || !TransactionalStateProducer.class.isAssignableFrom(valueType),
-			"Value type cannot implement TransactionalLayerProducer if no transactional layer wrapper is provided."
+			"Value type cannot implement TransactionalStateProducer if no transactional layer wrapper is provided."
 		);
 		this.valueType = valueType;
 		this.transactionalLayerWrapper = transactionalLayerWrapper;

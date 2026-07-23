@@ -726,7 +726,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		);
 		Assert.isPremiseValid(
 			!TransactionalStateProducer.class.isAssignableFrom(keyType),
-			"Key type cannot implement TransactionalLayerProducer."
+			"Key type cannot implement TransactionalStateProducer."
 		);
 		Assert.isPremiseValid(
 			comparator != null || Comparable.class.isAssignableFrom(keyType),

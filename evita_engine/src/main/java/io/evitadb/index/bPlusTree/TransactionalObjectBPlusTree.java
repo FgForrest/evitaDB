@@ -478,11 +478,11 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> extends Ab
 		super(valueBlockSize, minValueBlockSize, internalNodeBlockSize, minInternalNodeBlockSize, root, size);
 		Assert.isPremiseValid(
 			!TransactionalStateProducer.class.isAssignableFrom(keyType),
-			"Key type cannot implement TransactionalLayerProducer."
+			"Key type cannot implement TransactionalStateProducer."
 		);
 		Assert.isPremiseValid(
 			transactionalLayerWrapper != null || !TransactionalStateProducer.class.isAssignableFrom(valueType),
-			"Value type cannot implement TransactionalLayerProducer if no transactional layer wrapper is provided."
+			"Value type cannot implement TransactionalStateProducer if no transactional layer wrapper is provided."
 		);
 		Assert.isPremiseValid(
 			comparator != null || Comparable.class.isAssignableFrom(keyType),

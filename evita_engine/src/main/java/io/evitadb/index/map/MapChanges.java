@@ -129,7 +129,7 @@ public class MapChanges<K, V>
 	) {
 		Assert.isTrue(
 			TransactionalStateProducer.class.isAssignableFrom(valueType),
-			"Value type is expected to implement TransactionalLayerProducer!"
+			"Value type is expected to implement TransactionalStateProducer!"
 		);
 		this.mapDelegate = mapDelegate;
 		//noinspection unchecked
