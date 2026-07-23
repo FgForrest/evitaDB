@@ -96,8 +96,12 @@ public class FormulaOptimizer extends FormulaCloner implements FormulaPostProces
 				Formula optimizedSuperset = this.formulasProcessed.get(originalSuperset);
 
 				// Case 1: Superset became Empty or Null -> Result is Empty
+				// the node must be replaced by EmptyFormula, never dropped - `null` instructs the cloner to
+				// remove the child from its parent, which widens an enclosing conjunction (`A AND nothing`
+				// would degrade to `A`) instead of emptying it; EmptyFormula is the absorbing element of
+				// a conjunction and the identity element of a disjunction, so it is correct in both scopes
 				if (optimizedSuperset == null || optimizedSuperset instanceof EmptyFormula) {
-					formulaToStore = null;
+					formulaToStore = EmptyFormula.INSTANCE;
 				}
 				// Case 2: Superset exists, but Subtracted is gone (set size is 1) -> Result is Superset
 				else if (updatedChildren.size() == 1) {

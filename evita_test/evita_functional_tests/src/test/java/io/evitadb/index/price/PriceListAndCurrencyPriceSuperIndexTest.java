@@ -208,7 +208,14 @@ class PriceListAndCurrencyPriceSuperIndexTest {
 	}
 
 	/**
-	 * Tests verifying unique ID generation via `TransactionalObjectVersion.SEQUENCE`.
+	 * Tests verifying STM invariants: unique ID generation via `TransactionalObjectVersion.SEQUENCE`, layer cleanup,
+	 * and the commit-time instance-identity contract.
+	 *
+	 * The identity contract pinned by {@link #shouldReturnSameInstanceOnCleanCommit()} (clean commit returns `this`)
+	 * and {@link #shouldCreateNewInstanceOnDirtyCommit()} (dirty commit returns a new instance) is load-bearing beyond
+	 * this class: the reduced-index carry-by-reference wiring relies on super-index instance identity being an exact
+	 * "changed / unchanged" signal across a commit (a clean combo super comes back identical, a dirty one comes back
+	 * new, with no defensive-copy path in between). Do not weaken these two assertions without revisiting that design.
 	 */
 	@Nested
 	@DisplayName("STM invariants")

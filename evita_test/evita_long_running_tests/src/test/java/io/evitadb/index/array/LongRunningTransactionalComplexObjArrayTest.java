@@ -294,7 +294,7 @@ class LongRunningTransactionalComplexObjArrayTest implements TimeBoundedTestSupp
 	 */
 	@Data
 	private static class DistinctValueHolder
-		implements TransactionalObject<DistinctValueHolder, Void>,
+		implements TransactionalObject<DistinctValueHolder>,
 		VoidTransactionMemoryProducer<DistinctValueHolder>,
 		Comparable<DistinctValueHolder> {
 
@@ -309,7 +309,6 @@ class LongRunningTransactionalComplexObjArrayTest implements TimeBoundedTestSupp
 		@Nonnull
 		@Override
 		public DistinctValueHolder createCopyWithMergedTransactionalMemory(
-			Void layer,
 			@Nonnull TransactionalLayerMaintainer transactionalLayer
 		) {
 			return this;

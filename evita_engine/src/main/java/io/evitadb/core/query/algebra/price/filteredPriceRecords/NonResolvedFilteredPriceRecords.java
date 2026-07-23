@@ -55,7 +55,7 @@ public class NonResolvedFilteredPriceRecords implements FilteredPriceRecords {
 	 * {@link PriceRecordContract#internalPriceId()}. The order of price indexes is crucial the first price index
 	 * that returns non-null price will finish the lookup for particular price.
 	 */
-	private final PriceListAndCurrencyPriceIndex<?,?>[] priceIndexes;
+	private final PriceListAndCurrencyPriceIndex<?>[] priceIndexes;
 	/**
 	 * Contains the array of {@link CumulatedVirtualPriceRecord} that cannot be looked up anywhere and must be kept
 	 * the same as were previously computed.
@@ -74,7 +74,7 @@ public class NonResolvedFilteredPriceRecords implements FilteredPriceRecords {
 	public NonResolvedFilteredPriceRecords(
 		@Nonnull PriceRecordContract[] cumulatedPriceRecords,
 		@Nonnull Bitmap priceRecordsIds,
-		@Nonnull PriceListAndCurrencyPriceIndex<?,?>[] priceIndexes
+		@Nonnull PriceListAndCurrencyPriceIndex<?>[] priceIndexes
 	) {
 		this.cumulatedPriceRecords = cumulatedPriceRecords;
 		this.priceRecordsIds = priceRecordsIds;
@@ -105,7 +105,7 @@ public class NonResolvedFilteredPriceRecords implements FilteredPriceRecords {
 		final AtomicInteger resultPeek = new AtomicInteger(this.cumulatedPriceRecords.length);
 
 		final RoaringBitmapWriter<PersistentRoaringBitmap> notFound = RoaringBitmapBackedBitmap.buildWriter();
-		for (PriceListAndCurrencyPriceIndex<?,?> priceIndex : this.priceIndexes) {
+		for (PriceListAndCurrencyPriceIndex<?> priceIndex : this.priceIndexes) {
 			priceIndex.forEachPriceRecord(
 				this.priceRecordsIds,
 				priceRecordContract -> result[resultPeek.getAndIncrement()] = priceRecordContract,

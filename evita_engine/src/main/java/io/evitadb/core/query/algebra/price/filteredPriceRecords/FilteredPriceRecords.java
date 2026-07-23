@@ -255,11 +255,11 @@ public interface FilteredPriceRecords extends Serializable {
 				totalIndexCount += lazy.getPriceIndexes().length;
 			}
 		}
-		final PriceListAndCurrencyPriceIndex<?, ?>[] priceIndexes = new PriceListAndCurrencyPriceIndex[totalIndexCount];
+		final PriceListAndCurrencyPriceIndex<?>[] priceIndexes = new PriceListAndCurrencyPriceIndex[totalIndexCount];
 		int offset = 0;
 		for (final FilteredPriceRecords cachedRecord : cachedRecords) {
 			if (cachedRecord instanceof LazyEvaluatedEntityPriceRecords lazy) {
-				final PriceListAndCurrencyPriceIndex<?, ?>[] indexes = lazy.getPriceIndexes();
+				final PriceListAndCurrencyPriceIndex<?>[] indexes = lazy.getPriceIndexes();
 				System.arraycopy(indexes, 0, priceIndexes, offset, indexes.length);
 				offset += indexes.length;
 			}

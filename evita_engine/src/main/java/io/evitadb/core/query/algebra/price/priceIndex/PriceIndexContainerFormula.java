@@ -58,15 +58,15 @@ public class PriceIndexContainerFormula extends AbstractCacheableFormula impleme
 	 * Contains reference to the {@link PriceListAndCurrencyPriceIndex index} that was used for computation
 	 * of the {@link #getDelegate()} result
 	 */
-	@Getter private final PriceListAndCurrencyPriceIndex<?,?> priceIndex;
+	@Getter private final PriceListAndCurrencyPriceIndex<?> priceIndex;
 
-	public PriceIndexContainerFormula(@Nonnull PriceListAndCurrencyPriceIndex<?,?> priceIndex, @Nonnull Formula delegate) {
+	public PriceIndexContainerFormula(@Nonnull PriceListAndCurrencyPriceIndex<?> priceIndex, @Nonnull Formula delegate) {
 		super(null);
 		this.priceIndex = priceIndex;
 		this.initFields(delegate);
 	}
 
-	private PriceIndexContainerFormula(@Nullable Consumer<CacheableFormula> computationCallback, @Nonnull PriceListAndCurrencyPriceIndex<?,?> priceIndex, @Nonnull Formula delegate) {
+	private PriceIndexContainerFormula(@Nullable Consumer<CacheableFormula> computationCallback, @Nonnull PriceListAndCurrencyPriceIndex<?> priceIndex, @Nonnull Formula delegate) {
 		super(computationCallback);
 		this.priceIndex = priceIndex;
 		this.initFields(delegate);

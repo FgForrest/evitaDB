@@ -27,6 +27,7 @@ import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.dataType.Scope;
+import io.evitadb.index.EntityTypeClassifierResolver;
 import io.evitadb.test.Entities;
 import io.evitadb.test.duration.TimeArgumentProvider;
 import io.evitadb.test.duration.TimeArgumentProvider.GenerationalTestInput;
@@ -137,6 +138,7 @@ class LongRunningSavepointGlobalUniqueIndexTest implements TimeBoundedTestSuppor
 	 */
 	private static final class GlobalUniqueState {
 		private final GlobalUniqueIndex index;
+		private final EntityTypeClassifierResolver classifierResolver;
 		// value → owning record id
 		private final Map<String, Integer> valueToRecord = new HashMap<>();
 		// monotonic sequence for random unique values / record ids
@@ -146,7 +148,18 @@ class LongRunningSavepointGlobalUniqueIndexTest implements TimeBoundedTestSuppor
 
 		GlobalUniqueState(@Nonnull Random random, @Nonnull Catalog catalog) {
 			this.index = new GlobalUniqueIndex(Scope.LIVE, new AttributeKey("code"), String.class);
-			this.index.attachToCatalog(null, catalog);
+			this.classifierResolver = new EntityTypeClassifierResolver() {
+				@Override
+				public int toEntityTypePrimaryKey(@Nonnull String entityType) {
+					return catalog.getCollectionForEntityOrThrowException(entityType).getEntityTypePrimaryKey();
+				}
+
+				@Nonnull
+				@Override
+				public String toEntityTypeName(int entityTypePrimaryKey) {
+					return catalog.getCollectionForEntityPrimaryKeyOrThrowException(entityTypePrimaryKey).getEntityType();
+				}
+			};
 			final int seedOperations = 20 + random.nextInt(20);
 			for (int i = 0; i < seedOperations; i++) {
 				addRandomUniqueKey();
@@ -173,7 +186,7 @@ class LongRunningSavepointGlobalUniqueIndexTest implements TimeBoundedTestSuppor
 		void forceMutation() {
 			final int id = ++this.forcedSeq;
 			final String value = "F_" + id;
-			this.index.registerUniqueKey(value, Entities.PRODUCT, null, id);
+			this.index.registerUniqueKey(value, Entities.PRODUCT, null, id, this.classifierResolver);
 			this.valueToRecord.put(value, id);
 		}
 
@@ -183,7 +196,7 @@ class LongRunningSavepointGlobalUniqueIndexTest implements TimeBoundedTestSuppor
 		private void addRandomUniqueKey() {
 			final int id = ++this.seq;
 			final String value = "V_" + id;
-			this.index.registerUniqueKey(value, Entities.PRODUCT, null, id);
+			this.index.registerUniqueKey(value, Entities.PRODUCT, null, id, this.classifierResolver);
 			this.valueToRecord.put(value, id);
 		}
 
@@ -197,7 +210,7 @@ class LongRunningSavepointGlobalUniqueIndexTest implements TimeBoundedTestSuppor
 			final List<String> values = new ArrayList<>(this.valueToRecord.keySet());
 			final String value = values.get(random.nextInt(values.size()));
 			final int id = this.valueToRecord.remove(value);
-			this.index.unregisterUniqueKey(value, Entities.PRODUCT, null, id);
+			this.index.unregisterUniqueKey(value, Entities.PRODUCT, null, id, this.classifierResolver);
 		}
 	}
 

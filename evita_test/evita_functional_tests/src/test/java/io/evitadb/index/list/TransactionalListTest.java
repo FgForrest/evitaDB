@@ -58,7 +58,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * wrapper: isolation between transactional and non-transactional state, commit and rollback
  * semantics, the {@link io.evitadb.core.transaction.memory.TransactionalLayerProducer}
  * interface contract, all List API operations both inside and outside transactions, iterator
- * mutation behaviour, equals/hashCode, clone, and edge-case correctness.
+ * mutation behaviour, equals/hashCode, and edge-case correctness.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2018
  */
@@ -106,8 +106,8 @@ class TransactionalListTest {
 			final TransactionalList<Integer> first = new TransactionalList<>(new ArrayList<>());
 			final TransactionalList<Integer> second = new TransactionalList<>(new ArrayList<>());
 
-			// IDs are drawn from TransactionalObjectVersion.SEQUENCE which starts at Long.MIN_VALUE —
-			// never assume > 0, only assert they differ
+			// IDs are drawn from the shared TransactionalObjectVersion.SEQUENCE, so their concrete
+			// values depend on what the rest of the suite already consumed - only assert they differ
 			assertNotEquals(first.getId(), second.getId());
 		}
 
@@ -1311,7 +1311,7 @@ class TransactionalListTest {
 		@Test
 		@DisplayName("equals returns false for non-List objects")
 		void shouldNotBeEqualToNonListObject() {
-			assertNotEquals(TransactionalListTest.this.tested, "not a list");
+			assertNotEquals("not a list", TransactionalListTest.this.tested);
 			assertNotEquals(TransactionalListTest.this.tested, Integer.valueOf(1));
 		}
 
@@ -1333,59 +1333,7 @@ class TransactionalListTest {
 	}
 
 	// -------------------------------------------------------------------------
-	// Group 12: Clone
-	// -------------------------------------------------------------------------
-
-	/**
-	 * Tests verifying the {@link TransactionalList#clone()} behaviour both inside
-	 * and outside a transaction.
-	 */
-	@Nested
-	@DisplayName("Clone")
-	class CloneTest {
-
-		@Test
-		@DisplayName("clone() outside transaction produces independent list with same contents")
-		void shouldCloneOutsideTransaction() throws CloneNotSupportedException {
-			@SuppressWarnings("unchecked")
-			final TransactionalList<Integer> cloned =
-				(TransactionalList<Integer>) TransactionalListTest.this.tested.clone();
-
-			// same observable contents
-			assertListContains(cloned, 1, 2);
-			// but different object identity
-			assertNotSame(TransactionalListTest.this.tested, cloned);
-		}
-
-		@Test
-		@DisplayName("clone() inside transaction copies transactional state to the clone")
-		void shouldCloneInTransactionCopiesState() {
-			assertStateAfterCommit(
-				TransactionalListTest.this.tested,
-				original -> {
-					original.add(3);
-					original.remove(Integer.valueOf(1));
-					// the in-transaction view is [2, 3]
-					assertListContains(original, 2, 3);
-
-					try {
-						@SuppressWarnings("unchecked")
-						final TransactionalList<Integer> cloned =
-							(TransactionalList<Integer>) original.clone();
-						// clone must have the same in-transaction view
-						assertListContains(cloned, 2, 3);
-					} catch (CloneNotSupportedException ex) {
-						fail("Clone should be supported: " + ex.getMessage());
-					}
-				},
-				(original, committedVersion) -> assertListContains(committedVersion, 2, 3)
-			);
-		}
-
-	}
-
-	// -------------------------------------------------------------------------
-	// Group 13: Edge cases
+	// Group 12: Edge cases
 	// -------------------------------------------------------------------------
 
 	/**
@@ -1488,7 +1436,7 @@ class TransactionalListTest {
 	}
 
 	// -------------------------------------------------------------------------
-	// Group 14: Regression tests
+	// Group 13: Regression tests
 	// -------------------------------------------------------------------------
 
 	/**
@@ -1626,7 +1574,7 @@ class TransactionalListTest {
 	}
 
 	// -------------------------------------------------------------------------
-	// Group 15: Bug-fix regression tests
+	// Group 14: Bug-fix regression tests
 	// -------------------------------------------------------------------------
 
 	/**
@@ -1758,10 +1706,6 @@ class TransactionalListTest {
 
 	}
 
-	// -------------------------------------------------------------------------
-	// Group 16: Generational proof test
-	// -------------------------------------------------------------------------
-
 	/**
 	 * Asserts that `list` contains exactly `recordIds` (in order) and that all standard
 	 * List access methods agree: size, element-by-index, contains, forward and backward
@@ -1770,7 +1714,7 @@ class TransactionalListTest {
 	 * @param list      the list to verify — must be non-null
 	 * @param recordIds expected contents in order
 	 */
-	private void assertListContains(@Nonnull List<Integer> list, int... recordIds) {
+	private static void assertListContains(@Nonnull List<Integer> list, int... recordIds) {
 		final String errorMessage = "\nExpected: " + Arrays.toString(recordIds) +
 			"\nActual:   [" + list.stream().map(Object::toString).collect(Collectors.joining(", ")) + "]";
 

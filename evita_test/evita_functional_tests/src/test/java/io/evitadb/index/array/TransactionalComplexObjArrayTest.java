@@ -27,7 +27,6 @@ import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
 import io.evitadb.utils.Assert;
 import lombok.Data;
-import org.apache.commons.lang3.ArrayUtils;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
@@ -40,7 +39,6 @@ import java.util.Comparator;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 import java.util.TreeSet;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -1129,7 +1127,7 @@ class TransactionalComplexObjArrayTest {
 	}
 
 	/**
-	 * Tests verifying the {@link TransactionalComplexObjArray#addReturningIndex(T)} method
+	 * Tests verifying the {@link TransactionalComplexObjArray#addReturningIndex(TransactionalObject)} method
 	 * which adds an element and returns the position where it was placed.
 	 */
 	@Nested
@@ -1649,25 +1647,8 @@ class TransactionalComplexObjArrayTest {
 	 * @param object the wrapped integer value
 	 */
 	private record NonProducerTransactionalInteger(Integer object)
-		implements TransactionalObject<NonProducerTransactionalInteger, Void>,
+		implements TransactionalObject<NonProducerTransactionalInteger>,
 		Comparable<NonProducerTransactionalInteger> {
-
-		@Override
-		public long getId() {
-			return 1L;
-		}
-
-		@Override
-		public Void createLayer() {
-			return null;
-		}
-
-		@Override
-		public void removeLayer(
-			@Nonnull TransactionalLayerMaintainer transactionalLayer
-		) {
-			// no-op
-		}
 
 		@Override
 		public int compareTo(@Nonnull NonProducerTransactionalInteger o) {
@@ -1688,14 +1669,13 @@ class TransactionalComplexObjArrayTest {
 	 * @param object the wrapped integer value
 	 */
 	private record TransactionalInteger(Integer object)
-		implements TransactionalObject<TransactionalInteger, Void>,
+		implements TransactionalObject<TransactionalInteger>,
 		VoidTransactionMemoryProducer<TransactionalInteger>,
 		Comparable<TransactionalInteger> {
 
 		@Nonnull
 		@Override
 		public TransactionalInteger createCopyWithMergedTransactionalMemory(
-			Void layer,
 			@Nonnull TransactionalLayerMaintainer transactionalLayer
 		) {
 			return this;
@@ -1727,7 +1707,7 @@ class TransactionalComplexObjArrayTest {
 	 */
 	@Data
 	private static class DistinctValueHolder
-		implements TransactionalObject<DistinctValueHolder, Void>,
+		implements TransactionalObject<DistinctValueHolder>,
 		VoidTransactionMemoryProducer<DistinctValueHolder>,
 		Comparable<DistinctValueHolder> {
 
@@ -1742,7 +1722,6 @@ class TransactionalComplexObjArrayTest {
 		@Nonnull
 		@Override
 		public DistinctValueHolder createCopyWithMergedTransactionalMemory(
-			Void layer,
 			@Nonnull TransactionalLayerMaintainer transactionalLayer
 		) {
 			return this;
@@ -1817,7 +1796,7 @@ class TransactionalComplexObjArrayTest {
 	 * can have a different runtime class from the component type.
 	 */
 	private static class BaseTransactionalObj
-		implements TransactionalObject<BaseTransactionalObj, Void>,
+		implements TransactionalObject<BaseTransactionalObj>,
 		VoidTransactionMemoryProducer<BaseTransactionalObj>,
 		Comparable<BaseTransactionalObj> {
 
@@ -1830,7 +1809,6 @@ class TransactionalComplexObjArrayTest {
 		@Nonnull
 		@Override
 		public BaseTransactionalObj createCopyWithMergedTransactionalMemory(
-			Void layer,
 			@Nonnull TransactionalLayerMaintainer transactionalLayer
 		) {
 			return this;

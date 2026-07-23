@@ -25,11 +25,7 @@ package io.evitadb.index.price;
 
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
-import io.evitadb.core.catalog.Catalog;
 import io.evitadb.dataType.Scope;
-import io.evitadb.index.EntityIndexKey;
-import io.evitadb.index.EntityIndexType;
-import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.price.model.PriceIndexKey;
 import io.evitadb.test.duration.TimeArgumentProvider;
 import io.evitadb.test.duration.TimeArgumentProvider.GenerationalTestInput;
@@ -38,8 +34,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ArgumentsSource;
-import org.mockito.ArgumentMatchers;
-import org.mockito.Mockito;
 
 import javax.annotation.Nonnull;
 import java.util.ArrayList;
@@ -48,7 +42,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
 
@@ -67,8 +60,8 @@ import static io.evitadb.utils.AssertionUtils.assertSavepointRollbackRestores;
  * contents (each price key mapped to its child index contents) via
  * {@link LongRunningPriceRefIndexTest#snapshot(PriceRefIndex)}.
  *
- * Each generation seeds a fresh random non-empty ref index outside any transaction (attached to a mocked catalog that
- * resolves a super index pre-populated with a fixed price pool), then within one real transaction applies a random
+ * Each generation seeds a fresh random non-empty ref index outside any transaction (wired to a super-index resolver
+ * backed by a super index pre-populated with a fixed price pool), then within one real transaction applies a random
  * baseline batch of price mutations (standing for *prior* entities in the same transaction — these must SURVIVE the
  * savepoint rollback), opens a savepoint, applies a random in-savepoint batch preceded by a guaranteed-visible marker
  * mutation (standing for the *failing* entity — these must be REVERTED on rollback / KEPT on commit), and asserts the
@@ -143,8 +136,8 @@ class LongRunningSavepointPriceRefIndexTest implements TimeBoundedTestSupport {
 	}
 
 	/**
-	 * A {@link PriceRefIndex} attached to a mocked catalog resolving a {@link PriceSuperIndex} pre-populated with a fixed
-	 * price pool, paired with an in-test model (`tracked`: price key → internal price ids currently in the ref) so
+	 * A {@link PriceRefIndex} wired to a super-index resolver backed by a {@link PriceSuperIndex} pre-populated with a
+	 * fixed price pool, paired with an in-test model (`tracked`: price key → internal price ids currently in the ref) so
 	 * randomized mutations can be generated that keep the model and index in lockstep. Every internal price id maps to a
 	 * single price key and is used as both the entity primary key and the price id (matching the sibling proof's
 	 * convention), so every add uses a fresh slot. The pool (and a reserved block for forced mutations) is added to the
@@ -286,22 +279,13 @@ class LongRunningSavepointPriceRefIndexTest implements TimeBoundedTestSupport {
 		}
 
 		/**
-		 * Builds a {@link PriceRefIndex} attached to a mocked catalog that resolves the passed super index through the
-		 * standard `Catalog -> GlobalEntityIndex -> PriceSuperIndex` chain (no prices are added to the ref here).
+		 * Builds a {@link PriceRefIndex} wired to a super-index resolver backed by the passed super index (no prices are
+		 * added to the ref here).
 		 */
 		@Nonnull
 		private static PriceRefIndex attach(@Nonnull PriceSuperIndex superIndex) {
 			final PriceRefIndex refIndex = new PriceRefIndex(SCOPE);
-			final GlobalEntityIndex mockGlobalIndex = Mockito.mock(GlobalEntityIndex.class);
-			Mockito.when(mockGlobalIndex.getPriceIndex(ArgumentMatchers.any(PriceIndexKey.class)))
-				.thenAnswer(inv -> superIndex.getPriceIndex(inv.getArgument(0)));
-			final Catalog mockCatalog = Mockito.mock(Catalog.class);
-			Mockito.when(mockCatalog.getEntityIndexIfExists(
-				ArgumentMatchers.eq(ENTITY_TYPE),
-				ArgumentMatchers.eq(new EntityIndexKey(EntityIndexType.GLOBAL, SCOPE)),
-				ArgumentMatchers.eq(GlobalEntityIndex.class)
-			)).thenReturn(Optional.of(mockGlobalIndex));
-			refIndex.attachToCatalog(ENTITY_TYPE, mockCatalog);
+			refIndex.wireSuperIndexes(superIndex::getPriceIndex);
 			return refIndex;
 		}
 	}

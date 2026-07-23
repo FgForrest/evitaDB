@@ -32,6 +32,7 @@ import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.dataType.Scope;
 import io.evitadb.function.Functions;
+import io.evitadb.index.EntityTypeClassifierResolver;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.spi.store.catalog.persistence.storageParts.DeferredRemovalStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor;
@@ -148,6 +149,20 @@ class GlobalUniqueIndexPagingRoundTripTest implements EvitaTestSupport {
 	private static final Consumer<Optional<OffsetDateTime>> NO_OP_OLDEST_RECORD_CALLBACK = Functions.noOpConsumer();
 
 	private final Catalog catalog = Mockito.mock(Catalog.class);
+	private final EntityTypeClassifierResolver classifierResolver = new EntityTypeClassifierResolver() {
+		@Override
+		public int toEntityTypePrimaryKey(@Nonnull String entityType) {
+			return GlobalUniqueIndexPagingRoundTripTest.this.catalog
+				.getCollectionForEntityOrThrowException(entityType).getEntityTypePrimaryKey();
+		}
+
+		@Nonnull
+		@Override
+		public String toEntityTypeName(int entityTypePrimaryKey) {
+			return GlobalUniqueIndexPagingRoundTripTest.this.catalog
+				.getCollectionForEntityPrimaryKeyOrThrowException(entityTypePrimaryKey).getEntityType();
+		}
+	};
 	private final OffsetIndexRecordTypeRegistry recordRegistry = new OffsetIndexRecordTypeRegistry();
 	private final StorageSettings storageSettings = new StorageSettings(
 		StorageOptions.temporary(), TransactionOptions.builder().build()
@@ -177,16 +192,15 @@ class GlobalUniqueIndexPagingRoundTripTest implements EvitaTestSupport {
 	void shouldRoundTripPagedGlobalUniqueIndexThroughOffsetIndex() {
 		final AttributeKey attributeKey = new AttributeKey("url", Locale.ENGLISH);
 		final GlobalUniqueIndex source = new GlobalUniqueIndex(Scope.LIVE, attributeKey, String.class);
-		source.attachToCatalog(null, this.catalog);
 		// register enough distinct URL-slug keys (alternating two locales) to force the value tree to span many leaves
 		for (int i = 0; i < KEY_COUNT; i++) {
 			final Locale locale = (i % 2 == 0) ? Locale.ENGLISH : Locale.FRENCH;
-			source.registerUniqueKey(keyForIndex(i), ENTITY_TYPE, locale, i + 1);
+			source.registerUniqueKey(keyForIndex(i), ENTITY_TYPE, locale, i + 1, this.classifierResolver);
 		}
 		assertTrue(source.isPaged(), "the index must span multiple leaves to exercise the paged layout");
 
 		final GlobalUniqueIndex.InlineSnapshot expectedSnapshot = source.inlineSnapshot();
-		final Bitmap expectedRecordIds = source.getRecordIds(ENTITY_TYPE);
+		final Bitmap expectedRecordIds = source.getRecordIds(ENTITY_TYPE, this.classifierResolver);
 
 		// collect the granular emission (leaf pages + paged root; no freed-page removals on a first flush)
 		final TrappedChanges trappedChanges = new TrappedChanges();
@@ -230,7 +244,6 @@ class GlobalUniqueIndexPagingRoundTripTest implements EvitaTestSupport {
 				orderedPageSequences, perPageValues, perPagePayloads,
 				root.getHighWaterPageSequence(), root.getLocaleIndex()
 			);
-			restored.attachToCatalog(null, this.catalog);
 
 			// every value -> packed (entityType, pk, locale) payload survives the page round-trip, in identical key order
 			final GlobalUniqueIndex.InlineSnapshot restoredSnapshot = restored.inlineSnapshot();
@@ -238,16 +251,16 @@ class GlobalUniqueIndexPagingRoundTripTest implements EvitaTestSupport {
 			assertArrayEquals(expectedSnapshot.payloads(), restoredSnapshot.payloads(), "payload column must round-trip identically");
 			// the per-entity-type record set (rebuilt by unpacking every payload) matches
 			assertEquals(
-				expectedRecordIds.getArray().length, restored.getRecordIds(ENTITY_TYPE).getArray().length,
+				expectedRecordIds.getArray().length, restored.getRecordIds(ENTITY_TYPE, this.classifierResolver).getArray().length,
 				"per-type record cardinality must round-trip"
 			);
 			assertTrue(
-				restored.getRecordIds(ENTITY_TYPE).contains(1) && restored.getRecordIds(ENTITY_TYPE).contains(KEY_COUNT),
+				restored.getRecordIds(ENTITY_TYPE, this.classifierResolver).contains(1) && restored.getRecordIds(ENTITY_TYPE, this.classifierResolver).contains(KEY_COUNT),
 				"per-type record set must contain the boundary primary keys"
 			);
 			// a spot-check that a localized lookup resolves to the expected entity reference
 			final EntityReferenceWithLocale resolved =
-				restored.getEntityReferenceByUniqueValue(keyForIndex(0), Locale.ENGLISH).orElseThrow();
+				restored.getEntityReferenceByUniqueValue(keyForIndex(0), Locale.ENGLISH, this.classifierResolver).orElseThrow();
 			assertEquals(ENTITY_TYPE, resolved.getType());
 			assertEquals(1, resolved.getPrimaryKey());
 			assertEquals(Locale.ENGLISH, resolved.locale());
@@ -264,10 +277,9 @@ class GlobalUniqueIndexPagingRoundTripTest implements EvitaTestSupport {
 		final AttributeKey attributeKey = new AttributeKey("code");
 		// a small index stays in the inline SINGLE shape (a single embedded leaf): register a handful of non-localized keys
 		final GlobalUniqueIndex source = new GlobalUniqueIndex(Scope.LIVE, attributeKey, String.class);
-		source.attachToCatalog(null, this.catalog);
-		source.registerUniqueKey("alpha", ENTITY_TYPE, null, 1);
-		source.registerUniqueKey("beta", ENTITY_TYPE, null, 2);
-		source.registerUniqueKey("gamma", ENTITY_TYPE, null, 3);
+		source.registerUniqueKey("alpha", ENTITY_TYPE, null, 1, this.classifierResolver);
+		source.registerUniqueKey("beta", ENTITY_TYPE, null, 2, this.classifierResolver);
+		source.registerUniqueKey("gamma", ENTITY_TYPE, null, 3, this.classifierResolver);
 		assertFalse(source.isPaged(), "a small index must stay in the inline SINGLE shape");
 
 		final GlobalUniqueIndex.InlineSnapshot expectedSnapshot = source.inlineSnapshot();
@@ -296,12 +308,11 @@ class GlobalUniqueIndexPagingRoundTripTest implements EvitaTestSupport {
 			final GlobalUniqueIndex restored = new GlobalUniqueIndex(
 				Scope.LIVE, attributeKey, String.class, root.getValues(), root.getPayloads(), root.getLocaleIndex()
 			);
-			restored.attachToCatalog(null, this.catalog);
 
 			final GlobalUniqueIndex.InlineSnapshot restoredSnapshot = restored.inlineSnapshot();
 			assertArrayEquals(expectedSnapshot.values(), restoredSnapshot.values(), "inline value column must round-trip identically");
 			assertArrayEquals(expectedSnapshot.payloads(), restoredSnapshot.payloads(), "inline payload column must round-trip identically");
-			assertEquals(3, restored.getRecordIds(ENTITY_TYPE).getArray().length, "per-type record set must be rebuilt from the inline columns");
+			assertEquals(3, restored.getRecordIds(ENTITY_TYPE, this.classifierResolver).getArray().length, "per-type record set must be rebuilt from the inline columns");
 		} finally {
 			if (reloaded != null) {
 				IOUtils.closeQuietly(reloaded::close);
@@ -316,9 +327,8 @@ class GlobalUniqueIndexPagingRoundTripTest implements EvitaTestSupport {
 		// a single locale keeps the packed payload column deterministic, so the surviving payloads can be asserted
 		// byte-identical to the directly-built oracle below
 		final GlobalUniqueIndex source = new GlobalUniqueIndex(Scope.LIVE, attributeKey, String.class);
-		source.attachToCatalog(null, this.catalog);
 		for (int i = 0; i < MERGE_KEY_COUNT; i++) {
-			source.registerUniqueKey(keyForIndex(i), ENTITY_TYPE, Locale.ENGLISH, i + 1);
+			source.registerUniqueKey(keyForIndex(i), ENTITY_TYPE, Locale.ENGLISH, i + 1, this.classifierResolver);
 		}
 		assertTrue(source.isPaged(), "the index must span multiple leaves to exercise the paged layout");
 
@@ -342,11 +352,10 @@ class GlobalUniqueIndexPagingRoundTripTest implements EvitaTestSupport {
 			assertTrue(firstRoot.isPaged(), "the index must be paged before the merge");
 			final int[] liveBeforeMerge = firstRoot.getLeafPageSequences();
 			final GlobalUniqueIndex restored = loadPagedIndex(offsetIndex, PERSISTED_VERSION, attributeKey, streamId, firstRoot);
-			restored.attachToCatalog(null, this.catalog);
 
 			// merge: drop a long contiguous run of keys so at least one leaf empties and merges into a sibling
 			for (int i = MERGE_REMOVE_FROM; i < MERGE_REMOVE_TO; i++) {
-				restored.unregisterUniqueKey(keyForIndex(i), ENTITY_TYPE, Locale.ENGLISH, i + 1);
+				restored.unregisterUniqueKey(keyForIndex(i), ENTITY_TYPE, Locale.ENGLISH, i + 1, this.classifierResolver);
 			}
 			assertTrue(restored.isPaged(), "the shrunken index must still span multiple leaves (PAGED -> PAGED)");
 
@@ -413,14 +422,12 @@ class GlobalUniqueIndexPagingRoundTripTest implements EvitaTestSupport {
 			}
 
 			final GlobalUniqueIndex reloaded = loadPagedIndex(reopened, SECOND_VERSION, attributeKey, streamId, finalRoot);
-			reloaded.attachToCatalog(null, this.catalog);
 
 			// an index built directly from only the surviving values is the oracle
 			final GlobalUniqueIndex expected = new GlobalUniqueIndex(Scope.LIVE, attributeKey, String.class);
-			expected.attachToCatalog(null, this.catalog);
 			for (int i = 0; i < MERGE_KEY_COUNT; i++) {
 				if (i < MERGE_REMOVE_FROM || i >= MERGE_REMOVE_TO) {
-					expected.registerUniqueKey(keyForIndex(i), ENTITY_TYPE, Locale.ENGLISH, i + 1);
+					expected.registerUniqueKey(keyForIndex(i), ENTITY_TYPE, Locale.ENGLISH, i + 1, this.classifierResolver);
 				}
 			}
 
@@ -435,7 +442,8 @@ class GlobalUniqueIndexPagingRoundTripTest implements EvitaTestSupport {
 				"the surviving payload column must match the oracle built from only the surviving values"
 			);
 			assertArrayEquals(
-				expected.getRecordIds(ENTITY_TYPE).getArray(), reloaded.getRecordIds(ENTITY_TYPE).getArray(),
+				expected.getRecordIds(ENTITY_TYPE, this.classifierResolver).getArray(),
+				reloaded.getRecordIds(ENTITY_TYPE, this.classifierResolver).getArray(),
 				"the surviving per-type record set must match the oracle"
 			);
 		} finally {
@@ -454,9 +462,8 @@ class GlobalUniqueIndexPagingRoundTripTest implements EvitaTestSupport {
 		// published one, which stays empty for the whole warm-up and would silently reclaim NOTHING.
 		final AttributeKey attributeKey = new AttributeKey("url", Locale.ENGLISH);
 		final GlobalUniqueIndex index = new GlobalUniqueIndex(Scope.LIVE, attributeKey, String.class);
-		index.attachToCatalog(null, this.catalog);
 		for (int i = 0; i < COLLAPSE_KEY_COUNT; i++) {
-			index.registerUniqueKey(keyForIndex(i), ENTITY_TYPE, Locale.ENGLISH, i + 1);
+			index.registerUniqueKey(keyForIndex(i), ENTITY_TYPE, Locale.ENGLISH, i + 1, this.classifierResolver);
 		}
 		assertTrue(index.isPaged(), "the index must span multiple leaves to exercise the paged layout");
 
@@ -491,7 +498,7 @@ class GlobalUniqueIndexPagingRoundTripTest implements EvitaTestSupport {
 		// collapse the SAME in-memory index — NO reload in between, exactly what a warm-up catalog does: drop all but a
 		// handful of keys so the survivors fit within a single leaf
 		for (int i = COLLAPSE_KEEP; i < COLLAPSE_KEY_COUNT; i++) {
-			index.unregisterUniqueKey(keyForIndex(i), ENTITY_TYPE, Locale.ENGLISH, i + 1);
+			index.unregisterUniqueKey(keyForIndex(i), ENTITY_TYPE, Locale.ENGLISH, i + 1, this.classifierResolver);
 		}
 		assertFalse(index.isPaged(), "an index that fits a single leaf must collapse out of the PAGED shape");
 

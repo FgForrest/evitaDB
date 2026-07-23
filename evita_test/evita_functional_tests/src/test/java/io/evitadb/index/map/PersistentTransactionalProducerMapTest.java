@@ -566,50 +566,6 @@ class PersistentTransactionalProducerMapTest {
 	}
 
 	/**
-	 * Clone hygiene: cloning inside a transaction must carry this map's diff state — including the producer-specific
-	 * `valueMutatedKeys` set ({@link ProducerMapChanges#copyState}) — into the clone's own layer, and the clone must be an
-	 * independent instance.
-	 */
-	@Nested
-	@DisplayName("Clone")
-	class CloneTest {
-
-		@Test
-		@DisplayName("clone inside a transaction copies the diff state (incl. marked keys) into an independent instance")
-		void shouldCarryMarkingStateOnCloneInsideTransaction() {
-			final Map<String, CountingProducer> seed = seed(new String[]{"a", "b"}, new int[]{1, 2});
-			final PersistentTransactionalProducerMap<String, CountingProducer> map = mapOf(seed);
-
-			assertStateAfterCommit(
-				map,
-				original -> {
-					original.put("c", new CountingProducer(3));
-					// mark (without a per-instance mutation, so no shared layer is double-swept) → copyState must carry
-					// the valueMutatedKeys set into the clone's layer, exercising the producer-specific override
-					original.markValueMutated("a");
-					try {
-						@SuppressWarnings("unchecked")
-						final PersistentTransactionalProducerMap<String, CountingProducer> clone =
-							(PersistentTransactionalProducerMap<String, CountingProducer>) original.clone();
-						// the clone is an independent instance that sees the in-transaction membership
-						assertNotSame(original, clone);
-						assertTrue(clone.containsKey("a"));
-						assertTrue(clone.containsKey("b"));
-						assertTrue(clone.containsKey("c"));
-					} catch (CloneNotSupportedException ex) {
-						throw new IllegalStateException("Clone should be supported!", ex);
-					}
-				},
-				(original, committed) -> {
-					assertEquals(1, committed.get("a").committedValue());
-					assertEquals(2, committed.get("b").committedValue());
-					assertEquals(3, committed.get("c").committedValue());
-				}
-			);
-		}
-	}
-
-	/**
 	 * Minimal {@link TransactionalLayerProducer} that mirrors the identity-preservation contract of the real
 	 * attribute-index producers: an untouched instance merges to itself (`this`), a touched one to a fresh instance
 	 * carrying the new value. Its diff layer is an `int[]{newValue, touchedFlag}`.

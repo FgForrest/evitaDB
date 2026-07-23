@@ -26,6 +26,7 @@ package io.evitadb.index.array;
 import io.evitadb.core.transaction.Transaction;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
+import io.evitadb.core.transaction.memory.TransactionalStateProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.dataType.iterator.ConstantObjIterator;
 import io.evitadb.utils.ArrayUtils;
@@ -67,7 +68,7 @@ import static java.util.Optional.ofNullable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2019
  */
 public class TransactionalComplexObjArray<
-	T extends TransactionalObject<T, ?> & Comparable<T>>
+	T extends TransactionalObject<T> & Comparable<T>>
 	implements TransactionalLayerProducer<
 	ComplexObjArrayChanges<T>, T[]>, Serializable {
 	@Serial private static final long serialVersionUID = 1929748392138616409L;
@@ -107,7 +108,7 @@ public class TransactionalComplexObjArray<
 		//noinspection unchecked
 		this.objectType = (Class<T>) delegate.getClass().getComponentType();
 		this.transactionalLayerProducer =
-			TransactionalLayerProducer.class
+			TransactionalStateProducer.class
 				.isAssignableFrom(this.objectType);
 		this.delegate = delegate;
 		this.producer = null;
@@ -163,7 +164,7 @@ public class TransactionalComplexObjArray<
 		//noinspection unchecked
 		this.objectType = (Class<T>) delegate.getClass().getComponentType();
 		this.transactionalLayerProducer =
-			TransactionalLayerProducer.class
+			TransactionalStateProducer.class
 				.isAssignableFrom(this.objectType);
 		this.delegate = delegate;
 		this.producer = producer;
@@ -441,12 +442,11 @@ public class TransactionalComplexObjArray<
 			for (int i = 0; i < this.delegate.length; i++) {
 				T item = this.delegate[i];
 				if (this.transactionalLayerProducer) {
-					@SuppressWarnings("unchecked") final TransactionalLayerProducer<ComplexObjArrayChanges<T>, ?> theProducer =
-						(TransactionalLayerProducer<ComplexObjArrayChanges<T>, ?>) item;
+					// the element may own a diff layer or not - either way it resolves its own committed form, so the
+					// layer must not be passed in from here (it belongs to this array, never to the element)
+					final TransactionalStateProducer<?> theProducer = (TransactionalStateProducer<?>) item;
 					//noinspection unchecked
-					item = (T) theProducer.createCopyWithMergedTransactionalMemory(
-						null, transactionalLayer
-					);
+					item = (T) theProducer.createCopyWithMergedTransactionalMemory(transactionalLayer);
 				}
 				copy[i] = item;
 			}

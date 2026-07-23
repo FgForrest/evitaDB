@@ -38,7 +38,7 @@ import static io.evitadb.core.transaction.Transaction.suppressTransactionalMemor
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2019
  */
-class TransactionalComplexObjArrayIterator<T extends TransactionalObject<T, ?> & Comparable<T>>
+class TransactionalComplexObjArrayIterator<T extends TransactionalObject<T> & Comparable<T>>
 	implements Iterator<T> {
 	/**
 	 * Contains reference to original immutable array of objects.

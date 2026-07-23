@@ -23,14 +23,10 @@
 
 package io.evitadb.index.attribute;
 
-import io.evitadb.api.CatalogState;
 import io.evitadb.api.exception.UniqueValueViolationException;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.core.buffer.TrappedChanges;
-import io.evitadb.core.catalog.Catalog;
-import io.evitadb.core.catalog.CatalogRelatedDataStructure;
-import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
@@ -41,6 +37,7 @@ import io.evitadb.dataType.Scope;
 import io.evitadb.dataType.array.CompositeLongArray;
 import io.evitadb.dataType.array.CompositeObjectArray;
 import io.evitadb.index.CatalogIndex;
+import io.evitadb.index.EntityTypeClassifierResolver;
 import io.evitadb.index.IndexDataStructure;
 import io.evitadb.index.bPlusTree.LongPayloadBucketTree;
 import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree;
@@ -78,7 +75,7 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.OptionalLong;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
@@ -112,8 +109,7 @@ import static java.util.Optional.ofNullable;
 @SuppressWarnings({"rawtypes", "unchecked"})
 public class GlobalUniqueIndex implements
 	VoidTransactionMemoryProducer<GlobalUniqueIndex>,
-	IndexDataStructure,
-	CatalogRelatedDataStructure<GlobalUniqueIndex>
+	IndexDataStructure
 {
 	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 	/**
@@ -183,22 +179,6 @@ public class GlobalUniqueIndex implements
 	 * The sequence starts with the highest assigned id found in {@link #localeToIdIndex} in constructor.
 	 */
 	private final AtomicInteger localePkSequence = new AtomicInteger();
-	/**
-	 * Contains reference to the current catalog instance.
-	 * Beware this reference changes with each entity collection exchange during transactional commit.
-	 * The reference is used to translate {@link EntityCollection#getEntityType()} to {@link EntityCollection#getEntityTypePrimaryKey()}
-	 * and vice versa. We want to use short int ids in {@link EntityWithTypeTuple} so that we save a few bytes for object
-	 * pointer.
-	 */
-	private Catalog catalog;
-	/**
-	 * Maps entity type primary key to entity type name.
-	 */
-	private final Map<Integer, String> primaryKeyToEntityType = new ConcurrentHashMap<>();
-	/**
-	 * Maps entity type name to entity type primary key.
-	 */
-	private final Map<String, Integer> entityTypeToPk = new ConcurrentHashMap<>();
 
 	/**
 	 * Creates a fresh, empty value tree (long payload column holding the packed entity tuple) ordered by the given
@@ -371,9 +351,9 @@ public class GlobalUniqueIndex implements
 		this.pageStreamRegistry = new PageStreamRegistry();
 		seedTree(values, payloads);
 		this.idToLocaleIndex = new TransactionalMap<>(localeIndex);
+		primeLocaleSequence(localeIndex.keySet());
 		this.localeToIdIndex = new TransactionalMap<>(
 			localeIndex.entrySet().stream()
-				.peek(it -> this.localePkSequence.getAndUpdate(currentValue -> currentValue < it.getKey() ? it.getKey() : currentValue))
 				.collect(
 					Collectors.toMap(
 						Entry::getValue,
@@ -424,9 +404,9 @@ public class GlobalUniqueIndex implements
 		this.pageStreamRegistry = pageStreamRegistry;
 		this.entitiesPerType = new TransactionalMap<>(entitiesPerType, TransactionalBitmap.class, TransactionalBitmap::new);
 		this.idToLocaleIndex = new TransactionalMap<>(localeIndex);
+		primeLocaleSequence(localeIndex.keySet());
 		this.localeToIdIndex = new TransactionalMap<>(
 			localeIndex.entrySet().stream()
-				.peek(it -> this.localePkSequence.getAndUpdate(currentValue -> currentValue < it.getKey() ? it.getKey() : currentValue))
 				.collect(
 					Collectors.toMap(
 						Entry::getValue,
@@ -437,92 +417,44 @@ public class GlobalUniqueIndex implements
 	}
 
 	/**
-	 * Adopts already-wrapped transactional structures directly instead of re-wrapping plain maps. Used by
-	 * {@link #createCopyForNewCatalogAttachment(CatalogState)} to produce a detached copy that shares the same
-	 * transactional backing structures while resetting the catalog reference.
+	 * Primes {@link #localePkSequence} so the next locale registered through {@link #fromLocale} receives an id past
+	 * every id already present in the adopted locale map. The sequence must start past the highest adopted locale id;
+	 * otherwise a newly seen locale would be handed an id that already belongs to another locale, overwriting it in the
+	 * shared reverse map and corrupting locale decoding of every tuple that carries the clobbered id.
 	 *
-	 * @param scope           scope of the owning {@link CatalogIndex}
-	 * @param attributeKey    identifies the indexed attribute (name and optional locale)
-	 * @param attributeType   runtime type of the indexed attribute value
-	 * @param tree            value to entity tuple tree to adopt
-	 * @param pageStreamRegistry the catalog-resident page bookkeeping, carried BY REFERENCE (shares the same `tree`)
-	 * @param entitiesPerType per-entity-type record id bitmaps to adopt
-	 * @param localeToIdIndex {@link Locale} to internal locale id mapping to adopt
-	 * @param idToLocaleIndex reverse internal locale id to {@link Locale} mapping to adopt
+	 * @param assignedLocaleIds the internal locale ids already in use (keys of the id to {@link Locale} map)
 	 */
-	private GlobalUniqueIndex(
-		@Nonnull Scope scope,
-		@Nonnull AttributeKey attributeKey,
-		@Nonnull Class<? extends Serializable> attributeType,
-		@Nonnull LongPayloadBucketTree tree,
-		@Nonnull PageStreamRegistry pageStreamRegistry,
-		@Nonnull TransactionalMap<Integer, TransactionalBitmap> entitiesPerType,
-		@Nonnull TransactionalMap<Locale, Integer> localeToIdIndex,
-		@Nonnull TransactionalMap<Integer, Locale> idToLocaleIndex
-	) {
-		this.attributeKey = attributeKey;
-		this.scope = scope;
-		this.type = attributeType;
-		this.dirty = new TransactionalBoolean();
-		this.plainType = plainTypeOf(attributeType);
-		this.comparator = comparatorFor(this.plainType);
-		this.tree = tree;
-		this.pageStreamRegistry = pageStreamRegistry;
-		this.entitiesPerType = entitiesPerType;
-		this.localeToIdIndex = localeToIdIndex;
-		this.idToLocaleIndex = idToLocaleIndex;
-	}
-
-	/**
-	 * Captures the catalog reference needed to translate between entity type names and their short int primary keys
-	 * (see {@link #catalog}). Enforces single attachment: the index must not already be bound to a catalog.
-	 */
-	@Override
-	public void attachToCatalog(@Nullable String entityType, @Nonnull Catalog catalog) {
-		Assert.isPremiseValid(this.catalog == null, "Catalog was already attached to this index!");
-		this.catalog = catalog;
-	}
-
-	/**
-	 * Produces a detached copy that shares the same transactional backing structures but carries no catalog reference,
-	 * so it can be reattached to a new catalog version while the original stays bound to the previous one. The cached
-	 * entity-type-to-pk lookups ({@link #primaryKeyToEntityType}, {@link #entityTypeToPk}) are intentionally not
-	 * carried over — they are rebuilt lazily against the freshly attached catalog.
-	 */
-	@Nonnull
-	@Override
-	public GlobalUniqueIndex createCopyForNewCatalogAttachment(@Nonnull CatalogState catalogState) {
-		return new GlobalUniqueIndex(
-			this.scope,
-			this.attributeKey,
-			this.type,
-			this.tree,
-			this.pageStreamRegistry,
-			this.entitiesPerType,
-			this.localeToIdIndex,
-			this.idToLocaleIndex
-		);
+	private void primeLocaleSequence(@Nonnull Set<Integer> assignedLocaleIds) {
+		int highestId = this.localePkSequence.get();
+		for (final Integer localeId : assignedLocaleIds) {
+			if (localeId > highestId) {
+				highestId = localeId;
+			}
+		}
+		this.localePkSequence.set(highestId);
 	}
 
 	/**
 	 * Registers new record id to a single unique value.
 	 *
+	 * @param resolver translates the entity type name to its compact primary key (and back for violation messages)
 	 * @throws UniqueValueViolationException when value is not unique
 	 */
-	public void registerUniqueKey(@Nonnull Object value, @Nonnull String entityType, @Nullable Locale locale, int recordId) {
-		final int classifierId = fromClassifier(entityType);
+	public void registerUniqueKey(@Nonnull Object value, @Nonnull String entityType, @Nullable Locale locale, int recordId, @Nonnull EntityTypeClassifierResolver resolver) {
+		final int classifierId = resolver.toEntityTypePrimaryKey(entityType);
 		final int localeId = fromLocale(locale);
-		registerUniqueKeyValue(value, new EntityWithTypeTuple(classifierId, recordId, localeId));
+		registerUniqueKeyValue(value, new EntityWithTypeTuple(classifierId, recordId, localeId), resolver);
 	}
 
 	/**
 	 * Unregisters new record id from a single unique value.
 	 *
+	 * @param resolver translates the entity type name to its compact primary key
 	 * @return removed record id relation
 	 */
 	@Nullable
-	public EntityReferenceWithLocale unregisterUniqueKey(@Nonnull Object value, @Nonnull String entityType, @Nullable Locale locale, int recordId) {
-		final int classifierId = fromClassifier(entityType);
+	public EntityReferenceWithLocale unregisterUniqueKey(@Nonnull Object value, @Nonnull String entityType, @Nullable Locale locale, int recordId, @Nonnull EntityTypeClassifierResolver resolver) {
+		final int classifierId = resolver.toEntityTypePrimaryKey(entityType);
 		final int localeId = fromLocale(locale);
 		return unregisterUniqueKeyValue(value, new EntityWithTypeTuple(classifierId, recordId, localeId)) == null ?
 			null : new EntityReferenceWithLocale(entityType, recordId, locale);
@@ -530,23 +462,26 @@ public class GlobalUniqueIndex implements
 
 	/**
 	 * Returns record id by its unique value.
+	 *
+	 * @param resolver translates the compact entity type primary key stored in the tuple back to its name
 	 */
 	@Nonnull
-	public Optional<EntityReferenceWithLocale> getEntityReferenceByUniqueValue(@Nonnull Serializable value, @Nullable Locale locale) {
+	public Optional<EntityReferenceWithLocale> getEntityReferenceByUniqueValue(@Nonnull Serializable value, @Nullable Locale locale, @Nonnull EntityTypeClassifierResolver resolver) {
 		return ofNullable(lookupTuple(value))
 			.filter(it -> locale == null || it.locale() == NO_LOCALE || fromLocale(locale) == it.locale())
-			.map(it -> new EntityReferenceWithLocale(toClassifier(it.entityType()), it.entityPrimaryKey(), toLocale(it.locale())));
+			.map(it -> new EntityReferenceWithLocale(resolver.toEntityTypeName(it.entityType()), it.entityPrimaryKey(), toLocale(it.locale())));
 	}
 
 	/**
 	 * Generates a {@link Formula} instance that provides the record IDs associated with the specified entity type.
 	 *
 	 * @param entityType the type of the entity for which to generate the record IDs formula
+	 * @param resolver   translates the entity type name to its compact primary key
 	 * @return a {@link Formula} instance that computes the record IDs for the given entity type
 	 */
 	@Nonnull
-	public Formula getRecordIdsFormula(@Nonnull String entityType) {
-		final Bitmap recordIds = getRecordIds(entityType);
+	public Formula getRecordIdsFormula(@Nonnull String entityType, @Nonnull EntityTypeClassifierResolver resolver) {
+		final Bitmap recordIds = getRecordIds(entityType, resolver);
 		return recordIds instanceof EmptyBitmap ? EmptyFormula.INSTANCE : new ConstantFormula(recordIds);
 	}
 
@@ -554,11 +489,12 @@ public class GlobalUniqueIndex implements
 	 * Retrieves the record IDs associated with a specific entity type.
 	 *
 	 * @param entityType the type of the entity for which record IDs are being retrieved
+	 * @param resolver   translates the entity type name to its compact primary key
 	 * @return a Bitmap containing the record IDs for the specified entity type
 	 */
 	@Nonnull
-	public Bitmap getRecordIds(@Nonnull String entityType) {
-		final int entityTypePk = fromClassifier(entityType);
+	public Bitmap getRecordIds(@Nonnull String entityType, @Nonnull EntityTypeClassifierResolver resolver) {
+		final int entityTypePk = resolver.toEntityTypePrimaryKey(entityType);
 		return ofNullable(this.entitiesPerType.get(entityTypePk))
 			.map(Bitmap.class::cast)
 			.orElse(EmptyBitmap.INSTANCE);
@@ -670,7 +606,7 @@ public class GlobalUniqueIndex implements
 	 */
 	@Nonnull
 	@Override
-	public GlobalUniqueIndex createCopyWithMergedTransactionalMemory(@Nullable Void layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
+	public GlobalUniqueIndex createCopyWithMergedTransactionalMemory(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		final TransactionalBucketBPlusTree committedTree =
 			(TransactionalBucketBPlusTree) transactionalLayer.getStateCopyWithCommittedChanges(this.tree);
 		// publish the page baseline staged by this commit's flush: the merge runs only AFTER the flush has durably
@@ -695,7 +631,6 @@ public class GlobalUniqueIndex implements
 	 */
 	@Override
 	public void removeLayer(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
-		transactionalLayer.removeTransactionalMemoryLayerIfExists(this);
 		this.dirty.removeLayer(transactionalLayer);
 		this.tree.removeLayer(transactionalLayer);
 		this.entitiesPerType.removeLayer(transactionalLayer);
@@ -738,14 +673,16 @@ public class GlobalUniqueIndex implements
 	/**
 	 * Returns array of sorted references maintained by this index. Walks the value tree directly via a cursor (no map
 	 * materialization). Still O(n) over the whole index, so it stays a test-only inspection helper.
+	 *
+	 * @param resolver translates the compact entity type primary key stored in each tuple back to its name
 	 */
 	@Nonnull
-	EntityReference[] getEntityReferences() {
+	EntityReference[] getEntityReferences(@Nonnull EntityTypeClassifierResolver resolver) {
 		final CompositeObjectArray<EntityReference> references = new CompositeObjectArray<>(EntityReference.class);
 		final BucketCursor cursor = this.tree.cursor();
 		while (cursor.next()) {
 			final EntityWithTypeTuple tuple = unpackTuple(cursor.longRecordId());
-			references.add(new EntityReference(toClassifier(tuple.entityType()), tuple.entityPrimaryKey()));
+			references.add(new EntityReference(resolver.toEntityTypeName(tuple.entityType()), tuple.entityPrimaryKey()));
 		}
 		final EntityReference[] result = references.toArray();
 		Arrays.sort(result);
@@ -866,25 +803,26 @@ public class GlobalUniqueIndex implements
 	 *
 	 * @param key    the unique value, or array of unique values, to claim
 	 * @param record the entity tuple claiming the value(s)
+	 * @param resolver translates entity type primary keys to names for the violation message
 	 * @throws UniqueValueViolationException when any value is already owned by a different record
 	 */
 	@SuppressWarnings("unchecked")
-	private <T extends Serializable & Comparable<T>> void registerUniqueKeyValue(@Nonnull Object key, @Nonnull EntityWithTypeTuple record) {
+	private <T extends Serializable & Comparable<T>> void registerUniqueKeyValue(@Nonnull Object key, @Nonnull EntityWithTypeTuple record, @Nonnull EntityTypeClassifierResolver resolver) {
 		if (key instanceof @Nonnull final Object[] valueArray) {
 			verifyValueArray(key);
 			// first verify removed data without modifications
 			for (Object valueItem : valueArray) {
 				final T theValueItem = (T) valueItem;
 				final EntityWithTypeTuple existingRecordId = lookupTuple(theValueItem);
-				assertUniqueKeyIsFree(theValueItem, record, existingRecordId);
+				assertUniqueKeyIsFree(theValueItem, record, existingRecordId, resolver);
 			}
 			// now perform alteration
 			for (Object valueItem : valueArray) {
-				registerUniqueKeyValue(valueItem, record);
+				registerUniqueKeyValue(valueItem, record, resolver);
 			}
 		} else {
 			verifyValue(key);
-			registerUniqueKeyValue((T) key, record);
+			registerUniqueKeyValue((T) key, record, resolver);
 		}
 		this.dirty.setToTrue();
 	}
@@ -900,11 +838,16 @@ public class GlobalUniqueIndex implements
 	 *
 	 * @param key    the scalar unique value to claim
 	 * @param record the entity tuple claiming the value
+	 * @param resolver translates entity type primary keys to names for the violation message
 	 * @throws UniqueValueViolationException when the value is already owned by a different record in the same locale
 	 */
-	private <T extends Serializable & Comparable<T>> void registerUniqueKeyValue(@Nonnull T key, @Nonnull EntityWithTypeTuple record) {
+	private <T extends Serializable & Comparable<T>> void registerUniqueKeyValue(
+		@Nonnull T key,
+		@Nonnull EntityWithTypeTuple record,
+		@Nonnull EntityTypeClassifierResolver resolver
+	) {
 		final EntityWithTypeTuple existingRecordId = lookupTuple(key);
-		assertUniqueKeyIsFree(key, record, existingRecordId);
+		assertUniqueKeyIsFree(key, record, existingRecordId, resolver);
 		if (existingRecordId == null) {
 			this.tree.addLongRecord(key, packTuple(record));
 		} else if (!existingRecordId.equals(record)) {
@@ -920,8 +863,8 @@ public class GlobalUniqueIndex implements
 
 	/**
 	 * Releases a unique key that may be either a single value or an array of values, the inverse of
-	 * {@link #registerUniqueKeyValue(Object, EntityWithTypeTuple)}. Ownership of every element is verified up front
-	 * so a mismatch leaves the index unchanged (all-or-nothing).
+	 * {@link #registerUniqueKeyValue(Object, EntityWithTypeTuple, EntityTypeClassifierResolver)}.
+	 * Ownership of every element is verified up front so a mismatch leaves the index unchanged (all-or-nothing).
 	 *
 	 * @param key            the unique value, or array of unique values, to release
 	 * @param expectedRecord the record expected to currently own the value(s)
@@ -986,45 +929,22 @@ public class GlobalUniqueIndex implements
 	 * @param key            the unique value being claimed (for error reporting)
 	 * @param record         the record attempting to claim the value
 	 * @param existingRecord the record currently owning the value, or `null` if unowned
+	 * @param resolver       translates entity type primary keys to names for the violation message
 	 * @throws UniqueValueViolationException when the value is already owned by a different record in the same locale
 	 */
-	private <T extends Serializable & Comparable<T>> void assertUniqueKeyIsFree(@Nonnull T key, EntityWithTypeTuple record, @Nullable EntityWithTypeTuple existingRecord) {
+	private <T extends Serializable & Comparable<T>> void assertUniqueKeyIsFree(@Nonnull T key, EntityWithTypeTuple record, @Nullable EntityWithTypeTuple existingRecord, @Nonnull EntityTypeClassifierResolver resolver) {
 		if (!(existingRecord == null || existingRecord.equals(record))) {
 			if (!this.attributeKey.localized() || existingRecord.locale() == record.locale()) {
 				throw new UniqueValueViolationException(
 					this.attributeKey.attributeName(), this.attributeKey.locale(), key,
-					toClassifier(existingRecord.entityType()), existingRecord.entityPrimaryKey(),
-					toClassifier(record.entityType()), record.entityPrimaryKey()
+					resolver.toEntityTypeName(existingRecord.entityType()), existingRecord.entityPrimaryKey(),
+					resolver.toEntityTypeName(record.entityType()), record.entityPrimaryKey()
 				);
 			}
 		}
 	}
 
-	/**
-	 * Resolves the compact entity-type primary key stored in tuples back to the entity type name, caching the
-	 * result. Requires the index to be attached to a catalog.
-	 */
-	@Nonnull
-	private String toClassifier(int entityType) {
-		return this.primaryKeyToEntityType.computeIfAbsent(
-			entityType,
-			epk -> {
-				final EntityCollection entityCollection = this.catalog.getCollectionForEntityPrimaryKeyOrThrowException(epk);
-				return entityCollection.getEntityType();
-			}
-		);
-	}
 
-	/**
-	 * Resolves an entity type name to the compact primary key stored in tuples, caching the result. The compact id
-	 * keeps {@link EntityWithTypeTuple} small. Requires the index to be attached to a catalog.
-	 */
-	private int fromClassifier(@Nonnull String entityType) {
-		return this.entityTypeToPk.computeIfAbsent(
-			entityType,
-			et -> this.catalog.getCollectionForEntityOrThrowException(et).getEntityTypePrimaryKey()
-		);
-	}
 
 	/**
 	 * Resolves an internal locale id stored in tuples back to its {@link Locale}, returning `null` for the

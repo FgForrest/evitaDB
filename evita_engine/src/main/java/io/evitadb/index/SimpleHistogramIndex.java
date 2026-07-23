@@ -182,7 +182,6 @@ public class SimpleHistogramIndex extends HistogramIndex {
 	@Nonnull
 	@Override
 	public HistogramIndex createCopyWithMergedTransactionalMemory(
-		@Nullable Void layer,
 		@Nonnull TransactionalLayerMaintainer transactionalLayer
 	) {
 		return new SimpleHistogramIndex(
@@ -197,7 +196,6 @@ public class SimpleHistogramIndex extends HistogramIndex {
 
 	@Override
 	public void removeLayer(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
-		transactionalLayer.removeTransactionalMemoryLayerIfExists(this);
 		this.filterIndex.removeLayer(transactionalLayer);
 		this.cardinality.removeLayer(transactionalLayer);
 	}

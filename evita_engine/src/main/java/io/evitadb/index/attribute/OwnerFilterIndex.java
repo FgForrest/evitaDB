@@ -258,7 +258,6 @@ public final class OwnerFilterIndex extends FilterIndex implements VoidTransacti
 	@Nonnull
 	@Override
 	public OwnerFilterIndex createCopyWithMergedTransactionalMemory(
-		@Nullable Void layer,
 		@Nonnull TransactionalLayerMaintainer transactionalLayer
 	) {
 		transactionalLayer.getStateCopyWithCommittedChanges(this.dirty);
@@ -276,7 +275,6 @@ public final class OwnerFilterIndex extends FilterIndex implements VoidTransacti
 
 	@Override
 	public void removeLayer(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
-		transactionalLayer.removeTransactionalMemoryLayerIfExists(this);
 		getInvertedIndex().removeLayer(transactionalLayer);
 		final RangeIndex theRangeIndex = getRangeIndex();
 		if (theRangeIndex != null) {

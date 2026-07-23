@@ -720,7 +720,6 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 	@Nonnull
 	@Override
 	public ReferencedTypeEntityIndex createCopyWithMergedTransactionalMemory(
-		@Nullable Void layer,
 		@Nonnull TransactionalLayerMaintainer transactionalLayer
 	) {
 		// we can safely throw away dirty flag now
@@ -744,7 +743,6 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 		// drop our own diff layer (no-op for VoidTransactionMemoryProducer) and propagate the
 		// recursive remove into every registered component via the base method — the base loop
 		// covers the AttributeCardinality, Histogram and ReferenceTypeCardinality components too
-		transactionalLayer.removeTransactionalMemoryLayerIfExists(this);
 		super.removeTransactionalMemoryOfReferencedProducers(transactionalLayer);
 	}
 

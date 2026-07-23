@@ -56,7 +56,7 @@ import java.util.function.IntConsumer;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class MockPriceListAndCurrencyPriceIndex implements PriceListAndCurrencyPriceIndex<Void, MockPriceListAndCurrencyPriceIndex> {
+public class MockPriceListAndCurrencyPriceIndex implements PriceListAndCurrencyPriceIndex<MockPriceListAndCurrencyPriceIndex> {
 	@Serial private static final long serialVersionUID = -1343396298549809991L;
 	private final transient IntObjectHashMap<int[]> priceIdsIndex;
 	private int[] priceRecordIds;
@@ -89,19 +89,9 @@ public class MockPriceListAndCurrencyPriceIndex implements PriceListAndCurrencyP
 		throw new UnsupportedOperationException();
 	}
 
-	@Override
-	public long getId() {
-		return 0;
-	}
-
-	@Override
-	public Void createLayer() {
-		throw new UnsupportedOperationException();
-	}
-
 	@Nonnull
 	@Override
-	public MockPriceListAndCurrencyPriceIndex createCopyWithMergedTransactionalMemory(@Nullable Void layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
+	public MockPriceListAndCurrencyPriceIndex createCopyWithMergedTransactionalMemory(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		throw new UnsupportedOperationException();
 	}
 

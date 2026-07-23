@@ -32,13 +32,11 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
-import io.evitadb.core.catalog.Catalog;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.EntityIndexType;
-import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.ReducedGroupEntityIndex;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.price.PriceListAndCurrencyPriceRefIndex;
@@ -59,7 +57,6 @@ import java.io.Serializable;
 import java.util.Collections;
 import java.util.Currency;
 import java.util.Locale;
-import java.util.Optional;
 import java.util.Set;
 
 import static io.evitadb.test.TestTags.ATTRIBUTE;
@@ -690,29 +687,18 @@ class SharedRgeiMutationMatrixTest {
 	}
 
 	/**
-	 * Attaches the RGEI to a mock catalog so the price ref index can resolve shared price records
-	 * via the super index. Mirrors the wiring used by {@link io.evitadb.core.catalog.Catalog} in
-	 * production.
+	 * Wires the RGEI's price ref chain to the backing super index so the price ref index can
+	 * resolve shared price records via the super index. Mirrors the collection-local super-index
+	 * wiring used in production.
 	 *
-	 * @param target RGEI to attach
+	 * @param target RGEI to wire
 	 * @param superIndex backing super index for price record lookups
 	 */
 	private static void attachToMockCatalog(
 		@Nonnull ReducedGroupEntityIndex target,
 		@Nonnull PriceSuperIndex superIndex
 	) {
-		final GlobalEntityIndex mockGlobalIndex = mock(GlobalEntityIndex.class);
-		when(mockGlobalIndex.getPriceIndex(ArgumentMatchers.any(PriceIndexKey.class)))
-			.thenAnswer(invocation -> superIndex.getPriceIndex(invocation.getArgument(0)));
-
-		final Catalog mockCatalog = mock(Catalog.class);
-		when(mockCatalog.getEntityIndexIfExists(
-			ArgumentMatchers.eq(ENTITY_TYPE),
-			ArgumentMatchers.eq(new EntityIndexKey(EntityIndexType.GLOBAL, Scope.LIVE)),
-			ArgumentMatchers.eq(GlobalEntityIndex.class)
-		)).thenReturn(Optional.of(mockGlobalIndex));
-
-		target.attachToCatalog(ENTITY_TYPE, mockCatalog);
+		target.getPriceIndex().wireSuperIndexes(superIndex::getPriceIndex);
 	}
 
 	/**

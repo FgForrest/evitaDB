@@ -334,7 +334,6 @@ public class LocalizedHistogramIndex extends HistogramIndex {
 	@Nonnull
 	@Override
 	public HistogramIndex createCopyWithMergedTransactionalMemory(
-		@Nullable Void layer,
 		@Nonnull TransactionalLayerMaintainer transactionalLayer
 	) {
 		return new LocalizedHistogramIndex(
@@ -349,7 +348,6 @@ public class LocalizedHistogramIndex extends HistogramIndex {
 
 	@Override
 	public void removeLayer(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
-		transactionalLayer.removeTransactionalMemoryLayerIfExists(this);
 		this.filterIndexes.removeLayer(transactionalLayer);
 		this.cardinalities.removeLayer(transactionalLayer);
 	}

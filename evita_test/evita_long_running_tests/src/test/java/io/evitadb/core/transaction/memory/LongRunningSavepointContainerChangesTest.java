@@ -222,9 +222,9 @@ class LongRunningSavepointContainerChangesTest implements TimeBoundedTestSupport
 	 */
 	private static void applyRandomOps(@Nonnull LayerHolder<?> holder, @Nonnull Random random, int count, @Nonnull List<RecordingProducer> pool) {
 		final Object layer = Transaction.getOrCreateTransactionalMemoryLayer(holder);
-		final List<TransactionalContainerChanges<?, ?, ?>> containers = containersOf(layer);
+		final List<TransactionalContainerChanges<?, ?>> containers = containersOf(layer);
 		for (int i = 0; i < count; i++) {
-			final TransactionalContainerChanges<?, ?, ?> container = containers.get(random.nextInt(containers.size()));
+			final TransactionalContainerChanges<?, ?> container = containers.get(random.nextInt(containers.size()));
 			final boolean created = random.nextBoolean();
 			final RecordingProducer item = (!pool.isEmpty() && random.nextInt(100) < REUSE_PERCENT)
 				? pool.get(random.nextInt(pool.size()))
@@ -254,7 +254,7 @@ class LongRunningSavepointContainerChangesTest implements TimeBoundedTestSupport
 		}
 		final Map<String, List<Long>> result = new LinkedHashMap<>();
 		final List<String> names = containerNamesOf(layer);
-		final List<TransactionalContainerChanges<?, ?, ?>> containers = containersOf(layer);
+		final List<TransactionalContainerChanges<?, ?>> containers = containersOf(layer);
 		for (int i = 0; i < containers.size(); i++) {
 			result.put(names.get(i) + "#created", idsOf(containers.get(i), "createdItems"));
 			result.put(names.get(i) + "#removed", idsOf(containers.get(i), "removedItems"));
@@ -267,16 +267,16 @@ class LongRunningSavepointContainerChangesTest implements TimeBoundedTestSupport
 	 * is one, or every declared field of that type on an aggregate.
 	 */
 	@Nonnull
-	private static List<TransactionalContainerChanges<?, ?, ?>> containersOf(@Nonnull Object layer) {
-		if (layer instanceof final TransactionalContainerChanges<?, ?, ?> self) {
+	private static List<TransactionalContainerChanges<?, ?>> containersOf(@Nonnull Object layer) {
+		if (layer instanceof final TransactionalContainerChanges<?, ?> self) {
 			return List.of(self);
 		}
-		final List<TransactionalContainerChanges<?, ?, ?>> result = new ArrayList<>();
+		final List<TransactionalContainerChanges<?, ?>> result = new ArrayList<>();
 		for (final Field field : layer.getClass().getDeclaredFields()) {
 			if (field.getType() == TransactionalContainerChanges.class) {
 				field.setAccessible(true);
 				try {
-					result.add((TransactionalContainerChanges<?, ?, ?>) field.get(layer));
+					result.add((TransactionalContainerChanges<?, ?>) field.get(layer));
 				} catch (IllegalAccessException e) {
 					throw new IllegalStateException(e);
 				}
@@ -293,7 +293,7 @@ class LongRunningSavepointContainerChangesTest implements TimeBoundedTestSupport
 	 */
 	@Nonnull
 	private static List<String> containerNamesOf(@Nonnull Object layer) {
-		if (layer instanceof TransactionalContainerChanges<?, ?, ?>) {
+		if (layer instanceof TransactionalContainerChanges<?, ?>) {
 			return List.of("self");
 		}
 		final List<String> names = new ArrayList<>();
@@ -309,7 +309,7 @@ class LongRunningSavepointContainerChangesTest implements TimeBoundedTestSupport
 	 * Reads the producer ids tracked in the named list field of a container (empty when the lazy list is still null).
 	 */
 	@Nonnull
-	private static List<Long> idsOf(@Nonnull TransactionalContainerChanges<?, ?, ?> container, @Nonnull String listField) {
+	private static List<Long> idsOf(@Nonnull TransactionalContainerChanges<?, ?> container, @Nonnull String listField) {
 		try {
 			final Field field = TransactionalContainerChanges.class.getDeclaredField(listField);
 			field.setAccessible(true);
@@ -331,7 +331,7 @@ class LongRunningSavepointContainerChangesTest implements TimeBoundedTestSupport
 	 * Invokes the container's real {@code addCreatedItem} / {@code addRemovedItem} (reflectively, to bypass the
 	 * per-container generic producer type — erased to {@link TransactionalLayerProducer}).
 	 */
-	private static void register(@Nonnull TransactionalContainerChanges<?, ?, ?> container, boolean created, @Nonnull RecordingProducer item) {
+	private static void register(@Nonnull TransactionalContainerChanges<?, ?> container, boolean created, @Nonnull RecordingProducer item) {
 		try {
 			final Method method = TransactionalContainerChanges.class.getMethod(
 				created ? "addCreatedItem" : "addRemovedItem", TransactionalLayerProducer.class

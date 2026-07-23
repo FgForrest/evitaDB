@@ -212,7 +212,6 @@ public class AttributeCardinalityIndex
 
 	@Override
 	public void removeLayer(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
-		transactionalLayer.removeTransactionalMemoryLayerIfExists(this);
 		this.cardinalities.removeLayer(transactionalLayer);
 		this.dirty.removeLayer(transactionalLayer);
 	}
@@ -220,7 +219,6 @@ public class AttributeCardinalityIndex
 	@Nonnull
 	@Override
 	public AttributeCardinalityIndex createCopyWithMergedTransactionalMemory(
-		@Nullable Void layer,
 		@Nonnull TransactionalLayerMaintainer transactionalLayer
 	) {
 		// we can safely throw away dirty flag now

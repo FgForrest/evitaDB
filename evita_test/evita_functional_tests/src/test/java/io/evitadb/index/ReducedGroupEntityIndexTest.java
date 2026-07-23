@@ -23,7 +23,6 @@
 
 package io.evitadb.index;
 
-import io.evitadb.api.CatalogState;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
@@ -1386,69 +1385,35 @@ class ReducedGroupEntityIndexTest
 	}
 
 	/**
-	 * Verifies that the catalog re-attachment copy preserves the per-owner-PK cardinality
-	 * tracking. The copy is produced by {@link ReducedGroupEntityIndex#createCopyForNewCatalogAttachment}
-	 * which hands the live `pkCardinalities` map straight to the preserve-originals constructor,
-	 * so the copy must report the same tracked primary keys and keep the boundary-crossing
-	 * semantics intact: an owner PK reachable through two references stays in the index until the
-	 * second reference is removed.
+	 * Verifies the {@link CardinalityChange} value returned by {@link ReducedGroupEntityIndex#removePrimaryKey}. The
+	 * sibling cardinality tests assert the resulting bitmap contents; these pin the returned signal itself, which is
+	 * what callers use to decide whether an owner primary key actually crossed the 1 -> 0 boundary.
 	 */
 	@Nested
-	@DisplayName("Catalog re-attachment")
-	class CatalogReattachmentTest {
+	@DisplayName("Cardinality change signal")
+	class CardinalityChangeSignalTest {
 
 		@Test
-		@DisplayName("should preserve tracked primary keys in the re-attachment copy")
-		void shouldPreserveTrackedPrimaryKeysInCopy() {
-			// entity 10 is reachable through two references (categories 1 and 2) within the group,
-			// so its cardinality is 2; entity 20 is reachable through a single reference (category 3)
+		@DisplayName("should report boundary crossing only when the last reference is removed")
+		void shouldReportBoundaryCrossingOnlyOnLastReference() {
+			// entity 10 reachable through two references -> cardinality 2
 			ReducedGroupEntityIndexTest.this.index.insertPrimaryKeyIfMissing(10, 1);
 			ReducedGroupEntityIndexTest.this.index.insertPrimaryKeyIfMissing(10, 2);
-			ReducedGroupEntityIndexTest.this.index.insertPrimaryKeyIfMissing(20, 3);
-
-			final ReducedGroupEntityIndex copy =
-				ReducedGroupEntityIndexTest.this.index.createCopyForNewCatalogAttachment(
-					CatalogState.ALIVE
-				);
-
-			assertNotSame(ReducedGroupEntityIndexTest.this.index, copy);
-			// the copy must expose the same owner PKs and referenced (facet) PKs as the source
-			final Bitmap copyPks = copy.getAllPrimaryKeys();
-			assertEquals(2, copyPks.size());
-			assertTrue(copyPks.contains(10));
-			assertTrue(copyPks.contains(20));
-			assertEquals(
-				Set.of(1, 2, 3),
-				copy.getReferencedEntityPrimaryKeys()
-			);
-		}
-
-		@Test
-		@DisplayName("should keep boundary-crossing semantics on the re-attachment copy")
-		void shouldKeepBoundaryCrossingSemanticsOnCopy() {
-			// entity 10 reachable through two references -> cardinality 2 in the source group
-			ReducedGroupEntityIndexTest.this.index.insertPrimaryKeyIfMissing(10, 1);
-			ReducedGroupEntityIndexTest.this.index.insertPrimaryKeyIfMissing(10, 2);
-
-			final ReducedGroupEntityIndex copy =
-				ReducedGroupEntityIndexTest.this.index.createCopyForNewCatalogAttachment(
-					CatalogState.ALIVE
-				);
 
 			// removing the first reference must NOT evict the owner PK: cardinality drops 2 -> 1
 			assertEquals(
 				CardinalityChange.NO_BOUNDARY_CROSSING,
-				copy.removePrimaryKey(10, 1)
+				ReducedGroupEntityIndexTest.this.index.removePrimaryKey(10, 1)
 			);
-			assertTrue(copy.getAllPrimaryKeys().contains(10),
+			assertTrue(ReducedGroupEntityIndexTest.this.index.getAllPrimaryKeys().contains(10),
 				"Owner PK must survive while a second reference still points at the group");
 
 			// removing the last reference crosses the 1 -> 0 boundary and evicts the owner PK
 			assertEquals(
 				CardinalityChange.BOUNDARY_CROSSED,
-				copy.removePrimaryKey(10, 2)
+				ReducedGroupEntityIndexTest.this.index.removePrimaryKey(10, 2)
 			);
-			assertTrue(copy.getAllPrimaryKeys().isEmpty(),
+			assertTrue(ReducedGroupEntityIndexTest.this.index.getAllPrimaryKeys().isEmpty(),
 				"Owner PK must be evicted once its last reference is removed");
 		}
 	}

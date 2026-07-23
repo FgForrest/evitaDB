@@ -271,7 +271,7 @@ class LongRunningSavepointProducerMapTest implements TimeBoundedTestSupport {
 
 		@Nonnull
 		@Override
-		public MapValue createCopyWithMergedTransactionalMemory(@Nullable Void layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
+		public MapValue createCopyWithMergedTransactionalMemory(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
 			return this;
 		}
 

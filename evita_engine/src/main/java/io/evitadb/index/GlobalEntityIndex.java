@@ -303,7 +303,7 @@ public class GlobalEntityIndex extends EntityIndex
 	@Nonnull
 	@Override
 	public GlobalEntityIndex createCopyWithMergedTransactionalMemory(
-		@Nullable Void layer, @Nonnull TransactionalLayerMaintainer transactionalLayer
+		@Nonnull TransactionalLayerMaintainer transactionalLayer
 	) {
 		// we can safely throw away dirty flag now
 		final Boolean wasDirty = transactionalLayer.getStateCopyWithCommittedChanges(this.dirty);
@@ -321,7 +321,6 @@ public class GlobalEntityIndex extends EntityIndex
 
 	@Override
 	public void removeLayer(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
-		transactionalLayer.removeTransactionalMemoryLayerIfExists(this);
 		// the price index is removed by the component-loop inside the super call — no extra hop
 		super.removeTransactionalMemoryOfReferencedProducers(transactionalLayer);
 	}

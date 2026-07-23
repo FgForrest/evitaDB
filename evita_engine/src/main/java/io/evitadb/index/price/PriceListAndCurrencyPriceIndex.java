@@ -26,7 +26,7 @@ package io.evitadb.index.price;
 import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.price.priceIndex.PriceIdContainerFormula;
-import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
+import io.evitadb.core.transaction.memory.TransactionalStateProducer;
 import io.evitadb.dataType.array.CompositeObjectArray;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.IndexDataStructure;
@@ -50,7 +50,7 @@ import java.util.function.IntConsumer;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public interface PriceListAndCurrencyPriceIndex<DIFF_PIECE, COPY> extends IndexDataStructure, TransactionalLayerProducer<DIFF_PIECE, COPY>, Serializable {
+public interface PriceListAndCurrencyPriceIndex<COPY> extends IndexDataStructure, TransactionalStateProducer<COPY>, Serializable {
 
 	/**
 	 * Returns unique identification of this index - contains price list name and currency combination.

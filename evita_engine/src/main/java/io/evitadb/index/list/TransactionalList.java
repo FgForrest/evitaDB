@@ -27,6 +27,7 @@ import io.evitadb.core.transaction.Transaction;
 import io.evitadb.core.transaction.memory.TransactionalLayerCreator;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
+import io.evitadb.core.transaction.memory.TransactionalStateProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.exception.GenericEvitaInternalError;
 import lombok.Getter;
@@ -64,7 +65,6 @@ import static java.util.Optional.ofNullable;
 public class TransactionalList<V> implements
 	List<V>,
 	Serializable,
-	Cloneable,
 	TransactionalLayerCreator<ListChanges<V>>,
 	TransactionalLayerProducer<ListChanges<V>, List<V>>
 {
@@ -126,7 +126,7 @@ public class TransactionalList<V> implements
 		return createCopyWithMergedTransactionalMemory(
 			layer,
 			value -> (V) transactionalLayer.getStateCopyWithCommittedChanges(
-				(TransactionalLayerProducer) value
+				(TransactionalStateProducer) value
 			)
 		);
 	}
@@ -440,22 +440,6 @@ public class TransactionalList<V> implements
 
 	@Nonnull
 	@Override
-	public Object clone() throws CloneNotSupportedException {
-		// clone transactional list contents with all recorded changes and create separate transactional memory piece for it
-		@SuppressWarnings("unchecked") final TransactionalList<V> clone = (TransactionalList<V>) super.clone();
-		final ListChanges<V> layer = getTransactionalMemoryLayerIfExists(this);
-		if (layer != null) {
-			final ListChanges<V> clonedLayer = Transaction.getOrCreateTransactionalMemoryLayer(clone);
-			if (clonedLayer != null) {
-				clonedLayer.getRemovedItems().addAll(layer.getRemovedItems());
-				clonedLayer.getAddedItems().putAll(layer.getAddedItems());
-			}
-		}
-		return clone;
-	}
-
-	@Nonnull
-	@Override
 	public String toString() {
 		final Iterator<V> it = iterator();
 		if (!it.hasNext())
@@ -479,7 +463,7 @@ public class TransactionalList<V> implements
 	@SuppressWarnings({"rawtypes"})
 	private List<V> createCopyWithMergedTransactionalMemory(
 		@Nullable ListChanges<V> layer,
-		@Nonnull Function<TransactionalLayerProducer<?, ?>, V> transactionLayerExtractor
+		@Nonnull Function<TransactionalStateProducer<?>, V> transactionLayerExtractor
 	) {
 		// create new array list of requested size
 		final ArrayList<V> copy = new ArrayList<>(size());
@@ -488,8 +472,8 @@ public class TransactionalList<V> implements
 			V value = this.listDelegate.get(i);
 			// we need to always create copy - something in the referenced object might have changed
 			// even the removed values need to be evaluated (in order to discard them from transactional memory set)
-			if (value instanceof TransactionalLayerProducer) {
-				value = transactionLayerExtractor.apply((TransactionalLayerProducer) value);
+			if (value instanceof TransactionalStateProducer) {
+				value = transactionLayerExtractor.apply((TransactionalStateProducer) value);
 			}
 			// except those that were removed
 			if (layer == null || !layer.getRemovedItems().contains(i)) {
@@ -501,8 +485,8 @@ public class TransactionalList<V> implements
 			for (Integer updatedItem : layer.getAddedItems().keySet()) {
 				V value = layer.getAddedItems().get(updatedItem);
 				// we need to always create copy - something in the referenced object might have changed
-				if (value instanceof TransactionalLayerProducer) {
-					value = transactionLayerExtractor.apply((TransactionalLayerProducer) value);
+				if (value instanceof TransactionalStateProducer) {
+					value = transactionLayerExtractor.apply((TransactionalStateProducer) value);
 				}
 				// add the element in the result list
 				copy.add(updatedItem, value);

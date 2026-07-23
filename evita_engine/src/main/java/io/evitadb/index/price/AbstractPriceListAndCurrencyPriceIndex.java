@@ -65,7 +65,7 @@ import static io.evitadb.core.transaction.Transaction.isTransactionAvailable;
  */
 public abstract class AbstractPriceListAndCurrencyPriceIndex<SELF extends AbstractPriceListAndCurrencyPriceIndex<SELF>>
 	implements VoidTransactionMemoryProducer<SELF>,
-	PriceListAndCurrencyPriceIndex<Void, SELF>,
+	PriceListAndCurrencyPriceIndex<SELF>,
 	IndexDataStructure, Serializable {
 
 	/**
@@ -412,7 +412,6 @@ public abstract class AbstractPriceListAndCurrencyPriceIndex<SELF extends Abstra
 
 	@Override
 	public void removeLayer(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
-		transactionalLayer.removeTransactionalMemoryLayerIfExists(this);
 		this.dirty.removeLayer(transactionalLayer);
 		this.terminated.removeLayer(transactionalLayer);
 		this.indexedPriceEntityIds.removeLayer(transactionalLayer);

@@ -267,7 +267,7 @@ class TransactionalMemoryTest {
 				suppressed -> fail("Lambda must not be executed.")
 			)
 		);
-		assertTrue(ex.getPrivateMessage().contains("doesn't implement TransactionalLayerCreator"));
+		assertTrue(ex.getPrivateMessage().contains("doesn't implement TransactionalLayerCreator nor TransactionalStateProducer"));
 	}
 
 	@Test

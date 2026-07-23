@@ -23,7 +23,6 @@
 
 package io.evitadb.index;
 
-import io.evitadb.api.CatalogState;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
@@ -56,11 +55,8 @@ import io.evitadb.index.hierarchy.HierarchyIndex;
 import io.evitadb.index.map.PersistentTransactionalMap;
 import io.evitadb.index.map.TransactionalMap;
 import io.evitadb.index.price.PriceRefIndex;
-import io.evitadb.index.price.model.PriceIndexKey;
 import io.evitadb.index.result.CardinalityChange;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStorageKey;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.HistogramIndexStorageKey;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.StringUtils;
@@ -279,98 +275,10 @@ public class ReducedGroupEntityIndex extends AbstractReducedEntityIndex implemen
 			);
 		});
 
-	/**
-	 * Creates a reduced group entity index as a transactional copy. This constructor is used internally by
-	 * {@link #createCopyForNewCatalogAttachment(CatalogState)} and preserves original storage part state.
-	 *
-	 * @param primaryKey                  the primary key of this index
-	 * @param indexKey                    the key identifying this index
-	 * @param version                     the version of this index
-	 * @param entityIds                   transactional bitmap of entity primary keys
-	 * @param entityIdsByLanguage         transactional map of entity primary keys by locale
-	 * @param attributeIndex              the attribute index
-	 * @param hierarchyIndex              the hierarchy index
-	 * @param facetIndex                  the facet index
-	 * @param originalHierarchyIndexEmpty whether the hierarchy index was originally empty
-	 * @param originalAttributeIndexes    original attribute index storage keys (incl. CARDINALITY)
-	 * @param originalPriceIndexes        original price index keys
-	 * @param originalFacetIndexes        original facet index referenced entities
-	 * @param originalHistogramKeys       original histogram index storage keys
-	 * @param priceIndex                  the price reference index
-	 * @param pkCardinalities             cardinality tracking for entity primary keys
-	 * @param referencedPrimaryKeysIndex  maps referenced entity PKs to bitmaps of entity PKs
-	 * @param cardinalityIndexes          cardinality tracking for filter attributes
-	 * @param histogramIndexes            histogram indexes by histogram name
-	 */
-	private ReducedGroupEntityIndex(
-		int primaryKey,
-		@Nonnull EntityIndexKey indexKey,
-		int version,
-		@Nonnull TransactionalBitmap entityIds,
-		@Nonnull TransactionalMap<Locale, TransactionalBitmap> entityIdsByLanguage,
-		@Nonnull ReferenceAttributeIndex attributeIndex,
-		@Nonnull HierarchyIndex hierarchyIndex,
-		@Nonnull FacetIndex facetIndex,
-		boolean originalHierarchyIndexEmpty,
-		@Nonnull Set<AttributeIndexStorageKey> originalAttributeIndexes,
-		@Nonnull Set<PriceIndexKey> originalPriceIndexes,
-		@Nonnull Set<String> originalFacetIndexes,
-		@Nonnull Set<HistogramIndexStorageKey> originalHistogramKeys,
-		@Nonnull PriceRefIndex priceIndex,
-		@Nonnull PersistentTransactionalMap<Integer, Integer> pkCardinalities,
-		@Nonnull TransactionalMap<Integer, TransactionalBitmap> referencedPrimaryKeysIndex,
-		@Nonnull TransactionalMap<AttributeIndexKey, AttributeCardinalityIndex> cardinalityIndexes,
-		@Nonnull TransactionalMap<String, HistogramIndex> histogramIndexes
-	) {
-		super(
-			primaryKey, indexKey, version, entityIds,
-			entityIdsByLanguage, attributeIndex, hierarchyIndex, facetIndex,
-			originalHierarchyIndexEmpty,
-			originalAttributeIndexes, originalPriceIndexes, originalFacetIndexes,
-			priceIndex
-		);
-		this.cardinalityDirty = new TransactionalBoolean();
-		this.pkCardinalities = pkCardinalities;
-		this.referencedPrimaryKeysIndex = referencedPrimaryKeysIndex;
-		this.cardinalityIndexes = cardinalityIndexes;
-		this.histogramIndexes = histogramIndexes;
-		// preserve the histogram baseline from the source instance — the base constructor only
-		// handles UNIQUE/FILTER/SORT/CHAIN + facet + price + hierarchy baselines, so subclass-only
-		// histogram keys must be propagated explicitly
-		this.originalHistogramKeys = originalHistogramKeys;
-		registerSubclassComponents();
-		// do NOT call captureOriginalsFromComponents here — this constructor is the "preserve
-		// originals" path used by catalog re-attachment, and recapturing would overwrite the
-		// caller-provided baselines with the current live state, losing dirty/change tracking
-	}
-
 	@Override
 	public boolean isEmpty() {
 		// null check required: parent constructor calls isEmpty() before subclass fields are initialized
 		return super.isEmpty() && this.pkCardinalities.isEmpty() && this.histogramIndexes.isEmpty();
-	}
-
-	@Nonnull
-	@Override
-	public ReducedGroupEntityIndex createCopyForNewCatalogAttachment(@Nonnull CatalogState catalogState) {
-		return new ReducedGroupEntityIndex(
-			this.primaryKey, this.indexKey, this.version,
-			this.entityIds, this.entityIdsByLanguage,
-			// safe: AttributeIndex#createCopy preserves the subclass identity established by EntityIndex#isReferenceScoped
-			(ReferenceAttributeIndex) this.attributeIndex,
-			this.hierarchyIndex,
-			this.facetIndex,
-			this.originalHierarchyIndexEmpty,
-			this.originalAttributeIndexes,
-			this.originalPriceIndexes,
-			this.originalFacetIndexes,
-			this.originalHistogramKeys,
-			getPriceIndex().createCopyForNewCatalogAttachment(catalogState),
-			this.pkCardinalities,
-			this.referencedPrimaryKeysIndex,
-			this.cardinalityIndexes,
-			this.histogramIndexes
-		);
 	}
 
 	/**
@@ -851,7 +759,6 @@ public class ReducedGroupEntityIndex extends AbstractReducedEntityIndex implemen
 	@Nonnull
 	@Override
 	public ReducedGroupEntityIndex createCopyWithMergedTransactionalMemory(
-		@Nullable Void layer,
 		@Nonnull TransactionalLayerMaintainer transactionalLayer
 	) {
 		// we can safely throw away dirty flag now

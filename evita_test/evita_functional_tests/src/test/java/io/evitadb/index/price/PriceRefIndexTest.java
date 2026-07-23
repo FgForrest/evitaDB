@@ -23,16 +23,11 @@
 
 package io.evitadb.index.price;
 
-import io.evitadb.api.CatalogState;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
-import io.evitadb.core.catalog.Catalog;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
-import io.evitadb.index.EntityIndexKey;
-import io.evitadb.index.EntityIndexType;
-import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.price.model.PriceIndexKey;
 import io.evitadb.index.price.model.priceRecord.PriceRecordContract;
 import io.evitadb.index.range.RangeIndex;
@@ -42,8 +37,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentMatchers;
-import org.mockito.Mockito;
 
 import javax.annotation.Nonnull;
 import java.time.OffsetDateTime;
@@ -52,7 +45,6 @@ import java.util.Collection;
 import java.util.Currency;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
@@ -141,34 +133,11 @@ class PriceRefIndexTest implements TimeBoundedTestSupport {
 	}
 
 	/**
-	 * Creates a mock Catalog that resolves `getEntityIndexIfExists` to a `GlobalEntityIndex`
-	 * whose `getPriceIndex(PriceIndexKey)` delegates to the shared super index.
-	 */
-	@Nonnull
-	private Catalog createMockCatalog() {
-		final GlobalEntityIndex mockGlobalIndex = Mockito.mock(GlobalEntityIndex.class);
-		Mockito.when(mockGlobalIndex.getPriceIndex(ArgumentMatchers.any(PriceIndexKey.class)))
-			.thenAnswer(invocation -> {
-				final PriceIndexKey key = invocation.getArgument(0);
-				return PriceRefIndexTest.this.priceSuperIndex.getPriceIndex(key);
-			});
-
-		final Catalog mockCatalog = Mockito.mock(Catalog.class);
-		Mockito.when(mockCatalog.getEntityIndexIfExists(
-			ArgumentMatchers.eq(ENTITY_TYPE),
-			ArgumentMatchers.eq(new EntityIndexKey(EntityIndexType.GLOBAL, SCOPE)),
-			ArgumentMatchers.eq(GlobalEntityIndex.class)
-		)).thenReturn(Optional.of(mockGlobalIndex));
-
-		return mockCatalog;
-	}
-
-	/**
-	 * Attaches the ref index to a mock catalog backed by the shared super index.
+	 * Wires the ref index to a super-index resolver backed by the shared super index, mirroring how the owning entity
+	 * collection resolves super price indexes from its own GLOBAL entity index.
 	 */
 	private void attachRefIndex() {
-		final Catalog mockCatalog = createMockCatalog();
-		this.priceRefIndex.attachToCatalog(ENTITY_TYPE, mockCatalog);
+		this.priceRefIndex.wireSuperIndexes(this.priceSuperIndex::getPriceIndex);
 	}
 
 	/**
@@ -199,7 +168,7 @@ class PriceRefIndexTest implements TimeBoundedTestSupport {
 	 * and newly created child ref indexes.
 	 */
 	@Nested
-	@DisplayName("Catalog attachment")
+	@DisplayName("Super index wiring")
 	class CatalogAttachmentTest {
 
 		@Test
@@ -223,8 +192,8 @@ class PriceRefIndexTest implements TimeBoundedTestSupport {
 			childMap.put(KEY_BASIC_CZK, childRefIndex);
 			PriceRefIndexTest.this.priceRefIndex = new PriceRefIndex(SCOPE, childMap);
 
-			// now attach -- should propagate to the existing child via
-			// `values().forEach(it -> it.attachToCatalog(...))`
+			// now wire -- should propagate to the existing child via
+			// `values().forEach(it -> it.wireSuperIndex(...))`
 			attachRefIndex();
 
 			// after attach, the child should be linked to the super index and have the price
@@ -236,17 +205,18 @@ class PriceRefIndexTest implements TimeBoundedTestSupport {
 		}
 
 		@Test
-		@DisplayName("should throw when already attached")
+		@DisplayName("should throw when super index resolver already wired")
 		void shouldThrowWhenAlreadyAttached() {
 			attachRefIndex();
 
-			final Catalog secondCatalog = createMockCatalog();
 			final GenericEvitaInternalError exception = assertThrows(
 				GenericEvitaInternalError.class,
-				() -> PriceRefIndexTest.this.priceRefIndex.attachToCatalog(ENTITY_TYPE, secondCatalog)
+				() -> PriceRefIndexTest.this.priceRefIndex.wireSuperIndexes(
+					PriceRefIndexTest.this.priceSuperIndex::getPriceIndex
+				)
 			);
 
-			assertTrue(exception.getMessage().contains("already attached"));
+			assertTrue(exception.getMessage().contains("already wired"));
 		}
 
 		@Test
@@ -261,7 +231,7 @@ class PriceRefIndexTest implements TimeBoundedTestSupport {
 				PriceInnerRecordHandling.NONE, 10000, 12100
 			);
 
-			// add price to ref index -- child created and auto-attached via initCallback
+			// add price to ref index -- child created and auto-wired via the super index resolver
 			PriceRefIndexTest.this.priceRefIndex.addPrice(
 				null, 1, internalPriceId,
 				new PriceKey(10, PRICE_LIST_BASIC, CURRENCY_CZK),
@@ -449,38 +419,6 @@ class PriceRefIndexTest implements TimeBoundedTestSupport {
 
 			// the child should be gone
 			assertNull(PriceRefIndexTest.this.priceRefIndex.getPriceIndex(KEY_BASIC_CZK));
-		}
-	}
-
-	/**
-	 * Tests verifying `createCopyForNewCatalogAttachment` produces a proper detached copy.
-	 */
-	@Nested
-	@DisplayName("Copy for new catalog attachment")
-	class CopyTest {
-
-		@Test
-		@DisplayName("should create copy with same number of children, each detached")
-		void shouldCreateCopyForNewCatalogAttachment() {
-			attachRefIndex();
-
-			// add prices to two different keys
-			addPriceToBothIndexes(1, 10, PRICE_LIST_BASIC, CURRENCY_CZK);
-			addPriceToBothIndexes(2, 20, PRICE_LIST_VIP, CURRENCY_CZK);
-
-			final PriceRefIndex copy =
-				PriceRefIndexTest.this.priceRefIndex.createCopyForNewCatalogAttachment(
-					CatalogState.ALIVE
-				);
-
-			assertNotSame(PriceRefIndexTest.this.priceRefIndex, copy);
-			assertFalse(copy.isPriceIndexEmpty());
-
-			final Collection<? extends PriceListAndCurrencyPriceIndex> origIndexes =
-				PriceRefIndexTest.this.priceRefIndex.getPriceListAndCurrencyIndexes();
-			final Collection<? extends PriceListAndCurrencyPriceIndex> copyIndexes =
-				copy.getPriceListAndCurrencyIndexes();
-			assertEquals(origIndexes.size(), copyIndexes.size());
 		}
 	}
 

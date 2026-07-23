@@ -182,7 +182,7 @@ public class PriceSuperIndex
 	 * This class collects changes in {@link #priceIndexes} transactional map.
 	 */
 	public static class PriceIndexChanges implements Snapshotable<PriceIndexChanges.PriceIndexChangesMemento> {
-		private final TransactionalContainerChanges<Void, PriceListAndCurrencyPriceSuperIndex, PriceListAndCurrencyPriceSuperIndex> collectedPriceIndexChanges = new TransactionalContainerChanges<>();
+		private final TransactionalContainerChanges<PriceListAndCurrencyPriceSuperIndex, PriceListAndCurrencyPriceSuperIndex> collectedPriceIndexChanges = new TransactionalContainerChanges<>();
 
 		public void addCreatedItem(PriceListAndCurrencyPriceSuperIndex priceIndex) {
 			this.collectedPriceIndexChanges.addCreatedItem(priceIndex);

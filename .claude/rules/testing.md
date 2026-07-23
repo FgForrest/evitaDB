@@ -57,6 +57,18 @@ The test suite is split across four sibling modules under `evita_test/`:
 - **Slow / long-running tests** — `rtk mvn -P longRunning`. Same pattern as `documentation`; selects only the long-running module.
 - **Picking the right tags for a code change** — map the changed source path to layer + capability tags. For example, a change under `evita_engine/src/main/java/io/evitadb/index/facet/` calls for `(facet | indexing) & !slow`; under `evita_external_api/evita_external_api_rest/` use `rest & external_api`. The full path-to-tag mapping is documented in the `TestTags` JavaDoc and in the bulk-tagging script committed during the rollout.
 
+## Reading test results — three traps
+
+These bite when running a **targeted** class from the command line and reading the outcome. All three make a green, correct change *look* broken or unrun:
+
+- **`@Nested`-only classes report `Tests run: 0` in the outer `.txt`.** The convention here is to consolidate methods into `@Nested` inner classes (see above), so most test classes have **no** direct `@Test` methods. Surefire then writes the outer-class report (`target/surefire-reports/io.evitadb.<...>.<Class>.txt`) as `Tests run: 0` and reports each nested class separately under its own `@DisplayName`. **Do not conclude "nothing ran" from the outer `.txt`.** The real number is the run's aggregate stdout line (`[INFO] Tests run: 138, Failures: 0, …`). Capture full stdout to a file and read that aggregate, or sum the per-`@DisplayName` lines — never trust the outer `.txt` alone.
+- **The default reactor skips tests entirely.** The base surefire config sets `skipTests`, flipped on only by a profile — so a bare `mvn -pl evita_test/evita_functional_tests test` (no `-P`) runs **zero** tests and still reports `BUILD SUCCESS`. Always pass `-P unitAndFunctional` (fast loop) for functional/unit tests. Zero-count + success without the profile is the tell.
+- **Stale `~/.m2` engine jar after a signature change.** A dependent test module resolves `evita_engine` from `~/.m2`, not from its freshly-compiled `target/classes`. After any signature / type-parameter / method change in `evita_engine`, reinstall it before running dependent-module tests:
+  ```bash
+  rtk mvn -o -pl evita_engine install -DskipTests
+  ```
+  Skip this and the failure surfaces as a **compile** error in the test module (e.g. `wrong number of type arguments; required 3`, `NoSuchMethodError`) that points at test code which is actually fine — the stale binary is the real cause.
+
 ## Test performance — reuse shared datasets
 
 Booting an embedded evitaDB instance and building a catalog is the dominant cost in a test; amortise it rather than paying it per method (see `@DataSet` / `@UseDataSet` in `io.evitadb.test.annotation`):

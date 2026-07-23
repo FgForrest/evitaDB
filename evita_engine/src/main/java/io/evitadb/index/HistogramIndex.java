@@ -420,7 +420,6 @@ public abstract class HistogramIndex
 	@Nonnull
 	@Override
 	public abstract HistogramIndex createCopyWithMergedTransactionalMemory(
-		@Nullable Void layer,
 		@Nonnull TransactionalLayerMaintainer transactionalLayer
 	);
 

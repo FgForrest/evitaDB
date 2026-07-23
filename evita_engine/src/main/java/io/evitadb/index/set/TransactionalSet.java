@@ -27,6 +27,7 @@ import io.evitadb.core.transaction.Transaction;
 import io.evitadb.core.transaction.memory.TransactionalLayerCreator;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
+import io.evitadb.core.transaction.memory.TransactionalStateProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
@@ -62,7 +63,7 @@ import static io.evitadb.core.transaction.Transaction.getTransactionalMemoryLaye
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2017
  */
 @ThreadSafe
-public class TransactionalSet<K> implements Set<K>, Serializable, Cloneable,
+public class TransactionalSet<K> implements Set<K>, Serializable,
 	TransactionalLayerCreator<SetChanges<K>>, TransactionalLayerProducer<SetChanges<K>, Set<K>> {
 	@Serial private static final long serialVersionUID = 6678551073928034251L;
 	private static final Object[] EMPTY_OBJECT_ARRAY = new Object[0];
@@ -104,10 +105,10 @@ public class TransactionalSet<K> implements Set<K>, Serializable, Cloneable,
 				// values need to be evaluated (in order to discard them
 				// from transactional memory set)
 				final K transformedEntry;
-				if (entry instanceof TransactionalLayerProducer) {
+				if (entry instanceof TransactionalStateProducer) {
 					//noinspection unchecked
 					transformedEntry = (K) transactionalLayer.getStateCopyWithCommittedChanges(
-						(TransactionalLayerProducer<?, ?>) entry
+						(TransactionalStateProducer<?>) entry
 					);
 				} else {
 					transformedEntry = entry;
@@ -337,20 +338,6 @@ public class TransactionalSet<K> implements Set<K>, Serializable, Cloneable,
 		}
 
 		return true;
-	}
-
-	@Nonnull
-	@Override
-	public Object clone() throws CloneNotSupportedException {
-		@SuppressWarnings("unchecked") final TransactionalSet<K> clone = (TransactionalSet<K>) super.clone();
-		final SetChanges<K> layer = getTransactionalMemoryLayerIfExists(this);
-		if (layer != null) {
-			final SetChanges<K> clonedLayer = Transaction.getOrCreateTransactionalMemoryLayer(clone);
-			if (clonedLayer != null) {
-				layer.copyState(clonedLayer);
-			}
-		}
-		return clone;
 	}
 
 	/**

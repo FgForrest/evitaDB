@@ -75,28 +75,6 @@ public class IntArrayChanges
 	@Nullable private int[] memoizedMergedArray;
 
 	/**
-	 * Computes closest modification operation that should occur upon the original array.
-	 *
-	 * @param nextInsertionPosition index of the next non-processed insertion command
-	 * @param nextRemovalPosition   index of the next non-processed removal command
-	 */
-	private static void getNextOperations(int nextInsertionPosition, int nextRemovalPosition, ChangePlan plan) {
-		if (nextInsertionPosition >= 0) {
-			if (nextRemovalPosition == -1 || nextRemovalPosition > nextInsertionPosition) {
-				plan.planInsertOperation(nextInsertionPosition);
-			} else if (nextInsertionPosition == nextRemovalPosition) {
-				plan.planBothOperations(nextInsertionPosition);
-			} else {
-				plan.planRemovalOperation(nextRemovalPosition);
-			}
-		} else if (nextRemovalPosition >= 0 && nextInsertionPosition == -1) {
-			plan.planRemovalOperation(nextRemovalPosition);
-		} else {
-			plan.noOperations();
-		}
-	}
-
-	/**
 	 * Creates a new change layer over the given delegate array.
 	 *
 	 * @param delegate the immutable baseline array
@@ -278,7 +256,7 @@ public class IntArrayChanges
 
 				// from left to right get first position with change operations
 				final ChangePlan plan = new ChangePlan();
-				getNextOperations(nextInsertionPosition, nextRemovalPosition, plan);
+				plan.planNextOperation(nextInsertionPosition, nextRemovalPosition);
 
 				while (plan.hasAnythingToDo()) {
 					if (plan.bothOperationsRequested()) {
@@ -355,7 +333,7 @@ public class IntArrayChanges
 					}
 
 					// plan next operations
-					getNextOperations(nextInsertionPosition, nextRemovalPosition, plan);
+					plan.planNextOperation(nextInsertionPosition, nextRemovalPosition);
 				}
 
 				// copy rest of the original array into the result (no operations were planned for this part)

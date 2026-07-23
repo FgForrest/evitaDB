@@ -298,14 +298,26 @@ public class FileUtils {
 	/**
 	 * Returns the size of the specified directory in bytes.
 	 *
+	 * A directory that does not exist occupies no space and therefore reports zero. This is a legitimate
+	 * outcome for every caller of this method - all of them are reporting / metrics consumers that only need
+	 * a byte count. The absence of the folder itself is signalled through other, dedicated channels
+	 * (`CatalogState#MISSING` and the `unusable` flag of `CatalogStatistics`, the transitional catalog states
+	 * for folders that are not created yet or are already deleted), so short-circuiting here hides nothing.
+	 *
 	 * @param directory The path to the directory.
-	 * @return The size of the directory in bytes.
+	 * @return The size of the directory in bytes, zero when the directory does not exist.
 	 */
 	public static long getDirectorySize(@Nonnull Path directory) {
 		// calculate size of all bytes in particular directory
 		Exception ex = null;
 		// we implement a retry logic - the walker fails to calculate folder size when file is removed during the walk
 		for (int i = 0; i < 5; i++) {
+			// a missing directory has a well-defined size of zero - the walker fails hard on an absent root and no
+			// amount of retries can recover from it; the check is repeated on every pass so that a folder removed
+			// between two attempts is resolved the same way instead of exhausting the retries
+			if (!Files.exists(directory)) {
+				return 0L;
+			}
 			try (final Stream<Path> walk = Files.walk(directory);) {
 				return walk
 					.filter(Files::isRegularFile)

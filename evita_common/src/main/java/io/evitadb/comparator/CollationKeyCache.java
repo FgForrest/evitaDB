@@ -59,11 +59,15 @@ import java.util.concurrent.ConcurrentHashMap;
  * - **per-thread collators** - `RuleBasedCollator.getCollationKey` is `synchronized`, therefore
  *   each thread computes keys on its own {@link Collator} instance, keeping cache misses
  *   monitor-free under concurrent indexing;
- * - **memory bound** - `slots` entries per locale (default 8192, roughly 2 MB warm for typical
- *   attribute value lengths), created lazily only for locales that actually collate; the system
- *   property `evita.collationKeyCache.size` resizes the cache (values round down to a power of
- *   two) and `0` disables it entirely, making comparators delegate straight to
- *   {@link Collator#compare(String, String)}.
+ * - **memory bound** - `slots` entries per locale, created lazily only for locales that actually
+ *   collate. The default slot count is derived from the maximum heap size (see {@link #defaultSize()}),
+ *   because a value large enough to cover a real e-commerce corpus would be disproportionate for a
+ *   small embedded deployment; the system property `evita.collationKeyCache.size` overrides it
+ *   (values round down to a power of two and are capped at {@link #MAX_SIZE}) and `0` disables the
+ *   cache entirely, making comparators delegate straight to {@link Collator#compare(String, String)}.
+ *   Only the slot array is allocated eagerly (`slots × reference size`); entries themselves are
+ *   filled on demand, so the full footprint is reached only by a corpus large enough to fill the
+ *   cache. Both bounds are **per locale**.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -74,6 +78,25 @@ final class CollationKeyCache implements Serializable {
 	 * Name of the system property controlling the per-locale slot count.
 	 */
 	static final String SIZE_PROPERTY = "evita.collationKeyCache.size";
+	/**
+	 * Hard upper bound on the per-locale slot count; measurement showed the hit rate flattening at
+	 * this size on a real ~1M-product localized catalog, so a larger cache buys nothing.
+	 */
+	private static final int MAX_SIZE = 1 << 20;
+	/**
+	 * Lower bound of the heap-derived default; also the historical fixed default.
+	 */
+	private static final int MIN_DEFAULT_SIZE = 8192;
+	/**
+	 * Fraction of the maximum heap (as a divisor) budgeted for one locale's fully populated cache.
+	 */
+	private static final int DEFAULT_HEAP_SHARE_DIVISOR = 50;
+	/**
+	 * Estimated retained size of a single populated entry in bytes - a {@link CachedKey} record plus
+	 * its collation-key byte array. Collation keys measure roughly 6.5 bytes per character, so this
+	 * corresponds to attribute values of about thirty characters.
+	 */
+	private static final int ESTIMATED_ENTRY_SIZE = 256;
 	/**
 	 * Registry of per-locale caches; populated lazily, never evicted (the locale count is bounded
 	 * by the catalog schemas).
@@ -112,13 +135,51 @@ final class CollationKeyCache implements Serializable {
 
 	/**
 	 * Resolves the configured per-locale slot count, rounding down to a power of two so that slot
-	 * selection can use bit masking, and capping it to keep the worst-case footprint sane.
+	 * selection can use bit masking, and capping it to keep the worst-case footprint sane. When the
+	 * property is not set at all, the default is derived from the heap size (see
+	 * {@link #defaultSize()}).
 	 *
 	 * @return slot count per locale; zero when caching is disabled
 	 */
 	private static int resolveSize() {
-		final int configured = Integer.getInteger(SIZE_PROPERTY, 8192);
-		return configured <= 0 ? 0 : Integer.highestOneBit(Math.min(configured, 1 << 20));
+		final Integer configured = Integer.getInteger(SIZE_PROPERTY);
+		if (configured == null) {
+			return defaultSize();
+		}
+		return configured <= 0 ? 0 : Integer.highestOneBit(Math.min(configured, MAX_SIZE));
+	}
+
+	/**
+	 * Derives the default per-locale slot count from the maximum heap size.
+	 *
+	 * A fixed default cannot serve both ends of the deployment range: measurement on a real
+	 * ~1M-product localized catalog showed the previous fixed default of 8192 slots covering only a
+	 * fraction of the pivot working set (nearly every B+ tree comparison recomputed a full collation
+	 * key), and raising it to {@link #MAX_SIZE} made that workload **2x** faster - while the same
+	 * value on a small embedded deployment would reserve memory out of all proportion to its corpus.
+	 *
+	 * Heap size is used as the proxy for corpus size, because the two correlate in practice and the
+	 * corpus is not known when this class is loaded. The budget is {@link #DEFAULT_HEAP_SHARE_DIVISOR}
+	 * of the maximum heap, divided by the {@link #ESTIMATED_ENTRY_SIZE} average cost of one entry.
+	 *
+	 * Note that entries are populated **lazily**, so this bound is a ceiling that only a corpus large
+	 * enough to fill the cache ever reaches; a small corpus pays just the slot array
+	 * (`slots × reference size`) regardless of how large the default is. The bound is **per locale**,
+	 * so deployments with many localized attribute values should size the cache explicitly through
+	 * the `evita.collationKeyCache.size` system property.
+	 *
+	 * @return slot count per locale, clamped to [{@link #MIN_DEFAULT_SIZE}, {@link #MAX_SIZE}]
+	 */
+	private static int defaultSize() {
+		final long budgetBytes = Runtime.getRuntime().maxMemory() / DEFAULT_HEAP_SHARE_DIVISOR;
+		final long slots = budgetBytes / ESTIMATED_ENTRY_SIZE;
+		if (slots <= MIN_DEFAULT_SIZE) {
+			return MIN_DEFAULT_SIZE;
+		} else if (slots >= MAX_SIZE) {
+			return MAX_SIZE;
+		} else {
+			return Integer.highestOneBit((int) slots);
+		}
 	}
 
 	/**

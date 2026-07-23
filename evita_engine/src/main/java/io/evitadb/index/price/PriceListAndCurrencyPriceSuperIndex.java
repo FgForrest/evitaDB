@@ -508,7 +508,6 @@ public class PriceListAndCurrencyPriceSuperIndex
 	@Nonnull
 	@Override
 	public PriceListAndCurrencyPriceSuperIndex createCopyWithMergedTransactionalMemory(
-		@Nullable Void layer,
 		@Nonnull TransactionalLayerMaintainer transactionalLayer
 	) {
 		assertNotTerminated();

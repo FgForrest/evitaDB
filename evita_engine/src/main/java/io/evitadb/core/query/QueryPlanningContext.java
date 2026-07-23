@@ -136,7 +136,7 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * Contains reference to the enveloping {@link EvitaSessionContract} within which the {@link #evitaRequest} is executed.
 	 */
 	@Getter
-	@Nonnull private final EvitaSession evitaSession;
+	@Nullable private final EvitaSession evitaSession;
 	/**
 	 * Contains input in {@link EvitaRequest}.
 	 */
@@ -678,6 +678,16 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	}
 
 	/**
+	 * Returns the entity-type name ↔ compact primary key resolver backed by the catalog targeted by this query.
+	 * Used by the globally-unique attribute filter translators to decode the entity type stored inside the
+	 * global unique index's packed tuples.
+	 */
+	@Nonnull
+	public EntityTypeClassifierResolver getEntityTypeClassifierResolver() {
+		return this.catalog;
+	}
+
+	/**
 	 * Returns entity schema.
 	 */
 	@Nonnull
@@ -735,9 +745,12 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 */
 	@Nonnull
 	public Formula analyse(@Nonnull Formula formula) {
-		return ofNullable(this.evitaRequest.getEntityType())
-			.map(it -> this.cacheSupervisor.analyse(this.evitaSession, it, formula))
-			.orElse(formula);
+		final String theEntityType = this.evitaRequest.getEntityType();
+		if (this.evitaSession != null && theEntityType != null) {
+			return this.cacheSupervisor.analyse(this.evitaSession, theEntityType, formula);
+		} else {
+			return formula;
+		}
 	}
 
 	/**
@@ -746,9 +759,12 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 */
 	@Nonnull
 	public <U, T extends CacheableEvitaResponseExtraResultComputer<U>> EvitaResponseExtraResultComputer<U> analyse(@Nonnull T computer) {
-		return ofNullable(this.evitaRequest.getEntityType())
-			.map(it -> this.planningPolicy.analyse(this.cacheSupervisor, this.evitaSession, it, computer))
-			.orElse(computer);
+		final String theEntityType = this.evitaRequest.getEntityType();
+		if (this.evitaSession != null && theEntityType != null) {
+			return this.planningPolicy.analyse(this.cacheSupervisor, this.evitaSession, theEntityType, computer);
+		} else {
+			return computer;
+		}
 	}
 
 	/**

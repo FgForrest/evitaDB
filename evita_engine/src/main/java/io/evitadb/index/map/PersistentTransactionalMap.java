@@ -27,6 +27,7 @@ import io.evitadb.core.transaction.Transaction;
 import io.evitadb.core.transaction.memory.TransactionalLayerCreator;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
+import io.evitadb.core.transaction.memory.TransactionalStateProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.dataType.champ.ChampMap;
 import io.evitadb.index.map.TransactionalMap.TransactionalMemoryEntrySet;
@@ -105,7 +106,6 @@ import static java.util.Optional.ofNullable;
 @ThreadSafe
 public class PersistentTransactionalMap<K, V> implements Map<K, V>,
 	Serializable,
-	Cloneable,
 	TransactionalLayerCreator<MapChanges<K, V>>,
 	TransactionalLayerProducer<MapChanges<K, V>, Map<K, V>>
 {
@@ -217,7 +217,7 @@ public class PersistentTransactionalMap<K, V> implements Map<K, V>,
 		ChampMap<K, V> result = ChampMap.from(layer.getMapDelegate());
 		// apply inserts and updates (modifiedKeys and removedKeys are disjoint by MapChanges construction)
 		for (final Entry<K, V> entry : layer.getModifiedKeys().entrySet()) {
-			if (entry.getKey() instanceof TransactionalLayerProducer) {
+			if (entry.getKey() instanceof TransactionalStateProducer) {
 				throw new IllegalStateException("Transactional layer producer is not expected to be used as a key!");
 			}
 			result = result.updated(entry.getKey(), entry.getValue());
@@ -452,26 +452,6 @@ public class PersistentTransactionalMap<K, V> implements Map<K, V>,
 			}
 			sb.append(',').append(' ');
 		}
-	}
-
-	/**
-	 * Creates a shallow clone. The state is sealed first so the clone and this map share the same immutable
-	 * {@link ChampMap} safely (never a shared mutable buffer). If a transaction is active, the current diff
-	 * layer state is copied into the clone's own layer so both instances can diverge afterward.
-	 */
-	@Override
-	public Object clone() throws CloneNotSupportedException {
-		sealed();
-		@SuppressWarnings("unchecked")
-		final PersistentTransactionalMap<K, V> clone = (PersistentTransactionalMap<K, V>) super.clone();
-		final MapChanges<K, V> layer = getTransactionalMemoryLayerIfExists(this);
-		if (layer != null) {
-			final MapChanges<K, V> clonedLayer = Transaction.getOrCreateTransactionalMemoryLayer(clone);
-			if (clonedLayer != null) {
-				layer.copyState(clonedLayer);
-			}
-		}
-		return clone;
 	}
 
 	/* ===========================================================================================

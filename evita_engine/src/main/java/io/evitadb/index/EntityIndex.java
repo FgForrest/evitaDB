@@ -329,66 +329,6 @@ public abstract class EntityIndex implements
 	}
 
 	/**
-	 * "Preserve originals" constructor used by the catalog-reattachment / transactional-copy path
-	 * (see {@link ReducedEntityIndex#createCopyForNewCatalogAttachment}). The pre-built transactional
-	 * `entityIds` and `entityIdsByLanguage` are taken verbatim — no defensive copy — and the
-	 * change-detection baseline (`originalHierarchyIndexEmpty`, `originalAttributeIndexes`,
-	 * `originalPriceIndexes`, `originalFacetIndexes`) is set directly from the caller-supplied
-	 * snapshot rather than being recomputed.
-	 *
-	 * Subclasses going through this path **must not** call {@link #captureOriginalsFromComponents()} —
-	 * doing so would overwrite the caller-supplied baselines with current state and silently lose
-	 * the dirty-tracking information that drove this copy to begin with. The `originalHistogramKeys`
-	 * field is initialized to empty here because callers that need histogram-aware change detection
-	 * pre-populate it after construction.
-	 *
-	 * @param primaryKey                  the unique identifier of this index instance within the catalog
-	 * @param indexKey                    the key describing what slice of data this index covers
-	 * @param version                     the index version carried over from the source copy
-	 * @param entityIds                   transactional bitmap of all entity primary keys (used as-is)
-	 * @param entityIdsByLanguage         transactional map of entity primary keys by locale (used as-is)
-	 * @param attributeIndex              the attribute sub-index carried over from the source copy
-	 * @param hierarchyIndex              the hierarchy sub-index carried over from the source copy
-	 * @param facetIndex                  the facet sub-index carried over from the source copy
-	 * @param originalHierarchyIndexEmpty pre-computed baseline: whether the hierarchy index was originally empty
-	 * @param originalAttributeIndexes    pre-computed baseline: attribute-index storage keys at the snapshot point
-	 * @param originalPriceIndexes        pre-computed baseline: price-index storage keys at the snapshot point
-	 * @param originalFacetIndexes        pre-computed baseline: facet referenced entity types at the snapshot point
-	 */
-	protected EntityIndex(
-		int primaryKey,
-		@Nonnull EntityIndexKey indexKey,
-		int version,
-		@Nonnull TransactionalBitmap entityIds,
-		@Nonnull TransactionalMap<Locale, TransactionalBitmap> entityIdsByLanguage,
-		@Nonnull AttributeIndex attributeIndex,
-		@Nonnull HierarchyIndex hierarchyIndex,
-		@Nonnull FacetIndex facetIndex,
-		boolean originalHierarchyIndexEmpty,
-		@Nonnull Set<AttributeIndexStorageKey> originalAttributeIndexes,
-		@Nonnull Set<PriceIndexKey> originalPriceIndexes,
-		@Nonnull Set<String> originalFacetIndexes
-	) {
-		this.primaryKey = primaryKey;
-		this.indexKey = indexKey;
-		this.version = version;
-		this.dirty = new TransactionalBoolean();
-		this.entityIds = entityIds;
-		// the "preserve originals" copy carries the source index's persisted-bitmap state verbatim
-		this.previouslyPersisted = !entityIds.isEmpty();
-		this.entityIdsByLanguage = entityIdsByLanguage;
-		this.attributeIndex = attributeIndex;
-		this.hierarchyIndex = hierarchyIndex;
-		this.facetIndex = facetIndex;
-		this.originalHierarchyIndexEmpty = originalHierarchyIndexEmpty;
-		this.originalAttributeIndexes = originalAttributeIndexes;
-		this.originalPriceIndexes = originalPriceIndexes;
-		this.originalFacetIndexes = originalFacetIndexes;
-		this.originalHistogramKeys = Collections.emptySet();
-		registerBaseComponents();
-	}
-
-	/**
 	 * Registers new entity primary key to the superset of entity ids of this entity index.
 	 */
 	public boolean insertPrimaryKeyIfMissing(int entityPrimaryKey) {
@@ -1064,11 +1004,10 @@ public abstract class EntityIndex implements
 	 * The base {@link EntityIndex} constructors initialize all `original*` fields to empty placeholders
 	 * and do not capture any baseline themselves — the component list is only partially populated at
 	 * that point. Every terminal subclass constructor must invoke this method as its final step, after
-	 * the super constructor has run and after every subclass-owned `addComponent(...)` call. The single
-	 * exception is the "preserve originals" constructor path (e.g.
-	 * {@link ReducedEntityIndex#createCopyForNewCatalogAttachment}) which receives pre-computed
-	 * baselines from the caller; calling this method along that path would overwrite the caller-supplied
-	 * snapshot with current state and silently lose dirty-tracking information.
+	 * the super constructor has run and after every subclass-owned `addComponent(...)` call. Any future
+	 * constructor that instead receives pre-computed baselines from its caller must **not** call this
+	 * method, since doing so would overwrite those baselines with current state and silently lose the
+	 * dirty-tracking information they carry.
 	 */
 	protected final void captureOriginalsFromComponents() {
 		final EntityIndexManifest baseline = new EntityIndexManifest();

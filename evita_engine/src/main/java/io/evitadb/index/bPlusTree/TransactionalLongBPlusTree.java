@@ -29,6 +29,7 @@ import io.evitadb.core.transaction.memory.DirtyScopeValidator;
 import io.evitadb.core.transaction.memory.Snapshotable;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
+import io.evitadb.core.transaction.memory.TransactionalStateProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.dataType.ConsistencySensitiveDataStructure;
 import io.evitadb.exception.GenericEvitaInternalError;
@@ -341,8 +342,8 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 	) {
 		super(valueBlockSize, minValueBlockSize, internalNodeBlockSize, minInternalNodeBlockSize, root, size);
 		Assert.isPremiseValid(
-			transactionalLayerWrapper != null || !TransactionalLayerProducer.class.isAssignableFrom(valueType),
-			"Value type cannot implement TransactionalLayerProducer if no transactional layer wrapper is provided."
+			transactionalLayerWrapper != null || !TransactionalStateProducer.class.isAssignableFrom(valueType),
+			"Value type cannot implement TransactionalStateProducer if no transactional layer wrapper is provided."
 		);
 		this.valueType = valueType;
 		this.transactionalLayerWrapper = transactionalLayerWrapper;
@@ -2927,13 +2928,13 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 			}
 
 			V[] newValues = null;
-			if (TransactionalLayerProducer.class.isAssignableFrom(this.values.getClass().getComponentType())) {
+			if (TransactionalStateProducer.class.isAssignableFrom(this.values.getClass().getComponentType())) {
 				for (int i = 0; i < thePeek + 1; i++) {
 					// this.transactionalLayerWrapper is not null, because the values are transactional layers
 					//noinspection unchecked,DataFlowIssue
 					final V value = this.transactionalLayerWrapper.apply(
 						transactionalLayer.getStateCopyWithCommittedChanges(
-							(TransactionalLayerProducer<?, ? extends V>) theValues[i]
+							(TransactionalStateProducer<? extends V>) theValues[i]
 						)
 					);
 					if (newValues == null && value != theValues[i]) {
@@ -3062,7 +3063,7 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 		 * @param removed the value removed from the leaf, may be null
 		 */
 		private static void discardRemovedValueLayer(@Nullable Object removed) {
-			if (removed instanceof final TransactionalLayerProducer<?, ?> producer) {
+			if (removed instanceof final TransactionalStateProducer<?> producer) {
 				producer.removeLayer();
 			}
 		}

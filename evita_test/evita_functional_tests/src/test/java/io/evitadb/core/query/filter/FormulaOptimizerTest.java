@@ -478,6 +478,30 @@ class FormulaOptimizerTest {
 		}
 
 		@Test
+		@DisplayName("NOT whose superset collapses to empty must not vanish from an enclosing AND")
+		void notWithCollapsingSupersetInsideAnd_shouldCollapseWholeConjunctionToEmpty() {
+			final ConstantFormula sibling = constant(1, 2, 3);
+			final ConstantFormula subtracted = constant(2);
+			// the superset must be a container that the optimizer *reduces* to EmptyFormula rather than
+			// EmptyFormula itself - only then do the NotFormula children change during optimization, which is
+			// the path on which the optimizer used to drop the whole NotFormula node instead of replacing it
+			final Formula supersetCollapsingToEmpty = new AndFormula(
+				constant(4, 5),
+				EmptyFormula.INSTANCE
+			);
+
+			final Formula input = new AndFormula(
+				sibling,
+				new NotFormula(subtracted, supersetCollapsingToEmpty)
+			);
+			final Formula result = optimize(input);
+
+			// dropping the negated branch would widen the conjunction to the sibling alone
+			assertArrayEquals(input.compute().getArray(), result.compute().getArray());
+			assertArrayEquals(new int[0], result.compute().getArray());
+		}
+
+		@Test
 		@DisplayName("NOT with both children surviving should preserve semantics")
 		void notWithBothChildrenSurviving_shouldPreserveSemantics() {
 			final ConstantFormula a = constant(1, 2);

@@ -26,6 +26,7 @@ package io.evitadb.index.map;
 import io.evitadb.core.transaction.Transaction;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
+import io.evitadb.core.transaction.memory.TransactionalStateProducer;
 import io.evitadb.dataType.champ.ChampMap;
 import io.evitadb.index.invertedIndex.InvertedIndex;
 import io.evitadb.index.range.RangeIndex;
@@ -104,15 +105,15 @@ public class PersistentTransactionalProducerMap<K, V> extends PersistentTransact
 	 * @param <S> the state type produced by the value's transactional layer
 	 * @param <T> the concrete producer type of the value
 	 */
-	public <S, T extends TransactionalLayerProducer<?, S>> PersistentTransactionalProducerMap(
+	public <S, T extends TransactionalStateProducer<S>> PersistentTransactionalProducerMap(
 		@Nonnull Map<K, V> source,
 		@Nonnull Class<T> valueType,
 		@Nonnull Function<S, V> transactionalLayerWrapper
 	) {
 		super(source);
 		Assert.isTrue(
-			TransactionalLayerProducer.class.isAssignableFrom(valueType),
-			"Value type is expected to implement TransactionalLayerProducer!"
+			TransactionalStateProducer.class.isAssignableFrom(valueType),
+			"Value type is expected to implement TransactionalStateProducer!"
 		);
 		this.valueType = valueType;
 		//noinspection unchecked
@@ -188,7 +189,7 @@ public class PersistentTransactionalProducerMap<K, V> extends PersistentTransact
 		ofNullable(changes).ifPresent(it -> it.cleanAll(transactionalLayer));
 		for (final Entry<K, V> entry : sealed().entrySet()) {
 			final V value = entry.getValue();
-			if (value instanceof TransactionalLayerProducer<?, ?> transactionalLayerProducer) {
+			if (value instanceof TransactionalStateProducer<?> transactionalLayerProducer) {
 				transactionalLayerProducer.removeLayer(transactionalLayer);
 			}
 		}

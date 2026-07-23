@@ -34,8 +34,6 @@ import io.evitadb.api.requestResponse.schema.EntitySortableAttributeCompoundSche
 import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
-import io.evitadb.core.catalog.Catalog;
-import io.evitadb.core.catalog.CatalogRelatedDataStructure;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
@@ -96,8 +94,7 @@ import java.util.function.Function;
  * @see ReducedGroupEntityIndex
  */
 public abstract class AbstractReducedEntityIndex extends EntityIndex
-	implements VoidTransactionMemoryProducer<AbstractReducedEntityIndex>,
-	CatalogRelatedDataStructure<AbstractReducedEntityIndex> {
+	implements VoidTransactionMemoryProducer<AbstractReducedEntityIndex> {
 
 	/**
 	 * This part of index collects information about prices of the entities. It provides data that are necessary for
@@ -167,49 +164,6 @@ public abstract class AbstractReducedEntityIndex extends EntityIndex
 	}
 
 	/**
-	 * Creates a reduced entity index as a transactional copy that preserves original storage part state.
-	 * Used internally by {@link ReducedEntityIndex#createCopyForNewCatalogAttachment(io.evitadb.api.CatalogState)}.
-	 *
-	 * @param primaryKey                  the primary key of this index
-	 * @param indexKey                    the key identifying this index
-	 * @param version                     the version of this index
-	 * @param entityIds                   transactional bitmap of entity primary keys
-	 * @param entityIdsByLanguage         transactional map of entity primary keys by locale
-	 * @param attributeIndex              the attribute index
-	 * @param hierarchyIndex              the hierarchy index
-	 * @param facetIndex                  the facet index
-	 * @param originalHierarchyIndexEmpty whether the hierarchy index was originally empty
-	 * @param originalAttributeIndexes    original attribute index storage keys
-	 * @param originalPriceIndexes        original price index keys
-	 * @param originalFacetIndexes        original facet index referenced entities
-	 * @param priceIndex                  the price reference index
-	 */
-	protected AbstractReducedEntityIndex(
-		int primaryKey,
-		@Nonnull EntityIndexKey indexKey,
-		int version,
-		@Nonnull TransactionalBitmap entityIds,
-		@Nonnull TransactionalMap<Locale, TransactionalBitmap> entityIdsByLanguage,
-		@Nonnull ReferenceAttributeIndex attributeIndex,
-		@Nonnull HierarchyIndex hierarchyIndex,
-		@Nonnull FacetIndex facetIndex,
-		boolean originalHierarchyIndexEmpty,
-		@Nonnull Set<AttributeIndexStorageKey> originalAttributeIndexes,
-		@Nonnull Set<PriceIndexKey> originalPriceIndexes,
-		@Nonnull Set<String> originalFacetIndexes,
-		@Nonnull PriceRefIndex priceIndex
-	) {
-		super(
-			primaryKey, indexKey, version, entityIds,
-			entityIdsByLanguage, attributeIndex, hierarchyIndex, facetIndex,
-			originalHierarchyIndexEmpty,
-			originalAttributeIndexes, originalPriceIndexes, originalFacetIndexes
-		);
-		this.priceIndex = priceIndex;
-		addComponent(new PriceIndexComponent(this.priceIndex));
-	}
-
-	/**
 	 * Retrieves the reference key associated with the current entity index.
 	 * The reference key is derived from the discriminator of the index key.
 	 *
@@ -232,11 +186,6 @@ public abstract class AbstractReducedEntityIndex extends EntityIndex
 	}
 
 	@Override
-	public void attachToCatalog(@Nullable String entityType, @Nonnull Catalog catalog) {
-		this.priceIndex.attachToCatalog(entityType, catalog);
-	}
-
-	@Override
 	public boolean isEmpty() {
 		return super.isEmpty() && this.priceIndex.isPriceIndexEmpty();
 	}
@@ -249,7 +198,6 @@ public abstract class AbstractReducedEntityIndex extends EntityIndex
 
 	@Override
 	public void removeLayer(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
-		transactionalLayer.removeTransactionalMemoryLayerIfExists(this);
 		// the price index is removed by the component-loop inside the super call — no extra hop
 		super.removeTransactionalMemoryOfReferencedProducers(transactionalLayer);
 	}

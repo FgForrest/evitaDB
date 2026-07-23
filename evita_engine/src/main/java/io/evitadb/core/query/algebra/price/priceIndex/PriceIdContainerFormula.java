@@ -58,9 +58,9 @@ public class PriceIdContainerFormula extends AbstractFormula implements PriceInd
 	 * Contains reference to the {@link PriceListAndCurrencyPriceIndex} the prices (ids or full records) produced by
 	 * this formula comes from.
 	 */
-	@Getter private final PriceListAndCurrencyPriceIndex<?,?> priceIndex;
+	@Getter private final PriceListAndCurrencyPriceIndex<?> priceIndex;
 
-	public PriceIdContainerFormula(@Nonnull PriceListAndCurrencyPriceIndex<?,?> priceIndex, @Nonnull Formula delegate) {
+	public PriceIdContainerFormula(@Nonnull PriceListAndCurrencyPriceIndex<?> priceIndex, @Nonnull Formula delegate) {
 		this.priceIndex = priceIndex;
 		this.initFields(delegate);
 	}

@@ -25,6 +25,7 @@ package io.evitadb.index.map;
 
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
+import io.evitadb.core.transaction.memory.TransactionalStateProducer;
 import io.evitadb.dataType.champ.ChampMap;
 
 import javax.annotation.Nonnull;
@@ -84,7 +85,7 @@ public class ProducerMapChanges<K, V> extends MapChanges<K, V> {
 	 * @param <S> the state type produced by the value's transactional layer
 	 * @param <T> the concrete producer type of the value
 	 */
-	public <S, T extends TransactionalLayerProducer<?, S>> ProducerMapChanges(
+	public <S, T extends TransactionalStateProducer<S>> ProducerMapChanges(
 		@Nonnull Map<K, V> mapDelegate,
 		@Nonnull Class<T> valueType,
 		@Nonnull Function<S, V> transactionalLayerWrapper
@@ -103,20 +104,6 @@ public class ProducerMapChanges<K, V> extends MapChanges<K, V> {
 		// share the inherited undo journal so a savepoint rollback also reverts this dirty-key addition
 		journalSetMembership(this.valueMutatedKeys, key);
 		this.valueMutatedKeys.add(key);
-	}
-
-	/**
-	 * {@inheritDoc}
-	 *
-	 * Also carries the {@link #valueMutatedKeys} dirty-key set into the target layer when it is itself a
-	 * {@link ProducerMapChanges} (the clone path always creates a matching producer layer).
-	 */
-	@Override
-	void copyState(@Nonnull MapChanges<K, V> layer) {
-		super.copyState(layer);
-		if (layer instanceof ProducerMapChanges<K, V> producerLayer) {
-			producerLayer.valueMutatedKeys.addAll(this.valueMutatedKeys);
-		}
 	}
 
 	/**
@@ -143,11 +130,11 @@ public class ProducerMapChanges<K, V> extends MapChanges<K, V> {
 
 		// 1) removals (highest precedence): release the removed producer's layer (survivor-guarded) and drop the key
 		for (final K key : getRemovedKeys()) {
-			if (key instanceof TransactionalLayerProducer) {
+			if (key instanceof TransactionalStateProducer) {
 				throw new IllegalStateException("Transactional layer producer is not expected to be used as a key!");
 			}
 			final V value = getMapDelegate().get(key);
-			if (value instanceof TransactionalLayerProducer<?, ?> transactionalLayerProducer
+			if (value instanceof TransactionalStateProducer<?> transactionalLayerProducer
 				&& isInstanceNotReferencedBySurvivingKey(key, value)) {
 				// release the removed value's layer, but only when no surviving key still references the very same
 				// instance (identity-based, exactly as in createMergedMap)
@@ -161,11 +148,11 @@ public class ProducerMapChanges<K, V> extends MapChanges<K, V> {
 		while (modifiedIt.hasNext()) {
 			final Entry<K, V> entry = modifiedIt.next();
 			final K key = entry.getKey();
-			if (key instanceof TransactionalLayerProducer) {
+			if (key instanceof TransactionalStateProducer) {
 				throw new IllegalStateException("Transactional layer producer is not expected to be used as a key!");
 			}
 			V value = entry.getValue();
-			if (value instanceof TransactionalLayerProducer<?, ?> transactionalLayerProducer) {
+			if (value instanceof TransactionalStateProducer<?> transactionalLayerProducer) {
 				value = wrapper.apply(
 					transactionalLayer.getStateCopyWithCommittedChanges(transactionalLayerProducer)
 				);
@@ -179,7 +166,7 @@ public class ProducerMapChanges<K, V> extends MapChanges<K, V> {
 				continue;
 			}
 			final V value = getMapDelegate().get(key);
-			if (value instanceof TransactionalLayerProducer<?, ?> transactionalLayerProducer) {
+			if (value instanceof TransactionalStateProducer<?> transactionalLayerProducer) {
 				final V committed = wrapper.apply(
 					transactionalLayer.getStateCopyWithCommittedChanges(transactionalLayerProducer)
 				);

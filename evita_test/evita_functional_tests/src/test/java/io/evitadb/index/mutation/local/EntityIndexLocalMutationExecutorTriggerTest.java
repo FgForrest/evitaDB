@@ -48,6 +48,7 @@ import io.evitadb.dataType.Scope;
 import io.evitadb.index.CatalogIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.EntityIndexType;
+import io.evitadb.index.EntityTypeClassifierResolver;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.core.expression.trigger.DependencyType;
 import io.evitadb.index.mutation.EntityIndexMutation;
@@ -112,6 +113,24 @@ class EntityIndexLocalMutationExecutorTriggerTest {
 	private static final String TARGET_ENTITY_TYPE = "product";
 	private static final String REFERENCE_NAME = "parameter";
 	private static final int ENTITY_PK = 99;
+
+	/**
+	 * Entity-type classifier resolver stub. The source-side trigger detection tests never register a
+	 * globally-unique attribute, so the executor never consults this resolver; throwing on use surfaces
+	 * any unexpected invocation rather than silently returning a bogus value.
+	 */
+	private static final EntityTypeClassifierResolver NOOP_CLASSIFIER_RESOLVER = new EntityTypeClassifierResolver() {
+		@Override
+		public int toEntityTypePrimaryKey(@Nonnull String entityType) {
+			throw new UnsupportedOperationException("Not needed for source-side detection tests.");
+		}
+
+		@Nonnull
+		@Override
+		public String toEntityTypeName(int entityTypePrimaryKey) {
+			throw new UnsupportedOperationException("Not needed for source-side detection tests.");
+		}
+	};
 
 	/**
 	 * Simple test implementation of {@link ExpressionIndexTrigger}. Provides the minimum contract
@@ -290,7 +309,8 @@ class EntityIndexLocalMutationExecutorTriggerTest {
 			() -> { throw new UnsupportedOperationException("Not used in trigger test."); },
 			registrySupplier,
 			null,
-			null
+			null,
+			NOOP_CLASSIFIER_RESOLVER
 		);
 	}
 
@@ -1220,7 +1240,8 @@ class EntityIndexLocalMutationExecutorTriggerTest {
 			() -> { throw new UnsupportedOperationException("Not used in trigger test."); },
 			registrySupplier,
 			localTriggerSupplier,
-			null
+			null,
+			NOOP_CLASSIFIER_RESOLVER
 		);
 	}
 

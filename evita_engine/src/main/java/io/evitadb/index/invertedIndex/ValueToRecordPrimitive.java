@@ -132,7 +132,6 @@ public class ValueToRecordPrimitive implements ValueToRecord {
 	@Nonnull
 	@Override
 	public ValueToRecord createCopyWithMergedTransactionalMemory(
-		@Nullable Void layer,
 		@Nonnull TransactionalLayerMaintainer transactionalLayer
 	) {
 		// immutable and layer-less: the committed copy is the very same instance (free on commit)

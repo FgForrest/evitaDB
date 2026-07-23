@@ -40,7 +40,7 @@ import static java.util.Optional.ofNullable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2019
  */
-public final class TransactionalContainerChanges<DIFF_PIECE, COPY, PRODUCER extends TransactionalLayerProducer<DIFF_PIECE, COPY>>
+public final class TransactionalContainerChanges<COPY, PRODUCER extends TransactionalStateProducer<COPY>>
 	implements Snapshotable<TransactionalContainerChanges.ContainerChangesMemento<PRODUCER>> {
 	/**
 	 * Lazily allocated list of objects created in this transaction; `null` until the first {@link #addCreatedItem}.

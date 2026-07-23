@@ -24,12 +24,8 @@
 package io.evitadb.index.price;
 
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
-import io.evitadb.core.catalog.Catalog;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.Scope;
-import io.evitadb.index.EntityIndexKey;
-import io.evitadb.index.EntityIndexType;
-import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.price.model.PriceIndexKey;
 import io.evitadb.index.price.model.priceRecord.PriceRecord;
 import io.evitadb.index.price.model.priceRecord.PriceRecordContract;
@@ -42,8 +38,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ArgumentsSource;
-import org.mockito.ArgumentMatchers;
-import org.mockito.Mockito;
 
 import javax.annotation.Nonnull;
 import java.time.OffsetDateTime;
@@ -52,7 +46,6 @@ import java.util.Arrays;
 import java.util.Currency;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -103,32 +96,20 @@ class LongRunningPriceListAndCurrencyPriceRefIndexTest implements TimeBoundedTes
 	}
 
 	/**
-	 * Attaches the given ref index to a mocked catalog that returns the provided super index
-	 * through the standard `Catalog -> GlobalEntityIndex -> PriceSuperIndex` chain.
+	 * Wires the given ref index directly to the provided super index, mirroring how the owning
+	 * entity collection wires its reduced indexes' price ref chains to the super price indexes of
+	 * its own GLOBAL entity index after re-attachment.
 	 */
-	private static void attachRefIndexToCatalog(
+	private static void wireRefIndexToSuperIndex(
 		@Nonnull PriceListAndCurrencyPriceRefIndex refIndex,
 		@Nonnull PriceListAndCurrencyPriceSuperIndex superIndex
 	) {
-		final PriceSuperIndex priceSuperIndex = Mockito.mock(PriceSuperIndex.class);
-		Mockito.when(priceSuperIndex.getPriceIndex(PRICE_INDEX_KEY)).thenReturn(superIndex);
-
-		final GlobalEntityIndex globalEntityIndex = Mockito.mock(GlobalEntityIndex.class);
-		Mockito.when(globalEntityIndex.getPriceIndex(PRICE_INDEX_KEY)).thenReturn(superIndex);
-
-		final Catalog catalog = Mockito.mock(Catalog.class);
-		Mockito.when(catalog.getEntityIndexIfExists(
-			ArgumentMatchers.eq(ENTITY_TYPE),
-			ArgumentMatchers.eq(new EntityIndexKey(EntityIndexType.GLOBAL, SCOPE)),
-			ArgumentMatchers.eq(GlobalEntityIndex.class)
-		)).thenReturn(Optional.of(globalEntityIndex));
-
-		refIndex.attachToCatalog(ENTITY_TYPE, catalog);
+		refIndex.wireSuperIndex(superIndex);
 	}
 
 	/**
 	 * Populates the super index with the specified price records (no validity) and returns
-	 * a ref index attached to that super index via catalog mock.
+	 * a ref index wired to that super index.
 	 */
 	@Nonnull
 	private static PriceListAndCurrencyPriceRefIndex createAttachedRefIndex(
@@ -140,13 +121,13 @@ class LongRunningPriceListAndCurrencyPriceRefIndexTest implements TimeBoundedTes
 		}
 		final PriceListAndCurrencyPriceRefIndex newRefIndex =
 			new PriceListAndCurrencyPriceRefIndex(SCOPE, PRICE_INDEX_KEY);
-		attachRefIndexToCatalog(newRefIndex, superIndex);
+		wireRefIndexToSuperIndex(newRefIndex, superIndex);
 		return newRefIndex;
 	}
 
 	/**
-	 * Creates a ref index from deserialized data (price ids constructor), attaches it to the
-	 * catalog mock, and returns it ready for use.
+	 * Creates a ref index from deserialized data (price ids constructor), wires it to the
+	 * super index, and returns it ready for use.
 	 */
 	@Nonnull
 	private static PriceListAndCurrencyPriceRefIndex createAttachedRefIndexFromPriceIds(
@@ -155,7 +136,7 @@ class LongRunningPriceListAndCurrencyPriceRefIndexTest implements TimeBoundedTes
 	) {
 		final PriceListAndCurrencyPriceRefIndex newRefIndex =
 			new PriceListAndCurrencyPriceRefIndex(SCOPE, PRICE_INDEX_KEY, new RangeIndex(), priceIds);
-		attachRefIndexToCatalog(newRefIndex, superIndex);
+		wireRefIndexToSuperIndex(newRefIndex, superIndex);
 		return newRefIndex;
 	}
 

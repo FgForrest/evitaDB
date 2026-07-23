@@ -27,10 +27,14 @@ import io.evitadb.api.exception.EntityLocaleMissingException;
 import io.evitadb.api.exception.UniqueValueViolationException;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
+import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.dataType.Scope;
+import io.evitadb.index.attribute.EntityReferenceWithLocale;
 import io.evitadb.index.attribute.GlobalUniqueIndex;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.CatalogIndexStoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -40,6 +44,7 @@ import org.junit.jupiter.api.Test;
 import javax.annotation.Nonnull;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Locale;
 import java.util.Set;
 
@@ -68,6 +73,36 @@ class CatalogIndexTest {
 	private static final String ATTR_CODE = "code";
 	private static final String ATTR_URL = "url";
 	private static final int ENTITY_TYPE_PK = 1;
+
+	/**
+	 * Shared {@link EntityTypeClassifierResolver} that resolves the test entity type name and
+	 * primary key by delegating to a mock catalog's collection accessors. Because the catalog is a
+	 * Mockito mock, the resolver wraps it rather than passing the mock directly.
+	 */
+	private static final EntityTypeClassifierResolver CLASSIFIER_RESOLVER = createClassifierResolver();
+
+	/**
+	 * Creates an {@link EntityTypeClassifierResolver} backed by a mock catalog that resolves the
+	 * test entity type name and primary key via the catalog's collection accessors.
+	 *
+	 * @return a configured classifier resolver
+	 */
+	@Nonnull
+	private static EntityTypeClassifierResolver createClassifierResolver() {
+		final Catalog catalog = createMockCatalog(ENTITY_TYPE, ENTITY_TYPE_PK);
+		return new EntityTypeClassifierResolver() {
+			@Override
+			public int toEntityTypePrimaryKey(@Nonnull String entityType) {
+				return catalog.getCollectionForEntityOrThrowException(entityType).getEntityTypePrimaryKey();
+			}
+
+			@Nonnull
+			@Override
+			public String toEntityTypeName(int pk) {
+				return catalog.getCollectionForEntityPrimaryKeyOrThrowException(pk).getEntityType();
+			}
+		};
+	}
 
 	/**
 	 * Creates a mock {@link Catalog} that resolves the given entity type name to
@@ -150,14 +185,13 @@ class CatalogIndexTest {
 	}
 
 	/**
-	 * Creates a new {@link CatalogIndex} for {@link Scope#LIVE} with a mock catalog attached.
+	 * Creates a new {@link CatalogIndex} for {@link Scope#LIVE}.
 	 *
 	 * @return a ready-to-use CatalogIndex
 	 */
 	@Nonnull
 	private static CatalogIndex createLiveCatalogIndex() {
 		final CatalogIndex index = new CatalogIndex(Scope.LIVE);
-		index.attachToCatalog(null, createMockCatalog(ENTITY_TYPE, ENTITY_TYPE_PK));
 		return index;
 	}
 
@@ -219,7 +253,7 @@ class CatalogIndexTest {
 
 			this.index.insertUniqueAttribute(
 				this.entitySchema, attrSchema,
-				Collections.emptySet(), null, "ABC", 1
+				Collections.emptySet(), null, "ABC", 1, CLASSIFIER_RESOLVER
 			);
 
 			final GlobalUniqueIndex globalIndex =
@@ -236,11 +270,11 @@ class CatalogIndexTest {
 
 			this.index.insertUniqueAttribute(
 				this.entitySchema, attrSchema,
-				Collections.emptySet(), null, "ABC", 1
+				Collections.emptySet(), null, "ABC", 1, CLASSIFIER_RESOLVER
 			);
 			this.index.removeUniqueAttribute(
 				this.entitySchema, attrSchema,
-				Collections.emptySet(), null, "ABC", 1
+				Collections.emptySet(), null, "ABC", 1, CLASSIFIER_RESOLVER
 			);
 
 			assertNull(this.index.getGlobalUniqueIndex(attrSchema, null));
@@ -265,11 +299,11 @@ class CatalogIndexTest {
 
 			this.index.insertUniqueAttribute(
 				this.entitySchema, codeSchema,
-				Collections.emptySet(), null, "CODE-1", 1
+				Collections.emptySet(), null, "CODE-1", 1, CLASSIFIER_RESOLVER
 			);
 			this.index.insertUniqueAttribute(
 				this.entitySchema, urlSchema,
-				Collections.emptySet(), null, "/product/1", 2
+				Collections.emptySet(), null, "/product/1", 2, CLASSIFIER_RESOLVER
 			);
 
 			final GlobalUniqueIndex codeIndex =
@@ -304,7 +338,7 @@ class CatalogIndexTest {
 
 			this.index.insertUniqueAttribute(
 				this.entitySchema, attrSchema,
-				Collections.emptySet(), null, "ABC", 1
+				Collections.emptySet(), null, "ABC", 1, CLASSIFIER_RESOLVER
 			);
 
 			// retrieve without locale -- should work for non-localized
@@ -320,7 +354,7 @@ class CatalogIndexTest {
 
 			this.index.insertUniqueAttribute(
 				this.entitySchema, attrSchema,
-				allowedLocales, Locale.ENGLISH, "/product/1", 1
+				allowedLocales, Locale.ENGLISH, "/product/1", 1, CLASSIFIER_RESOLVER
 			);
 
 			// retrieve with matching locale
@@ -367,7 +401,7 @@ class CatalogIndexTest {
 
 			index.insertUniqueAttribute(
 				entitySchema, attrSchema,
-				Collections.emptySet(), null, "ABC", 1
+				Collections.emptySet(), null, "ABC", 1, CLASSIFIER_RESOLVER
 			);
 
 			assertFalse(index.isEmpty());
@@ -383,11 +417,11 @@ class CatalogIndexTest {
 
 			index.insertUniqueAttribute(
 				entitySchema, attrSchema,
-				Collections.emptySet(), null, "ABC", 1
+				Collections.emptySet(), null, "ABC", 1, CLASSIFIER_RESOLVER
 			);
 			index.removeUniqueAttribute(
 				entitySchema, attrSchema,
-				Collections.emptySet(), null, "ABC", 1
+				Collections.emptySet(), null, "ABC", 1, CLASSIFIER_RESOLVER
 			);
 
 			assertTrue(index.isEmpty());
@@ -408,14 +442,14 @@ class CatalogIndexTest {
 
 			index.insertUniqueAttribute(
 				entitySchema, attrSchema,
-				Collections.emptySet(), null, "DUPLICATE", 1
+				Collections.emptySet(), null, "DUPLICATE", 1, CLASSIFIER_RESOLVER
 			);
 
 			final UniqueValueViolationException exception = assertThrows(
 				UniqueValueViolationException.class,
 				() -> index.insertUniqueAttribute(
 					entitySchema, attrSchema,
-					Collections.emptySet(), null, "DUPLICATE", 2
+					Collections.emptySet(), null, "DUPLICATE", 2, CLASSIFIER_RESOLVER
 				)
 			);
 			assertEquals(ATTR_CODE, exception.getAttributeName());
@@ -442,7 +476,7 @@ class CatalogIndexTest {
 				original -> {
 					original.insertUniqueAttribute(
 						entitySchema, attrSchema,
-						Collections.emptySet(), null, "ABC", 1
+						Collections.emptySet(), null, "ABC", 1, CLASSIFIER_RESOLVER
 					);
 				},
 				(original, committed) -> {
@@ -470,7 +504,7 @@ class CatalogIndexTest {
 				original -> {
 					original.insertUniqueAttribute(
 						entitySchema, attrSchema,
-						Collections.emptySet(), null, "ABC", 1
+						Collections.emptySet(), null, "ABC", 1, CLASSIFIER_RESOLVER
 					);
 				},
 				(original, committed) -> {
@@ -518,7 +552,7 @@ class CatalogIndexTest {
 				original -> {
 					original.insertUniqueAttribute(
 						entitySchema, attrSchema,
-						Collections.emptySet(), null, "ABC", 1
+						Collections.emptySet(), null, "ABC", 1, CLASSIFIER_RESOLVER
 					);
 				},
 				(original, committed) -> {
@@ -545,13 +579,99 @@ class CatalogIndexTest {
 						createNonLocalizedAttributeSchema(ATTR_CODE, String.class);
 					original.insertUniqueAttribute(
 						entitySchema, attrSchema,
-						Collections.emptySet(), null, "XYZ", 1
+						Collections.emptySet(), null, "XYZ", 1, CLASSIFIER_RESOLVER
 					);
 				},
 				(original, committed) -> {
 					assertEquals(originalVersion, original.getVersion());
 				}
 			);
+		}
+	}
+
+	@Nested
+	@DisplayName("Catalog version copy")
+	class CatalogVersionCopyTest {
+
+		@Test
+		@DisplayName("should share the same global unique index child instances across a catalog version copy")
+		void shouldShareGlobalUniqueIndexInstancesAcrossCatalogCopy() {
+			// This replaces the former GlobalUniqueIndex shell-copy locale-sequence tests: the shell copy is gone.
+			// createShallowCopyWithResetDirtyFlag now reuses the SAME child global unique index instances by reference, so
+			// the historical shell-sequence-reset bug is structurally impossible rather than merely fixed.
+			final CatalogIndex index = createLiveCatalogIndex();
+			final EntitySchemaContract entitySchema = createEntitySchema(ENTITY_TYPE);
+			final GlobalAttributeSchemaContract codeSchema = createNonLocalizedAttributeSchema(ATTR_CODE, String.class);
+			index.insertUniqueAttribute(
+				entitySchema, codeSchema, Collections.emptySet(), null, "A", 1, CLASSIFIER_RESOLVER
+			);
+
+			final GlobalUniqueIndex source = index.getGlobalUniqueIndex(codeSchema, null);
+			assertNotNull(source);
+
+			// a structural copy for a new catalog version reuses the very same child global unique index instance
+			final CatalogIndex copy = index.createShallowCopyWithResetDirtyFlag();
+			final GlobalUniqueIndex copied = copy.getGlobalUniqueIndex(codeSchema, null);
+			assertSame(source, copied, "the copy must reuse the same global unique index instance (no shell copy)");
+
+			// a value registered before the copy still resolves through the shared instance, decoded via the resolver
+			final EntityReferenceWithLocale reference = copied
+				.getEntityReferenceByUniqueValue("A", null, CLASSIFIER_RESOLVER)
+				.orElseThrow();
+			assertEquals(ENTITY_TYPE, reference.getType());
+			assertEquals(1, reference.getPrimaryKey());
+		}
+
+		@Test
+		@DisplayName("should clear the warm-up dirty latch that nothing else in production resets")
+		void shouldClearDirtyLatchInheritedFromWarmUp() {
+			// Outside a transaction (= warm-up semantics) `dirty` is written straight into the base value, and no
+			// production code path ever calls resetDirty() - it is a latch for the lifetime of the instance. The copy
+			// taken when a new catalog version is built is therefore the ONLY thing that clears it, which is exactly why
+			// this method cannot be replaced by forwarding the original index. Observed through the storage part the
+			// flag gates, since the flag itself is not exposed.
+			final CatalogIndex index = createLiveCatalogIndex();
+			final EntitySchemaContract entitySchema = createEntitySchema(ENTITY_TYPE);
+			final GlobalAttributeSchemaContract codeSchema = createNonLocalizedAttributeSchema(ATTR_CODE, String.class);
+			index.insertUniqueAttribute(
+				entitySchema, codeSchema, Collections.emptySet(), null, "A", 1, CLASSIFIER_RESOLVER
+			);
+
+			assertEquals(
+				1, countCatalogIndexParts(index),
+				"a warm-up insert must latch the index dirty (its own storage part is emitted)!"
+			);
+
+			final CatalogIndex copy = index.createShallowCopyWithResetDirtyFlag();
+			assertEquals(
+				0, countCatalogIndexParts(copy),
+				"the copy must start clean - the latch is cleared exactly here and nowhere else!"
+			);
+			assertEquals(
+				1, countCatalogIndexParts(index),
+				"clearing the latch must not mutate the source index!"
+			);
+		}
+
+		/**
+		 * Counts the {@link CatalogIndexStoragePart} instances the passed index emits - one when the index considers
+		 * itself dirty, none otherwise. Child global unique index parts are ignored, as those children are shared by
+		 * reference and keep their own dirty flags.
+		 *
+		 * @param index index to collect the modified storage parts from
+		 * @return number of own storage parts emitted by the index
+		 */
+		private static int countCatalogIndexParts(@Nonnull CatalogIndex index) {
+			final TrappedChanges trappedChanges = new TrappedChanges();
+			index.getModifiedStorageParts(trappedChanges);
+			int count = 0;
+			final Iterator<StoragePart> it = trappedChanges.getTrappedChangesIterator();
+			while (it.hasNext()) {
+				if (it.next() instanceof CatalogIndexStoragePart) {
+					count++;
+				}
+			}
+			return count;
 		}
 	}
 

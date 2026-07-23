@@ -124,6 +124,7 @@ import io.evitadb.index.*;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.map.TransactionalMap;
+import io.evitadb.index.price.SuperIndexResolver;
 import io.evitadb.index.mutation.ConsistencyCheckingLocalMutationExecutor.ImplicitMutationBehavior;
 import io.evitadb.index.mutation.EntityIndexMutation;
 import io.evitadb.index.mutation.IndexMutation;
@@ -489,7 +490,7 @@ public final class EntityCollection implements
 			this::getIndexByPrimaryKeyIfExists,
 			this::getInternalSchema
 		);
-		final IndexTuple indexTuple = previousCollection.createIndexCopiesForNewCatalogAttachment(catalogState);
+		final IndexTuple indexTuple = previousCollection.createIndexCopiesForNewCatalogAttachment();
 		this.indexes = new TransactionalMap<>(
 			indexTuple.indexes(),
 			EntityIndex.class::cast
@@ -1718,15 +1719,27 @@ public final class EntityCollection implements
 
 	@Override
 	public void attachToCatalog(@Nullable String entityType, @Nonnull Catalog catalog) {
+		attachCatalogShell(catalog);
+		// wire the reduced indexes' price ref chains to the super price indexes of this collection's own GLOBAL
+		// entity index (same scope) — the price chain no longer holds a catalog back-reference of its own
+		wireReducedIndexSuperIndexes();
+	}
+
+	/**
+	 * Attaches only the catalog-level shell of this collection: the catalog back-reference and the schema decorator
+	 * that reads through it. Enforces single attachment (this is the one sanctioned catalog back-edge, so a second
+	 * attach is a programming error). Deliberately does NOT wire the reduced indexes' price ref chains — callers that
+	 * build a fresh collection sharing {@link #indexes} by reference (see {@link #createCopyWithNewPersistenceService})
+	 * hold indexes that are already wired, and re-running the wiring would trip the price chain's single-assign guards.
+	 *
+	 * @param catalog the catalog version this collection is being attached to
+	 */
+	private void attachCatalogShell(@Nonnull Catalog catalog) {
+		Assert.isPremiseValid(this.catalog == null, "Catalog was already attached to this collection!");
 		this.catalog = catalog;
 		this.schema = new TransactionalReference<>(
 			new EntitySchemaDecorator(catalog::getSchema, this.initialSchema)
 		);
-		for (EntityIndex entityIndex : this.indexes.values()) {
-			if (entityIndex instanceof CatalogRelatedDataStructure<?> catalogRelatedEntityIndex) {
-				catalogRelatedEntityIndex.attachToCatalog(this.getEntityType(), this.catalog);
-			}
-		}
 	}
 
 	@Override
@@ -1755,7 +1768,11 @@ public final class EntityCollection implements
 			catalogVersion, this.getEntityType(), this.entityTypePrimaryKey
 		);
 		if (transactionalChanges != null) {
-			// when we register all storage parts for persisting, we can now release transactional memory
+			// this is the DIRTY branch, and it must stay the only route for a collection that has pending changes:
+			// indexes are rebuilt here by merging their transactional layer, which yields fresh instances. The clean
+			// branch below instead forwards indexes to the next catalog version BY REFERENCE
+			// (createIndexCopiesForNewCatalogAttachment), which is sound only because a dirty collection never reaches
+			// it — routing one through there would share a live transactional layer across two catalog versions
 			transactionalLayer.removeTransactionalMemoryLayer(this);
 			// this creates copy of the indexes with all changes applied
 			final Map<EntityIndexKey, EntityIndex> modifiedIndexes = transactionalLayer.getStateCopyWithCommittedChanges(this.indexes);
@@ -1797,7 +1814,7 @@ public final class EntityCollection implements
 			if (this.persistenceService != newPersistenceService) {
 				// if the compaction occurred, the persistence service may have changed
 				// we just create a new collection with the new persistence service, but leave the rest of the state intact
-				final IndexTuple indexTuple = createIndexCopiesForNewCatalogAttachment(CatalogState.ALIVE);
+				final IndexTuple indexTuple = createIndexCopiesForNewCatalogAttachment();
 				return new EntityCollection(
 					catalogVersion,
 					CatalogState.ALIVE,
@@ -1848,11 +1865,11 @@ public final class EntityCollection implements
 			this.cacheSupervisor,
 			this.trafficRecorder
 		);
-		// the catalog remains the same here
-		entityCollection.catalog = this.catalog;
-		entityCollection.schema = new TransactionalReference<>(
-			new EntitySchemaDecorator(this.catalog::getSchema, internalSchema)
-		);
+		// the catalog remains the same here; attach only the collection shell. The fresh copy shares this.indexes by
+		// reference and they are already wired to their super price indexes, so index wiring must NOT re-run here —
+		// re-wiring would trip the price chain's single-assign guards. The copy's initialSchema equals internalSchema
+		// (set by the constructor above), so the shell's schema decorator is identical to the previous hand-wiring.
+		entityCollection.attachCatalogShell(this.catalog);
 		return entityCollection;
 	}
 
@@ -1864,7 +1881,7 @@ public final class EntityCollection implements
 	@Override
 	@Nonnull
 	public EntityCollection createCopyForNewCatalogAttachment(@Nonnull CatalogState catalogState) {
-		final IndexTuple indexTuple = createIndexCopiesForNewCatalogAttachment(catalogState);
+		final IndexTuple indexTuple = createIndexCopiesForNewCatalogAttachment();
 		return new EntityCollection(
 			this.catalog.getVersion(),
 			catalogState,
@@ -1889,8 +1906,10 @@ public final class EntityCollection implements
 	 * @param entityIndex the index to be added, must not be null
 	 */
 	public void addIndex(@Nonnull EntityIndex entityIndex) {
-		if (entityIndex instanceof CatalogRelatedDataStructure<?> crds) {
-			crds.attachToCatalog(this.getEntityType(), this.catalog);
+		// disk load / WAL replay register GLOBAL indexes before reduced ones, so the reduced index's super price
+		// indexes are already present in this collection's GLOBAL entity index when it is wired here
+		if (entityIndex instanceof AbstractReducedEntityIndex reducedIndex) {
+			wireReducedIndexSuperIndex(reducedIndex);
 		}
 		this.indexes.put(entityIndex.getIndexKey(), entityIndex);
 		this.indexesByPrimaryKey.put(entityIndex.getPrimaryKey(), entityIndex);
@@ -2569,7 +2588,8 @@ public final class EntityCollection implements
 				.orElseThrow(() -> new IllegalStateException(
 					"No entity collection found for entity type `" + otherEntityType + "` " +
 						"while resolving schema for cross-entity expression evaluation."
-				))
+				)),
+			this.catalog
 		);
 
 		return localMutationExecutorCollector.execute(
@@ -2607,30 +2627,88 @@ public final class EntityCollection implements
 	}
 
 	/**
-	 * Creates a map of index copies for a new catalog attachment, based on the current indexes.
-	 * If an index is a catalog-related data structure, a copy for the new catalog attachment is created;
-	 * otherwise, the original index is reused.
+	 * Creates the index maps for a new catalog attachment from a **clean** collection, carrying every index — GLOBAL,
+	 * referenced-type and reduced alike — across the version boundary **by reference** inside a fresh map wrapper.
 	 *
-	 * @param catalogState the state of the new catalog to which the indices will be attached
-	 * @return a map containing keys and their corresponding index copies or original indexes
+	 * Reduced indexes no longer hold any catalog back-reference: their price ref chain captures the GLOBAL entity index
+	 * directly through a {@link SuperIndexResolver}, and that GLOBAL is carried by reference here in the very same step,
+	 * so a carried reduced index's captured GLOBAL and every combo-super pointer remain identity-stable across the bump.
+	 * {@link #wireReducedIndexSuperIndex(AbstractReducedEntityIndex)} therefore verifies the carried wiring during
+	 * re-attachment instead of re-shelling and re-wiring it on every commit.
+	 *
+	 * Carrying transactional sub-structures by reference is only sound when this collection is clean. What actually
+	 * guarantees that is the routing: a dirty collection is rebuilt through the merge path and never reaches this
+	 * method. The premise assertion below is a partial backstop on top of that routing, not a replacement for it — a
+	 * layer on the index maps records an uncommitted change to the index *set* (an index added or removed), because a
+	 * transactional map tracks its key-to-value mapping rather than mutation happening inside a mapped value. An index
+	 * mutated internally therefore leaves these maps untouched and is caught by the routing, not by this check.
+	 *
+	 * @return the index maps whose values are the current indexes shared by reference
 	 */
 	@Nonnull
-	private IndexTuple createIndexCopiesForNewCatalogAttachment(@Nonnull CatalogState catalogState) {
+	private IndexTuple createIndexCopiesForNewCatalogAttachment() {
+		Assert.isPremiseValid(
+			Transaction.getTransactionalMemoryLayerIfExists(this.indexes) == null &&
+				Transaction.getTransactionalMemoryLayerIfExists(this.indexesByPrimaryKey) == null,
+			"Indexes may only be carried to a new catalog version from a clean collection, but an uncommitted change to the index set was found!"
+		);
 		final Map<EntityIndexKey, EntityIndex> indexes = CollectionUtils.createHashMap(this.indexes.size());
 		final Map<Integer, EntityIndex> indexesByPk = CollectionUtils.createHashMap(this.indexes.size());
 		for (Entry<EntityIndexKey, EntityIndex> entry : this.indexes.entrySet()) {
-			if (entry.getValue() instanceof CatalogRelatedDataStructure) {
-				//noinspection unchecked
-				final EntityIndex copyForNewCatalogAttachment = ((CatalogRelatedDataStructure<? extends EntityIndex>) entry.getValue())
-					.createCopyForNewCatalogAttachment(catalogState);
-				indexes.put(entry.getKey(), copyForNewCatalogAttachment);
-				indexesByPk.put(copyForNewCatalogAttachment.getPrimaryKey(), copyForNewCatalogAttachment);
-			} else {
-				indexes.put(entry.getKey(), entry.getValue());
-				indexesByPk.put(entry.getValue().getPrimaryKey(), entry.getValue());
-			}
+			final EntityIndex index = entry.getValue();
+			indexes.put(entry.getKey(), index);
+			indexesByPk.put(index.getPrimaryKey(), index);
 		}
 		return new IndexTuple(indexes, indexesByPk);
+	}
+
+	/**
+	 * Wires every reduced entity index held by this collection to the super price indexes of its scope's
+	 * {@link GlobalEntityIndex}. Called after re-attaching the collection to a catalog version, when the reduced
+	 * indexes have been freshly merged or shelled and their price ref chains carry no super index yet. Reduced indexes
+	 * added incrementally (disk load, lazy creation during mutation) are wired individually through
+	 * {@link #wireReducedIndexSuperIndex(AbstractReducedEntityIndex)}.
+	 */
+	private void wireReducedIndexSuperIndexes() {
+		for (final EntityIndex entityIndex : this.indexes.values()) {
+			if (entityIndex instanceof AbstractReducedEntityIndex reducedIndex) {
+				wireReducedIndexSuperIndex(reducedIndex);
+			}
+		}
+	}
+
+	/**
+	 * Wires a single reduced entity index's price ref chain to the super price indexes of this collection's
+	 * {@link GlobalEntityIndex} of the same scope, or — for a reduced index carried across a catalog version by
+	 * reference (see {@link #createIndexCopiesForNewCatalogAttachment()}) — verifies that its existing wiring still
+	 * points at this version's GLOBAL. The GLOBAL index is captured directly by the {@link SuperIndexResolver} — no
+	 * {@link Catalog} nor owning-collection back-reference is retained — so the reduced index carries no catalog
+	 * dependency of its own and is forwarded across catalog versions by reference together with its GLOBAL.
+	 *
+	 * @param reducedIndex the reduced entity index whose price ref chain should be wired or verified
+	 */
+	private void wireReducedIndexSuperIndex(@Nonnull AbstractReducedEntityIndex reducedIndex) {
+		final Scope scope = reducedIndex.getIndexKey().scope();
+		reducedIndex.getPriceIndex().wireOrVerifySuperIndexes(resolveGlobalIndex(scope));
+	}
+
+	/**
+	 * Resolves this collection's {@link GlobalEntityIndex} of the given scope, which owns the super price indexes that
+	 * back the scope's reduced indexes. The GLOBAL index is always present by the time a reduced index references it
+	 * (GLOBAL indexes are registered first on load, and a reduced index cannot exist before its collection's GLOBAL) —
+	 * the assertion makes that ordering assumption loud rather than silently resolving `null`.
+	 *
+	 * @param scope the scope whose GLOBAL entity index should be resolved
+	 * @return the GLOBAL entity index of the given scope
+	 */
+	@Nonnull
+	private GlobalEntityIndex resolveGlobalIndex(@Nonnull Scope scope) {
+		final EntityIndex globalIndex = this.indexes.get(new EntityIndexKey(EntityIndexType.GLOBAL, scope));
+		Assert.isPremiseValid(
+			globalIndex instanceof GlobalEntityIndex,
+			() -> "Global entity index of scope `" + scope + "` must exist to wire super price indexes!"
+		);
+		return (GlobalEntityIndex) globalIndex;
 	}
 
 	/**
@@ -2871,8 +2949,8 @@ public final class EntityCollection implements
 								throw new GenericEvitaInternalError("Unsupported entity index type: " + eikAgain.type());
 							}
 
-							if (entityIndex instanceof CatalogRelatedDataStructure<?> lateInitializationIndex) {
-								lateInitializationIndex.attachToCatalog(EntityCollection.this.getEntityType(), EntityCollection.this.catalog);
+							if (entityIndex instanceof AbstractReducedEntityIndex reducedIndex) {
+								EntityCollection.this.wireReducedIndexSuperIndex(reducedIndex);
 							}
 
 							// register index also in the map by primary key for fast access

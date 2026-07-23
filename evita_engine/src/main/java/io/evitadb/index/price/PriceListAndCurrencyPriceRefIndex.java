@@ -23,16 +23,12 @@
 
 package io.evitadb.index.price;
 
-import io.evitadb.api.CatalogState;
 import io.evitadb.core.catalog.Catalog;
-import io.evitadb.core.catalog.CatalogRelatedDataStructure;
 import io.evitadb.core.query.algebra.price.priceIndex.PriceIdContainerFormula;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.Scope;
-import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.EntityIndexKey;
-import io.evitadb.index.EntityIndexType;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.bPlusTree.TransactionalElementBPlusTree;
 import io.evitadb.index.bitmap.Bitmap;
@@ -64,8 +60,7 @@ import java.util.Objects;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public class PriceListAndCurrencyPriceRefIndex
-	extends AbstractPriceListAndCurrencyPriceIndex<PriceListAndCurrencyPriceRefIndex>
-	implements CatalogRelatedDataStructure<PriceListAndCurrencyPriceRefIndex> {
+	extends AbstractPriceListAndCurrencyPriceIndex<PriceListAndCurrencyPriceRefIndex> {
 
 	@Serial private static final long serialVersionUID = 182980639981206272L;
 	/**
@@ -75,7 +70,7 @@ public class PriceListAndCurrencyPriceRefIndex
 	private final Scope scope;
 	/**
 	 * Reference to the main {@link PriceListAndCurrencyPriceSuperIndex} that keeps memory expensive objects, which
-	 * is initialized in {@link #attachToCatalog(String, Catalog)} callback.
+	 * is wired in by the owning entity collection through {@link #wireSuperIndex(PriceListAndCurrencyPriceSuperIndex)}.
 	 */
 	private PriceListAndCurrencyPriceSuperIndex superIndex;
 
@@ -97,51 +92,12 @@ public class PriceListAndCurrencyPriceRefIndex
 		this.scope = scope;
 	}
 
-	private PriceListAndCurrencyPriceRefIndex(
-		@Nonnull Scope scope,
-		@Nonnull PriceIndexKey priceIndexKey,
-		@Nonnull Bitmap indexedPriceEntityIds,
-		@Nonnull Bitmap priceIds,
-		@Nonnull RangeIndex validityIndex
-	) {
-		super(priceIndexKey, indexedPriceEntityIds, priceIds, validityIndex);
-		this.scope = scope;
-	}
-
-	private PriceListAndCurrencyPriceRefIndex(
-		@Nonnull Scope scope,
-		@Nonnull PriceIndexKey priceIndexKey,
-		@Nonnull TransactionalBitmap indexedPriceEntityIds,
-		@Nonnull TransactionalBitmap priceIds,
-		@Nonnull RangeIndex validityIndex
-	) {
-		super(priceIndexKey, indexedPriceEntityIds, priceIds, validityIndex);
-		this.scope = scope;
-	}
-
-	/**
-	 * Copy constructor used by {@link #createCopyForNewCatalogAttachment} that shares the existing
-	 * {@link io.evitadb.index.bitmap.TransactionalBitmap} instances AND the derived {@link #priceRecords} tree BY
-	 * REFERENCE. The in-memory re-attachment keeps the super index's {@link PriceRecord} instances, so the carried tree
-	 * stays valid and attach need not rebuild it.
-	 */
-	private PriceListAndCurrencyPriceRefIndex(
-		@Nonnull Scope scope,
-		@Nonnull PriceIndexKey priceIndexKey,
-		@Nonnull TransactionalBitmap indexedPriceEntityIds,
-		@Nonnull TransactionalBitmap priceIds,
-		@Nonnull RangeIndex validityIndex,
-		@Nonnull TransactionalElementBPlusTree<PriceRecordContract> priceRecords
-	) {
-		super(priceIndexKey, indexedPriceEntityIds, priceIds, validityIndex, priceRecords);
-		this.scope = scope;
-	}
-
 	/**
 	 * Copy constructor used by {@link #createCopyWithMergedTransactionalMemory} that adopts the already-merged committed
 	 * {@link #priceRecords} tree BY REFERENCE. The ref tree holds the very same shared {@link PriceRecord} instances as
 	 * the super index (created once in the add-price path), so a commit carries it forward instead of rebuilding it from
-	 * the super index — only a disk-load attach reconstructs it (see {@link #attachToCatalog(String, Catalog)}).
+	 * the super index — only a disk-load attach reconstructs it (see
+	 * {@link #wireSuperIndex(PriceListAndCurrencyPriceSuperIndex)}).
 	 */
 	private PriceListAndCurrencyPriceRefIndex(
 		@Nonnull Scope scope,
@@ -155,27 +111,19 @@ public class PriceListAndCurrencyPriceRefIndex
 		this.scope = scope;
 	}
 
-	@Override
-	public void attachToCatalog(@Nullable String entityType, @Nonnull Catalog catalog) {
+	/**
+	 * Wires the memory-expensive {@link PriceListAndCurrencyPriceSuperIndex} that backs this reduced ref index. The
+	 * owning entity collection resolves the super index from its own {@link GlobalEntityIndex} (same scope, same
+	 * collection) and passes it here — no {@link Catalog} back-reference is retained, so this ref index can be carried
+	 * across catalog versions by reference once its super instance is likewise carried.
+	 *
+	 * @param superIndex the super price index of the owning collection's GLOBAL entity index for this price-list /
+	 *                   currency combination
+	 */
+	public void wireSuperIndex(@Nonnull PriceListAndCurrencyPriceSuperIndex superIndex) {
 		assertNotTerminated();
-		Assert.isPremiseValid(entityType != null, "Entity type must be provided!");
-		Assert.isPremiseValid(this.superIndex == null, "Catalog was already attached to this index!");
-		final PriceListAndCurrencyPriceIndex<?, ?> superIndex = catalog.getEntityIndexIfExists(
-			entityType,
-			new EntityIndexKey(EntityIndexType.GLOBAL, this.scope),
-			GlobalEntityIndex.class
-		)
-			.map(it -> it.getPriceIndex(this.priceIndexKey))
-			.orElse(null);
-		Assert.isPremiseValid(
-			superIndex instanceof PriceListAndCurrencyPriceSuperIndex,
-			() -> new GenericEvitaInternalError(
-				"PriceListAndCurrencyPriceRefIndex can only be initialized with PriceListAndCurrencyPriceSuperIndex, " +
-					"actual instance is `" + (this.superIndex == null ? "NULL" : this.superIndex.getClass().getName()) + "`",
-				"PriceListAndCurrencyPriceRefIndex can only be initialized with PriceListAndCurrencyPriceSuperIndex"
-			)
-		);
-		this.superIndex = (PriceListAndCurrencyPriceSuperIndex) superIndex;
+		Assert.isPremiseValid(this.superIndex == null, "Super index was already wired to this index!");
+		this.superIndex = superIndex;
 		// the price-record tree is rebuilt from the super index ONLY on a disk-load attach, where deserialization left it
 		// null (the ref index persists just its price ids + validity, never the memory-expensive PriceRecord objects, so
 		// the tree must be reconstructed by pointing at the super index's existing heap instances — the dedup that collapses
@@ -194,27 +142,6 @@ public class PriceListAndCurrencyPriceRefIndex
 			}
 			this.indexedPriceEntityIds = new TransactionalBitmap(entityIds);
 		}
-	}
-
-	@Nonnull
-	@Override
-	public PriceListAndCurrencyPriceRefIndex createCopyForNewCatalogAttachment(@Nonnull CatalogState catalogState) {
-		assertNotTerminated();
-		// carry the derived price-record tree forward by reference rather than dropping it: this is a purely in-memory
-		// re-attachment (goLive / persistence-service swap / collection replace), where the GLOBAL entity index — and with
-		// it the super price index's PriceRecord instances — is carried by reference, NOT reloaded from disk (see
-		// EntityCollection#createIndexCopiesForNewCatalogAttachment). The carried tree therefore still points at exactly the
-		// instances the re-resolved super index holds, so attachToCatalog can skip the rebuild (only the disk-load path,
-		// which deserializes a null tree, must reconstruct it). Dropping the tree here would force that rebuild's insert
-		// loop to run during the finalized commit-merge, where #569's guard forbids creating a new transactional layer.
-		return new PriceListAndCurrencyPriceRefIndex(
-			this.scope,
-			this.priceIndexKey,
-			this.indexedPriceEntityIds,
-			this.indexedPriceIds,
-			this.validityIndex,
-			this.priceRecords
-		);
 	}
 
 	/**
@@ -261,7 +188,7 @@ public class PriceListAndCurrencyPriceRefIndex
 		// remove the presence of the record
 		this.indexedPriceIds.remove(priceRecord.internalPriceId());
 
-		if (!entityPrices.containsAnyOf(this.priceRecords.toArray())) {
+		if (!containsAnyPriceOf(entityPrices)) {
 			// remove the presence of the record
 			this.indexedPriceEntityIds.remove(priceRecord.entityPrimaryKey());
 		}
@@ -271,6 +198,27 @@ public class PriceListAndCurrencyPriceRefIndex
 		markDirtyAndInvalidateCache();
 
 		return priceRecord;
+	}
+
+	/**
+	 * Tells whether any price of `entityPrices` is still present in this index's price-record tree.
+	 *
+	 * The entity holds a handful of prices while the tree holds every price record of the whole
+	 * price-list/currency combination, so the containment is resolved by probing the tree for each of
+	 * the entity's internal price ids rather than by materializing the tree and scanning it - the
+	 * latter is O(tree size) in both time and allocation on a path that runs once per removed price.
+	 *
+	 * @param entityPrices prices of the entity whose price is being removed
+	 * @return true when at least one price of the entity remains indexed here
+	 */
+	private boolean containsAnyPriceOf(@Nonnull EntityPrices entityPrices) {
+		final int[] internalPriceIds = entityPrices.getInternalPriceIds();
+		for (final int internalPriceId : internalPriceIds) {
+			if (this.priceRecords.search(internalPriceId) != null) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	@Nonnull
@@ -319,7 +267,6 @@ public class PriceListAndCurrencyPriceRefIndex
 	@Nonnull
 	@Override
 	public PriceListAndCurrencyPriceRefIndex createCopyWithMergedTransactionalMemory(
-		@Nullable Void layer,
 		@Nonnull TransactionalLayerMaintainer transactionalLayer
 	) {
 		// we can safely throw away dirty flag now
