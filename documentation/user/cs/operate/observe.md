@@ -225,6 +225,38 @@ Lze také zadat konkrétní metriky uvedením plného názvu jejich třídy (*pa
 
 Interní metriky jsou popsány v sekci [Reference metrik](#referenční-dokumentace).
 
+### Export štítků dotazu do Prometheus
+
+Štítky [dotazu](../query/header/label.md) jsou standardně vidět pouze v trasování, záznamech provozu a JFR
+událostech - nikoliv v Prometheus - protože hodnoty štítků jsou libovolná klientská data a často neomezené (viz
+[poznámky o bezpečné kardinalitě štítků](../query/header/label.md#kardinalita-štítků-a-export-do-prometheus)).
+Jednotlivé názvy štítků můžete zpřístupnit jako dimenze Prometheus metrik dotazů jejich uvedením v konfiguraci
+`exportedQueryLabels` (`job_name` a `rest_method` níže jsou pouze příklady - názvy jsou zcela na vás):
+
+```yaml
+api:
+  endpoints:
+    observability:
+      enabled: ${api.endpoints.observability.enabled:true}
+      host: ${api.endpoints.observability.host:":5555"}
+      exposeOn: ${api.endpoints.observability.exposeOn:"localhost:5555"}
+      tlsMode: ${api.endpoints.observability.tlsMode:FORCE_NO_TLS}
+      exportedQueryLabels:
+        - job_name
+        - rest_method
+```
+
+evitaDB žádné názvy štítků nevyhrazuje - každý nakonfigurovaný název pouze porovnává se štítky, které daný dotaz nese,
+a stane se dimenzí metriky pojmenovanou podle své podoby upravené pro Prometheus (znaky mimo `[a-zA-Z0-9_]` se nahradí
+`_`). Dotaz, který nakonfigurovaný štítek nenese, vykreslí tuto dimenzi jako `N/A`.
+
+Na rozdíl od `allowedEvents` znamená nenastavený nebo prázdný `exportedQueryLabels`, že se *nic* neexportuje - toto je
+bezpečné výchozí chování, protože neomezený štítek povýšený na dimenzi by roztrhal kardinalitu časových řad Prometheus.
+Uvedení názvu zde je vaším explicitním potvrzením, že jeho hodnoty jsou omezené. Několik inherentně vysokokardinálních
+štítků automaticky připojovaných systémem - `trace-id`, `client-id`, `ip-address` a `uri` - je vyhrazených a nelze je
+nikdy exportovat; server se s jasnou chybou odmítne spustit, pokud se kterýkoli z nich (nebo dva názvy, které se upraví
+na stejnou dimenzi) v seznamu objeví.
+
 ### JFR události
 
 [JFR události](https://docs.oracle.com/javacomponents/jmc-5-4/jfr-runtime-guide/about.htm#JFRUH170) mohou být také
