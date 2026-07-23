@@ -25,11 +25,7 @@ package io.evitadb.index.price;
 
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
-import io.evitadb.core.catalog.Catalog;
 import io.evitadb.dataType.Scope;
-import io.evitadb.index.EntityIndexKey;
-import io.evitadb.index.EntityIndexType;
-import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.price.model.PriceIndexKey;
 import io.evitadb.index.price.model.priceRecord.PriceRecordContract;
 import io.evitadb.test.duration.TimeArgumentProvider;
@@ -39,8 +35,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ArgumentsSource;
-import org.mockito.ArgumentMatchers;
-import org.mockito.Mockito;
 
 import javax.annotation.Nonnull;
 import java.util.ArrayList;
@@ -49,7 +43,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -262,9 +255,9 @@ class LongRunningPriceRefIndexTest implements TimeBoundedTestSupport {
 	}
 
 	/**
-	 * Builds a fresh {@link PriceRefIndex} attached to a mocked catalog that resolves the passed super index through the
-	 * standard `Catalog -> GlobalEntityIndex -> PriceSuperIndex` chain, then populates it from the tracked state. The
-	 * population happens outside any transaction, so the base index carries the seeded prices directly.
+	 * Builds a fresh {@link PriceRefIndex} wired to a super-index resolver backed by the passed super index, then
+	 * populates it from the tracked state. The population happens outside any transaction, so the base index carries
+	 * the seeded prices directly.
 	 */
 	@Nonnull
 	private static PriceRefIndex buildAttachedRefIndex(
@@ -272,16 +265,7 @@ class LongRunningPriceRefIndexTest implements TimeBoundedTestSupport {
 		@Nonnull Map<PriceIndexKey, Set<Integer>> currentState
 	) {
 		final PriceRefIndex priceRefIndex = new PriceRefIndex(SCOPE);
-		final GlobalEntityIndex mockGlobalIndex = Mockito.mock(GlobalEntityIndex.class);
-		Mockito.when(mockGlobalIndex.getPriceIndex(ArgumentMatchers.any(PriceIndexKey.class)))
-			.thenAnswer(inv -> superIndex.getPriceIndex(inv.getArgument(0)));
-		final Catalog mockCatalog = Mockito.mock(Catalog.class);
-		Mockito.when(mockCatalog.getEntityIndexIfExists(
-			ArgumentMatchers.eq(ENTITY_TYPE),
-			ArgumentMatchers.eq(new EntityIndexKey(EntityIndexType.GLOBAL, SCOPE)),
-			ArgumentMatchers.eq(GlobalEntityIndex.class)
-		)).thenReturn(Optional.of(mockGlobalIndex));
-		priceRefIndex.attachToCatalog(ENTITY_TYPE, mockCatalog);
+		priceRefIndex.wireSuperIndexes(superIndex::getPriceIndex);
 
 		// populate the ref index from state
 		for (final Map.Entry<PriceIndexKey, Set<Integer>> entry : currentState.entrySet()) {

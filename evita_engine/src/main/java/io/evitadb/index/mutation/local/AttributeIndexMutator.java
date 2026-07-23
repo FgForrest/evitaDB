@@ -216,7 +216,7 @@ public interface AttributeIndexMutator {
 					);
 					catalogIndex.removeUniqueAttribute(
 						entitySchema, globalAttributeSchema, allowedLocales, locale,
-						theValueToRemove, epkForRemoval
+						theValueToRemove, epkForRemoval, executor.getEntityTypeClassifierResolver()
 					);
 				}
 
@@ -224,7 +224,8 @@ public interface AttributeIndexMutator {
 					IndexType.ATTRIBUTE_UNIQUE_INDEX, Target.NEW
 				);
 				catalogIndex.insertUniqueAttribute(
-					entitySchema, globalAttributeSchema, allowedLocales, locale, valueToInsert, epkForUpsert
+					entitySchema, globalAttributeSchema, allowedLocales, locale, valueToInsert, epkForUpsert,
+					executor.getEntityTypeClassifierResolver()
 				);
 			}
 		}
@@ -331,7 +332,7 @@ public interface AttributeIndexMutator {
 				final CatalogIndex catalogIndex = executor.getCatalogIndex(scope);
 				catalogIndex.removeUniqueAttribute(
 					entitySchema, globalAttributeSchema, allowedLocales, locale, valueToRemoveSupplier.get(),
-					existingPk
+					existingPk, executor.getEntityTypeClassifierResolver()
 				);
 			}
 		}

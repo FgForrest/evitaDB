@@ -86,6 +86,29 @@ class LongRunningCatalogIndexTest implements TimeBoundedTestSupport {
 	static final String[] ATTR_NAMES = {"code", "url", "sku", "ean"};
 
 	/**
+	 * Mock catalog backing {@link #CLASSIFIER_RESOLVER}; resolves {@link #ENTITY_TYPE} to {@link #ENTITY_TYPE_PK}.
+	 */
+	private static final Catalog CLASSIFIER_CATALOG = createMockCatalog(ENTITY_TYPE, ENTITY_TYPE_PK);
+
+	/**
+	 * Translates between entity type name and primary key by delegating to {@link #CLASSIFIER_CATALOG}. Threaded into
+	 * every global-unique operation that now requires it; shared statically so the {@link #snapshot} oracle (used as a
+	 * method reference by the sibling savepoint test) can reach it.
+	 */
+	private static final EntityTypeClassifierResolver CLASSIFIER_RESOLVER = new EntityTypeClassifierResolver() {
+		@Override
+		public int toEntityTypePrimaryKey(@Nonnull String entityType) {
+			return CLASSIFIER_CATALOG.getCollectionForEntityOrThrowException(entityType).getEntityTypePrimaryKey();
+		}
+
+		@Nonnull
+		@Override
+		public String toEntityTypeName(int entityTypePrimaryKey) {
+			return CLASSIFIER_CATALOG.getCollectionForEntityPrimaryKeyOrThrowException(entityTypePrimaryKey).getEntityType();
+		}
+	};
+
+	/**
 	 * Creates a mock {@link Catalog} that resolves the given entity type name to
 	 * the given entity type primary key.
 	 *
@@ -151,9 +174,7 @@ class LongRunningCatalogIndexTest implements TimeBoundedTestSupport {
 	 */
 	@Nonnull
 	private static CatalogIndex createLiveCatalogIndex() {
-		final CatalogIndex index = new CatalogIndex(Scope.LIVE);
-		index.attachToCatalog(null, createMockCatalog(ENTITY_TYPE, ENTITY_TYPE_PK));
-		return index;
+		return new CatalogIndex(Scope.LIVE);
 	}
 
 	/**
@@ -270,12 +291,8 @@ class LongRunningCatalogIndexTest implements TimeBoundedTestSupport {
 			}
 		);
 
-		// carry committed CatalogIndex forward; re-attach catalog
+		// carry committed CatalogIndex forward
 		final CatalogIndex committed = committedHolder[0];
-		committed.attachToCatalog(
-			null,
-			createMockCatalog(ENTITY_TYPE, ENTITY_TYPE_PK)
-		);
 
 		return new TestState(committed, reference, nextId[0]);
 	}
@@ -315,7 +332,7 @@ class LongRunningCatalogIndexTest implements TimeBoundedTestSupport {
 			index.insertUniqueAttribute(
 				entitySchema, attrSchema,
 				Collections.emptySet(), null,
-				value, recordId
+				value, recordId, CLASSIFIER_RESOLVER
 			);
 
 			// update reference
@@ -329,7 +346,7 @@ class LongRunningCatalogIndexTest implements TimeBoundedTestSupport {
 			index.removeUniqueAttribute(
 				entitySchema, attrSchema,
 				Collections.emptySet(), null,
-				keyToRemove, recordId
+				keyToRemove, recordId, CLASSIFIER_RESOLVER
 			);
 
 			// update reference
@@ -403,7 +420,7 @@ class LongRunningCatalogIndexTest implements TimeBoundedTestSupport {
 				index.insertUniqueAttribute(
 					entitySchema, attributeSchema,
 					Collections.emptySet(), null,
-					valueEntry.getKey(), valueEntry.getValue()
+					valueEntry.getKey(), valueEntry.getValue(), CLASSIFIER_RESOLVER
 				);
 			}
 		}
@@ -425,7 +442,7 @@ class LongRunningCatalogIndexTest implements TimeBoundedTestSupport {
 				createNonLocalizedAttributeSchema(attributeName, String.class);
 			final GlobalUniqueIndex globalUniqueIndex = index.getGlobalUniqueIndex(attributeSchema, null);
 			if (globalUniqueIndex != null) {
-				recordIdsByAttribute.put(attributeName, toList(globalUniqueIndex.getRecordIds(ENTITY_TYPE)));
+				recordIdsByAttribute.put(attributeName, toList(globalUniqueIndex.getRecordIds(ENTITY_TYPE, CLASSIFIER_RESOLVER)));
 				sizeByAttribute.put(attributeName, globalUniqueIndex.size());
 			}
 		}

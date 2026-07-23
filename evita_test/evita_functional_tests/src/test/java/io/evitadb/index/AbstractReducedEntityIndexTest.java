@@ -27,11 +27,9 @@ import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
-import io.evitadb.core.catalog.Catalog;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.price.PriceListAndCurrencyPriceSuperIndex;
-import io.evitadb.index.price.model.PriceIndexKey;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -39,12 +37,10 @@ import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import java.util.Locale;
-import java.util.Optional;
 import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static io.evitadb.test.TestTags.INDEXING;
@@ -67,16 +63,13 @@ abstract class AbstractReducedEntityIndexTest<T extends AbstractReducedEntityInd
 	extends AbstractEntityIndexTest<T> {
 
 	/**
-	 * Attaches a mock catalog to the index after creation so that
-	 * price-related operations (which require catalog attachment) work.
-	 * The mock catalog provides a {@link GlobalEntityIndex} stub that returns
-	 * a {@link PriceListAndCurrencyPriceSuperIndex} for any price index key,
-	 * satisfying the {@link io.evitadb.index.price.PriceListAndCurrencyPriceRefIndex}
-	 * initialization requirement.
+	 * Wires the reduced index's price ref chain to a mocked super price index after creation so
+	 * that price-related operations (which require a wired super index) work. The mocked
+	 * {@link PriceListAndCurrencyPriceSuperIndex} returns empty price records, satisfying the
+	 * {@link io.evitadb.index.price.PriceListAndCurrencyPriceRefIndex} initialization requirement.
 	 */
 	@BeforeEach
 	void attachCatalog() {
-		final GlobalEntityIndex globalEntityIndex = mock(GlobalEntityIndex.class);
 		final PriceListAndCurrencyPriceSuperIndex priceSuperIndex =
 			mock(PriceListAndCurrencyPriceSuperIndex.class);
 		final io.evitadb.index.price.model.priceRecord.PriceRecordContract[] emptyPriceRecords =
@@ -85,15 +78,8 @@ abstract class AbstractReducedEntityIndexTest<T extends AbstractReducedEntityInd
 			.thenReturn(emptyPriceRecords);
 		when(priceSuperIndex.getPriceRecords(any()))
 			.thenReturn(emptyPriceRecords);
-		when(globalEntityIndex.getPriceIndex(any(PriceIndexKey.class)))
-			.thenReturn(priceSuperIndex);
 
-		final Catalog catalog = mock(Catalog.class);
-		when(catalog.getEntityIndexIfExists(
-			eq(ENTITY_TYPE), any(EntityIndexKey.class), eq(GlobalEntityIndex.class)
-		)).thenReturn(Optional.of(globalEntityIndex));
-
-		this.index.attachToCatalog(ENTITY_TYPE, catalog);
+		this.index.getPriceIndex().wireSuperIndexes(key -> priceSuperIndex);
 	}
 
 	/**

@@ -28,12 +28,12 @@ import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.dataType.Scope;
+import io.evitadb.index.EntityTypeClassifierResolver;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.test.Entities;
 import io.evitadb.test.duration.TimeArgumentProvider;
 import io.evitadb.test.duration.TimeArgumentProvider.GenerationalTestInput;
 import io.evitadb.test.duration.TimeBoundedTestSupport;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ArgumentsSource;
@@ -76,15 +76,42 @@ import static org.junit.jupiter.api.Assertions.fail;
 @Tag(INDEXING)
 @Tag(ATTRIBUTE)
 class LongRunningGlobalUniqueIndexTest implements TimeBoundedTestSupport {
-	private final Catalog catalog = Mockito.mock(Catalog.class);
+	/**
+	 * Mock catalog backing {@link #CLASSIFIER_RESOLVER}; resolves {@link Entities#PRODUCT} to its primary key `1`.
+	 */
+	private static final Catalog CLASSIFIER_CATALOG = createClassifierCatalog();
 
-	@BeforeEach
-	void setUp() {
+	/**
+	 * Translates between entity type name and primary key by delegating to {@link #CLASSIFIER_CATALOG}. Threaded into
+	 * every global-unique operation that now requires it; shared statically so the {@link #snapshot} oracle (used as a
+	 * method reference by the sibling savepoint test) can reach it.
+	 */
+	private static final EntityTypeClassifierResolver CLASSIFIER_RESOLVER = new EntityTypeClassifierResolver() {
+		@Override
+		public int toEntityTypePrimaryKey(@Nonnull String entityType) {
+			return CLASSIFIER_CATALOG.getCollectionForEntityOrThrowException(entityType).getEntityTypePrimaryKey();
+		}
+
+		@Nonnull
+		@Override
+		public String toEntityTypeName(int entityTypePrimaryKey) {
+			return CLASSIFIER_CATALOG.getCollectionForEntityPrimaryKeyOrThrowException(entityTypePrimaryKey).getEntityType();
+		}
+	};
+
+	/**
+	 * Builds the mock catalog that {@link #CLASSIFIER_RESOLVER} delegates to, mapping {@link Entities#PRODUCT} to
+	 * primary key `1` in both directions.
+	 */
+	@Nonnull
+	private static Catalog createClassifierCatalog() {
 		final EntityCollection productCollection = Mockito.mock(EntityCollection.class);
 		Mockito.when(productCollection.getEntityTypePrimaryKey()).thenReturn(1);
 		Mockito.when(productCollection.getEntityType()).thenReturn(Entities.PRODUCT);
-		Mockito.when(this.catalog.getCollectionForEntityPrimaryKeyOrThrowException(1)).thenReturn(productCollection);
-		Mockito.when(this.catalog.getCollectionForEntityOrThrowException(Entities.PRODUCT)).thenReturn(productCollection);
+		final Catalog catalog = Mockito.mock(Catalog.class);
+		Mockito.when(catalog.getCollectionForEntityPrimaryKeyOrThrowException(1)).thenReturn(productCollection);
+		Mockito.when(catalog.getCollectionForEntityOrThrowException(Entities.PRODUCT)).thenReturn(productCollection);
+		return catalog;
 	}
 
 	@ParameterizedTest(name = "GlobalUniqueIndex should survive generational randomized test applying modifications on it")
@@ -95,7 +122,6 @@ class LongRunningGlobalUniqueIndexTest implements TimeBoundedTestSupport {
 		final Map<String, Integer> mapToCompare = new HashMap<>();
 		final Set<Integer> currentRecordSet = new HashSet<>();
 		final GlobalUniqueIndex initialUniqueIndex = new GlobalUniqueIndex(Scope.LIVE, new AttributeKey("code"), String.class);
-		initialUniqueIndex.attachToCatalog(null, this.catalog);
 
 		runFor(
 			input,
@@ -127,12 +153,11 @@ class LongRunningGlobalUniqueIndexTest implements TimeBoundedTestSupport {
 							.sorted()
 							.toArray(EntityReference[]::new);
 
-						committed.attachToCatalog(null, this.catalog);
 						assertArrayEquals(
 							expected,
-							committed.getEntityReferences(),
+							committed.getEntityReferences(CLASSIFIER_RESOLVER),
 							"\nExpected: " + Arrays.toString(expected) + "\n" +
-								"Actual:  " + Arrays.toString(committed.getEntityReferences()) + "\n\n" +
+								"Actual:  " + Arrays.toString(committed.getEntityReferences(CLASSIFIER_RESOLVER)) + "\n\n" +
 								codeBuffer
 						);
 
@@ -145,7 +170,6 @@ class LongRunningGlobalUniqueIndexTest implements TimeBoundedTestSupport {
 							snapshot.payloads(),
 							new HashMap<>(committed.getLocaleIndex())
 						);
-						newGlobalUniqueIndex.attachToCatalog(null, this.catalog);
 						committedResult.set(newGlobalUniqueIndex);
 					}
 				);
@@ -232,7 +256,7 @@ class LongRunningGlobalUniqueIndexTest implements TimeBoundedTestSupport {
 					currentRecordSet.add(newRecId);
 
 					codeBuffer.append("uniqueIndex.registerUniqueKey(\"").append(newValue).append("\", product, ").append(newRecId).append(");\n");
-					uniqueIndex.registerUniqueKey(newValue, Entities.PRODUCT, null, newRecId);
+					uniqueIndex.registerUniqueKey(newValue, Entities.PRODUCT, null, newRecId, CLASSIFIER_RESOLVER);
 				} else {
 					// remove existing item
 					final Iterator<Entry<String, Integer>> it = mapToCompare.entrySet().iterator();
@@ -244,7 +268,7 @@ class LongRunningGlobalUniqueIndexTest implements TimeBoundedTestSupport {
 					currentRecordSet.remove(valueToRemove.getValue());
 
 					codeBuffer.append("uniqueIndex.unregisterUniqueKey(\"").append(valueToRemove.getKey()).append("\", product,").append(valueToRemove.getValue()).append(");\n");
-					uniqueIndex.unregisterUniqueKey(valueToRemove.getKey(), Entities.PRODUCT, null, valueToRemove.getValue());
+					uniqueIndex.unregisterUniqueKey(valueToRemove.getKey(), Entities.PRODUCT, null, valueToRemove.getValue(), CLASSIFIER_RESOLVER);
 				}
 			}
 		} catch (Exception ex) {
@@ -264,10 +288,9 @@ class LongRunningGlobalUniqueIndexTest implements TimeBoundedTestSupport {
 		@Nonnull StringBuilder codeBuffer
 	) {
 		final GlobalUniqueIndex uniqueIndex = new GlobalUniqueIndex(Scope.LIVE, new AttributeKey("code"), String.class);
-		uniqueIndex.attachToCatalog(null, this.catalog);
 		for (final Entry<String, Integer> entry : mapToCompare.entrySet()) {
 			codeBuffer.append("uniqueIndex.registerUniqueKey(\"").append(entry.getKey()).append("\", ").append(entry.getValue()).append(");\n");
-			uniqueIndex.registerUniqueKey(entry.getKey(), Entities.PRODUCT, null, entry.getValue());
+			uniqueIndex.registerUniqueKey(entry.getKey(), Entities.PRODUCT, null, entry.getValue(), CLASSIFIER_RESOLVER);
 		}
 		return uniqueIndex;
 	}
@@ -277,8 +300,7 @@ class LongRunningGlobalUniqueIndexTest implements TimeBoundedTestSupport {
 	 * tuple mapping (read off the transaction-aware inline snapshot) plus the per-entity-type record-id bitmap for
 	 * {@link Entities#PRODUCT} (a separate transactional structure). Packed payloads are stable within a transaction —
 	 * the entity-type id and locale id assignments do not change — so two snapshots taken before and after a rollback
-	 * can be compared with `.equals` to prove exact restoration. Requires the index to be attached to a catalog; the
-	 * same helper doubles as the savepoint oracle reader.
+	 * can be compared with `.equals` to prove exact restoration. The same helper doubles as the savepoint oracle reader.
 	 */
 	@Nonnull
 	static GlobalUniqueSnapshot snapshot(@Nonnull GlobalUniqueIndex index) {
@@ -289,7 +311,7 @@ class LongRunningGlobalUniqueIndexTest implements TimeBoundedTestSupport {
 		for (int i = 0; i < values.length; i++) {
 			valueToPayload.put(String.valueOf(values[i]), payloads[i]);
 		}
-		return new GlobalUniqueSnapshot(valueToPayload, toList(index.getRecordIds(Entities.PRODUCT)));
+		return new GlobalUniqueSnapshot(valueToPayload, toList(index.getRecordIds(Entities.PRODUCT, CLASSIFIER_RESOLVER)));
 	}
 
 	/**

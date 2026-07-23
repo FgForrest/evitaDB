@@ -181,6 +181,7 @@ class LongRunningSavepointCatalogIndexTest implements TimeBoundedTestSupport {
 	 */
 	private static final class CatalogState {
 		private final CatalogIndex index;
+		private final EntityTypeClassifierResolver classifierResolver;
 		private final EntitySchemaContract entitySchema = createEntitySchema();
 		private final Map<String, Map<Object, Integer>> reference = new HashMap<>();
 		private int nextRecordId = 1;
@@ -189,7 +190,19 @@ class LongRunningSavepointCatalogIndexTest implements TimeBoundedTestSupport {
 
 		CatalogState(@Nonnull Random random) {
 			this.index = new CatalogIndex(Scope.LIVE);
-			this.index.attachToCatalog(null, createMockCatalog());
+			final Catalog catalog = createMockCatalog();
+			this.classifierResolver = new EntityTypeClassifierResolver() {
+				@Override
+				public int toEntityTypePrimaryKey(@Nonnull String entityType) {
+					return catalog.getCollectionForEntityOrThrowException(entityType).getEntityTypePrimaryKey();
+				}
+
+				@Nonnull
+				@Override
+				public String toEntityTypeName(int entityTypePrimaryKey) {
+					return catalog.getCollectionForEntityPrimaryKeyOrThrowException(entityTypePrimaryKey).getEntityType();
+				}
+			};
 			final int seedOperations = 20 + random.nextInt(20);
 			for (int i = 0; i < seedOperations; i++) {
 				insertRandomAttribute(random);
@@ -219,7 +232,7 @@ class LongRunningSavepointCatalogIndexTest implements TimeBoundedTestSupport {
 			final String value = attributeName + "-forced-" + recordId;
 			this.index.insertUniqueAttribute(
 				this.entitySchema, createNonLocalizedAttributeSchema(attributeName),
-				Collections.emptySet(), null, value, recordId
+				Collections.emptySet(), null, value, recordId, this.classifierResolver
 			);
 			this.reference.computeIfAbsent(attributeName, k -> new HashMap<>()).put(value, recordId);
 		}
@@ -233,7 +246,7 @@ class LongRunningSavepointCatalogIndexTest implements TimeBoundedTestSupport {
 			final String value = attributeName + "-" + recordId;
 			this.index.insertUniqueAttribute(
 				this.entitySchema, createNonLocalizedAttributeSchema(attributeName),
-				Collections.emptySet(), null, value, recordId
+				Collections.emptySet(), null, value, recordId, this.classifierResolver
 			);
 			this.reference.computeIfAbsent(attributeName, k -> new HashMap<>()).put(value, recordId);
 		}
@@ -251,7 +264,7 @@ class LongRunningSavepointCatalogIndexTest implements TimeBoundedTestSupport {
 			final int recordId = values.get(value);
 			this.index.removeUniqueAttribute(
 				this.entitySchema, createNonLocalizedAttributeSchema(attributeName),
-				Collections.emptySet(), null, value, recordId
+				Collections.emptySet(), null, value, recordId, this.classifierResolver
 			);
 			values.remove(value);
 			if (values.isEmpty()) {

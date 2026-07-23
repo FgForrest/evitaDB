@@ -23,15 +23,12 @@
 
 package io.evitadb.index;
 
-import io.evitadb.api.CatalogState;
 import io.evitadb.api.exception.EntityLocaleMissingException;
 import io.evitadb.api.exception.UniqueValueViolationException;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.core.buffer.TrappedChanges;
-import io.evitadb.core.catalog.Catalog;
-import io.evitadb.core.catalog.CatalogRelatedDataStructure;
 import io.evitadb.core.transaction.Transaction;
 import io.evitadb.core.transaction.memory.Snapshotable;
 import io.evitadb.core.transaction.memory.TransactionalContainerChanges;
@@ -74,8 +71,7 @@ import static java.util.Optional.ofNullable;
  */
 public class CatalogIndex implements
 	Index<CatalogIndexKey>, TransactionalLayerProducer<CatalogIndexChanges, CatalogIndex>,
-	IndexDataStructure,
-	CatalogRelatedDataStructure<CatalogIndex>
+	IndexDataStructure
 {
 	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 	/**
@@ -96,11 +92,6 @@ public class CatalogIndex implements
 	 * transaction is committed and anything in this index was changed).
 	 */
 	@Getter private final int version;
-	/**
-	 * Contains reference to the current catalog instance.
-	 * Beware this reference changes with each entity collection exchange during transactional commit.
-	 */
-	private Catalog catalog;
 
 	public CatalogIndex(@Nonnull Scope scope) {
 		this.version = 1;
@@ -120,18 +111,26 @@ public class CatalogIndex implements
 		this.uniqueIndex = new TransactionalMap<>(uniqueIndex, GlobalUniqueIndex.class, Function.identity());
 	}
 
-	@Override
-	public void attachToCatalog(@Nullable String entityType, @Nonnull Catalog catalog) {
-		Assert.isPremiseValid(this.catalog == null, "Catalog was already attached to this index!");
-		this.catalog = catalog;
-		for (GlobalUniqueIndex globalUniqueIndex : this.uniqueIndex.values()) {
-			globalUniqueIndex.attachToCatalog(null, catalog);
-		}
-	}
-
+	/**
+	 * Produces a fresh {@link CatalogIndex} wrapper (fresh {@link #dirty} flag, fresh {@link #uniqueIndex} map) that
+	 * shares the very same {@link GlobalUniqueIndex} child instances. Global unique indexes hold no back-reference to
+	 * anything version-scoped (their entity-type resolution is supplied per call by an
+	 * {@link EntityTypeClassifierResolver}), so there is nothing per-version to detach in a child — reusing the same
+	 * instances is safe.
+	 *
+	 * The **fresh `dirty` flag is the reason this method cannot be replaced by forwarding the original index.** Outside
+	 * a transaction — i.e. while the catalog is still warming up — {@link #dirty} is written straight into the base
+	 * value, and no production code path ever calls {@link #resetDirty()}: the flag is a latch for the lifetime of the
+	 * instance. Both callers (going live and catalog rename) run right after the catalog has been flushed, so the latch
+	 * is stale by then, yet forwarding the same instance would carry it into the new catalog version and spuriously bump
+	 * {@link #version} on the first commit that follows. Every other producer of a `CatalogIndex` — this method,
+	 * {@link #createCopyWithMergedTransactionalMemory(CatalogIndexChanges, TransactionalLayerMaintainer)} on the
+	 * transactional path, and loading from disk — starts from a fresh flag.
+	 *
+	 * @return the fresh wrapper sharing the same child global unique indexes
+	 */
 	@Nonnull
-	@Override
-	public CatalogIndex createCopyForNewCatalogAttachment(@Nonnull CatalogState catalogState) {
+	public CatalogIndex createShallowCopyWithResetDirtyFlag() {
 		return new CatalogIndex(
 			this.version,
 			this.indexKey,
@@ -141,7 +140,7 @@ public class CatalogIndex implements
 				.collect(
 					Collectors.toMap(
 						Entry::getKey,
-						entry -> entry.getValue().createCopyForNewCatalogAttachment(catalogState)
+						Entry::getValue
 					)
 				)
 		);
@@ -171,7 +170,8 @@ public class CatalogIndex implements
 		@Nonnull Set<Locale> allowedLocales,
 		@Nullable Locale locale,
 		@Nonnull Object value,
-		int recordId
+		int recordId,
+		@Nonnull EntityTypeClassifierResolver resolver
 	) {
 		final GlobalUniqueIndex theUniqueIndex = this.uniqueIndex.computeIfAbsent(
 			createAttributeKey(attributeSchema, allowedLocales, getIndexKey().scope(), locale, value),
@@ -179,14 +179,13 @@ public class CatalogIndex implements
 				final GlobalUniqueIndex newUniqueIndex = new GlobalUniqueIndex(
 					this.getIndexKey().scope(), lookupKey, attributeSchema.getType()
 				);
-				newUniqueIndex.attachToCatalog(null, this.catalog);
 				ofNullable(Transaction.getOrCreateTransactionalMemoryLayer(this))
 					.ifPresent(it -> it.addCreatedItem(newUniqueIndex));
 				this.dirty.setToTrue();
 				return newUniqueIndex;
 			}
 		);
-		theUniqueIndex.registerUniqueKey(value, entitySchema.getName(), locale, recordId);
+		theUniqueIndex.registerUniqueKey(value, entitySchema.getName(), locale, recordId, resolver);
 	}
 
 	/**
@@ -200,12 +199,13 @@ public class CatalogIndex implements
 		@Nonnull Set<Locale> allowedLocales,
 		@Nullable Locale locale,
 		@Nonnull Object value,
-		int recordId
+		int recordId,
+		@Nonnull EntityTypeClassifierResolver resolver
 	) {
 		final AttributeKey lookupKey = createAttributeKey(attributeSchema, allowedLocales, getIndexKey().scope(), locale, value);
 		final GlobalUniqueIndex theUniqueIndex = this.uniqueIndex.get(lookupKey);
 		notNull(theUniqueIndex, "Unique index for attribute `" + attributeSchema.getName() + "` not found!");
-		theUniqueIndex.unregisterUniqueKey(value, entitySchema.getName(), locale, recordId);
+		theUniqueIndex.unregisterUniqueKey(value, entitySchema.getName(), locale, recordId, resolver);
 
 		if (theUniqueIndex.isEmpty()) {
 			Assert.isPremiseValid(theUniqueIndex == this.uniqueIndex.remove(lookupKey), "Expected unique index was not removed!");

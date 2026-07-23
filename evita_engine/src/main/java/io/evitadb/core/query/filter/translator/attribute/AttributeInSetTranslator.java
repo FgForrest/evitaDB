@@ -95,7 +95,7 @@ public class AttributeInSetTranslator extends AbstractAttributeTranslator
 					.map(
 						comparedValue -> filterByVisitor.applyOnFirstGlobalUniqueIndex(
 							globalAttributeSchema,
-							index -> index.getEntityReferenceByUniqueValue(comparedValue, attributeKey.locale())
+							index -> index.getEntityReferenceByUniqueValue(comparedValue, attributeKey.locale(), filterByVisitor.getEntityTypeClassifierResolver())
 								.map(it -> (Formula) new MultipleEntityFormula(
 									new long[]{index.getId()},
 									new BaseBitmap(filterByVisitor.translateEntityReference(it))

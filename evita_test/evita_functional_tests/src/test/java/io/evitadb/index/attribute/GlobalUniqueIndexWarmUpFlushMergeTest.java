@@ -28,6 +28,7 @@ import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.dataType.Scope;
+import io.evitadb.index.EntityTypeClassifierResolver;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.GlobalUniqueIndexLeafPageRemoval;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.GlobalUniqueIndexStoragePart;
@@ -77,6 +78,20 @@ class GlobalUniqueIndexWarmUpFlushMergeTest {
 	private static final int VALUE_COUNT = 513;
 
 	private final Catalog catalog = Mockito.mock(Catalog.class);
+	private final EntityTypeClassifierResolver classifierResolver = new EntityTypeClassifierResolver() {
+		@Override
+		public int toEntityTypePrimaryKey(@Nonnull String entityType) {
+			return GlobalUniqueIndexWarmUpFlushMergeTest.this.catalog
+				.getCollectionForEntityOrThrowException(entityType).getEntityTypePrimaryKey();
+		}
+
+		@Nonnull
+		@Override
+		public String toEntityTypeName(int entityTypePrimaryKey) {
+			return GlobalUniqueIndexWarmUpFlushMergeTest.this.catalog
+				.getCollectionForEntityPrimaryKeyOrThrowException(entityTypePrimaryKey).getEntityType();
+		}
+	};
 
 	@BeforeEach
 	void setUp() {
@@ -89,9 +104,8 @@ class GlobalUniqueIndexWarmUpFlushMergeTest {
 	@DisplayName("should free the merged-away leaf page after a second warm-up flush merges a leaf")
 	void shouldFreeStalePageAfterWarmUpFlushMerge() {
 		final GlobalUniqueIndex index = new GlobalUniqueIndex(Scope.LIVE, URL_KEY, Integer.class);
-		index.attachToCatalog(null, this.catalog);
 		for (int i = 1; i <= VALUE_COUNT; i++) {
-			index.registerUniqueKey(i, ENTITY_TYPE, null, i);
+			index.registerUniqueKey(i, ENTITY_TYPE, null, i, this.classifierResolver);
 		}
 
 		// first WARM_UP flush: allocates + stages 4 leaf pages, never publishes them - a warm-up flush never reaches
@@ -111,13 +125,13 @@ class GlobalUniqueIndexWarmUpFlushMergeTest {
 		// second WARM_UP flush: drop exactly enough values to force leaf 0 to merge with leaf 1.
 		// leaves start out [1..128], [129..256], [257..384], [385..513]:
 		// - leaf 1: 128 -> 127, so it sits exactly at the minimum and can no longer donate a key
-		index.unregisterUniqueKey(129, ENTITY_TYPE, null, 129);
+		index.unregisterUniqueKey(129, ENTITY_TYPE, null, 129, this.classifierResolver);
 		// - leaf 0: 128 -> 127 (still at the minimum, no underflow yet)
-		index.unregisterUniqueKey(1, ENTITY_TYPE, null, 1);
+		index.unregisterUniqueKey(1, ENTITY_TYPE, null, 1, this.classifierResolver);
 		// - leaf 0: 127 -> 126 -> underflow. It has no left sibling, the right sibling cannot donate
 		//   (127 > 127 is false) and 127 + 126 = 253 < 256, so consolidate takes mergeWithRight: leaf 0 absorbs
 		//   leaf 1 IN PLACE - it keeps page 0 and is marked dirty, while leaf 1 is detached and its page must be freed
-		index.unregisterUniqueKey(2, ENTITY_TYPE, null, 2);
+		index.unregisterUniqueKey(2, ENTITY_TYPE, null, 2, this.classifierResolver);
 
 		final TrappedChanges secondFlush = new TrappedChanges();
 		index.appendStorageParts(URL_KEY, secondFlush);

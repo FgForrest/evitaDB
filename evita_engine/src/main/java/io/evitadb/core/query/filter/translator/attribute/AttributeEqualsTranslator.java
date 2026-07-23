@@ -88,7 +88,7 @@ public class AttributeEqualsTranslator extends AbstractAttributeTranslator
 			attributeKey,
 			filterByVisitor.applyOnFirstGlobalUniqueIndex(
 				globalAttributeSchema,
-				index -> index.getEntityReferenceByUniqueValue(comparedValue, attributeKey.locale())
+				index -> index.getEntityReferenceByUniqueValue(comparedValue, attributeKey.locale(), filterByVisitor.getEntityTypeClassifierResolver())
 					.map(
 						it -> (Formula) new MultipleEntityFormula(
 							new long[]{index.getId()},

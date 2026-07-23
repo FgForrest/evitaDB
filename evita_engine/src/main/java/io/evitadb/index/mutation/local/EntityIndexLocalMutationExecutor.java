@@ -176,6 +176,13 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 */
 	private final Supplier<EntitySchema> schemaAccessor;
 	/**
+	 * Resolves an entity type name to its compact primary key and back. Supplied by the current catalog snapshot at
+	 * construction and threaded into the global unique index (via {@link CatalogIndex#insertUniqueAttribute} /
+	 * {@link CatalogIndex#removeUniqueAttribute}), which stores the compact type primary key inside its packed tuples
+	 * and no longer holds a catalog back-reference of its own.
+	 */
+	@Nonnull private final EntityTypeClassifierResolver entityTypeClassifierResolver;
+	/**
 	 * The sequence service that assigns new price internal ids.
 	 */
 	@Nonnull private final IntSupplier priceInternalIdSupplier;
@@ -319,7 +326,8 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		@Nonnull Supplier<Entity> fullEntitySupplier,
 		@Nullable Supplier<CatalogExpressionTriggerRegistry> triggerRegistrySupplier,
 		@Nullable BiFunction<String, Scope, FacetExpressionTrigger> localFacetTriggerSupplier,
-		@Nullable Function<String, EntitySchemaContract> crossEntitySchemaResolver
+		@Nullable Function<String, EntitySchemaContract> crossEntitySchemaResolver,
+		@Nonnull EntityTypeClassifierResolver entityTypeClassifierResolver
 	) {
 		this.containerAccessor = containerAccessor;
 		this.entityPrimaryKey.add((anyType, anyPurpose) -> entityPrimaryKey);
@@ -332,6 +340,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		this.triggerRegistrySupplier = triggerRegistrySupplier;
 		this.localFacetTriggerSupplier = localFacetTriggerSupplier;
 		this.crossEntitySchemaResolver = crossEntitySchemaResolver;
+		this.entityTypeClassifierResolver = entityTypeClassifierResolver;
 	}
 
 	/**
@@ -735,6 +744,18 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	@Nonnull
 	public CatalogIndex getCatalogIndex(@Nonnull Scope scope) {
 		return this.catalogIndexCreatingAccessor.getOrCreateIndex(new CatalogIndexKey(scope));
+	}
+
+	/**
+	 * Returns the entity type name ↔ compact primary key resolver backed by the current catalog snapshot. Threaded into
+	 * the global unique index by {@link AttributeIndexMutator} so the index can decode the entity type stored inside its
+	 * packed tuples without holding a catalog back-reference.
+	 *
+	 * @return the entity type classifier resolver
+	 */
+	@Nonnull
+	public EntityTypeClassifierResolver getEntityTypeClassifierResolver() {
+		return this.entityTypeClassifierResolver;
 	}
 
 	/**

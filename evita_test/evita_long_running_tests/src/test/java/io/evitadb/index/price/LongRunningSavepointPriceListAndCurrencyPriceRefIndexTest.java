@@ -24,12 +24,8 @@
 package io.evitadb.index.price;
 
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
-import io.evitadb.core.catalog.Catalog;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.Scope;
-import io.evitadb.index.EntityIndexKey;
-import io.evitadb.index.EntityIndexType;
-import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.price.model.PriceIndexKey;
 import io.evitadb.index.price.model.priceRecord.PriceRecord;
 import io.evitadb.test.duration.TimeArgumentProvider;
@@ -39,8 +35,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ArgumentsSource;
-import org.mockito.ArgumentMatchers;
-import org.mockito.Mockito;
 
 import javax.annotation.Nonnull;
 import java.time.OffsetDateTime;
@@ -50,7 +44,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
 
@@ -70,8 +63,8 @@ import static io.evitadb.utils.AssertionUtils.assertSavepointRollbackRestores;
  * entity ids and the ascending price records) via
  * {@link LongRunningPriceListAndCurrencyPriceRefIndexTest#snapshot(PriceListAndCurrencyPriceRefIndex)}.
  *
- * Each generation seeds a fresh random non-empty ref index outside any transaction (attached to a mocked catalog that
- * resolves a super index pre-populated with a fixed price pool), then within one real transaction applies a random
+ * Each generation seeds a fresh random non-empty ref index outside any transaction (wired directly to a super index
+ * pre-populated with a fixed price pool), then within one real transaction applies a random
  * baseline batch of price mutations (standing for *prior* entities in the same transaction — these must SURVIVE the
  * savepoint rollback), opens a savepoint, applies a random in-savepoint batch preceded by a guaranteed-visible marker
  * mutation (standing for the *failing* entity — these must be REVERTED on rollback / KEPT on commit), and asserts the
@@ -137,7 +130,7 @@ class LongRunningSavepointPriceListAndCurrencyPriceRefIndexTest implements TimeB
 	}
 
 	/**
-	 * A {@link PriceListAndCurrencyPriceRefIndex} attached to a mocked catalog resolving a
+	 * A {@link PriceListAndCurrencyPriceRefIndex} wired directly to a
 	 * {@link PriceListAndCurrencyPriceSuperIndex} pre-populated with a fixed price pool, paired with an in-test model
 	 * (`tracked`: the internal price ids currently in the ref) so randomized mutations can be generated that keep the
 	 * model and index in lockstep. Every internal price id equals its price id (a fresh slot). The pool (and a reserved
@@ -236,23 +229,14 @@ class LongRunningSavepointPriceListAndCurrencyPriceRefIndexTest implements TimeB
 		}
 
 		/**
-		 * Builds a {@link PriceListAndCurrencyPriceRefIndex} attached to a mocked catalog that resolves the passed super
-		 * index through the standard `Catalog -> GlobalEntityIndex -> PriceListAndCurrencyPriceSuperIndex` chain (no prices
-		 * are added to the ref here).
+		 * Builds a {@link PriceListAndCurrencyPriceRefIndex} wired directly to the passed super index (no prices are added
+		 * to the ref here).
 		 */
 		@Nonnull
 		private static PriceListAndCurrencyPriceRefIndex attach(@Nonnull PriceListAndCurrencyPriceSuperIndex superIndex) {
 			final PriceListAndCurrencyPriceRefIndex refIndex =
 				new PriceListAndCurrencyPriceRefIndex(SCOPE, PRICE_INDEX_KEY);
-			final GlobalEntityIndex globalEntityIndex = Mockito.mock(GlobalEntityIndex.class);
-			Mockito.when(globalEntityIndex.getPriceIndex(PRICE_INDEX_KEY)).thenReturn(superIndex);
-			final Catalog catalog = Mockito.mock(Catalog.class);
-			Mockito.when(catalog.getEntityIndexIfExists(
-				ArgumentMatchers.eq(ENTITY_TYPE),
-				ArgumentMatchers.eq(new EntityIndexKey(EntityIndexType.GLOBAL, SCOPE)),
-				ArgumentMatchers.eq(GlobalEntityIndex.class)
-			)).thenReturn(Optional.of(globalEntityIndex));
-			refIndex.attachToCatalog(ENTITY_TYPE, catalog);
+			refIndex.wireSuperIndex(superIndex);
 			return refIndex;
 		}
 	}

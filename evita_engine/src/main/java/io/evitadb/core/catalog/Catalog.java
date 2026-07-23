@@ -121,6 +121,7 @@ import io.evitadb.index.CatalogIndexKey;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.EntityIndexType;
+import io.evitadb.index.EntityTypeClassifierResolver;
 import io.evitadb.index.IndexMaintainer;
 import io.evitadb.index.map.MapChanges;
 import io.evitadb.index.map.TransactionalMap;
@@ -182,7 +183,11 @@ import static java.util.Optional.ofNullable;
 @Slf4j
 @ThreadSafe
 public final class Catalog
-	implements CatalogContract, CatalogConsumersListener, TransactionalLayerProducer<DataStoreChanges, Catalog> {
+	implements CatalogContract,
+	CatalogConsumersListener,
+	TransactionalLayerProducer<DataStoreChanges, Catalog>,
+	EntityTypeClassifierResolver
+{
 	/**
 	 * Per-thread stack of batch frames collecting entity types whose expression trigger registry
 	 * must be rebuilt once the current `updateSchema(...)` batch finishes. While a frame is on
@@ -611,7 +616,6 @@ public final class Catalog
 			catalogName, SequenceType.ENTITY_COLLECTION, 0
 		);
 		this.catalogIndex = new CatalogIndex(Scope.LIVE);
-		this.catalogIndex.attachToCatalog(null, this);
 		this.proxyFactory = proxyFactory;
 		this.newCatalogVersionConsumer = newCatalogVersionConsumer;
 		this.lastPersistedSchemaVersion = internalCatalogSchema.version();
@@ -695,12 +699,10 @@ public final class Catalog
 		this.schema = new TransactionalReference<>(new CatalogSchemaDecorator(catalogSchema));
 		this.catalogIndex = this.persistenceService.readCatalogIndex(this, Scope.LIVE)
 			.orElseGet(() -> new CatalogIndex(Scope.LIVE));
-		this.catalogIndex.attachToCatalog(null, this);
 		final CatalogIndex loadedArchiveCatalogIndex = this.persistenceService.readCatalogIndex(this, Scope.ARCHIVED)
 			.filter(it -> !it.isEmpty())
 			.orElse(null);
 		if (loadedArchiveCatalogIndex != null) {
-			loadedArchiveCatalogIndex.attachToCatalog(null, this);
 			this.archiveCatalogIndex.set(loadedArchiveCatalogIndex);
 		}
 		this.cacheSupervisor = cacheSupervisor;
@@ -784,10 +786,6 @@ public final class Catalog
 		this.newCatalogVersionConsumer = previousCatalogVersion.newCatalogVersionConsumer;
 		this.transactionManager = previousCatalogVersion.transactionManager;
 
-		this.catalogIndex.attachToCatalog(null, this);
-		if (archiveCatalogIndex != null) {
-			archiveCatalogIndex.attachToCatalog(null, this);
-		}
 		final StoragePartPersistenceService<StorageDescriptor> storagePartPersistenceService =
 			persistenceService.getStoragePartPersistenceService(catalogVersion);
 		final CatalogSchema catalogSchema = CatalogSchema._internalBuildWithUpdatedEntitySchemaAccessor(
@@ -1070,8 +1068,13 @@ public final class Catalog
 	public EntityCollection getCollectionForEntityOrThrowException(
 		@Nonnull String entityType
 	) throws CollectionNotFoundException {
-		return ofNullable(this.entityCollections.get(entityType))
-			.orElseThrow(() -> new CollectionNotFoundException(entityType));
+		// plain get + null-check + throw (no Optional / capturing-lambda allocation): this runs on the
+		// unique-attribute write path once per value via the EntityTypeClassifierResolver delegators below.
+		final EntityCollection entityCollection = this.entityCollections.get(entityType);
+		if (entityCollection == null) {
+			throw new CollectionNotFoundException(entityType);
+		}
+		return entityCollection;
 	}
 
 	@Override
@@ -1079,8 +1082,24 @@ public final class Catalog
 	public EntityCollection getCollectionForEntityPrimaryKeyOrThrowException(
 		int entityTypePrimaryKey
 	) throws CollectionNotFoundException {
-		return ofNullable(this.entityCollectionsByPrimaryKey.get(entityTypePrimaryKey))
-			.orElseThrow(() -> new CollectionNotFoundException(entityTypePrimaryKey));
+		// plain get + null-check + throw (no Optional / capturing-lambda allocation): this runs on the
+		// unique-attribute write path once per value via the EntityTypeClassifierResolver delegators below.
+		final EntityCollection entityCollection = this.entityCollectionsByPrimaryKey.get(entityTypePrimaryKey);
+		if (entityCollection == null) {
+			throw new CollectionNotFoundException(entityTypePrimaryKey);
+		}
+		return entityCollection;
+	}
+
+	@Override
+	public int toEntityTypePrimaryKey(@Nonnull String entityType) {
+		return getCollectionForEntityOrThrowException(entityType).getEntityTypePrimaryKey();
+	}
+
+	@Nonnull
+	@Override
+	public String toEntityTypeName(int entityTypePrimaryKey) {
+		return getCollectionForEntityPrimaryKeyOrThrowException(entityTypePrimaryKey).getEntityType();
 	}
 
 	@Override
@@ -1150,10 +1169,10 @@ public final class Catalog
 				return new Catalog(
 					catalogVersionAfterRename,
 					catalogState,
-					this.catalogIndex.createCopyForNewCatalogAttachment(catalogState),
+					this.catalogIndex.createShallowCopyWithResetDirtyFlag(),
 					this.archiveCatalogIndex.get() == null ?
 						null :
-						this.archiveCatalogIndex.get().createCopyForNewCatalogAttachment(catalogState),
+						this.archiveCatalogIndex.get().createShallowCopyWithResetDirtyFlag(),
 					newCollections,
 					newIoService,
 					this,
@@ -1202,10 +1221,10 @@ public final class Catalog
 			final Catalog newCatalog = new Catalog(
 				1L,
 				CatalogState.ALIVE,
-				this.catalogIndex.createCopyForNewCatalogAttachment(CatalogState.ALIVE),
+				this.catalogIndex.createShallowCopyWithResetDirtyFlag(),
 				this.archiveCatalogIndex.get() == null ?
 					null :
-					this.archiveCatalogIndex.get().createCopyForNewCatalogAttachment(CatalogState.ALIVE),
+					this.archiveCatalogIndex.get().createShallowCopyWithResetDirtyFlag(),
 				newCollections,
 				this.persistenceService,
 				this,
@@ -1473,15 +1492,12 @@ public final class Catalog
 	@Nonnull
 	public CatalogIndex getCatalogIndex(@Nonnull Scope scope) {
 		if (scope == Scope.ARCHIVED) {
-			// The archived index is lazily initialized on first archived-scope access. Guard the
-			// transition against concurrent read queries: create and attach the candidate before
-			// publishing it, then CAS it in. A candidate that loses the race is discarded (and GC'd)
-			// having been attached exactly once - so attachToCatalog is never invoked twice on the
-			// same instance, which would otherwise trip its "already attached" premise check
+			// The archived index is lazily initialized on first archived-scope access. Create the candidate before
+			// publishing it, then CAS it in; a candidate that loses the race is simply discarded (and GC'd). The
+			// catalog index no longer holds a catalog back-reference, so no attach step is needed here.
 			CatalogIndex existing = this.archiveCatalogIndex.get();
 			if (existing == null) {
 				final CatalogIndex candidate = new CatalogIndex(Scope.ARCHIVED);
-				candidate.attachToCatalog(null, this);
 				existing = this.archiveCatalogIndex.compareAndSet(null, candidate) ?
 					candidate : this.archiveCatalogIndex.get();
 			}

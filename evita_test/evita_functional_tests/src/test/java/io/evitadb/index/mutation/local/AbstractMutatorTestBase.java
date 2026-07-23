@@ -42,6 +42,7 @@ import io.evitadb.dataType.Scope;
 import io.evitadb.index.CatalogIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.EntityIndexType;
+import io.evitadb.index.EntityTypeClassifierResolver;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.test.TestConstants;
 import io.evitadb.test.generator.DataGenerator;
@@ -70,6 +71,7 @@ abstract class AbstractMutatorTestBase {
 	@Nonnull protected final Catalog catalog;
 	@Nonnull protected final CatalogIndex catalogIndex;
 	@Nonnull protected final CatalogSchema catalogSchema;
+	@Nonnull protected final EntityTypeClassifierResolver classifierResolver;
 	@Nonnull protected final MockStorageContainerAccessor containerAccessor = new MockStorageContainerAccessor();
 	@Nonnull protected final DataGenerator dataGenerator = new DataGenerator();
 	@Nonnull protected final EntityIndexLocalMutationExecutor executor;
@@ -104,7 +106,18 @@ abstract class AbstractMutatorTestBase {
 		this.catalogSchema = (CatalogSchema) catalogSchemaBuilder.toInstance();
 		this.sealedCatalogSchema = new CatalogSchemaDecorator(this.catalogSchema);
 		this.catalogIndex = new CatalogIndex(Scope.LIVE);
-		this.catalogIndex.attachToCatalog(null, this.catalog);
+		this.classifierResolver = new EntityTypeClassifierResolver() {
+			@Override
+			public int toEntityTypePrimaryKey(@Nonnull String entityType) {
+				return AbstractMutatorTestBase.this.catalog.getCollectionForEntityOrThrowException(entityType).getEntityTypePrimaryKey();
+			}
+
+			@Nonnull
+			@Override
+			public String toEntityTypeName(int entityTypePrimaryKey) {
+				return AbstractMutatorTestBase.this.catalog.getCollectionForEntityPrimaryKeyOrThrowException(entityTypePrimaryKey).getEntityType();
+			}
+		};
 
 		final EvitaSession mockSession = Mockito.mock(EvitaSession.class);
 		Mockito.when(this.catalog.getSchema()).thenReturn(this.sealedCatalogSchema);
@@ -130,7 +143,8 @@ abstract class AbstractMutatorTestBase {
 			},
 			null,
 			null,
-			null
+			null,
+			this.classifierResolver
 		);
 
 		final EntityCollection productCollection = Mockito.mock(EntityCollection.class);

@@ -172,7 +172,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 		assertNotNull(globalUniqueIndex);
 		assertEquals(
 			new EntityReferenceWithLocale(this.productSchema.getName(), 1, null),
-			globalUniqueIndex.getEntityReferenceByUniqueValue("GA", null).orElse(null)
+			globalUniqueIndex.getEntityReferenceByUniqueValue("GA", null, this.classifierResolver).orElse(null)
 		);
 
 		final TrappedChanges trappedChanges1 = new TrappedChanges();
@@ -281,10 +281,10 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 
 		final GlobalAttributeSchema attributeSchema = (GlobalAttributeSchema) this.productAttributeSchemaProvider.getAttributeSchema(ATTRIBUTE_GLOBAL_CODE);
 		final GlobalUniqueIndex globalUniqueIndex = this.catalogIndex.getGlobalUniqueIndex(attributeSchema, null);
-		assertNull(globalUniqueIndex.getEntityReferenceByUniqueValue("GA", null).orElse(null));
+		assertNull(globalUniqueIndex.getEntityReferenceByUniqueValue("GA", null, this.classifierResolver).orElse(null));
 		assertEquals(
 			new EntityReferenceWithLocale(this.productSchema.getName(), 1, null),
-			globalUniqueIndex.getEntityReferenceByUniqueValue("GB", null).orElse(null)
+			globalUniqueIndex.getEntityReferenceByUniqueValue("GB", null, this.classifierResolver).orElse(null)
 		);
 
 		final TrappedChanges trappedChanges1 = new TrappedChanges();
@@ -431,7 +431,8 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 						UNSUPPORTED_OPERATION,
 						null,
 						null,
-						null
+						null,
+						this.classifierResolver
 					),
 					null,
 					this.productAttributeSchemaProvider,
@@ -458,7 +459,8 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 						UNSUPPORTED_OPERATION,
 						null,
 						null,
-						null
+						null,
+						this.classifierResolver
 					),
 					null,
 					this.productAttributeSchemaProvider,
@@ -490,7 +492,8 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 				UNSUPPORTED_OPERATION,
 				null,
 				null,
-				null
+				null,
+				this.classifierResolver
 			),
 			null,
 			this.productAttributeSchemaProvider,
@@ -512,7 +515,8 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 				UNSUPPORTED_OPERATION,
 				null,
 				null,
-				null
+				null,
+				this.classifierResolver
 			),
 			null,
 			this.productAttributeSchemaProvider,
@@ -532,11 +536,11 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 		final GlobalUniqueIndex globalUniqueIndex = this.catalogIndex.getGlobalUniqueIndex(attributeSchema, null);
 		assertEquals(
 			new EntityReferenceWithLocale(this.productSchema.getName(), 2, null),
-			globalUniqueIndex.getEntityReferenceByUniqueValue("GA", null).orElse(null)
+			globalUniqueIndex.getEntityReferenceByUniqueValue("GA", null, this.classifierResolver).orElse(null)
 		);
 		assertEquals(
 			new EntityReferenceWithLocale(this.productSchema.getName(), 1, null),
-			globalUniqueIndex.getEntityReferenceByUniqueValue("GB", null).orElse(null)
+			globalUniqueIndex.getEntityReferenceByUniqueValue("GB", null, this.classifierResolver).orElse(null)
 		);
 
 		final TrappedChanges trappedChanges1 = new TrappedChanges();
@@ -639,7 +643,8 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 				UNSUPPORTED_OPERATION,
 				null,
 				null,
-				null
+				null,
+				this.classifierResolver
 			),
 			null,
 			this.productAttributeSchemaProvider,

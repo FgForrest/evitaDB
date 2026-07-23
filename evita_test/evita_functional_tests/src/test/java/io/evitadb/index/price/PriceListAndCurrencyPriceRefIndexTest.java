@@ -23,15 +23,10 @@
 
 package io.evitadb.index.price;
 
-import io.evitadb.api.CatalogState;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
-import io.evitadb.core.catalog.Catalog;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
-import io.evitadb.index.EntityIndexKey;
-import io.evitadb.index.EntityIndexType;
-import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.price.PriceListAndCurrencyPriceIndex.PriceListAndCurrencyPriceIndexTerminated;
 import io.evitadb.index.price.model.PriceIndexKey;
 import io.evitadb.index.price.model.priceRecord.PriceRecord;
@@ -46,14 +41,11 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentMatchers;
-import org.mockito.Mockito;
 
 import javax.annotation.Nonnull;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.Currency;
-import java.util.Optional;
 
 import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterRollback;
@@ -81,8 +73,6 @@ import static io.evitadb.test.TestTags.PRICE;
 @Tag(INDEXING)
 @Tag(PRICE)
 class PriceListAndCurrencyPriceRefIndexTest implements TimeBoundedTestSupport {
-
-	private static final String ENTITY_TYPE = "product";
 	private static final Scope SCOPE = Scope.LIVE;
 	private static final Currency CURRENCY_CZK = Currency.getInstance("CZK");
 	private static final String PRICE_LIST = "basic";
@@ -95,7 +85,7 @@ class PriceListAndCurrencyPriceRefIndexTest implements TimeBoundedTestSupport {
 	/**
 	 * Initializes a fresh super index and an empty ref index before each test. The ref index
 	 * is **not** attached to a catalog by default -- each test decides whether to call
-	 * {@link #attachRefIndexToCatalog(PriceListAndCurrencyPriceRefIndex,
+	 * {@link #wireRefIndexToSuperIndex(PriceListAndCurrencyPriceRefIndex,
 	 * PriceListAndCurrencyPriceSuperIndex)}.
 	 */
 	@BeforeEach
@@ -118,47 +108,19 @@ class PriceListAndCurrencyPriceRefIndexTest implements TimeBoundedTestSupport {
 	}
 
 	/**
-	 * Creates a {@link PriceRecord} with the given internal price id, entity primary key,
-	 * and custom price values.
+	 * Wires the given ref index to the provided super index, mirroring how the owning entity collection wires its
+	 * reduced indexes' price ref chains to the super price indexes of its own GLOBAL entity index after re-attachment.
 	 */
-	@Nonnull
-	private static PriceRecordContract createPriceRecordWithPrice(
-		int internalPriceId,
-		int priceId,
-		int entityPrimaryKey,
-		int priceWithTax,
-		int priceWithoutTax
-	) {
-		return new PriceRecord(internalPriceId, priceId, entityPrimaryKey, priceWithTax, priceWithoutTax);
-	}
-
-	/**
-	 * Attaches the given ref index to a mocked catalog that returns the provided super index
-	 * through the standard `Catalog -> GlobalEntityIndex -> PriceSuperIndex` chain.
-	 */
-	private static void attachRefIndexToCatalog(
+	private static void wireRefIndexToSuperIndex(
 		@Nonnull PriceListAndCurrencyPriceRefIndex refIndex,
 		@Nonnull PriceListAndCurrencyPriceSuperIndex superIndex
 	) {
-		final PriceSuperIndex priceSuperIndex = Mockito.mock(PriceSuperIndex.class);
-		Mockito.when(priceSuperIndex.getPriceIndex(PRICE_INDEX_KEY)).thenReturn(superIndex);
-
-		final GlobalEntityIndex globalEntityIndex = Mockito.mock(GlobalEntityIndex.class);
-		Mockito.when(globalEntityIndex.getPriceIndex(PRICE_INDEX_KEY)).thenReturn(superIndex);
-
-		final Catalog catalog = Mockito.mock(Catalog.class);
-		Mockito.when(catalog.getEntityIndexIfExists(
-			ArgumentMatchers.eq(ENTITY_TYPE),
-			ArgumentMatchers.eq(new EntityIndexKey(EntityIndexType.GLOBAL, SCOPE)),
-			ArgumentMatchers.eq(GlobalEntityIndex.class)
-		)).thenReturn(Optional.of(globalEntityIndex));
-
-		refIndex.attachToCatalog(ENTITY_TYPE, catalog);
+		refIndex.wireSuperIndex(superIndex);
 	}
 
 	/**
 	 * Populates the super index with the specified price records (no validity) and returns
-	 * a ref index attached to that super index via catalog mock.
+	 * a ref index wired to that super index.
 	 */
 	@Nonnull
 	private static PriceListAndCurrencyPriceRefIndex createAttachedRefIndex(
@@ -170,13 +132,13 @@ class PriceListAndCurrencyPriceRefIndexTest implements TimeBoundedTestSupport {
 		}
 		final PriceListAndCurrencyPriceRefIndex newRefIndex =
 			new PriceListAndCurrencyPriceRefIndex(SCOPE, PRICE_INDEX_KEY);
-		attachRefIndexToCatalog(newRefIndex, superIndex);
+		wireRefIndexToSuperIndex(newRefIndex, superIndex);
 		return newRefIndex;
 	}
 
 	/**
-	 * Creates a ref index from deserialized data (price ids constructor), attaches it to the
-	 * catalog mock, and returns it ready for use.
+	 * Creates a ref index from deserialized data (price ids constructor), wires it to the
+	 * super index, and returns it ready for use.
 	 */
 	@Nonnull
 	private static PriceListAndCurrencyPriceRefIndex createAttachedRefIndexFromPriceIds(
@@ -185,19 +147,19 @@ class PriceListAndCurrencyPriceRefIndexTest implements TimeBoundedTestSupport {
 	) {
 		final PriceListAndCurrencyPriceRefIndex newRefIndex =
 			new PriceListAndCurrencyPriceRefIndex(SCOPE, PRICE_INDEX_KEY, new RangeIndex(), priceIds);
-		attachRefIndexToCatalog(newRefIndex, superIndex);
+		wireRefIndexToSuperIndex(newRefIndex, superIndex);
 		return newRefIndex;
 	}
 
 	/**
-	 * Tests verifying the catalog attachment lifecycle of the ref index.
+	 * Tests verifying the super-index wiring lifecycle of the ref index.
 	 */
 	@Nested
-	@DisplayName("Catalog attachment")
+	@DisplayName("Super index wiring")
 	class CatalogAttachmentTest {
 
 		@Test
-		@DisplayName("should attach and populate priceRecords from super index")
+		@DisplayName("should wire and populate priceRecords from super index")
 		void shouldAttachAndPopulatePriceRecordsFromSuperIndex() {
 			final PriceRecordContract price1 = createPriceRecord(1, 1, 100);
 			final PriceRecordContract price2 = createPriceRecord(2, 2, 200);
@@ -220,47 +182,21 @@ class PriceListAndCurrencyPriceRefIndexTest implements TimeBoundedTestSupport {
 		}
 
 		@Test
-		@DisplayName("should throw when entity type is null")
-		void shouldThrowWhenEntityTypeIsNull() {
-			final Catalog catalog = Mockito.mock(Catalog.class);
-
-			assertThrows(
-				GenericEvitaInternalError.class,
-				() -> PriceListAndCurrencyPriceRefIndexTest.this.refIndex.attachToCatalog(null, catalog)
-			);
-		}
-
-		@Test
-		@DisplayName("should throw when already attached")
+		@DisplayName("should throw when super index already wired")
 		void shouldThrowWhenAlreadyAttached() {
 			PriceListAndCurrencyPriceRefIndexTest.this.superIndex.addPrice(
 				createPriceRecord(1, 1, 100), null
 			);
-			attachRefIndexToCatalog(
+			wireRefIndexToSuperIndex(
 				PriceListAndCurrencyPriceRefIndexTest.this.refIndex,
 				PriceListAndCurrencyPriceRefIndexTest.this.superIndex
 			);
 
-			final Catalog catalog = Mockito.mock(Catalog.class);
 			assertThrows(
 				GenericEvitaInternalError.class,
-				() -> PriceListAndCurrencyPriceRefIndexTest.this.refIndex.attachToCatalog(ENTITY_TYPE, catalog)
-			);
-		}
-
-		@Test
-		@DisplayName("should throw when super index not found in catalog")
-		void shouldThrowWhenSuperIndexNotFound() {
-			final Catalog catalog = Mockito.mock(Catalog.class);
-			Mockito.when(catalog.getEntityIndexIfExists(
-				ArgumentMatchers.eq(ENTITY_TYPE),
-				ArgumentMatchers.eq(new EntityIndexKey(EntityIndexType.GLOBAL, SCOPE)),
-				ArgumentMatchers.eq(GlobalEntityIndex.class)
-			)).thenReturn(Optional.empty());
-
-			assertThrows(
-				GenericEvitaInternalError.class,
-				() -> PriceListAndCurrencyPriceRefIndexTest.this.refIndex.attachToCatalog(ENTITY_TYPE, catalog)
+				() -> PriceListAndCurrencyPriceRefIndexTest.this.refIndex.wireSuperIndex(
+					PriceListAndCurrencyPriceRefIndexTest.this.superIndex
+				)
 			);
 		}
 
@@ -305,7 +241,7 @@ class PriceListAndCurrencyPriceRefIndexTest implements TimeBoundedTestSupport {
 			PriceListAndCurrencyPriceRefIndexTest.this.superIndex.addPrice(price, null);
 
 			// create empty attached ref
-			attachRefIndexToCatalog(
+			wireRefIndexToSuperIndex(
 				PriceListAndCurrencyPriceRefIndexTest.this.refIndex,
 				PriceListAndCurrencyPriceRefIndexTest.this.superIndex
 			);
@@ -338,7 +274,7 @@ class PriceListAndCurrencyPriceRefIndexTest implements TimeBoundedTestSupport {
 			final PriceRecordContract price = createPriceRecord(10, 10, 42);
 			PriceListAndCurrencyPriceRefIndexTest.this.superIndex.addPrice(price, validity);
 
-			attachRefIndexToCatalog(
+			wireRefIndexToSuperIndex(
 				PriceListAndCurrencyPriceRefIndexTest.this.refIndex,
 				PriceListAndCurrencyPriceRefIndexTest.this.superIndex
 			);
@@ -363,7 +299,7 @@ class PriceListAndCurrencyPriceRefIndexTest implements TimeBoundedTestSupport {
 			PriceListAndCurrencyPriceRefIndexTest.this.superIndex.addPrice(price1, null);
 			PriceListAndCurrencyPriceRefIndexTest.this.superIndex.addPrice(price2, null);
 
-			attachRefIndexToCatalog(
+			wireRefIndexToSuperIndex(
 				PriceListAndCurrencyPriceRefIndexTest.this.refIndex,
 				PriceListAndCurrencyPriceRefIndexTest.this.superIndex
 			);
@@ -393,7 +329,7 @@ class PriceListAndCurrencyPriceRefIndexTest implements TimeBoundedTestSupport {
 			PriceListAndCurrencyPriceRefIndexTest.this.superIndex.addPrice(price1, null);
 			PriceListAndCurrencyPriceRefIndexTest.this.superIndex.addPrice(price2, null);
 
-			attachRefIndexToCatalog(
+			wireRefIndexToSuperIndex(
 				PriceListAndCurrencyPriceRefIndexTest.this.refIndex,
 				PriceListAndCurrencyPriceRefIndexTest.this.superIndex
 			);
@@ -423,7 +359,7 @@ class PriceListAndCurrencyPriceRefIndexTest implements TimeBoundedTestSupport {
 			PriceListAndCurrencyPriceRefIndexTest.this.superIndex.addPrice(price1, null);
 			PriceListAndCurrencyPriceRefIndexTest.this.superIndex.addPrice(price2, null);
 
-			attachRefIndexToCatalog(
+			wireRefIndexToSuperIndex(
 				PriceListAndCurrencyPriceRefIndexTest.this.refIndex,
 				PriceListAndCurrencyPriceRefIndexTest.this.superIndex
 			);
@@ -456,7 +392,7 @@ class PriceListAndCurrencyPriceRefIndexTest implements TimeBoundedTestSupport {
 			final PriceRecordContract price = createPriceRecord(10, 10, 42);
 			PriceListAndCurrencyPriceRefIndexTest.this.superIndex.addPrice(price, null);
 
-			attachRefIndexToCatalog(
+			wireRefIndexToSuperIndex(
 				PriceListAndCurrencyPriceRefIndexTest.this.refIndex,
 				PriceListAndCurrencyPriceRefIndexTest.this.superIndex
 			);
@@ -485,7 +421,7 @@ class PriceListAndCurrencyPriceRefIndexTest implements TimeBoundedTestSupport {
 			final PriceRecordContract price = createPriceRecord(10, 10, 42);
 			PriceListAndCurrencyPriceRefIndexTest.this.superIndex.addPrice(price, validity);
 
-			attachRefIndexToCatalog(
+			wireRefIndexToSuperIndex(
 				PriceListAndCurrencyPriceRefIndexTest.this.refIndex,
 				PriceListAndCurrencyPriceRefIndexTest.this.superIndex
 			);
@@ -515,7 +451,7 @@ class PriceListAndCurrencyPriceRefIndexTest implements TimeBoundedTestSupport {
 			PriceListAndCurrencyPriceRefIndexTest.this.superIndex.addPrice(price1, null);
 			PriceListAndCurrencyPriceRefIndexTest.this.superIndex.addPrice(price2, null);
 
-			attachRefIndexToCatalog(
+			wireRefIndexToSuperIndex(
 				PriceListAndCurrencyPriceRefIndexTest.this.refIndex,
 				PriceListAndCurrencyPriceRefIndexTest.this.superIndex
 			);
@@ -620,7 +556,7 @@ class PriceListAndCurrencyPriceRefIndexTest implements TimeBoundedTestSupport {
 			PriceListAndCurrencyPriceRefIndexTest.this.superIndex.addPrice(price1, null);
 			PriceListAndCurrencyPriceRefIndexTest.this.superIndex.addPrice(price2, null);
 
-			attachRefIndexToCatalog(
+			wireRefIndexToSuperIndex(
 				PriceListAndCurrencyPriceRefIndexTest.this.refIndex,
 				PriceListAndCurrencyPriceRefIndexTest.this.superIndex
 			);
@@ -640,7 +576,7 @@ class PriceListAndCurrencyPriceRefIndexTest implements TimeBoundedTestSupport {
 			final PriceRecordContract price = createPriceRecord(10, 10, 42);
 			PriceListAndCurrencyPriceRefIndexTest.this.superIndex.addPrice(price, null);
 
-			attachRefIndexToCatalog(
+			wireRefIndexToSuperIndex(
 				PriceListAndCurrencyPriceRefIndexTest.this.refIndex,
 				PriceListAndCurrencyPriceRefIndexTest.this.superIndex
 			);
@@ -657,7 +593,7 @@ class PriceListAndCurrencyPriceRefIndexTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("should return null for unknown entity")
 		void shouldReturnNullForUnknownEntity() {
-			attachRefIndexToCatalog(
+			wireRefIndexToSuperIndex(
 				PriceListAndCurrencyPriceRefIndexTest.this.refIndex,
 				PriceListAndCurrencyPriceRefIndexTest.this.superIndex
 			);
@@ -684,7 +620,7 @@ class PriceListAndCurrencyPriceRefIndexTest implements TimeBoundedTestSupport {
 			final PriceRecordContract price = createPriceRecord(10, 10, 42);
 			PriceListAndCurrencyPriceRefIndexTest.this.superIndex.addPrice(price, null);
 
-			attachRefIndexToCatalog(
+			wireRefIndexToSuperIndex(
 				PriceListAndCurrencyPriceRefIndexTest.this.refIndex,
 				PriceListAndCurrencyPriceRefIndexTest.this.superIndex
 			);
@@ -704,7 +640,7 @@ class PriceListAndCurrencyPriceRefIndexTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("should return null when clean (no mutations)")
 		void shouldReturnNullWhenClean() {
-			attachRefIndexToCatalog(
+			wireRefIndexToSuperIndex(
 				PriceListAndCurrencyPriceRefIndexTest.this.refIndex,
 				PriceListAndCurrencyPriceRefIndexTest.this.superIndex
 			);
@@ -721,7 +657,7 @@ class PriceListAndCurrencyPriceRefIndexTest implements TimeBoundedTestSupport {
 			final PriceRecordContract price = createPriceRecord(10, 10, 42);
 			PriceListAndCurrencyPriceRefIndexTest.this.superIndex.addPrice(price, null);
 
-			attachRefIndexToCatalog(
+			wireRefIndexToSuperIndex(
 				PriceListAndCurrencyPriceRefIndexTest.this.refIndex,
 				PriceListAndCurrencyPriceRefIndexTest.this.superIndex
 			);
@@ -737,44 +673,6 @@ class PriceListAndCurrencyPriceRefIndexTest implements TimeBoundedTestSupport {
 			// clean — should be null
 			assertNull(
 				PriceListAndCurrencyPriceRefIndexTest.this.refIndex.createStoragePart(1)
-			);
-		}
-	}
-
-	/**
-	 * Tests verifying `createCopyForNewCatalogAttachment` produces a fresh detached copy.
-	 */
-	@Nested
-	@DisplayName("Copy for new catalog attachment")
-	class CopyTest {
-
-		@Test
-		@DisplayName("should create a distinct copy with same key and bitmaps")
-		void shouldCreateCopyForNewCatalogAttachment() {
-			final PriceRecordContract price = createPriceRecord(10, 10, 42);
-			PriceListAndCurrencyPriceRefIndexTest.this.superIndex.addPrice(price, null);
-
-			attachRefIndexToCatalog(
-				PriceListAndCurrencyPriceRefIndexTest.this.refIndex,
-				PriceListAndCurrencyPriceRefIndexTest.this.superIndex
-			);
-			PriceListAndCurrencyPriceRefIndexTest.this.refIndex.addPrice(10, null);
-
-			final PriceListAndCurrencyPriceRefIndex copy =
-				PriceListAndCurrencyPriceRefIndexTest.this.refIndex.createCopyForNewCatalogAttachment(
-					CatalogState.ALIVE
-				);
-
-			assertNotSame(PriceListAndCurrencyPriceRefIndexTest.this.refIndex, copy);
-			assertEquals(
-				PriceListAndCurrencyPriceRefIndexTest.this.refIndex.getPriceIndexKey(),
-				copy.getPriceIndexKey()
-			);
-			// copy does NOT have priceRecords or superIndex until reattached,
-			// but shares indexedPriceEntityIds and indexedPriceIds TransactionalBitmaps
-			assertArrayEquals(
-				PriceListAndCurrencyPriceRefIndexTest.this.refIndex.getIndexedPriceIds(),
-				copy.getIndexedPriceIds()
 			);
 		}
 	}
