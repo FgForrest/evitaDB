@@ -54,6 +54,7 @@ import io.evitadb.utils.IOUtils;
 import io.evitadb.utils.UUIDUtil;
 import io.evitadb.utils.VersionUtils;
 import lombok.Setter;
+import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -82,6 +83,7 @@ import java.util.function.Supplier;
  * @see EvitaManagementContract
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
+@Slf4j
 public class EvitaManagement implements EvitaManagementContract, Closeable {
 	/**
 	 * Contains reference to the main evita service.
@@ -196,7 +198,7 @@ public class EvitaManagement implements EvitaManagementContract, Closeable {
 	public CatalogStatistics[] getCatalogStatistics() {
 		return this.evita.getCatalogs()
 			.stream()
-			.map(CatalogContract::getStatistics)
+			.map(EvitaManagement::getCatalogStatisticsSafely)
 			.sorted(Comparator.comparing(CatalogStatistics::catalogName))
 			.toArray(CatalogStatistics[]::new);
 	}
@@ -428,6 +430,42 @@ public class EvitaManagement implements EvitaManagementContract, Closeable {
 			this.exportService::close,
 			this.fileManagementService::close
 		);
+	}
+
+	/**
+	 * Collects statistics of a single catalog, degrading to a minimal placeholder record when the catalog fails to
+	 * provide them.
+	 *
+	 * Statistics of all catalogs are aggregated into a single response, so an exception raised by one catalog would
+	 * otherwise abort the entire listing and hide every healthy catalog from the client as well. A catalog that cannot
+	 * report its statistics is still a catalog the client needs to see - it is reported as `unusable` with unknown
+	 * (`-1`) figures instead of taking the whole response down with it.
+	 *
+	 * @param catalog the catalog to collect the statistics for
+	 * @return statistics of the catalog, or an `unusable` placeholder when they cannot be collected
+	 */
+	@Nonnull
+	private static CatalogStatistics getCatalogStatisticsSafely(@Nonnull CatalogContract catalog) {
+		try {
+			return catalog.getStatistics();
+		} catch (RuntimeException ex) {
+			log.error(
+				"Failed to collect statistics of catalog `{}` - reporting it as unusable.",
+				catalog.getName(), ex
+			);
+			return new CatalogStatistics(
+				null,
+				catalog.getName(),
+				true,
+				false,
+				catalog.getCatalogState(),
+				-1L,
+				-1L,
+				-1L,
+				-1L,
+				new CatalogStatistics.EntityCollectionStatistics[0]
+			);
+		}
 	}
 
 }
