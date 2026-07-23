@@ -39,6 +39,8 @@ import io.evitadb.core.metric.event.CustomMetricsExecutionEvent;
 import io.evitadb.externalApi.observability.configuration.ObservabilityOptions;
 import io.evitadb.function.ChainableConsumer;
 import io.evitadb.utils.ArrayUtils;
+import io.evitadb.utils.Assert;
+import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.ReflectionLookup;
 import io.evitadb.utils.StringUtils;
 import io.evitadb.utils.VersionUtils;
@@ -117,7 +119,7 @@ public class MetricHandler {
 		.labelNames("api_type")
 		.help("Status of the API readiness (internal HTTP call check)")
 		.register();
-	private static final Map<String, Metric> REGISTERED_METRICS = new HashMap<>(64);
+	private static final Map<String, RegisteredMetric> REGISTERED_METRICS = new HashMap<>(64);
 	private static final Pattern EVENT = Pattern.compile("Event");
 	private static final Map<String, Runnable> DEFAULT_JVM_METRICS;
 	private static final String DEFAULT_JVM_METRICS_NAME = "AllMetrics";
@@ -354,10 +356,25 @@ public class MetricHandler {
 	 * @return built and registered metric
 	 */
 	@Nonnull
-	private static Metric buildAndRegisterMetric(@Nonnull LoggedMetric metric, @Nonnull Map<String, Metric> registeredMetrics) {
+	private static Metric buildAndRegisterMetric(@Nonnull LoggedMetric metric, @Nonnull Map<String, RegisteredMetric> registeredMetrics) {
 		final String name = StringUtils.toSnakeCase(metric.name());
-		if (registeredMetrics.containsKey(name)) {
-			return registeredMetrics.get(name);
+		final RegisteredMetric existing = registeredMetrics.get(name);
+		if (existing != null) {
+			// a metric's dimension set must stay stable for its lifetime. Before configurable query labels every
+			// metric's labels were fixed at compile time, so re-registration under the same name was always
+			// shape-identical. Now that query-metric dimensions depend on `exportedQueryLabels`, a re-registration
+			// with a different shape (e.g. a second observability handler booted in the same JVM with a different
+			// config) is rejected loudly here instead of silently reusing the first shape and later throwing a
+			// cryptic IllegalArgumentException from the Prometheus client when an event fires.
+			Assert.isTrue(
+				Arrays.equals(existing.labelNames(), metric.labels()),
+				() -> "Prometheus metric `" + name + "` is already registered with dimensions " +
+					Arrays.toString(existing.labelNames()) + " and cannot be re-registered with " +
+					Arrays.toString(metric.labels()) + ". A metric's dimension set must be stable; this usually means " +
+					"the observability handler was initialized more than once in the same JVM with different " +
+					"`exportedQueryLabels` configurations."
+			);
+			return existing.metric();
 		} else {
 			final Metric newMetric = switch (metric.type()) {
 				case GAUGE -> Gauge.builder()
@@ -394,7 +411,7 @@ public class MetricHandler {
 					.help(metric.helpMessage())
 					.register();
 			};
-			registeredMetrics.put(name, newMetric);
+			registeredMetrics.put(name, new RegisteredMetric(newMetric, metric.labels()));
 			return newMetric;
 		}
 	}
@@ -545,7 +562,7 @@ public class MetricHandler {
 							if (!exportedQueryLabels.isEmpty()) {
 								// the fixed dimensions collected so far are reserved: a configured label must not
 								// collide with a built-in dimension (e.g. entityType, prefetched) either
-								final Set<String> reservedDimensions = new HashSet<>();
+								final Set<String> reservedDimensions = CollectionUtils.createHashSet(labelExporters.size());
 								for (final MetricLabelExporter fixedExporter : labelExporters) {
 									reservedDimensions.add(fixedExporter.labelName());
 								}
@@ -704,6 +721,21 @@ public class MetricHandler {
 	private record MetricLabelExporter(
 		@Nonnull String labelName,
 		@Nonnull Function<RecordedEvent, String> labelValueAccessor
+	) {
+	}
+
+	/**
+	 * A registered Prometheus {@link Metric} together with the dimension names it was registered with. Retained so a
+	 * re-registration under the same metric name can verify the dimension set has not changed - it must be stable for
+	 * the metric's lifetime, which is no longer guaranteed by construction now that query-metric dimensions depend on
+	 * the {@code exportedQueryLabels} configuration.
+	 *
+	 * @param metric     the registered Prometheus metric
+	 * @param labelNames the dimension names the metric was registered with
+	 */
+	private record RegisteredMetric(
+		@Nonnull Metric metric,
+		@Nonnull String[] labelNames
 	) {
 	}
 

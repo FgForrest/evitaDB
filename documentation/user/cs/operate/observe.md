@@ -257,6 +257,13 @@ Uvedení názvu zde je vaším explicitním potvrzením, že jeho hodnoty jsou o
 nikdy exportovat; server se s jasnou chybou odmítne spustit, pokud se kterýkoli z nich (nebo dva názvy, které se upraví
 na stejnou dimenzi) v seznamu objeví.
 
+Dvě další poznámky k exportovaným štítkům dotazu:
+- Nakonfigurovaný název, jehož upravená podoba koliduje s vlastní vestavěnou dimenzí metriky (u metrik dotazů
+  `entityType` nebo `prefetched`), je odmítnut při registraci metrik krátce po startu - to se zaloguje a sběr metrik se
+  neinicializuje, na rozdíl od obou konfiguračních kontrol výše nepřeruší start serveru.
+- Hodnoty se čtou z čárkou/rovnítkem oddělovaného balíku, proto se v hodnotách exportovaných štítků vyhněte čárkám
+  (`,`) a rovnítkům (`=`); udržujte je omezené a jednoduché, jak to jejich bezpečná kardinalita stejně vyžaduje.
+
 ### JFR události
 
 [JFR události](https://docs.oracle.com/javacomponents/jmc-5-4/jfr-runtime-guide/about.htm#JFRUH170) mohou být také

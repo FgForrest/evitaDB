@@ -270,6 +270,14 @@ automatically by the system - `trace-id`, `client-id`, `ip-address` and `uri` - 
 the server fails to start with a clear error if any of them (or two names that sanitize to the same dimension) appear
 in the list.
 
+Two further notes on exported query labels:
+- A configured name whose sanitized form collides with a metric's own built-in dimension (for query metrics,
+  `entityType` or `prefetched`) is rejected when metrics are registered shortly after startup - this is logged and
+  metric collection fails to initialize, rather than aborting server startup the way the two configuration guards above
+  do.
+- Values are read from a comma/equals-delimited bag, so avoid commas (`,`) or equals signs (`=`) inside the values of
+  exported labels; keep them bounded and simple, as their cardinality safety requires anyway.
+
 ### JFR events
 
 The [JFR events](https://docs.oracle.com/javacomponents/jmc-5-4/jfr-runtime-guide/about.htm#JFRUH170) can also be

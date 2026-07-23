@@ -24,11 +24,11 @@
 package io.evitadb.externalApi.observability.metric;
 
 import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.utils.CollectionUtils;
 
 import javax.annotation.Nonnull;
 import java.util.Collection;
 import java.util.HashSet;
-import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
 
@@ -68,7 +68,7 @@ public final class PrometheusLabelNames {
 		@Nonnull Collection<String> labelNames,
 		@Nonnull Set<String> reservedDimensions
 	) {
-		final Map<String, String> dimensionByLabel = new LinkedHashMap<>(labelNames.size());
+		final Map<String, String> dimensionByLabel = CollectionUtils.createLinkedHashMap(labelNames.size());
 		final Set<String> usedDimensions = new HashSet<>(reservedDimensions);
 		for (final String labelName : labelNames) {
 			final String dimension = sanitize(labelName);

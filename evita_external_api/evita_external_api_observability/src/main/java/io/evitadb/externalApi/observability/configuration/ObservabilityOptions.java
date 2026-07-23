@@ -38,6 +38,7 @@ import javax.annotation.Nullable;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TreeSet;
 
 /**
  * Observability API specific configuration.
@@ -63,6 +64,11 @@ public class ObservabilityOptions extends AbstractApiOptions implements ApiWithS
 		TrafficRecordingEngine.LABEL_IP_ADDRESS,
 		TrafficRecordingEngine.LABEL_URI
 	);
+	/**
+	 * {@link #FORBIDDEN_QUERY_LABELS} rendered as a stable, alphabetically-sorted comma-separated list, so validation
+	 * error messages are deterministic (the {@link Set#of set} itself has no defined iteration order).
+	 */
+	private static final String FORBIDDEN_QUERY_LABELS_DISPLAY = String.join(", ", new TreeSet<>(FORBIDDEN_QUERY_LABELS));
 
 	/**
 	 * Controls the prefix Metrics API will react on.
@@ -120,10 +126,17 @@ public class ObservabilityOptions extends AbstractApiOptions implements ApiWithS
 		this.allowedEvents = allowedEvents;
 		if (exportedQueryLabels != null) {
 			for (final String label : exportedQueryLabels) {
+				// a bare `-` item in the YAML list yields a null element; reject it up front with a clear message
+				// rather than letting it NPE inside the forbidden-name check or dimension sanitization
+				Assert.isTrue(
+					label != null,
+					"A `null` query label name was found in `exportedQueryLabels` configuration - " +
+						"check for empty list items (a bare `-`) in the YAML."
+				);
 				Assert.isTrue(
 					!FORBIDDEN_QUERY_LABELS.contains(label),
 					() -> "Query label `" + label + "` cannot be exported to Prometheus via `exportedQueryLabels` - it " +
-						"is a reserved high-cardinality label (one of: " + String.join(", ", FORBIDDEN_QUERY_LABELS) + ")."
+						"is a reserved high-cardinality label (one of: " + FORBIDDEN_QUERY_LABELS_DISPLAY + ")."
 				);
 			}
 			// reject two labels collapsing onto the same Prometheus dimension; a clash with a built-in dimension can

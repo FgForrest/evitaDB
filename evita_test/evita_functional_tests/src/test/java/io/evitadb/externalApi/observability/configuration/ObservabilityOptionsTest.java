@@ -30,6 +30,7 @@ import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.ArrayList;
 import java.util.List;
 
 import static io.evitadb.test.TestTags.OBSERVABILITY;
@@ -94,6 +95,19 @@ class ObservabilityOptionsTest {
 			() -> withExportedQueryLabels(List.of("rest-method", "rest.method"))
 		);
 		assertTrue(exception.getMessage().contains("rest_method"), "message should mention the shared dimension");
+	}
+
+	@Test
+	@DisplayName("Should reject a null query label name (a bare `-` list item in YAML)")
+	void shouldRejectNullLabelName() {
+		final List<String> withNullItem = new ArrayList<>();
+		withNullItem.add("job_name");
+		withNullItem.add(null);
+		final EvitaInvalidUsageException exception = assertThrows(
+			EvitaInvalidUsageException.class,
+			() -> withExportedQueryLabels(withNullItem)
+		);
+		assertTrue(exception.getMessage().toLowerCase().contains("null"), "message should mention the null item");
 	}
 
 }
