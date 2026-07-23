@@ -5734,6 +5734,44 @@ public abstract class AbstractEntityByAttributeFilteringFunctionalTest {
 		);
 	}
 
+	@DisplayName("Should return no entities when an unsatisfiable nested AND contains a NOT constraint")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldReturnNoEntitiesWhenUnsatisfiableNestedAndContainsNotConstraint(Evita evita) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							and(
+								// this constraint alone matches a non-empty set of entities
+								attributeIsNotNull(ATTRIBUTE_PRIORITY),
+								and(
+									// no entity carries this priority, so the nested conjunction matches nothing
+									attributeEquals(ATTRIBUTE_PRIORITY, Long.MIN_VALUE),
+									not(
+										attributeEquals(ATTRIBUTE_ALIAS, false)
+									)
+								)
+							)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+						)
+					),
+					EntityReference.class
+				);
+				// the nested conjunction is unsatisfiable, so the entire query must match nothing - the negated
+				// branch must not disappear from the conjunction and leave its sibling matching on its own
+				assertEquals(0, result.getTotalRecordCount());
+				return null;
+			}
+		);
+	}
+
 	@DisplayName("Should return entities combining NOT constraint with attributeIsNull in OR context")
 	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
