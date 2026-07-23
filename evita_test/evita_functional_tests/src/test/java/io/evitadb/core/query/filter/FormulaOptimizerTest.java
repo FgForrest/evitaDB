@@ -482,8 +482,9 @@ class FormulaOptimizerTest {
 		void notWithCollapsingSupersetInsideAnd_shouldCollapseWholeConjunctionToEmpty() {
 			final ConstantFormula sibling = constant(1, 2, 3);
 			final ConstantFormula subtracted = constant(2);
-			// the superset is not empty to begin with - it only collapses to EmptyFormula during optimization,
-			// which is what makes the optimizer drop the NotFormula node instead of replacing it
+			// the superset must be a container that the optimizer *reduces* to EmptyFormula rather than
+			// EmptyFormula itself - only then do the NotFormula children change during optimization, which is
+			// the path on which the optimizer used to drop the whole NotFormula node instead of replacing it
 			final Formula supersetCollapsingToEmpty = new AndFormula(
 				constant(4, 5),
 				EmptyFormula.INSTANCE
