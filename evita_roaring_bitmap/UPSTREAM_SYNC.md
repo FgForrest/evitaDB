@@ -183,3 +183,67 @@ itself", per its class comment) and the merge needs both operands' flags to borr
 a future sync touches upstream `RoaringArray.mergeBulk`, apply the change to
 `PersistentRoaringBitmap.mergeBulk` here. The three op selectors (`MERGE_OR`/`MERGE_XOR`/
 `MERGE_LAZY_OR`) are likewise private constants on `PersistentRoaringBitmap`, not `RoaringArray`.
+
+#### Static `or`/`xor`/`andNot`: precise result flags, deliberately coarse operand flags (evita divergence — preserve on re-sync)
+
+Upstream's static binary operations carry a chunk that exists in only one operand into the result with
+`appendCopy`, i.e. an eager `Container.clone()`. The vendored copy carries it **by reference** and
+records the co-ownership in the `shared[]` flag array instead, which is the whole point of the
+persistent reshaping.
+
+That bookkeeping used to be a blunt over-approximation on both sides: `markAllShared(x1)` /
+`markAllShared(x2)` plus an all-`true` result array (`newAllSharedResult`). It was safe — a spurious
+`true` only ever buys an extra clone, never corruption — but a `shared` flag is a promise to clone
+before the next in-place write, so promising on a chunk nobody co-owns means paying for a clone
+(8 KiB for a bitmap chunk) that buys nothing.
+
+**The result side is now tracked per slot.** A chunk present in both operands is recombined into a
+private container (`c1.or(c2)` and friends allocate; they never hand back an operand) and is left
+unflagged; a chunk lent from a single operand is flagged, via `flagLentLast` / `appendLentRange`.
+`newAllSharedResult` is gone. The result is reachable only by the caller until it is published, so
+per-slot tracking is unconditionally safe there.
+
+**The operand side is deliberately left as the wholesale `markAllShared` fill**, and that is now
+documented on the method so it is not "optimised" later. `TransactionalBitmap` is `@ThreadSafe` and
+hands the same live `PersistentRoaringBitmap` to every concurrent read-only query thread, so one
+bitmap can be an operand of two queries at once while `shared[]` is written without synchronisation.
+A full fill is idempotent: an update lost to a racing `ensureSharedCapacity` reallocation is
+re-established by the next caller, and the value it converges on is the conservative one. Sparse
+per-slot writes have no such convergence, and the value a lost sparse write leaves behind is the
+*unsafe* one — an unflagged slot over a container the result aliases, which is exactly the
+precondition for silent cross-bitmap corruption. Narrowing this side was measured at −32 % allocation
+on the diff-layer shape and is therefore worth revisiting, but only behind two things it does not have
+today: a hard `shared.length >= size` invariant (so `ensureSharedCapacity` can never reallocate a
+published bitmap out from under a concurrent writer) and a decision about publishing those writes.
+
+`andNot` still never marks its subtrahend, since no container is ever carried out of it. Sizing note:
+the result flag array is allocated once at the operation's upper bound (`length1 + length2`, or
+`length1` for `andNot`) and never grown — a `shared[]` longer than the container array is legal, only
+shorter is not. That over-allocates by up to `length1 + length2 - resultSize` bytes versus the old
+exactly-sized array; measured at +64 bytes per `or` on a 64-chunk operand pair, against a 24 % cut
+where the result is written.
+
+In the same spirit, `runOptimize()` and `removeRunCompression()` now clear the flag of any slot whose
+container they re-encoded: the replacement was allocated for this bitmap alone, so the co-ownership
+the slot recorded belonged to the container that was just dropped from it.
+
+Measured A/B (two JVMs, thread-allocation counters, bit-for-bit reproducible), 64-chunk operands:
+
+| shape | allocation | best-of-9 wall clock |
+|---|---|---|
+| `or(a, b)` then writes into the result | 217,095,792 → 164,417,392 bytes/cycle (**−24.3 %**) | 12.2 → 10.3 ms (best of 5 runs × 9) |
+| diff-layer `andNot(or(baseline, insertions), removals)` then writes into the deltas | 325,415,688 → 325,428,488 bytes/cycle (**+0.004 %**) | unchanged |
+
+The second row is the honest counterpart of the first: that shape's cost sits entirely in the operand
+flags, which this change deliberately does not touch.
+
+The precondition — that the out-of-place container operators never return an operand or anything
+aliasing one — is pinned by `ContainerBinaryOpFreshnessTest` across all nine shape pairs in both
+operand orders (identity *and* a scribble-the-result check, which catches a distinct object wrapping
+an operand's backing array). The flags are pinned by `SharedFlagPrecisionTest` and by
+`SharedContainerLockstepFuzzTest`, whose alias-graph check now drives the static `xor` and `andNot`
+producers too; deliberately dropping a lent chunk's flag makes that fuzz fail at seed 0, step 26.
+
+**Not applicable upstream.** `shared[]` has no upstream counterpart — upstream `RoaringBitmap` results
+are freely mutable by contract, which is exactly why it clones on carry-over instead of sharing. There
+is nothing to report or contribute here.

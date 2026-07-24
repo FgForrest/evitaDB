@@ -172,7 +172,7 @@ public class SharedContainerLockstepFuzzTest {
 	private static void step(final Random random, final List<Tracked> pool) {
 		final Tracked target = pool.get(random.nextInt(pool.size()));
 		final Tracked other = pool.get(random.nextInt(pool.size()));
-		switch (random.nextInt(14)) {
+		switch (random.nextInt(16)) {
 			case 0: {
 				if (target == other) {
 					break;
@@ -283,6 +283,30 @@ public class SharedContainerLockstepFuzzTest {
 				if (random.nextBoolean()) {
 					target.bitmap.trim();
 				}
+				break;
+			}
+			case 13: {
+				if (target == other) {
+					break;
+				}
+				final TreeSet<Integer> symmetric = new TreeSet<>(target.model);
+				for (final Integer value : other.model) {
+					if (!symmetric.add(value)) {
+						symmetric.remove(value);
+					}
+				}
+				pool.add(
+					new Tracked(PersistentRoaringBitmap.xor(target.bitmap, other.bitmap), symmetric));
+				break;
+			}
+			case 14: {
+				if (target == other) {
+					break;
+				}
+				final TreeSet<Integer> difference = new TreeSet<>(target.model);
+				difference.removeAll(other.model);
+				pool.add(
+					new Tracked(PersistentRoaringBitmap.andNot(target.bitmap, other.bitmap), difference));
 				break;
 			}
 			default: {
