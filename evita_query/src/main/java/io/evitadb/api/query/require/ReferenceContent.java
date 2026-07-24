@@ -556,7 +556,7 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 	 *
 	 * @deprecated will be removed in the future
 	 */
-	@Deprecated(since = "2025.1", forRemoval = true)
+	@Deprecated(since = "2025.2", forRemoval = true)
 	public ReferenceContent(
 		@Nullable ManagedReferencesBehaviour managedReferences,
 		@Nonnull String referenceName,

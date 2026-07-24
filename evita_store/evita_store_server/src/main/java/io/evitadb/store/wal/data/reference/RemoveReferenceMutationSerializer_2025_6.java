@@ -36,7 +36,7 @@ import io.evitadb.api.requestResponse.data.mutation.reference.RemoveReferenceMut
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  * @deprecated This serializer is deprecated and should not be used.
  */
-@Deprecated(since = "2025.6", forRemoval = true)
+@Deprecated(since = "2025.7", forRemoval = true)
 public class RemoveReferenceMutationSerializer_2025_6 extends Serializer<RemoveReferenceMutation> {
 
 	@Override

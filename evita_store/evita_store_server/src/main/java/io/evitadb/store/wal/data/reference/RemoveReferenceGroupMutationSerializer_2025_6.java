@@ -37,7 +37,7 @@ import lombok.EqualsAndHashCode;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  * @deprecated This serializer is deprecated and should not be used.
  */
-@Deprecated(since = "2025.6", forRemoval = true)
+@Deprecated(since = "2025.7", forRemoval = true)
 @EqualsAndHashCode(callSuper = true)
 public class RemoveReferenceGroupMutationSerializer_2025_6 extends Serializer<RemoveReferenceGroupMutation> {
 

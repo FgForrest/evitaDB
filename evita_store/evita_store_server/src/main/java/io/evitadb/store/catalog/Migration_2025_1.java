@@ -83,7 +83,7 @@ import static io.evitadb.store.wal.AbstractMutationLog.WAL_TAIL_LENGTH;
  * @deprecated introduced with #650 and could be removed later when no version prior to 2025.2 is used
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
-@Deprecated(since = "2025.1", forRemoval = true)
+@Deprecated(since = "2025.7", forRemoval = true)
 public interface Migration_2025_1 {
 
 	/**
@@ -94,7 +94,7 @@ public interface Migration_2025_1 {
 	 * @return the catalog bootstrap record
 	 * @deprecated introduced with #650 and could be removed later when no version prior to 2025.2 is used
 	 */
-	@Deprecated(since = "2025.1", forRemoval = true)
+	@Deprecated(since = "2025.7", forRemoval = true)
 	@Nonnull
 	static CatalogBootstrap deserializeOldCatalogBootstrapRecord(
 		long fromPosition, @Nonnull ReadOnlyFileHandle readHandle) {
@@ -135,7 +135,7 @@ public interface Migration_2025_1 {
 	 * @param bootstrapFilePath       path to the bootstrap file
 	 * @deprecated introduced with #650 and could be removed later when no version prior to 2025.2 is used
 	 */
-	@Deprecated(since = "2025.1", forRemoval = true)
+	@Deprecated(since = "2025.7", forRemoval = true)
 	static void upgradeCatalogFiles(
 		@Nonnull String catalogName,
 		@Nonnull StorageSettings bootstrapStorageSettings,
@@ -333,7 +333,7 @@ public interface Migration_2025_1 {
 	 * @return The number of records in the file.
 	 * @deprecated introduced with #650 and could be removed later when no version prior to 2025.2 is used
 	 */
-	@Deprecated(since = "2025.1", forRemoval = true)
+	@Deprecated(since = "2025.7", forRemoval = true)
 	static int getOldRecordCount(long fileLength) {
 		return Math.toIntExact(fileLength / (CatalogBootstrap.BOOTSTRAP_RECORD_SIZE - 4));
 	}
@@ -346,7 +346,7 @@ public interface Migration_2025_1 {
 	 * @return last meaningful position
 	 * @deprecated introduced with #650 and could be removed later when no version prior to 2025.2 is used
 	 */
-	@Deprecated(since = "2025.1", forRemoval = true)
+	@Deprecated(since = "2025.7", forRemoval = true)
 	static long getOldLastMeaningfulPosition(long fileLength) {
 		// removes non-divisible remainder as it might be incomplete record and returns last meaningful position
 		final int oldSize = CatalogBootstrap.BOOTSTRAP_RECORD_SIZE - 4;
@@ -360,7 +360,7 @@ public interface Migration_2025_1 {
 	 * @return The position of the record in the file.
 	 * @deprecated introduced with #650 and could be removed later when no version prior to 2025.2 is used
 	 */
-	@Deprecated(since = "2025.1", forRemoval = true)
+	@Deprecated(since = "2025.7", forRemoval = true)
 	static long getOldPositionForRecord(int index) {
 		return (long) index * (CatalogBootstrap.BOOTSTRAP_RECORD_SIZE - 4);
 	}

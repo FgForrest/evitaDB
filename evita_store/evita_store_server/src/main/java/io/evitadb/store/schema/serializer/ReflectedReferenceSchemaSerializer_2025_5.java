@@ -52,7 +52,7 @@ import static io.evitadb.store.schema.serializer.EntitySchemaSerializer.readScop
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@Deprecated(since = "2025.5", forRemoval = true)
+@Deprecated(since = "2025.6", forRemoval = true)
 @RequiredArgsConstructor
 public class ReflectedReferenceSchemaSerializer_2025_5 extends Serializer<ReflectedReferenceSchema> {
 

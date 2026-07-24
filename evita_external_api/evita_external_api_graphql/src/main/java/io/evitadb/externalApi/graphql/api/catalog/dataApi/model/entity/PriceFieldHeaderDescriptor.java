@@ -33,7 +33,7 @@ import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescript
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 // TOBEDONE #538: deprecated, remove
-@Deprecated(since = "2024.3", forRemoval = true)
+@Deprecated(since = "2024.8", forRemoval = true)
 public interface PriceFieldHeaderDescriptor {
 
 	PropertyDescriptor PRICE_LIST = PropertyDescriptor.builder()

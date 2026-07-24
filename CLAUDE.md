@@ -30,6 +30,7 @@ See "How this repository is organized" in README.md for module descriptions and 
 - All classes and methods must have comprehensible JavaDoc
 - No TODO statements in committed code
 - No commented out code
+- `@Deprecated(since = ...)` follows a specific convention (and has a verification tool): see `.claude/rules/deprecation-policy.md`
 
 ## Defensive Design
 

@@ -34,7 +34,7 @@ import io.evitadb.api.requestResponse.schema.mutation.reference.SetReferenceSche
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-@Deprecated(since = "2024.8", forRemoval = true)
+@Deprecated(since = "2024.10", forRemoval = true)
 public class SetReferenceSchemaIndexedMutationSerializer_2024_10 extends Serializer<SetReferenceSchemaIndexedMutation> {
 
 	@Override

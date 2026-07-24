@@ -276,7 +276,7 @@ public non-sealed interface EntityCollectionPersistenceService<S extends Storage
 	 * @return the last assigned price id from the global index
 	 * @deprecated connected with old storage format, will be removed in the future
 	 */
-	@Deprecated(since = "2024.11", forRemoval = true)
+	@Deprecated(since = "2024.12", forRemoval = true)
 	@Nonnull
 	OptionalInt fetchLastAssignedInternalPriceIdFromGlobalIndex(long catalogVersion, int entityIndexId);
 

@@ -53,7 +53,7 @@ import java.util.Set;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  * @deprecated the current version stores the catalog conflict-resolution settings
  */
-@Deprecated(since = "2026.1", forRemoval = true)
+@Deprecated(since = "2026.2", forRemoval = true)
 public class CatalogSchemaSerializer_2026_1 extends Serializer<CatalogSchema> {
 
 	@Override

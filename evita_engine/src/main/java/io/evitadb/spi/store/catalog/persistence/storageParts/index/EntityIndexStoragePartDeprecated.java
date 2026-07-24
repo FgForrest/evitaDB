@@ -44,7 +44,7 @@ import java.util.Set;
  * @deprecated This class is deprecated and will be removed in the future. Use {@link EntityIndexStoragePart} instead.
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-@Deprecated(since = "2025.7", forRemoval = true)
+@Deprecated(since = "2024.12", forRemoval = true)
 public class EntityIndexStoragePartDeprecated extends EntityIndexStoragePart {
 	@Serial private static final long serialVersionUID = 3455486364434181265L;
 

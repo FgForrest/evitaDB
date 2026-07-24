@@ -42,7 +42,7 @@ import io.evitadb.store.wal.schema.MutationSerializationFunctions;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-@Deprecated(since = "2026.1", forRemoval = true)
+@Deprecated(since = "2026.2", forRemoval = true)
 public class CreateReferenceSchemaMutationSerializer_2026_1 extends Serializer<CreateReferenceSchemaMutation> implements MutationSerializationFunctions {
 
 	@Override

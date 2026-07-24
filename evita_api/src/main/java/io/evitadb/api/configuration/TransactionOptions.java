@@ -225,7 +225,7 @@ public record TransactionOptions(
 			return this;
 		}
 
-		@Deprecated(since = "2025.3", forRemoval = true)
+		@Deprecated(since = "2025.4", forRemoval = true)
 		@Nonnull
 		public TransactionOptions.Builder flushFrequency(long flushFrequency) {
 			return flushFrequencyInMillis(flushFrequency);

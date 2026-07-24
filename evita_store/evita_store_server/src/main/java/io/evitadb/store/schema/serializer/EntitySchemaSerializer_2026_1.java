@@ -58,7 +58,7 @@ import static io.evitadb.store.schema.serializer.EntitySchemaSerializer.readScop
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  * @deprecated the current version stores the entity conflict-resolution settings
  */
-@Deprecated(since = "2026.1", forRemoval = true)
+@Deprecated(since = "2026.2", forRemoval = true)
 public class EntitySchemaSerializer_2026_1 extends Serializer<EntitySchema> {
 	private final HeterogeneousMapSerializer<Object, Object> heterogeneousSerializer = new HeterogeneousMapSerializer<>(LinkedHashMap::new);
 

@@ -38,7 +38,7 @@ import java.io.Serializable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-@Deprecated(since = "2024.11", forRemoval = true)
+@Deprecated(since = "2024.12", forRemoval = true)
 public class CreateGlobalAttributeSchemaMutationSerializer_2024_11 extends Serializer<CreateGlobalAttributeSchemaMutation> {
 
 	@Override

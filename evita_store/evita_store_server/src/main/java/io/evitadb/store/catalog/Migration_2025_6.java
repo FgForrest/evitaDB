@@ -104,7 +104,7 @@ import static java.util.Optional.ofNullable;
  * @deprecated introduced with #906 and could be removed later when no version prior to 2025.7 is used
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
-@Deprecated(since = "2025.6", forRemoval = true)
+@Deprecated(since = "2025.7", forRemoval = true)
 public interface Migration_2025_6 {
 
 	/**

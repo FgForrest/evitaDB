@@ -46,7 +46,7 @@ import java.time.OffsetDateTime;
  * @deprecated kept for backward compatibility; can be removed once no engine state prior to 2026.1 is used.
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
-@Deprecated(since = "2026.1", forRemoval = true)
+@Deprecated(since = "2026.2", forRemoval = true)
 public class EngineStateSerializer_2026_1 extends Serializer<EngineState> {
 
 	@Override

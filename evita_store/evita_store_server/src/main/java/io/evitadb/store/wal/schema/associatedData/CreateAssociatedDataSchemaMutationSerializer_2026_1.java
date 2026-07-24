@@ -39,7 +39,7 @@ import java.io.Serializable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-@Deprecated(since = "2026.1", forRemoval = true)
+@Deprecated(since = "2026.2", forRemoval = true)
 public class CreateAssociatedDataSchemaMutationSerializer_2026_1 extends Serializer<CreateAssociatedDataSchemaMutation> {
 
 	@Override

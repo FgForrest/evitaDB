@@ -62,7 +62,7 @@ import static io.evitadb.utils.CollectionUtils.createHashSet;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@Deprecated(since = "2025.6", forRemoval = true)
+@Deprecated(since = "2025.7", forRemoval = true)
 @RequiredArgsConstructor
 public class EntityIndexStoragePartSerializer_2025_6 extends Serializer<EntityIndexStoragePart>
 	implements AttributeKeyToAttributeKeyIndexBridge {

@@ -42,7 +42,7 @@ import java.io.Serializable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-@Deprecated(since = "2026.1", forRemoval = true)
+@Deprecated(since = "2026.2", forRemoval = true)
 public class CreateAttributeSchemaMutationSerializer_2026_1 extends Serializer<CreateAttributeSchemaMutation> implements MutationSerializationFunctions {
 
 	@Override

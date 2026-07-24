@@ -186,7 +186,7 @@ public class PathMatcher<T> {
 		this.lengths = lengthArray;
 	}
 
-	@Deprecated(since = "2024.7", forRemoval = true)
+	@Deprecated(since = "2024.10", forRemoval = true)
 	public synchronized PathMatcher removePath(final String path) {
 		return removePrefixPath(path);
 	}

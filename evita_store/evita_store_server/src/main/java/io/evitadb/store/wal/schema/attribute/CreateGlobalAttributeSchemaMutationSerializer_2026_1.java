@@ -46,7 +46,7 @@ import static io.evitadb.store.wal.schema.attribute.CreateGlobalAttributeSchemaM
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-@Deprecated(since = "2026.1", forRemoval = true)
+@Deprecated(since = "2026.2", forRemoval = true)
 public class CreateGlobalAttributeSchemaMutationSerializer_2026_1 extends Serializer<CreateGlobalAttributeSchemaMutation> implements MutationSerializationFunctions {
 
 	@Override

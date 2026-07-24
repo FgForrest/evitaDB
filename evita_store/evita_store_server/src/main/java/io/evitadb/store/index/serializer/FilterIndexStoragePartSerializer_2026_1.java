@@ -45,7 +45,7 @@ import lombok.RequiredArgsConstructor;
  * @deprecated only for backward compatibility purposes
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@Deprecated(since = "2026.1", forRemoval = true)
+@Deprecated(since = "2026.2", forRemoval = true)
 @RequiredArgsConstructor
 public class FilterIndexStoragePartSerializer_2026_1 extends Serializer<FilterIndexStoragePart> {
 	private final KeyCompressor keyCompressor;

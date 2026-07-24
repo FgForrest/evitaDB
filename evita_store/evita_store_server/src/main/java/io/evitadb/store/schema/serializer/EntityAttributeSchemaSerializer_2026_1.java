@@ -49,7 +49,7 @@ import java.util.Map;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  * @deprecated the current version stores the attribute conflict-resolution override
  */
-@Deprecated(since = "2026.1", forRemoval = true)
+@Deprecated(since = "2026.2", forRemoval = true)
 @RequiredArgsConstructor
 public class EntityAttributeSchemaSerializer_2026_1 extends Serializer<EntityAttributeSchema> {
 

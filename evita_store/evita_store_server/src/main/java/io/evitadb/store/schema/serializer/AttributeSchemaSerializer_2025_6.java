@@ -46,7 +46,7 @@ import java.util.Map;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  * @deprecated in current version the attribute schema contains representative flag
  */
-@Deprecated(since = "2025.6", forRemoval = true)
+@Deprecated(since = "2025.7", forRemoval = true)
 @RequiredArgsConstructor
 public class AttributeSchemaSerializer_2025_6 extends Serializer<AttributeSchema> {
 

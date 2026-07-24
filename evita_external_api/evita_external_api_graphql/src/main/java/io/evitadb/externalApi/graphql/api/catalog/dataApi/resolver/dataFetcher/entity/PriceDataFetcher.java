@@ -54,7 +54,7 @@ import java.util.Optional;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
 // TOBEDONE #538: deprecated, remove
-@Deprecated(since = "2024.3", forRemoval = true)
+@Deprecated(since = "2024.8", forRemoval = true)
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class PriceDataFetcher implements DataFetcher<DataFetcherResult<PriceContract>> {
 

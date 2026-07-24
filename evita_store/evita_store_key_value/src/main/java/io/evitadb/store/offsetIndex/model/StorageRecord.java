@@ -288,7 +288,7 @@ public record StorageRecord<T>(
 	 *
 	 * @deprecated introduced with #650 and could be removed later when no version prior to 2025.2 is used
 	 */
-	@Deprecated(since = "2025.1", forRemoval = true)
+	@Deprecated(since = "2025.4", forRemoval = true)
 	@Nonnull
 	public static <T> StorageRecord<T> readOldFormat(
 		@Nonnull ObservableInput<?> input,
@@ -414,7 +414,7 @@ public record StorageRecord<T>(
 	 *
 	 * @deprecated introduced with #650 and could be removed later when no version prior to 2025.2 is used
 	 */
-	@Deprecated(since = "2025.1", forRemoval = true)
+	@Deprecated(since = "2025.4", forRemoval = true)
 	@Nonnull
 	public static RawRecord readOldRaw(
 		@Nonnull ObservableInput<?> input
@@ -462,7 +462,7 @@ public record StorageRecord<T>(
 	 *
 	 * @deprecated introduced with #650 and could be removed later when no version prior to 2025.2 is used
 	 */
-	@Deprecated(since = "2025.3", forRemoval = true)
+	@Deprecated(since = "2025.4", forRemoval = true)
 	@Nonnull
 	public static RawRecord readOldRaw(
 		@Nonnull ObservableInput<?> input,
@@ -779,7 +779,7 @@ public record StorageRecord<T>(
 	 * @return The storage record read from the input stream.
 	 * @deprecated introduced with #650 and could be removed later when no version prior to 2025.2 is used
 	 */
-	@Deprecated(since = "2025.1", forRemoval = true)
+	@Deprecated(since = "2025.4", forRemoval = true)
 	@Nonnull
 	private static <T> StorageRecord<T> doReadOldStorageRecord(
 		@Nonnull ObservableInput<?> input,

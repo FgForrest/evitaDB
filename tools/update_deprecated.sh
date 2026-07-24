@@ -25,11 +25,19 @@
 
 # Script to update all @Deprecated annotations with since and forRemoval attributes
 
-# Function to get the highest semantic version tag at a given commit
+# Function to get the version tag a commit actually first shipped in.
+#
+# NOTE: this used to be `git tag --merged $commit --sort=-version:refname | head -1`,
+# which finds the newest tag ALREADY RELEASED BEFORE the commit - i.e. the last
+# version still valid at deprecation time, not the version the deprecation
+# itself ships in. That is off by (at least) one release in the wrong
+# direction; @Deprecated#since must be the version something BECAME
+# deprecated (see tools/audit-deprecated-since.sh for the full writeup and a
+# tool that verifies already-annotated since= values against this rule).
 get_version_at_commit() {
     local commit=$1
-    local highest_tag=$(git tag --merged $commit --sort=-version:refname | head -1)
-    echo $highest_tag
+    local shipped_tag=$(git describe --tags --contains --match 'v20*' $commit 2>/dev/null | sed -E 's/[~^].*$//')
+    echo $shipped_tag
 }
 
 # Function to extract major.minor version from tag (e.g., v2024.8.4 -> 2024.8)
@@ -59,9 +67,9 @@ update_deprecated_in_file() {
         local commit=$(git blame -L $line_num,$line_num "$file" | awk '{print $1}')
         echo "    Introduced in commit: $commit"
 
-        # Get the highest version tag at that commit
+        # Get the version tag this commit actually first shipped in
         local version_tag=$(get_version_at_commit $commit)
-        echo "    Highest tag at that time: $version_tag"
+        echo "    First shipped in: $version_tag"
 
         if [ -n "$version_tag" ]; then
             local major_minor=$(extract_major_minor $version_tag)

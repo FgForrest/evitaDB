@@ -36,7 +36,7 @@ import javax.annotation.Nonnull;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-@Deprecated(since = "2024.11", forRemoval = true)
+@Deprecated(since = "2024.12", forRemoval = true)
 @Nonnull
 public class SetReferenceSchemaFacetedMutationSerializer_2024_11 extends Serializer<SetReferenceSchemaFacetedMutation> {
 

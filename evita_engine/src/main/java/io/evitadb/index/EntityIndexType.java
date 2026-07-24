@@ -72,7 +72,7 @@ public enum EntityIndexType {
 	 * @deprecated this index was merged to {@link #REFERENCED_ENTITY} - because it contains the same data and doesn't
 	 * bring any additional value.
 	 */
-	@Deprecated(since = "2024.11", forRemoval = true)
+	@Deprecated(since = "2024.12", forRemoval = true)
 	REFERENCED_HIERARCHY_NODE,
 	/**
 	 * Index contains attribute indexes containing only data for reference attributes indexed by the referenced
