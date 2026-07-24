@@ -174,6 +174,30 @@ public class PriceRefIndex extends AbstractPriceIndex<PriceListAndCurrencyPriceR
 		return priceIndex;
 	}
 
+	/**
+	 * Produces an unwired shallow copy of this **clean** price ref index for the commit-merge prune. Every per-price-list
+	 * / currency combination index is re-shelled through {@link PriceListAndCurrencyPriceRefIndex#createCarryByReferenceCopy()}
+	 * (adopting its record tree by reference), and the resulting index carries no super-index resolver
+	 * ({@code superIndexResolver == null}) so the owning collection can wire it to the CURRENT catalog version's GLOBAL
+	 * via {@link #wireOrVerifySuperIndexes(GlobalEntityIndex)}.
+	 *
+	 * Used when a clean reduced entity index is carried across a catalog version whose GLOBAL was rebuilt: the reduced
+	 * index's memory-expensive sub-structures are shared by reference, but its price chain must be re-wired to the new
+	 * GLOBAL's super, which the single-assign {@link PriceListAndCurrencyPriceRefIndex#wireSuperIndex} guard forbids doing
+	 * in place on the shared combos — hence the thin re-shell here.
+	 *
+	 * @return a fresh, unwired price ref index whose combination indexes share this one's record trees by reference
+	 */
+	@Nonnull
+	public PriceRefIndex createCarryByReferenceCopy() {
+		final Map<PriceIndexKey, PriceListAndCurrencyPriceRefIndex> copiedIndexes =
+			new HashMap<>(this.priceIndexes.size());
+		for (final Map.Entry<PriceIndexKey, PriceListAndCurrencyPriceRefIndex> entry : this.priceIndexes.entrySet()) {
+			copiedIndexes.put(entry.getKey(), entry.getValue().createCarryByReferenceCopy());
+		}
+		return new PriceRefIndex(this.scope, copiedIndexes);
+	}
+
 	@Override
 	public void removeLayer(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		this.priceIndexes.removeLayer(transactionalLayer);

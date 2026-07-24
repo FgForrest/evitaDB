@@ -54,9 +54,11 @@ import javax.annotation.concurrent.NotThreadSafe;
 import java.io.Serial;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.function.IntFunction;
 
@@ -82,6 +84,30 @@ public class DataStoreChanges implements Snapshotable<DataStoreChanges.DataStore
 	 */
 	private Map<IndexKey, Index<? extends IndexKey>> dirtyEntityIndexes = new HashMap<>(64);
 	private IntObjectMap<Index<? extends IndexKey>> dirtyEntityIndexesByPk = new IntObjectHashMap<>(64);
+	/**
+	 * Snapshot of the {@link IndexKey}s that were dirty (acquired for modification) at the most recent
+	 * {@link #popTrappedUpdates()}, captured before that method resets {@link #dirtyEntityIndexes}. The commit-time
+	 * flush drains the dirty set before the trunk merge runs, so the merge can no longer read
+	 * {@link #dirtyEntityIndexes} directly; this snapshot lets the merge partition the index map into genuinely-changed
+	 * indexes (rebuilt) and unchanged ones (carried by reference) — see
+	 * {@code EntityCollection#createCopyWithMergedTransactionalMemory}. Ground truth for "which indexes changed this
+	 * transaction": it is the very set the flush persists.
+	 *
+	 * Only maintained when {@link #capturesDirtyIndexKeys} and only meaningful while
+	 * {@link #dirtyIndexKeysSnapshotAvailable} — an empty set is otherwise indistinguishable from "no flush has run",
+	 * which is exactly the state the merge must not silently prune against.
+	 */
+	private Set<IndexKey> lastCommittedDirtyIndexKeys = Set.of();
+	/**
+	 * Whether {@link #lastCommittedDirtyIndexKeys} currently describes a completed flush that no trunk merge has
+	 * consumed yet. This is the positive validity marker the snapshot itself cannot carry: an empty snapshot is a
+	 * legitimate outcome (a transaction may change a collection's schema without touching a single index), so the
+	 * merge cannot tell "nothing was dirty" from "the flush never ran" by looking at the set alone. Guarding the read
+	 * in {@link #popLastCommittedDirtyIndexKeys()} turns a broken flush-before-merge ordering into a named failure at
+	 * the point of misuse, instead of a downstream {@code StaleTransactionMemoryException} from the orphaned layers a
+	 * wrongly all-clean prune would leave behind.
+	 */
+	private boolean dirtyIndexKeysSnapshotAvailable;
 	/**
 	 * This map contains index of "dirty" storage parts - i.e. subset of {@link StoragePart storage parts} that were
 	 * modified and not yet persisted. Usually the storage parts are stored directly in the persistent storage but
@@ -111,9 +137,40 @@ public class DataStoreChanges implements Snapshotable<DataStoreChanges.DataStore
 	 * nothing) and drained back to null when the savepoint commits (see {@link #releaseMemento(DataStoreChangesMemento)}).
 	 */
 	@Nullable private UndoJournal undoJournal;
+	/**
+	 * Whether this instance's flush feeds a merge that PRUNES on the dirty-index-key snapshot, and must therefore
+	 * capture {@link #lastCommittedDirtyIndexKeys}. True only for an {@code EntityCollection} diff layer — the shared,
+	 * long-lived buffer behind a warm-up or non-transactional flush is never merged at all, and the catalog-level diff
+	 * layer is merged whole. Capturing anywhere else would copy the entire dirty-index key set on every flush (six
+	 * figures of entries on a bulk load) for a snapshot nobody ever reads. A consumer that appears without its
+	 * producer being flipped on fails loudly in {@link #popLastCommittedDirtyIndexKeys()} rather than silently
+	 * pruning against an empty set.
+	 */
+	private final boolean capturesDirtyIndexKeys;
 
+	/**
+	 * Creates a buffer whose flush captures no dirty-index-key snapshot — the shared warm-up / non-transactional
+	 * buffer, and any diff layer whose merge does not prune. See {@link #capturesDirtyIndexKeys}.
+	 *
+	 * @param persistenceService the I/O service records are read from / written to
+	 */
 	public DataStoreChanges(@Nonnull StoragePartPersistenceService<StorageDescriptor> persistenceService) {
+		this(persistenceService, false);
+	}
+
+	/**
+	 * Creates a data store change buffer.
+	 *
+	 * @param persistenceService     the I/O service records are read from / written to
+	 * @param capturesDirtyIndexKeys `true` when this instance's flush feeds a pruning merge and must hand it the keys
+	 *                               of the indexes it persisted (see {@link #capturesDirtyIndexKeys})
+	 */
+	public DataStoreChanges(
+		@Nonnull StoragePartPersistenceService<StorageDescriptor> persistenceService,
+		boolean capturesDirtyIndexKeys
+	) {
 		this.persistenceService = persistenceService;
+		this.capturesDirtyIndexKeys = capturesDirtyIndexKeys;
 	}
 
 	/**
@@ -223,6 +280,12 @@ public class DataStoreChanges implements Snapshotable<DataStoreChanges.DataStore
 		final TrappedChanges trappedChanges = new TrappedChanges();
 
 		final Map<IndexKey, Index<? extends IndexKey>> theDirtyEntityIndexes = this.dirtyEntityIndexes;
+		// snapshot the dirty index keys before resetting, so the trunk merge (which runs AFTER this flush) can tell
+		// which indexes genuinely changed and carry the rest across the catalog version by reference. Only a layer
+		// whose merge actually prunes pays the copy - see capturesDirtyIndexKeys.
+		if (this.capturesDirtyIndexKeys) {
+			captureDirtyIndexKeys(theDirtyEntityIndexes.keySet());
+		}
 		this.dirtyEntityIndexes = new HashMap<>(64);
 		this.dirtyEntityIndexesByPk = new IntObjectHashMap<>(64);
 
@@ -253,6 +316,57 @@ public class DataStoreChanges implements Snapshotable<DataStoreChanges.DataStore
 		}
 
 		return trappedChanges;
+	}
+
+	/**
+	 * Records the keys of the indexes this flush persisted into {@link #lastCommittedDirtyIndexKeys}, marking the
+	 * snapshot available for the trunk merge to consume.
+	 *
+	 * A second flush arriving before the merge consumed the first one UNIONS rather than replaces: by the time it runs
+	 * {@link #dirtyEntityIndexes} has already been reset, so a plain replacement would narrow the snapshot to the keys
+	 * of the second flush alone and the merge would then carry — and thereby orphan the diff layers of — every index
+	 * the first flush had persisted.
+	 *
+	 * @param dirtyIndexKeys keys of the indexes that were dirty at this flush; only read, never retained
+	 */
+	private void captureDirtyIndexKeys(@Nonnull Set<IndexKey> dirtyIndexKeys) {
+		if (!this.dirtyIndexKeysSnapshotAvailable) {
+			this.lastCommittedDirtyIndexKeys = dirtyIndexKeys.isEmpty() ?
+				Set.of() : new HashSet<>(dirtyIndexKeys);
+			this.dirtyIndexKeysSnapshotAvailable = true;
+		} else if (!dirtyIndexKeys.isEmpty()) {
+			final Set<IndexKey> union = new HashSet<>(this.lastCommittedDirtyIndexKeys);
+			union.addAll(dirtyIndexKeys);
+			this.lastCommittedDirtyIndexKeys = union;
+		}
+	}
+
+	/**
+	 * Consumes the snapshot of {@link IndexKey}s that were dirty at the most recent {@link #popTrappedUpdates()} — i.e.
+	 * the indexes changed by the transaction whose flush just ran. The commit-time trunk merge reads this to carry
+	 * unchanged indexes across the catalog version by reference instead of rebuilding them. The returned set is empty
+	 * when the transaction genuinely dirtied no index (a schema-only change, for instance).
+	 *
+	 * The read is ONE-SHOT and asserted: the snapshot must have been taken by a flush on this very diff layer. That
+	 * guard is what makes the ordering coupling observable — an empty set cannot otherwise be told apart from a
+	 * snapshot that was never taken, and pruning the merge against a missing snapshot would treat every index as
+	 * unchanged and silently orphan the diff layers of the ones that did change.
+	 *
+	 * @return snapshot of this transaction's dirty index keys, never `null`
+	 * @throws io.evitadb.exception.GenericEvitaInternalError when no flush has taken a snapshot on this layer, or when
+	 *                                                        the snapshot was already consumed
+	 */
+	@Nonnull
+	public Set<IndexKey> popLastCommittedDirtyIndexKeys() {
+		Assert.isPremiseValid(
+			this.dirtyIndexKeysSnapshotAvailable,
+			"No dirty index key snapshot is available on this transactional layer - the commit-time flush must run " +
+				"on it before the trunk merge consumes it, and exactly once per merge!"
+		);
+		final Set<IndexKey> snapshot = this.lastCommittedDirtyIndexKeys;
+		this.lastCommittedDirtyIndexKeys = Set.of();
+		this.dirtyIndexKeysSnapshotAvailable = false;
+		return snapshot;
 	}
 
 	/**

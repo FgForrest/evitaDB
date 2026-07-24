@@ -40,6 +40,7 @@ import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
 import java.util.Collections;
+import java.util.ConcurrentModificationException;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -67,15 +68,20 @@ public class LocalizedHistogramIndex extends HistogramIndex {
 	@Serial private static final long serialVersionUID = 8375291046382957143L;
 
 	/**
-	 * Thread-local deferred locale removals used to avoid {@link java.util.ConcurrentModificationException}
+	 * Deferred locale removals used to avoid {@link ConcurrentModificationException}
 	 * when {@link #removeValue} empties a locale's indexes during {@link #forEachLocale} iteration.
 	 *
 	 * - `null` — not inside {@link #forEachLocale}, removals happen immediately
 	 * - `Collections.emptySet()` — inside iteration, no removals deferred yet (zero-cost sentinel)
 	 * - real `HashSet` — inside iteration, lazily created on first deferred removal
+	 *
+	 * A plain field is deliberately used instead of a `ThreadLocal`: index mutation is single-writer
+	 * by contract (as everywhere in this package), so the deferral never needs to be thread-scoped —
+	 * and a per-instance `ThreadLocal` would install an entry into every touching thread's
+	 * `ThreadLocalMap` on each `get()`, polluting the maps with entries that outlive the many
+	 * short-lived index instances produced by transactional copy-on-write.
 	 */
-	@SuppressWarnings("NonSerializableFieldInSerializableClass")
-	private final ThreadLocal<Set<Locale>> deferredLocaleRemovals = new ThreadLocal<>();
+	@Nullable private transient Set<Locale> deferredLocaleRemovals;
 
 	/**
 	 * Per-locale filter index storing bucketed histogram values mapped to owner entity primary keys.
@@ -208,13 +214,13 @@ public class LocalizedHistogramIndex extends HistogramIndex {
 	 * @return `true` if removal should proceed immediately, `false` if it was deferred
 	 */
 	private boolean localeRemovalDeferred(@Nonnull Locale locale) {
-		final Set<Locale> deferred = this.deferredLocaleRemovals.get();
+		final Set<Locale> deferred = this.deferredLocaleRemovals;
 		if (deferred != null) {
 			if (deferred.isEmpty()) {
 				// sentinel — lazily allocate a real set on first deferred removal
 				final Set<Locale> realSet = CollectionUtils.createHashSet(4);
 				realSet.add(locale);
-				this.deferredLocaleRemovals.set(realSet);
+				this.deferredLocaleRemovals = realSet;
 			} else {
 				deferred.add(locale);
 			}
@@ -269,14 +275,14 @@ public class LocalizedHistogramIndex extends HistogramIndex {
 	public void forEachLocale(@Nonnull BiConsumer<String, Locale> consumer) {
 		final String name = getHistogramName();
 		// install sentinel so removeValue defers map-entry removals instead of modifying during iteration
-		this.deferredLocaleRemovals.set(Collections.emptySet());
+		this.deferredLocaleRemovals = Collections.emptySet();
 		try {
 			for (Locale locale : this.filterIndexes.keySet()) {
 				consumer.accept(name, locale);
 			}
 		} finally {
-			final Set<Locale> deferred = this.deferredLocaleRemovals.get();
-			this.deferredLocaleRemovals.remove();
+			final Set<Locale> deferred = this.deferredLocaleRemovals;
+			this.deferredLocaleRemovals = null;
 			if (!deferred.isEmpty()) {
 				for (Locale locale : deferred) {
 					final OwnerFilterIndex filterIdx = this.filterIndexes.get(locale);

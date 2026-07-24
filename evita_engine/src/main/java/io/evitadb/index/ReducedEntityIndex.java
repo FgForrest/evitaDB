@@ -193,6 +193,23 @@ public class ReducedEntityIndex extends AbstractReducedEntityIndex {
 		);
 	}
 
+	/**
+	 * Carry-by-reference shell constructor for the commit-merge prune — shares every committed sub-structure and the
+	 * baseline of `source` by reference and installs the re-shelled `priceIndex`, without re-copying bitmaps or
+	 * recapturing the baseline. See {@link #createReshelledCopy(PriceRefIndex)}.
+	 */
+	private ReducedEntityIndex(@Nonnull ReducedEntityIndex source, @Nonnull PriceRefIndex priceIndex) {
+		super(source, priceIndex);
+	}
+
+	@Nonnull
+	@Override
+	protected AbstractReducedEntityIndex createReshelledCopy(@Nonnull PriceRefIndex rewiredPrice) {
+		// carry every sub-structure (and the change-detection baseline) by reference, swapping in only the re-shelled
+		// price chain — see AbstractReducedEntityIndex#createCarryByReferenceCopyWithRewiredPrice
+		return new ReducedEntityIndex(this, rewiredPrice);
+	}
+
 	@Override
 	public void insertFilterAttribute(
 		@Nullable ReferenceSchemaContract referenceSchema,

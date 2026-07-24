@@ -50,13 +50,10 @@ import io.evitadb.index.component.loader.IndexReloadPlan;
 import io.evitadb.index.component.loader.PriceRefIndexLoader;
 import io.evitadb.index.facet.FacetIndex;
 import io.evitadb.index.hierarchy.HierarchyIndex;
-import io.evitadb.index.map.TransactionalMap;
 import io.evitadb.index.price.PriceIndexReadContract;
 import io.evitadb.index.price.PriceRefIndex;
-import io.evitadb.index.price.model.PriceIndexKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.PriceListAndCurrencyRefIndexStoragePart;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStorageKey;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
 import lombok.experimental.Delegate;
@@ -162,6 +159,62 @@ public abstract class AbstractReducedEntityIndex extends EntityIndex
 		// baseline capture is deferred to terminal subclasses (ReducedEntityIndex /
 		// ReducedGroupEntityIndex) so it runs after every subclass-owned component is registered
 	}
+
+	/**
+	 * Carry-by-reference shell constructor for the commit-merge prune: forwards every committed sub-structure and the
+	 * change-detection baseline of `source` by reference (via {@link EntityIndex#EntityIndex(EntityIndex)}) and installs
+	 * the supplied — already re-shelled, not-yet-wired — price chain. Terminal subclasses share their own sub-index maps
+	 * by reference too. See {@link #createCarryByReferenceCopyWithRewiredPrice(GlobalEntityIndex)}.
+	 *
+	 * @param source     the committed reduced index whose sub-structures and baseline are carried forward by reference
+	 * @param priceIndex the re-shelled price chain to install
+	 */
+	protected AbstractReducedEntityIndex(@Nonnull AbstractReducedEntityIndex source, @Nonnull PriceRefIndex priceIndex) {
+		super(source);
+		this.priceIndex = priceIndex;
+		addComponent(new PriceIndexComponent(this.priceIndex));
+	}
+
+	/**
+	 * Produces a shallow copy of this **clean** reduced entity index for the commit-merge prune, carrying every
+	 * memory-expensive sub-structure (attribute / hierarchy / facet, and any subclass-owned cardinality / histogram
+	 * maps) forward BY REFERENCE while re-shelling only the price chain and re-wiring it to `newGlobal`'s super price
+	 * indexes.
+	 *
+	 * This is the sound way to forward a clean reduced index across a catalog version whose GLOBAL was rebuilt: the
+	 * index cannot be shared wholesale (its price chain captured the retired GLOBAL through a
+	 * {@link io.evitadb.index.price.SuperIndexResolver}, and re-wiring the shared chain in place would both trip the
+	 * single-assign guard and mutate an instance still owned by the previous catalog version). Rebuilding the whole
+	 * index would instead walk its entire — unchanged — sub-tree, which is exactly the clean-discovery cost the prune
+	 * exists to avoid. So only the thin price spine is re-shelled (see
+	 * {@link PriceRefIndex#createCarryByReferenceCopy()}) and wired to the current GLOBAL.
+	 *
+	 * @param newGlobal the current catalog version's GLOBAL entity index of this index's scope, owning the super price
+	 *                  indexes to wire the re-shelled price chain to
+	 * @return a fresh reduced entity index sharing this one's committed sub-structures by reference, with a price chain
+	 * wired to `newGlobal`
+	 */
+	@Nonnull
+	public final AbstractReducedEntityIndex createCarryByReferenceCopyWithRewiredPrice(@Nonnull GlobalEntityIndex newGlobal) {
+		final PriceRefIndex rewiredPrice = this.priceIndex.createCarryByReferenceCopy();
+		final AbstractReducedEntityIndex copy = createReshelledCopy(rewiredPrice);
+		// wire the fresh (resolver-less) price chain to the current version's GLOBAL super price indexes
+		copy.getPriceIndex().wireOrVerifySuperIndexes(newGlobal);
+		return copy;
+	}
+
+	/**
+	 * Subclass factory hook for {@link #createCarryByReferenceCopyWithRewiredPrice(GlobalEntityIndex)}: builds a copy of
+	 * this index that shares every sub-structure BY REFERENCE except the price chain, which is replaced by the supplied
+	 * (already re-shelled, not-yet-wired) `rewiredPrice`. Each terminal subclass forwards its own committed
+	 * sub-structures (and, for {@link ReducedGroupEntityIndex}, its cardinality / histogram maps) to the corresponding
+	 * reconstruction constructor.
+	 *
+	 * @param rewiredPrice the re-shelled price ref index to install into the copy
+	 * @return a fresh copy of this index carrying every non-price sub-structure by reference
+	 */
+	@Nonnull
+	protected abstract AbstractReducedEntityIndex createReshelledCopy(@Nonnull PriceRefIndex rewiredPrice);
 
 	/**
 	 * Retrieves the reference key associated with the current entity index.

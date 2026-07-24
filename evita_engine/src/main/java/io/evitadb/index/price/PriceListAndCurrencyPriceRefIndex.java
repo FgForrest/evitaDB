@@ -290,4 +290,32 @@ public class PriceListAndCurrencyPriceRefIndex
 		);
 	}
 
+	/**
+	 * Produces an unwired shallow copy of this **clean** combination index for the commit-merge prune: it adopts every
+	 * sub-structure ({@link #indexedPriceEntityIds}, {@link #indexedPriceIds}, {@link #validityIndex},
+	 * {@link #priceRecords}) BY REFERENCE — exactly the carry-forward the transactional merge performs, minus the layer
+	 * merge (there is none to merge on a clean index). The returned copy has no super index wired ({@code superIndex ==
+	 * null}); the caller must wire it to the CURRENT catalog version's super via {@link #wireSuperIndex} so its price
+	 * records resolve through the live super instance.
+	 *
+	 * This is the price-spine half of carrying a clean reduced entity index across a catalog version whose GLOBAL was
+	 * rebuilt: the reduced index cannot be shared by reference (its price chain would keep pointing at the retired
+	 * GLOBAL's super), yet rebuilding the whole index is wasteful, so only the thin combo wrappers are re-shelled while
+	 * the memory-expensive record tree is shared.
+	 *
+	 * @return a fresh, unwired combination index sharing this one's committed sub-structures by reference
+	 */
+	@Nonnull
+	public PriceListAndCurrencyPriceRefIndex createCarryByReferenceCopy() {
+		assertNotTerminated();
+		return new PriceListAndCurrencyPriceRefIndex(
+			this.scope,
+			this.priceIndexKey,
+			this.indexedPriceEntityIds,
+			this.indexedPriceIds,
+			this.validityIndex,
+			this.priceRecords
+		);
+	}
+
 }

@@ -115,6 +115,7 @@ import io.evitadb.core.transaction.Transaction;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
+import io.evitadb.core.transaction.memory.TransactionalStateProducer;
 import io.evitadb.core.transaction.stage.mutation.ServerEntityRemoveMutation;
 import io.evitadb.core.transaction.stage.mutation.ServerEntityUpsertMutation;
 import io.evitadb.dataType.Scope;
@@ -1744,10 +1745,12 @@ public final class EntityCollection implements
 
 	@Override
 	public DataStoreChanges createLayer() {
+		// captures the dirty-index-key snapshot: this collection's merge prunes on it (see pruneMergeIndexes)
 		return new DataStoreChanges(
 			Transaction.createTransactionalPersistenceService(
 				this.persistenceService.getStoragePartPersistenceService()
-			)
+			),
+			true
 		);
 	}
 
@@ -1774,10 +1777,20 @@ public final class EntityCollection implements
 			// (createIndexCopiesForNewCatalogAttachment), which is sound only because a dirty collection never reaches
 			// it — routing one through there would share a live transactional layer across two catalog versions
 			transactionalLayer.removeTransactionalMemoryLayer(this);
-			// this creates copy of the indexes with all changes applied
-			final Map<EntityIndexKey, EntityIndex> modifiedIndexes = transactionalLayer.getStateCopyWithCommittedChanges(this.indexes);
-			// now we need to remove the transactional layer for the secondary index as well
-			this.indexesByPrimaryKey.removeLayer(transactionalLayer);
+			// this creates copy of the indexes with all changes applied. When no index was added to / removed from the
+			// index SET this transaction (the index map itself carries no diff layer), the merge is pruned: only the
+			// indexes this transaction actually mutated are rebuilt, the rest are carried across the catalog version by
+			// reference. Otherwise the whole map is merged the ordinary (unpruned but always-correct) way.
+			final Map<EntityIndexKey, EntityIndex> modifiedIndexes =
+				transactionalLayer.getTransactionalMemoryLayerIfExists(this.indexes) == null ?
+					pruneMergeIndexes(transactionalLayer, transactionalChanges.popLastCommittedDirtyIndexKeys()) :
+					transactionalLayer.getStateCopyWithCommittedChanges(this.indexes);
+			// Drop the secondary (by-PK) map's OWN layer without descending into its values. indexesByPrimaryKey holds the
+			// SAME EntityIndex instances as `indexes`, which the merge above has already swept, so the full-descent
+			// removeLayer here would be an all-miss walk over the entire index forest. This mirrors Catalog's identical
+			// handling of its own secondary map (entityCollectionsByPrimaryKey). The by-PK map is rebuilt from the merged
+			// indexes by the target EntityCollection constructor (createIndexByPk).
+			transactionalLayer.removeTransactionalMemoryLayerIfExists(this.indexesByPrimaryKey);
 			return new EntityCollection(
 				catalogVersion,
 				CatalogState.ALIVE,
@@ -2624,6 +2637,111 @@ public final class EntityCollection implements
 	private BinaryEntity limitEntity(@Nonnull BinaryEntity entity, @Nonnull EntityFetch fetchRequirements) {
 		/* TOBEDONE https://github.com/FgForrest/evitaDB/issues/13 */
 		return entity;
+	}
+
+	/**
+	 * Casts an {@link EntityIndex} to its {@link TransactionalStateProducer} facet — every concrete entity index is one
+	 * (via {@code VoidTransactionMemoryProducer}) — and returns its committed copy. This is the type reconciliation the
+	 * merging {@code TransactionalMap} performs internally; the pruned merge needs it because it resolves individual
+	 * indexes rather than merging the whole map.
+	 *
+	 * @param transactionalLayer the maintainer resolving committed state
+	 * @param index              the (concrete) entity index to commit
+	 * @return the committed copy of the index
+	 */
+	@Nonnull
+	@SuppressWarnings("unchecked")
+	private static EntityIndex mergeCommittedIndex(
+		@Nonnull TransactionalLayerMaintainer transactionalLayer,
+		@Nonnull EntityIndex index
+	) {
+		return transactionalLayer.getStateCopyWithCommittedChanges((TransactionalStateProducer<? extends EntityIndex>) index);
+	}
+
+	/**
+	 * Commit-merge prune for {@link #indexes}. Instead of rebuilding every entity index by merging its transactional
+	 * layer — a walk that is ~99% clean-discovery, since a typical transaction dirties a handful of indexes out of the
+	 * whole forest — this rebuilds only the indexes that were genuinely acquired for modification this transaction (the
+	 * `dirtyIndexKeys` snapshot, ground truth captured by the just-completed flush) and carries every unchanged index
+	 * across the catalog version by reference.
+	 *
+	 * A clean index owns no transactional layer anywhere in its sub-tree (it was never acquired for modification), so
+	 * skipping its merge cannot orphan a diff layer — and if that invariant were ever violated,
+	 * {@link TransactionalLayerMaintainer#verifyLayerWasFullySwept()} fails loudly at commit rather than silently
+	 * dropping changes.
+	 *
+	 * The one subtlety is price wiring: a reduced index's price chain captures its scope's GLOBAL entity index directly,
+	 * and the GLOBAL is rebuilt whenever it changes (nearly every transaction). GLOBAL indexes are therefore
+	 * materialized first; then a clean reduced index whose GLOBAL was rebuilt cannot be shared wholesale (its price
+	 * chain would keep pointing at the retired GLOBAL) — it is re-shelled with its memory-expensive sub-structures
+	 * shared by reference and only its thin price spine rebuilt and re-wired to the new GLOBAL (see
+	 * {@link AbstractReducedEntityIndex#createCarryByReferenceCopyWithRewiredPrice(GlobalEntityIndex)}). A clean reduced
+	 * index whose GLOBAL was itself carried by reference keeps valid wiring and is shared wholesale. Referenced-type
+	 * indexes hold a void price index and are always shared wholesale when clean.
+	 *
+	 * Only used when the index map itself carries no diff layer (no index added or removed this transaction); the caller
+	 * falls back to the ordinary full merge otherwise.
+	 *
+	 * @param transactionalLayer the maintainer resolving committed state for the indexes that are rebuilt
+	 * @param dirtyIndexKeys     keys of the indexes genuinely mutated this transaction
+	 * @return the committed index map, with unchanged indexes carried by reference
+	 */
+	@Nonnull
+	private Map<EntityIndexKey, EntityIndex> pruneMergeIndexes(
+		@Nonnull TransactionalLayerMaintainer transactionalLayer,
+		@Nonnull Set<IndexKey> dirtyIndexKeys
+	) {
+		final Map<EntityIndexKey, EntityIndex> result = CollectionUtils.createHashMap(this.indexes.size());
+		// Phase 1 — materialize each scope's GLOBAL index first: a re-shelled reduced index must wire its price chain to
+		// the CURRENT version's GLOBAL, so the GLOBAL must already be resolved before reduced indexes are processed.
+		final Map<Scope, GlobalEntityIndex> newGlobalsByScope = CollectionUtils.createHashMap(Scope.values().length);
+		for (final Entry<EntityIndexKey, EntityIndex> entry : this.indexes.entrySet()) {
+			if (entry.getValue() instanceof GlobalEntityIndex) {
+				final GlobalEntityIndex newGlobal = dirtyIndexKeys.contains(entry.getKey()) ?
+					(GlobalEntityIndex) mergeCommittedIndex(transactionalLayer, entry.getValue()) :
+					(GlobalEntityIndex) entry.getValue();
+				result.put(entry.getKey(), newGlobal);
+				newGlobalsByScope.put(entry.getKey().scope(), newGlobal);
+			}
+		}
+		// Phase 2 — every other index
+		for (final Entry<EntityIndexKey, EntityIndex> entry : this.indexes.entrySet()) {
+			final EntityIndex index = entry.getValue();
+			if (index instanceof GlobalEntityIndex) {
+				continue; // already handled in phase 1
+			}
+			if (dirtyIndexKeys.contains(entry.getKey())) {
+				// genuinely mutated → rebuild by merging its transactional layer, exactly as the unpruned merge would
+				result.put(entry.getKey(), mergeCommittedIndex(transactionalLayer, index));
+			} else if (index instanceof AbstractReducedEntityIndex reducedIndex) {
+				final Scope scope = entry.getKey().scope();
+				if (dirtyIndexKeys.contains(new EntityIndexKey(EntityIndexType.GLOBAL, scope))) {
+					// clean reduced index but its GLOBAL was rebuilt → carry sub-structures by reference, re-shell and
+					// re-wire the price chain to the new GLOBAL
+					final GlobalEntityIndex newGlobal = newGlobalsByScope.get(scope);
+					Assert.isPremiseValid(
+						newGlobal != null,
+						() -> "GLOBAL entity index of scope `" + scope + "` must exist to re-wire a carried reduced index!"
+					);
+					result.put(entry.getKey(), reducedIndex.createCarryByReferenceCopyWithRewiredPrice(newGlobal));
+				} else {
+					// clean reduced index whose GLOBAL was carried by reference → its price wiring is still valid
+					result.put(entry.getKey(), index);
+				}
+			} else {
+				// clean non-reduced index → carry by reference. Only a ReferencedTypeEntityIndex is expected here
+				// (GLOBAL is handled in phase 1, reduced indexes in the branch above); it holds a VoidPriceIndex, so it
+				// has no external super-index wiring that a version bump could invalidate. Assert the type so a future
+				// index kind that DOES carry external wiring fails loudly rather than being silently mis-carried.
+				Assert.isPremiseValid(
+					index instanceof ReferencedTypeEntityIndex,
+					() -> "Unexpected clean index type carried by reference: " + index.getClass().getName() +
+						" (only ReferencedTypeEntityIndex is safe to carry without re-wiring)."
+				);
+				result.put(entry.getKey(), index);
+			}
+		}
+		return result;
 	}
 
 	/**
