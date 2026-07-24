@@ -71,6 +71,7 @@ import io.evitadb.store.traffic.stream.RingBufferInputStream;
 import io.evitadb.store.wal.WalKryoConfigurer;
 import io.evitadb.stream.RandomAccessFileInputStream;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.IOUtils;
 import lombok.extern.slf4j.Slf4j;
 
@@ -137,6 +138,28 @@ public class OffHeapTrafficRecorder
 	 * Map contains all tracked sessions and their traffic data indexed by session ID.
 	 */
 	private final Map<UUID, SessionTraffic> trackedSessionsIndex = new ConcurrentHashMap<>(256);
+	/**
+	 * Best-effort soft cap on {@link #discardedSessionReasons} - the guard in {@link #discardSession} reads a
+	 * non-atomic {@code mappingCount()} snapshot, so concurrent discards may momentarily push the map slightly
+	 * past this value; it is a memory backstop, not a strict bound. An entry is added when a session is
+	 * discarded and removed when that session's {@link #closeSession} arrives, so a mid-flight discard
+	 * self-drains once the session is closed. Two cases leave an entry until {@link #close()}: a session
+	 * discarded during its own close record (no later close will arrive to evict it) and a discarded session
+	 * that is never closed at all. Once the map is at the cap, further discards simply fall back to
+	 * {@link TrafficRecorderMissReason#SAMPLING} for their trailing records rather than growing it unboundedly.
+	 */
+	private static final int MAX_DISCARDED_SESSION_REASONS = 1024;
+	/**
+	 * Remembers, per session id, the reason a session was discarded (see {@link #discardSession}) after it has
+	 * already been removed from {@link #trackedSessionsIndex}. It lets the trailing records that still arrive
+	 * for a discarded session, and its eventual {@link #closeSession}, be attributed to the real discard reason
+	 * (e.g. {@link TrafficRecorderMissReason#MEMORY_SHORTAGE}) instead of the benign
+	 * {@link TrafficRecorderMissReason#SAMPLING}. Entries are evicted on close and bounded by
+	 * {@link #MAX_DISCARDED_SESSION_REASONS}. A {@link ConcurrentHashMap} because {@link #discardSession} and
+	 * the {@code record*} paths run on different threads.
+	 */
+	private final ConcurrentHashMap<UUID, TrafficRecorderMissReason> discardedSessionReasons =
+		CollectionUtils.createConcurrentHashMap(64);
 	/**
 	 * Queue of all sessions that were finished and are waiting to be written to disk buffer.
 	 */
@@ -398,9 +421,13 @@ public class OffHeapTrafficRecorder
 				}
 			);
 		} else {
-			// closing a session that was never tracked (it was sampled out at creation, or already
-			// discarded) - benign, tracked under the SAMPLING reason
-			this.missedRecordsByReason.get(TrafficRecorderMissReason.SAMPLING).incrementAndGet();
+			// closing a session that is no longer tracked: either it was sampled out at creation (benign
+			// SAMPLING), or it was discarded under resource pressure - in which case attribute the close to the
+			// real discard reason and evict the now-consumed entry (see discardedSessionReasons)
+			final TrafficRecorderMissReason closeReason = this.discardedSessionReasons.remove(sessionId);
+			this.missedRecordsByReason
+				.get(closeReason != null ? closeReason : TrafficRecorderMissReason.SAMPLING)
+				.incrementAndGet();
 		}
 	}
 
@@ -418,6 +445,7 @@ public class OffHeapTrafficRecorder
 		@Nullable String finishedWithError
 	) {
 		doRecord(
+			sessionId,
 			this.trackedSessionsIndex.get(sessionId),
 			sessionTraffic -> {
 				final HeadConstraint head = query.getHead();
@@ -477,6 +505,7 @@ public class OffHeapTrafficRecorder
 		@Nullable String finishedWithError
 	) {
 		doRecord(
+			sessionId,
 			this.trackedSessionsIndex.get(sessionId),
 			sessionTraffic -> new EntityFetchContainer(
 				sessionId,
@@ -501,6 +530,7 @@ public class OffHeapTrafficRecorder
 		@Nullable String finishedWithError
 	) {
 		doRecord(
+			sessionId,
 			this.trackedSessionsIndex.get(sessionId),
 			sessionTraffic -> new EntityEnrichmentContainer(
 				sessionId,
@@ -522,6 +552,7 @@ public class OffHeapTrafficRecorder
 		@Nullable String finishedWithError
 	) {
 		doRecord(
+			sessionId,
 			this.trackedSessionsIndex.get(sessionId),
 			sessionTraffic -> new MutationContainer(
 				sessionId,
@@ -544,6 +575,7 @@ public class OffHeapTrafficRecorder
 		@Nullable String finishedWithError
 	) {
 		doRecord(
+			sessionId,
 			this.trackedSessionsIndex.get(sessionId),
 			sessionTraffic
 				-> {
@@ -573,6 +605,7 @@ public class OffHeapTrafficRecorder
 		@Nullable String finishedWithError
 	) {
 		doRecord(
+			sessionId,
 			this.trackedSessionsIndex.get(sessionId),
 			sessionTraffic -> sessionTraffic.closeSourceQuery(sourceQueryId, finishedWithError)
 		);
@@ -583,6 +616,7 @@ public class OffHeapTrafficRecorder
 		this.freeMemory();
 		this.memoryBlock.set(null);
 		this.trackedSessionsIndex.clear();
+		this.discardedSessionReasons.clear();
 		IOUtils.closeQuietly(
 			this.freeMemoryTask::close,
 			this.indexTask::close
@@ -864,6 +898,13 @@ public class OffHeapTrafficRecorder
 		while (memoryBlockIds.hasNext()) {
 			this.freeBlocks.offer(memoryBlockIds.nextInt());
 		}
+		// remember why this session was discarded BEFORE removing it from the tracked index, so trailing
+		// records and the eventual close of the now-removed session are attributed to the real reason instead
+		// of the benign SAMPLING (bounded: closeSession evicts the entry; the size guard caps the pathological
+		// never-closed case, whose trailing records then fall back to SAMPLING)
+		if (this.discardedSessionReasons.mappingCount() < MAX_DISCARDED_SESSION_REASONS) {
+			this.discardedSessionReasons.put(sessionTraffic.getSessionId(), reason);
+		}
 		// remove the session from the tracked sessions index
 		this.trackedSessionsIndex.remove(sessionTraffic.getSessionId());
 		// schedule memory cleaning
@@ -941,11 +982,14 @@ public class OffHeapTrafficRecorder
 	 * a missed record is counted. In cases where memory is not available, the write buffer is
 	 * released and a missed record is incremented.
 	 *
+	 * @param sessionId        id of the session the record belongs to; used to recover the discard reason
+	 *                         when a record arrives after its session was already discarded
 	 * @param sessionTraffic   the session traffic object containing the data to be recorded
 	 * @param containerFactory the traffic recording container object containing the data to be recorded
 	 *                         and its associated metadata
 	 */
 	private <T extends TrafficRecording> void doRecord(
+		@Nonnull UUID sessionId,
 		@Nullable SessionTraffic sessionTraffic,
 		@Nonnull Function<SessionTraffic, T> containerFactory
 	) {
@@ -964,9 +1008,14 @@ public class OffHeapTrafficRecorder
 			if (sessionTraffic != null) {
 				sessionTraffic.registerRecordMissedOut();
 			}
-			// no active recording session for this record (sampled out or already finished) - benign,
-			// tracked under the SAMPLING reason
-			this.missedRecordsByReason.get(TrafficRecorderMissReason.SAMPLING).incrementAndGet();
+			// no active recording session for this record: it was either sampled out / never admitted (benign
+			// SAMPLING), or already discarded under resource pressure - in which case attribute the record to the
+			// real discard reason instead of masking it as SAMPLING. The isEmpty() guard keeps the common
+			// no-discard-outstanding miss path free of the extra lookup.
+			final TrafficRecorderMissReason reason = this.discardedSessionReasons.isEmpty()
+				? TrafficRecorderMissReason.SAMPLING
+				: this.discardedSessionReasons.getOrDefault(sessionId, TrafficRecorderMissReason.SAMPLING);
+			this.missedRecordsByReason.get(reason).incrementAndGet();
 		}
 	}
 

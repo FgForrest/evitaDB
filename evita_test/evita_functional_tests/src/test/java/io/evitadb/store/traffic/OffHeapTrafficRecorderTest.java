@@ -1012,6 +1012,75 @@ public class OffHeapTrafficRecorderTest implements EvitaTestSupport {
 	}
 
 	@Test
+	@DisplayName("Should attribute a discarded session's trailing records and close to the discard reason, not SAMPLING")
+	void shouldAttributePostDiscardTrailingRecordsAndCloseToDiscardReason() throws Exception {
+		// a session discarded mid-flight under memory shortage is removed from the tracked index; any records
+		// that still arrive for it, and its eventual close, must be attributed to the real discard reason
+		// (MEMORY_SHORTAGE) instead of the benign SAMPLING reason (regression guard for the post-discard leak).
+		final Path work = getPathInTargetDirectory(UUID.randomUUID() + "/work");
+		try (
+			OffHeapTrafficRecorder recorder = newIsolatedRecorder(2_048, 4_096L, 8_192L, work)
+		) {
+			final UUID sessionId = UUIDUtil.randomUUID();
+			recorder.createSession(sessionId, 1, OffsetDateTime.now());
+
+			// force a MEMORY_SHORTAGE discard mid-session: a payload far larger than the 2-block buffer
+			final String[] hugePayload = new String[512];
+			for (int i = 0; i < hugePayload.length; i++) {
+				hugePayload[i] = "traffic-recording-payload-chunk-" + i;
+			}
+			recorder.recordMutation(
+				sessionId,
+				OffsetDateTime.now(),
+				new EntityUpsertMutation(
+					Entities.PRODUCT, 1, EntityExistence.MUST_NOT_EXIST,
+					new UpsertAssociatedDataMutation("payload", hugePayload)
+				),
+				null
+			);
+			assertEquals(
+				1L, readReasonCounter(recorder, "droppedSessionsByReason", TrafficRecorderMissReason.MEMORY_SHORTAGE),
+				"the mid-session shortage must drop the session under MEMORY_SHORTAGE");
+
+			// baseline the miss counters AFTER the discard, so only the trailing activity is measured
+			final EnumMap<TrafficRecorderMissReason, Long> missedBaseline =
+				captureReasonBaseline(recorder, "missedRecordsByReason");
+
+			// a record that still arrives for the already-discarded (removed) session
+			recorder.recordMutation(
+				sessionId,
+				OffsetDateTime.now(),
+				new EntityUpsertMutation(
+					Entities.PRODUCT, 2, EntityExistence.MUST_NOT_EXIST,
+					new UpsertAssociatedDataMutation("trailing", "value")
+				),
+				null
+			);
+			// and the eventual close of that discarded session
+			recorder.closeSession(sessionId, null);
+
+			final long memoryShortageDelta =
+				readReasonCounter(recorder, "missedRecordsByReason", TrafficRecorderMissReason.MEMORY_SHORTAGE)
+					- missedBaseline.get(TrafficRecorderMissReason.MEMORY_SHORTAGE);
+			// the SAMPLING counter is also the sole miss term in computeCurrentSamplingRate()'s denominator,
+			// so asserting it does not move for post-discard activity simultaneously proves that trailing
+			// failure records can no longer inflate the computed sampling rate / over-admit under pressure
+			final long samplingDelta =
+				readReasonCounter(recorder, "missedRecordsByReason", TrafficRecorderMissReason.SAMPLING)
+					- missedBaseline.get(TrafficRecorderMissReason.SAMPLING);
+
+			assertEquals(
+				2L, memoryShortageDelta,
+				"the trailing record and the close of a memory-discarded session must both be booked under MEMORY_SHORTAGE");
+			assertEquals(
+				0L, samplingDelta,
+				"post-discard trailing activity must not be misattributed to the benign SAMPLING reason");
+		} finally {
+			FileUtils.deleteDirectory(work);
+		}
+	}
+
+	@Test
 	@DisplayName("A sampling percentage of 0 records nothing - recording is disabled")
 	void shouldRecordNothingWhenSamplingPercentageIsZero() throws Exception {
 		// pins the intended semantics: 0% = record nothing (NOT "store everything" as an old javadoc claimed)
