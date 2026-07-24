@@ -12,7 +12,7 @@ incorporated. Update it on every sync — see the `roaring-bitmap-sync` skill fo
 | Upstream repo | https://github.com/RoaringBitmap/RoaringBitmap |
 | Upstream default branch | `master` |
 | **Base commit** (fork point our sources derive from) | `952f8ce7aef1510eff07a3f325a5f8093151d993` — release **v1.6.12** (2026-02-26) |
-| **Reviewed through** (last upstream commit inspected) | `ba92f4978cb3f4c2f0d6e26342040fc59fe25508` — "[Gradle Release Plugin] 1.6.16" (2026-07-23) |
+| **Reviewed through** (last upstream commit inspected) | `ba92f4978cb3f4c2f0d6e26342040fc59fe25508` — the post-release bump of `gradle.properties` to the next development version `1.6.16` (2026-07-23). It is `master`'s tip and the only commit after the `1.6.15` tag; **there is no 1.6.16 release.** |
 | Vendored via fork | github.com/novoj/RoaringBitmap @ `f27cd538` (= v1.6.12 + CopyOnWriteRoaringBitmapV2 prototype) |
 
 > The **base commit** is the upstream point our vendored `.java` sources branched from. The
@@ -103,17 +103,18 @@ live correctness bug in the reverse array cursor — see its row.
 | `c7bd6849` fix: ReverseIntIteratorFlyweight short overflow (>32768 containers) (#836) | code | `ReverseIntIteratorFlyweight` (+`buffer/*`, test) | **Already satisfied.** Our `ReverseIntIteratorFlyweight.pos` is already an `int` and the `>Short.MAX_VALUE` regression already ships as `TestReverseIntIteratorFlyweightManyContainers` (the fix originated here — authored by J. Novotný — and was upstreamed). No-op. |
 | `593d65a1` fix: static orNot must not mutate input x1 (ior→or) (#833) | code | `RoaringBitmap` (+`buffer/*`, test) | **Already satisfied.** #833 swaps the static `orNot`'s `ior(RunContainer.rangeOfOnes(…))` for `or(…)` so it stops mutating `x1`. Our static `orNot` already clones before the in-place `ior` (`getContainerAtIndex(pos1).clone().ior(…)`) for the same reason (copy-on-write: never corrupt the input or a co-owner) — a stronger guarantee that subsumes the fix. No-op. |
 | `f98b5dd3` fix the reverse iterators + update gradle (#837) | code | `ReverseIntIteratorFlyweight`, `RoaringBitmap`, `Util`, `ArrayContainer`, `BitmapContainer`, `ImmutableBitmapDataProvider` (+`buffer/*`, gradle, tests) | **Incorporated.** Widens the reverse iterators to `PeekableIntIterator`: `RoaringReverseIntIterator` and `ReverseIntIteratorFlyweight` gained `advanceIfNeeded(int)`/`peekNext()`, and `ImmutableBitmapDataProvider.getReverseIntIterator()` narrowed its return type accordingly (source-compatible — the only callers assign to `IntIterator` or consume the iterator directly). `Util.reverseUntil` lost its unused `length` parameter. The two `BitmapContainer`/`ArrayContainer` signature hunks were already satisfied: all three reverse char cursors here already implement `PeekableCharIterator`. **Ported despite evita having no caller of `getReverseIntIterator()`, and that turned out to matter** — see the reverse-cursor fix below. |
-| `b40a7734` Release v1.6.15 | build | `gradle.properties` | N/A. |
+| `b40a7734` post-release bump to next dev version 1.6.15 | build | `gradle.properties` | N/A. |
 | `941c09a8` Remove Stars section from README | docs | `README.md` | N/A. |
 | `46d5e104` Reuse ART shuttle stack entries instead of allocating per node (#831) | code | `art/AbstractShuttle` | **Incorporated.** ART traversal (`select` / `rankLong` / ordered iteration, all used by `PersistentLongRoaringBitmap`) allocated a `NodeEntry` on every node visited. Ported the `useEntry(depth, node)` slot-reuse helper — it resets exactly the five `NodeEntry` fields a fresh entry would have (verified field parity) — replacing all 5 `new NodeEntry()` push sites. Behaviour unchanged (upstream reports −36…−65 % traversal allocation). |
 | `e140aee9` Declare junit as a dependency of jmh (#839) | build | `build.gradle.kts` | N/A. |
 | `ef131a71` Avoid O(N^2) operations in some cases (#840) | code | `RoaringArray`, `RoaringBitmap` (+`buffer/*`, jmh) | **Incorporated (COW-adapted).** In-place `or`/`xor`/`naivelazyor` did a per-key `insertNewKeyValueAt`/`removeAtIndex` shift that is O(N²) when the operands' keys interleave; upstream collapses the remaining suffix into a single-pass `mergeBulk` at the first structural divergence. Ported — **but as a `PersistentRoaringBitmap` method, not a `RoaringArray` one** (see divergence note below): source-only chunks are borrowed by structural sharing (not cloned), a shared receiver container is cloned before the in-place overlap op, and the parallel `shared[]` flag array is rebuilt in lockstep. Added `RoaringArray.adopt(keys, values, size)` to install the rebuilt arrays and clear `frozen`. Instance `lazyor` is **left on the per-key path**, matching upstream (PR #840 did not touch it). Covered by `MergeBulkCopyOnWriteTest` (interleaved keys × `clone()` COW peer, incl. the xor cancelled-pair drop and a 2000-key large-interleaved case). |
-| `ba92f497` Release v1.6.16 | build | `gradle.properties` | N/A. |
+| `ba92f497` post-release bump to next dev version 1.6.16 | build | `gradle.properties` | N/A. Sets `version = 1.6.16` after the `1.6.15` release; no 1.6.16 artifact exists. |
 
 **Net result:** incorporated #840 (O(N²) union/xor fix), #831 (ART allocation cut) and #837 (reverse
 peekable iterators, plus the reverse-cursor fix it surfaced); #833 and #836 were already satisfied by
 pre-existing evita divergences; the rest are build/docs. Effective upstream version coverage:
-**v1.6.16**.
+**v1.6.15** — the newest actual release, whose tag `1.6.15` points at `ef131a71` (#840, incorporated).
+The reviewed-through commit sits one purely-editorial commit beyond it.
 
 #### Reverse-cursor exhaustion fix surfaced by the #837 port (evita divergence — preserve on re-sync)
 
