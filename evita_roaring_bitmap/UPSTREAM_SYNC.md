@@ -12,7 +12,7 @@ incorporated. Update it on every sync — see the `roaring-bitmap-sync` skill fo
 | Upstream repo | https://github.com/RoaringBitmap/RoaringBitmap |
 | Upstream default branch | `master` |
 | **Base commit** (fork point our sources derive from) | `952f8ce7aef1510eff07a3f325a5f8093151d993` — release **v1.6.12** (2026-02-26) |
-| **Reviewed through** (last upstream commit inspected) | `2863e96d6715113dd32b9f2582bf962fdb57bbe6` — "Update AGENTS.md" (2026-06-11) |
+| **Reviewed through** (last upstream commit inspected) | `ba92f4978cb3f4c2f0d6e26342040fc59fe25508` — "[Gradle Release Plugin] 1.6.16" (2026-07-23) |
 | Vendored via fork | github.com/novoj/RoaringBitmap @ `f27cd538` (= v1.6.12 + CopyOnWriteRoaringBitmapV2 prototype) |
 
 > The **base commit** is the upstream point our vendored `.java` sources branched from. The
@@ -90,3 +90,36 @@ classes we dropped or paths we already satisfy.
 
 **Net result:** vendored subset remains byte-for-behavior current with upstream `master` through
 `2863e96d`. Effective upstream version coverage: **v1.6.14**.
+
+### Review 2 — `2863e96d` → `ba92f497`
+
+9 upstream commits triaged. **Two functional changes incorporated** (#840 the O(N²) union/xor fix,
+#831 an ART-traversal allocation cut); two more were already satisfied by pre-existing evita
+divergences; **one real change to kept classes (#837) was deliberately deferred** — see its row.
+
+| upstream | kind | touches | disposition |
+|---|---|---|---|
+| `c7bd6849` fix: ReverseIntIteratorFlyweight short overflow (>32768 containers) (#836) | code | `ReverseIntIteratorFlyweight` (+`buffer/*`, test) | **Already satisfied.** Our `ReverseIntIteratorFlyweight.pos` is already an `int` and the `>Short.MAX_VALUE` regression already ships as `TestReverseIntIteratorFlyweightManyContainers` (the fix originated here — authored by J. Novotný — and was upstreamed). No-op. |
+| `593d65a1` fix: static orNot must not mutate input x1 (ior→or) (#833) | code | `RoaringBitmap` (+`buffer/*`, test) | **Already satisfied.** #833 swaps the static `orNot`'s `ior(RunContainer.rangeOfOnes(…))` for `or(…)` so it stops mutating `x1`. Our static `orNot` already clones before the in-place `ior` (`getContainerAtIndex(pos1).clone().ior(…)`) for the same reason (copy-on-write: never corrupt the input or a co-owner) — a stronger guarantee that subsumes the fix. No-op. |
+| `f98b5dd3` fix the reverse iterators + update gradle (#837) | code | `ReverseIntIteratorFlyweight`, `RoaringBitmap`, `Util`, `ArrayContainer`, `BitmapContainer`, `ImmutableBitmapDataProvider` (+`buffer/*`, gradle, tests) | **DEFERRED — real, un-ported upstream change to kept classes (not N/A).** Widens the reverse iterators to `PeekableIntIterator` (adds `advanceIfNeeded`/`peekNext`) and drops the dead `length` parameter from `Util.reverseUntil`. evita has **no** caller of `getReverseIntIterator()` (only the vendored test suite exercises reverse iteration), so this is an unused API enhancement, not a correctness fix. Deferred to keep this sync focused on the perf fix; port it if evita ever adopts reverse peekable iteration. |
+| `b40a7734` Release v1.6.15 | build | `gradle.properties` | N/A. |
+| `941c09a8` Remove Stars section from README | docs | `README.md` | N/A. |
+| `46d5e104` Reuse ART shuttle stack entries instead of allocating per node (#831) | code | `art/AbstractShuttle` | **Incorporated.** ART traversal (`select` / `rankLong` / ordered iteration, all used by `PersistentLongRoaringBitmap`) allocated a `NodeEntry` on every node visited. Ported the `useEntry(depth, node)` slot-reuse helper — it resets exactly the five `NodeEntry` fields a fresh entry would have (verified field parity) — replacing all 5 `new NodeEntry()` push sites. Behaviour unchanged (upstream reports −36…−65 % traversal allocation). |
+| `e140aee9` Declare junit as a dependency of jmh (#839) | build | `build.gradle.kts` | N/A. |
+| `ef131a71` Avoid O(N^2) operations in some cases (#840) | code | `RoaringArray`, `RoaringBitmap` (+`buffer/*`, jmh) | **Incorporated (COW-adapted).** In-place `or`/`xor`/`naivelazyor` did a per-key `insertNewKeyValueAt`/`removeAtIndex` shift that is O(N²) when the operands' keys interleave; upstream collapses the remaining suffix into a single-pass `mergeBulk` at the first structural divergence. Ported — **but as a `PersistentRoaringBitmap` method, not a `RoaringArray` one** (see divergence note below): source-only chunks are borrowed by structural sharing (not cloned), a shared receiver container is cloned before the in-place overlap op, and the parallel `shared[]` flag array is rebuilt in lockstep. Added `RoaringArray.adopt(keys, values, size)` to install the rebuilt arrays and clear `frozen`. Instance `lazyor` is **left on the per-key path**, matching upstream (PR #840 did not touch it). Covered by `MergeBulkCopyOnWriteTest` (interleaved keys × `clone()` COW peer, incl. the xor cancelled-pair drop and a 2000-key large-interleaved case). |
+| `ba92f497` Release v1.6.16 | build | `gradle.properties` | N/A. |
+
+**Net result:** incorporated #840 (O(N²) union/xor fix) and #831 (ART allocation cut); #833 and #836
+were already satisfied by pre-existing evita divergences; #837 deferred (recorded above, not N/A); the
+rest are build/docs. Effective upstream version coverage: **v1.6.16**.
+
+#### Copy-on-write divergence introduced by the #840 port (preserve on re-sync)
+
+Upstream added `mergeBulk` as a package-private method on **`RoaringArray`**. In the vendored copy the
+port lives on **`PersistentRoaringBitmap.mergeBulk(...)`** instead, because the copy-on-write `shared[]`
+flag array is owned by `PersistentRoaringBitmap` (RoaringArray "does not track container sharing
+itself", per its class comment) and the merge needs both operands' flags to borrow-vs-clone correctly.
+`RoaringArray` only gained a small `adopt(keys, values, size)` sink to receive the rebuilt arrays. When
+a future sync touches upstream `RoaringArray.mergeBulk`, apply the change to
+`PersistentRoaringBitmap.mergeBulk` here. The three op selectors (`MERGE_OR`/`MERGE_XOR`/
+`MERGE_LAZY_OR`) are likewise private constants on `PersistentRoaringBitmap`, not `RoaringArray`.

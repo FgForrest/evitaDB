@@ -1033,6 +1033,25 @@ final class RoaringArray implements Cloneable, Externalizable, AppendableStorage
 	}
 
 	/**
+	 * Adopts freshly built backing arrays wholesale, replacing the current contents in a single step.
+	 * Used by the bulk-merge union / xor path in {@link PersistentRoaringBitmap} to install a one-pass
+	 * merge result instead of shifting entries per key (which is quadratic when the operands' keys are
+	 * interleaved). Clears {@link #frozen} because the supplied arrays are privately owned by the
+	 * caller and never aliased by a clone. The caller guarantees the ascending-key ordering invariant
+	 * on `keys[0..size-1]` and that `size <= keys.length == values.length`.
+	 *
+	 * @param keys   chunk-key array taken over as-is
+	 * @param values container array taken over as-is, parallel to `keys`
+	 * @param size   number of live leading entries
+	 */
+	void adopt(@Nonnull final char[] keys, @Nonnull final Container[] values, final int size) {
+		this.keys = keys;
+		this.values = values;
+		this.size = size;
+		this.frozen = false;
+	}
+
+	/**
 	 * Overwrites both the key and the container at slot `i` in place; the caller is responsible for
 	 * preserving the ascending-key invariant.
 	 *

@@ -3223,14 +3223,10 @@ public class PersistentRoaringBitmap
 					}
 					s1 = this.highLowContainer.getKeyAtIndex(pos1);
 				} else {
-					borrowAndInsert(pos1, s2, x2, pos2, length2);
-					pos1++;
-					length1++;
-					pos2++;
-					if (pos2 == length2) {
-						break main;
-					}
-					s2 = x2.highLowContainer.getKeyAtIndex(pos2);
+					// source-only chunk: bulk-merge the remaining suffix in one pass (inserting per
+					// key here would be quadratic when the operands' keys are interleaved)
+					mergeBulk(x2, pos1, pos1, pos2, MERGE_OR);
+					return;
 				}
 			}
 		}
@@ -3523,9 +3519,10 @@ public class PersistentRoaringBitmap
 						this.highLowContainer.setContainerAtIndex(pos1, c);
 						pos1++;
 					} else {
-						this.highLowContainer.removeAtIndex(pos1);
-						sharedRemoveAt(pos1);
-						--length1;
+						// cancelled pair: bulk-merge the remaining suffix, dropping this emptied container
+						// (removing per key here would be quadratic when the operands' keys are interleaved)
+						mergeBulk(x2, pos1, pos1 + 1, pos2 + 1, MERGE_XOR);
+						return;
 					}
 					pos2++;
 					if ((pos1 == length1) || (pos2 == length2)) {
@@ -3540,14 +3537,10 @@ public class PersistentRoaringBitmap
 					}
 					s1 = this.highLowContainer.getKeyAtIndex(pos1);
 				} else {
-					borrowAndInsert(pos1, s2, x2, pos2, length2);
-					pos1++;
-					length1++;
-					pos2++;
-					if (pos2 == length2) {
-						break main;
-					}
-					s2 = x2.highLowContainer.getKeyAtIndex(pos2);
+					// source-only chunk: bulk-merge the remaining suffix in one pass (inserting per
+					// key here would be quadratic when the operands' keys are interleaved)
+					mergeBulk(x2, pos1, pos1, pos2, MERGE_XOR);
+					return;
 				}
 			}
 		}
@@ -3661,14 +3654,10 @@ public class PersistentRoaringBitmap
 					}
 					s1 = this.highLowContainer.getKeyAtIndex(pos1);
 				} else {
-					borrowAndInsert(pos1, s2, x2, pos2, length2);
-					pos1++;
-					length1++;
-					pos2++;
-					if (pos2 == length2) {
-						break main;
-					}
-					s2 = x2.highLowContainer.getKeyAtIndex(pos2);
+					// source-only chunk: bulk-merge the remaining suffix in one pass (inserting per
+					// key here would be quadratic when the operands' keys are interleaved)
+					mergeBulk(x2, pos1, pos1, pos2, MERGE_LAZY_OR);
+					return;
 				}
 			}
 		}
@@ -3824,6 +3813,147 @@ public class PersistentRoaringBitmap
 		Arrays.fill(this.shared, startSize, newSize, true);
 		x2.ensureSharedCapacity(length2);
 		Arrays.fill(x2.shared, pos2, length2, true);
+	}
+
+	/** Op selector for {@link #mergeBulk}: in-place union (or). */
+	private static final int MERGE_OR = 0;
+	/** Op selector for {@link #mergeBulk}: in-place symmetric difference (xor). */
+	private static final int MERGE_XOR = 1;
+	/** Op selector for {@link #mergeBulk}: in-place lazy union, promoting overlaps to bitmap containers. */
+	private static final int MERGE_LAZY_OR = 2;
+
+	/**
+	 * Finishes an in-place union / xor / lazy-union (selected by `op`) once the receiver's structure
+	 * must change, merging the two operands' remaining suffixes into fresh backing arrays in a single
+	 * pass. This replaces the per-key {@link RoaringArray#insertNewKeyValueAt} /
+	 * {@link RoaringArray#removeAtIndex} shift, which is quadratic when the operands' keys are
+	 * interleaved (the O(N^2) case fixed upstream in RoaringBitmap PR #840).
+	 *
+	 * The receiver's `[0, dst)` prefix is already final and is copied over verbatim (keys, container
+	 * references and their {@link #shared} flags). `left` / `right` are the receiver / source scan
+	 * positions of the first not-yet-merged entry. For a union `dst == left`; xor may pass
+	 * `dst < left` at the entry point to drop the container it just emptied.
+	 *
+	 * Copy-on-write is preserved rather than upstream's clone-everything approach: a source-only chunk
+	 * is borrowed by structural sharing and both operands' {@link #shared} flag is raised for it
+	 * (mirroring {@link #borrowAndInsert}); a receiver-only chunk keeps its existing ownership flag; an
+	 * overlapping chunk whose receiver container is shared is cloned before the in-place op, so its
+	 * result is always owned. `x2` is not mutated apart from its {@link #shared} flags.
+	 *
+	 * @param x2    the source bitmap being merged into this one
+	 * @param dst   number of already-final leading entries copied over verbatim
+	 * @param left  first not-yet-merged entry index in this receiver
+	 * @param right first not-yet-merged entry index in `x2`
+	 * @param op    one of {@link #MERGE_OR}, {@link #MERGE_XOR}, {@link #MERGE_LAZY_OR}
+	 */
+	private void mergeBulk(
+		@Nonnull final PersistentRoaringBitmap x2, final int dst, final int left, final int right,
+		final int op
+	) {
+		final RoaringArray a1 = this.highLowContainer;
+		final RoaringArray a2 = x2.highLowContainer;
+		final int length1 = a1.size;
+		final int length2 = a2.size;
+		final char[] keys1 = a1.keys;
+		final Container[] values1 = a1.values;
+		final char[] keys2 = a2.keys;
+		final Container[] values2 = a2.values;
+
+		// exact result size for union / lazy-union, tight upper bound for xor (emptied overlaps drop)
+		int distinct = 0;
+		int l = left;
+		int r = right;
+		while (l < length1 && r < length2) {
+			final char k1 = keys1[l];
+			final char k2 = keys2[r];
+			if (k1 < k2) {
+				l++;
+			} else if (k1 > k2) {
+				r++;
+			} else {
+				l++;
+				r++;
+			}
+			distinct++;
+		}
+		distinct += (length1 - l) + (length2 - r);
+		final int total = dst + distinct;
+
+		final char[] newKeys = new char[total];
+		final Container[] newValues = new Container[total];
+		final boolean[] newShared = new boolean[total];
+		System.arraycopy(keys1, 0, newKeys, 0, dst);
+		System.arraycopy(values1, 0, newValues, 0, dst);
+		// carry the already-final prefix's sharing flags; an all-owned builder may leave shared[]
+		// shorter than the container array, in which case the absent tail is owned (false)
+		System.arraycopy(this.shared, 0, newShared, 0, Math.min(dst, this.shared.length));
+
+		// x2's shared[] must be able to record every source container we may borrow below
+		x2.ensureSharedCapacity(length2);
+
+		int pos = dst;
+		int i = left;
+		int j = right;
+		while (i < length1 && j < length2) {
+			final char k1 = keys1[i];
+			final char k2 = keys2[j];
+			if (k1 < k2) {
+				// receiver-only chunk: keep as-is, preserving its ownership flag
+				newKeys[pos] = k1;
+				newValues[pos] = values1[i];
+				newShared[pos] = i < this.shared.length && this.shared[i];
+				pos++;
+				i++;
+			} else if (k1 > k2) {
+				// source-only chunk: borrow by structural sharing (both operands flagged shared)
+				newKeys[pos] = k2;
+				newValues[pos] = values2[j];
+				newShared[pos] = true;
+				x2.shared[j] = true;
+				pos++;
+				j++;
+			} else {
+				// overlapping chunk: clone if the receiver's container is shared, then op in place
+				Container base = values1[i];
+				if (i < this.shared.length && this.shared[i]) {
+					base = base.clone();
+				}
+				final Container c;
+				if (op == MERGE_XOR) {
+					c = base.ixor(values2[j]);
+				} else if (op == MERGE_LAZY_OR) {
+					c = base.toBitmapContainer().lazyIOR(values2[j]);
+				} else {
+					c = base.ior(values2[j]);
+				}
+				if (op != MERGE_XOR || !c.isEmpty()) {
+					newKeys[pos] = k1;
+					newValues[pos] = c;
+					newShared[pos] = false;
+					pos++;
+				}
+				i++;
+				j++;
+			}
+		}
+		while (i < length1) {
+			newKeys[pos] = keys1[i];
+			newValues[pos] = values1[i];
+			newShared[pos] = i < this.shared.length && this.shared[i];
+			pos++;
+			i++;
+		}
+		while (j < length2) {
+			newKeys[pos] = keys2[j];
+			newValues[pos] = values2[j];
+			newShared[pos] = true;
+			x2.shared[j] = true;
+			pos++;
+			j++;
+		}
+
+		a1.adopt(newKeys, newValues, pos);
+		this.shared = newShared;
 	}
 
 	/**
