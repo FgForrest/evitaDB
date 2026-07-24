@@ -168,6 +168,31 @@ public class TestIterators {
 		}
 
 		@Test
+		@DisplayName("advanceIfNeeded positions the reverse iterator on each value")
+		public void testSkipsReverse() {
+			final Random source = new Random(0xcb000a2b9b5bdfb6L);
+			final int[] data = takeSortedAndDistinct(source, 45000, Integer::compareUnsigned);
+			PersistentRoaringBitmap bitmap = PersistentRoaringBitmap.bitmapOf(data);
+			PeekableIntIterator pii = bitmap.getReverseIntIterator();
+			for (int i = data.length - 1; i >= 0; --i) {
+				pii.advanceIfNeeded(data[i]);
+				assertEquals(data[i], pii.peekNext());
+			}
+			pii = bitmap.getReverseIntIterator();
+			for (int i = data.length - 1; i >= 0; --i) {
+				pii.advanceIfNeeded(data[i]);
+				assertEquals(data[i], pii.next());
+			}
+			pii = bitmap.getReverseIntIterator();
+			for (int i = data.length - 2; i >= 0; --i) {
+				pii.advanceIfNeeded(data[i + 1]);
+				pii.next();
+				assertEquals(data[i], pii.peekNext());
+			}
+			bitmap.getReverseIntIterator().advanceIfNeeded(-1); // should not crash
+		}
+
+		@Test
 		@DisplayName("advanceIfNeeded positions the signed iterator and never moves backward")
 		public void testSkipsSignedIterator() {
 			final Random source = new Random(0xcb000a2b9b5bdfb6L);
@@ -214,6 +239,46 @@ public class TestIterators {
 		}
 
 		@Test
+		@DisplayName("advanceIfNeeded lands on each value of a dense bitmap in reverse")
+		public void testSkipsDenseReverse() {
+			PersistentRoaringBitmap bitmap = new PersistentRoaringBitmap();
+			int N = 100000;
+			for (int i = 0; i < N; ++i) {
+				bitmap.add(2 * i);
+			}
+			for (int i = N - 1; i >= 0; --i) {
+				PeekableIntIterator pii = bitmap.getReverseIntIterator();
+				pii.advanceIfNeeded(2 * i);
+				assertEquals(2 * i, pii.peekNext());
+				assertEquals(2 * i, pii.next());
+			}
+		}
+
+		@Test
+		@DisplayName("advanceIfNeeded lands on each value in reverse across several containers")
+		public void testSkipsMultipleContainersReverse() {
+			PersistentRoaringBitmap bitmap = new PersistentRoaringBitmap();
+			int n = 1000;
+			int numHighPoints = 10;
+			for (int h = 0; h < numHighPoints; ++h) {
+				int base = h << 16;
+				for (int i = 0; i < n; ++i) {
+					bitmap.add(2 * i + base);
+				}
+			}
+			for (int h = 0; h < numHighPoints; ++h) {
+				int base = h << 16;
+				for (int i = n - 1; i >= 0; --i) {
+					PeekableIntIterator pii = bitmap.getReverseIntIterator();
+					int expected = 2 * i + base;
+					pii.advanceIfNeeded(expected);
+					assertEquals(expected, pii.peekNext());
+					assertEquals(expected, pii.next());
+				}
+			}
+		}
+
+		@Test
 		@DisplayName("advanceIfNeeded lands on each value across a run container")
 		public void testSkipsRun() {
 			PersistentRoaringBitmap bitmap = new PersistentRoaringBitmap();
@@ -224,6 +289,20 @@ public class TestIterators {
 				pii.advanceIfNeeded(i);
 				assertEquals(pii.peekNext(), i);
 				assertEquals(pii.next(), i);
+			}
+		}
+
+		@Test
+		@DisplayName("advanceIfNeeded lands on each value of a run container in reverse")
+		public void testSkipsRunReverse() {
+			PersistentRoaringBitmap bitmap = new PersistentRoaringBitmap();
+			bitmap.add(4L, 100000L);
+			bitmap.runOptimize();
+			for (int i = 99999; i >= 4; --i) {
+				PeekableIntIterator pii = bitmap.getReverseIntIterator();
+				pii.advanceIfNeeded(i);
+				assertEquals(i, pii.peekNext());
+				assertEquals(i, pii.next());
 			}
 		}
 
@@ -246,6 +325,14 @@ public class TestIterators {
 		public void testEmptySkips() {
 			PersistentRoaringBitmap bitmap = new PersistentRoaringBitmap();
 			PeekableIntIterator it = bitmap.getIntIterator();
+			it.advanceIfNeeded(0);
+		}
+
+		@Test
+		@DisplayName("advanceIfNeeded on an empty bitmap does not fail in reverse")
+		public void testEmptySkipsReverse() {
+			PersistentRoaringBitmap bitmap = new PersistentRoaringBitmap();
+			PeekableIntIterator it = bitmap.getReverseIntIterator();
 			it.advanceIfNeeded(0);
 		}
 
@@ -277,6 +364,36 @@ public class TestIterators {
 			bitIt.advanceIfNeeded(4000000);
 			assertEquals(4000000, bitIt.peekNext());
 			assertEquals(4000000, bitIt.next());
+		}
+
+		@Test
+		@DisplayName("advanceIfNeeded into a gap lands on the previous present value in reverse")
+		public void testSkipIntoGapsReverse() {
+			PersistentRoaringBitmap bitset = new PersistentRoaringBitmap();
+
+			bitset.add(2000000L, 2200000L);
+			bitset.add(4000000L, 4300000L);
+
+			PeekableIntIterator bitIt = bitset.getReverseIntIterator();
+
+			assertEquals(4299999, bitIt.peekNext());
+			assertEquals(4299999, bitIt.next());
+
+			assertTrue(bitset.contains(4100000));
+			bitIt.advanceIfNeeded(4100000);
+			assertEquals(4100000, bitIt.peekNext());
+			assertEquals(4100000, bitIt.next());
+
+			// advancing reverse to a value in the gap should land on the last value of the first range
+			assertFalse(bitset.contains(2300000));
+			bitIt.advanceIfNeeded(2300000);
+
+			assertEquals(2199999, bitIt.peekNext());
+
+			assertTrue(bitset.contains(2199999));
+			bitIt.advanceIfNeeded(2199999);
+			assertEquals(2199999, bitIt.peekNext());
+			assertEquals(2199999, bitIt.next());
 		}
 
 		@Test
