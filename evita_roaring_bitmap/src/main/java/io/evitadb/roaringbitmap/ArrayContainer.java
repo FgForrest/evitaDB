@@ -2118,11 +2118,16 @@ final class ReverseArrayContainerCharIterator implements PeekableCharIterator {
 	}
 
 	/**
-	 * Advances downward to the first value `<=` `maxval`.
+	 * Advances downward to the first value `<=` `maxval`, exhausting the cursor when this container
+	 * holds no such value.
 	 */
 	@Override
 	public void advanceIfNeeded(final char maxval) {
-		this.pos = Util.reverseUntil(this.parent.content, this.pos + 1, this.parent.cardinality, maxval);
+		final int candidate = Util.reverseUntil(this.parent.content, this.pos + 1, maxval);
+		// reverseUntil saturates at index 0 instead of reporting "no match", so a container whose
+		// smallest value still exceeds maxval would leave the cursor parked above the requested
+		// bound; the iterator contract requires exhaustion there, as the bitmap and run cursors do
+		this.pos = candidate == 0 && this.parent.content[0] > maxval ? -1 : candidate;
 	}
 
 	/**

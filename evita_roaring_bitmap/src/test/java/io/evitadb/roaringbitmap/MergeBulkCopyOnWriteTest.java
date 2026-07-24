@@ -8,6 +8,7 @@ import java.util.TreeSet;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Regression tests for the bulk-merge path added when porting upstream RoaringBitmap PR #840
@@ -271,6 +272,114 @@ public class MergeBulkCopyOnWriteTest {
 		final int[] bAfterSourceMutation = b.toArray();
 		a.add((5 << 16) | 999);
 		assertArrayEquals(bAfterSourceMutation, b.toArray(), "source corrupted by mutating receiver in a borrowed chunk");
+	}
+
+	/**
+	 * Enters `mergeBulk` with a non-zero `dst` that sits past a container the main loop already
+	 * mutated **in place**, rather than past receiver-only chunks it merely skipped.
+	 *
+	 * The other cases reach the bulk path either at `dst == 0` or with a prefix of untouched
+	 * receiver-only chunks. Here chunk 5 overlaps, so the main loop runs a real in-place op and
+	 * advances both cursors; only then does source-only key 10 trigger the bulk rebuild, which must
+	 * copy that freshly-owned prefix container across verbatim and leave its `shared` flag clear.
+	 */
+	@Test
+	public void orAfterMutatedPrefixPreservesPeerAndSource() {
+		// chunk 5 overlaps (mutated in place, dst -> 1), then source-only chunk 10 fires mergeBulk
+		final int[] aValues = values(new int[]{5, 20}, 3);
+		final int[] bValues = concat(values(new int[]{5}, 7), values(new int[]{10, 15}, 3));
+		final PersistentRoaringBitmap a = bitmapOf(aValues);
+		final PersistentRoaringBitmap b = bitmapOf(bValues);
+
+		final PersistentRoaringBitmap peer = a.clone();
+		final int[] peerBefore = peer.toArray();
+		final int[] bBefore = b.toArray();
+
+		a.or(b);
+
+		assertArrayEquals(union(aValues, bValues), a.toArray(), "or past a mutated prefix wrong result");
+		assertArrayEquals(peerBefore, peer.toArray(), "clone peer corrupted by or past a mutated prefix");
+		assertArrayEquals(bBefore, b.toArray(), "source operand corrupted by or past a mutated prefix");
+	}
+
+	/**
+	 * The mutated-prefix entry for `xor`. Chunk 5's overlap must stay non-empty so the main loop
+	 * advances normally instead of taking the cancelled-pair branch.
+	 */
+	@Test
+	public void xorAfterMutatedPrefixPreservesPeerAndSource() {
+		final int[] aValues = values(new int[]{5, 20}, 3);
+		final int[] bValues = concat(values(new int[]{5}, 7), values(new int[]{10, 15}, 3));
+		final PersistentRoaringBitmap a = bitmapOf(aValues);
+		final PersistentRoaringBitmap b = bitmapOf(bValues);
+
+		final PersistentRoaringBitmap peer = a.clone();
+		final int[] peerBefore = peer.toArray();
+		final int[] bBefore = b.toArray();
+
+		a.xor(b);
+
+		assertArrayEquals(
+			symmetricDifference(aValues, bValues), a.toArray(), "xor past a mutated prefix wrong result");
+		assertArrayEquals(peerBefore, peer.toArray(), "clone peer corrupted by xor past a mutated prefix");
+		assertArrayEquals(bBefore, b.toArray(), "source operand corrupted by xor past a mutated prefix");
+	}
+
+	/**
+	 * The mutated-prefix entry for `naivelazyor`, which reaches the bulk path through the
+	 * `toBitmapContainer().lazyIOR(...)` overlap branch rather than `ior`.
+	 */
+	@Test
+	public void naiveLazyOrAfterMutatedPrefixPreservesPeerAndSource() {
+		final int[] aValues = values(new int[]{5, 20}, 3);
+		final int[] bValues = concat(values(new int[]{5}, 7), values(new int[]{10, 15}, 3));
+		final PersistentRoaringBitmap a = bitmapOf(aValues);
+		final PersistentRoaringBitmap b = bitmapOf(bValues);
+
+		final PersistentRoaringBitmap peer = a.clone();
+		final int[] peerBefore = peer.toArray();
+		final int[] bBefore = b.toArray();
+
+		a.naivelazyor(b);
+		a.repairAfterLazy();
+
+		assertArrayEquals(
+			union(aValues, bValues), a.toArray(), "naivelazyor past a mutated prefix wrong result");
+		assertArrayEquals(
+			peerBefore, peer.toArray(), "clone peer corrupted by naivelazyor past a mutated prefix");
+		assertArrayEquals(
+			bBefore, b.toArray(), "source operand corrupted by naivelazyor past a mutated prefix");
+	}
+
+	/**
+	 * Cancelled-pair `xor` where the operands hold one identical chunk and nothing else, so the bulk
+	 * rebuild is asked to produce a result of size zero.
+	 *
+	 * This is the degenerate end of the cancelled-pair path: `dst`, `left` and `right` all leave the
+	 * merge with nothing to copy, so the rebuilt arrays must be adopted at length zero — and the
+	 * co-owned peer must still hold the original values.
+	 */
+	@Test
+	public void xorCancellingEveryChunkYieldsEmptyBitmapAndPreservesPeer() {
+		final int[] sharedValues = values(new int[]{7}, 3);
+		final PersistentRoaringBitmap a = bitmapOf(sharedValues);
+		final PersistentRoaringBitmap b = bitmapOf(sharedValues);
+
+		final PersistentRoaringBitmap peer = a.clone();
+		final int[] peerBefore = peer.toArray();
+		final int[] bBefore = b.toArray();
+
+		a.xor(b);
+
+		assertTrue(a.isEmpty(), "xor of two identical single-chunk bitmaps must be empty");
+		assertArrayEquals(new int[0], a.toArray(), "fully cancelled xor must expose no values");
+		assertArrayEquals(peerBefore, peer.toArray(), "clone peer corrupted by a fully cancelled xor");
+		assertArrayEquals(bBefore, b.toArray(), "source operand corrupted by a fully cancelled xor");
+
+		// the emptied receiver must still be a usable bitmap rather than a corpse of the merge
+		a.add((7 << 16) | 42);
+		assertArrayEquals(new int[]{(7 << 16) | 42}, a.toArray(), "emptied receiver is no longer usable");
+		assertArrayEquals(peerBefore, peer.toArray(), "clone peer corrupted by reusing the emptied receiver");
 	}
 
 	// ---------------------------------------------------------------------------------------------

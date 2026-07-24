@@ -22,7 +22,7 @@ import java.util.Objects;
  *
  * @author Borislav Ivanov
  **/
-public class ReverseIntIteratorFlyweight implements IntIterator {
+public class ReverseIntIteratorFlyweight implements PeekableIntIterator {
 
 	/**
 	 * High 16 bits of the current chunk, pre-shifted into the top half and OR-ed onto each container-local char to rebuild the full 32-bit value.
@@ -33,7 +33,7 @@ public class ReverseIntIteratorFlyweight implements IntIterator {
 	 * Reverse char cursor over the current chunk, re-targeted per container shape; `null` before the first {@link #wrap}.
 	 */
 	@Nullable
-	private CharIterator iter;
+	private PeekableCharIterator iter;
 
 	/**
 	 * Cached reverse array-chunk char cursor, re-targeted via `wrap(...)` to avoid per-chunk allocation.
@@ -85,20 +85,25 @@ public class ReverseIntIteratorFlyweight implements IntIterator {
 	/**
 	 * Forks an independent iterator, deep-copying the active reverse char cursor so the fork advances
 	 * without disturbing this one.
+	 *
+	 * A shallow `Object.clone()` will not do here: it would hand the fork the very same cached
+	 * per-shape cursors this instance recycles, and the first chunk boundary either side crosses would
+	 * re-target a cursor the other one is still reading from. The fork therefore starts from a fresh
+	 * instance — with its own cached cursors — onto which only the position state is copied.
 	 */
+	// the cached per-shape cursors must not be aliased into the fork, so this cannot delegate to super
+	@SuppressWarnings("CloneDoesntCallSuperClone")
 	@Nonnull
 	@Override
-	public IntIterator clone() {
-		try {
-			final ReverseIntIteratorFlyweight x = (ReverseIntIteratorFlyweight) super.clone();
-			if (this.iter != null) {
-				x.iter = this.iter.clone();
-			}
-			return x;
-		} catch (CloneNotSupportedException e) {
-			// unreachable: ReverseIntIteratorFlyweight implements Cloneable
-			throw new IllegalStateException(e);
+	public PeekableIntIterator clone() {
+		final ReverseIntIteratorFlyweight x = new ReverseIntIteratorFlyweight();
+		x.roaringBitmap = this.roaringBitmap;
+		x.pos = this.pos;
+		x.hs = this.hs;
+		if (this.iter != null) {
+			x.iter = this.iter.clone();
 		}
+		return x;
 	}
 
 	/**
@@ -115,7 +120,7 @@ public class ReverseIntIteratorFlyweight implements IntIterator {
 	 */
 	@Override
 	public int next() {
-		final CharIterator cursor = Objects.requireNonNull(
+		final PeekableCharIterator cursor = Objects.requireNonNull(
 			this.iter, "ReverseIntIteratorFlyweight has no active cursor (not wrapped or exhausted)");
 		final int x = cursor.nextAsInt() | this.hs;
 		if (!cursor.hasNext()) {
@@ -123,6 +128,40 @@ public class ReverseIntIteratorFlyweight implements IntIterator {
 			nextContainer();
 		}
 		return x;
+	}
+
+	/**
+	 * Descends until the next value is at most `maxval`: first past whole chunks whose key already
+	 * exceeds the bound, then within the chunk that shares the bound's key. A chunk that turns out to
+	 * hold nothing low enough is abandoned for the next one down, whose key is strictly smaller and
+	 * therefore wholly below the bound.
+	 */
+	@Override
+	public void advanceIfNeeded(final int maxval) {
+		while (hasNext() && ((this.hs >>> 16) > (maxval >>> 16))) {
+			--this.pos;
+			nextContainer();
+		}
+		if (hasNext() && ((this.hs >>> 16) == (maxval >>> 16))) {
+			final PeekableCharIterator cursor = Objects.requireNonNull(
+				this.iter, "ReverseIntIteratorFlyweight has no active cursor (not wrapped or exhausted)");
+			cursor.advanceIfNeeded(Util.lowbits(maxval));
+			if (!cursor.hasNext()) {
+				--this.pos;
+				nextContainer();
+			}
+		}
+	}
+
+	/**
+	 * Returns the value {@link #next()} would return — the current chunk's high bits OR-ed onto the
+	 * cursor's upcoming char — without advancing.
+	 */
+	@Override
+	public int peekNext() {
+		final PeekableCharIterator cursor = Objects.requireNonNull(
+			this.iter, "ReverseIntIteratorFlyweight has no active cursor (not wrapped or exhausted)");
+		return cursor.peekNext() | this.hs;
 	}
 
 	/**

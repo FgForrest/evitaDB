@@ -1943,9 +1943,10 @@ public class PersistentRoaringBitmap
 			System.arraycopy(this.highLowContainer.values, srcOffset, newValues, size, remainder);
 			System.arraycopy(this.shared, srcOffset, newShared, size, remainder);
 		}
-		this.highLowContainer.keys = newKeys;
-		this.highLowContainer.values = newValues;
-		this.highLowContainer.size = size + remainder;
+		// install through adopt rather than assigning the fields directly: the three arrays above are
+		// freshly allocated and privately owned, so the array-level frozen guard must be cleared with
+		// them - leaving it set would cost a redundant defensive copy on the next structural write
+		this.highLowContainer.adopt(newKeys, newValues, size + remainder);
 		this.shared = newShared;
 	}
 
@@ -2111,7 +2112,7 @@ public class PersistentRoaringBitmap
 	 */
 	@Nonnull
 	@Override
-	public IntIterator getReverseIntIterator() {
+	public PeekableIntIterator getReverseIntIterator() {
 		return new RoaringReverseIntIterator();
 	}
 
@@ -3913,18 +3914,23 @@ public class PersistentRoaringBitmap
 				pos++;
 				j++;
 			} else {
-				// overlapping chunk: clone if the receiver's container is shared, then op in place
-				Container base = values1[i];
-				if (i < this.shared.length && this.shared[i]) {
-					base = base.clone();
-				}
+				// overlapping chunk: the receiver's container is mutated in place, so a co-owned one
+				// has to be cloned first
+				final Container base = values1[i];
+				final boolean sharedBase = i < this.shared.length && this.shared[i];
 				final Container c;
 				if (op == MERGE_XOR) {
-					c = base.ixor(values2[j]);
+					c = (sharedBase ? base.clone() : base).ixor(values2[j]);
 				} else if (op == MERGE_LAZY_OR) {
-					c = base.toBitmapContainer().lazyIOR(values2[j]);
+					// toBitmapContainer() hands back `this` only for a BitmapContainer, since no other shape
+					// can return itself as one; array and run chunks already produce a freshly allocated
+					// bitmap for lazyIOR to consume, so cloning those first would allocate twice
+					final Container target = sharedBase && base instanceof BitmapContainer
+						? base.clone()
+						: base;
+					c = target.toBitmapContainer().lazyIOR(values2[j]);
 				} else {
-					c = base.ior(values2[j]);
+					c = (sharedBase ? base.clone() : base).ior(values2[j]);
 				}
 				if (op != MERGE_XOR || !c.isEmpty()) {
 					newKeys[pos] = k1;
@@ -4141,13 +4147,13 @@ public class PersistentRoaringBitmap
 	}
 
 	/**
-	 * {@link IntIterator} over set values in descending unsigned order.
+	 * {@link PeekableIntIterator} over set values in descending unsigned order.
 	 */
-	private final class RoaringReverseIntIterator implements IntIterator {
+	private final class RoaringReverseIntIterator implements PeekableIntIterator {
 
 		int hs = 0;
 
-		CharIterator iter;
+		PeekableCharIterator iter;
 
 		int pos = PersistentRoaringBitmap.this.highLowContainer.size() - 1;
 
@@ -4157,7 +4163,7 @@ public class PersistentRoaringBitmap
 
 		@Nonnull
 		@Override
-		public IntIterator clone() {
+		public PeekableIntIterator clone() {
 			try {
 				RoaringReverseIntIterator clone = (RoaringReverseIntIterator) super.clone();
 				if (this.iter != null) {
@@ -4182,6 +4188,32 @@ public class PersistentRoaringBitmap
 				nextContainer();
 			}
 			return x;
+		}
+
+		/**
+		 * Descends until the next value is at most `maxval`: first past whole chunks whose key already
+		 * exceeds the bound, then within the chunk that shares the bound's key. A chunk that turns out
+		 * to hold nothing low enough is abandoned for the next one down, whose key is strictly smaller
+		 * and therefore wholly below the bound.
+		 */
+		@Override
+		public void advanceIfNeeded(final int maxval) {
+			while (hasNext() && ((this.hs >>> 16) > (maxval >>> 16))) {
+				--this.pos;
+				nextContainer();
+			}
+			if (hasNext() && ((this.hs >>> 16) == (maxval >>> 16))) {
+				this.iter.advanceIfNeeded(Util.lowbits(maxval));
+				if (!this.iter.hasNext()) {
+					--this.pos;
+					nextContainer();
+				}
+			}
+		}
+
+		@Override
+		public int peekNext() {
+			return (this.iter.peekNext()) | this.hs;
 		}
 
 		private void nextContainer() {
