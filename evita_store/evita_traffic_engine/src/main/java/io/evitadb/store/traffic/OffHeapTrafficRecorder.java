@@ -71,6 +71,7 @@ import io.evitadb.store.traffic.stream.RingBufferInputStream;
 import io.evitadb.store.wal.WalKryoConfigurer;
 import io.evitadb.stream.RandomAccessFileInputStream;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.IOUtils;
 import lombok.extern.slf4j.Slf4j;
 
@@ -138,12 +139,14 @@ public class OffHeapTrafficRecorder
 	 */
 	private final Map<UUID, SessionTraffic> trackedSessionsIndex = new ConcurrentHashMap<>(256);
 	/**
-	 * Upper bound on {@link #discardedSessionReasons}. An entry is added when a session is discarded and
-	 * removed when that session's {@link #closeSession} arrives, so a mid-flight discard self-drains once the
-	 * session is closed. Two cases leave an entry until {@link #close()}: a session discarded during its own
-	 * close record (no later close will arrive to evict it) and a discarded session that is never closed at
-	 * all. This guard bounds both, at the cost of falling back to {@link TrafficRecorderMissReason#SAMPLING}
-	 * for the trailing records of any session discarded past the cap.
+	 * Best-effort soft cap on {@link #discardedSessionReasons} - the guard in {@link #discardSession} reads a
+	 * non-atomic {@code mappingCount()} snapshot, so concurrent discards may momentarily push the map slightly
+	 * past this value; it is a memory backstop, not a strict bound. An entry is added when a session is
+	 * discarded and removed when that session's {@link #closeSession} arrives, so a mid-flight discard
+	 * self-drains once the session is closed. Two cases leave an entry until {@link #close()}: a session
+	 * discarded during its own close record (no later close will arrive to evict it) and a discarded session
+	 * that is never closed at all. Once the map is at the cap, further discards simply fall back to
+	 * {@link TrafficRecorderMissReason#SAMPLING} for their trailing records rather than growing it unboundedly.
 	 */
 	private static final int MAX_DISCARDED_SESSION_REASONS = 1024;
 	/**
@@ -155,7 +158,8 @@ public class OffHeapTrafficRecorder
 	 * {@link #MAX_DISCARDED_SESSION_REASONS}. A {@link ConcurrentHashMap} because {@link #discardSession} and
 	 * the {@code record*} paths run on different threads.
 	 */
-	private final Map<UUID, TrafficRecorderMissReason> discardedSessionReasons = new ConcurrentHashMap<>();
+	private final ConcurrentHashMap<UUID, TrafficRecorderMissReason> discardedSessionReasons =
+		CollectionUtils.createConcurrentHashMap(64);
 	/**
 	 * Queue of all sessions that were finished and are waiting to be written to disk buffer.
 	 */
@@ -898,7 +902,7 @@ public class OffHeapTrafficRecorder
 		// records and the eventual close of the now-removed session are attributed to the real reason instead
 		// of the benign SAMPLING (bounded: closeSession evicts the entry; the size guard caps the pathological
 		// never-closed case, whose trailing records then fall back to SAMPLING)
-		if (this.discardedSessionReasons.size() < MAX_DISCARDED_SESSION_REASONS) {
+		if (this.discardedSessionReasons.mappingCount() < MAX_DISCARDED_SESSION_REASONS) {
 			this.discardedSessionReasons.put(sessionTraffic.getSessionId(), reason);
 		}
 		// remove the session from the tracked sessions index
