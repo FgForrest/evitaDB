@@ -25,6 +25,7 @@ package io.evitadb.externalApi.observability.agent;
 
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.exception.NotMonitored;
 import net.bytebuddy.agent.builder.AgentBuilder;
 import net.bytebuddy.asm.Advice;
 import net.bytebuddy.asm.Advice.OnMethodExit;
@@ -57,21 +58,24 @@ public class ErrorMonitoringAgent {
 			.with(AgentBuilder.RedefinitionStrategy.RETRANSFORMATION)
 			.ignore(none())
 			.ignore(nameStartsWith("net.bytebuddy."))
-			.type(isSubTypeOf(VirtualMachineError.class).and(not(isAbstract())))
+			// a type may opt out of error monitoring by carrying the @NotMonitored marker - used for
+			// control-flow signalling throwables that are expected and handled, so they must not be
+			// reported as engine/JVM errors (e.g. the traffic recorder's memory-shortage signal).
+			.type(isSubTypeOf(VirtualMachineError.class).and(not(isAbstract())).and(not(isAnnotatedWith(NotMonitored.class))))
 			.transform((builder, typeDescription, classLoader, module, protectionDomain) -> builder
 				.visit(
 					Advice
 						.to(JavaErrorConstructorInterceptAdvice.class)
 						.on(isConstructor())
 				))
-			.type(isSubTypeOf(EvitaInternalError.class).and(not(isAbstract())))
+			.type(isSubTypeOf(EvitaInternalError.class).and(not(isAbstract())).and(not(isAnnotatedWith(NotMonitored.class))))
 			.transform((builder, typeDescription, classLoader, module, protectionDomain) -> builder
 				.visit(
 					Advice
 						.to(EvitaDbErrorConstructorInterceptAdvice.class)
 						.on(isConstructor())
 				))
-			.type(isSubTypeOf(EvitaInvalidUsageException.class).and(not(isAbstract())))
+			.type(isSubTypeOf(EvitaInvalidUsageException.class).and(not(isAbstract())).and(not(isAnnotatedWith(NotMonitored.class))))
 			.transform((builder, typeDescription, classLoader, module, protectionDomain) -> builder
 				.visit(
 					Advice

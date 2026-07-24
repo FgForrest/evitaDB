@@ -932,6 +932,37 @@ class DiskRingBufferTest {
 	}
 
 	/**
+	 * Tests for the disk-write accounting gauges: {@link DiskRingBuffer#getBytesAppendedTotal()},
+	 * {@link DiskRingBuffer#getResidentSessionCount()} and {@link DiskRingBuffer#getUsedBytes()}.
+	 */
+	@Nested
+	@DisplayName("Byte accounting gauges")
+	class ByteAccountingTest {
+
+		@Test
+		@DisplayName("Should account appended bytes, resident session count and used bytes after a single session")
+		void shouldAccountBytesAndResidentSessionAfterSingleAppend() {
+			final int bodySize = 512;
+			final SessionLocation session = writeSession(DiskRingBufferTest.this.diskRingBuffer, bodySize, (byte) 'Z');
+
+			// getBytesAppendedTotal counts the lead descriptor plus the body of the one appended session
+			assertEquals(
+				bodySize + LEAD_DESCRIPTOR_BYTE_SIZE, DiskRingBufferTest.this.diskRingBuffer.getBytesAppendedTotal(),
+				"appended-byte total must equal the descriptor plus body of the single session"
+			);
+			// exactly one session is resident in the ring buffer window
+			assertEquals(1, DiskRingBufferTest.this.diskRingBuffer.getResidentSessionCount());
+			// used bytes equals the resident session's on-disk length and is strictly positive
+			assertTrue(DiskRingBufferTest.this.diskRingBuffer.getUsedBytes() > 0L);
+			assertEquals(
+				session.location().recordLength(), DiskRingBufferTest.this.diskRingBuffer.getUsedBytes(),
+				"used bytes must equal the resident session's on-disk record length"
+			);
+		}
+
+	}
+
+	/**
 	 * Tests for {@link DiskRingBuffer#close(java.util.function.Consumer)} resource cleanup.
 	 */
 	@Nested

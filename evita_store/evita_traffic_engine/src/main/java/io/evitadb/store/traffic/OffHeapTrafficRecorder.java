@@ -52,6 +52,7 @@ import io.evitadb.core.executor.Scheduler;
 import io.evitadb.core.management.FileManagementService;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.exception.NotMonitored;
 import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.spi.store.catalog.trafficRecorder.RandomAccessFileSessionSink;
 import io.evitadb.spi.store.catalog.trafficRecorder.SessionSink;
@@ -62,6 +63,8 @@ import io.evitadb.store.kryo.ObservableInput;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
 import io.evitadb.store.query.QuerySerializationKryoConfigurer;
 import io.evitadb.store.shared.kryo.KryoFactory;
+import io.evitadb.store.traffic.event.TrafficRecorderMissReason;
+import io.evitadb.store.traffic.event.TrafficRecorderSkippedRecordsEvent;
 import io.evitadb.store.traffic.event.TrafficRecorderStatisticsEvent;
 import io.evitadb.store.traffic.serializer.CurrentSessionRecordContext;
 import io.evitadb.store.traffic.stream.RingBufferInputStream;
@@ -79,6 +82,7 @@ import java.io.Serial;
 import java.nio.ByteBuffer;
 import java.time.OffsetDateTime;
 import java.util.Arrays;
+import java.util.EnumMap;
 import java.util.Map;
 import java.util.PrimitiveIterator.OfInt;
 import java.util.Queue;
@@ -138,23 +142,36 @@ public class OffHeapTrafficRecorder
 	 */
 	private final Queue<SessionTraffic> finalizedSessions = new ConcurrentLinkedQueue<>();
 	/**
-	 * Counter of records used in sampling calculation.
+	 * Enumerates the miss reasons once so per-reason counters and the periodic delta bookkeeping can be
+	 * indexed by {@link TrafficRecorderMissReason#ordinal()} without recomputing {@code values()}.
+	 */
+	private static final TrafficRecorderMissReason[] MISS_REASONS = TrafficRecorderMissReason.values();
+	/**
+	 * Counter of records successfully captured. Monotonic (never reset) so the periodic metric emission
+	 * can publish it as a delta; the sampling ratio uses it relative to {@link #samplingRecordedBaseline}.
 	 */
 	private final AtomicLong recordedRecords = new AtomicLong();
 	/**
-	 * Counter of missed records due to memory shortage or sampling.
+	 * Per-reason counters of records that were not persisted (see {@link TrafficRecorderMissReason}).
+	 * Monotonic; pre-populated with one {@link AtomicLong} per reason at construction time so only atomic
+	 * reads/updates of the values ever happen afterwards (no structural modification -> concurrent-safe).
 	 */
-	private final AtomicLong missedRecords = new AtomicLong();
+	private final Map<TrafficRecorderMissReason, AtomicLong> missedRecordsByReason = createReasonCounters();
 	/**
-	 * Counter of dropped sessions due to memory shortage.
+	 * Per-reason counters of whole sessions that were dropped (see {@link TrafficRecorderMissReason}).
+	 * Same monotonic/pre-populated contract as {@link #missedRecordsByReason}.
 	 */
-	private final AtomicLong droppedSessions = new AtomicLong();
+	private final Map<TrafficRecorderMissReason, AtomicLong> droppedSessionsByReason = createReasonCounters();
 	/**
-	 * Counter of created sessions.
+	 * Counter of off-heap memory blocks allocated over the recorder's lifetime (monotonic, delta-emitted).
+	 */
+	private final AtomicLong blocksAllocated = new AtomicLong();
+	/**
+	 * Counter of created (admitted) sessions. Monotonic, delta-emitted.
 	 */
 	private final AtomicLong createdSessions = new AtomicLong();
 	/**
-	 * Counter of finished sessions.
+	 * Counter of finished (cleanly closed and queued to disk) sessions. Monotonic, delta-emitted.
 	 */
 	private final AtomicLong finishedSessions = new AtomicLong();
 	/**
@@ -169,6 +186,11 @@ public class OffHeapTrafficRecorder
 	 * Queue contains indexes of free blocks available for usage.
 	 */
 	private Queue<Integer> freeBlocks;
+	/**
+	 * Total number of off-heap memory blocks the buffer is divided into (capacity / blockSizeBytes). Set
+	 * once in {@link #init}; used together with {@code freeBlocks.size()} to derive the used-blocks gauge.
+	 */
+	private int totalMemoryBlocks;
 	/**
 	 * Ring buffer used for storing traffic data when they are completed in the memory buffer.
 	 */
@@ -185,6 +207,15 @@ public class OffHeapTrafficRecorder
 	 */
 	private int samplingPercentage;
 	/**
+	 * Baselines captured at the last {@link #setSamplingPercentage} call so the sampling ratio restarts
+	 * fresh for a new target WITHOUT resetting the monotonic metric counters (resetting them would make
+	 * the periodic delta emission go negative). The ratio is
+	 * {@code (recordedRecords - samplingRecordedBaseline) / ((recordedRecords - samplingRecordedBaseline) +
+	 * (sampledOut - samplingSampledOutBaseline))}, where {@code sampledOut} is the SAMPLING-reason counter.
+	 */
+	private volatile long samplingRecordedBaseline;
+	private volatile long samplingSampledOutBaseline;
+	/**
 	 * Contains reference to the asynchronous task executor that clears finalized session memory blocks and writes
 	 * them to disk buffer.
 	 */
@@ -197,6 +228,22 @@ public class OffHeapTrafficRecorder
 	 * Last time when the data from the {@link #diskBuffer} was read.
 	 */
 	private long lastRead = -1;
+	/**
+	 * Last emitted cumulative counter values, captured after each {@link #freeMemory()} emission so the
+	 * next emission can publish the delta since the previous one. Only ever touched inside the
+	 * {@code synchronized} {@link #freeMemory()}, so plain fields are sufficient.
+	 */
+	private long lastCreatedSessionsEmitted;
+	private long lastFinishedSessionsEmitted;
+	private long lastRecordedRecordsEmitted;
+	private long lastBlocksAllocatedEmitted;
+	private long lastDiskBytesAppendedEmitted;
+	/**
+	 * Per-reason last-emitted values (indexed by {@link TrafficRecorderMissReason#ordinal()}) backing the
+	 * delta emission of {@link TrafficRecorderSkippedRecordsEvent}. Only touched inside {@link #freeMemory()}.
+	 */
+	private final long[] lastMissedRecordsEmitted = new long[MISS_REASONS.length];
+	private final long[] lastDroppedSessionsEmitted = new long[MISS_REASONS.length];
 
 	/**
 	 * Converts an {@link OffsetDateTime} to epoch milliseconds without allocating an intermediate
@@ -211,6 +258,22 @@ public class OffHeapTrafficRecorder
 	 */
 	private static long epochMillis(@Nonnull OffsetDateTime offsetDateTime) {
 		return offsetDateTime.toEpochSecond() * 1000L + offsetDateTime.getNano() / 1_000_000;
+	}
+
+	/**
+	 * Creates a fully pre-populated map holding one {@link AtomicLong} per {@link TrafficRecorderMissReason}.
+	 * Because every key is present from the start and no key is ever added or removed afterwards, concurrent
+	 * {@code get(...)} reads on the returned {@link EnumMap} are safe without additional synchronization.
+	 *
+	 * @return an enum map with a zeroed counter for every reason
+	 */
+	@Nonnull
+	private static Map<TrafficRecorderMissReason, AtomicLong> createReasonCounters() {
+		final Map<TrafficRecorderMissReason, AtomicLong> counters = new EnumMap<>(TrafficRecorderMissReason.class);
+		for (final TrafficRecorderMissReason reason : MISS_REASONS) {
+			counters.put(reason, new AtomicLong());
+		}
+		return counters;
 	}
 
 	public OffHeapTrafficRecorder() {
@@ -241,8 +304,10 @@ public class OffHeapTrafficRecorder
 
 	@Override
 	public void setSamplingPercentage(int samplingPercentage) {
-		this.recordedRecords.set(0);
-		this.missedRecords.set(0);
+		// rebaseline the sampling ratio so it restarts fresh for the new target, WITHOUT resetting the
+		// monotonic metric counters - resetting them would make the periodic delta emission go negative
+		this.samplingRecordedBaseline = this.recordedRecords.get();
+		this.samplingSampledOutBaseline = this.missedRecordsByReason.get(TrafficRecorderMissReason.SAMPLING).get();
 		this.samplingPercentage = samplingPercentage;
 	}
 
@@ -279,9 +344,9 @@ public class OffHeapTrafficRecorder
 					catalogVersion,
 					created
 				),
-				ex -> discardSession(sessionTraffic),
+				ex -> discardSession(sessionTraffic, TrafficRecorderMissReason.MEMORY_SHORTAGE),
 				ex -> {
-					discardSession(sessionTraffic);
+					discardSession(sessionTraffic, TrafficRecorderMissReason.SERIALIZATION_ERROR);
 					log.error("Failed to record session start for session {}.", sessionId, ex);
 				},
 				() -> {
@@ -290,7 +355,9 @@ public class OffHeapTrafficRecorder
 				}
 			);
 		} else {
-			this.missedRecords.incrementAndGet();
+			// deliberate sampling skip: the session is not admitted because the recorded fraction already
+			// meets the configured target - benign, tracked under the SAMPLING reason
+			this.missedRecordsByReason.get(TrafficRecorderMissReason.SAMPLING).incrementAndGet();
 		}
 	}
 
@@ -316,9 +383,9 @@ public class OffHeapTrafficRecorder
 					sessionTraffic.getMutationCount(),
 					finishedWithError
 				),
-				ex -> discardSession(sessionTraffic),
+				ex -> discardSession(sessionTraffic, TrafficRecorderMissReason.MEMORY_SHORTAGE),
 				ex -> {
-					discardSession(sessionTraffic);
+					discardSession(sessionTraffic, TrafficRecorderMissReason.SERIALIZATION_ERROR);
 					log.error("Failed to record session close for session {}.", sessionId, ex);
 				},
 				() -> {
@@ -330,7 +397,9 @@ public class OffHeapTrafficRecorder
 				}
 			);
 		} else {
-			this.missedRecords.incrementAndGet();
+			// closing a session that was never tracked (it was sampled out at creation, or already
+			// discarded) - benign, tracked under the SAMPLING reason
+			this.missedRecordsByReason.get(TrafficRecorderMissReason.SAMPLING).incrementAndGet();
 		}
 	}
 
@@ -648,6 +717,7 @@ public class OffHeapTrafficRecorder
 		final int capacity = (int) (trafficMemoryBufferSizeInBytes - (trafficMemoryBufferSizeInBytes % this.blockSizeBytes));
 		this.memoryBlock.set(ByteBuffer.allocateDirect(capacity));
 		final int blockCount = capacity / this.blockSizeBytes;
+		this.totalMemoryBlocks = blockCount;
 		// initialize free blocks queue, all blocks are free at the beginning
 		this.freeBlocks = new ArrayBlockingQueue<>(blockCount, true);
 		// initialize observable outputs for each memory block
@@ -758,8 +828,12 @@ public class OffHeapTrafficRecorder
 									this.freeBlocks.offer(block);
 								}
 							}
-							this.droppedSessions.incrementAndGet();
-							this.missedRecords.addAndGet(finalizedSession.getRecordCount());
+							// classify the drop cause: DATA_TOO_LARGE from appendSession (session larger than the
+							// whole disk ring buffer) is DISK_SHORTAGE, a failed disk write is IO_ERROR
+							final TrafficRecorderMissReason reason = ex instanceof MemoryNotAvailableException ?
+								TrafficRecorderMissReason.DISK_SHORTAGE : TrafficRecorderMissReason.IO_ERROR;
+							this.droppedSessionsByReason.get(reason).incrementAndGet();
+							this.missedRecordsByReason.get(reason).addAndGet(finalizedSession.getRecordCount());
 							log.warn(
 								"Finalized session {} ({} bytes) could not be persisted to the traffic disk buffer and was dropped: {}",
 								finalizedSession.getSessionId(), totalSize, ex.getMessage()
@@ -773,16 +847,17 @@ public class OffHeapTrafficRecorder
 
 	/**
 	 * Discards the current session by freeing associated memory resources and
-	 * incrementing relevant counters for dropped sessions and missed records.
-	 * This is typically invoked in scenarios where there's a memory shortage,
-	 * and the session needs to be closed with its data being discarded.
+	 * incrementing the per-reason dropped-session and missed-record counters.
+	 * This is typically invoked when a session cannot be recorded (memory shortage)
+	 * or its serialization failed, and the session needs to be closed with its data discarded.
 	 *
 	 * @param sessionTraffic the session traffic containing memory block IDs and record count
+	 * @param reason         the reason the session is being discarded (drives the metric dimension)
 	 */
-	private void discardSession(@Nonnull SessionTraffic sessionTraffic) {
+	private void discardSession(@Nonnull SessionTraffic sessionTraffic, @Nonnull TrafficRecorderMissReason reason) {
 		this.copyBufferPool.free(sessionTraffic.discard());
-		this.droppedSessions.incrementAndGet();
-		this.missedRecords.addAndGet(sessionTraffic.getRecordCount());
+		this.droppedSessionsByReason.get(reason).incrementAndGet();
+		this.missedRecordsByReason.get(reason).addAndGet(sessionTraffic.getRecordCount());
 		// when there is memory shortage, when session is closed - free the memory and throw away the data
 		final OfInt memoryBlockIds = sessionTraffic.getMemoryBlockIds();
 		while (memoryBlockIds.hasNext()) {
@@ -795,19 +870,24 @@ public class OffHeapTrafficRecorder
 	}
 
 	/**
-	 * Calculates the current sampling rate as a percentage.
-	 * The sampling rate is determined based on the ratio of recorded records to the total of recorded and missed records.
-	 * If no records have been recorded or missed yet, the method returns 0 - this makes the very first session pass
-	 * the {@code currentRate <= samplingPercentage} gate in {@link #createSession} (for any target above zero) and
-	 * start recording, after which the ratio tracks the configured target.
+	 * Calculates the current sampling rate as a percentage since the last {@link #setSamplingPercentage}
+	 * rebaseline. The rate is the ratio of recorded records to the total of recorded records and records
+	 * deliberately skipped for SAMPLING - failure drops (memory/disk shortage, IO, serialization errors)
+	 * are intentionally EXCLUDED: counting them here would lower the computed rate and make the sampling
+	 * gate in {@link #createSession} admit MORE sessions exactly when the recorder is already under
+	 * pressure (a positive-feedback loop). If nothing has been recorded or sampled out yet, the method
+	 * returns 0 - this makes the very first session pass the {@code currentRate <= samplingPercentage}
+	 * gate (for any target above zero) and start recording, after which the ratio tracks the target.
 	 *
 	 * @return the current sampling rate as an integer percentage (0-100)
 	 */
 	private int computeCurrentSamplingRate() {
-		final long recorded = this.recordedRecords.get();
-		final long missed = this.missedRecords.get();
-		final long recordedAndMissed = recorded + missed;
-		return recordedAndMissed == 0 ? 0 : (int) (((double) recorded / (double) recordedAndMissed) * 100.0);
+		final long recorded = this.recordedRecords.get() - this.samplingRecordedBaseline;
+		final long sampledOut = this.missedRecordsByReason.get(TrafficRecorderMissReason.SAMPLING).get() -
+			this.samplingSampledOutBaseline;
+		final long recordedAndSampledOut = recorded + sampledOut;
+		return recordedAndSampledOut <= 0 ?
+			0 : (int) (((double) recorded / (double) recordedAndSampledOut) * 100.0);
 	}
 
 	/**
@@ -872,10 +952,10 @@ public class OffHeapTrafficRecorder
 			final T container = containerFactory.apply(sessionTraffic);
 			sessionTraffic.record(
 				container,
-				ex -> discardSession(sessionTraffic),
+				ex -> discardSession(sessionTraffic, TrafficRecorderMissReason.MEMORY_SHORTAGE),
 				ex -> {
 					log.error("Failed to record traffic data for session {}.", sessionTraffic.getSessionId(), ex);
-					discardSession(sessionTraffic);
+					discardSession(sessionTraffic, TrafficRecorderMissReason.SERIALIZATION_ERROR);
 				},
 				this.recordedRecords::incrementAndGet
 			);
@@ -883,7 +963,9 @@ public class OffHeapTrafficRecorder
 			if (sessionTraffic != null) {
 				sessionTraffic.registerRecordMissedOut();
 			}
-			this.missedRecords.incrementAndGet();
+			// no active recording session for this record (sampled out or already finished) - benign,
+			// tracked under the SAMPLING reason
+			this.missedRecordsByReason.get(TrafficRecorderMissReason.SAMPLING).incrementAndGet();
 		}
 	}
 
@@ -904,6 +986,7 @@ public class OffHeapTrafficRecorder
 		if (freeBlockId == null) {
 			throw MemoryNotAvailableException.NO_SLOT_FREE;
 		} else {
+			this.blocksAllocated.incrementAndGet();
 			return new NumberedByteBuffer(
 				freeBlockId,
 				this.memoryBlock.get()
@@ -934,16 +1017,12 @@ public class OffHeapTrafficRecorder
 	 * @return Always returns -1 as a placeholder for future implementations or changes.
 	 */
 	private synchronized long freeMemory() {
+		// capture the drain backlog BEFORE draining - after the drain it is ~0 and would never show buildup
+		final int finalizedSessionsBacklog = this.finalizedSessions.size();
 		drainFinalizedSessionsToDisk();
 
-		// publish statistic information
-		new TrafficRecorderStatisticsEvent(
-			this.catalogName,
-			this.missedRecords.get(),
-			this.droppedSessions.get(),
-			this.createdSessions.get(),
-			this.finishedSessions.get()
-		).commit();
+		// publish throughput/memory/churn snapshot + per-reason skip breakdown
+		publishStatisticsEvents(finalizedSessionsBacklog);
 
 		// if the disk buffer wasn't read for a long time, we can purge it
 		if (this.lastRead > 0 && System.currentTimeMillis() - this.lastRead > INDEX_INACTIVITY_DURATION) {
@@ -951,6 +1030,66 @@ public class OffHeapTrafficRecorder
 		}
 
 		return -1L;
+	}
+
+	/**
+	 * Publishes the periodic traffic-recorder metrics: a {@link TrafficRecorderStatisticsEvent} snapshot
+	 * (throughput counters as deltas since the previous emission, memory/churn state as instantaneous
+	 * gauges) followed by one {@link TrafficRecorderSkippedRecordsEvent} per {@link TrafficRecorderMissReason}
+	 * that saw activity (its missed/dropped counters as deltas). Emitting deltas is required because the
+	 * metric pipeline increments the Prometheus counter by the committed value on each event; emitting the
+	 * cumulative totals would over-count. Idle reasons are skipped to avoid emitting no-op zero increments.
+	 *
+	 * Invoked only while holding this recorder's monitor (from the {@code synchronized} {@link #freeMemory()}
+	 * and marked {@code synchronized} itself so a direct test call is equally safe), which is what makes the
+	 * plain {@code lastXxxEmitted} delta bookkeeping race-free.
+	 *
+	 * @param finalizedSessionsBacklog drain backlog sampled by the caller before the preceding drain, so the
+	 *                                 gauge reflects accumulation rather than the post-drain (near-zero) state
+	 */
+	synchronized void publishStatisticsEvents(int finalizedSessionsBacklog) {
+		final long createdSessionsNow = this.createdSessions.get();
+		final long finishedSessionsNow = this.finishedSessions.get();
+		final long recordedRecordsNow = this.recordedRecords.get();
+		final long blocksAllocatedNow = this.blocksAllocated.get();
+		final long diskBytesAppendedNow = this.diskBuffer.getBytesAppendedTotal();
+
+		new TrafficRecorderStatisticsEvent(
+			this.catalogName,
+			createdSessionsNow - this.lastCreatedSessionsEmitted,
+			finishedSessionsNow - this.lastFinishedSessionsEmitted,
+			recordedRecordsNow - this.lastRecordedRecordsEmitted,
+			blocksAllocatedNow - this.lastBlocksAllocatedEmitted,
+			diskBytesAppendedNow - this.lastDiskBytesAppendedEmitted,
+			this.totalMemoryBlocks - this.freeBlocks.size(),
+			this.totalMemoryBlocks,
+			this.trackedSessionsIndex.size(),
+			finalizedSessionsBacklog,
+			this.diskBuffer.getUsedBytes(),
+			this.diskBuffer.getResidentSessionCount()
+		).commit();
+
+		this.lastCreatedSessionsEmitted = createdSessionsNow;
+		this.lastFinishedSessionsEmitted = finishedSessionsNow;
+		this.lastRecordedRecordsEmitted = recordedRecordsNow;
+		this.lastBlocksAllocatedEmitted = blocksAllocatedNow;
+		this.lastDiskBytesAppendedEmitted = diskBytesAppendedNow;
+
+		// one event per reason that changed since the previous emission (idle reasons are skipped)
+		for (final TrafficRecorderMissReason reason : MISS_REASONS) {
+			final int ordinal = reason.ordinal();
+			final long missedNow = this.missedRecordsByReason.get(reason).get();
+			final long droppedNow = this.droppedSessionsByReason.get(reason).get();
+			final long missedDelta = missedNow - this.lastMissedRecordsEmitted[ordinal];
+			final long droppedDelta = droppedNow - this.lastDroppedSessionsEmitted[ordinal];
+			if (missedDelta != 0 || droppedDelta != 0) {
+				new TrafficRecorderSkippedRecordsEvent(
+					this.catalogName, reason.name(), missedDelta, droppedDelta
+				).commit();
+				this.lastMissedRecordsEmitted[ordinal] = missedNow;
+				this.lastDroppedSessionsEmitted[ordinal] = droppedNow;
+			}
+		}
 	}
 
 	/**
@@ -985,7 +1124,12 @@ public class OffHeapTrafficRecorder
 	 * (never surfaced to a client), so the fact that their captured stack traces point at class-load
 	 * time rather than the actual throw site is intentional and acceptable - it avoids the cost of
 	 * filling in a stack trace on every memory-shortage occurrence on the hot recording path.
+	 *
+	 * The type is marked {@link NotMonitored} because it is a benign, expected-and-handled control-flow
+	 * signal (a skipped intercept), not an engine fault - it is tracked through the traffic-recorder skip
+	 * metrics ({@link TrafficRecorderSkippedRecordsEvent}) rather than the internal-error metric.
 	 */
+	@NotMonitored
 	public static class MemoryNotAvailableException extends EvitaInternalError {
 		public static final MemoryNotAvailableException NO_SLOT_FREE = new MemoryNotAvailableException(
 			"No free slot in memory buffer!");

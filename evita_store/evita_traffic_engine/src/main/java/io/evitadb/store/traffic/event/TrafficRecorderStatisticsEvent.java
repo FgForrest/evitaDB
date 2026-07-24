@@ -39,7 +39,14 @@ import lombok.RequiredArgsConstructor;
 import static io.evitadb.store.traffic.event.TrafficRecorderStatisticsEvent.PACKAGE_NAME;
 
 /**
- * Event that regularly monitors traffic recorder statistics
+ * Event that regularly monitors traffic recorder throughput and memory/churn state. It is emitted once
+ * per memory-buffer flush cycle and carries a snapshot of the recorder's health.
+ *
+ * The COUNTER fields carry the DELTA since the previous emission (not the cumulative total), because
+ * the metric pipeline increments the Prometheus counter by the emitted value on every commit; emitting
+ * the cumulative value would over-count. The GAUGE fields carry the instantaneous value at flush time.
+ *
+ * Per-reason skip/drop breakdown lives in the sibling {@link TrafficRecorderSkippedRecordsEvent}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
@@ -58,7 +65,7 @@ public class TrafficRecorderStatisticsEvent extends CustomMetricsExecutionEvent 
 	public static final String PACKAGE_NAME = "io.evitadb.store.traffic";
 
 	/**
-	 * The name of the catalog the transaction relates to.
+	 * The name of the catalog the traffic recorder relates to.
 	 */
 	@Label("Catalog")
 	@Name("catalogName")
@@ -66,38 +73,104 @@ public class TrafficRecorderStatisticsEvent extends CustomMetricsExecutionEvent 
 	final String catalogName;
 
 	/**
-	 * Counter of missed records due to memory shortage or sampling.
-	 */
-	@Label("Missed records")
-	@Name("missedRecords")
-	@Description("Counter of missed records due to memory shortage or sampling.")
-	@ExportMetric(metricType = MetricType.COUNTER)
-	private final long missedRecords;
-
-	/**
-	 * Counter of dropped sessions due to memory shortage.
-	 */
-	@Label("Dropped sessions")
-	@Name("droppedSessions")
-	@Description("Counter of dropped sessions due to memory shortage.")
-	@ExportMetric(metricType = MetricType.COUNTER)
-	private final long droppedSessions;
-	/**
-	 * Counter of created sessions.
+	 * Number of sessions successfully admitted for recording since the previous emission.
 	 */
 	@Label("Created sessions")
 	@Name("createdSessions")
-	@Description("Created sessions.")
+	@Description("Number of sessions admitted for recording since the previous emission.")
 	@ExportMetric(metricType = MetricType.COUNTER)
 	private final long createdSessions;
 
 	/**
-	 * Counter of finished sessions.
+	 * Number of sessions closed cleanly and queued to disk since the previous emission.
 	 */
 	@Label("Finished sessions")
 	@Name("finishedSessions")
-	@Description("Recorded sessions.")
+	@Description("Number of sessions closed cleanly and queued to disk since the previous emission.")
 	@ExportMetric(metricType = MetricType.COUNTER)
 	private final long finishedSessions;
+
+	/**
+	 * Number of traffic records successfully captured since the previous emission (ingest throughput).
+	 */
+	@Label("Recorded records")
+	@Name("recordedRecords")
+	@Description("Number of traffic records successfully captured since the previous emission.")
+	@ExportMetric(metricType = MetricType.COUNTER)
+	private final long recordedRecords;
+
+	/**
+	 * Number of off-heap memory blocks allocated since the previous emission (off-heap churn rate).
+	 */
+	@Label("Memory blocks allocated")
+	@Name("blocksAllocated")
+	@Description("Number of off-heap memory blocks allocated since the previous emission.")
+	@ExportMetric(metricType = MetricType.COUNTER)
+	private final long blocksAllocated;
+
+	/**
+	 * Number of bytes appended to the disk ring buffer since the previous emission (disk write throughput).
+	 */
+	@Label("Disk bytes appended")
+	@Name("diskBytesAppended")
+	@Description("Number of bytes appended to the disk ring buffer since the previous emission.")
+	@ExportMetric(metricType = MetricType.COUNTER)
+	private final long diskBytesAppended;
+
+	/**
+	 * Number of off-heap memory blocks currently in use - the primary memory-pressure signal (compare
+	 * with {@link #totalMemoryBlocks}; approaching it foreshadows memory-shortage drops).
+	 */
+	@Label("Used memory blocks")
+	@Name("usedMemoryBlocks")
+	@Description("Number of off-heap memory blocks currently in use (primary memory-pressure signal).")
+	@ExportMetric(metricType = MetricType.GAUGE)
+	private final long usedMemoryBlocks;
+
+	/**
+	 * Total number of off-heap memory blocks available to the recorder (denominator for the utilization ratio).
+	 */
+	@Label("Total memory blocks")
+	@Name("totalMemoryBlocks")
+	@Description("Total number of off-heap memory blocks available to the recorder.")
+	@ExportMetric(metricType = MetricType.GAUGE)
+	private final long totalMemoryBlocks;
+
+	/**
+	 * Number of live in-flight sessions currently holding off-heap blocks.
+	 */
+	@Label("Active sessions")
+	@Name("activeSessions")
+	@Description("Number of live in-flight sessions currently holding off-heap blocks.")
+	@ExportMetric(metricType = MetricType.GAUGE)
+	private final long activeSessions;
+
+	/**
+	 * Number of closed sessions waiting to be drained to disk (backlog - indicates whether the flush
+	 * task keeps up with the close rate).
+	 */
+	@Label("Finalized sessions backlog")
+	@Name("finalizedSessionsBacklog")
+	@Description("Number of closed sessions waiting to be drained to disk (flush backlog).")
+	@ExportMetric(metricType = MetricType.GAUGE)
+	private final long finalizedSessionsBacklog;
+
+	/**
+	 * Number of bytes currently occupied by resident sessions in the disk ring buffer.
+	 */
+	@Label("Disk buffer used bytes")
+	@Name("diskBufferUsedBytes")
+	@Description("Number of bytes currently occupied by resident sessions in the disk ring buffer.")
+	@ExportMetric(metricType = MetricType.GAUGE)
+	private final long diskBufferUsedBytes;
+
+	/**
+	 * Number of sessions currently resident in the disk ring buffer.
+	 */
+	@Label("Disk resident sessions")
+	@Name("diskResidentSessions")
+	@Description("Number of sessions currently resident in the disk ring buffer.")
+	@ExportMetric(metricType = MetricType.GAUGE)
+	private final long diskResidentSessions;
 
 }

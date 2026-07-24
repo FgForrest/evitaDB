@@ -61,6 +61,8 @@
     <dd><strong>Prospective (client/server)</strong>: Identifies whether the event represents whether event represents server or client view of readiness.
 Client view is the duration viewed from the HTTP client side affected by timeouts, server view is the real
 duration of the probe.</dd>
+    <dt>reason</dt>
+    <dd><strong>Reason</strong>: Why the records/sessions were not persisted (e.g. SAMPLING, MEMORY_SHORTAGE, DISK_SHORTAGE, IO_ERROR, SERIALIZATION_ERROR).</dd>
     <dt>recordType</dt>
     <dd><strong>Record type</strong>: Type of records that changed in the OffsetIndex.</dd>
     <dt>requestResult</dt>
@@ -267,14 +269,32 @@ duration of the probe.</dd>
   <dd><strong>Records scanned total</strong>: The total number of records scanned (included in the calculation).<br/><br/><strong>Labels:</strong> <Term>entityType</Term>, <Term>prefetched</Term><br/></dd>
   <dt><code>io_evitadb_query_finished_total</code> (COUNTER)</dt>
   <dd>Query finished<br/><br/><strong>Labels:</strong> <Term>entityType</Term>, <Term>prefetched</Term><br/></dd>
+  <dt><code>io_evitadb_store_traffic_traffic_recorder_skipped_records_dropped_sessions</code> (COUNTER)</dt>
+  <dd><strong>Dropped sessions</strong>: Number of whole sessions dropped for this reason since the previous emission.<br/><br/><strong>Labels:</strong> <Term>reason</Term><br/></dd>
+  <dt><code>io_evitadb_store_traffic_traffic_recorder_skipped_records_missed_records</code> (COUNTER)</dt>
+  <dd><strong>Missed records</strong>: Number of traffic records not persisted for this reason since the previous emission.<br/><br/><strong>Labels:</strong> <Term>reason</Term><br/></dd>
+  <dt><code>io_evitadb_store_traffic_traffic_recorder_statistics_active_sessions</code> (GAUGE)</dt>
+  <dd><strong>Active sessions</strong>: Number of live in-flight sessions currently holding off-heap blocks.</dd>
+  <dt><code>io_evitadb_store_traffic_traffic_recorder_statistics_blocks_allocated</code> (COUNTER)</dt>
+  <dd><strong>Memory blocks allocated</strong>: Number of off-heap memory blocks allocated since the previous emission.</dd>
   <dt><code>io_evitadb_store_traffic_traffic_recorder_statistics_created_sessions</code> (COUNTER)</dt>
-  <dd><strong>Created sessions</strong>: Created sessions.</dd>
-  <dt><code>io_evitadb_store_traffic_traffic_recorder_statistics_dropped_sessions</code> (COUNTER)</dt>
-  <dd><strong>Dropped sessions</strong>: Counter of dropped sessions due to memory shortage.</dd>
+  <dd><strong>Created sessions</strong>: Number of sessions admitted for recording since the previous emission.</dd>
+  <dt><code>io_evitadb_store_traffic_traffic_recorder_statistics_disk_buffer_used_bytes</code> (GAUGE)</dt>
+  <dd><strong>Disk buffer used bytes</strong>: Number of bytes currently occupied by resident sessions in the disk ring buffer.</dd>
+  <dt><code>io_evitadb_store_traffic_traffic_recorder_statistics_disk_bytes_appended</code> (COUNTER)</dt>
+  <dd><strong>Disk bytes appended</strong>: Number of bytes appended to the disk ring buffer since the previous emission.</dd>
+  <dt><code>io_evitadb_store_traffic_traffic_recorder_statistics_disk_resident_sessions</code> (GAUGE)</dt>
+  <dd><strong>Disk resident sessions</strong>: Number of sessions currently resident in the disk ring buffer.</dd>
+  <dt><code>io_evitadb_store_traffic_traffic_recorder_statistics_finalized_sessions_backlog</code> (GAUGE)</dt>
+  <dd><strong>Finalized sessions backlog</strong>: Number of closed sessions waiting to be drained to disk (flush backlog).</dd>
   <dt><code>io_evitadb_store_traffic_traffic_recorder_statistics_finished_sessions</code> (COUNTER)</dt>
-  <dd><strong>Finished sessions</strong>: Recorded sessions.</dd>
-  <dt><code>io_evitadb_store_traffic_traffic_recorder_statistics_missed_records</code> (COUNTER)</dt>
-  <dd><strong>Missed records</strong>: Counter of missed records due to memory shortage or sampling.</dd>
+  <dd><strong>Finished sessions</strong>: Number of sessions closed cleanly and queued to disk since the previous emission.</dd>
+  <dt><code>io_evitadb_store_traffic_traffic_recorder_statistics_recorded_records</code> (COUNTER)</dt>
+  <dd><strong>Recorded records</strong>: Number of traffic records successfully captured since the previous emission.</dd>
+  <dt><code>io_evitadb_store_traffic_traffic_recorder_statistics_total_memory_blocks</code> (GAUGE)</dt>
+  <dd><strong>Total memory blocks</strong>: Total number of off-heap memory blocks available to the recorder.</dd>
+  <dt><code>io_evitadb_store_traffic_traffic_recorder_statistics_used_memory_blocks</code> (GAUGE)</dt>
+  <dd><strong>Used memory blocks</strong>: Number of off-heap memory blocks currently in use (primary memory-pressure signal).</dd>
 </dl>
 
 #### Session

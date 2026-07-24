@@ -59,6 +59,7 @@ import io.evitadb.externalApi.event.ReadinessEvent;
 import io.evitadb.externalApi.event.RequestEvent;
 import io.evitadb.externalApi.grpc.metric.event.EvitaProcedureCalledEvent;
 import io.evitadb.externalApi.grpc.metric.event.SessionProcedureCalledEvent;
+import io.evitadb.store.traffic.event.TrafficRecorderSkippedRecordsEvent;
 import io.evitadb.store.traffic.event.TrafficRecorderStatisticsEvent;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
@@ -119,6 +120,7 @@ public class EvitaJfrEventRegistry {
 		ReadOnlyHandleClosedEvent.class,
 		CatalogStatisticsEvent.class,
 		TrafficRecorderStatisticsEvent.class,
+		TrafficRecorderSkippedRecordsEvent.class,
 
 		// query events
 		FinishedEvent.class,
