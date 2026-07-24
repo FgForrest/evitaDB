@@ -184,6 +184,7 @@ api:                                              # [see API configuration](#api
         endpoint: null
         protocol: grpc
       allowedEvents: null
+      exportedQueryLabels: null
       mTLS:
         enabled: null
         allowedClientCertificatePaths: null
@@ -1471,6 +1472,16 @@ pro scraping Prometheus metrics, OTEL trace exporter and Java Flight Recorder ev
         <p>**Default:** `grpc`</p>
         <p>Specifies the protocol used between the application and the OTEL collector to pass the traces. Possible 
         values are `grpc` and `http`. gRPC is much more performant and is the preferred option.</p>
+    </dd>
+    <dt>exportedQueryLabels</dt>
+    <dd>
+        <p>**Default:** `null` (nothing exported)</p>
+        <p>List of [query label](../query/header/label.md) names whose value is exposed as a Prometheus dimension on
+        query metrics. The names are arbitrary and operator-chosen - evitaDB reserves none - and each is exposed under
+        its Prometheus-sanitized form. Unlike most other configuration lists in evitaDB, an unset or empty list means
+        *nothing* is exported, not everything - see the [label cardinality safety notes](../query/header/label.md#label-cardinality-and-prometheus-export)
+        for why this default is inverted. Inherently high-cardinality labels (`trace-id`, `client-id`, `ip-address`,
+        `uri`) are reserved and rejected at startup.</p>
     </dd>
     <dt>mTls.enabled</dt>
     <dd>

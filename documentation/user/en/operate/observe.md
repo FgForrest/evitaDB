@@ -238,6 +238,46 @@ metrics by specifying the full name of their corresponding class (*package_path.
 
 Internal metrics are documented in the [Metrics reference](#reference-documentation) section.
 
+### Exporting query labels to Prometheus
+
+Query [labels](../query/header/label.md) are, by default, only visible in traces, traffic recordings and JFR events -
+not in Prometheus - because label values are arbitrary client-supplied data and often unbounded (see the
+[label cardinality safety notes](../query/header/label.md#label-cardinality-and-prometheus-export)). You can opt
+individual label names in as Prometheus dimensions on query metrics by listing them in the `exportedQueryLabels`
+configuration (`job_name` and `rest_method` below are just examples - the names are entirely up to you):
+
+```yaml
+api:
+  endpoints:
+    observability:
+      enabled: ${api.endpoints.observability.enabled:true}
+      host: ${api.endpoints.observability.host:":5555"}
+      exposeOn: ${api.endpoints.observability.exposeOn:"localhost:5555"}
+      tlsMode: ${api.endpoints.observability.tlsMode:FORCE_NO_TLS}
+      exportedQueryLabels:
+        - job_name
+        - rest_method
+```
+
+evitaDB reserves no label names - each configured name is simply matched against whatever labels a query carries and
+becomes a metric dimension named after its Prometheus-sanitized form (characters outside `[a-zA-Z0-9_]` become `_`). A
+query that doesn't carry a configured label renders that dimension as `N/A`.
+
+Unlike `allowedEvents`, an unset or empty `exportedQueryLabels` means *nothing* is exported - this is the safe default,
+because an unbounded label promoted to a dimension would blow up Prometheus time-series cardinality. Listing a name
+here is your explicit assertion that its values are bounded. A handful of inherently high-cardinality labels attached
+automatically by the system - `trace-id`, `client-id`, `ip-address` and `uri` - are reserved and can never be exported;
+the server fails to start with a clear error if any of them (or two names that sanitize to the same dimension) appear
+in the list.
+
+Two further notes on exported query labels:
+- A configured name whose sanitized form collides with a metric's own built-in dimension (for query metrics,
+  `entityType` or `prefetched`) is rejected when metrics are registered shortly after startup - this is logged and
+  metric collection fails to initialize, rather than aborting server startup the way the two configuration guards above
+  do.
+- Values are read from a comma/equals-delimited bag, so avoid commas (`,`) or equals signs (`=`) inside the values of
+  exported labels; keep them bounded and simple, as their cardinality safety requires anyway.
+
 ### JFR events
 
 The [JFR events](https://docs.oracle.com/javacomponents/jmc-5-4/jfr-runtime-guide/about.htm#JFRUH170) can also be

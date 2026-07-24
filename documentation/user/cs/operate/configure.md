@@ -182,6 +182,7 @@ api:                                              # [viz konfigurace API](#konfi
         endpoint: null
         protocol: grpc
       allowedEvents: null
+      exportedQueryLabels: null
       mTLS:
         enabled: null
         allowedClientCertificatePaths: null
@@ -1432,6 +1433,17 @@ pro scraping Prometheus metrik, OTEL trace exporter a záznam událostí Java Fl
         <p>**Výchozí:** `grpc`</p>
         <p>Určuje protokol použitý mezi aplikací a OTEL collectorem pro předávání trace záznamů. Možné
         hodnoty jsou `grpc` a `http`. gRPC je výrazně výkonnější a je preferovanou možností.</p>
+    </dd>
+    <dt>exportedQueryLabels</dt>
+    <dd>
+        <p>**Výchozí:** `null` (nic se neexportuje)</p>
+        <p>Seznam názvů [štítků dotazu](../query/header/label.md#štítek), jejichž hodnota se zpřístupní jako dimenze
+        Prometheus metrik dotazů. Názvy jsou libovolné a volí je operátor - evitaDB žádné nevyhrazuje - a každý se
+        zpřístupní ve své podobě upravené pro Prometheus. Na rozdíl od většiny ostatních konfiguračních seznamů v
+        evitaDB znamená nenastavený nebo prázdný seznam, že se *nic* neexportuje - nikoliv vše; důvod tohoto obráceného
+        výchozího chování je popsán v poznámkách o
+        [bezpečné kardinalitě štítků](../query/header/label.md#kardinalita-štítků-a-export-do-prometheus). Inherentně
+        vysokokardinální štítky (`trace-id`, `client-id`, `ip-address`, `uri`) jsou vyhrazené a při startu odmítnuté.</p>
     </dd>
     <dt>mTls.enabled</dt>
     <dd>
