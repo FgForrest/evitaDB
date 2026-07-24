@@ -355,8 +355,9 @@ public class OffHeapTrafficRecorder
 				}
 			);
 		} else {
-			// deliberate sampling skip: the session is not admitted because the recorded fraction already
-			// meets the configured target - benign, tracked under the SAMPLING reason
+			// deliberate sampling skip: the session is not admitted either because sampling is disabled
+			// (samplingPercentage <= 0) or because the recorded fraction already meets the configured target -
+			// benign in both cases, tracked under the SAMPLING reason
 			this.missedRecordsByReason.get(TrafficRecorderMissReason.SAMPLING).incrementAndGet();
 		}
 	}

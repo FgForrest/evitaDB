@@ -81,6 +81,14 @@ public class OffHeapTrafficRecorderMetricsTest implements EvitaTestSupport {
 	private static final String STATISTICS_EVENT = "io.evitadb.store.traffic.Statistics";
 	private static final String SKIPPED_EVENT = "io.evitadb.store.traffic.SkippedRecords";
 
+	/**
+	 * A globally unique catalog name for this test instance. JFR recordings are JVM-wide, so a recording
+	 * enabled by event name also captures the statistics/skipped events emitted by every other traffic
+	 * recorder alive in the fork under the parallel test suite. Filtering captured events by this unique
+	 * name (see {@link #eventsNamed}) isolates exactly the events this recorder emitted, keeping the
+	 * exact-count assertions deterministic regardless of concurrent recorders.
+	 */
+	private final String catalogName = "trafficMetricsTest_" + UUID.randomUUID().toString().replace("-", "");
 	private final Path workDirectory = getPathInTargetDirectory(UUID.randomUUID() + "/work");
 	private OffHeapTrafficRecorder trafficRecorder;
 
@@ -104,7 +112,7 @@ public class OffHeapTrafficRecorderMetricsTest implements EvitaTestSupport {
 			.build();
 		final Scheduler scheduler = new Scheduler(new ImmediateScheduledThreadPoolExecutor());
 		this.trafficRecorder.init(
-			TEST_CATALOG,
+			this.catalogName,
 			new FileManagementService(storageOptions),
 			scheduler,
 			storageOptions,
@@ -315,10 +323,16 @@ public class OffHeapTrafficRecorderMetricsTest implements EvitaTestSupport {
 		}
 	}
 
+	/**
+	 * Returns the captured events of the given type that belong to THIS recorder instance, matched by the
+	 * unique {@link #catalogName}. The catalog-name filter is essential: JFR recordings are JVM-wide, so
+	 * without it a concurrently running traffic recorder's events would inflate the exact-count assertions.
+	 */
 	@Nonnull
-	private static List<RecordedEvent> eventsNamed(@Nonnull List<RecordedEvent> events, @Nonnull String eventName) {
+	private List<RecordedEvent> eventsNamed(@Nonnull List<RecordedEvent> events, @Nonnull String eventName) {
 		return events.stream()
 			.filter(event -> eventName.equals(event.getEventType().getName()))
+			.filter(event -> this.catalogName.equals(event.getString("catalogName")))
 			.toList();
 	}
 
