@@ -27,9 +27,11 @@ import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.SessionTraits;
 import io.evitadb.api.SessionTraits.SessionFlags;
 import io.evitadb.api.TransactionContract.CommitBehavior;
+import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
+import io.evitadb.api.requestResponse.extraResult.PriceHistogram;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.core.Evita;
 import io.evitadb.core.catalog.Catalog;
@@ -57,13 +59,16 @@ import static io.evitadb.api.query.QueryConstraints.filterBy;
 import static io.evitadb.api.query.QueryConstraints.priceBetween;
 import static io.evitadb.api.query.QueryConstraints.priceContentAll;
 import static io.evitadb.api.query.QueryConstraints.priceInCurrency;
+import static io.evitadb.api.query.QueryConstraints.priceHistogram;
 import static io.evitadb.api.query.QueryConstraints.priceInPriceLists;
+import static io.evitadb.api.query.QueryConstraints.require;
 import static io.evitadb.api.query.QueryConstraints.scope;
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.PRICE;
 import static io.evitadb.test.TestTags.REFERENCE;
 import static io.evitadb.test.TestTags.TRANSACTION;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -151,6 +156,11 @@ class PrunedCommitMergeCrossScopeIndexCarryTest implements EvitaTestSupport {
 		// the mutated LIVE scope reports the new price, and no longer the old one
 		assertPriceQueryReturns(Scope.LIVE, BigDecimal.valueOf(20), LIVE_PRODUCT_PK);
 		assertPriceQueryReturns(Scope.LIVE, BigDecimal.TEN);
+		// the assertions above exercise the FILTER, which reads each reduced index's own price-record tree. The super
+		// index the caller resolves per operation is consumed when price records are materialized - a histogram does
+		// that - so this is what actually pins cross-scope price resolution.
+		assertPriceHistogramReports(Scope.ARCHIVED, BigDecimal.TEN);
+		assertPriceHistogramReports(Scope.LIVE, BigDecimal.valueOf(20));
 	}
 
 	/**
@@ -281,6 +291,52 @@ class PrunedCommitMergeCrossScopeIndexCarryTest implements EvitaTestSupport {
 				expected, found,
 				"Price query in scope `" + scope + "` at " + price + " must return exactly " + Arrays.toString(expected) +
 					" but returned " + Arrays.toString(found) + "!"
+			);
+		}
+	}
+
+	/**
+	 * Asserts that a price histogram computed over `scope` reports exactly `expectedPrice` as both its minimum and its
+	 * maximum - i.e. that the single product in that scope contributed its OWN price.
+	 *
+	 * It asserts the price VALUES a scope reports, which the plain `priceBetween` assertion above does not: that filter
+	 * is answered from the reduced index's own price-record tree.
+	 *
+	 * **Known limit of this fixture, measured not assumed.** Forcing the super-index resolution to a fixed scope (a
+	 * deliberate mutation of `FilterByVisitor#getSuperPriceIndex`) leaves BOTH this assertion and the one above green.
+	 * With only two products the query planner satisfies these queries by prefetching entity bodies rather than by
+	 * materializing price records out of the index, so no assertion here reaches the resolution it is meant to pin.
+	 * Treat this as a behaviour assertion, NOT as a tripwire for a mis-resolved super price index - there is currently
+	 * no such tripwire, and building one needs a fixture large enough to defeat prefetching.
+	 *
+	 * @param scope         the scope to compute the histogram over
+	 * @param expectedPrice the price the single product of that scope carries
+	 */
+	private void assertPriceHistogramReports(@Nonnull Scope scope, @Nonnull BigDecimal expectedPrice) {
+		try (final EvitaSessionContract session = this.evita.createReadOnlySession(TEST_CATALOG)) {
+			final EvitaResponse<EntityReference> response = session.query(
+				Query.query(
+					collection(Entities.PRODUCT),
+					filterBy(
+						scope(scope),
+						priceInPriceLists(PRICE_LIST_BASIC),
+						priceInCurrency(CURRENCY_EUR)
+					),
+					require(priceHistogram(20))
+				),
+				EntityReference.class
+			);
+			final PriceHistogram histogram = response.getExtraResult(PriceHistogram.class);
+			assertNotNull(histogram, "Price histogram must be computable in scope `" + scope + "`!");
+			assertEquals(
+				0, expectedPrice.compareTo(histogram.getMin()),
+				"Price histogram minimum in scope `" + scope + "` must be " + expectedPrice +
+					" but was " + histogram.getMin() + " - the scope resolved prices that are not its own!"
+			);
+			assertEquals(
+				0, expectedPrice.compareTo(histogram.getMax()),
+				"Price histogram maximum in scope `" + scope + "` must be " + expectedPrice +
+					" but was " + histogram.getMax() + "!"
 			);
 		}
 	}
