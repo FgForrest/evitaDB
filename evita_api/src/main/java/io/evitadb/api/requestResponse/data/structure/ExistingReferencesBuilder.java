@@ -977,6 +977,19 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
         return this;
 	}
 
+	/**
+	 * Returns the raw, unfiltered mutation queues indexed by the business reference key and the internal
+	 * primary key of the reference they target. Unlike {@link #buildChangeSet()} these queues are not narrowed
+	 * by the version increase rule - the working layer indexes consume them eagerly during the session, before
+	 * that filter ever runs, so this is the state their correctness depends on.
+	 *
+	 * @return the mutation queues, empty when nothing is pending
+	 */
+	@Nonnull
+	Map<ReferenceKey, Map<Integer, List<ReferenceMutation<?>>>> getRawReferenceMutations() {
+		return this.referenceMutations == null ? Map.of() : this.referenceMutations;
+	}
+
 	@Nonnull
 	@Override
 	public Stream<? extends ReferenceMutation<?>> buildChangeSet() {
@@ -1788,22 +1801,30 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 		}
 
 		boolean removed = removedMutations != null && !removedMutations.isEmpty();
-		List<ReferenceMutation<?>> discardedMutations = null;
+		// mutations discarded by this removal, keyed by the internal primary key of the reference they target
+		Map<Integer, List<ReferenceMutation<?>>> discardedMutations = null;
 		if (removed) {
 			if (referenceKey.isUnknownReference()) {
+				// an incomplete key discards the pending mutations of every duplicate sharing the business key,
+				// which is allowed only when the caller asked for removing all of them
 				Assert.isTrue(
-					removedMutations.size() == 1,
+					allowRemovingAllDuplicates || removedMutations.size() == 1,
 					() -> new ReferenceAllowsDuplicatesException(referenceName, this.entitySchema, Operation.WRITE)
 				);
-				discardedMutations = removedMutations.values().iterator().next();
+				// the map was already detached from the mutation index and is ours to keep
+				discardedMutations = removedMutations;
 			} else {
 				this.referenceMutations.put(genericReferenceKey, removedMutations);
-				discardedMutations = removedMutations.remove(referenceKey.internalPrimaryKey());
-				removed = discardedMutations != null && !discardedMutations.isEmpty();
+				final int internalPrimaryKey = referenceKey.internalPrimaryKey();
+				final List<ReferenceMutation<?>> singleReferenceMutations = removedMutations.remove(internalPrimaryKey);
+				removed = singleReferenceMutations != null && !singleReferenceMutations.isEmpty();
+				// a detached single entry map - the index still holds the queues of the remaining duplicates
+				discardedMutations = removed ? Map.of(internalPrimaryKey, singleReferenceMutations) : null;
 			}
 		}
 
-		ReferenceContract formerReference = null;
+		// an incomplete reference key may match multiple duplicates of the very same business key
+		List<ReferenceContract> formerReferences = null;
 		for (ReferenceContract theReference : this.baseReferences.getReferencesWithoutSchemaCheck(referenceKey)) {
 			if (
 				theReference.exists() &&
@@ -1813,7 +1834,10 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 							referenceKey.internalPrimaryKey() == theReference.getReferenceKey().internalPrimaryKey()
 					)
 			) {
-				formerReference = theReference;
+				if (formerReferences == null) {
+					formerReferences = new ArrayList<>(2);
+				}
+				formerReferences.add(theReference);
 				// if the reference was part of the previous entity version we build upon, remove it as-well
 				final ReferenceKey completeReferenceKey = theReference.getReferenceKey();
 				getReferenceMutationsForKey(referenceKey)
@@ -1833,38 +1857,122 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 			this.memoizedReferences = null;
 			final BuilderReferenceBundle referenceBundle = getReferenceBundleForUpdate(referenceName, 8);
 			if (referenceBundle.isInitialized()) {
-				if (discardedMutations == null) {
-					Assert.isPremiseValid(
-						formerReference != null,
-						"We always expect former reference to be non-null if no mutations were discarded!"
-					);
-					if (referenceBundle.isDuplicate(referenceKey)) {
-						referenceBundle.removeDuplicateReference(formerReference);
-					} else {
-						referenceBundle.removeNonDuplicateReference(formerReference);
-					}
-				} else {
-					ReferenceContract updatedReference = formerReference;
-					for (ReferenceMutation<?> discardedMutation : discardedMutations) {
-						updatedReference = discardedMutation.mutateLocal(
-							this.entitySchema, updatedReference, referenceBundle.getAttributeTypes()
+				boolean bundleUpdated = false;
+				if (discardedMutations != null) {
+					for (Entry<Integer, List<ReferenceMutation<?>>> discarded : discardedMutations.entrySet()) {
+						// each discarded queue either updates one of the removed base references, or creates
+						// a brand-new reference that has no counterpart in the base entity at all
+						removeReferenceFromBundle(
+							referenceBundle,
+							applyDiscardedMutations(
+								referenceBundle,
+								discarded.getValue(),
+								findByInternalPrimaryKey(formerReferences, discarded.getKey())
+							)
 						);
-					}
-					Assert.isPremiseValid(
-						updatedReference != null,
-						"We always expect updated reference to be non-null after applying discarded mutations!"
-					);
-					if (referenceBundle.isDuplicate(updatedReference.getReferenceKey())) {
-						referenceBundle.removeDuplicateReference(updatedReference);
-					} else {
-						referenceBundle.removeNonDuplicateReference(updatedReference);
+						bundleUpdated = true;
 					}
 				}
+				if (formerReferences != null) {
+					for (ReferenceContract formerReference : formerReferences) {
+						// references with a discarded queue were already removed in their mutated state above
+						if (
+							discardedMutations == null ||
+								!discardedMutations.containsKey(
+									formerReference.getReferenceKey().internalPrimaryKey()
+								)
+						) {
+							removeReferenceFromBundle(referenceBundle, formerReference);
+							bundleUpdated = true;
+						}
+					}
+				}
+				// every removed reference must disappear from the bundle - otherwise its representative
+				// attributes keep occupying the slot and the very same reference cannot be added again
+				Assert.isPremiseValid(
+					bundleUpdated,
+					"The reference bundle must be updated whenever a reference was removed!"
+				);
 			}
 		} else {
 			throw new InvalidMutationException(
 				"There's no reference of a type `" + referenceName + "` and primary key `" + referencedPrimaryKey + "`!"
 			);
+		}
+	}
+
+	/**
+	 * Applies the mutations discarded by a reference removal on top of the reference they target, so that
+	 * the resulting reference reflects the state the {@link BuilderReferenceBundle} was updated with when
+	 * those mutations were registered. Only such a reference can be removed from the bundle again.
+	 *
+	 * @param referenceBundle    the bundle providing the attribute types the mutations are evaluated against
+	 * @param discardedMutations the mutation queue of a single reference discarded by the removal,
+	 *                           must not be null
+	 * @param formerReference    the reference the mutations were built upon, null when the mutations created
+	 *                           a brand-new reference that has no counterpart in the base entity
+	 * @return the reference in the state the bundle knows it
+	 */
+	@Nonnull
+	private ReferenceContract applyDiscardedMutations(
+		@Nonnull BuilderReferenceBundle referenceBundle,
+		@Nonnull List<ReferenceMutation<?>> discardedMutations,
+		@Nullable ReferenceContract formerReference
+	) {
+		ReferenceContract updatedReference = formerReference;
+		for (ReferenceMutation<?> discardedMutation : discardedMutations) {
+			updatedReference = discardedMutation.mutateLocal(
+				this.entitySchema, updatedReference, referenceBundle.getAttributeTypes()
+			);
+		}
+		Assert.isPremiseValid(
+			updatedReference != null,
+			"We always expect updated reference to be non-null after applying discarded mutations!"
+		);
+		return updatedReference;
+	}
+
+	/**
+	 * Looks up the reference carrying the passed internal primary key among the references the removal
+	 * matched in the base entity.
+	 *
+	 * @param references         the matched base references, null when the removal matched none of them
+	 * @param internalPrimaryKey the internal primary key to look for
+	 * @return the matching reference, or null when the key belongs to a reference that was created solely
+	 * by this builder and thus has no counterpart in the base entity
+	 */
+	@Nullable
+	private static ReferenceContract findByInternalPrimaryKey(
+		@Nullable List<ReferenceContract> references,
+		int internalPrimaryKey
+	) {
+		if (references != null) {
+			for (int i = 0; i < references.size(); i++) {
+				final ReferenceContract reference = references.get(i);
+				if (reference.getReferenceKey().internalPrimaryKey() == internalPrimaryKey) {
+					return reference;
+				}
+			}
+		}
+		return null;
+	}
+
+	/**
+	 * Removes a single reference from the passed bundle, choosing the removal variant matching the way
+	 * the reference is registered in it. The reference key must be complete - the bundle is indexed by
+	 * internal primary keys and cannot resolve an incomplete one.
+	 *
+	 * @param referenceBundle the bundle to remove the reference from, must not be null
+	 * @param reference       the reference to remove, must not be null
+	 */
+	private static void removeReferenceFromBundle(
+		@Nonnull BuilderReferenceBundle referenceBundle,
+		@Nonnull ReferenceContract reference
+	) {
+		if (referenceBundle.isDuplicate(reference.getReferenceKey())) {
+			referenceBundle.removeDuplicateReference(reference);
+		} else {
+			referenceBundle.removeNonDuplicateReference(reference);
 		}
 	}
 
