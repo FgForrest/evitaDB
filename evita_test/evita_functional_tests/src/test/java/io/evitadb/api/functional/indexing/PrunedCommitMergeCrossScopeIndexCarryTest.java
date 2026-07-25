@@ -29,6 +29,7 @@ import io.evitadb.api.SessionTraits.SessionFlags;
 import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.query.Query;
+import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.extraResult.PriceHistogram;
@@ -55,7 +56,10 @@ import java.util.stream.IntStream;
 import static io.evitadb.api.functional.indexing.IndexingTestSupport.getGlobalIndex;
 import static io.evitadb.api.functional.indexing.IndexingTestSupport.getReferencedEntityIndex;
 import static io.evitadb.api.query.QueryConstraints.collection;
+import static io.evitadb.api.query.QueryConstraints.debug;
+import static io.evitadb.api.query.QueryConstraints.entityPrimaryKeyInSet;
 import static io.evitadb.api.query.QueryConstraints.filterBy;
+import static io.evitadb.api.query.QueryConstraints.referenceHaving;
 import static io.evitadb.api.query.QueryConstraints.priceBetween;
 import static io.evitadb.api.query.QueryConstraints.priceContentAll;
 import static io.evitadb.api.query.QueryConstraints.priceInCurrency;
@@ -97,8 +101,13 @@ class PrunedCommitMergeCrossScopeIndexCarryTest implements EvitaTestSupport {
 	private static final Currency CURRENCY_EUR = Currency.getInstance("EUR");
 	private static final int LIVE_BRAND_PK = 1;
 	private static final int ARCHIVED_BRAND_PK = 2;
+	private static final int FILLER_BRAND_PK = 3;
 	private static final int LIVE_PRODUCT_PK = 1;
 	private static final int ARCHIVED_PRODUCT_PK = 2;
+	private static final int FILLER_PRODUCT_COUNT = 8;
+	private static final int FIRST_LIVE_FILLER_PRODUCT_PK = 11;
+	private static final int FIRST_ARCHIVED_FILLER_PRODUCT_PK = 21;
+	private static final BigDecimal FILLER_PRICE = BigDecimal.valueOf(99);
 
 	private TestPaths paths;
 	private Evita evita;
@@ -159,8 +168,13 @@ class PrunedCommitMergeCrossScopeIndexCarryTest implements EvitaTestSupport {
 		// the assertions above exercise the FILTER, which reads each reduced index's own price-record tree. The super
 		// index the caller resolves per operation is consumed when price records are materialized - a histogram does
 		// that - so this is what actually pins cross-scope price resolution.
-		assertPriceHistogramReports(Scope.ARCHIVED, BigDecimal.TEN);
-		assertPriceHistogramReports(Scope.LIVE, BigDecimal.valueOf(20));
+		assertPriceHistogramReports(Scope.ARCHIVED, BigDecimal.TEN, FILLER_PRICE);
+		assertPriceHistogramReports(Scope.LIVE, BigDecimal.valueOf(20), FILLER_PRICE);
+		// ...and the same, narrowed to the brand, so the query is answered from the REDUCED index rather than the
+		// GLOBAL one. That narrowing is what makes these assertions a tripwire: a reduced index holds no super price
+		// index of its own, so the caller must resolve one, and only this shape exercises that resolution.
+		assertReducedIndexPriceHistogramReports(Scope.ARCHIVED, ARCHIVED_BRAND_PK, BigDecimal.TEN);
+		assertReducedIndexPriceHistogramReports(Scope.LIVE, LIVE_BRAND_PK, BigDecimal.valueOf(20));
 	}
 
 	/**
@@ -191,14 +205,26 @@ class PrunedCommitMergeCrossScopeIndexCarryTest implements EvitaTestSupport {
 
 				session.upsertEntity(session.createNewEntity(Entities.BRAND, LIVE_BRAND_PK));
 				session.upsertEntity(session.createNewEntity(Entities.BRAND, ARCHIVED_BRAND_PK));
+				session.upsertEntity(session.createNewEntity(Entities.BRAND, FILLER_BRAND_PK));
 				upsertProduct(session, LIVE_PRODUCT_PK, LIVE_BRAND_PK, BigDecimal.TEN);
 				upsertProduct(session, ARCHIVED_PRODUCT_PK, ARCHIVED_BRAND_PK, BigDecimal.TEN);
+				// the filler products exist so each observed brand owns a small MINORITY of its scope: the planner
+				// discards a reduced index whose cardinality exceeds half the collection, and with a single product
+				// per scope it would answer every query from the GLOBAL index instead - never resolving a super price
+				// index for a reduced one, which is exactly the resolution these tests exist to pin
+				for (int i = 0; i < FILLER_PRODUCT_COUNT; i++) {
+					upsertProduct(session, FIRST_LIVE_FILLER_PRODUCT_PK + i, FILLER_BRAND_PK, FILLER_PRICE);
+					upsertProduct(session, FIRST_ARCHIVED_FILLER_PRODUCT_PK + i, FILLER_BRAND_PK, FILLER_PRICE);
+				}
 			}
 		);
 		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session.archiveEntity(Entities.PRODUCT, ARCHIVED_PRODUCT_PK);
+				for (int i = 0; i < FILLER_PRODUCT_COUNT; i++) {
+					session.archiveEntity(Entities.PRODUCT, FIRST_ARCHIVED_FILLER_PRODUCT_PK + i);
+				}
 			}
 		);
 		this.evita.updateCatalog(TEST_CATALOG, EvitaSessionContract::goLiveAndClose);
@@ -302,17 +328,22 @@ class PrunedCommitMergeCrossScopeIndexCarryTest implements EvitaTestSupport {
 	 * It asserts the price VALUES a scope reports, which the plain `priceBetween` assertion above does not: that filter
 	 * is answered from the reduced index's own price-record tree.
 	 *
-	 * **Known limit of this fixture, measured not assumed.** Forcing the super-index resolution to a fixed scope (a
-	 * deliberate mutation of `FilterByVisitor#getSuperPriceIndex`) leaves BOTH this assertion and the one above green.
-	 * With only two products the query planner satisfies these queries by prefetching entity bodies rather than by
-	 * materializing price records out of the index, so no assertion here reaches the resolution it is meant to pin.
-	 * Treat this as a behaviour assertion, NOT as a tripwire for a mis-resolved super price index - there is currently
-	 * no such tripwire, and building one needs a fixture large enough to defeat prefetching.
+	 * **Known limit of this assertion, measured not assumed.** A query that names no reference is answered from the
+	 * scope's GLOBAL entity index, and a GLOBAL index owns its super price indexes outright - so nothing here resolves
+	 * a super price index for a reduced one, and forcing that resolution to the wrong scope leaves this assertion
+	 * green. Treat it as a behaviour assertion; the tripwire for a mis-resolved super price index is
+	 * {@link #assertReducedIndexPriceHistogramReports(Scope, int, BigDecimal)}, which narrows by reference and does
+	 * reach it.
 	 *
-	 * @param scope         the scope to compute the histogram over
-	 * @param expectedPrice the price the single product of that scope carries
+	 * @param scope       the scope to compute the histogram over
+	 * @param expectedMin the lowest price the scope is expected to report
+	 * @param expectedMax the highest price the scope is expected to report
 	 */
-	private void assertPriceHistogramReports(@Nonnull Scope scope, @Nonnull BigDecimal expectedPrice) {
+	private void assertPriceHistogramReports(
+		@Nonnull Scope scope,
+		@Nonnull BigDecimal expectedMin,
+		@Nonnull BigDecimal expectedMax
+	) {
 		try (final EvitaSessionContract session = this.evita.createReadOnlySession(TEST_CATALOG)) {
 			final EvitaResponse<EntityReference> response = session.query(
 				Query.query(
@@ -329,14 +360,81 @@ class PrunedCommitMergeCrossScopeIndexCarryTest implements EvitaTestSupport {
 			final PriceHistogram histogram = response.getExtraResult(PriceHistogram.class);
 			assertNotNull(histogram, "Price histogram must be computable in scope `" + scope + "`!");
 			assertEquals(
-				0, expectedPrice.compareTo(histogram.getMin()),
-				"Price histogram minimum in scope `" + scope + "` must be " + expectedPrice +
+				0, expectedMin.compareTo(histogram.getMin()),
+				"Price histogram minimum in scope `" + scope + "` must be " + expectedMin +
 					" but was " + histogram.getMin() + " - the scope resolved prices that are not its own!"
 			);
 			assertEquals(
-				0, expectedPrice.compareTo(histogram.getMax()),
-				"Price histogram maximum in scope `" + scope + "` must be " + expectedPrice +
+				0, expectedMax.compareTo(histogram.getMax()),
+				"Price histogram maximum in scope `" + scope + "` must be " + expectedMax +
 					" but was " + histogram.getMax() + "!"
+			);
+		}
+	}
+
+	/**
+	 * Asserts that a price histogram computed over the REDUCED index of `brandPk` in `scope` reports exactly
+	 * `expectedPrice` as both its minimum and its maximum.
+	 *
+	 * The narrowing by brand is the entire point: without it the query targets the scope's GLOBAL entity index, which
+	 * owns its super price indexes outright and therefore needs no resolution at all. Narrowed to a reference, the
+	 * query targets a reduced index, which keeps no super price index of its own - so the caller has to resolve the
+	 * GLOBAL of the SAME collection and scope before the price records can be materialized.
+	 *
+	 * **Verified by mutation, not assumed.** Forcing `FilterByVisitor#getSuperPriceIndex` to resolve a fixed scope
+	 * makes this assertion fail: the reduced index's price ids are looked up in another scope's super index, find
+	 * nothing, and no histogram can be computed at all. The narrowing is what earns that - the same mutation leaves
+	 * every non-narrowed assertion in this class green.
+	 *
+	 * The fixture's filler products matter for the same reason: the planner discards a reduced index whose cardinality
+	 * exceeds half its collection, so without them no reduced index is ever eligible and this assertion would quietly
+	 * be answered from the GLOBAL index instead.
+	 *
+	 * @param scope         the scope to compute the histogram over
+	 * @param brandPk       the brand whose reduced index should answer the query
+	 * @param expectedPrice the price the single product of that scope carries
+	 */
+	private void assertReducedIndexPriceHistogramReports(
+		@Nonnull Scope scope,
+		int brandPk,
+		@Nonnull BigDecimal expectedPrice
+	) {
+		try (final EvitaSessionContract session = this.evita.createReadOnlySession(TEST_CATALOG)) {
+			final EvitaResponse<EntityReference> response = session.query(
+				Query.query(
+					collection(Entities.PRODUCT),
+					filterBy(
+						scope(scope),
+						referenceHaving(Entities.BRAND, entityPrimaryKeyInSet(brandPk)),
+						priceInPriceLists(PRICE_LIST_BASIC),
+						priceInCurrency(CURRENCY_EUR)
+					),
+					require(
+						priceHistogram(20),
+						// evaluate EVERY eligible index alternative and compare them, so this assertion keeps
+						// exercising the reduced index even if the cost model later starts preferring the GLOBAL one
+						// for this shape - without it the tripwire could silently stop aiming at what it pins
+						debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS)
+					)
+				),
+				EntityReference.class
+			);
+			final PriceHistogram histogram = response.getExtraResult(PriceHistogram.class);
+			assertNotNull(
+				histogram,
+				"Price histogram must be computable from the reduced index of brand " + brandPk +
+					" in scope `" + scope + "`!"
+			);
+			assertEquals(
+				0, expectedPrice.compareTo(histogram.getMin()),
+				"Price histogram minimum resolved through the reduced index of brand " + brandPk + " in scope `" +
+					scope + "` must be " + expectedPrice + " but was " + histogram.getMin() +
+					" - the reduced index resolved a super price index that is not its own!"
+			);
+			assertEquals(
+				0, expectedPrice.compareTo(histogram.getMax()),
+				"Price histogram maximum resolved through the reduced index of brand " + brandPk + " in scope `" +
+					scope + "` must be " + expectedPrice + " but was " + histogram.getMax() + "!"
 			);
 		}
 	}
