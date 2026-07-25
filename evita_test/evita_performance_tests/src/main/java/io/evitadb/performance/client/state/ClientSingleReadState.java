@@ -172,7 +172,11 @@ public abstract class ClientSingleReadState extends ClientDataFullDatabaseState
 
 	@Override
 	protected void processEntity(@Nonnull SealedEntity entity) {
-		entity.getPrices().forEach(it -> this.priceStatistics.updateValue(it, this.random));
+		// the trial setup walks EVERY entity type of the catalog, and asking a price-less type for its prices throws
+		// rather than returning empty - collect statistics only from the types that actually keep prices
+		if (entity.getSchema().isWithPrice()) {
+			entity.getPrices().forEach(it -> this.priceStatistics.updateValue(it, this.random));
+		}
 	}
 
 }
