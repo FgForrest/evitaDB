@@ -191,7 +191,7 @@ class LongRunningSavepointPriceListAndCurrencyPriceRefIndexTest implements TimeB
 		void forceMutation() {
 			final int forcedId = FORCED_BASE + this.forcedCursor++;
 			this.tracked.add(forcedId);
-			this.index.addPrice(forcedId, this.validityById.get(forcedId));
+			this.index.addPrice(forcedId, this.validityById.get(forcedId), this.superIndex);
 		}
 
 		/**
@@ -202,7 +202,7 @@ class LongRunningSavepointPriceListAndCurrencyPriceRefIndexTest implements TimeB
 			for (int attempt = 0; attempt < 10; attempt++) {
 				final int ipId = this.pool.get(random.nextInt(this.pool.size()));
 				if (this.tracked.add(ipId)) {
-					this.index.addPrice(ipId, this.validityById.get(ipId));
+					this.index.addPrice(ipId, this.validityById.get(ipId), this.superIndex);
 					return;
 				}
 			}
@@ -215,7 +215,7 @@ class LongRunningSavepointPriceListAndCurrencyPriceRefIndexTest implements TimeB
 			final List<Integer> ids = new ArrayList<>(this.tracked);
 			final int ipId = ids.get(random.nextInt(ids.size()));
 			this.tracked.remove(ipId);
-			this.index.removePrice(ipId, this.validityById.get(ipId));
+			this.index.removePrice(ipId, this.validityById.get(ipId), this.superIndex);
 		}
 
 		private void addToSuper(int internalId, int entityPk, int priceWithTax, int priceWithoutTax, int validitySeed) {

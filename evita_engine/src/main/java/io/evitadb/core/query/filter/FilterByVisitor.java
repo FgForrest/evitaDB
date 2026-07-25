@@ -93,6 +93,7 @@ import io.evitadb.core.query.indexSelection.TargetIndexes;
 import io.evitadb.core.query.sort.entity.comparator.EntityNestedQueryComparator;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.index.price.PriceSuperIndex;
 import io.evitadb.function.TriFunction;
 import io.evitadb.index.AbstractReducedEntityIndex;
 import io.evitadb.index.CatalogIndex;
@@ -1305,6 +1306,38 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	@Nonnull
 	public Formula applyOnIndexes(@Nonnull Function<EntityIndex, Formula> formulaFunction) {
 		return joinFormulas(getEntityIndexStream().map(formulaFunction));
+	}
+
+	/**
+	 * Resolves the {@link PriceSuperIndex} that owns the memory-expensive price records behind the price indexes of
+	 * the passed entity index.
+	 *
+	 * A reduced entity index keeps no pointer to the super price indexes backing it, so a price formula built over one
+	 * must be handed the super index explicitly. Resolving it here - from the query context, which is pinned to a single
+	 * catalog version for the whole query - is what makes that hand-over version-correct by construction: the reduced
+	 * index and the GLOBAL it is paired with are read out of the same catalog snapshot, so they cannot straddle
+	 * a version boundary.
+	 *
+	 * @param entityIndex the entity index a price formula is being built over
+	 * @return the price index of the GLOBAL entity index of the same collection and scope
+	 */
+	@Nonnull
+	public PriceSuperIndex getSuperPriceIndex(@Nonnull EntityIndex entityIndex) {
+		// a GLOBAL index owns its super price indexes outright - no lookup needed
+		if (entityIndex instanceof GlobalEntityIndex globalEntityIndex) {
+			return globalEntityIndex.getPriceIndex();
+		}
+		final String entityType = getProcessingScope().getEntitySchemaOrThrowException().getName();
+		final Scope scope = entityIndex.getIndexKey().scope();
+		return getQueryContext()
+			.getGlobalEntityIndexIfExists(entityType, scope)
+			.orElseThrow(
+				() -> new GenericEvitaInternalError(
+					"Global index of entity `" + entityType + "` in scope `" + scope +
+						"` unexpectedly not found while resolving super price index!"
+				)
+			)
+			.getPriceIndex();
 	}
 
 	/**

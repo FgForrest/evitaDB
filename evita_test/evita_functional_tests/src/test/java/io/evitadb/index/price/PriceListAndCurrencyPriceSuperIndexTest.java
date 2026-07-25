@@ -24,6 +24,7 @@
 package io.evitadb.index.price;
 
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
+import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
 import io.evitadb.core.exception.PriceAlreadyAssignedToEntityException;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
@@ -882,12 +883,22 @@ class PriceListAndCurrencyPriceSuperIndexTest {
 			"createPriceIndexFormulaWithAllRecords() returns PriceIndexContainerFormula"
 		)
 		void shouldReturnPriceIndexContainerFormula() {
+			// the returned formula resolves the lowest price records through the GLOBAL price index, which
+			// therefore has to own this very combination index - so it is created through the GLOBAL one
+			// with the same price record `createPriceRecord(1, 1, 100)` would have produced
+			final PriceSuperIndex priceSuperIndex = new PriceSuperIndex();
+			priceSuperIndex.addPrice(
+				null, 100, 1,
+				new PriceKey(1, PRICE_INDEX_KEY.getPriceList(), PRICE_INDEX_KEY.getCurrency()),
+				PRICE_INDEX_KEY.getRecordHandling(),
+				null, null, 10000, 12100,
+				priceSuperIndex
+			);
 			final PriceListAndCurrencyPriceSuperIndex tested =
-				new PriceListAndCurrencyPriceSuperIndex(PRICE_INDEX_KEY);
-			tested.addPrice(createPriceRecord(1, 1, 100), null);
+				priceSuperIndex.getPriceIndexOrThrow(PRICE_INDEX_KEY);
 
 			final Formula formula =
-				tested.createPriceIndexFormulaWithAllRecords();
+				tested.createPriceIndexFormulaWithAllRecords(priceSuperIndex);
 
 			assertInstanceOf(PriceIndexContainerFormula.class, formula);
 		}

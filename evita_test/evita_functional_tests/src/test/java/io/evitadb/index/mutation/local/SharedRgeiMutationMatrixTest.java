@@ -750,15 +750,18 @@ class SharedRgeiMutationMatrixTest {
 			null, ENTITY_PK, internalPriceId,
 			new PriceKey(priceId, PRICE_LIST_BASIC, CURRENCY_CZK),
 			PriceInnerRecordHandling.NONE,
-			null, null, 10000, 12100
+			null, null, 10000, 12100,
+			this.priceSuperIndex
 		);
 		// ReducedGroupEntityIndex.addPrice enforces assertPartitioningIndex(referenceSchema) and
-		// rejects null — pass the test-wide shared schema mock instead
+		// rejects null — pass the test-wide shared schema mock instead. The RGEI holds no price
+		// records of its own, so the backing super index is handed over as the last argument.
 		this.sharedRgei.addPrice(
 			this.sharedRefSchema, ENTITY_PK, internalPriceId,
 			new PriceKey(priceId, PRICE_LIST_BASIC, CURRENCY_CZK),
 			PriceInnerRecordHandling.NONE,
-			null, null, 10000, 12100
+			null, null, 10000, 12100,
+			this.priceSuperIndex
 		);
 		return internalPriceId;
 	}
@@ -777,7 +780,8 @@ class SharedRgeiMutationMatrixTest {
 			this.sharedRefSchema, ENTITY_PK, internalPriceId,
 			new PriceKey(priceId, PRICE_LIST_BASIC, CURRENCY_CZK),
 			PriceInnerRecordHandling.NONE,
-			null, null, 10000, 12100
+			null, null, 10000, 12100,
+			this.priceSuperIndex
 		);
 	}
 

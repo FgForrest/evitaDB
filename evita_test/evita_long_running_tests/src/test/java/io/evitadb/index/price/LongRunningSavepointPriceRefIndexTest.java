@@ -256,7 +256,7 @@ class LongRunningSavepointPriceRefIndexTest implements TimeBoundedTestSupport {
 				null, ipId, ipId,
 				new PriceKey(ipId, key.getPriceList(), key.getCurrency()),
 				key.getRecordHandling(),
-				null, null, 10000, 12100
+				null, null, 10000, 12100, this.superIndex
 			);
 		}
 
@@ -265,7 +265,7 @@ class LongRunningSavepointPriceRefIndexTest implements TimeBoundedTestSupport {
 				null, ipId, ipId,
 				new PriceKey(ipId, key.getPriceList(), key.getCurrency()),
 				key.getRecordHandling(),
-				null, null, 10000, 12100
+				null, null, 10000, 12100, this.superIndex
 			);
 		}
 
@@ -274,7 +274,7 @@ class LongRunningSavepointPriceRefIndexTest implements TimeBoundedTestSupport {
 				null, ipId, ipId,
 				new PriceKey(ipId, key.getPriceList(), key.getCurrency()),
 				key.getRecordHandling(),
-				null, null, 10000, 12100
+				null, null, 10000, 12100, this.superIndex
 			);
 		}
 

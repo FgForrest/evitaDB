@@ -271,6 +271,22 @@ public class PriceListAndCurrencyPriceSuperIndex
 		);
 	}
 
+	/**
+	 * A super index owns the entity-to-prices mapping itself, so it is its own lowest-price source. The premise check
+	 * proves the caller handed over the GLOBAL price index this index actually belongs to rather than some other
+	 * collection's (or catalog version's) - which is the guarantee that used to be provided by the super-index pointer
+	 * a reduced index held.
+	 */
+	@Nonnull
+	@Override
+	protected PriceListAndCurrencyPriceSuperIndex resolveLowestPriceRecordsSource(@Nonnull PriceSuperIndex superPriceIndex) {
+		Assert.isPremiseValid(
+			superPriceIndex.getPriceIndexOrThrow(this.priceIndexKey) == this,
+			() -> "Price index `" + this.priceIndexKey + "` was handed a GLOBAL price index it does not belong to!"
+		);
+		return this;
+	}
+
 	@Nullable
 	@Override
 	public int[] getInternalPriceIdsForEntity(int entityId) {
@@ -487,6 +503,25 @@ public class PriceListAndCurrencyPriceSuperIndex
 		final PriceRecordContract priceRecord = this.priceRecords.search(internalPriceId);
 		Assert.isTrue(priceRecord != null, "Price id `" + internalPriceId + "` was not found in the price super index!");
 		return priceRecord;
+	}
+
+	/**
+	 * Same as {@link #getPriceRecord(int)} but reports an absent record as `null` instead of raising.
+	 *
+	 * A reduced index that only *references* these records needs to distinguish "the record I am about to remove is
+	 * still here" from "it is gone", because the latter means the super index backing it has been emptied - and an
+	 * emptied super index is dropped from the combination map and recreated as a NEW instance by the very next price
+	 * added in the same transaction. A reduced index cannot outlive that replacement, so its combination index is
+	 * dropped rather than treated as an error. A still-terminated index keeps raising, which routes to the same
+	 * conclusion through the caller's catch.
+	 *
+	 * @param internalPriceId the internal price id to look up
+	 * @return the price record, or `null` when this index does not (or no longer) holds it
+	 */
+	@Nullable
+	public PriceRecordContract getPriceRecordIfPresent(int internalPriceId) {
+		assertNotTerminated();
+		return this.priceRecords.search(internalPriceId);
 	}
 
 	/**

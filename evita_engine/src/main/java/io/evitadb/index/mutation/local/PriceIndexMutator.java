@@ -34,6 +34,7 @@ import io.evitadb.index.EntityIndex;
 import io.evitadb.index.IndexType;
 import io.evitadb.index.mutation.local.EntityIndexLocalMutationExecutor.Target;
 import io.evitadb.index.mutation.local.dataAccess.ExistingPriceSupplier;
+import io.evitadb.index.price.PriceSuperIndex;
 import io.evitadb.spi.store.catalog.shared.model.PriceWithInternalIds;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.NumberUtils;
@@ -197,6 +198,9 @@ public interface PriceIndexMutator {
 		final int indexedPricePlaces = entitySchema.getIndexedPricePlaces();
 		final Scope scope = entityIndex.getIndexKey().scope();
 		if (entitySchema.isPriceIndexedInScope(scope)) {
+			// resolved once per upsert: both branches below write through the same scope's GLOBAL price index, which owns
+			// the shared price records the reduced indexes only reference
+			final PriceSuperIndex globalPriceIndex = executor.getGlobalPriceIndex(scope);
 			// remove former price first
 			if (formerPrice != null && formerPrice.exists() && formerPrice.indexed()) {
 				final int epkForRemoval = executor.getPrimaryKeyToIndex(IndexType.PRICE_INDEX, Target.EXISTING);
@@ -212,7 +216,8 @@ public interface PriceIndexMutator {
 					priceKey, innerRecordHandling, formerInnerRecordId,
 					formerValidity,
 					formerPriceWithoutTax,
-					formerPriceWithTax
+					formerPriceWithTax,
+					globalPriceIndex
 				);
 			}
 			// now insert new price
@@ -228,7 +233,8 @@ public interface PriceIndexMutator {
 					priceKey, innerRecordHandling, innerRecordId,
 					validity,
 					priceWithoutTaxAsInt,
-					priceWithTaxAsInt
+					priceWithTaxAsInt,
+					globalPriceIndex
 				);
 			}
 		}
@@ -322,7 +328,8 @@ public interface PriceIndexMutator {
 						innerRecordId,
 						validity,
 						priceWithoutTax,
-						priceWithTax
+						priceWithTax,
+						executor.getGlobalPriceIndex(scope)
 					);
 				}
 			} else {

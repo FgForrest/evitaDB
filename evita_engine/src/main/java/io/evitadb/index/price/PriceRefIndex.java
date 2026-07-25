@@ -210,9 +210,12 @@ public class PriceRefIndex extends AbstractPriceIndex<PriceListAndCurrencyPriceR
 	 */
 
 	@Nonnull
-	protected PriceListAndCurrencyPriceRefIndex createNewPriceListAndCurrencyIndex(@Nonnull PriceIndexKey lookupKey) {
+	protected PriceListAndCurrencyPriceRefIndex createNewPriceListAndCurrencyIndex(
+		@Nonnull PriceIndexKey lookupKey,
+		@Nonnull PriceSuperIndex superPriceIndex
+	) {
 		final PriceListAndCurrencyPriceRefIndex newPriceListIndex = new PriceListAndCurrencyPriceRefIndex(this.scope, lookupKey);
-		newPriceListIndex.wireSuperIndex(this.superIndexResolver.apply(lookupKey));
+		newPriceListIndex.wireSuperIndex(superPriceIndex.getPriceIndexOrThrow(lookupKey));
 		ofNullable(Transaction.getOrCreateTransactionalMemoryLayer(this))
 			.ifPresent(it -> it.addCreatedItem(newPriceListIndex));
 		return newPriceListIndex;
@@ -235,9 +238,12 @@ public class PriceRefIndex extends AbstractPriceIndex<PriceListAndCurrencyPriceR
 		@Nullable Integer innerRecordId,
 		@Nullable DateTimeRange validity,
 		int priceWithoutTax,
-		int priceWithTax
+		int priceWithTax,
+		@Nonnull PriceSuperIndex superPriceIndex
 	) {
-		final PriceRecordContract priceRecord = priceListIndex.addPrice(internalPriceId, validity);
+		final PriceRecordContract priceRecord = priceListIndex.addPrice(
+			internalPriceId, validity, superPriceIndex.getPriceIndexOrThrow(priceListIndex.getPriceIndexKey())
+		);
 		return priceRecord.internalPriceId();
 	}
 
@@ -250,13 +256,35 @@ public class PriceRefIndex extends AbstractPriceIndex<PriceListAndCurrencyPriceR
 		@Nullable Integer innerRecordId,
 		@Nullable DateTimeRange validity,
 		int priceWithoutTax,
-		int priceWithTax
+		int priceWithTax,
+		@Nonnull PriceSuperIndex superPriceIndex
 	) {
+		final PriceIndexKey lookupKey = priceListIndex.getPriceIndexKey();
+		// Removing the last price of a combination drops its super index from the combo map AND terminates it - and if
+		// the same transaction then adds a price back (which is exactly what a price UPDATE does: remove former, add
+		// new), the combination is recreated as a DIFFERENT super index instance. All three shapes are observable here
+		// depending on where in that sequence this removal lands, and all three mean the same thing: the shared records
+		// this reduced index only references are gone, so it cannot outlive them. It is dropped, and the add that
+		// follows recreates it against the current super index.
+		//   - gone from the map      -> the nullable combination lookup below
+		//   - mapped but terminated  -> the catch below
+		//   - already replaced       -> the record lookup below comes back empty
+		// Note the last shape CANNOT be recognised by comparing super-index instances any more, which is the point of
+		// the change: the reduced index no longer keeps a pointer to compare against.
+		final PriceListAndCurrencyPriceSuperIndex superIndex = superPriceIndex.getPriceIndex(lookupKey);
+		if (superIndex == null) {
+			removeExistingIndex(lookupKey, priceListIndex);
+			return;
+		}
 		try {
-			priceListIndex.removePrice(internalPriceId, validity);
+			if (superIndex.getPriceRecordIfPresent(internalPriceId) == null) {
+				removeExistingIndex(lookupKey, priceListIndex);
+				return;
+			}
+			priceListIndex.removePrice(internalPriceId, validity, superIndex);
 		} catch (PriceListAndCurrencyPriceIndexTerminated ex) {
 			// when super index was removed the referencing index must be removed as well
-			removeExistingIndex(priceListIndex.getPriceIndexKey(), priceListIndex);
+			removeExistingIndex(lookupKey, priceListIndex);
 		}
 	}
 

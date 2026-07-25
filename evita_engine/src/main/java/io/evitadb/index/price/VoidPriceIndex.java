@@ -75,7 +75,8 @@ public class VoidPriceIndex implements PriceIndexContract {
 		@Nullable Integer innerRecordId,
 		@Nullable DateTimeRange validity,
 		int priceWithoutTax,
-		int priceWithTax
+		int priceWithTax,
+		@Nonnull PriceSuperIndex superPriceIndex
 	) {
 		throw new UnsupportedOperationException();
 	}
@@ -90,7 +91,8 @@ public class VoidPriceIndex implements PriceIndexContract {
 		@Nullable Integer innerRecordId,
 		@Nullable DateTimeRange validity,
 		int priceWithoutTax,
-		int priceWithTax
+		int priceWithTax,
+		@Nonnull PriceSuperIndex superPriceIndex
 	) {
 		throw new UnsupportedOperationException();
 	}

@@ -86,6 +86,7 @@ import io.evitadb.index.mutation.local.dataAccess.EntityStoragePartExistingDataF
 import io.evitadb.index.mutation.local.dataAccess.ExistingAttributeValueSupplier;
 import io.evitadb.index.mutation.local.dataAccess.ExistingDataSupplierFactory;
 import io.evitadb.index.mutation.local.dataAccess.ReferenceSupplier;
+import io.evitadb.index.price.PriceSuperIndex;
 import io.evitadb.index.mutation.storagePart.ContainerizedLocalMutationExecutor;
 import io.evitadb.spi.store.catalog.persistence.accessor.WritableEntityStorageContainerAccessor;
 import io.evitadb.spi.store.catalog.persistence.accessor.WritableEntityStorageContainerAccessor.LocaleScope;
@@ -1058,6 +1059,23 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	public EntityIndex getOrCreateIndex(@Nonnull EntityIndexKey entityIndexKey) {
 		this.accessedIndexes.add(entityIndexKey);
 		return this.entityIndexCreatingAccessor.getOrCreateIndex(entityIndexKey);
+	}
+
+	/**
+	 * Returns the price index of this collection's GLOBAL entity index of the given scope - the index that owns the
+	 * memory-expensive price records every reduced index of that scope merely references.
+	 *
+	 * Every price write is routed through it: a reduced index no longer keeps a pointer to the super index backing it,
+	 * so the caller - which is by construction pinned to a single catalog version - supplies the super index for the
+	 * version it is mutating. The scope is taken from the index being mutated rather than from {@link #getScope()},
+	 * because a scope change moves prices between two scopes' indexes within one mutation.
+	 *
+	 * @param scope the scope whose GLOBAL entity index owns the super price indexes
+	 * @return the price index of the GLOBAL entity index of the given scope
+	 */
+	@Nonnull
+	public PriceSuperIndex getGlobalPriceIndex(@Nonnull Scope scope) {
+		return ((GlobalEntityIndex) getOrCreateIndex(new EntityIndexKey(EntityIndexType.GLOBAL, scope))).getPriceIndex();
 	}
 
 	/**

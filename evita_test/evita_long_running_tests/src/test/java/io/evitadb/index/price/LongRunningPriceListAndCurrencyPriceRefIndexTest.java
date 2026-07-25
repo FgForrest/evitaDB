@@ -186,7 +186,7 @@ class LongRunningPriceListAndCurrencyPriceRefIndexTest implements TimeBoundedTes
 					// also add each price to make ref aware of them
 					for (final int id : trackedIds) {
 						final int arrayIdx = id - 1;
-						tested.addPrice(id, validityPool[arrayIdx]);
+						tested.addPrice(id, validityPool[arrayIdx], baseSuperIndex);
 					}
 					tested.resetDirty();
 				} else {
@@ -199,7 +199,9 @@ class LongRunningPriceListAndCurrencyPriceRefIndexTest implements TimeBoundedTes
 
 				assertStateAfterCommit(
 					tested,
-					index -> applyRandomBatch(random, index, maxPrices, nextTrackedIds, validityPool, codeBuffer),
+					index -> applyRandomBatch(
+						random, index, baseSuperIndex, maxPrices, nextTrackedIds, validityPool, codeBuffer
+					),
 					(original, committed) -> {
 						final int[] expectedIds = nextTrackedIds.get();
 						Arrays.sort(expectedIds);
@@ -295,7 +297,7 @@ class LongRunningPriceListAndCurrencyPriceRefIndexTest implements TimeBoundedTes
 					// also add each price to make ref aware of them
 					for (final int id : trackedIds) {
 						final int arrayIdx = id - 1;
-						tested.addPrice(id, validityPool[arrayIdx]);
+						tested.addPrice(id, validityPool[arrayIdx], baseSuperIndex);
 					}
 					tested.resetDirty();
 				} else {
@@ -311,7 +313,9 @@ class LongRunningPriceListAndCurrencyPriceRefIndexTest implements TimeBoundedTes
 
 				assertStateAfterRollback(
 					tested,
-					index -> applyRandomBatch(random, index, maxPrices, nextTrackedIds, validityPool, codeBuffer),
+					index -> applyRandomBatch(
+						random, index, baseSuperIndex, maxPrices, nextTrackedIds, validityPool, codeBuffer
+					),
 					(original, committed) -> {
 						assertNull(
 							committed,
@@ -337,11 +341,13 @@ class LongRunningPriceListAndCurrencyPriceRefIndexTest implements TimeBoundedTes
 	/**
 	 * Applies a random batch of 1–8 add/remove price mutations to `index`, mirroring each mutation into the
 	 * `nextTrackedIds` reference model so the two stay in lockstep. Shared by the commit and rollback proofs so both
-	 * drive the identical random-draw sequence.
+	 * drive the identical random-draw sequence. The `superIndex` must be the very instance `index` is wired to — the
+	 * ref index verifies that identity on every mutation.
 	 */
 	private static void applyRandomBatch(
 		@Nonnull Random random,
 		@Nonnull PriceListAndCurrencyPriceRefIndex index,
+		@Nonnull PriceListAndCurrencyPriceSuperIndex superIndex,
 		int maxPrices,
 		@Nonnull AtomicReference<int[]> nextTrackedIds,
 		@Nonnull DateTimeRange[] validityPool,
@@ -375,7 +381,7 @@ class LongRunningPriceListAndCurrencyPriceRefIndexTest implements TimeBoundedTes
 				codeBuffer.append("addPrice(").append(newId).append(")\n");
 
 				try {
-					index.addPrice(newId, validityPool[arrayIdx]);
+					index.addPrice(newId, validityPool[arrayIdx], superIndex);
 					final int finalNewId = newId;
 					final int[] current = nextTrackedIds.get();
 					final int[] updated = new int[current.length + 1];
@@ -409,7 +415,7 @@ class LongRunningPriceListAndCurrencyPriceRefIndexTest implements TimeBoundedTes
 					.append(idToRemove).append(")\n");
 
 				try {
-					index.removePrice(idToRemove, validityPool[arrayIdx]);
+					index.removePrice(idToRemove, validityPool[arrayIdx], superIndex);
 					final int[] current = nextTrackedIds.get();
 					final int removeIdx = ArrayUtils.indexOf(
 						idToRemove, current

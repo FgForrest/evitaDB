@@ -83,8 +83,9 @@ class PriceIndexContainerFormulaTest {
 		@DisplayName("should return delegate reference via getDelegate")
 		void shouldReturnDelegateReferenceViaGetDelegate() {
 			final ConstantFormula delegate = createConstantFormula(2, 4);
+			final PriceListAndCurrencyPriceIndex<?> index = createPriceIndex("vip", CZK);
 			final PriceIndexContainerFormula formula = new PriceIndexContainerFormula(
-				createPriceIndex("vip", CZK), delegate
+				index, index, delegate
 			);
 
 			assertSame(delegate, formula.getDelegate());
@@ -95,7 +96,7 @@ class PriceIndexContainerFormulaTest {
 		void shouldExposePriceIndexViaGetter() {
 			final PriceListAndCurrencyPriceIndex<?> index = createPriceIndex("basic", CZK);
 			final PriceIndexContainerFormula formula = new PriceIndexContainerFormula(
-				index, createConstantFormula(1)
+				index, index, createConstantFormula(1)
 			);
 
 			assertSame(index, formula.getPriceIndex());
@@ -109,8 +110,9 @@ class PriceIndexContainerFormulaTest {
 		@Test
 		@DisplayName("should return empty bitmap when wrapping empty formula")
 		void shouldReturnEmptyBitmapWhenWrappingEmptyFormula() {
+			final PriceListAndCurrencyPriceIndex<?> index = createPriceIndex("basic", CZK);
 			final PriceIndexContainerFormula formula = new PriceIndexContainerFormula(
-				createPriceIndex("basic", CZK), EmptyFormula.INSTANCE
+				index, index, EmptyFormula.INSTANCE
 			);
 
 			final Bitmap result = formula.compute();
@@ -128,7 +130,7 @@ class PriceIndexContainerFormulaTest {
 		void shouldPreservePriceIndexInClone() {
 			final PriceListAndCurrencyPriceIndex<?> index = createPriceIndex("vip", EUR);
 			final PriceIndexContainerFormula original = new PriceIndexContainerFormula(
-				index, createConstantFormula(1, 2)
+				index, index, createConstantFormula(1, 2)
 			);
 
 			final Formula clone = original.getCloneWithInnerFormulas(createConstantFormula(3, 4));
@@ -139,10 +141,35 @@ class PriceIndexContainerFormulaTest {
 		}
 
 		@Test
+		@DisplayName("should preserve a lowest-price source distinct from the price index in clone")
+		void shouldPreserveDistinctLowestPriceRecordsSourceInClone() {
+			// a reduced (ref) index answers the lowest-price lookup through the SUPER index of the same combination, so
+			// the two fields are genuinely different instances in production. Every other test here passes the same index
+			// twice, which would let a clone that dropped or swapped the second field still look correct.
+			final PriceListAndCurrencyPriceIndex<?> index = createPriceIndex("vip", EUR);
+			final PriceListAndCurrencyPriceIndex<?> lowestPriceRecordsSource = createPriceIndex("basic", CZK);
+			final PriceIndexContainerFormula original = new PriceIndexContainerFormula(
+				index, lowestPriceRecordsSource, createConstantFormula(1, 2)
+			);
+
+			final PriceIndexContainerFormula innerClone =
+				(PriceIndexContainerFormula) original.getCloneWithInnerFormulas(createConstantFormula(3, 4));
+			assertSame(index, innerClone.getPriceIndex());
+			assertSame(lowestPriceRecordsSource, innerClone.getLowestPriceRecordsSource());
+
+			final PriceIndexContainerFormula callbackClone = (PriceIndexContainerFormula) original
+				.getCloneWithComputationCallback(it -> {
+				}, createConstantFormula(3, 4));
+			assertSame(index, callbackClone.getPriceIndex());
+			assertSame(lowestPriceRecordsSource, callbackClone.getLowestPriceRecordsSource());
+		}
+
+		@Test
 		@DisplayName("should use provided inner formula in clone instead of original delegate")
 		void shouldUseProvidedInnerFormulaInCloneInsteadOfOriginalDelegate() {
+			final PriceListAndCurrencyPriceIndex<?> index = createPriceIndex("basic", CZK);
 			final PriceIndexContainerFormula original = new PriceIndexContainerFormula(
-				createPriceIndex("basic", CZK), createConstantFormula(1, 2, 3)
+				index, index, createConstantFormula(1, 2, 3)
 			);
 
 			final ConstantFormula newDelegate = createConstantFormula(10, 20);
@@ -191,8 +218,9 @@ class PriceIndexContainerFormulaTest {
 		@DisplayName("should delegate cardinality estimate to inner formula")
 		void shouldDelegateCardinalityEstimateToInnerFormula() {
 			final ConstantFormula delegate = createConstantFormula(1, 2, 3, 4, 5);
+			final PriceListAndCurrencyPriceIndex<?> index = createPriceIndex("basic", CZK);
 			final PriceIndexContainerFormula formula = new PriceIndexContainerFormula(
-				createPriceIndex("basic", CZK), delegate
+				index, index, delegate
 			);
 
 			assertEquals(delegate.getEstimatedCardinality(), formula.getEstimatedCardinality());
@@ -241,8 +269,12 @@ class PriceIndexContainerFormulaTest {
 		@Nonnull Currency currency,
 		int... values
 	) {
+		// a super index answers `getLowestPriceRecordsForEntity` itself, so it is both the wrapped index and the
+		// lowest-price-records source
+		final PriceListAndCurrencyPriceIndex<?> index = createPriceIndex(priceList, currency);
 		return new PriceIndexContainerFormula(
-			createPriceIndex(priceList, currency),
+			index,
+			index,
 			createConstantFormula(values)
 		);
 	}

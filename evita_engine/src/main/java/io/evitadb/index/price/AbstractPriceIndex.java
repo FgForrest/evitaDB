@@ -106,16 +106,21 @@ abstract class AbstractPriceIndex<T extends PriceListAndCurrencyPriceIndex> impl
 		@Nullable Integer innerRecordId,
 		@Nullable DateTimeRange validity,
 		int priceWithoutTax,
-		int priceWithTax
+		int priceWithTax,
+		@Nonnull PriceSuperIndex superPriceIndex
 	) {
-		final T priceListIndex = this.getPriceIndexes().computeIfAbsent(
-			new PriceIndexKey(priceKey.priceList(), priceKey.currency(), innerRecordHandling),
-			this::createNewPriceListAndCurrencyIndex
-		);
+		final PriceIndexKey lookupKey = new PriceIndexKey(priceKey.priceList(), priceKey.currency(), innerRecordHandling);
+		// the combination almost always exists already - probe first so the common path allocates no capturing lambda
+		T priceListIndex = this.getPriceIndexes().get(lookupKey);
+		if (priceListIndex == null) {
+			priceListIndex = this.getPriceIndexes().computeIfAbsent(
+				lookupKey, key -> createNewPriceListAndCurrencyIndex(key, superPriceIndex)
+			);
+		}
 		return addPrice(
 			referenceSchema, priceListIndex, entityPrimaryKey,
 			internalPriceId, priceKey.priceId(), innerRecordId,
-			validity, priceWithoutTax, priceWithTax
+			validity, priceWithoutTax, priceWithTax, superPriceIndex
 		);
 	}
 
@@ -128,7 +133,8 @@ abstract class AbstractPriceIndex<T extends PriceListAndCurrencyPriceIndex> impl
 		@Nullable Integer innerRecordId,
 		@Nullable DateTimeRange validity,
 		int priceWithoutTax,
-		int priceWithTax
+		int priceWithTax,
+		@Nonnull PriceSuperIndex superPriceIndex
 	) {
 		final PriceIndexKey lookupKey = new PriceIndexKey(priceKey.priceList(), priceKey.currency(), innerRecordHandling);
 		final T priceListIndex = this.getPriceIndexes().get(lookupKey);
@@ -137,7 +143,7 @@ abstract class AbstractPriceIndex<T extends PriceListAndCurrencyPriceIndex> impl
 		removePrice(
 			referenceSchema, priceListIndex, entityPrimaryKey,
 			internalPriceId, priceKey.priceId(), innerRecordId,
-			validity, priceWithoutTax, priceWithTax
+			validity, priceWithoutTax, priceWithTax, superPriceIndex
 		);
 
 		if (!priceListIndex.isTerminated() && priceListIndex.isEmpty()) {
@@ -186,7 +192,10 @@ abstract class AbstractPriceIndex<T extends PriceListAndCurrencyPriceIndex> impl
 	 */
 
 	@Nonnull
-	protected abstract T createNewPriceListAndCurrencyIndex(@Nonnull PriceIndexKey lookupKey);
+	protected abstract T createNewPriceListAndCurrencyIndex(
+		@Nonnull PriceIndexKey lookupKey,
+		@Nonnull PriceSuperIndex superPriceIndex
+	);
 
 	protected void removeExistingIndex(@Nonnull PriceIndexKey lookupKey, @Nonnull T priceListIndex) {
 		final T removedIndex = getPriceIndexes().remove(lookupKey);
@@ -202,7 +211,8 @@ abstract class AbstractPriceIndex<T extends PriceListAndCurrencyPriceIndex> impl
 		@Nullable Integer innerRecordId,
 		@Nullable DateTimeRange validity,
 		int priceWithoutTax,
-		int priceWithTax
+		int priceWithTax,
+		@Nonnull PriceSuperIndex superPriceIndex
 	);
 
 	protected abstract void removePrice(
@@ -214,7 +224,8 @@ abstract class AbstractPriceIndex<T extends PriceListAndCurrencyPriceIndex> impl
 		@Nullable Integer innerRecordId,
 		@Nullable DateTimeRange validity,
 		int priceWithoutTax,
-		int priceWithTax
+		int priceWithTax,
+		@Nonnull PriceSuperIndex superPriceIndex
 	);
 
 	@Nonnull

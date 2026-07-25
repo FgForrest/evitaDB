@@ -145,16 +145,30 @@ public class PriceListAndCurrencyPriceRefIndex
 	}
 
 	/**
+	 * Resolves the index answering {@link #getLowestPriceRecordsForEntity(int)} for this combination: the super index of
+	 * the very same price-list / currency combination, taken from the GLOBAL price index the caller supplies.
+	 */
+	@Nonnull
+	@Override
+	protected PriceListAndCurrencyPriceSuperIndex resolveLowestPriceRecordsSource(@Nonnull PriceSuperIndex superPriceIndex) {
+		return superPriceIndex.getPriceIndexOrThrow(this.priceIndexKey);
+	}
+
+	/**
 	 * Indexes inner record id or entity primary key into the price index with passed values.
+	 *
+	 * @param superIndex the super index of this price-list / currency combination, holding the shared
+	 *                   {@link PriceRecord} instances this index only references
 	 */
 	@Nonnull
 	public PriceRecordContract addPrice(
 		@Nonnull Integer internalPriceId,
-		@Nullable DateTimeRange validity
+		@Nullable DateTimeRange validity,
+		@Nonnull PriceListAndCurrencyPriceSuperIndex superIndex
 	) {
 		assertNotTerminated();
 		final int ipId = Objects.requireNonNull(internalPriceId);
-		final PriceRecordContract priceRecord = this.superIndex.getPriceRecord(ipId);
+		final PriceRecordContract priceRecord = superIndex.getPriceRecord(ipId);
 
 		// index the presence of the record
 		this.indexedPriceEntityIds.add(priceRecord.entityPrimaryKey());
@@ -171,16 +185,20 @@ public class PriceListAndCurrencyPriceRefIndex
 
 	/**
 	 * Removes inner record id or entity primary key of passed values from the price index.
+	 *
+	 * @param superIndex the super index of this price-list / currency combination, holding the shared
+	 *                   {@link PriceRecord} and {@link EntityPrices} instances this index only references
 	 */
 	@Nonnull
 	public PriceRecordContract removePrice(
 		@Nonnull Integer internalPriceId,
-		@Nullable DateTimeRange validity
+		@Nullable DateTimeRange validity,
+		@Nonnull PriceListAndCurrencyPriceSuperIndex superIndex
 	) {
 		assertNotTerminated();
 		final int ipId = Objects.requireNonNull(internalPriceId);
-		final PriceRecordContract priceRecord = this.superIndex.getPriceRecord(ipId);
-		final EntityPrices entityPrices = this.superIndex.getEntityPrices(priceRecord.entityPrimaryKey());
+		final PriceRecordContract priceRecord = superIndex.getPriceRecord(ipId);
+		final EntityPrices entityPrices = superIndex.getEntityPrices(priceRecord.entityPrimaryKey());
 
 		// remove price from the translation tree (keyed by internal price id)
 		this.priceRecords.delete(priceRecord.internalPriceId());

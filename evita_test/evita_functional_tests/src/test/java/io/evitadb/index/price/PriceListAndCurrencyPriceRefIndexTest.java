@@ -248,7 +248,9 @@ class PriceListAndCurrencyPriceRefIndexTest implements TimeBoundedTestSupport {
 
 			// add price to ref
 			final PriceRecordContract returned =
-				PriceListAndCurrencyPriceRefIndexTest.this.refIndex.addPrice(10, null);
+				PriceListAndCurrencyPriceRefIndexTest.this.refIndex.addPrice(
+					10, null, PriceListAndCurrencyPriceRefIndexTest.this.superIndex
+				);
 
 			assertEquals(price, returned);
 			assertArrayEquals(
@@ -279,7 +281,9 @@ class PriceListAndCurrencyPriceRefIndexTest implements TimeBoundedTestSupport {
 				PriceListAndCurrencyPriceRefIndexTest.this.superIndex
 			);
 
-			PriceListAndCurrencyPriceRefIndexTest.this.refIndex.addPrice(10, validity);
+			PriceListAndCurrencyPriceRefIndexTest.this.refIndex.addPrice(
+				10, validity, PriceListAndCurrencyPriceRefIndexTest.this.superIndex
+			);
 
 			// verify validity index returns price at midpoint
 			final OffsetDateTime midPoint =
@@ -304,8 +308,12 @@ class PriceListAndCurrencyPriceRefIndexTest implements TimeBoundedTestSupport {
 				PriceListAndCurrencyPriceRefIndexTest.this.superIndex
 			);
 
-			PriceListAndCurrencyPriceRefIndexTest.this.refIndex.addPrice(10, null);
-			PriceListAndCurrencyPriceRefIndexTest.this.refIndex.addPrice(20, null);
+			PriceListAndCurrencyPriceRefIndexTest.this.refIndex.addPrice(
+				10, null, PriceListAndCurrencyPriceRefIndexTest.this.superIndex
+			);
+			PriceListAndCurrencyPriceRefIndexTest.this.refIndex.addPrice(
+				20, null, PriceListAndCurrencyPriceRefIndexTest.this.superIndex
+			);
 
 			assertArrayEquals(
 				new int[]{42},
@@ -334,8 +342,12 @@ class PriceListAndCurrencyPriceRefIndexTest implements TimeBoundedTestSupport {
 				PriceListAndCurrencyPriceRefIndexTest.this.superIndex
 			);
 
-			PriceListAndCurrencyPriceRefIndexTest.this.refIndex.addPrice(10, null);
-			PriceListAndCurrencyPriceRefIndexTest.this.refIndex.addPrice(20, null);
+			PriceListAndCurrencyPriceRefIndexTest.this.refIndex.addPrice(
+				10, null, PriceListAndCurrencyPriceRefIndexTest.this.superIndex
+			);
+			PriceListAndCurrencyPriceRefIndexTest.this.refIndex.addPrice(
+				20, null, PriceListAndCurrencyPriceRefIndexTest.this.superIndex
+			);
 
 			assertArrayEquals(
 				new int[]{42, 99},
@@ -363,12 +375,18 @@ class PriceListAndCurrencyPriceRefIndexTest implements TimeBoundedTestSupport {
 				PriceListAndCurrencyPriceRefIndexTest.this.refIndex,
 				PriceListAndCurrencyPriceRefIndexTest.this.superIndex
 			);
-			PriceListAndCurrencyPriceRefIndexTest.this.refIndex.addPrice(10, null);
-			PriceListAndCurrencyPriceRefIndexTest.this.refIndex.addPrice(20, null);
+			PriceListAndCurrencyPriceRefIndexTest.this.refIndex.addPrice(
+				10, null, PriceListAndCurrencyPriceRefIndexTest.this.superIndex
+			);
+			PriceListAndCurrencyPriceRefIndexTest.this.refIndex.addPrice(
+				20, null, PriceListAndCurrencyPriceRefIndexTest.this.superIndex
+			);
 
 			// remove one price — entity 42 should remain because it still has price 20
 			final PriceRecordContract removed =
-				PriceListAndCurrencyPriceRefIndexTest.this.refIndex.removePrice(10, null);
+				PriceListAndCurrencyPriceRefIndexTest.this.refIndex.removePrice(
+					10, null, PriceListAndCurrencyPriceRefIndexTest.this.superIndex
+				);
 
 			assertEquals(price1, removed);
 			// entity 42 still present (price 20 remains)
@@ -396,10 +414,14 @@ class PriceListAndCurrencyPriceRefIndexTest implements TimeBoundedTestSupport {
 				PriceListAndCurrencyPriceRefIndexTest.this.refIndex,
 				PriceListAndCurrencyPriceRefIndexTest.this.superIndex
 			);
-			PriceListAndCurrencyPriceRefIndexTest.this.refIndex.addPrice(10, null);
+			PriceListAndCurrencyPriceRefIndexTest.this.refIndex.addPrice(
+				10, null, PriceListAndCurrencyPriceRefIndexTest.this.superIndex
+			);
 
 			// remove the only price — entity should be evicted
-			PriceListAndCurrencyPriceRefIndexTest.this.refIndex.removePrice(10, null);
+			PriceListAndCurrencyPriceRefIndexTest.this.refIndex.removePrice(
+				10, null, PriceListAndCurrencyPriceRefIndexTest.this.superIndex
+			);
 
 			assertTrue(PriceListAndCurrencyPriceRefIndexTest.this.refIndex.isEmpty());
 			assertEquals(0, PriceListAndCurrencyPriceRefIndexTest.this.refIndex.getPriceRecords().length);
@@ -425,7 +447,9 @@ class PriceListAndCurrencyPriceRefIndexTest implements TimeBoundedTestSupport {
 				PriceListAndCurrencyPriceRefIndexTest.this.refIndex,
 				PriceListAndCurrencyPriceRefIndexTest.this.superIndex
 			);
-			PriceListAndCurrencyPriceRefIndexTest.this.refIndex.addPrice(10, validity);
+			PriceListAndCurrencyPriceRefIndexTest.this.refIndex.addPrice(
+				10, validity, PriceListAndCurrencyPriceRefIndexTest.this.superIndex
+			);
 
 			// verify validity is recorded
 			final OffsetDateTime midPoint =
@@ -438,7 +462,9 @@ class PriceListAndCurrencyPriceRefIndexTest implements TimeBoundedTestSupport {
 			);
 
 			// remove with same validity
-			PriceListAndCurrencyPriceRefIndexTest.this.refIndex.removePrice(10, validity);
+			PriceListAndCurrencyPriceRefIndexTest.this.refIndex.removePrice(
+				10, validity, PriceListAndCurrencyPriceRefIndexTest.this.superIndex
+			);
 
 			assertTrue(PriceListAndCurrencyPriceRefIndexTest.this.refIndex.isEmpty());
 		}
@@ -455,11 +481,17 @@ class PriceListAndCurrencyPriceRefIndexTest implements TimeBoundedTestSupport {
 				PriceListAndCurrencyPriceRefIndexTest.this.refIndex,
 				PriceListAndCurrencyPriceRefIndexTest.this.superIndex
 			);
-			PriceListAndCurrencyPriceRefIndexTest.this.refIndex.addPrice(10, null);
-			PriceListAndCurrencyPriceRefIndexTest.this.refIndex.addPrice(20, null);
+			PriceListAndCurrencyPriceRefIndexTest.this.refIndex.addPrice(
+				10, null, PriceListAndCurrencyPriceRefIndexTest.this.superIndex
+			);
+			PriceListAndCurrencyPriceRefIndexTest.this.refIndex.addPrice(
+				20, null, PriceListAndCurrencyPriceRefIndexTest.this.superIndex
+			);
 
 			// remove entity 42's only price
-			PriceListAndCurrencyPriceRefIndexTest.this.refIndex.removePrice(10, null);
+			PriceListAndCurrencyPriceRefIndexTest.this.refIndex.removePrice(
+				10, null, PriceListAndCurrencyPriceRefIndexTest.this.superIndex
+			);
 
 			// entity 99 should still be present
 			assertArrayEquals(
@@ -485,7 +517,7 @@ class PriceListAndCurrencyPriceRefIndexTest implements TimeBoundedTestSupport {
 			);
 			assertArrayEquals(new int[]{42}, tested.getIndexedPriceEntityIds().getArray());
 
-			tested.removePrice(20, null);
+			tested.removePrice(20, null, PriceListAndCurrencyPriceRefIndexTest.this.superIndex);
 
 			// entity 42 still has prices 10 and 30 in the SUPER index, yet none in this one - so it
 			// must be evicted here regardless
@@ -507,12 +539,12 @@ class PriceListAndCurrencyPriceRefIndexTest implements TimeBoundedTestSupport {
 				new int[]{10, 20, 30}
 			);
 
-			tested.removePrice(20, null);
+			tested.removePrice(20, null, PriceListAndCurrencyPriceRefIndexTest.this.superIndex);
 			assertArrayEquals(new int[]{42}, tested.getIndexedPriceEntityIds().getArray());
-			tested.removePrice(10, null);
+			tested.removePrice(10, null, PriceListAndCurrencyPriceRefIndexTest.this.superIndex);
 			assertArrayEquals(new int[]{42}, tested.getIndexedPriceEntityIds().getArray());
 
-			tested.removePrice(30, null);
+			tested.removePrice(30, null, PriceListAndCurrencyPriceRefIndexTest.this.superIndex);
 			assertArrayEquals(new int[]{}, tested.getIndexedPriceEntityIds().getArray());
 			assertTrue(tested.isEmpty());
 		}
@@ -532,10 +564,10 @@ class PriceListAndCurrencyPriceRefIndexTest implements TimeBoundedTestSupport {
 			);
 
 			// remove the highest internal price id first, then the lowest one of the same entity
-			tested.removePrice(1000, null);
+			tested.removePrice(1000, null, PriceListAndCurrencyPriceRefIndexTest.this.superIndex);
 			assertArrayEquals(new int[]{42, 99}, tested.getIndexedPriceEntityIds().getArray());
 
-			tested.removePrice(5, null);
+			tested.removePrice(5, null, PriceListAndCurrencyPriceRefIndexTest.this.superIndex);
 			assertArrayEquals(new int[]{99}, tested.getIndexedPriceEntityIds().getArray());
 			assertArrayEquals(new int[]{7}, tested.getIndexedPriceIds());
 		}
@@ -624,7 +656,9 @@ class PriceListAndCurrencyPriceRefIndexTest implements TimeBoundedTestSupport {
 				PriceListAndCurrencyPriceRefIndexTest.this.refIndex,
 				PriceListAndCurrencyPriceRefIndexTest.this.superIndex
 			);
-			PriceListAndCurrencyPriceRefIndexTest.this.refIndex.addPrice(10, null);
+			PriceListAndCurrencyPriceRefIndexTest.this.refIndex.addPrice(
+				10, null, PriceListAndCurrencyPriceRefIndexTest.this.superIndex
+			);
 
 			final StoragePart part =
 				PriceListAndCurrencyPriceRefIndexTest.this.refIndex.createStoragePart(1);
@@ -661,7 +695,9 @@ class PriceListAndCurrencyPriceRefIndexTest implements TimeBoundedTestSupport {
 				PriceListAndCurrencyPriceRefIndexTest.this.refIndex,
 				PriceListAndCurrencyPriceRefIndexTest.this.superIndex
 			);
-			PriceListAndCurrencyPriceRefIndexTest.this.refIndex.addPrice(10, null);
+			PriceListAndCurrencyPriceRefIndexTest.this.refIndex.addPrice(
+				10, null, PriceListAndCurrencyPriceRefIndexTest.this.superIndex
+			);
 
 			// dirty — should produce storage part
 			assertNotNull(
@@ -740,7 +776,9 @@ class PriceListAndCurrencyPriceRefIndexTest implements TimeBoundedTestSupport {
 			assertThrows(PriceListAndCurrencyPriceIndexTerminated.class, tested::getPriceRecords);
 			assertThrows(
 				PriceListAndCurrencyPriceIndexTerminated.class,
-				() -> tested.addPrice(1, null)
+				() -> tested.addPrice(
+					1, null, PriceListAndCurrencyPriceRefIndexTest.this.superIndex
+				)
 			);
 		}
 
@@ -755,7 +793,9 @@ class PriceListAndCurrencyPriceRefIndexTest implements TimeBoundedTestSupport {
 
 			assertStateAfterRollback(
 				tested,
-				index -> index.addPrice(10, null),
+				index -> index.addPrice(
+					10, null, PriceListAndCurrencyPriceRefIndexTest.this.superIndex
+				),
 				(original, committed) -> {
 					assertNull(committed);
 					assertTrue(original.isEmpty());
@@ -782,7 +822,9 @@ class PriceListAndCurrencyPriceRefIndexTest implements TimeBoundedTestSupport {
 
 			assertStateAfterCommit(
 				tested,
-				index -> index.addPrice(10, null),
+				index -> index.addPrice(
+					10, null, PriceListAndCurrencyPriceRefIndexTest.this.superIndex
+				),
 				(original, committed) -> {
 					assertNotSame(original, committed);
 					// committed has the price
@@ -810,11 +852,13 @@ class PriceListAndCurrencyPriceRefIndexTest implements TimeBoundedTestSupport {
 			final PriceListAndCurrencyPriceRefIndex tested =
 				createAttachedRefIndex(PriceListAndCurrencyPriceRefIndexTest.this.superIndex);
 			// pre-add the price outside transaction
-			tested.addPrice(10, null);
+			tested.addPrice(10, null, PriceListAndCurrencyPriceRefIndexTest.this.superIndex);
 
 			assertStateAfterCommit(
 				tested,
-				index -> index.removePrice(10, null),
+				index -> index.removePrice(
+					10, null, PriceListAndCurrencyPriceRefIndexTest.this.superIndex
+				),
 				(original, committed) -> {
 					assertNotSame(original, committed);
 					// committed is empty after removal
@@ -844,7 +888,9 @@ class PriceListAndCurrencyPriceRefIndexTest implements TimeBoundedTestSupport {
 
 			assertStateAfterCommit(
 				tested,
-				index -> index.addPrice(5, validity),
+				index -> index.addPrice(
+					5, validity, PriceListAndCurrencyPriceRefIndexTest.this.superIndex
+				),
 				(original, committed) -> {
 					assertNotSame(original, committed);
 					final OffsetDateTime midPoint =
@@ -877,7 +923,9 @@ class PriceListAndCurrencyPriceRefIndexTest implements TimeBoundedTestSupport {
 
 			assertStateAfterRollback(
 				tested,
-				index -> index.addPrice(10, null),
+				index -> index.addPrice(
+					10, null, PriceListAndCurrencyPriceRefIndexTest.this.superIndex
+				),
 				(original, committed) -> {
 					assertNull(committed);
 					assertTrue(original.isEmpty());
@@ -895,11 +943,13 @@ class PriceListAndCurrencyPriceRefIndexTest implements TimeBoundedTestSupport {
 			final PriceListAndCurrencyPriceRefIndex tested =
 				createAttachedRefIndex(PriceListAndCurrencyPriceRefIndexTest.this.superIndex);
 			// pre-add outside transaction
-			tested.addPrice(10, null);
+			tested.addPrice(10, null, PriceListAndCurrencyPriceRefIndexTest.this.superIndex);
 
 			assertStateAfterRollback(
 				tested,
-				index -> index.removePrice(10, null),
+				index -> index.removePrice(
+					10, null, PriceListAndCurrencyPriceRefIndexTest.this.superIndex
+				),
 				(original, committed) -> {
 					assertNull(committed);
 					assertFalse(original.isEmpty());
