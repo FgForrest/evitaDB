@@ -70,16 +70,9 @@ abstract class AbstractReducedEntityIndexTest<T extends AbstractReducedEntityInd
 	 */
 	@BeforeEach
 	void attachCatalog() {
-		final PriceListAndCurrencyPriceSuperIndex priceSuperIndex =
-			mock(PriceListAndCurrencyPriceSuperIndex.class);
-		final io.evitadb.index.price.model.priceRecord.PriceRecordContract[] emptyPriceRecords =
-			new io.evitadb.index.price.model.priceRecord.PriceRecordContract[0];
-		when(priceSuperIndex.getPriceRecords())
-			.thenReturn(emptyPriceRecords);
-		when(priceSuperIndex.getPriceRecords(any()))
-			.thenReturn(emptyPriceRecords);
-
-		this.index.getPriceIndex().wireSuperIndexes(key -> priceSuperIndex);
+		// a reduced index keeps no pointer to the super price indexes backing it, so attachment has nothing left to wire:
+		// the only remaining attach-time price step restores the record tree of a ref index deserialized from disk, and
+		// this fixture builds its index in memory, where every combination already has one. Nothing to do here.
 	}
 
 	/**

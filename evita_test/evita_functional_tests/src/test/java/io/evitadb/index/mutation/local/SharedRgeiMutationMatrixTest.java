@@ -687,18 +687,19 @@ class SharedRgeiMutationMatrixTest {
 	}
 
 	/**
-	 * Wires the RGEI's price ref chain to the backing super index so the price ref index can
-	 * resolve shared price records via the super index. Mirrors the collection-local super-index
-	 * wiring used in production.
+	 * Repoints the RGEI's price ref chain at the shared price records held by the backing super index. Mirrors the
+	 * only remaining attach-time price step in production: a ref index deserialized from disk has no record tree until
+	 * it is restored from the super index. On an in-memory index (which is what these scenarios build) it is a no-op,
+	 * and it is called anyway so the fixture keeps mirroring the production attach path.
 	 *
-	 * @param target RGEI to wire
+	 * @param target RGEI to attach
 	 * @param superIndex backing super index for price record lookups
 	 */
 	private static void attachToMockCatalog(
 		@Nonnull ReducedGroupEntityIndex target,
 		@Nonnull PriceSuperIndex superIndex
 	) {
-		target.getPriceIndex().wireSuperIndexes(superIndex::getPriceIndex);
+		target.getPriceIndex().restorePriceRecords(superIndex);
 	}
 
 	/**

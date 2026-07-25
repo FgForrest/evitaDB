@@ -285,7 +285,7 @@ class LongRunningSavepointPriceRefIndexTest implements TimeBoundedTestSupport {
 		@Nonnull
 		private static PriceRefIndex attach(@Nonnull PriceSuperIndex superIndex) {
 			final PriceRefIndex refIndex = new PriceRefIndex(SCOPE);
-			refIndex.wireSuperIndexes(superIndex::getPriceIndex);
+			refIndex.restorePriceRecords(superIndex);
 			return refIndex;
 		}
 	}

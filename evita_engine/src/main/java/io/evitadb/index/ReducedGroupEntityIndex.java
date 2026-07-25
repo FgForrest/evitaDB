@@ -782,31 +782,6 @@ public class ReducedGroupEntityIndex extends AbstractReducedEntityIndex implemen
 		);
 	}
 
-	/**
-	 * Carry-by-reference shell constructor for the commit-merge prune — shares every committed sub-structure and the
-	 * baseline of `source` by reference (including the subclass-owned cardinality / histogram maps) and installs the
-	 * re-shelled `priceIndex`, without re-copying bitmaps or recapturing the baseline.
-	 * See {@link #createReshelledCopy(PriceRefIndex)}.
-	 */
-	private ReducedGroupEntityIndex(@Nonnull ReducedGroupEntityIndex source, @Nonnull PriceRefIndex priceIndex) {
-		super(source, priceIndex);
-		this.cardinalityDirty = new TransactionalBoolean();
-		this.pkCardinalities = source.pkCardinalities;
-		this.referencedPrimaryKeysIndex = source.referencedPrimaryKeysIndex;
-		this.cardinalityIndexes = source.cardinalityIndexes;
-		this.histogramIndexes = source.histogramIndexes;
-		registerSubclassComponents();
-	}
-
-	@Nonnull
-	@Override
-	protected AbstractReducedEntityIndex createReshelledCopy(@Nonnull PriceRefIndex rewiredPrice) {
-		// carry every sub-structure (and the change-detection baseline) by reference — including the subclass-owned
-		// cardinality / histogram maps — swapping in only the re-shelled price chain; see
-		// AbstractReducedEntityIndex#createCarryByReferenceCopyWithRewiredPrice
-		return new ReducedGroupEntityIndex(this, rewiredPrice);
-	}
-
 	@Override
 	public String toString() {
 		return "ReducedGroupEntityIndex (" + StringUtils.uncapitalize(getIndexKey().toString()) +

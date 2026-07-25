@@ -265,7 +265,7 @@ class LongRunningPriceRefIndexTest implements TimeBoundedTestSupport {
 		@Nonnull Map<PriceIndexKey, Set<Integer>> currentState
 	) {
 		final PriceRefIndex priceRefIndex = new PriceRefIndex(SCOPE);
-		priceRefIndex.wireSuperIndexes(superIndex::getPriceIndex);
+		priceRefIndex.restorePriceRecords(superIndex);
 
 		// populate the ref index from state
 		for (final Map.Entry<PriceIndexKey, Set<Integer>> entry : currentState.entrySet()) {

@@ -58,10 +58,11 @@ import static org.junit.jupiter.api.Assertions.assertSame;
  * version, its reduced entity indexes are forwarded **by reference** rather than re-shelled (a fresh copy) on every
  * version bump.
  *
- * A reduced index holds no catalog back-reference of its own — its price ref chain captures the GLOBAL entity index
- * directly through a `SuperIndexResolver`, and that GLOBAL is carried by reference in the same copy step — so the
- * reduced index can safely survive a version boundary as the very same instance. `goLive` is the deterministic clean
- * version bump used here: it routes every collection through the clean-copy path.
+ * A reduced index holds nothing that a version boundary could invalidate — no catalog back-reference, and no pointer
+ * into the GLOBAL entity index's super price indexes either, because the GLOBAL's price index is handed to it per
+ * operation by a caller that is already pinned to a catalog version. So it can survive a version boundary as the very
+ * same instance. `goLive` is the deterministic clean version bump used here: it routes every collection through the
+ * clean-copy path.
  *
  * Before carry-by-reference this test would fail (the reduced index came back as a fresh re-shelled instance); the
  * assertions therefore pin the alloc-saving mechanism against a silent revert to per-commit re-shelling (the actual

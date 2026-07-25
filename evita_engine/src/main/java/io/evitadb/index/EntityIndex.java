@@ -329,38 +329,6 @@ public abstract class EntityIndex implements
 	}
 
 	/**
-	 * Carry-by-reference shell constructor for the commit-merge prune: adopts every committed sub-structure of `source`
-	 * (entity-id bitmaps, attribute / hierarchy / facet sub-indexes) **and its change-detection baseline** BY REFERENCE,
-	 * allocating only a fresh (clean) dirty flag and fresh {@link IndexComponent} wrappers over the shared sub-indexes.
-	 *
-	 * Unlike the persisted-state reconstruction constructor it neither copies the entity-id bitmaps nor re-walks the
-	 * components to recapture the baseline — the shared sub-structures are already committed and their manifest is by
-	 * definition identical to `source`'s, and the {@code original*} baseline sets are immutable, so sharing them is safe.
-	 * This is what makes forwarding a clean index across a catalog version cheap enough to do per unchanged index.
-	 * Terminal subclasses swap in a re-wired price chain (and share their own sub-index maps by reference).
-	 *
-	 * @param source the committed index whose sub-structures and baseline are carried forward by reference
-	 */
-	protected EntityIndex(@Nonnull EntityIndex source) {
-		this.primaryKey = source.primaryKey;
-		this.indexKey = source.indexKey;
-		this.version = source.version;
-		this.dirty = new TransactionalBoolean();
-		this.entityIds = source.entityIds;
-		this.previouslyPersisted = source.previouslyPersisted;
-		this.entityIdsByLanguage = source.entityIdsByLanguage;
-		this.attributeIndex = source.attributeIndex;
-		this.hierarchyIndex = source.hierarchyIndex;
-		this.facetIndex = source.facetIndex;
-		this.originalHierarchyIndexEmpty = source.originalHierarchyIndexEmpty;
-		this.originalAttributeIndexes = source.originalAttributeIndexes;
-		this.originalPriceIndexes = source.originalPriceIndexes;
-		this.originalFacetIndexes = source.originalFacetIndexes;
-		this.originalHistogramKeys = source.originalHistogramKeys;
-		registerBaseComponents();
-	}
-
-	/**
 	 * Registers new entity primary key to the superset of entity ids of this entity index.
 	 */
 	public boolean insertPrimaryKeyIfMissing(int entityPrimaryKey) {

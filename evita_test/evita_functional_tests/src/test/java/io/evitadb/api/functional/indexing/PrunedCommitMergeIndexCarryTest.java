@@ -27,19 +27,18 @@ import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.SessionTraits;
 import io.evitadb.api.SessionTraits.SessionFlags;
 import io.evitadb.api.TransactionContract.CommitBehavior;
+import io.evitadb.api.query.Query;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.SealedEntity;
+import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaEditor;
 import io.evitadb.core.Evita;
 import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.collection.EntityCollection;
-import io.evitadb.exception.GenericEvitaInternalError;
-import io.evitadb.index.AbstractReducedEntityIndex;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.EntityIndexType;
-import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.test.Entities;
 import io.evitadb.test.EvitaTestSupport;
 import org.junit.jupiter.api.AfterEach;
@@ -50,39 +49,53 @@ import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import java.math.BigDecimal;
+import java.util.Arrays;
 import java.util.Currency;
+import java.util.stream.IntStream;
 
-import static io.evitadb.api.query.QueryConstraints.priceContentAll;
-import static io.evitadb.api.query.QueryConstraints.referenceContentAll;
 import static io.evitadb.api.functional.indexing.IndexingTestSupport.getReferencedEntityIndex;
+import static io.evitadb.api.query.QueryConstraints.collection;
+import static io.evitadb.api.query.QueryConstraints.entityPrimaryKeyInSet;
+import static io.evitadb.api.query.QueryConstraints.filterBy;
+import static io.evitadb.api.query.QueryConstraints.priceBetween;
+import static io.evitadb.api.query.QueryConstraints.priceContentAll;
+import static io.evitadb.api.query.QueryConstraints.priceInCurrency;
+import static io.evitadb.api.query.QueryConstraints.priceInPriceLists;
+import static io.evitadb.api.query.QueryConstraints.referenceContentAll;
+import static io.evitadb.api.query.QueryConstraints.referenceHaving;
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.PRICE;
 import static io.evitadb.test.TestTags.REFERENCE;
 import static io.evitadb.test.TestTags.TRANSACTION;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
  * Locks in the commit-time merge prune ({@code EntityCollection#pruneMergeIndexes}): a transaction rebuilds only the
  * entity indexes it actually dirtied and forwards the rest across the catalog version, instead of merging the whole
  * index forest.
  *
- * The load-bearing subtlety is price wiring. A reduced index's price chain captures its scope's GLOBAL entity index
- * directly (through a `SuperIndexResolver`), and the GLOBAL is rebuilt by nearly every transaction — so a clean reduced
- * index cannot simply be shared wholesale, it must be re-shelled onto the CURRENT version's GLOBAL. Getting that wrong
- * is not a read-path curiosity: the trunk write path consults the reduced index's super wiring on the next price
- * mutation, so a stale carry surfaces as `Price id ... not found in the price super index` on a LATER transaction.
- * These tests therefore assert the wiring identity directly AND drive a follow-up price mutation through the carried
- * index.
+ * Price resolution used to be the load-bearing subtlety here and no longer is. A reduced index's price chain kept
+ * a pointer to its scope's GLOBAL entity index, and because the GLOBAL is rebuilt by nearly every transaction, every
+ * clean reduced index of that scope had to be re-shelled purely to refresh that pointer. The pointer is gone — the
+ * GLOBAL's price index is handed in per operation by a caller already pinned to a catalog version — so a clean reduced
+ * index is now carried **wholesale**, and there is no captured GLOBAL left to probe.
+ *
+ * What remains worth defending is observable rather than structural: an index forwarded across a catalog version must
+ * still resolve prices from the CURRENT data. Each test therefore drives a price query through the carried reduced
+ * index — `referenceHaving` on the brand the index is keyed by, plus a price constraint, which is what makes that
+ * reduced index an eligible target for the price resolution — and, wherever a price changed, also checks that the OLD
+ * value is no longer matched. The trunk write path is exercised on top of that, by mutating a price through
+ * a previously carried index in a later transaction.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
-@DisplayName("Commit-time merge prune carries clean indexes and re-wires them to the current GLOBAL")
+@DisplayName("Commit-time merge prune carries clean indexes across the catalog version")
 @Tag(INDEXING)
 @Tag(REFERENCE)
 @Tag(PRICE)
@@ -116,8 +129,8 @@ class PrunedCommitMergeIndexCarryTest implements EvitaTestSupport {
 	}
 
 	@Test
-	@DisplayName("a clean reduced index is re-shelled onto the rebuilt GLOBAL, never left pointing at the retired one")
-	void shouldReshellACleanReducedIndexOntoTheRebuiltGlobal() {
+	@DisplayName("a clean reduced index is carried wholesale even when its scope's GLOBAL is rebuilt")
+	void shouldCarryACleanReducedIndexWholesaleWhenItsGlobalIsRebuilt() {
 		final EntityIndex globalBefore = globalEntityIndex();
 		final EntityIndex carriedBefore = reducedIndex(CARRIED_BRAND_PK);
 		final EntityIndex touchedBefore = reducedIndex(TOUCHED_BRAND_PK);
@@ -133,37 +146,33 @@ class PrunedCommitMergeIndexCarryTest implements EvitaTestSupport {
 
 		assertNotSame(globalBefore, globalAfter, "A dirtied GLOBAL entity index must be rebuilt by the merge!");
 		assertNotSame(touchedBefore, touchedAfter, "A dirtied reduced index must be rebuilt by the merge!");
-		// the clean index cannot be shared wholesale here - its price chain captured the now-retired GLOBAL
-		assertNotSame(
-			carriedBefore, carriedAfter,
-			"A clean reduced index whose GLOBAL was rebuilt must be re-shelled, not shared wholesale!"
-		);
-		assertEquals(
-			carriedBefore.getPrimaryKey(), carriedAfter.getPrimaryKey(),
-			"The re-shelled index must remain the very same logical index!"
-		);
-		// this is what distinguishes the PRUNED merge from the full one and keeps this test honest: the re-shell
-		// adopts the entity-id bitmap by reference, whereas the unpruned merge re-wraps it into a fresh
-		// TransactionalBitmap. Without this assertion every check here would pass with the prune disabled.
+		// this is what distinguishes the PRUNED merge from the full one and keeps this test honest: an unpruned merge
+		// hands back a freshly merged instance for EVERY index, while the prune forwards the clean one untouched. That
+		// the scope's GLOBAL was rebuilt in the meantime is irrelevant to it - a reduced index no longer holds
+		// a pointer into the GLOBAL's price super indexes, so there is nothing about it a version bump could invalidate
 		assertSame(
-			carriedBefore.getAllPrimaryKeys(), carriedAfter.getAllPrimaryKeys(),
-			"The re-shelled index must adopt the clean entity-id bitmap by reference, not re-copy it!"
+			carriedBefore, carriedAfter,
+			"A clean reduced index must be carried wholesale by reference, not re-merged nor re-shelled!"
 		);
 
-		// every reduced index - rebuilt or re-shelled - must resolve prices through the CURRENT version's GLOBAL
-		assertWiredTo(carriedAfter, globalAfter);
-		assertWiredTo(touchedAfter, globalAfter);
-		assertNotWiredTo(carriedAfter, globalBefore);
+		// every reduced index - rebuilt or carried - must resolve prices from the CURRENT data
+		assertBrandPriceQueryReturns(TOUCHED_BRAND_PK, BigDecimal.valueOf(20), TOUCHED_PRODUCT_PK);
+		assertBrandPriceQueryReturns(CARRIED_BRAND_PK, BigDecimal.TEN, CARRIED_PRODUCT_PK);
+		// ... and nothing may still be answered from the retired version: the touched product's OLD price is gone
+		assertBrandPriceQueryReturns(TOUCHED_BRAND_PK, BigDecimal.TEN);
+		// the carried index must not have absorbed the touched product along the way either
+		assertBrandPriceQueryReturns(CARRIED_BRAND_PK, BigDecimal.valueOf(20));
 	}
 
 	@Test
 	@DisplayName("a carried index still serves the write path - a later price mutation through it must commit")
 	void shouldKeepACarriedIndexUsableByTheTrunkWritePath() {
-		// first transaction prunes the carried brand's reduced index out of the merge and re-shells it
+		// first transaction prunes the carried brand's reduced index out of the merge and forwards it untouched
 		updatePriceOf(TOUCHED_PRODUCT_PK, BigDecimal.valueOf(20));
 
 		// second transaction mutates the price of the product behind the CARRIED index. The trunk write path resolves
-		// the price through that index's super wiring, so a stale carry throws here rather than at read time.
+		// the price through the GLOBAL's price super index of the version it is pinned to, so a carry that ended up
+		// paired with the wrong one throws here rather than at read time.
 		assertDoesNotThrow(
 			() -> updatePriceOf(CARRIED_PRODUCT_PK, BigDecimal.valueOf(30)),
 			"A price mutation routed through a carried reduced index must not hit a retired price super index!"
@@ -177,8 +186,11 @@ class PrunedCommitMergeIndexCarryTest implements EvitaTestSupport {
 			0, BigDecimal.valueOf(20).compareTo(priceOf(TOUCHED_PRODUCT_PK)),
 			"The untouched product's price must survive the second transaction!"
 		);
-		assertWiredTo(reducedIndex(CARRIED_BRAND_PK), globalEntityIndex());
-		assertWiredTo(reducedIndex(TOUCHED_BRAND_PK), globalEntityIndex());
+		// the twice-carried index must answer with what the second transaction wrote through it, and no longer with
+		// the price it held when it was pruned out of the first merge
+		assertBrandPriceQueryReturns(CARRIED_BRAND_PK, BigDecimal.valueOf(30), CARRIED_PRODUCT_PK);
+		assertBrandPriceQueryReturns(CARRIED_BRAND_PK, BigDecimal.TEN);
+		assertBrandPriceQueryReturns(TOUCHED_BRAND_PK, BigDecimal.valueOf(20), TOUCHED_PRODUCT_PK);
 	}
 
 	@Test
@@ -190,13 +202,13 @@ class PrunedCommitMergeIndexCarryTest implements EvitaTestSupport {
 		// to apply that key delta AND keep pruning the values the transaction never touched
 		addBrandAndReferenceItFromTouchedProduct();
 
-		final EntityIndex globalAfter = globalEntityIndex();
 		final EntityIndex addedIndex = reducedIndex(ADDED_BRAND_PK);
 		assertNotNull(addedIndex, "The newly referenced brand must have got its own reduced index!");
 
-		assertWiredTo(addedIndex, globalAfter);
-		assertWiredTo(reducedIndex(CARRIED_BRAND_PK), globalAfter);
-		assertWiredTo(reducedIndex(TOUCHED_BRAND_PK), globalAfter);
+		// the brand-new index and both pre-existing ones must all resolve prices from the current data
+		assertBrandPriceQueryReturns(ADDED_BRAND_PK, BigDecimal.TEN, TOUCHED_PRODUCT_PK);
+		assertBrandPriceQueryReturns(CARRIED_BRAND_PK, BigDecimal.TEN, CARRIED_PRODUCT_PK);
+		assertBrandPriceQueryReturns(TOUCHED_BRAND_PK, BigDecimal.TEN, TOUCHED_PRODUCT_PK);
 		// the discriminator between the pruned merge and the full one: a full merge re-wraps even an untouched index's
 		// entity-id bitmap into a fresh TransactionalBitmap, the prune adopts it by reference
 		assertSame(
@@ -209,6 +221,8 @@ class PrunedCommitMergeIndexCarryTest implements EvitaTestSupport {
 			() -> updatePriceOf(CARRIED_PRODUCT_PK, BigDecimal.valueOf(40)),
 			"A price mutation must still commit after a transaction that added an index!"
 		);
+		assertBrandPriceQueryReturns(CARRIED_BRAND_PK, BigDecimal.valueOf(40), CARRIED_PRODUCT_PK);
+		assertBrandPriceQueryReturns(CARRIED_BRAND_PK, BigDecimal.TEN);
 	}
 
 	@Test
@@ -237,13 +251,16 @@ class PrunedCommitMergeIndexCarryTest implements EvitaTestSupport {
 			carriedBefore.getAllPrimaryKeys(), reducedIndex(CARRIED_BRAND_PK).getAllPrimaryKeys(),
 			"An index untouched by a transaction that REMOVED another index must still be carried by reference!"
 		);
-		assertWiredTo(reducedIndex(CARRIED_BRAND_PK), globalEntityIndex());
-		assertWiredTo(reducedIndex(TOUCHED_BRAND_PK), globalEntityIndex());
+		// both surviving indexes must still resolve prices from the current data
+		assertBrandPriceQueryReturns(CARRIED_BRAND_PK, BigDecimal.TEN, CARRIED_PRODUCT_PK);
+		assertBrandPriceQueryReturns(TOUCHED_BRAND_PK, BigDecimal.TEN, TOUCHED_PRODUCT_PK);
 
 		assertDoesNotThrow(
 			() -> updatePriceOf(CARRIED_PRODUCT_PK, BigDecimal.valueOf(40)),
 			"A price mutation must still commit after a transaction that removed an index!"
 		);
+		assertBrandPriceQueryReturns(CARRIED_BRAND_PK, BigDecimal.valueOf(40), CARRIED_PRODUCT_PK);
+		assertBrandPriceQueryReturns(CARRIED_BRAND_PK, BigDecimal.TEN);
 	}
 
 	@Test
@@ -271,10 +288,10 @@ class PrunedCommitMergeIndexCarryTest implements EvitaTestSupport {
 				.upsertVia(session);
 		}
 
-		final EntityIndex globalAfter = globalEntityIndex();
 		final EntityIndex addedIndex = reducedIndex(ADDED_BRAND_PK);
 		assertNotNull(addedIndex, "The newly referenced brand must have got its own reduced index!");
-		assertWiredTo(addedIndex, globalAfter);
+		// the index the very same commit created must resolve the moved product's price
+		assertBrandPriceQueryReturns(ADDED_BRAND_PK, BigDecimal.TEN, TOUCHED_PRODUCT_PK);
 
 		assertNull(
 			reducedIndex(TOUCHED_BRAND_PK),
@@ -289,6 +306,8 @@ class PrunedCommitMergeIndexCarryTest implements EvitaTestSupport {
 			() -> updatePriceOf(CARRIED_PRODUCT_PK, BigDecimal.valueOf(40)),
 			"A price mutation must still commit after a transaction that both added and removed an index!"
 		);
+		assertBrandPriceQueryReturns(CARRIED_BRAND_PK, BigDecimal.valueOf(40), CARRIED_PRODUCT_PK);
+		assertBrandPriceQueryReturns(CARRIED_BRAND_PK, BigDecimal.TEN);
 	}
 
 	/**
@@ -411,36 +430,47 @@ class PrunedCommitMergeIndexCarryTest implements EvitaTestSupport {
 	}
 
 	/**
-	 * Asserts that the reduced index's price chain resolves through the given GLOBAL entity index. Re-running the
-	 * production wiring check is the only way to observe the captured GLOBAL: on an already-wired chain it verifies
-	 * identity instead of re-wiring.
+	 * Asserts that a price query routed through the REFERENCED_ENTITY reduced index of the given brand returns exactly
+	 * `expectedPks` at the given price for sale.
 	 *
-	 * @param index       the reduced entity index to check
-	 * @param globalIndex the GLOBAL entity index it is expected to be wired to
-	 */
-	private static void assertWiredTo(@Nonnull EntityIndex index, @Nonnull EntityIndex globalIndex) {
-		assertDoesNotThrow(
-			() -> ((AbstractReducedEntityIndex) index).getPriceIndex()
-				.wireOrVerifySuperIndexes((GlobalEntityIndex) globalIndex),
-			"The reduced index's price chain must be wired to the expected GLOBAL entity index!"
-		);
-	}
-
-	/**
-	 * Asserts that the reduced index's price chain is NOT wired to the given (retired) GLOBAL entity index - the
-	 * negative half of {@link #assertWiredTo}, without which a wiring check that passes for every GLOBAL would look
-	 * like a green test.
+	 * The `referenceHaving` half is load-bearing, not decoration: it is what makes that brand's reduced index an
+	 * eligible target for the price constraint, so the price resolution under test is the one performed on the very
+	 * index the merge carried across the catalog version. This replaces the former pair of wiring probes, which re-ran
+	 * the production wiring check to observe which GLOBAL a reduced index's price chain had captured. There is no
+	 * captured GLOBAL to observe any more - the GLOBAL's price index is handed in per operation - so what mattered
+	 * about the wiring is asserted directly instead: that an index forwarded across a version bump still resolves
+	 * prices from the CURRENT data. That is the stronger claim anyway, because it exercises the resolution the query
+	 * path actually performs.
 	 *
-	 * @param index       the reduced entity index to check
-	 * @param globalIndex the GLOBAL entity index it must NOT be wired to
+	 * @param brandPk     the brand whose reduced index the query must go through
+	 * @param price       the price for sale the products are expected to be found at
+	 * @param expectedPks the product primary keys expected back, in any order - none means the query must find nothing
 	 */
-	private static void assertNotWiredTo(@Nonnull EntityIndex index, @Nonnull EntityIndex globalIndex) {
-		assertThrows(
-			GenericEvitaInternalError.class,
-			() -> ((AbstractReducedEntityIndex) index).getPriceIndex()
-				.wireOrVerifySuperIndexes((GlobalEntityIndex) globalIndex),
-			"A carried reduced index still wired to a retired GLOBAL entity index must be rejected!"
-		);
+	private void assertBrandPriceQueryReturns(int brandPk, @Nonnull BigDecimal price, @Nonnull int... expectedPks) {
+		try (final EvitaSessionContract session = this.evita.createReadOnlySession(TEST_CATALOG)) {
+			final Integer[] found = session.queryList(
+					Query.query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							referenceHaving(Entities.BRAND, entityPrimaryKeyInSet(brandPk)),
+							priceInPriceLists(PRICE_LIST_BASIC),
+							priceInCurrency(CURRENCY_EUR),
+							priceBetween(price, price)
+						)
+					),
+					EntityReference.class
+				)
+				.stream()
+				.map(EntityReference::getPrimaryKey)
+				.sorted()
+				.toArray(Integer[]::new);
+			final Integer[] expected = IntStream.of(expectedPks).sorted().boxed().toArray(Integer[]::new);
+			assertArrayEquals(
+				expected, found,
+				"Price query through brand `" + brandPk + "`'s reduced index at " + price + " must return exactly " +
+					Arrays.toString(expected) + " but returned " + Arrays.toString(found) + "!"
+			);
+		}
 	}
 
 	/**
@@ -455,8 +485,10 @@ class PrunedCommitMergeIndexCarryTest implements EvitaTestSupport {
 	}
 
 	/**
-	 * Reaches into the live {@link Entities#PRODUCT} collection and returns its GLOBAL entity index (the owner of the
-	 * super price indexes that back every reduced index's price ref chain).
+	 * Reaches into the live {@link Entities#PRODUCT} collection and returns its GLOBAL entity index - the owner of the
+	 * super price indexes a reduced index's price records are resolved against. It is read here only to observe that
+	 * a dirtied GLOBAL really is rebuilt by the merge, which is what makes the carry of a clean reduced index across
+	 * that rebuild worth asserting at all.
 	 *
 	 * @return the GLOBAL entity index
 	 */

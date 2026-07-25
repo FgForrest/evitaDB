@@ -127,7 +127,6 @@ import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.map.MapChanges;
 import io.evitadb.index.map.MapChanges.ValueMerger;
 import io.evitadb.index.map.TransactionalMap;
-import io.evitadb.index.price.SuperIndexResolver;
 import io.evitadb.index.mutation.ConsistencyCheckingLocalMutationExecutor.ImplicitMutationBehavior;
 import io.evitadb.index.mutation.EntityIndexMutation;
 import io.evitadb.index.mutation.IndexMutation;
@@ -1725,7 +1724,6 @@ public final class EntityCollection implements
 		attachCatalogShell(catalog);
 		// wire the reduced indexes' price ref chains to the super price indexes of this collection's own GLOBAL
 		// entity index (same scope) — the price chain no longer holds a catalog back-reference of its own
-		wireReducedIndexSuperIndexes();
 	}
 
 	/**
@@ -1919,10 +1917,14 @@ public final class EntityCollection implements
 	 * @param entityIndex the index to be added, must not be null
 	 */
 	public void addIndex(@Nonnull EntityIndex entityIndex) {
-		// disk load / WAL replay register GLOBAL indexes before reduced ones, so the reduced index's super price
-		// indexes are already present in this collection's GLOBAL entity index when it is wired here
+		// disk load / WAL replay register GLOBAL indexes before reduced ones, so the shared price records a freshly
+		// deserialized reduced index has to be repointed at are already present in this collection's GLOBAL entity index.
+		// This is the ONLY attach-time price step left: the reduced index keeps no super-index pointer to refresh, it is
+		// handed the GLOBAL's price index per operation instead.
 		if (entityIndex instanceof AbstractReducedEntityIndex reducedIndex) {
-			wireReducedIndexSuperIndex(reducedIndex);
+			reducedIndex.getPriceIndex().restorePriceRecords(
+				resolveGlobalIndex(reducedIndex.getIndexKey().scope()).getPriceIndex()
+			);
 		}
 		this.indexes.put(entityIndex.getIndexKey(), entityIndex);
 		this.indexesByPrimaryKey.put(entityIndex.getPrimaryKey(), entityIndex);
@@ -2670,14 +2672,14 @@ public final class EntityCollection implements
 	 * {@link TransactionalLayerMaintainer#verifyLayerWasFullySwept()} fails loudly at commit rather than silently
 	 * dropping changes.
 	 *
-	 * The one subtlety is price wiring: a reduced index's price chain captures its scope's GLOBAL entity index directly,
-	 * and the GLOBAL is rebuilt whenever it changes (nearly every transaction). GLOBAL indexes are therefore
-	 * materialized first; then a clean reduced index whose GLOBAL was rebuilt cannot be shared wholesale (its price
-	 * chain would keep pointing at the retired GLOBAL) — it is re-shelled with its memory-expensive sub-structures
-	 * shared by reference and only its thin price spine rebuilt and re-wired to the new GLOBAL (see
-	 * {@link AbstractReducedEntityIndex#createCarryByReferenceCopyWithRewiredPrice(GlobalEntityIndex)}). A clean reduced
-	 * index whose GLOBAL was itself carried by reference keeps valid wiring and is shared wholesale. Referenced-type
-	 * indexes hold a void price index and are always shared wholesale when clean.
+	 * Price wiring used to be the one subtlety here and no longer is: a reduced index's price chain kept a pointer to its
+	 * scope's GLOBAL entity index, and because the GLOBAL is rebuilt whenever it changes (nearly every transaction),
+	 * every clean reduced index of that scope had to be re-shelled and re-wired purely to refresh that pointer. The
+	 * pointer is gone — the GLOBAL's price index is handed in per operation by a caller that is already pinned to
+	 * a catalog version — so a clean reduced index is now shared **wholesale**, exactly like a clean referenced-type
+	 * index (which holds a void price index and always was).
+	 *
+	 * GLOBAL indexes are still materialized first, so the merge hands back exactly one committed instance per GLOBAL key.
 	 *
 	 * A transaction that adds or removes an index gives the index map a diff layer of its own. That key delta is applied
 	 * by {@link MapChanges} the ordinary way — including the layer bookkeeping of removed and created-then-removed
@@ -2709,23 +2711,21 @@ public final class EntityCollection implements
 			rebuiltKeys.addAll(indexChanges.getModifiedKeys().keySet());
 		}
 
-		// Phase 1 — materialize each scope's GLOBAL index first: a re-shelled reduced index must wire its price chain to
-		// the CURRENT version's GLOBAL, so the GLOBAL must already be resolved before any reduced index is processed.
-		// Resolved by direct key lookup (one per scope) rather than by scanning the map, and memoized so the walk below
-		// never merges a GLOBAL a second time - that would discard an already discarded layer.
+		// Phase 1 — materialize each scope's GLOBAL index first. A reduced index no longer needs the GLOBAL for its own
+		// sake (it holds no pointer into the GLOBAL's price super indexes), but the merge must still hand back exactly
+		// one committed instance per GLOBAL key: resolving it up front, by direct key lookup rather than by scanning the
+		// map, is what stops the walk below from merging a GLOBAL a second time - which would discard an already
+		// discarded layer. It also keeps the reduced-index premise below cheap to check.
 		final Scope[] scopes = Scope.values();
 		final GlobalEntityIndex[] globalsByScope = new GlobalEntityIndex[scopes.length];
-		final boolean[] globalRebuiltByScope = new boolean[scopes.length];
 		for (final Scope scope : scopes) {
 			final EntityIndexKey globalKey = new EntityIndexKey(EntityIndexType.GLOBAL, scope);
 			// the transaction-visible view: a GLOBAL created this transaction is already here, a removed one is gone
 			final EntityIndex globalIndex = this.indexes.get(globalKey);
 			if (globalIndex != null) {
-				final boolean rebuilt = rebuiltKeys.contains(globalKey);
-				globalsByScope[scope.ordinal()] = rebuilt ?
+				globalsByScope[scope.ordinal()] = rebuiltKeys.contains(globalKey) ?
 					(GlobalEntityIndex) mergeCommittedIndex(transactionalLayer, globalIndex) :
 					(GlobalEntityIndex) globalIndex;
-				globalRebuiltByScope[scope.ordinal()] = rebuilt;
 			}
 		}
 
@@ -2733,7 +2733,7 @@ public final class EntityCollection implements
 		final Map<EntityIndexKey, EntityIndex> result =
 			this.indexes.createCopyWithMergedTransactionalMemory(
 				indexChanges, transactionalLayer,
-				new PrunedIndexMerger(transactionalLayer, rebuiltKeys, globalsByScope, globalRebuiltByScope)
+				new PrunedIndexMerger(transactionalLayer, rebuiltKeys, globalsByScope)
 			);
 		// the pruned merge does not go through TransactionalLayerMaintainer#getStateCopyWithCommittedChanges, so the
 		// map's OWN layer has to be disposed of here. It must NOT be `this.indexes.removeLayer(...)`, which descends
@@ -2754,14 +2754,11 @@ public final class EntityCollection implements
 	 *                              plus those the index map's own key delta added or replaced
 	 * @param globalsByScope        the committed GLOBAL entity index of each scope, indexed by {@link Scope#ordinal()},
 	 *                              resolved before the walk so no GLOBAL is ever merged twice
-	 * @param globalRebuiltByScope  whether the GLOBAL of the scope was rebuilt (and its reduced indexes therefore need
-	 *                              re-wiring), indexed by {@link Scope#ordinal()}
 	 */
 	private record PrunedIndexMerger(
 		@Nonnull TransactionalLayerMaintainer transactionalLayer,
 		@Nonnull Set<IndexKey> rebuiltKeys,
-		@Nonnull GlobalEntityIndex[] globalsByScope,
-		@Nonnull boolean[] globalRebuiltByScope
+		@Nonnull GlobalEntityIndex[] globalsByScope
 	) implements ValueMerger<EntityIndexKey, EntityIndex> {
 
 		@Nonnull
@@ -2784,24 +2781,23 @@ public final class EntityCollection implements
 			if (this.rebuiltKeys.contains(key)) {
 				// genuinely mutated (or added by this transaction) → rebuild by merging its transactional layer
 				return mergeCommittedIndex(this.transactionalLayer, theIndex);
-			} else if (theIndex instanceof AbstractReducedEntityIndex reducedIndex) {
-				final GlobalEntityIndex newGlobal = this.globalsByScope[scope.ordinal()];
-				// A reduced index outliving the GLOBAL of its own scope would keep a dangling price super pointer.
-				// The state is believed unreachable - a scope's GLOBAL holds every entity of that scope, so it can
-				// only empty out (and be dropped) once its reduced indexes are empty too, and the mutation executor
-				// drops those in the very same commit. Checked for the carried index as well, not just before a
-				// re-wire: a violation means a broken index set, which must not be forwarded to the next version.
+			} else if (theIndex instanceof AbstractReducedEntityIndex) {
+				// A clean reduced index is carried WHOLESALE by reference, whether or not its scope's GLOBAL was
+				// rebuilt: it holds no pointer into the GLOBAL's price super indexes any more, so there is nothing
+				// about it that a version bump could invalidate. This is the whole point of handing the GLOBAL's
+				// price index in per operation - the re-shell that used to happen here existed only to refresh that
+				// pointer, and it ran for every reduced index of a scope on every commit that dirtied its GLOBAL.
+				//
+				// The premise below still holds a reduced index to its GLOBAL's existence: a scope's GLOBAL holds
+				// every entity of that scope, so it can only empty out (and be dropped) once its reduced indexes are
+				// empty too, and the mutation executor drops those in the very same commit. A violation means
+				// a broken index set, which must not be forwarded to the next version.
 				Assert.isPremiseValid(
-					newGlobal != null,
+					this.globalsByScope[scope.ordinal()] != null,
 					() -> "GLOBAL entity index of scope `" + scope + "` must exist to carry its reduced index `" +
 						key + "` (was it removed while the reduced index survived?)!"
 				);
-				return this.globalRebuiltByScope[scope.ordinal()] ?
-					// clean reduced index but its GLOBAL was rebuilt → carry sub-structures by reference, re-shell and
-					// re-wire the price chain to the new GLOBAL
-					reducedIndex.createCarryByReferenceCopyWithRewiredPrice(newGlobal) :
-					// clean reduced index whose GLOBAL was carried by reference → its price wiring is still valid
-					theIndex;
+				return theIndex;
 			} else {
 				// clean non-reduced index → carry by reference. Only a ReferencedTypeEntityIndex is expected here
 				// (GLOBAL is handled above, reduced indexes in the branch before); it holds a VoidPriceIndex, so it
@@ -2831,11 +2827,10 @@ public final class EntityCollection implements
 	 * Creates the index maps for a new catalog attachment from a **clean** collection, carrying every index — GLOBAL,
 	 * referenced-type and reduced alike — across the version boundary **by reference** inside a fresh map wrapper.
 	 *
-	 * Reduced indexes no longer hold any catalog back-reference: their price ref chain captures the GLOBAL entity index
-	 * directly through a {@link SuperIndexResolver}, and that GLOBAL is carried by reference here in the very same step,
-	 * so a carried reduced index's captured GLOBAL and every combo-super pointer remain identity-stable across the bump.
-	 * {@link #wireReducedIndexSuperIndex(AbstractReducedEntityIndex)} therefore verifies the carried wiring during
-	 * re-attachment instead of re-shelling and re-wiring it on every commit.
+	 * Reduced indexes hold nothing that a version bump could invalidate: their price ref chain keeps no pointer to the
+	 * super price indexes backing it, and is handed the GLOBAL's price index per operation by a caller that is already
+	 * pinned to a catalog version. So a reduced index needs neither re-shelling nor re-wiring here - it is simply
+	 * forwarded, like every other index.
 	 *
 	 * Carrying transactional sub-structures by reference is only sound when this collection is clean. What actually
 	 * guarantees that is the routing: a dirty collection is rebuilt through the merge path and never reaches this
@@ -2861,49 +2856,6 @@ public final class EntityCollection implements
 			indexesByPk.put(index.getPrimaryKey(), index);
 		}
 		return new IndexTuple(indexes, indexesByPk);
-	}
-
-	/**
-	 * Wires every reduced entity index held by this collection to the super price indexes of its scope's
-	 * {@link GlobalEntityIndex}. Called after re-attaching the collection to a catalog version, when the reduced
-	 * indexes have been freshly merged or shelled and their price ref chains carry no super index yet. Reduced indexes
-	 * added incrementally (disk load, lazy creation during mutation) are wired individually through
-	 * {@link #wireReducedIndexSuperIndex(AbstractReducedEntityIndex)}.
-	 *
-	 * Each scope's GLOBAL is resolved at most once and memoized in a {@link Scope#ordinal()}-indexed array. Resolving it
-	 * per reduced index instead - which is what the single-index variant does, correctly, for its one index - costs an
-	 * {@link EntityIndexKey} allocation and a map lookup for every index of the collection, and this walk runs for every
-	 * collection on every catalog version bump. It is the same per-index resolve that
-	 * {@link #pruneMergeIndexes(TransactionalLayerMaintainer, Set)} hoists out of its own walk.
-	 */
-	private void wireReducedIndexSuperIndexes() {
-		final GlobalEntityIndex[] globalsByScope = new GlobalEntityIndex[Scope.values().length];
-		for (final EntityIndex entityIndex : this.indexes.values()) {
-			if (entityIndex instanceof AbstractReducedEntityIndex reducedIndex) {
-				final Scope scope = reducedIndex.getIndexKey().scope();
-				GlobalEntityIndex globalIndex = globalsByScope[scope.ordinal()];
-				if (globalIndex == null) {
-					globalIndex = resolveGlobalIndex(scope);
-					globalsByScope[scope.ordinal()] = globalIndex;
-				}
-				reducedIndex.getPriceIndex().wireOrVerifySuperIndexes(globalIndex);
-			}
-		}
-	}
-
-	/**
-	 * Wires a single reduced entity index's price ref chain to the super price indexes of this collection's
-	 * {@link GlobalEntityIndex} of the same scope, or — for a reduced index carried across a catalog version by
-	 * reference (see {@link #createIndexCopiesForNewCatalogAttachment()}) — verifies that its existing wiring still
-	 * points at this version's GLOBAL. The GLOBAL index is captured directly by the {@link SuperIndexResolver} — no
-	 * {@link Catalog} nor owning-collection back-reference is retained — so the reduced index carries no catalog
-	 * dependency of its own and is forwarded across catalog versions by reference together with its GLOBAL.
-	 *
-	 * @param reducedIndex the reduced entity index whose price ref chain should be wired or verified
-	 */
-	private void wireReducedIndexSuperIndex(@Nonnull AbstractReducedEntityIndex reducedIndex) {
-		final Scope scope = reducedIndex.getIndexKey().scope();
-		reducedIndex.getPriceIndex().wireOrVerifySuperIndexes(resolveGlobalIndex(scope));
 	}
 
 	/**
@@ -3161,10 +3113,6 @@ public final class EntityCollection implements
 								);
 							} else {
 								throw new GenericEvitaInternalError("Unsupported entity index type: " + eikAgain.type());
-							}
-
-							if (entityIndex instanceof AbstractReducedEntityIndex reducedIndex) {
-								EntityCollection.this.wireReducedIndexSuperIndex(reducedIndex);
 							}
 
 							// register index also in the map by primary key for fast access

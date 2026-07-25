@@ -27,16 +27,15 @@ import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.SessionTraits;
 import io.evitadb.api.SessionTraits.SessionFlags;
 import io.evitadb.api.TransactionContract.CommitBehavior;
+import io.evitadb.api.query.Query;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
+import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.core.Evita;
 import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.dataType.Scope;
-import io.evitadb.exception.GenericEvitaInternalError;
-import io.evitadb.index.AbstractReducedEntityIndex;
 import io.evitadb.index.EntityIndex;
-import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.test.Entities;
 import io.evitadb.test.EvitaTestSupport;
 import org.junit.jupiter.api.AfterEach;
@@ -47,20 +46,27 @@ import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import java.math.BigDecimal;
+import java.util.Arrays;
 import java.util.Currency;
+import java.util.stream.IntStream;
 
 import static io.evitadb.api.functional.indexing.IndexingTestSupport.getGlobalIndex;
 import static io.evitadb.api.functional.indexing.IndexingTestSupport.getReferencedEntityIndex;
+import static io.evitadb.api.query.QueryConstraints.collection;
+import static io.evitadb.api.query.QueryConstraints.filterBy;
+import static io.evitadb.api.query.QueryConstraints.priceBetween;
 import static io.evitadb.api.query.QueryConstraints.priceContentAll;
+import static io.evitadb.api.query.QueryConstraints.priceInCurrency;
+import static io.evitadb.api.query.QueryConstraints.priceInPriceLists;
+import static io.evitadb.api.query.QueryConstraints.scope;
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.PRICE;
 import static io.evitadb.test.TestTags.REFERENCE;
 import static io.evitadb.test.TestTags.TRANSACTION;
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
  * Locks in the commit-time merge prune (`EntityCollection#pruneMergeIndexes`) across **multiple
@@ -137,10 +143,14 @@ class PrunedCommitMergeCrossScopeIndexCarryTest implements EvitaTestSupport {
 			"The dirtied LIVE scope's GLOBAL entity index must be rebuilt by the merge!"
 		);
 
-		// the carried ARCHIVED reduced index must still resolve prices through the ARCHIVED GLOBAL...
-		assertWiredTo(archivedReducedAfter, archivedGlobalAfter);
-		// ...and never through the LIVE scope's (rebuilt) GLOBAL
-		assertNotWiredTo(archivedReducedAfter, liveGlobalAfter);
+		// ...and the carried ARCHIVED scope must still answer price queries from its OWN data: the archived product
+		// keeps its original price, and asking for the LIVE product's NEW price in the ARCHIVED scope finds nothing.
+		// Together these are what a stale cross-scope price resolution would break.
+		assertPriceQueryReturns(Scope.ARCHIVED, BigDecimal.TEN, ARCHIVED_PRODUCT_PK);
+		assertPriceQueryReturns(Scope.ARCHIVED, BigDecimal.valueOf(20));
+		// the mutated LIVE scope reports the new price, and no longer the old one
+		assertPriceQueryReturns(Scope.LIVE, BigDecimal.valueOf(20), LIVE_PRODUCT_PK);
+		assertPriceQueryReturns(Scope.LIVE, BigDecimal.TEN);
 	}
 
 	/**
@@ -236,38 +246,43 @@ class PrunedCommitMergeCrossScopeIndexCarryTest implements EvitaTestSupport {
 	}
 
 	/**
-	 * Asserts that the reduced index's price chain resolves through the given GLOBAL entity index.
-	 * Re-running the production wiring check is the only way to observe the captured GLOBAL: on an
-	 * already-wired chain it verifies identity instead of re-wiring.
+	 * Asserts that a price query restricted to `scope` returns exactly `expectedPks` at the given price.
 	 *
-	 * @param index       the reduced entity index to check
-	 * @param globalIndex the GLOBAL entity index it is expected to be wired to
-	 */
-	private static void assertWiredTo(@Nonnull EntityIndex index, @Nonnull EntityIndex globalIndex) {
-		assertDoesNotThrow(
-			() -> ((AbstractReducedEntityIndex) index).getPriceIndex()
-				.wireOrVerifySuperIndexes((GlobalEntityIndex) globalIndex),
-			"The reduced index's price chain must be wired to the expected GLOBAL entity index!"
-		);
-	}
-
-	/**
-	 * Asserts that the reduced index's price chain is NOT wired to the given (foreign) GLOBAL
-	 * entity index - the negative half of {@link #assertWiredTo}, without which a wiring check that
-	 * passes for every GLOBAL would look like a green test.
+	 * This replaces the former pair of wiring probes, which re-ran the production wiring check to observe which GLOBAL
+	 * a reduced index's price chain had captured. There is no longer a captured GLOBAL to observe: the reduced index is
+	 * handed the GLOBAL's price index per operation. What matters is therefore asserted directly - that a scope carried
+	 * across a version bump still answers price queries from its OWN scope's data - which is a stronger claim than the
+	 * wiring probe made, because it exercises the resolution the query path actually performs.
 	 *
-	 * @param index       the reduced entity index to check
-	 * @param globalIndex the GLOBAL entity index it must NOT be wired to
+	 * @param scope       the scope to query
+	 * @param price       the price the product is expected to be found at
+	 * @param expectedPks the primary keys expected back, in any order
 	 */
-	private static void assertNotWiredTo(
-		@Nonnull EntityIndex index, @Nonnull EntityIndex globalIndex
-	) {
-		assertThrows(
-			GenericEvitaInternalError.class,
-			() -> ((AbstractReducedEntityIndex) index).getPriceIndex()
-				.wireOrVerifySuperIndexes((GlobalEntityIndex) globalIndex),
-			"A reduced index wired to one scope's GLOBAL must reject a different scope's GLOBAL!"
-		);
+	private void assertPriceQueryReturns(@Nonnull Scope scope, @Nonnull BigDecimal price, @Nonnull int... expectedPks) {
+		try (final EvitaSessionContract session = this.evita.createReadOnlySession(TEST_CATALOG)) {
+			final Integer[] found = session.queryList(
+					Query.query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							scope(scope),
+							priceInPriceLists(PRICE_LIST_BASIC),
+							priceInCurrency(CURRENCY_EUR),
+							priceBetween(price, price)
+						)
+					),
+					EntityReference.class
+				)
+				.stream()
+				.map(EntityReference::getPrimaryKey)
+				.sorted()
+				.toArray(Integer[]::new);
+			final Integer[] expected = IntStream.of(expectedPks).sorted().boxed().toArray(Integer[]::new);
+			assertArrayEquals(
+				expected, found,
+				"Price query in scope `" + scope + "` at " + price + " must return exactly " + Arrays.toString(expected) +
+					" but returned " + Arrays.toString(found) + "!"
+			);
+		}
 	}
 
 	/**

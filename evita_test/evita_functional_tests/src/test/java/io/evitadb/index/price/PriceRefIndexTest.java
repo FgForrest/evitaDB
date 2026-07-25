@@ -138,7 +138,7 @@ class PriceRefIndexTest implements TimeBoundedTestSupport {
 	 * collection resolves super price indexes from its own GLOBAL entity index.
 	 */
 	private void attachRefIndex() {
-		this.priceRefIndex.wireSuperIndexes(this.priceSuperIndex::getPriceIndex);
+		this.priceRefIndex.restorePriceRecords(this.priceSuperIndex);
 	}
 
 	/**
@@ -194,8 +194,7 @@ class PriceRefIndexTest implements TimeBoundedTestSupport {
 			childMap.put(KEY_BASIC_CZK, childRefIndex);
 			PriceRefIndexTest.this.priceRefIndex = new PriceRefIndex(SCOPE, childMap);
 
-			// now wire -- should propagate to the existing child via
-			// `values().forEach(it -> it.wireSuperIndex(...))`
+			// now attach -- the existing child must end up with its record tree restored from the super index
 			attachRefIndex();
 
 			// after attach, the child should be linked to the super index and have the price
@@ -204,21 +203,6 @@ class PriceRefIndexTest implements TimeBoundedTestSupport {
 			assertNotNull(attached);
 			assertFalse(attached.isEmpty());
 			assertEquals(1, attached.getPriceRecords().length);
-		}
-
-		@Test
-		@DisplayName("should throw when super index resolver already wired")
-		void shouldThrowWhenAlreadyAttached() {
-			attachRefIndex();
-
-			final GenericEvitaInternalError exception = assertThrows(
-				GenericEvitaInternalError.class,
-				() -> PriceRefIndexTest.this.priceRefIndex.wireSuperIndexes(
-					PriceRefIndexTest.this.priceSuperIndex::getPriceIndex
-				)
-			);
-
-			assertTrue(exception.getMessage().contains("already wired"));
 		}
 
 		@Test

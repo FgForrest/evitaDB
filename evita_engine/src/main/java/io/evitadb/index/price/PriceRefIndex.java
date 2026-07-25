@@ -35,7 +35,6 @@ import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.EntityIndexKey;
-import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.map.TransactionalMap;
 import io.evitadb.index.price.PriceListAndCurrencyPriceIndex.PriceListAndCurrencyPriceIndexTerminated;
 import io.evitadb.index.price.PriceRefIndex.PriceIndexChanges;
@@ -43,7 +42,6 @@ import io.evitadb.index.price.model.PriceIndexKey;
 import io.evitadb.index.price.model.entityPrices.EntityPrices;
 import io.evitadb.index.price.model.priceRecord.PriceRecord;
 import io.evitadb.index.price.model.priceRecord.PriceRecordContract;
-import io.evitadb.utils.Assert;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
@@ -85,17 +83,6 @@ public class PriceRefIndex extends AbstractPriceIndex<PriceListAndCurrencyPriceR
 	 * and currency combination.
 	 */
 	@Getter protected final TransactionalMap<PriceIndexKey, PriceListAndCurrencyPriceRefIndex> priceIndexes;
-	/**
-	 * Resolver that maps a {@link PriceIndexKey} to the memory-expensive
-	 * {@link PriceListAndCurrencyPriceSuperIndex} that backs each reduced ref index. The owning entity collection wires
-	 * it in through {@link #wireSuperIndexes(Function)}, and in production always supplies a {@link SuperIndexResolver}
-	 * that closes over the collection's own {@link GlobalEntityIndex} — no {@link io.evitadb.core.catalog.Catalog} nor
-	 * owning-collection back-reference is retained. It is used to wire newly created per-price-list ref indexes to the
-	 * shared price record instances. The field is typed as a bare {@link Function} only so unit tests can wire a stub
-	 * resolver directly; the concrete {@link SuperIndexResolver} keeps its captured GLOBAL inspectable for the
-	 * carry-by-reference identity check.
-	 */
-	private Function<PriceIndexKey, PriceListAndCurrencyPriceSuperIndex> superIndexResolver;
 
 	public PriceRefIndex(@Nonnull Scope scope) {
 		this.scope = scope;
@@ -111,46 +98,20 @@ public class PriceRefIndex extends AbstractPriceIndex<PriceListAndCurrencyPriceR
 	}
 
 	/**
-	 * Wires the resolver that this index uses to obtain the {@link PriceListAndCurrencyPriceSuperIndex} for each
-	 * price-list / currency combination, and immediately wires every already-present combination index to its super
-	 * index. Called by the owning entity collection, which resolves super indexes from its own
-	 * {@link GlobalEntityIndex} (same scope, same collection) instead of routing through the catalog.
+	 * Reconstructs the price-record trees of every combination index that was **deserialized from disk**, pointing them
+	 * at the shared {@link io.evitadb.index.price.model.priceRecord.PriceRecord} instances held by the matching super
+	 * index of the passed GLOBAL price index.
 	 *
-	 * @param superIndexResolver maps a {@link PriceIndexKey} to the super price index backing that combination
+	 * This is the only remaining reason a reduced price index has to be told about the GLOBAL at attach time, and it is
+	 * about load correctness, not about version wiring: a ref index persists just its price ids and validity, so a disk
+	 * load leaves its record tree empty and unusable until it is repointed at the heap instances. Every other attach
+	 * path arrives with the trees already populated and is a no-op here.
+	 *
+	 * @param superPriceIndex the price index of the owning collection's GLOBAL entity index of this index's scope
 	 */
-	public void wireSuperIndexes(@Nonnull Function<PriceIndexKey, PriceListAndCurrencyPriceSuperIndex> superIndexResolver) {
-		Assert.isPremiseValid(this.superIndexResolver == null, "Super index resolver was already wired to this index!");
-		this.superIndexResolver = superIndexResolver;
-		// wire every existing combination index to its super index
-		this.priceIndexes.values().forEach(it -> it.wireSuperIndex(superIndexResolver.apply(it.getPriceIndexKey())));
-	}
-
-	/**
-	 * Wires this index's price ref chain to the super price indexes held by the given {@link GlobalEntityIndex}, or —
-	 * when the chain was already wired and this index was carried across a catalog version **by reference** — verifies
-	 * that the captured GLOBAL is still this version's GLOBAL instead of re-wiring (the single-assign guard in
-	 * {@link #wireSuperIndexes(Function)} forbids a second wire).
-	 *
-	 * A carried reduced index keeps the {@link SuperIndexResolver} it was originally wired with; because the
-	 * clean-collection copy carries the GLOBAL entity index by reference in the very same step, that captured GLOBAL
-	 * must be identity-equal to the one resolved for the new version. A mismatch means a stale super-index pointer
-	 * survived a version bump — surface it here, at attach time, rather than letting a query read a retired version's
-	 * super price index.
-	 *
-	 * @param globalIndex the GLOBAL entity index of this reduced index's scope, owning the backing super price indexes
-	 */
-	public void wireOrVerifySuperIndexes(@Nonnull GlobalEntityIndex globalIndex) {
-		if (this.superIndexResolver == null) {
-			// fresh (re-shelled on disk load, lazily created, or merged) index: wire its price ref chain for the first time
-			wireSuperIndexes(new SuperIndexResolver(globalIndex));
-		} else {
-			// carried-by-reference index: prove its existing wiring still points at the current version's GLOBAL entity
-			// index rather than silently skipping — GLOBAL identity is a strict superset of per-combo super identity
-			// (any dirty combo yields a new combo instance, hence a changed combo map, hence a new GLOBAL)
-			Assert.isPremiseValid(
-				this.superIndexResolver instanceof SuperIndexResolver sir && sir.globalIndex() == globalIndex,
-				"Carried price ref index is wired to a stale GLOBAL entity index (expected the current version's GLOBAL)!"
-			);
+	public void restorePriceRecords(@Nonnull PriceSuperIndex superPriceIndex) {
+		for (final PriceListAndCurrencyPriceRefIndex refIndex : this.priceIndexes.values()) {
+			refIndex.restorePriceRecordsFrom(superPriceIndex.getPriceIndexOrThrow(refIndex.getPriceIndexKey()));
 		}
 	}
 
@@ -174,30 +135,6 @@ public class PriceRefIndex extends AbstractPriceIndex<PriceListAndCurrencyPriceR
 		return priceIndex;
 	}
 
-	/**
-	 * Produces an unwired shallow copy of this **clean** price ref index for the commit-merge prune. Every per-price-list
-	 * / currency combination index is re-shelled through {@link PriceListAndCurrencyPriceRefIndex#createCarryByReferenceCopy()}
-	 * (adopting its record tree by reference), and the resulting index carries no super-index resolver
-	 * ({@code superIndexResolver == null}) so the owning collection can wire it to the CURRENT catalog version's GLOBAL
-	 * via {@link #wireOrVerifySuperIndexes(GlobalEntityIndex)}.
-	 *
-	 * Used when a clean reduced entity index is carried across a catalog version whose GLOBAL was rebuilt: the reduced
-	 * index's memory-expensive sub-structures are shared by reference, but its price chain must be re-wired to the new
-	 * GLOBAL's super, which the single-assign {@link PriceListAndCurrencyPriceRefIndex#wireSuperIndex} guard forbids doing
-	 * in place on the shared combos — hence the thin re-shell here.
-	 *
-	 * @return a fresh, unwired price ref index whose combination indexes share this one's record trees by reference
-	 */
-	@Nonnull
-	public PriceRefIndex createCarryByReferenceCopy() {
-		final Map<PriceIndexKey, PriceListAndCurrencyPriceRefIndex> copiedIndexes =
-			new HashMap<>(this.priceIndexes.size());
-		for (final Map.Entry<PriceIndexKey, PriceListAndCurrencyPriceRefIndex> entry : this.priceIndexes.entrySet()) {
-			copiedIndexes.put(entry.getKey(), entry.getValue().createCarryByReferenceCopy());
-		}
-		return new PriceRefIndex(this.scope, copiedIndexes);
-	}
-
 	@Override
 	public void removeLayer(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		this.priceIndexes.removeLayer(transactionalLayer);
@@ -214,8 +151,11 @@ public class PriceRefIndex extends AbstractPriceIndex<PriceListAndCurrencyPriceR
 		@Nonnull PriceIndexKey lookupKey,
 		@Nonnull PriceSuperIndex superPriceIndex
 	) {
+		// a freshly created combination index starts with an empty (but present) record tree, so there is nothing to
+		// restore from the super index - it is resolved per operation instead. The lookup is still performed, because
+		// a reduced combination must never come into existence without the super index that backs it.
+		superPriceIndex.getPriceIndexOrThrow(lookupKey);
 		final PriceListAndCurrencyPriceRefIndex newPriceListIndex = new PriceListAndCurrencyPriceRefIndex(this.scope, lookupKey);
-		newPriceListIndex.wireSuperIndex(superPriceIndex.getPriceIndexOrThrow(lookupKey));
 		ofNullable(Transaction.getOrCreateTransactionalMemoryLayer(this))
 			.ifPresent(it -> it.addCreatedItem(newPriceListIndex));
 		return newPriceListIndex;

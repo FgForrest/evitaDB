@@ -108,14 +108,15 @@ class PriceListAndCurrencyPriceRefIndexTest implements TimeBoundedTestSupport {
 	}
 
 	/**
-	 * Wires the given ref index to the provided super index, mirroring how the owning entity collection wires its
-	 * reduced indexes' price ref chains to the super price indexes of its own GLOBAL entity index after re-attachment.
+	 * Restores the given ref index's price-record tree from the provided super index, mirroring the only remaining
+	 * attach-time price step the owning entity collection performs - repointing a ref index that was deserialized from
+	 * disk at the shared price records the super index holds. It is a no-op for an in-memory ref index.
 	 */
 	private static void wireRefIndexToSuperIndex(
 		@Nonnull PriceListAndCurrencyPriceRefIndex refIndex,
 		@Nonnull PriceListAndCurrencyPriceSuperIndex superIndex
 	) {
-		refIndex.wireSuperIndex(superIndex);
+		refIndex.restorePriceRecordsFrom(superIndex);
 	}
 
 	/**
@@ -179,25 +180,6 @@ class PriceListAndCurrencyPriceRefIndexTest implements TimeBoundedTestSupport {
 			assertEquals(3, priceRecords.length);
 			assertArrayEquals(new int[]{100, 200, 300}, tested.getIndexedPriceEntityIds().getArray());
 			assertArrayEquals(new int[]{1, 2, 3}, tested.getIndexedPriceIds());
-		}
-
-		@Test
-		@DisplayName("should throw when super index already wired")
-		void shouldThrowWhenAlreadyAttached() {
-			PriceListAndCurrencyPriceRefIndexTest.this.superIndex.addPrice(
-				createPriceRecord(1, 1, 100), null
-			);
-			wireRefIndexToSuperIndex(
-				PriceListAndCurrencyPriceRefIndexTest.this.refIndex,
-				PriceListAndCurrencyPriceRefIndexTest.this.superIndex
-			);
-
-			assertThrows(
-				GenericEvitaInternalError.class,
-				() -> PriceListAndCurrencyPriceRefIndexTest.this.refIndex.wireSuperIndex(
-					PriceListAndCurrencyPriceRefIndexTest.this.superIndex
-				)
-			);
 		}
 
 		@Test
@@ -574,70 +556,53 @@ class PriceListAndCurrencyPriceRefIndexTest implements TimeBoundedTestSupport {
 	}
 
 	/**
-	 * Tests verifying delegation of entity-level lookups to the super index.
+	 * Tests pinning that entity-level price lookups are NOT answered by a reduced index.
+	 *
+	 * These used to assert delegation to a super index this index held a pointer to. That pointer is gone: the caller
+	 * resolves the super index itself and queries it directly, because only a super index owns the entity-to-prices
+	 * mapping the lookups need. Reaching them on a reduced index is therefore a programming error, and the contract
+	 * asserted here is that it surfaces as one instead of silently returning `null` - which would read as "this entity
+	 * has no prices".
 	 */
 	@Nested
-	@DisplayName("Delegation to super index")
-	class DelegationTest {
+	@DisplayName("Entity-level lookups are rejected, not delegated")
+	class EntityLookupRejectionTest {
 
 		@Test
-		@DisplayName("should delegate getInternalPriceIdsForEntity to super index")
-		void shouldDelegateGetInternalPriceIdsForEntity() {
-			final PriceRecordContract price1 = createPriceRecord(10, 10, 42);
-			final PriceRecordContract price2 = createPriceRecord(20, 20, 42);
-			PriceListAndCurrencyPriceRefIndexTest.this.superIndex.addPrice(price1, null);
-			PriceListAndCurrencyPriceRefIndexTest.this.superIndex.addPrice(price2, null);
-
-			wireRefIndexToSuperIndex(
-				PriceListAndCurrencyPriceRefIndexTest.this.refIndex,
-				PriceListAndCurrencyPriceRefIndexTest.this.superIndex
+		@DisplayName("should reject getInternalPriceIdsForEntity")
+		void shouldRejectGetInternalPriceIdsForEntity() {
+			final GenericEvitaInternalError exception = assertThrows(
+				GenericEvitaInternalError.class,
+				() -> PriceListAndCurrencyPriceRefIndexTest.this.refIndex.getInternalPriceIdsForEntity(42)
 			);
-
-			final int[] refResult =
-				PriceListAndCurrencyPriceRefIndexTest.this.refIndex.getInternalPriceIdsForEntity(42);
-			final int[] superResult =
-				PriceListAndCurrencyPriceRefIndexTest.this.superIndex.getInternalPriceIdsForEntity(42);
-
-			assertNotNull(refResult);
-			assertArrayEquals(superResult, refResult);
+			assertTrue(exception.getMessage().contains("super price index"));
 		}
 
 		@Test
-		@DisplayName("should delegate getLowestPriceRecordsForEntity to super index")
-		void shouldDelegateGetLowestPriceRecordsForEntity() {
-			final PriceRecordContract price = createPriceRecord(10, 10, 42);
-			PriceListAndCurrencyPriceRefIndexTest.this.superIndex.addPrice(price, null);
-
-			wireRefIndexToSuperIndex(
-				PriceListAndCurrencyPriceRefIndexTest.this.refIndex,
-				PriceListAndCurrencyPriceRefIndexTest.this.superIndex
+		@DisplayName("should reject getLowestPriceRecordsForEntity")
+		void shouldRejectGetLowestPriceRecordsForEntity() {
+			final GenericEvitaInternalError exception = assertThrows(
+				GenericEvitaInternalError.class,
+				() -> PriceListAndCurrencyPriceRefIndexTest.this.refIndex.getLowestPriceRecordsForEntity(42)
 			);
-
-			final PriceRecordContract[] refResult =
-				PriceListAndCurrencyPriceRefIndexTest.this.refIndex.getLowestPriceRecordsForEntity(42);
-			final PriceRecordContract[] superResult =
-				PriceListAndCurrencyPriceRefIndexTest.this.superIndex.getLowestPriceRecordsForEntity(42);
-
-			assertNotNull(refResult);
-			assertArrayEquals(superResult, refResult);
+			assertTrue(exception.getMessage().contains("super price index"));
 		}
 
 		@Test
-		@DisplayName("should return null for unknown entity")
-		void shouldReturnNullForUnknownEntity() {
-			wireRefIndexToSuperIndex(
-				PriceListAndCurrencyPriceRefIndexTest.this.refIndex,
-				PriceListAndCurrencyPriceRefIndexTest.this.superIndex
+		@DisplayName("should reject the lookups for an unknown entity too, rather than reporting no prices")
+		void shouldRejectRatherThanReturnNullForUnknownEntity() {
+			// the distinction that matters: `null` here would be indistinguishable from "entity 999 has no prices"
+			assertThrows(
+				GenericEvitaInternalError.class,
+				() -> PriceListAndCurrencyPriceRefIndexTest.this.refIndex.getInternalPriceIdsForEntity(999)
 			);
-
-			assertNull(
-				PriceListAndCurrencyPriceRefIndexTest.this.refIndex.getInternalPriceIdsForEntity(999)
-			);
-			assertNull(
-				PriceListAndCurrencyPriceRefIndexTest.this.refIndex.getLowestPriceRecordsForEntity(999)
+			assertThrows(
+				GenericEvitaInternalError.class,
+				() -> PriceListAndCurrencyPriceRefIndexTest.this.refIndex.getLowestPriceRecordsForEntity(999)
 			);
 		}
 	}
+
 
 	/**
 	 * Tests verifying storage part creation and dirty flag management.

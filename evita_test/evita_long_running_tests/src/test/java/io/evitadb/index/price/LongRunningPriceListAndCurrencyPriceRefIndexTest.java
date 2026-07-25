@@ -104,7 +104,7 @@ class LongRunningPriceListAndCurrencyPriceRefIndexTest implements TimeBoundedTes
 		@Nonnull PriceListAndCurrencyPriceRefIndex refIndex,
 		@Nonnull PriceListAndCurrencyPriceSuperIndex superIndex
 	) {
-		refIndex.wireSuperIndex(superIndex);
+		refIndex.restorePriceRecordsFrom(superIndex);
 	}
 
 	/**

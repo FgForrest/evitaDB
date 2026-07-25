@@ -236,7 +236,7 @@ class LongRunningSavepointPriceListAndCurrencyPriceRefIndexTest implements TimeB
 		private static PriceListAndCurrencyPriceRefIndex attach(@Nonnull PriceListAndCurrencyPriceSuperIndex superIndex) {
 			final PriceListAndCurrencyPriceRefIndex refIndex =
 				new PriceListAndCurrencyPriceRefIndex(SCOPE, PRICE_INDEX_KEY);
-			refIndex.wireSuperIndex(superIndex);
+			refIndex.restorePriceRecordsFrom(superIndex);
 			return refIndex;
 		}
 	}
