@@ -404,6 +404,33 @@ public class MapChanges<K, V>
 	 */
 	@Nonnull
 	HashMap<K, V> createMergedMap(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
+		return createMergedMap(transactionalLayer, null);
+	}
+
+	/**
+	 * Computes the new map originating from {@link #mapDelegate} with applied all changes from this diff layer, letting
+	 * the caller decide how each value is committed.
+	 *
+	 * The `valueMerger` is consulted for **every key that survives the commit** — both the untouched keys of
+	 * {@link #mapDelegate} and the ones this transaction created or replaced — so a caller that resolves some values
+	 * ahead of the walk (see `EntityCollection#pruneMergeIndexes`, which materializes the GLOBAL entity indexes first)
+	 * can return the very same instance here and never merge a producer twice. Passing `null` merges every value the
+	 * ordinary way, which is what the {@link TransactionalLayerProducer} contract does.
+	 *
+	 * Everything a merger must not be trusted with stays here: the identity-based survivor scan that decides whether a
+	 * removed value's layer may be released, and {@link #releaseOrphanedCreatedThenRemovedLayers} for values that never
+	 * appear in either loop.
+	 *
+	 * @param transactionalLayer the maintainer resolving committed state
+	 * @param valueMerger        resolves the committed value of a surviving key and releases the layer of a value whose
+	 *                           key does not survive; `null` for the ordinary per-value merge
+	 * @return the committed map
+	 */
+	@Nonnull
+	HashMap<K, V> createMergedMap(
+		@Nonnull TransactionalLayerMaintainer transactionalLayer,
+		@Nullable ValueMerger<K, V> valueMerger
+	) {
 		// create new hash map of requested size
 		final HashMap<K, V> copy = createHashMap(this.mapDelegate.size());
 		// iterate original map and copy all values from it
@@ -417,8 +444,8 @@ public class MapChanges<K, V>
 					throw new IllegalStateException("Transactional layer producer is not expected to be used as a key!");
 				}
 				V value = entry.getValue();
-				if (value instanceof TransactionalStateProducer<?> transactionalLayerProducer) {
-					if (wasRemoved) {
+				if (wasRemoved) {
+					if (value instanceof TransactionalStateProducer<?> transactionalLayerProducer) {
 						// release the removed value's transactional layer, but only when no surviving key still
 						// references the very same instance. The decision must be identity-based (`==`): a
 						// producer owns its layer per-instance, so two distinct instances with equal content
@@ -426,16 +453,15 @@ public class MapChanges<K, V>
 						// would either orphan the removed instance's layer (when a content-equal instance
 						// survives) or release a layer that a surviving key still needs.
 						if (isInstanceNotReferencedBySurvivingKey(key, value)) {
-							transactionalLayerProducer.removeLayer(transactionalLayer);
+							if (valueMerger == null) {
+								transactionalLayerProducer.removeLayer(transactionalLayer);
+							} else {
+								valueMerger.releaseRemoved(key, value);
+							}
 						}
-					} else {
-						value = this.transactionalLayerWrapper.apply(
-							transactionalLayer.getStateCopyWithCommittedChanges(transactionalLayerProducer)
-						);
 					}
-				}
-				// except those that were removed
-				if (!wasRemoved) {
+				} else {
+					value = mergeSurvivingValue(transactionalLayer, valueMerger, key, value);
 					copy.put(key, value);
 				}
 			}
@@ -447,20 +473,88 @@ public class MapChanges<K, V>
 			if (key instanceof TransactionalStateProducer) {
 				throw new IllegalStateException("Transactional layer producer is not expected to be used as a key!");
 			}
-			V value = entry.getValue();
-			if (value instanceof TransactionalStateProducer<?> transactionalLayerProducer) {
-				value = this.transactionalLayerWrapper.apply(
-					transactionalLayer.getStateCopyWithCommittedChanges(transactionalLayerProducer)
-				);
-			}
 			// update the value
-			copy.put(key, value);
+			copy.put(key, mergeSurvivingValue(transactionalLayer, valueMerger, key, entry.getValue()));
 		}
 
 		// release the layers of producers created-then-removed within this transaction (invisible to both loops above)
 		releaseOrphanedCreatedThenRemovedLayers(transactionalLayer);
 
 		return copy;
+	}
+
+	/**
+	 * Resolves the committed value of a key that survives the commit — through the caller's `valueMerger` when there is
+	 * one, otherwise by committing the value's own transactional layer.
+	 *
+	 * @param transactionalLayer the maintainer resolving committed state
+	 * @param valueMerger        the caller's merger, or `null` for the ordinary per-value merge
+	 * @param key                the surviving key
+	 * @param value              the value mapped to it in this transaction
+	 * @return the value to store in the committed map
+	 */
+	@Nullable
+	private V mergeSurvivingValue(
+		@Nonnull TransactionalLayerMaintainer transactionalLayer,
+		@Nullable ValueMerger<K, V> valueMerger,
+		@Nonnull K key,
+		@Nullable V value
+	) {
+		if (valueMerger != null) {
+			return valueMerger.mergeSurviving(key, value);
+		} else if (value instanceof TransactionalStateProducer<?> transactionalLayerProducer) {
+			// we need to always create copy - something in the referenced object might have changed
+			return this.transactionalLayerWrapper.apply(
+				transactionalLayer.getStateCopyWithCommittedChanges(transactionalLayerProducer)
+			);
+		} else {
+			return value;
+		}
+	}
+
+	/**
+	 * Lets the owner of a transactional map take over how its values are committed, so a map whose values are expensive
+	 * to rebuild can carry the unchanged ones across the version boundary instead of merging every single one.
+	 *
+	 * The contract the implementation must honour — the same one {@link MapChanges} honours itself:
+	 *
+	 * - every surviving key is resolved exactly **once**, so a producer is never passed to
+	 *   {@link TransactionalLayerMaintainer#getStateCopyWithCommittedChanges} twice (the second call would discard an
+	 *   already discarded layer and fail the commit),
+	 * - a value skipped by {@link #mergeSurviving} must own **no** diff layer anywhere in its sub-tree, otherwise that
+	 *   layer orphans — which surfaces as a loud {@link TransactionalLayerMaintainer#verifyLayerWasFullySwept()}
+	 *   failure rather than silently dropped changes.
+	 *
+	 * The decision whether a removed value's layer may be released at all stays with {@link MapChanges} (it depends on
+	 * the identity-based survivor scan); the merger only decides **how** to release it.
+	 *
+	 * @param <K> the key type of the map being committed
+	 * @param <V> the value type of the map being committed
+	 */
+	public interface ValueMerger<K, V> {
+
+		/**
+		 * Returns the committed value to store under a key that survives the commit.
+		 *
+		 * @param key   the surviving key
+		 * @param value the value mapped to it in this transaction
+		 * @return the value to store in the committed map
+		 */
+		@Nullable
+		V mergeSurviving(@Nonnull K key, @Nullable V value);
+
+		/**
+		 * Releases the transactional layer of a value whose key does not survive the commit. Called only for a removed
+		 * value that is itself a transactional producer, and only when no surviving key still references it.
+		 *
+		 * A value both created and removed within the same transaction never reaches this method — it appears under no
+		 * surviving key at all, so {@link MapChanges} releases its layer directly, bypassing the merger.
+		 *
+		 * @param key   the removed key
+		 * @param value the value that was mapped to it
+		 */
+		void releaseRemoved(@Nonnull K key, @Nonnull V value);
+
 	}
 
 	/**

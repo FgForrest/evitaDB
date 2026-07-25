@@ -23,6 +23,10 @@
 
 package io.evitadb.index.map;
 
+import io.evitadb.api.requestResponse.mutation.Mutation;
+import io.evitadb.core.exception.StaleTransactionMemoryException;
+import io.evitadb.core.transaction.Transaction;
+import io.evitadb.core.transaction.TransactionHandler;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.index.bitmap.TransactionalBitmap;
 import org.junit.jupiter.api.BeforeEach;
@@ -33,9 +37,12 @@ import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.*;
 import java.util.Map.Entry;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 
 import static io.evitadb.test.TestTags.DATA_TYPE;
 import static io.evitadb.test.TestTags.INDEXING;
@@ -1408,6 +1415,261 @@ class TransactionalMapTest {
 					assertArrayEquals(new int[]{7, 8}, committed.get("b").getArray());
 				}
 			);
+		}
+
+	}
+
+	/**
+	 * Tests covering the `ValueMerger` extension point of the commit-time merge (see
+	 * {@link MapChanges#createMergedMap(TransactionalLayerMaintainer, MapChanges.ValueMerger)}),
+	 * exposed publicly through {@link TransactionalMap}'s 3-argument
+	 * `createCopyWithMergedTransactionalMemory` overload. A caller that owns values expensive to
+	 * rebuild can resolve every surviving key itself and release a removed one on its own terms -
+	 * these tests drive that contract directly through the public map API, never through the
+	 * package-private {@code MapChanges#createMergedMap} method the production code calls
+	 * internally.
+	 */
+	@Nested
+	@DisplayName("ValueMerger contract")
+	class ValueMergerContractTest {
+
+		/**
+		 * Builds a `TransactionalMap<String, TransactionalBitmap>` using the producer constructor,
+		 * exactly as `EntityIndex#entityIdsByLanguage` does in production.
+		 */
+		@Nonnull
+		private static TransactionalMap<String, TransactionalBitmap> producerMap(
+			@Nonnull Map<String, TransactionalBitmap> delegate
+		) {
+			return new TransactionalMap<>(delegate, TransactionalBitmap.class, TransactionalBitmap::new);
+		}
+
+		@Test
+		@DisplayName("merger result replaces an untouched value and a value created this transaction")
+		void shouldReturnTheMergersResultForBothUntouchedAndNewlyCreatedSurvivingKeys() {
+			final TransactionalBitmap untouchedValue = new TransactionalBitmap(1, 2);
+			final Map<String, TransactionalBitmap> delegate = new LinkedHashMap<>();
+			delegate.put("untouched", untouchedValue);
+			final TransactionalMap<String, TransactionalBitmap> map = producerMap(delegate);
+
+			final TransactionalBitmap createdValue = new TransactionalBitmap(9);
+			final Set<String> keysSeenByMerger = new HashSet<>(4);
+			final MapChanges.ValueMerger<String, TransactionalBitmap> merger = new MapChanges.ValueMerger<>() {
+				@Nullable
+				@Override
+				public TransactionalBitmap mergeSurviving(
+					@Nonnull String key, @Nullable TransactionalBitmap value
+				) {
+					keysSeenByMerger.add(key);
+					return value;
+				}
+
+				@Override
+				public void releaseRemoved(@Nonnull String key, @Nonnull TransactionalBitmap value) {
+					fail("No key is removed in this scenario!");
+				}
+			};
+
+			final Map<String, TransactionalBitmap> merged = runInTransaction(maintainer -> {
+				map.put("created", createdValue);
+				final MapChanges<String, TransactionalBitmap> layer =
+					maintainer.getTransactionalMemoryLayerIfExists(map);
+				final Map<String, TransactionalBitmap> result =
+					map.createCopyWithMergedTransactionalMemory(layer, maintainer, merger);
+				maintainer.removeTransactionalMemoryLayerIfExists(map);
+				maintainer.verifyLayerWasFullySwept();
+				return result;
+			});
+
+			assertEquals(Set.of("untouched", "created"), keysSeenByMerger);
+			// the merger's verbatim return value must be what lands in the result - the ordinary
+			// auto-merge instead re-wraps a producer value into a fresh TransactionalBitmap, so
+			// identity is the only proof
+			assertSame(untouchedValue, merged.get("untouched"));
+			assertSame(createdValue, merged.get("created"));
+		}
+
+		@Test
+		@DisplayName("every delegate entry is routed through the merger when the map has no diff layer")
+		void shouldRouteEveryDelegateEntryThroughTheMergerWhenTheMapHasNoTransactionalLayer() {
+			final TransactionalBitmap valueA = new TransactionalBitmap(1);
+			final TransactionalBitmap valueB = new TransactionalBitmap(2);
+			final Map<String, TransactionalBitmap> delegate = new LinkedHashMap<>();
+			delegate.put("a", valueA);
+			delegate.put("b", valueB);
+			final TransactionalMap<String, TransactionalBitmap> map = producerMap(delegate);
+
+			final TransactionalBitmap replacementForA = new TransactionalBitmap(100);
+			final Set<String> keysSeenByMerger = new HashSet<>(4);
+			final MapChanges.ValueMerger<String, TransactionalBitmap> merger = new MapChanges.ValueMerger<>() {
+				@Nullable
+				@Override
+				public TransactionalBitmap mergeSurviving(
+					@Nonnull String key, @Nullable TransactionalBitmap value
+				) {
+					keysSeenByMerger.add(key);
+					return "a".equals(key) ? replacementForA : value;
+				}
+
+				@Override
+				public void releaseRemoved(@Nonnull String key, @Nonnull TransactionalBitmap value) {
+					fail("No key is removed in this scenario!");
+				}
+			};
+
+			// no transaction ever touched the map, so its own diff layer is null - the Mockito
+			// stub is never invoked
+			final TransactionalLayerMaintainer maintainer = Mockito.mock(TransactionalLayerMaintainer.class);
+			final Map<String, TransactionalBitmap> result =
+				map.createCopyWithMergedTransactionalMemory(null, maintainer, merger);
+
+			assertEquals(Set.of("a", "b"), keysSeenByMerger);
+			assertSame(replacementForA, result.get("a"));
+			assertSame(valueB, result.get("b"));
+		}
+
+		@Test
+		@DisplayName("releaseRemoved receives the removed entry and releasing its layer sweeps cleanly")
+		void shouldReleaseARemovedValuesOpenLayerThroughTheMergerAndSweepCleanly() {
+			final TransactionalBitmap survivor = new TransactionalBitmap(1);
+			final TransactionalBitmap removedValue = new TransactionalBitmap(2);
+			final Map<String, TransactionalBitmap> delegate = new LinkedHashMap<>();
+			delegate.put("survivor", survivor);
+			delegate.put("removed", removedValue);
+			final TransactionalMap<String, TransactionalBitmap> map = producerMap(delegate);
+
+			final List<Entry<String, TransactionalBitmap>> released = new ArrayList<>(1);
+
+			final Map<String, TransactionalBitmap> merged = runInTransaction(maintainer -> {
+				// open a nested ALIVE layer on the value before it gets removed from the map
+				removedValue.add(99);
+				map.remove("removed");
+
+				final MapChanges.ValueMerger<String, TransactionalBitmap> merger = new MapChanges.ValueMerger<>() {
+					@Nullable
+					@Override
+					public TransactionalBitmap mergeSurviving(
+						@Nonnull String key, @Nullable TransactionalBitmap value
+					) {
+						return value;
+					}
+
+					@Override
+					public void releaseRemoved(@Nonnull String key, @Nonnull TransactionalBitmap value) {
+						released.add(new SimpleEntry<>(key, value));
+						value.removeLayer(maintainer);
+					}
+				};
+
+				final MapChanges<String, TransactionalBitmap> layer =
+					maintainer.getTransactionalMemoryLayerIfExists(map);
+				final Map<String, TransactionalBitmap> result =
+					map.createCopyWithMergedTransactionalMemory(layer, maintainer, merger);
+				maintainer.removeTransactionalMemoryLayerIfExists(map);
+				maintainer.verifyLayerWasFullySwept();
+				return result;
+			});
+
+			assertEquals(1, released.size());
+			assertEquals("removed", released.get(0).getKey());
+			assertSame(removedValue, released.get(0).getValue());
+			assertEquals(1, merged.size());
+			assertTrue(merged.containsKey("survivor"));
+			assertFalse(merged.containsKey("removed"));
+		}
+
+		@Test
+		@DisplayName("a merger that never releases a removed value's layer fails the sweep verification")
+		void shouldFailTheSweepVerificationWhenTheMergerNeverReleasesARemovedValuesLayer() {
+			final TransactionalBitmap survivor = new TransactionalBitmap(1);
+			final TransactionalBitmap removedValue = new TransactionalBitmap(2);
+			final Map<String, TransactionalBitmap> delegate = new LinkedHashMap<>();
+			delegate.put("survivor", survivor);
+			delegate.put("removed", removedValue);
+			final TransactionalMap<String, TransactionalBitmap> map = producerMap(delegate);
+
+			final MapChanges.ValueMerger<String, TransactionalBitmap> noOpMerger = new MapChanges.ValueMerger<>() {
+				@Nullable
+				@Override
+				public TransactionalBitmap mergeSurviving(
+					@Nonnull String key, @Nullable TransactionalBitmap value
+				) {
+					return value;
+				}
+
+				@Override
+				public void releaseRemoved(@Nonnull String key, @Nonnull TransactionalBitmap value) {
+					// deliberately does nothing - this is the scenario under test
+				}
+			};
+
+			assertThrows(
+				StaleTransactionMemoryException.class,
+				() -> runInTransaction(maintainer -> {
+					removedValue.add(99);
+					map.remove("removed");
+
+					final MapChanges<String, TransactionalBitmap> layer =
+						maintainer.getTransactionalMemoryLayerIfExists(map);
+					final Map<String, TransactionalBitmap> result =
+						map.createCopyWithMergedTransactionalMemory(layer, maintainer, noOpMerger);
+					maintainer.removeTransactionalMemoryLayerIfExists(map);
+					maintainer.verifyLayerWasFullySwept();
+					return result;
+				}),
+				"A merger that never releases a removed value's layer must be caught by the sweep " +
+					"verification - proving the unconditional auto-release no longer runs once a " +
+					"merger is supplied!"
+			);
+		}
+
+		/**
+		 * Runs `body` inside a bare, WAL-less transaction bound to the current thread purely so it
+		 * can obtain a real {@link TransactionalLayerMaintainer} - the 3-argument
+		 * `createCopyWithMergedTransactionalMemory` contract requires one, and only an active
+		 * transaction can produce it. Commit/rollback bookkeeping on the handler is intentionally a
+		 * no-op: each test drives the merge - and its own layer-sweep verification - explicitly
+		 * through the maintainer it receives.
+		 *
+		 * @param body the transactional operations to run; receives the maintainer driving the merge
+		 * @param <R>  the type of value `body` returns
+		 * @return whatever `body` returned
+		 */
+		@Nonnull
+		private static <R> R runInTransaction(@Nonnull Function<TransactionalLayerMaintainer, R> body) {
+			final TransactionHandler noOpHandler = new TransactionHandler() {
+				@Override
+				public void registerMutation(@Nonnull Mutation mutation) {
+					// mutations are not tracked by these tests - they exercise the STM merge directly
+				}
+
+				@Override
+				public void commit(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
+					// each test drives the merge (and its sweep verification) via the maintainer
+				}
+
+				@Override
+				public void rollback(
+					@Nonnull TransactionalLayerMaintainer transactionalLayer, @Nullable Throwable cause
+				) {
+					// not exercised - every test in this group commits
+				}
+			};
+			final Transaction transaction = new Transaction(UUID.randomUUID(), noOpHandler, false);
+			final AtomicReference<R> result = new AtomicReference<>();
+			Transaction.executeInTransactionIfProvided(
+				transaction,
+				() -> {
+					try {
+						final TransactionalLayerMaintainer maintainer =
+							Objects.requireNonNull(Transaction.getTransactionalLayerMaintainer());
+						result.set(body.apply(maintainer));
+					} finally {
+						transaction.close();
+					}
+				}
+			);
+			return result.get();
 		}
 
 	}

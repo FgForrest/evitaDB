@@ -63,6 +63,7 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -181,20 +182,13 @@ class PrunedCommitMergeIndexCarryTest implements EvitaTestSupport {
 	}
 
 	@Test
-	@DisplayName("adding an index falls back to the full merge and still leaves every index wired to the new GLOBAL")
-	void shouldFallBackToTheFullMergeWhenTheIndexSetChanges() {
+	@DisplayName("adding an index applies the key delta and still prunes the indexes the transaction never touched")
+	void shouldPruneEvenWhenAnIndexIsAdded() {
 		final EntityIndex carriedBefore = reducedIndex(CARRIED_BRAND_PK);
 
-		// adding a reference creates a NEW reduced index, so the index MAP itself carries a diff layer and the merge
-		// must take the unpruned route - the branch the prune deliberately declines to handle
-		try (final EvitaSessionContract session = writeSession()) {
-			session.createNewEntity(Entities.BRAND, ADDED_BRAND_PK).upsertVia(session);
-			session.getEntity(Entities.PRODUCT, TOUCHED_PRODUCT_PK, referenceContentAll(), priceContentAll())
-				.orElseThrow()
-				.openForWrite()
-				.setReference(Entities.BRAND, ADDED_BRAND_PK)
-				.upsertVia(session);
-		}
+		// adding a reference creates a NEW reduced index, so the index MAP itself carries a diff layer - the merge has
+		// to apply that key delta AND keep pruning the values the transaction never touched
+		addBrandAndReferenceItFromTouchedProduct();
 
 		final EntityIndex globalAfter = globalEntityIndex();
 		final EntityIndex addedIndex = reducedIndex(ADDED_BRAND_PK);
@@ -203,18 +197,97 @@ class PrunedCommitMergeIndexCarryTest implements EvitaTestSupport {
 		assertWiredTo(addedIndex, globalAfter);
 		assertWiredTo(reducedIndex(CARRIED_BRAND_PK), globalAfter);
 		assertWiredTo(reducedIndex(TOUCHED_BRAND_PK), globalAfter);
-		// the counterpart of the by-reference assertion in the pruned case: the unpruned merge rebuilds every index,
-		// re-wrapping even an untouched one's entity-id bitmap. Asserting both directions is what proves these tests
-		// tell the two merge routes apart instead of passing under either.
-		assertNotSame(
+		// the discriminator between the pruned merge and the full one: a full merge re-wraps even an untouched index's
+		// entity-id bitmap into a fresh TransactionalBitmap, the prune adopts it by reference
+		assertSame(
 			carriedBefore.getAllPrimaryKeys(), reducedIndex(CARRIED_BRAND_PK).getAllPrimaryKeys(),
-			"The full merge must rebuild every index, including the untouched one!"
+			"An index untouched by a transaction that changed the index SET must still be carried by reference!"
 		);
 
 		// and the collection must still be writable through both the new and the pre-existing indexes
 		assertDoesNotThrow(
 			() -> updatePriceOf(CARRIED_PRODUCT_PK, BigDecimal.valueOf(40)),
-			"A price mutation must still commit after the full-merge fallback!"
+			"A price mutation must still commit after a transaction that added an index!"
+		);
+	}
+
+	@Test
+	@DisplayName("removing an index drops it, sweeps its layer and still prunes the untouched indexes")
+	void shouldPruneEvenWhenAnIndexIsRemoved() {
+		// first transaction gives the third brand its own reduced index...
+		addBrandAndReferenceItFromTouchedProduct();
+		assertNotNull(reducedIndex(ADDED_BRAND_PK), "The fixture must have created the reduced index to be removed!");
+		final EntityIndex carriedBefore = reducedIndex(CARRIED_BRAND_PK);
+
+		// ... the second drops it again by removing the only reference that kept it alive, so the index map's diff
+		// layer carries a REMOVED key this time
+		try (final EvitaSessionContract session = writeSession()) {
+			session.getEntity(Entities.PRODUCT, TOUCHED_PRODUCT_PK, referenceContentAll(), priceContentAll())
+				.orElseThrow()
+				.openForWrite()
+				.removeReference(Entities.BRAND, ADDED_BRAND_PK)
+				.upsertVia(session);
+		}
+
+		assertNull(
+			reducedIndex(ADDED_BRAND_PK),
+			"The reduced index emptied by the reference removal must be dropped from the collection!"
+		);
+		assertSame(
+			carriedBefore.getAllPrimaryKeys(), reducedIndex(CARRIED_BRAND_PK).getAllPrimaryKeys(),
+			"An index untouched by a transaction that REMOVED another index must still be carried by reference!"
+		);
+		assertWiredTo(reducedIndex(CARRIED_BRAND_PK), globalEntityIndex());
+		assertWiredTo(reducedIndex(TOUCHED_BRAND_PK), globalEntityIndex());
+
+		assertDoesNotThrow(
+			() -> updatePriceOf(CARRIED_PRODUCT_PK, BigDecimal.valueOf(40)),
+			"A price mutation must still commit after a transaction that removed an index!"
+		);
+	}
+
+	@Test
+	@DisplayName("a commit that adds one index and removes another applies both halves of the key delta")
+	void shouldPruneWhenATransactionBothAddsAndRemovesAnIndexInOneCommit() {
+		final EntityIndex carriedBefore = reducedIndex(CARRIED_BRAND_PK);
+		assertNotNull(
+			reducedIndex(TOUCHED_BRAND_PK),
+			"The fixture must have created the reduced index that this transaction is about to drop!"
+		);
+
+		// a single commit both ADDS a brand new reduced index (the newly referenced brand) and REMOVES an
+		// existing one (the touched product's only reference to it is dropped) - modifiedKeys and removedKeys
+		// of the index map's diff layer are both non-empty in this very same merge. The removal is issued
+		// before the addition: setting a reference of this name first would initialize the entity builder's
+		// reference bundle, tripping an assertion when a later removal targets a different, pre-existing key
+		// of that same name
+		try (final EvitaSessionContract session = writeSession()) {
+			session.createNewEntity(Entities.BRAND, ADDED_BRAND_PK).upsertVia(session);
+			session.getEntity(Entities.PRODUCT, TOUCHED_PRODUCT_PK, referenceContentAll(), priceContentAll())
+				.orElseThrow()
+				.openForWrite()
+				.removeReference(Entities.BRAND, TOUCHED_BRAND_PK)
+				.setReference(Entities.BRAND, ADDED_BRAND_PK)
+				.upsertVia(session);
+		}
+
+		final EntityIndex globalAfter = globalEntityIndex();
+		final EntityIndex addedIndex = reducedIndex(ADDED_BRAND_PK);
+		assertNotNull(addedIndex, "The newly referenced brand must have got its own reduced index!");
+		assertWiredTo(addedIndex, globalAfter);
+
+		assertNull(
+			reducedIndex(TOUCHED_BRAND_PK),
+			"The reduced index emptied by the reference removal must be dropped from the collection!"
+		);
+		assertSame(
+			carriedBefore.getAllPrimaryKeys(), reducedIndex(CARRIED_BRAND_PK).getAllPrimaryKeys(),
+			"An index untouched by an add-and-remove commit must still be carried by reference!"
+		);
+
+		assertDoesNotThrow(
+			() -> updatePriceOf(CARRIED_PRODUCT_PK, BigDecimal.valueOf(40)),
+			"A price mutation must still commit after a transaction that both added and removed an index!"
 		);
 	}
 
@@ -270,6 +343,22 @@ class PrunedCommitMergeIndexCarryTest implements EvitaTestSupport {
 				.setPrice(1000 + pk, PRICE_LIST_BASIC, CURRENCY_EUR, price, BigDecimal.ZERO, price, true)
 				.setReference(Entities.BRAND, brandPk)
 		);
+	}
+
+	/**
+	 * Creates {@link #ADDED_BRAND_PK} and references it from {@link #TOUCHED_PRODUCT_PK} in a single
+	 * transaction. This is what gives the touched product's reduced entity index MAP a newly ADDED key,
+	 * forcing the merge to apply that key delta while still pruning the indexes the transaction never touched.
+	 */
+	private void addBrandAndReferenceItFromTouchedProduct() {
+		try (final EvitaSessionContract session = writeSession()) {
+			session.createNewEntity(Entities.BRAND, ADDED_BRAND_PK).upsertVia(session);
+			session.getEntity(Entities.PRODUCT, TOUCHED_PRODUCT_PK, referenceContentAll(), priceContentAll())
+				.orElseThrow()
+				.openForWrite()
+				.setReference(Entities.BRAND, ADDED_BRAND_PK)
+				.upsertVia(session);
+		}
 	}
 
 	/**
