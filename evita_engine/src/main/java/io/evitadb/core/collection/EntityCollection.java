@@ -2869,11 +2869,24 @@ public final class EntityCollection implements
 	 * indexes have been freshly merged or shelled and their price ref chains carry no super index yet. Reduced indexes
 	 * added incrementally (disk load, lazy creation during mutation) are wired individually through
 	 * {@link #wireReducedIndexSuperIndex(AbstractReducedEntityIndex)}.
+	 *
+	 * Each scope's GLOBAL is resolved at most once and memoized in a {@link Scope#ordinal()}-indexed array. Resolving it
+	 * per reduced index instead - which is what the single-index variant does, correctly, for its one index - costs an
+	 * {@link EntityIndexKey} allocation and a map lookup for every index of the collection, and this walk runs for every
+	 * collection on every catalog version bump. It is the same per-index resolve that
+	 * {@link #pruneMergeIndexes(TransactionalLayerMaintainer, Set)} hoists out of its own walk.
 	 */
 	private void wireReducedIndexSuperIndexes() {
+		final GlobalEntityIndex[] globalsByScope = new GlobalEntityIndex[Scope.values().length];
 		for (final EntityIndex entityIndex : this.indexes.values()) {
 			if (entityIndex instanceof AbstractReducedEntityIndex reducedIndex) {
-				wireReducedIndexSuperIndex(reducedIndex);
+				final Scope scope = reducedIndex.getIndexKey().scope();
+				GlobalEntityIndex globalIndex = globalsByScope[scope.ordinal()];
+				if (globalIndex == null) {
+					globalIndex = resolveGlobalIndex(scope);
+					globalsByScope[scope.ordinal()] = globalIndex;
+				}
+				reducedIndex.getPriceIndex().wireOrVerifySuperIndexes(globalIndex);
 			}
 		}
 	}
