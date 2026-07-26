@@ -38,7 +38,6 @@ import java.io.Serial;
 import java.io.Serializable;
 import java.util.Locale;
 import java.util.Set;
-import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 /**
@@ -145,11 +144,11 @@ public class SimpleHistogramIndex extends HistogramIndex {
 		return this.filterIndex.isEmpty();
 	}
 
+	@Nonnull
 	@Override
-	public void forEachLocale(@Nonnull BiConsumer<String, Locale> consumer) {
-		if (!this.filterIndex.isEmpty()) {
-			consumer.accept(getHistogramName(), null);
-		}
+	public Locale[] getLocales() {
+		// the sole index of a non-localized histogram is filed under the `null` locale key
+		return this.filterIndex.isEmpty() ? new Locale[0] : new Locale[]{null};
 	}
 
 	@Override

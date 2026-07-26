@@ -301,25 +301,6 @@ class HistogramIndexTest {
 		}
 
 		@Test
-		@DisplayName("should invoke forEachLocale with null locale when data exists")
-		void shouldInvokeForEachLocaleWithNullLocale() {
-			assertStateAfterCommit(
-				this.histogramIndex,
-				original -> {
-					original.insertValue(null, 42, 10);
-					final int[] count = {0};
-					original.forEachLocale((name, locale) -> {
-						assertEquals(HISTOGRAM_NAME, name);
-						assertNull(locale, "Non-localized histogram should have null locale");
-						count[0]++;
-					});
-					assertEquals(1, count[0], "forEachLocale should be called exactly once");
-				},
-				(original, committed) -> assertNotNull(committed)
-			);
-		}
-
-		@Test
 		@DisplayName("should throw when removing from empty index")
 		void shouldThrowWhenRemovingFromEmptyIndex() {
 			assertThrows(
@@ -539,26 +520,6 @@ class HistogramIndexTest {
 					assertNotNull(committed, "Committed copy must not be null");
 					assertFalse(committed.isEmpty());
 				}
-			);
-		}
-
-		@Test
-		@DisplayName("should invoke forEachLocale for each locale with data")
-		void shouldInvokeForEachLocaleForEachLocaleWithData() {
-			assertStateAfterCommit(
-				this.histogramIndex,
-				original -> {
-					original.insertValue(Locale.ENGLISH, 42, 10);
-					original.insertValue(new Locale("cs"), 99, 20);
-					final int[] count = {0};
-					original.forEachLocale((name, locale) -> {
-						assertEquals(HISTOGRAM_NAME, name);
-						assertNotNull(locale, "Localized histogram should have non-null locale");
-						count[0]++;
-					});
-					assertEquals(2, count[0], "forEachLocale should be called for each locale");
-				},
-				(original, committed) -> assertNotNull(committed)
 			);
 		}
 
