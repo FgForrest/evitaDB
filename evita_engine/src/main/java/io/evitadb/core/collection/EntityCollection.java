@@ -3363,11 +3363,11 @@ public final class EntityCollection implements
 		@Nonnull
 		@Override
 		public List<Integer> getIndexPrimaryKeys() {
-			return EntityCollection.this.indexes
-				.values()
-				.stream()
-				.map(EntityIndex::getPrimaryKey)
-				.collect(Collectors.toList());
+			// read the keys of the by-primary-key view rather than walking the index forest and re-deriving them: those
+			// keys ARE the primary keys, already boxed, so this costs one array copy instead of a walk that unboxes and
+			// re-boxes every index. This runs on every flush of every collection, alongside the commit merge that was
+			// itself made proportional to the transaction
+			return new ArrayList<>(EntityCollection.this.indexesByPrimaryKey.keySet());
 		}
 	}
 
