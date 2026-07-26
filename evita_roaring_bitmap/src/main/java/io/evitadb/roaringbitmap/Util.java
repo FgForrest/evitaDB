@@ -128,13 +128,14 @@ public final class Util {
 	 *
 	 * Complexity: `O(log gap)`, where `gap` is the distance from `pos` to the returned index.
 	 *
-	 * @param array  array sorted in unsigned-ascending order
-	 * @param pos    index the search starts strictly before
-	 * @param length number of leading entries of `array` that are valid
-	 * @param max    maximum (unsigned) value sought
-	 * @return largest index `< pos` with `array[index] <= max`, or `0` if no such value exists
+	 * @param array array sorted in unsigned-ascending order
+	 * @param pos   index the search starts strictly before
+	 * @param max   maximum (unsigned) value sought
+	 * @return largest index `< pos` with `array[index] <= max`. The result saturates at `0` when no
+	 * entry qualifies, so callers that must distinguish "found index 0" from "nothing at or below
+	 * max" have to re-test `array[0]` themselves.
 	 */
-	public static int reverseUntil(@Nonnull final char[] array, final int pos, final int length, final char max) {
+	public static int reverseUntil(@Nonnull final char[] array, final int pos, final char max) {
 		int lower = pos - 1;
 
 		// special handling for a possibly common sequential case

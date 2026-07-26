@@ -85,20 +85,25 @@ public class IntIteratorFlyweight implements PeekableIntIterator {
 	/**
 	 * Forks an independent iterator, deep-copying the active char cursor so the fork advances without
 	 * disturbing this one.
+	 *
+	 * A shallow `Object.clone()` will not do here: it would hand the fork the very same cached
+	 * per-shape cursors this instance recycles, and the first chunk boundary either side crosses would
+	 * re-target a cursor the other one is still reading from. The fork therefore starts from a fresh
+	 * instance — with its own cached cursors — onto which only the position state is copied.
 	 */
+	// the cached per-shape cursors must not be aliased into the fork, so this cannot delegate to super
+	@SuppressWarnings("CloneDoesntCallSuperClone")
 	@Nonnull
 	@Override
 	public PeekableIntIterator clone() {
-		try {
-			final IntIteratorFlyweight x = (IntIteratorFlyweight) super.clone();
-			if (this.iter != null) {
-				x.iter = this.iter.clone();
-			}
-			return x;
-		} catch (CloneNotSupportedException e) {
-			// unreachable: IntIteratorFlyweight implements Cloneable
-			throw new IllegalStateException(e);
+		final IntIteratorFlyweight x = new IntIteratorFlyweight();
+		x.roaringBitmap = this.roaringBitmap;
+		x.pos = this.pos;
+		x.hs = this.hs;
+		if (this.iter != null) {
+			x.iter = this.iter.clone();
 		}
+		return x;
 	}
 
 	/**

@@ -124,10 +124,8 @@ public abstract class AbstractShuttle implements Shuttle {
 			if (nextPos != BranchNode.ILLEGAL_IDX) {
 				this.stack[this.depth].position = nextPos;
 				this.depth++;
-				// add a fresh entry on the top of the visiting stack
-				final NodeEntry freshEntry = new NodeEntry();
-				freshEntry.node = currentBranchNode.getChild(nextPos);
-				this.stack[this.depth] = freshEntry;
+				// reuse the stack slot at this depth instead of allocating a fresh entry
+				useEntry(this.depth, currentBranchNode.getChild(nextPos));
 			} else {
 				// current internal node doesn't have anymore unvisited child,move to a top node
 				this.depth--;
@@ -241,10 +239,8 @@ public abstract class AbstractShuttle implements Shuttle {
 			return;
 		}
 		if (node == this.art.getRoot()) {
-			final NodeEntry nodeEntry = new NodeEntry();
-			nodeEntry.node = node;
 			this.depth = 0;
-			this.stack[this.depth] = nodeEntry;
+			useEntry(this.depth, node);
 		}
 		if (node instanceof LeafNode) {
 			// leaf node's corresponding NodeEntry will not have the position member set.
@@ -262,10 +258,8 @@ public abstract class AbstractShuttle implements Shuttle {
 		this.stack[this.depth].position = pos;
 		this.stack[this.depth].visited = true;
 		final Node child = branchNode.getChild(pos);
-		final NodeEntry childNodeEntry = new NodeEntry();
-		childNodeEntry.node = child;
 		this.depth++;
-		this.stack[this.depth] = childNodeEntry;
+		useEntry(this.depth, child);
 		visitToLeaf(child, inRunDirection);
 	}
 
@@ -274,10 +268,8 @@ public abstract class AbstractShuttle implements Shuttle {
 			return;
 		}
 		if (node == this.art.getRoot()) {
-			final NodeEntry nodeEntry = new NodeEntry();
-			nodeEntry.node = node;
 			this.depth = 0;
-			this.stack[this.depth] = nodeEntry;
+			useEntry(this.depth, node);
 		}
 		if (node instanceof LeafNode) {
 			// leaf node's corresponding NodeEntry will not have the position member set.
@@ -330,10 +322,8 @@ public abstract class AbstractShuttle implements Shuttle {
 		this.stack[this.depth].position = pos;
 		this.stack[this.depth].visited = true;
 		final Node child = branchNode.getChild(pos);
-		final NodeEntry childNodeEntry = new NodeEntry();
-		childNodeEntry.node = child;
 		this.depth++;
-		this.stack[this.depth] = childNodeEntry;
+		useEntry(this.depth, child);
 		if (continueAtBoundary) {
 			// once we miss a single match, there's no point comparing parts of the key anymore
 			// we just descend as far in run direction as possible
@@ -350,6 +340,31 @@ public abstract class AbstractShuttle implements Shuttle {
 		if (nextSiblingPos != BranchNode.ILLEGAL_IDX) {
 			this.stack[this.depth - 1].leafNodeNextSiblingKey = parentNode.getChildKey(nextSiblingPos);
 		}
+	}
+
+	/**
+	 * Reuses the {@link NodeEntry} already parked in the stack slot at depth `d` — allocating one only
+	 * the first time a given depth is reached — and resets it to the same defaults a freshly
+	 * constructed {@link NodeEntry} would have. This avoids allocating a `NodeEntry` on every push
+	 * while the shuttle traverses the tree (select / rank / ordered iteration); at most
+	 * {@link #MAX_DEPTH} entries are ever live, so the slots can be recycled safely — the walk only
+	 * ever reads a frame after the push that (re)initialised it here, never the stale contents a pop
+	 * left behind.
+	 *
+	 * @param d    stack depth whose slot is (re)used
+	 * @param node the node the reused frame is positioned on
+	 */
+	private void useEntry(final int d, @Nullable final Node node) {
+		NodeEntry entry = this.stack[d];
+		if (entry == null) {
+			entry = new NodeEntry();
+			this.stack[d] = entry;
+		}
+		entry.node = node;
+		entry.position = BranchNode.ILLEGAL_IDX;
+		entry.visited = false;
+		entry.startFromNextSiblingPosition = false;
+		entry.leafNodeNextSiblingKey = 0;
 	}
 
 	/**

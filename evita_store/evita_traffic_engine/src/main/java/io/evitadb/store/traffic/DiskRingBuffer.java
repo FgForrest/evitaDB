@@ -182,6 +182,11 @@ public class DiskRingBuffer {
 	 */
 	private final AtomicLong exportIdentityMismatchSkipCount = new AtomicLong();
 	/**
+	 * Cumulative number of bytes appended to the disk ring buffer over the lifetime of this buffer
+	 * (monotonic, including per-session lead descriptors). Surfaced for disk write-throughput metrics.
+	 */
+	private final AtomicLong bytesAppendedTotal = new AtomicLong();
+	/**
 	 * Head of the ring buffer. Volatile because it's written by the writer thread - at most one at a time,
 	 * since {@code OffHeapTrafficRecorder}'s {@code freeMemory()}/{@code drainFinalizedSessionsToDisk()} are
 	 * both {@code synchronized} on the same monitor, so writer-vs-writer can never race this field - and read
@@ -477,6 +482,8 @@ public class DiskRingBuffer {
 					() -> writeDataToFileChannel(memoryByteBuffer, totalBytesToWrite)
 				);
 			}
+			// count only fully written bytes (a mid-write IOException throws before reaching here)
+			this.bytesAppendedTotal.addAndGet(totalBytesToWrite);
 		} catch (IOException e) {
 			throw new UnexpectedIOException(
 				"Failed to append traffic recording buffer file: " + e.getMessage(),
@@ -484,6 +491,40 @@ public class DiskRingBuffer {
 				e
 			);
 		}
+	}
+
+	/**
+	 * Returns the cumulative number of bytes appended to the disk ring buffer over the lifetime of this
+	 * buffer (monotonic, including per-session lead descriptors). Exposed for disk write-throughput metrics.
+	 *
+	 * @return cumulative number of bytes appended
+	 */
+	public long getBytesAppendedTotal() {
+		return this.bytesAppendedTotal.get();
+	}
+
+	/**
+	 * Returns the number of sessions currently resident in the disk ring buffer window.
+	 *
+	 * @return number of resident sessions
+	 */
+	public int getResidentSessionCount() {
+		return this.sessionLocations.size();
+	}
+
+	/**
+	 * Returns the number of bytes currently occupied by resident sessions in the disk ring buffer,
+	 * computed as the sum of the resident sessions' on-disk lengths. Iterating the weakly-consistent
+	 * session deque yields an approximate snapshot, which is sufficient for a periodically sampled gauge.
+	 *
+	 * @return number of bytes occupied by resident sessions
+	 */
+	public long getUsedBytes() {
+		long usedBytes = 0L;
+		for (final SessionLocation sessionLocation : this.sessionLocations) {
+			usedBytes += sessionLocation.location().recordLength();
+		}
+		return usedBytes;
 	}
 
 	/**
