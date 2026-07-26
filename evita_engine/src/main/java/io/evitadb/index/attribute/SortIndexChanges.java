@@ -30,14 +30,12 @@ import io.evitadb.dataType.bPlusTree.CumulativeWeightBPlusTree;
 import io.evitadb.index.array.TransactionalUnorderedIntArray;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.utils.ArrayUtils;
-import io.evitadb.utils.ArrayUtils.InsertionPosition;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
 import java.io.Serial;
 import java.io.Serializable;
-import java.util.Arrays;
 import java.util.Comparator;
 import java.util.function.Supplier;
 
@@ -234,15 +232,31 @@ public class SortIndexChanges
 		if (valueTree.containsKey(value)) {
 			// the value already owns a record block; its size equals the value's cardinality (its weight)
 			final int blockEnd = blockStart + valueTree.weightOf(value);
-			final int[] allRecordIds = this.sortIndex.sortedRecords.getArray();
-			final int[] recordIdsInBlock = Arrays.copyOfRange(allRecordIds, blockStart, blockEnd);
-			// within the block record ids are sorted in natural integer order
-			final InsertionPosition recordInsertionPosition =
-				ArrayUtils.computeInsertPositionOfIntInOrderedArray(recordId, recordIdsInBlock);
-			// the target record id position is block start + relative position in the block, minus one
-			final int recordPosition = blockStart + recordInsertionPosition.position() - 1;
+			// Binary-search the block through positional reads instead of materializing it. Within the block record ids
+			// are sorted in natural integer order, so the search is the same one `computeInsertPositionOfIntInOrderedArray`
+			// performs — it just reads each probe through the position tree (O(depth), no allocation) rather than out of
+			// a copy of the WHOLE sort index, which this method used to build on every single sort-attribute insert.
+			int low = blockStart;
+			int high = blockEnd - 1;
+			// absolute index the record would be inserted at; stays at the block end when every id in the block is smaller
+			int insertionIndex = blockEnd;
+			while (low <= high) {
+				final int middle = (low + high) >>> 1;
+				final int middleRecordId = this.sortIndex.sortedRecords.get(middle);
+				if (middleRecordId < recordId) {
+					low = middle + 1;
+				} else {
+					insertionIndex = middle;
+					if (middleRecordId == recordId) {
+						break;
+					}
+					high = middle - 1;
+				}
+			}
+			// the target record id sits immediately before the insertion point
+			final int recordPosition = insertionIndex - 1;
 			// a negative position means the record should be placed as the very first record of the sort index
-			return recordPosition >= 0 ? allRecordIds[recordPosition] : Integer.MIN_VALUE;
+			return recordPosition >= 0 ? this.sortIndex.sortedRecords.get(recordPosition) : Integer.MIN_VALUE;
 		} else {
 			// the value is absent and starts a fresh block at `blockStart`; the predecessor is the record immediately
 			// before that offset, or none when the value sorts before every present value

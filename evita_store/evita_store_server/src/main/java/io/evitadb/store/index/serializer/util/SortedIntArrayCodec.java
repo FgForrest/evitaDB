@@ -25,7 +25,7 @@ package io.evitadb.store.index.serializer.util;
 
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
-import io.evitadb.utils.Assert;
+import io.evitadb.exception.GenericEvitaInternalError;
 
 import javax.annotation.Nonnull;
 
@@ -76,12 +76,16 @@ public final class SortedIntArrayCodec {
 			int previous = ascending[0];
 			for (int i = 1; i < count; i++) {
 				final int current = ascending[i];
-				// fail loud on a decreasing input instead of writing a negative gap that the reader would misinterpret
-				Assert.isPremiseValid(
-					current >= previous,
-					"SortedIntArrayCodec requires a non-decreasing array, but element at index " + i +
-						" (" + current + ") is smaller than its predecessor (" + previous + ")!"
-				);
+				// fail loud on a decreasing input instead of writing a negative gap that the reader would misinterpret.
+				// Phrased as an explicit branch rather than an `Assert` call so the message is built only when it is
+				// actually thrown - passing it as an argument concatenates it on EVERY element of EVERY array written,
+				// which measured as one eighth of all allocation on the write path
+				if (current < previous) {
+					throw new GenericEvitaInternalError(
+						"SortedIntArrayCodec requires a non-decreasing array, but element at index " + i +
+							" (" + current + ") is smaller than its predecessor (" + previous + ")!"
+					);
+				}
 				// the gap of an ascending array is always >= 0, so a plain (unsigned) varint is optimal here
 				output.writeVarInt(current - previous, true);
 				previous = current;
@@ -140,12 +144,14 @@ public final class SortedIntArrayCodec {
 		final int to = from + len;
 		for (int i = from + 1; i < to; i++) {
 			final int current = array[i];
-			// fail loud on a decreasing run instead of writing a negative gap that the reader would misinterpret
-			Assert.isPremiseValid(
-				current >= previous,
-				"SortedIntArrayCodec requires a non-decreasing run, but element at index " + i +
-					" (" + current + ") is smaller than its predecessor (" + previous + ")!"
-			);
+			// fail loud on a decreasing run instead of writing a negative gap that the reader would misinterpret - see
+			// writeAscendingInts for why this is a branch rather than an `Assert` call
+			if (current < previous) {
+				throw new GenericEvitaInternalError(
+					"SortedIntArrayCodec requires a non-decreasing run, but element at index " + i +
+						" (" + current + ") is smaller than its predecessor (" + previous + ")!"
+				);
+			}
 			// the gap of an ascending run is always >= 0, so a plain (unsigned) varint is optimal here
 			output.writeVarInt(current - previous, true);
 			previous = current;
