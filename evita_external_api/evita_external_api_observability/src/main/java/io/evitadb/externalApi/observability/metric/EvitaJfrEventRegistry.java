@@ -59,6 +59,7 @@ import io.evitadb.externalApi.event.ReadinessEvent;
 import io.evitadb.externalApi.event.RequestEvent;
 import io.evitadb.externalApi.grpc.metric.event.EvitaProcedureCalledEvent;
 import io.evitadb.externalApi.grpc.metric.event.SessionProcedureCalledEvent;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.store.traffic.event.TrafficRecorderStatisticsEvent;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
@@ -616,6 +617,36 @@ public class EvitaJfrEventRegistry {
 	}
 
 	/**
+	 * Registers a custom metrics event class with the flight recorder without exposing the caller to the lock-order
+	 * inversion that a bare {@link FlightRecorder#register(Class)} is subject to.
+	 *
+	 * JFR instruments every {@link jdk.jfr.Event} subclass with a synthetic static initializer that registers the class
+	 * with the flight recorder, and {@link FlightRecorder#register(Class)} in turn forces the class it is handed through
+	 * initialization **while holding the JFR metadata lock**. So a thread that merely constructs an event for the first
+	 * time takes the class initialization monitor and then wants the metadata lock, while a thread registering that same
+	 * class from the outside takes the two in the opposite order — and the pair deadlocks with no timeout and no
+	 * diagnostic. Initializing the class first, holding no JFR lock, removes the inverted edge: by the time the class
+	 * reaches {@link FlightRecorder#register(Class)} it is already initialized, so the registration cannot block on its
+	 * monitor and no thread ever holds the metadata lock while waiting for a class initialization monitor.
+	 *
+	 * Every registration of an evitaDB event class must go through here rather than calling the flight recorder
+	 * directly, because breaking the cycle requires that NO caller holds the metadata lock while initializing a class.
+	 *
+	 * @param eventClass the event class to register with the flight recorder
+	 */
+	static void registerEventClass(@Nonnull Class<? extends CustomMetricsExecutionEvent> eventClass) {
+		try {
+			Class.forName(eventClass.getName(), true, eventClass.getClassLoader());
+		} catch (ClassNotFoundException e) {
+			// the class object is already in hand, so it cannot fail to resolve by its own name
+			throw new GenericEvitaInternalError(
+				"JFR event class `" + eventClass.getName() + "` could not be initialized!", e
+			);
+		}
+		FlightRecorder.register(eventClass);
+	}
+
+	/**
 	 * Group contains information about JFR event group that could be enabled/disabled.
 	 *
 	 * @param name        the name of the event group
@@ -640,7 +671,7 @@ public class EvitaJfrEventRegistry {
 			this.description = description;
 			this.events = events;
 			for (Class<? extends CustomMetricsExecutionEvent> event : events) {
-				FlightRecorder.register(event);
+				registerEventClass(event);
 			}
 		}
 	}
