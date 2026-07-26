@@ -128,7 +128,6 @@ import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.map.MapChanges;
 import io.evitadb.index.map.MapChanges.ValueMerger;
 import io.evitadb.index.map.PersistentTransactionalProducerMap;
-import io.evitadb.index.map.TransactionalMap;
 import io.evitadb.index.mutation.ConsistencyCheckingLocalMutationExecutor.ImplicitMutationBehavior;
 import io.evitadb.index.mutation.EntityIndexMutation;
 import io.evitadb.index.mutation.IndexMutation;
@@ -170,7 +169,6 @@ import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.time.OffsetDateTime;
 import java.util.*;
-import java.util.Map.Entry;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
@@ -258,14 +256,19 @@ public final class EntityCollection implements
 	 * a production workload hundreds of thousands of entries — is carried across the version boundary as shared trie
 	 * nodes instead of being walked entry by entry. The dirty-key set driving that walk is supplied explicitly by
 	 * {@link #pruneMergeIndexes(TransactionalLayerMaintainer, Set)}; iteration order is unspecified, which no consumer
-	 * relies on (see {@link #createIndexByPk(Map)} and `getIndexPrimaryKeys`).
+	 * relies on (`getIndexPrimaryKeys` is the only walk, and its consumers load each id independently).
 	 */
 	private final PersistentTransactionalProducerMap<EntityIndexKey, EntityIndex> indexes;
 	/**
 	 * Collection of search indexes indexed by their primary keys. Contains identical data as {@link #indexes} but
 	 * the key in the map is their {@link EntityIndex#getPrimaryKey()}.
+	 *
+	 * Persistent for the same reason as {@link #indexes} and derived from the very same transaction delta: the two maps
+	 * hold the SAME index instances under two different keys, so whatever the commit does to one it does to the other.
+	 * {@link #pruneMergeIndexes(TransactionalLayerMaintainer, Set)} applies that single delta to both and returns them
+	 * together, which is what keeps them from drifting apart.
 	 */
-	private final TransactionalMap<Integer, EntityIndex> indexesByPrimaryKey;
+	private final PersistentTransactionalProducerMap<Integer, EntityIndex> indexesByPrimaryKey;
 	/**
 	 * True if collection was already terminated. No other termination will be allowed.
 	 */
@@ -423,7 +426,7 @@ public final class EntityCollection implements
 					CollectionUtils.createHashMap(64),
 					EntityIndex.class::cast
 				);
-				this.indexesByPrimaryKey = new TransactionalMap<>(
+				this.indexesByPrimaryKey = PersistentTransactionalProducerMap.withExplicitDirtyKeyMerge(
 					CollectionUtils.createHashMap(64),
 					EntityIndex.class::cast
 				);
@@ -432,7 +435,7 @@ public final class EntityCollection implements
 					CollectionUtils.createHashMap(entityIndexesExpectedCount),
 					EntityIndex.class::cast
 				);
-				this.indexesByPrimaryKey = new TransactionalMap<>(
+				this.indexesByPrimaryKey = PersistentTransactionalProducerMap.withExplicitDirtyKeyMerge(
 					CollectionUtils.createHashMap(entityIndexesExpectedCount),
 					EntityIndex.class::cast
 				);
@@ -506,7 +509,7 @@ public final class EntityCollection implements
 			indexTuple.indexes(),
 			EntityIndex.class::cast
 		);
-		this.indexesByPrimaryKey = new TransactionalMap<>(
+		this.indexesByPrimaryKey = PersistentTransactionalProducerMap.withExplicitDirtyKeyMerge(
 			indexTuple.indexesByPk(),
 			EntityIndex.class::cast
 		);
@@ -517,40 +520,6 @@ public final class EntityCollection implements
 			OffsetDateTime.MIN, // we don't care about the time
 			EntityReference.class,
 			null
-		);
-	}
-
-	/**
-	 * Private constructor used for creating new entity collection instance on transaction commit.
-	 */
-	private EntityCollection(
-		long catalogVersion,
-		@Nonnull CatalogState catalogState,
-		int entityTypePrimaryKey,
-		@Nonnull EntitySchema entitySchema,
-		@Nonnull AtomicInteger pkSequence,
-		@Nonnull AtomicInteger indexPkSequence,
-		@Nonnull AtomicInteger pricePkSequence,
-		@Nonnull CatalogPersistenceService<LogRecordReference, CollectionReference, EntityCollectionHeader> catalogPersistenceService,
-		@Nonnull EntityCollectionPersistenceService<StorageDescriptor, EntityCollectionHeader> persistenceService,
-		@Nonnull Map<EntityIndexKey, EntityIndex> indexes,
-		@Nonnull CacheSupervisor cacheSupervisor,
-		@Nonnull TrafficRecordingEngine trafficRecorder
-	) {
-		this(
-			catalogVersion,
-			catalogState,
-			entityTypePrimaryKey,
-			entitySchema,
-			pkSequence,
-			indexPkSequence,
-			pricePkSequence,
-			catalogPersistenceService,
-			persistenceService,
-			indexes,
-			createIndexByPk(indexes),
-			cacheSupervisor,
-			trafficRecorder
 		);
 	}
 
@@ -592,7 +561,7 @@ public final class EntityCollection implements
 		// `indexes` arrives as a ChampMap on the commit path, which the persistent map adopts sealed in O(1) - a plain
 		// map (bulk load, compaction re-attach) is copied into the mutable warm-up buffer exactly as before
 		this.indexes = PersistentTransactionalProducerMap.withExplicitDirtyKeyMerge(indexes, EntityIndex.class::cast);
-		this.indexesByPrimaryKey = new TransactionalMap<>(indexesByPk, EntityIndex.class::cast);
+		this.indexesByPrimaryKey = PersistentTransactionalProducerMap.withExplicitDirtyKeyMerge(indexesByPk, EntityIndex.class::cast);
 		this.cacheSupervisor = cacheSupervisor;
 		this.emptyOnStart = this.persistenceService.isEmpty(catalogVersion, this.dataStoreReader);
 		this.defaultMinimalQuery = new EvitaRequest(
@@ -1790,16 +1759,11 @@ public final class EntityCollection implements
 			transactionalLayer.removeTransactionalMemoryLayer(this);
 			// this creates copy of the indexes with all changes applied - pruned: only the indexes this transaction
 			// actually mutated (plus the ones its key delta added or replaced) are rebuilt, every other index is
-			// carried across the catalog version by reference
-			final Map<EntityIndexKey, EntityIndex> modifiedIndexes = pruneMergeIndexes(
+			// carried across the catalog version by reference. Both keyings of the forest come back derived from that
+			// one delta, layers disposed of
+			final IndexTuple indexTuple = pruneMergeIndexes(
 				transactionalLayer, transactionalChanges.popLastCommittedDirtyIndexKeys()
 			);
-			// Drop the secondary (by-PK) map's OWN layer without descending into its values. indexesByPrimaryKey holds the
-			// SAME EntityIndex instances as `indexes`, which the merge above has already swept, so the full-descent
-			// removeLayer here would be an all-miss walk over the entire index forest. This mirrors Catalog's identical
-			// handling of its own secondary map (entityCollectionsByPrimaryKey). The by-PK map is rebuilt from the merged
-			// indexes by the target EntityCollection constructor (createIndexByPk).
-			transactionalLayer.removeTransactionalMemoryLayerIfExists(this.indexesByPrimaryKey);
 			return new EntityCollection(
 				catalogVersion,
 				CatalogState.ALIVE,
@@ -1812,7 +1776,8 @@ public final class EntityCollection implements
 				this.pricePkSequence,
 				this.catalogPersistenceService,
 				newPersistenceService,
-				modifiedIndexes,
+				indexTuple.indexes(),
+				indexTuple.indexesByPk(),
 				this.cacheSupervisor,
 				this.trafficRecorder
 			);
@@ -1872,11 +1837,14 @@ public final class EntityCollection implements
 		@Nonnull EntityCollectionPersistenceService<StorageDescriptor, EntityCollectionHeader> newPersistenceService
 	) {
 		final EntitySchema internalSchema = this.getInternalSchema();
-		// an ALIVE collection forwards its immutable snapshot, which the target adopts in O(1); a WARMING_UP one has no
-		// snapshot to forward - its backing buffer is deliberately mutable so bulk writes stay O(1) - and sealing it here
-		// would only build a trie that the next warm-up write immediately thaws again
-		final Map<EntityIndexKey, EntityIndex> forwardedIndexes = catalogState == CatalogState.WARMING_UP ?
+		// an ALIVE collection forwards its immutable snapshots, which the target adopts in O(1); a WARMING_UP one has no
+		// snapshot to forward - its backing buffers are deliberately mutable so bulk writes stay O(1) - and sealing them
+		// here would only build tries that the next warm-up write immediately thaws again
+		final boolean warmingUp = catalogState == CatalogState.WARMING_UP;
+		final Map<EntityIndexKey, EntityIndex> forwardedIndexes = warmingUp ?
 			this.indexes : this.indexes.sealed();
+		final Map<Integer, EntityIndex> forwardedIndexesByPk = warmingUp ?
+			this.indexesByPrimaryKey : this.indexesByPrimaryKey.sealed();
 		final EntityCollection entityCollection = new EntityCollection(
 			catalogVersion,
 			catalogState,
@@ -1888,7 +1856,7 @@ public final class EntityCollection implements
 			this.catalogPersistenceService,
 			newPersistenceService,
 			forwardedIndexes,
-			this.indexesByPrimaryKey,
+			forwardedIndexesByPk,
 			this.cacheSupervisor,
 			this.trafficRecorder
 		);
@@ -2714,12 +2682,15 @@ public final class EntityCollection implements
 	 * scope's GLOBAL holds every entity of that scope, so it can only be dropped once its reduced indexes are empty and
 	 * dropped in the same commit — it is simply no longer restated here.
 	 *
+	 * The by-primary-key map is derived here as well, from the very same delta rather than rebuilt from the merged
+	 * result, which is what keeps the two views of the same index forest in step: one delta, applied twice.
+	 *
 	 * @param transactionalLayer the maintainer resolving committed state for the indexes that are rebuilt
 	 * @param dirtyIndexKeys     keys of the indexes genuinely mutated this transaction
-	 * @return the committed index map, with unchanged indexes carried by reference
+	 * @return the committed index maps, with unchanged indexes carried by reference
 	 */
 	@Nonnull
-	private Map<EntityIndexKey, EntityIndex> pruneMergeIndexes(
+	private IndexTuple pruneMergeIndexes(
 		@Nonnull TransactionalLayerMaintainer transactionalLayer,
 		@Nonnull Set<IndexKey> dirtyIndexKeys
 	) {
@@ -2761,17 +2732,47 @@ public final class EntityCollection implements
 
 		// Phase 2 — only the touched indexes, resolved through the merger below; the map applies its own key delta around
 		// them and derives the next version by path-copying just those keys onto the previous immutable snapshot
-		final Map<EntityIndexKey, EntityIndex> result =
+		final ChampMap<EntityIndexKey, EntityIndex> mergedIndexes =
 			this.indexes.createCopyWithMergedTransactionalMemory(
 				indexChanges, transactionalLayer, rebuiltKeys,
 				new PrunedIndexMerger(transactionalLayer, rebuiltKeys, globalsByScope)
 			);
-		// the pruned merge does not go through TransactionalLayerMaintainer#getStateCopyWithCommittedChanges, so the
-		// map's OWN layer has to be disposed of here. It must NOT be `this.indexes.removeLayer(...)`, which descends
-		// into every value and would restore the very walk this method exists to avoid (same reasoning as the by-PK
-		// map below); a forgotten disposal surfaces loudly in TransactionalLayerMaintainer#verifyLayerWasFullySwept.
+
+		// Phase 3 — apply the SAME delta to the by-primary-key view. Both maps hold the same index instances, so the
+		// merged forest above is already the answer; only the two maps' keys differ. Rebuilding this one from the merged
+		// result instead would be the last remaining O(N) pass of the commit - and it would make the two views agree only
+		// by coincidence, whereas deriving both from one delta makes them agree by construction.
+		// `sealed()` deliberately reads the base snapshot even though a diff layer may exist: the delta that layer holds
+		// is exactly the delta applied below, from the key map's own record of it. The seal is O(1) whenever the layer
+		// exists (the layer is created over the sealed state) and O(N) exactly once on the first commit after a disk
+		// load, when the map is still the mutable buffer the load filled.
+		ChampMap<Integer, EntityIndex> mergedIndexesByPk = this.indexesByPrimaryKey.sealed();
+		if (indexChanges != null) {
+			final ChampMap<EntityIndexKey, EntityIndex> previousIndexes = this.indexes.sealed();
+			for (final EntityIndexKey removedKey : indexChanges.getRemovedKeys()) {
+				final EntityIndex removedIndex = previousIndexes.get(removedKey);
+				if (removedIndex != null) {
+					mergedIndexesByPk = mergedIndexesByPk.removed(removedIndex.getPrimaryKey());
+				}
+			}
+		}
+		for (final EntityIndexKey rebuiltKey : rebuiltKeys) {
+			// a rebuilt key absent from the merged result was removed by this transaction (or created and removed again
+			// within it) - the removal pass above has already dropped its primary key, or it never had one in the map
+			final EntityIndex committedIndex = mergedIndexes.get(rebuiltKey);
+			if (committedIndex != null) {
+				mergedIndexesByPk = mergedIndexesByPk.updated(committedIndex.getPrimaryKey(), committedIndex);
+			}
+		}
+
+		// the pruned merge does not go through TransactionalLayerMaintainer#getStateCopyWithCommittedChanges, so both
+		// maps' OWN layers have to be disposed of here. Neither may be `removeLayer(...)`, which descends into every
+		// value and would restore the very walk this method exists to avoid - and for the by-PK map that walk would be
+		// all-miss on top, since it holds the same instances the merge above has already swept. A forgotten disposal
+		// surfaces loudly in TransactionalLayerMaintainer#verifyLayerWasFullySwept.
 		transactionalLayer.removeTransactionalMemoryLayerIfExists(this.indexes);
-		return result;
+		transactionalLayer.removeTransactionalMemoryLayerIfExists(this.indexesByPrimaryKey);
+		return new IndexTuple(mergedIndexes, mergedIndexesByPk);
 	}
 
 	/**
@@ -2856,18 +2857,12 @@ public final class EntityCollection implements
 				Transaction.getTransactionalMemoryLayerIfExists(this.indexesByPrimaryKey) == null,
 			"Indexes may only be carried to a new catalog version from a clean collection, but an uncommitted change to the index set was found!"
 		);
-		// the key map is forwarded WHOLESALE - every value is carried by reference anyway, so the previous immutable
-		// snapshot already IS the next version's map and the target constructor adopts it in O(1). Rebuilding it entry by
-		// entry would cost a full N-entry map here AND leave the next version holding a mutable buffer, which the first
-		// transactional touch would then have to seal into a fresh trie: three O(N) passes for a version bump that
+		// BOTH maps are forwarded WHOLESALE - every value is carried by reference anyway, so the previous immutable
+		// snapshots already ARE the next version's maps and the target constructor adopts them in O(1). Rebuilding either
+		// entry by entry would cost a full N-entry map here AND leave the next version holding a mutable buffer, which the
+		// first transactional touch would then have to seal into a fresh trie: three O(N) passes for a version bump that
 		// changed nothing
-		final ChampMap<EntityIndexKey, EntityIndex> indexes = this.indexes.sealed();
-		final Map<Integer, EntityIndex> indexesByPk = CollectionUtils.createHashMap(indexes.size());
-		for (final Entry<EntityIndexKey, EntityIndex> entry : indexes.entrySet()) {
-			final EntityIndex index = entry.getValue();
-			indexesByPk.put(index.getPrimaryKey(), index);
-		}
-		return new IndexTuple(indexes, indexesByPk);
+		return new IndexTuple(this.indexes.sealed(), this.indexesByPrimaryKey.sealed());
 	}
 
 	/**
@@ -2932,21 +2927,6 @@ public final class EntityCollection implements
 				}
 			}
 		}
-	}
-
-	/**
-	 * Creates a map of {@link EntityIndex} objects indexed by their primary key.
-	 *
-	 * @param indexes a map of {@link EntityIndexKey} to {@link EntityIndex} from which the primary key-indexed map will be created
-	 * @return a map of {@link EntityIndex} objects indexed by their primary key
-	 */
-	@Nonnull
-	private static Map<Integer, EntityIndex> createIndexByPk(@Nonnull Map<EntityIndexKey, EntityIndex> indexes) {
-		final Map<Integer, EntityIndex> indexesByPk = CollectionUtils.createHashMap(indexes.size());
-		for (final EntityIndex entityIndex : indexes.values()) {
-			indexesByPk.put(entityIndex.getPrimaryKey(), entityIndex);
-		}
-		return indexesByPk;
 	}
 
 	/**

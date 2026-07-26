@@ -48,6 +48,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.Currency;
@@ -308,6 +309,65 @@ class PrunedCommitMergeIndexCarryTest implements EvitaTestSupport {
 		);
 		assertBrandPriceQueryReturns(CARRIED_BRAND_PK, BigDecimal.valueOf(40), CARRIED_PRODUCT_PK);
 		assertBrandPriceQueryReturns(CARRIED_BRAND_PK, BigDecimal.TEN);
+	}
+
+	@Test
+	@DisplayName("both keyings of the index forest stay in step across a commit that adds, removes and mutates")
+	void shouldKeepBothIndexKeyingsInStepAcrossACommit() {
+		final EntityIndex droppedBefore = reducedIndex(TOUCHED_BRAND_PK);
+		assertNotNull(droppedBefore, "The fixture must have created the reduced index that this transaction drops!");
+		final int droppedPk = droppedBefore.getPrimaryKey();
+
+		// a single commit that carries every class of change the delta can hold: it CREATES a reduced index, REMOVES
+		// another and mutates the GLOBAL in place, while the third reduced index stays clean and is carried untouched
+		try (final EvitaSessionContract session = writeSession()) {
+			session.createNewEntity(Entities.BRAND, ADDED_BRAND_PK).upsertVia(session);
+			session.getEntity(Entities.PRODUCT, TOUCHED_PRODUCT_PK, referenceContentAll(), priceContentAll())
+				.orElseThrow()
+				.openForWrite()
+				.removeReference(Entities.BRAND, TOUCHED_BRAND_PK)
+				.setReference(Entities.BRAND, ADDED_BRAND_PK)
+				.setPrice(
+					1000 + TOUCHED_PRODUCT_PK, PRICE_LIST_BASIC, CURRENCY_EUR,
+					BigDecimal.valueOf(20), BigDecimal.ZERO, BigDecimal.valueOf(20), true
+				)
+				.upsertVia(session);
+		}
+
+		// the collection keeps two views of one index forest - by index key and by storage primary key - and the commit
+		// derives BOTH from the same transaction delta rather than rebuilding one from the other. A divergence is
+		// therefore a derivation bug, and it would otherwise stay invisible until some later transaction resolved an
+		// index by storage PK and got a retired instance, or none at all
+		assertSameUnderBothKeyings(globalEntityIndex());
+		assertSameUnderBothKeyings(reducedIndex(ADDED_BRAND_PK));
+		assertSameUnderBothKeyings(reducedIndex(CARRIED_BRAND_PK));
+
+		// ... and a dropped index must leave BOTH views, not just the one keyed by index key
+		assertNull(reducedIndex(TOUCHED_BRAND_PK), "The emptied reduced index must be dropped from the collection!");
+		assertNull(
+			productCollection().getIndexByPrimaryKeyIfExists(droppedPk),
+			"A dropped index must leave the by-primary-key view as well, or it stays reachable by storage PK!"
+		);
+	}
+
+	/**
+	 * Asserts that the given index is reachable under both keyings the live collection maintains, and that each resolves
+	 * to the very same instance.
+	 *
+	 * @param index the index expected to have survived the commit
+	 */
+	private void assertSameUnderBothKeyings(@Nullable EntityIndex index) {
+		assertNotNull(index, "An index expected to survive the commit is missing!");
+		final EntityCollection collection = productCollection();
+		assertSame(
+			index, collection.getIndexByKeyIfExists(index.getIndexKey()),
+			"Index `" + index.getIndexKey() + "` must resolve to itself under its own index key!"
+		);
+		assertSame(
+			index, collection.getIndexByPrimaryKeyIfExists(index.getPrimaryKey()),
+			"Index `" + index.getIndexKey() + "` must resolve to the very same instance under its storage primary key `" +
+				index.getPrimaryKey() + "`!"
+		);
 	}
 
 	/**
