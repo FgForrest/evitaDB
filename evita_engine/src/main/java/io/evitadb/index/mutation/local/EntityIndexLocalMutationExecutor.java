@@ -1122,10 +1122,19 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 
 	/**
 	 * Method returns existing index by primary key and adds it to the changed set of indexes that needs persisting.
+	 *
+	 * The resolution MUST go through the registering accessor, not the plain read: every caller of this method mutates
+	 * the index it gets back (it is the by-primary-key half of {@code getAllReducedIndexes}, which feeds the reduced
+	 * indexes an entity upsert then writes into). An index that is mutated without being registered is invisible to the
+	 * flush, so its changed storage parts are never persisted — and it is invisible to the dirty-key snapshot the
+	 * commit-time merge prunes on, so the merge carries it across the catalog version by reference and orphans the
+	 * transactional layers its mutation created, which surfaces as a `StaleTransactionMemoryException` that suspends
+	 * the catalog. {@link #accessedIndexes} does not cover this: that set drives the empty-index cleanup, not
+	 * persistence.
 	 */
 	@Nonnull
 	Optional<EntityIndex> getIndexByPrimaryKey(int indexPrimaryKey) {
-		final EntityIndex index = this.entityIndexCreatingAccessor.getIndexByPrimaryKey(indexPrimaryKey);
+		final EntityIndex index = this.entityIndexCreatingAccessor.getOrCreateIndexByPrimaryKey(indexPrimaryKey);
 		this.accessedIndexes.add(index.getIndexKey());
 		return of(index);
 	}

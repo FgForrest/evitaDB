@@ -137,6 +137,23 @@ public class MapChanges<K, V>
 	}
 
 	/**
+	 * Use this constructor when the values are {@link TransactionalLayerProducer}s whose concrete class is not
+	 * statically known — an abstract base whose subclasses are the producers (`EntityIndex`), or a producer that is
+	 * itself a transactional map. The wrapper receives the raw merged state and casts it back to `V`; there is no class
+	 * token to assert against, exactly as in {@link TransactionalMap#TransactionalMap(Map, Function)}.
+	 *
+	 * @param mapDelegate               original map
+	 * @param transactionalLayerWrapper converts the raw merged state of a value into `V`
+	 */
+	protected MapChanges(
+		@Nonnull Map<K, V> mapDelegate,
+		@Nonnull Function<Object, V> transactionalLayerWrapper
+	) {
+		this.mapDelegate = mapDelegate;
+		this.transactionalLayerWrapper = transactionalLayerWrapper;
+	}
+
+	/**
 	 * Exposes the value wrapper to producer-valued subclasses (see {@link ProducerMapChanges}) so they can commit nested
 	 * {@link TransactionalLayerProducer} values. Null for the plain (non-producer) diff layer.
 	 */
