@@ -35,6 +35,7 @@ import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaEditor;
 import io.evitadb.core.Evita;
 import io.evitadb.core.catalog.Catalog;
+import io.evitadb.dataType.Scope;
 import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
@@ -71,6 +72,7 @@ import static io.evitadb.test.TestTags.TRANSACTION;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -347,6 +349,58 @@ class PrunedCommitMergeIndexCarryTest implements EvitaTestSupport {
 		assertNull(
 			productCollection().getIndexByPrimaryKeyIfExists(droppedPk),
 			"A dropped index must leave the by-primary-key view as well, or it stays reachable by storage PK!"
+		);
+	}
+
+	@Test
+	@DisplayName("an index re-created under the same key in one commit must not leave its retired primary key behind")
+	void shouldDropTheRetiredPrimaryKeyWhenAnIndexIsReCreatedUnderTheSameKey() {
+		final EntityIndexKey referencedTypeKey = new EntityIndexKey(
+			EntityIndexType.REFERENCED_ENTITY_TYPE, Scope.LIVE, Entities.BRAND
+		);
+		final EntityIndex typeIndexBefore = productCollection().getIndexByKeyIfExists(referencedTypeKey);
+		assertNotNull(typeIndexBefore, "The fixture must have created the referenced-type index for brands!");
+		final int retiredPk = typeIndexBefore.getPrimaryKey();
+
+		// ONE commit that first drops EVERY brand reference - which empties and removes the referenced-type index - and
+		// then re-adds one, creating a FRESH index under the very SAME index key but with a NEW storage primary key.
+		// The index map's key delta records that as a MODIFIED key rather than a removed one, because the index KEY
+		// never changed - only the instance behind it, and with it the primary key the by-PK view is keyed on
+		try (final EvitaSessionContract session = writeSession()) {
+			session.getEntity(Entities.PRODUCT, TOUCHED_PRODUCT_PK, referenceContentAll(), priceContentAll())
+				.orElseThrow()
+				.openForWrite()
+				.removeReference(Entities.BRAND, TOUCHED_BRAND_PK)
+				.upsertVia(session);
+			session.getEntity(Entities.PRODUCT, CARRIED_PRODUCT_PK, referenceContentAll(), priceContentAll())
+				.orElseThrow()
+				.openForWrite()
+				.removeReference(Entities.BRAND, CARRIED_BRAND_PK)
+				.upsertVia(session);
+			session.getEntity(Entities.PRODUCT, CARRIED_PRODUCT_PK, referenceContentAll(), priceContentAll())
+				.orElseThrow()
+				.openForWrite()
+				.setReference(Entities.BRAND, CARRIED_BRAND_PK)
+				.upsertVia(session);
+		}
+
+		final EntityIndex typeIndexAfter = productCollection().getIndexByKeyIfExists(referencedTypeKey);
+		assertNotNull(typeIndexAfter, "Re-adding a brand reference must have re-created the referenced-type index!");
+		// guards the scenario itself: if the index were merely mutated rather than dropped and re-created, this test
+		// would silently stop covering the case it exists for
+		assertNotEquals(
+			retiredPk, typeIndexAfter.getPrimaryKey(),
+			"The re-created referenced-type index must have been assigned a NEW storage primary key!"
+		);
+
+		assertSameUnderBothKeyings(typeIndexAfter);
+		// the actual defect: the by-primary-key view is keyed on something the index KEY delta cannot express, so a
+		// derivation driven by that delta alone leaves the retired primary key pointing at an index that no longer
+		// exists. It stays invisible until the collection header - which lists exactly these keys - is written and the
+		// catalog is loaded back, at which point the retired key has no storage part to read and the load fails
+		assertNull(
+			productCollection().getIndexByPrimaryKeyIfExists(retiredPk),
+			"The retired primary key of a re-created index must not survive in the by-primary-key view!"
 		);
 	}
 

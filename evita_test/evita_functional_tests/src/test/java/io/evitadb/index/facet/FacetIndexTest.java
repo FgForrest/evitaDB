@@ -113,6 +113,60 @@ class FacetIndexTest {
 	}
 
 	@Test
+	@DisplayName("re-adding an already indexed grouped facet must not leave an unswept diff layer")
+	void shouldNotOrphanDiffLayerWhenReAddingAnAlreadyIndexedGroupedFacet() {
+		// (BRAND 1, group 1, entity 1) is already in the index from the fixture, so this add changes nothing at all.
+		// It used to write the facet -> group mapping unconditionally anyway, which ACQUIRES that map's diff layer;
+		// the reference is marked dirty only when the facet-to-entity relation is genuinely new, and the commit-time
+		// merge returns early without sweeping `facetingEntities` when nothing is dirty. The layer was then left
+		// behind and the commit aborted with StaleTransactionMemoryException - which suspends the whole catalog
+		// AFTER the version already reached disk, so it is far more damaging than a lost update would be.
+		// the fixture builds the index OUTSIDE a transaction, which leaves every reference marked dirty; production
+		// clears that on every flush, and it is precisely the clean-dirty-set state that makes the commit-time merge
+		// take its early return. Without this the early return is never reached and the test cannot see the defect
+		this.facetIndex.resetDirty();
+		assertStateAfterCommit(
+			this.facetIndex,
+			original -> original.addFacet(this.brandReferenceSchema, new ReferenceKey(Entities.BRAND, 1), 1, 1),
+			(original, committed) -> assertArrayEquals(
+				new int[]{1, 3},
+				committed.getFacetReferencingEntityIdsFormula(
+					BRAND_ENTITY, this.fct.apply(BRAND_ENTITY), new ArrayBitmap(1)
+				).get(0).compute().getArray(),
+				"A no-op re-add must leave the committed facet index exactly as it was!"
+			)
+		);
+	}
+
+	@Test
+	@DisplayName("emptying one group of a multi-group facet drops only that group from the facet-to-group mapping")
+	void shouldDropOnlyTheEmptiedGroupOfAFacetPresentInSeveralGroups() {
+		// the same facet placed in TWO groups - the only shape in which the cleanup loop in `removeFacet` has more than
+		// one group to judge, and the shape none of the pre-existing tests covered
+		this.facetIndex.addFacet(this.storeReferenceSchema, new ReferenceKey(STORE_ENTITY, 7), 1, 20);
+		this.facetIndex.addFacet(this.storeReferenceSchema, new ReferenceKey(STORE_ENTITY, 7), 2, 21);
+		// a second facet keeps group 2 alive once facet 7 leaves it, so the group index is not dropped wholesale
+		this.facetIndex.addFacet(this.storeReferenceSchema, new ReferenceKey(STORE_ENTITY, 8), 2, 22);
+
+		assertTrue(this.facetIndex.isFacetInGroup(STORE_ENTITY, 1, 7), "Facet 7 must start out in group 1!");
+		assertTrue(this.facetIndex.isFacetInGroup(STORE_ENTITY, 2, 7), "Facet 7 must start out in group 2 as well!");
+
+		// facet 7 loses its only entity in group 2, but keeps entity 20 in group 1
+		this.facetIndex.removeFacet(this.storeReferenceSchema, new ReferenceKey(STORE_ENTITY, 7), 2, 21);
+
+		assertTrue(
+			this.facetIndex.isFacetInGroup(STORE_ENTITY, 1, 7),
+			"Group 1 still holds facet 7 and must survive the cleanup of group 2!"
+		);
+		assertFalse(
+			this.facetIndex.isFacetInGroup(STORE_ENTITY, 2, 7),
+			"Group 2 no longer holds facet 7 and must be dropped from the mapping!"
+		);
+		// the unrelated facet in group 2 must be untouched by the cleanup
+		assertTrue(this.facetIndex.isFacetInGroup(STORE_ENTITY, 2, 8), "Facet 8 must remain in group 2!");
+	}
+
+	@Test
 	void shouldReturnFacetingEntityTypes() {
 		final Set<String> referencedEntities = this.facetIndex.getReferencedEntities();
 		assertEquals(3, referencedEntities.size());

@@ -2747,8 +2747,11 @@ public final class EntityCollection implements
 		// exists (the layer is created over the sealed state) and O(N) exactly once on the first commit after a disk
 		// load, when the map is still the mutable buffer the load filled.
 		ChampMap<Integer, EntityIndex> mergedIndexesByPk = this.indexesByPrimaryKey.sealed();
+		final ChampMap<EntityIndexKey, EntityIndex> previousIndexes = this.indexes.sealed();
+		// Pass 1 — retire every primary key the previous version held under a key this transaction touched. Both halves
+		// are needed because the key delta expresses removals of KEYS, while this map is keyed on something the delta
+		// cannot express at all: the primary key of the instance behind the key.
 		if (indexChanges != null) {
-			final ChampMap<EntityIndexKey, EntityIndex> previousIndexes = this.indexes.sealed();
 			for (final EntityIndexKey removedKey : indexChanges.getRemovedKeys()) {
 				final EntityIndex removedIndex = previousIndexes.get(removedKey);
 				if (removedIndex != null) {
@@ -2757,8 +2760,23 @@ public final class EntityCollection implements
 			}
 		}
 		for (final EntityIndexKey rebuiltKey : rebuiltKeys) {
+			final EntityIndex previousIndex = previousIndexes.get(rebuiltKey);
+			if (previousIndex != null) {
+				final EntityIndex committedIndex = mergedIndexes.get(rebuiltKey);
+				// an index dropped and re-created within ONE transaction keeps its index key but is assigned a FRESH
+				// storage primary key, so the key delta reports it as merely modified while the by-PK view must both
+				// retire the old key and publish the new one. Retiring by the key's PREVIOUS primary key covers that
+				// case and the plain removal alike, and is a no-op whenever the instance kept its primary key
+				if (committedIndex == null || committedIndex.getPrimaryKey() != previousIndex.getPrimaryKey()) {
+					mergedIndexesByPk = mergedIndexesByPk.removed(previousIndex.getPrimaryKey());
+				}
+			}
+		}
+		// Pass 2 — only once every retirement is applied may the survivors be published, so that a primary key retired
+		// under one key and legitimately taken by another in the same transaction is not dropped after being published
+		for (final EntityIndexKey rebuiltKey : rebuiltKeys) {
 			// a rebuilt key absent from the merged result was removed by this transaction (or created and removed again
-			// within it) - the removal pass above has already dropped its primary key, or it never had one in the map
+			// within it) - the retirement pass above has already dropped its primary key, or it never had one in the map
 			final EntityIndex committedIndex = mergedIndexes.get(rebuiltKey);
 			if (committedIndex != null) {
 				mergedIndexesByPk = mergedIndexesByPk.updated(committedIndex.getPrimaryKey(), committedIndex);
