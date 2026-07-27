@@ -26,7 +26,11 @@ package io.evitadb.api;
 import io.evitadb.api.SessionTraits.SessionFlags;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.ServerOptions;
+import io.evitadb.api.configuration.StorageOptions;
+import io.evitadb.api.configuration.TransactionOptions;
 import io.evitadb.api.exception.ReadOnlyException;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
+import io.evitadb.api.requestResponse.system.EngineSettings;
 import io.evitadb.core.Evita;
 import io.evitadb.test.Entities;
 import io.evitadb.test.EvitaTestSupport;
@@ -39,9 +43,11 @@ import javax.annotation.Nonnull;
 import java.io.IOException;
 import org.junit.jupiter.api.Tag;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.MANAGEMENT;
 import static io.evitadb.test.TestTags.QUERY;
 
 /**
@@ -54,6 +60,16 @@ import static io.evitadb.test.TestTags.QUERY;
 class ReadOnlyEvitaTest implements EvitaTestSupport {
 	public static final String ATTRIBUTE_NAME = "name";
 	public static final String ATTRIBUTE_URL = "url";
+	/**
+	 * Deliberately different from the built-in default conflict resolution, so that the engine
+	 * settings assertion proves the value is read from the configuration and not hard-coded.
+	 */
+	private static final ConflictPolicy CONFLICT_POLICY = ConflictPolicy.COLLECTION;
+	/**
+	 * Likewise different from the built-in default, so the reported capability cannot pass by
+	 * accident.
+	 */
+	private static final boolean TIME_TRAVEL_ENABLED = true;
 	private TestPaths paths;
 	private Evita evita;
 
@@ -127,12 +143,42 @@ class ReadOnlyEvitaTest implements EvitaTestSupport {
 		assertNotNull(this.evita.queryCatalog(TEST_CATALOG, EvitaSessionContract::getCatalogSchema));
 	}
 
+	@Test
+	@Tag(MANAGEMENT)
+	void shouldFailToProvideFullConfigurationInReadOnlyMode() {
+		assertThrows(ReadOnlyException.class, () -> this.evita.management().getConfiguration());
+	}
+
+	@Test
+	@Tag(MANAGEMENT)
+	void shouldProvideEngineSettingsInReadOnlyMode() {
+		// contrary to the full configuration, the curated engine settings must stay readable in
+		// read-only mode - clients rely on them to interpret the conflict resolution behaviour
+		// of the server they talk to
+		final EngineSettings engineSettings = this.evita.management().getEngineSettings();
+		assertEquals(CONFLICT_POLICY, engineSettings.conflictResolution().policy());
+		// capability flags must reflect the configuration this instance was booted with
+		assertEquals(TIME_TRAVEL_ENABLED, engineSettings.timeTravelEnabled());
+	}
+
 	@Nonnull
 	private EvitaConfiguration getEvitaConfiguration(boolean readOnly) {
 		return newTestEvitaConfigurationBuilder(this.paths)
 			.server(
 				ServerOptions.builder()
 					.readOnly(readOnly)
+					.build()
+			)
+			.storage(
+				StorageOptions.builder()
+					.storageDirectory(this.paths.storage())
+					.workDirectory(this.paths.work())
+					.timeTravelEnabled(TIME_TRAVEL_ENABLED)
+					.build()
+			)
+			.transaction(
+				TransactionOptions.builder()
+					.conflictResolution(CONFLICT_POLICY)
 					.build()
 			)
 			.build();

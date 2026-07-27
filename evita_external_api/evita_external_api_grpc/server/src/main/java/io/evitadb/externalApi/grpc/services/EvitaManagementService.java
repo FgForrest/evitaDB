@@ -33,6 +33,7 @@ import io.evitadb.api.exception.FileForFetchNotFoundException;
 import io.evitadb.api.exception.ReadOnlyException;
 import io.evitadb.api.file.FileForFetch;
 import io.evitadb.api.observability.ReadinessState;
+import io.evitadb.api.requestResponse.system.EngineSettings;
 import io.evitadb.api.requestResponse.system.SystemStatus;
 import io.evitadb.api.task.ServerTask;
 import io.evitadb.api.task.Task;
@@ -89,6 +90,7 @@ import static io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter.toGrp
 import static io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter.toUuid;
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toGrpcHealthProblem;
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toGrpcReadinessState;
+import static io.evitadb.externalApi.grpc.requestResponse.schema.ConflictResolutionConverter.toGrpcConflictResolution;
 import static io.evitadb.externalApi.grpc.services.EvitaService.executeWithClientContext;
 import static io.evitadb.externalApi.grpc.services.interceptors.GlobalExceptionHandlerInterceptor.sendErrorToClient;
 import static java.util.Optional.ofNullable;
@@ -260,6 +262,41 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 					);
 					responseObserver.onCompleted();
 				}
+			},
+			this.evita.getRequestExecutor(),
+			responseObserver,
+			this.context
+		);
+	}
+
+	/**
+	 * Retrieves the curated subset of the engine configuration that is safe to expose to any client.
+	 *
+	 * Contrary to {@link #getConfiguration(Empty, StreamObserver)} this method is intentionally
+	 * **not** gated on the read-only mode of the engine - it exposes no sensitive values, and
+	 * clients need it to interpret the server's behaviour (most notably its conflict resolution)
+	 * regardless of the mode the engine was booted in.
+	 *
+	 * @param request          the request for engine settings
+	 * @param responseObserver the observer for receiving the engine settings response
+	 */
+	@Override
+	public void getEngineSettings(Empty request, StreamObserver<GrpcEvitaEngineSettingsResponse> responseObserver) {
+		executeWithClientContext(
+			() -> {
+				final EngineSettings engineSettings = this.management.getEngineSettings();
+				responseObserver.onNext(
+					GrpcEvitaEngineSettingsResponse.newBuilder()
+						.setConflictResolution(
+							toGrpcConflictResolution(engineSettings.conflictResolution())
+						)
+						.setTimeTravelEnabled(engineSettings.timeTravelEnabled())
+						.setChangeDataCaptureEnabled(engineSettings.changeDataCaptureEnabled())
+						.setTrafficRecordingEnabled(engineSettings.trafficRecordingEnabled())
+						.setQueryCacheEnabled(engineSettings.queryCacheEnabled())
+						.build()
+				);
+				responseObserver.onCompleted();
 			},
 			this.evita.getRequestExecutor(),
 			responseObserver,

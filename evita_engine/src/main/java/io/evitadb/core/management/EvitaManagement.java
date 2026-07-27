@@ -28,10 +28,12 @@ import io.evitadb.api.CatalogStatistics;
 import io.evitadb.api.EvitaManagementContract;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.configuration.DefaultExportOptions;
+import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.ExportOptions;
 import io.evitadb.api.exception.FileForFetchNotFoundException;
 import io.evitadb.api.exception.TemporalDataNotAvailableException;
 import io.evitadb.api.file.FileForFetch;
+import io.evitadb.api.requestResponse.system.EngineSettings;
 import io.evitadb.api.requestResponse.system.SystemStatus;
 import io.evitadb.api.task.ServerTask;
 import io.evitadb.api.task.Task;
@@ -422,6 +424,22 @@ public class EvitaManagement implements EvitaManagementContract, Closeable {
 	public String getConfiguration() {
 		this.evita.assertActiveAndWritable();
 		return this.configurationSupplier.get();
+	}
+
+	@Nonnull
+	@Override
+	public EngineSettings getEngineSettings() {
+		// deliberately not `assertActiveAndWritable` - the exposed values carry nothing sensitive
+		// and clients need them to interpret the server's behaviour also when the engine was
+		// booted in read-only mode
+		final EvitaConfiguration configuration = this.evita.getConfiguration();
+		return new EngineSettings(
+			configuration.transaction().conflictPolicy(),
+			configuration.storage().timeTravelEnabled(),
+			configuration.server().changeDataCapture().enabled(),
+			configuration.server().trafficRecording().enabled(),
+			configuration.cache().enabled()
+		);
 	}
 
 	@Override
