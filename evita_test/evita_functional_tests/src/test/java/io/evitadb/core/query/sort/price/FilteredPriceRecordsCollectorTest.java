@@ -29,19 +29,28 @@ import io.evitadb.core.query.algebra.price.FilteredPriceRecordsLookupResult;
 import io.evitadb.index.price.model.priceRecord.PriceRecord;
 import io.evitadb.index.price.model.priceRecord.PriceRecordContract;
 import org.junit.jupiter.api.Test;
-import org.roaringbitmap.RoaringBitmap;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 
 import javax.annotation.Nonnull;
 import java.util.Collection;
 import java.util.Collections;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.ORDER;
+import static io.evitadb.test.TestTags.PRICE;
+import static io.evitadb.test.TestTags.FILTER;
 
 /**
  * This test verifies {@link FilteredPriceRecordsCollector} behaviour.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
+@Tag(ENGINE)
+@Tag(ORDER)
+@Tag(PRICE)
+@Tag(FILTER)
 class FilteredPriceRecordsCollectorTest {
 
 	@Test
@@ -56,7 +65,7 @@ class FilteredPriceRecordsCollectorTest {
 				createPriceRecord(4)
 			}
 		);
-		final PriceRecordContract[] combinedRecords = tested.combineResultWithAndReturnPriceRecords(new RoaringBitmap());
+		final PriceRecordContract[] combinedRecords = tested.combineResultWithAndReturnPriceRecords(new PersistentRoaringBitmap());
 		assertArrayEquals(
 			new PriceRecord[]{
 				createPriceRecord(1),
@@ -81,7 +90,7 @@ class FilteredPriceRecordsCollectorTest {
 				createPriceRecord(4)
 			}
 		);
-		final PriceRecordContract[] combinedRecords = tested.combineResultWithAndReturnPriceRecords(new RoaringBitmap());
+		final PriceRecordContract[] combinedRecords = tested.combineResultWithAndReturnPriceRecords(new PersistentRoaringBitmap());
 		assertArrayEquals(
 			new PriceRecord[]{
 				createPriceRecord(1),
@@ -103,7 +112,7 @@ class FilteredPriceRecordsCollectorTest {
 				createPriceRecord(4)
 			}
 		);
-		final PriceRecordContract[] combinedRecords = tested.combineResultWithAndReturnPriceRecords(new RoaringBitmap());
+		final PriceRecordContract[] combinedRecords = tested.combineResultWithAndReturnPriceRecords(new PersistentRoaringBitmap());
 		assertArrayEquals(
 			new PriceRecord[]{
 				createPriceRecord(1),
@@ -130,7 +139,7 @@ class FilteredPriceRecordsCollectorTest {
 		@Nonnull
 		@Override
 		protected FilteredPriceRecordsLookupResult computeResult(
-			@Nonnull RoaringBitmap filteredResults,
+			@Nonnull PersistentRoaringBitmap filteredResults,
 			@Nonnull Collection<FilteredPriceRecordAccessor> filteredPriceRecordAccessors,
 			@Nonnull QueryExecutionContext context
 		) {

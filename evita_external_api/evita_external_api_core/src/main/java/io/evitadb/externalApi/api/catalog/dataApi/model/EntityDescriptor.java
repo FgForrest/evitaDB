@@ -110,14 +110,44 @@ public interface EntityDescriptor extends VersionedDescriptor, AttributesProvide
             """)
         .type(nullableRef(PriceDescriptor.THIS))
         .build();
+    PropertyDescriptor PRICE_FOR_SALE_MIN = PropertyDescriptor.builder()
+        .name("priceForSaleMin")
+        .description("""
+            Lowest price for which the entity could be sold — a concrete, indexed inner-record price that satisfies
+            the same currency / valid-in / price-list filters as the resolved `priceForSale`. For `NONE` price inner
+            record handling collapses to `priceForSale`; for `LOWEST_PRICE` it equals `priceForSale` (cheapest
+            per-inner-record selling price); for `SUM` it is the cheapest per-inner-record component price (while
+            `priceForSale` is the cumulated sum).
+
+            This property can be used only when appropriate price related constraints are present or appropriate
+            arguments are passed so that `currency` and `priceList` priority can be extracted. The moment is either
+            extracted from the query as well (if present) or current date and time is used.
+            """)
+        .type(nullableRef(PriceDescriptor.THIS))
+        .build();
+    PropertyDescriptor PRICE_FOR_SALE_MAX = PropertyDescriptor.builder()
+        .name("priceForSaleMax")
+        .description("""
+            Highest price for which the entity could be sold — a concrete, indexed inner-record price that satisfies
+            the same currency / valid-in / price-list filters as the resolved `priceForSale`. For `NONE` price inner
+            record handling collapses to `priceForSale`; for `LOWEST_PRICE` it is the most expensive per-inner-record
+            selling price; for `SUM` it is the most expensive per-inner-record component price (while `priceForSale`
+            is the cumulated sum).
+
+            This property can be used only when appropriate price related constraints are present or appropriate
+            arguments are passed so that `currency` and `priceList` priority can be extracted. The moment is either
+            extracted from the query as well (if present) or current date and time is used.
+            """)
+        .type(nullableRef(PriceDescriptor.THIS))
+        .build();
     PropertyDescriptor MULTIPLE_PRICES_FOR_SALE_AVAILABLE = PropertyDescriptor.builder()
         .name("multiplePricesForSaleAvailable")
         .description("""
 			Whether the entity could be sold for multiple prices or not. This method can be used only when appropriate
-            price related constraints are present in query so that `currency` and `priceList`
-            priority can be extracted.
-            
-            For actual prices, the `allPricesForSale` field can be used.
+			price related constraints are present in query so that `currency` and `priceList`
+			priority can be extracted.
+
+			For actual prices, the `allPricesForSale` field can be used.
 			""")
         .type(nullable(Boolean.class))
         .build();

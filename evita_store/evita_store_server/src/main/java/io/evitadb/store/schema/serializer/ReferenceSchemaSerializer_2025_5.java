@@ -31,7 +31,8 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
-import io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.dto.SortableAttributeCompoundSchema;
 import io.evitadb.dataType.Scope;
@@ -40,6 +41,7 @@ import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.NamingConvention;
 import lombok.RequiredArgsConstructor;
 
+import java.util.Collections;
 import java.util.EnumSet;
 import java.util.Map;
 import java.util.function.Function;
@@ -52,7 +54,7 @@ import static io.evitadb.store.schema.serializer.EntitySchemaSerializer.readScop
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@Deprecated(since = "2025.5", forRemoval = true)
+@Deprecated(since = "2025.6", forRemoval = true)
 @RequiredArgsConstructor
 public class ReferenceSchemaSerializer_2025_5 extends Serializer<ReferenceSchema> {
 	private static final Function<String, EntitySchemaContract> IMPOSSIBLE_EXCEPTION_PRODUCER = s -> {
@@ -113,21 +115,26 @@ public class ReferenceSchemaSerializer_2025_5 extends Serializer<ReferenceSchema
 			);
 		}
 
+		final Map<Scope, ReferenceIndexType> indexedScopesMap = indexedInScopes
+			.stream()
+			.collect(
+				Collectors.toMap(
+					Function.identity(),
+					scope -> ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING
+				)
+			);
 		return ReferenceSchema._internalBuild(
 			name, nameVariants, description, deprecationNotice,
 			cardinality,
 			entityType, entityTypeNameVariants, referencedEntityTypeManaged,
 			groupType, groupTypeNameVariants, referencedGroupTypeManaged,
-			indexedInScopes
-				.stream()
-				.collect(
-					Collectors.toMap(
-						Function.identity(),
-						scope -> ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING
-					)
-				),
+			indexedScopesMap,
+			ReferenceSchema.defaultIndexedComponents(indexedScopesMap),
 			facetedInScopes,
-			attributes, sortableAttributeCompounds
+			Collections.emptyMap(),
+			Collections.emptyMap(),
+			Collections.emptyMap(),
+			attributes, sortableAttributeCompounds, ConflictResolutionOverride.INHERITED
 		);
 	}
 

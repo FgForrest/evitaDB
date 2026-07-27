@@ -25,48 +25,33 @@ package io.evitadb.api;
 
 import com.github.javafaker.Faker;
 import io.evitadb.api.configuration.EvitaConfiguration;
-import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
-import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.core.Evita;
 import io.evitadb.test.Entities;
 import io.evitadb.test.EvitaTestSupport;
-import io.evitadb.test.builder.CopyExistingEntityBuilder;
-import io.evitadb.test.duration.TimeArgumentProvider;
-import io.evitadb.test.duration.TimeArgumentProvider.GenerationalTestInput;
-import io.evitadb.test.duration.TimeBoundedTestSupport;
+import io.evitadb.test.EvitaTestSupport.TestPaths;
 import io.evitadb.test.generator.DataGenerator;
-import io.evitadb.utils.Assert;
-import io.evitadb.utils.CollectionUtils;
 import lombok.extern.apachecommons.CommonsLog;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ArgumentsSource;
 
 import javax.annotation.Nonnull;
-import java.io.IOException;
 import java.io.Serializable;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
-import java.util.Random;
 import java.util.function.BiFunction;
-import java.util.function.Function;
 import java.util.stream.Stream;
 
-import static io.evitadb.api.query.QueryConstraints.entityFetchAllContent;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.QUERY;
 import static java.util.Optional.ofNullable;
-import static org.apache.commons.io.FileUtils.byteCountToDisplaySize;
-import static org.apache.commons.io.FileUtils.sizeOfDirectory;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.fail;
 
 /**
  * This test contains various integration tests for {@link Evita}.
@@ -74,7 +59,9 @@ import static org.junit.jupiter.api.Assertions.fail;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @CommonsLog
-class EvitaGenerationalTest implements EvitaTestSupport, TimeBoundedTestSupport {
+@Tag(CONTRACT)
+@Tag(QUERY)
+class EvitaGenerationalTest implements EvitaTestSupport {
 	/**
 	 * Seed for data generation.
 	 */
@@ -83,8 +70,6 @@ class EvitaGenerationalTest implements EvitaTestSupport, TimeBoundedTestSupport 
 	 * Count of the product that will exist in the database BEFORE the test starts.
 	 */
 	private static final int INITIAL_COUNT_OF_PRODUCTS = 1000;
-	private static final String DIRECTORY_EVITA_GENERATIONAL_TEST = "evitaGenerationalTest";
-	private static final String DIRECTORY_EVITA_GENERATIONAL_TEST_EXPORT = "evitaGenerationalTest_export";
 	private static final String ATTRIBUTE_CODE = "code";
 	/**
 	 * Instance of the data generator that is used for randomizing artificial test data.
@@ -111,13 +96,13 @@ class EvitaGenerationalTest implements EvitaTestSupport, TimeBoundedTestSupport 
 	 */
 	protected Iterator<EntityBuilder> productIterator;
 	/**
+	 * Paths allocated once per test method and reused across all Evita restarts.
+	 */
+	private TestPaths paths;
+	/**
 	 * Evita instance.
 	 */
 	private Evita evita;
-	/**
-	 * Functions allows to pseudo randomly modify existing product contents.
-	 */
-	private Function<SealedEntity, EntityBuilder> modificationFunction;
 
 	/**
 	 * Creates new product stream for the iteration.
@@ -142,9 +127,8 @@ class EvitaGenerationalTest implements EvitaTestSupport, TimeBoundedTestSupport 
 	}
 
 	@BeforeEach
-	void setUp() throws IOException {
-		cleanTestSubDirectory(DIRECTORY_EVITA_GENERATIONAL_TEST);
-		cleanTestSubDirectory(DIRECTORY_EVITA_GENERATIONAL_TEST_EXPORT);
+	void setUp() {
+		this.paths = createTestPaths("EvitaGenerationalTest");
 		this.dataGenerator.clear();
 		this.generatedEntities.clear();
 		final String catalogName = "testCatalog";
@@ -240,10 +224,9 @@ class EvitaGenerationalTest implements EvitaTestSupport, TimeBoundedTestSupport 
 	}
 
 	@AfterEach
-	void tearDown() throws IOException {
+	void tearDown() {
 		this.evita.close();
-		cleanTestSubDirectory(DIRECTORY_EVITA_GENERATIONAL_TEST);
-		cleanTestSubDirectory(DIRECTORY_EVITA_GENERATIONAL_TEST_EXPORT);
+		cleanupTestPaths(this.paths);
 	}
 
 	@Test
@@ -258,137 +241,9 @@ class EvitaGenerationalTest implements EvitaTestSupport, TimeBoundedTestSupport 
 		assertNotNull(this.evita);
 	}
 
-	@ParameterizedTest(name = "Evita should survive generational randomized test upserting the values in transaction")
-	@Tag(LONG_RUNNING_TEST)
-	@ArgumentsSource(TimeArgumentProvider.class)
-	void generationalTransactionalModificationProofTest(GenerationalTestInput input) {
-		final int maximumAmountOfRemovedEntities = 50;
-		final Map<Integer, SealedEntity> removedEntities = CollectionUtils.createHashMap(maximumAmountOfRemovedEntities);
-
-		final TestState finalState = runFor(
-			input,
-			100,
-			new TestState(0, 0),
-			(random, testState) -> {
-				int generation = testState.generation();
-				int updateCounter = testState.updateCounter();
-				// create product modificator
-				if (this.modificationFunction == null) {
-					this.modificationFunction = this.dataGenerator.createModificationFunction(this.randomEntityPicker, random);
-				}
-
-				String operation = null;
-				try (final EvitaSessionContract session = this.evita.createReadWriteSession(TEST_CATALOG)) {
-					final int iterations = random.nextInt(500);
-					for (int i = 0; i < iterations; i++) {
-						int primaryKey;
-						do {
-							primaryKey = random.nextInt(INITIAL_COUNT_OF_PRODUCTS) + 1;
-						} while (removedEntities.containsKey(primaryKey));
-
-						if (random.nextInt(10) == 0 && removedEntities.size() < maximumAmountOfRemovedEntities) {
-							int productId = primaryKey;
-							removedEntities.put(
-								primaryKey,
-								session.getEntity(
-									Entities.PRODUCT,
-									primaryKey,
-									entityFetchAllContent()
-								)
-									.orElseThrow(
-										() -> new IllegalStateException("Product with primary key " + productId + " was not found.")
-									)
-							);
-							operation = "removal of " + primaryKey;
-							session.deleteEntity(Entities.PRODUCT, primaryKey);
-						} else if (random.nextInt(10) == 0 && removedEntities.size() > 10) {
-							final SealedEntity entityToRestore = pickRandom(random, removedEntities.values());
-							removedEntities.remove(entityToRestore.getPrimaryKey());
-							operation = "restoring of " + entityToRestore.getPrimaryKey();
-							session.upsertEntity(
-								new CopyExistingEntityBuilder(entityToRestore)
-							);
-							assertNotNull(
-								session.getEntity(
-									Entities.PRODUCT,
-									entityToRestore.getPrimaryKey(),
-									entityFetchAllContent()
-								)
-							);
-						} else {
-							operation = "modification of " + primaryKey;
-							final SealedEntity existingEntity = session.getEntity(
-								Entities.PRODUCT,
-								primaryKey,
-								entityFetchAllContent()
-							).orElseThrow();
-							session.upsertEntity(
-								this.modificationFunction.apply(existingEntity)
-							);
-						}
-						updateCounter++;
-					}
-				} catch (Exception ex) {
-					fail("Failed to execute " + operation + ": " + ex.getMessage(), ex);
-				}
-
-				generation++;
-
-				if (generation % 3 == 0) {
-					// reload EVITA entirely
-					this.evita.close();
-					System.out.println("Survived " + generation + " generations, size on disk is " + byteCountToDisplaySize(sizeOfDirectory(getTestDirectory().toFile())));
-					this.evita = new Evita(
-						getEvitaConfiguration()
-					);
-					this.evita.waitUntilFullyInitialized();
-				}
-
-				return new TestState(
-					generation, updateCounter
-				);
-			}
-		);
-		System.out.println(
-			"Finished " + finalState.generation() + " generations (" + finalState.updateCounter() + " updates), size on disk is " +
-				byteCountToDisplaySize(sizeOfDirectory(getTestDirectory().toFile()))
-		);
-	}
-
 	@Nonnull
 	private EvitaConfiguration getEvitaConfiguration() {
-		return EvitaConfiguration.builder()
-			.storage(
-				StorageOptions.builder()
-					.storageDirectory(getTestDirectory().resolve(DIRECTORY_EVITA_GENERATIONAL_TEST))
-					.build()
-			)
-			.build();
+		return newTestEvitaConfigurationBuilder(this.paths).build();
 	}
 
-	/**
-	 * Returns random element from the set.
-	 */
-	@Nonnull
-	private static <T> T pickRandom(@Nonnull Random random, @Nonnull Collection<T> theSet) {
-		Assert.isTrue(!theSet.isEmpty(), "There are no values to choose from!");
-		final int index = theSet.size() == 1 ? 0 : random.nextInt(theSet.size() - 1) + 1;
-		final Iterator<T> it = theSet.iterator();
-		for (int i = 0; i < index; i++) {
-			it.next();
-		}
-		return it.next();
-	}
-
-	/**
-	 * Generational test state.
-	 *
-	 * @param generation    total count of generations that were correctly created
-	 * @param updateCounter simple counter for measuring total product count updated in the database.
-	 */
-	private record TestState(
-		int generation,
-		int updateCounter
-	) {
-	}
 }

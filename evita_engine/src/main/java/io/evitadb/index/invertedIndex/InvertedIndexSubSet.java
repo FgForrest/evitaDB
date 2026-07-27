@@ -27,24 +27,78 @@ import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.utils.ArrayUtils;
-import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.util.function.BiFunction;
 
 /**
- * Histogram subset is a slice of the original histogram that references all key data. Slices can be combined together,
- * provide useful statistical information such as min/max or can output all record ids in the entire subset.
+ * Represents the immutable, query-time result of slicing an {@link InvertedIndex}: a contiguous run of
+ * {@link ValueToRecord} buckets selected by a range or predicate lookup, together with the strategy that folds those
+ * buckets into a single record-id {@link Formula}.
+ *
+ * Lookup methods on {@link InvertedIndex} (range, exclusive, predicate matching, sorted/unsorted) hand the matching
+ * buckets to this class instead of materializing record ids eagerly. Consumers then either inspect the slice
+ * statistically (min/max value, emptiness) or ask for the aggregated record ids - subsets covering different value
+ * ranges of the same index can be combined downstream because they all carry the transactional identity of the leaf
+ * pages they were sliced from.
+ *
+ * The aggregation is lazy and memoized: the {@link Formula} (and therefore the computed record ids) is built on first
+ * access via {@link #getFormula()} and reused on every subsequent call, so an instance is intended to be short-lived
+ * and consumed within a single query evaluation.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @RequiredArgsConstructor
 public class InvertedIndexSubSet {
-	private final long indexTransactionId;
-	@Getter private final ValueToRecordBitmap[] histogramBuckets;
-	private final BiFunction<Long, ValueToRecordBitmap[], Formula> aggregationLambda;
+	/**
+	 * Transactional identity of the slice at the time it was taken, propagated into the aggregated {@link Formula} as
+	 * its transactional id set so that formula-level caching can detect staleness across index mutations. This is the
+	 * (canonical, sorted, deduplicated) set of version ids of the leaf pages the slice actually crossed — so a cached
+	 * read over an untouched value range survives writes to other pages — capped to the single whole-index id when the
+	 * slice spans more than {@link io.evitadb.core.query.response.TransactionalDataRelatedStructure#EXCESSIVE_HIGH_CARDINALITY}
+	 * leaves (bounding the footprint). The aggregation lambda consumes it directly (the formula layer already keys on a
+	 * `long[]`).
+	 */
+	private final long[] indexTransactionIds;
+	/**
+	 * The selected slice of buckets in their polymorphic form, ordered by ascending {@link ValueToRecord#getValue()}
+	 * with no duplicate or gap relative to the source index. Each element may be either the multi-record
+	 * {@link ValueToRecordBitmap} or the compact single-record {@link ValueToRecordPrimitive}; see
+	 * {@link #getBuckets()} for the read-out.
+	 */
+	private final ValueToRecord[] histogramBuckets;
+	/**
+	 * Strategy that folds {@link #histogramBuckets} into one record-id {@link Formula}, parameterized by the
+	 * {@link #indexTransactionIds}. The supplied implementation dictates the record ordering of the result (e.g. laid
+	 * out bucket-by-bucket versus natural ascending order).
+	 */
+	private final BiFunction<long[], ValueToRecord[], Formula> aggregationLambda;
+	/**
+	 * Lazily computed and cached output of {@link #aggregationLambda}; `null` until the first {@link #getFormula()}
+	 * call, then reused for the lifetime of this subset.
+	 */
 	private Formula memoizedResult;
+
+	/**
+	 * Returns the buckets of this subset in their polymorphic {@link ValueToRecord} form - each element is either a
+	 * multi-record {@link ValueToRecordBitmap} or a compact single-record {@link ValueToRecordPrimitive}, exactly as
+	 * held by the source index. No materialization happens: a single-record bucket stays a bare-`int` primitive and
+	 * only allocates its lightweight {@link io.evitadb.index.bitmap.SingleRecordBitmap} view on demand if a consumer
+	 * actually reads {@link ValueToRecord#getRecordIds()}. Consumers read this slice through the read-only
+	 * {@link ValueToRecord} surface ({@link ValueToRecord#getValue()}, {@link ValueToRecord#getRecordIds()},
+	 * {@link ValueToRecord#size()}); they key their own staleness on the leaf-page transactional ids the slice crossed,
+	 * not on per-bucket bitmap ids.
+	 *
+	 * The returned array is the subset's internal, ascending-by-value backing array - it must be treated as
+	 * read-only (never reordered or mutated), which is safe because this subset is a short-lived, single-query value.
+	 */
+	@Nonnull
+	public ValueToRecord[] getBuckets() {
+		return this.histogramBuckets;
+	}
 
 	/**
 	 * Returns record ids of all buckets in this histogram subset as single bitmap (ordered distinct array).
@@ -63,7 +117,7 @@ public class InvertedIndexSubSet {
 	public Formula getFormula() {
 		if (this.memoizedResult == null) {
 			this.memoizedResult = this.histogramBuckets.length == 0 ?
-				EmptyFormula.INSTANCE : this.aggregationLambda.apply(this.indexTransactionId, this.histogramBuckets);
+				EmptyFormula.INSTANCE : this.aggregationLambda.apply(this.indexTransactionIds, this.histogramBuckets);
 		}
 		return this.memoizedResult;
 	}
@@ -78,6 +132,7 @@ public class InvertedIndexSubSet {
 	/**
 	 * Returns minimal {@link ValueToRecordBitmap#getValue()} of buckets in this histogram subset.
 	 */
+	@Nullable
 	public Serializable getMinimalValue() {
 		return isEmpty() ? null : this.histogramBuckets[0].getValue();
 	}
@@ -85,6 +140,7 @@ public class InvertedIndexSubSet {
 	/**
 	 * Returns maximal {@link ValueToRecordBitmap#getValue()} of buckets in this histogram subset.
 	 */
+	@Nullable
 	public Serializable getMaximalValue() {
 		return isEmpty() ? null : this.histogramBuckets[this.histogramBuckets.length - 1].getValue();
 	}

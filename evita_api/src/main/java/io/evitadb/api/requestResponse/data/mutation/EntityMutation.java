@@ -31,6 +31,7 @@ import io.evitadb.api.requestResponse.mutation.conflict.ConflictGenerationContex
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
 import io.evitadb.api.requestResponse.mutation.conflict.EntityConflictKey;
+import io.evitadb.api.requestResponse.mutation.conflict.EntityResidualConflictKey;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
@@ -99,12 +100,17 @@ public non-sealed interface EntityMutation extends CatalogBoundMutation {
 	/**
 	 * Generates a stream of {@link ConflictKey} objects based on the provided parameters. The method collects
 	 * conflict keys from the specified local mutations and appends additional conflict keys if any mutation fails
-	 * to produce a key and relevant conflict policies are applied.
+	 * to produce a key and relevant conflict policies are applied. Under {@link ConflictPolicy#ENTITY} the
+	 * appended key is not always the full {@link EntityConflictKey}: a forced creation emits the full key (it
+	 * contends on the entity's very existence, which subsumes every carved-out item), while a missing granular
+	 * key on its own only emits the finer {@link EntityResidualConflictKey} for the entity's shared surface.
 	 *
 	 * @param entityType       the type of the entity for which the conflict keys are generated, must not be null
 	 * @param entityPrimaryKey the primary key of the entity, may be null
 	 * @param localMutations   the list of local mutations to process, must not be null
-	 * @param conflictPolicies the set of conflict policies to consider, must not be null
+	 * @param expects          the entity-existence expectation of the owning mutation; a forced creation
+	 *                         ({@link EntityExistence#MUST_NOT_EXIST}) contends on the entity's very
+	 *                         existence and therefore always emits the coarse entity/collection key
 	 * @param context          the conflict generation context to use during processing, must not be null
 	 * @return a stream of {@link ConflictKey} objects representing the resolved conflict keys
 	 */
@@ -113,7 +119,7 @@ public non-sealed interface EntityMutation extends CatalogBoundMutation {
 		@Nonnull String entityType,
 		@Nullable Integer entityPrimaryKey,
 		@Nonnull List<? extends LocalMutation<?, ?>> localMutations,
-		@Nonnull Set<ConflictPolicy> conflictPolicies,
+		@Nonnull EntityExistence expects,
 		@Nonnull ConflictGenerationContext context
 	) {
 		final Stream.Builder<ConflictKey> keys = Stream.builder();
@@ -123,7 +129,7 @@ public non-sealed interface EntityMutation extends CatalogBoundMutation {
 			boolean keyAdded = false;
 
 			// Avoid lambda and AtomicBoolean: iterate directly
-			final Iterator<ConflictKey> it = localMutation.collectConflictKeys(context, conflictPolicies).iterator();
+			final Iterator<ConflictKey> it = localMutation.collectConflictKeys(context).iterator();
 			while (it.hasNext()) {
 				keys.add(it.next());
 				keyAdded = true;
@@ -132,19 +138,31 @@ public non-sealed interface EntityMutation extends CatalogBoundMutation {
 			atLeastOneKeyMissing = atLeastOneKeyMissing || !keyAdded;
 		}
 
-		// If any mutation didn't produce a key and ENTITY policy is enabled,
-		// add the fallback entity conflict key directly into the same builder.
-		if (atLeastOneKeyMissing) {
+		// Add the coarse fallback key when either (a) some mutation produced no granular key, or
+		// (b) this is a forced creation (MUST_NOT_EXIST): two concurrent creations of the same
+		// primary key contend on the entity's very existence even when they touch disjoint fields
+		// and each emit only granular keys, so a fully-granular creation must still surface the
+		// entity-level conflict. NONE policy still emits nothing (coarsePolicy yields neither ENTITY nor COLLECTION),
+		// preserving the opt-out. Under ENTITY policy the fallback key itself is split: a forced creation
+		// contends on the entity's very existence, which already subsumes every carved-out item, so the full
+		// entity key is emitted; otherwise the fallback is triggered solely by a missing granular key, meaning
+		// some mutation only touched the entity's shared, non-carved-out surface, so the finer residual key is
+		// emitted instead — it still conflicts with another shared-surface writer, but no longer with a writer
+		// of a disjoint carved-out item.
+		if (atLeastOneKeyMissing || expects == EntityExistence.MUST_NOT_EXIST) {
+			final ConflictPolicy coarsePolicy = context.coarsePolicy();
 			if (entityPrimaryKey == null) {
-				if (conflictPolicies.contains(ConflictPolicy.COLLECTION)) {
+				if (coarsePolicy == ConflictPolicy.COLLECTION) {
 					keys.add(new CollectionConflictKey(entityType));
 				}
-			} else {
-				if (conflictPolicies.contains(ConflictPolicy.ENTITY)) {
+			} else if (coarsePolicy == ConflictPolicy.ENTITY) {
+				if (expects == EntityExistence.MUST_NOT_EXIST) {
 					keys.add(new EntityConflictKey(entityType, entityPrimaryKey));
-				} else if (conflictPolicies.contains(ConflictPolicy.COLLECTION)) {
-					keys.add(new CollectionConflictKey(entityType));
+				} else {
+					keys.add(new EntityResidualConflictKey(entityType, entityPrimaryKey));
 				}
+			} else if (coarsePolicy == ConflictPolicy.COLLECTION) {
+				keys.add(new CollectionConflictKey(entityType));
 			}
 		}
 

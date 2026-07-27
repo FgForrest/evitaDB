@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024-2026
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@
 
 package io.evitadb.core.transaction;
 
+import io.evitadb.api.CommitProgress.CommitVersions;
 import io.evitadb.api.CommitProgressRecord;
 import io.evitadb.api.configuration.ChangeDataCaptureOptions;
 import io.evitadb.api.configuration.EvitaConfiguration;
@@ -32,7 +33,7 @@ import io.evitadb.api.exception.TransactionTimedOutException;
 import io.evitadb.api.requestResponse.cdc.ChangeCapturePublisher;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCaptureRequest;
-import io.evitadb.api.requestResponse.data.mutation.ConsistencyCheckingLocalMutationExecutor.ImplicitMutationBehavior;
+import io.evitadb.index.mutation.ConsistencyCheckingLocalMutationExecutor.ImplicitMutationBehavior;
 import io.evitadb.api.requestResponse.data.mutation.EntityRemoveMutation;
 import io.evitadb.api.requestResponse.data.mutation.EntityUpsertMutation;
 import io.evitadb.api.requestResponse.mutation.CatalogBoundMutation;
@@ -41,7 +42,10 @@ import io.evitadb.api.requestResponse.mutation.conflict.AttributeDeltaConflictKe
 import io.evitadb.api.requestResponse.mutation.conflict.CommutativeConflictKey;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictGenerationContext;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
-import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolution;
+import io.evitadb.api.requestResponse.mutation.conflict.EffectiveConflictResolutionResolver;
+import io.evitadb.api.requestResponse.mutation.conflict.IncomingConflictScope;
+import io.evitadb.api.requestResponse.mutation.conflict.ResolvedConflictResolution;
 import io.evitadb.api.requestResponse.mutation.conflict.ReferenceAttributeDeltaConflictKey;
 import io.evitadb.api.requestResponse.mutation.infrastructure.TransactionMutation;
 import io.evitadb.api.requestResponse.progress.ProgressingFuture;
@@ -76,6 +80,8 @@ import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.function.Functions;
 import io.evitadb.spi.store.catalog.shared.model.LogRecordReference;
 import io.evitadb.spi.store.catalog.wal.IsolatedWalPersistenceService;
+import io.evitadb.spi.store.engine.exception.WriteAheadLogCorruptedException;
+import io.evitadb.spi.store.engine.exception.WriteAheadLogCorruptedException.WalKind;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.IOUtils;
 import lombok.Getter;
@@ -96,14 +102,15 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.LockSupport;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
 import java.util.function.LongConsumer;
+import java.util.function.LongSupplier;
 import java.util.stream.Stream;
 
 import static java.util.Optional.empty;
 import static java.util.Optional.of;
-import static java.util.Optional.ofNullable;
 
 /**
  * Transaction manager is propagated through different versions / instances of the same catalog and is responsible for
@@ -115,6 +122,19 @@ import static java.util.Optional.ofNullable;
  */
 @Slf4j
 public class TransactionManager implements Closeable {
+	/**
+	 * Number of busy-spin attempts in
+	 * {@link #waitUntilVersionReaches(LongSupplier, long, long, String)} before the wait falls back
+	 * to parking. Catalog-version propagation to the live view normally lands within microseconds,
+	 * so the spin window keeps the hot path latency-free while a genuine stall stops burning a full
+	 * core.
+	 */
+	private static final int SPIN_ATTEMPTS_BEFORE_PARK = 4_096;
+	/**
+	 * Interval in nanoseconds the bounded wait parks for between live-version checks once the spin
+	 * window of {@link #SPIN_ATTEMPTS_BEFORE_PARK} attempts is exhausted.
+	 */
+	private static final long PARK_INTERVAL_NANOS = 100_000L;
 	/**
 	 * Reference to the evitaDB instance this transaction manager belongs to.
 	 */
@@ -171,8 +191,23 @@ public class TransactionManager implements Closeable {
 	/**
 	 * Contains the last catalog version appended successfully to the WAL (i.e. {@link #lastAssignedCatalogVersion} that
 	 * finally arrived to WAL file).
+	 *
+	 * "Written" means the bytes were handed to the WAL, **not** that they reached the device - see
+	 * {@link #lastDurableCatalogVersion} for that. The append sequence check and every rollback /
+	 * diagnostic path want this counter, because they reason about what the WAL file already contains.
 	 */
 	private final AtomicLong lastWrittenCatalogVersion;
+	/**
+	 * Contains the last catalog version whose WAL bytes are durable on the device.
+	 *
+	 * Trails {@link #lastWrittenCatalogVersion} by however many transactions the appender managed to write
+	 * while a force was in flight. Anything that would make a transaction irreversible to the outside world
+	 * must be gated on this counter rather than on `lastWritten`: acknowledging the client, and - more
+	 * subtly - letting trunk incorporation checkpoint the version into the data files, because a bootstrap
+	 * record pointing past the durable end of the WAL would come back after a crash as a catalog whose WAL
+	 * is missing its own head.
+	 */
+	private final AtomicLong lastDurableCatalogVersion;
 	/**
 	 * Contains the ID of the last finalized transaction. This is used to skip already processed transaction.
 	 */
@@ -196,11 +231,26 @@ public class TransactionManager implements Closeable {
 	 */
 	private final DelayedAsyncTask walDrainingTask;
 	/**
+	 * Periodic watchdog that fails entries in {@link #pendingCommitProgressRegistry} whose progress
+	 * has been pending for longer than the worst-case pipeline latency. Acts as the last line of
+	 * defence against dangling commit progress records during live operation — the normal
+	 * completion path is handled by the stages themselves; this task is only triggered when a
+	 * record is somehow dropped on the floor (e.g. an executor drained an async completion task
+	 * before it could run, or an unhandled exception skipped a completion path).
+	 */
+	private final DelayedAsyncTask pendingProgressSweepTask;
+	/**
 	 * Lock used for conflict resolution.
 	 */
 	private final ReentrantLock conflictResolutionLock = new ReentrantLock(true);
 	/**
 	 * Lock used for appending to WAL.
+	 *
+	 * Do not read its fair-lock shape as evidence that appends contend: they cannot. The appending stage is
+	 * a `Flow` subscriber that requests one task at a time and `SubmissionPublisher` delivers to a
+	 * subscriber serially, so there is only ever one thread appending. What this lock still buys is the
+	 * acceptance-timeout gate in {@link #appendWalAndDiscard} - a transaction that has already spent its
+	 * budget queuing gives up here instead of joining the back of the line.
 	 */
 	private final ReentrantLock walAppendingLock = new ReentrantLock(true);
 	/**
@@ -218,17 +268,30 @@ public class TransactionManager implements Closeable {
 	 */
 	private final Deque<ModifyCatalogSchemaMutationWithCatalogVersion> engineMutationsQueue = new LinkedList<>();
 	/**
+	 * Watchdog registry that tracks in-flight {@link CommitProgressRecord}s by assigned catalog version
+	 * and fails any record that the transaction pipeline drops on the floor once the catalog advances
+	 * past its version. Exposed so the stages can register their records and the propagation path can
+	 * trigger the sweep.
+	 */
+	@Getter private final PendingCommitProgressRegistry pendingCommitProgressRegistry = new PendingCommitProgressRegistry();
+	/**
+	 * Set once a trunk-incorporation flush or merge has failed, which suspends all further transaction processing for
+	 * this catalog; `null` while the catalog is healthy.
+	 *
+	 * A failed flush leaves the persisted page baselines describing a write that never landed. A retry against those
+	 * baselines is what turns a transient I/O failure into a corrupt catalog, so once one has failed no further
+	 * transaction may be processed until an operator reloads the catalog. Reads are deliberately unaffected: the
+	 * in-memory tree is correct — only the persisted state and the baselines lie — so readers keep being served.
+	 */
+	private final AtomicReference<CatalogSuspension> suspension = new AtomicReference<>();
+	/**
 	 * Conflict ring buffer that holds the conflict keys for recent catalog versions.
 	 */
 	private final ConflictRingBuffer conflictRingBuffer;
 	/**
-	 * Set of conflict policies that are used in this transaction manager.
+	 * Effective conflict resolution that is used in this transaction manager.
 	 */
-	private final EnumSet<ConflictPolicy> conflictPolicy;
-	/**
-	 * Indicates whether any of the conflict policies is granular.
-	 */
-	private final boolean granularConflictPolicy;
+	private final ConflictResolution conflictResolution;
 	/**
 	 * Name of the catalog.
 	 */
@@ -318,8 +381,7 @@ public class TransactionManager implements Closeable {
 	) {
 		this.evita = evita;
 		this.configuration = evita.getConfiguration();
-		this.conflictPolicy = this.configuration.transaction().conflictPolicy();
-		this.granularConflictPolicy = this.conflictPolicy.stream().anyMatch(ConflictPolicy::isGranular);
+		this.conflictResolution = this.configuration.transaction().conflictPolicy();
 		this.requestExecutor = requestExecutor;
 		this.transactionalExecutor = transactionalExecutor;
 		this.transactionalPipeline = createTransactionalPublisher();
@@ -338,19 +400,84 @@ public class TransactionManager implements Closeable {
 		this.lastFinalizedCatalog = new AtomicReference<>(catalog);
 		this.livingCatalog = new AtomicReference<>(catalog);
 		this.catalogName = catalog.getName();
-		// fetch from the persistence store initially - might be greater than current version
-		this.lastAssignedCatalogVersion = new AtomicLong(catalogVersion);
+
+		// The WAL is the source of truth for "what catalog versions have been written". The persisted
+		// catalog header (catalogVersion) only tracks the last *finalized* version. If the server
+		// crashed after a transaction was appended to the WAL but before the trunk-incorporation
+		// stage could persist the new header, the WAL will be ahead. In that case we must seed
+		// lastAssigned / lastWritten from the WAL — otherwise processEntireWriteAheadLog() advances
+		// only lastFinalized, leaving lastAssigned / lastWritten stuck at the header version, and the
+		// very next user transaction reserves a version that is already durable in the WAL, tripping
+		// the "Invalid catalog version / expected N+1, got N" assertion in CurrentMutationLogFile.
+		final long walLastWrittenVersion = catalog.getLastCatalogVersionInMutationStream();
+		final long walFirstWrittenVersion = catalog.getFirstCatalogVersionInMutationStream();
+		final long bootstrapAssignedVersion = Math.max(catalogVersion, walLastWrittenVersion);
+
+		this.lastAssignedCatalogVersion = new AtomicLong(bootstrapAssignedVersion);
 		this.lastCatalogSchemaVersion = new AtomicInteger(catalog.getSchema().version());
 		this.accumulatedCatalogSchemaVersionDelta = new AtomicInteger(0);
-		this.lastWrittenCatalogVersion = new AtomicLong(this.lastAssignedCatalogVersion.get());
-		// this is the catalog version really used (propagated in indexes)
+		this.lastWrittenCatalogVersion = new AtomicLong(bootstrapAssignedVersion);
+		// whatever the WAL already contains at bootstrap is durable by definition - it survived a restart
+		this.lastDurableCatalogVersion = new AtomicLong(bootstrapAssignedVersion);
+		// this is the catalog version really used (propagated in indexes) - WAL replay will advance
+		// this to match lastWritten before any new transactions can be accepted
 		this.lastFinalizedCatalogVersion = new AtomicLong(catalog.getVersion());
 		this.lastFinalizedCatalogVersionSchemaDelta = new ConcurrentSkipListSet<>();
 
 		Assert.isPremiseValid(
 			this.lastWrittenCatalogVersion.get() >= this.lastAssignedCatalogVersion.get(),
-			"The last finalized catalog version must be greater or equal to last assigned catalog version!"
+			"The last written catalog version must be greater or equal to last assigned catalog version!"
 		);
+
+		// baseline INFO log - always emitted so operators have an anchor point for "normal"
+		// bootstrap state; any subsequent runtime divergence can be correlated against this line
+		log.info(
+			"TransactionManager bootstrapping catalog `{}`: catalogVersion={}, " +
+				"walFirstVersionInCurrentFile={}, walLastWrittenVersion={}, " +
+				"seededLastAssigned={}, catalogSchemaVersion={}.",
+			this.catalogName,
+			catalogVersion,
+			walFirstWrittenVersion,
+			walLastWrittenVersion,
+			bootstrapAssignedVersion,
+			this.lastCatalogSchemaVersion.get()
+		);
+
+		// highlight the "WAL ahead of header" case so the replay/seeding is visible in ops logs
+		if (walLastWrittenVersion > catalogVersion) {
+			log.warn(
+				"Catalog `{}` header version {} is behind the WAL (last written version {}). " +
+					"{} transaction(s) will be replayed and the assigned/written counters have " +
+					"been seeded from the WAL to avoid re-using versions already persisted there.",
+				this.catalogName,
+				catalogVersion,
+				walLastWrittenVersion,
+				walLastWrittenVersion - catalogVersion
+			);
+		}
+
+		// sanity-check the bootstrap catalog version against the WAL: the catalog header
+		// should never claim a version higher than the last TransactionMutation actually
+		// persisted in the WAL - that would mean the WAL is truncated / lost / replaced
+		// under a materialized catalog and downstream recovery would silently skip
+		// transactions. The reverse (WAL ahead of the catalog version) is expected -
+		// those transactions are replayed by processEntireWriteAheadLog().
+		if (walLastWrittenVersion > 0L && catalogVersion > walLastWrittenVersion) {
+			log.error(
+				"Catalog `{}` is being bootstrapped with catalog version {} which is " +
+					"ahead of the last version {} written to the Write-Ahead Log " +
+					"(first version in current WAL file: {}). " +
+					"This indicates a WAL/bootstrap-record inconsistency - transactions " +
+					"between {} and {} will be missing from the mutation stream and " +
+					"cannot be replayed. Check bootstrap file integrity and WAL retention.",
+				this.catalogName,
+				catalogVersion,
+				walLastWrittenVersion,
+				walFirstWrittenVersion,
+				walLastWrittenVersion,
+				catalogVersion
+			);
+		}
 
 		this.conflictRingBuffer = new ConflictRingBuffer(
 			this.catalogName,
@@ -364,6 +491,15 @@ public class TransactionManager implements Closeable {
 			this::drainWal,
 			1000, TimeUnit.MILLISECONDS
 		);
+		// watchdog runs at half the transaction-acceptance timeout so a truly dangling record gets
+		// flagged within one or two ticks of crossing the age threshold
+		final long sweepIntervalMs = Math.max(5_000L, this.transactionAcceptanceTimeout / 2);
+		this.pendingProgressSweepTask = new DelayedAsyncTask(
+			catalog.getName(), "Pending commit progress sweep task",
+			scheduler,
+			this::sweepDanglingCommitProgress,
+			sweepIntervalMs, TimeUnit.MILLISECONDS
+		);
 	}
 
 	/**
@@ -376,6 +512,10 @@ public class TransactionManager implements Closeable {
 		long nextCatalogVersion,
 		@Nonnull LongConsumer progressCallback
 	) {
+		Assert.isPremiseValid(
+			this.suspension.get() == null,
+			"Cannot process the write-ahead log of a suspended catalog."
+		);
 		return processTransactions(
 			nextCatalogVersion,
 			Long.MAX_VALUE,
@@ -383,6 +523,91 @@ public class TransactionManager implements Closeable {
 			true, // we should obtain lock here easily, since this is called only on catalog instantiation
 			progressCallback
 		);
+	}
+
+	/**
+	 * Suspends all further transaction processing for this catalog after a trunk-incorporation flush or merge failed,
+	 * and fails every commit already parked on the pipeline so no client waits forever. Only the FIRST failure is kept:
+	 * it is the one that describes what actually broke.
+	 *
+	 * Deliberately does NOT stop readers. The in-memory catalog is still correct — it is the persisted state and the
+	 * page baselines that no longer agree — so the safe move is to stop writing, not to stop serving.
+	 *
+	 * @param cause the flush/merge failure that forced the suspension
+	 * @param durable whether the failed version had already reached disk when the failure struck
+	 * @param failedCatalogVersion the catalog version whose incorporation failed
+	 */
+	public void suspend(@Nonnull Throwable cause, boolean durable, long failedCatalogVersion) {
+		final long servingCatalogVersion = getLastFinalizedCatalogVersion();
+		final CatalogSuspension theSuspension = new CatalogSuspension(
+			cause, durable, failedCatalogVersion, servingCatalogVersion
+		);
+		if (this.suspension.compareAndSet(null, theSuspension)) {
+			if (durable) {
+				// the version reached disk but its merge into the live catalog failed: the bytes on disk describe a
+				// state whose validation did not pass, and a deterministic failure will re-fail on replay, so a plain
+				// reload may not be enough
+				log.error(
+					"Catalog `{}` SUSPENDED after version {} failed to be incorporated AFTER it reached disk (serving " +
+						"version {}). Reads continue to be served from memory, writes are refused. Disk holds a SUSPECT " +
+						"version {} - verify it before reloading; a restore may be required.",
+					this.catalogName, failedCatalogVersion, servingCatalogVersion, failedCatalogVersion, cause
+				);
+			} else {
+				log.error(
+					"Catalog `{}` SUSPENDED after version {} failed to be written (serving version {}). Reads continue " +
+						"to be served from memory, writes are refused. Disk is intact at version {} - reloading the " +
+						"catalog replays the transaction from the WAL.",
+					this.catalogName, failedCatalogVersion, servingCatalogVersion, servingCatalogVersion, cause
+				);
+			}
+		}
+		// whether or not we won the race, no parked client may be left waiting on a pipeline that will never run again
+		this.pendingCommitProgressRegistry.failAllPending(
+			"the catalog has been suspended after a failed transaction incorporation"
+		);
+	}
+
+	/**
+	 * Returns the suspension that stopped this catalog's transaction processing, if any.
+	 *
+	 * @return the suspension, or empty while the catalog is healthy
+	 */
+	@Nonnull
+	public Optional<CatalogSuspension> getSuspension() {
+		return Optional.ofNullable(this.suspension.get());
+	}
+
+	/**
+	 * Tells whether the given catalog version had already reached disk — i.e. whether a failure struck AFTER the write
+	 * was durable (during the merge into the live catalog) or BEFORE it (during the write itself). The two are not
+	 * symmetric and the operator needs to tell them apart: a pre-durability failure leaves disk at the previous version
+	 * and reloading simply replays the transaction, whereas a post-durability failure leaves disk holding a version
+	 * whose incorporation did not pass, which a reload would land straight back on.
+	 *
+	 * @param catalogVersion the version whose incorporation failed
+	 * @return true when the version is already on disk
+	 */
+	private boolean isVersionPersisted(long catalogVersion) {
+		return getLastFinalizedCatalog().getLastPersistedCatalogVersion() >= catalogVersion;
+	}
+
+	/**
+	 * Describes why a catalog stopped processing transactions, and what an operator is left holding.
+	 *
+	 * @param cause                the flush/merge failure that forced the suspension
+	 * @param durable              whether {@link #failedCatalogVersion} had already reached disk when it failed; when
+	 *                             true the disk holds a SUSPECT version, when false the disk is intact at
+	 *                             {@link #servingCatalogVersion}
+	 * @param failedCatalogVersion the catalog version whose incorporation failed
+	 * @param servingCatalogVersion the version readers continue to be served from memory
+	 */
+	public record CatalogSuspension(
+		@Nonnull Throwable cause,
+		boolean durable,
+		long failedCatalogVersion,
+		long servingCatalogVersion
+	) {
 	}
 
 	/**
@@ -395,6 +620,20 @@ public class TransactionManager implements Closeable {
 		@Nonnull IsolatedWalPersistenceService walPersistenceService,
 		@Nonnull CommitProgressRecord commitProgress
 	) {
+		// a suspended catalog will never incorporate another transaction, so accepting this one would park the client
+		// on a pipeline that cannot run; refuse it here, at the point of acceptance, exactly as an overloaded queue does
+		final CatalogSuspension theSuspension = this.suspension.get();
+		if (theSuspension != null) {
+			commitProgress.completeExceptionally(
+				new TransactionException(
+					"Catalog `" + this.catalogName + "` is suspended after a failed transaction incorporation at " +
+						"version " + theSuspension.failedCatalogVersion() + " and accepts no further writes until it " +
+						"is reloaded. Reads are unaffected.",
+					theSuspension.cause()
+				)
+			);
+			return;
+		}
 		this.transactionalPipeline.offer(
 			new ConflictResolutionAndWalAppendingTransactionTask(
 				getCatalogName(),
@@ -503,6 +742,9 @@ public class TransactionManager implements Closeable {
 		);
 		if (theLastWrittenCatalogVersion < catalogVersion) {
 			updateLastWrittenCatalogVersion(catalogVersion);
+			// an externally advanced version (e.g. a catalog rename) is already persisted by whoever
+			// advanced it - there is no pending force to wait for, so durability tracks it immediately
+			updateLastDurableCatalogVersion(catalogVersion);
 		}
 		final long theLastFinalizedCatalogVersion = getLastFinalizedCatalogVersion();
 		Assert.isPremiseValid(
@@ -547,6 +789,47 @@ public class TransactionManager implements Closeable {
 	}
 
 	/**
+	 * Returns the last catalog version whose WAL bytes are durable on the device.
+	 *
+	 * @return the last durable catalog version
+	 */
+	public long getLastDurableCatalogVersion() {
+		return this.lastDurableCatalogVersion.get();
+	}
+
+	/**
+	 * Publishes the fact that every catalog version up to (and including) the given one is durable.
+	 *
+	 * Monotonic by construction: the value must have been sampled before the force that covered it, and
+	 * forces are issued in append order, so a later call can never carry a lower version. It is asserted
+	 * rather than silently clamped, because a regression here would mean the durability handshake itself
+	 * is broken and the difference is not something to paper over.
+	 *
+	 * @param catalogVersion the last catalog version made durable
+	 */
+	public void updateLastDurableCatalogVersion(long catalogVersion) {
+		final long previous = this.lastDurableCatalogVersion.getAndSet(catalogVersion);
+		Assert.isPremiseValid(
+			previous <= catalogVersion,
+			"Durable catalog version must never go backwards! " +
+				"Was " + previous + ", got " + catalogVersion + "."
+		);
+		Assert.isPremiseValid(
+			catalogVersion <= getLastWrittenCatalogVersion(),
+			"Durable catalog version must never outrun the written one! " +
+				"Written " + getLastWrittenCatalogVersion() + ", got " + catalogVersion + "."
+		);
+	}
+
+	/**
+	 * Makes every WAL append issued so far durable. Callers must sample the version they intend to declare
+	 * durable **before** calling this - see {@link Catalog#syncWal()}.
+	 */
+	public void syncWal() {
+		getLivingCatalog().syncWal();
+	}
+
+	/**
 	 * Returns the last catalog version incorporated in {@link #lastFinalizedCatalog} instance.
 	 *
 	 * @return the last incorporated catalog version
@@ -581,6 +864,27 @@ public class TransactionManager implements Closeable {
 		this.lastFinalizedCatalogVersionSchemaDelta.add(
 			new FinalizedCatalogVersion(lastFinalizedCatalogVersion, incorporatedCatalogSchemaVersionDelta)
 		);
+
+		// invariant: lastFinalized must never outrun lastWritten. If it does, the TM's bookkeeping
+		// has drifted away from the WAL — typically because lastWritten was seeded only from the
+		// persisted catalog header at bootstrap, and WAL replay advanced lastFinalized without
+		// advancing lastAssigned / lastWritten. Emit a loud one-liner so the next occurrence is
+		// diagnosable without having to reconstruct the state from a pile of surrounding logs.
+		final long theLastWrittenCatalogVersion = getLastWrittenCatalogVersion();
+		if (theLastWrittenCatalogVersion < lastFinalizedCatalogVersion) {
+			log.error(
+				"Catalog `{}` version bookkeeping invariant violated: lastFinalized advanced to {} " +
+					"while lastWritten is still {} (lastAssigned={}). Any subsequent user transaction " +
+					"will reserve a catalog version already durable in the WAL and fail with " +
+					"CatalogWriteAheadLastTransactionMismatchException. This typically means " +
+					"lastWritten/lastAssigned were not seeded from the WAL at bootstrap or a " +
+					"replay path updated lastFinalized without keeping the other counters in sync.",
+				this.catalogName,
+				lastFinalizedCatalogVersion,
+				theLastWrittenCatalogVersion,
+				getLastAssignedCatalogVersion()
+			);
+		}
 	}
 
 	/**
@@ -630,67 +934,106 @@ public class TransactionManager implements Closeable {
 
 	/**
 	 * This method identifies concurrent transaction commits based on passed mutation keys.
+	 *
+	 * Two transactions are successors when the incoming transaction's snapshot version is greater than or equal
+	 * to the committed transaction's assigned catalog version — only then the incoming transaction could see
+	 * the committed changes. The examination window therefore covers every conflict key committed with a catalog
+	 * version in range `(sessionCatalogVersion, lastWrittenCatalogVersion]`: the ring buffer scan starts at
+	 * `sessionCatalogVersion + 1` and the WAL fallback stream contract starts at the very same version
+	 * (see {@link Catalog#getCommittedLiveMutationStream(long, long)}).
+	 *
+	 * When no conflict is found, the incoming transaction's own keys are registered in the ring buffer under
+	 * `reservedCatalogVersion` — the catalog version this transaction is assigned right after this check — so
+	 * that later transactions with older snapshots compare against this transaction's commit version, never its
+	 * snapshot version. Keys of a rejected transaction are not registered at all; any keys registered before
+	 * a range-constraint violation are removed by {@link #rollbackConflictKeys(long)} driven by the stage.
+	 *
+	 * @param sessionCatalogVersion  the catalog version the committing transaction started with (its snapshot)
+	 * @param reservedCatalogVersion the catalog version this transaction will be assigned when it is accepted
+	 * @param commitTimestamp        the timestamp the commit entered the pipeline (for timeout accounting)
+	 * @param conflictKeys           the conflict keys produced by the committing transaction
 	 */
 	public void identifyConflicts(
-		long catalogVersion,
+		long sessionCatalogVersion,
+		long reservedCatalogVersion,
 		@Nonnull OffsetDateTime commitTimestamp,
 		@Nonnull Set<ConflictKey> conflictKeys
 	) {
 		try {
-			// calculate the rest of the timeout
-			final long timeout = this.transactionAcceptanceTimeout - Duration.between(
-				OffsetDateTime.now(), commitTimestamp
-			).toMillis();
-            if (this.conflictResolutionLock.tryLock(timeout, TimeUnit.MILLISECONDS)) {
-                final Catalog theLivingCatalog = getLivingCatalog();
-                final long livingCatalogVersion = theLivingCatalog.getVersion();
-                final Map<CommutativeConflictKey<?>, CommutativeConflictResolver<?>> aggregates =
-                    initializeAggregatesIfNecessary(conflictKeys);
+			// remaining acceptance-timeout budget after the time already spent queuing; commitTimestamp is in
+			// the past, so elapsed = now - commitTimestamp and the budget shrinks as queue delay grows, clamped
+			// at zero so an over-budget transaction does not wait (never a negative tryLock argument)
+			final long elapsedMillis = Duration.between(commitTimestamp, OffsetDateTime.now()).toMillis();
+			final long timeout = Math.max(0L, this.transactionAcceptanceTimeout - elapsedMillis);
+			if (this.conflictResolutionLock.tryLock(timeout, TimeUnit.MILLISECONDS)) {
+				// the ring buffer requires monotonically increasing versions and the rollback logic relies
+				// on the registered version being the one the single-threaded conflict-resolution stage
+				// assigns right after this check succeeds
+				final long theLastAssignedCatalogVersion = getLastAssignedCatalogVersion();
+				Assert.isPremiseValid(
+					reservedCatalogVersion == theLastAssignedCatalogVersion + 1,
+					"Reserved catalog version " + reservedCatalogVersion + " must directly follow " +
+						"the last assigned catalog version " + theLastAssignedCatalogVersion + "!"
+				);
+				final Catalog theLivingCatalog = getLivingCatalog();
+				final long livingCatalogVersion = theLivingCatalog.getVersion();
+				final Map<Object, CommutativeConflictResolver<?>> aggregates =
+					initializeAggregatesIfNecessary(conflictKeys);
+				// pre-index the incoming transaction's conflict keys once so every committed key can be
+				// tested by containment (ancestry chain) rather than raw equality
+				final IncomingConflictScope incomingScope = IncomingConflictScope.of(conflictKeys);
 
-                try {
-                    this.conflictRingBuffer.forEachSince(
-                        catalogVersion,
-                        vck -> examineConflictKey(
-                            vck.conflictKey(),
-                            conflictKeys,
-                            theLivingCatalog,
-                            aggregates,
-                            vck.version(),
-                            livingCatalogVersion
-                        )
-                    );
-                } catch (OutsideScopeException e) {
-                    // this means that the conflict ring buffer has already cleared the catalog version
-                    // and was able to check only partial set of conflict keys
-                    identifyConflictsInOldCommittedTransactions(
-                        catalogVersion,
-                        conflictKeys,
-                        theLivingCatalog,
-                        aggregates,
-                        e.getEffectiveStart()
-                    );
-                } finally {
-                    int index = 0;
-                    for (ConflictKey conflictKey : conflictKeys) {
-                        if (conflictKey instanceof CommutativeConflictKey<?> cck && cck.isConstrainedToRange()) {
-                            Assert.isPremiseValid(
-                                aggregates != null,
-                                "Aggregates map must be initialized when commutative conflict keys are present!"
-                            );
-                            //noinspection unchecked
-                            final CommutativeConflictKey<Object> ccko = (CommutativeConflictKey<Object>) cck;
-                            // if the commutative conflict key is present in this transaction, we need to
-                            //noinspection unchecked
-                            final CommutativeConflictResolver<Object> resolver = ofNullable((CommutativeConflictResolver<Object>) aggregates.get(cck))
-                                .orElseGet(() -> createCommutativeResolver(ccko, theLivingCatalog));
-                            // 1. add the aggregate from previous transactions
-                            final Object accumulatedValue = ccko.aggregate(resolver.accumulatedValue(), ccko.deltaValue());
-                            // 2. check whether the result is within the allowed range
-                            ccko.assertInAllowedRange(this.catalogName, catalogVersion, accumulatedValue);
-                        }
-                        this.conflictRingBuffer.offer(new VersionedConflictKey(catalogVersion, index++, conflictKey));
-                    }
-                }
+				try {
+					// keys registered at exactly `sessionCatalogVersion` belong to a predecessor whose
+					// changes the snapshot already saw, so the scan starts one version above it
+					this.conflictRingBuffer.forEachSince(
+						sessionCatalogVersion + 1,
+						vck -> examineConflictKey(
+							vck.conflictKey(),
+							incomingScope,
+							theLivingCatalog,
+							aggregates,
+							vck.version(),
+							livingCatalogVersion
+						)
+					);
+				} catch (OutsideScopeException e) {
+					// this means that the conflict ring buffer has already cleared the catalog version
+					// and was able to check only partial set of conflict keys
+					identifyConflictsInOldCommittedTransactions(
+						sessionCatalogVersion,
+						incomingScope,
+						theLivingCatalog,
+						aggregates,
+						e.getEffectiveStart()
+					);
+				}
+
+				// no overlapping committed key was found — validate range-constrained commutative keys
+				// against the accumulated in-flight deltas and register the incoming transaction's keys
+				// under its reserved commit version (a conflicting transaction never registers its keys)
+				int index = 0;
+				for (ConflictKey conflictKey : conflictKeys) {
+					if (conflictKey instanceof CommutativeConflictKey<?> cck && cck.isConstrainedToRange()) {
+						Assert.isPremiseValid(
+							aggregates != null,
+							"Aggregates map must be initialized when commutative conflict keys are present!"
+						);
+						//noinspection unchecked
+						final CommutativeConflictKey<Object> ccko = (CommutativeConflictKey<Object>) cck;
+						//noinspection unchecked
+						final CommutativeConflictResolver<Object> committedDeltas =
+							(CommutativeConflictResolver<Object>) aggregates.get(ccko.aggregationKey());
+						// the accumulated value is the stored base plus every delta committed in the
+						// overlap window plus this transaction's own delta; when no committed delta shares
+						// the aggregation slot, a resolver built from this key already yields base + delta
+						final Object accumulatedValue = committedDeltas == null ?
+							createCommutativeResolver(ccko, theLivingCatalog).accumulatedValue() :
+							ccko.aggregate(committedDeltas.accumulatedValue(), ccko.deltaValue());
+						ccko.assertInAllowedRange(this.catalogName, reservedCatalogVersion, accumulatedValue);
+					}
+					this.conflictRingBuffer.offer(new VersionedConflictKey(reservedCatalogVersion, index++, conflictKey));
+				}
 			} else {
 				throw new TransactionTimedOutException(
 					"Conflict resolution lock timed out! Waited for " + timeout + " ms of maximum waiting time " + this.transactionAcceptanceTimeout + " ms."
@@ -715,7 +1058,7 @@ public class TransactionManager implements Closeable {
      * @return a lazily initialized map if required, otherwise null
      */
     @Nullable
-    private static Map<CommutativeConflictKey<?>, CommutativeConflictResolver<?>> initializeAggregatesIfNecessary(
+    private static Map<Object, CommutativeConflictResolver<?>> initializeAggregatesIfNecessary(
         @Nonnull Set<ConflictKey> conflictKeys
     ) {
         for (ConflictKey conflictKey : conflictKeys) {
@@ -726,55 +1069,78 @@ public class TransactionManager implements Closeable {
         return null;
     }
 
-    /**
+	/**
 	 * Identifies conflicts in old committed transactions within a catalog over a specified range of versions.
-	 * This method iterates through all committed live mutations from the given catalog version up to a specified version,
-	 * and checks if any of the conflict keys provided are present in the mutations. If a conflict is detected,
-	 * it throws a {@link ConflictingCatalogMutationException}.
+	 * This method iterates through all committed live mutations following the session catalog version (the WAL
+	 * stream contract starts with the transaction that evolved the catalog to `sessionCatalogVersion + 1`) up
+	 * to the point where the conflict ring buffer takes over, and checks whether any recomputed conflict key
+	 * overlaps the incoming transaction. If a conflict is detected, it throws
+	 * a {@link ConflictingCatalogMutationException}.
 	 *
-	 * @param catalogVersion the starting version of the catalog to check for conflicts in committed transactions
-	 * @param conflictKeys a set of conflict keys to check against in the committed transactions
-	 * @param until the upper bound versioned conflict key, up to which committed transactions are analyzed
+	 * @param sessionCatalogVersion the snapshot version of the committing transaction; only mutations committed
+	 *                              after this version are examined
+	 * @param incomingScope the pre-indexed conflict scope of the transaction being committed
+	 * @param until the oldest versioned conflict key still covered by the conflict ring buffer
 	 */
 	private void identifyConflictsInOldCommittedTransactions(
-		long catalogVersion,
-		@Nonnull Set<ConflictKey> conflictKeys,
-        @Nonnull Catalog theLivingCatalog,
-        @Nullable Map<CommutativeConflictKey<?>, CommutativeConflictResolver<?>> aggregates,
+		long sessionCatalogVersion,
+		@Nonnull IncomingConflictScope incomingScope,
+		@Nonnull Catalog theLivingCatalog,
+		@Nullable Map<Object, CommutativeConflictResolver<?>> aggregates,
 		@Nonnull CatalogVersionIndex until
 	) {
-		final ConflictGenerationContext context = new ConflictGenerationContext();
-        long livingCatalogVersion = theLivingCatalog.getVersion();
-		long processedCatalogVersion = catalogVersion;
+		// Recompute the aged-out transactions' conflict keys through the same schema-effective resolution
+		// the live WAL-write path and the conflictException() diagnostics below use: the effective
+		// per-entity resolution is resolved against the living catalog's current schema (entity schema →
+		// catalog schema → engine default). This fallback exists precisely to test the incoming commit
+		// against these evicted-but-still-in-window transactions, so recomputing with the bare engine
+		// default would be wrong whenever an entity type carries a per-entity-type override that diverges
+		// from it: a too-coarse recomputed key would false-positive (reject a non-overlapping commit) and a
+		// too-fine one would mask a real overlap, flipping the containment verdict either way. Historical
+		// schemas are deliberately not reconstructed — the current schema is authoritative here, exactly as
+		// in conflictException(); the two paths must agree on the resolution so the thrown diagnostics match
+		// the verdict.
+		final ConflictGenerationContext context = new ConflictGenerationContext(
+			this.conflictResolution,
+			theLivingCatalog.getSchema(),
+			entityType -> theLivingCatalog.getEntitySchema(entityType).orElse(null)
+		);
+		final long livingCatalogVersion = theLivingCatalog.getVersion();
+		long processedCatalogVersion = sessionCatalogVersion;
 		final Iterator<CatalogBoundMutation> mutationIterator = getLivingCatalog()
-			.getCommittedLiveMutationStream(catalogVersion, until.catalogVersion())
+			.getCommittedLiveMutationStream(sessionCatalogVersion, until.catalogVersion())
 			.iterator();
 
-		int index = -1;
 		while (mutationIterator.hasNext()) {
 			final Mutation mutation = mutationIterator.next();
 			if (mutation instanceof TransactionMutation tm) {
 				processedCatalogVersion = tm.getVersion();
-				index = 0;
-			} else {
-				index++;
-			}
-
-			if (until.catalogVersion() == processedCatalogVersion && index == until.index()) {
-				// stop at the mutation that is the upper bound
-				break;
+				// stop where the conflict ring buffer takes over: when the buffer's effective start points
+				// at the first conflict key of the boundary transaction (index 0), that transaction is
+				// fully covered by the buffer scan; when the buffer retained only a suffix of the boundary
+				// transaction's keys (index > 0), the whole boundary transaction is examined here as well —
+				// the ring buffer indexes conflict-key ordinals while this stream yields mutations, so the
+				// two index domains cannot be matched exactly and the conservative overlap is preferred.
+				// Re-examining the retained suffix is safe: absolute keys yield the same verdict, and
+				// commutative deltas are only accumulated for versions ahead of the living catalog, which
+				// the buffer's oldest transaction cannot be unless the buffer is sized smaller than the
+				// in-flight transaction window
+				if (processedCatalogVersion > until.catalogVersion() ||
+					(processedCatalogVersion == until.catalogVersion() && until.index() == 0)) {
+					break;
+				}
 			}
 
 			final Iterator<ConflictKey> conflictKeyIterator = mutation
-				.collectConflictKeys(context, this.conflictPolicy)
+				.collectConflictKeys(context)
 				.iterator();
 			while (conflictKeyIterator.hasNext()) {
 				final ConflictKey conflictKey = conflictKeyIterator.next();
-                examineConflictKey(
-                    conflictKey, conflictKeys, theLivingCatalog, aggregates,
-                    processedCatalogVersion, livingCatalogVersion
-                );
-            }
+				examineConflictKey(
+					conflictKey, incomingScope, theLivingCatalog, aggregates,
+					processedCatalogVersion, livingCatalogVersion
+				);
+			}
 		}
 	}
 
@@ -783,19 +1149,19 @@ public class TransactionManager implements Closeable {
      * Handles commutative conflict keys and processes them against the current catalog state.
      *
      * @param conflictKey The conflict key to be examined.
-     * @param conflictKeys A set of conflict keys to check against for conflicts.
+     * @param incomingScope The pre-indexed conflict scope of the transaction being committed.
      * @param theLivingCatalog The current state of the catalog.
      * @param aggregates A map of commutative conflict keys and their corresponding aggregated values.
      *                   Can be null if it makes no sense to accumulate commutative keys.
      * @param processedCatalogVersion The version of the catalog being processed.
      * @param livingCatalogVersion The current version of the living catalog.
-     * @throws ConflictingCatalogMutationException if the conflict key is already present in the current transaction.
+     * @throws ConflictingCatalogMutationException if the conflict key overlaps the current transaction.
      */
     private <T> void examineConflictKey(
         @Nonnull ConflictKey conflictKey,
-        @Nonnull Set<ConflictKey> conflictKeys,
+        @Nonnull IncomingConflictScope incomingScope,
         @Nonnull Catalog theLivingCatalog,
-        @Nullable Map<CommutativeConflictKey<?>, CommutativeConflictResolver<?>> aggregates,
+        @Nullable Map<Object, CommutativeConflictResolver<?>> aggregates,
         long processedCatalogVersion,
         long livingCatalogVersion
     ) {
@@ -803,7 +1169,7 @@ public class TransactionManager implements Closeable {
         if (conflictKey instanceof CommutativeConflictKey<?> cck) {
             if (aggregates != null && processedCatalogVersion > livingCatalogVersion) {
                 aggregates.compute(
-                    cck,
+                    cck.aggregationKey(),
                     (key, existingAggregate) -> {
                         if (existingAggregate == null) {
                             return createCommutativeResolver(cck, theLivingCatalog);
@@ -815,15 +1181,50 @@ public class TransactionManager implements Closeable {
                     }
                 );
             }
-        } else if (conflictKeys.contains(conflictKey)) {
-            // check whether any of the conflict keys is present in the current transaction
-            throw new ConflictingCatalogMutationException(
-                this.catalogName,
-                conflictKey,
-                processedCatalogVersion
-            );
+            // A committed commutative delta still conflicts with an incoming *absolute* write of the same
+            // (or a containing) scope — the delete/set-vs-delta case the accumulation above cannot express.
+            // Probing from the parent keeps delta-vs-delta of the same key commuting.
+            if (incomingScope.conflictsWithCommutative(conflictKey)) {
+                throw conflictException(conflictKey, processedCatalogVersion, theLivingCatalog);
+            }
+        } else if (incomingScope.conflictsWithAbsolute(conflictKey)) {
+            // the committed key's write scope overlaps the incoming transaction's write scope
+            throw conflictException(conflictKey, processedCatalogVersion, theLivingCatalog);
         }
     }
+
+	/**
+	 * Builds a {@link ConflictingCatalogMutationException} enriched with the conflict-resolution diagnostics
+	 * for the offending key: the policy that was in force for its scope and the schema layer that policy was
+	 * resolved from. This runs only on the cold conflict-reporting path (a conflict is about to abort the
+	 * transaction), so the extra schema lookup and allocation are inconsequential.
+	 *
+	 * The resolution is derived from the living catalog's current schema rather than reconstructed from the
+	 * historical schema in effect when the conflicting change committed — see the note on the historical
+	 * recompute path; the two agree in every window where they can both fire. A catalog-wide key carries no
+	 * entity type, so the entity schema is skipped and the catalog/engine levels report the layer.
+	 *
+	 * @param conflictKey             the committed key that overlaps the incoming transaction, must not be null
+	 * @param processedCatalogVersion the catalog version at which the conflicting change committed
+	 * @param theLivingCatalog        the current catalog whose schema resolves the effective policy, must not be null
+	 * @return the enriched exception ready to be thrown
+	 */
+	@Nonnull
+	private ConflictingCatalogMutationException conflictException(
+		@Nonnull ConflictKey conflictKey,
+		long processedCatalogVersion,
+		@Nonnull Catalog theLivingCatalog
+	) {
+		final String entityType = conflictKey.entityType();
+		final ResolvedConflictResolution resolved = EffectiveConflictResolutionResolver.resolveWithSource(
+			theLivingCatalog.getSchema(),
+			entityType == null ? null : theLivingCatalog.getEntitySchema(entityType).orElse(null),
+			this.conflictResolution
+		);
+		return new ConflictingCatalogMutationException(
+			this.catalogName, conflictKey, processedCatalogVersion, resolved.resolution(), resolved.layer()
+		);
+	}
 
     /**
      * Creates a commutative conflict resolver for the given conflict key and catalog.
@@ -884,6 +1285,11 @@ public class TransactionManager implements Closeable {
 	/**
 	 * This method writes the contents to the WAL and discards the contents of the isolated WAL.
 	 *
+	 * The append is left **written but not durable** - the caller owns the durability handshake and must
+	 * pair it with {@link #syncWal()} plus {@link #updateLastDurableCatalogVersion(long)} before the
+	 * transaction is acknowledged or handed to trunk incorporation. That is what lets a single device sync
+	 * cover a whole batch of transactions rather than one each.
+	 *
 	 * @param transactionMutation the leading transaction mutation to write to the WAL
 	 * @param walReference        the reference to the WAL file
 	 * @return the length of the written WAL contents
@@ -894,10 +1300,11 @@ public class TransactionManager implements Closeable {
 		@Nonnull LogRecordReference walReference
 	) {
 		try {
-			// calculate the rest of the timeout
-			final long timeout = this.transactionAcceptanceTimeout - Duration.between(
-				OffsetDateTime.now(), commitTimestamp
-			).toMillis();
+			// remaining acceptance-timeout budget after the time already spent queuing; commitTimestamp is in
+			// the past, so elapsed = now - commitTimestamp and the budget shrinks as queue delay grows, clamped
+			// at zero so an over-budget transaction does not wait (never a negative tryLock argument)
+			final long elapsedMillis = Duration.between(commitTimestamp, OffsetDateTime.now()).toMillis();
+			final long timeout = Math.max(0L, this.transactionAcceptanceTimeout - elapsedMillis);
 			// try to obtain the lock within the timeout
 			if (this.walAppendingLock.tryLock(timeout, TimeUnit.MILLISECONDS)) {
 				final long theLastWrittenCatalogVersion = this.lastWrittenCatalogVersion.get();
@@ -907,7 +1314,7 @@ public class TransactionManager implements Closeable {
 						"Expected version " + (theLastWrittenCatalogVersion + 1) + ", got " + transactionMutation.getVersion() + "."
 				);
 				return getLivingCatalog()
-					.appendWalAndDiscard(
+					.appendWalAndDiscardDeferringSync(
 						transactionMutation,
 						walReference
 					);
@@ -935,6 +1342,10 @@ public class TransactionManager implements Closeable {
 	 * @param waitForLock        Indicates whether to wait for the trunk incorporation lock.
 	 * @param progressCallback   A callback to report progress during transaction processing.
 	 * @return The processed transaction.
+	 * @throws WriteAheadLogCorruptedException when the mutation stream is empty but the finalized
+	 *                                          version has not yet reached {@code nextCatalogVersion}
+	 *                                          — i.e. a committed transaction was expected but could
+	 *                                          not be read from the WAL
 	 */
 	@Nonnull
 	public Optional<ProcessResult> processTransactions(
@@ -944,6 +1355,13 @@ public class TransactionManager implements Closeable {
 		boolean waitForLock,
 		@Nonnull LongConsumer progressCallback
 	) {
+		// Gate every drain of the WAL, before the trunk lock is taken or a single mutation is read. This is the point
+		// the suspension has to bite: a freshly appended transaction schedules the draining task on its own, entirely
+		// independently of the path that failed, so refusing commits alone would not stop the catalog from trying
+		// again. Returning empty (rather than throwing) is what makes the draining task PAUSE instead of rescheduling.
+		if (this.suspension.get() != null) {
+			return Optional.empty();
+		}
 		try {
 			final boolean locked;
 			if (waitForLock) {
@@ -957,6 +1375,9 @@ public class TransactionManager implements Closeable {
 				TransactionMutation lastTransactionMutation;
 				Transaction lastTransaction = null;
 				final Catalog newCatalog;
+				// the version whose changes we got as far as collecting + writing, or -1 if we never got that far;
+				// see the catch below
+				long collectingVersion = -1;
 
 				int atomicMutationCount = 0;
 				int localMutationCount = 0;
@@ -974,14 +1395,40 @@ public class TransactionManager implements Closeable {
 					// if the transaction failed we need to replay it again
 					final long readFromVersion = Math.max(lastFinalizedVersion + 1, 2);
 					if (alive) {
-						committedMutationStream = latestCatalog.getCommittedLiveMutationStream(readFromVersion, this.lastWrittenCatalogVersion.get());
+						// bounded by the DURABLE version, not the written one: a greedy round drains as far as
+						// this bound allows and then checkpoints what it incorporated into the data files. Were
+						// the bound `lastWritten`, a round could checkpoint a version whose WAL bytes are still
+						// only in the page cache, and a crash in that window would leave a catalog claiming a
+						// version its own WAL no longer reaches
+						committedMutationStream = latestCatalog.getCommittedLiveMutationStream(
+							readFromVersion, getLastDurableCatalogVersion()
+						);
 					} else {
-						committedMutationStream = latestCatalog.getCommittedMutationStream(readFromVersion);
+						committedMutationStream = latestCatalog.getCommittedMutationStream(
+							readFromVersion
+						);
 					}
 					final Iterator<CatalogBoundMutation> mutationIterator = committedMutationStream.iterator();
 					if (!mutationIterator.hasNext()) {
-						// previous execution already processed all the mutations
-						return empty();
+						// an empty stream is only legitimately "already processed" when the finalized version
+						// has actually reached the version we were asked to process; if it has not, the WAL
+						// delivered nothing for a version we must reach — reporting "someone else did it"
+						// would silently finalize at a stale version and leave the commit-progress record
+						// (and any client awaiting it) hanging forever
+						if (lastFinalizedVersion >= nextCatalogVersion) {
+							// previous execution already processed all the mutations
+							return empty();
+						}
+						throw new WriteAheadLogCorruptedException(
+							WalKind.CATALOG,
+							"WAL mutation stream of catalog `" + getCatalogName() + "` went dry at finalized " +
+								"version " + lastFinalizedVersion + " without reaching requested version " +
+								nextCatalogVersion + " (last written version " +
+								this.lastWrittenCatalogVersion.get() + ", last durable version " +
+								this.lastDurableCatalogVersion.get() + "). A committed transaction was not " +
+								"readable - refusing to report it as already processed.",
+							"Write-ahead log mutation stream ended before reaching a committed transaction."
+						);
 					} else {
 						long nextExpectedCatalogVersion = lastFinalizedVersion + 1;
 						// and process them
@@ -1048,6 +1495,11 @@ public class TransactionManager implements Closeable {
 
 					// we've run out of mutation, or the timeout has been exceeded, create a new catalog version now
 					// and update the last finalized transaction ID and catalog version
+					// From here on the collect has begun: the flush pops every trapped change, advances every page
+					// baseline and writes, and the merge then publishes those baselines. A failure anywhere inside
+					// leaves the baselines describing a write that may never have landed, which is precisely the state
+					// no retry may run against - so the scope is POSITIONAL (where we failed), never by exception type.
+					collectingVersion = lastTransactionMutation.getVersion();
 					newCatalog = commitChangesToSharedCatalog(lastTransactionMutation, lastTransaction, transactionHandler);
 					updateLastFinalizedCatalog(
 						newCatalog,
@@ -1063,7 +1515,14 @@ public class TransactionManager implements Closeable {
 					final Catalog catalog = this.lastFinalizedCatalog.get();
 					this.changeObserver.forgetMutationsAfter(catalog, catalog.getVersion());
 
-					// rethrow the exception - we will have to re-try the transaction
+					if (collectingVersion >= 0) {
+						// a failed flush/merge: suspend rather than retry. The retry is what would diff the next flush
+						// against the baselines this one left behind, and it can never succeed by repetition anyway -
+						// a deterministic failure spins forever, a transient one corrupts.
+						suspend(ex, isVersionPersisted(collectingVersion), collectingVersion);
+					}
+					// rethrow the exception - a failure BEFORE the collect (an unreadable WAL tail, a replay error) is
+					// still safely retryable and keeps its bounded retry
 					throw ex;
 				} finally {
 					if (committedMutationStream != null) {
@@ -1073,7 +1532,7 @@ public class TransactionManager implements Closeable {
 
 				Assert.isPremiseValid(lastTransaction != null, "Transaction must not be null!");
 				final ProcessResult processResult = new ProcessResult(
-					lastTransactionMutation,
+					lastTransaction.getTransactionId(),
 					atomicMutationCount,
 					localMutationCount,
 					newCatalog,
@@ -1136,15 +1595,74 @@ public class TransactionManager implements Closeable {
 	}
 
 	/**
-	 * Waits until the catalog version in the "live view" reaches the specified version.
+	 * Waits until the catalog version in the "live view" reaches the specified version. The wait is
+	 * bounded by {@link #safetyDeadlineMs()} — the same threshold the dangling-commit sweeper uses — so
+	 * it never fires under normal back-pressure, only on a genuine propagation stall. On expiry
+	 * a {@link TransactionTimedOutException} is thrown, which every caller translates into an
+	 * exceptional completion of the affected commit-progress record (or a watchdog reschedule)
+	 * instead of spinning a core forever.
 	 *
 	 * @param catalogVersion The catalog version to wait for in the "live view".
+	 * @throws TransactionTimedOutException when the live view does not reach the version in time
 	 */
 	public void waitUntilLiveVersionReaches(long catalogVersion) {
-		while (getLivingCatalog().getVersion() < catalogVersion) {
-			// wait until the catalog version is propagated to the "live view"
-			Thread.onSpinWait();
+		waitUntilVersionReaches(
+			() -> getLivingCatalog().getVersion(),
+			catalogVersion,
+			safetyDeadlineMs(),
+			getCatalogName()
+		);
+	}
+
+	/**
+	 * Bounded wait for a monotonically increasing version to reach the expected value. Busy-spins for
+	 * {@link #SPIN_ATTEMPTS_BEFORE_PARK} attempts (propagation normally lands within microseconds) and
+	 * then parks in {@link #PARK_INTERVAL_NANOS} intervals so a genuine stall does not burn a core.
+	 * Package-private so the bounded-wait contract can be unit-tested without a full manager instance.
+	 *
+	 * @param liveVersion    supplier of the currently visible version
+	 * @param catalogVersion the version that must be reached
+	 * @param deadlineMs     maximum time to wait in milliseconds
+	 * @param catalogName    name of the catalog used in the timeout message
+	 * @throws TransactionTimedOutException when the version does not reach the expected value in time
+	 */
+	static void waitUntilVersionReaches(
+		@Nonnull LongSupplier liveVersion,
+		long catalogVersion,
+		long deadlineMs,
+		@Nonnull String catalogName
+	) {
+		final long deadlineNanos = System.nanoTime() + deadlineMs * 1_000_000L;
+		int spins = 0;
+		long currentVersion;
+		while ((currentVersion = liveVersion.getAsLong()) < catalogVersion) {
+			// overflow-safe monotonic comparison mandated by the System.nanoTime() contract
+			if (System.nanoTime() - deadlineNanos >= 0) {
+				throw new TransactionTimedOutException(
+					"Live view of catalog `" + catalogName + "` did not reach version " + catalogVersion +
+						" within " + deadlineMs + " ms (stuck at version " + currentVersion +
+						"); refusing to wait indefinitely."
+				);
+			}
+			if (spins < SPIN_ATTEMPTS_BEFORE_PARK) {
+				Thread.onSpinWait();
+				spins++;
+			} else {
+				LockSupport.parkNanos(PARK_INTERVAL_NANOS);
+			}
 		}
+	}
+
+	/**
+	 * Returns the safety threshold in milliseconds after which a pipeline wait or a pending
+	 * commit-progress record is considered genuinely stalled. Five times the acceptance timeout gives
+	 * ample headroom for back-pressure spikes and executor queue drain times; a floor of 60s keeps the
+	 * threshold sensible on deployments that tune the acceptance timeout very low.
+	 *
+	 * @return the stall-detection deadline in milliseconds
+	 */
+	private long safetyDeadlineMs() {
+		return Math.max(60_000L, this.transactionAcceptanceTimeout * 5);
 	}
 
 	/**
@@ -1187,8 +1705,14 @@ public class TransactionManager implements Closeable {
 		IOUtils.closeQuietly(
 			this.transactionalPipeline::close,
 			this.changeObserver::close,
-			this.walDrainingTask::close
+			this.walDrainingTask::close,
+			this.pendingProgressSweepTask::close
 		);
+		// fail any still-registered commit progress records so clients waiting on their
+		// CompletionStages are unblocked with a descriptive exception rather than hanging forever
+		// (e.g. when the request executor accepted an async completion task that shutdownNow
+		// then drained before it could run, or when a transaction was in-flight at shutdown)
+		this.pendingCommitProgressRegistry.failAllPending("the transaction manager is being closed");
 		this.livingCatalog.set(null);
 		this.lastFinalizedCatalog.set(null);
 	}
@@ -1203,22 +1727,13 @@ public class TransactionManager implements Closeable {
 	}
 
 	/**
-	 * Retrieves the set of conflict policies associated with the transaction configuration.
+	 * Retrieves the effective conflict resolution associated with the transaction configuration.
 	 *
-	 * @return a non-null set of ConflictPolicy objects representing the conflict policies.
+	 * @return a non-null {@link ConflictResolution} representing the effective conflict resolution.
 	 */
 	@Nonnull
-	public Set<ConflictPolicy> getConflictPolicy() {
-		return this.conflictPolicy;
-	}
-
-	/**
-	 * Determines if a granular (sub-entity level) conflict policy is used.
-	 *
-	 * @return true if a granular conflict policy is enabled; false otherwise
-	 */
-	public boolean hasGranularConflictPolicy() {
-		return this.granularConflictPolicy;
+	public ConflictResolution getConflictResolution() {
+		return this.conflictResolution;
 	}
 
 	/**
@@ -1232,26 +1747,73 @@ public class TransactionManager implements Closeable {
 	}
 
 	/**
-	 * Sends the task simulating the WAL stage finalization with tasks that drains entire contents of the WAL in
-	 * the trunk incorporation stage. This should handle the situation when last transaction was not processed due
-	 * to queues being full. When no other transaction comes the WAL will forever contain more records than are
-	 * incorporated in the catalog.
+	 * Sends the task simulating the WAL stage finalization with tasks that drains entire contents of
+	 * the WAL in the trunk incorporation stage. This should handle the situation when last transaction
+	 * was not processed due to queues being full. When no other transaction comes the WAL will forever
+	 * contain more records than are incorporated in the catalog.
+	 *
+	 * @return `0` to reschedule immediately when a transient condition (busy lock or a momentarily
+	 * unreadable WAL tail) prevented draining, `-1` to pause the task once draining completed
 	 */
 	private long drainWal() {
 		try {
 			this.processTransactions(
-				this.lastWrittenCatalogVersion.get(),
+				// the drainer may only chase versions that are already durable - same reasoning as the
+				// round bound inside `processTransactions`
+				getLastDurableCatalogVersion(),
 				this.configuration.transaction().flushFrequencyInMillis(),
 				true,
 				false, // we should not wait for the lock here - if its already running it will process the transactions
 				Functions.noOpLongConsumer()
 			);
-		} catch (TransactionTimedOutException ex) {
-			// reschedule again
+		} catch (TransactionTimedOutException | WriteAheadLogCorruptedException ex) {
+			// Best-effort background drainer: both conditions are transient here and get retried on the
+			// next tick. A busy trunk lock means another incorporation is already running; a WAL read that
+			// momentarily cannot see a just-appended version (same-JVM file-length visibility lag) clears on
+			// a later pass. A genuinely persistent inconsistency is surfaced loudly on the client commit
+			// path by the trunk-incorporation stage; the drainer owns no commit-progress record and must not
+			// let an uncaught throw permanently pause this task.
 			return 0;
 		}
 		// pause the task
 		return -1;
+	}
+
+	/**
+	 * Periodic watchdog body for {@link #pendingProgressSweepTask}. Fails every record in
+	 * {@link #pendingCommitProgressRegistry} whose pending age exceeds a safety threshold derived
+	 * from the configured transaction-acceptance timeout — if a record has been pending that long
+	 * the pipeline has certainly dropped it and any client awaiting it is better served by a
+	 * descriptive exception than by silence.
+	 *
+	 * The task pauses when the registry drains and re-schedules itself as soon as a new record is
+	 * registered (via {@link #registerPendingCommitProgress}).
+	 *
+	 * @return `0` to re-schedule with the default delay when the registry is non-empty, `-1` to
+	 * pause when there is nothing left to watch over
+	 */
+	private long sweepDanglingCommitProgress() {
+		this.pendingCommitProgressRegistry.sweepRecordsOlderThan(Duration.ofMillis(safetyDeadlineMs()));
+		return this.pendingCommitProgressRegistry.size() > 0 ? 0L : -1L;
+	}
+
+	/**
+	 * Registers a commit progress record in the pending registry and schedules the time-bounded
+	 * watchdog so it starts running while at least one record is in flight. The sweep task will
+	 * pause itself automatically once the registry drains again.
+	 *
+	 * @param catalogVersion catalog version assigned by conflict resolution
+	 * @param record         the progress record waiting for pipeline completion
+	 * @param commitVersions versions captured at registration time, used by the trunk stage's
+	 *                       greedy-batch fan-out to supply the termination callback
+	 */
+	public void registerPendingCommitProgress(
+		long catalogVersion,
+		@Nonnull CommitProgressRecord record,
+		@Nonnull CommitVersions commitVersions
+	) {
+		this.pendingCommitProgressRegistry.register(catalogVersion, record, commitVersions);
+		this.pendingProgressSweepTask.schedule();
 	}
 
 	/**
@@ -1377,14 +1939,14 @@ public class TransactionManager implements Closeable {
 	/**
 	 * Result of the {@link #processTransactions(long, long, boolean, boolean, LongConsumer)} method.
 	 *
-	 * @param lastTransaction                    the last processed transaction
+	 * @param lastTransactionId                  the ID of the last processed transaction
 	 * @param processedAtomicMutations           the number of processed atomic mutations
 	 * @param processedLocalMutations            the number of processed local mutations
 	 * @param catalog                            the catalog after the processing
 	 * @param commitTimesOfProcessedTransactions commit times of all processed transactions
 	 */
 	public record ProcessResult(
-		@Nonnull TransactionMutation lastTransaction,
+		@Nonnull UUID lastTransactionId,
 		int processedAtomicMutations,
 		int processedLocalMutations,
 		@Nonnull Catalog catalog,

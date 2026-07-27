@@ -28,10 +28,12 @@ import io.evitadb.api.CatalogStatistics;
 import io.evitadb.api.EvitaManagementContract;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.configuration.DefaultExportOptions;
+import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.ExportOptions;
 import io.evitadb.api.exception.FileForFetchNotFoundException;
 import io.evitadb.api.exception.TemporalDataNotAvailableException;
 import io.evitadb.api.file.FileForFetch;
+import io.evitadb.api.requestResponse.system.EngineSettings;
 import io.evitadb.api.requestResponse.system.SystemStatus;
 import io.evitadb.api.task.ServerTask;
 import io.evitadb.api.task.Task;
@@ -49,10 +51,12 @@ import io.evitadb.spi.export.ExportService;
 import io.evitadb.spi.export.ExportServiceFactory;
 import io.evitadb.spi.store.engine.model.EngineState;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.Functions;
 import io.evitadb.utils.IOUtils;
 import io.evitadb.utils.UUIDUtil;
 import io.evitadb.utils.VersionUtils;
 import lombok.Setter;
+import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -81,6 +85,7 @@ import java.util.function.Supplier;
  * @see EvitaManagementContract
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
+@Slf4j
 public class EvitaManagement implements EvitaManagementContract, Closeable {
 	/**
 	 * Contains reference to the main evita service.
@@ -123,7 +128,7 @@ public class EvitaManagement implements EvitaManagementContract, Closeable {
 		final Function<ExportServiceFactory, ExportOptions> exportOptionsProvider;
 		if (DefaultExportOptions.INSTANCE.getImplementationCode().equals(implementationCode)) {
 			// select the factory with highest priority
-			exportSelector = factory -> true;
+			exportSelector = Functions.alwaysTrue();
 			exportOptionsProvider = ExportServiceFactory::createDefaultOptions;
 		} else {
 			// select by implementation code
@@ -195,7 +200,7 @@ public class EvitaManagement implements EvitaManagementContract, Closeable {
 	public CatalogStatistics[] getCatalogStatistics() {
 		return this.evita.getCatalogs()
 			.stream()
-			.map(CatalogContract::getStatistics)
+			.map(EvitaManagement::getCatalogStatisticsSafely)
 			.sorted(Comparator.comparing(CatalogStatistics::catalogName))
 			.toArray(CatalogStatistics[]::new);
 	}
@@ -421,12 +426,64 @@ public class EvitaManagement implements EvitaManagementContract, Closeable {
 		return this.configurationSupplier.get();
 	}
 
+	@Nonnull
+	@Override
+	public EngineSettings getEngineSettings() {
+		// deliberately not `assertActiveAndWritable` - the exposed values carry nothing sensitive
+		// and clients need them to interpret the server's behaviour also when the engine was
+		// booted in read-only mode
+		final EvitaConfiguration configuration = this.evita.getConfiguration();
+		return new EngineSettings(
+			configuration.transaction().conflictPolicy(),
+			configuration.storage().timeTravelEnabled(),
+			configuration.server().changeDataCapture().enabled(),
+			configuration.server().trafficRecording().enabled(),
+			configuration.cache().enabled()
+		);
+	}
+
 	@Override
 	public void close() {
 		IOUtils.closeQuietly(
 			this.exportService::close,
 			this.fileManagementService::close
 		);
+	}
+
+	/**
+	 * Collects statistics of a single catalog, degrading to a minimal placeholder record when the catalog fails to
+	 * provide them.
+	 *
+	 * Statistics of all catalogs are aggregated into a single response, so an exception raised by one catalog would
+	 * otherwise abort the entire listing and hide every healthy catalog from the client as well. A catalog that cannot
+	 * report its statistics is still a catalog the client needs to see - it is reported as `unusable` with unknown
+	 * (`-1`) figures instead of taking the whole response down with it.
+	 *
+	 * @param catalog the catalog to collect the statistics for
+	 * @return statistics of the catalog, or an `unusable` placeholder when they cannot be collected
+	 */
+	@Nonnull
+	private static CatalogStatistics getCatalogStatisticsSafely(@Nonnull CatalogContract catalog) {
+		try {
+			return catalog.getStatistics();
+		} catch (RuntimeException ex) {
+			log.error(
+				"Failed to collect statistics of catalog `{}` - reporting it as unusable.",
+				catalog.getName(), ex
+			);
+			return new CatalogStatistics(
+				null,
+				catalog.getName(),
+				true,
+				false,
+				catalog.getCatalogState(),
+				-1L,
+				-1L,
+				-1L,
+				-1L,
+				new CatalogStatistics.EntityCollectionStatistics[0]
+			);
+		}
 	}
 
 }

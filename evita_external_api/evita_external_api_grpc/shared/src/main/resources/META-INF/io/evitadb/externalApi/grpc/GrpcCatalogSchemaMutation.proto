@@ -71,5 +71,10 @@ message GrpcLocalCatalogSchemaMutation {
     GrpcModifyEntitySchemaNameMutation modifyEntitySchemaNameMutation = 32;
     // Mutation is responsible for removing an existing `EntitySchema` - or more precisely the entity collection instance itself.
     GrpcRemoveEntitySchemaMutation removeEntitySchemaMutation = 33;
+
+    // Mutation is responsible for setting value `AttributeSchema.conflictResolutionOverride` in `CatalogSchema`.
+    GrpcSetAttributeSchemaConflictResolutionOverrideMutation setAttributeSchemaConflictResolutionOverrideMutation = 34;
+    // Mutation is responsible for setting value to a `CatalogSchema.conflictResolution` in `CatalogSchema`.
+    GrpcModifyCatalogSchemaConflictResolutionMutation modifyCatalogSchemaConflictResolutionMutation = 35;
   }
 }

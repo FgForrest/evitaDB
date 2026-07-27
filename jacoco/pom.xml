@@ -30,7 +30,7 @@
 	<parent>
 		<groupId>io.evitadb</groupId>
 		<artifactId>evita_root</artifactId>
-		<version>2026.1-SNAPSHOT</version>
+		<version>2026.2.RC1-SNAPSHOT</version>
 	</parent>
 	<dependencies>
 		<dependency>
@@ -141,13 +141,21 @@
 			<version>${project.parent.version}</version>
 			<scope>runtime</scope>
 		</dependency>
+		<dependency>
+			<!-- brings the test-support helper classes into the aggregate report scope so their
+			     unit-test coverage is attributed; integration-only glue is excluded below -->
+			<groupId>${project.parent.groupId}</groupId>
+			<artifactId>evita_test_support</artifactId>
+			<version>${project.parent.version}</version>
+			<scope>runtime</scope>
+		</dependency>
 	</dependencies>
 	<build>
 		<plugins>
 			<plugin>
 				<groupId>org.jacoco</groupId>
 				<artifactId>jacoco-maven-plugin</artifactId>
-				<version>0.8.8</version>
+				<version>0.8.14</version>
 				<executions>
 					<execution>
 						<id>report-aggregate</id>
@@ -162,6 +170,13 @@
 						<exclude>io/evitadb/externalApi/grpc/generated/*.*</exclude>
 						<exclude>io/evitadb/api/query/parser/grammar/*.*</exclude>
 						<exclude>io/evitadb/performance/*.*</exclude>
+						<exclude>io/evitadb/roaringbitmap/**</exclude>
+						<!-- evita_test_support integration-only glue (live server / JUnit engine / markup) -->
+						<exclude>io/evitadb/test/extension/*.*</exclude>
+						<exclude>io/evitadb/test/tester/*.*</exclude>
+						<exclude>io/evitadb/test/annotation/*.*</exclude>
+						<exclude>io/evitadb/test/client/*.*</exclude>
+						<exclude>io/evitadb/test/generator/*.*</exclude>
 					</excludes>
 				</configuration>
 			</plugin>

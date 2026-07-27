@@ -65,6 +65,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.function.Function;
@@ -107,6 +108,38 @@ public class AttributeNaturalTranslator
 				sacsc.getAttributeElements().stream().map(AttributeElement::attributeName)
 			)
 			.toArray(String[]::new);
+	}
+
+	/**
+	 * Combines the attributes the comparator orders by with the representative attributes of the reference schema.
+	 * References that {@link io.evitadb.api.requestResponse.schema.Cardinality#allowsDuplicates() allow duplicates}
+	 * are disambiguated by their representative attributes while sorting, so those attributes must be prefetched
+	 * along with the sort attributes - otherwise reading them on a fetched reference fails with
+	 * {@link io.evitadb.api.exception.ContextMissingException}. Names may overlap the sort attributes; the resulting
+	 * duplicates are collapsed downstream by {@link io.evitadb.api.query.require.AttributeContent#getAttributeNamesAsSet()},
+	 * so we don't dedupe here.
+	 *
+	 * @param sortAttributes  the attribute names the comparator orders by
+	 * @param referenceSchema the schema of the sorted reference (must allow duplicates)
+	 * @return the combined array of attribute names to prefetch
+	 */
+	@Nonnull
+	private static String[] combineWithRepresentativeAttributes(
+		@Nonnull String[] sortAttributes,
+		@Nonnull ReferenceSchema referenceSchema
+	) {
+		final List<String> representativeAttributeNames = referenceSchema.getRepresentativeAttributeDefinition().getAttributeNames();
+		final int representativeCount = representativeAttributeNames.size();
+		if (representativeCount == 0) {
+			return sortAttributes;
+		}
+		final String[] combined = new String[sortAttributes.length + representativeCount];
+		System.arraycopy(sortAttributes, 0, combined, 0, sortAttributes.length);
+		int index = sortAttributes.length;
+		for (final String representativeAttributeName : representativeAttributeNames) {
+			combined[index++] = representativeAttributeName;
+		}
+		return combined;
 	}
 
 	@Nonnull
@@ -273,14 +306,27 @@ public class AttributeNaturalTranslator
 		}
 
 		// if prefetch happens we need to prefetch attributes so that the attribute comparator can work
-		orderByVisitor.addRequirementToPrefetch(
-			attributeOrCompoundSchema instanceof SortableAttributeCompoundSchemaContract sacsc ?
-				(referenceSchema == null ?
+		if (referenceSchema == null) {
+			orderByVisitor.addRequirementToPrefetch(
+				attributeOrCompoundSchema instanceof SortableAttributeCompoundSchemaContract sacsc ?
 					attributeContent(combineCompoundWithReferencedAttributes(attributeOrCompoundName, sacsc)) :
-					referenceContentWithAttributes(referenceSchema.getName(), combineCompoundWithReferencedAttributes(attributeOrCompoundName, sacsc))
-				) :
-				(referenceSchema == null ? attributeContent(attributeOrCompoundName) : referenceContentWithAttributes(referenceSchema.getName(), attributeOrCompoundName))
-		);
+					attributeContent(attributeOrCompoundName)
+			);
+		} else {
+			// the attribute(s) the comparator orders by
+			final String[] sortAttributes = attributeOrCompoundSchema instanceof SortableAttributeCompoundSchemaContract sacsc ?
+				combineCompoundWithReferencedAttributes(attributeOrCompoundName, sacsc) :
+				new String[]{attributeOrCompoundName};
+			// when the reference allows duplicates, the comparator disambiguates the duplicate references by their
+			// representative attributes (see the picker predicate in TraverseReference*Comparator); those attributes
+			// must be prefetched as well, otherwise reading them on the fetched reference throws ContextMissingException
+			final String[] attributesToPrefetch = referenceSchema.getCardinality().allowsDuplicates() ?
+				combineWithRepresentativeAttributes(sortAttributes, referenceSchema) :
+				sortAttributes;
+			orderByVisitor.addRequirementToPrefetch(
+				referenceContentWithAttributes(referenceSchema.getName(), attributesToPrefetch)
+			);
+		}
 
 		return Stream.of(
 			new PrefetchedRecordsSorter(entityComparator),

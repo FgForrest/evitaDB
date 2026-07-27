@@ -6,6 +6,7 @@ author: Ing. Jan Novotný
 proofreading: done
 preferredLang: evitaql
 commit: d74b2be9a27e5567316e0f6e0d3b160da262d2c2
+translated: true
 ---
 Ve skutečnosti existuje jen několik případů použití histogramů na e-commerce webech. Nejčastějším z nich je cenový histogram, který slouží k filtrování produktů podle ceny. Příklad takového histogramu můžete vidět na webu Booking.com:
 
@@ -83,7 +84,7 @@ na základě výsledků histogramu byl tlačen do stále užšího a užšího r
 
 Pro ukázku použití histogramu použijeme následující příklad:
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Histogram atributů nad `width` a `height`](/documentation/user/en/query/requirements/examples/histogram/attribute-histogram.evitaql)
 
@@ -131,7 +132,7 @@ Výsledkem jsou kompaktnější histogramy, které poskytují lepší uživatels
 
 Pro ukázku optimalizace histogramu použijeme následující příklad:
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Optimalizovaný histogram atributu nad atributem `width`](/documentation/user/en/query/requirements/examples/histogram/attribute-histogram-optimized.evitaql)
 
@@ -186,7 +187,7 @@ Tato technika je inspirována [equalizací histogramu v obrazovém zpracování]
 
 Pro demonstraci equalizovaného histogramu použijeme následující příklad:
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Equalizovaný histogram atributu `width`](/documentation/user/en/query/requirements/examples/histogram/attribute-histogram-equalized.evitaql)
 
@@ -268,9 +269,20 @@ stále užšího a užšího rozsahu a nakonec by skončil ve slepé uličce.
 Požadavek [`priceType`](price.md#typ-ceny) určuje zdrojovou vlastnost ceny pro výpočet histogramu. Pokud není
 požadavek zadán, histogram zobrazuje cenu s daní.
 
+### Granularita cenového histogramu a zpracování vnitřních záznamů {#price-histogram-granularity}
+
+Histogram odpovídá na otázku *„jaké ceny jsou dosažitelné v kandidátské množině?"* Odpověď závisí na způsobu
+zpracování vnitřních záznamů (`PriceInnerRecordHandling`), protože ten určuje, co tvoří jeden datový bod ceny:
+
+| Zpracování vnitřních záznamů | Datový bod histogramu na entitu |
+|------------------------------|--------------------------------|
+| `NONE`                       | Jeden — prodejní cena entity |
+| `SUM`                        | Jeden — kumulovaná cena všech vnitřních záznamů |
+| `LOWEST_PRICE`               | **Jeden za id vnitřního záznamu** — vítězná cena každé varianty |
+
 Pro ukázku použití histogramu použijeme následující příklad:
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Cenový histogram](/documentation/user/en/query/requirements/examples/histogram/price-histogram.evitaql)
 
@@ -318,7 +330,7 @@ Výsledkem jsou kompaktnější histogramy, které poskytují lepší uživatels
 
 Pro ukázku optimalizace histogramu použijeme následující příklad:
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Optimalizovaný cenový histogram](/documentation/user/en/query/requirements/examples/histogram/price-histogram-optimized.evitaql)
 
@@ -366,7 +378,7 @@ Chování **EQUALIZED** u cenových histogramů určuje hranice intervalů na z�
 
 Abychom demonstrovali vyrovnaný cenový histogram, použijeme následující příklad:
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Vyrovnaný cenový histogram](/documentation/user/en/query/requirements/examples/histogram/price-histogram-equalized.evitaql)
 

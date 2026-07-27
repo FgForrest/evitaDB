@@ -80,7 +80,8 @@ public class PriceInPriceListsTranslator extends AbstractPriceRelatedConstraintT
 			if (filterByVisitor.isEntityTypeKnown()) {
 				final List<Formula> priceListFormula = createFormula(filterByVisitor, priceLists, currency);
 				final Formula filteringFormula = PriceListCompositionTerminationVisitor.translate(
-					priceListFormula, priceLists, currency, null, filterByVisitor.getQueryPriceMode(), null
+					priceListFormula, priceLists, currency, null, filterByVisitor.getQueryPriceMode(), null,
+					filterByVisitor.isHistogramSideOutputApplicable()
 				);
 				if (filterByVisitor.isPrefetchPossible()) {
 					return new SelectionFormula(
@@ -123,7 +124,9 @@ public class PriceInPriceListsTranslator extends AbstractPriceRelatedConstraintT
 							return priceList.equals(priceIndexKey.getPriceList()) &&
 								innerRecordHandling.equals(priceIndexKey.getRecordHandling());
 						})
-						.map(PriceListAndCurrencyPriceIndex::createPriceIndexFormulaWithAllRecords)
+						// resolved inside the map on purpose: an index with no matching combination must not force
+						// a GLOBAL lookup it has no use for
+						.map(it -> it.createPriceIndexFormulaWithAllRecords(filterByVisitor.getSuperPriceIndex(entityIndex)))
 						.toArray(Formula[]::new)
 				)
 			);
@@ -131,7 +134,7 @@ public class PriceInPriceListsTranslator extends AbstractPriceRelatedConstraintT
 			// this is the easy way - we have both price list name and currency, we may use data from the specialized index
 			priceListFormulaComputer = (priceList, curr, innerRecordHandling) -> filterByVisitor.applyOnIndexes(
 				entityIndex -> ofNullable(entityIndex.getPriceIndex(priceList, currency, innerRecordHandling))
-					.map(PriceListAndCurrencyPriceIndex::createPriceIndexFormulaWithAllRecords)
+					.map(it -> it.createPriceIndexFormulaWithAllRecords(filterByVisitor.getSuperPriceIndex(entityIndex)))
 					.orElse(EmptyFormula.INSTANCE)
 			);
 		}

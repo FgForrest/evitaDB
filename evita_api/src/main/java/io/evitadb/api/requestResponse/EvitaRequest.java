@@ -126,6 +126,7 @@ public class EvitaRequest {
 	@Nullable private Map<String, FacetFilterBy> facetGroupNegation;
 	@Nullable private Map<String, FacetFilterBy> facetGroupExclusivity;
 	@Nullable private Boolean queryTelemetryRequested;
+	@Nullable private Boolean priceHistogramRequested;
 	@Nullable private EnumSet<DebugMode> debugModes;
 	@Nullable private Scope[] scopesAsArray;
 	@Nullable private Set<Scope> scopes;
@@ -557,6 +558,7 @@ public class EvitaRequest {
 		this.expectedType = evitaRequest.expectedType;
 		this.debugModes = null;
 		this.queryTelemetryRequested = evitaRequest.queryTelemetryRequested;
+		this.priceHistogramRequested = evitaRequest.priceHistogramRequested;
 		this.scopes = scopes;
 		this.scopesAsArray = this.scopes == null ?
 			null : this.scopes.toArray(Scope[]::new);
@@ -1263,6 +1265,20 @@ public class EvitaRequest {
 				QueryUtils.findRequire(this.query, QueryTelemetry.class) != null;
 		}
 		return this.queryTelemetryRequested;
+	}
+
+	/**
+	 * Returns TRUE if requirement {@link PriceHistogram} is present in the query. Accessor method caches the
+	 * found result so that consecutive calls of this method are pretty fast. Read by the filter planner (see
+	 * `PriceListCompositionTerminationVisitor`) at {@code LowestPriceTerminationFormula} construction time to
+	 * decide whether outer LP instances should collect the per-inner-record histogram side-output.
+	 */
+	public boolean isPriceHistogramRequested() {
+		if (this.priceHistogramRequested == null) {
+			this.priceHistogramRequested =
+				QueryUtils.findRequire(this.query, PriceHistogram.class) != null;
+		}
+		return this.priceHistogramRequested;
 	}
 
 	/**

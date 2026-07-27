@@ -28,6 +28,8 @@ import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.mutation.conflict.CollectionConflictKey;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictGenerationContext;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolution;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
@@ -41,9 +43,12 @@ import org.mockito.Mockito;
 
 import java.util.List;
 import java.util.Set;
+import org.junit.jupiter.api.Tag;
 
 import static java.util.Optional.of;
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.SCHEMA;
 
 /**
  * This test verifies {@link ModifyEntitySchemaNameMutation} class.
@@ -51,6 +56,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 @DisplayName("ModifyEntitySchemaNameMutation")
+@Tag(CONTRACT)
+@Tag(SCHEMA)
 class ModifyEntitySchemaNameMutationTest {
 
 	@Nested
@@ -188,9 +195,9 @@ class ModifyEntitySchemaNameMutationTest {
 			final ModifyEntitySchemaNameMutation mutation = new ModifyEntitySchemaNameMutation(
 				"oldName", "newName", false
 			);
-			final List<ConflictKey> keys = new ConflictGenerationContext().withEntityType(
+			final List<ConflictKey> keys = new ConflictGenerationContext(new ConflictResolution(ConflictPolicy.NONE)).withEntityType(
 				"oldName", null,
-				ctx -> mutation.collectConflictKeys(ctx, Set.of()).toList()
+				ctx -> mutation.collectConflictKeys(ctx).toList()
 			);
 			assertEquals(2, keys.size());
 			assertInstanceOf(CollectionConflictKey.class, keys.get(0));

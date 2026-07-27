@@ -39,6 +39,17 @@ public record CollectionConflictKey(
 ) implements ConflictKey {
 
 	/**
+	 * {@inheritDoc}
+	 *
+	 * @return {@link ConflictScope#COLLECTION}
+	 */
+	@Nonnull
+	@Override
+	public ConflictScope conflictScope() {
+		return ConflictScope.COLLECTION;
+	}
+
+	/**
 	 * Returns a concise, human-readable representation of this conflict key.
 	 *
 	 * @return non-null string representation

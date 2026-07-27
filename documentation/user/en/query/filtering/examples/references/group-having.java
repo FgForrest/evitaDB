@@ -1,0 +1,42 @@
+final EvitaResponse<SealedEntity> entities = evita.queryCatalog(
+	"evita",
+	session -> {
+		return session.querySealedEntity(
+			query(
+				collection("Product"),
+				filterBy(
+					hierarchyWithin(
+						"categories",
+						attributeEquals("code", "macbooks")
+					),
+					referenceHaving(
+						"parameterValues",
+						groupHaving(
+							attributeEquals("code", "ram-memory")
+						)
+					)
+				),
+				require(
+					page(1, 5),
+					entityFetch(
+						attributeContent("code"),
+						referenceContentWithAttributes(
+							"parameterValues",
+							filterBy(
+								entityHaving(
+									attributeStartsWith("code", "ram-memory")
+								)
+							),
+							entityFetch(
+								attributeContent("code")
+							),
+							entityGroupFetch(
+								attributeContent("code")
+							)
+						)
+					)
+				)
+			)
+		);
+	}
+);

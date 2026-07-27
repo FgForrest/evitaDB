@@ -29,10 +29,13 @@ import org.junit.jupiter.api.Test;
 
 import java.util.Arrays;
 import java.util.Comparator;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.COMPARATOR;
 
 /**
  * Tests for {@link NullsFirstComparatorWrapper} verifying that
@@ -42,6 +45,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 @DisplayName("NullsFirstComparatorWrapper")
+@Tag(ENGINE)
+@Tag(COMPARATOR)
 class NullsFirstComparatorWrapperTest {
 
 	private final NullsFirstComparatorWrapper<String> comparator =

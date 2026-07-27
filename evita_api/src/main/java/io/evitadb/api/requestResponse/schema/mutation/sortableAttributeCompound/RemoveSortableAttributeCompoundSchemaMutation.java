@@ -114,6 +114,7 @@ public class RemoveSortableAttributeCompoundSchemaMutation
 				entitySchema.getNameVariants(),
 				entitySchema.getDescription(),
 				entitySchema.getDeprecationNotice(),
+				entitySchema.getConflictResolution().orElse(null),
 				entitySchema.isWithGeneratedPrimaryKey(),
 				entitySchema.isWithHierarchy(),
 				entitySchema.getHierarchyIndexedInScopes(),
@@ -178,7 +179,11 @@ public class RemoveSortableAttributeCompoundSchemaMutation
 					referenceSchema.getGroupTypeNameVariants(entityType -> null),
 					referenceSchema.isReferencedGroupTypeManaged(),
 					referenceSchema.getReferenceIndexTypeInScopes(),
+					referenceSchema.getIndexedComponentsInScopes(),
 					referenceSchema.getFacetedInScopes(),
+					referenceSchema.getFacetedPartiallyInScopes(),
+					referenceSchema.getAllHistogramIndexDefinitions(),
+					referenceSchema.getBucketedPartiallyInScopes(),
 					referenceSchema.getAttributes(),
 					referenceSchema.getSortableAttributeCompounds()
 						.entrySet()
@@ -189,7 +194,8 @@ public class RemoveSortableAttributeCompoundSchemaMutation
 								Map.Entry::getKey,
 								Map.Entry::getValue
 							)
-						)
+						),
+					referenceSchema.getConflictResolutionOverride()
 				);
 			}
 		}

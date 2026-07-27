@@ -32,6 +32,7 @@ import io.evitadb.externalApi.rest.api.openApi.OpenApiProperty;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiSimpleType;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.externalApi.rest.api.openApi.OpenApiEnum.enumFrom;
 import static io.evitadb.externalApi.rest.api.openApi.OpenApiNonNull.nonNull;
@@ -43,12 +44,18 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static io.evitadb.test.TestTags.REST;
+import static io.evitadb.test.TestTags.EXTERNAL_API;
+import static io.evitadb.test.TestTags.QUERY;
 
 /**
  * Tests for {@link PropertyDescriptorToOpenApiPropertyTransformer}
  *
  * @author Martin Veska (veska@fg.cz), FG Forrest a.s. (c) 2022
  */
+@Tag(REST)
+@Tag(EXTERNAL_API)
+@Tag(QUERY)
 class PropertyDescriptorToOpenApiPropertyTransformerTest {
 
 	private CatalogRestBuildingContext context;

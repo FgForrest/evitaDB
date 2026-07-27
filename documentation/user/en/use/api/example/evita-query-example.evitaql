@@ -23,7 +23,7 @@ query(
    ),
    require(
       page(1, 20),
-      facetSummary(IMPACT),
+      referenceSummary(IMPACT),
       priceType(WITH_TAX),
       priceHistogram(30)
    )

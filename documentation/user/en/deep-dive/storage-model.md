@@ -161,11 +161,41 @@ Data records contain the actual data payload for each record type and are used t
 
 ### Write-Ahead Log (WAL)
 
-The write-ahead log is a separate data structure to which all transactional changes are written in the form of serialized “mutations” when a transaction commit is accepted. Individual mutations are written using the <a href="#record-structure-in-the-storage">standard structure</a>, one after the other, in the order they were performed in the transaction. Transactions are separated by a header that contains the overall transaction length in bytes (`int32`). Also, at the start of each transaction, a <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/transaction/TransactionMutation.java</SourceClass> record is written, containing basic information about the transaction itself for easier orientation. After this, the list of individual mutations follows. The transaction length header allows fast navigation between transactions in the WAL file without deserializing each mutation.
+The write-ahead log is a separate data structure to which all transactional changes are written in the form of serialized "mutations" when a transaction commit is accepted. Individual mutations are written using the <a href="#record-structure-in-the-storage">standard structure</a>, one after the other, in the order they were performed in the transaction. Transactions are separated by a header that contains the overall transaction length in bytes (`int32`). Also, at the start of each transaction, a <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/transaction/TransactionMutation.java</SourceClass> record is written, containing basic information about the transaction itself for easier orientation. After this, the list of individual mutations follows. The transaction length header allows fast navigation between transactions in the WAL file without deserializing each mutation.
+
+Each transaction in the WAL is followed by a cumulative CRC32C checksum (8 bytes as `int64`). This checksum is calculated over all bytes written to the WAL file from the beginning up to (but not including) the checksum itself. This includes the transaction length headers, TransactionMutation records, and all mutation payloads. The cumulative nature of this checksum means that any corruption in any part of the WAL file will be detected when reading subsequent transactions. If a checksum mismatch is detected during WAL reading, the database will truncate the WAL at the point of corruption and recover using only the valid preceding transactions.
 
 The write-ahead log has a maximum file size set by the <a href="https://evitadb.io/documentation/operate/configure#transaction-configuration" target="_blank">walFileSizeBytes</a> setting. Once this limit is reached, the file is closed and a new one is created with the next index number in its name. The maximum number of WAL files is determined by <a href="https://evitadb.io/documentation/operate/configure#transaction-configuration" target="_blank">walFileCountKept</a>. When this maximum is reached, the oldest file is removed. This mechanism ensures WAL files never grow excessively large and do not accumulate indefinitely on the disk.
 
-At the end of each WAL file except the current one that is still being written to, there is a pair of `int64` values representing the first and last catalog versions recorded in that WAL file, followed by third `int64` value containing CRC32C checksum of the version pair. This allows quick navigation among WAL files if you need to locate a particular transaction that made changes to the catalog matching a specific version and also verification that those versions are valid and intact.
+Each WAL file starts and ends with cumulative CRC32C checksum. Initial cumulative checksum refers to the end cumulative checksum of the previous WAL file (or zero if it’s the first file). This allows for continuous verification of the entire WAL sequence across multiple files.
+
+At the end of each WAL file except the current one that is still being written to, there is a pair of `int64` values representing the first and last catalog versions recorded in that WAL file, followed by a third `int64` value containing the final cumulative CRC32C checksum of the entire WAL file content. This allows quick navigation among WAL files if you need to locate a particular transaction that made changes to the catalog matching a specific version and also verification that the file content is intact.
+
+#### WAL Transaction Format
+
+Overall, the WAL file structure is as follows:
+
+| Information                | Data type | Length in bytes |
+|----------------------------|-----------|-----------------|
+| Initial Cumulative CRC32C  | int64     | 8B              |
+| Transaction 1              | variable  | variable        |
+| Transaction 2              | variable  | variable        |
+| ...                        | ...       | ...             |
+| Transaction N              | variable  | variable        |
+| First Catalog Version      | int64     | 8B              |
+| Last Catalog Version       | int64     | 8B              |
+| Final Cumulative CRC32C    | int64     | 8B              |
+
+Each transaction in the WAL file has the following structure:
+
+| Information           | Data type | Length in bytes |
+|-----------------------|-----------|-----------------|
+| Transaction length    | int32     | 4B              |
+| TransactionMutation   | record    | variable        |
+| Mutation payloads     | record[]  | variable        |
+| Cumulative CRC32C     | int64     | 8B              |
+
+The cumulative CRC32C is computed incrementally as bytes are written to the WAL file. When reading transactions, this checksum is verified to ensure data integrity. If verification fails, a `WriteAheadLogCorruptedException` (for catalog WAL) or `EngineMutationLogCorruptedException` (for engine WAL) is thrown, and the WAL is truncated to the last valid transaction.
 
 If the end of a WAL file contains a partially written record or transaction (i.e., its size does not match the size specified in the transaction header or in a transaction mutation), the WAL file is truncated to the last valid WAL entry upon database startup.
 

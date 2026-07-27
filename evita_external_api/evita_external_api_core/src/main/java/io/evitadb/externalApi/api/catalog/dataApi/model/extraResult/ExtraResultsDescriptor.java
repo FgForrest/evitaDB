@@ -83,13 +83,23 @@ public interface ExtraResultsDescriptor {
 			""")
 		.type(nullableRef(HistogramDescriptor.THIS))
 		.build();
+	// TOBEDONE: remove when FacetSummary constraint is removed
 	PropertyDescriptor FACET_SUMMARY = PropertyDescriptor.builder()
 		.name("facetSummary")
 		.description("""
 			Returns summary of all facets that match query filter excluding those inside `userFilter`.
 			Object contains information about facet groups and individual facets in them as well as appropriate statistics for them.
 			""")
+		.deprecate("Facet summary has been renamed to `referenceSummary`. Use that instead.")
 		// type is expected to be a collection of `FacetGroupStatistics` objects
+		.build();
+	PropertyDescriptor REFERENCE_SUMMARY = PropertyDescriptor.builder()
+		.name("referenceSummary")
+		.description("""
+			Returns summary of all references that match query filter excluding those inside `userFilter`.
+			Object contains information about reference groups and individual references in them as well as appropriate statistics for them.
+			""")
+		// type is expected to be a collection of `ReferenceGroupStatistics` objects
 		.build();
 	PropertyDescriptor HIERARCHY = PropertyDescriptor.builder()
 		.name("hierarchy")

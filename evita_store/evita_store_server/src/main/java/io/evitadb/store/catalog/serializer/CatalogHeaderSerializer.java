@@ -67,6 +67,8 @@ public class CatalogHeaderSerializer extends AbstractPersistentStorageHeaderSeri
 			);
 			output.writeVarLong(walFileLocation.startingPosition(), true);
 			output.writeVarInt(walFileLocation.recordLength(), true);
+			// Write cumulative checksum for WAL integrity verification
+			output.writeLong(walFileReference.cumulativeChecksum());
 		} else {
 			output.writeBoolean(false);
 		}
@@ -106,10 +108,13 @@ public class CatalogHeaderSerializer extends AbstractPersistentStorageHeaderSeri
 			final int walFileIndex = input.readVarInt(true);
 			final long walStartingPosition = input.readVarLong(true);
 			final int walRecordLength = input.readVarInt(true);
+			// Read cumulative checksum for WAL integrity verification
+			final long cumulativeChecksum = input.readLong();
 			walFileReference = new LogFileRecordReference(
 				newIndex -> CatalogPersistenceService.getWalFileName(catalogName, newIndex),
 				walFileIndex,
-				new FileLocation(walStartingPosition, walRecordLength)
+				new FileLocation(walStartingPosition, walRecordLength),
+				cumulativeChecksum
 			);
 		} else {
 			walFileReference = null;

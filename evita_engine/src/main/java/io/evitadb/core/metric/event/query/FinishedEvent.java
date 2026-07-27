@@ -24,6 +24,7 @@
 package io.evitadb.core.metric.event.query;
 
 import io.evitadb.api.configuration.metric.MetricType;
+import io.evitadb.api.observability.annotation.ExportConfigurableLabels;
 import io.evitadb.api.observability.annotation.ExportDurationMetric;
 import io.evitadb.api.observability.annotation.ExportInvocationMetric;
 import io.evitadb.api.observability.annotation.ExportMetric;
@@ -36,8 +37,6 @@ import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.Arrays;
-import java.util.stream.Collectors;
 
 /**
  * Event that is fired when an evitaDB query is finished.
@@ -59,6 +58,7 @@ public class FinishedEvent extends AbstractQueryEvent {
 
 	@Label("Labels")
 	@Description("Zero or more client labels associated with the query. Labels are delimited by comma, label consists of name and value separated by equals sign.")
+	@ExportConfigurableLabels
 	private final String labels;
 
 	@Label("Query planning duration in milliseconds")
@@ -135,11 +135,21 @@ public class FinishedEvent extends AbstractQueryEvent {
 		this.entityType = entityType;
 		this.begin();
 		this.created = System.currentTimeMillis();
-		this.labels = labels == null ?
-			"" :
-			Arrays.stream(labels)
-				.map(label -> label.getLabelName() + "=" + label.getLabelValue())
-				.collect(Collectors.joining(","));
+		if (labels == null) {
+			this.labels = "";
+		} else {
+			// build the "name=value,name=value" bag without streams - this runs on the query path (see the
+			// `labels` field's @ExportConfigurableLabels contract consumed by the observability module)
+			final StringBuilder labelsBuilder = new StringBuilder(labels.length * 32);
+			for (int i = 0; i < labels.length; i++) {
+				final io.evitadb.api.query.head.Label label = labels[i];
+				if (i > 0) {
+					labelsBuilder.append(',');
+				}
+				labelsBuilder.append(label.getLabelName()).append('=').append(label.getLabelValue());
+			}
+			this.labels = labelsBuilder.toString();
+		}
 	}
 
 	/**

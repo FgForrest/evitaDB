@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2026
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -38,6 +38,7 @@ import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.exception.CatalogGoingLiveException;
 import io.evitadb.api.exception.CatalogNotFoundException;
+import io.evitadb.api.exception.CatalogRequiresUpgradeException;
 import io.evitadb.api.exception.InstanceTerminatedException;
 import io.evitadb.api.exception.ReadOnlyException;
 import io.evitadb.api.observability.trace.TracingContext;
@@ -47,8 +48,9 @@ import io.evitadb.api.requestResponse.cdc.ChangeCaptureContent;
 import io.evitadb.api.requestResponse.cdc.ChangeCapturePublisher;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureRequest;
+import io.evitadb.api.requestResponse.cdc.HostSystemEvent;
+import io.evitadb.api.requestResponse.data.DevelopmentConstants;
 import io.evitadb.api.requestResponse.mutation.EngineMutation;
-import io.evitadb.api.requestResponse.mutation.infrastructure.TransactionMutation;
 import io.evitadb.api.requestResponse.progress.Progress;
 import io.evitadb.api.requestResponse.progress.ProgressingFuture;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
@@ -57,11 +59,14 @@ import io.evitadb.api.requestResponse.schema.builder.InternalCatalogSchemaBuilde
 import io.evitadb.api.requestResponse.schema.mutation.engine.CreateCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.DuplicateCatalogMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.MakeCatalogAliveMutation;
+import io.evitadb.api.requestResponse.schema.mutation.engine.MarkCatalogMissingMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.ModifyCatalogSchemaNameMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.RemoveCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.RestoreCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.SetCatalogMutabilityMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.SetCatalogStateMutation;
+import io.evitadb.api.requestResponse.schema.mutation.engine.UpgradeCatalogFormatMutation;
+import io.evitadb.api.requestResponse.mutation.infrastructure.TransactionMutation;
 import io.evitadb.core.cache.CacheSupervisor;
 import io.evitadb.core.cache.HeapMemoryCacheSupervisor;
 import io.evitadb.core.cache.NoCacheSupervisor;
@@ -81,9 +86,9 @@ import io.evitadb.core.executor.Scheduler;
 import io.evitadb.core.management.EvitaManagement;
 import io.evitadb.core.metric.event.storage.CatalogStatisticsEvent;
 import io.evitadb.core.metric.event.system.EvitaStatisticsEvent;
-import io.evitadb.core.metric.event.system.RequestForkJoinPoolStatisticsEvent;
+import io.evitadb.core.metric.event.system.RequestThreadPoolStatisticsEvent;
 import io.evitadb.core.metric.event.system.ScheduledExecutorStatisticsEvent;
-import io.evitadb.core.metric.event.system.TransactionForkJoinPoolStatisticsEvent;
+import io.evitadb.core.metric.event.system.TransactionThreadPoolStatisticsEvent;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.session.EvitaInternalSessionContract;
 import io.evitadb.core.session.EvitaSession;
@@ -92,12 +97,14 @@ import io.evitadb.core.session.SuspendOperation;
 import io.evitadb.core.session.SuspensionInformation;
 import io.evitadb.core.session.task.SessionKiller;
 import io.evitadb.core.transaction.engine.EngineTransactionManager;
+import io.evitadb.core.transaction.engine.operators.DefaultUpgradeExecutor;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.function.Functions;
 import io.evitadb.spi.store.catalog.shared.model.LogRecordReference;
 import io.evitadb.spi.store.engine.EnginePersistenceService;
 import io.evitadb.spi.store.engine.EnginePersistenceServiceFactory;
 import io.evitadb.spi.store.engine.model.EngineState;
+import io.evitadb.spi.store.engine.model.CatalogInventoryDivergence;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
@@ -112,10 +119,12 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Closeable;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.ServiceLoader;
@@ -209,7 +218,7 @@ public final class Evita implements EvitaContract {
 	/**
 	 * Transaction manager that is responsible for managing engine transactions in the evitaDB engine.
 	 */
-	private final EngineTransactionManager engineTransactionManager;
+	@Getter private final EngineTransactionManager engineTransactionManager;
 	/**
 	 * Contains the main evitaDB management service.
 	 */
@@ -231,6 +240,14 @@ public final class Evita implements EvitaContract {
 	 * the list is cleared.
 	 */
 	private final AtomicReference<ProgressingFuture<Catalog>[]> initialLoadCatalogFutures;
+	/**
+	 * Tracks whether {@link #scheduleInitialCatalogLoading()} has been invoked. This is the guard
+	 * for the two-phase boot contract: callers must construct `Evita`, attach observers (e.g.
+	 * register external API providers that subscribe to the system CDC stream), and only then
+	 * schedule catalog loading. Calling {@link #waitUntilFullyInitialized()} before scheduling is
+	 * a programming error (would deadlock) and is rejected with a fail-fast exception.
+	 */
+	private final AtomicBoolean catalogLoadingScheduled = new AtomicBoolean(false);
 	/**
 	 * Flag that is set to TRUE when Evita fully loads all catalogs, that should be active after startup.
 	 */
@@ -276,10 +293,28 @@ public final class Evita implements EvitaContract {
 		}
 	}
 
+	/**
+	 * Constructs a new `Evita` instance with the given configuration. Initial catalog loading is
+	 * scheduled automatically.
+	 *
+	 * **Caveat for callers who construct `ExternalApiServer` (or any other host-CDC subscriber)
+	 * manually against this instance:** use {@link #Evita(EvitaConfiguration, boolean)} with
+	 * `scheduleCatalogLoading=false` instead. Otherwise host events for fast-loading catalogs may
+	 * fire before subscribers attach (HOST-area events are live-tail only) and those catalogs will
+	 * be invisible to the subscribers, leaving e.g. GraphQL/REST endpoints unregistered.
+	 * `EvitaServer` already handles this correctly — its users do not need the boolean overload.
+	 *
+	 * @param configuration evita configuration; never `null`
+	 */
 	public Evita(@Nonnull EvitaConfiguration configuration) {
 		this(configuration, true, null, null);
 	}
 
+	/**
+	 * Constructs a new `Evita` instance with session lifecycle callbacks. Initial catalog loading
+	 * is scheduled automatically. Same caveat as {@link #Evita(EvitaConfiguration)} for callers
+	 * wiring up host-CDC subscribers manually.
+	 */
 	public Evita(
 		@Nonnull EvitaConfiguration configuration,
 		@Nullable Consumer<EvitaSessionContract> onSessionCreationCallback,
@@ -293,6 +328,24 @@ public final class Evita implements EvitaContract {
 		);
 	}
 
+	/**
+	 * Constructs a new `Evita` instance with explicit control over the second phase of the boot
+	 * sequence.
+	 *
+	 * Pass `scheduleCatalogLoading=false` when you intend to attach host-CDC subscribers (e.g. by
+	 * constructing `ExternalApiServer` against this instance) before catalogs are allowed to begin
+	 * loading. Then call {@link #scheduleInitialCatalogLoading()} (or rely on
+	 * `ExternalApiServer.start()` to call it for you) after every subscriber is in place. This
+	 * avoids the live-tail-only race described on {@link #Evita(EvitaConfiguration)}.
+	 *
+	 * Pass `true` (or use {@link #Evita(EvitaConfiguration)}) for pure embedded use without
+	 * external-API surfaces. `EvitaServer` uses `false` internally — its users do not need this
+	 * overload.
+	 *
+	 * @param configuration            evita configuration; never `null`
+	 * @param scheduleCatalogLoading   `true` schedules loading immediately; `false` defers it to
+	 *                                 an explicit {@link #scheduleInitialCatalogLoading()} call
+	 */
 	public Evita(
 		@Nonnull EvitaConfiguration configuration,
 		boolean scheduleCatalogLoading
@@ -305,11 +358,60 @@ public final class Evita implements EvitaContract {
 		);
 	}
 
+	/**
+	 * Constructs a new `Evita` instance with session lifecycle callbacks and explicit control over the
+	 * second phase of the boot sequence (see {@link #Evita(EvitaConfiguration, boolean)}). The executor kind
+	 * defaults to {@link DevelopmentConstants#isTestRun()} — an immediate (synchronous) executor during test
+	 * runs, real thread pools otherwise; use
+	 * {@link #Evita(EvitaConfiguration, boolean, Consumer, Consumer, boolean)} to choose it explicitly.
+	 *
+	 * @param configuration                evita configuration; never `null`
+	 * @param scheduleCatalogLoading       `true` schedules loading immediately; `false` defers it to an
+	 *                                     explicit {@link #scheduleInitialCatalogLoading()} call
+	 * @param onSessionCreationCallback    optional callback invoked when a session is created
+	 * @param onSessionTerminationCallback optional callback invoked when a session is terminated
+	 */
 	public Evita(
 		@Nonnull EvitaConfiguration configuration,
 		boolean scheduleCatalogLoading,
 		@Nullable Consumer<EvitaSessionContract> onSessionCreationCallback,
 		@Nullable Consumer<EvitaSessionContract> onSessionTerminationCallback
+	) {
+		this(
+			configuration,
+			scheduleCatalogLoading,
+			onSessionCreationCallback,
+			onSessionTerminationCallback,
+			// in test runs default to the immediate (synchronous) executor so embedded execution stays
+			// deterministic; networked / production callers pass an explicit value to the constructor below
+			DevelopmentConstants.isTestRun()
+		);
+	}
+
+	/**
+	 * Constructs a new `Evita` instance with explicit control over both the second phase of the boot
+	 * sequence and the executor kind used for the request pool and the scheduler.
+	 *
+	 * This is the full constructor all other overloads delegate to. Networked hosts (e.g.
+	 * `EvitaServer`) and any caller that needs real (asynchronous) thread pools pass
+	 * `directExecutor=false`; embedded callers that omit the flag get the {@link DevelopmentConstants#isTestRun()}
+	 * default, which collapses the request pool and scheduler into an immediate (synchronous) executor
+	 * during test runs to keep embedded execution deterministic.
+	 *
+	 * @param configuration                       evita configuration; never `null`
+	 * @param scheduleCatalogLoading              `true` schedules loading immediately; `false` defers it to
+	 *                                            an explicit {@link #scheduleInitialCatalogLoading()} call
+	 * @param onSessionCreationCallback           optional callback invoked when a session is created
+	 * @param onSessionTerminationCallback        optional callback invoked when a session is terminated
+	 * @param directExecutor                      `true` uses the immediate (synchronous) executor for the
+	 *                                            request pool and scheduler; `false` uses real thread pools
+	 */
+	public Evita(
+		@Nonnull EvitaConfiguration configuration,
+		boolean scheduleCatalogLoading,
+		@Nullable Consumer<EvitaSessionContract> onSessionCreationCallback,
+		@Nullable Consumer<EvitaSessionContract> onSessionTerminationCallback,
+		boolean directExecutor
 	) {
 		this.configuration = configuration;
 		this.onSessionCreationCallback = onSessionCreationCallback == null ?
@@ -317,21 +419,23 @@ public final class Evita implements EvitaContract {
 		this.onSessionTerminationCallback = onSessionTerminationCallback == null ?
 			Functions.noOpConsumer() : onSessionTerminationCallback;
 
-		this.serviceExecutor = configuration.server().directExecutor() ?
+		this.serviceExecutor = directExecutor ?
 			// in test environment we use immediate (synchronous) executor to avoid race conditions
 			new Scheduler(new ImmediateScheduledThreadPoolExecutor()) :
 			// in standard environment we use a scheduled thread pool executor
 			new Scheduler(configuration.server().serviceThreadPool());
 		this.requestExecutor = new ObservableThreadExecutor(
 			"request", configuration.server().requestThreadPool(),
-			configuration.server().directExecutor()
+			directExecutor,
+			RequestThreadPoolStatisticsEvent::new
 		);
 		this.transactionExecutor = new ObservableThreadExecutor(
 			"transaction",
 			configuration.server().transactionThreadPool(),
 			// transaction handling must always run in a separate thread pool, even in tests
 			// because it uses thread local variables for transaction management
-			false
+			false,
+			TransactionThreadPoolStatisticsEvent::new
 		);
 
 		this.sessionKiller = of(configuration.server().closeSessionsAfterSecondsOfInactivity())
@@ -361,7 +465,11 @@ public final class Evita implements EvitaContract {
 			engineState.activeCatalogs().length + engineState.inactiveCatalogs().length
 		);
 
-		// register stubs for all inactive catalogs
+		// Install pre-divergence stubs for everything the persisted state knows about. The boot-time
+		// divergence drain below uses `EngineTransactionManager` to apply WAL-backed mutations that
+		// will replace the relevant stubs (active/inactive catalogs whose folder vanished get an
+		// `UnusableCatalog(MISSING)` placeholder; folders that came back / were auto-discovered get an
+		// `UnusableCatalog(INACTIVE)` placeholder) before the catalog load futures are spawned.
 		Arrays.stream(engineState.inactiveCatalogs())
 		      .map(
 			      it -> new UnusableCatalog(
@@ -371,30 +479,18 @@ public final class Evita implements EvitaContract {
 			      )
 		      )
 		      .forEach(it -> catalogs.put(it.getName(), it));
+		Arrays.stream(engineState.activeCatalogs())
+		      .map(
+			      it -> new UnusableCatalog(
+				      it, CatalogState.BEING_ACTIVATED,
+				      this.configuration.storage().storageDirectory().resolve(it),
+				      (cn, path) -> new CatalogTransitioningException(cn, path, CatalogState.BEING_ACTIVATED)
+			      )
+		      )
+		      .forEach(it -> catalogs.put(it.getName(), it));
 
-		// spawn parallel tasks to load all active catalogs, but don't wait for them to finish
-		//noinspection unchecked
-		this.initialLoadCatalogFutures = new AtomicReference<>(
-			Arrays.stream(engineState.activeCatalogs())
-			      .map(catalogName -> {
-				      catalogs.put(
-					      catalogName,
-					      new UnusableCatalog(
-						      catalogName,
-						      CatalogState.BEING_ACTIVATED,
-						      this.configuration.storage().storageDirectory().resolve(catalogName),
-						      (cn, path) -> new CatalogTransitioningException(cn, path, CatalogState.BEING_ACTIVATED)
-					      )
-				      );
-					  return this.loadCatalogInternal(
-						  catalogName,
-						  ArrayUtils.computeInsertPositionOfObjInOrderedArray(catalogName, engineState.readOnlyCatalogs())
-						            .alreadyPresent()
-					  );
-			      })
-			      .toArray(ProgressingFuture[]::new)
-		);
-		// now init state with catalog stubs
+		// initialize engine state with the pre-divergence stubs so the transaction manager has a
+		// consistent view to mutate during the divergence drain.
 		this.engineState.set(
 			ExpandedEngineState.create(
 				engineState,
@@ -410,7 +506,31 @@ public final class Evita implements EvitaContract {
 		);
 
 		this.engineTransactionManager = new EngineTransactionManager(
-			this, this.changeObserver, this.transactionExecutor, enginePersistenceService
+			this, this.changeObserver, this.transactionExecutor, enginePersistenceService,
+			new DefaultUpgradeExecutor(
+				this.configuration.storage(), this.configuration.transaction(),
+				this.serviceExecutor, this.management.exportService()
+			)
+		);
+
+		// Drain catalog inventory divergence detected during persistence-service construction. Each entry produces
+		// a WAL record and bumps the engine version, so boot-time reconciliation flows through the same WAL-first
+		// path as runtime mutations and is observable through CDC.
+		drainPendingCatalogInventoryDivergence(enginePersistenceService.getPendingCatalogInventoryDivergence());
+
+		// Spawn catalog load futures from the POST-divergence active catalogs — names that became
+		// MISSING above are no longer in the active list and must NOT be loaded.
+		final ExpandedEngineState postDivergence = this.engineState.get();
+		//noinspection unchecked
+		this.initialLoadCatalogFutures = new AtomicReference<>(
+			Arrays.stream(postDivergence.engineState().activeCatalogs())
+			      .map(catalogName -> this.loadCatalogInternal(
+				      catalogName,
+				      ArrayUtils.computeInsertPositionOfObjInOrderedArray(
+					      catalogName, postDivergence.engineState().readOnlyCatalogs()
+				      ).alreadyPresent()
+			      ))
+			      .toArray(ProgressingFuture[]::new)
 		);
 
 		this.fullyInitialized = CompletableFuture.allOf(
@@ -418,14 +538,20 @@ public final class Evita implements EvitaContract {
 		).whenComplete(
 			(__, throwable) -> {
 				if (throwable != null) {
-					log.error(
-						"Errors encountered during start - {} catalog(s) could not be loaded!",
-						this.getCatalogs()
-						    .stream()
-						    .map(CatalogContract::getCatalogState)
-						    .filter(CatalogState.CORRUPTED::equals)
-						    .count()
-					);
+					// CORRUPTED is the source of truth for genuine boot-time failures; the
+					// auto-upgrade path completes the first-attempt future exceptionally by
+					// design and is logged separately by `scheduleStorageProtocolUpgradeAndRetry`.
+					final long corruptedCount = this.getCatalogs()
+						.stream()
+						.map(CatalogContract::getCatalogState)
+						.filter(CatalogState.CORRUPTED::equals)
+						.count();
+					if (corruptedCount > 0) {
+						log.error(
+							"Errors encountered during start - {} catalog(s) could not be loaded!",
+							corruptedCount
+						);
+					}
 				}
 				// clear the initial load catalog futures, we don't need them anymore
 				this.initialLoadCatalogFutures.set(null);
@@ -437,7 +563,7 @@ public final class Evita implements EvitaContract {
 
 		// register the system observer that will capture changes in the system and emit observability events
 		this.changeObserver.registerObserver(
-			new ChangeSystemCaptureRequest(null, null, ChangeCaptureContent.BODY)
+			new ChangeSystemCaptureRequest(null, null, null, ChangeCaptureContent.BODY)
 		).subscribe(
 			new EngineStatisticsPublisher(
 				this::emitEvitaStatistics,
@@ -456,15 +582,24 @@ public final class Evita implements EvitaContract {
 	}
 
 	/**
-	 * Schedules the initial loading of catalogs by executing all future tasks
-	 * in the `initialLoadCatalogFutures` collection using the provided service executor.
-	 * This method ensures that the catalog loading tasks are executed concurrently
-	 * or sequentially based on the configuration of the service executor.
+	 * Schedules the initial loading of catalogs by executing all future tasks in the
+	 * `initialLoadCatalogFutures` collection using the engine transaction executor.
 	 *
-	 * The tasks in `initialLoadCatalogFutures` are instances of `ProgressingFuture`
-	 * which encapsulate asynchronous operations for loading catalogs.
+	 * **Two-phase boot contract.** This method is the second phase of the boot sequence: it
+	 * must be called *after* any host-level observers (external API providers, change-capture
+	 * subscribers, etc.) have attached to the system CDC stream. Once invoked, host events
+	 * such as {@link io.evitadb.api.requestResponse.cdc.HostSystemEvent.CatalogInstalledIntoLiveView}
+	 * begin firing as catalogs settle into the live view; subscribers attached before this call
+	 * are guaranteed to receive every event.
+	 *
+	 * Calling this method twice is a no-op for the second call (futures only execute once).
 	 */
 	public void scheduleInitialCatalogLoading() {
+		// idempotent: only the first call kicks off the executions; subsequent invocations
+		// (e.g. from `ExternalApiServer.start()` AND `EvitaServer.run()`) are silent no-ops
+		if (!this.catalogLoadingScheduled.compareAndSet(false, true)) {
+			return;
+		}
 		final ProgressingFuture<Catalog>[] progressingFutures = this.initialLoadCatalogFutures.get();
 		if (progressingFutures != null) {
 			final Executor unrejectableExecutor = ProgressingFuture.unrejectableExecutor(this.engineTransactionManager.getExecutor());
@@ -524,30 +659,16 @@ public final class Evita implements EvitaContract {
 			this::emitEvitaStatistics
 		);
 		FlightRecorder.addPeriodicEvent(
-			RequestForkJoinPoolStatisticsEvent.class,
-			() -> this.requestExecutor.emitPoolStatistics(
-				(fj, steals) -> new RequestForkJoinPoolStatisticsEvent(
-					steals,
-					fj.getQueuedTaskCount(),
-					fj.getActiveThreadCount(),
-					fj.getRunningThreadCount()
-				)
-			)
+			RequestThreadPoolStatisticsEvent.class,
+			this.requestExecutor::emitStatistics
 		);
 		FlightRecorder.addPeriodicEvent(
-			TransactionForkJoinPoolStatisticsEvent.class,
-			() -> this.transactionExecutor.emitPoolStatistics(
-				(fj, steals) -> new TransactionForkJoinPoolStatisticsEvent(
-					steals,
-					fj.getQueuedTaskCount(),
-					fj.getActiveThreadCount(),
-					fj.getRunningThreadCount()
-				)
-			)
+			TransactionThreadPoolStatisticsEvent.class,
+			this.transactionExecutor::emitStatistics
 		);
 		FlightRecorder.addPeriodicEvent(
 			ScheduledExecutorStatisticsEvent.class,
-			this.serviceExecutor::emitScheduledForkJoinPoolStatistics
+			this.serviceExecutor::emitStatistics
 		);
 	}
 
@@ -866,13 +987,47 @@ public final class Evita implements EvitaContract {
 	}
 
 	/**
-	 * Blocks the current thread until the associated initialization process is fully completed.
-	 * This method waits for the internal process associated with the `fullyInitialized` object
-	 * to complete its execution. It ensures that the calling thread does not proceed
-	 * until the initialization process is finalized.
+	 * Blocks the current thread until the initial catalog loading is fully completed.
+	 *
+	 * **Pure-wait semantics.** This method does NOT trigger loading — that is the job of
+	 * {@link #scheduleInitialCatalogLoading()}. Calling this method before scheduling has
+	 * happened (and when there is at least one catalog still pending) is a programming error
+	 * and is rejected with {@link GenericEvitaInternalError} rather than silently deadlocking.
+	 *
+	 * Use {@link #loadCatalogsAndWaitUntilFullyInitialized()} when you want the combined
+	 * "schedule and wait" behavior in a single call.
+	 *
+	 * @throws GenericEvitaInternalError if catalog loading is pending and has not been scheduled
 	 */
 	public void waitUntilFullyInitialized() {
+		Assert.isPremiseValid(
+			this.fullyInitialized.isDone() || this.catalogLoadingScheduled.get(),
+			() -> new GenericEvitaInternalError(
+				"Catalog loading has not been scheduled — call scheduleInitialCatalogLoading() first " +
+					"or use loadCatalogsAndWaitUntilFullyInitialized() instead."
+			)
+		);
 		this.fullyInitialized.join();
+	}
+
+	/**
+	 * Convenience combinator that schedules catalog loading and then blocks until it
+	 * completes. Equivalent to:
+	 *
+	 * ```
+	 * scheduleInitialCatalogLoading();
+	 * waitUntilFullyInitialized();
+	 * ```
+	 *
+	 * Use this when no host-level observers need to be attached between scheduling and waiting
+	 * (typical in tests, or in embedded uses that do not subscribe to the system CDC stream).
+	 * In server contexts where external API providers must subscribe before loading begins,
+	 * call {@link #scheduleInitialCatalogLoading()} and {@link #waitUntilFullyInitialized()}
+	 * separately so the provider construction can run between them.
+	 */
+	public void loadCatalogsAndWaitUntilFullyInitialized() {
+		scheduleInitialCatalogLoading();
+		waitUntilFullyInitialized();
 	}
 
 	/**
@@ -1054,10 +1209,40 @@ public final class Evita implements EvitaContract {
 	 * Loads catalog from the designated directory. If the catalog is corrupted, it will be marked as such, but it'll
 	 * still be added to the list of catalogs.
 	 *
+	 * **Auto-upgrade of old-protocol catalogs:** when the underlying persistence service throws
+	 * {@link CatalogRequiresUpgradeException} — signalling that the on-disk storage protocol is older than the engine
+	 * supports — this method schedules an asynchronous upgrade flow instead of marking the catalog CORRUPTED: it
+	 * issues an `UpgradeCatalogFormatMutation` through the engine transaction manager, and on that mutation's
+	 * completion re-invokes the load (exactly once). The real `Catalog` is installed via the `replaceCatalogReference`
+	 * side-effect when the retry succeeds. The first-attempt future still completes exceptionally, but boot continues
+	 * normally because the retry runs in the background and does not block `fullyInitialized`.
+	 *
 	 * @param catalogName name of the catalog
+	 * @param readOnly    when {@code true} the catalog is opened in read-only mode
+	 * @return future that completes with the loaded {@link Catalog} instance
 	 */
 	@Nonnull
 	public ProgressingFuture<Catalog> loadCatalogInternal(@Nonnull String catalogName, boolean readOnly) {
+		return loadCatalogInternal(catalogName, readOnly, LoadMode.INITIAL);
+	}
+
+	/**
+	 * See {@link #loadCatalogInternal(String, boolean)}. The {@code mode} discriminates between the
+	 * initial load and the auto-upgrade retry path: {@link LoadMode#RETRY_AFTER_UPGRADE} prevents
+	 * infinite retry loops by treating a second `CatalogRequiresUpgradeException` (after an upgrade
+	 * mutation has already run) as a terminal failure that marks the catalog CORRUPTED.
+	 *
+	 * @param catalogName name of the catalog
+	 * @param readOnly    when {@code true} the catalog is opened in read-only mode
+	 * @param mode        load mode — {@link LoadMode#INITIAL} for first attempts (auto-upgrade
+	 *                    enabled), {@link LoadMode#RETRY_AFTER_UPGRADE} for the post-upgrade retry
+	 *                    (auto-upgrade disabled)
+	 * @return future that completes with the loaded {@link Catalog} instance
+	 */
+	@Nonnull
+	private ProgressingFuture<Catalog> loadCatalogInternal(
+		@Nonnull String catalogName, boolean readOnly, @Nonnull LoadMode mode
+	) {
 		final long start = System.nanoTime();
 		return Catalog.loadCatalog(
 			catalogName,
@@ -1072,7 +1257,7 @@ public final class Evita implements EvitaContract {
 				log.info("Catalog {} fully loaded in: {}", catalogName, StringUtils.formatNano(System.nanoTime() - start));
 				catalog.processWriteAheadLog(
 					updatedCatalog -> {
-						this.engineState.updateAndGet(
+						final ExpandedEngineState afterReplay = this.engineState.updateAndGet(
 							existingState -> {
 								if (existingState == null) {
 									// may be null, when the engine is shutting down
@@ -1085,33 +1270,236 @@ public final class Evita implements EvitaContract {
 						if (updatedCatalog instanceof Catalog theUpdatedCatalog) {
 							theUpdatedCatalog.notifyCatalogPresentInLiveView();
 						}
+						// Emit the host event so HOST-area subscribers learn that the
+						// post-WAL-replay catalog reference has settled on this host. This path
+						// bypasses `replaceCatalogReference` (which is the canonical chokepoint
+						// elsewhere) so the emit must be wired explicitly here — see issue #1151.
+						// Skip the emit when the engine state collapsed to null mid-shutdown.
+						//
+						// We deliberately do NOT emit `CatalogSchemaUpdated` here even when WAL
+						// replay advances the schema: live observers had no view of the catalog
+						// before this callback (it wasn't in the live view yet), so the
+						// `CatalogInstalledIntoLiveView` event already carries the post-replay
+						// schema and drives a single register/refresh in GraphQL / REST observers.
+						// Adding a second host event would only force a redundant rebuild.
+						if (afterReplay != null) {
+							notifyCatalogStateSettled(
+								updatedCatalog.getName(), updatedCatalog.getCatalogState()
+							);
+						}
 					}
 				);
 				this.emitCatalogStatistics(catalogName);
 			},
 			(cn, exception) -> {
+				final Throwable cause = ExceptionUtils.unwrapCompletionWrappers(exception);
+				if (mode == LoadMode.INITIAL && cause instanceof CatalogRequiresUpgradeException upgradeRequired) {
+					scheduleStorageProtocolUpgradeAndRetry(cn, readOnly, upgradeRequired);
+					// Deliberately skip the CORRUPTED marking — the retry path will install the
+					// real Catalog (or mark CORRUPTED itself if the upgrade mutation fails).
+					return;
+				}
 				log.error("Catalog {} is corrupted!", cn, exception);
-				this.engineState.updateAndGet(
-					existingState -> {
-						if (existingState == null) {
-							// may be null, when the engine is shutting down
-							return null;
-						} else {
-							return existingState.withUpdatedCatalogInstance(
-								new UnusableCatalog(
-									cn,
-									CatalogState.CORRUPTED,
-									this.configuration.storage().storageDirectory().resolve(cn),
-									(tcn, path) -> new CatalogCorruptedException(tcn, path, exception)
-								)
-							);
-						}
-					}
-				);
-				this.emitEvitaStatistics();
+				markCatalogCorrupted(cn, exception);
 			},
 			this.tracingContext
 		);
+	}
+
+	/**
+	 * Auto-upgrade driver invoked from `loadCatalogInternal`'s onFailure callback when the
+	 * persistence service reports that the catalog's on-disk storage protocol is behind the
+	 * engine's current version. Issues an `UpgradeCatalogFormatMutation` and, once it settles,
+	 * re-invokes the load exactly once. See class-level JavaDoc on {@link #loadCatalogInternal}.
+	 *
+	 * Runs asynchronously on the service executor so it does not stall the failure callback's
+	 * thread (which typically belongs to the transaction/request executor).
+	 *
+	 * @param catalogName     name of the catalog to upgrade and reload
+	 * @param readOnly        propagated to the retried load — same value the original load used
+	 * @param upgradeRequired the upgrade-required exception carrying the from/to protocol versions
+	 */
+	private void scheduleStorageProtocolUpgradeAndRetry(
+		@Nonnull String catalogName, boolean readOnly,
+		@Nonnull CatalogRequiresUpgradeException upgradeRequired
+	) {
+		// Defensive guard — the single-arg `CatalogRequiresUpgradeException(name)` ctor sets both
+		// protocol versions to -1 (used by reporting paths that do not inspect the on-disk header).
+		// If such an exception reaches us here we must NOT synthesize a mutation with nonsense
+		// version numbers — writing `UpgradeCatalogFormatMutation(name, -1, -1)` into the engine
+		// WAL would leave a malformed record that cannot be replayed. Fall back to marking the
+		// catalog CORRUPTED so the operator can intervene. Predicate lives on the exception so the
+		// guard is unit-testable independently of the Evita instance.
+		if (!upgradeRequired.hasValidProtocolMetadata()) {
+			log.error(
+				"Catalog {} reported as requiring storage-protocol upgrade but with invalid " +
+					"version metadata (from=v{}, to=v{}) — marking CORRUPTED instead of issuing a " +
+					"malformed UpgradeCatalogFormatMutation.",
+				catalogName,
+				upgradeRequired.getFromProtocolVersion(),
+				upgradeRequired.getToProtocolVersion()
+			);
+			markCatalogCorrupted(catalogName, upgradeRequired);
+			return;
+		}
+		log.info(
+			"Catalog {} requires storage-protocol upgrade from v{} to v{} — auto-issuing " +
+				"UpgradeCatalogFormatMutation.",
+			catalogName, upgradeRequired.getFromProtocolVersion(), upgradeRequired.getToProtocolVersion()
+		);
+		// Fire-and-forget is intentional: the resulting future is not tracked by `initialLoadCatalogFutures`
+		// because the lifecycle is bounded by `serviceExecutor`, which `closeAndDestroy()` shuts down after the
+		// catalogs are closed. An in-flight upgrade therefore either completes before close (the engine ingests
+		// the mutation through the normal `applyMutation` path, the retry installs the live Catalog) or is
+		// interrupted/cancelled by executor shutdown — in either case there is no shutdown race that could
+		// corrupt on-disk state. The applyMutation call itself is durable through the WAL, so a partial
+		// completion still leaves a recoverable on-disk snapshot.
+		CompletableFuture.runAsync(
+			() -> {
+				try {
+					this.engineTransactionManager.applyMutation(
+						new UpgradeCatalogFormatMutation(
+							catalogName,
+							upgradeRequired.getFromProtocolVersion(),
+							upgradeRequired.getToProtocolVersion()
+						),
+						null
+					)
+						.onCompletion()
+						.toCompletableFuture()
+						.join();
+				} catch (Throwable upgradeEx) {
+					log.error(
+						"Auto-upgrade of catalog {} failed — marking CORRUPTED.",
+						catalogName, upgradeEx
+					);
+					markCatalogCorrupted(catalogName, upgradeEx);
+					return;
+				}
+				// Mutation completed — retry the load exactly once (RETRY_AFTER_UPGRADE ensures
+				// that a second CatalogRequiresUpgradeException marks CORRUPTED instead of looping).
+				final ProgressingFuture<Catalog> retryFuture = loadCatalogInternal(
+					catalogName, readOnly, LoadMode.RETRY_AFTER_UPGRADE
+				);
+				retryFuture.execute(
+					ProgressingFuture.unrejectableExecutor(this.engineTransactionManager.getExecutor())
+				);
+			},
+			this.serviceExecutor
+		);
+	}
+
+	/**
+	 * Drains the boot-time catalog inventory divergence by applying one WAL-backed engine mutation per entry. The
+	 * persistence service computed this divergence as a pure value during its construction; here we replay it through
+	 * the regular `EngineTransactionManager.applyMutation` path so each reconciliation step produces a WAL record,
+	 * advances the engine version, and is observable through CDC.
+	 *
+	 * Apply order matters and is enforced by phasing:
+	 *
+	 * 1. Phase 1 — `becomeMissing`: `MarkCatalogMissingMutation` for each name. Drained to completion BEFORE phase 2
+	 *    is dispatched, so names freed from the active/inactive arrays cannot collide with subsequent
+	 *    `RestoreCatalogSchemaMutation` `verifyApplicability` checks for auto-discovered or reappeared catalogs.
+	 *    `applyMutation` only holds the engine-state lock during `verifyApplicability`/conflict-key registration —
+	 *    the actual state transition runs asynchronously after the lock is released — so synchronous awaiting at
+	 *    phase boundaries is what makes the ordering invariant load-bearing.
+	 * 2. Phase 2 — `reappeared` + `autoDiscovered`: `RestoreCatalogSchemaMutation` for each name. The two groups
+	 *    operate on disjoint name sets (a name cannot simultaneously reappear from the MISSING bucket and be newly
+	 *    auto-discovered), so they run in parallel.
+	 *
+	 * Each phase awaits its `onCompletion` futures so the engine state is stable by the time we exit. Failures wedge
+	 * the boot loudly via `GenericEvitaInternalError` — silently degrading would mask the WAL/engine-state drift
+	 * this code is meant to prevent.
+	 *
+	 * @param divergence divergence record returned by the persistence service; never null
+	 */
+	private void drainPendingCatalogInventoryDivergence(@Nonnull CatalogInventoryDivergence divergence) {
+		if (!divergence.isEmpty()) {
+			log.info(
+				"Draining boot-time catalog inventory divergence: {} becomeMissing, {} reappeared, {} autoDiscovered.",
+				divergence.becomeMissing().size(), divergence.reappeared().size(), divergence.autoDiscovered().size()
+			);
+			try {
+				// Phase 1 — drain `becomeMissing` to completion before any restore is dispatched, so that
+				// `RestoreCatalogSchemaMutation.verifyApplicability` for phase 2 sees a state in which the
+				// soon-to-be-missing names have already been freed from the active/inactive arrays (and from
+				// their naming-convention slots).
+				if (!divergence.becomeMissing().isEmpty()) {
+					final List<CompletableFuture<?>> phase1 = new ArrayList<>(divergence.becomeMissing().size());
+					for (final String name : divergence.becomeMissing()) {
+						phase1.add(
+							this.engineTransactionManager
+								.applyMutation(new MarkCatalogMissingMutation(name), null)
+								.onCompletion().toCompletableFuture()
+						);
+					}
+					CompletableFuture.allOf(phase1.toArray(CompletableFuture[]::new)).join();
+				}
+				// Phase 2 — `reappeared` and `autoDiscovered` operate on disjoint name sets, so they can run
+				// in parallel. The broadened applicability rules and operator path (`Builder#withRestoredFromMissing`)
+				// handle the MISSING → INACTIVE bucket move for `reappeared`; for `autoDiscovered` names the
+				// missing-bucket clearance is a no-op.
+				final List<CompletableFuture<?>> phase2 = new ArrayList<>(
+					divergence.reappeared().size() + divergence.autoDiscovered().size()
+				);
+				for (final String name : divergence.reappeared()) {
+					phase2.add(
+						this.engineTransactionManager
+							.applyMutation(new RestoreCatalogSchemaMutation(name), null)
+							.onCompletion().toCompletableFuture()
+					);
+				}
+				for (final String name : divergence.autoDiscovered()) {
+					phase2.add(
+						this.engineTransactionManager
+							.applyMutation(new RestoreCatalogSchemaMutation(name), null)
+							.onCompletion().toCompletableFuture()
+					);
+				}
+				if (!phase2.isEmpty()) {
+					CompletableFuture.allOf(phase2.toArray(CompletableFuture[]::new)).join();
+				}
+			} catch (Throwable t) {
+				throw new GenericEvitaInternalError(
+					"Boot-time catalog-inventory-divergence reconciliation failed: " + ExceptionUtils.unwrapCompletionWrappers(t).getMessage(),
+					t
+				);
+			}
+		}
+	}
+
+	/**
+	 * Marks the specified catalog as CORRUPTED in the engine state. Extracted from the inline
+	 * onFailure callback so the auto-upgrade path can reuse the same terminal-failure bookkeeping
+	 * when a retry fails.
+	 *
+	 * @param catalogName name of the catalog to mark CORRUPTED
+	 * @param cause       the failure carried by the resulting {@link CatalogCorruptedException}
+	 */
+	private void markCatalogCorrupted(@Nonnull String catalogName, @Nonnull Throwable cause) {
+		final ExpandedEngineState updated = this.engineState.updateAndGet(
+			existingState -> {
+				if (existingState == null) {
+					return null;
+				} else {
+					return existingState.withUpdatedCatalogInstance(
+						new UnusableCatalog(
+							catalogName,
+							CatalogState.CORRUPTED,
+							this.configuration.storage().storageDirectory().resolve(catalogName),
+							(tcn, path) -> new CatalogCorruptedException(tcn, path, cause)
+						)
+					);
+				}
+			}
+		);
+		// Emit the host event so HOST-area subscribers (GraphQL/REST/gRPC) learn about
+		// the CORRUPTED transition without a server restart — see issue #1151. Skip the emit when
+		// the engine state is null (shutdown race) so we do not call into a closed observer.
+		if (updated != null) {
+			notifyCatalogStateSettled(catalogName, CatalogState.CORRUPTED);
+		}
+		this.emitEvitaStatistics();
 	}
 
 	/**
@@ -1209,18 +1597,130 @@ public final class Evita implements EvitaContract {
 
 	/**
 	 * Replaces current catalog reference with updated one.
+	 *
+	 * Delegates the swap (and the prior-vs-new schema-version comparison) to
+	 * {@link ExpandedEngineState#replaceCatalogReference(Catalog)}, which performs both atomically
+	 * and reports back whether the catalog schema version advanced. Emits a
+	 * {@link HostSystemEvent.CatalogSchemaUpdated} on the system CDC stream when it did, so HOST-area
+	 * subscribers (GraphQL / REST schema-refresh observers) coalesce a single refresh per real
+	 * schema bump instead of per-commit. Pure data-only commits emit nothing.
+	 *
+	 * Note: state-transition emits ({@link HostSystemEvent.CatalogInstalledIntoLiveView}) are NOT
+	 * issued here. This method is reached only via the commit pipeline (`TransactionManager#propagateCatalogSnapshot`),
+	 * where prior+new are always real `Catalog` instances of the same state. State transitions
+	 * (WARMING_UP→ALIVE, INACTIVE/MISSING/CORRUPTED settlements) flow through the matching
+	 * mutation-operator completion-phase callbacks which call `notifyCatalogStateSettled` directly.
 	 */
 	private void replaceCatalogReference(@Nonnull Catalog catalog) {
 		notNull(catalog, "Sanity check.");
 
-		// replace catalog reference in the engine state
-		getEngineState().replaceCatalogReference(catalog);
+		final ExpandedEngineState snapshot = this.engineState.get();
+		if (snapshot == null) {
+			// engine is shutting down — host events are best-effort on shutdown
+			return;
+		}
+
+		final boolean schemaAdvanced = snapshot.replaceCatalogReference(catalog);
 
 		// discard suspension of the session registry for the catalog, if present
 		discardSuspension(catalog.getName());
 
 		// notify callback that it's now a live snapshot
 		catalog.notifyCatalogPresentInLiveView();
+
+		if (schemaAdvanced) {
+			notifyCatalogSchemaUpdated(catalog.getName(), catalog.getSchema().version());
+		}
+	}
+
+	/**
+	 * Emits a {@link HostSystemEvent.CatalogInstalledIntoLiveView} on the system CDC stream for
+	 * the given catalog. Used by `replaceCatalogReference` and by completion-phase callbacks of
+	 * mutation operators that install a settled catalog reference (real `Catalog` for ALIVE /
+	 * WARMING_UP, `UnusableCatalog` for INACTIVE / MISSING / OUT_OF_DATE / CORRUPTED) without
+	 * funneling through `replaceCatalogReference`.
+	 *
+	 * The event is host-local and live-tail only — it does NOT advance the engine version
+	 * counter; the snapshot version it carries is for correlation.
+	 *
+	 * @param catalogName  name of the catalog whose reference settled; never `null`
+	 * @param observedState the non-transient state the catalog settled into; the precondition is
+	 *                      enforced by the {@link HostSystemEvent.CatalogInstalledIntoLiveView}
+	 *                      record's compact constructor — passing a transitional state will fail
+	 *                      fast as a programming error
+	 */
+	public void notifyCatalogStateSettled(
+		@Nonnull String catalogName,
+		@Nonnull CatalogState observedState
+	) {
+		// Defensive no-op on shutdown — see issue #1151. Both the engine state and the change
+		// observer are torn down concurrently with in-flight operators during close; an operator's
+		// completion-phase emit reaching this method post-close must NOT wedge the operator's
+		// future with an `InstanceTerminatedException`. Host events are best-effort on shutdown.
+		final ExpandedEngineState snapshot = this.engineState.get();
+		if (snapshot == null || !this.changeObserver.isActive()) {
+			return;
+		}
+		final HostSystemEvent.CatalogInstalledIntoLiveView event =
+			new HostSystemEvent.CatalogInstalledIntoLiveView(
+				catalogName,
+				observedState,
+				snapshot.version()
+			);
+		this.changeObserver.processHostEvent(event);
+	}
+
+	/**
+	 * Emits a {@link HostSystemEvent.CatalogSchemaUpdated} on the system CDC stream for the
+	 * given catalog. Used by `EvitaSession` at WARMING_UP termination and by `replaceCatalogReference`
+	 * at ALIVE catalog version installation. Coalesces what was previously a per-mutation
+	 * `refreshCatalog` storm in GraphQL / REST observers.
+	 *
+	 * The event is host-local and live-tail only — it does NOT advance the engine version
+	 * counter; the snapshot version it carries is for correlation only.
+	 *
+	 * @param catalogName       name of the catalog whose schema version increased; never `null`
+	 * @param newSchemaVersion  the new (current) catalog schema version on this host; non-negative
+	 */
+	public void notifyCatalogSchemaUpdated(
+		@Nonnull String catalogName,
+		int newSchemaVersion
+	) {
+		// Defensive no-op on shutdown — see `notifyCatalogStateSettled`.
+		final ExpandedEngineState snapshot = this.engineState.get();
+		if (snapshot == null || !this.changeObserver.isActive()) {
+			return;
+		}
+		final HostSystemEvent.CatalogSchemaUpdated event =
+			new HostSystemEvent.CatalogSchemaUpdated(
+				catalogName,
+				newSchemaVersion,
+				snapshot.version()
+			);
+		this.changeObserver.processHostEvent(event);
+	}
+
+	/**
+	 * Emits a {@link HostSystemEvent.CatalogRemovedFromLiveView} on the system CDC stream for the
+	 * given catalog. Used by completion-phase callbacks of mutation operators that fully remove a
+	 * catalog from the live view (e.g. `RemoveCatalogSchemaMutationOperator`).
+	 *
+	 * The event is host-local and live-tail only — it does NOT advance the engine version.
+	 *
+	 * @param catalogName name of the catalog removed from the live view; never `null`
+	 */
+	public void notifyCatalogRemovedFromLiveView(@Nonnull String catalogName) {
+		// Defensive no-op on shutdown — see `notifyCatalogStateSettled`.
+		final ExpandedEngineState snapshot = this.engineState.get();
+		if (snapshot == null || !this.changeObserver.isActive()) {
+			return;
+		}
+		final HostSystemEvent.CatalogRemovedFromLiveView event =
+			new HostSystemEvent.CatalogRemovedFromLiveView(
+				catalogName,
+				snapshot.version()
+			);
+		this.changeObserver.processHostEvent(event);
 	}
 
 	/**
@@ -1479,6 +1979,29 @@ public final class Evita implements EvitaContract {
 		);
 		closedFuture.execute(ProgressingFuture.unrejectableExecutor(executor));
 		return closedFuture;
+	}
+
+	/**
+	 * Discriminator for {@link #loadCatalogInternal(String, boolean, LoadMode)} that distinguishes
+	 * the first load attempt from the post-upgrade retry. Exists so the auto-upgrade flow can suppress
+	 * a second auto-upgrade attempt and avoid infinite retry loops.
+	 */
+	private enum LoadMode {
+
+		/**
+		 * Initial load attempt — auto-upgrade is enabled. A {@link CatalogRequiresUpgradeException}
+		 * triggers an asynchronous `UpgradeCatalogFormatMutation` and a single retry under
+		 * {@link #RETRY_AFTER_UPGRADE}.
+		 */
+		INITIAL,
+
+		/**
+		 * Retry triggered by the auto-upgrade flow after an `UpgradeCatalogFormatMutation` has run.
+		 * Auto-upgrade is disabled — a second {@link CatalogRequiresUpgradeException} is treated as a
+		 * terminal failure and marks the catalog CORRUPTED.
+		 */
+		RETRY_AFTER_UPGRADE
+
 	}
 
 	/**

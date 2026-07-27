@@ -32,6 +32,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.dataType.PaginatedList.getFirstItemNumberForPage;
 import static io.evitadb.dataType.PaginatedList.getLastPageNumber;
@@ -41,6 +42,8 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.DATA_TYPE;
 
 /**
  * Tests verifying {@link PaginatedList} contract including static
@@ -50,6 +53,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * @author Jan Novotn&#253; (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("PaginatedList")
+@Tag(CONTRACT)
+@Tag(DATA_TYPE)
 class PaginatedListTest {
 
 	@Nested

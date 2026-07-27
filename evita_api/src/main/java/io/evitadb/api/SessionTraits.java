@@ -24,6 +24,8 @@
 package io.evitadb.api;
 
 import io.evitadb.api.TransactionContract.CommitBehavior;
+import io.evitadb.api.exception.TransactionException;
+import io.evitadb.api.exception.UniqueValueViolationException;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -167,6 +169,20 @@ public record SessionTraits(
 	}
 
 	/**
+	 * Returns `true` if the session's transaction is controlled by an external client rather than by an in-process
+	 * `updateCatalog` / `session.execute(...)` block.
+	 *
+	 * When set, individual mutation operations behave as if nested inside an outer transaction block — a recoverable
+	 * failure does not mark the whole transaction rollback-only; the external client decides at close time whether to
+	 * commit the survivors or discard the transaction.
+	 *
+	 * @return `true` if {@link SessionFlags#TRANSACTION_CONTROLLED_EXTERNALLY} is set, `false` otherwise
+	 */
+	public boolean isTransactionControlledExternally() {
+		return this.flags.contains(SessionFlags.TRANSACTION_CONTROLLED_EXTERNALLY);
+	}
+
+	/**
 	 * Enumeration of session behavior flags that can be combined when creating an evitaDB session.
 	 *
 	 * Flags are combined via varargs constructors in {@link SessionTraits} to control session access mode and behavior.
@@ -227,7 +243,32 @@ public record SessionTraits(
 		 *
 		 * This flag is for evitaDB internal use only. Client applications should not use binary mode.
 		 */
-		BINARY
+		BINARY,
+
+		/**
+		 * Marks the session's transaction as being driven by an external client (e.g. the gRPC driver) rather than by
+		 * an in-process `updateCatalog` / `session.execute(...)` block.
+		 *
+		 * **Behavior**
+		 *
+		 * When this flag is set, individual mutation operations are treated as if they were nested inside an outer
+		 * transaction block: a recoverable failure of a single operation (for example a
+		 * {@link UniqueValueViolationException}) is reverted by the per-entity savepoint but
+		 * does **not** mark the whole transaction rollback-only. The decision whether to commit the surviving changes
+		 * or discard the entire transaction is deferred to the external client, which signals it explicitly at close
+		 * time. Genuinely fatal transaction errors ({@link TransactionException}) still roll
+		 * the transaction back unconditionally.
+		 *
+		 * This makes the externally-observable behavior of a remote session identical to an embedded one, where the
+		 * `updateCatalog` block is the unit of atomicity and individual mutations inside it may fail and be caught
+		 * without poisoning the transaction.
+		 *
+		 * **Warning**
+		 *
+		 * This flag is for evitaDB internal use only (set by the server for client-driven sessions). Client
+		 * applications should not use it.
+		 */
+		TRANSACTION_CONTROLLED_EXTERNALLY
 
 	}
 

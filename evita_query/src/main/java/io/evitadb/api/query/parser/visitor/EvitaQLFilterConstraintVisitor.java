@@ -34,6 +34,7 @@ import io.evitadb.api.query.parser.grammar.EvitaQLParser.FacetIncludingChildrenC
 import io.evitadb.api.query.parser.grammar.EvitaQLParser.FacetIncludingChildrenExceptConstraintContext;
 import io.evitadb.api.query.parser.grammar.EvitaQLParser.FacetIncludingChildrenHavingConstraintContext;
 import io.evitadb.api.query.parser.grammar.EvitaQLParser.FilterInScopeConstraintContext;
+import io.evitadb.api.query.parser.grammar.EvitaQLParser.GroupHavingConstraintContext;
 import io.evitadb.api.query.parser.grammar.EvitaQLParser.HierarchyAnyHavingConstraintContext;
 import io.evitadb.api.query.parser.grammar.EvitaQLVisitor;
 import io.evitadb.dataType.Scope;
@@ -83,6 +84,17 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 		OffsetDateTime.class
 	);
 	protected final EvitaQLValueTokenVisitor priceBetweenArgValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(
+		byte.class,
+		Byte.class,
+		short.class,
+		Short.class,
+		int.class,
+		Integer.class,
+		long.class,
+		Long.class,
+		BigDecimal.class
+	);
+	protected final EvitaQLValueTokenVisitor numericValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(
 		byte.class,
 		Byte.class,
 		short.class,
@@ -416,6 +428,67 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 	}
 
 	@Override
+	public FilterConstraint visitEntityPrimaryKeyGreaterThanConstraint(
+		EvitaQLParser.EntityPrimaryKeyGreaterThanConstraintContext ctx
+	) {
+		return parse(
+			ctx,
+			() -> new EntityPrimaryKeyGreaterThan(
+				ctx.args.value.accept(this.intValueTokenVisitor).asInt()
+			)
+		);
+	}
+
+	@Override
+	public FilterConstraint visitEntityPrimaryKeyGreaterThanEqualsConstraint(
+		EvitaQLParser.EntityPrimaryKeyGreaterThanEqualsConstraintContext ctx
+	) {
+		return parse(
+			ctx,
+			() -> new EntityPrimaryKeyGreaterThanEquals(
+				ctx.args.value.accept(this.intValueTokenVisitor).asInt()
+			)
+		);
+	}
+
+	@Override
+	public FilterConstraint visitEntityPrimaryKeyLessThanConstraint(
+		EvitaQLParser.EntityPrimaryKeyLessThanConstraintContext ctx
+	) {
+		return parse(
+			ctx,
+			() -> new EntityPrimaryKeyLessThan(
+				ctx.args.value.accept(this.intValueTokenVisitor).asInt()
+			)
+		);
+	}
+
+	@Override
+	public FilterConstraint visitEntityPrimaryKeyLessThanEqualsConstraint(
+		EvitaQLParser.EntityPrimaryKeyLessThanEqualsConstraintContext ctx
+	) {
+		return parse(
+			ctx,
+			() -> new EntityPrimaryKeyLessThanEquals(
+				ctx.args.value.accept(this.intValueTokenVisitor).asInt()
+			)
+		);
+	}
+
+	@Override
+	public FilterConstraint visitEntityPrimaryKeyBetweenConstraint(
+		EvitaQLParser.EntityPrimaryKeyBetweenConstraintContext ctx
+	) {
+		return parse(
+			ctx,
+			() -> new EntityPrimaryKeyBetween(
+				ctx.args.valueFrom.accept(this.intValueTokenVisitor).asInt(),
+				ctx.args.valueTo.accept(this.intValueTokenVisitor).asInt()
+			)
+		);
+	}
+
+	@Override
 	public FilterConstraint visitEntityLocaleEqualsConstraint(EvitaQLParser.EntityLocaleEqualsConstraintContext ctx) {
 		return parse(
 			ctx,
@@ -501,6 +574,38 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 						ctx.args.filter1.accept(this)
 					);
 				}
+			}
+		);
+	}
+
+	@Override
+	public FilterConstraint visitHistogramHavingConstraint(EvitaQLParser.HistogramHavingConstraintContext ctx) {
+		return parse(
+			ctx,
+			() -> {
+				final String referenceName = ctx.args.classifier
+					.accept(this.stringValueTokenVisitor)
+					.asString();
+				final String histogramName = ctx.args.histogramName == null
+					? null
+					: ctx.args.histogramName.accept(this.stringValueTokenVisitor).asString();
+				// histogram bounds are inherently numeric; restrict allowed token types to numeric scalars
+				// and coerce to BigDecimal — the canonical type for histogram bounds across the engine
+				// (HistogramHavingTranslator stashes bounds as BigDecimal and AttributeBetweenTranslator
+				// narrows back to the attribute's indexed plain type via EvitaDataTypes.toTargetType).
+				final BigDecimal from;
+				final BigDecimal to;
+				if (ctx.args.valueFrom != null && ctx.args.valueTo != null) {
+					from = ctx.args.valueFrom.accept(this.numericValueTokenVisitor).asNumber(BigDecimal.class);
+					to = ctx.args.valueTo.accept(this.numericValueTokenVisitor).asNumber(BigDecimal.class);
+				} else {
+					from = null;
+					to = null;
+				}
+				final GroupHaving groupSelector = ctx.args.groupSelector == null
+					? null
+					: visitChildConstraint(ctx.args.groupSelector, GroupHaving.class);
+				return new HistogramHaving(referenceName, histogramName, from, to, groupSelector);
 			}
 		);
 	}
@@ -666,6 +771,14 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 		return parse(
 			ctx,
 			() -> new EntityHaving(visitChildConstraint(ctx.args.filter, FilterConstraint.class))
+		);
+	}
+
+	@Override
+	public FilterConstraint visitGroupHavingConstraint(GroupHavingConstraintContext ctx) {
+		return parse(
+			ctx,
+			() -> new GroupHaving(visitChildConstraint(ctx.args.filter, FilterConstraint.class))
 		);
 	}
 

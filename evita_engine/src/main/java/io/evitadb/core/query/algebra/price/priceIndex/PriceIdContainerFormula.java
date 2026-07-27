@@ -49,15 +49,18 @@ import javax.annotation.Nonnull;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public class PriceIdContainerFormula extends AbstractFormula implements PriceIndexProvidingFormula {
+	/**
+	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} for hash computation.
+	 */
 	private static final long CLASS_ID = -1448590239158197683L;
 
 	/**
 	 * Contains reference to the {@link PriceListAndCurrencyPriceIndex} the prices (ids or full records) produced by
 	 * this formula comes from.
 	 */
-	@Getter private final PriceListAndCurrencyPriceIndex<?,?> priceIndex;
+	@Getter private final PriceListAndCurrencyPriceIndex<?> priceIndex;
 
-	public PriceIdContainerFormula(@Nonnull PriceListAndCurrencyPriceIndex<?,?> priceIndex, @Nonnull Formula delegate) {
+	public PriceIdContainerFormula(@Nonnull PriceListAndCurrencyPriceIndex<?> priceIndex, @Nonnull Formula delegate) {
 		this.priceIndex = priceIndex;
 		this.initFields(delegate);
 	}

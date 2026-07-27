@@ -227,6 +227,10 @@ message GrpcRegisterSystemChangeCaptureRequest {
   // Requested content of the capture - i.e. whether client wants to receive only the simple notification about the change
   // or whether he wants to receive the full content of the change
   GrpcChangeCaptureContent content = 3;
+  // OR-ed criteria for the capture. When empty, defaults to ENGINE only on the system stream
+  // (NOTE: this differs from the catalog stream, which defaults to all areas including
+  // INFRASTRUCTURE). HOST on the system stream requires explicit opt-in.
+  repeated GrpcChangeSystemCaptureCriteria criteria = 4;
 }
 
 // Response to GrpcRegisterSystemChangeCapture request.

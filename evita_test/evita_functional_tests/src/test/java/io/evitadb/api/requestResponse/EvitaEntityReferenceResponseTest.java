@@ -31,19 +31,26 @@ import org.junit.jupiter.api.Test;
 
 import java.io.Serial;
 import java.util.List;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.collection;
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.QUERY;
+import static io.evitadb.test.TestTags.REFERENCE;
 
 /**
  * Tests for {@link EvitaEntityReferenceResponse} verifying
  * subclass-specific behavior including construction and
  * primary key storage.
  *
- * @author evitaDB
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("EvitaEntityReferenceResponse")
+@Tag(CONTRACT)
+@Tag(QUERY)
+@Tag(REFERENCE)
 class EvitaEntityReferenceResponseTest {
 
 	/**

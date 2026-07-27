@@ -29,12 +29,15 @@ import org.junit.jupiter.api.Test;
 
 import java.util.Iterator;
 import java.util.NoSuchElementException;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.DATA_TYPE;
 
 /**
  * Tests for {@link EmptyIterator} verifying the singleton
@@ -42,9 +45,11 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * and the empty iterator behavior: always exhausted, always
  * throws on `next()`.
  *
- * @author evitaDB
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("EmptyIterator functionality")
+@Tag(CONTRACT)
+@Tag(DATA_TYPE)
 class EmptyIteratorTest {
 
 	@Nested

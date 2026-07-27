@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -28,8 +28,8 @@ import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import lombok.Getter;
-import org.roaringbitmap.PeekableIntIterator;
-import org.roaringbitmap.RoaringBitmap;
+import io.evitadb.roaringbitmap.PeekableIntIterator;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -39,39 +39,56 @@ import java.io.Serializable;
 import java.util.Arrays;
 import java.util.PrimitiveIterator.OfInt;
 
+import static io.evitadb.core.transaction.Transaction.getTransactionalMemoryLayerForWriteIfExists;
 import static io.evitadb.core.transaction.Transaction.getTransactionalMemoryLayerIfExists;
 
 /**
- * This class envelopes simple primitive int bitmap and makes it transactional. This means, that the bitmap can be updated
- * by multiple writers and also multiple readers can read from its original array without spotting the changes made
- * in transactional access. Each transaction is bound to the same thread and different threads doesn't see changes in
- * another threads.
+ * This class envelops simple primitive int bitmap and makes it transactional. This means, that the bitmap can be
+ * updated by multiple writers and also multiple readers can read from its original array without spotting the changes
+ * made in transactional access. Each transaction is bound to the same thread and different threads don't see changes
+ * in other threads.
  *
- * If no transaction is opened, changes are applied directly to the delegate array. In such case the class is not thread
- * safe for multiple writers!
+ * If no transaction is opened, changes are applied directly to the delegate bitmap. In such case the class is not
+ * thread safe for multiple writers!
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @ThreadSafe
-public class TransactionalBitmap implements RoaringBitmapBackedBitmap, TransactionalLayerProducer<BitmapChanges, Bitmap>, Serializable {
+public class TransactionalBitmap
+	implements RoaringBitmapBackedBitmap,
+	TransactionalLayerProducer<BitmapChanges, Bitmap>,
+	Serializable {
 	@Serial private static final long serialVersionUID = -6212206620911046989L;
 	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
-	private final RoaringBitmap roaringBitmap;
+	private final PersistentRoaringBitmap roaringBitmap;
 	private volatile int memoizedCardinality;
 
+	/**
+	 * Creates a new empty transactional bitmap.
+	 */
 	public TransactionalBitmap() {
-		this.roaringBitmap = new RoaringBitmap();
+		this.roaringBitmap = new PersistentRoaringBitmap();
 		this.memoizedCardinality = 0;
 	}
 
-	public TransactionalBitmap(int... recordIds) {
-		this.roaringBitmap = new RoaringBitmap();
+	/**
+	 * Creates a transactional bitmap pre-populated with the given record ids.
+	 *
+	 * @param recordIds initial record ids to add
+	 */
+	public TransactionalBitmap(@Nonnull int... recordIds) {
+		this.roaringBitmap = new PersistentRoaringBitmap();
 		this.roaringBitmap.add(recordIds);
 		this.memoizedCardinality = this.roaringBitmap.getCardinality();
 	}
 
+	/**
+	 * Creates a transactional bitmap copied from the given bitmap.
+	 *
+	 * @param bitmap source bitmap to copy
+	 */
 	public TransactionalBitmap(@Nonnull Bitmap bitmap) {
-		final RoaringBitmap theRoaringBitmap;
+		final PersistentRoaringBitmap theRoaringBitmap;
 		if (bitmap instanceof RoaringBitmapBackedBitmap) {
 			theRoaringBitmap = ((RoaringBitmapBackedBitmap) bitmap).getRoaringBitmap().clone();
 		} else {
@@ -88,7 +105,9 @@ public class TransactionalBitmap implements RoaringBitmapBackedBitmap, Transacti
 
 	@Nonnull
 	@Override
-	public RoaringBitmapBackedBitmap createCopyWithMergedTransactionalMemory(@Nullable BitmapChanges layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
+	public RoaringBitmapBackedBitmap createCopyWithMergedTransactionalMemory(
+		@Nullable BitmapChanges layer, @Nonnull TransactionalLayerMaintainer transactionalLayer
+	) {
 		if (layer == null) {
 			return this;
 		} else {
@@ -103,7 +122,7 @@ public class TransactionalBitmap implements RoaringBitmapBackedBitmap, Transacti
 
 	@Nonnull
 	@Override
-	public RoaringBitmap getRoaringBitmap() {
+	public PersistentRoaringBitmap getRoaringBitmap() {
 		final BitmapChanges layer = getTransactionalMemoryLayerIfExists(this);
 		if (layer == null) {
 			return this.roaringBitmap;
@@ -114,94 +133,181 @@ public class TransactionalBitmap implements RoaringBitmapBackedBitmap, Transacti
 
 	@Override
 	public boolean add(int recordId) {
-		final BitmapChanges layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
-		if (layer == null) {
-			final boolean added = this.roaringBitmap.checkedAdd(recordId);
-			//noinspection UnnecessaryLocalVariable
-			final int newCardinality = added ? -1 : this.memoizedCardinality;
-			this.memoizedCardinality = newCardinality;
-			return added;
+		// avoid creating a transactional layer for a no-op (record already present)
+		if (this.contains(recordId)) {
+			return false;
 		} else {
-			return layer.addRecordId(recordId);
+			final BitmapChanges layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
+			if (layer == null) {
+				this.roaringBitmap.add(recordId);
+				this.memoizedCardinality = -1;
+				return true;
+			} else {
+				return layer.addRecordId(recordId);
+			}
 		}
 	}
 
 	@Override
 	public void addAll(int... recordId) {
-		final BitmapChanges layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
-		if (layer == null) {
+		if (!Transaction.isTransactionAvailable()) {
 			this.roaringBitmap.add(recordId);
 			this.memoizedCardinality = -1;
 		} else {
-			for (int recId : recordId) {
-				layer.addRecordId(recId);
+			BitmapChanges layer = getTransactionalMemoryLayerForWriteIfExists(this);
+			if (layer != null) {
+				for (int recId : recordId) {
+					layer.addRecordId(recId);
+				}
+			} else {
+				// defer layer creation until first actual change
+				for (int recId : recordId) {
+					if (!this.roaringBitmap.contains(recId)) {
+						layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
+						if (layer == null) {
+							this.roaringBitmap.add(recordId);
+							this.memoizedCardinality = -1;
+						} else {
+							for (int r : recordId) {
+								layer.addRecordId(r);
+							}
+						}
+						return;
+					}
+				}
 			}
 		}
 	}
 
 	@Override
 	public void addAll(@Nonnull Bitmap recordIds) {
-		final BitmapChanges layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
-		if (layer == null) {
+		if (!Transaction.isTransactionAvailable()) {
 			this.roaringBitmap.add(recordIds.getArray());
 			this.memoizedCardinality = -1;
 		} else {
+			BitmapChanges layer = getTransactionalMemoryLayerForWriteIfExists(this);
 			final OfInt it = recordIds.iterator();
-			while (it.hasNext()) {
-				final int recordId = it.nextInt();
-				layer.addRecordId(recordId);
+			if (layer != null) {
+				while (it.hasNext()) {
+					layer.addRecordId(it.nextInt());
+				}
+			} else {
+				// defer layer creation until first actual change
+				while (it.hasNext()) {
+					final int recordId = it.nextInt();
+					if (!this.roaringBitmap.contains(recordId)) {
+						layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
+						if (layer == null) {
+							this.roaringBitmap.add(recordId);
+							while (it.hasNext()) {
+								this.roaringBitmap.add(it.nextInt());
+							}
+							this.memoizedCardinality = -1;
+						} else {
+							layer.addRecordId(recordId);
+							while (it.hasNext()) {
+								layer.addRecordId(it.nextInt());
+							}
+						}
+						return;
+					}
+				}
 			}
 		}
 	}
 
 	@Override
 	public boolean remove(int recordId) {
-		final BitmapChanges layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
-		if (layer == null) {
-			final boolean removed = this.roaringBitmap.checkedRemove(recordId);
-			//noinspection UnnecessaryLocalVariable
-			final int newCardinality = removed ? -1 : this.memoizedCardinality;
-			this.memoizedCardinality = newCardinality;
-			return removed;
+		// no layer yet — avoid creating one for a no-op (record already absent)
+		if (!this.contains(recordId)) {
+			return false;
 		} else {
-			return layer.removeRecordId(recordId);
+			final BitmapChanges layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
+			if (layer == null) {
+				this.roaringBitmap.remove(recordId);
+				this.memoizedCardinality = -1;
+				return true;
+			} else {
+				return layer.removeRecordId(recordId);
+			}
 		}
 	}
 
 	@Override
 	public void removeAll(int... recordId) {
-		final BitmapChanges layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
-		if (layer == null) {
+		if (!Transaction.isTransactionAvailable()) {
 			for (int recId : recordId) {
 				this.roaringBitmap.remove(recId);
 			}
 			this.memoizedCardinality = -1;
 		} else {
-			for (int recId : recordId) {
-				layer.removeRecordId(recId);
+			BitmapChanges layer = getTransactionalMemoryLayerForWriteIfExists(this);
+			if (layer != null) {
+				for (int recId : recordId) {
+					layer.removeRecordId(recId);
+				}
+			} else {
+				// defer layer creation until first actual change
+				for (int recId : recordId) {
+					if (this.roaringBitmap.contains(recId)) {
+						layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
+						if (layer == null) {
+							for (int r : recordId) {
+								this.roaringBitmap.remove(r);
+							}
+							this.memoizedCardinality = -1;
+						} else {
+							for (int r : recordId) {
+								layer.removeRecordId(r);
+							}
+						}
+						return;
+					}
+				}
 			}
 		}
 	}
 
 	@Override
 	public void removeAll(@Nonnull Bitmap recordIds) {
-		final BitmapChanges layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
-		if (layer == null) {
+		if (!Transaction.isTransactionAvailable()) {
 			if (recordIds instanceof RoaringBitmapBackedBitmap) {
 				this.roaringBitmap.andNot(((RoaringBitmapBackedBitmap) recordIds).getRoaringBitmap());
 			} else {
 				final OfInt it = recordIds.iterator();
 				while (it.hasNext()) {
-					final int recordId = it.nextInt();
-					this.roaringBitmap.remove(recordId);
+					this.roaringBitmap.remove(it.nextInt());
 				}
 			}
 			this.memoizedCardinality = -1;
 		} else {
+			BitmapChanges layer = getTransactionalMemoryLayerForWriteIfExists(this);
 			final OfInt it = recordIds.iterator();
-			while (it.hasNext()) {
-				final int recordId = it.nextInt();
-				layer.removeRecordId(recordId);
+			if (layer != null) {
+				while (it.hasNext()) {
+					layer.removeRecordId(it.nextInt());
+				}
+			} else {
+				// defer layer creation until first actual change
+				while (it.hasNext()) {
+					final int recordId = it.nextInt();
+					if (this.roaringBitmap.contains(recordId)) {
+						layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
+						if (layer == null) {
+							this.roaringBitmap.remove(recordId);
+							while (it.hasNext()) {
+								this.roaringBitmap.remove(it.nextInt());
+							}
+							this.memoizedCardinality = -1;
+						} else {
+							layer.removeRecordId(recordId);
+							while (it.hasNext()) {
+								layer.removeRecordId(it.nextInt());
+							}
+						}
+						return;
+					}
+				}
 			}
 		}
 	}
@@ -238,7 +344,7 @@ public class TransactionalBitmap implements RoaringBitmapBackedBitmap, Transacti
 
 	@Override
 	public int[] getRange(int start, int end) {
-		final RoaringBitmap theBitmap = getTheCurrentBitmap();
+		final PersistentRoaringBitmap theBitmap = getTheCurrentBitmap();
 		try {
 			final int length = end - start;
 			final int[] result = new int[length];
@@ -264,26 +370,25 @@ public class TransactionalBitmap implements RoaringBitmapBackedBitmap, Transacti
 
 	@Override
 	public int getFirst() {
-		final RoaringBitmap theBitmap = getTheCurrentBitmap();
+		final PersistentRoaringBitmap theBitmap = getTheCurrentBitmap();
 		return theBitmap.first();
 	}
 
 	@Override
 	public int getLast() {
-		final RoaringBitmap theBitmap = getTheCurrentBitmap();
+		final PersistentRoaringBitmap theBitmap = getTheCurrentBitmap();
 		return theBitmap.last();
 	}
 
 	@Override
 	public int[] getArray() {
-		final RoaringBitmap theBitmap = getTheCurrentBitmap();
-		return theBitmap.toArray();
+		return RoaringBitmapBackedBitmap.toSignedArray(getTheCurrentBitmap());
 	}
 
 	@Nonnull
 	@Override
 	public OfInt iterator() {
-		final RoaringBitmap theBitmap = getTheCurrentBitmap();
+		final PersistentRoaringBitmap theBitmap = getTheCurrentBitmap();
 		return new RoaringBitmapBackedBitmap.RoaringIntIteratorAdapter(theBitmap.getIntIterator());
 	}
 
@@ -316,27 +421,26 @@ public class TransactionalBitmap implements RoaringBitmapBackedBitmap, Transacti
 	}
 
 	@Override
-	public boolean equals(Object o) {
+	public boolean equals(@Nullable Object o) {
 		if (this == o) return true;
 		if (o == null || getClass() != o.getClass()) return false;
-		TransactionalBitmap that = (TransactionalBitmap) o;
+		final TransactionalBitmap that = (TransactionalBitmap) o;
 		return this.roaringBitmap.equals(that.roaringBitmap);
 	}
 
 	@Override
 	public String toString() {
-		final RoaringBitmap theBitmap = getTheCurrentBitmap();
+		final PersistentRoaringBitmap theBitmap = getTheCurrentBitmap();
 		return Arrays.toString(theBitmap.toArray());
 	}
 
-	private RoaringBitmap getTheCurrentBitmap() {
+	@Nonnull
+	private PersistentRoaringBitmap getTheCurrentBitmap() {
 		final BitmapChanges layer = getTransactionalMemoryLayerIfExists(this);
-		final RoaringBitmap theBitmap;
 		if (layer == null) {
-			theBitmap = this.roaringBitmap;
+			return this.roaringBitmap;
 		} else {
-			theBitmap = layer.getMergedBitmap();
+			return layer.getMergedBitmap();
 		}
-		return theBitmap;
 	}
 }

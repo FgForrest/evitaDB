@@ -27,7 +27,6 @@ package io.evitadb.api.requestResponse.schema.mutation.associatedData;
 import io.evitadb.api.requestResponse.mutation.conflict.CollectionConflictKey;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictGenerationContext;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
-import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
 import io.evitadb.api.requestResponse.schema.mutation.AssociatedDataSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.NamedSchemaMutation;
@@ -52,7 +51,7 @@ import java.util.stream.Stream;
  * - defines a default conflict key at the entity-collection level for optimistic conflict detection.
  *
  * ### Concurrency and conflict resolution
- * The default implementation of {@link #collectConflictKeys(ConflictGenerationContext, java.util.Set)}
+ * The default implementation of {@link #collectConflictKeys(ConflictGenerationContext)}
  * groups conflicts by the entity collection (identified by `entityType` from the context) using a single
  * `CollectionConflictKey`. This ensures two associated data schema mutations for the same entity type are
  * considered conflicting and must be serialized by the engine.
@@ -91,8 +90,7 @@ abstract class AbstractAssociatedDataSchemaMutation
 	@Override
 	@Nonnull
 	public Stream<ConflictKey> collectConflictKeys(
-		@Nonnull ConflictGenerationContext context,
-		@Nonnull Set<ConflictPolicy> conflictPolicies
+		@Nonnull ConflictGenerationContext context
 	) {
 		/*
 		 * Default: mark entire entity collection (by entity type) as the conflict scope so that

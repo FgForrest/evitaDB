@@ -28,18 +28,23 @@ import io.evitadb.comparator.IntComparator.IntDescendingComparator;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.COMPARATOR;
 
 /**
  * Tests for {@link IntComparator} verifying the ascending and
  * descending comparator implementations for primitive integers.
  *
- * @author evitaDB
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("IntComparator functionality")
+@Tag(ENGINE)
+@Tag(COMPARATOR)
 class IntComparatorTest {
 
 	@Nested

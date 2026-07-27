@@ -30,7 +30,9 @@ import io.evitadb.index.IndexKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.function.Function;
+import java.util.function.IntFunction;
 
 /**
  * DataStoreMemoryBuffer represents volatile temporal memory between the {@link EntityCollection} and persistent
@@ -47,13 +49,27 @@ public interface DataStoreMemoryBuffer extends DataStoreReader {
 	 * memory and will be written when buffer is flushed. This is usually the case when entity index is just being
 	 * created for the first time and the transaction were not yet enabled on it.
 	 */
+	@Nonnull
 	<IK extends IndexKey, I extends Index<IK>> I getOrCreateIndexForModification(@Nonnull IK entityIndexKey, @Nonnull Function<IK, I> accessorWhenMissing);
+
+	/**
+	 * Returns an existing index for the passed `entityIndexPrimaryKey` and registers it in the "dirty" memory so that
+	 * its modified storage parts are captured by {@link #popTrappedChanges()}. Returns `null` when no index with the
+	 * given primary key exists. Use this method instead of
+	 * {@link DataStoreReader#getIndexIfExists(int, java.util.function.IntFunction)} when the caller intends to mutate
+	 * the returned index.
+	 */
+	@Nonnull
+	<IK extends IndexKey, I extends Index<IK>> I getOrCreateIndexForModification(int entityIndexPrimaryKey, @Nonnull IntFunction<I> accessorWhenMissing);
 
 	/**
 	 * Removes {@link EntityIndex} from the change set. After removal (either successfully or unsuccessful)
 	 * `removalPropagation` function is called to propagate deletion to the origin collection.
+	 *
+	 * @return the removed index, or `null` when no index existed under the given key
 	 */
-	<IK extends IndexKey, I extends Index<IK>> I removeIndex(@Nonnull IK entityIndexKey, @Nonnull Function<IK, I> removalPropagation);
+	@Nullable
+	<IK extends IndexKey, I extends Index<IK>> I removeIndex(long catalogVersion, @Nonnull IK entityIndexKey, @Nonnull Function<IK, I> removalPropagation);
 
 	/**
 	 * Removes container from the target storage. If transaction is open, it just marks the container as removed but
@@ -86,5 +102,16 @@ public interface DataStoreMemoryBuffer extends DataStoreReader {
 	 */
 	@Nonnull
 	TrappedChanges popTrappedChanges();
+
+	/**
+	 * Reports that the flush which collected this buffer's trapped changes has FAILED, so the buffer must never serve
+	 * another collect. Defaults to a no-op: only the warm-up buffer needs it, because only a warm-up collect is
+	 * destructive without a transaction to roll it back.
+	 *
+	 * @param cause the failure that broke the flush
+	 */
+	default void poison(@Nonnull Throwable cause) {
+		// no-op: the transactional buffer is discarded wholesale on a failed commit, so it cannot outlive its flush
+	}
 
 }

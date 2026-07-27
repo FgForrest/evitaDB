@@ -1,0 +1,182 @@
+/*
+ *
+ *                         _ _        ____  ____
+ *               _____   _(_) |_ __ _|  _ \| __ )
+ *              / _ \ \ / / | __/ _` | | | |  _ \
+ *             |  __/\ V /| | || (_| | |_| | |_) |
+ *              \___| \_/ |_|\__\__,_|____/|____/
+ *
+ *   Copyright (c) 2023-2025
+ *
+ *   Licensed under the Business Source License, Version 1.1 (the "License");
+ *   you may not use this file except in compliance with the License.
+ *   You may obtain a copy of the License at
+ *
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
+ *
+ *   Unless required by applicable law or agreed to in writing, software
+ *   distributed under the License is distributed on an "AS IS" BASIS,
+ *   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *   See the License for the specific language governing permissions and
+ *   limitations under the License.
+ */
+
+package io.evitadb.index.mutation.local;
+
+import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
+import io.evitadb.api.requestResponse.schema.CatalogSchemaDecorator;
+import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor;
+import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.EntitySchemaDecorator;
+import io.evitadb.api.requestResponse.schema.EntitySchemaEditor;
+import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
+import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
+import io.evitadb.api.requestResponse.schema.builder.InternalCatalogSchemaBuilder;
+import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
+import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
+import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
+import io.evitadb.core.catalog.Catalog;
+import io.evitadb.core.collection.EntityCollection;
+import io.evitadb.core.session.EvitaSession;
+import io.evitadb.dataType.Scope;
+import io.evitadb.index.CatalogIndex;
+import io.evitadb.index.EntityIndexKey;
+import io.evitadb.index.EntityIndexType;
+import io.evitadb.index.EntityTypeClassifierResolver;
+import io.evitadb.index.GlobalEntityIndex;
+import io.evitadb.test.TestConstants;
+import io.evitadb.test.generator.DataGenerator;
+import io.evitadb.utils.NamingConvention;
+import org.mockito.Mockito;
+
+import javax.annotation.Nonnull;
+import java.util.Collection;
+import java.util.EnumSet;
+import java.util.Optional;
+import java.util.concurrent.atomic.AtomicInteger;
+
+/**
+ * Abstract base class providing shared test infrastructure for {@link EntityIndexLocalMutationExecutor}
+ * related tests. Sets up a mock catalog environment with a sample product schema, catalog index,
+ * global entity index, and a fully configured mutation executor instance.
+ *
+ * Subclasses customize the catalog and product schemas via the
+ * {@link #alterCatalogSchema(CatalogSchemaEditor.CatalogSchemaBuilder)} and
+ * {@link #alterProductSchema(EntitySchemaEditor.EntitySchemaBuilder)} template methods.
+ *
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
+ */
+abstract class AbstractMutatorTestBase {
+	protected static final String ENTITY_NAME = "product";
+	@Nonnull protected final Catalog catalog;
+	@Nonnull protected final CatalogIndex catalogIndex;
+	@Nonnull protected final CatalogSchema catalogSchema;
+	@Nonnull protected final EntityTypeClassifierResolver classifierResolver;
+	@Nonnull protected final MockStorageContainerAccessor containerAccessor = new MockStorageContainerAccessor();
+	@Nonnull protected final DataGenerator dataGenerator = new DataGenerator();
+	@Nonnull protected final EntityIndexLocalMutationExecutor executor;
+	@Nonnull protected final GlobalEntityIndex productIndex;
+	@Nonnull protected final EntitySchema productSchema;
+	@Nonnull protected final SealedCatalogSchema sealedCatalogSchema;
+
+	{
+		this.catalog = Mockito.mock(Catalog.class);
+		final InternalCatalogSchemaBuilder catalogSchemaBuilder = new InternalCatalogSchemaBuilder(
+			CatalogSchema._internalBuild(
+				TestConstants.TEST_CATALOG,
+				NamingConvention.generate(TestConstants.TEST_CATALOG),
+				null,
+				EnumSet.allOf(CatalogEvolutionMode.class),
+				new EntitySchemaProvider() {
+					@Nonnull
+					@Override
+					public Collection<EntitySchemaContract> getEntitySchemas() {
+						return AbstractMutatorTestBase.this.catalog.getEntitySchemaIndex().values();
+					}
+
+					@Nonnull
+					@Override
+					public Optional<EntitySchemaContract> getEntitySchema(@Nonnull String entityType) {
+						return AbstractMutatorTestBase.this.catalog.getEntitySchema(entityType).map(EntitySchemaContract.class::cast);
+					}
+				}
+			)
+		);
+		alterCatalogSchema(catalogSchemaBuilder);
+		this.catalogSchema = (CatalogSchema) catalogSchemaBuilder.toInstance();
+		this.sealedCatalogSchema = new CatalogSchemaDecorator(this.catalogSchema);
+		this.catalogIndex = new CatalogIndex(Scope.LIVE);
+		this.classifierResolver = new EntityTypeClassifierResolver() {
+			@Override
+			public int toEntityTypePrimaryKey(@Nonnull String entityType) {
+				return AbstractMutatorTestBase.this.catalog.getCollectionForEntityOrThrowException(entityType).getEntityTypePrimaryKey();
+			}
+
+			@Nonnull
+			@Override
+			public String toEntityTypeName(int entityTypePrimaryKey) {
+				return AbstractMutatorTestBase.this.catalog.getCollectionForEntityPrimaryKeyOrThrowException(entityTypePrimaryKey).getEntityType();
+			}
+		};
+
+		final EvitaSession mockSession = Mockito.mock(EvitaSession.class);
+		Mockito.when(this.catalog.getSchema()).thenReturn(this.sealedCatalogSchema);
+		Mockito.when(mockSession.getCatalogSchema()).thenReturn(this.sealedCatalogSchema);
+
+		this.productSchema = unwrap(
+			this.dataGenerator.getSampleProductSchema(
+				mockSession,
+				EntitySchemaEditor.EntitySchemaBuilder::toInstance,
+				AbstractMutatorTestBase.this::alterProductSchema
+			)
+		);
+		this.productIndex = new GlobalEntityIndex(1, this.productSchema.getName(), new EntityIndexKey(EntityIndexType.GLOBAL));
+		final AtomicInteger sequencer = new AtomicInteger(1);
+		this.executor = new EntityIndexLocalMutationExecutor(
+			this.containerAccessor, 1,
+			new MockEntityIndexCreator<>(this.productIndex),
+			new MockEntityIndexCreator<>(this.catalogIndex),
+			() -> this.productSchema,
+			sequencer::getAndIncrement,
+			() -> {
+				throw new UnsupportedOperationException("Not supported in the test.");
+			},
+			null,
+			null,
+			null,
+			this.classifierResolver
+		);
+
+		final EntityCollection productCollection = Mockito.mock(EntityCollection.class);
+		Mockito.when(this.catalog.getCollectionForEntityOrThrowException(this.productSchema.getName())).thenReturn(productCollection);
+		Mockito.when(this.catalog.getCollectionForEntityPrimaryKeyOrThrowException(1)).thenReturn(productCollection);
+		Mockito.when(productCollection.getEntityType()).thenReturn(this.productSchema.getName());
+		Mockito.when(productCollection.getEntityTypePrimaryKey()).thenReturn(1);
+	}
+
+	/**
+	 * Unwraps a {@link SealedEntitySchema} decorator to obtain the underlying {@link EntitySchema} DTO.
+	 *
+	 * @param entitySchema the sealed entity schema to unwrap
+	 * @return the underlying entity schema DTO
+	 */
+	@Nonnull
+	private static EntitySchema unwrap(@Nonnull SealedEntitySchema entitySchema) {
+		return ((EntitySchemaDecorator) entitySchema).getDelegate();
+	}
+
+	/**
+	 * Template method allowing subclasses to customize the catalog schema before it is built.
+	 *
+	 * @param schemaBuilder the catalog schema builder to modify
+	 */
+	protected abstract void alterCatalogSchema(@Nonnull CatalogSchemaEditor.CatalogSchemaBuilder schemaBuilder);
+
+	/**
+	 * Template method allowing subclasses to customize the product entity schema before it is built.
+	 *
+	 * @param schemaBuilder the entity schema builder to modify
+	 */
+	protected abstract void alterProductSchema(@Nonnull EntitySchemaEditor.EntitySchemaBuilder schemaBuilder);
+
+}

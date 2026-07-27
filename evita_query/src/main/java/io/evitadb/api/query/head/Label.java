@@ -38,25 +38,36 @@ import java.io.Serial;
 import java.io.Serializable;
 
 /**
- * This `label` constraint allows a single label name with associated value to be specified in the query header and
- * propagated to the trace generated for the query. A query can be tagged with multiple labels.
+ * The `label` constraint allows attaching a key-value metadata pair to a query. Labels serve as custom tags
+ * that follow the query through the execution pipeline and are persisted in various diagnostic outputs.
  *
- * Labels are also recorded with the query in the traffic record and can be used to look up the query in the traffic
- * inspection or traffic replay.
+ * A query can be tagged with multiple labels by including multiple `label` constraints in the query header.
+ * Each label consists of a {@link String} name (key) and a {@link Comparable} value (which must be one of
+ * the evitaDB-supported data types).
+ *
+ * **Label Destinations:**
+ * - **Execution traces**: Labels are appended to OpenTelemetry execution traces generated for the query,
+ *   enabling correlation of traces with business context (page URLs, feature names, user actions)
+ * - **Traffic recordings**: Labels are recorded with the query in traffic traces and can be used to look up
+ *   and filter queries during traffic inspection or traffic replay for analysis and debugging
+ *
+ * Labels are particularly useful for identifying the origin or purpose of a query when analyzing performance
+ * metrics, debugging production issues, or replaying recorded traffic for testing.
  *
  * Example:
  *
- * <pre>
+ * ```evitaql
  * query(
  *    head(
- *       collection("product"),
- *       label("query-name", "List all products"),
- *       label("page-url", "/products")
+ *       collection('Product'),
+ *       label('query-name', 'List all products'),
+ *       label('page-url', '/products'),
+ *       label('user-action', 'browse-catalog')
  *    )
  * )
- * </pre>
+ * ```
  *
- * <p><a href="https://evitadb.io/documentation/query/header/header#label">Visit detailed user documentation</a></p>
+ * [Visit detailed user documentation](https://evitadb.io/documentation/query/header/header#label)
  *
  * @author Jan Novotný, FG Forrest a.s. (c) 2024
  */
@@ -67,6 +78,9 @@ import java.io.Serializable;
 )
 public class Label extends AbstractHeadConstraintLeaf implements GenericConstraint<HeadConstraint> {
 	@Serial private static final long serialVersionUID = -7618002411866828589L;
+	/**
+	 * Reusable empty array constant to avoid repeated allocations.
+	 */
 	public static final Label[] EMPTY_ARRAY = new Label[0];
 	/**
 	 * Allows to identify a root query that is a source for this one.
@@ -112,6 +126,9 @@ public class Label extends AbstractHeadConstraintLeaf implements GenericConstrai
 		return args[1];
 	}
 
+	/**
+	 * Returns `true` if the label has exactly two arguments: a {@link String} name and a {@link Comparable} value.
+	 */
 	@Override
 	public boolean isApplicable() {
 		final Serializable[] arguments = getArguments();

@@ -34,7 +34,7 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.annotation.SerializableCreator;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
-import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.dto.EntityAttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
@@ -161,7 +161,8 @@ public class SetAttributeSchemaUniqueMutation
 					globalAttributeSchema.isRepresentative(),
 					(Class) globalAttributeSchema.getType(),
 					globalAttributeSchema.getDefaultValue(),
-					globalAttributeSchema.getIndexedDecimalPlaces()
+					globalAttributeSchema.getIndexedDecimalPlaces(),
+					globalAttributeSchema.getConflictResolutionOverride()
 				);
 			}
 		} else if (attributeSchema instanceof EntityAttributeSchemaContract entityAttributeSchema) {
@@ -182,7 +183,8 @@ public class SetAttributeSchemaUniqueMutation
 					entityAttributeSchema.isRepresentative(),
 					(Class) entityAttributeSchema.getType(),
 					entityAttributeSchema.getDefaultValue(),
-					entityAttributeSchema.getIndexedDecimalPlaces()
+					entityAttributeSchema.getIndexedDecimalPlaces(),
+					entityAttributeSchema.getConflictResolutionOverride()
 				);
 			}
 		} else {
@@ -203,7 +205,8 @@ public class SetAttributeSchemaUniqueMutation
 					attributeSchema.isRepresentative(),
 					(Class) attributeSchema.getType(),
 					attributeSchema.getDefaultValue(),
-					attributeSchema.getIndexedDecimalPlaces()
+					attributeSchema.getIndexedDecimalPlaces(),
+					attributeSchema.getConflictResolutionOverride()
 				);
 			}
 		}

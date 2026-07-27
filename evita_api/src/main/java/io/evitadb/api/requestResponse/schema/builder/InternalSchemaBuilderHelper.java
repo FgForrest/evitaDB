@@ -36,14 +36,17 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder.AttributeNamingConventionConflict;
-import io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
+import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableLocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.SchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceAttributeSchemaMutation;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexType;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.schema.mutation.reference.SetReferenceSchemaIndexedMutation;
 import io.evitadb.dataType.Scope;
 import io.evitadb.utils.ArrayUtils;
@@ -55,12 +58,14 @@ import java.lang.reflect.Array;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.EnumMap;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
@@ -150,7 +155,10 @@ public interface InternalSchemaBuilderHelper {
 							// replace all partially obsolete existing mutations outside the loop to avoid ConcurrentModificationException
 							for (MutationReplacement<T> replacement : replacements) {
 								existingMutations.set(replacement.index(), replacement.replaceMutation());
-								schemaUpdated = updateMutationImpactInternal(schemaUpdated, MutationImpact.ADDED);
+								// use MODIFIED_PREVIOUS because the replaced mutation may have already
+								// been applied to the builder's incrementally-computed schema — the
+								// schema must be rebuilt from scratch to reflect the replacement
+								schemaUpdated = updateMutationImpactInternal(schemaUpdated, MutationImpact.MODIFIED_PREVIOUS);
 							}
 							// clear applied replacements
 							replacements.clear();
@@ -496,13 +504,18 @@ public interface InternalSchemaBuilderHelper {
 	 * Used by both {@link ReferenceSchemaBuilder} and {@link ReflectedReferenceSchemaBuilder}
 	 * to implement {@code indexedForFilteringInScope} and {@code indexedForFilteringAndPartitioningInScope}.
 	 *
-	 * @param catalogSchema the catalog schema
-	 * @param entitySchema  the entity schema
-	 * @param mutations     the mutation list to append to
-	 * @param currentDirty  the current mutation impact
-	 * @param referenceName the name of the reference
-	 * @param indexType     the type of reference index to apply
-	 * @param inScope       the scopes to apply the index in
+	 * This method preserves any existing indexed components configuration by forwarding it
+	 * through the mutation. This ensures that calling e.g. {@code indexedForFilteringAndPartitioningInScope}
+	 * after {@code indexedWithComponentsInScope} does not lose the previously configured components.
+	 *
+	 * @param catalogSchema              the catalog schema
+	 * @param entitySchema               the entity schema
+	 * @param mutations                  the mutation list to append to
+	 * @param currentDirty               the current mutation impact
+	 * @param referenceName              the name of the reference
+	 * @param indexType                  the type of reference index to apply
+	 * @param indexedComponentsInScopes  the current indexed components per scope to preserve
+	 * @param inScope                    the scopes to apply the index in
 	 * @return the updated mutation impact
 	 */
 	default MutationImpact indexedForTypeInScope(
@@ -512,17 +525,102 @@ public interface InternalSchemaBuilderHelper {
 		@Nonnull MutationImpact currentDirty,
 		@Nonnull String referenceName,
 		@Nonnull ReferenceIndexType indexType,
+		@Nonnull Map<Scope, Set<ReferenceIndexedComponents>> indexedComponentsInScopes,
 		@Nonnull Scope... inScope
 	) {
 		final ScopedReferenceIndexType[] scopedIndexTypes = Arrays.stream(inScope)
 			.map(scope -> new ScopedReferenceIndexType(scope, indexType))
 			.toArray(ScopedReferenceIndexType[]::new);
 
+		// build effective index type map for filtering components with NONE scopes
+		final EnumMap<Scope, ReferenceIndexType> effectiveTypes = new EnumMap<>(Scope.class);
+		for (final ScopedReferenceIndexType sit : scopedIndexTypes) {
+			effectiveTypes.put(sit.scope(), sit.indexType());
+		}
+
+		// preserve existing indexed components so they are not lost when combining mutations;
+		// strip components for scopes being set to NONE, pass null when empty so defaults are applied at mutation time
+		final ScopedReferenceIndexedComponents[] scopedComponents;
+		if (indexedComponentsInScopes.isEmpty()) {
+			scopedComponents = null;
+		} else {
+			final ScopedReferenceIndexedComponents[] allComponents = indexedComponentsInScopes
+				.entrySet()
+				.stream()
+				.map(
+					it -> new ScopedReferenceIndexedComponents(
+						it.getKey(),
+						it.getValue().toArray(ReferenceIndexedComponents.EMPTY)
+					)
+				)
+				.toArray(ScopedReferenceIndexedComponents[]::new);
+			scopedComponents = ReferenceSchema.filterComponentsArrayForNoneScopes(allComponents, effectiveTypes);
+		}
+
 		return updateMutationImpact(
 			currentDirty,
 			addMutations(
 				catalogSchema, entitySchema, mutations,
-				new SetReferenceSchemaIndexedMutation(referenceName, scopedIndexTypes)
+				new SetReferenceSchemaIndexedMutation(
+					referenceName, scopedIndexTypes, scopedComponents
+				)
+			)
+		);
+	}
+
+	/**
+	 * Shared logic for indexing a reference with specific {@link ReferenceIndexedComponents} in a given scope.
+	 * Used by both {@link ReferenceSchemaBuilder} and {@link ReflectedReferenceSchemaBuilder}
+	 * to implement {@code indexedWithComponentsInScope}.
+	 *
+	 * If the target scope is not yet indexed (absent or {@link ReferenceIndexType#NONE}), this method
+	 * automatically promotes it to {@link ReferenceIndexType#FOR_FILTERING}. This mirrors the pattern
+	 * used by {@code facetedInScope()} which also auto-promotes non-indexed scopes to indexed.
+	 *
+	 * @param catalogSchema              the catalog schema
+	 * @param entitySchema               the entity schema
+	 * @param mutations                  the mutation list to append to
+	 * @param currentDirty               the current mutation impact
+	 * @param referenceName              the name of the reference
+	 * @param referenceIndexTypeInScopes the current reference index types per scope
+	 * @param scope                      the scope to apply the indexed components in
+	 * @param components                 the indexed components to set
+	 * @return the updated mutation impact
+	 */
+	default MutationImpact indexedWithComponentsInScope(
+		@Nonnull CatalogSchemaContract catalogSchema,
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull List<LocalEntitySchemaMutation> mutations,
+		@Nonnull MutationImpact currentDirty,
+		@Nonnull String referenceName,
+		@Nonnull Map<Scope, ReferenceIndexType> referenceIndexTypeInScopes,
+		@Nonnull Scope scope,
+		@Nonnull ReferenceIndexedComponents... components
+	) {
+		// auto-promote to FOR_FILTERING if the scope is not indexed (mirrors facetedInScope pattern)
+		final EnumMap<Scope, ReferenceIndexType> effectiveTypes = referenceIndexTypeInScopes.isEmpty()
+			? new EnumMap<>(Scope.class)
+			: new EnumMap<>(referenceIndexTypeInScopes);
+		final ReferenceIndexType currentType = effectiveTypes.get(scope);
+		if (currentType == null || currentType == ReferenceIndexType.NONE) {
+			effectiveTypes.put(scope, ReferenceIndexType.FOR_FILTERING);
+		}
+
+		return updateMutationImpact(
+			currentDirty,
+			addMutations(
+				catalogSchema, entitySchema, mutations,
+				new SetReferenceSchemaIndexedMutation(
+					referenceName,
+					effectiveTypes
+						.entrySet()
+						.stream()
+						.map(it -> new ScopedReferenceIndexType(it.getKey(), it.getValue()))
+						.toArray(ScopedReferenceIndexType[]::new),
+					new ScopedReferenceIndexedComponents[]{
+						new ScopedReferenceIndexedComponents(scope, components)
+					}
+				)
 			)
 		);
 	}

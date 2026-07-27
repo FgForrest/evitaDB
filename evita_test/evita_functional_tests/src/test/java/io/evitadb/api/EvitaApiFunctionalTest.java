@@ -91,9 +91,10 @@ import java.util.stream.Stream;
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.test.Assertions.assertExactlyEquals;
-import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.QUERY;
 
 /**
  * Base work with Evita API integration test:
@@ -111,8 +112,9 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 @SuppressWarnings({"Convert2MethodRef"})
 @DisplayName("Evita base API")
-@Tag(FUNCTIONAL_TEST)
 @ExtendWith(EvitaParameterResolver.class)
+@Tag(CONTRACT)
+@Tag(QUERY)
 class EvitaApiFunctionalTest {
 	public static final String BRAND = "brand";
 	public static final String PRODUCT = "product";

@@ -34,11 +34,14 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.util.Map;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.utils.MapBuilder.map;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static io.evitadb.test.TestTags.EXTERNAL_API;
+import static io.evitadb.test.TestTags.QUERY;
 
 /**
  * Test class for {@link DuplicateCatalogMutationConverter}. This test suite verifies
@@ -48,6 +51,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  *
  * @author Lukáš Hornych, 2023
  */
+@Tag(EXTERNAL_API)
+@Tag(QUERY)
 public class DuplicateCatalogMutationConverterTest {
 
 	private DuplicateCatalogMutationConverter converter;

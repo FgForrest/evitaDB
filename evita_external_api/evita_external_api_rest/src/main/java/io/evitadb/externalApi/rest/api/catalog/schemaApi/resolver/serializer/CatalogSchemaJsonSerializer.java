@@ -30,20 +30,14 @@ import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.externalApi.api.catalog.model.VersionedDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.AttributeSchemaDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.CatalogSchemaDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.EntityAttributeSchemaDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.GlobalAttributeSchemaDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.NamedSchemaDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.NamedSchemaWithDeprecationDescriptor;
-import io.evitadb.externalApi.dataType.DataTypeSerializer;
 import io.evitadb.externalApi.rest.api.resolver.serializer.ObjectJsonSerializer;
 import io.evitadb.externalApi.rest.io.RestHandlingContext;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import java.util.Collection;
-import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 
@@ -66,9 +60,9 @@ public class CatalogSchemaJsonSerializer extends SchemaJsonSerializer {
 	}
 
 	/**
-	 * Performs serialization and returns serialized entity in form of JsonNode
+	 * Serializes the given catalog schema into a `JsonNode`.
 	 *
-	 * @return serialized entity or list of entities
+	 * @return the serialized catalog schema
 	 */
 	public JsonNode serialize(@Nonnull CatalogSchemaContract catalogSchema,
 							  @Nonnull Function<String, EntitySchemaContract> entitySchemaFetcher,
@@ -79,6 +73,12 @@ public class CatalogSchemaJsonSerializer extends SchemaJsonSerializer {
 		rootNode.putIfAbsent(NamedSchemaDescriptor.NAME.name(), this.objectJsonSerializer.serializeObject(catalogSchema.getName()));
 		rootNode.set(NamedSchemaDescriptor.NAME_VARIANTS.name(), serializeNameVariants(catalogSchema.getNameVariants()));
 		rootNode.putIfAbsent(NamedSchemaDescriptor.DESCRIPTION.name(), catalogSchema.getDescription() != null ? this.objectJsonSerializer.serializeObject(catalogSchema.getDescription()) : null);
+
+		serializeConflictResolution(
+			rootNode,
+			CatalogSchemaDescriptor.CONFLICT_RESOLUTION.name(),
+			catalogSchema.getConflictResolution().orElse(null)
+		);
 
 		rootNode.set(CatalogSchemaDescriptor.ATTRIBUTES.name(), serializeAttributeSchemas(catalogSchema));
 		rootNode.set(CatalogSchemaDescriptor.ENTITY_SCHEMAS.name(), serializeEntitySchemas(entitySchemaFetcher, entityTypes));
@@ -99,32 +99,6 @@ public class CatalogSchemaJsonSerializer extends SchemaJsonSerializer {
 		}
 
 		return attributeSchemasMap;
-	}
-
-	@Nonnull
-	private ObjectNode serializeAttributeSchema(@Nonnull GlobalAttributeSchemaContract globalAttributeSchema) {
-		final ObjectNode attributeSchemaNode = this.objectJsonSerializer.objectNode();
-		attributeSchemaNode.putIfAbsent(NamedSchemaDescriptor.NAME.name(), this.objectJsonSerializer.serializeObject(globalAttributeSchema.getName()));
-		attributeSchemaNode.set(NamedSchemaDescriptor.NAME_VARIANTS.name(), serializeNameVariants(globalAttributeSchema.getNameVariants()));
-		attributeSchemaNode.putIfAbsent(NamedSchemaDescriptor.DESCRIPTION.name(), globalAttributeSchema.getDescription() != null ? this.objectJsonSerializer.serializeObject(globalAttributeSchema.getDescription()) : null);
-		attributeSchemaNode.putIfAbsent(NamedSchemaWithDeprecationDescriptor.DEPRECATION_NOTICE.name(), globalAttributeSchema.getDeprecationNotice() != null ? this.objectJsonSerializer.serializeObject(globalAttributeSchema.getDeprecationNotice()) : null);
-		attributeSchemaNode.putIfAbsent(AttributeSchemaDescriptor.UNIQUENESS_TYPE.name(), serializeUniquenessType(globalAttributeSchema::getUniquenessType));
-		attributeSchemaNode.putIfAbsent(GlobalAttributeSchemaDescriptor.GLOBAL_UNIQUENESS_TYPE.name(), serializeGlobalUniquenessType(globalAttributeSchema::getGlobalUniquenessType));
-		attributeSchemaNode.putIfAbsent(AttributeSchemaDescriptor.FILTERABLE.name(), serializeFlagInScopes(globalAttributeSchema::isFilterableInScope));
-		attributeSchemaNode.putIfAbsent(AttributeSchemaDescriptor.SORTABLE.name(), serializeFlagInScopes(globalAttributeSchema::isSortableInScope));
-		attributeSchemaNode.putIfAbsent(AttributeSchemaDescriptor.LOCALIZED.name(), this.objectJsonSerializer.serializeObject(globalAttributeSchema.isLocalized()));
-		attributeSchemaNode.putIfAbsent(AttributeSchemaDescriptor.NULLABLE.name(), this.objectJsonSerializer.serializeObject(globalAttributeSchema.isNullable()));
-		attributeSchemaNode.putIfAbsent(EntityAttributeSchemaDescriptor.REPRESENTATIVE.name(), this.objectJsonSerializer.serializeObject(globalAttributeSchema.isRepresentative()));
-		attributeSchemaNode.put(AttributeSchemaDescriptor.TYPE.name(), DataTypeSerializer.serialize(globalAttributeSchema.getType()));
-		attributeSchemaNode.set(
-			AttributeSchemaDescriptor.DEFAULT_VALUE.name(),
-			Optional.ofNullable(globalAttributeSchema.getDefaultValue())
-				.map(this.objectJsonSerializer::serializeObject)
-				.orElse(null)
-		);
-		attributeSchemaNode.put(AttributeSchemaDescriptor.INDEXED_DECIMAL_PLACES.name(), globalAttributeSchema.getIndexedDecimalPlaces());
-
-		return attributeSchemaNode;
 	}
 
 	@Nonnull

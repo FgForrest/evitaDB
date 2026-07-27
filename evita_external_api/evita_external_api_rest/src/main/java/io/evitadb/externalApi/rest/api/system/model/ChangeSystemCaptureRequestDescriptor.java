@@ -27,11 +27,13 @@ import io.evitadb.api.requestResponse.cdc.ChangeCaptureContent;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureRequest;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
+import io.evitadb.externalApi.api.system.model.cdc.ChangeSystemCaptureCriteriaDescriptor;
 
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nullable;
+import static io.evitadb.externalApi.api.model.TypePropertyDataTypeDescriptor.nullableListRef;
 
 /**
- * Descriptor for {@link ChangeSystemCaptureRequest}
+ * Descriptor for {@link ChangeSystemCaptureRequest}.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2025
  */
@@ -40,8 +42,8 @@ public interface ChangeSystemCaptureRequestDescriptor {
 	PropertyDescriptor SINCE_VERSION = PropertyDescriptor.builder()
 		.name("sinceVersion")
 		.description("""
-            Specifies the initial capture point (catalog version) for the CDC stream, if not specified
-            it is assumed to begin at the most recent / oldest available version.
+            Specifies the initial capture point (engine version) for the system CDC stream, if not specified
+            it is assumed to begin at the most recent available version.
             """)
 		.type(nullable(Long.class))
 		.build();
@@ -52,6 +54,22 @@ public interface ChangeSystemCaptureRequestDescriptor {
              to specify continuation point within an enclosing block of events.
              """)
 		.type(nullable(Integer.class))
+		.build();
+	PropertyDescriptor CRITERIA = PropertyDescriptor.builder()
+		.name("criteria")
+		.description("""
+            Optional list of criteria of the system capture stream, OR-ed together. Each criterion
+            currently selects a single `SystemCaptureArea` (`ENGINE` or `HOST`).
+
+            **Default-criteria divergence vs the catalog stream:** when this property is not
+            provided (or is `null`), the subscription is treated as `ENGINE`-only —
+            `HOST` events (host-local, non-replicable, live-tail-only) are
+            **never** delivered without an explicit criteria element opting into them.
+            The catalog stream defaults to all areas; the system stream defaults to
+            engine-only because `HOST` here carries semantics that existing
+            clients have not opted in to.
+            """)
+		.type(nullableListRef(ChangeSystemCaptureCriteriaDescriptor.THIS))
 		.build();
 	PropertyDescriptor CONTENT = PropertyDescriptor.builder()
 		.name("content")
@@ -64,11 +82,12 @@ public interface ChangeSystemCaptureRequestDescriptor {
 	ObjectDescriptor THIS = ObjectDescriptor.builder()
 		.representedClass(ChangeSystemCaptureRequest.class)
 		.description("""
-             Record describing the capture request for the CDC stream of `ChangeSystemCapture`. 
+             Record describing the capture request for the CDC stream of `ChangeSystemCapture`.
              The request contains the recipe for the messages that the subscriber is interested in, and that are sent to it by the CDC stream.
              """)
 		.staticProperty(SINCE_VERSION)
 		.staticProperty(SINCE_INDEX)
+		.staticProperty(CRITERIA)
 		.staticProperty(CONTENT)
 		.build();
 }

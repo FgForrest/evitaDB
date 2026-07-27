@@ -17,7 +17,7 @@
           "global" : {
             "code" : "alcatel-3-1",
             "orderedQuantity" : "0.00000",
-            "published" : "2025-10-23T13:31:12.283+02:00"
+            "published" : "2026-07-27T10:33:03.083+02:00"
           }
         },
         "prices" : [
@@ -34,6 +34,28 @@
           }
         ],
         "priceForSale" : {
+          "priceId" : 1443,
+          "priceList" : "basic",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "82.64",
+          "priceWithTax" : "100.0",
+          "taxRate" : "21.0",
+          "validity" : null
+        },
+        "priceForSaleMin" : {
+          "priceId" : 1443,
+          "priceList" : "basic",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "82.64",
+          "priceWithTax" : "100.0",
+          "taxRate" : "21.0",
+          "validity" : null
+        },
+        "priceForSaleMax" : {
           "priceId" : 1443,
           "priceList" : "basic",
           "currency" : "EUR",
@@ -70,7 +92,7 @@
           "global" : {
             "code" : "logitech-mx-keys",
             "orderedQuantity" : "0.00000",
-            "published" : "2025-10-23T13:31:04.038+02:00"
+            "published" : "2026-07-27T10:32:51.792+02:00"
           }
         },
         "prices" : [
@@ -87,6 +109,28 @@
           }
         ],
         "priceForSale" : {
+          "priceId" : 8765,
+          "priceList" : "basic",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "83.47",
+          "priceWithTax" : "101.0",
+          "taxRate" : "21.0",
+          "validity" : null
+        },
+        "priceForSaleMin" : {
+          "priceId" : 8765,
+          "priceList" : "basic",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "83.47",
+          "priceWithTax" : "101.0",
+          "taxRate" : "21.0",
+          "validity" : null
+        },
+        "priceForSaleMax" : {
           "priceId" : 8765,
           "priceList" : "basic",
           "currency" : "EUR",
@@ -123,7 +167,7 @@
           "global" : {
             "code" : "immax-neo-lite-smart-christmas-led-tree",
             "orderedQuantity" : "0.00000",
-            "published" : "2025-10-23T13:31:03.79+02:00"
+            "published" : "2026-07-27T10:32:51.691+02:00"
           }
         },
         "prices" : [
@@ -140,6 +184,28 @@
           }
         ],
         "priceForSale" : {
+          "priceId" : 8819,
+          "priceList" : "basic",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "85.12",
+          "priceWithTax" : "103.0",
+          "taxRate" : "21.0",
+          "validity" : null
+        },
+        "priceForSaleMin" : {
+          "priceId" : 8819,
+          "priceList" : "basic",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "85.12",
+          "priceWithTax" : "103.0",
+          "taxRate" : "21.0",
+          "validity" : null
+        },
+        "priceForSaleMax" : {
           "priceId" : 8819,
           "priceList" : "basic",
           "currency" : "EUR",
@@ -176,7 +242,7 @@
           "global" : {
             "code" : "genius-sp-hf2800bt",
             "orderedQuantity" : "0.00000",
-            "published" : "2025-10-23T13:31:03.227+02:00"
+            "published" : "2026-07-27T10:32:51.438+02:00"
           }
         },
         "prices" : [
@@ -193,6 +259,28 @@
           }
         ],
         "priceForSale" : {
+          "priceId" : 8747,
+          "priceList" : "basic",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "83.47",
+          "priceWithTax" : "101.0",
+          "taxRate" : "21.0",
+          "validity" : null
+        },
+        "priceForSaleMin" : {
+          "priceId" : 8747,
+          "priceList" : "basic",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "83.47",
+          "priceWithTax" : "101.0",
+          "taxRate" : "21.0",
+          "validity" : null
+        },
+        "priceForSaleMax" : {
           "priceId" : 8747,
           "priceList" : "basic",
           "currency" : "EUR",
@@ -229,7 +317,7 @@
           "global" : {
             "code" : "24v5c",
             "orderedQuantity" : "0.00000",
-            "published" : "2025-10-23T13:30:56.643+02:00"
+            "published" : "2026-07-27T10:32:47.389+02:00"
           }
         },
         "prices" : [
@@ -246,6 +334,28 @@
           }
         ],
         "priceForSale" : {
+          "priceId" : 8407,
+          "priceList" : "basic",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "84.3",
+          "priceWithTax" : "102.0",
+          "taxRate" : "21.0",
+          "validity" : null
+        },
+        "priceForSaleMin" : {
+          "priceId" : 8407,
+          "priceList" : "basic",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "84.3",
+          "priceWithTax" : "102.0",
+          "taxRate" : "21.0",
+          "validity" : null
+        },
+        "priceForSaleMax" : {
           "priceId" : 8407,
           "priceList" : "basic",
           "currency" : "EUR",
@@ -282,7 +392,7 @@
           "global" : {
             "code" : "logitech-mx-anywhere-3",
             "orderedQuantity" : "0.00000",
-            "published" : "2025-10-23T13:30:55.052+02:00"
+            "published" : "2026-07-27T10:32:46.52+02:00"
           }
         },
         "prices" : [
@@ -299,6 +409,28 @@
           }
         ],
         "priceForSale" : {
+          "priceId" : 8569,
+          "priceList" : "basic",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "82.64",
+          "priceWithTax" : "100.0",
+          "taxRate" : "21.0",
+          "validity" : null
+        },
+        "priceForSaleMin" : {
+          "priceId" : 8569,
+          "priceList" : "basic",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "82.64",
+          "priceWithTax" : "100.0",
+          "taxRate" : "21.0",
+          "validity" : null
+        },
+        "priceForSaleMax" : {
           "priceId" : 8569,
           "priceList" : "basic",
           "currency" : "EUR",
@@ -335,7 +467,7 @@
           "global" : {
             "code" : "fitbit-luxe",
             "orderedQuantity" : "0.00000",
-            "published" : "2025-10-23T13:30:29.836+02:00"
+            "published" : "2026-07-27T10:32:25.962+02:00"
           }
         },
         "prices" : [
@@ -352,6 +484,28 @@
           }
         ],
         "priceForSale" : {
+          "priceId" : 3929,
+          "priceList" : "basic",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "84.3",
+          "priceWithTax" : "102.0",
+          "taxRate" : "21.0",
+          "validity" : null
+        },
+        "priceForSaleMin" : {
+          "priceId" : 3929,
+          "priceList" : "basic",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "84.3",
+          "priceWithTax" : "102.0",
+          "taxRate" : "21.0",
+          "validity" : null
+        },
+        "priceForSaleMax" : {
           "priceId" : 3929,
           "priceList" : "basic",
           "currency" : "EUR",
@@ -388,7 +542,7 @@
           "global" : {
             "code" : "oppo-a16e",
             "orderedQuantity" : "0.00000",
-            "published" : "2025-10-23T13:30:20.298+02:00"
+            "published" : "2026-07-27T10:32:17.89+02:00"
           }
         },
         "prices" : [
@@ -405,6 +559,28 @@
           }
         ],
         "priceForSale" : {
+          "priceId" : 2451,
+          "priceList" : "basic",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "82.64",
+          "priceWithTax" : "100.0",
+          "taxRate" : "21.0",
+          "validity" : null
+        },
+        "priceForSaleMin" : {
+          "priceId" : 2451,
+          "priceList" : "basic",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "82.64",
+          "priceWithTax" : "100.0",
+          "taxRate" : "21.0",
+          "validity" : null
+        },
+        "priceForSaleMax" : {
           "priceId" : 2451,
           "priceList" : "basic",
           "currency" : "EUR",
@@ -441,7 +617,7 @@
           "global" : {
             "code" : "alcatel-3",
             "orderedQuantity" : "0.00000",
-            "published" : "2025-10-23T13:30:14.217+02:00"
+            "published" : "2026-07-27T10:32:12.472+02:00"
           }
         },
         "prices" : [
@@ -479,6 +655,28 @@
           "taxRate" : "21.0",
           "validity" : null
         },
+        "priceForSaleMin" : {
+          "priceId" : 1445,
+          "priceList" : "basic",
+          "currency" : "EUR",
+          "innerRecordId" : 106107,
+          "indexed" : true,
+          "priceWithoutTax" : "66.12",
+          "priceWithTax" : "80.0",
+          "taxRate" : "21.0",
+          "validity" : null
+        },
+        "priceForSaleMax" : {
+          "priceId" : 1443,
+          "priceList" : "basic",
+          "currency" : "EUR",
+          "innerRecordId" : 106106,
+          "indexed" : true,
+          "priceWithoutTax" : "82.64",
+          "priceWithTax" : "100.0",
+          "taxRate" : "21.0",
+          "validity" : null
+        },
         "multiplePricesForSaleAvailable" : true,
         "stocks" : [
           {
@@ -506,7 +704,7 @@
           "global" : {
             "code" : "amazon-kindle-paperwhite-signature-edition",
             "orderedQuantity" : "0.00000",
-            "published" : "2025-10-23T13:30:11.129+02:00"
+            "published" : "2026-07-27T10:32:10.392+02:00"
           }
         },
         "prices" : [
@@ -523,6 +721,28 @@
           }
         ],
         "priceForSale" : {
+          "priceId" : 705,
+          "priceList" : "basic",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "84.3",
+          "priceWithTax" : "102.0",
+          "taxRate" : "21.0",
+          "validity" : null
+        },
+        "priceForSaleMin" : {
+          "priceId" : 705,
+          "priceList" : "basic",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "84.3",
+          "priceWithTax" : "102.0",
+          "taxRate" : "21.0",
+          "validity" : null
+        },
+        "priceForSaleMax" : {
           "priceId" : 705,
           "priceList" : "basic",
           "currency" : "EUR",

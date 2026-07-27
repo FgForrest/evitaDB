@@ -34,6 +34,7 @@ import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.exception.FileForFetchNotFoundException;
 import io.evitadb.api.exception.TemporalDataNotAvailableException;
 import io.evitadb.api.file.FileForFetch;
+import io.evitadb.api.requestResponse.system.EngineSettings;
 import io.evitadb.api.requestResponse.system.SystemStatus;
 import io.evitadb.api.task.Task;
 import io.evitadb.api.task.TaskStatus;
@@ -41,6 +42,7 @@ import io.evitadb.api.task.TaskStatus.TaskSimplifiedState;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.driver.exception.EvitaClientServerCallException;
 import io.evitadb.driver.exception.EvitaClientTimedOutException;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
 import io.evitadb.externalApi.grpc.generated.EvitaManagementServiceGrpc.EvitaManagementServiceFutureStub;
@@ -48,6 +50,7 @@ import io.evitadb.externalApi.grpc.generated.EvitaManagementServiceGrpc.EvitaMan
 import io.evitadb.externalApi.grpc.generated.*;
 import io.evitadb.externalApi.grpc.generated.GrpcSpecifiedTaskStatusesRequest.Builder;
 import io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter;
+import io.evitadb.externalApi.grpc.requestResponse.schema.ConflictResolutionConverter;
 import io.evitadb.function.Functions;
 import io.grpc.stub.StreamObserver;
 import lombok.extern.slf4j.Slf4j;
@@ -510,6 +513,32 @@ public class EvitaClientManagement implements EvitaManagementContract, Closeable
 		);
 
 		return response.getConfiguration();
+	}
+
+	@Nonnull
+	@Override
+	public EngineSettings getEngineSettings() {
+		this.evitaClient.assertActive();
+
+		final GrpcEvitaEngineSettingsResponse response = executeWithEvitaService(
+			evitaService -> evitaService.getEngineSettings(Empty.newBuilder().build())
+		);
+
+		// an absent conflict resolution would silently decode to the zero enum value - i.e. "no
+		// conflict detection at all", the most permissive reading - so refuse it instead of guessing
+		if (!response.hasConflictResolution()) {
+			throw new GenericEvitaInternalError(
+				"Server returned engine settings without the conflict resolution."
+			);
+		}
+
+		return new EngineSettings(
+			ConflictResolutionConverter.toConflictResolution(response.getConflictResolution()),
+			response.getTimeTravelEnabled(),
+			response.getChangeDataCaptureEnabled(),
+			response.getTrafficRecordingEnabled(),
+			response.getQueryCacheEnabled()
+		);
 	}
 
 	@Override

@@ -23,16 +23,24 @@
 
 package io.evitadb.api.query.head;
 
+import io.evitadb.api.query.HeadConstraint;
 import io.evitadb.api.query.QueryConstraints;
 import org.junit.jupiter.api.Test;
 
+import java.io.Serializable;
+import org.junit.jupiter.api.Tag;
+
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.QUERY;
 
 /**
  * This test verifies contract of {@link Collection} class.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
+@Tag(CONTRACT)
+@Tag(QUERY)
 class CollectionTest {
 
 	@Test
@@ -58,6 +66,25 @@ class CollectionTest {
 		assertNotSame(QueryConstraints.collection("brand"), QueryConstraints.collection("brand"));
 		assertEquals(QueryConstraints.collection("brand"), QueryConstraints.collection("brand"));
 		assertNotEquals(QueryConstraints.collection("brand"), QueryConstraints.collection("product"));
+	}
+
+	@Test
+	void shouldCloneWithArguments() {
+		final Collection original = QueryConstraints.collection("brand");
+		final HeadConstraint cloned = original.cloneWithArguments(new Serializable[]{"product"});
+
+		assertInstanceOf(Collection.class, cloned);
+		assertEquals("product", ((Collection) cloned).getEntityType());
+	}
+
+	@Test
+	void shouldRecognizeApplicabilityWithMultipleArgs() {
+		final Collection original = QueryConstraints.collection("brand");
+		// cloneWithArguments uses private varargs constructor, so we can create a Collection with wrong arity
+		final HeadConstraint cloned = original.cloneWithArguments(new Serializable[]{"a", "b"});
+
+		assertInstanceOf(Collection.class, cloned);
+		assertFalse(cloned.isApplicable());
 	}
 
 }

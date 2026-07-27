@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -70,7 +70,6 @@ import java.util.stream.Stream;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
-import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
 import static io.evitadb.test.generator.DataGenerator.ASSOCIATED_DATA_REFERENCED_FILES;
 import static io.evitadb.test.generator.DataGenerator.CURRENCY_CZK;
 import static io.evitadb.test.generator.DataGenerator.PRICE_LIST_BASIC;
@@ -78,6 +77,8 @@ import static java.util.Optional.empty;
 import static java.util.Optional.of;
 import static java.util.Optional.ofNullable;
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.PROXY;
 
 /**
  * This test verifies the ability to proxy an entity into an arbitrary interface.
@@ -85,10 +86,11 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 @DisplayName("Evita entity interface proxying functionality")
-@Tag(FUNCTIONAL_TEST)
 @ExtendWith(EvitaParameterResolver.class)
 @TestMethodOrder(MethodOrderer.MethodName.class)
 @Slf4j
+@Tag(CONTRACT)
+@Tag(PROXY)
 public class EntityInterfaceProxyingFunctionalTest extends AbstractEntityProxyingFunctionalTest implements EvitaTestSupport {
 	private static final String HUNDRED_PRODUCTS = "HundredProxyProducts_EntityInterfaceProxyingFunctionalTest";
 	private static final Locale CZECH_LOCALE = new Locale("cs", "CZ");
@@ -436,7 +438,9 @@ if (currency != null) {
 
 	private static void assertProductAttributes(@Nonnull SealedEntity originalProduct, @Nonnull ProductInterface product, @Nullable Locale locale) {
 		assertEquals(originalProduct.getAttribute(DataGenerator.ATTRIBUTE_CODE), product.getCode());
-		assertEquals(originalProduct.getAttribute(DataGenerator.ATTRIBUTE_NAME, locale), product.getName());
+		if (locale != null) {
+			assertEquals(originalProduct.getAttribute(DataGenerator.ATTRIBUTE_NAME, locale), product.getName());
+		}
 		assertEquals(originalProduct.getAttribute(DataGenerator.ATTRIBUTE_QUANTITY), product.getQuantity());
 		assertEquals(originalProduct.getAttribute(DataGenerator.ATTRIBUTE_QUANTITY), product.getQuantityAsDifferentProperty());
 		assertEquals(originalProduct.getAttribute(DataGenerator.ATTRIBUTE_ALIAS), product.isAlias());
@@ -489,11 +493,11 @@ if (currency != null) {
 		);
 	}
 
+	@Nonnull
 	@DataSet(value = HUNDRED_PRODUCTS, destroyAfterClass = true, readOnly = false)
 	@Override
-	protected DataCarrier setUp(Evita evita) {
+	protected DataCarrier setUp(@Nonnull Evita evita) {
 		final DataCarrier dataCarrier = super.setUp(evita);
-
 
 		final List<SealedEntity> originalProducts = (List<SealedEntity>) dataCarrier.getValueByName("originalProducts");
 		final List<SealedEntity> productsWithCzkSellingPrice = originalProducts

@@ -23,6 +23,7 @@
 
 package io.evitadb.api.requestResponse.data;
 
+import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 /**
@@ -40,5 +41,23 @@ public interface ContentComparator<T> {
 	 * equal types.
 	 */
 	boolean differsFrom(@Nullable T otherObject);
+
+	/**
+	 * Returns true when {@code candidate} carries different content than {@code existing}, where both
+	 * are considered identity-equal by some external comparator (typically the equals/hashCode pair
+	 * defined on a primary key). Prefers the explicit {@link ContentComparator} contract; falls back
+	 * to {@link Object#equals} so types whose equals semantics already imply content equality keep
+	 * working as before.
+	 */
+	@SuppressWarnings({"rawtypes", "unchecked"})
+	static <T> boolean contentDiffers(@Nonnull T existing, @Nonnull T candidate) {
+		if (existing == candidate) {
+			return false;
+		}
+		if (candidate instanceof ContentComparator) {
+			return ((ContentComparator) candidate).differsFrom(existing);
+		}
+		return !existing.equals(candidate);
+	}
 
 }

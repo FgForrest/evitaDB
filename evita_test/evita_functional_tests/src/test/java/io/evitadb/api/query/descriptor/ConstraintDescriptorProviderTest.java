@@ -39,14 +39,18 @@ import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.GenericEvitaInternalError;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
+import java.io.Serial;
 import java.io.Serializable;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
 
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.QUERY;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
@@ -55,6 +59,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Lukas Hornych, FG Forrest a.s. (c) 2022
  */
 @DisplayName("ConstraintDescriptorProvider")
+@Tag(CONTRACT)
+@Tag(QUERY)
 class ConstraintDescriptorProviderTest {
 
 	@Nested
@@ -64,7 +70,7 @@ class ConstraintDescriptorProviderTest {
 		@Test
 		@DisplayName("should have processed all registered constraints")
 		void shouldHaveProcessedConstraints() {
-			assertEquals(115, ConstraintDescriptorProvider.getAllConstraints().size());
+			assertEquals(126, ConstraintDescriptorProvider.getAllConstraints().size());
 		}
 	}
 
@@ -84,11 +90,11 @@ class ConstraintDescriptorProviderTest {
 		void shouldCorrectlyFindCorrectDescriptorForSpecificConstraint() {
 			final ConstraintDescriptor containerDescriptor =
 				ConstraintDescriptorProvider.getConstraint(And.class);
-			assertEquals(And.class, containerDescriptor.constraintClass());
+			assertSame(And.class, containerDescriptor.constraintClass());
 
 			final ConstraintDescriptor leafDescriptor =
 				ConstraintDescriptorProvider.getConstraint(AttributeStartsWith.class);
-			assertEquals(AttributeStartsWith.class, leafDescriptor.constraintClass());
+			assertSame(AttributeStartsWith.class, leafDescriptor.constraintClass());
 
 			assertThrows(
 				EvitaInternalError.class,
@@ -102,17 +108,16 @@ class ConstraintDescriptorProviderTest {
 			final Set<ConstraintDescriptor> containerDescriptors =
 				ConstraintDescriptorProvider.getConstraints(And.class);
 			assertEquals(1, containerDescriptors.size());
-			assertEquals(And.class, containerDescriptors.iterator().next().constraintClass());
+			assertSame(And.class, containerDescriptors.iterator().next().constraintClass());
 
 			final Set<ConstraintDescriptor> leafDescriptor =
 				ConstraintDescriptorProvider.getConstraints(AttributeStartsWith.class);
 			assertEquals(1, leafDescriptor.size());
-			assertEquals(
-				AttributeStartsWith.class, leafDescriptor.iterator().next().constraintClass()
-			);
+			assertSame(AttributeStartsWith.class, leafDescriptor.iterator().next().constraintClass());
 		}
 	}
 
+	@SuppressWarnings("deprecation")
 	@Nested
 	@DisplayName("Lookup by metadata")
 	class LookupByMetadataTest {
@@ -126,8 +131,8 @@ class ConstraintDescriptorProviderTest {
 					ConstraintPropertyType.GENERIC,
 					"and",
 					null
-				).get();
-			assertEquals(And.class, descriptorByBaseName.constraintClass());
+				).orElseThrow();
+			assertSame(And.class, descriptorByBaseName.constraintClass());
 
 			final ConstraintDescriptor descriptorByFullName =
 				ConstraintDescriptorProvider.getConstraint(
@@ -135,8 +140,8 @@ class ConstraintDescriptorProviderTest {
 					ConstraintPropertyType.HIERARCHY,
 					"withinSelf",
 					null
-				).get();
-			assertEquals(HierarchyWithin.class, descriptorByFullName.constraintClass());
+				).orElseThrow();
+			assertSame(HierarchyWithin.class, descriptorByFullName.constraintClass());
 
 			final ConstraintDescriptor descriptorByNameAndClassifier =
 				ConstraintDescriptorProvider.getConstraint(
@@ -144,10 +149,8 @@ class ConstraintDescriptorProviderTest {
 					ConstraintPropertyType.ATTRIBUTE,
 					"startsWith",
 					"code"
-				).get();
-			assertEquals(
-				AttributeStartsWith.class, descriptorByNameAndClassifier.constraintClass()
-			);
+				).orElseThrow();
+			assertSame(AttributeStartsWith.class, descriptorByNameAndClassifier.constraintClass());
 
 			final ConstraintDescriptor descriptorByNameAndClassifier2 =
 				ConstraintDescriptorProvider.getConstraint(
@@ -155,8 +158,8 @@ class ConstraintDescriptorProviderTest {
 					ConstraintPropertyType.FACET,
 					"summary",
 					null
-				).get();
-			assertEquals(FacetSummary.class, descriptorByNameAndClassifier2.constraintClass());
+				).orElseThrow();
+			assertSame(FacetSummary.class, descriptorByNameAndClassifier2.constraintClass());
 
 			final ConstraintDescriptor descriptorByNameAndClassifier3 =
 				ConstraintDescriptorProvider.getConstraint(
@@ -164,10 +167,8 @@ class ConstraintDescriptorProviderTest {
 					ConstraintPropertyType.FACET,
 					"summary",
 					"parameter"
-				).get();
-			assertEquals(
-				FacetSummaryOfReference.class, descriptorByNameAndClassifier3.constraintClass()
-			);
+				).orElseThrow();
+			assertSame(FacetSummaryOfReference.class, descriptorByNameAndClassifier3.constraintClass());
 		}
 	}
 
@@ -179,7 +180,7 @@ class ConstraintDescriptorProviderTest {
 		@DisplayName("should find all constraints for specific type")
 		void shouldFindAllConstraintsForSpecificType() {
 			assertEquals(
-				43, ConstraintDescriptorProvider.getConstraints(ConstraintType.FILTER).size()
+				50, ConstraintDescriptorProvider.getConstraints(ConstraintType.FILTER).size()
 			);
 			assertEquals(
 				21, ConstraintDescriptorProvider.getConstraints(ConstraintType.ORDER).size()
@@ -337,6 +338,8 @@ class ConstraintDescriptorProviderTest {
 	private static class UnknownConstraint extends ConstraintLeaf<FilterConstraint>
 		implements FilterConstraint, AttributeConstraint<FilterConstraint> {
 
+		@Serial private static final long serialVersionUID = -5553331810094141049L;
+
 		@Creator
 		public UnknownConstraint() {
 		}
@@ -344,7 +347,7 @@ class ConstraintDescriptorProviderTest {
 		@Nonnull
 		@Override
 		public FilterConstraint cloneWithArguments(@Nonnull Serializable[] newArguments) {
-			return null;
+			throw new UnsupportedOperationException("This is a test class and should not be used for cloning.");
 		}
 
 		@Nonnull

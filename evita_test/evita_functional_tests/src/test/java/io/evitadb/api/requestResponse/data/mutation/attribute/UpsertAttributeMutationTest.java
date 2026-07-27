@@ -29,15 +29,22 @@ import io.evitadb.api.requestResponse.data.mutation.AbstractMutationTest;
 import org.junit.jupiter.api.Test;
 
 import java.util.Locale;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.QUERY;
+import static io.evitadb.test.TestTags.ATTRIBUTE;
 
 /**
  * This test verifies contract of {@link UpsertAttributeMutation} mutation.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
+@Tag(CONTRACT)
+@Tag(QUERY)
+@Tag(ATTRIBUTE)
 class UpsertAttributeMutationTest extends AbstractMutationTest {
 
 	@Test

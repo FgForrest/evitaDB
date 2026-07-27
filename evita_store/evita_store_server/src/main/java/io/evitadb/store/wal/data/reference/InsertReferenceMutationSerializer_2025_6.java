@@ -38,7 +38,7 @@ import io.evitadb.api.requestResponse.schema.Cardinality;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  * @deprecated This serializer is deprecated and should not be used.
  */
-@Deprecated(since = "2025.6", forRemoval = true)
+@Deprecated(since = "2025.7", forRemoval = true)
 public class InsertReferenceMutationSerializer_2025_6 extends Serializer<InsertReferenceMutation> {
 
 	@Override

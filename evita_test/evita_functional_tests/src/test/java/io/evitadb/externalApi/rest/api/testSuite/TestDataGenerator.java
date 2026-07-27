@@ -81,6 +81,7 @@ public class TestDataGenerator {
 	public static final String ATTRIBUTE_BRAND_VISIBLE_FOR_B2C = "brandVisibleForB2C";
 	public static final String ATTRIBUTE_STORE_VISIBLE_FOR_B2C = "storeVisibleForB2C";
 	public static final String ATTRIBUTE_MARKET_SHARE = "marketShare";
+	public static final String HISTOGRAM_PRICE_INDEX = "priceIndex";
 	public static final String ATTRIBUTE_FOUNDED = "founded";
 	public static final String ATTRIBUTE_CAPACITY = "capacity";
 	public static final String ATTRIBUTE_DEPRECATED = "deprecated";
@@ -265,8 +266,15 @@ public class TestDataGenerator {
 									Cardinality.EXACTLY_ONE,
 									whichIs -> whichIs
 										.faceted()
-										.withAttribute(ATTRIBUTE_MARKET_SHARE, BigDecimal.class)
+										.indexedWithComponents(io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents.values())
+										.withAttribute(ATTRIBUTE_MARKET_SHARE, BigDecimal.class, thatIs -> thatIs.filterable())
 										.withGroupTypeRelatedToEntity(Entities.PARAMETER_GROUP)
+										.bucketed(
+											HISTOGRAM_PRICE_INDEX,
+											io.evitadb.api.query.expression.ExpressionFactory.parse(
+												"$reference.attributes['" + ATTRIBUTE_MARKET_SHARE + "']"
+											)
+										)
 								);
 						}
 					),

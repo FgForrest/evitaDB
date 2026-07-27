@@ -1,0 +1,46 @@
+POST /rest/evita/Product/query
+
+{
+  "filterBy" : {
+    "hierarchyCategoriesWithin" : {
+      "ofParent" : {
+        "attributeCodeEquals" : "macbooks"
+      }
+    },
+    "referenceParameterValuesHaving" : [
+      {
+        "groupHaving" : {
+          "attributeCodeEquals" : "ram-memory"
+        }
+      }
+    ]
+  },
+  "require" : {
+    "page" : {
+      "number" : 1,
+      "size" : 5
+    },
+    "entityFetch" : {
+      "attributeContent" : [
+        "code"
+      ],
+      "referenceParameterValuesContentWithAttributes" : {
+        "entityFetch" : {
+          "attributeContent" : [
+            "code"
+          ]
+        },
+        "entityGroupFetch" : {
+          "attributeContent" : [
+            "code"
+          ]
+        },
+        "filterBy" : {
+          "entityHaving" : {
+            "attributeCodeStartsWith" : "ram-memory"
+          }
+        }
+      }
+    }
+  }
+}

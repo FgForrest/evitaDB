@@ -23,19 +23,26 @@
 
 package io.evitadb.utils;
 
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.utils.BitUtils.copyBitSetFrom;
 import static io.evitadb.utils.BitUtils.isBitSet;
 import static io.evitadb.utils.BitUtils.setBit;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.DATA_TYPE;
 
 /**
  * This test verifies {@link BitUtils} implementation.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
+@DisplayName("BitUtils contract tests")
+@Tag(ENGINE)
+@Tag(DATA_TYPE)
 class BitUtilsTest {
 
 	@Test

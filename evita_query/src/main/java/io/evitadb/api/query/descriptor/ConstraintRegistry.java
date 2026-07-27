@@ -48,6 +48,7 @@ import java.util.Set;
  * @see ConstraintDescriptorProvider
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
+@SuppressWarnings("deprecation")
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 class ConstraintRegistry {
 
@@ -75,8 +76,14 @@ class ConstraintRegistry {
 		FilterInScope.class,
 		// entity
 		EntityPrimaryKeyInSet.class,
+		EntityPrimaryKeyGreaterThan.class,
+		EntityPrimaryKeyGreaterThanEquals.class,
+		EntityPrimaryKeyLessThan.class,
+		EntityPrimaryKeyLessThanEquals.class,
+		EntityPrimaryKeyBetween.class,
 		EntityLocaleEquals.class,
 		EntityHaving.class,
+		GroupHaving.class,
 		// attribute
 		AttributeBetween.class,
 		AttributeContains.class,
@@ -109,6 +116,7 @@ class ConstraintRegistry {
 		HierarchyWithinRoot.class,
 		// facet
 		FacetHaving.class,
+		HistogramHaving.class,
 		FacetIncludingChildren.class,
 		FacetIncludingChildrenExcept.class,
 
@@ -165,6 +173,9 @@ class ConstraintRegistry {
 		DefaultAccompanyingPriceLists.class,
 		// references
 		ReferenceContent.class,
+		ReferenceSummary.class,
+		ReferenceSummaryOfReference.class,
+		ReferenceHistogramStatistics.class,
 		// hierarchy
 		HierarchyContent.class,
 		HierarchyChildren.class,

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -37,13 +37,12 @@ import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import net.openhft.hashing.LongHashFunction;
-import org.roaringbitmap.RoaringBitmap;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Arrays;
 import java.util.Optional;
-import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.UnaryOperator;
 
@@ -58,23 +57,42 @@ import java.util.function.UnaryOperator;
  * {@link ReferenceOwnerTranslatingFormula}, but the resulting bitmap contains primary keys of the
  * referenced-entity index, not owner entity primary keys.
  *
- * If the reference is indexed only in selected {@link io.evitadb.dataType.Scope scopes} or the
- * referenced entity type is managed, the translation can be restricted by a precomputed superset of
- * referenced entities available in those scopes. Only ids present in that superset are considered.
+ * If the referenced entity type is managed, the translation is restricted by a precomputed superset of
+ * referenced entities that exist in **any** scope. The scope of the query constrains the queried entities
+ * only - the referenced entity may legitimately live in a different scope than the queried entity (e.g.
+ * an archived product referencing a live category), so referenced-entity existence must be checked across
+ * all scopes. Only ids present in that superset are considered.
  *
  * The final result is a bitmap of primary keys that identify rows inside
  * {@link ReferencedTypeEntityIndex}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class ReferencedEntityIndexPrimaryKeyTranslatingFormula extends AbstractFormula implements ChildrenDependentFormula {
-	private static final long CLASS_ID = 6841111737856593641L;
+public class ReferencedEntityIndexPrimaryKeyTranslatingFormula
+	extends AbstractFormula
+	implements ChildrenDependentFormula
+{
+
+	/**
+	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} for hash computation.
+	 */
+	private static final long CLASS_ID = 2738491562847195632L;
+	/**
+	 * Placeholder transactional id recorded for a scope whose GLOBAL index does not exist yet. It makes the
+	 * cache-invalidation hash (see {@link #includeAdditionalHash(LongHashFunction)}) change once the index is
+	 * created later, so a cached empty superset is not incorrectly reused when the referenced entity appears.
+	 */
+	private static final long INDEX_ABSENT_TRANSACTIONAL_ID = -1L;
+	/**
+	 * Error message thrown when {@link #getCloneWithInnerFormulas(Formula...)} receives more than one inner formula.
+	 */
 	public static final String ERROR_SINGLE_FORMULA_EXPECTED = "Exactly one inner formula is expected!";
 	/**
 	 * Optional union bitmap of all referenced entity primary keys that are allowed to participate
 	 * in the translation. The bitmap is built from {@link GlobalEntityIndex#getAllPrimaryKeys()}
-	 * across all scopes where the reference is indexed. When {@code null}, no additional
-	 * restriction applies (either the referenced type is not managed or the index is unavailable).
+	 * across all scopes (a reference may point to an entity living in a different scope than the
+	 * queried entity). When {@code null} the referenced type is not managed and no restriction
+	 * applies; for a managed type the superset is always present (possibly empty).
 	 */
 	private final Bitmap referencedEntitySuperSet;
 	/**
@@ -132,55 +150,68 @@ public class ReferencedEntityIndexPrimaryKeyTranslatingFormula extends AbstractF
 	 * Creates a translating formula that takes referenced entity primary keys produced by the
 	 * inner formula and lazily maps them to primary keys of the referenced-type entity index.
 	 *
-	 * When the referenced entity type is managed, this constructor also builds a superset of allowed
-	 * referenced entity primary keys by querying {@link GlobalEntityIndex} for the referenced entity
-	 * type in all provided scopes where the reference is indexed. The union of these bitmaps is used
-	 * to filter the inner result during evaluation. Transactional ids of the contributing indices are
-	 * captured so that {@link #includeAdditionalHash(LongHashFunction)} can properly invalidate caches
-	 * when any of them changes.
+	 * When the target entity type is managed, this constructor also builds a superset of allowed
+	 * entity primary keys by querying {@link GlobalEntityIndex} for the target entity type in
+	 * **all** scopes. The scope of the query constrains only the queried entities - a reference may
+	 * point to an entity living in a different scope (e.g. an archived product referencing a live
+	 * category), so the existence check must not be limited to the scopes the query is evaluated in.
+	 * The union of these bitmaps is used to filter the inner result during evaluation. Transactional
+	 * ids of the contributing indices are captured so that {@link #includeAdditionalHash(LongHashFunction)}
+	 * can properly invalidate caches when any of them changes.
 	 *
 	 * @param referenceSchema schema of the processed reference
+	 * @param targetEntityType the entity type to resolve the superset for (referenced entity type
+	 *        for entity-having, referenced group type for group-having)
+	 * @param isTargetManaged whether the target entity type is managed by evitaDB
 	 * @param referencedEntitySuperSetSupplier supplier returning {@link GlobalEntityIndex} for a
-	 *        referenced entity type and a scope
+	 *        target entity type and a scope
 	 * @param referencedTypeEntityIndex target referenced-type entity index
 	 * @param innerFormula inner formula producing referenced entity primary keys
-	 * @param scopes scopes the query is evaluated in
 	 */
 	public ReferencedEntityIndexPrimaryKeyTranslatingFormula(
 		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull String targetEntityType,
+		boolean isTargetManaged,
 		@Nonnull BiFunction<String, Scope, Optional<GlobalEntityIndex>> referencedEntitySuperSetSupplier,
 		@Nonnull ReferencedTypeEntityIndex referencedTypeEntityIndex,
 		@Nonnull Formula innerFormula,
-		@Nonnull Set<Scope> scopes,
 		@Nullable UnaryOperator<Bitmap> expansionFunction
 	) {
-		if (referenceSchema.isReferencedEntityTypeManaged()) {
-			RoaringBitmap bitmap = null;
-			final long[] transactionalIds = new long[scopes.size()];
+		if (isTargetManaged) {
+			final Scope[] allScopes = Scope.values();
+			PersistentRoaringBitmap bitmap = null;
+			final long[] transactionalIds = new long[allScopes.length];
 			int transactionalIdIndex = 0;
-			for (Scope theScope : scopes) {
-				// if the schema is not indexed in particular scope, we must keep original formula results in place
-				// to avoid their removal from the final result
-				if (referenceSchema.isIndexedInScope(theScope)) {
-					final Optional<GlobalEntityIndex> globalEntityIndex = referencedEntitySuperSetSupplier
-						.apply(referenceSchema.getReferencedEntityType(), theScope);
-					final Bitmap allPrimaryKeys;
-					if (globalEntityIndex.isPresent()) {
-						allPrimaryKeys = globalEntityIndex.get().getAllPrimaryKeys();
-						transactionalIds[transactionalIdIndex++] = globalEntityIndex.get().getId();
-					} else {
-						allPrimaryKeys = EmptyBitmap.INSTANCE;
-					}
-					bitmap = bitmap == null ?
-						RoaringBitmapBackedBitmap.getRoaringBitmap(allPrimaryKeys) :
-						RoaringBitmap.or(bitmap, RoaringBitmapBackedBitmap.getRoaringBitmap(allPrimaryKeys));
+			for (Scope theScope : allScopes) {
+				// the scope of the query constrains only the queried entities - a reference may point to an entity
+				// living in a different scope (e.g. an archived product referencing a live category), so the
+				// existence check must span all scopes, not just the scopes the query is evaluated in
+				final Optional<GlobalEntityIndex> globalEntityIndex = referencedEntitySuperSetSupplier
+					.apply(targetEntityType, theScope);
+				if (globalEntityIndex.isEmpty()) {
+					// the GLOBAL index for this scope does not exist yet - record a deterministic placeholder so the
+					// cache-invalidation hash changes once the index is created later (otherwise a cached empty
+					// superset could be reused after the referenced entity appears)
+					transactionalIds[transactionalIdIndex++] = INDEX_ABSENT_TRANSACTIONAL_ID;
+					continue;
 				}
+				final Bitmap allPrimaryKeys = globalEntityIndex.get().getAllPrimaryKeys();
+				transactionalIds[transactionalIdIndex++] = globalEntityIndex.get().getId();
+				if (allPrimaryKeys.isEmpty()) {
+					// an empty contribution would not change the union - skipping it keeps the common
+					// single-contributing-scope case zero-copy (no OR with an empty bitmap)
+					continue;
+				}
+				bitmap = bitmap == null ?
+					RoaringBitmapBackedBitmap.getRoaringBitmap(allPrimaryKeys) :
+					PersistentRoaringBitmap.or(bitmap, RoaringBitmapBackedBitmap.getRoaringBitmap(allPrimaryKeys));
 			}
-			this.referencedEntitySuperSet = bitmap == null ?
-				null : new BaseBitmap(bitmap);
-			this.referencedEntityTypeSuperSetTransactionalIds = transactionalIdIndex == transactionalIds.length ?
-				transactionalIds :
-				Arrays.copyOfRange(transactionalIds, 0, transactionalIdIndex);
+			// for a managed referenced type the superset always applies - when no scope contributed any primary
+			// keys the superset is empty (no referenced entity exists anywhere), never unrestricted
+			this.referencedEntitySuperSet = bitmap == null ? EmptyBitmap.INSTANCE : new BaseBitmap(bitmap);
+			this.referencedEntityTypeSuperSetTransactionalIds = transactionalIdIndex == transactionalIds.length
+				? transactionalIds
+				: Arrays.copyOfRange(transactionalIds, 0, transactionalIdIndex);
 		} else {
 			this.referencedEntitySuperSet = null;
 			this.referencedEntityTypeSuperSetTransactionalIds = ArrayUtils.EMPTY_LONG_ARRAY;
@@ -245,13 +276,11 @@ public class ReferencedEntityIndexPrimaryKeyTranslatingFormula extends AbstractF
 				RoaringBitmapBackedBitmap.getRoaringBitmap(referencedEntityIds)
 			);
 		} else {
-			final RoaringBitmap matchingReferencedEntityPks = RoaringBitmap.and(
+			final PersistentRoaringBitmap matchingReferencedEntityPks = PersistentRoaringBitmap.and(
 				RoaringBitmapBackedBitmap.getRoaringBitmap(referencedEntityIds),
 				RoaringBitmapBackedBitmap.getRoaringBitmap(this.referencedEntitySuperSet)
 			);
-			return new BaseBitmap(
-				this.referencedEntityTypeIndex.getIndexPrimaryKeys(matchingReferencedEntityPks)
-			);
+			return this.referencedEntityTypeIndex.getIndexPrimaryKeys(matchingReferencedEntityPks);
 		}
 	}
 
@@ -279,6 +308,7 @@ public class ReferencedEntityIndexPrimaryKeyTranslatingFormula extends AbstractF
 		return 1;
 	}
 
+	@Nonnull
 	@Override
 	public String toString() {
 		return "TRANSLATE TO REFERENCED ENTITY INDEX PRIMARY KEYS";

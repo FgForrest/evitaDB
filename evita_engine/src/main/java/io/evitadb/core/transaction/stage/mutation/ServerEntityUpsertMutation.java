@@ -23,7 +23,7 @@
 
 package io.evitadb.core.transaction.stage.mutation;
 
-import io.evitadb.api.requestResponse.data.mutation.ConsistencyCheckingLocalMutationExecutor.ImplicitMutationBehavior;
+import io.evitadb.index.mutation.ConsistencyCheckingLocalMutationExecutor.ImplicitMutationBehavior;
 import io.evitadb.api.requestResponse.data.mutation.EntityUpsertMutation;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
@@ -56,12 +56,12 @@ public class ServerEntityUpsertMutation extends EntityUpsertMutation implements 
 	@Getter public final EnumSet<ImplicitMutationBehavior> implicitMutations;
 	@Getter private final EntityUpsertMutation delegate;
 	private final boolean verifyConsistency;
-	private final boolean applyUndoOnError;
+	private final boolean rollbackOnError;
 
 	public ServerEntityUpsertMutation(
 		@Nonnull EntityUpsertMutation entityUpsertMutation,
 		@Nonnull EnumSet<ImplicitMutationBehavior> implicitMutations,
-		boolean applyUndoOnError,
+		boolean rollbackOnError,
 		boolean verifyConsistency
 	) {
 		super(
@@ -72,7 +72,7 @@ public class ServerEntityUpsertMutation extends EntityUpsertMutation implements 
 		);
 		this.delegate = entityUpsertMutation;
 		this.implicitMutations = implicitMutations;
-		this.applyUndoOnError = applyUndoOnError;
+		this.rollbackOnError = rollbackOnError;
 		this.verifyConsistency = verifyConsistency;
 	}
 
@@ -81,7 +81,7 @@ public class ServerEntityUpsertMutation extends EntityUpsertMutation implements 
 		@Nullable Integer entityPrimaryKey,
 		@Nonnull EntityExistence entityExistence,
 		@Nonnull EnumSet<ImplicitMutationBehavior> implicitMutations,
-		boolean applyUndoOnError,
+		boolean rollbackOnError,
 		boolean verifyConsistency,
 		@Nonnull LocalMutation<?, ?>... localMutations
 	) {
@@ -93,7 +93,7 @@ public class ServerEntityUpsertMutation extends EntityUpsertMutation implements 
 		);
 		this.delegate = new EntityUpsertMutation(entityType, entityPrimaryKey, entityExistence, localMutations);
 		this.implicitMutations = implicitMutations;
-		this.applyUndoOnError = applyUndoOnError;
+		this.rollbackOnError = rollbackOnError;
 		this.verifyConsistency = verifyConsistency;
 	}
 
@@ -104,8 +104,8 @@ public class ServerEntityUpsertMutation extends EntityUpsertMutation implements 
 	}
 
 	@Override
-	public boolean shouldApplyUndoOnError() {
-		return this.applyUndoOnError;
+	public boolean shouldRollbackOnError() {
+		return this.rollbackOnError;
 	}
 
 	@Override
@@ -128,22 +128,22 @@ public class ServerEntityUpsertMutation extends EntityUpsertMutation implements 
 	/**
 	 * Merges the current {@code ServerEntityUpsertMutation} instance with another {@code ServerEntityUpsertMutation}.
 	 * This operation combines the implicit mutation behaviors and the local mutations of both instances.
-	 * The merging is only allowed if the {@code applyUndoOnError} and {@code verifyConsistency} flags are identical
+	 * The merging is only allowed if the {@code rollbackOnError} and {@code verifyConsistency} flags are identical
 	 * for both instances.
 	 *
 	 * @param anotherMutation the {@code ServerEntityUpsertMutation} instance to merge with the current instance.
 	 *                        Must not be null.
 	 * @return a new {@code ServerEntityUpsertMutation} instance containing the merged implicit mutation behaviors
 	 *         and local mutations from both instances.
-	 * @throws IllegalArgumentException if the {@code applyUndoOnError} or {@code verifyConsistency} flags differ
+	 * @throws IllegalArgumentException if the {@code rollbackOnError} or {@code verifyConsistency} flags differ
 	 *                                  between the two {@code ServerEntityUpsertMutation} instances.
 	 */
 	@Nonnull
 	public ServerEntityUpsertMutation mergeWith(@Nonnull ServerEntityUpsertMutation anotherMutation) {
 		Assert.isPremiseValid(
-			this.applyUndoOnError == anotherMutation.applyUndoOnError &&
+			this.rollbackOnError == anotherMutation.rollbackOnError &&
 			this.verifyConsistency == anotherMutation.verifyConsistency,
-			"Cannot merge two ServerEntityUpsertMutations that have different applyUndoOnError or verifyConsistency flags!"
+			"Cannot merge two ServerEntityUpsertMutations that have different rollbackOnError or verifyConsistency flags!"
 		);
 		final EnumSet<ImplicitMutationBehavior> mergedImplicitMutations = EnumSet.copyOf(this.implicitMutations);
 		mergedImplicitMutations.addAll(anotherMutation.implicitMutations);
@@ -158,7 +158,7 @@ public class ServerEntityUpsertMutation extends EntityUpsertMutation implements 
 				).collect(Collectors.toCollection(ArrayList::new))
 			),
 			mergedImplicitMutations,
-			this.applyUndoOnError,
+			this.rollbackOnError,
 			this.verifyConsistency
 		);
 	}

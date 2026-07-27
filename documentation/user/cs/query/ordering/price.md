@@ -6,6 +6,7 @@ author: Ing. Jan Novotný
 proofreading: done
 preferredLang: evitaql
 commit: cef96d8320d36c91c100c5dfc9c45020b5a7ad0d
+translated: true
 ---
 ## Přirozená cena
 
@@ -31,7 +32,7 @@ dotazu (ve výchozím nastavení se používá cena s daní).
 Pro seřazení produktů podle jejich prodejní ceny (aktuálně se zohledňuje pouze cenový seznam `basic` a měna `EUR`) můžeme použít
 následující dotaz:
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Seznam produktů seřazených podle prodejní ceny](/documentation/user/en/query/ordering/examples/price/price-natural.evitaql)
 </SourceCodeTabs>
@@ -147,7 +148,7 @@ Proto i „neindexované“ ceny musí být indexovány a uchovávány v paměť
 Pro seřazení produktů podle výše jejich slevy (tj. pro porovnání, jakou slevu získáte s `b2b-basic-price` oproti
 cenovému seznamu `basic` a měně `EUR`) můžeme použít následující dotaz:
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Seznam produktů s nejvyšší slevou na začátku](/documentation/user/en/query/ordering/examples/price/price-discount.evitaql)
 </SourceCodeTabs>

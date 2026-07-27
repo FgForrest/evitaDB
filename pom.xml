@@ -25,7 +25,7 @@
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>io.evitadb</groupId>
 	<artifactId>evita_root</artifactId>
-	<version>2026.1-SNAPSHOT</version>
+	<version>2026.2.RC1-SNAPSHOT</version>
 	<packaging>pom</packaging>
 	<name>evitaDB - Root &amp; modules aggregator</name>
 	<url>https://evitadb.io</url>
@@ -123,35 +123,68 @@
 	<properties>
 		<java.version>17</java.version>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-		<slf4j.version>2.0.17</slf4j.version>
-		<logback.version>1.5.32</logback.version>
+		<slf4j.version>2.0.18</slf4j.version>
+		<logback.version>1.6.0</logback.version>
 		<kryo.version>5.6.2</kryo.version>
-		<jackson.version>2.21.1</jackson.version>
-		<jackson.annotations.version>2.21</jackson.annotations.version>
+		<jackson.version>2.22.1</jackson.version>
+		<jackson.annotations.version>2.22</jackson.annotations.version>
 		<snakeyaml.version>2.6</snakeyaml.version>
-		<roaringbitmap.version>1.6.12</roaringbitmap.version>
-		<junit.jupiter.version>6.0.3</junit.jupiter.version>
-		<mockito.junit.version>5.22.0</mockito.junit.version>
+		<roaringbitmap.version>1.6.18</roaringbitmap.version>
+		<junit.jupiter.version>6.1.2</junit.jupiter.version>
+		<mockito.junit.version>5.23.0</mockito.junit.version>
 		<assertj.version>3.27.7</assertj.version>
 		<maven.compiler.version>3.15.0</maven.compiler.version>
-		<maven.toolchains.version>3.2.0</maven.toolchains.version>
-		<lombok.version>1.18.42</lombok.version>
-		<grpc.version>1.78.0</grpc.version>
-		<bouncyCastle.version>1.83</bouncyCastle.version>
-		<swagger.version>2.2.43</swagger.version>
-		<armeria.version>1.36.0</armeria.version>
-		<prometheus.version>1.5.0</prometheus.version>
-		<micrometer.version>1.16.3</micrometer.version>
+		<maven.toolchains.version>3.3.0</maven.toolchains.version>
+		<lombok.version>1.18.46</lombok.version>
+		<grpc.version>1.83.0</grpc.version>
+		<bouncyCastle.version>1.85</bouncyCastle.version>
+		<swagger.version>2.2.52</swagger.version>
+		<armeria.version>1.40.0</armeria.version>
+		<!--
+			Overrides the netty version armeria 1.40.0 itself pulls in (4.2.15.Final) to pick up
+			GHSA-558v-64gr-wgg4 / GHSA-q6cq-mhr2-jmr5 / GHSA-6jqx-86gh-f27w and the other netty-codec-*
+			advisories fixed in 4.2.16.Final, ahead of armeria's next release. Patch bump within the
+			same 4.2.x line - see the netty-codec-* overrides in dependencyManagement below for why
+			only those artifacts (not a full netty-bom import) are pinned. Drop this override (and the
+			property) once armeria itself depends on >= 4.2.16.Final.
+		-->
+		<netty.version>4.2.16.Final</netty.version>
+		<prometheus.version>1.8.0</prometheus.version>
+		<micrometer.version>1.17.0</micrometer.version>
 		<byteBuddy.version>1.17.8</byteBuddy.version>
 		<graphql.version>25.0</graphql.version>
-		<okhttp.version>5.3.2</okhttp.version>
-		<opentelemetry.version>1.59.0</opentelemetry.version>
-		<opentelemetry.semconv.version>1.40.0</opentelemetry.semconv.version>
+		<okhttp.version>5.4.0</okhttp.version>
+		<opentelemetry.version>1.64.0</opentelemetry.version>
+		<opentelemetry.semconv.version>1.43.0</opentelemetry.semconv.version>
 		<minio.version>8.6.0</minio.version>
+		<!--
+			Thread fan-out for the `unit`/`unitAndFunctional` surefire profiles. Defaults to
+			unlimited (best for beefy, many-core dev machines). CI (ci-dev.yml / pr-review.yml)
+			overrides both via -D on the command line to bound concurrency to the GitHub-hosted
+			runner's actual core count - see the surefire-plugin config below for why.
+		-->
+		<surefire.useUnlimitedThreads>true</surefire.useUnlimitedThreads>
+		<surefire.threadCount>4</surefire.threadCount>
+		<!--
+			Lets CI skip evita_roaring_bitmap's (colocated, vendor-suite) tests on pushes/PRs that
+			don't touch that module, to save CI time. Defaults to false (tests run) for local dev
+			and any invocation that doesn't explicitly override it - see ci-dev.yml / pr-review.yml.
+		-->
+		<roaringBitmap.skipTests>false</roaringBitmap.skipTests>
 	</properties>
 
+	<!--
+		Default reactor — kept lean for fast local builds and CI gates that don't
+		need the heavy artifacts. Activate the `full` profile to also build:
+		  * jacoco (aggregate coverage report)
+		  * evita_performance_tests (JMH benchmarks uber-jar)
+		  * evita_java_driver_all_in_one (shaded gRPC driver)
+		The release pipeline MUST run with `-P full` or the all-in-one driver
+		will silently stop being published to Maven Central.
+	-->
 	<modules>
 		<module>evita_common</module>
+		<module>evita_roaring_bitmap</module>
 		<module>evita_api</module>
 		<module>evita_query</module>
 		<module>evita_engine</module>
@@ -163,12 +196,47 @@
 		<module>evita_server</module>
 		<module>evita_test/evita_test_support</module>
 		<module>evita_test/evita_functional_tests</module>
-		<module>evita_test/evita_performance_tests</module>
-		<module>jacoco</module>
+		<module>evita_test/evita_documentation_tests</module>
+		<module>evita_test/evita_long_running_tests</module>
 	</modules>
 
 	<dependencyManagement>
 		<dependencies>
+			<!--
+				See the netty.version comment in <properties> above: overrides only the netty-codec-*
+				artifacts armeria 1.40.0 pulls in that carry an open Dependabot advisory, without a full
+				netty-bom import - importing netty-bom manages every io.netty:* artifact (incl.
+				netty-handler and netty-resolver-dns, neither of which is itself vulnerable), which was
+				observed to flip netty-handler's mediated scope from "provided" to "runtime" in
+				evita_external_api_grpc_shared and break its module-info.java (`requires io.netty.handler`
+				needs compile-time visibility). Mixing patch versions within the same netty 4.2.x line is
+				binary-compatible, so pinning just the affected artifacts is sufficient and safer.
+			-->
+			<dependency>
+				<groupId>io.netty</groupId>
+				<artifactId>netty-codec-http2</artifactId>
+				<version>${netty.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>io.netty</groupId>
+				<artifactId>netty-codec-http</artifactId>
+				<version>${netty.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>io.netty</groupId>
+				<artifactId>netty-codec-compression</artifactId>
+				<version>${netty.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>io.netty</groupId>
+				<artifactId>netty-codec-haproxy</artifactId>
+				<version>${netty.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>io.netty</groupId>
+				<artifactId>netty-codec-dns</artifactId>
+				<version>${netty.version}</version>
+			</dependency>
 			<dependency>
 				<groupId>com.esotericsoftware</groupId>
 				<artifactId>kryo</artifactId>
@@ -257,7 +325,7 @@
 			<dependency>
 				<groupId>commons-io</groupId>
 				<artifactId>commons-io</artifactId>
-				<version>2.21.0</version>
+				<version>2.22.0</version>
 			</dependency>
 			<dependency>
 				<groupId>com.linecorp.armeria</groupId>
@@ -272,7 +340,7 @@
 			<dependency>
 				<groupId>com.google.guava</groupId>
 				<artifactId>guava</artifactId>
-				<version>33.5.0-jre</version>
+				<version>33.6.0-jre</version>
 			</dependency>
 			<dependency>
 				<groupId>org.apache.commons</groupId>
@@ -283,6 +351,41 @@
 				<groupId>org.apache.commons</groupId>
 				<artifactId>commons-lang3</artifactId>
 				<version>3.20.0</version>
+			</dependency>
+			<!--
+				Import the JUnit BOM so every junit-jupiter-* and junit-platform-*
+				artifact (api, params, engine, commons, launcher, ...) is locked to
+				a single version. Without this, transitive deps such as
+				mockito-junit-jupiter drag in an older junit-jupiter-api (e.g.
+				5.13.4) and Surefire's JUnit Platform alignment check then refuses
+				to fork the test JVM (wrapped NoClassDefFoundError).
+			-->
+			<dependency>
+				<groupId>org.junit</groupId>
+				<artifactId>junit-bom</artifactId>
+				<version>${junit.jupiter.version}</version>
+				<type>pom</type>
+				<scope>import</scope>
+			</dependency>
+			<!--
+				Force Bouncy Castle to ${bouncyCastle.version} across all modules.
+				Without this, io.minio:minio drags in a vulnerable bcprov-jdk18on
+				transitively into evita_export_s3 (CVE-2026-5598, CVE-2026-0636).
+			-->
+			<dependency>
+				<groupId>org.bouncycastle</groupId>
+				<artifactId>bcprov-jdk18on</artifactId>
+				<version>${bouncyCastle.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>org.bouncycastle</groupId>
+				<artifactId>bcpkix-jdk18on</artifactId>
+				<version>${bouncyCastle.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>org.bouncycastle</groupId>
+				<artifactId>bcutil-jdk18on</artifactId>
+				<version>${bouncyCastle.version}</version>
 			</dependency>
 		</dependencies>
 	</dependencyManagement>
@@ -379,6 +482,14 @@
 			</build>
 		</profile>
 		<profile>
+			<!--
+				Default fast-loop profile: runs everything that is not slow/flaky.
+				The documentation tests live in their own module
+				(`evita_test/evita_documentation_tests`) and are skipped by default
+				there, so no path-based exclusion is needed here. With the new tag
+				taxonomy `unit` and `unitAndFunctional` are equivalent; both names
+				are kept for compatibility with developer muscle memory.
+			-->
 			<id>unit</id>
 			<build>
 				<plugins>
@@ -386,9 +497,10 @@
 						<groupId>org.apache.maven.plugins</groupId>
 						<artifactId>maven-surefire-plugin</artifactId>
 						<configuration>
-							<excludedGroups>integration,functional,longRunning,documentation</excludedGroups>
+							<excludedGroups>slow,flaky</excludedGroups>
 							<parallel>all</parallel>
-							<useUnlimitedThreads>true</useUnlimitedThreads>
+							<useUnlimitedThreads>${surefire.useUnlimitedThreads}</useUnlimitedThreads>
+							<threadCount>${surefire.threadCount}</threadCount>
 						</configuration>
 					</plugin>
 				</plugins>
@@ -402,32 +514,22 @@
 						<groupId>org.apache.maven.plugins</groupId>
 						<artifactId>maven-surefire-plugin</artifactId>
 						<configuration>
-							<excludedGroups>integration,longRunning,documentation</excludedGroups>
+							<excludedGroups>slow,flaky</excludedGroups>
 							<parallel>all</parallel>
-							<useUnlimitedThreads>true</useUnlimitedThreads>
+							<useUnlimitedThreads>${surefire.useUnlimitedThreads}</useUnlimitedThreads>
+							<threadCount>${surefire.threadCount}</threadCount>
 						</configuration>
 					</plugin>
 				</plugins>
 			</build>
 		</profile>
 		<profile>
-			<id>functional</id>
-			<build>
-				<plugins>
-					<plugin>
-						<groupId>org.apache.maven.plugins</groupId>
-						<artifactId>maven-surefire-plugin</artifactId>
-						<configuration>
-							<groups>functional</groups>
-							<parallel>all</parallel>
-							<useUnlimitedThreads>true</useUnlimitedThreads>
-							<argLine>-Xmx5g</argLine>
-						</configuration>
-					</plugin>
-				</plugins>
-			</build>
-		</profile>
-		<profile>
+			<!--
+				Activates the documentation test suite. Across the reactor surefire
+				is set to skip everything; the matching profile in the documentation
+				module's pom.xml flips skipTests back to `false` for that module
+				only, so `mvn -P documentation` runs documentation tests exclusively.
+			-->
 			<id>documentation</id>
 			<build>
 				<plugins>
@@ -435,14 +537,19 @@
 						<groupId>org.apache.maven.plugins</groupId>
 						<artifactId>maven-surefire-plugin</artifactId>
 						<configuration>
-							<groups>documentation</groups>
-							<argLine>-Xmx5g</argLine>
+							<skipTests>true</skipTests>
 						</configuration>
 					</plugin>
 				</plugins>
 			</build>
 		</profile>
 		<profile>
+			<!--
+				Activates the long-running test suite. Across the reactor surefire is
+				set to skip everything; the matching profile in the long-running
+				module's pom.xml flips skipTests back to `false` and adds the larger
+				`-Xmx5g` heap, so `mvn -P longRunning` runs only long-running tests.
+			-->
 			<id>longRunning</id>
 			<build>
 				<plugins>
@@ -450,14 +557,31 @@
 						<groupId>org.apache.maven.plugins</groupId>
 						<artifactId>maven-surefire-plugin</artifactId>
 						<configuration>
-							<groups>integration,functional,longRunning</groups>
-							<parallel>all</parallel>
-							<useUnlimitedThreads>true</useUnlimitedThreads>
-							<argLine>-Xmx5g</argLine>
+							<skipTests>true</skipTests>
 						</configuration>
 					</plugin>
 				</plugins>
 			</build>
+		</profile>
+		<profile>
+			<id>intellij-idea-only</id>
+			<build>
+				<directory>${project.basedir}/out</directory>
+			</build>
+		</profile>
+		<!--
+			Adds the heavy modules that are excluded from the default reactor.
+			Activate for: CI dev/PR builds (jacoco aggregate report), performance
+			pipeline (benchmarks uber-jar) and — most importantly — the release
+			deploy (otherwise evita_java_driver_all_in_one is not published).
+		-->
+		<profile>
+			<id>full</id>
+			<modules>
+				<module>evita_test/evita_performance_tests</module>
+				<module>evita_external_api/evita_external_api_grpc/client_all_in_one</module>
+				<module>jacoco</module>
+			</modules>
 		</profile>
 	</profiles>
 	<build>
@@ -466,7 +590,53 @@
 				<plugin>
 					<groupId>org.apache.maven.plugins</groupId>
 					<artifactId>maven-shade-plugin</artifactId>
-					<version>3.6.1</version>
+					<version>3.6.2</version>
+				</plugin>
+				<plugin>
+					<!--
+						Default jar manifest configuration shared by every jar module:
+						addDefaultImplementationEntries pulls Implementation-Title /
+						-Version / -Vendor from the project's <name>, <version> and
+						<organization>. Modules with extra needs (main class, premain,
+						build commit, ...) layer additional configuration on top.
+					-->
+					<groupId>org.apache.maven.plugins</groupId>
+					<artifactId>maven-jar-plugin</artifactId>
+					<version>3.5.0</version>
+					<configuration>
+						<archive>
+							<manifest>
+								<addDefaultImplementationEntries>true</addDefaultImplementationEntries>
+							</manifest>
+						</archive>
+					</configuration>
+				</plugin>
+				<plugin>
+					<!--
+						Captures the short git SHA at build time and exposes it as the
+						${git.commit.id.abbrev} project property, which is then baked into
+						MANIFEST.MF and surfaced by VersionUtils#readCommitHash for the
+						io_evitadb_build_info metric. Submodules opt in by declaring just
+						<groupId>+<artifactId>; version, execution and configuration are
+						inherited from this management block.
+					-->
+					<groupId>io.github.git-commit-id</groupId>
+					<artifactId>git-commit-id-maven-plugin</artifactId>
+					<version>10.0.0</version>
+					<executions>
+						<execution>
+							<id>get-the-git-infos</id>
+							<phase>initialize</phase>
+							<goals>
+								<goal>revision</goal>
+							</goals>
+						</execution>
+					</executions>
+					<configuration>
+						<generateGitPropertiesFile>false</generateGitPropertiesFile>
+						<failOnNoGitDirectory>false</failOnNoGitDirectory>
+						<abbrevLength>7</abbrevLength>
+					</configuration>
 				</plugin>
 			</plugins>
 		</pluginManagement>
@@ -500,14 +670,32 @@
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-surefire-plugin</artifactId>
-				<version>3.5.4</version>
+				<version>3.5.5</version>
 				<configuration>
 					<forkCount>1</forkCount>
 					<reuseForks>true</reuseForks>
 					<jdkToolchain>
 						<version>${java.version}</version>
 					</jdkToolchain>
-					<argLine>${surefireArgLine} -Xmx4g -Duser.country=US, -Duser.language=us -Dfile.encoding=${project.build.sourceEncoding} --add-opens java.base/java.lang.invoke=ALL-UNNAMED --add-opens java.base/java.lang.invoke=ALL-UNNAMED --add-opens java.base/java.lang=ALL-UNNAMED --add-opens java.base/java.math=ALL-UNNAMED --add-opens java.base/java.util=ALL-UNNAMED</argLine>
+					<!--
+						CI (ci-dev.yml / pr-review.yml) runs the `unitAndFunctional` profile on the
+						GitHub-hosted `ubuntu-latest` runner: 4 vCPUs, ~14.7 GB free RAM confirmed via
+						the "Print runner memory info" step, no cgroup cap (bare VM). A prior -Xmx12g
+						attempt got the whole "Build with Maven" step killed outright ("The operation
+						was canceled" after ~13 minutes) even though a single 12g fork should fit
+						comfortably under 14.7 GB on paper. Root cause: with that profile's
+						`useUnlimitedThreads=true`, a single fork can spin up dozens of concurrent test
+						threads on a 4-core box, each potentially standing up its own embedded
+						Evita+gRPC+GraphQL instance - that off-heap footprint (Netty buffers, thread
+						stacks, native socket resources) isn't bounded by -Xmx at all, so a bigger heap
+						just removed the backpressure that used to trigger a contained heap OOM instead
+						of an OS-level kill. Only `unitAndFunctional`'s own fork is CPU/memory-heavy
+						here - no other reactor module runs tests under this profile. Fix: CI overrides
+						`surefire.useUnlimitedThreads`/`surefire.threadCount` (see root <properties>) to
+						cap concurrency to the runner's actual core count, which bounds the off-heap
+						driver and makes 8g a safe, comfortable step up from the previous 5g.
+					-->
+					<argLine>${surefireArgLine} -Xmx8g -Duser.country=US, -Duser.language=us -Dfile.encoding=${project.build.sourceEncoding} --add-opens java.base/java.lang.invoke=ALL-UNNAMED --add-opens java.base/java.lang.invoke=ALL-UNNAMED --add-opens java.base/java.lang=ALL-UNNAMED --add-opens java.base/java.math=ALL-UNNAMED --add-opens java.base/java.util=ALL-UNNAMED</argLine>
 				</configuration>
 			</plugin>
 			<plugin>
@@ -576,7 +764,7 @@
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-source-plugin</artifactId>
-				<version>3.3.1</version>
+				<version>3.4.0</version>
 				<configuration>
 					<forceCreation>true</forceCreation>
 					<encoding>UTF-8</encoding>
@@ -595,7 +783,7 @@
 			<plugin>
 				<groupId>org.jacoco</groupId>
 				<artifactId>jacoco-maven-plugin</artifactId>
-				<version>0.8.8</version>
+				<version>0.8.14</version>
 				<executions>
 					<execution>
 						<id>prepare-agent</id>
@@ -613,7 +801,7 @@
 			<plugin>
 				<groupId>org.codehaus.mojo</groupId>
 				<artifactId>versions-maven-plugin</artifactId>
-				<version>2.19.1</version>
+				<version>2.21.0</version>
 				<configuration>
 					<ignoredVersions>(?i).*[.-](alpha|beta|rc|ea|m)[.-]?\d*</ignoredVersions>
 				</configuration>
@@ -621,7 +809,7 @@
 			<plugin>
 				<groupId>org.owasp</groupId>
 				<artifactId>dependency-check-maven</artifactId>
-				<version>7.1.1</version>
+				<version>12.2.2</version>
 				<configuration>
 					<format>ALL</format>
 					<failBuildOnCVSS>5</failBuildOnCVSS>
@@ -667,12 +855,15 @@
 			<plugin>
 				<groupId>one.edee.oss</groupId>
 				<artifactId>comenius-maven-plugin</artifactId>
-				<version>1.0.0</version>
+				<version>1.0.1</version>
 				<configuration>
 					<llmProvider>openai</llmProvider>
 					<llmUrl>https://api.openai.com/v1</llmUrl>
-					<llmToken>${OPENAI_API_KEY}</llmToken>
+					<llmToken>${env.OPENAI_API_KEY}</llmToken>
 					<llmModel>gpt-4.1</llmModel>
+					<customFrontMatter>
+						<translated>true</translated>
+					</customFrontMatter>
 					<sourceDir>documentation/user/en</sourceDir>
 					<targets>
 						<target>
@@ -698,7 +889,7 @@
 			<plugin>
 				<groupId>org.owasp</groupId>
 				<artifactId>dependency-check-maven</artifactId>
-				<version>7.1.1</version>
+				<version>12.2.2</version>
 			</plugin>
 		</plugins>
 	</reporting>

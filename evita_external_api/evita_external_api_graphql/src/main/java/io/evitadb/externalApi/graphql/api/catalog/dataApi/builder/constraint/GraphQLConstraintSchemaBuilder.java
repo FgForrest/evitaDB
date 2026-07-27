@@ -101,6 +101,7 @@ public abstract class GraphQLConstraintSchemaBuilder extends ConstraintSchemaBui
 		final List<GraphQLInputObjectField> children = new LinkedList<>();
 		children.addAll(buildGenericChildren(buildContext, allowedChildrenPredicate));
 		children.addAll(buildEntityChildren(buildContext, allowedChildrenPredicate));
+		children.addAll(buildGroupChildren(buildContext, allowedChildrenPredicate));
 		children.addAll(buildAttributeChildren(buildContext, allowedChildrenPredicate));
 		children.addAll(buildAssociatedDataChildren(buildContext, allowedChildrenPredicate));
 		children.addAll(buildPriceChildren(buildContext, allowedChildrenPredicate));
@@ -137,6 +138,7 @@ public abstract class GraphQLConstraintSchemaBuilder extends ConstraintSchemaBui
 		return newInputObjectField()
 			.name(constraintKey)
 			.description(constructConstraintDescription(constraintDescriptor))
+			.deprecate(constraintDescriptor.deprecated())
 			.type(constraintValue)
 			.build();
 	}

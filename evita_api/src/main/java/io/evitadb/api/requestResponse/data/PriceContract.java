@@ -148,7 +148,7 @@ public interface PriceContract extends Versioned, Droppable, Serializable, Compa
 	/**
 	 * Renamed to {@link #indexed()}.
 	 */
-	@Deprecated(since = "2024.9", forRemoval = true)
+	@Deprecated(since = "2024.10", forRemoval = true)
 	default boolean sellable() {
 		return indexed();
 	}

@@ -41,6 +41,13 @@ public interface PriceIndexWriteContract {
 
 	/**
 	 * Method registers new price to the index.
+	 *
+	 * @param superPriceIndex the price index of the GLOBAL entity index owning the memory-expensive
+	 *                        {@link io.evitadb.index.price.model.priceRecord.PriceRecord} and
+	 *                        {@link io.evitadb.index.price.model.entityPrices.EntityPrices} instances this index shares.
+	 *                        A reduced ({@link PriceRefIndex}) index resolves them through it instead of holding
+	 *                        a pointer of its own; a {@link PriceSuperIndex} owns them and therefore ignores it beyond
+	 *                        asserting the caller handed over this very index.
 	 */
 	int addPrice(
 		@Nullable ReferenceSchemaContract referenceSchema,
@@ -51,11 +58,15 @@ public interface PriceIndexWriteContract {
 		@Nullable Integer innerRecordId,
 		@Nullable DateTimeRange validity,
 		int priceWithoutTax,
-		int priceWithTax
+		int priceWithTax,
+		@Nonnull PriceSuperIndex superPriceIndex
 	);
 
 	/**
 	 * Method removes registered price from the index.
+	 *
+	 * @param superPriceIndex the price index of the GLOBAL entity index backing this one - see
+	 *                        {@link #addPrice(ReferenceSchemaContract, int, int, PriceKey, PriceInnerRecordHandling, Integer, DateTimeRange, int, int, PriceSuperIndex)}
 	 */
 	void priceRemove(
 		@Nullable ReferenceSchemaContract referenceSchema,
@@ -66,7 +77,8 @@ public interface PriceIndexWriteContract {
 		@Nullable Integer innerRecordId,
 		@Nullable DateTimeRange validity,
 		int priceWithoutTax,
-		int priceWithTax
+		int priceWithTax,
+		@Nonnull PriceSuperIndex superPriceIndex
 	);
 
 }

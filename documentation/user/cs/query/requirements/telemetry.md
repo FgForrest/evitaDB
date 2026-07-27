@@ -6,6 +6,7 @@ author: Bc. Lukáš Hornych
 proofreading: done
 preferredLang: evitaql
 commit: cabcf999e7be5b00e0b13e1228a76a8d9e91cb78
+translated: true
 ---
 ## Telemetrie dotazu
 
@@ -54,7 +55,7 @@ Ve výchozím nastavení jsou číselné hodnoty objektu telemetrie vraceny v su
 
 Pro ukázku informací, které telemetrie dotazu poskytuje, použijeme následující dotaz, který filtruje a řadí entity:
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Příklad dotazu pro výpočet telemetrie dotazu při komplexním filtrování a řazení](/documentation/user/en/query/requirements/examples/telemetry/queryTelemetry.evitaql)
 </SourceCodeTabs>

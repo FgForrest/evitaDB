@@ -26,7 +26,10 @@ package io.evitadb.externalApi.graphql.api.system.resolver.subscribingDataFetche
 import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
+import io.evitadb.api.requestResponse.cdc.HostSystemEvent;
+import io.evitadb.api.requestResponse.cdc.SystemCaptureBody;
 import io.evitadb.api.requestResponse.mutation.EngineMutation;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.externalApi.api.resolver.mutation.PassThroughMutationObjectMapper;
 import io.evitadb.externalApi.api.system.resolver.mutation.DelegatingEngineMutationConverter;
 import io.evitadb.externalApi.graphql.api.catalog.resolver.mutation.GraphQLMutationResolvingExceptionFactory;
@@ -67,11 +70,21 @@ public class ChangeSystemCaptureUntypedBodyDataFetcher implements DataFetcher<Ob
 	@Nullable
 	public Object get(DataFetchingEnvironment environment) throws Exception {
 		final ChangeSystemCapture capture = Objects.requireNonNull(environment.getSource());
-		final EngineMutation<?> body = (EngineMutation<?>) capture.body();
+		final SystemCaptureBody body = capture.body();
 		Assert.isPremiseValid(
 			body != null,
 			() -> new GraphQLQueryResolvingInternalError("ChangeSystemCapture body is null even though it was requested.")
 		);
-		return this.bodyConverter.convertToOutput(body);
+		if (body instanceof EngineMutation<?> engineMutation) {
+			return this.bodyConverter.convertToOutput(engineMutation);
+		}
+		if (body instanceof HostSystemEvent hostEvent) {
+			// host events are plain records — the untyped projection returns the record itself
+			// and the GraphQL framework serializes it via the registered object types
+			return hostEvent;
+		}
+		throw new GenericEvitaInternalError(
+			"Unsupported `ChangeSystemCapture#body` type: " + body.getClass().getName()
+		);
 	}
 }

@@ -66,13 +66,44 @@ public class EntitySchemaObjectBuilder {
 		// build common reusable objects
 		this.buildingContext.registerType(ScopedAttributeUniquenessTypeDescriptor.THIS.to(this.objectBuilderTransformer).build());
 		this.buildingContext.registerType(ScopedAttributeUniquenessTypeDescriptor.THIS_INPUT.to(
-			this.objectBuilderTransformer).build());
+			this.objectBuilderTransformer).build()
+		);
 		this.buildingContext.registerType(ScopedGlobalAttributeUniquenessTypeDescriptor.THIS.to(
-			this.objectBuilderTransformer).build());
+			this.objectBuilderTransformer).build()
+		);
 		this.buildingContext.registerType(ScopedGlobalAttributeUniquenessTypeDescriptor.THIS_INPUT.to(
-			this.objectBuilderTransformer).build());
-		this.buildingContext.registerType(ScopedReferenceIndexTypeDescriptor.THIS.to(this.objectBuilderTransformer).build());
-		this.buildingContext.registerType(ScopedReferenceIndexTypeDescriptor.THIS_INPUT.to(this.objectBuilderTransformer).build());
+			this.objectBuilderTransformer).build()
+		);
+		this.buildingContext.registerType(
+			ScopedReferenceIndexTypeDescriptor.THIS.to(this.objectBuilderTransformer).build()
+		);
+		this.buildingContext.registerType(
+			ScopedReferenceIndexTypeDescriptor.THIS_INPUT.to(this.objectBuilderTransformer).build()
+		);
+		this.buildingContext.registerType(
+			ScopedReferenceIndexedComponentsDescriptor.THIS.to(this.objectBuilderTransformer).build()
+		);
+		this.buildingContext.registerType(
+			ScopedReferenceIndexedComponentsDescriptor.THIS_INPUT.to(this.objectBuilderTransformer).build()
+		);
+		this.buildingContext.registerType(
+			ScopedHistogramIndexDefinitionDescriptor.THIS.to(this.objectBuilderTransformer).build()
+		);
+		this.buildingContext.registerType(
+			ScopedHistogramIndexDefinitionDescriptor.THIS_INPUT.to(this.objectBuilderTransformer).build()
+		);
+		this.buildingContext.registerType(
+			ScopedBucketedPartiallyDescriptor.THIS.to(this.objectBuilderTransformer).build()
+		);
+		this.buildingContext.registerType(
+			ScopedBucketedPartiallyDescriptor.THIS_INPUT.to(this.objectBuilderTransformer).build()
+		);
+		this.buildingContext.registerType(
+			ConflictResolutionDescriptor.THIS.to(this.objectBuilderTransformer).build()
+		);
+		this.buildingContext.registerType(
+			ConflictResolutionDescriptor.THIS_INPUT.to(this.objectBuilderTransformer).build()
+		);
 		this.buildingContext.registerType(AttributeSchemaDescriptor.THIS.to(this.objectBuilderTransformer).build());
 		this.buildingContext.registerType(EntityAttributeSchemaDescriptor.THIS.to(this.objectBuilderTransformer).build());
 		this.buildingContext.registerType(GlobalAttributeSchemaDescriptor.THIS.to(this.objectBuilderTransformer).build());
@@ -127,7 +158,7 @@ public class EntitySchemaObjectBuilder {
 		final OpenApiSimpleType attributeSchemaType;
 		if (attributeSchema instanceof GlobalAttributeSchemaContract) {
 			attributeSchemaType = nonNull(typeRefTo(GlobalAttributeSchemaDescriptor.THIS.name()));
-		} else if (attributeSchema instanceof  EntityAttributeSchemaContract) {
+		} else if (attributeSchema instanceof EntityAttributeSchemaContract) {
 			attributeSchemaType = nonNull(typeRefTo(EntityAttributeSchemaDescriptor.THIS.name()));
 		} else {
 			attributeSchemaType = nonNull(typeRefTo(AttributeSchemaDescriptor.THIS.name()));

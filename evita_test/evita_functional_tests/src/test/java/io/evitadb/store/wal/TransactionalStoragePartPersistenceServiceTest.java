@@ -27,9 +27,11 @@ import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.configuration.TransactionOptions;
 import io.evitadb.spi.store.catalog.persistence.StoragePartPersistenceService;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.compressor.KeyCompressorSnapshot;
 import io.evitadb.spi.store.catalog.persistence.storageParts.compressor.ReadOnlyKeyCompressor;
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.EntityBodyStoragePart;
 import io.evitadb.store.catalog.CatalogHeaderKryoConfigurer;
+import io.evitadb.store.checksum.ChecksumFactory;
 import io.evitadb.store.entity.EntityStoragePartConfigurer;
 import io.evitadb.store.index.IndexStoragePartConfigurer;
 import io.evitadb.store.index.SharedIndexStoragePartConfigurer;
@@ -37,6 +39,7 @@ import io.evitadb.store.kryo.ObservableOutputKeeper;
 import io.evitadb.store.offsetIndex.io.CatalogOffHeapMemoryManager;
 import io.evitadb.store.offsetIndex.model.OffsetIndexRecordTypeRegistry;
 import io.evitadb.store.schema.SchemaKryoConfigurer;
+import io.evitadb.store.settings.StorageSettings;
 import io.evitadb.store.shared.kryo.SharedClassesConfigurer;
 import io.evitadb.store.shared.kryo.VersionedKryoFactory;
 import io.evitadb.test.TestConstants;
@@ -46,6 +49,8 @@ import org.junit.jupiter.api.Test;
 
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.Supplier;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -56,12 +61,18 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static io.evitadb.test.TestTags.STORAGE;
+import static io.evitadb.test.TestTags.WAL;
+import static io.evitadb.test.TestTags.TRANSACTION;
 
 /**
  * This test verifies behavior of {@link TransactionalStoragePartPersistenceService}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
+@Tag(STORAGE)
+@Tag(WAL)
+@Tag(TRANSACTION)
 class TransactionalStoragePartPersistenceServiceTest {
 	private TransactionalStoragePartPersistenceService service;
 	private CatalogOffHeapMemoryManager offHeapMemoryManager;
@@ -69,13 +80,17 @@ class TransactionalStoragePartPersistenceServiceTest {
 
 	@BeforeEach
 	public void setUp() {
-		this.offHeapMemoryManager = new CatalogOffHeapMemoryManager(TestConstants.TEST_CATALOG, 2048, 1);
+		this.offHeapMemoryManager = new CatalogOffHeapMemoryManager(TestConstants.TEST_CATALOG, 2048, 1, ChecksumFactory.NO_OP);
 		this.delegateService = mock(StoragePartPersistenceService.class);
 		when(this.delegateService.getReadOnlyKeyCompressor()).thenReturn(new ReadOnlyKeyCompressor(Map.of()));
+		when(this.delegateService.getKeyCompressorSnapshot()).thenReturn(new KeyCompressorSnapshot(Map.of(), 0));
 		final StorageOptions storageOptions = StorageOptions.builder().build();
 		final TransactionOptions transactionOptions = TransactionOptions.builder().build();
 		final ObservableOutputKeeper observableOutputKeeper = mock(ObservableOutputKeeper.class);
-		when(observableOutputKeeper.getOptions()).thenReturn(storageOptions);
+		// the keeper is a bare mock here (this test doesn't exercise the pool itself), so make its off-heap
+		// borrow behave like an always-empty free-list: fall through to the caller-supplied cold-path factory
+		when(observableOutputKeeper.borrowOffHeapOutput(any(), any()))
+			.thenAnswer(invocation -> ((Supplier<?>) invocation.getArgument(1)).get());
 		final OffsetIndexRecordTypeRegistry registry = mock(OffsetIndexRecordTypeRegistry.class);
 		when(registry.idFor(EntityBodyStoragePart.class)).thenReturn((byte) 1);
 		doAnswer(invocation -> EntityBodyStoragePart.class).when(registry).typeFor((byte) 1);
@@ -85,8 +100,10 @@ class TransactionalStoragePartPersistenceServiceTest {
 			UUID.randomUUID(),
 			"test",
 			this.delegateService,
-			storageOptions,
-			transactionOptions,
+			new StorageSettings(
+				storageOptions,
+				transactionOptions
+			),
 			this.offHeapMemoryManager,
 			kryoKeyInputs -> VersionedKryoFactory.createKryo(
 				kryoKeyInputs.version(),

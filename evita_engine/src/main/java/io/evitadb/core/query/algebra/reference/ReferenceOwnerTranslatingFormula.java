@@ -35,7 +35,7 @@ import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.utils.Assert;
 import net.openhft.hashing.LongHashFunction;
-import org.roaringbitmap.RoaringBitmap;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 
 import javax.annotation.Nonnull;
 import java.util.PrimitiveIterator.OfInt;
@@ -53,7 +53,13 @@ import java.util.function.IntFunction;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public class ReferenceOwnerTranslatingFormula extends AbstractFormula implements ChildrenDependentFormula {
-	private static final long CLASS_ID = 6841111737856593641L;
+	/**
+	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} for hash computation.
+	 */
+	private static final long CLASS_ID = 3838085621297258621L;
+	/**
+	 * Error message thrown when {@link #getCloneWithInnerFormulas(Formula...)} receives more than one inner formula.
+	 */
 	public static final String ERROR_SINGLE_FORMULA_EXPECTED = "Exactly one inner formula is expected!";
 	/**
 	 * Contains the transactional id of the {@link GlobalEntityIndex} of the referenced entity. Because we need to be
@@ -118,14 +124,14 @@ public class ReferenceOwnerTranslatingFormula extends AbstractFormula implements
 		} else if (cnt == 1) {
 			return this.primaryKeyExpander.apply(referencedEntityIds.getFirst());
 		} else {
-			final RoaringBitmap[] theBitmaps = new RoaringBitmap[cnt];
+			final PersistentRoaringBitmap[] theBitmaps = new PersistentRoaringBitmap[cnt];
 			final OfInt it = referencedEntityIds.iterator();
 			for (int i = 0; i < cnt; i++) {
 				theBitmaps[i] = RoaringBitmapBackedBitmap.getRoaringBitmap(
 					this.primaryKeyExpander.apply(it.next())
 				);
 			}
-			return new BaseBitmap(RoaringBitmap.or(theBitmaps));
+			return new BaseBitmap(PersistentRoaringBitmap.or(theBitmaps));
 		}
 	}
 

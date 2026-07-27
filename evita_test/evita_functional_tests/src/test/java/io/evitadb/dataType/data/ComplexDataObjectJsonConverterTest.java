@@ -43,8 +43,11 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.DATA_TYPE;
 
 /**
  * Tests for JSON conversion layer: {@link ComplexDataObjectToJsonConverter} (CDO → JSON)
@@ -54,6 +57,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 @DisplayName("ComplexDataObject JSON converters")
+@Tag(CONTRACT)
+@Tag(DATA_TYPE)
 class ComplexDataObjectJsonConverterTest {
 
 	private final ObjectMapper objectMapper = new ObjectMapper();

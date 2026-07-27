@@ -43,6 +43,7 @@ import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.data.DevelopmentConstants;
 import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
 import io.evitadb.api.requestResponse.data.PriceContract;
+import io.evitadb.api.requestResponse.data.PriceRangeForSale;
 import io.evitadb.api.requestResponse.data.PricesContract.AccompanyingPrice;
 import io.evitadb.api.requestResponse.data.PricesContract.PriceForSaleWithAccompanyingPrices;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
@@ -76,6 +77,7 @@ import io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
+import io.evitadb.utils.Functions;
 import io.evitadb.utils.VersionUtils;
 import io.evitadb.utils.VersionUtils.SemVer;
 import lombok.RequiredArgsConstructor;
@@ -406,6 +408,13 @@ public class EntityConverter {
 						);
 					}
 				}
+				// emit price-range bounds whenever the selling price was emitted; the bounds use the same
+				// currency / valid-in / price-list filters as the selling price (see PriceRangeForSale)
+				final Optional<PriceRangeForSale> priceRange = entity.getPriceRangeForSaleIfAvailable();
+				priceRange.ifPresent(range -> {
+					entityBuilder.setPriceForSaleMin(toGrpcPrice(range.lowestPrice()));
+					entityBuilder.setPriceForSaleMax(toGrpcPrice(range.highestPrice()));
+				});
 			});
 		}
 
@@ -415,7 +424,7 @@ public class EntityConverter {
 		if (entity instanceof Entity theEntity) {
 			referencesRequestedAndFetched = true;
 			internalEntity = theEntity;
-			referenceRequestedPredicate = referenceName -> true;
+			referenceRequestedPredicate = Functions.alwaysTrue();
 		} else if (entity instanceof EntityDecorator entityDecorator) {
 			internalEntity = entityDecorator.getDelegate();
 			referencesRequestedAndFetched = entityDecorator.referencesAvailable();

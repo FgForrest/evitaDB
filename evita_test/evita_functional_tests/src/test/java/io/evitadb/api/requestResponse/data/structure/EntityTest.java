@@ -65,16 +65,21 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.requestResponse.data.structure.References.DEFAULT_CHUNK_TRANSFORMER;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.QUERY;
 
 /**
  * Tests for Entity class: internal builders and mutateEntity behavior.
  */
 @DisplayName("Entity tests")
+@Tag(CONTRACT)
+@Tag(QUERY)
 class EntityTest extends AbstractBuilderTest {
 	private static final String BRAND = "brand";
 	private static final String GROUP = "group";
@@ -385,5 +390,25 @@ class EntityTest extends AbstractBuilderTest {
 		final List<LocalMutation<?, ?>> noops = List.of(new UpsertAttributeMutation(NAME, Locale.ENGLISH, "Name"));
 		final Entity result = Entity.mutateEntity(schema, entity, noops);
 		assertSame(entity, result, "Expected same entity instance to be returned on no-op mutations");
+	}
+
+	@Test
+	@DisplayName("mutateEntity handles null entity with ReferenceMutation gracefully")
+	void shouldHandleNullEntityWithReferenceMutation() {
+		final EntitySchemaContract schema = new InternalEntitySchemaBuilder(
+			CATALOG_SCHEMA,
+			PRODUCT_SCHEMA
+		)
+			.withReferenceToEntity(BRAND, BRAND, Cardinality.ZERO_OR_ONE, r -> {})
+			.toInstance();
+
+		final ReferenceKey rk = new ReferenceKey(BRAND, 1);
+		final List<LocalMutation<?, ?>> mutations = List.of(
+			new InsertReferenceMutation(rk, Cardinality.ZERO_OR_ONE, BRAND)
+		);
+
+		final Entity result = Entity.mutateEntity(schema, null, mutations);
+
+		assertTrue(result.getReference(rk).isPresent());
 	}
 }

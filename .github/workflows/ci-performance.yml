@@ -19,12 +19,12 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.1 checkout sources
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1 checkout sources
       with:
         persist-credentials: false
 
     - name: Setup Java JDK
-      uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5.2.0  # setup JDK 17 for building
+      uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5.6.0  # setup JDK 17 for building
       with:
          distribution: 'temurin'
          java-version: '17'
@@ -39,8 +39,8 @@ jobs:
     - name: Install curl
       run: sudo apt-get update && sudo apt-get install -y curl
 
-    - name: Build with Maven       # run Maven without tests
-      run:  mvn -T 1C -B package -V -Dmaven.test.skip=true --file pom.xml
+    - name: Build with Maven       # run Maven without tests; `full` brings in evita_performance_tests
+      run:  mvn -T 1C -B -P full package -V -Dmaven.test.skip=true --file pom.xml
 
     - name: Build the Docker performance test image    # now build the Docker image, login to DockerHub and push it, then clean everything
       env:

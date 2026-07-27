@@ -46,6 +46,7 @@ import javax.annotation.Nonnull;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.api.query.filter.AttributeSpecialValue.NULL;
@@ -59,12 +60,16 @@ import static io.evitadb.api.query.require.FacetStatisticsDepth.IMPACT;
 import static io.evitadb.api.query.require.QueryPriceMode.WITH_TAX;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.QUERY;
 
 /**
  * Tests for {@link EvitaQLRequireConstraintVisitor}
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2021
  */
+@Tag(CONTRACT)
+@Tag(QUERY)
 class EvitaQLRequireConstraintVisitorTest {
 
 	@Test
@@ -2383,7 +2388,7 @@ class EvitaQLRequireConstraintVisitorTest {
 		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("facetSummary(@mode)"));
 		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("facetSummary"));
 		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("facetSummary('a')"));
-		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("facetSummary(NONE)"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("facetSummary(SOMETHING)"));
 		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("facetSummary(COUNTS,IMPACT)"));
 		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("facetSummary(COUNTS,attributeContent())"));
 		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("facetSummary(attributeContent())"));
@@ -2573,7 +2578,7 @@ class EvitaQLRequireConstraintVisitorTest {
 		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("facetSummaryOfReference(@mode)"));
 		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("facetSummaryOfReference('parameter')"));
 		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("facetSummaryOfReference"));
-		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("facetSummaryOfReference('parameter',NONE)"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("facetSummaryOfReference('parameter',SOMETHING)"));
 		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("facetSummaryOfReference('parameter',COUNTS,IMPACT)"));
 		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("facetSummaryOfReference('parameter',COUNTS,attributeContent())"));
 		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("facetSummaryOfReference('parameter',COUNTS,attributeContent())"));
@@ -3025,6 +3030,372 @@ class EvitaQLRequireConstraintVisitorTest {
 		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("priceHistogram"));
 		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("priceHistogram('a')"));
 		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("priceHistogram(10,STANDARD,WHATEVER)"));
+	}
+
+	@Test
+	void shouldParseReferenceSummaryConstraint() {
+		final RequireConstraint constraint1 = parseRequireConstraint("referenceSummary()");
+		assertEquals(referenceSummary(), constraint1);
+
+		final RequireConstraint constraint2 = parseRequireConstraint("referenceSummary (  )");
+		assertEquals(referenceSummary(), constraint2);
+
+		final RequireConstraint constraint3 = parseRequireConstraintUnsafe("referenceSummary(COUNTS)");
+		assertEquals(referenceSummary(COUNTS), constraint3);
+
+		final RequireConstraint constraint4 = parseRequireConstraintUnsafe("referenceSummary( IMPACT )");
+		assertEquals(referenceSummary(IMPACT), constraint4);
+
+		final RequireConstraint constraint5 = parseRequireConstraint("referenceSummary(?)", COUNTS);
+		assertEquals(referenceSummary(COUNTS), constraint5);
+
+		final RequireConstraint constraint6 = parseRequireConstraint("referenceSummary(@mode)", Map.of("mode", COUNTS));
+		assertEquals(referenceSummary(COUNTS), constraint6);
+
+		final RequireConstraint constraint7 = parseRequireConstraintUnsafe("referenceSummary(entityFetch(attributeContentAll()))");
+		assertEquals(referenceSummary(COUNTS, entityFetch(attributeContentAll())), constraint7);
+
+		final RequireConstraint constraint8 = parseRequireConstraintUnsafe("referenceSummary(IMPACT, entityFetch(attributeContentAll()))");
+		assertEquals(referenceSummary(IMPACT, entityFetch(attributeContentAll())), constraint8);
+
+		final RequireConstraint constraint9 = parseRequireConstraintUnsafe("referenceSummary(IMPACT, entityFetch(attributeContentAll()), entityGroupFetch(associatedDataContentAll()))");
+		assertEquals(referenceSummary(IMPACT, entityFetch(attributeContentAll()), entityGroupFetch(associatedDataContentAll())), constraint9);
+
+		final RequireConstraint constraint10 = parseRequireConstraintUnsafe(
+			"referenceSummary(IMPACT, entityFetch(attributeContentAll()), entityGroupFetch(associatedDataContentAll()), histogramStatistics(20, 'priceIndex'))"
+		);
+		assertEquals(
+			referenceSummaryWithHistograms(
+				IMPACT,
+				entityFetch(attributeContentAll()),
+				entityGroupFetch(associatedDataContentAll()),
+				histogramStatistics(20, "priceIndex")
+			),
+			constraint10
+		);
+
+		final RequireConstraint constraint11 = parseRequireConstraint(
+			"referenceSummary(?, filterBy(attributeEquals(?, ?)), filterGroupBy(attributeEquals(?, ?)), orderBy(random()), orderGroupBy(attributeNatural(?)), entityFetch(attributeContentAll()), entityGroupFetch(attributeContentAll()))",
+			COUNTS, "a", "b", "c", "d", "e"
+		);
+		assertEquals(
+			referenceSummary(COUNTS, filterBy(attributeEquals("a", "b")), filterGroupBy(attributeEquals("c", "d")), orderBy(random()), orderGroupBy(attributeNatural("e")), entityFetch(attributeContentAll()), entityGroupFetch(attributeContentAll())),
+			constraint11
+		);
+
+		final RequireConstraint constraint12 = parseRequireConstraint(
+			"referenceSummary(?, filterBy(attributeEquals(?, ?)))",
+			COUNTS, "a", "b"
+		);
+		assertEquals(
+			referenceSummary(COUNTS, filterBy(attributeEquals("a", "b"))),
+			constraint12
+		);
+
+		final RequireConstraint constraint13 = parseRequireConstraint(
+			"referenceSummary(?, orderBy(random()), entityFetch(attributeContentAll()))",
+			COUNTS
+		);
+		assertEquals(
+			new io.evitadb.api.query.require.ReferenceSummary(
+				COUNTS, null, null, orderBy(random()), null,
+				entityFetch(attributeContentAll())
+			),
+			constraint13
+		);
+
+		final RequireConstraint constraint14 = parseRequireConstraint(
+			"referenceSummary(filterBy(attributeEquals(?, ?)), orderBy(random()), entityFetch(attributeContentAll()))",
+			"a", "b"
+		);
+		assertEquals(
+			new io.evitadb.api.query.require.ReferenceSummary(
+				COUNTS, filterBy(attributeEquals("a", "b")), null, orderBy(random()), null,
+				entityFetch(attributeContentAll())
+			),
+			constraint14
+		);
+
+		final RequireConstraint constraint15 = parseRequireConstraintUnsafe(
+			"referenceSummary(histogramStatistics(20, 'priceIndex'))"
+		);
+		assertEquals(
+			referenceSummaryWithHistograms(COUNTS, null, null, histogramStatistics(20, "priceIndex")),
+			constraint15
+		);
+	}
+
+	@Test
+	void shouldParseReferenceSummaryWithHistogramsConstraint() {
+		// the `withHistograms` suffix is an EvitaQL-level alias — the parsed in-memory constraint is
+		// identical to the regular `referenceSummary` variant, but the alias clearly signals the
+		// intent (and is what the constraint prints back when a histogramStatistics child is present)
+		final RequireConstraint constraint1 = parseRequireConstraint("referenceSummaryWithHistograms()");
+		assertEquals(referenceSummary(), constraint1);
+
+		final RequireConstraint constraint2 = parseRequireConstraintUnsafe("referenceSummaryWithHistograms(IMPACT)");
+		assertEquals(referenceSummary(IMPACT), constraint2);
+
+		final RequireConstraint constraint3 = parseRequireConstraintUnsafe(
+			"referenceSummaryWithHistograms(IMPACT, entityFetch(attributeContentAll()), entityGroupFetch(associatedDataContentAll()), histogramStatistics(20, 'priceIndex'))"
+		);
+		assertEquals(
+			referenceSummaryWithHistograms(
+				IMPACT,
+				entityFetch(attributeContentAll()),
+				entityGroupFetch(associatedDataContentAll()),
+				histogramStatistics(20, "priceIndex")
+			),
+			constraint3
+		);
+
+		final RequireConstraint constraint4 = parseRequireConstraint(
+			"referenceSummaryWithHistograms(?, filterBy(attributeEquals(?, ?)), orderBy(random()), entityFetch(attributeContentAll()), histogramStatistics(?, ?))",
+			COUNTS, "a", "b", 20, "priceIndex"
+		);
+		assertEquals(
+			referenceSummaryWithHistograms(
+				COUNTS,
+				filterBy(attributeEquals("a", "b")),
+				null,
+				orderBy(random()),
+				null,
+				entityFetch(attributeContentAll()),
+				null,
+				histogramStatistics(20, "priceIndex")
+			),
+			constraint4
+		);
+
+		// when a histogramStatistics child is present the constraint's toString() emits the
+		// `withHistograms` suffix alias; when it is absent the plain `referenceSummary` is emitted
+		final String withHistogramsString = constraint3.toString();
+		assertEquals(true, withHistogramsString.startsWith("referenceSummaryWithHistograms("));
+
+		final RequireConstraint plainConstraint = parseRequireConstraintUnsafe("referenceSummary(IMPACT, entityFetch(attributeContentAll()))");
+		final String plainString = plainConstraint.toString();
+		assertEquals(true, plainString.startsWith("referenceSummary("));
+		assertEquals(false, plainString.startsWith("referenceSummaryWithHistograms("));
+
+		// roundtrip: parsing the toString output of a with-histograms constraint yields an equal
+		// constraint tree back
+		final RequireConstraint roundtripped = parseRequireConstraintUnsafe(withHistogramsString);
+		assertEquals(constraint3, roundtripped);
+	}
+
+	@Test
+	void shouldNotParseReferenceSummaryConstraint() {
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("referenceSummary(COUNTS)"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("referenceSummary(?)"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("referenceSummary(@mode)"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("referenceSummary"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("referenceSummary('a')"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("referenceSummary(SOMETHING)"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("referenceSummary(COUNTS,IMPACT)"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("referenceSummary(COUNTS, attributeContent())"));
+	}
+
+	@Test
+	void shouldParseReferenceSummaryOfReferenceConstraint() {
+		final RequireConstraint constraint1 = parseRequireConstraintUnsafe("referenceSummaryOfReference('parameter')");
+		assertEquals(referenceSummaryOfReference("parameter"), constraint1);
+
+		final RequireConstraint constraint2 = parseRequireConstraintUnsafe("referenceSummaryOfReference (   'parameter'  )");
+		assertEquals(referenceSummaryOfReference("parameter"), constraint2);
+
+		final RequireConstraint constraint3 = parseRequireConstraintUnsafe("referenceSummaryOfReference('parameter',COUNTS)");
+		assertEquals(referenceSummaryOfReference("parameter", COUNTS), constraint3);
+
+		final RequireConstraint constraint4 = parseRequireConstraintUnsafe("referenceSummaryOfReference(  'parameter' ,   IMPACT   )");
+		assertEquals(referenceSummaryOfReference("parameter", IMPACT), constraint4);
+
+		final RequireConstraint constraint5 = parseRequireConstraint("referenceSummaryOfReference(?,?)", "parameter", COUNTS);
+		assertEquals(referenceSummaryOfReference("parameter", COUNTS), constraint5);
+
+		final RequireConstraint constraint6 = parseRequireConstraint("referenceSummaryOfReference(@ref,@mode)", Map.of("ref", "parameter", "mode", COUNTS));
+		assertEquals(referenceSummaryOfReference("parameter", COUNTS), constraint6);
+
+		final RequireConstraint constraint7 = parseRequireConstraintUnsafe("referenceSummaryOfReference('parameter', IMPACT, entityFetch(attributeContentAll()))");
+		assertEquals(referenceSummaryOfReference("parameter", IMPACT, entityFetch(attributeContentAll())), constraint7);
+
+		final RequireConstraint constraint8 = parseRequireConstraintUnsafe("referenceSummaryOfReference('parameter', entityFetch(attributeContentAll()))");
+		assertEquals(referenceSummaryOfReference("parameter", COUNTS, entityFetch(attributeContentAll())), constraint8);
+
+		final RequireConstraint constraint9 = parseRequireConstraintUnsafe(
+			"referenceSummaryOfReference('parameter', IMPACT, entityFetch(attributeContentAll()), entityGroupFetch(associatedDataContentAll()))"
+		);
+		assertEquals(
+			referenceSummaryOfReference("parameter", IMPACT, entityFetch(attributeContentAll()), entityGroupFetch(associatedDataContentAll())),
+			constraint9
+		);
+
+		final RequireConstraint constraint10 = parseRequireConstraintUnsafe(
+			"referenceSummaryOfReference('parameter', IMPACT, entityFetch(attributeContentAll()), entityGroupFetch(associatedDataContentAll()), histogramStatistics(20, 'priceIndex'))"
+		);
+		assertEquals(
+			referenceSummaryOfReferenceWithHistograms(
+				"parameter",
+				IMPACT,
+				entityFetch(attributeContentAll()),
+				entityGroupFetch(associatedDataContentAll()),
+				histogramStatistics(20, "priceIndex")
+			),
+			constraint10
+		);
+
+		final RequireConstraint constraint11 = parseRequireConstraint(
+			"referenceSummaryOfReference(?, ?, filterBy(attributeEquals(?, ?)), filterGroupBy(attributeEquals(?, ?)), orderBy(random()), orderGroupBy(attributeNatural(?)), entityFetch(attributeContentAll()), entityGroupFetch(attributeContentAll()))",
+			"parameter", COUNTS, "a", "b", "c", "d", "e"
+		);
+		assertEquals(
+			referenceSummaryOfReference("parameter", COUNTS, filterBy(attributeEquals("a", "b")), filterGroupBy(attributeEquals("c", "d")), orderBy(random()), orderGroupBy(attributeNatural("e")), entityFetch(attributeContentAll()), entityGroupFetch(attributeContentAll())),
+			constraint11
+		);
+
+		final RequireConstraint constraint12 = parseRequireConstraint(
+			"referenceSummaryOfReference(?, filterBy(attributeEquals(?, ?)), entityFetch(attributeContentAll()))",
+			"parameter", "a", "b"
+		);
+		assertEquals(
+			new io.evitadb.api.query.require.ReferenceSummaryOfReference(
+				"parameter", COUNTS,
+				filterBy(attributeEquals("a", "b")), null, null, null,
+				entityFetch(attributeContentAll())
+			),
+			constraint12
+		);
+	}
+
+	@Test
+	void shouldParseReferenceSummaryOfReferenceWithHistogramsConstraint() {
+		final RequireConstraint constraint1 = parseRequireConstraintUnsafe(
+			"referenceSummaryOfReferenceWithHistograms('parameter')"
+		);
+		assertEquals(referenceSummaryOfReference("parameter"), constraint1);
+
+		final RequireConstraint constraint2 = parseRequireConstraintUnsafe(
+			"referenceSummaryOfReferenceWithHistograms('parameter', IMPACT, entityFetch(attributeContentAll()), histogramStatistics(20, 'priceIndex'))"
+		);
+		assertEquals(
+			referenceSummaryOfReferenceWithHistograms(
+				"parameter",
+				IMPACT,
+				entityFetch(attributeContentAll()),
+				null,
+				histogramStatistics(20, "priceIndex")
+			),
+			constraint2
+		);
+
+		final RequireConstraint constraint3 = parseRequireConstraint(
+			"referenceSummaryOfReferenceWithHistograms(?, ?, entityFetch(attributeContentAll()), entityGroupFetch(associatedDataContentAll()), histogramStatistics(?, ?))",
+			"parameter", IMPACT, 20, "priceIndex"
+		);
+		assertEquals(
+			referenceSummaryOfReferenceWithHistograms(
+				"parameter",
+				IMPACT,
+				entityFetch(attributeContentAll()),
+				entityGroupFetch(associatedDataContentAll()),
+				histogramStatistics(20, "priceIndex")
+			),
+			constraint3
+		);
+
+		// verify the toString suffix alias is emitted and that the output roundtrips through the parser
+		final String withHistogramsString = constraint2.toString();
+		assertEquals(true, withHistogramsString.startsWith("referenceSummaryOfReferenceWithHistograms("));
+		final RequireConstraint roundtripped = parseRequireConstraintUnsafe(withHistogramsString);
+		assertEquals(constraint2, roundtripped);
+
+		final RequireConstraint plainConstraint = parseRequireConstraintUnsafe(
+			"referenceSummaryOfReference('parameter', IMPACT, entityFetch(attributeContentAll()))"
+		);
+		assertEquals(true, plainConstraint.toString().startsWith("referenceSummaryOfReference("));
+		assertEquals(false, plainConstraint.toString().startsWith("referenceSummaryOfReferenceWithHistograms("));
+	}
+
+	@Test
+	void shouldNotParseReferenceSummaryOfReferenceConstraint() {
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("referenceSummaryOfReference('parameter')"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("referenceSummaryOfReference(?)"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("referenceSummaryOfReference(@ref)"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("referenceSummaryOfReference"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("referenceSummaryOfReference()"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("referenceSummaryOfReference('parameter', SOMETHING)"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("referenceSummaryOfReference('parameter', COUNTS, IMPACT)"));
+	}
+
+	@Test
+	void shouldParseHistogramStatisticsConstraint() {
+		final RequireConstraint constraint1 = parseRequireConstraintUnsafe("histogramStatistics(20, 'priceIndex')");
+		assertEquals(histogramStatistics(20, "priceIndex"), constraint1);
+
+		final RequireConstraint constraint2 = parseRequireConstraintUnsafe("histogramStatistics ( 20 , 'priceIndex' , 'ratingIndex' )");
+		assertEquals(histogramStatistics(20, "priceIndex", "ratingIndex"), constraint2);
+
+		final RequireConstraint constraint3 = parseRequireConstraint("histogramStatistics(?, ?)", 20, "priceIndex");
+		assertEquals(histogramStatistics(20, "priceIndex"), constraint3);
+
+		final RequireConstraint constraint4 = parseRequireConstraint(
+			"histogramStatistics(@buckets, @index)",
+			Map.of("buckets", 20, "index", "priceIndex")
+		);
+		assertEquals(histogramStatistics(20, "priceIndex"), constraint4);
+
+		final RequireConstraint constraint5 = parseRequireConstraint(
+			"histogramStatistics(?, ?)",
+			20,
+			List.of("priceIndex", "ratingIndex")
+		);
+		assertEquals(histogramStatistics(20, "priceIndex", "ratingIndex"), constraint5);
+
+		final RequireConstraint constraint6 = parseRequireConstraintUnsafe("histogramStatistics(20, OPTIMIZED, 'priceIndex', 'ratingIndex')");
+		assertEquals(histogramStatistics(20, HistogramBehavior.OPTIMIZED, "priceIndex", "ratingIndex"), constraint6);
+
+		final RequireConstraint constraint7 = parseRequireConstraint(
+			"histogramStatistics(?, ?, ?, ?)",
+			20, HistogramBehavior.OPTIMIZED, "priceIndex", "ratingIndex"
+		);
+		assertEquals(histogramStatistics(20, HistogramBehavior.OPTIMIZED, "priceIndex", "ratingIndex"), constraint7);
+
+		final RequireConstraint constraint8 = parseRequireConstraintUnsafe(
+			"histogramStatistics(20, entityFetch(attributeContentAll()), 'priceIndex')"
+		);
+		assertEquals(
+			histogramStatistics(20, entityFetch(attributeContentAll()), "priceIndex"),
+			constraint8
+		);
+
+		final RequireConstraint constraint9 = parseRequireConstraintUnsafe(
+			"histogramStatistics(20, entityFetch(attributeContentAll()), 'priceIndex', 'ratingIndex')"
+		);
+		assertEquals(
+			histogramStatistics(20, entityFetch(attributeContentAll()), "priceIndex", "ratingIndex"),
+			constraint9
+		);
+
+		final RequireConstraint constraint10 = parseRequireConstraint(
+			"histogramStatistics(?, entityFetch(attributeContentAll()), ?)",
+			20, "priceIndex"
+		);
+		assertEquals(
+			histogramStatistics(20, entityFetch(attributeContentAll()), "priceIndex"),
+			constraint10
+		);
+	}
+
+	@Test
+	void shouldNotParseHistogramStatisticsConstraint() {
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("histogramStatistics(20, 'priceIndex')"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("histogramStatistics(?, ?)"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("histogramStatistics(@buckets, @index)"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("histogramStatistics(20, WHATEVER, 'priceIndex')"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("histogramStatistics"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("histogramStatistics()"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("histogramStatistics(20)"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("histogramStatistics('priceIndex')"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("histogramStatistics(20, 'priceIndex', OPTIMIZED)"));
 	}
 
 	@Test

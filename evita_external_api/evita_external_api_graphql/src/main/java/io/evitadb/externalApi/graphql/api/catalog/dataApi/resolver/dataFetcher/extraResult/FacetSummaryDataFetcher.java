@@ -38,7 +38,10 @@ import java.util.Objects;
  * Extracts {@link FacetSummary} from {@link EvitaResponse}'s extra results requested by
  * {@link io.evitadb.api.query.require.FacetSummary}.
  *
- * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
+ * Uses an exact-class lookup so it never falls back to a plain {@link io.evitadb.api.requestResponse.extraResult.ReferenceSummary}
+ * — that would be returned by {@link ReferenceSummaryDataFetcher} and would leave this field populated with data that does
+ * not contain facet statistics. When a request carries both the legacy `facetSummary(...)` and the new `referenceSummary(...)`
+ * requirements each GraphQL field must resolve to its own extra result.
  */
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class FacetSummaryDataFetcher implements DataFetcher<FacetSummary> {

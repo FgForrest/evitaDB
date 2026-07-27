@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,48 +24,54 @@
 package io.evitadb.index.attribute;
 
 import io.evitadb.api.exception.UniqueValueViolationException;
+import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.core.query.algebra.Formula;
-import io.evitadb.core.query.algebra.base.ConstantFormula;
-import io.evitadb.core.transaction.memory.TransactionalContainerChanges;
-import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
-import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
+import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
 import io.evitadb.index.IndexDataStructure;
 import io.evitadb.index.bitmap.Bitmap;
-import io.evitadb.index.bitmap.TransactionalBitmap;
-import io.evitadb.index.bool.TransactionalBoolean;
-import io.evitadb.index.map.MapChanges;
-import io.evitadb.index.map.TransactionalMap;
-import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.UniqueIndexStoragePart;
+import io.evitadb.utils.ArrayUtils;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Objects;
 
-import static io.evitadb.core.transaction.Transaction.isTransactionAvailable;
 import static io.evitadb.utils.Assert.isTrue;
 import static io.evitadb.utils.StringUtils.unknownToString;
-import static java.util.Optional.ofNullable;
 
 /**
  * Unique index maintains information about single unique attribute - its value to record id relation.
  * It protects duplicate unique attribute insertion and allows to easily translate unique attribute value to record id
  * that occupies it.
  *
- * It uses simple {@link HashMap} data structure to keep the data. This means that look-ups are retrieved with O(1)
- * complexity.
+ * This is the abstract, sealed base of the owner/view hierarchy. It carries the common identity (entity type, attribute
+ * key, value type) and declares the read / persistence / transactional surface, but owns no data of its own. Two
+ * concrete shapes exist:
+ *
+ * - {@link OwnerUniqueIndex} — a standalone index that owns its value→record-id mapping (a value bucket B+ tree with
+ *   a front-coded leaf column for String keys and granular per-leaf-page persistence) and a record-id bitmap, fully
+ *   participating in the commit cycle. Used for global-unique-localized attributes whose locale-less uniqueness cannot
+ *   be folded into the per-locale shared filter tree.
+ * - {@link UniqueIndexView} — a stateless view folded onto the shared `value→ValueToRecord` tree owned by
+ *   {@link AttributeIndex}: it owns no data and answers every read from the shared {@link FilterIndex} view over that
+ *   tree (uniqueness is enforced on the filter insert by {@link AttributeIndex}). Used for any non-localized attribute,
+ *   or a localized one unique within locale.
+ *
+ * The base remains a {@link io.evitadb.core.transaction.memory.TransactionalLayerProducer} so the standalone
+ * owners can still live in {@link AttributeIndex}'s producer {@code TransactionalMap}; the view simply overrides
+ * the producer hooks to be inert (it lives in a plain non-producer map and is rebuilt fresh over the committed
+ * shared tree on each commit).
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2019
  */
-public class UniqueIndex implements TransactionalLayerProducer<TransactionalContainerChanges<MapChanges<Serializable, Integer>, Map<Serializable, Integer>, TransactionalMap<Serializable, Integer>>, UniqueIndex>, IndexDataStructure, Serializable {
+public abstract sealed class UniqueIndex implements
+	VoidTransactionMemoryProducer<UniqueIndex>,
+	IndexDataStructure,
+	Serializable
+	permits OwnerUniqueIndex, UniqueIndexView {
 	@Serial private static final long serialVersionUID = 2639205026498958516L;
 	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 	/**
@@ -80,281 +86,176 @@ public class UniqueIndex implements TransactionalLayerProducer<TransactionalCont
 	 * Contains type of the attribute.
 	 */
 	@Getter private final Class<? extends Serializable> type;
-	/**
-	 * This is internal flag that tracks whether the index contents became dirty and needs to be persisted.
-	 */
-	@Nonnull private final TransactionalBoolean dirty;
-	/**
-	 * Keeps the unique value to record id mappings. Fairly large HashMap is expected here.
-	 */
-	@Nonnull private final TransactionalMap<Serializable, Integer> uniqueValueToRecordId;
-	/**
-	 * Keeps information about all record ids resent in this index.
-	 */
-	@Nonnull private final TransactionalBitmap recordIds;
-	/**
-	 * This field speeds up all requests for all data in this index (which happens quite often). This formula can be
-	 * computed anytime by calling `new ConstantFormula(getRecordIds())`. Original operation
-	 * needs to perform costly creation of new internal bitmap that's why we memoize the result.
-	 */
-	@Nullable private transient Formula memoizedAllRecordsFormula;
 
+	/**
+	 * Verifies that the component type of an array of unique values is both {@link Serializable} and
+	 * {@link Comparable} - the contract every key stored in this index must satisfy.
+	 *
+	 * @param value array whose component type is checked
+	 * @throws io.evitadb.exception.EvitaInvalidUsageException when the component type is not {@link Serializable}
+	 *         or not {@link Comparable}
+	 */
 	static void verifyValueArray(@Nonnull Object value) {
 		isTrue(Serializable.class.isAssignableFrom(value.getClass().getComponentType()), "Value `" + unknownToString(value) + "` is expected to be Serializable but it is not!");
 		isTrue(Comparable.class.isAssignableFrom(value.getClass().getComponentType()), "Value `" + unknownToString(value) + "` is expected to be Comparable but it is not!");
 	}
 
+	/**
+	 * Verifies that a single unique value is both {@link Serializable} and {@link Comparable} - the contract every
+	 * key stored in this index must satisfy.
+	 *
+	 * @param value value to check
+	 * @throws io.evitadb.exception.EvitaInvalidUsageException when the value is not {@link Serializable} or not
+	 *         {@link Comparable}
+	 */
 	static void verifyValue(@Nonnull Object value) {
 		isTrue(value instanceof Serializable, "Value `" + unknownToString(value) + "` is expected to be Serializable but it is not!");
 		isTrue(value instanceof Comparable, "Value `" + unknownToString(value) + "` is expected to be Comparable but it is not!");
 	}
 
-	public UniqueIndex(@Nonnull String entityType, @Nonnull AttributeIndexKey attributeIndexKey, @Nonnull Class<? extends Serializable> attributeType) {
-		this.dirty = new TransactionalBoolean();
-		this.entityType = entityType;
-		this.attributeIndexKey = attributeIndexKey;
-		this.type = attributeType;
-		this.uniqueValueToRecordId = new TransactionalMap<>(new HashMap<>());
-		this.recordIds = new TransactionalBitmap();
-	}
-
-	public UniqueIndex(@Nonnull String entityType, @Nonnull AttributeIndexKey attributeIndexKey, @Nonnull Class<? extends Serializable> attributeType, @Nonnull Map<Serializable, Integer> uniqueValueToRecordId) {
-		this.dirty = new TransactionalBoolean();
-		this.entityType = entityType;
-		this.attributeIndexKey = attributeIndexKey;
-		this.type = attributeType;
-		this.uniqueValueToRecordId = new TransactionalMap<>(new HashMap<>(uniqueValueToRecordId));
-		this.recordIds = new TransactionalBitmap(uniqueValueToRecordId.values().stream().mapToInt(it -> it).toArray());
-	}
-
-	public UniqueIndex(@Nonnull String entityType, @Nonnull AttributeIndexKey attributeIndexKey, @Nonnull Class<? extends Serializable> attributeType, @Nonnull Map<Serializable, Integer> uniqueValueToRecordId, @Nonnull Bitmap recordIds) {
-		this.dirty = new TransactionalBoolean();
-		this.entityType = entityType;
-		this.attributeIndexKey = attributeIndexKey;
-		this.type = attributeType;
-		this.uniqueValueToRecordId = new TransactionalMap<>(uniqueValueToRecordId);
-		this.recordIds = new TransactionalBitmap(recordIds);
+	/**
+	 * Creates a VIEW-mode index folded onto the shared `value→ValueToRecord` tree - the entry point used by
+	 * {@link AttributeIndex} for a foldable unique attribute. The instance owns no value map / record-id bitmap of its
+	 * own; every read is answered directly from the shared {@link FilterIndex} view it references.
+	 *
+	 * @param entityType        type of the entity this index belongs to
+	 * @param attributeIndexKey key identifying the indexed attribute
+	 * @param attributeType     declared type of the attribute value
+	 * @param sharedFilterView  the shared filter view over the same key (may be `null` when the shared tree does not
+	 *                          exist yet — a live presence marker rebound by the filter-write path)
+	 * @return a fresh view-mode unique index
+	 */
+	@Nonnull
+	public static UniqueIndex createView(
+		@Nonnull String entityType,
+		@Nonnull AttributeIndexKey attributeIndexKey,
+		@Nonnull Class<? extends Serializable> attributeType,
+		@Nullable FilterIndex sharedFilterView
+	) {
+		return new UniqueIndexView(entityType, attributeIndexKey, attributeType, sharedFilterView);
 	}
 
 	/**
-	 * Registers new record id to a single unique value.
+	 * Returns a copy of this index referencing the freshly-committed `committedFilterView`, so a folded view never reads
+	 * through a stale filter view. The result is a NEW immutable instance when the filter view differs, or `this` when it
+	 * is identity-unchanged (carry-forward) — never an in-place mutation, so the returned value is safe to share across
+	 * snapshot versions. A no-op (`this`) for owner-mode indexes (they own their value map). Mirrors
+	 * {@link SortIndex#bindSharedTree} so all three folded view families carry forward by identity symmetrically.
+	 *
+	 * @param committedFilterView the committed shared filter view for this key (ignored in owner mode; may be `null`)
+	 * @return a view bound to the committed filter view, or `this` when nothing changed
+	 */
+	@Nonnull
+	abstract UniqueIndex bindFilterView(@Nullable FilterIndex committedFilterView);
+
+	/**
+	 * Base constructor wiring the common identity fields. Concrete subclasses are responsible for sourcing their data
+	 * (owned vs shared) and the transactional lifecycle.
+	 *
+	 * @param entityType        type of the entity this index belongs to
+	 * @param attributeIndexKey key identifying the indexed attribute
+	 * @param attributeType     declared type of the attribute value
+	 */
+	protected UniqueIndex(
+		@Nonnull String entityType,
+		@Nonnull AttributeIndexKey attributeIndexKey,
+		@Nonnull Class<? extends Serializable> attributeType
+	) {
+		this.entityType = entityType;
+		this.attributeIndexKey = attributeIndexKey;
+		this.type = attributeType;
+	}
+
+	/**
+	 * Registers new record id to a single unique value (owner only - a folded view never registers values itself, the
+	 * shared filter tree owns the data and uniqueness is enforced by {@link AttributeIndex} on the filter insert).
 	 *
 	 * @throws UniqueValueViolationException when value is not unique
 	 */
-	public void registerUniqueKey(@Nonnull Object value, int recordId) {
-		registerUniqueKeyValue(value, recordId);
-	}
+	public abstract void registerUniqueKey(@Nonnull Object value, int recordId);
 
 	/**
-	 * Unregisters new record id from a single unique value.
+	 * Unregisters a record id from a single unique value (owner only).
 	 *
 	 * @return removed record id relation
 	 */
-	public int unregisterUniqueKey(@Nonnull Object value, int recordId) {
-		return unregisterUniqueKeyValue(value, recordId);
-	}
+	public abstract int unregisterUniqueKey(@Nonnull Object value, int recordId);
 
 	/**
 	 * Returns record id by its unique value.
 	 */
 	@Nullable
-	public Integer getRecordIdByUniqueValue(@Nonnull Serializable value) {
-		return this.uniqueValueToRecordId.get(value);
-	}
+	public abstract Integer getRecordIdByUniqueValue(@Nonnull Serializable value);
 
 	/**
 	 * Returns formula that contains all records (and memoized result).
 	 */
-	public Formula getRecordIdsFormula() {
-		// if there is transaction open, there might be changes in the bitmap, and we can't easily use cache
-		if (isTransactionAvailable() && this.dirty.isTrue()) {
-			return new ConstantFormula(this.recordIds);
-		} else {
-			if (this.memoizedAllRecordsFormula == null) {
-				this.memoizedAllRecordsFormula = new ConstantFormula(this.recordIds);
-			}
-			return this.memoizedAllRecordsFormula;
-		}
-	}
+	public abstract Formula getRecordIdsFormula();
 
 	/**
 	 * Returns bitmap with all record ids registered in this unique index.
 	 */
 	@Nonnull
-	public Bitmap getRecordIds() {
-		return this.recordIds;
-	}
+	public abstract Bitmap getRecordIds();
 
 	/**
 	 * Returns number of records in this index.
 	 */
-	public int size() {
-		return this.recordIds.size();
-	}
+	public abstract int size();
 
 	/**
 	 * Returns true if index is empty.
 	 */
-	public boolean isEmpty() {
-		return this.uniqueValueToRecordId.isEmpty();
+	public abstract boolean isEmpty();
+
+	/**
+	 * Emits this unique index's modified storage parts into `sink` on the commit/flush path — the single persistence
+	 * entry point for a unique index. A clean index emits nothing. A dirty OWNER index whose value tree spans a single
+	 * leaf emits the inline `SINGLE` root; a dirty OWNER index whose tree spans multiple leaves emits the granular
+	 * `PAGED` shape (one {@link io.evitadb.spi.store.catalog.persistence.storageParts.index.UniqueIndexLeafPagePart}
+	 * per CHANGED leaf plus the `PAGED` root, which is re-emitted only when the live leaf-page list changed — a
+	 * content-only commit leaves it byte-identical, so the root is skipped). A folded VIEW index emits only its
+	 * slim part.
+	 *
+	 * @param entityIndexPrimaryKey the owning entity index pk
+	 * @param sink                  the trapped-changes accumulator for this commit
+	 */
+	public abstract void appendStorageParts(int entityIndexPrimaryKey, @Nonnull TrappedChanges sink);
+
+	/**
+	 * Returns the leaf-page sequences this unique index WILL have on disk once the in-flight commit is durable, or an
+	 * empty array. A folded VIEW (and a SINGLE / never-paged owner) owns no leaf pages and returns empty; a PAGED OWNER
+	 * overrides this to return its current on-disk page set so the owning {@link AttributeIndex} can reclaim those pages
+	 * if the whole sub-index is later emptied and dropped from its map — after which this index's own flush never runs
+	 * again — instead of leaking them forever in the append-only OffsetIndex.
+	 *
+	 * @return the current on-disk leaf-page sequences, or an empty array when the index owns no leaf pages
+	 */
+	@Nonnull
+	public int[] currentLeafPageSequences() {
+		return ArrayUtils.EMPTY_INT_ARRAY;
 	}
 
 	/**
-	 * Method creates container for storing unique index from memory to the persistent storage.
+	 * Returns the whole value tree as sorted, positionally-aligned `(value, recordId)` columns — the inline `SINGLE`
+	 * shape, the same representation a leaf page carries. Built by a single cursor walk (no map materialization), it feeds
+	 * the inline `SINGLE` write path and test inspection. A folded VIEW returns empty columns (its data lives in the
+	 * shared filter tree).
+	 *
+	 * @return the inline snapshot of every entry in ascending key order
 	 */
-	@Nullable
-	public StoragePart createStoragePart(int entityIndexPrimaryKey) {
-		if (this.dirty.isTrue()) {
-			return new UniqueIndexStoragePart(
-				entityIndexPrimaryKey,
-				this.attributeIndexKey,
-				this.type,
-				this.uniqueValueToRecordId,
-				this.recordIds
-			);
-		} else {
-			return null;
-		}
-	}
-
-	@Override
-	public void resetDirty() {
-		this.dirty.reset();
-	}
-
-	/*
-		TransactionalLayerCreator implementation
-	 */
-
-	@Nullable
-	@Override
-	public TransactionalContainerChanges<MapChanges<Serializable, Integer>, Map<Serializable, Integer>, TransactionalMap<Serializable, Integer>> createLayer() {
-		return isTransactionAvailable() ? new TransactionalContainerChanges<>() : null;
-	}
-
 	@Nonnull
-	@Override
-	public UniqueIndex createCopyWithMergedTransactionalMemory(@Nullable TransactionalContainerChanges<MapChanges<Serializable, Integer>, Map<Serializable, Integer>, TransactionalMap<Serializable, Integer>> layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
-		final Boolean isDirty = transactionalLayer.getStateCopyWithCommittedChanges(this.dirty);
-		if (isDirty) {
-			final UniqueIndex uniqueKeyIndex = new UniqueIndex(
-				this.entityType, this.attributeIndexKey, this.type,
-				transactionalLayer.getStateCopyWithCommittedChanges(this.uniqueValueToRecordId),
-				transactionalLayer.getStateCopyWithCommittedChanges(this.recordIds)
-			);
-			// we can safely throw away dirty flag now
-			ofNullable(layer).ifPresent(it -> it.clean(transactionalLayer));
-			return uniqueKeyIndex;
-		} else {
-			return this;
-		}
-	}
-
-	@Override
-	public void removeLayer(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
-		transactionalLayer.removeTransactionalMemoryLayerIfExists(this);
-		this.uniqueValueToRecordId.removeLayer(transactionalLayer);
-		this.recordIds.removeLayer(transactionalLayer);
-		this.dirty.removeLayer(transactionalLayer);
-	}
+	abstract InlineSnapshot inlineSnapshot();
 
 	/**
-	 * Returns index of unique values mapped to record ids.
+	 * The whole value tree captured as positionally-aligned value + record-id columns — the inline `SINGLE` shape, the
+	 * same representation a leaf page carries. Produced by {@link #inlineSnapshot()} via a single cursor walk, so it never
+	 * builds an intermediate map.
+	 *
+	 * @param values    the values in ascending key order
+	 * @param recordIds the record ids, positionally aligned with `values`
 	 */
-	@Nonnull
-	Map<Serializable, Integer> getUniqueValueToRecordId() {
-		return Collections.unmodifiableMap(this.uniqueValueToRecordId);
-	}
-
-	/*
-		PRIVATE METHODS
-	 */
-
-	@SuppressWarnings("unchecked")
-	private <T extends Serializable & Comparable<T>> void registerUniqueKeyValue(@Nonnull Object key, int recordId) {
-		if (key instanceof @Nonnull final Object[] valueArray) {
-			verifyValueArray(key);
-			// first verify removed data without modifications
-			for (Object valueItem : valueArray) {
-				final T theValueItem = (T) valueItem;
-				final Integer existingRecordId = this.uniqueValueToRecordId.get(theValueItem);
-				assertUniqueKeyIsFree(theValueItem, recordId, existingRecordId);
-			}
-			// now perform alteration
-			for (Object valueItem : valueArray) {
-				//noinspection unchecked
-				registerUniqueKeyValue((T) valueItem, recordId);
-			}
-		} else {
-			verifyValue(key);
-			//noinspection unchecked
-			registerUniqueKeyValue((T) key, recordId);
-		}
-
-		if (!isTransactionAvailable()) {
-			this.memoizedAllRecordsFormula = null;
-		}
-
-		this.dirty.setToTrue();
-	}
-
-	private <T extends Serializable & Comparable<T>> void registerUniqueKeyValue(@Nonnull T key, int recordId) {
-		final Integer existingRecordId = this.uniqueValueToRecordId.get(key);
-		assertUniqueKeyIsFree(key, recordId, existingRecordId);
-		this.uniqueValueToRecordId.put(key, recordId);
-		this.recordIds.add(recordId);
-	}
-
-	@SuppressWarnings("unchecked")
-	private <T extends Serializable & Comparable<T>> int unregisterUniqueKeyValue(@Nonnull Object key, int expectedRecordId) {
-		final int returnValue;
-		if (key instanceof @Nonnull final Object[] valueArray) {
-			verifyValueArray(key);
-			// first verify removed data without modifications
-			for (Object valueItem : valueArray) {
-				final T theValueItem = (T) valueItem;
-				final Integer existingRecordId = this.uniqueValueToRecordId.get(theValueItem);
-				assertUniqueKeyOwnership(theValueItem, expectedRecordId, existingRecordId);
-			}
-			// now perform alteration
-			for (Object valueItem : valueArray) {
-				unregisterUniqueKeyValue((T) valueItem, expectedRecordId);
-			}
-
-			returnValue = Integer.MIN_VALUE;
-		} else {
-			verifyValue(key);
-			returnValue = unregisterUniqueKeyValue((T) key, expectedRecordId);
-		}
-
-		if (!isTransactionAvailable()) {
-			this.memoizedAllRecordsFormula = null;
-		}
-
-		this.dirty.setToTrue();
-		return returnValue;
-	}
-
-	private <T extends Serializable & Comparable<T>> int unregisterUniqueKeyValue(@Nonnull T key, int expectedRecordId) {
-		final Integer existingRecordId = this.uniqueValueToRecordId.remove(key);
-		assertUniqueKeyOwnership(key, expectedRecordId, existingRecordId);
-		this.recordIds.remove(existingRecordId);
-		return existingRecordId;
-	}
-
-	private <T extends Serializable & Comparable<T>> void assertUniqueKeyIsFree(@Nonnull T key, int recordId, @Nullable Integer existingRecordId) {
-		if (!(existingRecordId == null || existingRecordId.equals(recordId))) {
-			throw new UniqueValueViolationException(this.attributeIndexKey.attributeName(), this.attributeIndexKey.locale(), key, this.entityType, existingRecordId, this.entityType, recordId);
-		}
-	}
-
-	private <T extends Serializable & Comparable<T>> void assertUniqueKeyOwnership(@Nonnull T key, int expectedRecordId, @Nullable Integer existingRecordId) {
-		isTrue(
-			Objects.equals(existingRecordId, expectedRecordId),
-			() -> existingRecordId == null ?
-				"No unique key exists for `" + this.attributeIndexKey.attributeName() + "` key: `" + key + "`" + (this.attributeIndexKey.locale() == null ? "" : " in locale `" + this.attributeIndexKey.locale().toLanguageTag() + "`") + "!" :
-				"Unique key exists for `" + this.attributeIndexKey.attributeName() + "` key: `" + key + "`" + (this.attributeIndexKey.locale() == null ? "" : " in locale `" + this.attributeIndexKey.locale().toLanguageTag() + "`") + " belongs to record with id `" + existingRecordId + "` and not `" + expectedRecordId + "` as expected!"
-		);
+	record InlineSnapshot(@Nonnull Serializable[] values, @Nonnull int[] recordIds) {
 	}
 
 }

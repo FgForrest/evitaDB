@@ -39,13 +39,12 @@ import javax.annotation.Nonnull;
 import java.util.Collection;
 import java.util.Currency;
 import java.util.Locale;
-import java.util.Optional;
 import java.util.function.Function;
 
 import static io.evitadb.externalApi.api.ExternalApiNamingConventions.PROPERTY_NAME_NAMING_CONVENTION;
 
 /**
- * Handles serializing of {@link io.evitadb.api.requestResponse.schema.EntitySchemaContract} into JSON structure
+ * Handles serializing of {@link EntitySchemaContract} into JSON structure
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
@@ -57,9 +56,9 @@ public class EntitySchemaJsonSerializer extends SchemaJsonSerializer {
 	}
 
 	/**
-	 * Performs serialization and returns serialized entity in form of JsonNode
+	 * Serializes the given entity schema into a `JsonNode`.
 	 *
-	 * @return serialized entity or list of entities
+	 * @return the serialized entity schema
 	 */
 	public JsonNode serialize(@Nonnull EntitySchemaContract entitySchema,
 	                          @Nonnull Function<String, EntitySchemaContract> entitySchemaFetcher) {
@@ -79,6 +78,12 @@ public class EntitySchemaJsonSerializer extends SchemaJsonSerializer {
 		rootNode.set(EntitySchemaDescriptor.LOCALES.name(), this.objectJsonSerializer.serializeCollection(entitySchema.getLocales().stream().map(Locale::toLanguageTag).toList()));
 		rootNode.set(EntitySchemaDescriptor.CURRENCIES.name(), this.objectJsonSerializer.serializeCollection(entitySchema.getCurrencies().stream().map(Currency::toString).toList()));
 		rootNode.set(EntitySchemaDescriptor.EVOLUTION_MODE.name(), this.objectJsonSerializer.serializeCollection(entitySchema.getEvolutionMode().stream().map(EvolutionMode::name).toList()));
+
+		serializeConflictResolution(
+			rootNode,
+			EntitySchemaDescriptor.CONFLICT_RESOLUTION.name(),
+			entitySchema.getConflictResolution().orElse(null)
+		);
 
 		rootNode.set(EntitySchemaDescriptor.ATTRIBUTES.name(), serializeAttributeSchemas(entitySchema));
 		rootNode.set(SortableAttributeCompoundsSchemaProviderDescriptor.SORTABLE_ATTRIBUTE_COMPOUNDS.name(), serializeSortableAttributeCompoundSchemas(entitySchema));
@@ -104,38 +109,8 @@ public class EntitySchemaJsonSerializer extends SchemaJsonSerializer {
 	}
 
 	@Nonnull
-	private ObjectNode serializeAttributeSchema(@Nonnull AttributeSchemaContract attributeSchema) {
-		final ObjectNode attributeSchemaNode = this.objectJsonSerializer.objectNode();
-		attributeSchemaNode.putIfAbsent(NamedSchemaDescriptor.NAME.name(), this.objectJsonSerializer.serializeObject(attributeSchema.getName()));
-		attributeSchemaNode.set(NamedSchemaDescriptor.NAME_VARIANTS.name(), serializeNameVariants(attributeSchema.getNameVariants()));
-		attributeSchemaNode.putIfAbsent(NamedSchemaDescriptor.DESCRIPTION.name(), attributeSchema.getDescription() != null ? this.objectJsonSerializer.serializeObject(attributeSchema.getDescription()) : null);
-		attributeSchemaNode.putIfAbsent(NamedSchemaWithDeprecationDescriptor.DEPRECATION_NOTICE.name(), attributeSchema.getDeprecationNotice() != null ? this.objectJsonSerializer.serializeObject(attributeSchema.getDeprecationNotice()) : null);
-		attributeSchemaNode.putIfAbsent(AttributeSchemaDescriptor.UNIQUENESS_TYPE.name(), serializeUniquenessType(attributeSchema::getUniquenessType));
-		if (attributeSchema instanceof GlobalAttributeSchemaContract globalAttributeSchema) {
-			attributeSchemaNode.putIfAbsent(GlobalAttributeSchemaDescriptor.GLOBAL_UNIQUENESS_TYPE.name(), serializeGlobalUniquenessType(globalAttributeSchema::getGlobalUniquenessType));
-		}
-		attributeSchemaNode.putIfAbsent(AttributeSchemaDescriptor.FILTERABLE.name(), serializeFlagInScopes(attributeSchema::isFilterableInScope));
-		attributeSchemaNode.putIfAbsent(AttributeSchemaDescriptor.SORTABLE.name(), serializeFlagInScopes(attributeSchema::isSortableInScope));
-		attributeSchemaNode.putIfAbsent(AttributeSchemaDescriptor.LOCALIZED.name(), this.objectJsonSerializer.serializeObject(attributeSchema.isLocalized()));
-		attributeSchemaNode.putIfAbsent(AttributeSchemaDescriptor.NULLABLE.name(), this.objectJsonSerializer.serializeObject(attributeSchema.isNullable()));
-		if (attributeSchema instanceof EntityAttributeSchemaContract entityAttributeSchema) {
-			attributeSchemaNode.put(EntityAttributeSchemaDescriptor.REPRESENTATIVE.name(), entityAttributeSchema.isRepresentative());
-		}
-		attributeSchemaNode.put(AttributeSchemaDescriptor.TYPE.name(), DataTypeSerializer.serialize(attributeSchema.getType()));
-		attributeSchemaNode.set(
-			AttributeSchemaDescriptor.DEFAULT_VALUE.name(),
-			Optional.ofNullable(attributeSchema.getDefaultValue())
-				.map(this.objectJsonSerializer::serializeObject)
-				.orElse(null)
-		);
-		attributeSchemaNode.put(AttributeSchemaDescriptor.INDEXED_DECIMAL_PLACES.name(), attributeSchema.getIndexedDecimalPlaces());
-
-		return attributeSchemaNode;
-	}
-
-	@Nonnull
-	private ObjectNode serializeSortableAttributeCompoundSchemas(@Nonnull SortableAttributeCompoundSchemaProvider provider) {
-		final Collection<SortableAttributeCompoundSchemaContract> schemas = provider.getSortableAttributeCompounds().values();
+	private ObjectNode serializeSortableAttributeCompoundSchemas(@Nonnull SortableAttributeCompoundSchemaProvider<?, ? extends SortableAttributeCompoundSchemaContract> provider) {
+		final Collection<? extends SortableAttributeCompoundSchemaContract> schemas = provider.getSortableAttributeCompounds().values();
 
 		final ObjectNode attributeSchemasMap = this.objectJsonSerializer.objectNode();
 		if (!schemas.isEmpty()) {
@@ -150,11 +125,7 @@ public class EntitySchemaJsonSerializer extends SchemaJsonSerializer {
 
 	@Nonnull
 	private ObjectNode serializeSortableAttributeCompoundSchema(@Nonnull SortableAttributeCompoundSchemaContract sortableAttributeCompoundSchema) {
-		final ObjectNode schemaNode = this.objectJsonSerializer.objectNode();
-		schemaNode.putIfAbsent(NamedSchemaDescriptor.NAME.name(), this.objectJsonSerializer.serializeObject(sortableAttributeCompoundSchema.getName()));
-		schemaNode.set(NamedSchemaDescriptor.NAME_VARIANTS.name(), serializeNameVariants(sortableAttributeCompoundSchema.getNameVariants()));
-		schemaNode.putIfAbsent(NamedSchemaDescriptor.DESCRIPTION.name(), sortableAttributeCompoundSchema.getDescription() != null ? this.objectJsonSerializer.serializeObject(sortableAttributeCompoundSchema.getDescription()) : null);
-		schemaNode.putIfAbsent(NamedSchemaWithDeprecationDescriptor.DEPRECATION_NOTICE.name(), sortableAttributeCompoundSchema.getDeprecationNotice() != null ? this.objectJsonSerializer.serializeObject(sortableAttributeCompoundSchema.getDeprecationNotice()) : null);
+		final ObjectNode schemaNode = serializeNamedSchemaBase(sortableAttributeCompoundSchema);
 
 		final ArrayNode sortableAttributeCompoundArray = this.objectJsonSerializer.arrayNode();
 		sortableAttributeCompoundSchema.getAttributeElements()
@@ -192,14 +163,11 @@ public class EntitySchemaJsonSerializer extends SchemaJsonSerializer {
 
 	@Nonnull
 	private ObjectNode serializeAssociatedDataSchema(@Nonnull AssociatedDataSchemaContract associatedDataSchema) {
-		final ObjectNode associatedDataSchemaNode = this.objectJsonSerializer.objectNode();
-		associatedDataSchemaNode.putIfAbsent(NamedSchemaDescriptor.NAME.name(), this.objectJsonSerializer.serializeObject(associatedDataSchema.getName()));
-		associatedDataSchemaNode.set(NamedSchemaDescriptor.NAME_VARIANTS.name(), serializeNameVariants(associatedDataSchema.getNameVariants()));
-		associatedDataSchemaNode.putIfAbsent(NamedSchemaDescriptor.DESCRIPTION.name(), associatedDataSchema.getDescription() != null ? this.objectJsonSerializer.serializeObject(associatedDataSchema.getDescription()) : null);
-		associatedDataSchemaNode.putIfAbsent(NamedSchemaWithDeprecationDescriptor.DEPRECATION_NOTICE.name(), associatedDataSchema.getDeprecationNotice() != null ? this.objectJsonSerializer.serializeObject(associatedDataSchema.getDeprecationNotice()) : null);
+		final ObjectNode associatedDataSchemaNode = serializeNamedSchemaBase(associatedDataSchema);
 		associatedDataSchemaNode.put(AssociatedDataSchemaDescriptor.TYPE.name(), DataTypeSerializer.serialize(associatedDataSchema.getType()));
 		associatedDataSchemaNode.putIfAbsent(AssociatedDataSchemaDescriptor.LOCALIZED.name(), this.objectJsonSerializer.serializeObject(associatedDataSchema.isLocalized()));
 		associatedDataSchemaNode.putIfAbsent(AssociatedDataSchemaDescriptor.NULLABLE.name(), this.objectJsonSerializer.serializeObject(associatedDataSchema.isNullable()));
+		associatedDataSchemaNode.put(AssociatedDataSchemaDescriptor.CONFLICT_RESOLUTION_OVERRIDE.name(), associatedDataSchema.getConflictResolutionOverride().name());
 
 		return associatedDataSchemaNode;
 	}
@@ -225,11 +193,7 @@ public class EntitySchemaJsonSerializer extends SchemaJsonSerializer {
 		@Nonnull Function<String, EntitySchemaContract> entitySchemaFetcher,
         @Nonnull ReferenceSchemaContract referenceSchema
 	) {
-		final ObjectNode referenceSchemaNode = this.objectJsonSerializer.objectNode();
-		referenceSchemaNode.putIfAbsent(NamedSchemaDescriptor.NAME.name(), this.objectJsonSerializer.serializeObject(referenceSchema.getName()));
-		referenceSchemaNode.set(NamedSchemaDescriptor.NAME_VARIANTS.name(), serializeNameVariants(referenceSchema.getNameVariants()));
-		referenceSchemaNode.putIfAbsent(NamedSchemaDescriptor.DESCRIPTION.name(), referenceSchema.getDescription() != null ? this.objectJsonSerializer.serializeObject(referenceSchema.getDescription()) : null);
-		referenceSchemaNode.putIfAbsent(NamedSchemaWithDeprecationDescriptor.DEPRECATION_NOTICE.name(), referenceSchema.getDeprecationNotice() != null ? this.objectJsonSerializer.serializeObject(referenceSchema.getDeprecationNotice()) : null);
+		final ObjectNode referenceSchemaNode = serializeNamedSchemaBase(referenceSchema);
 		referenceSchemaNode.putIfAbsent(ReferenceSchemaDescriptor.CARDINALITY.name(), this.objectJsonSerializer.serializeObject(referenceSchema.getCardinality()));
 		referenceSchemaNode.putIfAbsent(ReferenceSchemaDescriptor.REFERENCED_ENTITY_TYPE.name(), this.objectJsonSerializer.serializeObject(referenceSchema.getReferencedEntityType()));
 		referenceSchemaNode.set(ReferenceSchemaDescriptor.ENTITY_TYPE_NAME_VARIANTS.name(), serializeNameVariants(referenceSchema.getEntityTypeNameVariants(entitySchemaFetcher)));
@@ -238,7 +202,12 @@ public class EntitySchemaJsonSerializer extends SchemaJsonSerializer {
 		referenceSchemaNode.set(ReferenceSchemaDescriptor.GROUP_TYPE_NAME_VARIANTS.name(), serializeNameVariants(referenceSchema.getGroupTypeNameVariants(entitySchemaFetcher)));
 		referenceSchemaNode.putIfAbsent(ReferenceSchemaDescriptor.REFERENCED_GROUP_TYPE_MANAGED.name(), this.objectJsonSerializer.serializeObject(referenceSchema.isReferencedGroupTypeManaged()));
 		referenceSchemaNode.set(ReferenceSchemaDescriptor.INDEXED.name(), serializeReferenceIndexTypes(referenceSchema));
+		referenceSchemaNode.set(ReferenceSchemaDescriptor.INDEXED_COMPONENTS.name(), serializeReferenceIndexedComponents(referenceSchema));
 		referenceSchemaNode.set(ReferenceSchemaDescriptor.FACETED.name(), serializeFlagInScopes(referenceSchema::isFacetedInScope));
+		referenceSchemaNode.set(ReferenceSchemaDescriptor.FACETED_PARTIALLY.name(), serializeFacetedPartially(referenceSchema));
+		referenceSchemaNode.set(ReferenceSchemaDescriptor.BUCKETED.name(), serializeBucketedHistogram(referenceSchema));
+		referenceSchemaNode.set(ReferenceSchemaDescriptor.BUCKETED_PARTIALLY.name(), serializeBucketedPartially(referenceSchema));
+		referenceSchemaNode.put(ReferenceSchemaDescriptor.CONFLICT_RESOLUTION_OVERRIDE.name(), referenceSchema.getConflictResolutionOverride().name());
 
 		referenceSchemaNode.set(ReferenceSchemaDescriptor.ATTRIBUTES.name(), serializeAttributeSchemas(referenceSchema));
 		referenceSchemaNode.set(SortableAttributeCompoundsSchemaProviderDescriptor.SORTABLE_ATTRIBUTE_COMPOUNDS.name(), serializeSortableAttributeCompoundSchemas(referenceSchema));

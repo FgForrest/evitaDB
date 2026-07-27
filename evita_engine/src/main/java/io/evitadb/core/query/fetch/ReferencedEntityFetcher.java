@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -31,6 +31,7 @@ import com.carrotsearch.hppc.cursors.IntObjectCursor;
 import io.evitadb.api.EntityCollectionContract;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.exception.EntityNotManagedException;
+import io.evitadb.api.query.ConstraintContainer;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.OrderConstraint;
 import io.evitadb.api.query.QueryUtils;
@@ -39,6 +40,7 @@ import io.evitadb.api.query.filter.EntityLocaleEquals;
 import io.evitadb.api.query.filter.EntityPrimaryKeyInSet;
 import io.evitadb.api.query.filter.EntityScope;
 import io.evitadb.api.query.filter.FilterBy;
+import io.evitadb.api.query.filter.GroupHaving;
 import io.evitadb.api.query.filter.ReferenceHaving;
 import io.evitadb.api.query.filter.SeparateEntityScopeContainer;
 import io.evitadb.api.query.order.EntityPrimaryKeyExact;
@@ -57,6 +59,7 @@ import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaRequest.ReferenceContentKey;
 import io.evitadb.api.requestResponse.EvitaRequest.RequirementContext;
 import io.evitadb.api.requestResponse.chunk.ChunkTransformer;
+import io.evitadb.api.requestResponse.chunk.NoTransformer;
 import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
@@ -103,6 +106,7 @@ import io.evitadb.dataType.Scope;
 import io.evitadb.dataType.array.CompositeIntArray;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.function.TriFunction;
+import io.evitadb.index.AbstractReducedEntityIndex;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.EntityIndexType;
@@ -120,8 +124,8 @@ import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import lombok.Getter;
-import org.roaringbitmap.RoaringBitmap;
-import org.roaringbitmap.RoaringBitmapWriter;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
+import io.evitadb.roaringbitmap.RoaringBitmapWriter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -160,7 +164,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	/**
 	 * Comparator that allows to sort reduced entity indexes by their discriminator.
 	 */
-	private static final Comparator<ReducedEntityIndex> BY_DISCRIMINATOR = Comparator.comparing(
+	private static final Comparator<AbstractReducedEntityIndex> BY_DISCRIMINATOR = Comparator.comparing(
 		rede -> {
 			final EntityIndexKey indexKey = rede.getIndexKey();
 			return Objects.requireNonNull(
@@ -304,14 +308,14 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	}
 
 	/**
-	 * Unwraps the provided {@code entityFilterBy} object to extract its nested filter criteria.
-	 * If the {@code entityFilterBy} contains an {@code EntityHaving} constraint,
-	 * the method creates a new {@code FilterBy} instance with the child constraints of {@code EntityHaving}.
-	 * If no {@code EntityHaving} constraint is found or {@code entityFilterBy} is null, the method returns null.
+	 * Unwraps the provided {@code entityFilterBy} object to extract entity-level filter criteria.
+	 * Extracts children of {@link EntityHaving} as well as standalone {@link EntityPrimaryKeyInSet}
+	 * and {@link EntityLocaleEquals} constraints. {@link GroupHaving} constraints are intentionally
+	 * excluded because they are handled separately via group-level indexes.
 	 *
-	 * @param entityFilterBy the {@code FilterBy} object potentially containing an {@code EntityHaving} constraint
-	 * @return a new {@code FilterBy} instance with the child constraints of {@code EntityHaving},
-	 * or null if the {@code entityFilterBy} is null or does not contain an {@code EntityHaving} constraint
+	 * @param entityFilterBy the {@code FilterBy} object potentially containing entity-level constraints
+	 * @return a new {@code FilterBy} instance with the extracted entity-level constraints,
+	 * or null if the {@code entityFilterBy} is null or contains no matching constraints
 	 */
 	@Nullable
 	private static FilterBy unwrapFilterBy(@Nullable FilterBy entityFilterBy) {
@@ -319,13 +323,20 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		if (entityFilterBy != null) {
 			final List<FilterConstraint> entityConstraints = FinderVisitor.findConstraints(
 				entityFilterBy,
-				it -> it instanceof EntityHaving || it instanceof EntityPrimaryKeyInSet || it instanceof EntityLocaleEquals,
-				EntityHaving.class::isInstance
+				it -> it instanceof EntityHaving ||
+					it instanceof EntityPrimaryKeyInSet ||
+					it instanceof EntityLocaleEquals,
+				SeparateEntityScopeContainer.class::isInstance
 			);
 			unwrappedEntityFilterBy = filterBy(
 				entityConstraints
 					.stream()
-					.flatMap(it -> it instanceof EntityHaving eh ? Arrays.stream(eh.getChildren()) : Stream.of(it))
+					.flatMap(
+						it -> it instanceof ConstraintContainer<?> cc
+							? Arrays.stream(cc.getChildren())
+							: Stream.of(it)
+					)
+					.map(FilterConstraint.class::cast)
 					.toArray(FilterConstraint[]::new)
 			);
 		} else {
@@ -473,7 +484,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 				subReferenceFetcher, existingEntityRetriever
 			);
 		} finally {
-			nestedQueryContext.popStep();
+			executionContext.popStep();
 		}
 		return entityIndex;
 	}
@@ -617,21 +628,25 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	 * Returns array of referenced entity ids that are referenced by any of passed `entityPrimaryKeys` that are filtered
 	 * to match the passed `filterBy`.
 	 *
-	 * @param entityPrimaryKeys           the set of entity ids whose references should be looked up, indexed by scope
-	 * @param executionContext            the query context used for querying the entities
-	 * @param entitySchema                the schema of the entity owning the references
-	 * @param referenceSchema             the schema of the reference
-	 * @param targetEntityType            the entity type of the referenced entities (or group type when resolving groups)
-	 * @param filterByVisitor             the visitor that will be used for traversing the constraint
-	 * @param managedReferencesBehaviour  defines whether only existing (managed) references should be returned or all
-	 * @param filterBy                    the filtering constraint itself
-	 * @param validityMapping             see detailed description in {@link ValidEntityToReferenceMapping}
-	 * @param entityNestedQueryComparator comparator that holds information about requested ordering so that we can
-	 *                                    apply it during entity filtering (if it's performed) and pre-initialize it
-	 *                                    in an optimal way
-	 * @param referencedEntityResolver    lambda allowing to get primary keys of all entities referenced by entity with
-	 *                                    certain primary key (we need this to distinguish retrieving data for entities
-	 *                                    and groups)
+	 * @param entityPrimaryKeys                   the set of entity ids whose references should be looked up, indexed by scope
+	 * @param executionContext                    the query context used for querying the entities
+	 * @param entitySchema                        the schema of the entity owning the references
+	 * @param referenceSchema                     the schema of the reference
+	 * @param targetEntityType                    the entity type of the referenced entities (or group type when resolving groups)
+	 * @param filterByVisitor                     the visitor that will be used for traversing the constraint
+	 * @param managedReferencesBehaviour          defines whether only existing (managed) references should be returned or all
+	 * @param filterBy                            the filtering constraint itself
+	 * @param validityMapping                     see detailed description in {@link ValidEntityToReferenceMapping}
+	 * @param entityNestedQueryComparator         comparator that holds information about requested ordering so that we can
+	 *                                            apply it during entity filtering (if it's performed) and pre-initialize it
+	 *                                            in an optimal way
+	 * @param referencedEntityResolver            lambda allowing to get primary keys of all entities referenced by
+	 *                                            entity with certain primary key (we need this to distinguish
+	 *                                            retrieving data for entities and groups)
+	 * @param groupToReferencedEntityIdTranslator function that maps group entity PKs to referenced entity PKs for
+	 *                                            a given reference name; used to evaluate {@link GroupHaving}
+	 *                                            constraints; may be {@code null} when group filtering is
+	 *                                            not applicable
 	 * @return filtered bitmap of referenced entity ids
 	 */
 	@Nonnull
@@ -646,7 +661,8 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		@Nullable FilterBy filterBy,
 		@Nullable ValidEntityToReferenceMapping validityMapping,
 		@Nullable EntityNestedQueryComparator entityNestedQueryComparator,
-		@Nonnull BiFunction<String, Integer, Formula> referencedEntityResolver
+		@Nonnull BiFunction<String, Integer, Formula> referencedEntityResolver,
+		@Nullable BiFunction<String, Integer, int[]> groupToReferencedEntityIdTranslator
 	) {
 		// initialize the main data-structures we'll be working later in this method
 		final Optional<ValidEntityToReferenceMapping> validityMappingOptional = ofNullable(validityMapping);
@@ -677,7 +693,10 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		final Map<Scope, Bitmap> allReferencedEntityPksInScope;
 		final Bitmap allReferencedEntityPks;
 		// if query required filtering or only existing references and the referenced entity type is managed
-		if ((managedReferencesBehaviour == ManagedReferencesBehaviour.EXISTING || filterBy != null) && referencedEntityTypeManaged) {
+		if (
+			(managedReferencesBehaviour == ManagedReferencesBehaviour.EXISTING || filterBy != null)
+				&& referencedEntityTypeManaged
+		) {
 			// we need to filter the referenced entity ids to only those that really exist
 			allReferencedEntityPksInScope = limitToExistingEntities(
 				combineWithOr(allReferencedEntityPksFromEntitiesInScope.values()),
@@ -698,10 +717,10 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 			validityMappingOptional.ifPresent(ValidEntityToReferenceMapping::forbidAll);
 			result = EmptyBitmap.INSTANCE;
 		} else {
-			final RoaringBitmap referencedPrimaryKeys;
+			final PersistentRoaringBitmap referencedPrimaryKeys;
 			if (filterBy == null) {
 				// if there is no filtering, we can quickly return all referenced pks
-				final RoaringBitmapWriter<RoaringBitmap> referencedPrimaryKeysWriter = RoaringBitmapBackedBitmap.buildWriter();
+				final RoaringBitmapWriter<PersistentRoaringBitmap> referencedPrimaryKeysWriter = RoaringBitmapBackedBitmap.buildWriter();
 				writeAllReferencedPrimaryKeys(allReferencedEntityPks, referencedPrimaryKeysWriter);
 
 				initNestedQueryComparator(
@@ -717,40 +736,56 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 			} else {
 				// otherwise we need to filter the referenced pks according to the filterBy constraint
 				final FilterByVisitor theFilterByVisitor = getFilterByVisitor(queryContext, filterByVisitor);
+
+				// separate GroupHaving constraints from entity-level constraints and evaluate group filter
+				final GroupFilterSeparation groupFilter = separateAndEvaluateGroupFilter(
+					filterBy, referenceSchema, theFilterByVisitor,
+					examinedScopes, groupToReferencedEntityIdTranslator
+				);
+				final FilterConstraint[] entityLevelChildren = groupFilter.entityLevelChildren();
+				final FilterBy entityLevelFilterBy = groupFilter.entityLevelFilterBy();
+				final Bitmap allowedByGroupFilter = groupFilter.allowedByGroupFilter();
+
 				referencedPrimaryKeys = theFilterByVisitor
 					.getProcessingScope()
 					.doWithScope(
 						examinedScopes,
 						() -> {
+							// build the ReferenceHaving constraint, avoiding mergeArrays when no entity-level children
+							final FilterConstraint pkConstraint = entityPrimaryKeyInSet(allReferencedEntityPks.getArray());
+							final FilterConstraint[] havingChildren = entityLevelChildren.length == 0
+								? new FilterConstraint[]{pkConstraint}
+								: ArrayUtils.mergeArrays(new FilterConstraint[]{pkConstraint}, entityLevelChildren);
+
 							final List<ReducedEntityIndex> referencedEntityIndexes = allReferencedEntityPks.isEmpty() ?
 								Collections.emptyList() :
 								theFilterByVisitor.getReferencedRecordEntityIndexes(
 									new ReferenceHaving(
 										referenceSchema.getName(),
-										and(
-											ArrayUtils.mergeArrays(
-												new FilterConstraint[]{entityPrimaryKeyInSet(
-													allReferencedEntityPks.getArray())},
-												filterBy.getChildren()
-											)
-										)
+										and(havingChildren)
 									),
 									examinedScopes,
 									(es, eik) -> null
 								);
+							// pre-filter by group constraint before sorting to reduce sort size
+							if (allowedByGroupFilter != null && !referencedEntityIndexes.isEmpty()) {
+								referencedEntityIndexes.removeIf(idx -> {
+									final RepresentativeReferenceKey key = idx.getRepresentativeReferenceKey();
+									return !allowedByGroupFilter.contains(key.primaryKey());
+								});
+							}
 							if (!referencedEntityIndexes.isEmpty()) {
 								referencedEntityIndexes.sort(BY_DISCRIMINATOR);
 							}
-
 							// we need to identify which scopes are not indexed for this reference
-							final Set<Scope> nonIndexedScopes = CollectionUtils.createHashSet(examinedScopes.size());
+							final EnumSet<Scope> nonIndexedScopes = EnumSet.noneOf(Scope.class);
 							for (Scope scope : examinedScopes) {
 								if (!referenceSchema.isIndexedInScope(scope)) {
 									nonIndexedScopes.add(scope);
 								}
 							}
 
-							final RoaringBitmapWriter<RoaringBitmap> referencedPrimaryKeysWriter = RoaringBitmapBackedBitmap.buildWriter();
+							final RoaringBitmapWriter<PersistentRoaringBitmap> referencedPrimaryKeysWriter = RoaringBitmapBackedBitmap.buildWriter();
 							final IntSet foundReferencedIds = new IntHashSet(allReferencedEntityPks.size());
 							// if there is at least one indexed scope, we need to process the indexes
 							if (nonIndexedScopes.size() < examinedScopes.size()) {
@@ -762,6 +797,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 									final RepresentativeReferenceKey discriminator = Objects.requireNonNull(
 										(RepresentativeReferenceKey) indexKey.discriminator()
 									);
+
 									foundReferencedIds.add(discriminator.primaryKey());
 
 									final Formula resultFormula = computeResultWithPassedIndex(
@@ -769,9 +805,8 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 										entitySchema,
 										referenceSchema,
 										theFilterByVisitor,
-										filterBy,
-										entityNestedQueryComparator,
-										EntityPrimaryKeyInSet.class
+										entityLevelFilterBy != null ? entityLevelFilterBy : filterBy,
+										entityNestedQueryComparator
 									);
 
 									if (lastDiscriminator == null) {
@@ -872,6 +907,112 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	}
 
 	/**
+	 * Separates {@link GroupHaving} constraints from entity-level constraints in the provided filter,
+	 * evaluates group constraints against group-level indexes, and maps matching group PKs to a bitmap
+	 * of allowed referenced entity PKs.
+	 *
+	 * When no {@link GroupHaving} is present or group filtering is not applicable, the original filter
+	 * is returned unchanged and {@code allowedByGroupFilter} is {@code null}.
+	 *
+	 * The method performs a single pass over filter children to both detect and separate
+	 * {@link GroupHaving} constraints, avoiding a redundant scan. In the common single-{@link GroupHaving}
+	 * case, the constraint's children array is reused directly without intermediate collection allocation.
+	 *
+	 * @param filterBy                            the filter containing both group-level and entity-level constraints
+	 * @param referenceSchema                     the schema of the reference being filtered
+	 * @param filterByVisitor                     the visitor used to evaluate group constraints
+	 * @param examinedScopes                      the scopes to evaluate
+	 * @param groupToReferencedEntityIdTranslator function that maps group PKs to referenced entity PKs;
+	 *                                            may be {@code null} when group filtering is not applicable
+	 * @return a {@link GroupFilterSeparation} containing the entity-level filter and the
+	 * allowed referenced entity PKs bitmap (or {@code null} if no group filtering applies)
+	 */
+	@Nonnull
+	private static GroupFilterSeparation separateAndEvaluateGroupFilter(
+		@Nonnull FilterBy filterBy,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull FilterByVisitor filterByVisitor,
+		@Nonnull Set<Scope> examinedScopes,
+		@Nullable BiFunction<String, Integer, int[]> groupToReferencedEntityIdTranslator
+	) {
+		// fast path: group filtering not applicable
+		if (groupToReferencedEntityIdTranslator == null) {
+			return new GroupFilterSeparation(filterBy, null);
+		}
+
+		final FilterConstraint[] allFilterChildren = filterBy.getChildren();
+
+		// single pass: separate entity-level from group-level constraints and detect GroupHaving presence
+		final List<FilterConstraint> entityLevel = new ArrayList<>(allFilterChildren.length);
+		FilterConstraint[] groupChildren = null;
+		List<FilterConstraint> groupAccumulator = null;
+		for (FilterConstraint child : allFilterChildren) {
+			if (child instanceof GroupHaving gh) {
+				if (groupChildren == null) {
+					// first GroupHaving: reuse its children array directly
+					groupChildren = gh.getChildren();
+				} else {
+					// rare: multiple GroupHaving constraints — accumulate
+					if (groupAccumulator == null) {
+						groupAccumulator = new ArrayList<>(8);
+						Collections.addAll(groupAccumulator, groupChildren);
+					}
+					Collections.addAll(groupAccumulator, gh.getChildren());
+				}
+			} else {
+				entityLevel.add(child);
+			}
+		}
+
+		// no GroupHaving found — return original filter unchanged
+		if (groupChildren == null) {
+			return new GroupFilterSeparation(filterBy, null);
+		}
+
+		// resolve final group children array
+		final FilterConstraint[] finalGroupChildren = groupAccumulator != null
+			? groupAccumulator.toArray(FilterConstraint[]::new)
+			: groupChildren;
+
+		// build entity-level FilterBy (null if all constraints were group-level)
+		final FilterBy entityLevelFilterBy = entityLevel.isEmpty()
+			? null
+			: new FilterBy(entityLevel.toArray(FilterConstraint[]::new));
+
+		// evaluate group constraints against group-level indexes
+		final Bitmap matchingGroupPks = filterByVisitor.getMatchingGroupEntityPrimaryKeys(
+			new ReferenceHaving(
+				referenceSchema.getName(),
+				and(finalGroupChildren)
+			),
+			examinedScopes,
+			(es, eik) -> null
+		);
+
+		if (matchingGroupPks.isEmpty()) {
+			return new GroupFilterSeparation(entityLevelFilterBy, EmptyBitmap.INSTANCE);
+		}
+
+		// map matching group PKs to allowed referenced entity PKs
+		final RoaringBitmapWriter<PersistentRoaringBitmap> allowedWriter = RoaringBitmapBackedBitmap.buildWriter();
+		final OfInt groupIt = matchingGroupPks.iterator();
+		while (groupIt.hasNext()) {
+			final int[] referencedByGroup = groupToReferencedEntityIdTranslator.apply(
+				referenceSchema.getName(), groupIt.nextInt()
+			);
+			for (int refPk : referencedByGroup) {
+				allowedWriter.add(refPk);
+			}
+		}
+		final PersistentRoaringBitmap allowedBitmap = allowedWriter.get();
+		final Bitmap allowedByGroupFilter = allowedBitmap.isEmpty()
+			? EmptyBitmap.INSTANCE
+			: new BaseBitmap(allowedBitmap);
+
+		return new GroupFilterSeparation(entityLevelFilterBy, allowedByGroupFilter);
+	}
+
+	/**
 	 * Combines multiple bitmaps using a logical OR operation into a single bitmap containing all primary keys
 	 * present in any of the input bitmaps.
 	 *
@@ -881,12 +1022,12 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	 */
 	@Nonnull
 	private static Bitmap combineWithOr(@Nonnull Collection<Bitmap> values) {
-		final RoaringBitmap[] bitmaps = new RoaringBitmap[values.size()];
+		final PersistentRoaringBitmap[] bitmaps = new PersistentRoaringBitmap[values.size()];
 		int i = 0;
 		for (Bitmap value : values) {
 			bitmaps[i++] = RoaringBitmapBackedBitmap.getRoaringBitmap(value);
 		}
-		final RoaringBitmap orResult = RoaringBitmap.or(bitmaps);
+		final PersistentRoaringBitmap orResult = PersistentRoaringBitmap.or(bitmaps);
 		return orResult.isEmpty() ? EmptyBitmap.INSTANCE : new BaseBitmap(orResult);
 	}
 
@@ -910,7 +1051,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		@Nonnull Set<Scope> examinedScopes
 	) {
 		if (entityCollection != null) {
-			final RoaringBitmap allPks = RoaringBitmapBackedBitmap.getRoaringBitmap(
+			final PersistentRoaringBitmap allPks = RoaringBitmapBackedBitmap.getRoaringBitmap(
 				allReferencedEntityIdsIncludingNonExisting);
 			final Map<Scope, Bitmap> existingEntityIdsByScope = CollectionUtils.createHashMap(examinedScopes.size());
 			for (Scope scope : examinedScopes) {
@@ -919,7 +1060,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 						new EntityIndexKey(EntityIndexType.GLOBAL, scope)
 					);
 				if (indexByKeyIfExists != null) {
-					final RoaringBitmap andResult = RoaringBitmap.and(
+					final PersistentRoaringBitmap andResult = PersistentRoaringBitmap.and(
 						RoaringBitmapBackedBitmap.getRoaringBitmap(indexByKeyIfExists.getAllPrimaryKeys()),
 						allPks
 					);
@@ -973,7 +1114,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	 */
 	private static void writeAllReferencedPrimaryKeys(
 		@Nonnull Bitmap allReferencedEntityIds,
-		@Nonnull RoaringBitmapWriter<RoaringBitmap> referencedPrimaryKeysWriter
+		@Nonnull RoaringBitmapWriter<PersistentRoaringBitmap> referencedPrimaryKeysWriter
 	) {
 		final OfInt it = allReferencedEntityIds.iterator();
 		while (it.hasNext()) {
@@ -993,7 +1134,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	private static void addBitmapToSetAndWriter(
 		@Nonnull Bitmap bitmap,
 		@Nonnull IntSet targetSet,
-		@Nonnull RoaringBitmapWriter<RoaringBitmap> targetWriter
+		@Nonnull RoaringBitmapWriter<PersistentRoaringBitmap> targetWriter
 	) {
 		final OfInt it = bitmap.iterator();
 		while (it.hasNext()) {
@@ -1015,25 +1156,22 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	 * @param entityNestedQueryComparator comparator that holds information about requested ordering so that we can
 	 *                                    apply it during entity filtering (if it's performed) and pre-initialize it
 	 *                                    in an optimal way
-	 * @param suppressedConstraints       set of constraints that should be ignored in transformation process
 	 * @return formula that calculates the result
 	 */
-	@SafeVarargs
 	@Nullable
 	private static Formula computeResultWithPassedIndex(
-		@Nonnull ReducedEntityIndex index,
+		@Nonnull AbstractReducedEntityIndex index,
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull FilterByVisitor filterByVisitor,
 		@Nonnull FilterBy filterBy,
-		@Nullable EntityNestedQueryComparator entityNestedQueryComparator,
-		@Nonnull Class<? extends FilterConstraint>... suppressedConstraints
+		@Nullable EntityNestedQueryComparator entityNestedQueryComparator
 	) {
 		// compute the result formula in the initialized context
 		final String referenceName = referenceSchema.getName();
 		final ProcessingScope<?> processingScope = filterByVisitor.getProcessingScope();
 		return filterByVisitor.executeInContextAndIsolatedFormulaStack(
-			ReducedEntityIndex.class,
+			AbstractReducedEntityIndex.class,
 			() -> Collections.singletonList(index),
 			ReferenceContent.ALL_REFERENCES,
 			entitySchema,
@@ -1049,7 +1187,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 				// get the result and clear the visitor internal structures
 				return filterByVisitor.getFormulaAndClear();
 			},
-			suppressedConstraints
+			EntityPrimaryKeyInSet.class
 		);
 	}
 
@@ -1293,7 +1431,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		@Nonnull QueryPlanningContext queryPlanningContext,
 		@Nonnull QueryExecutionContext queryExecutionContext,
 		@Nonnull EntitySchemaContract entitySchema,
-		@Nullable RoaringBitmapWriter<RoaringBitmap> allReferencedParents,
+		@Nullable RoaringBitmapWriter<PersistentRoaringBitmap> allReferencedParents,
 		@Nonnull IntObjectHashMap<EntityClassifierWithParent> parentEntityReferences,
 		int[] parentIds
 	) {
@@ -1388,6 +1526,9 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	 * @param existingEntityRetriever             a provider for retrieving existing entities by their primary keys
 	 * @param referencedEntityIdsFormula          a function to compute formulas for referenced entity IDs based on a given
 	 *                                            reference name and an integer parameter
+	 * @param referenceContractsAccessor          per-source-entity accessor returning the reference contracts (with
+	 *                                            attributes) so the slicer can pre-sort by the configured `orderBy`
+	 *                                            before fetching
 	 * @param groupToReferencedEntityIdTranslator a function for translating group IDs to the referenced entity IDs for
 	 *                                            a specific reference
 	 * @param referencedEntityToGroupIdTranslator a function for translating referenced entity IDs to group IDs based on
@@ -1408,6 +1549,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		@Nonnull EntitySchema entitySchema,
 		@Nonnull ExistingEntityProvider existingEntityRetriever,
 		@Nonnull BiFunction<String, Integer, Formula> referencedEntityIdsFormula,
+		@Nonnull BiFunction<String, Integer, Collection<ReferenceContract>> referenceContractsAccessor,
 		@Nonnull BiFunction<String, Integer, int[]> groupToReferencedEntityIdTranslator,
 		@Nonnull TriFunction<Integer, String, Integer, IntStream> referencedEntityToGroupIdTranslator,
 		@Nonnull Map<Scope, int[]> entityPrimaryKey,
@@ -1422,14 +1564,14 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 			globalPrefetchCollector.addRequirementsToPrefetch(requirements.attributeContent());
 		}
 
-		final Optional<OrderingDescriptor> orderingDescriptor = ofNullable(requirements.orderBy())
-			.map(ob -> ReferenceOrderByVisitor.getComparator(
-				     executionContext.getQueryContext(),
-				     globalPrefetchCollector,
-				     ob,
-				     entitySchema,
-				     referenceSchema
-			     )
+		final OrderingDescriptor orderingDescriptor = requirements.orderBy() == null
+			? null
+			: ReferenceOrderByVisitor.getComparator(
+				executionContext.getQueryContext(),
+				globalPrefetchCollector,
+				requirements.orderBy(),
+				entitySchema,
+				referenceSchema
 			);
 
 		final ValidEntityToReferenceMapping validityMapping = new ValidEntityToReferenceMapping(
@@ -1438,12 +1580,15 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		);
 		final int[] filteredReferencedEntityIdsArray;
 		final Map<Integer, ServerEntityDecorator> entityIndex;
+		final ReferenceSlicingMode slicingMode = resolveSlicingMode(orderingDescriptor, requirements);
+		final EntityNestedQueryComparator nestedQueryComparator = slicingMode.nestedQueryComparator();
+		final boolean preSortViable = slicingMode.preSortViable();
 		final BitmapSlicer slicer = new BitmapSlicer(
 			entityPrimaryKey,
 			referenceName,
 			referencedEntityIdsFormula,
 			referencedEntityToGroupIdTranslator,
-			ServerChunkTransformerAccessor.convertIfNecessary(requirements.referenceChunkTransformer())
+			slicingMode.chunkTransformer()
 		);
 
 		final Bitmap filteredReferencedEntityIds = getFilteredReferencedEntityIds(
@@ -1456,19 +1601,35 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 			requirements.managedReferencesBehaviour(),
 			requirements.filterBy(),
 			validityMapping,
-			orderingDescriptor
-				.map(OrderingDescriptor::nestedQueryComparator)
-				.orElse(null), referencedEntityIdsFormula
+			nestedQueryComparator,
+			referencedEntityIdsFormula,
+			groupToReferencedEntityIdTranslator
 		);
+		// when pre-sort is viable the comparator needs its filteredEntities prepared
+		// before slicing; group filter is unused in this path so an empty array suffices
+		if (preSortViable && nestedQueryComparator != null) {
+			nestedQueryComparator.setFilteredEntities(
+				filteredReferencedEntityIds.getArray(),
+				ArrayUtils.EMPTY_INT_ARRAY,
+				entityPk -> groupToReferencedEntityIdTranslator.apply(referenceName, entityPk)
+			);
+		}
 		// apply chunking if necessary
 		if (requirements.entityFetch() != null) {
 			if (!referenceSchema.isReferencedEntityTypeManaged()) {
 				throw new EntityNotManagedException(referenceSchema.getReferencedEntityType());
 			}
-			final Bitmap filteredAndSlicedReferencedIds = slicer.sliceEntityIds(
-				toFormula(filteredReferencedEntityIds),
-				validityMapping
-			);
+			final Bitmap filteredAndSlicedReferencedIds = preSortViable
+				? slicer.sliceEntityIdsSorted(
+					toFormula(filteredReferencedEntityIds),
+					validityMapping,
+					referenceContractsAccessor,
+					slicingMode.preSortComparator()
+				)
+				: slicer.sliceEntityIds(
+					toFormula(filteredReferencedEntityIds),
+					validityMapping
+				);
 			if (!filteredAndSlicedReferencedIds.isEmpty()) {
 				// if so, fetch them
 				entityIndex = fetchReferencedEntities(
@@ -1502,7 +1663,8 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 				null,
 				null,
 				null,
-				slicer::getGroupIds
+				(refName, epk) -> slicer.getGroupIds(epk),
+				null
 			);
 
 			if (requirements.entityGroupFetch() != null && !filteredReferencedGroupEntityIds.isEmpty()) {
@@ -1527,16 +1689,16 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 			entityGroupIndex = Collections.emptyMap();
 		}
 
-		// set them to the comparator instance, if such is provided
-		// this prepares the "pre-sorted" arrays in this comparator for faster sorting
-		orderingDescriptor
-			.map(OrderingDescriptor::nestedQueryComparator)
-			.ifPresent(
-				comparator -> comparator.setFilteredEntities(
-					filteredReferencedEntityIdsArray, filteredReferencedGroupEntityIdsArray,
-					entityPk -> groupToReferencedEntityIdTranslator.apply(referenceName, entityPk)
-				)
+		// set them to the comparator instance, if such is provided — this prepares the
+		// "pre-sorted" arrays in this comparator for faster sorting. See
+		// ReferenceSlicingMode.requiresPostSliceFilteredEntities() for the condition rationale.
+		if (nestedQueryComparator != null && slicingMode.requiresPostSliceFilteredEntities()) {
+			nestedQueryComparator.setFilteredEntities(
+				filteredReferencedEntityIdsArray,
+				filteredReferencedGroupEntityIdsArray,
+				entityPk -> groupToReferencedEntityIdTranslator.apply(referenceName, entityPk)
 			);
+		}
 
 		return new PrefetchedEntities(
 			entityIndex,
@@ -1544,10 +1706,113 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 				requirements.managedReferencesBehaviour() == ManagedReferencesBehaviour.ANY ?
 				null : validityMapping,
 			entityGroupIndex,
-			orderingDescriptor
-				.map(OrderingDescriptor::comparator)
-				.orElse(null)
+			orderingDescriptor == null ? null : orderingDescriptor.comparator()
 		);
+	}
+
+	/**
+	 * Decides whether the order-aware pre-fetch slice can engage for the current reference and
+	 * pre-computes the comparator/chunk-transformer that should drive the slice.
+	 * The three relevant cases are:
+	 *
+	 *   - no orderBy or comparator is DEFAULT (PK-ascending): bitmap slice agrees with the
+	 *     post-fetch sort, so the plain PK-bitmap fast path applies.
+	 *   - non-DEFAULT comparator without group ordering: pre-sort each source entity's
+	 *     ReferenceContracts using the comparator chain and slice that — `preSortViable` is true
+	 *     and `chunkTransformer` carries the requested page/strip.
+	 *   - non-DEFAULT comparator WITH group ordering (EntityGroupProperty): the nested query
+	 *     comparator needs both filteredEntities and filteredEntityGroups before it can rank;
+	 *     the group filter is computed only after the slice, so the optimization can't engage.
+	 *     We fall back to fetching all filtered referenced bodies (chunkTransformer is
+	 *     {@link NoTransformer#INSTANCE}); the post-fetch sort+chunk in EntityDecorator still
+	 *     produces a correct result.
+	 *
+	 * @param orderingDescriptor parsed orderBy descriptor for the reference, if any was configured
+	 * @param requirements       requirement context whose `referenceChunkTransformer` is used for the page/strip
+	 *                           when slicing applies
+	 * @return the slicing-mode decision — see {@link ReferenceSlicingMode}
+	 */
+	@Nonnull
+	private static ReferenceSlicingMode resolveSlicingMode(
+		@Nullable OrderingDescriptor orderingDescriptor,
+		@Nonnull RequirementContext requirements
+	) {
+		final EntityNestedQueryComparator nestedQueryComparator = orderingDescriptor == null
+			? null
+			: orderingDescriptor.nestedQueryComparator();
+		final ReferenceComparator candidateComparator = orderingDescriptor == null
+			? null
+			: orderingDescriptor.comparator();
+		final ReferenceComparator orderingComparator = candidateComparator == ReferenceComparator.DEFAULT
+			? null
+			: candidateComparator;
+		final boolean groupSortActive = nestedQueryComparator != null
+			&& nestedQueryComparator.getGroupOrderBy() != null;
+		final boolean preSortViable = orderingComparator != null && !groupSortActive;
+		final ChunkTransformer chunkTransformer = orderingComparator == null || preSortViable
+			? ServerChunkTransformerAccessor.convertIfNecessary(requirements.referenceChunkTransformer())
+			: NoTransformer.INSTANCE;
+		return new ReferenceSlicingMode(
+			nestedQueryComparator,
+			orderingComparator,
+			preSortViable,
+			groupSortActive,
+			chunkTransformer
+		);
+	}
+
+	/**
+	 * Captures the slicing-mode decision for a single reference: which comparators participate,
+	 * whether the order-aware pre-slice can engage, and which chunk transformer drives the slice.
+	 * See {@link #resolveSlicingMode(OrderingDescriptor, RequirementContext)} for the decision logic.
+	 *
+	 * @param nestedQueryComparator nested-query comparator extracted from the orderBy descriptor (drives both the
+	 *                              pre- and post-slice `setFilteredEntities` calls); {@code null} when no orderBy is
+	 *                              configured
+	 * @param orderingComparator    head of the comparator chain that ranks the references; {@code null} when the
+	 *                              orderBy resolves to {@link ReferenceComparator#DEFAULT} (PK-ascending — the bitmap
+	 *                              fast path already matches it)
+	 * @param preSortViable         {@code true} when the order-aware pre-fetch slice
+	 *                              ({@link BitmapSlicer#sliceEntityIdsSorted}) can run: a non-DEFAULT comparator is
+	 *                              present AND no group sort is active (group sort needs both filtered entities and
+	 *                              filtered groups, the latter only known post-slice)
+	 * @param groupSortActive       {@code true} when the orderBy includes an `EntityGroupProperty` ordering — the
+	 *                              optimization can't engage and we fall back to the full-fetch path
+	 * @param chunkTransformer      transformer that supplies the page/strip math to {@link BitmapSlicer}; carries
+	 *                              the requested page/strip when slicing applies, otherwise {@link NoTransformer#INSTANCE}
+	 */
+	private record ReferenceSlicingMode(
+		@Nullable EntityNestedQueryComparator nestedQueryComparator,
+		@Nullable ReferenceComparator orderingComparator,
+		boolean preSortViable,
+		boolean groupSortActive,
+		@Nonnull ChunkTransformer chunkTransformer
+	) {
+		/**
+		 * Indicates that the post-slice {@code setFilteredEntities} call on the nested-query comparator is
+		 * required. Returns {@code true} either on the PK-bitmap fast path (no pre-sort happened) or when group
+		 * sort is active (the comparator needs the real group array, which only exists after the slice).
+		 * Returns {@code false} on the pre-sort path where the comparator was already prepared upfront with the
+		 * same entity array and an empty group array — calling it again would needlessly redo a sort that
+		 * already ran.
+		 */
+		boolean requiresPostSliceFilteredEntities() {
+			return !this.preSortViable || this.groupSortActive;
+		}
+
+		/**
+		 * Returns the comparator chain that drives the pre-sort slice — must only be called when
+		 * {@link #preSortViable} is {@code true}. The invariant `preSortViable ⇒ orderingComparator != null`
+		 * is established in {@link #resolveSlicingMode}; this accessor makes it explicit at call sites that
+		 * need a non-null comparator for the order-aware slicing path.
+		 */
+		@Nonnull
+		ReferenceComparator preSortComparator() {
+			return Objects.requireNonNull(
+				this.orderingComparator,
+				"orderingComparator must be non-null when preSortViable is true"
+			);
+		}
 	}
 
 	/**
@@ -1711,16 +1976,24 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 						.mapToInt(ReferenceContract::getReferencedPrimaryKey)
 						.toArray()
 				),
-			(referenceName, groupId) ->
-				theEntity
-					.getReferences(referenceName)
-					.stream()
-					.filter(it -> it.getGroup()
-						.map(GroupEntityReference::primaryKey)
-						.map(groupId::equals)
-						.orElse(false))
-					.mapToInt(ReferenceContract::getReferencedPrimaryKey)
-					.toArray(),
+			// reference contract accessor — gives access to the source entity's references
+			// (including their reference attributes) so BitmapSlicer can sort them by the
+			// configured orderBy comparator before deciding which referenced entity bodies
+			// to actually fetch
+			(referenceName, entityPk) -> theEntity.getReferences(referenceName),
+			(referenceName, groupId) -> {
+				// allocation-optimized: hot path, avoids two stream allocations per group filter
+				final Collection<ReferenceContract> references = theEntity.getReferences(referenceName);
+				final int[] buffer = new int[references.size()];
+				int count = 0;
+				for (ReferenceContract ref : references) {
+					final Optional<GroupEntityReference> group = ref.getGroup();
+					if (group.isPresent() && group.get().getPrimaryKey() == groupId.intValue()) {
+						buffer[count++] = ref.getReferencedPrimaryKey();
+					}
+				}
+				return count == buffer.length ? buffer : Arrays.copyOf(buffer, count);
+			},
 			(entityPrimaryKey, referenceName, referencedEntityId) ->
 				theEntity.getReferences(referenceName, referencedEntityId)
 					.stream()
@@ -1782,23 +2055,30 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		);
 
 		// prefetch the entities
-		this.envelopingEntityRequest = prefetchEntities(
-			this.referenceFetch,
-			this.namedReferenceFetch,
-			this.defaultRequirementContext,
-			this.executionContext,
-			internalCollection.getInternalSchema(),
-			this.existingEntityRetriever,
-			(referenceName, entityPk) -> toFormula(
-				entityIndexSupplier.get().get(entityPk).getReferences(referenceName)
-					.stream()
-					.mapToInt(ReferenceContract::getReferencedPrimaryKey)
-					.toArray()
-			),
-			groupToEntityIdMapping::getReferencedEntityPrimaryKeys,
-			groupToEntityIdMapping::getGroup,
-			getPrimaryKeysIndexedByScope(entities)
-		);
+		this.executionContext.pushStep(QueryPhase.FETCHING_REFERENCE_BODIES);
+		try {
+			this.envelopingEntityRequest = prefetchEntities(
+				this.referenceFetch,
+				this.namedReferenceFetch,
+				this.defaultRequirementContext,
+				this.executionContext,
+				internalCollection.getInternalSchema(),
+				this.existingEntityRetriever,
+				(referenceName, entityPk) -> toFormula(
+					entityIndexSupplier.get().get(entityPk).getReferences(referenceName)
+						.stream()
+						.mapToInt(ReferenceContract::getReferencedPrimaryKey)
+						.toArray()
+				),
+				// reference contract accessor — see single-entity branch for rationale
+				(referenceName, entityPk) -> entityIndexSupplier.get().get(entityPk).getReferences(referenceName),
+				groupToEntityIdMapping::getReferencedEntityPrimaryKeys,
+				groupToEntityIdMapping::getGroup,
+				getPrimaryKeysIndexedByScope(entities)
+			);
+		} finally {
+			this.executionContext.popStep();
+		}
 
 		return entities;
 	}
@@ -1912,6 +2192,9 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	 * @param entitySchema                        the schema of the entity
 	 * @param existingEntityRetriever             function that provides access to already fetched referenced entities (relict of last enrichment)
 	 * @param referencedEntityIdsFormula          the formula containing superset of all possible referenced entities
+	 * @param referenceContractsAccessor          per-source-entity accessor returning the reference contracts (with
+	 *                                            attributes) so the slicer can pre-sort by the configured `orderBy`
+	 *                                            before fetching
 	 * @param groupToReferencedEntityIdTranslator the function that translates group ids to referenced entity ids
 	 * @param referencedEntityToGroupIdTranslator the function that translates referenced entity ids to group ids
 	 * @param entityPrimaryKey                    the array of top entity primary keys for which the references are being fetched
@@ -1925,6 +2208,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		@Nonnull EntitySchema entitySchema,
 		@Nonnull ExistingEntityProvider existingEntityRetriever,
 		@Nonnull BiFunction<String, Integer, Formula> referencedEntityIdsFormula,
+		@Nonnull BiFunction<String, Integer, Collection<ReferenceContract>> referenceContractsAccessor,
 		@Nonnull BiFunction<String, Integer, int[]> groupToReferencedEntityIdTranslator,
 		@Nonnull TriFunction<Integer, String, Integer, IntStream> referencedEntityToGroupIdTranslator,
 		@Nonnull Map<Scope, int[]> entityPrimaryKey
@@ -1946,6 +2230,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 							entitySchema,
 							existingEntityRetriever,
 							referencedEntityIdsFormula,
+							referenceContractsAccessor,
 							groupToReferencedEntityIdTranslator,
 							referencedEntityToGroupIdTranslator,
 							entityPrimaryKey,
@@ -1980,6 +2265,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 									entitySchema,
 									existingEntityRetriever,
 									referencedEntityIdsFormula,
+									referenceContractsAccessor,
 									groupToReferencedEntityIdTranslator,
 									referencedEntityToGroupIdTranslator,
 									entityPrimaryKey,
@@ -2027,7 +2313,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 			final IntObjectHashMap<EntityClassifierWithParent> parentEntityReferences = new IntObjectHashMap<>(
 				parentCount);
 			final boolean bodyRequired = hierarchyContent.getEntityFetch().isPresent();
-			final RoaringBitmapWriter<RoaringBitmap> allReferencedParents = bodyRequired ?
+			final RoaringBitmapWriter<PersistentRoaringBitmap> allReferencedParents = bodyRequired ?
 				RoaringBitmapBackedBitmap.buildWriter() : null;
 
 			// initialize used data structures
@@ -2080,6 +2366,34 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 				// initialize plain EntityReferenceWithParent - no body was requested
 				this.parentEntities = parentEntityReferences;
 			}
+		}
+	}
+
+	/**
+	 * Holds the result of separating {@link GroupHaving} constraints from entity-level constraints.
+	 *
+	 * @param entityLevelFilterBy  the {@link FilterBy} containing only entity-level constraints, or {@code null}
+	 *                             if all constraints were group-level (the original filterBy is used when no
+	 *                             GroupHaving was found)
+	 * @param allowedByGroupFilter bitmap of referenced entity PKs allowed by the group filter, or {@code null}
+	 *                             if no group filtering applies
+	 */
+	private record GroupFilterSeparation(
+		@Nullable FilterBy entityLevelFilterBy,
+		@Nullable Bitmap allowedByGroupFilter
+	) {
+
+		/**
+		 * Returns the entity-level filter constraint children array. Derived from
+		 * {@link #entityLevelFilterBy} to avoid storing redundant data.
+		 *
+		 * @return the entity-level filter children, or empty array if no entity-level constraints exist
+		 */
+		@Nonnull
+		FilterConstraint[] entityLevelChildren() {
+			return this.entityLevelFilterBy == null
+				? FilterConstraint.EMPTY_ARRAY
+				: this.entityLevelFilterBy.getChildren();
 		}
 	}
 

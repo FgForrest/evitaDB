@@ -25,7 +25,9 @@ package io.evitadb.index.facet;
 
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.core.transaction.Transaction;
+import io.evitadb.core.transaction.memory.Snapshotable;
 import io.evitadb.core.transaction.memory.TransactionalContainerChanges;
+import io.evitadb.core.transaction.memory.TransactionalContainerChanges.ContainerChangesMemento;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
@@ -61,7 +63,7 @@ import static java.util.Optional.ofNullable;
 public class FacetGroupIndex implements TransactionalLayerProducer<FacetGroupIndexChanges, FacetGroupIndex>, IndexDataStructure {
 	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 	/**
-	 * Contains primary key of the group. Might contain NULL if the group index encloses facets wouth group assignment.
+	 * Contains primary key of the group. Might contain NULL if the group index encloses facets without group assignment.
 	 */
 	@Nullable private final Integer groupId;
 	/**
@@ -109,15 +111,18 @@ public class FacetGroupIndex implements TransactionalLayerProducer<FacetGroupInd
 	 * @return true if entity id was really added
 	 */
 	public boolean addFacet(int facetPrimaryKey, int entityPrimaryKey) {
-		final FacetGroupIndexChanges txLayer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		// fetch or create index for referenced entity id (inside correct type)
-		final FacetIdIndex facetIdIndex = this.facetIdIndexes.computeIfAbsent(
-			facetPrimaryKey,
-			fPK -> {
-				final FacetIdIndex fgIx = new FacetIdIndex(fPK);
-				ofNullable(txLayer).ifPresent(it -> it.addCreatedItem(fgIx));
-				return fgIx;
-			});
+		final FacetIdIndex existingIndex = this.facetIdIndexes.get(facetPrimaryKey);
+		final FacetIdIndex facetIdIndex;
+		if (existingIndex == null) {
+			// only create transactional layer when we actually need to register a new FacetIdIndex
+			final FacetGroupIndexChanges txLayer = Transaction.getOrCreateTransactionalMemoryLayer(this);
+			facetIdIndex = new FacetIdIndex(facetPrimaryKey);
+			this.facetIdIndexes.put(facetPrimaryKey, facetIdIndex);
+			ofNullable(txLayer).ifPresent(it -> it.addCreatedItem(facetIdIndex));
+		} else {
+			facetIdIndex = existingIndex;
+		}
 
 		return facetIdIndex.addFacet(entityPrimaryKey);
 	}
@@ -224,7 +229,10 @@ public class FacetGroupIndex implements TransactionalLayerProducer<FacetGroupInd
 
 	@Nonnull
 	@Override
-	public FacetGroupIndex createCopyWithMergedTransactionalMemory(@Nullable FacetGroupIndexChanges layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
+	public FacetGroupIndex createCopyWithMergedTransactionalMemory(
+		@Nullable FacetGroupIndexChanges layer,
+		@Nonnull TransactionalLayerMaintainer transactionalLayer
+	) {
 		final Map<Integer, FacetIdIndex> stateCopy = transactionalLayer.getStateCopyWithCommittedChanges(this.facetIdIndexes);
 		ofNullable(layer).ifPresent(it -> it.clean(transactionalLayer));
 		return new FacetGroupIndex(this.groupId, stateCopy);
@@ -240,8 +248,8 @@ public class FacetGroupIndex implements TransactionalLayerProducer<FacetGroupInd
 	/**
 	 * This class collects changes in {@link #facetIdIndexes} transactional map and its sub structure.
 	 */
-	public static class FacetGroupIndexChanges {
-		private final TransactionalContainerChanges<Void, FacetIdIndex, FacetIdIndex> items = new TransactionalContainerChanges<>();
+	public static class FacetGroupIndexChanges implements Snapshotable<FacetGroupIndexChanges.FacetGroupIndexChangesMemento> {
+		private final TransactionalContainerChanges<FacetIdIndex, FacetIdIndex> items = new TransactionalContainerChanges<>();
 
 		public void addCreatedItem(@Nonnull FacetIdIndex baseIndex) {
 			this.items.addCreatedItem(baseIndex);
@@ -257,6 +265,27 @@ public class FacetGroupIndex implements TransactionalLayerProducer<FacetGroupInd
 
 		public void cleanAll(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
 			this.items.cleanAll(transactionalLayer);
+		}
+
+		@Nonnull
+		@Override
+		public FacetGroupIndexChangesMemento snapshot() {
+			return new FacetGroupIndexChangesMemento(this.items.snapshot());
+		}
+
+		@Override
+		public void restore(@Nonnull FacetGroupIndexChangesMemento memento) {
+			this.items.restore(memento.items());
+		}
+
+		/**
+		 * Memento bundling the savepoint state of every {@link TransactionalContainerChanges} this aggregate tracks.
+		 *
+		 * @param items snapshot of the facet-id-index created/removed bookkeeping
+		 */
+		public record FacetGroupIndexChangesMemento(
+			@Nonnull ContainerChangesMemento<FacetIdIndex> items
+		) {
 		}
 
 	}

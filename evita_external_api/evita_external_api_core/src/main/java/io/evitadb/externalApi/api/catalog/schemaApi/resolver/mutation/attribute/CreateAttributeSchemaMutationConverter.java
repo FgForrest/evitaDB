@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.attribute;
 
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.CreateAttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.ValueTypeMapper;
@@ -94,7 +95,8 @@ public class CreateAttributeSchemaMutationConverter
 			input.getProperty(CreateAttributeSchemaMutationDescriptor.REPRESENTATIVE, false),
 			valueType,
 			input.getOptionalProperty(CreateAttributeSchemaMutationDescriptor.DEFAULT_VALUE.name(), valueType),
-			input.getProperty(CreateAttributeSchemaMutationDescriptor.INDEXED_DECIMAL_PLACES, 0)
+			input.getProperty(CreateAttributeSchemaMutationDescriptor.INDEXED_DECIMAL_PLACES, 0),
+			input.getProperty(CreateAttributeSchemaMutationDescriptor.CONFLICT_RESOLUTION_OVERRIDE, ConflictResolutionOverride.INHERITED)
 		);
 	}
 }

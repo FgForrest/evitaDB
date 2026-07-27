@@ -25,15 +25,24 @@ package io.evitadb.store.catalog;
 
 import com.esotericsoftware.kryo.Kryo;
 import io.evitadb.api.configuration.StorageOptions;
+import io.evitadb.api.proxy.mock.EmptyEntitySchemaAccessor;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExistence;
 import io.evitadb.api.requestResponse.data.mutation.EntityUpsertMutation;
 import io.evitadb.api.requestResponse.data.mutation.attribute.UpsertAttributeMutation;
 import io.evitadb.api.requestResponse.mutation.Mutation;
+import io.evitadb.api.requestResponse.mutation.conflict.CatalogConflictKey;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolution;
+import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
+import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
+import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.CreateAttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.spi.store.catalog.wal.IsolatedWalPersistenceService;
+import io.evitadb.store.checksum.ChecksumFactory;
+import io.evitadb.store.compression.CompressionFactory;
 import io.evitadb.store.kryo.ObservableOutputKeeper;
 import io.evitadb.store.offsetIndex.io.CatalogOffHeapMemoryManager;
 import io.evitadb.store.offsetIndex.io.OffHeapWithFileBackupReference;
@@ -45,8 +54,11 @@ import io.evitadb.store.wal.WalKryoConfigurer;
 import io.evitadb.test.Entities;
 import io.evitadb.test.EvitaTestSupport;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
+
+import io.evitadb.utils.NamingConvention;
 
 import java.io.File;
 import java.nio.ByteBuffer;
@@ -54,18 +66,26 @@ import java.nio.file.Path;
 import java.util.EnumSet;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
+import static io.evitadb.test.TestTags.STORAGE;
+import static io.evitadb.test.TestTags.MANAGEMENT;
+import static io.evitadb.test.TestTags.WAL;
 
 /**
  * This test verifies that the default implementation of the {@link IsolatedWalPersistenceService} interface works as expected.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
+@Tag(STORAGE)
+@Tag(MANAGEMENT)
+@Tag(WAL)
 class DefaultIsolatedWalServiceTest implements EvitaTestSupport {
 	static final ModifyEntitySchemaMutation SCHEMA_MUTATION_EXAMPLE = new ModifyEntitySchemaMutation(
 		Entities.PRODUCT,
@@ -82,21 +102,22 @@ class DefaultIsolatedWalServiceTest implements EvitaTestSupport {
 	private final UUID transactionId = UUID.randomUUID();
 	private final Path walFile = getTestDirectory().resolve(this.transactionId.toString());
 	private final Kryo kryo = KryoFactory.createKryo(WalKryoConfigurer.INSTANCE);
-	private final ObservableOutputKeeper observableOutputKeeper = new ObservableOutputKeeper(
-		TEST_CATALOG,
-		StorageOptions.builder().build(),
+	private final ObservableOutputKeeper observableOutputKeeper = ObservableOutputKeeper._internalBuild(
 		Mockito.mock(Scheduler.class)
 	);
 	private final WriteOnlyOffHeapWithFileBackupHandle writeHandle = new WriteOnlyOffHeapWithFileBackupHandle(
 		getTestDirectory().resolve(this.transactionId.toString()),
-		StorageOptions.temporary(),
+		StorageOptions.DEFAULT_OUTPUT_BUFFER_SIZE,
+		false,
 		this.observableOutputKeeper,
-		new CatalogOffHeapMemoryManager(TEST_CATALOG, 512, 1)
+		new CatalogOffHeapMemoryManager(TEST_CATALOG, 512, 1, ChecksumFactory.NO_OP),
+		ChecksumFactory.NO_OP,
+		CompressionFactory.NO_COMPRESSION
 	);
 	private final DefaultIsolatedWalService tested = new DefaultIsolatedWalService(
 		TEST_CATALOG,
 		this.transactionId,
-		EnumSet.noneOf(ConflictPolicy.class),
+		new ConflictResolution(ConflictPolicy.NONE),
 		this.kryo,
 		this.writeHandle
 	);
@@ -133,6 +154,56 @@ class DefaultIsolatedWalServiceTest implements EvitaTestSupport {
 				return null;
 			}
 		);
+	}
+
+	@Test
+	@DisplayName("catalog schema declaring a CATALOG conflict policy should drive the catalog-wide conflict fallback")
+	void shouldDeriveCatalogFallbackFromEffectiveCatalogSchemaPolicy() {
+		// engine base policy is ENTITY; the catalog schema declares an effective CATALOG policy that must win
+		final CatalogSchemaContract catalogSchema = CatalogSchema._internalBuild(
+			TEST_CATALOG,
+			NamingConvention.generate(TEST_CATALOG),
+			new ConflictResolution(ConflictPolicy.CATALOG),
+			EnumSet.allOf(CatalogEvolutionMode.class),
+			EmptyEntitySchemaAccessor.INSTANCE
+		);
+		// shares the write handle owned by the fixture (closed once in tearDown via the base service); no writes are
+		// issued here, so getConflictKeys never touches the handle
+		final DefaultIsolatedWalService schemaAware = new DefaultIsolatedWalService(
+			TEST_CATALOG,
+			this.transactionId,
+			new ConflictResolution(ConflictPolicy.ENTITY),
+			catalogSchema,
+			entityType -> null,
+			this.kryo,
+			this.writeHandle
+		);
+
+		// the fallback honours the effective catalog-schema policy: with no per-mutation keys collected it must emit
+		// exactly one catalog-scoped key so concurrent transactions conflict at catalog scope (no lost update)
+		final Set<ConflictKey> conflictKeys = schemaAware.getConflictKeys();
+
+		assertEquals(1, conflictKeys.size());
+		assertTrue(conflictKeys.contains(new CatalogConflictKey(TEST_CATALOG)));
+	}
+
+	@Test
+	@DisplayName("global-backed service with a CATALOG base policy should still yield the catalog conflict key")
+	void shouldYieldCatalogConflictKeyForGlobalBackedCatalogPolicy() {
+		// legacy global-backed path: no catalog schema, base policy is CATALOG — the fallback must still emit the
+		// catalog key so this guards the path after the schema-aware fix lands
+		final DefaultIsolatedWalService globalBacked = new DefaultIsolatedWalService(
+			TEST_CATALOG,
+			this.transactionId,
+			new ConflictResolution(ConflictPolicy.CATALOG),
+			this.kryo,
+			this.writeHandle
+		);
+
+		final Set<ConflictKey> conflictKeys = globalBacked.getConflictKeys();
+
+		assertEquals(1, conflictKeys.size());
+		assertTrue(conflictKeys.contains(new CatalogConflictKey(TEST_CATALOG)));
 	}
 
 	@Test

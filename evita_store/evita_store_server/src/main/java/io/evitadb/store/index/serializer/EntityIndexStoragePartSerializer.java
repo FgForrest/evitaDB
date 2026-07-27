@@ -33,24 +33,20 @@ import io.evitadb.dataType.Scope;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.EntityIndexType;
-import io.evitadb.index.bitmap.Bitmap;
-import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.index.price.model.PriceIndexKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStorageKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStoragePart.AttributeIndexType;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIndexStoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.HistogramIndexStorageKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.ReferenceNameKey;
 import lombok.RequiredArgsConstructor;
 
 import java.io.Serializable;
 import java.util.Locale;
-import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Set;
 
-import static io.evitadb.utils.CollectionUtils.createHashMap;
 import static io.evitadb.utils.CollectionUtils.createHashSet;
 
 /**
@@ -77,16 +73,6 @@ public class EntityIndexStoragePartSerializer extends Serializer<EntityIndexStor
 			kryo.writeClassAndObject(output, entityIndexKey.discriminator());
 		}
 
-		final Bitmap entityIds = entityIndex.getEntityIds();
-		kryo.writeObject(output, entityIds);
-
-		final Map<Locale, ? extends Bitmap> entitiesIdsByLanguage = entityIndex.getEntityIdsByLanguage();
-		output.writeVarInt(entitiesIdsByLanguage.size(), true);
-		for (Entry<Locale, ? extends Bitmap> entry : entitiesIdsByLanguage.entrySet()) {
-			kryo.writeObject(output, entry.getKey());
-			kryo.writeObject(output, entry.getValue());
-		}
-
 		final Set<AttributeIndexStorageKey> attributeIndexes = entityIndex.getAttributeIndexes();
 		output.writeVarInt(attributeIndexes.size(), true);
 		for (AttributeIndexStorageKey attributeIndexKey : attributeIndexes) {
@@ -110,6 +96,13 @@ public class EntityIndexStoragePartSerializer extends Serializer<EntityIndexStor
 		for (String referenceName : facetIndexes) {
 			output.writeVarInt(this.keyCompressor.getId(new ReferenceNameKey(referenceName)), true);
 		}
+
+		final Set<HistogramIndexStorageKey> histogramIndexes = entityIndex.getHistogramIndexes();
+		output.writeVarInt(histogramIndexes.size(), true);
+		for (HistogramIndexStorageKey histogramKey : histogramIndexes) {
+			output.writeString(histogramKey.histogramName());
+			kryo.writeObjectOrNull(output, histogramKey.locale(), Locale.class);
+		}
 	}
 
 	@Override
@@ -123,16 +116,6 @@ public class EntityIndexStoragePartSerializer extends Serializer<EntityIndexStor
 		final EntityIndexKey entityIndexKey = discriminator == null ?
 			new EntityIndexKey(entityIndexType, entityIndexScope, null) :
 			new EntityIndexKey(entityIndexType, entityIndexScope, discriminator);
-
-		final TransactionalBitmap entityIds = kryo.readObject(input, TransactionalBitmap.class);
-
-		final int languageCount = input.readVarInt(true);
-		final Map<Locale, TransactionalBitmap> entityIdsByLocale = createHashMap(languageCount);
-		for (int i = 0; i < languageCount; i++) {
-			final Locale locale = kryo.readObject(input, Locale.class);
-			final TransactionalBitmap localeSpecificEntityIds = kryo.readObject(input, TransactionalBitmap.class);
-			entityIdsByLocale.put(locale, localeSpecificEntityIds);
-		}
 
 		final int attributeIndexesCount = input.readVarInt(true);
 		final Set<AttributeIndexStorageKey> attributeIndexes = createHashSet(attributeIndexesCount);
@@ -162,12 +145,22 @@ public class EntityIndexStoragePartSerializer extends Serializer<EntityIndexStor
 			facetIndexes.add(key.referenceName());
 		}
 
+		final int histogramIndexesCount = input.readVarInt(true);
+		final Set<HistogramIndexStorageKey> histogramIndexes = createHashSet(histogramIndexesCount);
+		for (int i = 0; i < histogramIndexesCount; i++) {
+			final String histogramName = input.readString();
+			final Locale locale = kryo.readObjectOrNull(input, Locale.class);
+			histogramIndexes.add(new HistogramIndexStorageKey(
+				entityIndexKey, histogramName, locale
+			));
+		}
+
 		return new EntityIndexStoragePart(
 			primaryKey, version, entityIndexKey,
-			entityIds, entityIdsByLocale,
 			attributeIndexes,
 			priceIndexes,
-			hierarchyIndex, facetIndexes
+			hierarchyIndex, facetIndexes,
+			histogramIndexes
 		);
 	}
 }

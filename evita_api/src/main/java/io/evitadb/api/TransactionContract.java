@@ -75,7 +75,8 @@ import java.util.UUID;
  *
  * - Read Committed: Each query sees all changes committed before the query started
  * - Snapshot Isolation: Within a transaction, all reads see a consistent snapshot
- * - Serializable: Transactions that modify overlapping data are serialized via conflict detection
+ * - Write conflicts: Transactions that modify overlapping data are detected at commit time and the later one is
+ *   rejected (optimistic first-writer-wins) — this is not full serializable isolation
  *
  * **Thread-Safety**
  *
@@ -235,8 +236,8 @@ public interface TransactionContract extends AutoCloseable {
 		 * **Performance**
 		 *
 		 * Slower than {@link #WAIT_FOR_CONFLICT_RESOLUTION} due to fsync overhead, but faster than
-		 * {@link #WAIT_FOR_CHANGES_VISIBLE}. evitaDB may batch fsync operations from multiple transactions to amortize
-		 * cost, so latency may vary depending on concurrent commit activity.
+		 * {@link #WAIT_FOR_CHANGES_VISIBLE}. Each transaction pays its own device sync and WAL appends are serialized,
+		 * so latency grows with concurrent commit activity; fsync operations are **not** batched across transactions.
 		 *
 		 * **Use Cases**
 		 *

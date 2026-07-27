@@ -30,12 +30,14 @@ import io.evitadb.api.query.filter.And;
 import io.evitadb.api.query.filter.AttributeEquals;
 import io.evitadb.api.query.filter.EntityHaving;
 import io.evitadb.api.query.filter.FacetHaving;
+import io.evitadb.api.query.filter.GroupHaving;
 import io.evitadb.api.query.filter.HierarchyExcluding;
 import io.evitadb.api.query.filter.HierarchyWithin;
 import io.evitadb.api.query.filter.PriceBetween;
 import io.evitadb.api.query.filter.ReferenceHaving;
 import io.evitadb.api.query.require.AssociatedDataContent;
 import io.evitadb.api.query.require.FacetGroupsConjunction;
+import io.evitadb.api.query.require.ReferenceSummary;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
@@ -48,6 +50,7 @@ import io.evitadb.externalApi.exception.ExternalApiInternalError;
 import io.evitadb.test.Entities;
 import io.evitadb.test.TestConstants;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -60,18 +63,23 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_CODE;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_NAME;
 import static java.util.Optional.ofNullable;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static io.evitadb.test.TestTags.EXTERNAL_API;
+import static io.evitadb.test.TestTags.QUERY;
 
 /**
  * Tests for {@link DataLocatorResolver}.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
+@Tag(EXTERNAL_API)
+@Tag(QUERY)
 public class DataLocatorResolverTest {
 
 	private static final String EXTERNAL_ENTITY_TAG = "TAG";
@@ -231,6 +239,16 @@ public class DataLocatorResolverTest {
 				Entities.PARAMETER,
 				new FacetDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT), Entities.PARAMETER)
 			),
+			// classifier-less REFERENCE constraint (e.g. `referenceSummary`) at the require root must keep
+			// the generic domain — mirrors the FACET case above. Guards the GenericDataLocator branch in
+			// DataLocatorResolver#resolveConstraintDataLocator (regression from the FacetSummary ->
+			// ReferenceSummary rename, see #1156).
+			Arguments.of(
+				new GenericDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT)),
+				ConstraintDescriptorProvider.getConstraint(ReferenceSummary.class),
+				null,
+				new GenericDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT))
+			),
 			Arguments.of(
 				new SegmentDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT)),
 				ConstraintDescriptorProvider.getConstraint(ReferenceHaving.class),
@@ -364,6 +382,7 @@ public class DataLocatorResolverTest {
 		this.catalogSchema = CatalogSchema._internalBuild(
 			TestConstants.TEST_CATALOG,
 			Map.of(),
+			null,
 			EnumSet.allOf(CatalogEvolutionMode.class),
 			new EntitySchemaProvider() {
 				@Nonnull
@@ -386,7 +405,11 @@ public class DataLocatorResolverTest {
 		)
 			.withPrice()
 			.withAttribute(ATTRIBUTE_CODE, String.class)
-			.withReferenceToEntity(Entities.CATEGORY, Entities.CATEGORY, Cardinality.ONE_OR_MORE, thatIs -> thatIs.withAttribute(ATTRIBUTE_CODE, String.class))
+			.withReferenceToEntity(Entities.CATEGORY, Entities.CATEGORY, Cardinality.ONE_OR_MORE, thatIs -> thatIs
+				.withAttribute(ATTRIBUTE_CODE, String.class)
+				.withGroupTypeRelatedToEntity("categoryGroup"))
+			// PARAMETER reference has no group type — exercises the "logically valid but no data"
+			// branch of resolveChildParameterDataLocator(GROUP_ENTITY)
 			.withReferenceToEntity(Entities.PARAMETER, Entities.PARAMETER, Cardinality.ONE_OR_MORE)
 			.withReferenceTo(EXTERNAL_ENTITY_TAG, EXTERNAL_ENTITY_TAG, Cardinality.EXACTLY_ONE)
 			.toInstance();
@@ -408,6 +431,16 @@ public class DataLocatorResolverTest {
 		)
 			.toInstance();
 		this.entitySchemaIndex.put(Entities.PARAMETER, parameterSchema);
+
+		// managed group entity schema — needed because GroupHaving's @Child(domain = GROUP_ENTITY)
+		// switches the data locator resolver into the group entity's schema lookup path
+		final EntitySchemaContract categoryGroupSchema = new InternalEntitySchemaBuilder(
+			this.catalogSchema,
+			EntitySchema._internalBuild("categoryGroup")
+		)
+			.withAttribute(ATTRIBUTE_NAME, String.class)
+			.toInstance();
+		this.entitySchemaIndex.put("categoryGroup", categoryGroupSchema);
 
 		this.dataLocatorResolver = new DataLocatorResolver(this.catalogSchema);
 	}
@@ -461,6 +494,100 @@ public class DataLocatorResolverTest {
 		assertThrows(
 			ExternalApiInternalError.class,
 			() -> this.dataLocatorResolver.resolveConstraintDataLocator(parentDataLocator, constraintDescriptor, classifier)
+		);
+	}
+
+	@Test
+	void shouldPassThroughParentLocatorForGenericAttributePriceAndGroup() {
+		// the full passthrough switch arm (case GENERIC, ATTRIBUTE, ASSOCIATED_DATA, PRICE, GROUP)
+		// must keep the parent locator verbatim — pinning each property type as a row guards against
+		// accidental arm reordering or splitting in future refactors
+		final DataLocator parent = new EntityDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT));
+		assertEquals(
+			parent,
+			this.dataLocatorResolver.resolveConstraintDataLocator(parent, ConstraintDescriptorProvider.getConstraint(And.class), null)
+		);
+		assertEquals(
+			parent,
+			this.dataLocatorResolver.resolveConstraintDataLocator(parent, ConstraintDescriptorProvider.getConstraint(AttributeEquals.class), ATTRIBUTE_CODE)
+		);
+		assertEquals(
+			parent,
+			this.dataLocatorResolver.resolveConstraintDataLocator(parent, ConstraintDescriptorProvider.getConstraint(PriceBetween.class), null)
+		);
+		assertEquals(
+			parent,
+			this.dataLocatorResolver.resolveConstraintDataLocator(parent, ConstraintDescriptorProvider.getConstraint(GroupHaving.class), null)
+		);
+	}
+
+	@Test
+	void shouldResolveChildParameterDataLocatorForGroupEntityDomain() {
+		// when a constraint's @Child(domain=GROUP_ENTITY) fires, the data locator resolver must pivot
+		// from the reference locator to an EntityDataLocator pointed at the *group* entity
+		// (`categoryGroup`), so that inner constraints look up attributes against the group schema
+		// rather than the reference or referenced entity
+		final DataLocator parent = new ReferenceDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT), Entities.CATEGORY);
+
+		final Optional<DataLocator> child =
+			this.dataLocatorResolver.resolveChildParameterDataLocator(parent, ConstraintDomain.GROUP_ENTITY);
+
+		assertEquals(
+			Optional.of(new EntityDataLocator(new ManagedEntityTypePointer("categoryGroup"))),
+			child
+		);
+	}
+
+	@Test
+	void shouldReturnEmptyWhenGroupEntityDomainRequestedWithoutGroupTypeOnReference() {
+		// PARAMETER reference has no group type configured — the resolver detects this and returns
+		// Optional.empty rather than throwing, because the switch is logically valid but lacks data
+		final DataLocator parent = new ReferenceDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT), Entities.PARAMETER);
+
+		final Optional<DataLocator> child =
+			this.dataLocatorResolver.resolveChildParameterDataLocator(parent, ConstraintDomain.GROUP_ENTITY);
+
+		assertEquals(Optional.empty(), child);
+	}
+
+	@Test
+	void shouldThrowWhenGroupEntityDomainRequestedFromNonReferenceLocator() {
+		// EntityDataLocator without DataLocatorWithReference falls through to the bottom switch arm
+		// that throws on unsupported domains — GROUP_ENTITY is not in {GENERIC, ENTITY, SEGMENT}
+		// so it must be rejected as a structural error
+		final DataLocator parent = new EntityDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT));
+
+		assertThrows(
+			ExternalApiInternalError.class,
+			() -> this.dataLocatorResolver.resolveChildParameterDataLocator(parent, ConstraintDomain.GROUP_ENTITY)
+		);
+	}
+
+	@Test
+	void shouldPivotToGroupEntityWhenGroupConstraintEntersReferenceScope() {
+		// `referenceHaving(REF, groupHaving(...))` enters GroupHaving with a ReferenceDataLocator
+		// parent — the resolver must pivot to the reference's group entity so inner constraints
+		// resolve against `categoryGroup`'s schema, not Category's
+		final DataLocator parent = new ReferenceDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT), Entities.CATEGORY);
+		final ConstraintDescriptor groupHaving = ConstraintDescriptorProvider.getConstraint(GroupHaving.class);
+
+		assertEquals(
+			new EntityDataLocator(new ManagedEntityTypePointer("categoryGroup")),
+			this.dataLocatorResolver.resolveConstraintDataLocator(parent, groupHaving, null)
+		);
+	}
+
+	@Test
+	void shouldThrowWhenGroupConstraintEntersReferenceScopeWithoutGroupType() {
+		// PARAMETER reference has no group type configured — using GroupHaving against it is a
+		// malformed query (there is no group entity to pivot to), so the resolver throws rather
+		// than silently passing through and routing inner attributes to the wrong scope
+		final DataLocator parent = new ReferenceDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT), Entities.PARAMETER);
+		final ConstraintDescriptor groupHaving = ConstraintDescriptorProvider.getConstraint(GroupHaving.class);
+
+		assertThrows(
+			ExternalApiInternalError.class,
+			() -> this.dataLocatorResolver.resolveConstraintDataLocator(parent, groupHaving, null)
 		);
 	}
 }

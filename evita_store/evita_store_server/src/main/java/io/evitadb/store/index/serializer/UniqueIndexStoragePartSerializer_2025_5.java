@@ -34,9 +34,7 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.index.UniqueIndexSt
 import lombok.RequiredArgsConstructor;
 
 import java.io.Serializable;
-import java.util.Map;
 
-import static io.evitadb.utils.CollectionUtils.createHashMap;
 
 /**
  * This {@link Serializer} implementation reads/writes {@link io.evitadb.index.attribute.UniqueIndex} from/to binary format.
@@ -44,7 +42,7 @@ import static io.evitadb.utils.CollectionUtils.createHashMap;
  * @deprecated only for backward compatibility purposes
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@Deprecated(since = "2025.5", forRemoval = true)
+@Deprecated(since = "2025.7", forRemoval = true)
 @RequiredArgsConstructor
 public class UniqueIndexStoragePartSerializer_2025_5 extends Serializer<UniqueIndexStoragePart>
 	implements AttributeKeyToAttributeKeyIndexBridge {
@@ -61,18 +59,20 @@ public class UniqueIndexStoragePartSerializer_2025_5 extends Serializer<UniqueIn
 		final long uniquePartId = input.readVarLong(true);
 		final AttributeIndexKey attributeKey = getAttributeIndexKey(input, this.keyCompressor);
 		@SuppressWarnings("unchecked") final Class<? extends Serializable> attributeType = kryo.readClass(input).getType();
-		final TransactionalBitmap recordIds = kryo.readObject(input, TransactionalBitmap.class);
+		// the 2025.5 format persisted the membership bitmap explicitly; it is redundant with the payload column (the
+		// current format rebuilds it on load), so it is read to consume the bytes and then discarded
+		kryo.readObject(input, TransactionalBitmap.class);
 
 		final int uniqueValueCount = input.readVarInt(true);
-		final Map<Serializable, Integer> uniqueIndex = createHashMap(uniqueValueCount);
+		final Serializable[] values = new Serializable[uniqueValueCount];
+		final int[] recordIds = new int[uniqueValueCount];
 		for (int i = 0; i < uniqueValueCount; i++) {
-			final Serializable key = kryo.readObject(input, attributeType);
-			final int value = input.readInt();
-			uniqueIndex.put(key, value);
+			values[i] = kryo.readObject(input, attributeType);
+			recordIds[i] = input.readInt();
 		}
 
 		return new UniqueIndexStoragePart(
-			entityIndexPrimaryKey, attributeKey, attributeType, uniqueIndex, recordIds, uniquePartId
+			entityIndexPrimaryKey, attributeKey, attributeType, values, recordIds, uniquePartId
 		);
 	}
 

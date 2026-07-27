@@ -27,6 +27,7 @@ import io.evitadb.dataType.data.ReflectionCachingBehaviour;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.lang.annotation.ElementType;
@@ -46,15 +47,23 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.stream.Collectors;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.DATA_TYPE;
 
 /**
  * Test verifies behaviour of {@link ReflectionLookup} class.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2020
  */
+@DisplayName("ReflectionLookup contract tests")
+@Tag(ENGINE)
+@Tag(DATA_TYPE)
 class ReflectionLookupTest {
 	private final ReflectionLookup tested = new ReflectionLookup(ReflectionCachingBehaviour.NO_CACHE);
 
@@ -224,7 +233,15 @@ class ReflectionLookupTest {
 		assertTrue(properties.contains("sex"));
 	}
 
-	private static Field getFieldByName(Map<Field, ?> fields, String fieldName) {
+	/**
+	 * Retrieves a field from the map by its name.
+	 *
+	 * @param fields    the map of fields to search in
+	 * @param fieldName the name of the field to find
+	 * @return the field with the given name, or null if not found
+	 */
+	@Nullable
+	private static Field getFieldByName(@Nonnull Map<Field, ?> fields, @Nonnull String fieldName) {
 		for (Entry<Field, ?> entry : fields.entrySet()) {
 			if (entry.getKey().getName().equals(fieldName)) {
 				return entry.getKey();

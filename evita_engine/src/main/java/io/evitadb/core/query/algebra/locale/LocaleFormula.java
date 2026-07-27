@@ -23,6 +23,7 @@
 
 package io.evitadb.core.query.algebra.locale;
 
+import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.attribute.AttributeFormula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.filter.translator.entity.EntityLocaleEqualsTranslator;
@@ -38,6 +39,9 @@ import javax.annotation.Nonnull;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 public class LocaleFormula extends ConstantFormula {
+	/**
+	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} for hash computation.
+	 */
 	private static final long CLASS_ID = 6877689619565475680L;
 
 	public LocaleFormula(@Nonnull Bitmap delegate) {

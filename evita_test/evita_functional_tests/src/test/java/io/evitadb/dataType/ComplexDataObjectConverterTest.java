@@ -69,9 +69,12 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.utils.StringUtils.normalizeLineEndings;
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.DATA_TYPE;
 
 /**
  * This test verifies general POJO conversion logic to {@link ComplexDataObject} that can be
@@ -81,6 +84,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("ComplexDataObjectConverter")
+@Tag(CONTRACT)
+@Tag(DATA_TYPE)
 class ComplexDataObjectConverterTest {
 	private final ReflectionLookup reflectionLookup = new ReflectionLookup(ReflectionCachingBehaviour.NO_CACHE);
 

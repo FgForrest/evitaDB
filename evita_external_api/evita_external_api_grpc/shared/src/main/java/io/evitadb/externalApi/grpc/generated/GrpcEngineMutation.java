@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2026
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -83,6 +83,8 @@ private static final long serialVersionUID = 0L;
     DUPLICATECATALOGMUTATION(8),
     SETCATALOGSTATEMUTATION(9),
     RESTORECATALOGSCHEMAMUTATION(10),
+    MARKCATALOGMISSINGMUTATION(11),
+    UPGRADECATALOGFORMATMUTATION(12),
     MUTATION_NOT_SET(0);
     private final int value;
     private MutationCase(int value) {
@@ -110,6 +112,8 @@ private static final long serialVersionUID = 0L;
         case 8: return DUPLICATECATALOGMUTATION;
         case 9: return SETCATALOGSTATEMUTATION;
         case 10: return RESTORECATALOGSCHEMAMUTATION;
+        case 11: return MARKCATALOGMISSINGMUTATION;
+        case 12: return UPGRADECATALOGFORMATMUTATION;
         case 0: return MUTATION_NOT_SET;
         default: return null;
       }
@@ -555,6 +559,92 @@ private static final long serialVersionUID = 0L;
     return io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogSchemaMutation.getDefaultInstance();
   }
 
+  public static final int MARKCATALOGMISSINGMUTATION_FIELD_NUMBER = 11;
+  /**
+   * <pre>
+   * Mutation that records the fact a catalog's on-disk folder is no longer present.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcMarkCatalogMissingMutation markCatalogMissingMutation = 11;</code>
+   * @return Whether the markCatalogMissingMutation field is set.
+   */
+  @java.lang.Override
+  public boolean hasMarkCatalogMissingMutation() {
+    return mutationCase_ == 11;
+  }
+  /**
+   * <pre>
+   * Mutation that records the fact a catalog's on-disk folder is no longer present.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcMarkCatalogMissingMutation markCatalogMissingMutation = 11;</code>
+   * @return The markCatalogMissingMutation.
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcMarkCatalogMissingMutation getMarkCatalogMissingMutation() {
+    if (mutationCase_ == 11) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcMarkCatalogMissingMutation) mutation_;
+    }
+    return io.evitadb.externalApi.grpc.generated.GrpcMarkCatalogMissingMutation.getDefaultInstance();
+  }
+  /**
+   * <pre>
+   * Mutation that records the fact a catalog's on-disk folder is no longer present.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcMarkCatalogMissingMutation markCatalogMissingMutation = 11;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcMarkCatalogMissingMutationOrBuilder getMarkCatalogMissingMutationOrBuilder() {
+    if (mutationCase_ == 11) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcMarkCatalogMissingMutation) mutation_;
+    }
+    return io.evitadb.externalApi.grpc.generated.GrpcMarkCatalogMissingMutation.getDefaultInstance();
+  }
+
+  public static final int UPGRADECATALOGFORMATMUTATION_FIELD_NUMBER = 12;
+  /**
+   * <pre>
+   * Mutation that upgrades a catalog's on-disk storage protocol to the engine's current version.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcUpgradeCatalogFormatMutation upgradeCatalogFormatMutation = 12;</code>
+   * @return Whether the upgradeCatalogFormatMutation field is set.
+   */
+  @java.lang.Override
+  public boolean hasUpgradeCatalogFormatMutation() {
+    return mutationCase_ == 12;
+  }
+  /**
+   * <pre>
+   * Mutation that upgrades a catalog's on-disk storage protocol to the engine's current version.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcUpgradeCatalogFormatMutation upgradeCatalogFormatMutation = 12;</code>
+   * @return The upgradeCatalogFormatMutation.
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcUpgradeCatalogFormatMutation getUpgradeCatalogFormatMutation() {
+    if (mutationCase_ == 12) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcUpgradeCatalogFormatMutation) mutation_;
+    }
+    return io.evitadb.externalApi.grpc.generated.GrpcUpgradeCatalogFormatMutation.getDefaultInstance();
+  }
+  /**
+   * <pre>
+   * Mutation that upgrades a catalog's on-disk storage protocol to the engine's current version.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcUpgradeCatalogFormatMutation upgradeCatalogFormatMutation = 12;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcUpgradeCatalogFormatMutationOrBuilder getUpgradeCatalogFormatMutationOrBuilder() {
+    if (mutationCase_ == 12) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcUpgradeCatalogFormatMutation) mutation_;
+    }
+    return io.evitadb.externalApi.grpc.generated.GrpcUpgradeCatalogFormatMutation.getDefaultInstance();
+  }
+
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
@@ -598,6 +688,12 @@ private static final long serialVersionUID = 0L;
     }
     if (mutationCase_ == 10) {
       output.writeMessage(10, (io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogSchemaMutation) mutation_);
+    }
+    if (mutationCase_ == 11) {
+      output.writeMessage(11, (io.evitadb.externalApi.grpc.generated.GrpcMarkCatalogMissingMutation) mutation_);
+    }
+    if (mutationCase_ == 12) {
+      output.writeMessage(12, (io.evitadb.externalApi.grpc.generated.GrpcUpgradeCatalogFormatMutation) mutation_);
     }
     getUnknownFields().writeTo(output);
   }
@@ -647,6 +743,14 @@ private static final long serialVersionUID = 0L;
     if (mutationCase_ == 10) {
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(10, (io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogSchemaMutation) mutation_);
+    }
+    if (mutationCase_ == 11) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(11, (io.evitadb.externalApi.grpc.generated.GrpcMarkCatalogMissingMutation) mutation_);
+    }
+    if (mutationCase_ == 12) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(12, (io.evitadb.externalApi.grpc.generated.GrpcUpgradeCatalogFormatMutation) mutation_);
     }
     size += getUnknownFields().getSerializedSize();
     memoizedSize = size;
@@ -705,6 +809,14 @@ private static final long serialVersionUID = 0L;
         if (!getRestoreCatalogSchemaMutation()
             .equals(other.getRestoreCatalogSchemaMutation())) return false;
         break;
+      case 11:
+        if (!getMarkCatalogMissingMutation()
+            .equals(other.getMarkCatalogMissingMutation())) return false;
+        break;
+      case 12:
+        if (!getUpgradeCatalogFormatMutation()
+            .equals(other.getUpgradeCatalogFormatMutation())) return false;
+        break;
       case 0:
       default:
     }
@@ -759,6 +871,14 @@ private static final long serialVersionUID = 0L;
       case 10:
         hash = (37 * hash) + RESTORECATALOGSCHEMAMUTATION_FIELD_NUMBER;
         hash = (53 * hash) + getRestoreCatalogSchemaMutation().hashCode();
+        break;
+      case 11:
+        hash = (37 * hash) + MARKCATALOGMISSINGMUTATION_FIELD_NUMBER;
+        hash = (53 * hash) + getMarkCatalogMissingMutation().hashCode();
+        break;
+      case 12:
+        hash = (37 * hash) + UPGRADECATALOGFORMATMUTATION_FIELD_NUMBER;
+        hash = (53 * hash) + getUpgradeCatalogFormatMutation().hashCode();
         break;
       case 0:
       default:
@@ -929,6 +1049,12 @@ private static final long serialVersionUID = 0L;
       if (restoreCatalogSchemaMutationBuilder_ != null) {
         restoreCatalogSchemaMutationBuilder_.clear();
       }
+      if (markCatalogMissingMutationBuilder_ != null) {
+        markCatalogMissingMutationBuilder_.clear();
+      }
+      if (upgradeCatalogFormatMutationBuilder_ != null) {
+        upgradeCatalogFormatMutationBuilder_.clear();
+      }
       mutationCase_ = 0;
       mutation_ = null;
       return this;
@@ -1009,6 +1135,14 @@ private static final long serialVersionUID = 0L;
       if (mutationCase_ == 10 &&
           restoreCatalogSchemaMutationBuilder_ != null) {
         result.mutation_ = restoreCatalogSchemaMutationBuilder_.build();
+      }
+      if (mutationCase_ == 11 &&
+          markCatalogMissingMutationBuilder_ != null) {
+        result.mutation_ = markCatalogMissingMutationBuilder_.build();
+      }
+      if (mutationCase_ == 12 &&
+          upgradeCatalogFormatMutationBuilder_ != null) {
+        result.mutation_ = upgradeCatalogFormatMutationBuilder_.build();
       }
     }
 
@@ -1095,6 +1229,14 @@ private static final long serialVersionUID = 0L;
         }
         case RESTORECATALOGSCHEMAMUTATION: {
           mergeRestoreCatalogSchemaMutation(other.getRestoreCatalogSchemaMutation());
+          break;
+        }
+        case MARKCATALOGMISSINGMUTATION: {
+          mergeMarkCatalogMissingMutation(other.getMarkCatalogMissingMutation());
+          break;
+        }
+        case UPGRADECATALOGFORMATMUTATION: {
+          mergeUpgradeCatalogFormatMutation(other.getUpgradeCatalogFormatMutation());
           break;
         }
         case MUTATION_NOT_SET: {
@@ -1197,6 +1339,20 @@ private static final long serialVersionUID = 0L;
               mutationCase_ = 10;
               break;
             } // case 82
+            case 90: {
+              input.readMessage(
+                  getMarkCatalogMissingMutationFieldBuilder().getBuilder(),
+                  extensionRegistry);
+              mutationCase_ = 11;
+              break;
+            } // case 90
+            case 98: {
+              input.readMessage(
+                  getUpgradeCatalogFormatMutationFieldBuilder().getBuilder(),
+                  extensionRegistry);
+              mutationCase_ = 12;
+              break;
+            } // case 98
             default: {
               if (!super.parseUnknownField(input, extensionRegistry, tag)) {
                 done = true; // was an endgroup tag
@@ -1389,7 +1545,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateCatalogSchemaMutation createCatalogSchemaMutation = 1;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcCreateCatalogSchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcCreateCatalogSchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcCreateCatalogSchemaMutationOrBuilder>
+        io.evitadb.externalApi.grpc.generated.GrpcCreateCatalogSchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcCreateCatalogSchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcCreateCatalogSchemaMutationOrBuilder> 
         getCreateCatalogSchemaMutationFieldBuilder() {
       if (createCatalogSchemaMutationBuilder_ == null) {
         if (!(mutationCase_ == 1)) {
@@ -1567,7 +1723,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyCatalogSchemaNameMutation modifyCatalogSchemaNameMutation = 2;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcModifyCatalogSchemaNameMutation, io.evitadb.externalApi.grpc.generated.GrpcModifyCatalogSchemaNameMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcModifyCatalogSchemaNameMutationOrBuilder>
+        io.evitadb.externalApi.grpc.generated.GrpcModifyCatalogSchemaNameMutation, io.evitadb.externalApi.grpc.generated.GrpcModifyCatalogSchemaNameMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcModifyCatalogSchemaNameMutationOrBuilder> 
         getModifyCatalogSchemaNameMutationFieldBuilder() {
       if (modifyCatalogSchemaNameMutationBuilder_ == null) {
         if (!(mutationCase_ == 2)) {
@@ -1745,7 +1901,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyCatalogSchemaMutation modifyCatalogSchemaMutation = 3;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcModifyCatalogSchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcModifyCatalogSchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcModifyCatalogSchemaMutationOrBuilder>
+        io.evitadb.externalApi.grpc.generated.GrpcModifyCatalogSchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcModifyCatalogSchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcModifyCatalogSchemaMutationOrBuilder> 
         getModifyCatalogSchemaMutationFieldBuilder() {
       if (modifyCatalogSchemaMutationBuilder_ == null) {
         if (!(mutationCase_ == 3)) {
@@ -1923,7 +2079,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcMakeCatalogAliveMutation makeCatalogAliveMutation = 4;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcMakeCatalogAliveMutation, io.evitadb.externalApi.grpc.generated.GrpcMakeCatalogAliveMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcMakeCatalogAliveMutationOrBuilder>
+        io.evitadb.externalApi.grpc.generated.GrpcMakeCatalogAliveMutation, io.evitadb.externalApi.grpc.generated.GrpcMakeCatalogAliveMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcMakeCatalogAliveMutationOrBuilder> 
         getMakeCatalogAliveMutationFieldBuilder() {
       if (makeCatalogAliveMutationBuilder_ == null) {
         if (!(mutationCase_ == 4)) {
@@ -2101,7 +2257,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveCatalogSchemaMutation removeCatalogSchemaMutation = 5;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcRemoveCatalogSchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcRemoveCatalogSchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcRemoveCatalogSchemaMutationOrBuilder>
+        io.evitadb.externalApi.grpc.generated.GrpcRemoveCatalogSchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcRemoveCatalogSchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcRemoveCatalogSchemaMutationOrBuilder> 
         getRemoveCatalogSchemaMutationFieldBuilder() {
       if (removeCatalogSchemaMutationBuilder_ == null) {
         if (!(mutationCase_ == 5)) {
@@ -2279,7 +2435,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTransactionMutation transactionMutation = 6;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcTransactionMutation, io.evitadb.externalApi.grpc.generated.GrpcTransactionMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcTransactionMutationOrBuilder>
+        io.evitadb.externalApi.grpc.generated.GrpcTransactionMutation, io.evitadb.externalApi.grpc.generated.GrpcTransactionMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcTransactionMutationOrBuilder> 
         getTransactionMutationFieldBuilder() {
       if (transactionMutationBuilder_ == null) {
         if (!(mutationCase_ == 6)) {
@@ -2457,7 +2613,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetCatalogMutabilityMutation setCatalogMutabilityMutation = 7;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcSetCatalogMutabilityMutation, io.evitadb.externalApi.grpc.generated.GrpcSetCatalogMutabilityMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcSetCatalogMutabilityMutationOrBuilder>
+        io.evitadb.externalApi.grpc.generated.GrpcSetCatalogMutabilityMutation, io.evitadb.externalApi.grpc.generated.GrpcSetCatalogMutabilityMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcSetCatalogMutabilityMutationOrBuilder> 
         getSetCatalogMutabilityMutationFieldBuilder() {
       if (setCatalogMutabilityMutationBuilder_ == null) {
         if (!(mutationCase_ == 7)) {
@@ -2635,7 +2791,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDuplicateCatalogMutation duplicateCatalogMutation = 8;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcDuplicateCatalogMutation, io.evitadb.externalApi.grpc.generated.GrpcDuplicateCatalogMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcDuplicateCatalogMutationOrBuilder>
+        io.evitadb.externalApi.grpc.generated.GrpcDuplicateCatalogMutation, io.evitadb.externalApi.grpc.generated.GrpcDuplicateCatalogMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcDuplicateCatalogMutationOrBuilder> 
         getDuplicateCatalogMutationFieldBuilder() {
       if (duplicateCatalogMutationBuilder_ == null) {
         if (!(mutationCase_ == 8)) {
@@ -2813,7 +2969,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetCatalogStateMutation setCatalogStateMutation = 9;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcSetCatalogStateMutation, io.evitadb.externalApi.grpc.generated.GrpcSetCatalogStateMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcSetCatalogStateMutationOrBuilder>
+        io.evitadb.externalApi.grpc.generated.GrpcSetCatalogStateMutation, io.evitadb.externalApi.grpc.generated.GrpcSetCatalogStateMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcSetCatalogStateMutationOrBuilder> 
         getSetCatalogStateMutationFieldBuilder() {
       if (setCatalogStateMutationBuilder_ == null) {
         if (!(mutationCase_ == 9)) {
@@ -2991,7 +3147,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogSchemaMutation restoreCatalogSchemaMutation = 10;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogSchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogSchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogSchemaMutationOrBuilder>
+        io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogSchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogSchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogSchemaMutationOrBuilder> 
         getRestoreCatalogSchemaMutationFieldBuilder() {
       if (restoreCatalogSchemaMutationBuilder_ == null) {
         if (!(mutationCase_ == 10)) {
@@ -3007,6 +3163,362 @@ private static final long serialVersionUID = 0L;
       mutationCase_ = 10;
       onChanged();
       return restoreCatalogSchemaMutationBuilder_;
+    }
+
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcMarkCatalogMissingMutation, io.evitadb.externalApi.grpc.generated.GrpcMarkCatalogMissingMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcMarkCatalogMissingMutationOrBuilder> markCatalogMissingMutationBuilder_;
+    /**
+     * <pre>
+     * Mutation that records the fact a catalog's on-disk folder is no longer present.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcMarkCatalogMissingMutation markCatalogMissingMutation = 11;</code>
+     * @return Whether the markCatalogMissingMutation field is set.
+     */
+    @java.lang.Override
+    public boolean hasMarkCatalogMissingMutation() {
+      return mutationCase_ == 11;
+    }
+    /**
+     * <pre>
+     * Mutation that records the fact a catalog's on-disk folder is no longer present.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcMarkCatalogMissingMutation markCatalogMissingMutation = 11;</code>
+     * @return The markCatalogMissingMutation.
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcMarkCatalogMissingMutation getMarkCatalogMissingMutation() {
+      if (markCatalogMissingMutationBuilder_ == null) {
+        if (mutationCase_ == 11) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcMarkCatalogMissingMutation) mutation_;
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcMarkCatalogMissingMutation.getDefaultInstance();
+      } else {
+        if (mutationCase_ == 11) {
+          return markCatalogMissingMutationBuilder_.getMessage();
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcMarkCatalogMissingMutation.getDefaultInstance();
+      }
+    }
+    /**
+     * <pre>
+     * Mutation that records the fact a catalog's on-disk folder is no longer present.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcMarkCatalogMissingMutation markCatalogMissingMutation = 11;</code>
+     */
+    public Builder setMarkCatalogMissingMutation(io.evitadb.externalApi.grpc.generated.GrpcMarkCatalogMissingMutation value) {
+      if (markCatalogMissingMutationBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        mutation_ = value;
+        onChanged();
+      } else {
+        markCatalogMissingMutationBuilder_.setMessage(value);
+      }
+      mutationCase_ = 11;
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation that records the fact a catalog's on-disk folder is no longer present.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcMarkCatalogMissingMutation markCatalogMissingMutation = 11;</code>
+     */
+    public Builder setMarkCatalogMissingMutation(
+        io.evitadb.externalApi.grpc.generated.GrpcMarkCatalogMissingMutation.Builder builderForValue) {
+      if (markCatalogMissingMutationBuilder_ == null) {
+        mutation_ = builderForValue.build();
+        onChanged();
+      } else {
+        markCatalogMissingMutationBuilder_.setMessage(builderForValue.build());
+      }
+      mutationCase_ = 11;
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation that records the fact a catalog's on-disk folder is no longer present.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcMarkCatalogMissingMutation markCatalogMissingMutation = 11;</code>
+     */
+    public Builder mergeMarkCatalogMissingMutation(io.evitadb.externalApi.grpc.generated.GrpcMarkCatalogMissingMutation value) {
+      if (markCatalogMissingMutationBuilder_ == null) {
+        if (mutationCase_ == 11 &&
+            mutation_ != io.evitadb.externalApi.grpc.generated.GrpcMarkCatalogMissingMutation.getDefaultInstance()) {
+          mutation_ = io.evitadb.externalApi.grpc.generated.GrpcMarkCatalogMissingMutation.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcMarkCatalogMissingMutation) mutation_)
+              .mergeFrom(value).buildPartial();
+        } else {
+          mutation_ = value;
+        }
+        onChanged();
+      } else {
+        if (mutationCase_ == 11) {
+          markCatalogMissingMutationBuilder_.mergeFrom(value);
+        } else {
+          markCatalogMissingMutationBuilder_.setMessage(value);
+        }
+      }
+      mutationCase_ = 11;
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation that records the fact a catalog's on-disk folder is no longer present.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcMarkCatalogMissingMutation markCatalogMissingMutation = 11;</code>
+     */
+    public Builder clearMarkCatalogMissingMutation() {
+      if (markCatalogMissingMutationBuilder_ == null) {
+        if (mutationCase_ == 11) {
+          mutationCase_ = 0;
+          mutation_ = null;
+          onChanged();
+        }
+      } else {
+        if (mutationCase_ == 11) {
+          mutationCase_ = 0;
+          mutation_ = null;
+        }
+        markCatalogMissingMutationBuilder_.clear();
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation that records the fact a catalog's on-disk folder is no longer present.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcMarkCatalogMissingMutation markCatalogMissingMutation = 11;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcMarkCatalogMissingMutation.Builder getMarkCatalogMissingMutationBuilder() {
+      return getMarkCatalogMissingMutationFieldBuilder().getBuilder();
+    }
+    /**
+     * <pre>
+     * Mutation that records the fact a catalog's on-disk folder is no longer present.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcMarkCatalogMissingMutation markCatalogMissingMutation = 11;</code>
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcMarkCatalogMissingMutationOrBuilder getMarkCatalogMissingMutationOrBuilder() {
+      if ((mutationCase_ == 11) && (markCatalogMissingMutationBuilder_ != null)) {
+        return markCatalogMissingMutationBuilder_.getMessageOrBuilder();
+      } else {
+        if (mutationCase_ == 11) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcMarkCatalogMissingMutation) mutation_;
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcMarkCatalogMissingMutation.getDefaultInstance();
+      }
+    }
+    /**
+     * <pre>
+     * Mutation that records the fact a catalog's on-disk folder is no longer present.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcMarkCatalogMissingMutation markCatalogMissingMutation = 11;</code>
+     */
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcMarkCatalogMissingMutation, io.evitadb.externalApi.grpc.generated.GrpcMarkCatalogMissingMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcMarkCatalogMissingMutationOrBuilder> 
+        getMarkCatalogMissingMutationFieldBuilder() {
+      if (markCatalogMissingMutationBuilder_ == null) {
+        if (!(mutationCase_ == 11)) {
+          mutation_ = io.evitadb.externalApi.grpc.generated.GrpcMarkCatalogMissingMutation.getDefaultInstance();
+        }
+        markCatalogMissingMutationBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            io.evitadb.externalApi.grpc.generated.GrpcMarkCatalogMissingMutation, io.evitadb.externalApi.grpc.generated.GrpcMarkCatalogMissingMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcMarkCatalogMissingMutationOrBuilder>(
+                (io.evitadb.externalApi.grpc.generated.GrpcMarkCatalogMissingMutation) mutation_,
+                getParentForChildren(),
+                isClean());
+        mutation_ = null;
+      }
+      mutationCase_ = 11;
+      onChanged();
+      return markCatalogMissingMutationBuilder_;
+    }
+
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcUpgradeCatalogFormatMutation, io.evitadb.externalApi.grpc.generated.GrpcUpgradeCatalogFormatMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcUpgradeCatalogFormatMutationOrBuilder> upgradeCatalogFormatMutationBuilder_;
+    /**
+     * <pre>
+     * Mutation that upgrades a catalog's on-disk storage protocol to the engine's current version.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcUpgradeCatalogFormatMutation upgradeCatalogFormatMutation = 12;</code>
+     * @return Whether the upgradeCatalogFormatMutation field is set.
+     */
+    @java.lang.Override
+    public boolean hasUpgradeCatalogFormatMutation() {
+      return mutationCase_ == 12;
+    }
+    /**
+     * <pre>
+     * Mutation that upgrades a catalog's on-disk storage protocol to the engine's current version.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcUpgradeCatalogFormatMutation upgradeCatalogFormatMutation = 12;</code>
+     * @return The upgradeCatalogFormatMutation.
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcUpgradeCatalogFormatMutation getUpgradeCatalogFormatMutation() {
+      if (upgradeCatalogFormatMutationBuilder_ == null) {
+        if (mutationCase_ == 12) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcUpgradeCatalogFormatMutation) mutation_;
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcUpgradeCatalogFormatMutation.getDefaultInstance();
+      } else {
+        if (mutationCase_ == 12) {
+          return upgradeCatalogFormatMutationBuilder_.getMessage();
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcUpgradeCatalogFormatMutation.getDefaultInstance();
+      }
+    }
+    /**
+     * <pre>
+     * Mutation that upgrades a catalog's on-disk storage protocol to the engine's current version.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcUpgradeCatalogFormatMutation upgradeCatalogFormatMutation = 12;</code>
+     */
+    public Builder setUpgradeCatalogFormatMutation(io.evitadb.externalApi.grpc.generated.GrpcUpgradeCatalogFormatMutation value) {
+      if (upgradeCatalogFormatMutationBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        mutation_ = value;
+        onChanged();
+      } else {
+        upgradeCatalogFormatMutationBuilder_.setMessage(value);
+      }
+      mutationCase_ = 12;
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation that upgrades a catalog's on-disk storage protocol to the engine's current version.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcUpgradeCatalogFormatMutation upgradeCatalogFormatMutation = 12;</code>
+     */
+    public Builder setUpgradeCatalogFormatMutation(
+        io.evitadb.externalApi.grpc.generated.GrpcUpgradeCatalogFormatMutation.Builder builderForValue) {
+      if (upgradeCatalogFormatMutationBuilder_ == null) {
+        mutation_ = builderForValue.build();
+        onChanged();
+      } else {
+        upgradeCatalogFormatMutationBuilder_.setMessage(builderForValue.build());
+      }
+      mutationCase_ = 12;
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation that upgrades a catalog's on-disk storage protocol to the engine's current version.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcUpgradeCatalogFormatMutation upgradeCatalogFormatMutation = 12;</code>
+     */
+    public Builder mergeUpgradeCatalogFormatMutation(io.evitadb.externalApi.grpc.generated.GrpcUpgradeCatalogFormatMutation value) {
+      if (upgradeCatalogFormatMutationBuilder_ == null) {
+        if (mutationCase_ == 12 &&
+            mutation_ != io.evitadb.externalApi.grpc.generated.GrpcUpgradeCatalogFormatMutation.getDefaultInstance()) {
+          mutation_ = io.evitadb.externalApi.grpc.generated.GrpcUpgradeCatalogFormatMutation.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcUpgradeCatalogFormatMutation) mutation_)
+              .mergeFrom(value).buildPartial();
+        } else {
+          mutation_ = value;
+        }
+        onChanged();
+      } else {
+        if (mutationCase_ == 12) {
+          upgradeCatalogFormatMutationBuilder_.mergeFrom(value);
+        } else {
+          upgradeCatalogFormatMutationBuilder_.setMessage(value);
+        }
+      }
+      mutationCase_ = 12;
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation that upgrades a catalog's on-disk storage protocol to the engine's current version.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcUpgradeCatalogFormatMutation upgradeCatalogFormatMutation = 12;</code>
+     */
+    public Builder clearUpgradeCatalogFormatMutation() {
+      if (upgradeCatalogFormatMutationBuilder_ == null) {
+        if (mutationCase_ == 12) {
+          mutationCase_ = 0;
+          mutation_ = null;
+          onChanged();
+        }
+      } else {
+        if (mutationCase_ == 12) {
+          mutationCase_ = 0;
+          mutation_ = null;
+        }
+        upgradeCatalogFormatMutationBuilder_.clear();
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation that upgrades a catalog's on-disk storage protocol to the engine's current version.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcUpgradeCatalogFormatMutation upgradeCatalogFormatMutation = 12;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcUpgradeCatalogFormatMutation.Builder getUpgradeCatalogFormatMutationBuilder() {
+      return getUpgradeCatalogFormatMutationFieldBuilder().getBuilder();
+    }
+    /**
+     * <pre>
+     * Mutation that upgrades a catalog's on-disk storage protocol to the engine's current version.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcUpgradeCatalogFormatMutation upgradeCatalogFormatMutation = 12;</code>
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcUpgradeCatalogFormatMutationOrBuilder getUpgradeCatalogFormatMutationOrBuilder() {
+      if ((mutationCase_ == 12) && (upgradeCatalogFormatMutationBuilder_ != null)) {
+        return upgradeCatalogFormatMutationBuilder_.getMessageOrBuilder();
+      } else {
+        if (mutationCase_ == 12) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcUpgradeCatalogFormatMutation) mutation_;
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcUpgradeCatalogFormatMutation.getDefaultInstance();
+      }
+    }
+    /**
+     * <pre>
+     * Mutation that upgrades a catalog's on-disk storage protocol to the engine's current version.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcUpgradeCatalogFormatMutation upgradeCatalogFormatMutation = 12;</code>
+     */
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcUpgradeCatalogFormatMutation, io.evitadb.externalApi.grpc.generated.GrpcUpgradeCatalogFormatMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcUpgradeCatalogFormatMutationOrBuilder> 
+        getUpgradeCatalogFormatMutationFieldBuilder() {
+      if (upgradeCatalogFormatMutationBuilder_ == null) {
+        if (!(mutationCase_ == 12)) {
+          mutation_ = io.evitadb.externalApi.grpc.generated.GrpcUpgradeCatalogFormatMutation.getDefaultInstance();
+        }
+        upgradeCatalogFormatMutationBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            io.evitadb.externalApi.grpc.generated.GrpcUpgradeCatalogFormatMutation, io.evitadb.externalApi.grpc.generated.GrpcUpgradeCatalogFormatMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcUpgradeCatalogFormatMutationOrBuilder>(
+                (io.evitadb.externalApi.grpc.generated.GrpcUpgradeCatalogFormatMutation) mutation_,
+                getParentForChildren(),
+                isClean());
+        mutation_ = null;
+      }
+      mutationCase_ = 12;
+      onChanged();
+      return upgradeCatalogFormatMutationBuilder_;
     }
     @java.lang.Override
     public final Builder setUnknownFields(

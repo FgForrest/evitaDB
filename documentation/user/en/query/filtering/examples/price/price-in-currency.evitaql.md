@@ -16,7 +16,7 @@
 | 104452           | 'iget-smart-l205'                            | 🪙 €188.00, 🪙 €181.50, 🪙 €180.00 ... and 6 other prices         |
 | 104461           | 'iget-smart-l206'                            | 🪙 €212.00, 🪙 €204.49, 🪙 €203.00 ... and 7 other prices         |
 | 104467           | 'iget-blackview-tab-g8'                      | 🪙 €212.00, 🪙 €204.49, 🪙 €203.00 ... and 10 other prices        |
-| 104475           | 'iget-blackview-tab-g11'                     | 🪙 €340.00, 🪙 €369.34, 🪙 €329.12 ... and 11 other prices        |
+| 104475           | 'iget-blackview-tab-g11'                     | 🪙 €340.00, 🪙 €329.12, 🪙 €326.00 ... and 10 other prices        |
 | 104481           | 'iget-blackview-tab-g12'                     | 🪙 €212.00, 🪙 €204.49, 🪙 €203.00 ... and 8 other prices         |
 | 104490           | 'iget-blackview-tab-g13'                     | 🪙 €293.00, 🪙 €283.14, 🪙 €281.00 ... and 5 other prices         |
 | 104500           | 'huawei-honor-pad-6-10-1'                    | 🪙 €385.00, 🪙 €435.00, 🪙 €372.68 ... and 15 other prices        |

@@ -36,17 +36,26 @@ import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.utils.MapBuilder.map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static io.evitadb.test.TestTags.REST;
+import static io.evitadb.test.TestTags.EXTERNAL_API;
+import static io.evitadb.test.TestTags.QUERY;
+import static io.evitadb.test.TestTags.FILTER;
 
 /**
  * Tests for {@link FilterConstraintResolver}.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
+@Tag(REST)
+@Tag(EXTERNAL_API)
+@Tag(QUERY)
+@Tag(FILTER)
 class FilterConstraintResolverTest extends AbstractConstraintResolverTest {
 
 	private FilterConstraintResolver resolver;
@@ -204,6 +213,118 @@ class FilterConstraintResolverTest extends AbstractConstraintResolverTest {
 				map()
 					.e("from", 1)
 					.e("to", 2)
+					.build()
+			)
+		);
+	}
+
+	@Test
+	void shouldResolveHistogramHavingWithBoundsOnly() {
+		// classifier-only histogramHaving — only `from` / `to` are provided in the wrapper object;
+		// the resolver must reconstruct a HistogramHaving with matching referenceName and bounds
+		assertEquals(
+			histogramHaving("CATEGORY", 10, 20),
+			this.resolver.resolve(
+				Entities.PRODUCT,
+				"referenceCategoryHistogramHaving",
+				map()
+					.e("from", 10)
+					.e("to", 20)
+					.build()
+			)
+		);
+	}
+
+	@Test
+	void shouldResolveHistogramHavingWithHistogramNameAndBounds() {
+		// classifier + histogramName + bounds — the wrapper also carries a `histogramName` field
+		// to select one of several histograms hosted by the same reference
+		assertEquals(
+			histogramHaving("CATEGORY", "basicUnitValue", 50, 120),
+			this.resolver.resolve(
+				Entities.PRODUCT,
+				"referenceCategoryHistogramHaving",
+				map()
+					.e("histogramName", "basicUnitValue")
+					.e("from", 50)
+					.e("to", 120)
+					.build()
+			)
+		);
+	}
+
+	@Test
+	void shouldResolveHistogramHavingFullArityWithGroupSelector() {
+		// full-arity histogramHaving with a groupHaving child — the `@Child GroupHaving groupHaving`
+		// parameter is single-variant, so the GraphQL/REST schema flattens the field name to the
+		// parameter name `groupHaving`, and the inner constraint key is `groupHaving` (the `group`
+		// property-type prefix combined with GroupHaving's fullName `having`, mirroring EntityHaving).
+		assertEquals(
+			histogramHaving(
+				"CATEGORY",
+				"basicUnitValue",
+				50,
+				120,
+				groupHaving(attributeEquals("NAME", "height"))
+			),
+			QueryPurifierVisitor.purify(
+				this.resolver.resolve(
+					Entities.PRODUCT,
+					"referenceCategoryHistogramHaving",
+					map()
+						.e("histogramName", "basicUnitValue")
+						.e("from", 50)
+						.e("to", 120)
+						.e("groupHaving", map()
+							.e("attributeNameEquals", "height"))
+						.build()
+				)
+			)
+		);
+	}
+
+	@Test
+	void shouldResolveGroupHavingNestedAttributeOnGroupSchema() {
+		// inside groupHaving, the data locator switches to the `categoryGroup` group entity — the
+		// `NAME` attribute exists there (defined in AbstractConstraintResolverTest), so the nested
+		// attributeEquals must resolve and produce the corresponding constraint
+		assertEquals(
+			histogramHaving(
+				"CATEGORY",
+				50,
+				120,
+				groupHaving(attributeEquals("NAME", "height"))
+			),
+			QueryPurifierVisitor.purify(
+				this.resolver.resolve(
+					Entities.PRODUCT,
+					"referenceCategoryHistogramHaving",
+					map()
+						.e("from", 50)
+						.e("to", 120)
+						.e("groupHaving", map()
+							.e("attributeNameEquals", "height"))
+						.build()
+				)
+			)
+		);
+	}
+
+	@Test
+	void shouldRejectGroupHavingNestedAttributeNotOnGroupSchema() {
+		// `CODE` exists on Product and on the Category reference attributes but NOT on the
+		// `categoryGroup` entity — once the locator switches to GROUP_ENTITY, attribute lookup
+		// must fail; the resolver throws an internal error naming the missing classifier
+		assertThrows(
+			EvitaInternalError.class,
+			() -> this.resolver.resolve(
+				Entities.PRODUCT,
+				"referenceCategoryHistogramHaving",
+				map()
+					.e("from", 50)
+					.e("to", 120)
+					.e("groupHaving", map()
+						.e("attributeCodeEquals", "x"))
 					.build()
 			)
 		);

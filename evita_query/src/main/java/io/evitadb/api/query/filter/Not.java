@@ -29,37 +29,68 @@ import io.evitadb.api.query.GenericConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
+import io.evitadb.utils.ArrayUtils;
+import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
 import java.io.Serializable;
 
 /**
- * The `not` container represents a <a href="https://en.wikipedia.org/wiki/Negation">logical negation</a>, that is
- * demonstrated on following table:
+ * Represents a logical negation (NOT) that inverts the result of its child constraint, excluding all entities that
+ * match the child and including all others. This constraint implements the fundamental boolean NOT operation in
+ * evitaDB's query language, allowing you to express negative filtering conditions.
  *
- * <table>
- *     <thead>
- *         <tr>
- *             <th align="center">A</th>
- *             <th align="center">¬ A</th>
- *         </tr>
- *     </thead>
- *     <tbody>
- *         <tr>
- *             <td align="center">True</td>
- *             <td align="center">False</td>
- *         </tr>
- *         <tr>
- *             <td align="center">False</td>
- *             <td align="center">True</td>
- *         </tr>
- *     </tbody>
- * </table>
+ * **Logical Semantics**
  *
- * The following query:
+ * The `not` container follows standard [logical negation](https://en.wikipedia.org/wiki/Negation) rules:
  *
- * <pre>
+ * | A     | ¬ A   |
+ * |-------|-------|
+ * | True  | False |
+ * | False | True  |
+ *
+ * Given a superset of entities (either the entire collection or a subset defined by sibling constraints), `not`
+ * subtracts the entities matched by its child constraint, returning all remaining entities.
+ *
+ * **Unary Operator Contract**
+ *
+ * Unlike {@link And} and {@link Or} which accept multiple children, `not` is a unary operator that accepts **exactly
+ * one** child constraint. This is enforced at construction time. If you need to negate multiple conditions combined
+ * with AND or OR, you must wrap them:
+ * - `not(and(a, b))` - negates the conjunction (equivalent to `or(not(a), not(b))` by De Morgan's law)
+ * - `not(or(a, b))` - negates the disjunction (equivalent to `and(not(a), not(b))` by De Morgan's law)
+ *
+ * **Usage Context**
+ *
+ * This constraint can be used in multiple domains:
+ * - `ENTITY`: within {@link FilterBy} to negate entity-level filter constraints
+ * - `REFERENCE`: within {@link ReferenceHaving} to negate reference-level constraints
+ * - `INLINE_REFERENCE`: within inline reference filters
+ * - `FACET`: within {@link FacetHaving} to negate facet-level constraints
+ *
+ * **Necessity and Applicability**
+ *
+ * The `not` constraint is considered **necessary** only when it contains exactly one child. An empty `not` (with no
+ * child) is not necessary and not applicable - it represents an invalid or normalized-away state. During query
+ * normalization, unnecessary `not` constraints may be removed.
+ *
+ * **Performance Considerations**
+ *
+ * Negation can be computationally expensive when applied to the entire collection, as it requires materializing the
+ * superset and then subtracting the matched entities. Performance is better when `not` is used within a constrained
+ * superset (e.g., combined with other positive filters via AND).
+ *
+ * **EvitaQL Syntax**
+ *
+ * ```evitaql
+ * not(filterConstraint:any!)
+ * ```
+ *
+ * **Example Usage**
+ *
+ * ```java
+ * // Exclude specific products - returns all products except three specified entities
  * query(
  *     collection("Product"),
  *     filterBy(
@@ -68,12 +99,8 @@ import java.io.Serializable;
  *         )
  *     )
  * )
- * </pre>
  *
- * ... returns thousands of results excluding the entities with primary keys mentioned in `entityPrimaryKeyInSet`
- * constraint. Because this situation is hard to visualize - let"s narrow our super set to only a few entities:
- *
- * <pre>
+ * // Narrow the superset first, then exclude - returns products 66567, 66574, 66556
  * query(
  *     collection("Product"),
  *     filterBy(
@@ -83,11 +110,46 @@ import java.io.Serializable;
  *         )
  *     )
  * )
- * </pre>
  *
- * ... which returns only three products that were not excluded by the following `not` constraint.
+ * // Exclude products on sale - find regular-price products only
+ * query(
+ *     collection("Product"),
+ *     filterBy(
+ *         attributeEquals("available", true),
+ *         not(
+ *             attributeEquals("onSale", true)
+ *         )
+ *     )
+ * )
  *
- * <p><a href="https://evitadb.io/documentation/query/filtering/logical#not">Visit detailed user documentation</a></p>
+ * // Negate a complex condition - find products that are NOT (Nike AND expensive)
+ * query(
+ *     collection("Product"),
+ *     filterBy(
+ *         not(
+ *             and(
+ *                 attributeEquals("brand", "Nike"),
+ *                 priceGreaterThan(200)
+ *             )
+ *         )
+ *     )
+ * )
+ *
+ * // Exclude entities having certain references
+ * query(
+ *     collection("Product"),
+ *     filterBy(
+ *         not(
+ *             referenceHaving(
+ *                 "category",
+ *                 entityPrimaryKeyInSet(10, 20)
+ *             )
+ *         )
+ *     )
+ * )
+ * ```
+ *
+ * [Visit detailed user documentation](https://evitadb.io/documentation/query/filtering/logical#not)
  *
  * @author Jan Novotný, FG Forrest a.s. (c) 2021
  */
@@ -101,7 +163,7 @@ public class Not extends AbstractFilterConstraintContainer implements GenericCon
 	@Serial private static final long serialVersionUID = 7151549459608672988L;
 
 	/**
-	 * Private constructor that creates unnecesary / not applicable version of the query.
+	 * Private constructor that creates unnecessary / not applicable version of the query.
 	 */
 	private Not() {}
 
@@ -115,14 +177,21 @@ public class Not extends AbstractFilterConstraintContainer implements GenericCon
 		return getChildren().length > 0;
 	}
 
+	/**
+	 * Returns the single child constraint of this negation.
+	 *
+	 * @throws io.evitadb.exception.EvitaInvalidUsageException if there are no children (empty Not)
+	 */
 	@Nonnull
 	public FilterConstraint getChild() {
+		Assert.isTrue(getChildren().length > 0, "Not constraint has no child!");
 		return getChildren()[0];
 	}
 
 	@Nonnull
 	@Override
 	public FilterConstraint getCopyWithNewChildren(@Nonnull FilterConstraint[] children, @Nonnull Constraint<?>[] additionalChildren) {
+		Assert.isTrue(ArrayUtils.isEmpty(additionalChildren), "Not doesn't accept other than filtering constraints!");
 		return children.length == 0 ? new Not() : new Not(children[0]);
 	}
 

@@ -104,6 +104,35 @@ public interface CatalogPersistenceServiceFactory {
 	);
 
 	/**
+	 * Performs the on-disk storage-protocol upgrade for the specified catalog without constructing a long-lived
+	 * {@link CatalogPersistenceService} for general use.
+	 *
+	 * The implementation opens the catalog files strictly long enough to apply any outstanding protocol migration,
+	 * flushes the updated catalog header, and closes all handles before returning. This is the entry point used
+	 * by the engine-level `UpgradeCatalogFormatMutationOperator` work phase — the operator has already installed
+	 * the `BEING_UPGRADED` placeholder in the engine state, so no other caller should hold a live reference to
+	 * the catalog at this time.
+	 *
+	 * **Crash safety:** the underlying migration is idempotent (it has a Phase 0 recovery for
+	 * partially-rewritten WAL files), so a crash mid-upgrade followed by a retry on the next boot
+	 * picks up cleanly. Any non-recoverable failure propagates as a regular exception and is
+	 * converted by the operator into an `UpgradeCatalogFormatMutation` work-phase failure.
+	 *
+	 * @param catalogName        name of the catalog to upgrade
+	 * @param storageOptions     storage configuration options
+	 * @param transactionOptions transaction configuration options
+	 * @param scheduler          scheduler for background tasks
+	 * @param exportService      service for handling file exports (used to create a migration backup)
+	 */
+	void upgradeStorageProtocol(
+		@Nonnull String catalogName,
+		@Nonnull StorageOptions storageOptions,
+		@Nonnull TransactionOptions transactionOptions,
+		@Nonnull Scheduler scheduler,
+		@Nonnull ExportService exportService
+	);
+
+	/**
 	 * Restores a catalog from a backup file to the storage directory.
 	 *
 	 * @param catalogName name of the catalog to restore

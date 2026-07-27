@@ -24,22 +24,31 @@
 package io.evitadb.api.configuration;
 
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolution;
+import io.evitadb.api.requestResponse.mutation.conflict.GranularConflictPolicy;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.EnumSet;
+
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.MANAGEMENT;
+import static io.evitadb.test.TestTags.TRANSACTION;
 
 /**
  * Tests for {@link TransactionOptions} record and its builder.
  *
- * @author Claude
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @DisplayName("TransactionOptions")
+@Tag(CONTRACT)
+@Tag(MANAGEMENT)
+@Tag(TRANSACTION)
 class TransactionOptionsTest {
 
 	@Nested
@@ -89,7 +98,7 @@ class TransactionOptionsTest {
 				options.conflictRingBufferSize()
 			);
 			assertEquals(
-				TransactionOptions.DEFAULT_CONFLICT_POLICY,
+				TransactionOptions.DEFAULT_CONFLICT_RESOLUTION,
 				options.conflictPolicy()
 			);
 		}
@@ -204,39 +213,41 @@ class TransactionOptionsTest {
 
 		@Test
 		@DisplayName(
-			"should set conflict policy with varargs"
+			"should set conflict resolution with granularity"
 		)
-		void shouldSetConflictPolicyWithVarargs() {
+		void shouldSetConflictResolutionWithGranularity() {
 			final TransactionOptions options =
 				TransactionOptions.builder()
-					.conflictPolicy(
-						ConflictPolicy.CATALOG,
-						ConflictPolicy.ENTITY
+					.conflictResolution(
+						ConflictPolicy.ENTITY,
+						GranularConflictPolicy.ENTITY_ATTRIBUTE
 					)
 					.build();
 
-			assertTrue(
-				options.conflictPolicy()
-					.contains(ConflictPolicy.CATALOG)
+			assertEquals(
+				ConflictPolicy.ENTITY,
+				options.conflictPolicy().policy()
 			);
 			assertTrue(
-				options.conflictPolicy()
-					.contains(ConflictPolicy.ENTITY)
+				options.conflictPolicy().granularity()
+					.contains(GranularConflictPolicy.ENTITY_ATTRIBUTE)
 			);
 		}
 
 		@Test
 		@DisplayName(
-			"should set last writer wins (empty conflict " +
-				"policy)"
+			"should configure last writer wins through a NONE resolution"
 		)
 		void shouldSetLastWriterWins() {
 			final TransactionOptions options =
 				TransactionOptions.builder()
-					.conflictPolicyLastWriterWins()
+					.conflictResolution(ConflictPolicy.NONE)
 					.build();
 
-			assertTrue(options.conflictPolicy().isEmpty());
+			assertEquals(
+				ConflictPolicy.NONE,
+				options.conflictPolicy().policy()
+			);
 		}
 
 		@Test
@@ -306,19 +317,19 @@ class TransactionOptionsTest {
 
 		@Test
 		@DisplayName(
-			"should copy conflict policy from source"
+			"should copy conflict resolution from source"
 		)
 		void shouldCopyConflictPolicyFromSource() {
 			final TransactionOptions source =
 				TransactionOptions.builder()
-					.conflictPolicy(ConflictPolicy.CATALOG)
+					.conflictResolution(ConflictPolicy.CATALOG)
 					.build();
 
 			final TransactionOptions copy =
 				TransactionOptions.builder(source).build();
 
 			assertEquals(
-				EnumSet.of(ConflictPolicy.CATALOG),
+				new ConflictResolution(ConflictPolicy.CATALOG),
 				copy.conflictPolicy()
 			);
 		}
@@ -387,56 +398,15 @@ class TransactionOptionsTest {
 					TransactionOptions
 						.DEFAULT_WAIT_FOR_TRANSACTION_ACCEPTANCE,
 					TransactionOptions.DEFAULT_FLUSH_FREQUENCY,
+					TransactionOptions.DEFAULT_CHECKPOINT_INTERVAL,
 					TransactionOptions
 						.DEFAULT_CONFLICT_RING_BUFFER_SIZE,
-					TransactionOptions.DEFAULT_CONFLICT_POLICY
+					TransactionOptions.DEFAULT_CONFLICT_RESOLUTION
 				);
 
 			assertEquals(
 				TransactionOptions.DEFAULT_TX_DIRECTORY,
 				options.transactionWorkDirectory()
-			);
-		}
-	}
-
-	@Nested
-	@DisplayName("Defensive copy of EnumSet")
-	class DefensiveCopyTest {
-
-		@Test
-		@DisplayName(
-			"should not be affected by mutation of " +
-				"original set"
-		)
-		void shouldNotBeAffectedByOriginalSetMutation() {
-			final EnumSet<ConflictPolicy> policies =
-				EnumSet.of(ConflictPolicy.ENTITY);
-			final TransactionOptions options =
-				new TransactionOptions(
-					TransactionOptions.DEFAULT_TX_DIRECTORY,
-					TransactionOptions
-						.DEFAULT_TRANSACTION_MEMORY_BUFFER_LIMIT_SIZE,
-					TransactionOptions
-						.DEFAULT_TRANSACTION_MEMORY_REGION_COUNT,
-					TransactionOptions.DEFAULT_WAL_SIZE_BYTES,
-					TransactionOptions
-						.DEFAULT_WAL_FILE_COUNT_KEPT,
-					TransactionOptions
-						.DEFAULT_WAIT_FOR_TRANSACTION_ACCEPTANCE,
-					TransactionOptions.DEFAULT_FLUSH_FREQUENCY,
-					TransactionOptions
-						.DEFAULT_CONFLICT_RING_BUFFER_SIZE,
-					policies
-				);
-
-			// mutating the original set should NOT affect
-			// the record
-			policies.add(ConflictPolicy.CATALOG);
-			assertFalse(
-				options.conflictPolicy()
-					.contains(ConflictPolicy.CATALOG),
-				"Record should hold a defensive copy, " +
-					"not the original reference"
 			);
 		}
 	}

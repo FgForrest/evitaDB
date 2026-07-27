@@ -36,6 +36,7 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLGenerator.Feature;
 import com.fasterxml.jackson.module.paramnames.ParameterNamesModule;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.ExportOptions;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolution;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.configuration.AbstractApiOptions;
 import io.evitadb.externalApi.configuration.ApiOptions;
@@ -44,6 +45,7 @@ import io.evitadb.externalApi.http.ExternalApiServer;
 import io.evitadb.server.configuration.EvitaServerConfiguration;
 import io.evitadb.server.exception.ConfigurationParseException;
 import io.evitadb.server.yaml.AbstractClassDeserializer;
+import io.evitadb.server.yaml.ConflictResolutionDeserializer;
 import io.evitadb.server.yaml.EvitaConstructor;
 import io.evitadb.server.yaml.ExportOptionsDeserializer;
 import io.evitadb.server.yaml.SpecialConfigInputFormatsHandler;
@@ -139,7 +141,14 @@ public class EvitaServer {
 	 */
 	private static final String DEFAULT_EVITA_CONFIGURATION = "/evita-configuration.yaml";
 	/**
-	 * Logger.
+	 * Logger. Deliberately **not** a `static final` field and deliberately not Lombok's `@Slf4j`: creating it binds
+	 * Logback to whatever configuration is in effect at that moment, and {@link #initLog()} has to get the chance to
+	 * point `logback.configurationFile` at the right file first. Initialising it at class-init time would silently
+	 * ignore that argument.
+	 *
+	 * Always read it through {@link #getLog()}, never directly - {@link #initLog()} runs on the {@link #main(String[])}
+	 * path only, so on every embedded path (a host application or a test constructing {@link EvitaServer} itself) the
+	 * field is still `null` and a direct read would throw.
 	 */
 	private static Logger log;
 	/**
@@ -646,7 +655,7 @@ public class EvitaServer {
 	 */
 	public void run() {
 		if (this.evita == null) {
-			this.evita = new Evita(this.evitaConfiguration, false);
+			this.evita = new Evita(this.evitaConfiguration, false, null, null, false);
 		}
 		this.externalApiServer = new ExternalApiServer(
 			this.evita, this.evitaServerConfiguration.api(), this.externalApiProviders
@@ -659,7 +668,7 @@ public class EvitaServer {
 			ConsoleWriter.write("*".repeat(100) + "\n", ConsoleColor.BRIGHT_RED, ConsoleDecoration.BOLD);
 			ConsoleWriter.write("!!! Failed to start external APIs due to: " + ExceptionUtils.getRootCause(e).getMessage() + "\n", ConsoleColor.BRIGHT_RED, ConsoleDecoration.BOLD);
 			ConsoleWriter.write("*".repeat(100) + "\n", ConsoleColor.BRIGHT_RED, ConsoleDecoration.BOLD);
-			log.error("Failed to start external APIs.", e);
+			getLog().error("Failed to start external APIs.", e);
 		}
 
 		// now schedule catalog loading
@@ -696,7 +705,7 @@ public class EvitaServer {
 			);
 			return yamlMapper.writeValueAsString(this.evitaServerConfiguration);
 		} catch (JsonProcessingException e) {
-			log.error("Failed to serialize configuration.", e);
+			getLog().error("Failed to serialize configuration.", e);
 			return "Failed to serialize configuration.";
 		}
 	}
@@ -726,6 +735,7 @@ public class EvitaServer {
 
 		yamlMapper.registerModule(createAbstractApiConfigModule(unknownPropertyProblemHandler));
 		yamlMapper.registerModule(createExportOptionsModule(unknownPropertyProblemHandler));
+		yamlMapper.registerModule(createConflictResolutionModule());
 		yamlMapper.registerModule(new ParameterNamesModule());
 		yamlMapper.addHandler(new SpecialConfigInputFormatsHandler());
 
@@ -799,11 +809,29 @@ public class EvitaServer {
 	 * discovery of export implementation configuration classes via {@link java.util.ServiceLoader}.
 	 */
 	@Nonnull
-	private SimpleModule createExportOptionsModule(@Nullable UnknownPropertyProblemHandler unknownPropertyProblemHandler) {
+	private static SimpleModule createExportOptionsModule(
+		@Nullable UnknownPropertyProblemHandler unknownPropertyProblemHandler
+	) {
 		final SimpleModule module = new SimpleModule();
 		module.addDeserializer(
 			ExportOptions.class,
 			new ExportOptionsDeserializer(unknownPropertyProblemHandler)
+		);
+		return module;
+	}
+
+	/**
+	 * Method creates instance of {@link SimpleModule} registering the {@link ConflictResolutionDeserializer}
+	 * so both the deprecated flat-list and the current object form of the transaction conflict policy parse.
+	 *
+	 * @return module with the conflict resolution deserializer registered
+	 */
+	@Nonnull
+	private static SimpleModule createConflictResolutionModule() {
+		final SimpleModule module = new SimpleModule();
+		module.addDeserializer(
+			ConflictResolution.class,
+			new ConflictResolutionDeserializer()
 		);
 		return module;
 	}

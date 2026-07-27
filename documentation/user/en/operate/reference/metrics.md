@@ -5,14 +5,24 @@
   <dl>
     <dt>api</dt>
     <dd><strong>API type</strong>: The identification of the API being called.</dd>
+    <dt>api_type</dt>
+    <dd><strong>API type</strong>: External API whose readiness is being reported (REST, GraphQL, gRPC, ...).</dd>
     <dt>area</dt>
     <dd><strong>Area</strong>: Area for which events are published.</dd>
     <dt>buildType</dt>
     <dd><strong>Build type</strong>: Type of the instance build: NEW or REFRESH</dd>
     <dt>catalogName</dt>
     <dd><strong>Catalog</strong>: The name of the catalog to which this event/metric is associated.</dd>
+    <dt>commit</dt>
+    <dd><strong>Commit hash</strong>: Abbreviated Git commit hash injected into the manifest at build time.</dd>
+    <dt>conflictPolicy</dt>
+    <dd><strong>Conflict policy</strong>: The coarse conflict policy (NONE/CATALOG/COLLECTION/ENTITY) in force for the conflicting scope.</dd>
+    <dt>conflictScope</dt>
+    <dd><strong>Conflict scope</strong>: The granularity of the conflicting key (e.g. entity, attribute, price, reference).</dd>
     <dt>entityType</dt>
     <dd><strong>Entity type</strong>: The name of the related entity type (collection).</dd>
+    <dt>error_type</dt>
+    <dd><strong>Error type</strong>: Class of the error being counted.</dd>
     <dt>fileType</dt>
     <dd><strong>File type</strong>: The type of the file that was flushed. One of: CATALOG, ENTITY_COLLECTION, WAL, or BOOTSTRAP</dd>
     <dt>graphQLInstanceType</dt>
@@ -20,7 +30,7 @@
     <dt>graphQLOperationType</dt>
     <dd><strong>GraphQL operation type</strong>: The type of operation specified in the GQL request: QUERY, MUTATION, or SUBSCRIPTION.</dd>
     <dt>grpcResponseStatus</dt>
-    <dd><strong>gRPC response status</strong>: State of the gRPC response (OK, ERROR, CANCELED).</dd>
+    <dd><strong>gRPC response status</strong>: State of the gRPC response (OK, ERROR, or CANCELLED).</dd>
     <dt>httpMethod</dt>
     <dd><strong>HTTP method</strong>: The HTTP method of the request.</dd>
     <dt>httpStatusCode</dt>
@@ -29,6 +39,8 @@
     <dd><strong>Initiator of the call</strong>: Initiator of the gRPC call (either client or server).</dd>
     <dt>instanceId</dt>
     <dd><strong>Server instance id</strong>: Unique server name taken from the configuration file.</dd>
+    <dt>java_version</dt>
+    <dd><strong>JVM version</strong>: The <code>java.version</code> system property of the JVM running evitaDB.</dd>
     <dt>methodName</dt>
     <dd><strong>Method name</strong>: The endpoint or method name from RequestLog.</dd>
     <dt>name</dt>
@@ -41,20 +53,26 @@
     <dd><strong>Prefetched vs. non-prefetched query</strong>: Whether or not the query used a prefetch plan. Prefetch plan optimistically fetches queried entities in advance and executes directly on them (without accessing the indexes).</dd>
     <dt>probeResult</dt>
     <dd><strong>Probe result</strong>: The result of the readiness probe (ok, timeout, error).</dd>
+    <dt>problem_type</dt>
+    <dd><strong>Health problem type</strong>: Identifier of the active health problem.</dd>
     <dt>procedureName</dt>
     <dd><strong>Procedure name</strong>: Name of the gRPC procedure that was called (the method name).</dd>
     <dt>prospective</dt>
     <dd><strong>Prospective (client/server)</strong>: Identifies whether the event represents whether event represents server or client view of readiness.
 Client view is the duration viewed from the HTTP client side affected by timeouts, server view is the real
 duration of the probe.</dd>
+    <dt>reason</dt>
+    <dd><strong>Reason</strong>: Why the records/sessions were not persisted (e.g. SAMPLING, MEMORY_SHORTAGE, DISK_SHORTAGE, IO_ERROR, SERIALIZATION_ERROR).</dd>
     <dt>recordType</dt>
     <dd><strong>Record type</strong>: Type of records that changed in the OffsetIndex.</dd>
     <dt>requestResult</dt>
     <dd><strong>Request result</strong>: Simplified result of the request (SUCCESS, ERROR, TIMED_OUT, CANCELLED).</dd>
     <dt>resolution</dt>
     <dd><strong>Transaction resolution</strong>: The resolution of the transaction (either commit or rollback).</dd>
+    <dt>resolutionLayer</dt>
+    <dd><strong>Resolution layer</strong>: The schema layer the policy was resolved from (ENTITY_SCHEMA/CATALOG_SCHEMA/ENGINE_DEFAULT).</dd>
     <dt>responseStatus</dt>
-    <dd><strong>Response status</strong>: The status of the response: OK or ERROR.</dd>
+    <dd><strong>Response status</strong>: The status of the response: OK, ERROR, CANCELLED, or TIMEOUT.</dd>
     <dt>restInstanceType</dt>
     <dd><strong>REST instance type</strong>: Domain of the REST API used in connection with this event/metric: SYSTEM, or CATALOG</dd>
     <dt>restOperationType</dt>
@@ -69,6 +87,8 @@ duration of the probe.</dd>
     <dd><strong>Transaction stage</strong>: The name of the stage the transaction is waiting for.</dd>
     <dt>taskName</dt>
     <dd><strong>Task name</strong>: Name of the background task.</dd>
+    <dt>version</dt>
+    <dd><strong>evitaDB version</strong>: The Maven version of the running evitaDB build.</dd>
   </dl>
 </UsedTerms>
 
@@ -249,14 +269,32 @@ duration of the probe.</dd>
   <dd><strong>Records scanned total</strong>: The total number of records scanned (included in the calculation).<br/><br/><strong>Labels:</strong> <Term>entityType</Term>, <Term>prefetched</Term><br/></dd>
   <dt><code>io_evitadb_query_finished_total</code> (COUNTER)</dt>
   <dd>Query finished<br/><br/><strong>Labels:</strong> <Term>entityType</Term>, <Term>prefetched</Term><br/></dd>
+  <dt><code>io_evitadb_store_traffic_traffic_recorder_skipped_records_dropped_sessions</code> (COUNTER)</dt>
+  <dd><strong>Dropped sessions</strong>: Number of whole sessions dropped for this reason since the previous emission.<br/><br/><strong>Labels:</strong> <Term>reason</Term><br/></dd>
+  <dt><code>io_evitadb_store_traffic_traffic_recorder_skipped_records_missed_records</code> (COUNTER)</dt>
+  <dd><strong>Missed records</strong>: Number of traffic records not persisted for this reason since the previous emission.<br/><br/><strong>Labels:</strong> <Term>reason</Term><br/></dd>
+  <dt><code>io_evitadb_store_traffic_traffic_recorder_statistics_active_sessions</code> (GAUGE)</dt>
+  <dd><strong>Active sessions</strong>: Number of live in-flight sessions currently holding off-heap blocks.</dd>
+  <dt><code>io_evitadb_store_traffic_traffic_recorder_statistics_blocks_allocated</code> (COUNTER)</dt>
+  <dd><strong>Memory blocks allocated</strong>: Number of off-heap memory blocks allocated since the previous emission.</dd>
   <dt><code>io_evitadb_store_traffic_traffic_recorder_statistics_created_sessions</code> (COUNTER)</dt>
-  <dd><strong>Created sessions</strong>: Created sessions.</dd>
-  <dt><code>io_evitadb_store_traffic_traffic_recorder_statistics_dropped_sessions</code> (COUNTER)</dt>
-  <dd><strong>Dropped sessions</strong>: Counter of dropped sessions due to memory shortage.</dd>
+  <dd><strong>Created sessions</strong>: Number of sessions admitted for recording since the previous emission.</dd>
+  <dt><code>io_evitadb_store_traffic_traffic_recorder_statistics_disk_buffer_used_bytes</code> (GAUGE)</dt>
+  <dd><strong>Disk buffer used bytes</strong>: Number of bytes currently occupied by resident sessions in the disk ring buffer.</dd>
+  <dt><code>io_evitadb_store_traffic_traffic_recorder_statistics_disk_bytes_appended</code> (COUNTER)</dt>
+  <dd><strong>Disk bytes appended</strong>: Number of bytes appended to the disk ring buffer since the previous emission.</dd>
+  <dt><code>io_evitadb_store_traffic_traffic_recorder_statistics_disk_resident_sessions</code> (GAUGE)</dt>
+  <dd><strong>Disk resident sessions</strong>: Number of sessions currently resident in the disk ring buffer.</dd>
+  <dt><code>io_evitadb_store_traffic_traffic_recorder_statistics_finalized_sessions_backlog</code> (GAUGE)</dt>
+  <dd><strong>Finalized sessions backlog</strong>: Number of closed sessions waiting to be drained to disk (flush backlog).</dd>
   <dt><code>io_evitadb_store_traffic_traffic_recorder_statistics_finished_sessions</code> (COUNTER)</dt>
-  <dd><strong>Finished sessions</strong>: Recorded sessions.</dd>
-  <dt><code>io_evitadb_store_traffic_traffic_recorder_statistics_missed_records</code> (COUNTER)</dt>
-  <dd><strong>Missed records</strong>: Counter of missed records due to memory shortage or sampling.</dd>
+  <dd><strong>Finished sessions</strong>: Number of sessions closed cleanly and queued to disk since the previous emission.</dd>
+  <dt><code>io_evitadb_store_traffic_traffic_recorder_statistics_recorded_records</code> (COUNTER)</dt>
+  <dd><strong>Recorded records</strong>: Number of traffic records successfully captured since the previous emission.</dd>
+  <dt><code>io_evitadb_store_traffic_traffic_recorder_statistics_total_memory_blocks</code> (GAUGE)</dt>
+  <dd><strong>Total memory blocks</strong>: Total number of off-heap memory blocks available to the recorder.</dd>
+  <dt><code>io_evitadb_store_traffic_traffic_recorder_statistics_used_memory_blocks</code> (GAUGE)</dt>
+  <dd><strong>Used memory blocks</strong>: Number of off-heap memory blocks currently in use (primary memory-pressure signal).</dd>
 </dl>
 
 #### Session
@@ -283,6 +321,16 @@ duration of the probe.</dd>
 #### Storage
 
 <dl>
+  <dt><code>io_evitadb_storage_catalog_checkpoint_cadence_milliseconds</code> (GAUGE)</dt>
+  <dd><strong>Checkpoint cadence in milliseconds</strong>: The time elapsed since the previous completed checkpoint. Compare against the configured checkpoint interval - sustained higher values mean checkpointing is not keeping up with the write rate.</dd>
+  <dt><code>io_evitadb_storage_catalog_checkpoint_fence_depth_milliseconds</code> (GAUGE)</dt>
+  <dd><strong>Fence depth in milliseconds</strong>: How long the oldest change covered by this checkpoint waited to become durable. Bounds both the write-ahead log retention and the amount of replay a restart has to perform. Zero when the round checkpointed without deferring.</dd>
+  <dt><code>io_evitadb_storage_catalog_checkpoint_files_forced</code> (GAUGE)</dt>
+  <dd><strong>Number of files forced</strong>: The number of data files that were forced to the physical device by this checkpoint.</dd>
+  <dt><code>io_evitadb_storage_catalog_checkpoint_force_duration_milliseconds</code> (GAUGE)</dt>
+  <dd><strong>Device force duration in milliseconds</strong>: The time spent forcing the data files to the physical device. This is the cost the checkpoint interval exists to amortise - it is paid once per checkpoint instead of once per trunk round.</dd>
+  <dt><code>io_evitadb_storage_catalog_checkpoint_total</code> (COUNTER)</dt>
+  <dd>Catalog checkpoints.</dd>
   <dt><code>io_evitadb_storage_catalog_statistics_entity_collections</code> (GAUGE)</dt>
   <dd><strong>Entity collection count</strong>: The number of active entity collections (entity types) in the catalog.</dd>
   <dt><code>io_evitadb_storage_catalog_statistics_occupied_disk_space_bytes</code> (GAUGE)</dt>
@@ -394,14 +442,22 @@ duration of the probe.</dd>
   <dd><strong>Maximum number of write-ahead log files to keep</strong>: Configured threshold for the maximum number of write-ahead log files to keep (`transaction.walFileCountKept`).<br/><br/><strong>Labels:</strong> <Term>instanceId</Term>, <Term>serverVersion</Term><br/></dd>
   <dt><code>io_evitadb_system_evita_statistics_wal_max_file_size_bytes</code> (GAUGE)</dt>
   <dd><strong>Maximum write-ahead log file size in Bytes</strong>: Configured threshold for the maximum write-ahead log file size in Bytes (`transaction.walFileSizeBytes`).<br/><br/><strong>Labels:</strong> <Term>instanceId</Term>, <Term>serverVersion</Term><br/></dd>
-  <dt><code>io_evitadb_system_request_fork_join_pool_statistics_active</code> (GAUGE)</dt>
-  <dd><strong>Workers active</strong>: An estimate of the number of threads that are currently stealing or executing tasks</dd>
-  <dt><code>io_evitadb_system_request_fork_join_pool_statistics_queued</code> (GAUGE)</dt>
-  <dd><strong>Tasks queued</strong>: An estimate of the total number of tasks currently held in queues by worker threads</dd>
-  <dt><code>io_evitadb_system_request_fork_join_pool_statistics_running</code> (GAUGE)</dt>
-  <dd><strong>Workers running</strong>: An estimate of the number of worker threads that are not blocked waiting to join tasks or for other managed synchronization threads</dd>
-  <dt><code>io_evitadb_system_request_fork_join_pool_statistics_steals</code> (COUNTER)</dt>
-  <dd><strong>Tasks stolen</strong>: Estimate of the total number of tasks stolen from one thread's work queue by another. The reported value underestimates the actual total number of steals when the pool is not quiescent</dd>
+  <dt><code>io_evitadb_system_request_thread_pool_statistics_active</code> (GAUGE)</dt>
+  <dd><strong>Tasks active</strong>: The approximate number of threads that are actively executing tasks</dd>
+  <dt><code>io_evitadb_system_request_thread_pool_statistics_completed</code> (COUNTER)</dt>
+  <dd><strong>Tasks completed</strong>: The number of tasks that completed execution since the previous observation; the metrics pipeline accumulates these per-tick deltas into the total completed-task counter</dd>
+  <dt><code>io_evitadb_system_request_thread_pool_statistics_largest_pool_size</code> (GAUGE)</dt>
+  <dd><strong>Largest worker count</strong>: The largest number of threads that have ever simultaneously been in the pool</dd>
+  <dt><code>io_evitadb_system_request_thread_pool_statistics_pool_core</code> (GAUGE)</dt>
+  <dd><strong>Minimal worker count</strong>: The core number of threads for the pool</dd>
+  <dt><code>io_evitadb_system_request_thread_pool_statistics_pool_max</code> (GAUGE)</dt>
+  <dd><strong>Max worker count</strong>: The maximum allowed number of threads in the pool</dd>
+  <dt><code>io_evitadb_system_request_thread_pool_statistics_pool_size</code> (GAUGE)</dt>
+  <dd><strong>Current worker count</strong>: The current number of threads in the pool</dd>
+  <dt><code>io_evitadb_system_request_thread_pool_statistics_queue_remaining</code> (GAUGE)</dt>
+  <dd><strong>Queue remaining</strong>: The approximate number of additional tasks the executor can still admit to its backlog; the precise meaning is executor-specific (headroom to the configured soft queue limit for the request/transaction pools, or the backing queue's remaining capacity for the scheduled pool)</dd>
+  <dt><code>io_evitadb_system_request_thread_pool_statistics_queued</code> (GAUGE)</dt>
+  <dd><strong>Tasks queued</strong>: The approximate number of queued tasks that are waiting to be executed</dd>
   <dt><code>io_evitadb_system_ring_buffer_statistics_items_accepted</code> (COUNTER)</dt>
   <dd><strong>Accepted items</strong>: Total number of items accepted into the buffer since creation.</dd>
   <dt><code>io_evitadb_system_ring_buffer_statistics_items_available</code> (GAUGE)</dt>
@@ -415,7 +471,9 @@ duration of the probe.</dd>
   <dt><code>io_evitadb_system_scheduled_executor_statistics_active</code> (GAUGE)</dt>
   <dd><strong>Tasks active</strong>: The approximate number of threads that are actively executing tasks</dd>
   <dt><code>io_evitadb_system_scheduled_executor_statistics_completed</code> (COUNTER)</dt>
-  <dd><strong>Tasks completed</strong>: The approximate total number of tasks that have completed execution</dd>
+  <dd><strong>Tasks completed</strong>: The number of tasks that completed execution since the previous observation; the metrics pipeline accumulates these per-tick deltas into the total completed-task counter</dd>
+  <dt><code>io_evitadb_system_scheduled_executor_statistics_largest_pool_size</code> (GAUGE)</dt>
+  <dd><strong>Largest worker count</strong>: The largest number of threads that have ever simultaneously been in the pool</dd>
   <dt><code>io_evitadb_system_scheduled_executor_statistics_pool_core</code> (GAUGE)</dt>
   <dd><strong>Minimal worker count</strong>: The core number of threads for the pool</dd>
   <dt><code>io_evitadb_system_scheduled_executor_statistics_pool_max</code> (GAUGE)</dt>
@@ -423,17 +481,25 @@ duration of the probe.</dd>
   <dt><code>io_evitadb_system_scheduled_executor_statistics_pool_size</code> (GAUGE)</dt>
   <dd><strong>Current worker count</strong>: The current number of threads in the pool</dd>
   <dt><code>io_evitadb_system_scheduled_executor_statistics_queue_remaining</code> (GAUGE)</dt>
-  <dd><strong>Queue remaining</strong>: The number of additional elements that this queue can ideally accept without blocking</dd>
+  <dd><strong>Queue remaining</strong>: The approximate number of additional tasks the executor can still admit to its backlog; the precise meaning is executor-specific (headroom to the configured soft queue limit for the request/transaction pools, or the backing queue's remaining capacity for the scheduled pool)</dd>
   <dt><code>io_evitadb_system_scheduled_executor_statistics_queued</code> (GAUGE)</dt>
   <dd><strong>Tasks queued</strong>: The approximate number of queued tasks that are waiting to be executed</dd>
-  <dt><code>io_evitadb_system_transaction_fork_join_pool_statistics_active</code> (GAUGE)</dt>
-  <dd><strong>Workers active</strong>: An estimate of the number of threads that are currently stealing or executing tasks</dd>
-  <dt><code>io_evitadb_system_transaction_fork_join_pool_statistics_queued</code> (GAUGE)</dt>
-  <dd><strong>Tasks queued</strong>: An estimate of the total number of tasks currently held in queues by worker threads</dd>
-  <dt><code>io_evitadb_system_transaction_fork_join_pool_statistics_running</code> (GAUGE)</dt>
-  <dd><strong>Workers running</strong>: An estimate of the number of worker threads that are not blocked waiting to join tasks or for other managed synchronization threads</dd>
-  <dt><code>io_evitadb_system_transaction_fork_join_pool_statistics_steals</code> (COUNTER)</dt>
-  <dd><strong>Tasks stolen</strong>: Estimate of the total number of tasks stolen from one thread's work queue by another. The reported value underestimates the actual total number of steals when the pool is not quiescent</dd>
+  <dt><code>io_evitadb_system_transaction_thread_pool_statistics_active</code> (GAUGE)</dt>
+  <dd><strong>Tasks active</strong>: The approximate number of threads that are actively executing tasks</dd>
+  <dt><code>io_evitadb_system_transaction_thread_pool_statistics_completed</code> (COUNTER)</dt>
+  <dd><strong>Tasks completed</strong>: The number of tasks that completed execution since the previous observation; the metrics pipeline accumulates these per-tick deltas into the total completed-task counter</dd>
+  <dt><code>io_evitadb_system_transaction_thread_pool_statistics_largest_pool_size</code> (GAUGE)</dt>
+  <dd><strong>Largest worker count</strong>: The largest number of threads that have ever simultaneously been in the pool</dd>
+  <dt><code>io_evitadb_system_transaction_thread_pool_statistics_pool_core</code> (GAUGE)</dt>
+  <dd><strong>Minimal worker count</strong>: The core number of threads for the pool</dd>
+  <dt><code>io_evitadb_system_transaction_thread_pool_statistics_pool_max</code> (GAUGE)</dt>
+  <dd><strong>Max worker count</strong>: The maximum allowed number of threads in the pool</dd>
+  <dt><code>io_evitadb_system_transaction_thread_pool_statistics_pool_size</code> (GAUGE)</dt>
+  <dd><strong>Current worker count</strong>: The current number of threads in the pool</dd>
+  <dt><code>io_evitadb_system_transaction_thread_pool_statistics_queue_remaining</code> (GAUGE)</dt>
+  <dd><strong>Queue remaining</strong>: The approximate number of additional tasks the executor can still admit to its backlog; the precise meaning is executor-specific (headroom to the configured soft queue limit for the request/transaction pools, or the backing queue's remaining capacity for the scheduled pool)</dd>
+  <dt><code>io_evitadb_system_transaction_thread_pool_statistics_queued</code> (GAUGE)</dt>
+  <dd><strong>Tasks queued</strong>: The approximate number of queued tasks that are waiting to be executed</dd>
 </dl>
 
 #### Transaction
@@ -473,6 +539,8 @@ duration of the probe.</dd>
   <dd>Appending transaction to shared WAL duration in milliseconds</dd>
   <dt><code>io_evitadb_transaction_transaction_appended_to_wal_total</code> (COUNTER)</dt>
   <dd>Transactions appended to WAL</dd>
+  <dt><code>io_evitadb_transaction_transaction_conflict_total</code> (COUNTER)</dt>
+  <dd>Transaction conflicts detected<br/><br/><strong>Labels:</strong> <Term>conflictPolicy</Term>, <Term>conflictScope</Term>, <Term>resolutionLayer</Term><br/></dd>
   <dt><code>io_evitadb_transaction_transaction_finished_duration_milliseconds</code> (HISTOGRAM)</dt>
   <dd>Transaction lifespan duration in milliseconds<br/><br/><strong>Labels:</strong> <Term>resolution</Term><br/></dd>
   <dt><code>io_evitadb_transaction_transaction_finished_oldest_transaction_timestamp_seconds</code> (GAUGE)</dt>
@@ -499,5 +567,22 @@ duration of the probe.</dd>
   <dd>WAL rotation duration in milliseconds</dd>
   <dt><code>io_evitadb_transaction_wal_rotation_total</code> (COUNTER)</dt>
   <dd>WAL rotations</dd>
+</dl>
+
+#### Static metrics
+
+<dl>
+  <dt><code>io_evitadb_build_info</code> (INFO)</dt>
+  <dd><strong>evitaDB build information</strong>: a constant <code>info</code> metric exposing the running server's version, abbreviated git commit hash and JVM version. Useful for tracking deployments without consulting logs.<br/><br/><strong>Labels:</strong> <Term>version</Term>, <Term>commit</Term>, <Term>java_version</Term><br/></dd>
+  <dt><code>io_evitadb_probe_health_problem</code> (GAUGE)</dt>
+  <dd><strong>Health problem indicator</strong>: set to <code>1</code> while the named health problem is active and reset to <code>0</code> once it clears.<br/><br/><strong>Labels:</strong> <Term>problem_type</Term><br/></dd>
+  <dt><code>io_evitadb_probe_api_readiness</code> (GAUGE)</dt>
+  <dd><strong>API readiness</strong>: <code>1</code> when the named external API is ready to serve traffic (verified via internal HTTP probe), <code>0</code> otherwise.<br/><br/><strong>Labels:</strong> <Term>api_type</Term><br/></dd>
+  <dt><code>jvm_errors_total</code> (COUNTER)</dt>
+  <dd><strong>JVM errors</strong>: total number of internal JVM errors, partitioned by error type.<br/><br/><strong>Labels:</strong> <Term>error_type</Term><br/></dd>
+  <dt><code>io_evitadb_errors_total</code> (COUNTER)</dt>
+  <dd><strong>evitaDB errors</strong>: total number of internal evitaDB errors, partitioned by error type.<br/><br/><strong>Labels:</strong> <Term>error_type</Term><br/></dd>
+  <dt><code>io_evitadb_client_errors_total</code> (COUNTER)</dt>
+  <dd><strong>Client errors</strong>: total number of <code>EvitaInvalidUsageException</code>s raised by client requests, partitioned by error type.<br/><br/><strong>Labels:</strong> <Term>error_type</Term><br/></dd>
 </dl>
 

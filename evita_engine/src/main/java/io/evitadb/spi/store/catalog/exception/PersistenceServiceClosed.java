@@ -29,14 +29,28 @@ import io.evitadb.spi.store.catalog.persistence.StoragePartPersistenceService;
 import java.io.Serial;
 
 /**
- * Exception is thrown when the {@link StoragePartPersistenceService} is called but it was previously
+ * Exception is thrown when a {@link StoragePartPersistenceService} method is invoked after the service has been
  * {@link StoragePartPersistenceService#close() closed}.
+ *
+ * Every data-access method of `StoragePartPersistenceService` implementations (e.g., `OffsetIndexStoragePartPersistenceService`)
+ * guards against use-after-close by checking whether the underlying offset index is still operative. When it is not,
+ * this exception is raised instead of attempting an operation on a released resource.
+ *
+ * Callers that need to tolerate a race between shutdown and in-flight operations (for example `Catalog.forgetVolatileData`)
+ * are expected to catch this exception explicitly and treat it as a benign signal that the service is already gone.
+ *
+ * This is an {@link EvitaInternalError}, meaning it signals a programming error or an unexpected system state rather
+ * than a recoverable client-side condition.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 public class PersistenceServiceClosed extends EvitaInternalError {
 	@Serial private static final long serialVersionUID = -7895102315008153201L;
 
+	/**
+	 * Creates the exception with a fixed diagnostic message. No additional context is provided because the failure
+	 * mode is unambiguous: the service lifecycle has ended before all callers were notified.
+	 */
 	public PersistenceServiceClosed() {
 		super("The persistence service was already closed!");
 	}

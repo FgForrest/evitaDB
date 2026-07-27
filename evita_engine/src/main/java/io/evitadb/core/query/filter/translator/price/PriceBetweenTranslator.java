@@ -33,6 +33,7 @@ import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.prefetch.EntityFilteringFormula;
 import io.evitadb.core.query.algebra.prefetch.SelectionFormula;
+import io.evitadb.core.query.algebra.price.filteredPriceRecords.PriceBetweenFormula;
 import io.evitadb.core.query.algebra.price.predicate.PricePredicate.PriceContractPredicate;
 import io.evitadb.core.query.algebra.price.predicate.PricePredicate.PriceRecordPredicate;
 import io.evitadb.core.query.filter.FilterByVisitor;
@@ -85,48 +86,52 @@ public class PriceBetweenTranslator extends AbstractPriceRelatedConstraintTransl
 		}
 
 		if (filterByVisitor.isEntityTypeKnown()) {
-			// this is hell of the combinatorics - but we need to inject price between logic inside the formulas to stay effective
-			// we try hard to reuse original formulas and thus take advantage of memoization effect of already computed sub-results
+			// inject price-between inside the original formulas so memoized sub-results can still be reused
 			final Formula filteringFormula;
 			if (currency != null && theMoment != null) {
-				final List<Formula> formula = PriceValidInTranslator.INSTANCE.createFormula(filterByVisitor, theMoment, priceLists, currency);
+				final List<Formula> formula = PriceValidInTranslator.createFormula(filterByVisitor, theMoment, priceLists, currency);
 				filteringFormula = applyVisitorAndReturnModifiedResult(
 					priceBetween.getFrom(), priceBetween.getTo(), indexedPricePlaces,
 					priceLists, currency, theMoment, queryPriceMode, formula, filterByVisitor
 				);
 			} else if (currency == null && theMoment != null) {
-				final List<Formula> formula = PriceValidInTranslator.INSTANCE.createFormula(filterByVisitor, theMoment, priceLists, null);
+				final List<Formula> formula = PriceValidInTranslator.createFormula(filterByVisitor, theMoment, priceLists, null);
 				filteringFormula = applyVisitorAndReturnModifiedResult(
 					priceBetween.getFrom(), priceBetween.getTo(), indexedPricePlaces,
 					priceLists, null, theMoment, queryPriceMode, formula, filterByVisitor
 				);
 			} else if (currency == null) {
-				final List<Formula> formula = PriceInPriceListsTranslator.INSTANCE.createFormula(filterByVisitor, priceLists, null);
+				final List<Formula> formula = PriceInPriceListsTranslator.createFormula(filterByVisitor, priceLists, null);
 				filteringFormula = applyVisitorAndReturnModifiedResult(
 					priceBetween.getFrom(), priceBetween.getTo(), indexedPricePlaces,
 					priceLists, null, null, queryPriceMode, formula, filterByVisitor
 				);
 			} else {
-				final List<Formula> formula = PriceInPriceListsTranslator.INSTANCE.createFormula(filterByVisitor, priceLists, currency);
+				final List<Formula> formula = PriceInPriceListsTranslator.createFormula(filterByVisitor, priceLists, currency);
 				filteringFormula = applyVisitorAndReturnModifiedResult(
 					priceBetween.getFrom(), priceBetween.getTo(), indexedPricePlaces,
 					priceLists, currency, null, queryPriceMode, formula, filterByVisitor
 				);
 			}
 
-			// there is no default return so that we completed all combinations in previous if-else hell
+			// tag with PriceBetweenFormula so UserFilterRelaxer can peel it from the price-histogram
+			// baseline; placed inside SelectionFormula so prefetch trees still expose it via getDelegate()
+			final Formula taggedFilteringFormula = new PriceBetweenFormula(filteringFormula);
 			if (filterByVisitor.isPrefetchPossible()) {
 				return new SelectionFormula(
-					filteringFormula,
+					taggedFilteringFormula,
 					new SellingPriceAvailableBitmapFilter(
 						filterByVisitor.getEvitaRequest().getFetchesAdditionalPriceLists(),
 						new PriceContractPredicate(priceBetween.getFrom(), priceBetween.getTo(), queryPriceMode, indexedPricePlaces)
 					)
 				);
 			} else {
-				return filteringFormula;
+				return taggedFilteringFormula;
 			}
 		} else {
+			// entity-type-unknown path defers filtering to the prefetch phase via the bitmap filter below;
+			// the PriceBetweenFormula wrapper is intentionally absent — its purpose (baseline peeling) is
+			// irrelevant here since no concrete price-filter formula is produced on this branch
 			return new EntityFilteringFormula(
 				"price between filter",
 				new SellingPriceAvailableBitmapFilter(
@@ -154,7 +159,8 @@ public class PriceBetweenTranslator extends AbstractPriceRelatedConstraintTransl
 		final io.evitadb.core.query.algebra.price.predicate.PriceRecordPredicate priceFilter = new PriceRecordPredicate(from, to, queryPriceMode, indexedPricePlaces);
 
 		return PriceListCompositionTerminationVisitor.translate(
-			formula, priceLists, currency, validIn, filterByVisitor.getQueryPriceMode(), priceFilter
+			formula, priceLists, currency, validIn, filterByVisitor.getQueryPriceMode(), priceFilter,
+			filterByVisitor.isHistogramSideOutputApplicable()
 		);
 	}
 

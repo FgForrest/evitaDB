@@ -23,14 +23,13 @@
 
 package io.evitadb.store.wal;
 
-import io.evitadb.api.configuration.StorageOptions;
-import io.evitadb.api.configuration.TransactionOptions;
 import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.spi.store.catalog.persistence.StoragePartPersistenceService;
 import io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.compressor.AggregatedKeyCompressor;
+import io.evitadb.spi.store.catalog.persistence.storageParts.compressor.KeyCompressorSnapshot;
 import io.evitadb.store.kryo.ObservableOutputKeeper;
 import io.evitadb.store.kryo.VersionedKryo;
 import io.evitadb.store.kryo.VersionedKryoKeyInputs;
@@ -41,6 +40,7 @@ import io.evitadb.store.offsetIndex.io.CatalogOffHeapMemoryManager;
 import io.evitadb.store.offsetIndex.io.WriteOnlyOffHeapWithFileBackupHandle;
 import io.evitadb.store.offsetIndex.model.OffsetIndexRecordTypeRegistry;
 import io.evitadb.store.offsetIndex.model.RecordKey;
+import io.evitadb.store.settings.StorageSettings;
 import io.evitadb.store.shared.model.FileLocation;
 import io.evitadb.store.shared.model.PersistentStorageDescriptor;
 import io.evitadb.utils.FileUtils;
@@ -74,18 +74,40 @@ import static java.util.Optional.ofNullable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 public class TransactionalStoragePartPersistenceService implements StoragePartPersistenceService<PersistentStorageDescriptor> {
+	/**
+	 * The original (stable) persistence service that this transactional layer wraps. All read operations fall through
+	 * to this delegate when the transactional {@link #offsetIndex} does not contain the requested storage part.
+	 */
 	private final StoragePartPersistenceService<PersistentStorageDescriptor> delegate;
+	/**
+	 * Path to the temporary file backing the transactional {@link #offsetIndex}. The file is created inside
+	 * the transaction work directory and is deleted when this service is {@link #close() closed}.
+	 */
 	private final Path targetFile;
+	/**
+	 * A transactional overlay {@link OffsetIndex} that captures all storage part mutations performed within
+	 * the transaction. It is primarily backed by off-heap memory and spills to {@link #targetFile} when
+	 * the transaction grows too large or memory is insufficient.
+	 */
 	private final OffsetIndex offsetIndex;
+	/**
+	 * Set of {@link RecordKey record keys} that have been logically removed during this transaction. These keys
+	 * are used to shadow corresponding entries in the {@link #delegate} so that read operations return {@code null}
+	 * for deleted storage parts even though they still exist in the stable layer.
+	 */
 	private final Set<RecordKey> removedStoragePartKeys = new HashSet<>(64);
+	/**
+	 * Lazily initialized read-only key compressor that aggregates keys from both the transactional
+	 * {@link #offsetIndex} and the {@link #delegate}. Cached after first access to avoid repeated allocations.
+	 */
+	private KeyCompressor readOnlyKeyCompressor;
 
 	public TransactionalStoragePartPersistenceService(
 		long catalogVersion,
 		@Nonnull UUID transactionId,
 		@Nonnull String name,
 		@Nonnull StoragePartPersistenceService<PersistentStorageDescriptor> delegate,
-		@Nonnull StorageOptions storageOptions,
-		@Nonnull TransactionOptions transactionOptions,
+		@Nonnull StorageSettings storageSettings,
 		@Nonnull CatalogOffHeapMemoryManager offHeapMemoryManager,
 		@Nonnull Function<VersionedKryoKeyInputs, VersionedKryo> kryoFactory,
 		@Nonnull OffsetIndexRecordTypeRegistry offsetIndexRecordTypeRegistry,
@@ -93,24 +115,42 @@ public class TransactionalStoragePartPersistenceService implements StoragePartPe
 	) {
 		this.delegate = delegate;
 		// we create a duplicate offset index that targets temporary file in tx related directory
-		this.targetFile = transactionOptions.transactionWorkDirectory()
+		this.targetFile = storageSettings.transactionWorkDirectory()
 			.resolve(transactionId.toString())
 			.resolve(name + ".tmp");
+		// atomic snapshot under the delegate's read lock — capturing keys and peakId separately would race against
+		// a concurrent trunk-side writer mutating the shared HashMap and either throw ConcurrentModificationException
+		// or produce a torn (keys, peakId) pair that lets the new compressor allocate ids already present in the seed
+		final KeyCompressorSnapshot trunkSnapshot = this.delegate.getKeyCompressorSnapshot();
 		this.offsetIndex = new OffsetIndex(
-			catalogVersion + 1,
+			// Seed at the base catalog version (not base+1): the overlay operates entirely at the
+			// version the transaction started from - it reads and writes at that version, and is
+			// discarded on close before the post-commit version is ever assigned (WAL replay does
+			// that). Keeping the seed equal to the version its writes are stamped at lets the
+			// close-time flush supersede the seed instead of appending an older version onto a newer
+			// one (which the versioned-roots registry forbids).
+			catalogVersion,
 			new OffsetIndexDescriptor(
-				new PersistentStorageHeader(1L, FileLocation.EMPTY, this.delegate.getReadOnlyKeyCompressor().getKeys()),
+				new PersistentStorageHeader(1L, FileLocation.EMPTY, trunkSnapshot.keys(), trunkSnapshot.peakId()),
 				kryoFactory,
 				// we don't care here
 				1.0, 0L
 			),
-			storageOptions,
+			storageSettings.outputBufferSize(),
+			storageSettings.maxOpenedReadHandlesOrDefault(),
+			storageSettings.lockTimeoutSeconds(),
+			storageSettings.waitOnCloseSeconds(),
+			storageSettings,
+			storageSettings,
 			offsetIndexRecordTypeRegistry,
 			new WriteOnlyOffHeapWithFileBackupHandle(
 				this.targetFile,
-				storageOptions,
+				storageSettings.outputBufferSize(),
+				storageSettings.syncWrites(),
 				observableOutputKeeper,
-				offHeapMemoryManager
+				offHeapMemoryManager,
+				storageSettings,
+				storageSettings
 			),
 			nonFlushedBlock -> {
 				// we don't care here
@@ -232,9 +272,25 @@ public class TransactionalStoragePartPersistenceService implements StoragePartPe
 	@Nonnull
 	@Override
 	public KeyCompressor getReadOnlyKeyCompressor() {
-		return new AggregatedKeyCompressor(
-			this.offsetIndex.getReadOnlyKeyCompressor(),
-			this.delegate.getReadOnlyKeyCompressor()
+		if (this.readOnlyKeyCompressor == null) {
+			this.readOnlyKeyCompressor = new AggregatedKeyCompressor(
+				this.offsetIndex.getReadOnlyKeyCompressor(),
+				this.delegate.getReadOnlyKeyCompressor()
+			);
+		}
+		return this.readOnlyKeyCompressor;
+	}
+
+	@Nonnull
+	@Override
+	public KeyCompressorSnapshot getKeyCompressorSnapshot() {
+		// matches the contract of `createTransactionalService` (line 158): a transactional service exists to be
+		// written into, not snapshotted from. Snapshotting a per-transaction layer would aggregate the layer's
+		// keys with the delegate's keys without a single read-lock guarantee and is therefore intentionally
+		// unsupported. If a use-case ever needs this, decide the semantics first (atomic over delegate only?
+		// best-effort union?) and implement explicitly.
+		throw new UnsupportedOperationException(
+			"Cannot snapshot a transactional persistence service — snapshot the underlying trunk delegate instead."
 		);
 	}
 

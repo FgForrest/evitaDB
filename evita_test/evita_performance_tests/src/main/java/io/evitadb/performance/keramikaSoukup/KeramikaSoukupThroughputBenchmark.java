@@ -24,8 +24,10 @@
 package io.evitadb.performance.keramikaSoukup;
 
 import io.evitadb.performance.keramikaSoukup.state.*;
+import io.evitadb.performance.setup.BenchmarkForkArgs;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
+import org.openjdk.jmh.annotations.Fork;
 import org.openjdk.jmh.annotations.Mode;
 import org.openjdk.jmh.annotations.Threads;
 import org.openjdk.jmh.infra.Blackhole;
@@ -36,6 +38,14 @@ import org.openjdk.jmh.infra.Blackhole;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 @BenchmarkMode({Mode.Throughput})
+@Fork(
+	jvmArgsAppend = {
+		BenchmarkForkArgs.ADD_OPENS, BenchmarkForkArgs.OPEN_LANG,
+		BenchmarkForkArgs.ADD_OPENS, BenchmarkForkArgs.OPEN_LANG_INVOKE,
+		BenchmarkForkArgs.ADD_OPENS, BenchmarkForkArgs.OPEN_MATH,
+		BenchmarkForkArgs.ADD_OPENS, BenchmarkForkArgs.OPEN_UTIL
+	}
+)
 public class KeramikaSoukupThroughputBenchmark extends KeramikaSoukupBenchmark {
 
 	@Override

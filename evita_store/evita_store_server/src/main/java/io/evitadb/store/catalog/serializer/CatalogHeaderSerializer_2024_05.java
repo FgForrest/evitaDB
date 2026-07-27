@@ -44,7 +44,7 @@ import java.util.Map;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-@Deprecated(since = "2024.3", forRemoval = true)
+@Deprecated(since = "2024.7", forRemoval = true)
 public class CatalogHeaderSerializer_2024_05 extends AbstractPersistentStorageHeaderSerializer<CatalogHeader> {
 
 	@Override
@@ -67,7 +67,8 @@ public class CatalogHeaderSerializer_2024_05 extends AbstractPersistentStorageHe
 			walFileReference = new LogFileRecordReference(
 				newIndex -> CatalogPersistenceService.getWalFileName(catalogName, newIndex),
 				walFileIndex,
-				new FileLocation(walStartingPosition, walRecordLength)
+				new FileLocation(walStartingPosition, walRecordLength),
+				0L
 			);
 		} else {
 			walFileReference = null;

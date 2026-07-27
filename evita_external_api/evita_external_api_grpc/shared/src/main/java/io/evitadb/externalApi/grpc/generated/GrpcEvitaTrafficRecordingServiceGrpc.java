@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2026
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -252,6 +252,37 @@ public final class GrpcEvitaTrafficRecordingServiceGrpc {
     return getStopTrafficRecordingMethod;
   }
 
+  private static volatile io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcExportTrafficRecordingRequest,
+      io.evitadb.externalApi.grpc.generated.GetTrafficRecordingStatusResponse> getExportTrafficRecordingMethod;
+
+  @io.grpc.stub.annotations.RpcMethod(
+      fullMethodName = SERVICE_NAME + '/' + "ExportTrafficRecording",
+      requestType = io.evitadb.externalApi.grpc.generated.GrpcExportTrafficRecordingRequest.class,
+      responseType = io.evitadb.externalApi.grpc.generated.GetTrafficRecordingStatusResponse.class,
+      methodType = io.grpc.MethodDescriptor.MethodType.UNARY)
+  public static io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcExportTrafficRecordingRequest,
+      io.evitadb.externalApi.grpc.generated.GetTrafficRecordingStatusResponse> getExportTrafficRecordingMethod() {
+    io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcExportTrafficRecordingRequest, io.evitadb.externalApi.grpc.generated.GetTrafficRecordingStatusResponse> getExportTrafficRecordingMethod;
+    if ((getExportTrafficRecordingMethod = GrpcEvitaTrafficRecordingServiceGrpc.getExportTrafficRecordingMethod) == null) {
+      synchronized (GrpcEvitaTrafficRecordingServiceGrpc.class) {
+        if ((getExportTrafficRecordingMethod = GrpcEvitaTrafficRecordingServiceGrpc.getExportTrafficRecordingMethod) == null) {
+          GrpcEvitaTrafficRecordingServiceGrpc.getExportTrafficRecordingMethod = getExportTrafficRecordingMethod =
+              io.grpc.MethodDescriptor.<io.evitadb.externalApi.grpc.generated.GrpcExportTrafficRecordingRequest, io.evitadb.externalApi.grpc.generated.GetTrafficRecordingStatusResponse>newBuilder()
+              .setType(io.grpc.MethodDescriptor.MethodType.UNARY)
+              .setFullMethodName(generateFullMethodName(SERVICE_NAME, "ExportTrafficRecording"))
+              .setSampledToLocalTracing(true)
+              .setRequestMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
+                  io.evitadb.externalApi.grpc.generated.GrpcExportTrafficRecordingRequest.getDefaultInstance()))
+              .setResponseMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
+                  io.evitadb.externalApi.grpc.generated.GetTrafficRecordingStatusResponse.getDefaultInstance()))
+              .setSchemaDescriptor(new GrpcEvitaTrafficRecordingServiceMethodDescriptorSupplier("ExportTrafficRecording"))
+              .build();
+        }
+      }
+    }
+    return getExportTrafficRecordingMethod;
+  }
+
   /**
    * Creates a new async stub that supports all call types for the service
    */
@@ -390,6 +421,17 @@ public final class GrpcEvitaTrafficRecordingServiceGrpc {
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GetTrafficRecordingStatusResponse> responseObserver) {
       io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getStopTrafficRecordingMethod(), responseObserver);
     }
+
+    /**
+     * <pre>
+     * Procedure that exports a consistent, on-demand snapshot of the currently buffered traffic recording window
+     * to a downloadable zip archive - not gated by any running recording task.
+     * </pre>
+     */
+    default void exportTrafficRecording(io.evitadb.externalApi.grpc.generated.GrpcExportTrafficRecordingRequest request,
+        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GetTrafficRecordingStatusResponse> responseObserver) {
+      io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getExportTrafficRecordingMethod(), responseObserver);
+    }
   }
 
   /**
@@ -501,6 +543,18 @@ public final class GrpcEvitaTrafficRecordingServiceGrpc {
       io.grpc.stub.ClientCalls.asyncUnaryCall(
           getChannel().newCall(getStopTrafficRecordingMethod(), getCallOptions()), request, responseObserver);
     }
+
+    /**
+     * <pre>
+     * Procedure that exports a consistent, on-demand snapshot of the currently buffered traffic recording window
+     * to a downloadable zip archive - not gated by any running recording task.
+     * </pre>
+     */
+    public void exportTrafficRecording(io.evitadb.externalApi.grpc.generated.GrpcExportTrafficRecordingRequest request,
+        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GetTrafficRecordingStatusResponse> responseObserver) {
+      io.grpc.stub.ClientCalls.asyncUnaryCall(
+          getChannel().newCall(getExportTrafficRecordingMethod(), getCallOptions()), request, responseObserver);
+    }
   }
 
   /**
@@ -596,6 +650,17 @@ public final class GrpcEvitaTrafficRecordingServiceGrpc {
       return io.grpc.stub.ClientCalls.blockingV2UnaryCall(
           getChannel(), getStopTrafficRecordingMethod(), getCallOptions(), request);
     }
+
+    /**
+     * <pre>
+     * Procedure that exports a consistent, on-demand snapshot of the currently buffered traffic recording window
+     * to a downloadable zip archive - not gated by any running recording task.
+     * </pre>
+     */
+    public io.evitadb.externalApi.grpc.generated.GetTrafficRecordingStatusResponse exportTrafficRecording(io.evitadb.externalApi.grpc.generated.GrpcExportTrafficRecordingRequest request) throws io.grpc.StatusException {
+      return io.grpc.stub.ClientCalls.blockingV2UnaryCall(
+          getChannel(), getExportTrafficRecordingMethod(), getCallOptions(), request);
+    }
   }
 
   /**
@@ -690,6 +755,17 @@ public final class GrpcEvitaTrafficRecordingServiceGrpc {
       return io.grpc.stub.ClientCalls.blockingUnaryCall(
           getChannel(), getStopTrafficRecordingMethod(), getCallOptions(), request);
     }
+
+    /**
+     * <pre>
+     * Procedure that exports a consistent, on-demand snapshot of the currently buffered traffic recording window
+     * to a downloadable zip archive - not gated by any running recording task.
+     * </pre>
+     */
+    public io.evitadb.externalApi.grpc.generated.GetTrafficRecordingStatusResponse exportTrafficRecording(io.evitadb.externalApi.grpc.generated.GrpcExportTrafficRecordingRequest request) {
+      return io.grpc.stub.ClientCalls.blockingUnaryCall(
+          getChannel(), getExportTrafficRecordingMethod(), getCallOptions(), request);
+    }
   }
 
   /**
@@ -777,6 +853,18 @@ public final class GrpcEvitaTrafficRecordingServiceGrpc {
       return io.grpc.stub.ClientCalls.futureUnaryCall(
           getChannel().newCall(getStopTrafficRecordingMethod(), getCallOptions()), request);
     }
+
+    /**
+     * <pre>
+     * Procedure that exports a consistent, on-demand snapshot of the currently buffered traffic recording window
+     * to a downloadable zip archive - not gated by any running recording task.
+     * </pre>
+     */
+    public com.google.common.util.concurrent.ListenableFuture<io.evitadb.externalApi.grpc.generated.GetTrafficRecordingStatusResponse> exportTrafficRecording(
+        io.evitadb.externalApi.grpc.generated.GrpcExportTrafficRecordingRequest request) {
+      return io.grpc.stub.ClientCalls.futureUnaryCall(
+          getChannel().newCall(getExportTrafficRecordingMethod(), getCallOptions()), request);
+    }
   }
 
   private static final int METHODID_GET_TRAFFIC_RECORDING_HISTORY_LIST = 0;
@@ -786,6 +874,7 @@ public final class GrpcEvitaTrafficRecordingServiceGrpc {
   private static final int METHODID_GET_TRAFFIC_RECORDING_LABEL_VALUES_ORDERED_BY_CARDINALITY = 4;
   private static final int METHODID_START_TRAFFIC_RECORDING = 5;
   private static final int METHODID_STOP_TRAFFIC_RECORDING = 6;
+  private static final int METHODID_EXPORT_TRAFFIC_RECORDING = 7;
 
   private static final class MethodHandlers<Req, Resp> implements
       io.grpc.stub.ServerCalls.UnaryMethod<Req, Resp>,
@@ -830,6 +919,10 @@ public final class GrpcEvitaTrafficRecordingServiceGrpc {
           break;
         case METHODID_STOP_TRAFFIC_RECORDING:
           serviceImpl.stopTrafficRecording((io.evitadb.externalApi.grpc.generated.GrpcStopTrafficRecordingRequest) request,
+              (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GetTrafficRecordingStatusResponse>) responseObserver);
+          break;
+        case METHODID_EXPORT_TRAFFIC_RECORDING:
+          serviceImpl.exportTrafficRecording((io.evitadb.externalApi.grpc.generated.GrpcExportTrafficRecordingRequest) request,
               (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GetTrafficRecordingStatusResponse>) responseObserver);
           break;
         default:
@@ -899,6 +992,13 @@ public final class GrpcEvitaTrafficRecordingServiceGrpc {
               io.evitadb.externalApi.grpc.generated.GrpcStopTrafficRecordingRequest,
               io.evitadb.externalApi.grpc.generated.GetTrafficRecordingStatusResponse>(
                 service, METHODID_STOP_TRAFFIC_RECORDING)))
+        .addMethod(
+          getExportTrafficRecordingMethod(),
+          io.grpc.stub.ServerCalls.asyncUnaryCall(
+            new MethodHandlers<
+              io.evitadb.externalApi.grpc.generated.GrpcExportTrafficRecordingRequest,
+              io.evitadb.externalApi.grpc.generated.GetTrafficRecordingStatusResponse>(
+                service, METHODID_EXPORT_TRAFFIC_RECORDING)))
         .build();
   }
 
@@ -954,6 +1054,7 @@ public final class GrpcEvitaTrafficRecordingServiceGrpc {
               .addMethod(getGetTrafficRecordingLabelValuesOrderedByCardinalityMethod())
               .addMethod(getStartTrafficRecordingMethod())
               .addMethod(getStopTrafficRecordingMethod())
+              .addMethod(getExportTrafficRecordingMethod())
               .build();
         }
       }

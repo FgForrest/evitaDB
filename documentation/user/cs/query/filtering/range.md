@@ -6,6 +6,7 @@ author: Ing. Jan Novotný
 proofreading: done
 preferredLang: evitaql
 commit: cabcf999e7be5b00e0b13e1228a76a8d9e91cb78
+translated: 'true'
 ---
 <Note type="info">
 V kontextu omezení popsaných v této kapitole by vás mohly zajímat obecná pravidla pro práci s datovými typy a poli, která jsou popsána v [základech dotazovacího jazyka](../basics.md#obecná-pravidla-dotazů).
@@ -36,7 +37,7 @@ attributeInRange(
 `attributeInRange` ověřuje, zda je hodnota ve druhém argumentu v rozsahu hodnoty atributu.
 Hodnota je v rozsahu, pokud je rovna začátku nebo konci rozsahu, nebo pokud se nachází mezi začátkem a koncem rozsahu.
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Produkty platné pro prosinec '23](/documentation/user/en/query/filtering/examples/range/attribute-in-range.evitaql)
 </SourceCodeTabs>
@@ -90,7 +91,7 @@ attributeInRangeNow(
 `attributeInRangeNow` ověřuje, zda je aktuální datum a čas v rozsahu hodnoty atributu.
 Aktuální datum a čas je v rozsahu, pokud je rovno začátku nebo konci rozsahu, nebo pokud se nachází mezi začátkem a koncem rozsahu.
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Produkty platné nyní](/documentation/user/en/query/filtering/examples/range/attribute-in-range-now.evitaql)
 </SourceCodeTabs>

@@ -26,7 +26,6 @@ package io.evitadb.externalApi.grpc.services;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.Empty;
 import com.google.protobuf.StringValue;
-import com.linecorp.armeria.common.util.TimeoutMode;
 import com.linecorp.armeria.server.ServiceRequestContext;
 import io.evitadb.api.CatalogStatistics;
 import io.evitadb.api.EvitaManagementContract;
@@ -34,6 +33,7 @@ import io.evitadb.api.exception.FileForFetchNotFoundException;
 import io.evitadb.api.exception.ReadOnlyException;
 import io.evitadb.api.file.FileForFetch;
 import io.evitadb.api.observability.ReadinessState;
+import io.evitadb.api.requestResponse.system.EngineSettings;
 import io.evitadb.api.requestResponse.system.SystemStatus;
 import io.evitadb.api.task.ServerTask;
 import io.evitadb.api.task.Task;
@@ -53,6 +53,7 @@ import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
 import io.evitadb.externalApi.grpc.generated.*;
 import io.evitadb.externalApi.grpc.generated.GrpcTaskStatusesResponse.Builder;
 import io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter;
+import io.evitadb.externalApi.grpc.utils.GrpcTimeoutUtil;
 import io.evitadb.externalApi.http.ExternalApiProvider;
 import io.evitadb.externalApi.http.ExternalApiServer;
 import io.evitadb.externalApi.trace.ExternalApiTracingContextProvider;
@@ -74,7 +75,6 @@ import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
-import java.time.Duration;
 import java.util.Arrays;
 import java.util.Map.Entry;
 import java.util.Optional;
@@ -90,6 +90,7 @@ import static io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter.toGrp
 import static io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter.toUuid;
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toGrpcHealthProblem;
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toGrpcReadinessState;
+import static io.evitadb.externalApi.grpc.requestResponse.schema.ConflictResolutionConverter.toGrpcConflictResolution;
 import static io.evitadb.externalApi.grpc.services.EvitaService.executeWithClientContext;
 import static io.evitadb.externalApi.grpc.services.interceptors.GlobalExceptionHandlerInterceptor.sendErrorToClient;
 import static java.util.Optional.ofNullable;
@@ -269,6 +270,41 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 	}
 
 	/**
+	 * Retrieves the curated subset of the engine configuration that is safe to expose to any client.
+	 *
+	 * Contrary to {@link #getConfiguration(Empty, StreamObserver)} this method is intentionally
+	 * **not** gated on the read-only mode of the engine - it exposes no sensitive values, and
+	 * clients need it to interpret the server's behaviour (most notably its conflict resolution)
+	 * regardless of the mode the engine was booted in.
+	 *
+	 * @param request          the request for engine settings
+	 * @param responseObserver the observer for receiving the engine settings response
+	 */
+	@Override
+	public void getEngineSettings(Empty request, StreamObserver<GrpcEvitaEngineSettingsResponse> responseObserver) {
+		executeWithClientContext(
+			() -> {
+				final EngineSettings engineSettings = this.management.getEngineSettings();
+				responseObserver.onNext(
+					GrpcEvitaEngineSettingsResponse.newBuilder()
+						.setConflictResolution(
+							toGrpcConflictResolution(engineSettings.conflictResolution())
+						)
+						.setTimeTravelEnabled(engineSettings.timeTravelEnabled())
+						.setChangeDataCaptureEnabled(engineSettings.changeDataCaptureEnabled())
+						.setTrafficRecordingEnabled(engineSettings.trafficRecordingEnabled())
+						.setQueryCacheEnabled(engineSettings.queryCacheEnabled())
+						.build()
+				);
+				responseObserver.onCompleted();
+			},
+			this.evita.getRequestExecutor(),
+			responseObserver,
+			this.context
+		);
+	}
+
+	/**
 	 * Retrieves catalog statistics from the server.
 	 *
 	 * @param request          the request for catalog statistics
@@ -327,9 +363,7 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 							final ByteString backupFile = request.getBackupFile();
 							backupFile.writeTo(outputStream);
 							bytesRead.addAndGet(backupFile.size());
-							serviceContext.setRequestTimeout(
-								TimeoutMode.EXTEND, Duration.ofMillis(serviceContext.requestTimeoutMillis())
-							);
+							GrpcTimeoutUtil.reArmRequestTimeoutIfEnabled(serviceContext, serviceContext.requestTimeoutMillis());
 
 						} catch (IOException e) {
 							throw new UnexpectedIOException(

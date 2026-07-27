@@ -63,14 +63,14 @@ To integrate evitaDB into your project, use the following steps:
 <dependency>
     <groupId>io.evitadb</groupId>
     <artifactId>evita_db</artifactId>
-    <version>2025.8.0</version>
+    <version>2026.1.0</version>
     <type>pom</type>
 </dependency>
 ```
 </CodeTabsBlock>
 <CodeTabsBlock>
 ```Gradle
-implementation 'io.evitadb:evita_db:2025.8.0'
+implementation 'io.evitadb:evita_db:2026.1.0'
 ```
 </CodeTabsBlock>
 </CodeTabs>
@@ -108,14 +108,14 @@ exception when you enable the corresponding API in evitaDB's configuration.
 <dependency>
     <groupId>io.evitadb</groupId>
     <artifactId>evita_external_api_grpc</artifactId>
-    <version>2025.8.0</version>
+    <version>2026.1.0</version>
     <type>pom</type>
 </dependency>
 ```
 </CodeTabsBlock>
 <CodeTabsBlock>
 ```Gradle
-implementation 'io.evitadb:evita_external_api_grpc:2025.8.0'
+implementation 'io.evitadb:evita_external_api_grpc:2026.1.0'
 ```
 </CodeTabsBlock>
 </CodeTabs>
@@ -128,14 +128,14 @@ implementation 'io.evitadb:evita_external_api_grpc:2025.8.0'
 <dependency>
     <groupId>io.evitadb</groupId>
     <artifactId>evita_external_api_graphql</artifactId>
-    <version>2025.8.0</version>
+    <version>2026.1.0</version>
     <type>pom</type>
 </dependency>
 ```
 </CodeTabsBlock>
 <CodeTabsBlock>
 ```Gradle
-implementation 'io.evitadb:evita_external_api_graphql:2025.8.0'
+implementation 'io.evitadb:evita_external_api_graphql:2026.1.0'
 ```
 </CodeTabsBlock>
 </CodeTabs>
@@ -148,14 +148,14 @@ implementation 'io.evitadb:evita_external_api_graphql:2025.8.0'
 <dependency>
     <groupId>io.evitadb</groupId>
     <artifactId>evita_external_api_rest</artifactId>
-    <version>2025.8.0</version>
+    <version>2026.1.0</version>
     <type>pom</type>
 </dependency>
 ```
 </CodeTabsBlock>
 <CodeTabsBlock>
 ```Gradle
-implementation 'io.evitadb:evita_external_api_rest:2025.8.0'
+implementation 'io.evitadb:evita_external_api_rest:2026.1.0'
 ```
 </CodeTabsBlock>
 </CodeTabs>
@@ -169,6 +169,16 @@ You must instantiate and configure this class and pass it a reference to the
 <SourceCodeTabs requires="/documentation/user/en/get-started/example/server-startup.java" local>
 [Example of web API startup in Java](/documentation/user/en/get-started/example/api-startup.java)
 </SourceCodeTabs>
+
+<Note type="warning">
+When wiring `ExternalApiServer` against `Evita` manually like this, construct the engine with
+`new Evita(config, false)` instead of the single-argument constructor. The boolean flag defers
+catalog loading until `ExternalApiServer.start()` is called, after every API provider has
+subscribed to the system CDC stream. Without this, fast-loading catalogs may finish before the
+subscribers attach and their GraphQL/REST endpoints will not be registered (host CDC events are
+live-tail only). `EvitaServer` users do not need to worry about this — it is already wired
+correctly internally.
+</Note>
 
 <Note type="warning">
 Don't forget to close the APIs when your application ends by calling the `close` method on the
@@ -225,7 +235,7 @@ When you start the evitaDB server you should see the following information in th
 |  __/\ V /| | || (_| | |_| | |_) |
  \___| \_/ |_|\__\__,_|____/|____/
 
-beta build 2025.8.0 (keep calm and report bugs 😉)
+beta build 2026.1.0 (keep calm and report bugs 😉)
 Visit us at: https://evitadb.io
 
 Log config used: META-INF/logback.xml

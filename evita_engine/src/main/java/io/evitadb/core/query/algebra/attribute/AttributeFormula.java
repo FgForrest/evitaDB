@@ -56,7 +56,13 @@ import static io.evitadb.api.query.QueryConstraints.entityFetch;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public class AttributeFormula extends AbstractFormula implements ChildrenDependentFormula, RequirementsDefiner {
+	/**
+	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} for hash computation.
+	 */
 	private static final long CLASS_ID = 4944486926494447594L;
+	/**
+	 * Error message thrown when the formula does not contain exactly one inner formula.
+	 */
 	public static final String ERROR_SINGLE_FORMULA_EXPECTED = "Exactly one inner formula is expected!";
 	/**
 	 * Contains TRUE if the attribute targets the global attribute schema and thus global attribute index.

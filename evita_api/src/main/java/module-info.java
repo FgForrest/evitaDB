@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -21,6 +21,15 @@
  *   limitations under the License.
  */
 
+import io.evitadb.api.query.expression.object.accessor.ObjectElementAccessor;
+import io.evitadb.api.query.expression.object.accessor.ObjectPropertyAccessor;
+import io.evitadb.api.query.expression.object.accessor.entity.AssociatedDataContractAccessor;
+import io.evitadb.api.query.expression.object.accessor.entity.AttributesContractAccessor;
+import io.evitadb.api.query.expression.object.accessor.entity.EntityContractAccessor;
+import io.evitadb.api.query.expression.object.accessor.entity.PriceContractAccessor;
+import io.evitadb.api.query.expression.object.accessor.entity.ReferenceContractAccessor;
+import io.evitadb.api.query.expression.object.accessor.entity.ReferencesContractAccessor;
+
 /**
  * Module contains external API of the evitaDB.
  */
@@ -29,6 +38,16 @@ module evita.api {
 
 	opens io.evitadb.api.configuration to com.fasterxml.jackson.databind;
 	opens io.evitadb.api.requestResponse.extraResult to com.graphqljava;
+
+	provides ObjectPropertyAccessor with
+		EntityContractAccessor,
+		ReferenceContractAccessor,
+		PriceContractAccessor;
+
+	provides ObjectElementAccessor with
+		AttributesContractAccessor,
+		AssociatedDataContractAccessor,
+		ReferencesContractAccessor;
 
 	exports io.evitadb.api;
 	exports io.evitadb.api.configuration;
@@ -77,6 +96,7 @@ module evita.api {
 	exports io.evitadb.api.requestResponse.schema.mutation.engine;
 	exports io.evitadb.api.requestResponse.mutation.infrastructure;
 	exports io.evitadb.api.traffic;
+	exports io.evitadb.api.query.expression.object.accessor.entity;
 
 	requires static lombok;
 	requires static jsr305;

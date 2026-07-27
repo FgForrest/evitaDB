@@ -121,6 +121,14 @@ public class ExternalApiServer implements AutoCloseable {
 	@Getter private final ApiOptions apiOptions;
 	private final Map<String, ExternalApiProvider<?>> registeredApiProviders;
 	private final ProbesMaintainer probesMaintainer = new ProbesMaintainer();
+	/**
+	 * Engine reference retained so that {@link #start()} can drive the second phase of the boot
+	 * sequence by calling {@link Evita#scheduleInitialCatalogLoading()} once
+	 * every external API provider has subscribed to the system CDC stream. The call is idempotent,
+	 * so if the embedding application (e.g. `EvitaServer`) also schedules loading explicitly the
+	 * second invocation is a silent no-op.
+	 */
+	private final Evita evita;
 	private CertificateService certificateService;
 	private CompletableFuture<Void> stopFuture;
 
@@ -370,6 +378,7 @@ public class ExternalApiServer implements AutoCloseable {
 		@Nonnull ApiOptions apiOptions,
 		@SuppressWarnings("rawtypes") @Nonnull Collection<ExternalApiProviderRegistrar> externalApiProviders
 	) {
+		this.evita = evita;
 		this.apiOptions = apiOptions;
 
 		final ServerBuilder serverBuilder = Server.builder();
@@ -422,9 +431,25 @@ public class ExternalApiServer implements AutoCloseable {
 
 	/**
 	 * Starts this configured HTTP server with registered APIs.
+	 *
+	 * Also drives the second phase of the engine boot sequence by invoking
+	 * {@link Evita#scheduleInitialCatalogLoading()} after the HTTP ports are open. By this point
+	 * every external API provider has been constructed and subscribed to the system CDC stream
+	 * (subscriptions happen in each provider's constructor), so host events emitted as catalogs
+	 * settle into the live view are guaranteed to reach those subscribers. The call is idempotent:
+	 * if the embedding application (e.g. `EvitaServer.run()`) also schedules loading explicitly,
+	 * the second invocation is a silent no-op.
+	 *
+	 * **Caveat:** if the `Evita` instance was constructed with the auto-scheduling default
+	 * ({@link Evita#Evita(io.evitadb.api.configuration.EvitaConfiguration)}), loading has already
+	 * begun before this server's providers attached their subscribers — host events for any
+	 * catalog that finished loading in that window were lost. To avoid that race, use
+	 * `new Evita(config, false)` when wiring `ExternalApiServer` manually.
 	 */
 	public void start() {
 		if (this.server == null) {
+			// no providers registered → no HTTP ports to open AND no system-CDC subscribers were
+			// attached, so the embedded application is responsible for scheduling catalog loading
 			return;
 		}
 
@@ -432,6 +457,8 @@ public class ExternalApiServer implements AutoCloseable {
 		try {
 			this.server.start().get();
 			this.registeredApiProviders.values().forEach(ExternalApiProvider::afterStart);
+			// every provider has subscribed in its constructor — kick off catalog loading now
+			this.evita.scheduleInitialCatalogLoading();
 		} catch (InterruptedException e) {
 			Thread.currentThread().interrupt();
 			throw new RuntimeException(e);
@@ -569,7 +596,7 @@ public class ExternalApiServer implements AutoCloseable {
 			.gracefulShutdownTimeout(gracefulShutdown ? Duration.ofSeconds(1) : Duration.ZERO, gracefulShutdown ? Duration.ofSeconds(1) : Duration.ZERO)
 			.idleTimeoutMillis(apiOptions.idleTimeoutInMillis())
 			.requestTimeoutMillis(apiOptions.requestTimeoutInMillis())
-			.pingIntervalMillis(1000)
+			.pingIntervalMillis(apiOptions.pingIntervalMillis())
 			.serviceWorkerGroup(workerGroup, true)
 			.maxRequestLength(apiOptions.maxEntitySizeInBytes())
 			.workerGroup(workerGroup, true)

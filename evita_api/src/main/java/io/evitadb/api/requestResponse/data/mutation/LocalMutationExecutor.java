@@ -41,14 +41,30 @@ public interface LocalMutationExecutor {
 	void applyMutation(@Nonnull LocalMutation<?, ?> localMutation);
 
 	/**
+	 * Finalizes the in-memory changes recorded by this executor that can only be resolved once the complete set
+	 * of mutations has been applied (and any nested / cross-entity mutations have unwound). This is the fallible
+	 * step that may legitimately throw (e.g. on a violated index-level invariant); the caller invokes it before
+	 * the commit / rollback decision, so a throw here routes to the transaction-bound savepoint rollback rather
+	 * than leaving a partially promoted state. The default implementation is a no-op for executors that buffer all
+	 * their work until {@link #commit()}.
+	 */
+	default void applyChanges() {
+		// no-op by default: executors that buffer changes until commit() have nothing to finalize here
+	}
+
+	/**
 	 * Method allows to apply all changes that has been recorded by this executor during multiple execution of
-	 * {@link #applyMutation(LocalMutation)}. The method is called only once after all mutations has been applied.
+	 * {@link #applyMutation(LocalMutation)}. The method is called only once after all mutations has been applied
+	 * and after {@link #applyChanges()} has finalized the in-memory state, so by contract it is a pure promote
+	 * (publishing already-finalized changes) and is not expected to fail under normal operation.
 	 */
 	void commit();
 
 	/**
-	 * Rolls back all changes that has been recorded by this executor during multiple execution of
-	 * {@link #applyMutation(LocalMutation)}. The method is called only once before the executor is thrown out.
+	 * Called after all local mutations in a batch have been applied via {@link #applyMutation(LocalMutation)}.
+	 * Implementations may override this to perform post-batch processing such as flushing deferred
+	 * evaluations, assigning IDs, or sorting internal data structures. The default implementation is a no-op.
 	 */
-	void rollback();
+	void finishLocalMutationExecutionPhase();
+
 }

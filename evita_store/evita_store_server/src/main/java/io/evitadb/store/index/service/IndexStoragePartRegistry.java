@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -54,7 +54,21 @@ public class IndexStoragePartRegistry implements StoragePartRegistry {
 			new StoragePartRecord((byte) 29, FacetIndexStoragePart.class),
 			new StoragePartRecord((byte) 30, CatalogIndexStoragePart.class),
 			new StoragePartRecord((byte) 31, GlobalUniqueIndexStoragePart.class),
-			new StoragePartRecord((byte) 32, ReferenceTypeCardinalityIndexStoragePart.class)
+			new StoragePartRecord((byte) 32, ReferenceTypeCardinalityIndexStoragePart.class),
+			new StoragePartRecord((byte) 33, GroupCardinalityIndexStoragePart.class),
+			new StoragePartRecord((byte) 34, HistogramIndexStoragePart.class),
+			new StoragePartRecord((byte) 35, FilterIndexLeafPagePart.class),
+			new StoragePartRecord((byte) 36, RangeIndexLeafPagePart.class),
+			new StoragePartRecord((byte) 37, EntityIdsStoragePart.class),
+			new StoragePartRecord((byte) 38, PriceListAndCurrencySuperIndexLeafPagePart.class),
+			new StoragePartRecord((byte) 39, GlobalUniqueIndexLeafPagePart.class),
+			new StoragePartRecord((byte) 40, UniqueIndexLeafPagePart.class),
+			new StoragePartRecord((byte) 41, ReferenceTypeCardinalityIndexLeafPagePart.class),
+			new StoragePartRecord((byte) 42, SortIndexLeafPagePart.class),
+			new StoragePartRecord((byte) 43, ChainIndexLeafPagePart.class),
+			new StoragePartRecord((byte) 44, HistogramIndexLeafPagePart.class),
+			new StoragePartRecord((byte) 45, HistogramRangeIndexLeafPagePart.class),
+			new StoragePartRecord((byte) 46, HistogramCardinalityStoragePart.class)
 		);
 	}
 

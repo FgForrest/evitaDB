@@ -66,6 +66,8 @@ message GrpcCreateAttributeSchemaMutation {
   // as sortable unless you know that you'll sort entities along this attribute. Each sortable attribute occupies
   // (memory/disk) space in the form of index.
   repeated GrpcEntityScope sortableInScopes = 15;
+  // The per-attribute override of the conflict resolution granularity.
+  GrpcConflictResolutionOverride conflictResolutionOverride = 16;
 }
 
 // Mutation is responsible for setting up a new `GlobalAttributeSchema` in the `CatalogSchema`.
@@ -133,6 +135,8 @@ message GrpcCreateGlobalAttributeSchemaMutation {
   // as sortable unless you know that you'll sort entities along this attribute. Each sortable attribute occupies
   // (memory/disk) space in the form of index.
   repeated GrpcEntityScope sortableInScopes = 17;
+  // The per-attribute override of the conflict resolution granularity.
+  GrpcConflictResolutionOverride conflictResolutionOverride = 18;
 }
 
 // Mutation is responsible for setting value to a `AttributeSchema.defaultValue` in `EntitySchema`.
@@ -242,6 +246,15 @@ message GrpcSetAttributeSchemaNullableMutation {
   bool nullable = 2;
 }
 
+// Mutation is responsible for setting value to a `AttributeSchema.conflictResolutionOverride` in `EntitySchema`.
+// Mutation can be used for altering also the existing `AttributeSchema` or `GlobalAttributeSchema` alone.
+message GrpcSetAttributeSchemaConflictResolutionOverrideMutation {
+  // Name of the attribute the mutation is targeting.
+  string name = 1;
+  // The per-attribute override of the conflict resolution granularity.
+  GrpcConflictResolutionOverride conflictResolutionOverride = 2;
+}
+
 // Mutation is responsible for setting value to a `AttributeSchema.representative` in `EntitySchema`.
 // Mutation can be used for altering also the existing `AttributeSchema` or `GlobalAttributeSchema` alone.
 message GrpcSetAttributeSchemaRepresentativeMutation {
@@ -320,5 +333,7 @@ message GrpcAttributeSchemaMutation {
     GrpcSetAttributeSchemaUniqueMutation setAttributeSchemaUniqueMutation = 15;
     // Mutation is responsible for introducing a `GlobalAttributeSchema` into an `EvitaSession`.
     GrpcUseGlobalAttributeSchemaMutation useGlobalAttributeSchemaMutation = 16;
+    // Mutation is responsible for setting value `AttributeSchema.conflictResolutionOverride` in `EntitySchema`.
+    GrpcSetAttributeSchemaConflictResolutionOverrideMutation setAttributeSchemaConflictResolutionOverrideMutation = 17;
   }
 }

@@ -35,7 +35,11 @@ import java.util.concurrent.TimeUnit;
  *                             before throwing an exception or closing the connection forcefully.
  * @param timeoutUnit          Time unit for {@link #timeout()} property.
  * @param streamingTimeout     Number of {@link #streamingTimeoutUnit()} time units client should wait for server to
- *                             send the next streamed message before it cancels the stream.
+ *                             send the next streamed message before it cancels the stream. A non-positive value
+ *                             falls back to {@link #DEFAULT_STREAMING_TIMEOUT} — streamed calls always re-arm
+ *                             this deadline via {@code TimeoutMode.SET_FROM_NOW} after every message, which
+ *                             requires a strictly positive duration, so this cannot be disabled by configuration
+ *                             (mirrors how the server normalizes its own request timeout in {@code ApiOptions}).
  * @param streamingTimeoutUnit Time unit for {@link #streamingTimeout()} property.
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
@@ -47,8 +51,15 @@ public record ClientTimeoutOptions(
 ) {
 	public static final long DEFAULT_TIMEOUT = 5;
 	public static final TimeUnit DEFAULT_TIMEOUT_UNIT = TimeUnit.SECONDS;
-	public static final long DEFAULT_STREAMING_TIMEOUT = 3600;
+	public static final long DEFAULT_STREAMING_TIMEOUT = 300;
 	public static final TimeUnit DEFAULT_STREAMING_TIMEOUT_UNIT = TimeUnit.SECONDS;
+
+	public ClientTimeoutOptions {
+		if (streamingTimeout <= 0) {
+			streamingTimeout = DEFAULT_STREAMING_TIMEOUT;
+			streamingTimeoutUnit = DEFAULT_STREAMING_TIMEOUT_UNIT;
+		}
+	}
 
 	/**
 	 * Creates a new instance with all default values.

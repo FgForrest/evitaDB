@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2026
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -903,7 +903,7 @@ private static final long serialVersionUID = 0L;
        * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal threshold = 2;</code>
        */
       private com.google.protobuf.SingleFieldBuilderV3<
-          io.evitadb.externalApi.grpc.generated.GrpcBigDecimal, io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder>
+          io.evitadb.externalApi.grpc.generated.GrpcBigDecimal, io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder> 
           getThresholdFieldBuilder() {
         if (thresholdBuilder_ == null) {
           thresholdBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -1187,7 +1187,7 @@ private static final long serialVersionUID = 0L;
        * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal relativeFrequency = 5;</code>
        */
       private com.google.protobuf.SingleFieldBuilderV3<
-          io.evitadb.externalApi.grpc.generated.GrpcBigDecimal, io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder>
+          io.evitadb.externalApi.grpc.generated.GrpcBigDecimal, io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder> 
           getRelativeFrequencyFieldBuilder() {
         if (relativeFrequencyBuilder_ == null) {
           relativeFrequencyBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -1389,7 +1389,7 @@ private static final long serialVersionUID = 0L;
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket buckets = 4;</code>
    */
   @java.lang.Override
-  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucketOrBuilder>
+  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucketOrBuilder> 
       getBucketsOrBuilderList() {
     return buckets_;
   }
@@ -1431,6 +1431,88 @@ private static final long serialVersionUID = 0L;
     return buckets_.get(index);
   }
 
+  public static final int MINREFERENCEDENTITY_FIELD_NUMBER = 5;
+  private io.evitadb.externalApi.grpc.generated.GrpcSealedEntity minReferencedEntity_;
+  /**
+   * <pre>
+   * Referenced entity whose value anchors the minimum bucket of the histogram. Populated only for
+   * reference-scope histograms when an entity fetch is requested for the associated reference.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity minReferencedEntity = 5;</code>
+   * @return Whether the minReferencedEntity field is set.
+   */
+  @java.lang.Override
+  public boolean hasMinReferencedEntity() {
+    return ((bitField0_ & 0x00000004) != 0);
+  }
+  /**
+   * <pre>
+   * Referenced entity whose value anchors the minimum bucket of the histogram. Populated only for
+   * reference-scope histograms when an entity fetch is requested for the associated reference.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity minReferencedEntity = 5;</code>
+   * @return The minReferencedEntity.
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcSealedEntity getMinReferencedEntity() {
+    return minReferencedEntity_ == null ? io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.getDefaultInstance() : minReferencedEntity_;
+  }
+  /**
+   * <pre>
+   * Referenced entity whose value anchors the minimum bucket of the histogram. Populated only for
+   * reference-scope histograms when an entity fetch is requested for the associated reference.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity minReferencedEntity = 5;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder getMinReferencedEntityOrBuilder() {
+    return minReferencedEntity_ == null ? io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.getDefaultInstance() : minReferencedEntity_;
+  }
+
+  public static final int MAXREFERENCEDENTITY_FIELD_NUMBER = 6;
+  private io.evitadb.externalApi.grpc.generated.GrpcSealedEntity maxReferencedEntity_;
+  /**
+   * <pre>
+   * Referenced entity whose value anchors the maximum bucket of the histogram. Populated only for
+   * reference-scope histograms when an entity fetch is requested for the associated reference.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity maxReferencedEntity = 6;</code>
+   * @return Whether the maxReferencedEntity field is set.
+   */
+  @java.lang.Override
+  public boolean hasMaxReferencedEntity() {
+    return ((bitField0_ & 0x00000008) != 0);
+  }
+  /**
+   * <pre>
+   * Referenced entity whose value anchors the maximum bucket of the histogram. Populated only for
+   * reference-scope histograms when an entity fetch is requested for the associated reference.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity maxReferencedEntity = 6;</code>
+   * @return The maxReferencedEntity.
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcSealedEntity getMaxReferencedEntity() {
+    return maxReferencedEntity_ == null ? io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.getDefaultInstance() : maxReferencedEntity_;
+  }
+  /**
+   * <pre>
+   * Referenced entity whose value anchors the maximum bucket of the histogram. Populated only for
+   * reference-scope histograms when an entity fetch is requested for the associated reference.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity maxReferencedEntity = 6;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder getMaxReferencedEntityOrBuilder() {
+    return maxReferencedEntity_ == null ? io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.getDefaultInstance() : maxReferencedEntity_;
+  }
+
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
@@ -1457,6 +1539,12 @@ private static final long serialVersionUID = 0L;
     for (int i = 0; i < buckets_.size(); i++) {
       output.writeMessage(4, buckets_.get(i));
     }
+    if (((bitField0_ & 0x00000004) != 0)) {
+      output.writeMessage(5, getMinReferencedEntity());
+    }
+    if (((bitField0_ & 0x00000008) != 0)) {
+      output.writeMessage(6, getMaxReferencedEntity());
+    }
     getUnknownFields().writeTo(output);
   }
 
@@ -1481,6 +1569,14 @@ private static final long serialVersionUID = 0L;
     for (int i = 0; i < buckets_.size(); i++) {
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(4, buckets_.get(i));
+    }
+    if (((bitField0_ & 0x00000004) != 0)) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(5, getMinReferencedEntity());
+    }
+    if (((bitField0_ & 0x00000008) != 0)) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(6, getMaxReferencedEntity());
     }
     size += getUnknownFields().getSerializedSize();
     memoizedSize = size;
@@ -1511,6 +1607,16 @@ private static final long serialVersionUID = 0L;
         != other.getOverallCount()) return false;
     if (!getBucketsList()
         .equals(other.getBucketsList())) return false;
+    if (hasMinReferencedEntity() != other.hasMinReferencedEntity()) return false;
+    if (hasMinReferencedEntity()) {
+      if (!getMinReferencedEntity()
+          .equals(other.getMinReferencedEntity())) return false;
+    }
+    if (hasMaxReferencedEntity() != other.hasMaxReferencedEntity()) return false;
+    if (hasMaxReferencedEntity()) {
+      if (!getMaxReferencedEntity()
+          .equals(other.getMaxReferencedEntity())) return false;
+    }
     if (!getUnknownFields().equals(other.getUnknownFields())) return false;
     return true;
   }
@@ -1535,6 +1641,14 @@ private static final long serialVersionUID = 0L;
     if (getBucketsCount() > 0) {
       hash = (37 * hash) + BUCKETS_FIELD_NUMBER;
       hash = (53 * hash) + getBucketsList().hashCode();
+    }
+    if (hasMinReferencedEntity()) {
+      hash = (37 * hash) + MINREFERENCEDENTITY_FIELD_NUMBER;
+      hash = (53 * hash) + getMinReferencedEntity().hashCode();
+    }
+    if (hasMaxReferencedEntity()) {
+      hash = (37 * hash) + MAXREFERENCEDENTITY_FIELD_NUMBER;
+      hash = (53 * hash) + getMaxReferencedEntity().hashCode();
     }
     hash = (29 * hash) + getUnknownFields().hashCode();
     memoizedHashCode = hash;
@@ -1679,6 +1793,8 @@ private static final long serialVersionUID = 0L;
         getMinFieldBuilder();
         getMaxFieldBuilder();
         getBucketsFieldBuilder();
+        getMinReferencedEntityFieldBuilder();
+        getMaxReferencedEntityFieldBuilder();
       }
     }
     @java.lang.Override
@@ -1703,6 +1819,16 @@ private static final long serialVersionUID = 0L;
         bucketsBuilder_.clear();
       }
       bitField0_ = (bitField0_ & ~0x00000008);
+      minReferencedEntity_ = null;
+      if (minReferencedEntityBuilder_ != null) {
+        minReferencedEntityBuilder_.dispose();
+        minReferencedEntityBuilder_ = null;
+      }
+      maxReferencedEntity_ = null;
+      if (maxReferencedEntityBuilder_ != null) {
+        maxReferencedEntityBuilder_.dispose();
+        maxReferencedEntityBuilder_ = null;
+      }
       return this;
     }
 
@@ -1764,6 +1890,18 @@ private static final long serialVersionUID = 0L;
       }
       if (((from_bitField0_ & 0x00000004) != 0)) {
         result.overallCount_ = overallCount_;
+      }
+      if (((from_bitField0_ & 0x00000010) != 0)) {
+        result.minReferencedEntity_ = minReferencedEntityBuilder_ == null
+            ? minReferencedEntity_
+            : minReferencedEntityBuilder_.build();
+        to_bitField0_ |= 0x00000004;
+      }
+      if (((from_bitField0_ & 0x00000020) != 0)) {
+        result.maxReferencedEntity_ = maxReferencedEntityBuilder_ == null
+            ? maxReferencedEntity_
+            : maxReferencedEntityBuilder_.build();
+        to_bitField0_ |= 0x00000008;
       }
       result.bitField0_ |= to_bitField0_;
     }
@@ -1839,13 +1977,19 @@ private static final long serialVersionUID = 0L;
             bucketsBuilder_ = null;
             buckets_ = other.buckets_;
             bitField0_ = (bitField0_ & ~0x00000008);
-            bucketsBuilder_ =
+            bucketsBuilder_ = 
               com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
                  getBucketsFieldBuilder() : null;
           } else {
             bucketsBuilder_.addAllMessages(other.buckets_);
           }
         }
+      }
+      if (other.hasMinReferencedEntity()) {
+        mergeMinReferencedEntity(other.getMinReferencedEntity());
+      }
+      if (other.hasMaxReferencedEntity()) {
+        mergeMaxReferencedEntity(other.getMaxReferencedEntity());
       }
       this.mergeUnknownFields(other.getUnknownFields());
       onChanged();
@@ -1905,6 +2049,20 @@ private static final long serialVersionUID = 0L;
               }
               break;
             } // case 34
+            case 42: {
+              input.readMessage(
+                  getMinReferencedEntityFieldBuilder().getBuilder(),
+                  extensionRegistry);
+              bitField0_ |= 0x00000010;
+              break;
+            } // case 42
+            case 50: {
+              input.readMessage(
+                  getMaxReferencedEntityFieldBuilder().getBuilder(),
+                  extensionRegistry);
+              bitField0_ |= 0x00000020;
+              break;
+            } // case 50
             default: {
               if (!super.parseUnknownField(input, extensionRegistry, tag)) {
                 done = true; // was an endgroup tag
@@ -2066,7 +2224,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal min = 1;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcBigDecimal, io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder>
+        io.evitadb.externalApi.grpc.generated.GrpcBigDecimal, io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder> 
         getMinFieldBuilder() {
       if (minBuilder_ == null) {
         minBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -2250,7 +2408,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal max = 2;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcBigDecimal, io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder>
+        io.evitadb.externalApi.grpc.generated.GrpcBigDecimal, io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder> 
         getMaxFieldBuilder() {
       if (maxBuilder_ == null) {
         maxBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -2580,7 +2738,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket buckets = 4;</code>
      */
-    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucketOrBuilder>
+    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucketOrBuilder> 
          getBucketsOrBuilderList() {
       if (bucketsBuilder_ != null) {
         return bucketsBuilder_.getMessageOrBuilderList();
@@ -2621,12 +2779,12 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket buckets = 4;</code>
      */
-    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket.Builder>
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket.Builder> 
          getBucketsBuilderList() {
       return getBucketsFieldBuilder().getBuilderList();
     }
     private com.google.protobuf.RepeatedFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket, io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket.Builder, io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucketOrBuilder>
+        io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket, io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket.Builder, io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucketOrBuilder> 
         getBucketsFieldBuilder() {
       if (bucketsBuilder_ == null) {
         bucketsBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
@@ -2638,6 +2796,338 @@ private static final long serialVersionUID = 0L;
         buckets_ = null;
       }
       return bucketsBuilder_;
+    }
+
+    private io.evitadb.externalApi.grpc.generated.GrpcSealedEntity minReferencedEntity_;
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcSealedEntity, io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder, io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder> minReferencedEntityBuilder_;
+    /**
+     * <pre>
+     * Referenced entity whose value anchors the minimum bucket of the histogram. Populated only for
+     * reference-scope histograms when an entity fetch is requested for the associated reference.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity minReferencedEntity = 5;</code>
+     * @return Whether the minReferencedEntity field is set.
+     */
+    public boolean hasMinReferencedEntity() {
+      return ((bitField0_ & 0x00000010) != 0);
+    }
+    /**
+     * <pre>
+     * Referenced entity whose value anchors the minimum bucket of the histogram. Populated only for
+     * reference-scope histograms when an entity fetch is requested for the associated reference.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity minReferencedEntity = 5;</code>
+     * @return The minReferencedEntity.
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcSealedEntity getMinReferencedEntity() {
+      if (minReferencedEntityBuilder_ == null) {
+        return minReferencedEntity_ == null ? io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.getDefaultInstance() : minReferencedEntity_;
+      } else {
+        return minReferencedEntityBuilder_.getMessage();
+      }
+    }
+    /**
+     * <pre>
+     * Referenced entity whose value anchors the minimum bucket of the histogram. Populated only for
+     * reference-scope histograms when an entity fetch is requested for the associated reference.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity minReferencedEntity = 5;</code>
+     */
+    public Builder setMinReferencedEntity(io.evitadb.externalApi.grpc.generated.GrpcSealedEntity value) {
+      if (minReferencedEntityBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        minReferencedEntity_ = value;
+      } else {
+        minReferencedEntityBuilder_.setMessage(value);
+      }
+      bitField0_ |= 0x00000010;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Referenced entity whose value anchors the minimum bucket of the histogram. Populated only for
+     * reference-scope histograms when an entity fetch is requested for the associated reference.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity minReferencedEntity = 5;</code>
+     */
+    public Builder setMinReferencedEntity(
+        io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder builderForValue) {
+      if (minReferencedEntityBuilder_ == null) {
+        minReferencedEntity_ = builderForValue.build();
+      } else {
+        minReferencedEntityBuilder_.setMessage(builderForValue.build());
+      }
+      bitField0_ |= 0x00000010;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Referenced entity whose value anchors the minimum bucket of the histogram. Populated only for
+     * reference-scope histograms when an entity fetch is requested for the associated reference.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity minReferencedEntity = 5;</code>
+     */
+    public Builder mergeMinReferencedEntity(io.evitadb.externalApi.grpc.generated.GrpcSealedEntity value) {
+      if (minReferencedEntityBuilder_ == null) {
+        if (((bitField0_ & 0x00000010) != 0) &&
+          minReferencedEntity_ != null &&
+          minReferencedEntity_ != io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.getDefaultInstance()) {
+          getMinReferencedEntityBuilder().mergeFrom(value);
+        } else {
+          minReferencedEntity_ = value;
+        }
+      } else {
+        minReferencedEntityBuilder_.mergeFrom(value);
+      }
+      if (minReferencedEntity_ != null) {
+        bitField0_ |= 0x00000010;
+        onChanged();
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Referenced entity whose value anchors the minimum bucket of the histogram. Populated only for
+     * reference-scope histograms when an entity fetch is requested for the associated reference.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity minReferencedEntity = 5;</code>
+     */
+    public Builder clearMinReferencedEntity() {
+      bitField0_ = (bitField0_ & ~0x00000010);
+      minReferencedEntity_ = null;
+      if (minReferencedEntityBuilder_ != null) {
+        minReferencedEntityBuilder_.dispose();
+        minReferencedEntityBuilder_ = null;
+      }
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Referenced entity whose value anchors the minimum bucket of the histogram. Populated only for
+     * reference-scope histograms when an entity fetch is requested for the associated reference.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity minReferencedEntity = 5;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder getMinReferencedEntityBuilder() {
+      bitField0_ |= 0x00000010;
+      onChanged();
+      return getMinReferencedEntityFieldBuilder().getBuilder();
+    }
+    /**
+     * <pre>
+     * Referenced entity whose value anchors the minimum bucket of the histogram. Populated only for
+     * reference-scope histograms when an entity fetch is requested for the associated reference.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity minReferencedEntity = 5;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder getMinReferencedEntityOrBuilder() {
+      if (minReferencedEntityBuilder_ != null) {
+        return minReferencedEntityBuilder_.getMessageOrBuilder();
+      } else {
+        return minReferencedEntity_ == null ?
+            io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.getDefaultInstance() : minReferencedEntity_;
+      }
+    }
+    /**
+     * <pre>
+     * Referenced entity whose value anchors the minimum bucket of the histogram. Populated only for
+     * reference-scope histograms when an entity fetch is requested for the associated reference.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity minReferencedEntity = 5;</code>
+     */
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcSealedEntity, io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder, io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder> 
+        getMinReferencedEntityFieldBuilder() {
+      if (minReferencedEntityBuilder_ == null) {
+        minReferencedEntityBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            io.evitadb.externalApi.grpc.generated.GrpcSealedEntity, io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder, io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder>(
+                getMinReferencedEntity(),
+                getParentForChildren(),
+                isClean());
+        minReferencedEntity_ = null;
+      }
+      return minReferencedEntityBuilder_;
+    }
+
+    private io.evitadb.externalApi.grpc.generated.GrpcSealedEntity maxReferencedEntity_;
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcSealedEntity, io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder, io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder> maxReferencedEntityBuilder_;
+    /**
+     * <pre>
+     * Referenced entity whose value anchors the maximum bucket of the histogram. Populated only for
+     * reference-scope histograms when an entity fetch is requested for the associated reference.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity maxReferencedEntity = 6;</code>
+     * @return Whether the maxReferencedEntity field is set.
+     */
+    public boolean hasMaxReferencedEntity() {
+      return ((bitField0_ & 0x00000020) != 0);
+    }
+    /**
+     * <pre>
+     * Referenced entity whose value anchors the maximum bucket of the histogram. Populated only for
+     * reference-scope histograms when an entity fetch is requested for the associated reference.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity maxReferencedEntity = 6;</code>
+     * @return The maxReferencedEntity.
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcSealedEntity getMaxReferencedEntity() {
+      if (maxReferencedEntityBuilder_ == null) {
+        return maxReferencedEntity_ == null ? io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.getDefaultInstance() : maxReferencedEntity_;
+      } else {
+        return maxReferencedEntityBuilder_.getMessage();
+      }
+    }
+    /**
+     * <pre>
+     * Referenced entity whose value anchors the maximum bucket of the histogram. Populated only for
+     * reference-scope histograms when an entity fetch is requested for the associated reference.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity maxReferencedEntity = 6;</code>
+     */
+    public Builder setMaxReferencedEntity(io.evitadb.externalApi.grpc.generated.GrpcSealedEntity value) {
+      if (maxReferencedEntityBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        maxReferencedEntity_ = value;
+      } else {
+        maxReferencedEntityBuilder_.setMessage(value);
+      }
+      bitField0_ |= 0x00000020;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Referenced entity whose value anchors the maximum bucket of the histogram. Populated only for
+     * reference-scope histograms when an entity fetch is requested for the associated reference.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity maxReferencedEntity = 6;</code>
+     */
+    public Builder setMaxReferencedEntity(
+        io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder builderForValue) {
+      if (maxReferencedEntityBuilder_ == null) {
+        maxReferencedEntity_ = builderForValue.build();
+      } else {
+        maxReferencedEntityBuilder_.setMessage(builderForValue.build());
+      }
+      bitField0_ |= 0x00000020;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Referenced entity whose value anchors the maximum bucket of the histogram. Populated only for
+     * reference-scope histograms when an entity fetch is requested for the associated reference.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity maxReferencedEntity = 6;</code>
+     */
+    public Builder mergeMaxReferencedEntity(io.evitadb.externalApi.grpc.generated.GrpcSealedEntity value) {
+      if (maxReferencedEntityBuilder_ == null) {
+        if (((bitField0_ & 0x00000020) != 0) &&
+          maxReferencedEntity_ != null &&
+          maxReferencedEntity_ != io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.getDefaultInstance()) {
+          getMaxReferencedEntityBuilder().mergeFrom(value);
+        } else {
+          maxReferencedEntity_ = value;
+        }
+      } else {
+        maxReferencedEntityBuilder_.mergeFrom(value);
+      }
+      if (maxReferencedEntity_ != null) {
+        bitField0_ |= 0x00000020;
+        onChanged();
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Referenced entity whose value anchors the maximum bucket of the histogram. Populated only for
+     * reference-scope histograms when an entity fetch is requested for the associated reference.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity maxReferencedEntity = 6;</code>
+     */
+    public Builder clearMaxReferencedEntity() {
+      bitField0_ = (bitField0_ & ~0x00000020);
+      maxReferencedEntity_ = null;
+      if (maxReferencedEntityBuilder_ != null) {
+        maxReferencedEntityBuilder_.dispose();
+        maxReferencedEntityBuilder_ = null;
+      }
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Referenced entity whose value anchors the maximum bucket of the histogram. Populated only for
+     * reference-scope histograms when an entity fetch is requested for the associated reference.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity maxReferencedEntity = 6;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder getMaxReferencedEntityBuilder() {
+      bitField0_ |= 0x00000020;
+      onChanged();
+      return getMaxReferencedEntityFieldBuilder().getBuilder();
+    }
+    /**
+     * <pre>
+     * Referenced entity whose value anchors the maximum bucket of the histogram. Populated only for
+     * reference-scope histograms when an entity fetch is requested for the associated reference.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity maxReferencedEntity = 6;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder getMaxReferencedEntityOrBuilder() {
+      if (maxReferencedEntityBuilder_ != null) {
+        return maxReferencedEntityBuilder_.getMessageOrBuilder();
+      } else {
+        return maxReferencedEntity_ == null ?
+            io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.getDefaultInstance() : maxReferencedEntity_;
+      }
+    }
+    /**
+     * <pre>
+     * Referenced entity whose value anchors the maximum bucket of the histogram. Populated only for
+     * reference-scope histograms when an entity fetch is requested for the associated reference.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity maxReferencedEntity = 6;</code>
+     */
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcSealedEntity, io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder, io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder> 
+        getMaxReferencedEntityFieldBuilder() {
+      if (maxReferencedEntityBuilder_ == null) {
+        maxReferencedEntityBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            io.evitadb.externalApi.grpc.generated.GrpcSealedEntity, io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder, io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder>(
+                getMaxReferencedEntity(),
+                getParentForChildren(),
+                isClean());
+        maxReferencedEntity_ = null;
+      }
+      return maxReferencedEntityBuilder_;
     }
     @java.lang.Override
     public final Builder setUnknownFields(

@@ -38,6 +38,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -63,7 +64,11 @@ import static java.util.Optional.ofNullable;
  * @param catalogName                    contains name of the catalog that originates in {@link CatalogSchema#getName()}
  * @param catalogState                   contains the state of the catalog that originates in {@link Catalog#getCatalogState()}
  * @param lastEntityCollectionPrimaryKey contains the last assigned {@link EntityCollection#getEntityTypePrimaryKey()}
- * @param activeRecordShare              contains the share of active records in the catalog that is used for
+ * @param activeRecordShare              ratio of active (non-overwritten, non-deleted) bytes to total file size
+ *                                       in the catalog data file, in the range `[0.0, 1.0]`. A value of `1.0`
+ *                                       means every byte in the file is live data; lower values indicate how
+ *                                       much space can be reclaimed by a compaction (vacuum) pass. This value is
+ *                                       used by the storage layer to decide whether compaction should be triggered.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
@@ -79,8 +84,29 @@ public record CatalogHeader<S extends LogRecordReference, T extends CollectionRe
 	int lastEntityCollectionPrimaryKey,
 	double activeRecordShare
 ) implements StoragePart {
-	@Serial private static final long serialVersionUID = 4115945765677481853L;
+	@Serial private static final long serialVersionUID = -8173629045281730496L;
 
+	/**
+	 * Exposes `compressedKeys` as an unmodifiable view so the record's accessor cannot be used to mutate the
+	 * underlying map. All known callers either build a private `HashMap` that is never retained after hand-off
+	 * (deserializers) or pass a view over a backing map that is frozen after its owner's construction
+	 * ({@code ReadOnlyKeyCompressor}), so an O(1) wrap is sufficient — a full copy would not add protection.
+	 */
+	public CatalogHeader {
+		compressedKeys = Collections.unmodifiableMap(compressedKeys);
+	}
+
+	/**
+	 * Convenience constructor for a brand-new, empty catalog that has never been persisted.
+	 *
+	 * All counters are initialised to zero, the catalog state is set to {@link CatalogState#WARMING_UP}, the
+	 * `activeRecordShare` defaults to `1.0` (file is clean), and no WAL reference or collection entries are
+	 * populated. The `storageProtocolVersion` is taken from {@link PersistenceService#STORAGE_PROTOCOL_VERSION} so
+	 * that the header is immediately compatible with the current storage format.
+	 *
+	 * @param catalogId   stable unique identifier assigned at catalog creation time; must not be `null`
+	 * @param catalogName human-readable catalog name matching {@link CatalogSchema#getName()}; must not be `null`
+	 */
 	public CatalogHeader(@Nonnull UUID catalogId, @Nonnull String catalogName) {
 		this(
 			PersistenceService.STORAGE_PROTOCOL_VERSION,

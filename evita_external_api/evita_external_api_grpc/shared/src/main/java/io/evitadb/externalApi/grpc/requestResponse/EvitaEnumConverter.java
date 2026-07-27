@@ -38,6 +38,9 @@ import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExistence;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
+import io.evitadb.api.requestResponse.mutation.conflict.GranularConflictPolicy;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
@@ -45,9 +48,12 @@ import io.evitadb.api.requestResponse.schema.EvolutionMode;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.OrderBehaviour;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract.AttributeInheritanceBehavior;
-import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
-import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
-import io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType;
+import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.GlobalAttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedGlobalAttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingCaptureRequest.TrafficRecordingType;
 import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingContent;
 import io.evitadb.api.task.TaskStatus.TaskSimplifiedState;
@@ -65,6 +71,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.List;
 import java.util.Optional;
 
 import static io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState.*;
@@ -97,6 +104,9 @@ public class EvitaEnumConverter {
 			case BEING_DEACTIVATED -> CatalogState.BEING_DEACTIVATED;
 			case BEING_CREATED -> CatalogState.BEING_CREATED;
 			case BEING_DELETED -> CatalogState.BEING_DELETED;
+			case MISSING -> CatalogState.MISSING;
+			case OUT_OF_DATE -> CatalogState.OUT_OF_DATE;
+			case BEING_UPGRADED -> CatalogState.BEING_UPGRADED;
 			case UNKNOWN_CATALOG_STATE, UNRECOGNIZED ->
 				throw new EvitaInvalidUsageException("Unrecognized remote catalog state: " + grpcCatalogState);
 		};
@@ -120,6 +130,9 @@ public class EvitaEnumConverter {
 			case BEING_DEACTIVATED -> GrpcCatalogState.BEING_DEACTIVATED;
 			case BEING_DELETED -> GrpcCatalogState.BEING_DELETED;
 			case BEING_CREATED -> GrpcCatalogState.BEING_CREATED;
+			case MISSING -> GrpcCatalogState.MISSING;
+			case OUT_OF_DATE -> GrpcCatalogState.OUT_OF_DATE;
+			case BEING_UPGRADED -> GrpcCatalogState.BEING_UPGRADED;
 		};
 	}
 
@@ -453,6 +466,7 @@ public class EvitaEnumConverter {
 		return switch (grpcFacetStatisticsDepth) {
 			case COUNTS -> FacetStatisticsDepth.COUNTS;
 			case IMPACT -> FacetStatisticsDepth.IMPACT;
+			case STATISTICS_NONE -> FacetStatisticsDepth.NONE;
 			case UNRECOGNIZED ->
 				throw new EvitaInvalidUsageException("Unrecognized remote facet statistics depth: " + grpcFacetStatisticsDepth);
 		};
@@ -529,6 +543,7 @@ public class EvitaEnumConverter {
 	@Nonnull
 	public static GrpcFacetStatisticsDepth toGrpcFacetStatisticsDepth(@Nonnull FacetStatisticsDepth facetStatisticsDepth) {
 		return switch (facetStatisticsDepth) {
+			case NONE -> GrpcFacetStatisticsDepth.STATISTICS_NONE;
 			case COUNTS -> GrpcFacetStatisticsDepth.COUNTS;
 			case IMPACT -> GrpcFacetStatisticsDepth.IMPACT;
 		};
@@ -743,6 +758,7 @@ public class EvitaEnumConverter {
 			case FETCHING -> QueryPhase.FETCHING;
 			case FETCHING_REFERENCES -> QueryPhase.FETCHING_REFERENCES;
 			case FETCHING_PARENTS -> QueryPhase.FETCHING_PARENTS;
+			case FETCHING_REFERENCE_BODIES -> QueryPhase.FETCHING_REFERENCE_BODIES;
 			case UNRECOGNIZED ->
 				throw new EvitaInvalidUsageException("Unrecognized remote query phase: " + grpcQueryPhase);
 		};
@@ -779,6 +795,7 @@ public class EvitaEnumConverter {
 			case FETCHING -> GrpcQueryPhase.FETCHING;
 			case FETCHING_REFERENCES -> GrpcQueryPhase.FETCHING_REFERENCES;
 			case FETCHING_PARENTS -> GrpcQueryPhase.FETCHING_PARENTS;
+			case FETCHING_REFERENCE_BODIES -> GrpcQueryPhase.FETCHING_REFERENCE_BODIES;
 		};
 	}
 
@@ -897,6 +914,77 @@ public class EvitaEnumConverter {
 			case UNIQUE_WITHIN_CATALOG -> GrpcGlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG;
 			case UNIQUE_WITHIN_CATALOG_LOCALE -> GrpcGlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG_LOCALE;
 		};
+	}
+
+	/**
+	 * Converts a gRPC scoped attribute uniqueness type list to a domain model array. When the scoped list is empty
+	 * (backward compatibility), falls back to the legacy single-value field wrapped in a default-scope array.
+	 *
+	 * @param scopedList   the gRPC scoped list (may be empty for legacy messages)
+	 * @param defaultValue the legacy single-value field used as fallback
+	 * @return array of scoped attribute uniqueness types
+	 */
+	@Nonnull
+	public static ScopedAttributeUniquenessType[] toScopedAttributeUniquenessTypes(
+		@Nonnull List<GrpcScopedAttributeUniquenessType> scopedList,
+		@Nonnull GrpcAttributeUniquenessType defaultValue
+	) {
+		return scopedList.isEmpty() ?
+			new ScopedAttributeUniquenessType[]{
+				new ScopedAttributeUniquenessType(Scope.DEFAULT_SCOPE, toAttributeUniquenessType(defaultValue))
+			}
+			:
+			scopedList
+				.stream()
+				.map(it -> new ScopedAttributeUniquenessType(toScope(it.getScope()), toAttributeUniquenessType(it.getUniquenessType())))
+				.toArray(ScopedAttributeUniquenessType[]::new);
+	}
+
+	/**
+	 * Converts a gRPC scoped global attribute uniqueness type list to a domain model array. When the scoped list
+	 * is empty (backward compatibility), falls back to the legacy single-value field wrapped in a default-scope array.
+	 *
+	 * @param scopedList   the gRPC scoped list (may be empty for legacy messages)
+	 * @param defaultValue the legacy single-value field used as fallback
+	 * @return array of scoped global attribute uniqueness types
+	 */
+	@Nonnull
+	public static ScopedGlobalAttributeUniquenessType[] toScopedGlobalAttributeUniquenessTypes(
+		@Nonnull List<GrpcScopedGlobalAttributeUniquenessType> scopedList,
+		@Nonnull GrpcGlobalAttributeUniquenessType defaultValue
+	) {
+		return scopedList.isEmpty() ?
+			new ScopedGlobalAttributeUniquenessType[]{
+				new ScopedGlobalAttributeUniquenessType(Scope.DEFAULT_SCOPE, toGlobalAttributeUniquenessType(defaultValue))
+			}
+			:
+			scopedList
+				.stream()
+				.map(it -> new ScopedGlobalAttributeUniquenessType(toScope(it.getScope()), toGlobalAttributeUniquenessType(it.getUniquenessType())))
+				.toArray(ScopedGlobalAttributeUniquenessType[]::new);
+	}
+
+	/**
+	 * Converts a gRPC scope list to a domain model scope array. When the scoped list is empty
+	 * (backward compatibility), falls back to the legacy boolean field: `true` yields default scopes,
+	 * `false` yields no scopes.
+	 *
+	 * @param scopesList   the gRPC scope list (may be empty for legacy messages)
+	 * @param defaultValue the legacy boolean field used as fallback
+	 * @return array of scopes
+	 */
+	@Nonnull
+	public static Scope[] toBooleanScopes(
+		@Nonnull List<GrpcEntityScope> scopesList,
+		boolean defaultValue
+	) {
+		return scopesList.isEmpty() ?
+			(defaultValue ? Scope.DEFAULT_SCOPES : Scope.NO_SCOPE)
+			:
+			scopesList
+				.stream()
+				.map(EvitaEnumConverter::toScope)
+				.toArray(Scope[]::new);
 	}
 
 	/**
@@ -1395,6 +1483,146 @@ public class EvitaEnumConverter {
 			case NONE -> GrpcReferenceIndexType.REFERENCE_INDEX_TYPE_NONE;
 			case FOR_FILTERING -> GrpcReferenceIndexType.REFERENCE_INDEX_TYPE_FOR_FILTERING;
 			case FOR_FILTERING_AND_PARTITIONING -> GrpcReferenceIndexType.REFERENCE_INDEX_TYPE_FOR_FILTERING_AND_PARTITIONING;
+		};
+	}
+
+	/**
+	 * Converts a {@link GrpcReferenceIndexedComponents} to a {@link ReferenceIndexedComponents}.
+	 *
+	 * @param grpcComponents the gRPC reference indexed components to convert.
+	 * @return the corresponding reference indexed components.
+	 * @throws EvitaInvalidUsageException if the conversion cannot be performed.
+	 */
+	@Nonnull
+	public static ReferenceIndexedComponents toReferenceIndexedComponents(@Nonnull GrpcReferenceIndexedComponents grpcComponents) {
+		return switch (grpcComponents) {
+			case REFERENCE_INDEXED_COMPONENTS_REFERENCED_ENTITY -> ReferenceIndexedComponents.REFERENCED_ENTITY;
+			case REFERENCE_INDEXED_COMPONENTS_REFERENCED_GROUP_ENTITY -> ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY;
+			case UNRECOGNIZED ->
+				throw new EvitaInvalidUsageException("Unrecognized gRPC reference indexed components: " + grpcComponents);
+		};
+	}
+
+	/**
+	 * Converts a {@link ReferenceIndexedComponents} to a {@link GrpcReferenceIndexedComponents}.
+	 *
+	 * @param components the reference indexed components to convert.
+	 * @return the corresponding gRPC reference indexed components.
+	 */
+	@Nonnull
+	public static GrpcReferenceIndexedComponents toGrpcReferenceIndexedComponents(@Nonnull ReferenceIndexedComponents components) {
+		return switch (components) {
+			case REFERENCED_ENTITY -> GrpcReferenceIndexedComponents.REFERENCE_INDEXED_COMPONENTS_REFERENCED_ENTITY;
+			case REFERENCED_GROUP_ENTITY -> GrpcReferenceIndexedComponents.REFERENCE_INDEXED_COMPONENTS_REFERENCED_GROUP_ENTITY;
+		};
+	}
+
+	/**
+	 * Converts {@link GrpcConflictResolutionOverride} to {@link ConflictResolutionOverride}.
+	 *
+	 * @param grpcOverride the {@link GrpcConflictResolutionOverride} to be converted
+	 * @return the converted {@link ConflictResolutionOverride}
+	 * @throws EvitaInvalidUsageException if the remote override is unrecognized
+	 */
+	@Nonnull
+	public static ConflictResolutionOverride toConflictResolutionOverride(@Nonnull GrpcConflictResolutionOverride grpcOverride) {
+		return switch (grpcOverride) {
+			case CONFLICT_RESOLUTION_OVERRIDE_INHERITED -> ConflictResolutionOverride.INHERITED;
+			case CONFLICT_RESOLUTION_OVERRIDE_GRANULAR -> ConflictResolutionOverride.GRANULAR;
+			case CONFLICT_RESOLUTION_OVERRIDE_ENTITY -> ConflictResolutionOverride.ENTITY;
+			case UNRECOGNIZED ->
+				throw new EvitaInvalidUsageException("Unrecognized remote conflict resolution override: " + grpcOverride);
+		};
+	}
+
+	/**
+	 * Converts {@link ConflictResolutionOverride} to {@link GrpcConflictResolutionOverride}.
+	 *
+	 * @param override the {@link ConflictResolutionOverride} to be converted
+	 * @return the converted {@link GrpcConflictResolutionOverride}
+	 */
+	@Nonnull
+	public static GrpcConflictResolutionOverride toGrpcConflictResolutionOverride(@Nonnull ConflictResolutionOverride override) {
+		return switch (override) {
+			case INHERITED -> GrpcConflictResolutionOverride.CONFLICT_RESOLUTION_OVERRIDE_INHERITED;
+			case GRANULAR -> GrpcConflictResolutionOverride.CONFLICT_RESOLUTION_OVERRIDE_GRANULAR;
+			case ENTITY -> GrpcConflictResolutionOverride.CONFLICT_RESOLUTION_OVERRIDE_ENTITY;
+		};
+	}
+
+	/**
+	 * Converts {@link GrpcConflictPolicy} to {@link ConflictPolicy}.
+	 *
+	 * @param grpcPolicy the {@link GrpcConflictPolicy} to be converted
+	 * @return the converted {@link ConflictPolicy}
+	 * @throws EvitaInvalidUsageException if the remote policy is unrecognized
+	 */
+	@Nonnull
+	public static ConflictPolicy toConflictPolicy(@Nonnull GrpcConflictPolicy grpcPolicy) {
+		return switch (grpcPolicy) {
+			case CONFLICT_POLICY_NONE -> ConflictPolicy.NONE;
+			case CONFLICT_POLICY_CATALOG -> ConflictPolicy.CATALOG;
+			case CONFLICT_POLICY_COLLECTION -> ConflictPolicy.COLLECTION;
+			case CONFLICT_POLICY_ENTITY -> ConflictPolicy.ENTITY;
+			case UNRECOGNIZED ->
+				throw new EvitaInvalidUsageException("Unrecognized remote conflict policy: " + grpcPolicy);
+		};
+	}
+
+	/**
+	 * Converts the coarse {@link ConflictPolicy} to {@link GrpcConflictPolicy}. The coarse scopes (NONE, CATALOG,
+	 * COLLECTION, ENTITY) map one-to-one over the wire; sub-entity refinements are carried separately by
+	 * {@link GrpcGranularConflictPolicy}.
+	 *
+	 * @param policy the coarse {@link ConflictPolicy} to be converted
+	 * @return the converted {@link GrpcConflictPolicy}
+	 */
+	@Nonnull
+	public static GrpcConflictPolicy toGrpcConflictPolicy(@Nonnull ConflictPolicy policy) {
+		return switch (policy) {
+			case NONE -> GrpcConflictPolicy.CONFLICT_POLICY_NONE;
+			case CATALOG -> GrpcConflictPolicy.CONFLICT_POLICY_CATALOG;
+			case COLLECTION -> GrpcConflictPolicy.CONFLICT_POLICY_COLLECTION;
+			case ENTITY -> GrpcConflictPolicy.CONFLICT_POLICY_ENTITY;
+		};
+	}
+
+	/**
+	 * Converts {@link GrpcGranularConflictPolicy} to {@link GranularConflictPolicy}.
+	 *
+	 * @param grpcPolicy the {@link GrpcGranularConflictPolicy} to be converted
+	 * @return the converted {@link GranularConflictPolicy}
+	 * @throws EvitaInvalidUsageException if the remote policy is unrecognized
+	 */
+	@Nonnull
+	public static GranularConflictPolicy toGranularConflictPolicy(@Nonnull GrpcGranularConflictPolicy grpcPolicy) {
+		return switch (grpcPolicy) {
+			case GRANULAR_CONFLICT_POLICY_ENTITY_ATTRIBUTE -> GranularConflictPolicy.ENTITY_ATTRIBUTE;
+			case GRANULAR_CONFLICT_POLICY_REFERENCE -> GranularConflictPolicy.REFERENCE;
+			case GRANULAR_CONFLICT_POLICY_REFERENCE_ATTRIBUTE -> GranularConflictPolicy.REFERENCE_ATTRIBUTE;
+			case GRANULAR_CONFLICT_POLICY_ASSOCIATED_DATA -> GranularConflictPolicy.ASSOCIATED_DATA;
+			case GRANULAR_CONFLICT_POLICY_PRICE -> GranularConflictPolicy.PRICE;
+			case GRANULAR_CONFLICT_POLICY_HIERARCHY -> GranularConflictPolicy.HIERARCHY;
+			case UNRECOGNIZED ->
+				throw new EvitaInvalidUsageException("Unrecognized remote granular conflict policy: " + grpcPolicy);
+		};
+	}
+
+	/**
+	 * Converts {@link GranularConflictPolicy} to {@link GrpcGranularConflictPolicy}.
+	 *
+	 * @param policy the {@link GranularConflictPolicy} to be converted
+	 * @return the converted {@link GrpcGranularConflictPolicy}
+	 */
+	@Nonnull
+	public static GrpcGranularConflictPolicy toGrpcGranularConflictPolicy(@Nonnull GranularConflictPolicy policy) {
+		return switch (policy) {
+			case ENTITY_ATTRIBUTE -> GrpcGranularConflictPolicy.GRANULAR_CONFLICT_POLICY_ENTITY_ATTRIBUTE;
+			case REFERENCE -> GrpcGranularConflictPolicy.GRANULAR_CONFLICT_POLICY_REFERENCE;
+			case REFERENCE_ATTRIBUTE -> GrpcGranularConflictPolicy.GRANULAR_CONFLICT_POLICY_REFERENCE_ATTRIBUTE;
+			case ASSOCIATED_DATA -> GrpcGranularConflictPolicy.GRANULAR_CONFLICT_POLICY_ASSOCIATED_DATA;
+			case PRICE -> GrpcGranularConflictPolicy.GRANULAR_CONFLICT_POLICY_PRICE;
+			case HIERARCHY -> GrpcGranularConflictPolicy.GRANULAR_CONFLICT_POLICY_HIERARCHY;
 		};
 	}
 }

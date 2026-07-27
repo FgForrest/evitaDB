@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -27,6 +27,9 @@ import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.core.metric.event.storage.FileType;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.exception.UnexpectedIOException;
+import io.evitadb.store.checksum.Checksum;
+import io.evitadb.store.checksum.ChecksumFactory;
+import io.evitadb.store.compression.CompressionFactory;
 import io.evitadb.store.kryo.ObservableOutput;
 import io.evitadb.store.kryo.ObservableOutputKeeper;
 import io.evitadb.store.offsetIndex.OffsetIndex;
@@ -34,6 +37,7 @@ import io.evitadb.store.offsetIndex.exception.InvalidStoragePathException;
 import io.evitadb.store.offsetIndex.exception.SyncFailedException;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
+import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -41,12 +45,16 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.nio.channels.FileChannel;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.zip.Deflater;
 
 import static io.evitadb.utils.Assert.isPremiseValid;
 
@@ -58,6 +66,7 @@ import static io.evitadb.utils.Assert.isPremiseValid;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
+@Slf4j
 public class WriteOnlyFileHandle implements WriteOnlyHandle {
 	/**
 	 * Logical name of the file that backs the {@link OffsetIndex} - used for observability.
@@ -75,11 +84,40 @@ public class WriteOnlyFileHandle implements WriteOnlyHandle {
 	 * The maximum time (in seconds) that a thread may wait to acquire the lock on the file handle.
 	 * If a thread cannot acquire the lock within this time, a StorageException is thrown.
 	 */
-	private final long lockTimeoutSeconds;
+	private final int lockTimeoutSeconds;
 	/**
-	 * Reference to the {@link StorageOptions} object that contains configuration options for the storage system.
+	 * Size of the memory buffer used for write operations, in bytes.
+	 * This buffer size limits the maximum size of individual records that can be written.
+	 * Sourced from {@link StorageOptions#outputBufferSize()}, typically defaults to 2MB.
 	 */
-	private final StorageOptions storageOptions;
+	private final int outputBufferSize;
+	/**
+	 * Controls whether OS buffer flush is forced at safe points to ensure data durability.
+	 * When true, forces file system sync operations to persist data to physical storage.
+	 * Sourced from {@link StorageOptions#syncWrites()}.
+	 */
+	private final boolean syncWrites;
+	/**
+	 * When set, the device flush at the end of each write is handed to this registry instead of being issued inline,
+	 * and the file is made durable later by whoever owns the registry (see {@link PendingSyncRegistry}). The buffer
+	 * flush is unaffected either way.
+	 *
+	 * Null restores the historical behaviour: sync inline whenever {@link #syncWrites} is set. Only the catalog and
+	 * entity collection data files - the ones a trunk round writes and a checkpoint later forces - are given
+	 * a registry; the bootstrap file, the engine files and the write-ahead log keep syncing inline.
+	 */
+	@Nullable private final PendingSyncRegistry pendingSyncRegistry;
+	/**
+	 * Factory for creating checksums for data integrity verification during write operations.
+	 * Sourced from {@link StorageOptions#computeCRC32C()}.
+	 */
+	private final ChecksumFactory checksumFactory;
+	/**
+	 * Factory for creating compressor and decompressor instances for optional data compression.
+	 * Compression is applied only when it reduces data size below the original.
+	 * Sourced from {@link StorageOptions#compress()}.
+	 */
+	private final CompressionFactory compressionFactory;
 	/**
 	 * The path to the target file that this handle is associated with.
 	 * This handle provides write-only access to the file at this path.
@@ -162,29 +200,32 @@ public class WriteOnlyFileHandle implements WriteOnlyHandle {
 	 * The method ensures the file is opened for writing, optionally computes a CRC32 checksum,
 	 * and applies compression if specified in the storage options.
 	 *
-	 * @param theFilePath    The path to the target file to which data will be written.
-	 * @param storageOptions The storage options that define buffer size, checksum computation, and compression settings.
+	 * @param theFilePath The path to the target file to which data will be written.
+	 * @param outputBufferSize the size of the output buffer to use for writing data.
+	 * @param checksum The checksum calculator touse for data integrity verification.
+	 * @param deflater The deflater to use for compressing data, or {@code null} if no compression is desired.
+	 *
 	 * @return An {@code ObservableOutput} instance wrapping a {@code FileOutputStream} for the specified file.
 	 * @throws UnexpectedIOException If the target file cannot be opened or accessed.
 	 */
 	@Nonnull
-	static ObservableOutput<FileOutputStream> createObservableOutput(@Nonnull Path theFilePath, @Nonnull StorageOptions storageOptions) {
+	static ObservableOutput<FileOutputStream> createObservableOutput(
+		@Nonnull Path theFilePath,
+		int outputBufferSize,
+		@Nonnull Checksum checksum,
+		@Nullable Deflater deflater
+	) {
 		try {
 			final File theFile = theFilePath.toFile();
 			final FileOutputStream targetOs = new FileOutputStream(theFile, true);
-			final ObservableOutput<FileOutputStream> output = new ObservableOutput<>(
+			return new ObservableOutput<>(
 				targetOs,
-				Math.min(ObservableOutput.DEFAULT_FLUSH_SIZE, storageOptions.outputBufferSize()),
-				storageOptions.outputBufferSize(),
-				theFile.length()
+				Math.min(ObservableOutput.DEFAULT_FLUSH_SIZE, outputBufferSize),
+				outputBufferSize,
+				theFile.length(),
+				checksum,
+				deflater
 			);
-			if (storageOptions.computeCRC32C()) {
-				output.computeCRC32();
-			}
-			if (storageOptions.compress()) {
-				output.compress();
-			}
-			return output;
 		} catch (FileNotFoundException ex) {
 			throw new UnexpectedIOException(
 				"Target file " + theFilePath + " cannot be opened!",
@@ -212,37 +253,132 @@ public class WriteOnlyFileHandle implements WriteOnlyHandle {
 		}
 	}
 
+	/**
+	 * Flushes the write buffer and then either forces the bytes to the device or notes the file as owing a force.
+	 *
+	 * Only the **device** flush is ever deferred. `os.flush()` runs on both paths, so offsets are assigned, the Kryo
+	 * buffer is released and the freshly written records are readable through the page cache exactly as before -
+	 * everything downstream of this call sees the same state either way. What changes is solely when the operating
+	 * system is told to put those pages on the platter.
+	 *
+	 * @param os the output whose buffer is to be flushed
+	 */
+	private void doSyncOrDefer(@Nonnull ObservableOutput<FileOutputStream> os) {
+		if (this.pendingSyncRegistry == null) {
+			doSync(os, this.syncWrites);
+		} else {
+			doSync(os, false);
+			this.pendingSyncRegistry.noteSyncPending(this);
+		}
+	}
+
+	@Override
+	public void forceDurable() {
+		// deliberately opened fresh rather than reusing the output's descriptor: ObservableOutputKeeper owns
+		// that one and may have released it since the write. fsync is a property of the file, not of the
+		// descriptor, so a new channel flushes exactly the same dirty pages. The extra open/close is a couple
+		// of microseconds against a device flush measured at ~5 ms on this class of storage.
+		try (final FileChannel channel = FileChannel.open(this.targetFile, StandardOpenOption.WRITE)) {
+			// force(true) - metadata included. On an appended file the length IS metadata, and a stale length
+			// silently truncates the very records the bootstrap record is about to point at.
+			channel.force(true);
+		} catch (NoSuchFileException e) {
+			// a REAL state, not an unhandled branch: compaction rewrites a data file under a new index and deletes
+			// the old one, so a handle noted as owing a force may name a file that no longer exists by the time the
+			// checkpoint runs. There is nothing left to make durable - no record written from here on can point into
+			// a deleted file, and compaction fsyncs the replacement itself before the bootstrap record naming it is
+			// written. Forcing a file that is gone is not possible and not needed.
+			if (log.isDebugEnabled()) {
+				log.debug("Skipping deferred sync of `{}` - the file no longer exists.", this.targetFile);
+			}
+		} catch (IOException e) {
+			throw new SyncFailedException(e);
+		}
+	}
+
 	public WriteOnlyFileHandle(
 		@Nonnull Path targetFile,
-		@Nonnull StorageOptions storageOptions,
+		int outputBufferSize,
+		boolean syncWrites,
+		@Nonnull ChecksumFactory checksumCalculatorFactory,
+		@Nonnull CompressionFactory compressionFactory,
 		@Nonnull ObservableOutputKeeper observableOutputKeeper
 	) {
-		this(null, null, null, storageOptions, targetFile, observableOutputKeeper);
+		this(
+			null, null, null, outputBufferSize, syncWrites,
+			checksumCalculatorFactory, compressionFactory,
+			targetFile, observableOutputKeeper
+		);
 	}
 
 	public WriteOnlyFileHandle(
 		@Nullable FileType fileType,
 		@Nullable String logicalName,
 		@Nonnull Path targetFile,
-		@Nonnull StorageOptions storageOptions,
+		int outputBufferSize,
+		boolean syncWrites,
+		@Nonnull ChecksumFactory checksumCalculatorFactory,
+		@Nonnull CompressionFactory compressionFactory,
 		@Nonnull ObservableOutputKeeper observableOutputKeeper
 	) {
-		this(null, fileType, logicalName, storageOptions, targetFile, observableOutputKeeper);
+		this(
+			null, fileType, logicalName, outputBufferSize, syncWrites,
+			checksumCalculatorFactory, compressionFactory,
+			targetFile, observableOutputKeeper
+		);
 	}
 
 	public WriteOnlyFileHandle(
 		@Nullable String catalogName,
 		@Nullable FileType fileType,
 		@Nullable String logicalName,
-		@Nonnull StorageOptions storageOptions,
+		int outputBufferSize,
+		boolean syncWrites,
+		@Nonnull ChecksumFactory checksumFactory,
+		@Nonnull CompressionFactory compressionFactory,
 		@Nonnull Path targetFile,
 		@Nonnull ObservableOutputKeeper observableOutputKeeper
 	) {
+		this(
+			catalogName, fileType, logicalName, outputBufferSize, syncWrites,
+			checksumFactory, compressionFactory, targetFile, observableOutputKeeper, null
+		);
+	}
+
+	/**
+	 * Creates a handle whose device flush is deferred to a checkpoint instead of being issued at the end of every
+	 * write.
+	 *
+	 * @param pendingSyncRegistry registry notified after each write instead of issuing `fsync`; null keeps the
+	 *                            historical inline-sync behaviour
+	 */
+	public WriteOnlyFileHandle(
+		@Nullable String catalogName,
+		@Nullable FileType fileType,
+		@Nullable String logicalName,
+		int outputBufferSize,
+		boolean syncWrites,
+		@Nonnull ChecksumFactory checksumFactory,
+		@Nonnull CompressionFactory compressionFactory,
+		@Nonnull Path targetFile,
+		@Nonnull ObservableOutputKeeper observableOutputKeeper,
+		@Nullable PendingSyncRegistry pendingSyncRegistry
+	) {
+		// deferring a sync that would never have been issued would make the checkpoint force files for an operator
+		// who explicitly turned durability off - the two settings are orthogonal and the caller resolves them
+		isPremiseValid(
+			pendingSyncRegistry == null || syncWrites,
+			"Deferred sync must not be configured on a handle that does not sync at all!"
+		);
+		this.pendingSyncRegistry = pendingSyncRegistry;
 		this.catalogName = catalogName;
 		this.fileType = fileType;
 		this.logicalName = logicalName;
 		this.lockTimeoutSeconds = observableOutputKeeper.getLockTimeoutSeconds();
-		this.storageOptions = storageOptions;
+		this.outputBufferSize = outputBufferSize;
+		this.syncWrites = syncWrites;
+		this.checksumFactory = checksumFactory;
+		this.compressionFactory = compressionFactory;
 		this.targetFile = targetFile;
 		isPremiseValid(getTargetFile(targetFile) != null, "Target file should be created or exception thrown!");
 		this.observableOutputKeeper = observableOutputKeeper;
@@ -281,7 +417,7 @@ public class WriteOnlyFileHandle implements WriteOnlyHandle {
 						this::createObservableOutput,
 						observableOutput -> {
 							logic.accept(observableOutput);
-							doSync(observableOutput, this.storageOptions.syncWrites());
+							doSyncOrDefer(observableOutput);
 						}
 					);
 					return;
@@ -307,7 +443,7 @@ public class WriteOnlyFileHandle implements WriteOnlyHandle {
 						this::createObservableOutput,
 						observableOutput -> {
 							final S result = logic.apply(observableOutput);
-							doSync(observableOutput, this.storageOptions.syncWrites());
+							doSyncOrDefer(observableOutput);
 							return postExecutionLogic.apply(observableOutput, result);
 						}
 					);
@@ -332,7 +468,7 @@ public class WriteOnlyFileHandle implements WriteOnlyHandle {
 	public ReadOnlyHandle toReadOnlyHandle() {
 		return new ReadOnlyFileHandle(
 			this.catalogName, this.fileType, this.logicalName,
-			this.targetFile, this.storageOptions
+			this.targetFile, this.checksumFactory, this.compressionFactory
 		);
 	}
 
@@ -359,7 +495,12 @@ public class WriteOnlyFileHandle implements WriteOnlyHandle {
 	 */
 	@Nonnull
 	private ObservableOutput<FileOutputStream> createObservableOutput(@Nonnull Path theFilePath) {
-		return createObservableOutput(theFilePath, this.storageOptions);
+		return createObservableOutput(
+			theFilePath,
+			this.outputBufferSize,
+			this.checksumFactory.createChecksum(),
+			this.compressionFactory.createCompressor().orElse(null)
+		);
 	}
 
 }

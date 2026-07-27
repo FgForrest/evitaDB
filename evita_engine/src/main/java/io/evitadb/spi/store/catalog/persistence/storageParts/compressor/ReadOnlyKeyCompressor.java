@@ -59,8 +59,22 @@ public class ReadOnlyKeyCompressor implements KeyCompressor {
 	 * Reverse lookup index to {@link #idToKeyIndex}
 	 */
 	private final Map<Object, Integer> keyToIdIndex;
+	/**
+	 * Highest id observed at construction. Captured during the single iteration that populates the
+	 * lookup tables, so {@link #getPeakId()} is a field read with no allocation.
+	 */
+	private final int peakId;
+	/**
+	 * Human-readable label describing where this compressor was built (e.g. `bootstrap`, `post-flush`, `tx-bootstrap`).
+	 * Included in failure messages to identify the origin of a compressor that turned out to be incomplete.
+	 */
+	private final String source;
 
 	public ReadOnlyKeyCompressor(@Nonnull Map<Integer, Object> keys) {
+		this(keys, "unknown");
+	}
+
+	public ReadOnlyKeyCompressor(@Nonnull Map<Integer, Object> keys, @Nonnull String source) {
 		int peek = 0;
 		final Map<Integer, Object> idToKeyIndexInstance = createHashMap(keys.size());
 		final Map<Object, Integer> keyToIdIndexInstance = createHashMap(keys.size());
@@ -73,6 +87,8 @@ public class ReadOnlyKeyCompressor implements KeyCompressor {
 		}
 		this.idToKeyIndex = Collections.unmodifiableMap(idToKeyIndexInstance);
 		this.keyToIdIndex = Collections.unmodifiableMap(keyToIdIndexInstance);
+		this.peakId = peek;
+		this.source = source;
 	}
 
 	@Override
@@ -100,9 +116,31 @@ public class ReadOnlyKeyCompressor implements KeyCompressor {
 	@Override
 	public <T extends Comparable<T>> T getKeyForId(int id) {
 		final Object key = this.idToKeyIndex.get(id);
-		Assert.notNull(key, "There is no key for id " + id + "!");
+		Assert.isPremiseValid(key != null, () -> missingKeyDiagnostic(id));
 		//noinspection unchecked
 		return (T) key;
+	}
+
+	/**
+	 * Builds a diagnostic message for a missing id that includes the current compressor state and its construction
+	 * source, so a production failure can be attributed to a specific build path without additional instrumentation.
+	 */
+	@Nonnull
+	private String missingKeyDiagnostic(int id) {
+		int min = Integer.MAX_VALUE;
+		int max = Integer.MIN_VALUE;
+		for (Integer existing : this.idToKeyIndex.keySet()) {
+			final int value = existing;
+			if (value < min) {
+				min = value;
+			}
+			if (value > max) {
+				max = value;
+			}
+		}
+		final String range = this.idToKeyIndex.isEmpty() ? "empty" : ("[" + min + "," + max + "]");
+		return "There is no key for id " + id + "! Compressor size=" + this.idToKeyIndex.size() +
+			", id range=" + range + ", source=" + this.source;
 	}
 
 	@Nullable
@@ -111,5 +149,10 @@ public class ReadOnlyKeyCompressor implements KeyCompressor {
 		final Object key = this.idToKeyIndex.get(id);
 		//noinspection unchecked
 		return (T) key;
+	}
+
+	@Override
+	public int getPeakId() {
+		return this.peakId;
 	}
 }

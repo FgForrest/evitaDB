@@ -41,6 +41,31 @@ class ChangePlan {
 	@Getter private boolean both;
 	@Getter private boolean none;
 
+	/**
+	 * Selects and records the next merge operation for the two cursor positions. INSERTION wins ties
+	 * against a later removal; an equal insertion/removal position plans both; a lone removal or the
+	 * exhausted state (`-1`/`-1`) fall through accordingly. This is the single decision shared by every
+	 * diff layer's merge loop ({@link IntArrayChanges}, {@link ObjArrayChanges}, {@link ComplexObjArrayChanges}).
+	 *
+	 * @param nextInsertionPosition index of the next non-processed insertion command, or -1 if none
+	 * @param nextRemovalPosition   index of the next non-processed removal command, or -1 if none
+	 */
+	void planNextOperation(int nextInsertionPosition, int nextRemovalPosition) {
+		if (nextInsertionPosition >= 0) {
+			if (nextRemovalPosition == -1 || nextRemovalPosition > nextInsertionPosition) {
+				planInsertOperation(nextInsertionPosition);
+			} else if (nextInsertionPosition == nextRemovalPosition) {
+				planBothOperations(nextInsertionPosition);
+			} else {
+				planRemovalOperation(nextRemovalPosition);
+			}
+		} else if (nextRemovalPosition >= 0) {
+			planRemovalOperation(nextRemovalPosition);
+		} else {
+			noOperations();
+		}
+	}
+
 	void planInsertOperation(int position) {
 		this.position = position;
 		this.insertion = true;

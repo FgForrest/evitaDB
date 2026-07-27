@@ -34,8 +34,8 @@ import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.utils.Assert;
-import org.roaringbitmap.RoaringBitmap;
-import org.roaringbitmap.RoaringBitmapWriter;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
+import io.evitadb.roaringbitmap.RoaringBitmapWriter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -48,12 +48,74 @@ import static java.util.Optional.ofNullable;
 
 /**
  * Interface marks all {@link Formula} that resolve facet filtering. This interface allows locating appropriate formulas
- * in the tree when {@link FacetStatisticsDepth#IMPACT} is requested to be computed and original requirements needs to
- * be altered in order to compute alternative searches.
+ * in the tree when {@link FacetStatisticsDepth#IMPACT} is requested to be computed and original requirements need to
+ * be altered to compute alternative searches.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public interface FacetGroupFormula extends NonCacheableFormula {
+
+	/**
+	 * Returns a compact string representation of a facet group formula showing per-facet bitmap sizes.
+	 *
+	 * @param operator     the logical operator name (e.g. "AND", "OR")
+	 * @param referenceName the reference name targeting the facet
+	 * @param facetGroupId the facet group id shared among all facets, or null if ungrouped
+	 * @param facetIds     bitmap of requested facet ids
+	 * @param bitmaps      array of bitmaps matching the requested facet ids
+	 * @return formatted string with bitmap sizes
+	 */
+	@Nonnull
+	static String toStringRepresentation(
+		@Nonnull String operator,
+		@Nonnull String referenceName,
+		@Nullable Integer facetGroupId,
+		@Nonnull Bitmap facetIds,
+		@Nonnull Bitmap[] bitmaps
+	) {
+		final String groupIdStr = facetGroupId == null ? "-" : facetGroupId.toString();
+		final StringBuilder sb = new StringBuilder(64);
+		sb.append("FACET ").append(referenceName).append(' ').append(operator)
+			.append(" (").append(groupIdStr).append(" - ").append(facetIds).append("): ");
+		for (int i = 0; i < bitmaps.length; i++) {
+			sb.append(" ↦ ").append(bitmaps[i].size());
+			if (i + 1 < facetIds.size()) {
+				sb.append(", ");
+			}
+		}
+		return sb.append(" primary keys").toString();
+	}
+
+	/**
+	 * Returns a verbose string representation of a facet group formula showing full bitmap contents.
+	 *
+	 * @param operator     the logical operator name (e.g. "AND", "OR")
+	 * @param referenceName the reference name targeting the facet
+	 * @param facetGroupId the facet group id shared among all facets, or null if ungrouped
+	 * @param facetIds     bitmap of requested facet ids
+	 * @param bitmaps      array of bitmaps matching the requested facet ids
+	 * @return formatted string with full bitmap contents
+	 */
+	@Nonnull
+	static String toStringVerboseRepresentation(
+		@Nonnull String operator,
+		@Nonnull String referenceName,
+		@Nullable Integer facetGroupId,
+		@Nonnull Bitmap facetIds,
+		@Nonnull Bitmap[] bitmaps
+	) {
+		final String groupIdStr = facetGroupId == null ? "-" : facetGroupId.toString();
+		final StringBuilder sb = new StringBuilder(128);
+		sb.append("FACET ").append(referenceName).append(' ').append(operator)
+			.append(" (").append(groupIdStr).append(" - ").append(facetIds).append("): ");
+		for (int i = 0; i < bitmaps.length; i++) {
+			sb.append(" ↦ ").append(bitmaps[i]);
+			if (i + 1 < facetIds.size()) {
+				sb.append(", ");
+			}
+		}
+		return sb.toString();
+	}
 
 	/**
 	 * Method merges two {@link FacetGroupFormula} of the same type related to same group id into the one.
@@ -74,7 +136,7 @@ public interface FacetGroupFormula extends NonCacheableFormula {
 		final Bitmap thatFacetIds = b.getFacetIds();
 		final Bitmap[] thatFacetBitmaps = b.getBitmaps();
 
-		final RoaringBitmapWriter<RoaringBitmap> collectedFacetIds = RoaringBitmapBackedBitmap.buildWriter();
+		final RoaringBitmapWriter<PersistentRoaringBitmap> collectedFacetIds = RoaringBitmapBackedBitmap.buildWriter();
 		final IntObjectMap<Bitmap> aggregatedBitmaps = new IntObjectHashMap<>(thisFacetIds.size() + thatFacetIds.size());
 		final OfInt thisFacetIdsIterator = thisFacetIds.iterator();
 		int thisFacetIdsIndex = 0;
@@ -90,7 +152,7 @@ public interface FacetGroupFormula extends NonCacheableFormula {
 			final int facetId = thatFacetIdsIterator.next();
 			final Bitmap bitmap = thatFacetBitmaps[thatFacetIdsIndex++];
 			final Bitmap combinedBitmaps = ofNullable(aggregatedBitmaps.get(facetId))
-				.map(it -> (Bitmap) new BaseBitmap(RoaringBitmap.or(getRoaringBitmap(it), getRoaringBitmap(bitmap))))
+				.map(it -> (Bitmap) new BaseBitmap(PersistentRoaringBitmap.or(getRoaringBitmap(it), getRoaringBitmap(bitmap))))
 				.orElse(bitmap);
 			collectedFacetIds.add(facetId);
 			aggregatedBitmaps.put(facetId, combinedBitmaps);

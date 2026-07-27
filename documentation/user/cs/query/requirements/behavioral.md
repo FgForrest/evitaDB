@@ -1,11 +1,12 @@
 ---
 title: Kontejnery pro behaviorální požadavky
-date: '29.11.2024'
+date: '11.5.2026'
 perex: Speciální kontejnery pro behaviorální požadavky se používají k definování rozsahu požadavkové podmínky.
 author: Ing. Jan Novotný
 proofreading: done
 preferredLang: evitaql
 commit: cef96d8320d36c91c100c5dfc9c45020b5a7ad0d
+translated: true
 ---
 ## V rozsahu
 
@@ -66,7 +67,7 @@ také není indexována. Pokud byste se pokusili vypočítat souhrn facet nebo h
 archivním rozsahu, engine dotazu by vrátil chybu. Pokud dotazujete entity ve více rozsazích, měli byste
 použít kontejner `inScope` a omezit tyto výpočty pouze na ty rozsahy, kde jsou indexy připraveny:
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Odlišení require podmínek v různých rozsazích](/documentation/user/en/query/requirements/examples/behavioral/archived-entities-requirements.evitaql)
 
@@ -111,7 +112,7 @@ a [řadicí podmínky](../ordering/behavioral.md#v-rozsahu) se stejným účelem
 
 <Note type="info">
 
-Některé require podmínky umožňují kombinovat výsledky z více facet. Například [souhrn facet](facet.md#fasetový-souhrn),
+Některé require podmínky umožňují kombinovat výsledky z více referencí. Například [souhrn referencí](reference.md#souhrn-referencí),
 [atributový histogram](histogram.md#histogram-atributu) a [cenový histogram](histogram.md#cenový-histogram) lze 
 vypočítat jak pro živé, tak pro archivované entity, pokud jsou k dispozici odpovídající indexy.
 

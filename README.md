@@ -147,7 +147,7 @@ That's it.
 
 [Read license FAQ](https://evitadb.io/documentation/use/license)
 
-## Prerequisities
+## Prerequisites
 
 To checkout Git repository on Windows you need to have long paths enabled:
 
@@ -176,14 +176,13 @@ mvn clean install
 
 **Maven setup**
 
-The build uses Maven toolchains to select the correct JDK version. You must have JDK 17 installed and configured in your
-in your Maven toolchains. You can find more information about Maven toolchains in the [Maven Documentation](https://maven.apache.org/guides/mini/guide-using-toolchains.html).
+The build uses Maven toolchains to select the correct JDK version. You must have JDK 17 installed and configured in your Maven toolchains. You can find more information about Maven toolchains in the [Maven Documentation](https://maven.apache.org/guides/mini/guide-using-toolchains.html).
 
 In short, you need `~/.m2/toolchains.xml` in your home directory next to `~/.m2/settings.xml`:
 
 ```xml
-<?xml version="1.0" encoding="UTF8"?>
-<toolchains xmlns="http://maven.apache.org/POM/4.0.0"
+<?xml version="1.0" encoding="UTF-8"?>
+<toolchains xmlns="http://maven.apache.org/TOOLCHAINS/1.1.0"
             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
             xsi:schemaLocation="http://maven.apache.org/TOOLCHAINS/1.1.0 https://maven.apache.org/xsd/toolchains-1.1.0.xsd">
   <toolchain>
@@ -202,11 +201,14 @@ In short, you need `~/.m2/toolchains.xml` in your home directory next to `~/.m2/
 
 ## How this repository is organized
 
+- **docker**: Dockerfile, build scripts, and entrypoint for container builds
 - **documentation**: research documents, documentation, specifications
+- **tools**: utility and maintenance scripts (commit listing, PGP verification, etc.)
 - **evita_common**: shared functions, exceptions, data types, and common utilities
 - **evita_query**: query language (EvitaQL), query parser, and utilities for query handling
 - **evita_api**: public API of evitaDB including data type conversions and basic structures
 - **evita_engine**: implementation of the database engine core
+- **evita_roaring_bitmap**: vendored subset of the RoaringBitmap library (Apache-2.0), reshaped into persistent, structure-sharing bitmaps used by the engine and storage indexes
 - **evita_store**: storage layer implementation
   - **evita_store_key_value**: key-value store implementation with binary serialization using Kryo library
   - **evita_store_entity**: entity storage format and Kryo serialization (shared between server and Java client)
@@ -233,6 +235,8 @@ In short, you need `~/.m2/toolchains.xml` in your home directory next to `~/.m2/
 - **evita_test**: test modules
   - **evita_test_support**: utility classes that make writing integration tests with evitaDB easier
   - **evita_functional_tests**: test suite verifying functional correctness of standard and edge cases of the API
+  - **evita_long_running_tests**: long-running, generative, and soak tests excluded from the default fast suite
+  - **evita_documentation_tests**: runners that execute the code samples embedded in the documentation across languages
   - **evita_performance_tests**: JMH-based performance tests generating statistics for common operations
 - **jacoco**: Maven POM that allows to aggregate test coverage for entire project
 
@@ -245,6 +249,7 @@ flowchart TD
         query[evita_query]
         api[evita_api]
         engine[evita_engine]
+        roaring[evita_roaring_bitmap]
     end
 
     subgraph store["Storage Layer"]
@@ -283,6 +288,8 @@ flowchart TD
     subgraph testing["Testing"]
         test_support[evita_test_support]
         func_tests[evita_functional_tests]
+        long_tests[evita_long_running_tests]
+        doc_tests[evita_documentation_tests]
         perf_tests[evita_performance_tests]
     end
 
@@ -293,6 +300,7 @@ flowchart TD
     engine --> common
     engine --> query
     engine --> api
+    engine --> roaring
 
     %% Storage dependencies
     store_kv --> common
@@ -302,6 +310,7 @@ flowchart TD
     store_server --> store_entity
     store_server --> store_kv
     store_server --> engine
+    store_server --> roaring
     traffic --> engine
     traffic --> store_kv
     traffic --> store_server
@@ -366,6 +375,9 @@ flowchart TD
     test_support --> server
     test_support --> grpc_client
     func_tests -.-> test_support
+    long_tests --> test_support
+    long_tests -.-> func_tests
+    doc_tests --> test_support
     perf_tests --> test_support
 ```
 

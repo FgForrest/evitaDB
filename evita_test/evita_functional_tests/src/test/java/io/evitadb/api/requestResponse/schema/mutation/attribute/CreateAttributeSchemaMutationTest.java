@@ -32,13 +32,14 @@ import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
-import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.dto.EntityAttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
-import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.GlobalAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.dataType.Scope;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -46,9 +47,13 @@ import org.mockito.Mockito;
 import javax.annotation.Nonnull;
 import java.io.Serializable;
 import java.util.Arrays;
+import org.junit.jupiter.api.Tag;
 
 import static java.util.Optional.of;
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.SCHEMA;
+import static io.evitadb.test.TestTags.ATTRIBUTE;
 
 /**
  * This test verifies {@link CreateAttributeSchemaMutation} class.
@@ -56,6 +61,9 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 @DisplayName("CreateAttributeSchemaMutation")
+@Tag(CONTRACT)
+@Tag(SCHEMA)
+@Tag(ATTRIBUTE)
 class CreateAttributeSchemaMutationTest {
 	static final String ATTRIBUTE_NAME = "name";
 
@@ -75,7 +83,8 @@ class CreateAttributeSchemaMutationTest {
 			false,
 			Integer.class,
 			null,
-			2
+			2,
+			ConflictResolutionOverride.INHERITED
 		);
 	}
 
@@ -98,7 +107,8 @@ class CreateAttributeSchemaMutationTest {
 			false,
 			Integer.class,
 			null,
-			2
+			2,
+			ConflictResolutionOverride.INHERITED
 		);
 	}
 
@@ -118,7 +128,8 @@ class CreateAttributeSchemaMutationTest {
 			false,
 			Integer.class,
 			null,
-			2
+			2,
+			ConflictResolutionOverride.INHERITED
 		);
 	}
 

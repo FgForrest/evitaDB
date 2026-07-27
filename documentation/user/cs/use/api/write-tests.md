@@ -6,6 +6,7 @@ author: Ing. Jan Novotný
 proofreading: done
 preferredLang: java
 commit: cef96d8320d36c91c100c5dfc9c45020b5a7ad0d
+translated: 'true'
 ---
 <LS to="e">
 Výběr jazyka evitaQL pro tento článek nedává smysl.
@@ -41,14 +42,14 @@ do svého projektu:
 <dependency>
     <groupId>io.evitadb</groupId>
     <artifactId>evita_test_support</artifactId>
-    <version>2025.8.0</version>
+    <version>2026.1.0</version>
     <scope>test</scope>
 </dependency>
 ```
 </CodeTabsBlock>
 <CodeTabsBlock>
 ```Gradle
-implementation 'io.evitadb:evita_test_support:2025.8.0'
+implementation 'io.evitadb:evita_test_support:2026.1.0'
 ```
 </CodeTabsBlock>
 </CodeTabs>

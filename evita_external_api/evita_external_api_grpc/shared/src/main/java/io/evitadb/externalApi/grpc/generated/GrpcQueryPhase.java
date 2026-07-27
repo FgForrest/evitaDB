@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2026
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -204,6 +204,14 @@ public enum GrpcQueryPhase
    * <code>FETCHING_PARENTS = 20;</code>
    */
   FETCHING_PARENTS(20),
+  /**
+   * <pre>
+   * Aggregate phase covering orchestration of all referenced entity loads (predicate setup, ID collection, dedup, recursive dispatch).
+   * </pre>
+   *
+   * <code>FETCHING_REFERENCE_BODIES = 21;</code>
+   */
+  FETCHING_REFERENCE_BODIES(21),
   UNRECOGNIZED(-1),
   ;
 
@@ -375,6 +383,14 @@ public enum GrpcQueryPhase
    * <code>FETCHING_PARENTS = 20;</code>
    */
   public static final int FETCHING_PARENTS_VALUE = 20;
+  /**
+   * <pre>
+   * Aggregate phase covering orchestration of all referenced entity loads (predicate setup, ID collection, dedup, recursive dispatch).
+   * </pre>
+   *
+   * <code>FETCHING_REFERENCE_BODIES = 21;</code>
+   */
+  public static final int FETCHING_REFERENCE_BODIES_VALUE = 21;
 
 
   public final int getNumber() {
@@ -422,6 +438,7 @@ public enum GrpcQueryPhase
       case 18: return FETCHING;
       case 19: return FETCHING_REFERENCES;
       case 20: return FETCHING_PARENTS;
+      case 21: return FETCHING_REFERENCE_BODIES;
       default: return null;
     }
   }

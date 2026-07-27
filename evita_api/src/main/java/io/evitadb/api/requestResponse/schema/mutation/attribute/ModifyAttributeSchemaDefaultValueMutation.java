@@ -127,7 +127,8 @@ public class ModifyAttributeSchemaDefaultValueMutation
 				globalAttributeSchema.isRepresentative(),
 				(Class) globalAttributeSchema.getType(),
 				theDefaultValue,
-				globalAttributeSchema.getIndexedDecimalPlaces()
+				globalAttributeSchema.getIndexedDecimalPlaces(),
+				globalAttributeSchema.getConflictResolutionOverride()
 			);
 		} else if (attributeSchema instanceof EntityAttributeSchemaContract entityAttributeSchema) {
 			//noinspection unchecked,rawtypes
@@ -144,7 +145,8 @@ public class ModifyAttributeSchemaDefaultValueMutation
 				entityAttributeSchema.isRepresentative(),
 				(Class) entityAttributeSchema.getType(),
 				theDefaultValue,
-				entityAttributeSchema.getIndexedDecimalPlaces()
+				entityAttributeSchema.getIndexedDecimalPlaces(),
+				entityAttributeSchema.getConflictResolutionOverride()
 			);
 		} else  {
 			//noinspection unchecked,rawtypes
@@ -161,7 +163,8 @@ public class ModifyAttributeSchemaDefaultValueMutation
 				attributeSchema.isRepresentative(),
 				(Class) attributeSchema.getType(),
 				theDefaultValue,
-				attributeSchema.getIndexedDecimalPlaces()
+				attributeSchema.getIndexedDecimalPlaces(),
+				attributeSchema.getConflictResolutionOverride()
 			);
 		}
 	}
@@ -214,7 +217,8 @@ public class ModifyAttributeSchemaDefaultValueMutation
 				existingAttributeSchema.isRepresentative(),
 				(Class) existingAttributeSchema.getType(),
 				theDefaultValue,
-				existingAttributeSchema.getIndexedDecimalPlaces()
+				existingAttributeSchema.getIndexedDecimalPlaces(),
+				existingAttributeSchema.getConflictResolutionOverride()
 			);
 			return replaceAttributeIfDifferent(
 				entitySchema, existingAttributeSchema, updatedAttributeSchema
@@ -251,7 +255,8 @@ public class ModifyAttributeSchemaDefaultValueMutation
 				existingAttributeSchema.isRepresentative(),
 				(Class) existingAttributeSchema.getType(),
 				theDefaultValue,
-				existingAttributeSchema.getIndexedDecimalPlaces()
+				existingAttributeSchema.getIndexedDecimalPlaces(),
+				existingAttributeSchema.getConflictResolutionOverride()
 			);
 			return replaceAttributeIfDifferent(
 				referenceSchema, existingAttributeSchema, updatedAttributeSchema

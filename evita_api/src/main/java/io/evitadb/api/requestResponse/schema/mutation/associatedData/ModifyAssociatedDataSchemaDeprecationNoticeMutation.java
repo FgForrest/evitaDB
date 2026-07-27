@@ -99,7 +99,8 @@ public class ModifyAssociatedDataSchemaDeprecationNoticeMutation
 			this.deprecationNotice,
 			associatedDataSchema.getType(),
 			associatedDataSchema.isLocalized(),
-			associatedDataSchema.isNullable()
+			associatedDataSchema.isNullable(),
+			associatedDataSchema.getConflictResolutionOverride()
 		);
 	}
 

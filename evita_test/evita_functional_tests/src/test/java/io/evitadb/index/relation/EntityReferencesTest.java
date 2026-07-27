@@ -25,17 +25,22 @@ package io.evitadb.index.relation;
 
 import io.evitadb.exception.EvitaInvalidUsageException;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static io.evitadb.test.TestTags.INDEXING;
+import static io.evitadb.test.TestTags.REFERENCE;
 
 /**
  * Verifies behaviour of {@link EntityReferences} implementation.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
+@Tag(INDEXING)
+@Tag(REFERENCE)
 class EntityReferencesTest {
 
 	@Test

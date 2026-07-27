@@ -44,6 +44,7 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.test.Entities;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.Functions;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
@@ -734,7 +735,7 @@ class FacetComputationalContext {
 		final Optional<Predicate<SealedEntity>> negatedPredicate = negatedPredicates.stream().reduce(Predicate::and);
 		final Optional<Predicate<SealedEntity>> exclusivePredicate = exclusivePredicates.stream().reduce(Predicate::or);
 
-		Predicate<SealedEntity> resultPredicate = entity -> true;
+		Predicate<SealedEntity> resultPredicate = Functions.alwaysTrue();
 		if (conjugatedPredicate.isPresent()) {
 			resultPredicate = resultPredicate.and(conjugatedPredicate.get());
 		}

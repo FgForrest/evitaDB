@@ -23,11 +23,12 @@
 
 package io.evitadb.api.requestResponse.schema.builder;
 
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
-import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.dto.EntityAttributeSchema;
 import io.evitadb.api.requestResponse.schema.mutation.AttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
@@ -68,7 +69,7 @@ public final class EntityAttributeSchemaBuilder
 		@Nonnull String name,
 		@Nonnull Class<? extends Serializable> ofType
 	) {
-		super(null, entitySchema, EntityAttributeSchema._internalBuild(name, ofType, false));
+		super(null, entitySchema, EntityAttributeSchema._internalBuild(name, ofType, false, ConflictResolutionOverride.INHERITED));
 		this.mutations.add(
 			new CreateAttributeSchemaMutation(
 				this.baseSchema.getName(),

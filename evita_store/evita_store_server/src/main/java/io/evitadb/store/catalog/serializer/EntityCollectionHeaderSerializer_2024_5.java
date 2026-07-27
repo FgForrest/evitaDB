@@ -34,7 +34,6 @@ import io.evitadb.store.shared.model.FileLocation;
 import javax.annotation.Nonnull;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -43,7 +42,7 @@ import java.util.stream.Collectors;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-@Deprecated(since = "2024.3", forRemoval = true)
+@Deprecated(since = "2024.7", forRemoval = true)
 public class EntityCollectionHeaderSerializer_2024_5 extends AbstractPersistentStorageHeaderSerializer<EntityCollectionFileHeader> {
 
 	@Override
@@ -78,7 +77,7 @@ public class EntityCollectionHeaderSerializer_2024_5 extends AbstractPersistentS
 				input.readVarLong(true),
 				input.readVarInt(true)
 			);
-		final Map<Integer, Object> keys = deserializeKeys(input, kryo);
+		final DeserializedKeys deserializedKeys = deserializeKeysAndPeak(input, kryo);
 
 		final Integer globalIndexKey = kryo.readObjectOrNull(input, Integer.class);
 		final List<Integer> entityIndexIds = deserializeEntityIndexIds(input);
@@ -92,7 +91,7 @@ public class EntityCollectionHeaderSerializer_2024_5 extends AbstractPersistentS
 			lastEntityIndexPrimaryKey,
 			-1,
 			1.0,
-			new PersistentStorageHeader(version, fileOffsetIndexLocation, keys),
+			new PersistentStorageHeader(version, fileOffsetIndexLocation, deserializedKeys.keys(), deserializedKeys.peakId()),
 			globalIndexKey,
 			entityIndexIds
 		);

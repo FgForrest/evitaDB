@@ -27,6 +27,7 @@ import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.utils.ArrayUtils;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -41,13 +42,20 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalInt;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.SCHEMA;
+import static io.evitadb.test.TestTags.ATTRIBUTE;
 
 /**
  * Tests for {@link RepresentativeAttributeDefinition}.
  */
 @DisplayName("RepresentativeAttributeDefinition")
+@Tag(CONTRACT)
+@Tag(SCHEMA)
+@Tag(ATTRIBUTE)
 class RepresentativeAttributeDefinitionTest {
 
 	/**
@@ -58,15 +66,18 @@ class RepresentativeAttributeDefinitionTest {
 		final Map<String, AttributeSchema> attributes = new LinkedHashMap<>();
 		attributes.put("gamma", AttributeSchema._internalBuild(
 			"gamma", null, null, null,
-			false, false, false, String.class, "G"
+			false, false, false, String.class, "G",
+			ConflictResolutionOverride.INHERITED
 		));
 		attributes.put("beta", AttributeSchema._internalBuild(
 			"beta", null, null, null,
-			false, false, true, String.class, "B"
+			false, false, true, String.class, "B",
+			ConflictResolutionOverride.INHERITED
 		));
 		attributes.put("alpha", AttributeSchema._internalBuild(
 			"alpha", null, null, null,
-			false, false, true, String.class, "A"
+			false, false, true, String.class, "A",
+			ConflictResolutionOverride.INHERITED
 		));
 		return attributes;
 	}
@@ -79,7 +90,8 @@ class RepresentativeAttributeDefinitionTest {
 		final Map<String, AttributeSchema> attributes = new LinkedHashMap<>();
 		attributes.put("only", AttributeSchema._internalBuild(
 			"only", null, null, null,
-			false, false, true, String.class, "X"
+			false, false, true, String.class, "X",
+			ConflictResolutionOverride.INHERITED
 		));
 		return attributes;
 	}
@@ -92,11 +104,13 @@ class RepresentativeAttributeDefinitionTest {
 		final Map<String, AttributeSchema> attributes = new LinkedHashMap<>();
 		attributes.put("beta", AttributeSchema._internalBuild(
 			"beta", null, null, null,
-			false, false, true, String.class, "B"
+			false, false, true, String.class, "B",
+			ConflictResolutionOverride.INHERITED
 		));
 		attributes.put("alpha", AttributeSchema._internalBuild(
 			"alpha", null, null, null,
-			false, false, true, String.class, "A"
+			false, false, true, String.class, "A",
+			ConflictResolutionOverride.INHERITED
 		));
 		return attributes;
 	}
@@ -109,11 +123,13 @@ class RepresentativeAttributeDefinitionTest {
 		final Map<String, AttributeSchema> attributes = new LinkedHashMap<>();
 		attributes.put("gamma", AttributeSchema._internalBuild(
 			"gamma", null, null, null,
-			false, false, false, String.class, "G"
+			false, false, false, String.class, "G",
+			ConflictResolutionOverride.INHERITED
 		));
 		attributes.put("delta", AttributeSchema._internalBuild(
 			"delta", null, null, null,
-			false, false, false, String.class, "D"
+			false, false, false, String.class, "D",
+			ConflictResolutionOverride.INHERITED
 		));
 		return attributes;
 	}
@@ -126,7 +142,8 @@ class RepresentativeAttributeDefinitionTest {
 		final Map<String, AttributeSchema> attributes = new LinkedHashMap<>();
 		attributes.put("name", AttributeSchema._internalBuild(
 			"name", null, null, null,
-			false, false, true, String.class, null
+			false, false, true, String.class, null,
+			ConflictResolutionOverride.INHERITED
 		));
 		return attributes;
 	}
@@ -296,7 +313,8 @@ class RepresentativeAttributeDefinitionTest {
 		void shouldNotBeEqualWhenDefaultValuesDiffer() {
 			final Map<String, AttributeSchema> different = new LinkedHashMap<>(prepareAttributes());
 			different.put("beta", AttributeSchema._internalBuild(
-				"beta", null, null, null, false, false, true, String.class, "B2"
+				"beta", null, null, null, false, false, true, String.class, "B2",
+				ConflictResolutionOverride.INHERITED
 			));
 
 			final RepresentativeAttributeDefinition a = new RepresentativeAttributeDefinition(prepareAttributes());
@@ -330,10 +348,12 @@ class RepresentativeAttributeDefinitionTest {
 		void shouldNotBeEqualWhenAttributeNamesDiffer() {
 			final Map<String, AttributeSchema> other = new LinkedHashMap<>();
 			other.put("x", AttributeSchema._internalBuild(
-				"x", null, null, null, false, false, true, String.class, "A"
+				"x", null, null, null, false, false, true, String.class, "A",
+				ConflictResolutionOverride.INHERITED
 			));
 			other.put("y", AttributeSchema._internalBuild(
-				"y", null, null, null, false, false, true, String.class, "B"
+				"y", null, null, null, false, false, true, String.class, "B",
+				ConflictResolutionOverride.INHERITED
 			));
 
 			final RepresentativeAttributeDefinition a = new RepresentativeAttributeDefinition(prepareAttributes());

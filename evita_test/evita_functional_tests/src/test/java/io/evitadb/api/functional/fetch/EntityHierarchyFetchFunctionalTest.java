@@ -48,25 +48,29 @@ import java.util.Optional;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
-import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_CODE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.QUERY;
+import static io.evitadb.test.TestTags.HIERARCHY;
 
 /**
  * This test verifies hierarchy fetching functionality including parent entity references,
  * hierarchy content with level/distance/node stopping conditions, and product hierarchy
  * parent entity retrieval.
  *
- * @author evitaDB contributors
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("Evita entity hierarchy fetch functionality")
-@Tag(FUNCTIONAL_TEST)
 @ExtendWith(EvitaParameterResolver.class)
 @Slf4j
+@Tag(CONTRACT)
+@Tag(QUERY)
+@Tag(HIERARCHY)
 class EntityHierarchyFetchFunctionalTest extends AbstractEntityFetchingFunctionalTest {
 
 	@DisplayName("Should return hierarchy parent id")

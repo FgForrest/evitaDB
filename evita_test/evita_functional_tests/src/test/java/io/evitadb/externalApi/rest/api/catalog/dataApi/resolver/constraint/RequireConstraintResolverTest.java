@@ -35,18 +35,25 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.utils.ListBuilder.list;
 import static io.evitadb.utils.MapBuilder.map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static io.evitadb.test.TestTags.REST;
+import static io.evitadb.test.TestTags.EXTERNAL_API;
+import static io.evitadb.test.TestTags.QUERY;
 
 /**
  * Tests for {@link io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.constraint.RequireConstraintResolver}.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
+@Tag(REST)
+@Tag(EXTERNAL_API)
+@Tag(QUERY)
 class RequireConstraintResolverTest extends AbstractConstraintResolverTest {
 
 	private io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.constraint.RequireConstraintResolver resolver;

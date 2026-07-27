@@ -33,7 +33,7 @@
           "referencedPrimaryKey" : 1940,
           "attributes" : {
             "global" : {
-              "mediaOrder" : 3,
+              "mediaOrder" : 4,
               "gallery" : "galerie"
             }
           }
@@ -42,7 +42,7 @@
           "referencedPrimaryKey" : 1941,
           "attributes" : {
             "global" : {
-              "mediaOrder" : 2,
+              "mediaOrder" : 3,
               "gallery" : "galerie"
             }
           }
@@ -51,7 +51,7 @@
           "referencedPrimaryKey" : 1942,
           "attributes" : {
             "global" : {
-              "mediaOrder" : 1,
+              "mediaOrder" : 2,
               "gallery" : "galerie"
             }
           }

@@ -26,15 +26,22 @@ package io.evitadb.api.configuration;
 import io.evitadb.api.configuration.metric.MetricType;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.MANAGEMENT;
+import static io.evitadb.test.TestTags.OBSERVABILITY;
 
 /**
  * Tests for {@link MetricType} enum.
  *
- * @author Claude
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @DisplayName("MetricType")
+@Tag(CONTRACT)
+@Tag(MANAGEMENT)
+@Tag(OBSERVABILITY)
 class MetricTypeTest {
 
 	@Test

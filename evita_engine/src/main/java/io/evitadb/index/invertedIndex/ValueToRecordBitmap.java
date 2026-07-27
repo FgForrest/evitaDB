@@ -26,34 +26,34 @@ package io.evitadb.index.invertedIndex;
 import io.evitadb.core.transaction.memory.TransactionalCreatorMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerCreator;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
-import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
-import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
 import io.evitadb.index.array.TransactionalObject;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
+import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.utils.Assert;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Objects;
+import java.util.PrimitiveIterator.OfInt;
 
 /**
  * Histogram point represents single "bucket" in {@link InvertedIndex} representing single {@link Comparable} {@link #value}
- * and bitmap (ordered and distinct) of record ids.
+ * and bitmap (ordered and distinct) of record ids. This is the multi-record {@link ValueToRecord} representation - the
+ * record set is backed by a mutable {@link TransactionalBitmap} (a {@link PersistentRoaringBitmap}). The
+ * single-record case is served by the immutable {@link ValueToRecordPrimitive} instead.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2019
  */
-public class ValueToRecordBitmap implements TransactionalObject<ValueToRecordBitmap, Void>,
-	VoidTransactionMemoryProducer<ValueToRecordBitmap>,
-	TransactionalLayerProducer<Void, ValueToRecordBitmap>,
-	TransactionalCreatorMaintainer,
-	Comparable<ValueToRecordBitmap>,
-	Serializable {
+public class ValueToRecordBitmap implements ValueToRecord,
+	TransactionalObject<ValueToRecordBitmap>,
+	TransactionalCreatorMaintainer {
 	@Serial private static final long serialVersionUID = 8584161806399686698L;
 	/**
 	 * The value.
@@ -113,7 +113,11 @@ public class ValueToRecordBitmap implements TransactionalObject<ValueToRecordBit
 	 * Histogram point in the argument is required to have same value as this point.
 	 */
 	public void add(@Nonnull ValueToRecordBitmap histogramBucket) {
-		Assert.isTrue(this.value.equals(histogramBucket.value), "Values of the histogram point differs: " + this.value + " vs. " + histogramBucket.value);
+		Assert.isTrue(
+			this.value.equals(histogramBucket.value),
+			"Values of the histogram point differs: "
+				+ this.value + " vs. " + histogramBucket.value
+		);
 		this.recordIds.addAll(histogramBucket.getRecordIds());
 	}
 
@@ -122,7 +126,11 @@ public class ValueToRecordBitmap implements TransactionalObject<ValueToRecordBit
 	 * Histogram point in the argument is required to have same value as this point.
 	 */
 	public void remove(@Nonnull ValueToRecordBitmap histogramBucket) {
-		Assert.isTrue(this.value.equals(histogramBucket.value), "Values of the histogram point differs: " + this.value + " vs. " + histogramBucket.value);
+		Assert.isTrue(
+			this.value.equals(histogramBucket.value),
+			"Values of the histogram point differs: "
+				+ this.value + " vs. " + histogramBucket.value
+		);
 		this.recordIds.removeAll(histogramBucket.getRecordIds());
 	}
 
@@ -137,23 +145,74 @@ public class ValueToRecordBitmap implements TransactionalObject<ValueToRecordBit
 	/**
 	 * Returns true if this histogram point contains no record ids.
 	 */
+	@Override
 	public boolean isEmpty() {
 		return this.recordIds.isEmpty();
 	}
 
+	@Override
+	public int size() {
+		return this.recordIds.size();
+	}
+
+	@Override
+	public boolean recordSetEquals(@Nullable ValueToRecord other) {
+		if (other == null) {
+			return false;
+		}
+		final Bitmap otherRecordIds = other.getRecordIds();
+		if (otherRecordIds instanceof final RoaringBitmapBackedBitmap roaringOther) {
+			// fast path - the overwhelmingly common multi-record-vs-multi-record case: both record sets are
+			// PersistentRoaringBitmap-backed, so PersistentRoaringBitmap#equals does a bulk, cardinality-short-circuiting comparison far
+			// cheaper than walking every id. getRoaringBitmap() returns the transaction-aware (merged) bitmap, matching
+			// the view that recordSetHashCode iterates.
+			return this.recordIds.getRoaringBitmap().equals(roaringOther.getRoaringBitmap());
+		}
+		// slow path - a foreign Bitmap representation (e.g. a single-record ValueToRecordPrimitive view): compare
+		// content directly so a primitive {5} and a bitmap {5} stay equal despite the type-sensitive Bitmap#equals
+		if (otherRecordIds.size() != this.recordIds.size()) {
+			return false;
+		}
+		final OfInt thisIt = this.recordIds.iterator();
+		final OfInt otherIt = otherRecordIds.iterator();
+		while (thisIt.hasNext()) {
+			if (thisIt.nextInt() != otherIt.nextInt()) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	@Override
+	public int recordSetHashCode() {
+		// getRoaringBitmap() returns the transaction-aware (merged) bitmap, matching the view recordSetEquals compares
+		final PersistentRoaringBitmap roaringBitmap = this.recordIds.getRoaringBitmap();
+		if (roaringBitmap.getCardinality() == 1) {
+			// single-record case - the only cardinality at which a primitive can ever be equal, so it must hash
+			// identically to ValueToRecordPrimitive: result = 31 * 1 + id (the canonical single-record hash). A
+			// primitive has no PersistentRoaringBitmap to delegate to, so this exact value, not PersistentRoaringBitmap#hashCode, is shared.
+			return 31 + roaringBitmap.first();
+		}
+		// fast path for every other cardinality - delegate to PersistentRoaringBitmap's bulk hashCode, which folds the packed
+		// containers far cheaper than walking each id through the tx-aware iterator. No primitive is ever multi-record,
+		// so cross-representation consistency is irrelevant here; only bitmap-vs-bitmap equality matters and both sides
+		// hash via this same path.
+		return roaringBitmap.hashCode();
+	}
+
 	/**
-	 * Compares {@link #value} of this and passed histogram point.
+	 * Compares {@link #value} of this and passed bucket.
 	 */
 	@Override
-	public int compareTo(@Nonnull ValueToRecordBitmap o) {
+	public int compareTo(@Nonnull ValueToRecord o) {
 		//noinspection unchecked,rawtypes
-		return ((Comparable) this.value).compareTo(o.value);
+		return ((Comparable) this.value).compareTo(o.getValue());
 	}
 
 	/**
 	 * Returns true if passed histogram bucket is equal not only by value but also by all assigned record ids.
 	 */
-	public boolean deepEquals(Object o) {
+	public boolean deepEquals(@Nullable Object o) {
 		if (this == o) return true;
 		if (o == null || getClass() != o.getClass()) return false;
 		final ValueToRecordBitmap that = (ValueToRecordBitmap) o;
@@ -162,11 +221,11 @@ public class ValueToRecordBitmap implements TransactionalObject<ValueToRecordBit
 
 	@Override
 	public int hashCode() {
-		return Objects.hash(this.value);
+		return this.value.hashCode();
 	}
 
 	@Override
-	public boolean equals(Object o) {
+	public boolean equals(@Nullable Object o) {
 		if (this == o) return true;
 		if (o == null || getClass() != o.getClass()) return false;
 		final ValueToRecordBitmap that = (ValueToRecordBitmap) o;
@@ -187,7 +246,9 @@ public class ValueToRecordBitmap implements TransactionalObject<ValueToRecordBit
 
 	@Nonnull
 	@Override
-	public ValueToRecordBitmap createCopyWithMergedTransactionalMemory(Void layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
+	public ValueToRecordBitmap createCopyWithMergedTransactionalMemory(
+		@Nonnull TransactionalLayerMaintainer transactionalLayer
+	) {
 		return new ValueToRecordBitmap(
 			this.value,
 			transactionalLayer.getStateCopyWithCommittedChanges(this.recordIds)
@@ -196,7 +257,6 @@ public class ValueToRecordBitmap implements TransactionalObject<ValueToRecordBit
 
 	@Override
 	public void removeLayer(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
-		transactionalLayer.removeTransactionalMemoryLayerIfExists(this);
 		this.recordIds.removeLayer(transactionalLayer);
 	}
 

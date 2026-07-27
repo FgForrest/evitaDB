@@ -358,6 +358,43 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 
 	/**
 	 * Builds fields representing children of constraint container from constraint descriptors of these children.
+	 * This is shortcut method for building all children of {@link ConstraintPropertyType#GROUP} property type.
+	 * Unlike {@link #buildEntityChildren}, there's no root-level fallback: a GROUP-typed constraint only makes
+	 * sense when nested in a reference/facet scope whose reference schema actually declares a group type.
+	 */
+	@Nonnull
+	protected List<OBJECT_FIELD> buildGroupChildren(@Nonnull ConstraintBuildContext buildContext,
+	                                                @Nonnull AllowedConstraintPredicate allowedChildrenPredicate) {
+		final DataLocator parentDataLocator = buildContext.dataLocator();
+		if (!(parentDataLocator instanceof final DataLocatorWithReference dataLocatorWithReference) ||
+			dataLocatorWithReference.referenceName() == null) {
+			return List.of();
+		}
+
+		final ReferenceSchemaContract referenceSchema = this.sharedContext
+			.getEntitySchemaOrThrowException(parentDataLocator.entityType())
+			.getReferenceOrThrowException(dataLocatorWithReference.referenceName());
+		final String referencedGroupType = referenceSchema.getReferencedGroupType();
+		if (referencedGroupType == null) {
+			// the reference has no group type configured, so there's no group entity to filter/order/require by
+			return List.of();
+		}
+
+		final DataLocator childDataLocator = new EntityDataLocator(
+			referenceSchema.isReferencedGroupTypeManaged()
+				? new ManagedEntityTypePointer(referencedGroupType)
+				: new ExternalEntityTypePointer(referencedGroupType)
+		);
+
+		return buildBasicChildren(
+			buildContext.switchToChildContext(childDataLocator),
+			allowedChildrenPredicate,
+			ConstraintPropertyType.GROUP
+		);
+	}
+
+	/**
+	 * Builds fields representing children of constraint container from constraint descriptors of these children.
 	 * This is shortcut method for building all children of {@link ConstraintPropertyType#ATTRIBUTE} property type.
 	 */
 	@Nonnull
@@ -537,7 +574,7 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 
 		final List<OBJECT_FIELD> fields = new LinkedList<>();
 
-		// build constraint with dynamic classifier only, others are currently not needed
+		// build constraint without dynamic classifier
 		final Set<ConstraintDescriptor> referenceConstraintsWithoutClassifier = referenceConstraints.stream()
 			.filter(cd -> !cd.creator().hasClassifierParameter())
 			.collect(Collectors.toUnmodifiableSet());
@@ -547,7 +584,10 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 				allowedChildrenPredicate,
 				referenceConstraintsWithoutClassifier,
 				constraintDescriptor -> buildFieldFromConstraintDescriptor(
-					buildContext, // references without classifier cannot be container and thus shouldn't use reference domain
+					buildContext.switchToChildContext(new ReferenceDataLocator(
+						buildContext.dataLocator().entityTypePointer(),
+						(buildContext.dataLocator() instanceof DataLocatorWithReference dataLocatorWithReference) ? dataLocatorWithReference.referenceName() : null
+					)),
 					constraintDescriptor,
 					null,
 					null
@@ -555,7 +595,7 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 			)
 		);
 
-		// build constraint with dynamic classifier only, others are currently not needed
+		// build constraint with dynamic classifier
 		final Set<ConstraintDescriptor> referenceConstraintsWithDynamicClassifier = referenceConstraints.stream()
 			.filter(cd -> cd.creator().hasClassifierParameter())
 			.collect(Collectors.toUnmodifiableSet());
@@ -985,16 +1025,17 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 				.toList();
 		}
 		if (dataLocator instanceof final AbstractReferenceDataLocator referenceDataLocator) {
-			final ReferenceSchemaContract reference = ofNullable(referenceDataLocator.referenceName())
+			return ofNullable(referenceDataLocator.referenceName())
 				.flatMap(it -> this.sharedContext.getEntitySchemaOrThrowException(referenceDataLocator.entityType()).getReference(it))
-				.orElseThrow(() -> createSchemaBuildingError(
-					"Missing reference `" + referenceDataLocator.referenceName() + "` in entity `" + referenceDataLocator.entityType() + "`."
-				));
-			return reference.getAttributes()
-				.values()
-				.stream()
-				.filter(getAttributeSchemaFilter())
-				.toList();
+				.map(
+					reference ->
+					     reference.getAttributes()
+							.values()
+							.stream()
+							.filter(getAttributeSchemaFilter())
+							.toList()
+				)
+				.orElseGet(Collections::emptyList);
 		}
 
 		return Collections.emptyList();
@@ -1116,7 +1157,10 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 	 */
 	@Nonnull
 	protected String constructConstraintDescription(@Nonnull ConstraintDescriptor constraintDescriptor) {
-		return constraintDescriptor.shortDescription() + " [Check detailed documentation](" + constraintDescriptor.userDocsLink() + ")";
+		final String deprecationPrefix = constraintDescriptor.deprecated() != null
+			? "**Deprecated:** " + constraintDescriptor.deprecated() + " "
+			: "";
+		return deprecationPrefix + constraintDescriptor.shortDescription() + " [Check detailed documentation](" + constraintDescriptor.userDocsLink() + ")";
 	}
 
 	/**

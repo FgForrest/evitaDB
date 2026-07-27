@@ -131,6 +131,14 @@ public class EvitaDataTypes {
 	 */
 	private static final Set<Class<?>> SUPPORTED_QUERY_DATA_TYPES;
 	/**
+	 * Unmodifiable set of numeric data types supported by evitaDB for operations requiring numeric
+	 * values (histograms, numeric range queries, arithmetic expressions). Contains only the wrapper
+	 * types: Byte, Short, Integer, Long, and BigDecimal.
+	 */
+	private static final Set<Class<?>> SUPPORTED_NUMERIC_TYPES = Set.of(
+		Byte.class, Short.class, Integer.class, Long.class, BigDecimal.class
+	);
+	/**
 	 * Unmodifiable map from Java primitive types (byte, short, int, long, float, double, boolean,
 	 * char) to their corresponding wrapper classes (Byte, Short, Integer, Long, Float, Double,
 	 * Boolean, Character). Used by {@link #toWrappedForm(Class)} and
@@ -706,6 +714,63 @@ public class EvitaDataTypes {
 	}
 
 	/**
+	 * Returns an unmodifiable set of all numeric data types supported by evitaDB. These are the
+	 * types that can be used for numeric operations such as histograms, numeric range queries,
+	 * and arithmetic expressions: Byte, Short, Integer, Long, and BigDecimal.
+	 *
+	 * @return unmodifiable set of supported numeric data types
+	 */
+	@Nonnull
+	public static Set<Class<?>> getSupportedNumericTypes() {
+		return SUPPORTED_NUMERIC_TYPES;
+	}
+
+	/**
+	 * Checks whether the specified type is a numeric type supported by evitaDB. Returns `true`
+	 * for Byte, Short, Integer, Long, and BigDecimal. This method checks wrapper types only —
+	 * primitive types (byte, short, int, long) return `false`. Use {@link #toWrappedForm(Class)}
+	 * to convert primitive types before checking.
+	 *
+	 * @param type the type to check (must not be null)
+	 * @return `true` if the type is a supported numeric type, `false` otherwise
+	 */
+	public static boolean isNumericType(@Nonnull Class<?> type) {
+		return SUPPORTED_NUMERIC_TYPES.contains(type);
+	}
+
+	/**
+	 * Resolves the inner numeric type of a `NumberRange`-typed plain class. Returns `null` when
+	 * the supplied type is not one of the five `NumberRange` subtypes — callers may treat a `null`
+	 * result as "not a range type" or, if the surrounding contract guarantees a range, surface it
+	 * as a programming error via {@code Objects.requireNonNull}.
+	 *
+	 * Supported mapping:
+	 * - {@link ByteNumberRange} → {@link Byte}
+	 * - {@link ShortNumberRange} → {@link Short}
+	 * - {@link IntegerNumberRange} → {@link Integer}
+	 * - {@link LongNumberRange} → {@link Long}
+	 * - {@link BigDecimalNumberRange} → {@link java.math.BigDecimal}
+	 *
+	 * @param plainType the plain attribute type (e.g. {@link IntegerNumberRange})
+	 * @return the matching inner numeric type, or `null` for non-range / non-numeric-range inputs
+	 */
+	@Nullable
+	public static Class<? extends Number> resolveRangeInnerNumericType(@Nonnull Class<?> plainType) {
+		if (plainType == ByteNumberRange.class) {
+			return Byte.class;
+		} else if (plainType == ShortNumberRange.class) {
+			return Short.class;
+		} else if (plainType == IntegerNumberRange.class) {
+			return Integer.class;
+		} else if (plainType == LongNumberRange.class) {
+			return Long.class;
+		} else if (plainType == BigDecimalNumberRange.class) {
+			return BigDecimal.class;
+		}
+		return null;
+	}
+
+	/**
 	 * Checks whether the specified type is directly supported by evitaDB as an attribute value,
 	 * query parameter, or entity reference type. Returns `true` if the type is present in
 	 * {@link #SUPPORTED_QUERY_DATA_TYPES}, which includes primitives, wrappers, numeric types,
@@ -884,6 +949,57 @@ public class EvitaDataTypes {
 			throw new UnsupportedDataTypeException(
 				unknownObject.getClass(), SUPPORTED_QUERY_DATA_TYPES
 			);
+		}
+	}
+
+	/**
+	 * Validates and normalizes an input value that may be either a scalar or an array of supported
+	 * types. For scalar values, delegates to {@link #toSupportedType(Serializable)}. For array
+	 * values, normalizes each element individually and returns a new array if any element was
+	 * changed by the normalization.
+	 *
+	 * @param unknownObject the value to validate and normalize (scalar or array, may be `null`)
+	 * @return normalized value, or `null` if input is `null`
+	 * @throws UnsupportedDataTypeException if the type (or array component type) is not supported
+	 */
+	@Nullable
+	public static Serializable toSupportedTypeOrItsArray(
+		@Nullable Serializable unknownObject
+	) throws UnsupportedDataTypeException {
+		if (unknownObject == null) {
+			return null;
+		} else if (unknownObject.getClass().isArray()) {
+			final int length = Array.getLength(unknownObject);
+			boolean changed = false;
+			final Serializable[] result = new Serializable[length];
+			for (int i = 0; i < length; i++) {
+				final Object element = Array.get(unknownObject, i);
+				if (element instanceof Serializable s) {
+					final Serializable normalized = toSupportedType(s);
+					result[i] = normalized;
+					changed = changed || normalized != s;
+				} else if (element == null) {
+					result[i] = null;
+				} else {
+					throw new UnsupportedDataTypeException(
+						element.getClass(), SUPPORTED_QUERY_DATA_TYPES
+					);
+				}
+			}
+			if (changed) {
+				// create a properly typed array with the normalized component type
+				final Class<?> componentType = result[0] != null
+					? result[0].getClass()
+					: unknownObject.getClass().getComponentType();
+				final Object typedArray = Array.newInstance(componentType, length);
+				for (int i = 0; i < length; i++) {
+					Array.set(typedArray, i, result[i]);
+				}
+				return (Serializable) typedArray;
+			}
+			return unknownObject;
+		} else {
+			return toSupportedType(unknownObject);
 		}
 	}
 

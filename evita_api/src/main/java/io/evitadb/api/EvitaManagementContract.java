@@ -27,6 +27,7 @@ import io.evitadb.api.exception.FileForFetchNotFoundException;
 import io.evitadb.api.exception.TaskNotFoundException;
 import io.evitadb.api.exception.TemporalDataNotAvailableException;
 import io.evitadb.api.file.FileForFetch;
+import io.evitadb.api.requestResponse.system.EngineSettings;
 import io.evitadb.api.requestResponse.system.SystemStatus;
 import io.evitadb.api.task.Task;
 import io.evitadb.api.task.TaskStatus;
@@ -361,5 +362,35 @@ public interface EvitaManagementContract {
 	 */
 	@Nonnull
 	String getConfiguration();
+
+	/**
+	 * Retrieves the curated subset of the engine configuration that clients need in order to reason
+	 * about the behaviour of the server they talk to - most notably the engine-wide default
+	 * conflict resolution applied when neither the catalog schema nor the entity schema declares
+	 * its own.
+	 *
+	 * **Use Cases**
+	 *
+	 * - Resolving the effective conflict resolution for an entity type on the client side via
+	 *   `EffectiveConflictResolutionResolver`, which needs the engine default as the base of its
+	 *   precedence walk
+	 * - Presenting the active engine behaviour in administration tools
+	 *
+	 * **Relation to {@link #getConfiguration()}**
+	 *
+	 * This method is not a replacement for {@link #getConfiguration()} - it exposes no sensitive
+	 * values (paths, credentials) and is therefore unrestricted and readable **even when the engine
+	 * runs in read-only mode**, where {@link #getConfiguration()} refuses to answer.
+	 *
+	 * **Thread-Safety**
+	 *
+	 * The returned values originate from the immutable configuration and are constant for the
+	 * lifetime of the server process, so the result may safely be cached by the caller until it
+	 * reconnects.
+	 *
+	 * @return the exposed subset of the engine configuration
+	 */
+	@Nonnull
+	EngineSettings getEngineSettings();
 
 }

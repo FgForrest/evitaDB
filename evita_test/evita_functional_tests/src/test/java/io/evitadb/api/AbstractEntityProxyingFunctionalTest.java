@@ -33,16 +33,23 @@ import javax.annotation.Nonnull;
 import java.util.Arrays;
 import java.util.Locale;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.QUERY;
+import static io.evitadb.test.TestTags.PROXY;
 
 /**
  * Parent class with shared logic for proxy tests.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
+@Tag(CONTRACT)
+@Tag(QUERY)
+@Tag(PROXY)
 public abstract class AbstractEntityProxyingFunctionalTest extends AbstractHundredProductsFunctionalTest implements EvitaTestSupport {
 
 	protected static final Locale CZECH_LOCALE = new Locale("cs", "CZ");

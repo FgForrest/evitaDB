@@ -31,12 +31,12 @@ import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedRecordsProv
 import io.evitadb.core.query.sort.attribute.sorter.PreSortedRecordsSorter;
 import io.evitadb.dataType.array.CompositeObjectArray;
 import io.evitadb.index.attribute.ChainIndex;
-import io.evitadb.index.bitmap.Bitmap;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Collections;
+import java.util.function.Consumer;
 import java.util.function.IntUnaryOperator;
 import java.util.function.Supplier;
 
@@ -70,6 +70,12 @@ public class PredecessorAttributeComparator implements EntityComparator {
 	 * Array of caches storing the index positions of entities for each {@link SortedRecordsProvider}.
 	 */
 	private IntIntMap[] cache;
+	/**
+	 * Sink appending an entity that no provider could place to {@link #nonSortedEntities} (created on first use).
+	 * Allocated once so {@link #comparePositionsAcrossProviders} can hand off unsortable entities without allocating
+	 * a capturing lambda on the comparison hot path.
+	 */
+	private final Consumer<EntityContract> unsortedCollector = this::addUnsorted;
 
 	@Nonnull
 	@Override
@@ -86,68 +92,29 @@ public class PredecessorAttributeComparator implements EntityComparator {
 	@Override
 	public int compare(EntityContract o1, EntityContract o2) {
 		final SortedRecordsProvider[] sortedRecordsProviders = getSortedRecordsProviders();
-		int o1FoundInProvider = -1;
-		int o2FoundInProvider = -1;
-		int result = 0;
-
 		// scan all providers
 		if (this.cache == null) {
 			//noinspection ObjectInstantiationInEqualsHashCode
 			this.cache = new IntIntMap[sortedRecordsProviders.length];
 		}
-		for (int i = 0; i < sortedRecordsProviders.length; i++) {
-			final SortedRecordsProvider sortedRecordsProvider = sortedRecordsProviders[i];
-			if (this.cache[i] == null) {
-				// let's create the cache with estimated size multiply 5 expected steps for binary search
-				//noinspection ObjectAllocationInLoop,ObjectInstantiationInEqualsHashCode
-				this.cache[i] = new IntIntHashMap(this.estimatedCount * 5);
-			}
-			// and try to find primary keys of both entities in each provider
-			final Bitmap allRecords = sortedRecordsProvider.getAllRecords();
-			// predicates are used sort out the providers that are not relevant for the given entity
-			final int o1Index = o1FoundInProvider > -1 ? -1 : computeIfAbsent(this.cache[i], o1.getPrimaryKeyOrThrowException(), allRecords::indexOf);
-			final int o2Index = o2FoundInProvider > -1 ? -1 : computeIfAbsent(this.cache[i], o2.getPrimaryKeyOrThrowException(), allRecords::indexOf);
-			// if both entities are found in the same provider, compare their positions
-			if (o1Index >= 0 && o2Index >= 0) {
-				result = Integer.compare(
-					sortedRecordsProvider.getRecordPositions()[o1Index],
-					sortedRecordsProvider.getRecordPositions()[o2Index]
-				);
-				o1FoundInProvider = i;
-				o2FoundInProvider = i;
-			} else if (o1Index >= 0) {
-				// if only one entity is found, it is considered to be smaller than the other one
-				result = result == 0 ? 1 : result;
-				o1FoundInProvider = i;
-			} else if (o2Index >= 0) {
-				// if only one entity is found, it is considered to be smaller than the other one
-				result = result == 0 ? -1 : result;
-				o2FoundInProvider = i;
-			}
-			// if both entities are found, we can stop searching
-			if (o1FoundInProvider > -1 && o2FoundInProvider > -1) {
-				break;
-			}
-		}
-		if (o1FoundInProvider == -1 || o2FoundInProvider == -1 && this.nonSortedEntities == null) {
-			// if any of the entities is not found, and we don't have the container to store them, create it
+		return comparePositionsAcrossProviders(
+			sortedRecordsProviders, this.cache, 0, sortedRecordsProviders.length,
+			this.estimatedCount, o1, o2, this.unsortedCollector
+		);
+	}
+
+	/**
+	 * Appends an entity that none of the scanned providers could place to {@link #nonSortedEntities}, lazily
+	 * creating the container on first use.
+	 *
+	 * @param entity the entity to park at the end of the sorted result
+	 */
+	private void addUnsorted(@Nonnull EntityContract entity) {
+		if (this.nonSortedEntities == null) {
 			//noinspection ObjectInstantiationInEqualsHashCode
 			this.nonSortedEntities = new CompositeObjectArray<>(EntityContract.class);
 		}
-		// if any of the entities is not found, store it in the container
-		if (o1FoundInProvider == -1) {
-			this.nonSortedEntities.add(o1);
-		}
-		if (o2FoundInProvider == -1) {
-			this.nonSortedEntities.add(o2);
-		}
-		// when both entities are not found in the same provider, the result is invalid
-		if (o1FoundInProvider != o2FoundInProvider) {
-			// we need to prefer the provider that was found first
-			result = Integer.compare(o1FoundInProvider, o2FoundInProvider);
-		}
-		// return the result
-		return result;
+		this.nonSortedEntities.add(entity);
 	}
 
 	/**
@@ -165,13 +132,97 @@ public class PredecessorAttributeComparator implements EntityComparator {
 	}
 
 	/**
-	 * This method is used to cache the results of the `indexOf` method. It is used to speed up the
-	 * sorting process.
+	 * Shared K-way provider scan behind both predecessor comparators. Walks the sorted-records providers in the
+	 * index range `[fromIndex, toIndex)`, resolving each of the two entities' positions within the first provider
+	 * that contains them (positions are memoized per provider in `cache`), and returns the comparison result
+	 * following the predecessor-ordering contract:
+	 *
+	 * - both entities found in the same provider: ordered by their positions,
+	 * - only one found: that one sorts first,
+	 * - found in different providers: the earlier (lower-index) provider wins.
+	 *
+	 * Every entity not found in any scanned provider is handed to `unsortedCollector` so the caller can park it at
+	 * the end of the sorted result.
+	 *
+	 * @param sortedRecordsProviders providers to scan, ordered by precedence
+	 * @param cache                  per-provider position cache, lazily populated (must span `[fromIndex, toIndex)`)
+	 * @param fromIndex              first provider index to scan (inclusive)
+	 * @param toIndex                provider index to stop at (exclusive)
+	 * @param estimatedCount         expected entity count, used to size a freshly created per-provider cache
+	 * @param o1                     first entity to compare
+	 * @param o2                     second entity to compare
+	 * @param unsortedCollector      sink for entities not found in any scanned provider
+	 * @return the comparison result following the contract above
+	 */
+	static int comparePositionsAcrossProviders(
+		@Nonnull SortedRecordsProvider[] sortedRecordsProviders,
+		@Nonnull IntIntMap[] cache,
+		int fromIndex,
+		int toIndex,
+		int estimatedCount,
+		@Nonnull EntityContract o1,
+		@Nonnull EntityContract o2,
+		@Nonnull Consumer<EntityContract> unsortedCollector
+	) {
+		int result = 0;
+		int o1FoundInProvider = -1;
+		int o2FoundInProvider = -1;
+		for (int i = fromIndex; i < toIndex; i++) {
+			final SortedRecordsProvider sortedRecordsProvider = sortedRecordsProviders[i];
+			if (cache[i] == null) {
+				// let's create the cache with estimated size multiply 5 expected steps for binary search
+				//noinspection ObjectAllocationInLoop
+				cache[i] = new IntIntHashMap(estimatedCount * 5);
+			}
+			// resolve each entity's sorted position directly (tree-direct or array-backed, per the provider);
+			// the cache stores the resolved position and POSITION_NOT_FOUND (-1) for absent records
+			final int o1Position = o1FoundInProvider > -1 ? -1
+				: computeIfAbsent(cache[i], o1.getPrimaryKeyOrThrowException(), sortedRecordsProvider::positionOf);
+			final int o2Position = o2FoundInProvider > -1 ? -1
+				: computeIfAbsent(cache[i], o2.getPrimaryKeyOrThrowException(), sortedRecordsProvider::positionOf);
+			// if both entities are found in the same provider, compare their positions
+			if (o1Position >= 0 && o2Position >= 0) {
+				result = Integer.compare(o1Position, o2Position);
+				o1FoundInProvider = i;
+				o2FoundInProvider = i;
+			} else if (o1Position >= 0) {
+				// if only one entity is found, it is considered to be smaller than the other one
+				result = result == 0 ? 1 : result;
+				o1FoundInProvider = i;
+			} else if (o2Position >= 0) {
+				// if only one entity is found, it is considered to be smaller than the other one
+				result = result == 0 ? -1 : result;
+				o2FoundInProvider = i;
+			}
+			// if both entities are found, we can stop searching
+			if (o1FoundInProvider > -1 && o2FoundInProvider > -1) {
+				break;
+			}
+		}
+		// hand over any entity we could not place so the caller can park it at the end of the result
+		if (o1FoundInProvider == -1) {
+			unsortedCollector.accept(o1);
+		}
+		if (o2FoundInProvider == -1) {
+			unsortedCollector.accept(o2);
+		}
+		// when the entities were found in different providers, order them by provider precedence
+		if (o1FoundInProvider != o2FoundInProvider) {
+			result = Integer.compare(o1FoundInProvider, o2FoundInProvider);
+		}
+		return result;
+	}
+
+	/**
+	 * Memoizes each entity's resolved sorted position per provider, so a primary key is located only
+	 * once per sort. A resolved position of `0` is stored as the reserved `Integer.MIN_VALUE` remap
+	 * to stay distinct from the HPPC map's absent-default `0`, and decoded back to `0` on read;
+	 * `POSITION_NOT_FOUND` (`-1`) and positive positions are stored verbatim and memoized.
 	 *
 	 * @param cache        cache to use
 	 * @param primaryKey   primary key of the entity to find
-	 * @param indexLocator function to compute the index of the entity
-	 * @return index of the entity
+	 * @param indexLocator function to compute the sorted position of the entity
+	 * @return sorted position of the entity
 	 */
 	static int computeIfAbsent(@Nonnull IntIntMap cache, @Nonnull Integer primaryKey, @Nonnull IntUnaryOperator indexLocator) {
 		final int result = cache.get(primaryKey);

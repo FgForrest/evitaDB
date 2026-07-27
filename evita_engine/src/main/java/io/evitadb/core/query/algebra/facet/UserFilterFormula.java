@@ -29,17 +29,12 @@ import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.NonCacheableFormula;
 import io.evitadb.core.query.algebra.NonCacheableFormulaScope;
 import io.evitadb.core.query.algebra.base.AndFormula;
-import io.evitadb.core.query.response.TransactionalDataRelatedStructure;
-import io.evitadb.index.bitmap.BaseBitmap;
+import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.index.bitmap.Bitmap;
-import io.evitadb.index.bitmap.EmptyBitmap;
-import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import net.openhft.hashing.LongHashFunction;
-import org.roaringbitmap.RoaringBitmap;
 
 import javax.annotation.Nonnull;
-import java.util.Arrays;
-import java.util.Comparator;
+import javax.annotation.Nullable;
 import java.util.List;
 
 /**
@@ -52,16 +47,32 @@ import java.util.List;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public class UserFilterFormula extends AbstractFormula implements NonCacheableFormula, NonCacheableFormulaScope {
+	/**
+	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} for hash computation.
+	 */
 	private static final long CLASS_ID = 6890499931556487481L;
-	private List<Formula> sortedFormulasByComplexity;
+	/**
+	 * Lazily initialized list of inner formulas sorted by their estimated cost in ascending order, used to
+	 * short-circuit AND evaluation starting from the cheapest formula.
+	 */
+	@Nullable private List<Formula> sortedFormulasByComplexity;
 
 	public UserFilterFormula(@Nonnull Formula... innerFormulas) {
 		this.initFields(innerFormulas);
 	}
 
+	@Override
+	public void clearMemory() {
+		super.clearMemory();
+		this.sortedFormulasByComplexity = null;
+	}
+
 	@Nonnull
 	@Override
 	public Formula getCloneWithInnerFormulas(@Nonnull Formula... innerFormulas) {
+		if (innerFormulas.length == 0) {
+			return EmptyFormula.INSTANCE;
+		}
 		return new UserFilterFormula(innerFormulas);
 	}
 
@@ -72,48 +83,33 @@ public class UserFilterFormula extends AbstractFormula implements NonCacheableFo
 
 	@Override
 	protected long getCostInternal() {
-		long cost = 0L;
-		for (Formula innerFormula : this.sortedFormulasByComplexity) {
-			final Bitmap innerResult = innerFormula.compute();
-			cost += innerFormula.getCost() + innerResult.size() * getOperationCost();
-			if (innerResult == EmptyBitmap.INSTANCE) {
-				break;
-			}
+		if (this.sortedFormulasByComplexity == null) {
+			this.sortedFormulasByComplexity = sortFormulasByComplexity(getInnerFormulas());
 		}
-		return cost;
+		return computeSortedConjunctionCost(this.sortedFormulasByComplexity, getOperationCost());
 	}
 
 	@Override
 	protected long getCostToPerformanceInternal() {
-		long costToPerformance = 0L;
-		for (Formula innerFormula : this.sortedFormulasByComplexity) {
-			final Bitmap innerResult = innerFormula.compute();
-			if (innerResult == EmptyBitmap.INSTANCE) {
-				break;
-			}
-			costToPerformance += innerFormula.getCostToPerformanceRatio();
+		if (this.sortedFormulasByComplexity == null) {
+			this.sortedFormulasByComplexity = sortFormulasByComplexity(getInnerFormulas());
 		}
-		return costToPerformance + getCost() / Math.max(1, compute().size());
+		return computeSortedConjunctionCostToPerformance(this.sortedFormulasByComplexity)
+			+ getCost() / Math.max(1, compute().size());
 	}
 
 	@Nonnull
 	@Override
 	protected Bitmap computeInternal() {
-		final Bitmap theResult;
-		final RoaringBitmap[] theBitmaps = getRoaringBitmaps();
-		if (theBitmaps.length == 0 || Arrays.stream(theBitmaps).anyMatch(RoaringBitmap::isEmpty)) {
-			theResult = EmptyBitmap.INSTANCE;
-		} else if (theBitmaps.length == 1) {
-			theResult = new BaseBitmap(theBitmaps[0]);
-		} else {
-			theResult = RoaringBitmapBackedBitmap.and(theBitmaps);
+		if (this.sortedFormulasByComplexity == null) {
+			this.sortedFormulasByComplexity = sortFormulasByComplexity(getInnerFormulas());
 		}
-		return theResult.isEmpty() ? EmptyBitmap.INSTANCE : theResult;
+		return computeConjunctionResult(computeSortedConjunctionBitmaps(this.sortedFormulasByComplexity));
 	}
 
 	@Override
 	public int getEstimatedCardinality() {
-		return Arrays.stream(this.innerFormulas).mapToInt(Formula::getEstimatedCardinality).min().orElse(0);
+		return getMinEstimatedCardinality(this.innerFormulas);
 	}
 
 	@Override
@@ -131,29 +127,4 @@ public class UserFilterFormula extends AbstractFormula implements NonCacheableFo
 		return CLASS_ID;
 	}
 
-	/*
-		PRIVATE METHODS
-	 */
-
-	@Nonnull
-	private RoaringBitmap[] getRoaringBitmaps() {
-		if (this.sortedFormulasByComplexity == null) {
-			this.sortedFormulasByComplexity = Arrays.stream(getInnerFormulas())
-				.sorted(Comparator.comparingLong(TransactionalDataRelatedStructure::getEstimatedCost))
-				.toList();
-		}
-		final RoaringBitmap[] theBitmaps = new RoaringBitmap[this.sortedFormulasByComplexity.size()];
-		// go from the cheapest formula to the more expensive and compute one by one
-		for (int i = 0; i < this.sortedFormulasByComplexity.size(); i++) {
-			final Formula formula = this.sortedFormulasByComplexity.get(i);
-			final Bitmap computedBitmap = formula.compute();
-			// if you encounter formula that returns nothing immediately return nothing - hence AND
-			if (computedBitmap.isEmpty()) {
-				return new RoaringBitmap[0];
-			} else {
-				theBitmaps[i] = RoaringBitmapBackedBitmap.getRoaringBitmap(computedBitmap);
-			}
-		}
-		return theBitmaps;
-	}
 }

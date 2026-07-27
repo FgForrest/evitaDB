@@ -6,6 +6,7 @@ author: Ing. Jan Novotný
 proofreading: done
 preferredLang: java
 commit: '726d58606ce657f9de645077ee4cd695b39f73e0'
+translated: true
 ---
 evitaDB je [Java aplikace](https://openjdk.org/), kterou můžete spustit jako
 [vestavěnou databázi](../use/connectors/java.md) v jakékoli Java aplikaci nebo jako
@@ -63,14 +64,14 @@ Pro integraci evitaDB do vašeho projektu použijte následující kroky:
 <dependency>
     <groupId>io.evitadb</groupId>
     <artifactId>evita_db</artifactId>
-    <version>2025.8.0</version>
+    <version>2026.1.0</version>
     <type>pom</type>
 </dependency>
 ```
 </CodeTabsBlock>
 <CodeTabsBlock>
 ```Gradle
-implementation 'io.evitadb:evita_db:2025.8.0'
+implementation 'io.evitadb:evita_db:2026.1.0'
 ```
 </CodeTabsBlock>
 </CodeTabs>
@@ -108,14 +109,14 @@ při povolení příslušného API v konfiguraci evitaDB.
 <dependency>
     <groupId>io.evitadb</groupId>
     <artifactId>evita_external_api_grpc</artifactId>
-    <version>2025.8.0</version>
+    <version>2026.1.0</version>
     <type>pom</type>
 </dependency>
 ```
 </CodeTabsBlock>
 <CodeTabsBlock>
 ```Gradle
-implementation 'io.evitadb:evita_external_api_grpc:2025.8.0'
+implementation 'io.evitadb:evita_external_api_grpc:2026.1.0'
 ```
 </CodeTabsBlock>
 </CodeTabs>
@@ -128,14 +129,14 @@ implementation 'io.evitadb:evita_external_api_grpc:2025.8.0'
 <dependency>
     <groupId>io.evitadb</groupId>
     <artifactId>evita_external_api_graphql</artifactId>
-    <version>2025.8.0</version>
+    <version>2026.1.0</version>
     <type>pom</type>
 </dependency>
 ```
 </CodeTabsBlock>
 <CodeTabsBlock>
 ```Gradle
-implementation 'io.evitadb:evita_external_api_graphql:2025.8.0'
+implementation 'io.evitadb:evita_external_api_graphql:2026.1.0'
 ```
 </CodeTabsBlock>
 </CodeTabs>
@@ -148,14 +149,14 @@ implementation 'io.evitadb:evita_external_api_graphql:2025.8.0'
 <dependency>
     <groupId>io.evitadb</groupId>
     <artifactId>evita_external_api_rest</artifactId>
-    <version>2025.8.0</version>
+    <version>2026.1.0</version>
     <type>pom</type>
 </dependency>
 ```
 </CodeTabsBlock>
 <CodeTabsBlock>
 ```Gradle
-implementation 'io.evitadb:evita_external_api_rest:2025.8.0'
+implementation 'io.evitadb:evita_external_api_rest:2026.1.0'
 ```
 </CodeTabsBlock>
 </CodeTabs>
@@ -169,6 +170,16 @@ Musíte tuto třídu vytvořit, nakonfigurovat a předat jí referenci na instan
 <SourceCodeTabs requires="/documentation/user/en/get-started/example/server-startup.java" local>
 [Příklad spuštění webového API v Javě](/documentation/user/en/get-started/example/api-startup.java)
 </SourceCodeTabs>
+
+<Note type="warning">
+Pokud propojujete `ExternalApiServer` s `Evitou` ručně, jako v ukázce výše, vytvářejte engine
+pomocí `new Evita(config, false)` místo jednoargumentového konstruktoru. Příznak `false` odloží
+načítání katalogů až do volání `ExternalApiServer.start()`, kdy už jsou všichni poskytovatelé API
+přihlášeni k odběru system CDC streamu. Bez tohoto opatření mohou rychle se načítající katalogy
+skončit dříve, než se odběratelé přihlásí, a jejich GraphQL/REST endpointy se neregistrují
+(události HOST CDC mají live-tail-only sémantiku). Uživatelé `EvitaServer` se o toto nemusí
+starat — ten má správné pořadí inicializace zařízeno interně.
+</Note>
 
 <Note type="warning">
 Nezapomeňte uzavřít API při ukončení vaší aplikace zavoláním metody `close` na
@@ -225,7 +236,7 @@ Po spuštění evitaDB serveru byste měli v konzoli vidět následující infor
 |  __/\ V /| | || (_| | |_| | |_) |
  \___| \_/ |_|\__\__,_|____/|____/
 
-beta build 2025.8.0 (keep calm and report bugs 😉)
+beta build 2026.1.0 (keep calm and report bugs 😉)
 Visit us at: https://evitadb.io
 
 Log config used: META-INF/logback.xml

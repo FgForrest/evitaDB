@@ -24,12 +24,20 @@
 package io.evitadb.externalApi.graphql.api.system;
 
 import io.evitadb.externalApi.graphql.api.testSuite.GraphQLEndpointFunctionalTest;
+import org.junit.jupiter.api.Tag;
+
+import static io.evitadb.test.TestTags.GRAPHQL;
+import static io.evitadb.test.TestTags.EXTERNAL_API;
+import static io.evitadb.test.TestTags.QUERY;
 
 /**
  * Tests for GraphQL system management endpoints.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
+@Tag(GRAPHQL)
+@Tag(EXTERNAL_API)
+@Tag(QUERY)
 public abstract class SystemGraphQLEndpointFunctionalTest extends GraphQLEndpointFunctionalTest {
 
 	protected static final String SYSTEM_URL = "system";

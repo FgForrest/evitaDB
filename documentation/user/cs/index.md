@@ -1,9 +1,10 @@
 ---
 title: Úvod
-date: '17.1.2023'
+date: '11.5.2026'
 author: Ing. Jan Novotný
 proofreading: done
 commit: cef96d8320d36c91c100c5dfc9c45020b5a7ad0d
+translated: 'true'
 ---
 evitaDB pomáhá vývojářům vytvářet rychlé aplikace produktových katalogů, které jsou srdcem každého e-commerce webu.
 Katalogy pracují s hierarchickými strukturami, fasetovým vyhledáváním, vyhledáváním podle ceny, rozsahem, lokalizací a fulltextem.
@@ -83,7 +84,7 @@ Nicméně evitaDB je v současnosti ve verzi beta a stále probíhá intenzivní
    7. [Segmentace](query/ordering/segment.md)
 4. **Požadavky**
    1. [Behaviorální](query/requirements/behavioral.md)
-   2. [Fasetové](query/requirements/facet.md)
+   2. [Reference](query/requirements/reference.md)
    3. [Načítání](query/requirements/fetching.md)
    4. [Hierarchie](query/requirements/hierarchy.md)
    5. [Histogram](query/requirements/histogram.md)

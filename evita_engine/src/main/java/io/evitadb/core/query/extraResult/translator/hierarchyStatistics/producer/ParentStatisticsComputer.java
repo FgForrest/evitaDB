@@ -141,7 +141,7 @@ public class ParentStatisticsComputer extends AbstractHierarchyStatisticsCompute
 			}
 
 			final HierarchyFilteringPredicate exceptStartNode = new MatchNodeIdHierarchyFilteringPredicate(
-				startNode.getEntity().getPrimaryKey()
+				startNode.getEntityPrimaryKey()
 			).negate();
 			final ParentStatisticsHierarchyVisitor parentVisitor = new ParentStatisticsHierarchyVisitor(
 				executionContext,

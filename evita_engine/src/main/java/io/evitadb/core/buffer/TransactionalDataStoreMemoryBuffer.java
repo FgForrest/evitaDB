@@ -77,24 +77,30 @@ public class TransactionalDataStoreMemoryBuffer implements DataStoreMemoryBuffer
 		this.dataStoreChanges = new DataStoreChanges(persistenceService);
 	}
 
+	@Nonnull
 	@Override
 	public <IK extends IndexKey, I extends Index<IK>> I getOrCreateIndexForModification(@Nonnull IK entityIndexKey, @Nonnull Function<IK, I> accessorWhenMissing) {
 		final DataStoreChanges layer = Transaction.getOrCreateTransactionalMemoryLayer(this.transactionalMemoryDataSource);
-		if (layer == null) {
-			return this.dataStoreChanges.getOrCreateIndexForModification(entityIndexKey, accessorWhenMissing);
-		} else {
-			return layer.getOrCreateIndexForModification(entityIndexKey, accessorWhenMissing);
-		}
+		return Objects.requireNonNullElse(layer, this.dataStoreChanges)
+			.getOrCreateIndexForModification(entityIndexKey, accessorWhenMissing);
+	}
+
+	@Nonnull
+	@Override
+	public <IK extends IndexKey, I extends Index<IK>> I getOrCreateIndexForModification(
+		int entityIndexPrimaryKey,
+		@Nonnull IntFunction<I> accessorWhenMissing
+	) {
+		final DataStoreChanges layer = Transaction.getOrCreateTransactionalMemoryLayer(this.transactionalMemoryDataSource);
+		return Objects.requireNonNullElse(layer, this.dataStoreChanges)
+			.getIndexForModification(entityIndexPrimaryKey, accessorWhenMissing);
 	}
 
 	@Override
 	public <IK extends IndexKey, I extends Index<IK>> I getIndexIfExists(@Nonnull IK entityIndexKey, @Nonnull Function<IK, I> accessorWhenMissing) {
 		final DataStoreChanges layer = getTransactionalMemoryLayerIfExists(this.transactionalMemoryDataSource);
-		if (layer == null) {
-			return this.dataStoreChanges.getIndexIfExists(entityIndexKey, accessorWhenMissing);
-		} else {
-			return layer.getIndexIfExists(entityIndexKey, accessorWhenMissing);
-		}
+		return Objects.requireNonNullElse(layer, this.dataStoreChanges)
+			.getIndexIfExists(entityIndexKey, accessorWhenMissing);
 	}
 
 	@Nullable
@@ -104,21 +110,17 @@ public class TransactionalDataStoreMemoryBuffer implements DataStoreMemoryBuffer
 		@Nonnull IntFunction<I> accessorWhenMissing
 	) {
 		final DataStoreChanges layer = getTransactionalMemoryLayerIfExists(this.transactionalMemoryDataSource);
-		if (layer == null) {
-			return this.dataStoreChanges.getIndexIfExists(entityIndexPrimaryKey, accessorWhenMissing);
-		} else {
-			return layer.getIndexIfExists(entityIndexPrimaryKey, accessorWhenMissing);
-		}
+		return Objects.requireNonNullElse(layer, this.dataStoreChanges)
+			.getIndexIfExists(entityIndexPrimaryKey, accessorWhenMissing);
 	}
 
+	@Nullable
 	@Override
-	public <IK extends IndexKey, I extends Index<IK>> I removeIndex(@Nonnull IK entityIndexKey, @Nonnull Function<IK, I> removalPropagation) {
-		final DataStoreChanges layer = getTransactionalMemoryLayerIfExists(this.transactionalMemoryDataSource);
-		if (layer == null) {
-			return this.dataStoreChanges.removeIndex(entityIndexKey, removalPropagation);
-		} else {
-			return layer.removeIndex(entityIndexKey, removalPropagation);
-		}
+	public <IK extends IndexKey, I extends Index<IK>> I removeIndex(long catalogVersion, @Nonnull IK entityIndexKey, @Nonnull Function<IK, I> removalPropagation) {
+		// removal MUTATES the layer, so the write-variant fetch is required: it records the layer's pre-mutation
+		// snapshot into an open savepoint on first touch (a read-path fetch would leave the removal unrevertable)
+		final DataStoreChanges layer = Transaction.getTransactionalMemoryLayerForWriteIfExists(this.transactionalMemoryDataSource);
+		return Objects.requireNonNullElse(layer, this.dataStoreChanges).removeIndex(catalogVersion, entityIndexKey, removalPropagation);
 	}
 
 	@Override
@@ -212,21 +214,14 @@ public class TransactionalDataStoreMemoryBuffer implements DataStoreMemoryBuffer
 	@Override
 	public <T extends StoragePart> boolean trapRemoveByPrimaryKey(long catalogVersion, long primaryKey, @Nonnull Class<T> entityClass) {
 		final DataStoreChanges layer = Transaction.getOrCreateTransactionalMemoryLayer(this.transactionalMemoryDataSource);
-		if (layer == null) {
-			return this.dataStoreChanges.trapRemoveStoragePart(catalogVersion, primaryKey, entityClass);
-		} else {
-			return layer.trapRemoveStoragePart(catalogVersion, primaryKey, entityClass);
-		}
+		return Objects.requireNonNullElse(layer, this.dataStoreChanges)
+			.trapRemoveStoragePart(catalogVersion, primaryKey, entityClass);
 	}
 
 	@Override
 	public <T extends StoragePart> void trapUpdate(long catalogVersion, @Nonnull T value) {
 		final DataStoreChanges layer = Transaction.getOrCreateTransactionalMemoryLayer(this.transactionalMemoryDataSource);
-		if (layer == null) {
-			this.dataStoreChanges.trapPutStoragePart(value);
-		} else {
-			layer.trapPutStoragePart(value);
-		}
+		Objects.requireNonNullElse(layer, this.dataStoreChanges).trapPutStoragePart(value);
 	}
 
 	@Nonnull

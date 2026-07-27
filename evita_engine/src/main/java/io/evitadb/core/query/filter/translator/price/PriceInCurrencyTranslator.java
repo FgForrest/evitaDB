@@ -64,7 +64,8 @@ public class PriceInCurrencyTranslator extends AbstractPriceRelatedConstraintTra
 			if (filterByVisitor.isEntityTypeKnown()) {
 				final Formula filteringFormula = PriceListCompositionTerminationVisitor.translate(
 					createFormula(filterByVisitor, currency),
-					null, currency, null, filterByVisitor.getQueryPriceMode(), null
+					null, currency, null, filterByVisitor.getQueryPriceMode(), null,
+					filterByVisitor.isHistogramSideOutputApplicable()
 				);
 				if (filterByVisitor.isPrefetchPossible()) {
 					return new SelectionFormula(
@@ -106,7 +107,9 @@ public class PriceInCurrencyTranslator extends AbstractPriceRelatedConstraintTra
 								return innerRecordHandling.equals(priceIndexKey.getRecordHandling()) &&
 									currency.equals(priceIndexKey.getCurrency());
 							})
-							.map(PriceListAndCurrencyPriceIndex::createPriceIndexFormulaWithAllRecords)
+							// resolved inside the map on purpose: an index with no matching combination must not force
+							// a GLOBAL lookup it has no use for
+							.map(it -> it.createPriceIndexFormulaWithAllRecords(filterByVisitor.getSuperPriceIndex(entityIndex)))
 							.toArray(Formula[]::new)
 					)
 				)

@@ -30,6 +30,9 @@ import io.evitadb.api.requestResponse.mutation.conflict.CatalogConflictKey;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictGenerationContext;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolution;
+import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
+import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.core.transaction.stage.mutation.ServerEntityMutation;
 import io.evitadb.dataType.array.CompositeObjectArray;
 import io.evitadb.spi.store.catalog.wal.IsolatedWalPersistenceService;
@@ -40,10 +43,12 @@ import io.evitadb.utils.CollectionUtils;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
-import java.util.EnumSet;
+import javax.annotation.Nullable;
 import java.util.Iterator;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.Function;
 
 /**
  * The DefaultIsolatedWalService class is a default implementation of the IsolatedWalPersistenceService interface.
@@ -60,9 +65,22 @@ public class DefaultIsolatedWalService implements IsolatedWalPersistenceService 
 	 */
 	@Nonnull private final String catalogName;
 	/**
-	 * The set of conflict policies that are considered when collecting conflict keys.
+	 * The conflict resolution considered when collecting conflict keys. In schema-aware mode (a non-null
+	 * {@link #catalogSchema}) it is the engine-wide default forming the base of the per-entity schema
+	 * precedence walk; otherwise it is the fixed resolution applied to every mutation.
 	 */
-	@Nonnull private final EnumSet<ConflictPolicy> conflictPolicy;
+	@Nonnull private final ConflictResolution conflictResolution;
+	/**
+	 * The catalog schema whose (nullable) resolution overrides the engine default when collecting conflict
+	 * keys. Null enables the legacy global-backed key generation (used by tests that construct the service
+	 * without a schema); non-null enables schema-aware resolution.
+	 */
+	@Nullable private final CatalogSchemaContract catalogSchema;
+	/**
+	 * Accessor returning the entity schema for a given entity type (or null when the type has no schema
+	 * yet), consulted in schema-aware mode. Null in global-backed mode.
+	 */
+	@Nullable private final Function<String, EntitySchemaContract> entitySchemaAccessor;
 	/**
 	 * The transactionId is the unique identifier for the transaction.
 	 */
@@ -88,18 +106,64 @@ public class DefaultIsolatedWalService implements IsolatedWalPersistenceService 
 	 */
 	private final CompositeObjectArray<ConflictKey> conflictKeys = new CompositeObjectArray<>(ConflictKey.class);
 
+	/**
+	 * Creates a global-backed WAL service: every mutation's conflict keys are generated from the fixed
+	 * {@code conflictResolution} without consulting any schema. Retained for callers (chiefly tests) that
+	 * have no living schema at hand.
+	 */
 	public DefaultIsolatedWalService(
 		@Nonnull String catalogName,
 		@Nonnull UUID transactionId,
-		@Nonnull EnumSet<ConflictPolicy> conflictPolicy,
+		@Nonnull ConflictResolution conflictResolution,
+		@Nonnull Kryo writeKryo,
+		@Nonnull WriteOnlyOffHeapWithFileBackupHandle writeHandle
+	) {
+		this(catalogName, transactionId, conflictResolution, null, null, writeKryo, writeHandle);
+	}
+
+	/**
+	 * Creates a schema-aware WAL service: conflict keys are generated from the effective, schema-declared
+	 * conflict resolution resolved per entity type (entity schema → catalog schema → engine default) with
+	 * per-item overrides applied.
+	 *
+	 * @param conflictResolution   the engine-wide default resolution forming the base of the walk
+	 * @param catalogSchema        the catalog schema whose resolution overrides the engine default
+	 * @param entitySchemaAccessor accessor returning the entity schema for a type, or null when absent
+	 */
+	public DefaultIsolatedWalService(
+		@Nonnull String catalogName,
+		@Nonnull UUID transactionId,
+		@Nonnull ConflictResolution conflictResolution,
+		@Nullable CatalogSchemaContract catalogSchema,
+		@Nullable Function<String, EntitySchemaContract> entitySchemaAccessor,
 		@Nonnull Kryo writeKryo,
 		@Nonnull WriteOnlyOffHeapWithFileBackupHandle writeHandle
 	) {
 		this.catalogName = catalogName;
 		this.transactionId = transactionId;
-		this.conflictPolicy = conflictPolicy;
+		this.conflictResolution = conflictResolution;
+		this.catalogSchema = catalogSchema;
+		this.entitySchemaAccessor = entitySchemaAccessor;
 		this.writeKryo = writeKryo;
 		this.writeHandle = writeHandle;
+	}
+
+	/**
+	 * Resolves the effective catalog-level conflict policy governing the catalog-wide conflict fallback. In
+	 * schema-aware mode the catalog schema's declared resolution overrides the engine default; in global-backed
+	 * mode (no catalog schema) the fixed engine resolution applies. Mirrors the no-entity-scope branch of
+	 * {@link ConflictGenerationContext}'s catalog-level resolution so the fallback keys off the same policy the
+	 * per-mutation collection would.
+	 *
+	 * @return the effective catalog-level {@link ConflictPolicy}, never null
+	 */
+	@Nonnull
+	private ConflictPolicy effectiveCatalogPolicy() {
+		return this.catalogSchema == null
+			? this.conflictResolution.policy()
+			: this.catalogSchema.getConflictResolution()
+				.map(ConflictResolution::policy)
+				.orElse(this.conflictResolution.policy());
 	}
 
 	@Override
@@ -110,11 +174,24 @@ public class DefaultIsolatedWalService implements IsolatedWalPersistenceService 
 			output -> {
 				final Mutation mutationToWrite = mutation instanceof ServerEntityMutation sem ?
 					sem.getDelegate() : mutation;
-				// collect conflict keys
-				final ConflictGenerationContext context = new ConflictGenerationContext();
+				// collect conflict keys — schema-aware when a living schema was threaded in, otherwise
+				// global-backed from the fixed resolution. The catalog schema and the entity schema accessor
+				// are always supplied together (see the schema-aware constructor), so the accessor is
+				// non-null whenever the catalog schema is; assert it to fail fast on any inconsistent state.
+				final CatalogSchemaContract localCatalogSchema = this.catalogSchema;
+				final ConflictGenerationContext context = localCatalogSchema == null ?
+					new ConflictGenerationContext(this.conflictResolution) :
+					new ConflictGenerationContext(
+						this.conflictResolution,
+						localCatalogSchema,
+						Objects.requireNonNull(
+							this.entitySchemaAccessor,
+							"Entity schema accessor must accompany the catalog schema in schema-aware mode."
+						)
+					);
 				final Iterator<ConflictKey> it = context.withCatalogName(
 					this.catalogName,
-					ctx -> mutationToWrite.collectConflictKeys(ctx, this.conflictPolicy)
+					mutationToWrite::collectConflictKeys
 				).iterator();
 				// register collected conflict keys
 				boolean conflictKeyCollected = false;
@@ -123,7 +200,7 @@ public class DefaultIsolatedWalService implements IsolatedWalPersistenceService 
 					conflictKeyCollected = true;
 				}
 				// register catalog conflict key if none collected and catalog policy is requested
-				if (!conflictKeyCollected && this.conflictPolicy.contains(ConflictPolicy.CATALOG)) {
+				if (!conflictKeyCollected && effectiveCatalogPolicy() == ConflictPolicy.CATALOG) {
 					this.conflictKeys.add(new CatalogConflictKey(this.catalogName));
 				}
 				// write the mutation
@@ -153,7 +230,7 @@ public class DefaultIsolatedWalService implements IsolatedWalPersistenceService 
 		for (ConflictKey conflictKey : this.conflictKeys) {
 			resultConflictKeys.add(conflictKey);
 		}
-		if (resultConflictKeys.isEmpty() && this.conflictPolicy.contains(ConflictPolicy.CATALOG)) {
+		if (resultConflictKeys.isEmpty() && effectiveCatalogPolicy() == ConflictPolicy.CATALOG) {
 			// at least catalog conflict key must be present
 			resultConflictKeys.add(new CatalogConflictKey(this.catalogName));
 		}

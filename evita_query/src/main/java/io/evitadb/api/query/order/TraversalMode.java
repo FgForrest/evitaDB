@@ -23,7 +23,6 @@
 
 package io.evitadb.api.query.order;
 
-
 import io.evitadb.dataType.SupportedEnum;
 
 /**

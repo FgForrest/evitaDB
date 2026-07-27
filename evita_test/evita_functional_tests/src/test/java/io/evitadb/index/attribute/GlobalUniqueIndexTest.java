@@ -25,49 +25,59 @@ package io.evitadb.index.attribute;
 
 import io.evitadb.api.exception.UniqueValueViolationException;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
-import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.dataType.Scope;
+import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.index.EntityTypeClassifierResolver;
+import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.test.Entities;
-import io.evitadb.test.duration.TimeArgumentProvider;
-import io.evitadb.test.duration.TimeArgumentProvider.GenerationalTestInput;
-import io.evitadb.test.duration.TimeBoundedTestSupport;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ArgumentsSource;
 import org.mockito.Mockito;
 
-import java.util.Arrays;
+import javax.annotation.Nonnull;
 import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
 import java.util.Locale;
-import java.util.Map;
-import java.util.Map.Entry;
-import java.util.Set;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.Collectors;
 
-import static io.evitadb.test.TestConstants.LONG_RUNNING_TEST;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.INDEXING;
+import static io.evitadb.test.TestTags.ATTRIBUTE;
 
 /**
  * Test verifies contract of {@link GlobalUniqueIndex}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-class GlobalUniqueIndexTest implements TimeBoundedTestSupport {
+@Tag(INDEXING)
+@Tag(ATTRIBUTE)
+class GlobalUniqueIndexTest {
 	private final Catalog catalog = Mockito.mock(Catalog.class);
+	/**
+	 * The entity-type name ↔ compact primary key resolver the index now receives per call instead of holding a catalog
+	 * back-reference. It delegates to the same mock-catalog collection accessors the tests already stub, so no extra
+	 * stubbing is needed.
+	 */
+	private final EntityTypeClassifierResolver classifierResolver = new EntityTypeClassifierResolver() {
+		@Override
+		public int toEntityTypePrimaryKey(@Nonnull String entityType) {
+			return GlobalUniqueIndexTest.this.catalog.getCollectionForEntityOrThrowException(entityType).getEntityTypePrimaryKey();
+		}
+
+		@Nonnull
+		@Override
+		public String toEntityTypeName(int entityTypePrimaryKey) {
+			return GlobalUniqueIndexTest.this.catalog.getCollectionForEntityPrimaryKeyOrThrowException(entityTypePrimaryKey).getEntityType();
+		}
+	};
 	private final EntityReferenceWithLocale productRef = new EntityReferenceWithLocale(Entities.PRODUCT, 1, null);
 	private final EntityReferenceWithLocale localizedProduct2EnglishRef = new EntityReferenceWithLocale(Entities.PRODUCT, 2, Locale.ENGLISH);
 	private final EntityReferenceWithLocale localizedProduct2FrenchRef = new EntityReferenceWithLocale(Entities.PRODUCT, 2, Locale.FRENCH);
 	private final EntityReferenceWithLocale localizedProduct3Ref = new EntityReferenceWithLocale(Entities.PRODUCT, 3, Locale.ENGLISH);
 	private final GlobalUniqueIndex tested = new GlobalUniqueIndex(
-		Scope.LIVE, new AttributeKey("whatever"), String.class, new HashMap<>(), new HashMap<>()
+		Scope.LIVE, new AttributeKey("whatever"), String.class
 	);
 
 	@BeforeEach
@@ -77,202 +87,218 @@ class GlobalUniqueIndexTest implements TimeBoundedTestSupport {
 		Mockito.when(productCollection.getEntityType()).thenReturn(Entities.PRODUCT);
 		Mockito.when(this.catalog.getCollectionForEntityPrimaryKeyOrThrowException(1)).thenReturn(productCollection);
 		Mockito.when(this.catalog.getCollectionForEntityOrThrowException(Entities.PRODUCT)).thenReturn(productCollection);
-		this.tested.attachToCatalog(null, this.catalog);
 	}
 
 	@Test
 	void shouldRegisterUniqueValueAndRetrieveItBack() {
-		this.tested.registerUniqueKey("A", Entities.PRODUCT, null, 1);
-		assertEquals(this.productRef, this.tested.getEntityReferenceByUniqueValue("A", null).orElse(null));
-		assertNull(this.tested.getEntityReferenceByUniqueValue("B", null).orElse(null));
+		this.tested.registerUniqueKey("A", Entities.PRODUCT, null, 1, this.classifierResolver);
+		assertEquals(this.productRef, this.tested.getEntityReferenceByUniqueValue("A", null, this.classifierResolver).orElse(null));
+		assertNull(this.tested.getEntityReferenceByUniqueValue("B", null, this.classifierResolver).orElse(null));
 	}
 
 	@Test
 	void shouldRegisterLocalizedUniqueValueAndRetrieveItBack() {
-		this.tested.registerUniqueKey("A", Entities.PRODUCT, Locale.ENGLISH, 2);
-		this.tested.registerUniqueKey("B", Entities.PRODUCT, Locale.FRENCH, 2);
-		this.tested.registerUniqueKey("C", Entities.PRODUCT, Locale.ENGLISH, 3);
-		assertEquals(this.localizedProduct2EnglishRef, this.tested.getEntityReferenceByUniqueValue("A", Locale.ENGLISH).orElse(null));
-		assertNull(this.tested.getEntityReferenceByUniqueValue("A", Locale.FRENCH).orElse(null));
-		assertEquals(this.localizedProduct2FrenchRef, this.tested.getEntityReferenceByUniqueValue("B", Locale.FRENCH).orElse(null));
-		assertNull(this.tested.getEntityReferenceByUniqueValue("B", Locale.ENGLISH).orElse(null));
-		assertEquals(this.localizedProduct3Ref, this.tested.getEntityReferenceByUniqueValue("C", Locale.ENGLISH).orElse(null));
-		assertNull(this.tested.getEntityReferenceByUniqueValue("E", null).orElse(null));
+		this.tested.registerUniqueKey("A", Entities.PRODUCT, Locale.ENGLISH, 2, this.classifierResolver);
+		this.tested.registerUniqueKey("B", Entities.PRODUCT, Locale.FRENCH, 2, this.classifierResolver);
+		this.tested.registerUniqueKey("C", Entities.PRODUCT, Locale.ENGLISH, 3, this.classifierResolver);
+		assertEquals(this.localizedProduct2EnglishRef, this.tested.getEntityReferenceByUniqueValue("A", Locale.ENGLISH, this.classifierResolver).orElse(null));
+		assertNull(this.tested.getEntityReferenceByUniqueValue("A", Locale.FRENCH, this.classifierResolver).orElse(null));
+		assertEquals(this.localizedProduct2FrenchRef, this.tested.getEntityReferenceByUniqueValue("B", Locale.FRENCH, this.classifierResolver).orElse(null));
+		assertNull(this.tested.getEntityReferenceByUniqueValue("B", Locale.ENGLISH, this.classifierResolver).orElse(null));
+		assertEquals(this.localizedProduct3Ref, this.tested.getEntityReferenceByUniqueValue("C", Locale.ENGLISH, this.classifierResolver).orElse(null));
+		assertNull(this.tested.getEntityReferenceByUniqueValue("E", null, this.classifierResolver).orElse(null));
 	}
 
 	@Test
 	void shouldFailToRegisterDuplicateValues() {
-		this.tested.registerUniqueKey("A", Entities.PRODUCT, null, 1);
-		assertThrows(UniqueValueViolationException.class, () -> this.tested.registerUniqueKey("A", Entities.PRODUCT, null, 2));
+		this.tested.registerUniqueKey("A", Entities.PRODUCT, null, 1, this.classifierResolver);
+		assertThrows(UniqueValueViolationException.class, () -> this.tested.registerUniqueKey("A", Entities.PRODUCT, null, 2, this.classifierResolver));
 	}
 
 	@Test
 	void shouldFailToRegisterDuplicateLocalizedValues() {
-		this.tested.registerUniqueKey("A", Entities.PRODUCT, Locale.ENGLISH, 1);
-		assertThrows(UniqueValueViolationException.class, () -> this.tested.registerUniqueKey("A", Entities.PRODUCT, Locale.GERMAN, 2));
+		this.tested.registerUniqueKey("A", Entities.PRODUCT, Locale.ENGLISH, 1, this.classifierResolver);
+		assertThrows(UniqueValueViolationException.class, () -> this.tested.registerUniqueKey("A", Entities.PRODUCT, Locale.GERMAN, 2, this.classifierResolver));
 	}
 
 	@Test
 	void shouldUnregisterPreviouslyRegisteredValue() {
-		this.tested.registerUniqueKey("A", Entities.PRODUCT, null, 1);
-		assertEquals(this.productRef, this.tested.unregisterUniqueKey("A", Entities.PRODUCT, null, 1));
-		assertNull(this.tested.getEntityReferenceByUniqueValue("A", null).orElse(null));
+		this.tested.registerUniqueKey("A", Entities.PRODUCT, null, 1, this.classifierResolver);
+		assertEquals(this.productRef, this.tested.unregisterUniqueKey("A", Entities.PRODUCT, null, 1, this.classifierResolver));
+		assertNull(this.tested.getEntityReferenceByUniqueValue("A", null, this.classifierResolver).orElse(null));
 	}
 
 	@Test
 	void shouldUnregisterPreviouslyRegisteredLocalizedValue() {
-		this.tested.registerUniqueKey("A", Entities.PRODUCT, Locale.ENGLISH, 2);
-		this.tested.registerUniqueKey("B", Entities.PRODUCT, Locale.FRENCH, 2);
-		this.tested.registerUniqueKey("C", Entities.PRODUCT, Locale.ENGLISH, 3);
-		assertEquals(this.localizedProduct2EnglishRef, this.tested.unregisterUniqueKey("A", Entities.PRODUCT, Locale.ENGLISH, 2));
-		assertEquals(this.localizedProduct2FrenchRef, this.tested.unregisterUniqueKey("B", Entities.PRODUCT, Locale.FRENCH, 2));
-		assertEquals(this.localizedProduct3Ref, this.tested.unregisterUniqueKey("C", Entities.PRODUCT, Locale.ENGLISH, 3));
+		this.tested.registerUniqueKey("A", Entities.PRODUCT, Locale.ENGLISH, 2, this.classifierResolver);
+		this.tested.registerUniqueKey("B", Entities.PRODUCT, Locale.FRENCH, 2, this.classifierResolver);
+		this.tested.registerUniqueKey("C", Entities.PRODUCT, Locale.ENGLISH, 3, this.classifierResolver);
+		assertEquals(this.localizedProduct2EnglishRef, this.tested.unregisterUniqueKey("A", Entities.PRODUCT, Locale.ENGLISH, 2, this.classifierResolver));
+		assertEquals(this.localizedProduct2FrenchRef, this.tested.unregisterUniqueKey("B", Entities.PRODUCT, Locale.FRENCH, 2, this.classifierResolver));
+		assertEquals(this.localizedProduct3Ref, this.tested.unregisterUniqueKey("C", Entities.PRODUCT, Locale.ENGLISH, 3, this.classifierResolver));
 
-		assertNull(this.tested.getEntityReferenceByUniqueValue("A", Locale.ENGLISH).orElse(null));
-		assertNull(this.tested.getEntityReferenceByUniqueValue("B", Locale.FRENCH).orElse(null));
-		assertNull(this.tested.getEntityReferenceByUniqueValue("C", Locale.ENGLISH).orElse(null));
+		assertNull(this.tested.getEntityReferenceByUniqueValue("A", Locale.ENGLISH, this.classifierResolver).orElse(null));
+		assertNull(this.tested.getEntityReferenceByUniqueValue("B", Locale.FRENCH, this.classifierResolver).orElse(null));
+		assertNull(this.tested.getEntityReferenceByUniqueValue("C", Locale.ENGLISH, this.classifierResolver).orElse(null));
 	}
 
 	@Test
 	void shouldFailToUnregisterUnknownValue() {
-		assertThrows(IllegalArgumentException.class, () -> this.tested.unregisterUniqueKey("B", Entities.PRODUCT, null, 1));
-		assertThrows(IllegalArgumentException.class, () -> this.tested.unregisterUniqueKey("B", Entities.PRODUCT, Locale.ENGLISH, 1));
+		assertThrows(IllegalArgumentException.class, () -> this.tested.unregisterUniqueKey("B", Entities.PRODUCT, null, 1, this.classifierResolver));
+		assertThrows(IllegalArgumentException.class, () -> this.tested.unregisterUniqueKey("B", Entities.PRODUCT, Locale.ENGLISH, 1, this.classifierResolver));
 	}
 
 	@Test
 	void shouldRegisterAndPartialUnregisterValues() {
-		this.tested.registerUniqueKey(new String[]{"A", "B", "C"}, Entities.PRODUCT, null, 1);
-		assertEquals(this.productRef, this.tested.getEntityReferenceByUniqueValue("A", null).orElse(null));
-		assertEquals(this.productRef, this.tested.getEntityReferenceByUniqueValue("B", null).orElse(null));
-		assertEquals(this.productRef, this.tested.getEntityReferenceByUniqueValue("C", null).orElse(null));
+		this.tested.registerUniqueKey(new String[]{"A", "B", "C"}, Entities.PRODUCT, null, 1, this.classifierResolver);
+		assertEquals(this.productRef, this.tested.getEntityReferenceByUniqueValue("A", null, this.classifierResolver).orElse(null));
+		assertEquals(this.productRef, this.tested.getEntityReferenceByUniqueValue("B", null, this.classifierResolver).orElse(null));
+		assertEquals(this.productRef, this.tested.getEntityReferenceByUniqueValue("C", null, this.classifierResolver).orElse(null));
 
-		this.tested.unregisterUniqueKey(new String[]{"B", "C"}, Entities.PRODUCT, null, 1);
-		assertEquals(this.productRef, this.tested.getEntityReferenceByUniqueValue("A", null).orElse(null));
-		assertNull(this.tested.getEntityReferenceByUniqueValue("B", null).orElse(null));
-		assertNull(this.tested.getEntityReferenceByUniqueValue("C", null).orElse(null));
+		this.tested.unregisterUniqueKey(new String[]{"B", "C"}, Entities.PRODUCT, null, 1, this.classifierResolver);
+		assertEquals(this.productRef, this.tested.getEntityReferenceByUniqueValue("A", null, this.classifierResolver).orElse(null));
+		assertNull(this.tested.getEntityReferenceByUniqueValue("B", null, this.classifierResolver).orElse(null));
+		assertNull(this.tested.getEntityReferenceByUniqueValue("C", null, this.classifierResolver).orElse(null));
 	}
 
 	@Test
 	void shouldRegisterAndPartialUnregisterLocalizedValues() {
-		this.tested.registerUniqueKey(new String[]{"A", "B", "C"}, Entities.PRODUCT, Locale.ENGLISH, 1);
-		assertEquals(this.productRef, this.tested.getEntityReferenceByUniqueValue("A", Locale.ENGLISH).orElse(null));
-		assertEquals(this.productRef, this.tested.getEntityReferenceByUniqueValue("B", Locale.ENGLISH).orElse(null));
-		assertEquals(this.productRef, this.tested.getEntityReferenceByUniqueValue("C", Locale.ENGLISH).orElse(null));
+		this.tested.registerUniqueKey(new String[]{"A", "B", "C"}, Entities.PRODUCT, Locale.ENGLISH, 1, this.classifierResolver);
+		assertEquals(this.productRef, this.tested.getEntityReferenceByUniqueValue("A", Locale.ENGLISH, this.classifierResolver).orElse(null));
+		assertEquals(this.productRef, this.tested.getEntityReferenceByUniqueValue("B", Locale.ENGLISH, this.classifierResolver).orElse(null));
+		assertEquals(this.productRef, this.tested.getEntityReferenceByUniqueValue("C", Locale.ENGLISH, this.classifierResolver).orElse(null));
 
-		this.tested.unregisterUniqueKey(new String[]{"B", "C"}, Entities.PRODUCT, Locale.ENGLISH, 1);
-		assertEquals(this.productRef, this.tested.getEntityReferenceByUniqueValue("A", Locale.ENGLISH).orElse(null));
-		assertNull(this.tested.getEntityReferenceByUniqueValue("B", Locale.ENGLISH).orElse(null));
-		assertNull(this.tested.getEntityReferenceByUniqueValue("C", Locale.ENGLISH).orElse(null));
+		this.tested.unregisterUniqueKey(new String[]{"B", "C"}, Entities.PRODUCT, Locale.ENGLISH, 1, this.classifierResolver);
+		assertEquals(this.productRef, this.tested.getEntityReferenceByUniqueValue("A", Locale.ENGLISH, this.classifierResolver).orElse(null));
+		assertNull(this.tested.getEntityReferenceByUniqueValue("B", Locale.ENGLISH, this.classifierResolver).orElse(null));
+		assertNull(this.tested.getEntityReferenceByUniqueValue("C", Locale.ENGLISH, this.classifierResolver).orElse(null));
 	}
 
-	@ParameterizedTest(name = "GlobalUniqueIndex should survive generational randomized test applying modifications on it")
-	@Tag(LONG_RUNNING_TEST)
-	@ArgumentsSource(TimeArgumentProvider.class)
-	void generationalProofTest(GenerationalTestInput input) {
-		final int initialCount = 100;
-		final Map<String, Integer> mapToCompare = new HashMap<>();
-		final Set<Integer> currentRecordSet = new HashSet<>();
-		final GlobalUniqueIndex initialUniqueIndex = new GlobalUniqueIndex(Scope.LIVE, new AttributeKey("code"), String.class);
-		initialUniqueIndex.attachToCatalog(null, this.catalog);
+	@Test
+	void shouldRoundTripLocalizedTupleThroughPackedPayload() {
+		// the (entityType, primaryKey, locale) tuple must survive the pack/unpack at the long-payload tree boundary
+		this.tested.registerUniqueKey("A", Entities.PRODUCT, Locale.ENGLISH, 2, this.classifierResolver);
+		assertEquals(
+			this.localizedProduct2EnglishRef,
+			this.tested.getEntityReferenceByUniqueValue("A", Locale.ENGLISH, this.classifierResolver).orElse(null)
+		);
+		// the resolved reference carries the very same entity type, primary key and locale that were registered
+		final EntityReferenceWithLocale resolved = this.tested.getEntityReferenceByUniqueValue("A", Locale.ENGLISH, this.classifierResolver).orElseThrow();
+		assertEquals(Entities.PRODUCT, resolved.getType());
+		assertEquals(2, resolved.getPrimaryKey());
+		assertEquals(Locale.ENGLISH, resolved.locale());
+	}
 
-		runFor(
-			input,
-			1_000,
-			new TestState(
-				new StringBuilder(),
-				1,
-				initialUniqueIndex
-			),
-			(random, testState) -> {
-				final StringBuilder codeBuffer = testState.code();
-				codeBuffer.append("final Classifier product = new Classifier(Entities.PRODUCT);\nfinal GlobalUniqueIndex uniqueIndex = new GlobalUniqueIndex(\"code\", String.class);\n")
-					.append(
-						mapToCompare.entrySet()
-							.stream()
-							.map(it -> "uniqueIndex.registerUniqueKey(\"" + it.getKey() + "\"," + it.getValue() + ");")
-							.collect(Collectors.joining("\n"))
-					)
-					.append("\nOps:\n");
-				final GlobalUniqueIndex transactionalUniqueIndex = testState.initialState();
-				final AtomicReference<GlobalUniqueIndex> committedResult = new AtomicReference<>();
+	@Test
+	void shouldFailWhenEntityTypeIdExceedsPayloadField() {
+		// a synthetic entity type whose primary key overflows the 16-bit packed payload field must be rejected loudly
+		// rather than silently truncated
+		final EntityCollection bigCollection = Mockito.mock(EntityCollection.class);
+		Mockito.when(bigCollection.getEntityTypePrimaryKey()).thenReturn(0x10000);
+		Mockito.when(this.catalog.getCollectionForEntityOrThrowException("BIG")).thenReturn(bigCollection);
+		assertThrows(
+			GenericEvitaInternalError.class,
+			() -> this.tested.registerUniqueKey("A", "BIG", null, 1, this.classifierResolver)
+		);
+	}
 
-				assertStateAfterCommit(
-					transactionalUniqueIndex,
-					original -> {
-						try {
-							final int operationsInTransaction = random.nextInt(100);
-							for (int i = 0; i < operationsInTransaction; i++) {
-								final int length = transactionalUniqueIndex.size();
-								if ((random.nextBoolean() || length < 10) && length < 50) {
-									// insert new item
-									final String newValue = Character.toString(65 + random.nextInt(28)) + "_" + ((testState.iteration() * 100) + i);
-									int newRecId;
-									do {
-										newRecId = random.nextInt(initialCount * 2);
-									} while (currentRecordSet.contains(newRecId));
-									mapToCompare.put(newValue, newRecId);
-									currentRecordSet.add(newRecId);
+	@Test
+	void shouldAllowSameValueAcrossLocalesForLocalizedAttribute() {
+		// a localized (within-locale-unique) attribute permits the same value to coexist across different locales
+		final GlobalUniqueIndex localized = new GlobalUniqueIndex(
+			Scope.LIVE, new AttributeKey("localizedCode", Locale.ENGLISH), String.class
+		);
+		localized.registerUniqueKey("A", Entities.PRODUCT, Locale.ENGLISH, 2, this.classifierResolver);
+		// registering the same value under a different locale must NOT raise a uniqueness violation
+		assertDoesNotThrow(() -> localized.registerUniqueKey("A", Entities.PRODUCT, Locale.FRENCH, 3, this.classifierResolver));
+		// the value resolves under the last writer's locale (the value-keyed tree overwrites like the HashMap it replaces)
+		assertEquals(
+			new EntityReferenceWithLocale(Entities.PRODUCT, 3, Locale.FRENCH),
+			localized.getEntityReferenceByUniqueValue("A", Locale.FRENCH, this.classifierResolver).orElse(null)
+		);
+		// both primary keys remain visible in the per-entity-type record set
+		final Bitmap productRecords = localized.getRecordIds(Entities.PRODUCT, this.classifierResolver);
+		assertTrue(productRecords.contains(2));
+		assertTrue(productRecords.contains(3));
+	}
 
-									codeBuffer.append("uniqueIndex.registerUniqueKey(\"").append(newValue).append("\", product, ").append(newRecId).append(");\n");
-									transactionalUniqueIndex.registerUniqueKey(newValue, Entities.PRODUCT, null, newRecId);
-								} else {
-									// remove existing item
-									final Iterator<Entry<String, Integer>> it = mapToCompare.entrySet().iterator();
-									Entry<String, Integer> valueToRemove = null;
-									for (int j = 0; j < random.nextInt(length) + 1; j++) {
-										valueToRemove = it.next();
-									}
-									it.remove();
-									currentRecordSet.remove(valueToRemove.getValue());
+	@Test
+	void shouldAssignFreshLocaleIdAfterCommitMergeInsteadOfCollidingWithExisting() {
+		// an index that adopts an existing locale map must start its locale sequence PAST the highest adopted id -
+		// otherwise a newly seen locale is handed an id that already belongs to another locale, overwriting it in the
+		// reverse map and corrupting locale decoding of every tuple carrying the clobbered id. Commit-merge is one of
+		// the two surviving constructors that adopt such a map (the other is the inline restore below).
+		final GlobalUniqueIndex localized = createLocalizedIndexWithEnglishAndFrench();
 
-									codeBuffer.append("uniqueIndex.unregisterUniqueKey(\"").append(valueToRemove.getKey()).append("\", product,").append(valueToRemove.getValue()).append(");\n");
-									transactionalUniqueIndex.unregisterUniqueKey(valueToRemove.getKey(), Entities.PRODUCT, null, valueToRemove.getValue());
-								}
-							}
-						} catch (Exception ex) {
-							fail("\n" + codeBuffer, ex);
-						}
-					},
-					(original, committed) -> {
-						final EntityReference[] expected = currentRecordSet.stream()
-							.map(it -> new EntityReference(Entities.PRODUCT, it))
-							.sorted()
-							.toArray(EntityReference[]::new);
-
-						committed.attachToCatalog(null, this.catalog);
-						assertArrayEquals(
-							expected,
-							committed.getEntityReferences(),
-							"\nExpected: " + Arrays.toString(expected) + "\n" +
-								"Actual:  " + Arrays.toString(committed.getEntityReferences()) + "\n\n" +
-								codeBuffer
-						);
-
-						final GlobalUniqueIndex newGlobalUniqueIndex = new GlobalUniqueIndex(
-							Scope.LIVE,
-							committed.getAttributeKey(),
-							committed.getType(),
-							new HashMap<>(committed.getUniqueValueToEntityReference()),
-							new HashMap<>(committed.getLocaleIndex())
-						);
-						newGlobalUniqueIndex.attachToCatalog(null, this.catalog);
-						committedResult.set(newGlobalUniqueIndex);
-					}
-				);
-
-				return new TestState(
-					new StringBuilder(),
-					testState.iteration() + 1,
-					committedResult.get()
-				);
+		assertStateAfterCommit(
+			localized,
+			original -> {
+				// nothing further mutated - the merge alone must carry the assigned locale ids over
+			},
+			(original, committed) -> {
+				assertEquals(Locale.ENGLISH, committed.getLocaleIndex().get(1));
+				assertEquals(Locale.FRENCH, committed.getLocaleIndex().get(2));
+				assertFreshLocaleIdIsAssigned(committed);
 			}
 		);
 	}
 
-	private record TestState(
-		StringBuilder code,
-		int iteration,
-		GlobalUniqueIndex initialState
-	) {}
+	@Test
+	void shouldAssignFreshLocaleIdAfterInlineRestoreInsteadOfCollidingWithExisting() {
+		final GlobalUniqueIndex localized = createLocalizedIndexWithEnglishAndFrench();
+
+		// rebuild the index from its persisted inline columns, exactly as a load from disk does
+		final GlobalUniqueIndex.InlineSnapshot snapshot = localized.inlineSnapshot();
+		final GlobalUniqueIndex restored = new GlobalUniqueIndex(
+			Scope.LIVE, localized.getAttributeKey(), localized.getType(),
+			snapshot.values(), snapshot.payloads(), new HashMap<>(localized.getLocaleIndex())
+		);
+
+		assertEquals(Locale.ENGLISH, restored.getLocaleIndex().get(1));
+		assertEquals(Locale.FRENCH, restored.getLocaleIndex().get(2));
+		assertFreshLocaleIdIsAssigned(restored);
+	}
+
+	/**
+	 * Builds a localized (within-locale-unique) index holding one english and one french value, so that internal locale
+	 * ids 1 and 2 are already taken.
+	 *
+	 * @return the prepared index
+	 */
+	@Nonnull
+	private GlobalUniqueIndex createLocalizedIndexWithEnglishAndFrench() {
+		final GlobalUniqueIndex localized = new GlobalUniqueIndex(
+			Scope.LIVE, new AttributeKey("localizedCode", Locale.ENGLISH), String.class
+		);
+		localized.registerUniqueKey("en-value", Entities.PRODUCT, Locale.ENGLISH, 1, this.classifierResolver);
+		localized.registerUniqueKey("fr-value", Entities.PRODUCT, Locale.FRENCH, 2, this.classifierResolver);
+		assertEquals(Locale.ENGLISH, localized.getLocaleIndex().get(1));
+		assertEquals(Locale.FRENCH, localized.getLocaleIndex().get(2));
+		return localized;
+	}
+
+	/**
+	 * Registers a never-before-seen locale on an index that adopted an existing locale map and asserts it received an
+	 * id past every adopted one, leaving the adopted mappings and the values keyed by them intact.
+	 *
+	 * @param index index that adopted a locale map holding ids 1 (english) and 2 (french)
+	 */
+	private void assertFreshLocaleIdIsAssigned(@Nonnull GlobalUniqueIndex index) {
+		index.registerUniqueKey("de-value", Entities.PRODUCT, Locale.GERMAN, 3, this.classifierResolver);
+
+		assertEquals(Locale.GERMAN, index.getLocaleIndex().get(3), "new locale must receive a fresh id");
+		assertEquals(Locale.ENGLISH, index.getLocaleIndex().get(1), "existing locale id must stay untouched");
+		assertEquals(3, index.getLocaleIndex().size(), "exactly three distinct locale ids must be in use");
+
+		// a value stored under the adopted english id still decodes to english rather than the freshly registered locale
+		assertEquals(
+			new EntityReferenceWithLocale(Entities.PRODUCT, 1, Locale.ENGLISH),
+			index.getEntityReferenceByUniqueValue("en-value", Locale.ENGLISH, this.classifierResolver).orElse(null)
+		);
+		// the same value under the new locale must not trip the within-locale uniqueness guard against the old locale
+		assertDoesNotThrow(
+			() -> index.registerUniqueKey("en-value", Entities.PRODUCT, Locale.GERMAN, 4, this.classifierResolver)
+		);
+	}
 
 }

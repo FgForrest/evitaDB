@@ -30,6 +30,7 @@ import io.evitadb.api.requestResponse.extraResult.Hierarchy.LevelInfo;
 import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
+import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer.HierarchyEntityFetcher;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
 
@@ -60,9 +61,24 @@ public class Accumulator {
 	 */
 	@Getter private final boolean requested;
 	/**
-	 * The hierarchical entity in proper form.
+	 * Primary key of the hierarchical entity. Always known up-front so child sorting and similar lookups can be
+	 * performed without materialising the full {@link EntityClassifier}.
+	 *
+	 * Sentinel value `-1` is used for the synthetic root accumulator that is not bound to any entity.
 	 */
-	@Getter private final EntityClassifier entity;
+	private final int entityPrimaryKey;
+	/**
+	 * The hierarchical entity in proper form. May be `null` until {@link #getEntity()} is called for the first time
+	 * and {@link #entityFetcher} resolves it lazily; for the synthetic root accumulator the value stays `null`
+	 * forever.
+	 */
+	@Nullable private EntityClassifier entity;
+	/**
+	 * Optional fetcher used to lazily resolve {@link #entity} from {@link #entityPrimaryKey} when first needed.
+	 * Avoids fetching the entity for nodes that get pruned by `removeEmptyResults` and never reach
+	 * {@link #toLevelInfo(EnumSet)}.
+	 */
+	@Nullable private final HierarchyEntityFetcher entityFetcher;
 	/**
 	 * The formula that produces the bitmap of queried entities directly referencing this hierarchical entity
 	 * (respecting current query filter).
@@ -114,6 +130,28 @@ public class Accumulator {
 		this.executionContext = executionContext;
 		this.requested = requested;
 		this.entity = entity;
+		this.entityPrimaryKey = entity == null ? -1 : entity.getPrimaryKeyOrThrowException();
+		this.entityFetcher = null;
+		this.directlyQueriedEntitiesFormulaProducer = directlyQueriedEntitiesFormulaProducer;
+	}
+
+	/**
+	 * Constructor for the lazy-fetch path: the {@link EntityClassifier} is materialised only when
+	 * {@link #getEntity()} is called for the first time. Used by the children/parent visitors so that nodes pruned
+	 * by `removeEmptyResults` never trigger an entity fetch.
+	 */
+	public Accumulator(
+		@Nonnull QueryExecutionContext executionContext,
+		boolean requested,
+		int entityPrimaryKey,
+		@Nonnull HierarchyEntityFetcher entityFetcher,
+		@Nonnull Supplier<Formula> directlyQueriedEntitiesFormulaProducer
+	) {
+		this.executionContext = executionContext;
+		this.requested = requested;
+		this.entity = null;
+		this.entityPrimaryKey = entityPrimaryKey;
+		this.entityFetcher = entityFetcher;
 		this.directlyQueriedEntitiesFormulaProducer = directlyQueriedEntitiesFormulaProducer;
 	}
 
@@ -126,17 +164,42 @@ public class Accumulator {
 	) {
 		this.executionContext = executionContext;
 		this.entity = null;
+		this.entityPrimaryKey = -1;
+		this.entityFetcher = null;
 		this.requested = false;
 		this.directlyQueriedEntitiesFormulaProducer = directlyQueriedEntitiesFormulaProducer;
+	}
+
+	/**
+	 * Returns the primary key of the hierarchical entity this accumulator represents, or `-1` for the synthetic
+	 * root accumulator. Available without triggering the lazy entity fetch.
+	 */
+	public int getEntityPrimaryKey() {
+		return this.entityPrimaryKey;
+	}
+
+	/**
+	 * Returns the materialised {@link EntityClassifier} for this accumulator, fetching it lazily on first call
+	 * when the lazy-fetch constructor was used. Returns `null` only for the synthetic root accumulator.
+	 */
+	@Nullable
+	public EntityClassifier getEntity() {
+		EntityClassifier resolved = this.entity;
+		if (resolved == null && this.entityFetcher != null) {
+			resolved = this.entityFetcher.apply(this.executionContext, this.entityPrimaryKey);
+			this.entity = resolved;
+		}
+		return resolved;
 	}
 
 	/**
 	 * Adds information about this hierarchy node children statistics.
 	 */
 	public void add(@Nonnull Accumulator childNode) {
-		if (!this.children.isEmpty() && this.children.getLast().getEntity().getPrimaryKeyOrThrowException() > childNode.getEntity().getPrimaryKeyOrThrowException()) {
+		final int childPk = childNode.getEntityPrimaryKey();
+		if (!this.children.isEmpty() && this.children.getLast().getEntityPrimaryKey() > childPk) {
 			// we need to keep the children sorted by their primary key in ascending order
-			int index = Collections.binarySearch(this.children, childNode, Comparator.comparingInt(o -> o.getEntity().getPrimaryKeyOrThrowException()));
+			int index = Collections.binarySearch(this.children, childNode, Comparator.comparingInt(Accumulator::getEntityPrimaryKey));
 			Assert.isPremiseValid(index < 0, "Child node already exists in the accumulator!");
 			this.children.add(-index - 1, childNode);
 		} else {
@@ -160,10 +223,11 @@ public class Accumulator {
 	 */
 	@Nonnull
 	public LevelInfo toLevelInfo(@Nonnull EnumSet<StatisticsType> statisticsTypes) {
-		Assert.isPremiseValid(this.entity != null, "Entity reference was not initialized for this accumulator!");
+		final EntityClassifier resolvedEntity = getEntity();
+		Assert.isPremiseValid(resolvedEntity != null, "Entity reference was not initialized for this accumulator!");
 		// sort by their order in hierarchy
 		return new LevelInfo(
-			this.entity,
+			resolvedEntity,
 			this.requested,
 			statisticsTypes.contains(StatisticsType.QUERIED_ENTITY_COUNT) ? getQueriedEntitiesFormula().compute().size() : null,
 			statisticsTypes.contains(StatisticsType.CHILDREN_COUNT) ? getChildrenCount() : null,

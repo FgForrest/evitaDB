@@ -33,7 +33,8 @@ import com.fasterxml.jackson.databind.ObjectWriter;
 import javax.annotation.Nonnull;
 
 /**
- * Prints GraphQL input JSONs correctly formatted to spec.
+ * Pretty-prints REST input JSONs to spec. Unlike {@code GraphQLInputJsonPrinter}, field names and
+ * string values stay quoted (standard JSON), so no regex post-processing is applied.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
@@ -48,13 +49,13 @@ public class RestInputJsonPrinter {
 
 	@Nonnull
 	public String print(@Nonnull JsonNode node) {
-		String graphQLJson;
+		final String json;
 		try {
-			graphQLJson = this.constraintWriter.writeValueAsString(node);
+			json = this.constraintWriter.writeValueAsString(node);
 		} catch (JsonProcessingException e) {
 			throw new IllegalStateException(e);
 		}
-		return graphQLJson;
+		return json;
 	}
 
 	private class CustomPrettyPrinter extends DefaultPrettyPrinter {

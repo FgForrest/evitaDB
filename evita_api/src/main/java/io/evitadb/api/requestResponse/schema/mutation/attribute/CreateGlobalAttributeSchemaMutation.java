@@ -25,6 +25,7 @@ package io.evitadb.api.requestResponse.schema.mutation.attribute;
 
 import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.requestResponse.cdc.Operation;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
@@ -32,11 +33,11 @@ import io.evitadb.api.requestResponse.schema.NamedSchemaContract;
 import io.evitadb.api.requestResponse.schema.NamedSchemaWithDeprecationContract;
 import io.evitadb.api.requestResponse.schema.annotation.SerializableCreator;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
-import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
-import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.GlobalAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.CatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableLocalEntitySchemaMutation;
@@ -79,7 +80,7 @@ import static io.evitadb.dataType.Scope.NO_SCOPE;
 public class CreateGlobalAttributeSchemaMutation
 	extends AbstractAttributeSchemaMutation
 	implements GlobalAttributeSchemaMutation, CombinableCatalogSchemaMutation, CatalogSchemaMutation, CreateMutation {
-	@Serial private static final long serialVersionUID = 496202593310308290L;
+	@Serial private static final long serialVersionUID = 496202593310308291L;
 
 	@Getter @Nullable private final String description;
 	@Getter @Nullable private final String deprecationNotice;
@@ -93,6 +94,7 @@ public class CreateGlobalAttributeSchemaMutation
 	@Getter @Nonnull private final Class<? extends Serializable> type;
 	@Getter @Nullable private final Serializable defaultValue;
 	@Getter private final int indexedDecimalPlaces;
+	@Getter @Nonnull private final ConflictResolutionOverride conflictResolutionOverride;
 
 	public CreateGlobalAttributeSchemaMutation(
 		@Nonnull String name,
@@ -123,7 +125,27 @@ public class CreateGlobalAttributeSchemaMutation
 		);
 	}
 
-	@SerializableCreator
+	/**
+	 * Creates a mutation that will set up a new global attribute schema with the given properties. The
+	 * conflict resolution override defaults to {@link ConflictResolutionOverride#INHERITED}.
+	 *
+	 * @param name                   unique name of the attribute
+	 * @param description            optional human-readable description of the attribute
+	 * @param deprecationNotice      optional deprecation notice if the attribute is deprecated
+	 * @param uniqueInScopes         the scopes in which the attribute must be unique (may be `null`)
+	 * @param uniqueGloballyInScopes the scopes in which the attribute must be globally unique across the
+	 *                               whole catalog (may be `null`)
+	 * @param filterableInScopes     the scopes in which the attribute is filterable (may be `null`)
+	 * @param sortableInScopes       the scopes in which the attribute is sortable (may be `null`)
+	 * @param localized              whether the attribute values are locale-specific
+	 * @param nullable               whether the attribute value can be null
+	 * @param representative         whether the attribute is representative for the entity
+	 * @param type                   the data type stored in this attribute (must be a supported evitaDB
+	 *                               type or its array)
+	 * @param defaultValue           optional default value for the attribute
+	 * @param indexedDecimalPlaces   number of decimal places indexed for number-based attribute types
+	 * @throws InvalidSchemaMutationException if the type is not allowed in attributes
+	 */
 	public CreateGlobalAttributeSchemaMutation(
 		@Nonnull String name,
 		@Nullable String description,
@@ -138,6 +160,55 @@ public class CreateGlobalAttributeSchemaMutation
 		@Nonnull Class<? extends Serializable> type,
 		@Nullable Serializable defaultValue,
 		int indexedDecimalPlaces
+	) {
+		this(
+			name, description, deprecationNotice,
+			uniqueInScopes, uniqueGloballyInScopes, filterableInScopes, sortableInScopes,
+			localized, nullable, representative, type, defaultValue, indexedDecimalPlaces,
+			ConflictResolutionOverride.INHERITED
+		);
+	}
+
+	/**
+	 * Creates a mutation that will set up a new global attribute schema with the given properties.
+	 *
+	 * @param name                       unique name of the attribute
+	 * @param description                optional human-readable description of the attribute
+	 * @param deprecationNotice          optional deprecation notice if the attribute is deprecated
+	 * @param uniqueInScopes             the scopes in which the attribute must be unique (may be `null`)
+	 * @param uniqueGloballyInScopes     the scopes in which the attribute must be globally unique across
+	 *                                   the whole catalog (may be `null`)
+	 * @param filterableInScopes         the scopes in which the attribute is filterable (may be `null`)
+	 * @param sortableInScopes           the scopes in which the attribute is sortable (may be `null`)
+	 * @param localized                  whether the attribute values are locale-specific
+	 * @param nullable                   whether the attribute value can be null
+	 * @param representative             whether the attribute is representative for the entity
+	 * @param type                       the data type stored in this attribute (must be a supported
+	 *                                   evitaDB type or its array)
+	 * @param defaultValue               optional default value for the attribute
+	 * @param indexedDecimalPlaces       number of decimal places indexed for number-based attribute types
+	 * @param conflictResolutionOverride the per-item override of the conflict resolution granularity
+	 *                                   applied to this attribute (never `null`; use
+	 *                                   {@link ConflictResolutionOverride#INHERITED} to follow the
+	 *                                   resolved conflict resolution)
+	 * @throws InvalidSchemaMutationException if the type is not allowed in attributes
+	 */
+	@SerializableCreator
+	public CreateGlobalAttributeSchemaMutation(
+		@Nonnull String name,
+		@Nullable String description,
+		@Nullable String deprecationNotice,
+		@Nullable ScopedAttributeUniquenessType[] uniqueInScopes,
+		@Nullable ScopedGlobalAttributeUniquenessType[] uniqueGloballyInScopes,
+		@Nullable Scope[] filterableInScopes,
+		@Nullable Scope[] sortableInScopes,
+		boolean localized,
+		boolean nullable,
+		boolean representative,
+		@Nonnull Class<? extends Serializable> type,
+		@Nullable Serializable defaultValue,
+		int indexedDecimalPlaces,
+		@Nonnull ConflictResolutionOverride conflictResolutionOverride
 	) {
 		super(name);
 		ClassifierUtils.validateClassifierFormat(ClassifierType.ATTRIBUTE, name);
@@ -162,6 +233,7 @@ public class CreateGlobalAttributeSchemaMutation
 		this.type = type;
 		this.defaultValue = defaultValue;
 		this.indexedDecimalPlaces = indexedDecimalPlaces;
+		this.conflictResolutionOverride = conflictResolutionOverride;
 	}
 
 	@Nonnull
@@ -278,6 +350,12 @@ public class CreateGlobalAttributeSchemaMutation
 							createdVersion, existingVersion,
 							GlobalAttributeSchemaContract::isRepresentative,
 							newValue -> new SetAttributeSchemaRepresentativeMutation(this.name, newValue)
+						),
+						makeMutationIfDifferent(
+							GlobalAttributeSchemaContract.class,
+							createdVersion, existingVersion,
+							GlobalAttributeSchemaContract::getConflictResolutionOverride,
+							newValue -> new SetAttributeSchemaConflictResolutionOverrideMutation(this.name, newValue)
 						)
 					)
 					.filter(Objects::nonNull)
@@ -303,7 +381,8 @@ public class CreateGlobalAttributeSchemaMutation
 			this.filterableInScopes, this.sortableInScopes,
 			this.localized, this.nullable, this.representative,
 			(Class) this.type, this.defaultValue,
-			this.indexedDecimalPlaces
+			this.indexedDecimalPlaces,
+			this.conflictResolutionOverride
 		);
 	}
 
@@ -323,6 +402,7 @@ public class CreateGlobalAttributeSchemaMutation
 					catalogSchema.getName(),
 					catalogSchema.getNameVariants(),
 					catalogSchema.getDescription(),
+					catalogSchema.getConflictResolution().orElse(null),
 					catalogSchema.getCatalogEvolutionMode(),
 					Stream.concat(
 							catalogSchema.getAttributes().values().stream(),
@@ -370,7 +450,8 @@ public class CreateGlobalAttributeSchemaMutation
 			", representative=" + this.representative +
 			", type=" + this.type +
 			", defaultValue=" + this.defaultValue +
-			", indexedDecimalPlaces=" + this.indexedDecimalPlaces;
+			", indexedDecimalPlaces=" + this.indexedDecimalPlaces +
+			", conflictResolutionOverride=" + this.conflictResolutionOverride;
 	}
 
 }

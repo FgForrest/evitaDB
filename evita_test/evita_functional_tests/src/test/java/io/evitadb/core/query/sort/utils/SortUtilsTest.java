@@ -26,20 +26,25 @@ package io.evitadb.core.query.sort.utils;
 import io.evitadb.core.query.sort.Sorter.SortingContext;
 import io.evitadb.test.utils.SortUtils;
 import org.junit.jupiter.api.Test;
-import org.roaringbitmap.RoaringBitmap;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 
 import javax.annotation.Nonnull;
 import java.util.function.Function;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.ORDER;
 
 /**
  * This test verifies contract of {@link SortUtils}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
+@Tag(ENGINE)
+@Tag(ORDER)
 public class SortUtilsTest {
 
 	public static final int[] BUFFER = new int[16];
@@ -100,7 +105,7 @@ public class SortUtilsTest {
 
 	@Test
 	void shouldReturnsResultsSliceBeginningBitmap() {
-		final RoaringBitmap bitmap = initRoaringBitmap();
+		final PersistentRoaringBitmap bitmap = initRoaringBitmap();
 		final int[] result = new int[10];
 		final int written = SortUtils.appendNotFoundResult(result, 0, 0, 30, bitmap, BUFFER, null);
 		assertEquals(10, written);
@@ -109,7 +114,7 @@ public class SortUtilsTest {
 
 	@Test
 	void shouldReturnsResultsSliceBeginningWithSomeContentAlreadyPresentBitmap() {
-		final RoaringBitmap bitmap = initRoaringBitmap();
+		final PersistentRoaringBitmap bitmap = initRoaringBitmap();
 		final int[] result = new int[10];
 		for (int i = 0; i < 5; i++) {
 			result[i] = 77 + i;
@@ -121,7 +126,7 @@ public class SortUtilsTest {
 
 	@Test
 	void shouldReturnsResultsSliceBeginningOffsetBitmap() {
-		final RoaringBitmap bitmap = initRoaringBitmap();
+		final PersistentRoaringBitmap bitmap = initRoaringBitmap();
 		final int[] result = new int[10];
 		final int written = SortUtils.appendNotFoundResult(result, 0, 20, 30, bitmap, BUFFER, null);
 		assertEquals(10, written);
@@ -130,7 +135,7 @@ public class SortUtilsTest {
 
 	@Test
 	void shouldReturnsResultsSliceMiddleBitmap() {
-		final RoaringBitmap bitmap = initRoaringBitmap();
+		final PersistentRoaringBitmap bitmap = initRoaringBitmap();
 		final int[] result = new int[10];
 		final int written = SortUtils.appendNotFoundResult(result, 0, 510, 520, bitmap, BUFFER, null);
 		assertEquals(10, written);
@@ -139,7 +144,7 @@ public class SortUtilsTest {
 
 	@Test
 	void shouldReturnsResultsSliceEndBitmap() {
-		final RoaringBitmap bitmap = initRoaringBitmap();
+		final PersistentRoaringBitmap bitmap = initRoaringBitmap();
 		final int[] result = new int[10];
 		final int written = SortUtils.appendNotFoundResult(result, 0, 995, 1050, bitmap, BUFFER, null);
 		assertEquals(5, written);
@@ -158,8 +163,8 @@ public class SortUtilsTest {
 	}
 
 	@Nonnull
-	private RoaringBitmap initRoaringBitmap() {
-		final RoaringBitmap bitmap = new RoaringBitmap();
+	private PersistentRoaringBitmap initRoaringBitmap() {
+		final PersistentRoaringBitmap bitmap = new PersistentRoaringBitmap();
 		for (int i = 1; i <= 1000; i++) {
 			bitmap.add(i);
 		}

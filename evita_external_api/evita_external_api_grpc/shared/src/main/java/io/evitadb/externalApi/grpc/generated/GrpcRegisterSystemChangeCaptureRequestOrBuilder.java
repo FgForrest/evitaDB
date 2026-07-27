@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2026
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -105,4 +105,58 @@ public interface GrpcRegisterSystemChangeCaptureRequestOrBuilder extends
    * @return The content.
    */
   io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContent getContent();
+
+  /**
+   * <pre>
+   * OR-ed criteria for the capture. When empty, defaults to ENGINE only on the system stream
+   * (NOTE: this differs from the catalog stream, which defaults to all areas including
+   * INFRASTRUCTURE). HOST on the system stream requires explicit opt-in.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCaptureCriteria criteria = 4;</code>
+   */
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCaptureCriteria> 
+      getCriteriaList();
+  /**
+   * <pre>
+   * OR-ed criteria for the capture. When empty, defaults to ENGINE only on the system stream
+   * (NOTE: this differs from the catalog stream, which defaults to all areas including
+   * INFRASTRUCTURE). HOST on the system stream requires explicit opt-in.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCaptureCriteria criteria = 4;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCaptureCriteria getCriteria(int index);
+  /**
+   * <pre>
+   * OR-ed criteria for the capture. When empty, defaults to ENGINE only on the system stream
+   * (NOTE: this differs from the catalog stream, which defaults to all areas including
+   * INFRASTRUCTURE). HOST on the system stream requires explicit opt-in.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCaptureCriteria criteria = 4;</code>
+   */
+  int getCriteriaCount();
+  /**
+   * <pre>
+   * OR-ed criteria for the capture. When empty, defaults to ENGINE only on the system stream
+   * (NOTE: this differs from the catalog stream, which defaults to all areas including
+   * INFRASTRUCTURE). HOST on the system stream requires explicit opt-in.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCaptureCriteria criteria = 4;</code>
+   */
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCaptureCriteriaOrBuilder> 
+      getCriteriaOrBuilderList();
+  /**
+   * <pre>
+   * OR-ed criteria for the capture. When empty, defaults to ENGINE only on the system stream
+   * (NOTE: this differs from the catalog stream, which defaults to all areas including
+   * INFRASTRUCTURE). HOST on the system stream requires explicit opt-in.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCaptureCriteria criteria = 4;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCaptureCriteriaOrBuilder getCriteriaOrBuilder(
+      int index);
 }

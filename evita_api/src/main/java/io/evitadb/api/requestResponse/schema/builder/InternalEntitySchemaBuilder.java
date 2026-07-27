@@ -30,6 +30,7 @@ import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.exception.ReferenceAlreadyPresentInEntitySchemaException;
 import io.evitadb.api.exception.SortableAttributeCompoundSchemaException;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolution;
 import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
 import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaEditor;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
@@ -49,7 +50,7 @@ import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
-import io.evitadb.api.requestResponse.schema.builder.ReferenceSchemaBuilder.ReferenceSchemaBuilderResult;
+import io.evitadb.api.requestResponse.schema.builder.AbstractReferenceSchemaBuilder.ReferenceSchemaBuilderResult;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
@@ -64,6 +65,7 @@ import io.evitadb.api.requestResponse.schema.mutation.entity.AllowLocaleInEntity
 import io.evitadb.api.requestResponse.schema.mutation.entity.DisallowCurrencyInEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.entity.DisallowEvolutionModeInEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.entity.DisallowLocaleInEntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.entity.ModifyEntitySchemaConflictResolutionMutation;
 import io.evitadb.api.requestResponse.schema.mutation.entity.ModifyEntitySchemaDeprecationNoticeMutation;
 import io.evitadb.api.requestResponse.schema.mutation.entity.ModifyEntitySchemaDescriptionMutation;
 import io.evitadb.api.requestResponse.schema.mutation.entity.SetEntitySchemaWithGeneratedPrimaryKeyMutation;
@@ -644,6 +646,32 @@ public final class InternalEntitySchemaBuilder implements EntitySchemaBuilder, I
 			addMutations(
 				this.catalogSchemaAccessor.get(), this.baseSchema, this.mutations,
 				new ModifyEntitySchemaDescriptionMutation(description)
+			)
+		);
+		return this;
+	}
+
+	@Override
+	@Nonnull
+	public EntitySchemaBuilder withConflictResolution(@Nonnull ConflictResolution conflictResolution) {
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				this.catalogSchemaAccessor.get(), this.baseSchema, this.mutations,
+				new ModifyEntitySchemaConflictResolutionMutation(conflictResolution)
+			)
+		);
+		return this;
+	}
+
+	@Override
+	@Nonnull
+	public EntitySchemaBuilder withoutConflictResolution() {
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				this.catalogSchemaAccessor.get(), this.baseSchema, this.mutations,
+				new ModifyEntitySchemaConflictResolutionMutation(null)
 			)
 		);
 		return this;

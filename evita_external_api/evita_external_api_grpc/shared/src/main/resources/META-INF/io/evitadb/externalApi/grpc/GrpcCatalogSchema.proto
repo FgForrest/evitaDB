@@ -35,6 +35,9 @@ message GrpcCatalogSchema {
   map<string, GrpcGlobalAttributeSchema> attributes = 5;
   // Contains catalog name converted to different naming conventions.
   repeated GrpcNameVariant nameVariant = 6;
+  // Contains the catalog-level conflict resolution setting. When not set (absent), the catalog schema inherits the
+  // resolved conflict resolution from the transaction options.
+  GrpcConflictResolution conflictResolution = 7;
 }
 
 // This is the definition object for attributes that are stored along with
@@ -130,4 +133,7 @@ message GrpcGlobalAttributeSchema {
   // As an example of unique attribute can be URL - there is no sense in having two entities with same URL, and it's
   // better to have this ensured by the database engine.
   repeated GrpcScopedGlobalAttributeUniquenessType uniqueGloballyInScopes = 18;
+  // Contains the per-attribute override of the conflict resolution granularity. Defaults to inherited (follow the
+  // resolved conflict resolution).
+  GrpcConflictResolutionOverride conflictResolutionOverride = 19;
 }

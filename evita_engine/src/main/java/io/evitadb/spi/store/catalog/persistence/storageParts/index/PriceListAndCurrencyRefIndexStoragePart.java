@@ -43,7 +43,7 @@ import java.io.Serial;
  */
 @NotThreadSafe
 public class PriceListAndCurrencyRefIndexStoragePart extends PriceListAndCurrencyIndexStoragePart {
-	@Serial private static final long serialVersionUID = -1687563151524978160L;
+	@Serial private static final long serialVersionUID = 8461029375182640917L;
 	/**
 	 * Contains data of all indexed prices ids in this container.
 	 */

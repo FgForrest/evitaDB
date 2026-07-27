@@ -1,11 +1,12 @@
 ---
 title: Kontejnery pro behaviorální filtrování
-date: '29.11.2024'
+date: '11.5.2026'
 perex: Speciální kontejnery pro behaviorální filtrační omezení se používají k definování rozsahu filtračního omezení, který má odlišné zacházení při výpočtech, nebo k určení rozsahu, ve kterém jsou entity vyhledávány.
 author: Ing. Jan Novotný
 proofreading: done
 preferredLang: evitaql
 commit: cef96d8320d36c91c100c5dfc9c45020b5a7ad0d
+translated: 'true'
 ---
 ## V rozsahu
 
@@ -55,7 +56,7 @@ Například v naší demo databázi máme v archivu indexováno pouze několik a
 dalších. V archivním rozsahu neindexujeme reference, hierarchii ani ceny. Pokud chceme vyhledávat entity v obou
 rozsazích a použít odpovídající filtrační podmínky, musíme použít kontejner `inScope` následujícím způsobem:
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Odlišení filtrů v různých rozsazích](/documentation/user/en/query/filtering/examples/behavioral/archived-entities-filtering.evitaql)
 
@@ -115,13 +116,13 @@ userFilter(
 <LS to="e,j,r,g"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/filter/UserFilter.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Queries/Filter/UserFilter.cs</SourceClass></LS>
 funguje totožně jako podmínka [`and`](logical.md#and), ale rozlišuje rozsah filtru, který je ovládán uživatelem
 prostřednictvím nějakého uživatelského rozhraní, od zbytku dotazu, který obsahuje povinné podmínky na výslednou
-množinu. Uživatelsky definovaný rozsah lze měnit během určitých výpočtů (například při výpočtu [facety](../requirements/facet.md#fasetový-souhrn)
+množinu. Uživatelsky definovaný rozsah lze měnit během určitých výpočtů (například při výpočtu [souhrnu referencí](../requirements/reference.md#souhrn-referencí)
 nebo [histogramu](../requirements/histogram.md)), zatímco povinná část mimo `userFilter` zůstává neměnná.
 
 Podívejme se na příklad, kde je podmínka [`facetHaving`](references.md#facet-having) použita uvnitř
 kontejneru `userFilter`:
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Příklad kontejneru user filter](/documentation/user/en/query/filtering/examples/behavioral/user-filter.evitaql)
 

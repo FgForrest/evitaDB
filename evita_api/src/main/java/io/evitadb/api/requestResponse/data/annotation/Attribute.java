@@ -23,11 +23,12 @@
 
 package io.evitadb.api.requestResponse.data.annotation;
 
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
-import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
-import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.GlobalAttributeUniquenessType;
 import io.evitadb.dataType.Scope;
 
 import java.lang.annotation.Documented;
@@ -131,11 +132,28 @@ public @interface Attribute {
 	int indexedDecimalPlaces() default 0;
 
 	/**
-	 * Allows to define different settings for different scopes. If not specified, the general settings apply only to
-	 * the {@link Scope#LIVE} and in the {@link Scope#ARCHIVED} the attribute is not indexed whatsoever (not filterable,
-	 * not sortable, not unique). If scope settings are specified for {@link Scope#LIVE}, the general settings are
-	 * ignored completely.
+	 * Allows to define different settings for different scopes.
+	 *
+	 * If `scope = {}` (default, empty array), the general settings (`unique`, `uniqueGlobally`, `filterable`,
+	 * `sortable`) apply to {@link Scope#LIVE} only; in {@link Scope#ARCHIVED} the attribute is not indexed whatsoever
+	 * (not filterable, not sortable, not unique).
+	 *
+	 * If `scope = {…}` is non-empty, the per-scope settings **completely replace** what the general settings would
+	 * otherwise produce — the analyzer requires the general `unique`, `uniqueGlobally`, `filterable` and `sortable`
+	 * properties to be left at their defaults (otherwise an assertion fires). Scopes not listed in the array stay
+	 * non-indexed; the general settings are not used as a fallback.
 	 */
 	ScopeAttributeSettings[] scope() default {};
+
+	/**
+	 * Per-item conflict resolution granularity override for this attribute. {@link ConflictResolutionOverride#INHERITED}
+	 * (the default) follows the conflict resolution resolved from the entity schema, catalog schema and engine
+	 * configuration; {@link ConflictResolutionOverride#GRANULAR} opts this attribute into its own attribute-scoped
+	 * conflict key (finer-grained detection); {@link ConflictResolutionOverride#ENTITY} pins it to the whole-entity
+	 * conflict key. For a {@link #global()} attribute the override behaves identically — a global attribute is shared
+	 * configuration whose conflict behavior is the same as a locally declared attribute.
+	 * Propagates to {@link AttributeSchemaContract#getConflictResolutionOverride()}.
+	 */
+	ConflictResolutionOverride conflictResolution() default ConflictResolutionOverride.INHERITED;
 
 }

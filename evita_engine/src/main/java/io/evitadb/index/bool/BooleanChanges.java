@@ -23,22 +23,39 @@
 
 package io.evitadb.index.bool;
 
+import io.evitadb.core.transaction.memory.Snapshotable;
 import lombok.AllArgsConstructor;
 
+import javax.annotation.Nonnull;
 import javax.annotation.concurrent.NotThreadSafe;
 
 /**
- * Holds transactional changes for {@link TransactionalBoolean}.
+ * Represents a per-transaction diff layer snapshot for {@link TransactionalBoolean} in the
+ * Software Transactional Memory (STM) system. Each open transaction that modifies the boolean
+ * gets its own `BooleanChanges` instance, keeping the mutation isolated until the transaction
+ * is committed and merged back into the shared state.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @NotThreadSafe
 @AllArgsConstructor
-public class BooleanChanges {
+public class BooleanChanges implements Snapshotable<BooleanChanges.BooleanChangesMemento> {
 	/**
-	 * Local value of the boolean.
+	 * The transaction-local snapshot of the boolean value.
 	 */
 	private boolean theValue;
+
+	/**
+	 * Immutable, primitive-holding memento carrying the entire mutable state of this layer — the single
+	 * transaction-local boolean value. A primitive `boolean` is copied by value, so the memento is inherently
+	 * independent of any subsequent mutation of the layer and can be restored any number of times. A record holding
+	 * the primitive directly is used (instead of boxing into {@link Boolean}) to honour the project's no-autoboxing
+	 * performance rule.
+	 *
+	 * @param value the captured transaction-local boolean value
+	 */
+	public record BooleanChangesMemento(boolean value) {
+	}
 
 	/**
 	 * Sets the local value to true.
@@ -59,6 +76,31 @@ public class BooleanChanges {
 	 */
 	public boolean isTrue() {
 		return this.theValue;
+	}
+
+	/**
+	 * Captures the single transaction-local boolean value into an immutable memento. Because the value is a JVM
+	 * primitive copied by value, the returned memento is fully independent of any later mutation of this layer.
+	 *
+	 * @return a memento carrying the current transaction-local boolean value
+	 */
+	@Nonnull
+	@Override
+	public BooleanChangesMemento snapshot() {
+		return new BooleanChangesMemento(this.theValue);
+	}
+
+	/**
+	 * Resets the transaction-local boolean value to the one captured in the given memento. Since the value is an
+	 * absolute overwrite (not an incremental delta), this single assignment undoes any number of
+	 * {@link #setToTrue()} / {@link #setToFalse()} flips performed since the memento was taken, and the same memento
+	 * may be restored repeatedly.
+	 *
+	 * @param memento a memento previously produced by {@link #snapshot()} on this same layer
+	 */
+	@Override
+	public void restore(@Nonnull BooleanChangesMemento memento) {
+		this.theValue = memento.value();
 	}
 
 }

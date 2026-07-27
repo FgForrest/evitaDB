@@ -46,7 +46,7 @@ import java.util.Map;
 @NotThreadSafe
 @ToString(of = "entityIndexPrimaryKey")
 public class HierarchyIndexStoragePart implements StoragePart {
-	@Serial private static final long serialVersionUID = -3223754922135567923L;
+	@Serial private static final long serialVersionUID = 7392641058372910465L;
 
 	/**
 	 * Unique id that identifies {@link io.evitadb.index.EntityIndex}.

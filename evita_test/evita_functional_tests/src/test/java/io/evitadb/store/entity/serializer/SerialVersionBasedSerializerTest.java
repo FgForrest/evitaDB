@@ -32,6 +32,7 @@ import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.store.entity.exception.StoredVersionNotSupportedException;
 import io.evitadb.store.schema.serializer.AttributeSchemaSerializer;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import lombok.Data;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -42,9 +43,13 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.Serial;
 import java.io.Serializable;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static io.evitadb.test.TestTags.STORAGE;
+import static io.evitadb.test.TestTags.MANAGEMENT;
+import static io.evitadb.test.TestTags.SERIALIZATION;
 
 /**
  * This test verifies whether it is possible to use special instance for deserializing old versions of the class
@@ -52,6 +57,9 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
+@Tag(STORAGE)
+@Tag(MANAGEMENT)
+@Tag(SERIALIZATION)
 class SerialVersionBasedSerializerTest {
 	private final Kryo kryo = new Kryo();
 	private io.evitadb.store.entity.serializer.SerialVersionBasedSerializer<AttributeSchema> attributeSchemaSerializer;
@@ -130,7 +138,7 @@ class SerialVersionBasedSerializerTest {
 		public AttributeSchema read(Kryo kryo, Input input, Class<? extends AttributeSchema> type) {
 			final String name = kryo.readObject(input, String.class);
 			@SuppressWarnings("unchecked") final Class<? extends Serializable> attrType = kryo.readClass(input).getType();
-			return AttributeSchema._internalBuild(name, attrType, false);
+			return AttributeSchema._internalBuild(name, attrType, false, ConflictResolutionOverride.INHERITED);
 		}
 
 	}

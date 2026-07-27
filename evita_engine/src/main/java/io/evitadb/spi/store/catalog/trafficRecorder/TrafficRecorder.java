@@ -35,6 +35,7 @@ import io.evitadb.core.executor.Scheduler;
 import io.evitadb.core.management.FileManagementService;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.Functions;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -69,7 +70,7 @@ public interface TrafficRecorder extends Closeable {
 		@Nonnull TrafficRecordingCaptureRequest request,
 		@Nonnull StreamDirection direction
 	) {
-		Predicate<TrafficRecording> requestPredicate = tr -> true;
+		Predicate<TrafficRecording> requestPredicate = Functions.alwaysTrue();
 		if (request.sessionId() != null) {
 			requestPredicate = requestPredicate.and(
 				tr -> Arrays.stream(request.sessionId()).anyMatch(sid -> sid.equals(tr.sessionId()))
@@ -167,11 +168,12 @@ public interface TrafficRecorder extends Closeable {
 	);
 
 	/**
-	 * Sets the sampling rate for the traffic recording. The sampling rate determines how many sessions are recorded.
+	 * Sets the sampling rate for the traffic recording. The sampling rate is the target percentage of traffic
+	 * that is recorded: 0 records nothing (recording disabled), 100 records everything.
 	 * Initial values is set in {@link #init(String, FileManagementService, Scheduler, StorageOptions, TrafficRecordingOptions)}
 	 * from {@link TrafficRecordingOptions#trafficSamplingPercentage()}
 	 *
-	 * @param samplingPercentage sampling rate in percentage (1 - 100)
+	 * @param samplingPercentage target percentage of recorded traffic (0 - 100; 0 disables recording)
 	 */
 	void setSamplingPercentage(int samplingPercentage);
 

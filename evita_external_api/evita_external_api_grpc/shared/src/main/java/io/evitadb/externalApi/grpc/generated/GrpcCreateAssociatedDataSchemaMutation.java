@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2026
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -47,6 +47,7 @@ private static final long serialVersionUID = 0L;
   private GrpcCreateAssociatedDataSchemaMutation() {
     name_ = "";
     type_ = 0;
+    conflictResolutionOverride_ = 0;
   }
 
   @java.lang.Override
@@ -88,7 +89,7 @@ private static final long serialVersionUID = 0L;
     if (ref instanceof java.lang.String) {
       return (java.lang.String) ref;
     } else {
-      com.google.protobuf.ByteString bs =
+      com.google.protobuf.ByteString bs = 
           (com.google.protobuf.ByteString) ref;
       java.lang.String s = bs.toStringUtf8();
       name_ = s;
@@ -109,7 +110,7 @@ private static final long serialVersionUID = 0L;
       getNameBytes() {
     java.lang.Object ref = name_;
     if (ref instanceof java.lang.String) {
-      com.google.protobuf.ByteString b =
+      com.google.protobuf.ByteString b = 
           com.google.protobuf.ByteString.copyFromUtf8(
               (java.lang.String) ref);
       name_ = b;
@@ -263,6 +264,32 @@ private static final long serialVersionUID = 0L;
     return nullable_;
   }
 
+  public static final int CONFLICTRESOLUTIONOVERRIDE_FIELD_NUMBER = 7;
+  private int conflictResolutionOverride_ = 0;
+  /**
+   * <pre>
+   * The per-associated-data override of the conflict resolution granularity.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcConflictResolutionOverride conflictResolutionOverride = 7;</code>
+   * @return The enum numeric value on the wire for conflictResolutionOverride.
+   */
+  @java.lang.Override public int getConflictResolutionOverrideValue() {
+    return conflictResolutionOverride_;
+  }
+  /**
+   * <pre>
+   * The per-associated-data override of the conflict resolution granularity.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcConflictResolutionOverride conflictResolutionOverride = 7;</code>
+   * @return The conflictResolutionOverride.
+   */
+  @java.lang.Override public io.evitadb.externalApi.grpc.generated.GrpcConflictResolutionOverride getConflictResolutionOverride() {
+    io.evitadb.externalApi.grpc.generated.GrpcConflictResolutionOverride result = io.evitadb.externalApi.grpc.generated.GrpcConflictResolutionOverride.forNumber(conflictResolutionOverride_);
+    return result == null ? io.evitadb.externalApi.grpc.generated.GrpcConflictResolutionOverride.UNRECOGNIZED : result;
+  }
+
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
@@ -294,6 +321,9 @@ private static final long serialVersionUID = 0L;
     }
     if (nullable_ != false) {
       output.writeBool(6, nullable_);
+    }
+    if (conflictResolutionOverride_ != io.evitadb.externalApi.grpc.generated.GrpcConflictResolutionOverride.CONFLICT_RESOLUTION_OVERRIDE_INHERITED.getNumber()) {
+      output.writeEnum(7, conflictResolutionOverride_);
     }
     getUnknownFields().writeTo(output);
   }
@@ -327,6 +357,10 @@ private static final long serialVersionUID = 0L;
       size += com.google.protobuf.CodedOutputStream
         .computeBoolSize(6, nullable_);
     }
+    if (conflictResolutionOverride_ != io.evitadb.externalApi.grpc.generated.GrpcConflictResolutionOverride.CONFLICT_RESOLUTION_OVERRIDE_INHERITED.getNumber()) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeEnumSize(7, conflictResolutionOverride_);
+    }
     size += getUnknownFields().getSerializedSize();
     memoizedSize = size;
     return size;
@@ -359,6 +393,7 @@ private static final long serialVersionUID = 0L;
         != other.getLocalized()) return false;
     if (getNullable()
         != other.getNullable()) return false;
+    if (conflictResolutionOverride_ != other.conflictResolutionOverride_) return false;
     if (!getUnknownFields().equals(other.getUnknownFields())) return false;
     return true;
   }
@@ -388,6 +423,8 @@ private static final long serialVersionUID = 0L;
     hash = (37 * hash) + NULLABLE_FIELD_NUMBER;
     hash = (53 * hash) + com.google.protobuf.Internal.hashBoolean(
         getNullable());
+    hash = (37 * hash) + CONFLICTRESOLUTIONOVERRIDE_FIELD_NUMBER;
+    hash = (53 * hash) + conflictResolutionOverride_;
     hash = (29 * hash) + getUnknownFields().hashCode();
     memoizedHashCode = hash;
     return hash;
@@ -545,6 +582,7 @@ private static final long serialVersionUID = 0L;
       type_ = 0;
       localized_ = false;
       nullable_ = false;
+      conflictResolutionOverride_ = 0;
       return this;
     }
 
@@ -602,6 +640,9 @@ private static final long serialVersionUID = 0L;
       }
       if (((from_bitField0_ & 0x00000020) != 0)) {
         result.nullable_ = nullable_;
+      }
+      if (((from_bitField0_ & 0x00000040) != 0)) {
+        result.conflictResolutionOverride_ = conflictResolutionOverride_;
       }
       result.bitField0_ |= to_bitField0_;
     }
@@ -670,6 +711,9 @@ private static final long serialVersionUID = 0L;
       if (other.getNullable() != false) {
         setNullable(other.getNullable());
       }
+      if (other.conflictResolutionOverride_ != 0) {
+        setConflictResolutionOverrideValue(other.getConflictResolutionOverrideValue());
+      }
       this.mergeUnknownFields(other.getUnknownFields());
       onChanged();
       return this;
@@ -730,6 +774,11 @@ private static final long serialVersionUID = 0L;
               bitField0_ |= 0x00000020;
               break;
             } // case 48
+            case 56: {
+              conflictResolutionOverride_ = input.readEnum();
+              bitField0_ |= 0x00000040;
+              break;
+            } // case 56
             default: {
               if (!super.parseUnknownField(input, extensionRegistry, tag)) {
                 done = true; // was an endgroup tag
@@ -782,7 +831,7 @@ private static final long serialVersionUID = 0L;
         getNameBytes() {
       java.lang.Object ref = name_;
       if (ref instanceof String) {
-        com.google.protobuf.ByteString b =
+        com.google.protobuf.ByteString b = 
             com.google.protobuf.ByteString.copyFromUtf8(
                 (java.lang.String) ref);
         name_ = b;
@@ -997,7 +1046,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.StringValue description = 2;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder>
+        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder> 
         getDescriptionFieldBuilder() {
       if (descriptionBuilder_ == null) {
         descriptionBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -1163,7 +1212,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.StringValue deprecationNotice = 3;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder>
+        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder> 
         getDeprecationNoticeFieldBuilder() {
       if (deprecationNoticeBuilder_ == null) {
         deprecationNoticeBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -1349,6 +1398,79 @@ private static final long serialVersionUID = 0L;
     public Builder clearNullable() {
       bitField0_ = (bitField0_ & ~0x00000020);
       nullable_ = false;
+      onChanged();
+      return this;
+    }
+
+    private int conflictResolutionOverride_ = 0;
+    /**
+     * <pre>
+     * The per-associated-data override of the conflict resolution granularity.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcConflictResolutionOverride conflictResolutionOverride = 7;</code>
+     * @return The enum numeric value on the wire for conflictResolutionOverride.
+     */
+    @java.lang.Override public int getConflictResolutionOverrideValue() {
+      return conflictResolutionOverride_;
+    }
+    /**
+     * <pre>
+     * The per-associated-data override of the conflict resolution granularity.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcConflictResolutionOverride conflictResolutionOverride = 7;</code>
+     * @param value The enum numeric value on the wire for conflictResolutionOverride to set.
+     * @return This builder for chaining.
+     */
+    public Builder setConflictResolutionOverrideValue(int value) {
+      conflictResolutionOverride_ = value;
+      bitField0_ |= 0x00000040;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * The per-associated-data override of the conflict resolution granularity.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcConflictResolutionOverride conflictResolutionOverride = 7;</code>
+     * @return The conflictResolutionOverride.
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcConflictResolutionOverride getConflictResolutionOverride() {
+      io.evitadb.externalApi.grpc.generated.GrpcConflictResolutionOverride result = io.evitadb.externalApi.grpc.generated.GrpcConflictResolutionOverride.forNumber(conflictResolutionOverride_);
+      return result == null ? io.evitadb.externalApi.grpc.generated.GrpcConflictResolutionOverride.UNRECOGNIZED : result;
+    }
+    /**
+     * <pre>
+     * The per-associated-data override of the conflict resolution granularity.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcConflictResolutionOverride conflictResolutionOverride = 7;</code>
+     * @param value The conflictResolutionOverride to set.
+     * @return This builder for chaining.
+     */
+    public Builder setConflictResolutionOverride(io.evitadb.externalApi.grpc.generated.GrpcConflictResolutionOverride value) {
+      if (value == null) {
+        throw new NullPointerException();
+      }
+      bitField0_ |= 0x00000040;
+      conflictResolutionOverride_ = value.getNumber();
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * The per-associated-data override of the conflict resolution granularity.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcConflictResolutionOverride conflictResolutionOverride = 7;</code>
+     * @return This builder for chaining.
+     */
+    public Builder clearConflictResolutionOverride() {
+      bitField0_ = (bitField0_ & ~0x00000040);
+      conflictResolutionOverride_ = 0;
       onChanged();
       return this;
     }

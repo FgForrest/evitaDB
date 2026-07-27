@@ -27,11 +27,9 @@ import io.evitadb.api.APITestConstants;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor.CatalogSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder;
-import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
-import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
 import io.evitadb.dataType.Scope;
 import io.evitadb.test.Entities;
 import io.evitadb.utils.NamingConvention;
@@ -46,10 +44,14 @@ import java.util.Collection;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Optional;
+import org.junit.jupiter.api.Tag;
 
 import static java.util.Optional.empty;
 import static java.util.Optional.of;
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.SCHEMA;
+import static io.evitadb.test.TestTags.ATTRIBUTE;
 
 /**
  * Tests for {@link io.evitadb.api.requestResponse.schema.builder.AttributeSchemaBuilder},
@@ -58,9 +60,12 @@ import static org.junit.jupiter.api.Assertions.*;
  * scope-based filtering, uniqueness, sortability operations, BooleanSupplier decider variants,
  * and known bugs in the builder implementations.
  *
- * @author evitaDB
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("Attribute schema builders")
+@Tag(CONTRACT)
+@Tag(SCHEMA)
+@Tag(ATTRIBUTE)
 class AttributeSchemaBuilderTest {
 
 	private EntitySchema productSchema;
@@ -72,6 +77,7 @@ class AttributeSchemaBuilderTest {
 		this.catalogSchema = CatalogSchema._internalBuild(
 			APITestConstants.TEST_CATALOG,
 			NamingConvention.generate(APITestConstants.TEST_CATALOG),
+			null,
 			EnumSet.allOf(CatalogEvolutionMode.class),
 			new EntitySchemaProvider() {
 				@Nonnull

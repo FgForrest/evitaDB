@@ -27,27 +27,35 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import io.evitadb.api.query.Query;
+import io.evitadb.api.query.QueryUtils;
+import io.evitadb.api.query.require.FacetSummaryOfReference;
 import io.evitadb.api.requestResponse.EvitaResponseExtraResult;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.extraResult.AttributeHistogram;
 import io.evitadb.api.requestResponse.extraResult.FacetSummary;
 import io.evitadb.api.requestResponse.extraResult.FacetSummary.FacetGroupStatistics;
-import io.evitadb.api.requestResponse.extraResult.FacetSummary.FacetStatistics;
-import io.evitadb.api.requestResponse.extraResult.FacetSummary.RequestImpact;
 import io.evitadb.api.requestResponse.extraResult.Hierarchy;
 import io.evitadb.api.requestResponse.extraResult.Hierarchy.LevelInfo;
 import io.evitadb.api.requestResponse.extraResult.HistogramContract;
 import io.evitadb.api.requestResponse.extraResult.PriceHistogram;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry;
+import io.evitadb.api.requestResponse.extraResult.ReferenceSummary;
+import io.evitadb.api.requestResponse.extraResult.ReferenceSummary.FacetStatistics;
+import io.evitadb.api.requestResponse.extraResult.ReferenceSummary.ReferenceGroupStatistics;
+import io.evitadb.api.requestResponse.extraResult.ReferenceSummary.RequestImpact;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.externalApi.api.catalog.dataApi.dto.QueryTelemetryDto;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ExtraResultsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetGroupStatisticsDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetRequestImpactDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.EntityFacetStatisticsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HistogramDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ReferenceHistogramDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ReferenceSummaryDescriptor.EntityFacetStatisticsDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ReferenceSummaryDescriptor.FacetRequestImpactDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ReferenceSummaryDescriptor.ReferenceGroupStatisticsDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.extraResult.LevelInfoDescriptor;
 import io.evitadb.externalApi.rest.api.resolver.serializer.ObjectJsonSerializer;
 import io.evitadb.externalApi.rest.exception.RestInternalError;
@@ -77,8 +85,10 @@ public class ExtraResultsJsonSerializer {
 	private final EntityJsonSerializer entityJsonSerializer;
 	private final ObjectJsonSerializer objectJsonSerializer;
 
-	public ExtraResultsJsonSerializer(@Nonnull EntityJsonSerializer entityJsonSerializer,
-	                                  @Nonnull ObjectMapper objectMapper) {
+	public ExtraResultsJsonSerializer(
+		@Nonnull EntityJsonSerializer entityJsonSerializer,
+		@Nonnull ObjectMapper objectMapper
+	) {
 		this.entityJsonSerializer = entityJsonSerializer;
 		this.objectJsonSerializer = new ObjectJsonSerializer(objectMapper);
 	}
@@ -89,28 +99,236 @@ public class ExtraResultsJsonSerializer {
 	 * @return serialized entity or list of entities
 	 */
 	@Nonnull
-	public JsonNode serialize(@Nonnull Map<Class<? extends EvitaResponseExtraResult>, EvitaResponseExtraResult> extraResults,
-	                          @Nonnull EntitySchemaContract resultEntitySchema,
-	                          @Nonnull CatalogSchemaContract catalogSchema) {
+	public JsonNode serialize(
+		@Nonnull Query query,
+		@Nonnull Map<Class<? extends EvitaResponseExtraResult>, EvitaResponseExtraResult> extraResults,
+		@Nonnull EntitySchemaContract resultEntitySchema,
+		@Nonnull CatalogSchemaContract catalogSchema
+	) {
 		final ObjectNode rootNode = this.objectJsonSerializer.objectNode();
 		for (EvitaResponseExtraResult extraResult : extraResults.values()) {
 			if (extraResult instanceof QueryTelemetry queryTelemetry) {
-				rootNode.putIfAbsent(ExtraResultsDescriptor.QUERY_TELEMETRY.name(), serializeQueryTelemetry(queryTelemetry));
+				rootNode.putIfAbsent(
+					ExtraResultsDescriptor.QUERY_TELEMETRY.name(), serializeQueryTelemetry(queryTelemetry));
 			} else if (extraResult instanceof AttributeHistogram attributeHistogram) {
-				rootNode.putIfAbsent(ExtraResultsDescriptor.ATTRIBUTE_HISTOGRAM.name(), serializeAttributeHistogram(attributeHistogram, resultEntitySchema));
+				rootNode.putIfAbsent(
+					ExtraResultsDescriptor.ATTRIBUTE_HISTOGRAM.name(),
+					serializeAttributeHistogram(attributeHistogram, resultEntitySchema, catalogSchema)
+				);
 			} else if (extraResult instanceof PriceHistogram priceHistogram) {
-				rootNode.putIfAbsent(ExtraResultsDescriptor.PRICE_HISTOGRAM.name(), serializePriceHistogram(priceHistogram));
+				rootNode.putIfAbsent(
+					ExtraResultsDescriptor.PRICE_HISTOGRAM.name(),
+					serializeHistogram(priceHistogram, catalogSchema)
+				);
 			} else if (extraResult instanceof Hierarchy hierarchyStats) {
-				rootNode.putIfAbsent(ExtraResultsDescriptor.HIERARCHY.name(), serializeHierarchy(hierarchyStats, catalogSchema, resultEntitySchema));
-			} else if (extraResult instanceof FacetSummary facetSummary) {
-				rootNode.putIfAbsent(ExtraResultsDescriptor.FACET_SUMMARY.name(), serializeFacetSummary(facetSummary, catalogSchema, resultEntitySchema));
+				rootNode.putIfAbsent(
+					ExtraResultsDescriptor.HIERARCHY.name(),
+					serializeHierarchy(hierarchyStats, catalogSchema, resultEntitySchema)
+				);
+			} else if (extraResult instanceof ReferenceSummary referenceSummary) {
+				// matches both the canonical ReferenceSummary and its deprecated FacetSummary subclass; the
+				// downstream branch below picks the right output field based on which require constraint was
+				// actually used in the request
+				if (query.getRequire() == null) {
+					throw new RestQueryResolvingInternalError(
+						"Reference summary / Facet summary extra result is present but require constraint is not present in query.",
+						"Internal error during reference summary / facet summary extra result serialization."
+					);
+				}
+
+				if (referenceSummary instanceof FacetSummary facetSummary) {
+					// TOBEDONE remove this branch when FacetSummary DTO is removed; only the else path stays
+					final io.evitadb.api.query.require.FacetSummary facetSummaryRequire = QueryUtils.findConstraint(
+						query.getRequire(),
+						io.evitadb.api.query.require.FacetSummary.class
+					);
+					final List<FacetSummaryOfReference> facetSummaryOfReferencesRequire = QueryUtils.findConstraints(
+						query.getRequire(),
+						FacetSummaryOfReference.class
+					);
+					if (facetSummaryRequire != null || !facetSummaryOfReferencesRequire.isEmpty()) {
+						rootNode.putIfAbsent(
+							ExtraResultsDescriptor.FACET_SUMMARY.name(),
+							serializeFacetSummary(facetSummary, catalogSchema, resultEntitySchema)
+						);
+						continue;
+					}
+				}
+				rootNode.putIfAbsent(
+					ExtraResultsDescriptor.REFERENCE_SUMMARY.name(),
+					serializeReferenceSummary(referenceSummary, catalogSchema, resultEntitySchema)
+				);
 			}
 		}
 		return rootNode;
 	}
 
 	@Nonnull
-	private JsonNode serializeFacetSummary(@Nonnull FacetSummary facetSummary, @Nonnull CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaContract entitySchema) {
+	private JsonNode serializeReferenceSummary(
+		@Nonnull ReferenceSummary referenceSummary,
+		@Nonnull CatalogSchemaContract catalogSchema,
+		@Nonnull EntitySchemaContract entitySchema
+	) {
+		final Collection<? extends ReferenceGroupStatistics> referenceGroupStatistics =
+			referenceSummary.getReferenceStatistics();
+		final Map<String, List<ReferenceGroupStatistics>> groupedStats = createHashMap(
+			entitySchema.getReferences().size());
+		for (ReferenceGroupStatistics referenceGroupStatistic : referenceGroupStatistics) {
+			if (groupedStats.containsKey(referenceGroupStatistic.getReferenceName())) {
+				groupedStats.get(referenceGroupStatistic.getReferenceName()).add(referenceGroupStatistic);
+			} else {
+				final List<ReferenceGroupStatistics> groupedByReference = new LinkedList<>();
+				groupedByReference.add(referenceGroupStatistic);
+				groupedStats.put(referenceGroupStatistic.getReferenceName(), groupedByReference);
+			}
+		}
+
+		final ObjectNode referenceGroupStatsNode = this.objectJsonSerializer.objectNode();
+		groupedStats.forEach((key, value) -> {
+			final String serializableReferenceName = entitySchema.getReference(key)
+				.map(it -> it.getNameVariant(PROPERTY_NAME_NAMING_CONVENTION))
+				.orElseThrow(() -> new RestQueryResolvingInternalError(
+					"Cannot find reference schema for `" + key + "` in entity schema `" + entitySchema.getName() + "`."
+				));
+
+			referenceGroupStatsNode.putIfAbsent(
+				serializableReferenceName,
+				serializeReferenceSameGroupStatistics(
+					value,
+					entitySchema.getReference(key)
+						.orElseThrow(() -> new RestInternalError("Could not find referenc schema for `" + key + "`.")),
+					catalogSchema
+				)
+			);
+		});
+		return referenceGroupStatsNode;
+	}
+
+	@Nonnull
+	private JsonNode serializeReferenceSameGroupStatistics(
+		@Nonnull List<ReferenceGroupStatistics> groupStatistics,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull CatalogSchemaContract catalogSchema
+	) {
+		if (referenceSchema.getReferencedGroupType() != null) {
+			final ArrayNode sameGroupStatsNode = this.objectJsonSerializer.arrayNode();
+			groupStatistics
+				.forEach(
+					stats ->
+						sameGroupStatsNode.add(
+							serializeReferenceGroupStatistics(
+								stats,
+								referenceSchema,
+								catalogSchema
+							)
+						)
+				);
+			return sameGroupStatsNode;
+		} else {
+			Assert.isPremiseValid(
+				groupStatistics.size() == 1,
+				() -> new RestInternalError(
+					"There should be only one non-grouped facet group for reference `" +
+						referenceSchema.getName() + "` but found `" + groupStatistics.size() + "`."
+				)
+			);
+			return serializeReferenceGroupStatistics(groupStatistics.get(0), referenceSchema, catalogSchema);
+		}
+	}
+
+	@Nonnull
+	private JsonNode serializeReferenceGroupStatistics(
+		@Nonnull ReferenceGroupStatistics groupStatistics,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull CatalogSchemaContract catalogSchema
+	) {
+		final ObjectNode groupStatsNode = this.objectJsonSerializer.objectNode();
+		groupStatsNode.put(ReferenceGroupStatisticsDescriptor.COUNT.name(), groupStatistics.getCount());
+
+		if (referenceSchema.getReferencedGroupType() != null) {
+			groupStatsNode.putIfAbsent(
+				ReferenceGroupStatisticsDescriptor.GROUP_ENTITY.name(),
+				groupStatistics.getGroupEntity() != null
+					? serializeEntity(groupStatistics.getGroupEntity(), catalogSchema)
+					: null
+			);
+		}
+
+		final ArrayNode jsonNodes = this.objectJsonSerializer.arrayNode();
+		groupStatistics
+			.getFacetStatistics()
+			.forEach(
+				facetStats ->
+					jsonNodes.add(
+						serializeFacetStatistics(
+							facetStats,
+							catalogSchema
+						)
+					)
+			);
+		groupStatsNode.putIfAbsent(ReferenceGroupStatisticsDescriptor.FACET_STATISTICS.name(), jsonNodes);
+
+		// serialize named histogram statistics wrapped under a `histogramStatistics` object
+		final Map<String, HistogramContract> histogramStats = groupStatistics.getHistogramStatistics();
+		if (!histogramStats.isEmpty()) {
+			final ObjectNode histogramStatisticsNode = this.objectJsonSerializer.objectNode();
+			for (Entry<String, HistogramContract> entry : histogramStats.entrySet()) {
+				histogramStatisticsNode.putIfAbsent(
+					entry.getKey(),
+					serializeHistogram(entry.getValue(), catalogSchema)
+				);
+			}
+			groupStatsNode.putIfAbsent(
+				ReferenceGroupStatisticsDescriptor.HISTOGRAM_STATISTICS.name(),
+				histogramStatisticsNode
+			);
+		}
+		return groupStatsNode;
+	}
+
+	/**
+	 * Serializes a histogram — attribute, price or reference-scope — using explicit field emission
+	 * so Jackson's bean reflection never walks the `Optional<SealedEntity>` anchor getters (which
+	 * `jackson-databind` rejects without the `jdk8` datatype module). Anchor referenced entities are
+	 * only emitted when present, so attribute / price histograms (which never carry them) produce
+	 * the same shape they did before the anchors were introduced.
+	 */
+	@Nonnull
+	private JsonNode serializeHistogram(
+		@Nonnull HistogramContract histogram,
+		@Nonnull CatalogSchemaContract catalogSchema
+	) {
+		final ObjectNode histogramNode = this.objectJsonSerializer.objectNode();
+		histogramNode.putIfAbsent(
+			HistogramDescriptor.MIN.name(),
+			this.objectJsonSerializer.serializeObject(histogram.getMin())
+		);
+		histogramNode.putIfAbsent(
+			HistogramDescriptor.MAX.name(),
+			this.objectJsonSerializer.serializeObject(histogram.getMax())
+		);
+		histogramNode.put(HistogramDescriptor.OVERALL_COUNT.name(), histogram.getOverallCount());
+		histogramNode.putIfAbsent(
+			HistogramDescriptor.BUCKETS.name(),
+			this.objectJsonSerializer.getObjectMapper().valueToTree(histogram.getBuckets())
+		);
+		histogram.getMinReferencedEntity().ifPresent(entity -> histogramNode.putIfAbsent(
+			ReferenceHistogramDescriptor.MIN_REFERENCED_ENTITY.name(),
+			serializeEntity(entity, catalogSchema)
+		));
+		histogram.getMaxReferencedEntity().ifPresent(entity -> histogramNode.putIfAbsent(
+			ReferenceHistogramDescriptor.MAX_REFERENCED_ENTITY.name(),
+			serializeEntity(entity, catalogSchema)
+		));
+		return histogramNode;
+	}
+
+	@Nonnull
+	private JsonNode serializeFacetSummary(
+		@Nonnull FacetSummary facetSummary,
+		@Nonnull CatalogSchemaContract catalogSchema,
+		@Nonnull EntitySchemaContract entitySchema
+	) {
 		final Collection<FacetGroupStatistics> facetGroupStatistics = facetSummary.getReferenceStatistics();
 		final Map<String, List<FacetGroupStatistics>> groupedStats = createHashMap(entitySchema.getReferences().size());
 		for (FacetGroupStatistics facetGroupStatistic : facetGroupStatistics) {
@@ -127,98 +345,147 @@ public class ExtraResultsJsonSerializer {
 		groupedStats.forEach((key, value) -> {
 			final String serializableReferenceName = entitySchema.getReference(key)
 				.map(it -> it.getNameVariant(PROPERTY_NAME_NAMING_CONVENTION))
-				.orElseThrow(() -> new RestQueryResolvingInternalError("Cannot find reference schema for `" + key + "` in entity schema `" + entitySchema.getName() + "`."));
+				.orElseThrow(() -> new RestQueryResolvingInternalError(
+					"Cannot find reference schema for `" + key + "` in entity schema `" + entitySchema.getName() + "`."
+				));
 
 			facetGroupStatsNode.putIfAbsent(
 				serializableReferenceName,
 				serializeFacetSameGroupStatistics(
 					value,
-					entitySchema.getReference(key).orElseThrow(() -> new RestInternalError("Could not find referenc schema for `" + key + "`.")),
+					entitySchema.getReference(key)
+						.orElseThrow(() -> new RestInternalError("Could not find referenc schema for `" + key + "`.")),
 					catalogSchema
 				)
 			);
 		});
 		return facetGroupStatsNode;
-
 	}
 
+
 	@Nonnull
-	private JsonNode serializeFacetSameGroupStatistics(@Nonnull List<FacetGroupStatistics> groupStatistics,
-	                                                   @Nonnull ReferenceSchemaContract referenceSchema,
-	                                                   @Nonnull CatalogSchemaContract catalogSchema) {
+	private JsonNode serializeFacetSameGroupStatistics(
+		@Nonnull List<FacetGroupStatistics> groupStatistics,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull CatalogSchemaContract catalogSchema
+	) {
 		if (referenceSchema.getReferencedGroupType() != null) {
 			final ArrayNode sameGroupStatsNode = this.objectJsonSerializer.arrayNode();
-			groupStatistics.forEach(stats -> sameGroupStatsNode.add(serializeFacetGroupStatistics(stats, referenceSchema, catalogSchema)));
+			groupStatistics.forEach(stats ->
+				                        sameGroupStatsNode.add(
+					                        serializeFacetGroupStatistics(stats, referenceSchema, catalogSchema))
+			);
 			return sameGroupStatsNode;
 		} else {
 			Assert.isPremiseValid(
 				groupStatistics.size() == 1,
-				() -> new RestInternalError("There should be only one non-grouped facet group for reference `" + referenceSchema.getName() + "` but found `" + groupStatistics.size() + "`.")
+				() -> new RestInternalError(
+					"There should be only one non-grouped facet group for reference `" +
+						referenceSchema.getName() + "` but found `" + groupStatistics.size() + "`."
+				)
 			);
 			return serializeFacetGroupStatistics(groupStatistics.get(0), referenceSchema, catalogSchema);
 		}
 	}
 
 	@Nonnull
-	private JsonNode serializeFacetGroupStatistics(@Nonnull FacetGroupStatistics groupStatistics,
-	                                               @Nonnull ReferenceSchemaContract referenceSchema,
-	                                               @Nonnull CatalogSchemaContract catalogSchema) {
+	private JsonNode serializeFacetGroupStatistics(
+		@Nonnull FacetGroupStatistics groupStatistics,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull CatalogSchemaContract catalogSchema
+	) {
 		final ObjectNode groupStatsNode = this.objectJsonSerializer.objectNode();
 		groupStatsNode.put(FacetGroupStatisticsDescriptor.COUNT.name(), groupStatistics.getCount());
 
 		if (referenceSchema.getReferencedGroupType() != null) {
-			groupStatsNode.putIfAbsent(FacetGroupStatisticsDescriptor.GROUP_ENTITY.name(),
-				groupStatistics.getGroupEntity() != null ? serializeEntity(groupStatistics.getGroupEntity(), catalogSchema) : null);
+			groupStatsNode.putIfAbsent(
+				FacetGroupStatisticsDescriptor.GROUP_ENTITY.name(),
+				groupStatistics.getGroupEntity() != null ? serializeEntity(
+					groupStatistics.getGroupEntity(), catalogSchema) : null
+			);
 		}
 
 		final ArrayNode jsonNodes = this.objectJsonSerializer.arrayNode();
-		groupStatistics.getFacetStatistics().forEach(facetStats -> jsonNodes.add(serializeFacetStatistics(facetStats, catalogSchema)));
+		groupStatistics.getFacetStatistics().forEach(facetStats ->
+			                                             jsonNodes.add(
+				                                             serializeFacetStatistics(facetStats, catalogSchema))
+		);
 		groupStatsNode.putIfAbsent(FacetGroupStatisticsDescriptor.FACET_STATISTICS.name(), jsonNodes);
 		return groupStatsNode;
 	}
 
 	@Nonnull
-	private JsonNode serializeFacetStatistics(@Nonnull FacetStatistics facetStatistics, @Nonnull CatalogSchemaContract catalogSchema) {
+	private JsonNode serializeFacetStatistics(
+		@Nonnull FacetStatistics facetStatistics,
+		@Nonnull CatalogSchemaContract catalogSchema
+	) {
 		final ObjectNode facetStatsNode = this.objectJsonSerializer.objectNode();
-		facetStatsNode.putIfAbsent(EntityFacetStatisticsDescriptor.REQUESTED.name(), this.objectJsonSerializer.serializeObject(facetStatistics.isRequested()));
-		facetStatsNode.putIfAbsent(EntityFacetStatisticsDescriptor.COUNT.name(), this.objectJsonSerializer.serializeObject(facetStatistics.getCount()));
+		facetStatsNode.putIfAbsent(
+			EntityFacetStatisticsDescriptor.REQUESTED.name(),
+			this.objectJsonSerializer.serializeObject(facetStatistics.isRequested())
+		);
+		facetStatsNode.putIfAbsent(
+			EntityFacetStatisticsDescriptor.COUNT.name(),
+			this.objectJsonSerializer.serializeObject(facetStatistics.getCount())
+		);
 		if (facetStatistics.getImpact() != null) {
 			final ObjectNode impactNode = this.objectJsonSerializer.objectNode();
 			final RequestImpact impact = facetStatistics.getImpact();
-			impactNode.putIfAbsent(FacetRequestImpactDescriptor.DIFFERENCE.name(), this.objectJsonSerializer.serializeObject(impact.difference()));
-			impactNode.putIfAbsent(FacetRequestImpactDescriptor.MATCH_COUNT.name(), this.objectJsonSerializer.serializeObject(impact.matchCount()));
-			impactNode.putIfAbsent(FacetRequestImpactDescriptor.HAS_SENSE.name(), this.objectJsonSerializer.serializeObject(impact.hasSense()));
+			impactNode.putIfAbsent(
+				FacetRequestImpactDescriptor.DIFFERENCE.name(),
+				this.objectJsonSerializer.serializeObject(impact.difference())
+			);
+			impactNode.putIfAbsent(
+				FacetRequestImpactDescriptor.MATCH_COUNT.name(),
+				this.objectJsonSerializer.serializeObject(impact.matchCount())
+			);
+			impactNode.putIfAbsent(
+				FacetRequestImpactDescriptor.HAS_SENSE.name(),
+				this.objectJsonSerializer.serializeObject(impact.hasSense())
+			);
 
 			facetStatsNode.putIfAbsent(EntityFacetStatisticsDescriptor.IMPACT.name(), impactNode);
 		}
-		facetStatsNode.putIfAbsent(EntityFacetStatisticsDescriptor.FACET_ENTITY.name(), serializeEntity(facetStatistics.getFacetEntity(), catalogSchema));
+		facetStatsNode.putIfAbsent(
+			EntityFacetStatisticsDescriptor.FACET_ENTITY.name(),
+			serializeEntity(facetStatistics.getFacetEntity(), catalogSchema)
+		);
 		return facetStatsNode;
 	}
 
 	@Nonnull
-	private JsonNode serializeHierarchy(@Nonnull Hierarchy hierarchy,
-	                                    @Nonnull CatalogSchemaContract catalogSchema,
-	                                    @Nonnull EntitySchemaContract entitySchema) {
+	private JsonNode serializeHierarchy(
+		@Nonnull Hierarchy hierarchy,
+		@Nonnull CatalogSchemaContract catalogSchema,
+		@Nonnull EntitySchemaContract entitySchema
+	) {
 		final ObjectNode hierarchyNode = this.objectJsonSerializer.objectNode();
 
 		final Map<String, List<LevelInfo>> selfHierarchy = hierarchy.getSelfHierarchy();
 		if (!selfHierarchy.isEmpty()) {
-			hierarchyNode.putIfAbsent(HierarchyDescriptor.SELF.name(), serializeHierarchyOf(selfHierarchy, catalogSchema));
+			hierarchyNode.putIfAbsent(
+				HierarchyDescriptor.SELF.name(), serializeHierarchyOf(selfHierarchy, catalogSchema));
 		}
 
 		hierarchy.getReferenceHierarchies().forEach((referenceName, hierarchyOfReference) -> {
 			final String serializableReferenceName = entitySchema.getReference(referenceName)
 				.map(it -> it.getNameVariant(PROPERTY_NAME_NAMING_CONVENTION))
-				.orElseThrow(() -> new RestQueryResolvingInternalError("Cannot find reference schema for `" + referenceName + "` in entity schema `" + entitySchema.getName() + "`."));
+				.orElseThrow(() -> new RestQueryResolvingInternalError(
+					"Cannot find reference schema for `" + referenceName + "` in entity schema `" + entitySchema.getName() + "`."
+				));
 
-			hierarchyNode.putIfAbsent(serializableReferenceName, serializeHierarchyOf(hierarchyOfReference, catalogSchema));
+			hierarchyNode.putIfAbsent(
+				serializableReferenceName, serializeHierarchyOf(hierarchyOfReference, catalogSchema));
 		});
 
 		return hierarchyNode;
 	}
 
 	@Nonnull
-	private JsonNode serializeHierarchyOf(@Nonnull Map<String, List<LevelInfo>> hierarchyOf, @Nonnull CatalogSchemaContract catalogSchema) {
+	private JsonNode serializeHierarchyOf(
+		@Nonnull Map<String, List<LevelInfo>> hierarchyOf,
+		@Nonnull CatalogSchemaContract catalogSchema
+	) {
 		final ObjectNode hierarchyOfNode = this.objectJsonSerializer.objectNode();
 		hierarchyOf.forEach((outputName, levelInfos) -> {
 			hierarchyOfNode.putIfAbsent(outputName, serializeLevelInfos(levelInfos, catalogSchema));
@@ -227,21 +494,29 @@ public class ExtraResultsJsonSerializer {
 	}
 
 	@Nonnull
-	private JsonNode serializeLevelInfos(@Nonnull List<LevelInfo> levelInfos, @Nonnull CatalogSchemaContract catalogSchema) {
+	private JsonNode serializeLevelInfos(
+		@Nonnull List<LevelInfo> levelInfos,
+		@Nonnull CatalogSchemaContract catalogSchema
+	) {
 		final ArrayNode levelInfoNodes = this.objectJsonSerializer.arrayNode();
 		for (LevelInfo levelInfo : levelInfos) {
 			final ObjectNode levelInfoNode = this.objectJsonSerializer.objectNode();
 
-			levelInfoNode.putIfAbsent(LevelInfoDescriptor.ENTITY.name(), serializeEntity(levelInfo.entity(), catalogSchema));
+			levelInfoNode.putIfAbsent(
+				LevelInfoDescriptor.ENTITY.name(), serializeEntity(levelInfo.entity(), catalogSchema));
 			levelInfoNode.put(LevelInfoDescriptor.REQUESTED.name(), levelInfo.requested());
 			Optional.ofNullable(levelInfo.queriedEntityCount())
-				.ifPresent(queriedEntityCount -> levelInfoNode.put(LevelInfoDescriptor.QUERIED_ENTITY_COUNT.name(), queriedEntityCount));
+				.ifPresent(queriedEntityCount ->
+					           levelInfoNode.put(LevelInfoDescriptor.QUERIED_ENTITY_COUNT.name(), queriedEntityCount)
+				);
 			Optional.ofNullable(levelInfo.childrenCount())
-				.ifPresent(childrenCount -> levelInfoNode.put(LevelInfoDescriptor.CHILDREN_COUNT.name(), childrenCount));
+				.ifPresent(
+					childrenCount -> levelInfoNode.put(LevelInfoDescriptor.CHILDREN_COUNT.name(), childrenCount));
 
 			final List<LevelInfo> children = levelInfo.children();
 			if (!children.isEmpty()) {
-				levelInfoNode.putIfAbsent(LevelInfoDescriptor.CHILDREN.name(), serializeLevelInfos(children, catalogSchema));
+				levelInfoNode.putIfAbsent(
+					LevelInfoDescriptor.CHILDREN.name(), serializeLevelInfos(children, catalogSchema));
 			}
 
 			levelInfoNodes.add(levelInfoNode);
@@ -250,7 +525,10 @@ public class ExtraResultsJsonSerializer {
 	}
 
 	@Nonnull
-	private JsonNode serializeEntity(@Nonnull EntityClassifier entityDecorator, @Nonnull CatalogSchemaContract catalogSchema) {
+	private JsonNode serializeEntity(
+		@Nonnull EntityClassifier entityDecorator,
+		@Nonnull CatalogSchemaContract catalogSchema
+	) {
 		return this.entityJsonSerializer.serialize(new EntitySerializationContext(catalogSchema), entityDecorator);
 	}
 
@@ -260,22 +538,22 @@ public class ExtraResultsJsonSerializer {
 	}
 
 	@Nonnull
-	private JsonNode serializeAttributeHistogram(@Nonnull AttributeHistogram attributeHistogram,
-	                                             @Nonnull EntitySchemaContract entitySchema) {
+	private JsonNode serializeAttributeHistogram(
+		@Nonnull AttributeHistogram attributeHistogram,
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull CatalogSchemaContract catalogSchema
+	) {
 		final ObjectNode histogramNode = this.objectJsonSerializer.objectNode();
 		for (Entry<String, HistogramContract> entry : attributeHistogram.getHistograms().entrySet()) {
 			final String attributeName = entry.getKey();
 			final String serializableAttributeName = entitySchema.getAttribute(attributeName)
 				.map(it -> it.getNameVariant(PROPERTY_NAME_NAMING_CONVENTION))
-				.orElseThrow(() -> new RestQueryResolvingInternalError("Cannot find attribute schema for `" + attributeName + "` in entity schema `" + entitySchema.getName() + "`."));
+				.orElseThrow(() -> new RestQueryResolvingInternalError(
+					"Cannot find attribute schema for `" + attributeName + "` in entity schema `" + entitySchema.getName() + "`."
+				));
 
-			histogramNode.putIfAbsent(serializableAttributeName, this.objectJsonSerializer.getObjectMapper().valueToTree(entry.getValue()));
+			histogramNode.putIfAbsent(serializableAttributeName, serializeHistogram(entry.getValue(), catalogSchema));
 		}
 		return histogramNode;
-	}
-
-	@Nonnull
-	private JsonNode serializePriceHistogram(@Nonnull PriceHistogram priceHistogram) {
-		return this.objectJsonSerializer.getObjectMapper().valueToTree(priceHistogram);
 	}
 }

@@ -61,9 +61,11 @@ import java.util.stream.Collectors;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
-import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.test.generator.DataGenerator.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.QUERY;
+import static io.evitadb.test.TestTags.FILTER;
 
 /**
  * This test verifies whether entities can be filtered by complex queries.
@@ -71,8 +73,10 @@ import static io.evitadb.test.generator.DataGenerator.*;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("Evita entity filtering by combined constraints")
-@Tag(FUNCTIONAL_TEST)
 @ExtendWith(EvitaParameterResolver.class)
+@Tag(CONTRACT)
+@Tag(QUERY)
+@Tag(FILTER)
 public class CombinedEntityFilteringFunctionalTest {
 	private static final String THREE_HUNDRED_PRODUCTS_WITH_ALL_DATA = "HundredProductsWithAllData";
 	private static final String ATTRIBUTE_SIZE = "size";

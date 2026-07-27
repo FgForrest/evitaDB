@@ -30,13 +30,13 @@ In order to use a Java remote client you need only to add following dependency t
 <dependency>
     <groupId>io.evitadb</groupId>
     <artifactId>evita_java_driver</artifactId>
-    <version>2025.8.0</version>
+    <version>2026.1.0</version>
 </dependency>
 ```
 </CodeTabsBlock>
 <CodeTabsBlock>
 ```Gradle
-implementation 'io.evitadb:evita_java_driver:2025.8.0'
+implementation 'io.evitadb:evita_java_driver:2026.1.0'
 ```
 </CodeTabsBlock>
 </CodeTabs>
@@ -129,6 +129,30 @@ Connection settings are configured via
         See [TLS Configuration and Principles](../../operate/tls.md). The system API is not required if the server uses
         a trusted certificate and mTLS is disabled, or the server / client's private/public key pair is distributed
         "manually" with the client.</p>
+    </dd>
+    <dt>pingIntervalMillis</dt>
+    <dd>
+        <p>**Default: `30000` (30 s)**</p>
+        <p>The HTTP/2 keep-alive PING interval in milliseconds. When the connection sees no traffic for this long,
+        the client sends a PING; if the peer does not acknowledge it within the same interval, the connection is
+        closed. The interval is therefore the *stall budget* — it must comfortably exceed the worst tolerable
+        GC / CPU-starvation pause, not act as a probe frequency, otherwise a slow-but-alive call may be killed
+        mid-flight. Set `0` to disable the client ping entirely (the connection is then reaped by
+        `idleTimeoutMillis` alone); any other value must be at least `1000` ms. The ping must stay strictly below
+        `idleTimeoutMillis`, otherwise the underlying HTTP client silently disables it — the default pair
+        (`30000` ping, `300000` idle) satisfies this, and the client logs a warning if a custom pair does not.</p>
+    </dd>
+    <dt>idleTimeoutMillis</dt>
+    <dd>
+        <p>**Default: `300000` (300 s)**</p>
+        <p>How long a pooled connection may sit with no application traffic before it is closed. This is deliberately
+        **decoupled from the per-call `timeout`** (see [Timeout options](#timeout-options)): a short request deadline
+        must not force the physical connection to be torn down and re-established between calls. The default of
+        300 s sits comfortably above the 30 s ping, so the keep-alive watchdog stays active and healthy connections
+        are kept warm — acknowledged pings count as activity, so a live connection never idles out, while a dead
+        peer is detected within one ping interval. Set `0` to disable the idle timeout entirely (the connection then
+        lives until closed by the peer, a ping failure, or the connection pool). Keep this value strictly above
+        `pingIntervalMillis`.</p>
     </dd>
 </dl>
 

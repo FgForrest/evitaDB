@@ -29,6 +29,7 @@ import io.evitadb.core.query.algebra.price.priceIndex.PriceIdContainerFormula;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.price.PriceListAndCurrencyPriceIndex;
+import io.evitadb.index.price.PriceSuperIndex;
 import io.evitadb.index.price.model.PriceIndexKey;
 import io.evitadb.index.price.model.priceRecord.PriceRecord;
 import io.evitadb.index.price.model.priceRecord.PriceRecordContract;
@@ -39,13 +40,24 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
 import java.time.OffsetDateTime;
+import java.util.function.Consumer;
+import java.util.function.IntConsumer;
 
 /**
- * Mock PriceListAndCurrencyPriceIndex implementation to be used in perf. tests.
+ * Mock implementation of {@link PriceListAndCurrencyPriceIndex} that supports incremental price
+ * recording via {@link #recordPrice(PriceRecordContract)}. Maintains an entity-to-price-IDs
+ * lookup map ({@link IntObjectHashMap}) and ordered arrays of price records and inner record IDs.
+ *
+ * Only {@link #getInternalPriceIdsForEntity(int)}, {@link #getPriceRecords()}, and
+ * {@link #getIndexedPriceIds()} are implemented — all other methods throw
+ * {@link UnsupportedOperationException}.
+ *
+ * **Note:** This class is only used by {@link EntityIdsState}, which itself is not referenced
+ * by any benchmark in {@link io.evitadb.spike.FormulaCostMeasurement}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class MockPriceListAndCurrencyPriceIndex implements PriceListAndCurrencyPriceIndex<Void, MockPriceListAndCurrencyPriceIndex> {
+public class MockPriceListAndCurrencyPriceIndex implements PriceListAndCurrencyPriceIndex<MockPriceListAndCurrencyPriceIndex> {
 	@Serial private static final long serialVersionUID = -1343396298549809991L;
 	private final transient IntObjectHashMap<int[]> priceIdsIndex;
 	private int[] priceRecordIds;
@@ -78,19 +90,9 @@ public class MockPriceListAndCurrencyPriceIndex implements PriceListAndCurrencyP
 		throw new UnsupportedOperationException();
 	}
 
-	@Override
-	public long getId() {
-		return 0;
-	}
-
-	@Override
-	public Void createLayer() {
-		throw new UnsupportedOperationException();
-	}
-
 	@Nonnull
 	@Override
-	public MockPriceListAndCurrencyPriceIndex createCopyWithMergedTransactionalMemory(@Nullable Void layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
+	public MockPriceListAndCurrencyPriceIndex createCopyWithMergedTransactionalMemory(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		throw new UnsupportedOperationException();
 	}
 
@@ -123,6 +125,12 @@ public class MockPriceListAndCurrencyPriceIndex implements PriceListAndCurrencyP
 		throw new UnsupportedOperationException();
 	}
 
+	@Nonnull
+	@Override
+	public PriceIdContainerFormula getIndexedRecordIdsValidNowFormula(@Nonnull OffsetDateTime theMoment) {
+		throw new UnsupportedOperationException();
+	}
+
 	@Nullable
 	@Override
 	public int[] getInternalPriceIdsForEntity(int entityId) {
@@ -141,6 +149,15 @@ public class MockPriceListAndCurrencyPriceIndex implements PriceListAndCurrencyP
 		return this.priceRecords;
 	}
 
+	@Override
+	public void forEachPriceRecord(
+		@Nonnull Bitmap priceIds,
+		@Nonnull Consumer<PriceRecordContract> priceFoundCallback,
+		@Nonnull IntConsumer priceIdNotFoundCallback
+	) throws PriceListAndCurrencyPriceIndex.PriceListAndCurrencyPriceIndexTerminated {
+		throw new UnsupportedOperationException();
+	}
+
 	@Nonnull
 	@Override
 	public int[] getIndexedPriceIds() {
@@ -149,7 +166,7 @@ public class MockPriceListAndCurrencyPriceIndex implements PriceListAndCurrencyP
 
 	@Nonnull
 	@Override
-	public Formula createPriceIndexFormulaWithAllRecords() {
+	public Formula createPriceIndexFormulaWithAllRecords(@Nonnull PriceSuperIndex superPriceIndex) {
 		throw new UnsupportedOperationException();
 	}
 

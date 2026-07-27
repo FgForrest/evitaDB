@@ -30,7 +30,7 @@ import io.evitadb.api.requestResponse.data.annotation.Reference;
 import io.evitadb.api.requestResponse.data.annotation.ReferencedEntity;
 import io.evitadb.api.requestResponse.data.annotation.ReferencedEntityGroup;
 import io.evitadb.api.requestResponse.data.annotation.ScopeReferenceSettings;
-import io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import io.evitadb.dataType.Scope;
 
 import javax.annotation.Nonnull;
@@ -89,7 +89,11 @@ public interface GetterBasedEntityWithScopeReferenceSettings {
 	/**
 	 * Reference with no scope settings - should use defaults (LIVE scope only).
 	 */
-	@Reference(managed = false, indexed = ReferenceIndexType.FOR_FILTERING, faceted = true)
+	@Reference(
+		managed = false,
+		indexed = ReferenceIndexType.FOR_FILTERING,
+		faceted = true
+	)
 	Brand getDefaultBrand();
 
 	interface Brand extends Serializable {

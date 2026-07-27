@@ -24,13 +24,15 @@
 package io.evitadb.api.configuration;
 
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolution;
+import io.evitadb.api.requestResponse.mutation.conflict.GranularConflictPolicy;
 import lombok.ToString;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.Collections;
+import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.Optional;
 
@@ -62,14 +64,33 @@ import java.util.Optional;
  *                                              changes to the disk. If the client waits for `CommitBehavior.WAIT_FOR_CHANGES_VISIBLE`
  *                                              he may wait entire `flushFrequencyInMillis` milliseconds before he gets
  *                                              the response.
+ * @param checkpointIntervalInMillis            How often the data files are made durable (fsync) and the bootstrap
+ *                                              record pointing at them is written. Trunk incorporation always writes
+ *                                              its bytes out, but between checkpoints they only reach the operating
+ *                                              system page cache - the device flush is what this interval bounds.
+ *                                              Set to `0` to checkpoint at the end of every trunk round. The
+ *                                              interval is **ignored entirely when `syncWrites` is off** in
+ *                                              `StorageOptions`: with no device flush being issued there is nothing
+ *                                              to defer, so the two settings stay orthogonal instead of one
+ *                                              silently re-enabling the other.
+ *                                              This is deliberately a different cadence from
+ *                                              `flushFrequencyInMillis`: that one bounds when changes become
+ *                                              **visible**, this one bounds when they become **durable on the data
+ *                                              files**. Durability of an acknowledged commit does not depend on it -
+ *                                              the write-ahead log is the source of truth for that, and anything
+ *                                              written after the last checkpoint is replayed from the WAL on restart.
+ *                                              The interval therefore trades WAL retention and restart replay time
+ *                                              for write throughput.
  * @param conflictRingBufferSize                Size of the array inside transaction conflict keys ring buffer.
  *                                              The larger the size, the more conflict keys the ring buffer can keep
  *                                              in volatile memory. Amount of necessary conflict keys is dependent on
  *                                              granularity of conflict keys, the number of concurrent transactions,
  *                                              and the age of the oldest writable session (e.g. transaction).
- * @param conflictPolicy                        Set of conflict policies that will be used to resolve conflicts with
- *                                              other parallel sessions during the transaction commit. By default,
- *                                              {@link ConflictPolicy#ENTITY} is enabled.
+ * @param conflictPolicy                        Conflict resolution setting that will be used to resolve conflicts with
+ *                                              other parallel sessions during the transaction commit. It combines the
+ *                                              coarse {@link ConflictPolicy} scope with an optional set of
+ *                                              {@link GranularConflictPolicy} refinements (see {@link ConflictResolution}).
+ *                                              By default, conflicts are detected at {@link ConflictPolicy#ENTITY} level.
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 public record TransactionOptions(
@@ -80,8 +101,9 @@ public record TransactionOptions(
 	int walFileCountKept,
 	long waitForTransactionAcceptanceInMillis,
 	long flushFrequencyInMillis,
+	long checkpointIntervalInMillis,
 	int conflictRingBufferSize,
-	@Nonnull EnumSet<ConflictPolicy> conflictPolicy
+	@Nonnull ConflictResolution conflictPolicy
 ) {
 	public static final Path DEFAULT_TX_DIRECTORY = Paths.get(System.getProperty("java.io.tmpdir"), "evita/transaction");
 	public static final long DEFAULT_TRANSACTION_MEMORY_BUFFER_LIMIT_SIZE = 16_777_216;
@@ -89,12 +111,52 @@ public record TransactionOptions(
 	public static final int DEFAULT_WAL_SIZE_BYTES = 16_777_216;
 	public static final int DEFAULT_WAL_FILE_COUNT_KEPT = 8;
 	public static final int DEFAULT_WAIT_FOR_TRANSACTION_ACCEPTANCE = 20_000;
-	public static final int DEFAULT_FLUSH_FREQUENCY = 1_000;
+	/**
+	 * Relaxed from `1_000` when the budget started being honoured at all.
+	 *
+	 * The value was previously handed to trunk incorporation in nanoseconds while being compared in milliseconds,
+	 * which inflated it to roughly 11.6 days - so in practice a round always drained the entire WAL backlog present
+	 * when it opened, and this knob never bounded anything. Restoring the unit at `1_000` would have taken the engine
+	 * from an effectively unbounded batching window straight to a one-second one, cutting rounds far more aggressively
+	 * than any behaviour that has ever been exercised in production.
+	 *
+	 * Measured commit throughput is flat across `1_000`..`60_000` at 4 and 16 concurrent writers, because at those
+	 * rates trunk incorporation keeps up and no backlog forms for the budget to cut. The value therefore only starts
+	 * to matter in a sustained-backlog regime that the benchmark could not reproduce, and is chosen to hedge that
+	 * regime: an order of magnitude more batching headroom than the nominal old value, while still bounding how long
+	 * a client awaiting {@link io.evitadb.api.TransactionContract.CommitBehavior#WAIT_FOR_CHANGES_VISIBLE} can be kept
+	 * behind other writers' work.
+	 */
+	public static final int DEFAULT_FLUSH_FREQUENCY = 10_000;
+	/**
+	 * Bounds how long the data files may sit in the operating system page cache before they are forced to the device
+	 * and a bootstrap record is written to point at them.
+	 *
+	 * Before this interval existed, every trunk round paid the full device bill: `N_changed + 2` fsyncs, measured at
+	 * roughly 15.5 ms on a LUKS+xfs SSD. That bill is **fixed per round**, so its per-transaction share is
+	 * `15.5 / k`, where `k` is the number of transactions the round collapses. Under
+	 * {@link io.evitadb.api.TransactionContract.CommitBehavior#WAIT_FOR_CHANGES_VISIBLE} a client blocks until its own
+	 * change is visible and therefore cannot join a later batch, which caps `k` at the number of concurrent writers -
+	 * the fsync share is consequently **largest when the system is least busy**. Measured share of the round: 57 % at
+	 * 2 writers, 47 % at 8, 24 % at 16 and nothing at 64, where trunk incorporation's own merge work dominates.
+	 *
+	 * One second is the same order as the visibility cadence other engines expose, and two orders below their
+	 * checkpoint cadences (WiredTiger 60 s, PostgreSQL 5 min), so it is a deliberately conservative starting point:
+	 * it collects most of the win while keeping WAL retention and restart replay to about a second of writes.
+	 */
+	public static final int DEFAULT_CHECKPOINT_INTERVAL = 1_000;
 	public static final int DEFAULT_CONFLICT_RING_BUFFER_SIZE = 65_536;
-	public static final EnumSet<ConflictPolicy> DEFAULT_CONFLICT_POLICY = EnumSet.of(ConflictPolicy.ENTITY);
+	public static final ConflictResolution DEFAULT_CONFLICT_RESOLUTION = new ConflictResolution(ConflictPolicy.ENTITY);
 
 	/**
 	 * Builder method is planned to be used only in tests.
+	 *
+	 * Checkpointing is pinned to every round here rather than to {@link #DEFAULT_CHECKPOINT_INTERVAL}. Deferred
+	 * checkpointing is time-dependent by construction, and a test that commits and then inspects the catalog on disk
+	 * would otherwise be asserting against a checkpoint that has not fired yet. The deferred path is covered by tests
+	 * that configure the interval explicitly. This value is in the same spirit as the other deviations here (a 1 MB
+	 * transaction buffer against 16 MB, one WAL file against eight): the method exists to make tests fast and
+	 * deterministic, not to mirror production.
 	 */
 	public static TransactionOptions temporary() {
 		return new TransactionOptions(
@@ -105,8 +167,9 @@ public record TransactionOptions(
 			1,
 			100,
 			100,
+			0,
 			256,
-			DEFAULT_CONFLICT_POLICY
+			DEFAULT_CONFLICT_RESOLUTION
 		);
 	}
 
@@ -133,8 +196,9 @@ public record TransactionOptions(
 			DEFAULT_WAL_FILE_COUNT_KEPT,
 			DEFAULT_WAIT_FOR_TRANSACTION_ACCEPTANCE,
 			DEFAULT_FLUSH_FREQUENCY,
+			DEFAULT_CHECKPOINT_INTERVAL,
 			DEFAULT_CONFLICT_RING_BUFFER_SIZE,
-			DEFAULT_CONFLICT_POLICY
+			DEFAULT_CONFLICT_RESOLUTION
 		);
 	}
 
@@ -146,8 +210,9 @@ public record TransactionOptions(
 		int walFileCountKept,
 		long waitForTransactionAcceptanceInMillis,
 		long flushFrequencyInMillis,
+		long checkpointIntervalInMillis,
 		int conflictRingBufferSize,
-		@Nonnull EnumSet<ConflictPolicy> conflictPolicy
+		@Nullable ConflictResolution conflictPolicy
 	) {
 		this.transactionWorkDirectory = Optional.ofNullable(transactionWorkDirectory).orElse(DEFAULT_TX_DIRECTORY);
 		this.transactionMemoryBufferLimitSizeBytes = transactionMemoryBufferLimitSizeBytes;
@@ -156,11 +221,10 @@ public record TransactionOptions(
 		this.walFileCountKept = walFileCountKept;
 		this.waitForTransactionAcceptanceInMillis = waitForTransactionAcceptanceInMillis;
 		this.flushFrequencyInMillis = flushFrequencyInMillis;
+		this.checkpointIntervalInMillis = checkpointIntervalInMillis;
 		this.conflictRingBufferSize = conflictRingBufferSize;
-		// defensive copy to prevent mutation of the record state
-		this.conflictPolicy = conflictPolicy.isEmpty()
-			? EnumSet.noneOf(ConflictPolicy.class)
-			: EnumSet.copyOf(conflictPolicy);
+		// ConflictResolution is immutable, no defensive copy required; null falls back to the default
+		this.conflictPolicy = Optional.ofNullable(conflictPolicy).orElse(DEFAULT_CONFLICT_RESOLUTION);
 	}
 
 	/**
@@ -175,8 +239,9 @@ public record TransactionOptions(
 		private int walFileCountKept = DEFAULT_WAL_FILE_COUNT_KEPT;
 		private long waitForTransactionAcceptance = DEFAULT_WAIT_FOR_TRANSACTION_ACCEPTANCE;
 		private long flushFrequency = DEFAULT_FLUSH_FREQUENCY;
+		private long checkpointInterval = DEFAULT_CHECKPOINT_INTERVAL;
 		private int conflictRingBufferSize = DEFAULT_CONFLICT_RING_BUFFER_SIZE;
-		private final EnumSet<ConflictPolicy> conflictPolicy = EnumSet.copyOf(DEFAULT_CONFLICT_POLICY);
+		private ConflictResolution conflictPolicy = DEFAULT_CONFLICT_RESOLUTION;
 
 		Builder() {
 		}
@@ -189,9 +254,9 @@ public record TransactionOptions(
 			this.walFileCountKept = transactionOptions.walFileCountKept;
 			this.waitForTransactionAcceptance = transactionOptions.waitForTransactionAcceptanceInMillis;
 			this.flushFrequency = transactionOptions.flushFrequencyInMillis;
+			this.checkpointInterval = transactionOptions.checkpointIntervalInMillis;
 			this.conflictRingBufferSize = transactionOptions.conflictRingBufferSize;
-			this.conflictPolicy.clear();
-			this.conflictPolicy.addAll(transactionOptions.conflictPolicy);
+			this.conflictPolicy = transactionOptions.conflictPolicy;
 		}
 
 		@Nonnull
@@ -224,7 +289,7 @@ public record TransactionOptions(
 			return this;
 		}
 
-		@Deprecated(since = "2025.3", forRemoval = true)
+		@Deprecated(since = "2025.4", forRemoval = true)
 		@Nonnull
 		public TransactionOptions.Builder flushFrequency(long flushFrequency) {
 			return flushFrequencyInMillis(flushFrequency);
@@ -236,22 +301,59 @@ public record TransactionOptions(
 			return this;
 		}
 
+		/**
+		 * Sets how often the data files are forced to the device and a bootstrap record is written to point at them.
+		 *
+		 * @param checkpointInterval interval in milliseconds, `0` to checkpoint at the end of every trunk round
+		 */
+		@Nonnull
+		public TransactionOptions.Builder checkpointIntervalInMillis(long checkpointInterval) {
+			this.checkpointInterval = checkpointInterval;
+			return this;
+		}
+
 		@Nonnull
 		public TransactionOptions.Builder conflictRingBufferSize(int conflictRingBufferSize) {
 			this.conflictRingBufferSize = conflictRingBufferSize;
 			return this;
 		}
 
+		/**
+		 * Sets the complete conflict resolution setting used during the transaction commit.
+		 *
+		 * @param conflictResolution the conflict resolution to use, never null
+		 */
 		@Nonnull
-		public TransactionOptions.Builder conflictPolicy(@Nonnull ConflictPolicy... conflictPolicy) {
-			this.conflictPolicy.clear();
-			Collections.addAll(this.conflictPolicy, conflictPolicy);
+		public TransactionOptions.Builder conflictResolution(@Nonnull ConflictResolution conflictResolution) {
+			this.conflictPolicy = conflictResolution;
 			return this;
 		}
 
+		/**
+		 * Sets the coarse conflict resolution scope with no sub-entity refinements.
+		 *
+		 * @param policy the coarse conflict scope, never null
+		 */
 		@Nonnull
-		public TransactionOptions.Builder conflictPolicyLastWriterWins() {
-			this.conflictPolicy.clear();
+		public TransactionOptions.Builder conflictResolution(@Nonnull ConflictPolicy policy) {
+			this.conflictPolicy = new ConflictResolution(policy);
+			return this;
+		}
+
+		/**
+		 * Sets an entity-scoped conflict resolution with the provided sub-entity refinements. Passing no
+		 * refinement is equivalent to a plain {@link ConflictPolicy#ENTITY} scope.
+		 *
+		 * @param policy      the coarse conflict scope, never null (must be {@link ConflictPolicy#ENTITY}
+		 *                    when any refinement is supplied)
+		 * @param granularity the sub-entity refinements to apply
+		 */
+		@Nonnull
+		public TransactionOptions.Builder conflictResolution(@Nonnull ConflictPolicy policy, @Nonnull GranularConflictPolicy... granularity) {
+			final EnumSet<GranularConflictPolicy> granularitySet = granularity.length == 0
+				? EnumSet.noneOf(GranularConflictPolicy.class)
+				: EnumSet.copyOf(Arrays.asList(granularity));
+			this.conflictPolicy = new ConflictResolution(policy, granularitySet);
 			return this;
 		}
 
@@ -265,6 +367,7 @@ public record TransactionOptions(
 				this.walFileCountKept,
 				this.waitForTransactionAcceptance,
 				this.flushFrequency,
+				this.checkpointInterval,
 				this.conflictRingBufferSize,
 				this.conflictPolicy
 			);

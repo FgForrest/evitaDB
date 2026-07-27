@@ -176,6 +176,11 @@ message GrpcGetCatalogSchemaRequest {
 message GrpcCatalogSchemaResponse {
   // The current catalog schema.
   GrpcCatalogSchema catalogSchema = 1;
+  // The current catalog version (data version, incremented with each transaction commit).
+  // Zero for catalogs that are in the warming-up state.
+  int64 catalogVersion = 2;
+  // The current catalog schema version.
+  int32 catalogSchemaVersion = 3;
 }
 
 // Request for acquiring the schema of a specific entity type.
@@ -370,6 +375,10 @@ message GrpcCloseRequest {
   GrpcCommitBehavior commitBehaviour = 1;
   // Name of the catalog to which the session relates.
   string catalogName = 2;
+  // When true, the session's transaction is discarded (rolled back) instead of committed. The client sets this when
+  // an exception escaped the transaction block uncaught, so the server rolls back exactly as an embedded session
+  // would. When false (the default) the surviving changes are committed.
+  bool rollback = 3;
 }
 
 // Response for Close request that commits or rollbacks the changes in the session.
@@ -386,6 +395,10 @@ message GrpcCloseResponse {
 message GrpcCloseWithProgressRequest {
   // Name of the catalog to which the session relates.
   string catalogName = 1;
+  // When true, the session's transaction is discarded (rolled back) instead of committed. The client sets this when
+  // an exception escaped the transaction block uncaught, so the server rolls back exactly as an embedded session
+  // would. When false (the default) the surviving changes are committed.
+  bool rollback = 2;
 }
 
 // Response for CloseGrpcCloseWithProgress request that commits or rollbacks the changes in the session.
@@ -658,8 +671,12 @@ service EvitaSessionService {
   rpc GoLiveAndCloseWithProgress(google.protobuf.Empty) returns (stream GrpcGoLiveAndCloseWithProgressResponse);
   // Procedure used to backup an existing catalog.
   rpc BackupCatalog(GrpcBackupCatalogRequest) returns (GrpcBackupCatalogResponse);
+  // Procedure used to backup an existing catalog, streaming progress updates.
+  rpc BackupCatalogWithProgress(GrpcBackupCatalogRequest) returns (stream GrpcBackupCatalogResponse);
   // Procedure used to backup an existing catalog.
   rpc FullBackupCatalog(google.protobuf.Empty) returns (GrpcFullBackupCatalogResponse);
+  // Procedure used to fully backup an existing catalog, streaming progress updates.
+  rpc FullBackupCatalogWithProgress(google.protobuf.Empty) returns (stream GrpcFullBackupCatalogResponse);
   // Procedure that closes the session.
   rpc Close(GrpcCloseRequest) returns (GrpcCloseResponse);
   // Procedure that closes the session opening a stream that listens to transaction processing phases.

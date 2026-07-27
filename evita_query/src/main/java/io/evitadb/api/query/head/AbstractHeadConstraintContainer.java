@@ -34,7 +34,20 @@ import java.io.Serial;
 import java.io.Serializable;
 
 /**
- * Represents base query container accepting only heading constraints.
+ * Abstract base class for all head constraint containers. This class serves as the foundation for constraints
+ * that group multiple {@link HeadConstraint} children together in the query header section.
+ *
+ * It binds the generic type parameter of {@link ConstraintContainer} to {@link HeadConstraint}, ensuring type safety
+ * at compile time. All head constraint containers must extend this class to participate in the head constraint taxonomy.
+ *
+ * The class provides common infrastructure shared by all head containers:
+ * - Type declaration via `getType()` returning `HeadConstraint.class`
+ * - Visitor acceptance via `accept(ConstraintVisitor)` for constraint tree traversal
+ * - Multiple protected constructors supporting various combinations of arguments, children, and additional children
+ *
+ * Concrete implementations (such as {@link Head}) delegate to these constructors to initialize their state.
+ * This class is package-private and is not part of the public API — it exists solely to reduce code duplication
+ * among head constraint container implementations.
  *
  * @author Jan Novotný, FG Forrest a.s. (c) 2021
  */

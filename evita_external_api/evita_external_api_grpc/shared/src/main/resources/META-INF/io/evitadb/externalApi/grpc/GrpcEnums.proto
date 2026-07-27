@@ -42,6 +42,17 @@ enum GrpcCatalogState {
   // State signalizing that evitaDB engine is deleting the catalog. When the operation is completed, the catalog
   // is removed from the file system and is no longer available.
   BEING_DELETED = 9;
+  // State signalizing that a catalog previously registered with the engine no longer has an on-disk folder.
+  // The engine records this divergence via `MarkCatalogMissingMutation` so it can be diagnosed and later
+  // recovered via auto-discovery or operator action.
+  MISSING = 10;
+  // State signalizing that the catalog's on-disk storage protocol is older than the engine supports.
+  // Reads and writes are refused until the catalog has been upgraded via `UpgradeCatalogFormatMutation`.
+  OUT_OF_DATE = 11;
+  // State signalizing that the catalog is currently being upgraded from an older storage protocol
+  // to the one the engine supports. Transient state entered while an `UpgradeCatalogFormatMutation`
+  // is running; the completion phase returns the catalog to its prior operational state.
+  BEING_UPGRADED = 12;
   // Unknown state of the catalog. Used when catalog is corrupted.
   UNKNOWN_CATALOG_STATE = 2;
 }
@@ -115,13 +126,23 @@ enum GrpcAttributeSpecialValue {
   NOT_NULL = 1;
 }
 
-// This enum controls whether FacetSummary should contain only basic statistics about facets - e.g. count only,
+// This enum controls whether ReferenceSummary should contain only basic statistics about facets - e.g. count only,
 // or whether the selection impact should be computed as well.
+//
+// Backward compatibility: `COUNTS` is kept at tag 0 (the proto3 default) and `IMPACT` at tag 1 so existing clients
+// continue to deserialize unchanged. The newer `NONE` option is assigned a fresh tag; older clients that never
+// request it are unaffected, and since this enum is used only as a request parameter (never as a server-emitted
+// response), servers never push `NONE` to an unaware client.
 enum GrpcFacetStatisticsDepth {
   // Only counts of facets will be computed.
   COUNTS = 0;
   // Counts and selection impact for non-selected facets will be computed.
   IMPACT = 1;
+  // No per-facet statistics are computed. The engine returns facet options without counts or impact — the cheapest
+  // option, appropriate when the UI only needs to enumerate available facets without any numeric indicator.
+  // Proto3 enum values share a file-level namespace, so this value is prefixed (plain `NONE` is used by
+  // `GrpcPriceInnerRecordHandling` elsewhere in this file).
+  STATISTICS_NONE = 2;
 }
 
 // The enumeration controls HierarchyOfReference behaviour whether the hierarchical nodes that are not referred
@@ -522,6 +543,8 @@ enum GrpcQueryPhase {
   FETCHING_REFERENCES = 19;
   // Fetching parent entities from the storage based on parent primary keys information.
   FETCHING_PARENTS = 20;
+  // Aggregate phase covering orchestration of all referenced entity loads (predicate setup, ID collection, dedup, recursive dispatch).
+  FETCHING_REFERENCE_BODIES = 21;
 }
 
 // Contains set of all possible expected states for the entity.
@@ -800,6 +823,17 @@ enum GrpcReferenceIndexType {
 
 }
 
+// Enum represents the reference components that should be indexed for a reference.
+enum GrpcReferenceIndexedComponents {
+
+  // The referenced entity itself is indexed.
+  REFERENCE_INDEXED_COMPONENTS_REFERENCED_ENTITY = 0;
+
+  // The referenced group entity is indexed.
+  REFERENCE_INDEXED_COMPONENTS_REFERENCED_GROUP_ENTITY = 1;
+
+}
+
 // Enum represents time flow direction for time-based filtering.
 enum GrpcTimeFlow {
 
@@ -807,5 +841,63 @@ enum GrpcTimeFlow {
   AFTER = 0;
   // Time flows backward - from future to past.
   BEFORE = 1;
+
+}
+
+// Enum represents the per-item override of the conflict resolution granularity applied to a schema element
+// (attribute, associated data or reference).
+enum GrpcConflictResolutionOverride {
+
+  // The schema element follows the resolved conflict resolution (no explicit override).
+  CONFLICT_RESOLUTION_OVERRIDE_INHERITED = 0;
+  // Conflicts on this schema element are detected at granular (sub-entity) level.
+  CONFLICT_RESOLUTION_OVERRIDE_GRANULAR = 1;
+  // Conflicts on this schema element are detected at whole-entity level.
+  CONFLICT_RESOLUTION_OVERRIDE_ENTITY = 2;
+
+}
+
+// Enum represents the coarse, mutually exclusive scope at which transaction conflicts are detected.
+enum GrpcConflictPolicy {
+
+  // No conflict detection is performed.
+  CONFLICT_POLICY_NONE = 0;
+  // Conflicts are detected at the catalog level.
+  CONFLICT_POLICY_CATALOG = 1;
+  // Conflicts are detected at the entity collection level.
+  CONFLICT_POLICY_COLLECTION = 2;
+  // Conflicts are detected at the entity level.
+  CONFLICT_POLICY_ENTITY = 3;
+
+}
+
+// Enum represents a sub-entity refinement of entity-level conflict detection. Granularity is legal only when the
+// coarse conflict policy is set to entity level.
+enum GrpcGranularConflictPolicy {
+
+  // Conflicts are detected on entity attributes.
+  GRANULAR_CONFLICT_POLICY_ENTITY_ATTRIBUTE = 0;
+  // Conflicts are detected on references.
+  GRANULAR_CONFLICT_POLICY_REFERENCE = 1;
+  // Conflicts are detected on reference attributes.
+  GRANULAR_CONFLICT_POLICY_REFERENCE_ATTRIBUTE = 2;
+  // Conflicts are detected on associated data.
+  GRANULAR_CONFLICT_POLICY_ASSOCIATED_DATA = 3;
+  // Conflicts are detected on prices.
+  GRANULAR_CONFLICT_POLICY_PRICE = 4;
+  // Conflicts are detected on hierarchy placement.
+  GRANULAR_CONFLICT_POLICY_HIERARCHY = 5;
+
+}
+
+// Represents the conflict resolution setting combining the coarse conflict policy scope with an optional set of
+// sub-entity granular refinements. Used as an optional (nullable) field on catalog and entity schemas — an absent
+// message means the schema inherits the resolved conflict resolution.
+message GrpcConflictResolution {
+
+  // The coarse, mutually exclusive scope at which conflicts are detected.
+  GrpcConflictPolicy policy = 1;
+  // The set of sub-entity refinements; non-empty only when policy is set to entity level.
+  repeated GrpcGranularConflictPolicy granularity = 2;
 
 }

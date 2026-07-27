@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,7 +24,6 @@
 package io.evitadb.index;
 
 import io.evitadb.api.exception.EntityNotManagedException;
-import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.core.exception.ReferenceNotIndexedException;
 import io.evitadb.core.query.algebra.Formula;
@@ -32,15 +31,24 @@ import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
-import io.evitadb.index.attribute.AttributeIndex;
+import io.evitadb.index.attribute.EntityAttributeIndex;
 import io.evitadb.index.bitmap.ArrayBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
+import io.evitadb.index.component.PriceIndexComponent;
+import io.evitadb.index.component.loader.AttributeIndexLoader;
+import io.evitadb.index.component.loader.FacetIndexLoader;
+import io.evitadb.index.component.loader.HierarchyIndexLoader;
+import io.evitadb.index.component.loader.IndexReloadPlan;
+import io.evitadb.index.component.loader.LoadedComponentBundle;
+import io.evitadb.index.component.loader.PriceSuperIndexLoader;
 import io.evitadb.index.facet.FacetIndex;
 import io.evitadb.index.hierarchy.HierarchyIndex;
 import io.evitadb.index.price.PriceIndexContract;
 import io.evitadb.index.price.PriceSuperIndex;
+import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.PriceListAndCurrencySuperIndexStoragePart;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.Delegate;
@@ -62,7 +70,7 @@ import java.util.Map;
  * Global entity index contains complete set of indexed data including their bodies. It contains data for all entities
  * in the {@link EntityCollection} and it's the broadest index available. The global index is always
  * available if there is single entity in the collection and is always only one. There might be several dozens of
- * {@link ReducedEntityIndex reduced indexes} that maintain subsets, primarily of bitmap information and references
+ * {@link AbstractReducedEntityIndex reduced indexes} that maintain subsets, primarily of bitmap information and references
  * to object that are primarily held in this GlobalEntityIndex. We try to avoid duplicate memory allocations for same
  * object such as price records and expensive attribute values.
  *
@@ -151,6 +159,12 @@ public class GlobalEntityIndex extends EntityIndex
 	@Delegate(types = PriceIndexContract.class)
 	@Getter private final PriceSuperIndex priceIndex;
 
+	@Nonnull
+	@Override
+	protected Class<? extends StoragePart> getPriceRootStoragePartType() {
+		return PriceListAndCurrencySuperIndexStoragePart.class;
+	}
+
 	/**
 	 * Creates a proxy instance of {@link GlobalEntityIndex} that throws a {@link EntityNotManagedException}
 	 * for any methods not explicitly handled within the proxy.
@@ -202,6 +216,10 @@ public class GlobalEntityIndex extends EntityIndex
 	) {
 		super(primaryKey, entityType, entityIndexKey);
 		this.priceIndex = new PriceSuperIndex();
+		addComponent(new PriceIndexComponent(this.priceIndex));
+		// fresh empty index — every component contributes an empty manifest, so the baseline
+		// captured here is the immutable empty set, preventing spurious manifest emits
+		captureOriginalsFromComponents();
 	}
 
 	public GlobalEntityIndex(
@@ -210,7 +228,7 @@ public class GlobalEntityIndex extends EntityIndex
 		int version,
 		@Nonnull Bitmap entityIds,
 		@Nonnull Map<Locale, TransactionalBitmap> entityIdsByLanguage,
-		@Nonnull AttributeIndex attributeIndex,
+		@Nonnull EntityAttributeIndex attributeIndex,
 		@Nonnull PriceSuperIndex priceIndex,
 		@Nonnull HierarchyIndex hierarchyIndex,
 		@Nonnull FacetIndex facetIndex
@@ -218,28 +236,65 @@ public class GlobalEntityIndex extends EntityIndex
 		super(
 			primaryKey, entityIndexKey, version,
 			entityIds, entityIdsByLanguage,
-			attributeIndex, hierarchyIndex, facetIndex, priceIndex
+			attributeIndex, hierarchyIndex, facetIndex
 		);
 		this.priceIndex = priceIndex;
+		addComponent(new PriceIndexComponent(this.priceIndex));
+		// re-capture the change-detection baseline from the components now that the price super
+		// index is registered, so the baseline includes every persisted sub-index
+		captureOriginalsFromComponents();
 	}
 
-	@Override
-	public void removeTransactionalMemoryOfReferencedProducers(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
-		super.removeTransactionalMemoryOfReferencedProducers(transactionalLayer);
-		this.priceIndex.removeLayer(transactionalLayer);
+	/**
+	 * Returns the read-side reload plan for `GlobalEntityIndex`. The plan is cached per JVM. The
+	 * finalizer reads the previously-persisted `EntityIndexStoragePart` and the entity-schema name
+	 * out of the supplied {@link io.evitadb.index.component.loader.LoadContext} and builds the
+	 * index via the standard data-loading constructor.
+	 *
+	 * @return the immutable reload plan for this subclass
+	 */
+	@Nonnull
+	public static IndexReloadPlan reloadPlan() {
+		return GLOBAL_RELOAD_PLAN;
 	}
 
-	@Override
-	public void getModifiedStorageParts(@Nonnull TrappedChanges trappedChanges) {
-		super.getModifiedStorageParts(trappedChanges);
-		this.priceIndex.getModifiedStorageParts(this.primaryKey, trappedChanges);
-	}
-
-	@Override
-	public void resetDirty() {
-		super.resetDirty();
-		this.priceIndex.resetDirty();
-	}
+	private static final IndexReloadPlan GLOBAL_RELOAD_PLAN = IndexReloadPlan.builder()
+		.add(new AttributeIndexLoader())
+		.add(new PriceSuperIndexLoader())
+		.add(new HierarchyIndexLoader())
+		.add(new FacetIndexLoader())
+		.build((bundles, context) -> {
+			final LoadedComponentBundle.AttributeIndexes attributes =
+				(LoadedComponentBundle.AttributeIndexes) bundles.get(LoadedComponentBundle.AttributeIndexes.class);
+			final LoadedComponentBundle.PriceSuper prices =
+				(LoadedComponentBundle.PriceSuper) bundles.get(LoadedComponentBundle.PriceSuper.class);
+			final LoadedComponentBundle.Hierarchy hierarchy =
+				(LoadedComponentBundle.Hierarchy) bundles.get(LoadedComponentBundle.Hierarchy.class);
+			final LoadedComponentBundle.Facet facet =
+				(LoadedComponentBundle.Facet) bundles.get(LoadedComponentBundle.Facet.class);
+			final io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIndexStoragePart manifest =
+				context.entityIndexStoragePart();
+			return new GlobalEntityIndex(
+				manifest.getPrimaryKey(),
+				manifest.getEntityIndexKey(),
+				context.version(),
+				context.entityIds(),
+				context.entityIdsByLanguage(),
+				new EntityAttributeIndex(
+					context.entitySchema().getName(),
+					attributes.uniqueIndexes(),
+					attributes.filterIndexes(),
+					attributes.uniqueViewIndexes(),
+					attributes.sortIndexes(),
+					attributes.chainIndexes(),
+					attributes.sharedValueIndexes(),
+					attributes.sharedRangeIndexes()
+				),
+				new PriceSuperIndex(prices.priceIndexes()),
+				hierarchy.hierarchyIndex(),
+				facet.facetIndex()
+			);
+		});
 
 	/*
 		TRANSACTIONAL MEMORY IMPLEMENTATION
@@ -248,15 +303,16 @@ public class GlobalEntityIndex extends EntityIndex
 	@Nonnull
 	@Override
 	public GlobalEntityIndex createCopyWithMergedTransactionalMemory(
-		@Nullable Void layer, @Nonnull TransactionalLayerMaintainer transactionalLayer
+		@Nonnull TransactionalLayerMaintainer transactionalLayer
 	) {
 		// we can safely throw away dirty flag now
 		final Boolean wasDirty = transactionalLayer.getStateCopyWithCommittedChanges(this.dirty);
+		// safe: AttributeIndex#createCopy preserves the subclass identity established by EntityIndex#isReferenceScoped
 		return new GlobalEntityIndex(
 			this.primaryKey, this.indexKey, this.version + (wasDirty ? 1 : 0),
 			transactionalLayer.getStateCopyWithCommittedChanges(this.entityIds),
 			transactionalLayer.getStateCopyWithCommittedChanges(this.entityIdsByLanguage),
-			transactionalLayer.getStateCopyWithCommittedChanges(this.attributeIndex),
+			(EntityAttributeIndex) transactionalLayer.getStateCopyWithCommittedChanges(this.attributeIndex),
 			transactionalLayer.getStateCopyWithCommittedChanges(this.priceIndex),
 			transactionalLayer.getStateCopyWithCommittedChanges(this.hierarchyIndex),
 			transactionalLayer.getStateCopyWithCommittedChanges(this.facetIndex)
@@ -265,9 +321,8 @@ public class GlobalEntityIndex extends EntityIndex
 
 	@Override
 	public void removeLayer(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
-		transactionalLayer.removeTransactionalMemoryLayerIfExists(this);
+		// the price index is removed by the component-loop inside the super call — no extra hop
 		super.removeTransactionalMemoryOfReferencedProducers(transactionalLayer);
-		this.priceIndex.removeLayer(transactionalLayer);
 	}
 
 	@Override

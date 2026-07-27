@@ -24,7 +24,10 @@
 package io.evitadb.test;
 
 import com.linecorp.armeria.common.TlsKeyPair;
+import io.evitadb.api.configuration.EvitaConfiguration;
+import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.export.file.configuration.FileSystemExportOptions;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CertificateUtils;
 import org.apache.commons.io.FileUtils;
@@ -43,6 +46,9 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.Objects;
 import java.util.Random;
+import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
 
@@ -59,6 +65,17 @@ public interface EvitaTestSupport extends TestConstants {
 	 * Default data folder for evita data in tests.
 	 */
 	Path BASE_PATH = Path.of(System.getProperty("java.io.tmpdir") + File.separator + "evita" + File.separator);
+	/**
+	 * Set of all test directories allocated by *this JVM* via [#createTestPaths(String)] (or the equivalent inline
+	 * triplet in `EvitaParameterResolver.createEvita`). Used by `CleaningTestExecutionListener` to wipe leftovers
+	 * scoped to this JVM (i.e. PID) when the test plan finishes — a graceful exit path, complementary to per-test
+	 * [#cleanupTestPaths(TestPaths)] in `@AfterEach`.
+	 *
+	 * The set is JVM-local (a static field), so concurrent test JVMs cannot trample each other: each one only ever
+	 * deletes paths it allocated itself. Entries are removed from the set by [#cleanupTestPaths(TestPaths)] in the
+	 * happy path, so the set normally drains to empty over the lifetime of a run.
+	 */
+	Set<Path> ALLOCATED_TEST_PATHS = ConcurrentHashMap.newKeySet();
 	/**
 	 * Default name of the root certificate authority's certificate file.
 	 */
@@ -215,6 +232,129 @@ public interface EvitaTestSupport extends TestConstants {
 	}
 
 	/**
+	 * Allocates a fresh, collision-free triplet of storage / work / export directories under {@link #BASE_PATH}.
+	 *
+	 * Every directory is prefixed with `label` (for debuggability — greppable in `/tmp/evita/`) and suffixed with an
+	 * 8-character slice of a random {@link UUID} to guarantee uniqueness across concurrently executing tests on
+	 * the same machine. The caller owns the returned {@link TestPaths} value and is expected to pass it to
+	 * {@link #newTestEvitaConfigurationBuilder(TestPaths)} and, when done, to {@link #cleanupTestPaths(TestPaths)}.
+	 *
+	 * Holding the same {@link TestPaths} across multiple `new Evita(cfg)` invocations is the intended way to simulate
+	 * engine restart — the paths stay stable for the duration the caller wants them to.
+	 *
+	 * @param label human-readable prefix, typically the test class or method name; used only for debuggability
+	 * @return freshly allocated, unique, not-yet-created directory paths
+	 */
+	@Nonnull
+	default TestPaths createTestPaths(@Nonnull String label) {
+		final String unique = label + "_" + UUID.randomUUID().toString().substring(0, 8);
+		final TestPaths paths = new TestPaths(
+			BASE_PATH.resolve(unique),
+			BASE_PATH.resolve(unique + "_work"),
+			BASE_PATH.resolve(unique + "_export")
+		);
+		// register so `CleaningTestExecutionListener` can sweep this JVM's leftovers on plan finish even when a
+		// test bypasses `@AfterEach`-driven `cleanupTestPaths(...)` (e.g. crashes mid-method)
+		ALLOCATED_TEST_PATHS.add(paths.storage());
+		ALLOCATED_TEST_PATHS.add(paths.work());
+		ALLOCATED_TEST_PATHS.add(paths.export());
+		return paths;
+	}
+
+	/**
+	 * Variant of {@link #createTestPaths(String)} that anchors the directory triplet under a caller-supplied base
+	 * path (e.g. a JUnit `@TempDir`) instead of the shared {@link #BASE_PATH}. Use this when the lifecycle of the
+	 * base path is already managed by JUnit and you do not want to pollute `/tmp/evita/`.
+	 *
+	 * @param base  root under which the three directories will be created; must not be null
+	 * @param label human-readable prefix, typically the test class or method name
+	 * @return freshly allocated, unique, not-yet-created directory paths under `base`
+	 */
+	@Nonnull
+	default TestPaths createTestPaths(@Nonnull Path base, @Nonnull String label) {
+		final String unique = label + "_" + UUID.randomUUID().toString().substring(0, 8);
+		return new TestPaths(
+			base.resolve(unique),
+			base.resolve(unique + "_work"),
+			base.resolve(unique + "_export")
+		);
+	}
+
+	/**
+	 * Returns an {@link EvitaConfiguration.Builder} pre-wired to the supplied {@link TestPaths} — storage directory,
+	 * work directory, and filesystem-backed export directory are all configured to non-colliding per-test locations.
+	 *
+	 * The caller is responsible for applying any further test-specific overrides (cache, server options, transaction
+	 * options, …) and for invoking `.build()`. The returned builder intentionally carries **only** the path wiring so
+	 * that migrating existing call sites does not change any other aspect of their configuration.
+	 *
+	 * @param paths non-null path triplet, typically produced by {@link #createTestPaths(String)}
+	 * @return builder with `.storage(...)` and `.export(...)` already applied; never null
+	 */
+	@Nonnull
+	default EvitaConfiguration.Builder newTestEvitaConfigurationBuilder(@Nonnull TestPaths paths) {
+		return EvitaConfiguration.builder()
+			.storage(
+				StorageOptions.builder()
+					.storageDirectory(paths.storage())
+					.workDirectory(paths.work())
+					.build()
+			)
+			.export(
+				FileSystemExportOptions.builder()
+					.directory(paths.export())
+					.build()
+			);
+	}
+
+	/**
+	 * Removes all three directories described by the supplied {@link TestPaths}. Inherits the Windows-friendly
+	 * retry-on-IOException semantics already used by {@link #cleanTestSubDirectoryWithRethrow(String)} — the export
+	 * directory is cleaned first because it owns the `FolderLock` file whose release is the usual stall point.
+	 *
+	 * Missing directories are treated as already-cleaned and never raise.
+	 *
+	 * @param paths triplet to remove
+	 */
+	default void cleanupTestPaths(@Nonnull TestPaths paths) {
+		deleteDirectoryWithRetry(paths.export());
+		deleteDirectoryWithRetry(paths.work());
+		deleteDirectoryWithRetry(paths.storage());
+		// the happy path: drain entries from the JVM-local registry so the set stays bounded over a long run
+		ALLOCATED_TEST_PATHS.remove(paths.storage());
+		ALLOCATED_TEST_PATHS.remove(paths.work());
+		ALLOCATED_TEST_PATHS.remove(paths.export());
+	}
+
+	/**
+	 * Deletes `dir` if it exists, retrying up to 10 times with 100ms backoff on {@link IOException}. Mirrors the
+	 * behavior of {@link #cleanTestSubDirectoryWithRethrow(String)} so that test cleanup behaves uniformly on
+	 * Windows where file handles are held briefly after the owning process releases them.
+	 */
+	private static void deleteDirectoryWithRetry(@Nonnull Path dir) {
+		final File file = dir.toFile();
+		if (!file.exists()) {
+			return;
+		}
+		IOException lastFailure = null;
+		for (int attempt = 0; attempt < 10; attempt++) {
+			try {
+				FileUtils.deleteDirectory(file);
+				return;
+			} catch (IOException ex) {
+				lastFailure = ex;
+			}
+			try {
+				Thread.sleep(100);
+			} catch (InterruptedException ex) {
+				Thread.currentThread().interrupt();
+				return;
+			}
+		}
+		throw new GenericEvitaInternalError("Cannot delete test directory: " + dir, lastFailure);
+	}
+
+	/**
 	 * Returns path to the file with specified name in the test directory.
 	 */
 	default Path getPathInTargetDirectory(@Nonnull String fileName) {
@@ -259,5 +399,17 @@ public interface EvitaTestSupport extends TestConstants {
 		} catch (Exception e) {
 			throw new GenericEvitaInternalError("Failed to generate test certificate.", e);
 		}
+	}
+
+	/**
+	 * Immutable triplet of directories used by a single Evita test instance — storage root, work directory, and
+	 * filesystem export directory. All three are expected to be siblings (or at least non-overlapping) so that
+	 * cleanup can delete them independently.
+	 *
+	 * @param storage path to the Evita storage root (`StorageOptions.storageDirectory`)
+	 * @param work    path to the Evita work directory (`StorageOptions.workDirectory`)
+	 * @param export  path to the filesystem export directory (`FileSystemExportOptions.directory`)
+	 */
+	record TestPaths(@Nonnull Path storage, @Nonnull Path work, @Nonnull Path export) {
 	}
 }

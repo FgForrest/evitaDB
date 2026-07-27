@@ -38,31 +38,64 @@ import java.io.Serial;
 import java.io.Serializable;
 
 /**
- * This `inScope` require container can be used to enclose set of require constraints that should be applied only when
- * searching for entities in specific scope. It has single argument of type {@link Scope} that defines the scope where
- * the enclosed require constraints should be applied. Consider following example:
+ * The `inScope` require container restricts a set of {@link RequireConstraint} children so that they are applied
+ * only when the query is processing entities in a specific {@link Scope} (either {@link Scope#LIVE} or
+ * {@link Scope#ARCHIVED}). Its filter-side counterpart is
+ * {@link io.evitadb.api.query.filter.FilterInScope}.
  *
- * ```
+ * ## Purpose and design intent
+ *
+ * evitaDB organises entities into separate scopes: {@link Scope#LIVE} entities are fully indexed (attributes,
+ * facets, hierarchies, prices), while {@link Scope#ARCHIVED} entities reside in a reduced index that may not
+ * support all require computations (e.g., facet summaries, price histograms, hierarchy trees). When a query
+ * searches across multiple scopes via `scope(LIVE, ARCHIVED)`, applying a requirement that is unsupported in the
+ * archived scope would ordinarily cause a query execution failure.
+ *
+ * `inScope` solves this by scoping each requirement to only the scope(s) where it is valid:
+ *
+ * ```evitaql
  * filterBy(
- *    scope(LIVE, ARCHIVED),
+ *    entityScope(LIVE, ARCHIVED)
  * ),
  * require(
  *    inScope(LIVE, facetSummary())
  * )
  * ```
  *
- * Query looks for matching entities in multiple scopes, but in archived scope facet index is not maintained. If it's
- * not enclosed in `inScope` container, the query would fail with exception that the facets are not available in ARCHIVED
- * scope. To avoid this problem, the `inScope` container is used to limit the require to LIVE scope only.
+ * With this query, the facet summary is computed only for the LIVE portion of the result, so no failure occurs
+ * even though the archived scope does not maintain a facet index.
  *
- * <p><a href="https://evitadb.io/documentation/query/require/behavioral#in-scope">Visit detailed user documentation</a></p>
+ * ## Constraints
+ *
+ * - The `scope` argument is mandatory and must not be `null`.
+ * - At least one child {@link RequireConstraint} must be provided; an empty `inScope` is rejected at construction.
+ * - Additional children of different constraint types are not accepted — all children must be
+ *   `RequireConstraint` instances.
+ * - Children must be unique within the container (see `@Child(uniqueChildren = true)`).
+ *
+ * ## Applicability and necessity
+ *
+ * The container is applicable and necessary only when both the scope argument and at least one child are present.
+ * An `inScope` with no children is not a valid state (the constructor rejects it) but can arise through
+ * `getCopyWithNewChildren()` if all children are stripped away.
+ *
+ * ## Usage example
+ *
+ * ```evitaql
+ * require(
+ *    inScope(ARCHIVED, entityFetch(attributeContentAll()))
+ * )
+ * ```
+ *
+ * [Visit detailed user documentation](https://evitadb.io/documentation/query/require/behavioral#in-scope)
  *
  * @see Scope
+ * @see io.evitadb.api.query.filter.FilterInScope
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @ConstraintDefinition(
 	name = "inScope",
-	shortDescription = "Limits enclosed require constraints to be applied only for entities in named scope.",
+	shortDescription = "The constraint limits enclosed require constraints to apply only when processing entities in a specific scope (LIVE or ARCHIVED).",
 	userDocsLink = "/documentation/query/require/behavioral#in-scope"
 )
 public class RequireInScope extends AbstractRequireConstraintContainer implements GenericConstraint<RequireConstraint> {
@@ -70,13 +103,19 @@ public class RequireInScope extends AbstractRequireConstraintContainer implement
 	private static final String CONSTRAINT_NAME = "inScope";
 
 	@Creator
-	public RequireInScope(@Nonnull Scope scope, @Nonnull @Child(uniqueChildren = true) RequireConstraint... require) {
+	public RequireInScope(
+		@Nonnull Scope scope,
+		@Nonnull @Child(uniqueChildren = true) RequireConstraint... require
+	) {
 		super(CONSTRAINT_NAME, new Serializable[] { scope }, require);
 		Assert.isTrue(scope != null, "Scope must be provided!");
 		Assert.isTrue(!ArrayUtils.isEmptyOrItsValuesNull(require), "At least one require constraint must be provided!");
 	}
 
-	private RequireInScope(@Nonnull Serializable[] arguments, @Nonnull RequireConstraint... children) {
+	private RequireInScope(
+		@Nonnull Serializable[] arguments,
+		@Nonnull RequireConstraint... children
+	) {
 		super(CONSTRAINT_NAME, arguments, children);
 	}
 
@@ -113,12 +152,15 @@ public class RequireInScope extends AbstractRequireConstraintContainer implement
 			newArguments.length == 1 && newArguments[0] instanceof Scope,
 			"Constraint InScope requires exactly one argument of type Scope!"
 		);
-		return this;
+		return new RequireInScope(newArguments, getChildren());
 	}
 
 	@Nonnull
 	@Override
-	public RequireConstraint getCopyWithNewChildren(@Nonnull RequireConstraint[] children, @Nonnull Constraint<?>[] additionalChildren) {
+	public RequireConstraint getCopyWithNewChildren(
+		@Nonnull RequireConstraint[] children,
+		@Nonnull Constraint<?>[] additionalChildren
+	) {
 		Assert.isTrue(
 			ArrayUtils.isEmpty(additionalChildren),
 			"Constraint InScope doesn't accept other than require constraints!"

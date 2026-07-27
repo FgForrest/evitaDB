@@ -27,21 +27,28 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
-import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.UniqueIndexStoragePart;
+import io.evitadb.store.index.serializer.PagedStreamMetadataSerializer.PagedStreamMetadata;
 import io.evitadb.utils.Assert;
 import lombok.RequiredArgsConstructor;
 
 import java.io.Serializable;
-import java.util.Map;
-import java.util.Map.Entry;
+import java.util.Objects;
 
-import static io.evitadb.utils.CollectionUtils.createHashMap;
 
 /**
- * This {@link Serializer} implementation reads/writes {@link io.evitadb.index.attribute.UniqueIndex} from/to binary format.
+ * This {@link Serializer} implementation reads/writes {@link io.evitadb.index.attribute.UniqueIndex} from/to binary
+ * format.
+ *
+ * The current (slim) format drops the redundant record-id bitmap from an owner-mode part: that bitmap always equals
+ * the set of the value-to-record map values (see {@link io.evitadb.index.attribute.OwnerUniqueIndex}) and is rebuilt
+ * from them on read, so it is no longer persisted. Each record id is written as a zig-zag varint instead of a fixed
+ * 4-byte int. A folded (view-mode) part carries no value-to-record map at all — its data lives in the shared
+ * `FilterIndexStoragePart` — and writes only a single boolean marker. The released-minor formats are read by
+ * {@link UniqueIndexStoragePartSerializer_2025_5} / {@link UniqueIndexStoragePartSerializer_2026_1}; the prior 2026.2
+ * development format was never released, so it has no backward-compatible reader.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
@@ -57,15 +64,37 @@ public class UniqueIndexStoragePartSerializer extends Serializer<UniqueIndexStor
 		output.writeVarLong(uniquePartId, true);
 		output.writeVarInt(this.keyCompressor.getId(uniqueIndex.getAttributeIndexKey()), true);
 
-		final Class plainType = uniqueIndex.getType().isArray() ? uniqueIndex.getType().getComponentType() : uniqueIndex.getType();
+		final Class<?> plainType = uniqueIndex.getType().isArray() ? uniqueIndex.getType().getComponentType() : uniqueIndex.getType();
 		kryo.writeClass(output, plainType);
-		kryo.writeObject(output, uniqueIndex.getRecordIds());
 
-		final Map<Serializable, Integer> uniqueValueToRecordId = uniqueIndex.getUniqueValueToRecordId();
-		output.writeVarInt(uniqueValueToRecordId.size(), true);
-		for (Entry<Serializable, Integer> entry : uniqueValueToRecordId.entrySet()) {
-			kryo.writeObject(output, entry.getKey());
-			output.writeInt(entry.getValue());
+		// a folded (view-mode) unique index derives its value-to-record map and record-id bitmap from the shared
+		// FilterIndexStoragePart, so a slim part carries neither. The marker records whether the value map section
+		// follows; only owner-mode (standalone) parts write it.
+		final boolean dataPresent = uniqueIndex.isDataPresent();
+		output.writeBoolean(dataPresent);
+		if (dataPresent) {
+			// the PAGED/SINGLE discriminator is nested under dataPresent: only OWNER parts can be paged (a slim VIEW
+			// part wrote `false` for dataPresent above and stops here). A PAGED part keeps its entries in
+			// UniqueIndexLeafPagePart leaf pages, so the root carries only the high-water + the ordered leaf-page list.
+			final boolean paged = uniqueIndex.isPaged();
+			output.writeBoolean(paged);
+			if (paged) {
+				PagedStreamMetadataSerializer.writeBody(
+					output, uniqueIndex.getHighWaterPageSequence(), uniqueIndex.getLeafPageSequences()
+				);
+			} else {
+				// the record-id bitmap is redundant: it always equals the set of the payload record ids (see
+				// OwnerUniqueIndex) and is reconstructed from them on read, so it is no longer persisted. The inline
+				// value/payload columns are written as positionally-aligned (value, recordId) pairs.
+				final Serializable[] values = Objects.requireNonNull(uniqueIndex.getValues());
+				final int[] recordIds = Objects.requireNonNull(uniqueIndex.getRecordIds());
+				output.writeVarInt(values.length, true);
+				for (int i = 0; i < values.length; i++) {
+					kryo.writeObject(output, values[i]);
+					// record ids are primary keys; zig-zag keeps small magnitudes compact regardless of sign
+					output.writeVarInt(recordIds[i], false);
+				}
+			}
 		}
 	}
 
@@ -75,19 +104,37 @@ public class UniqueIndexStoragePartSerializer extends Serializer<UniqueIndexStor
 		final long uniquePartId = input.readVarLong(true);
 		final AttributeIndexKey attributeIndexKey = this.keyCompressor.getKeyForId(input.readVarInt(true));
 		@SuppressWarnings("unchecked") final Class<? extends Serializable> attributeType = kryo.readClass(input).getType();
-		final TransactionalBitmap recordIds = kryo.readObject(input, TransactionalBitmap.class);
 
-		final int uniqueValueCount = input.readVarInt(true);
-		final Map<Serializable, Integer> uniqueIndex = createHashMap(uniqueValueCount);
-		for (int i = 0; i < uniqueValueCount; i++) {
-			final Serializable key = kryo.readObject(input, attributeType);
-			final int value = input.readInt();
-			uniqueIndex.put(key, value);
+		// the value map section is present only for owner-mode parts; a slim (view-mode) part wrote a `false` marker
+		// and omitted it — it is re-derived from the shared FilterIndexStoragePart on load.
+		final boolean dataPresent = input.readBoolean();
+		if (dataPresent) {
+			// PAGED/SINGLE discriminator nested under dataPresent (only OWNER parts can be paged)
+			final boolean paged = input.readBoolean();
+			if (paged) {
+				final PagedStreamMetadata metadata = PagedStreamMetadataSerializer.readBody(input);
+				return UniqueIndexStoragePart.paged(
+					entityIndexPrimaryKey, attributeIndexKey, attributeType,
+					metadata.highWaterPageSequence(), metadata.leafPageSequences(), uniquePartId
+				);
+			}
+			final int uniqueValueCount = input.readVarInt(true);
+			final Serializable[] values = new Serializable[uniqueValueCount];
+			final int[] recordIds = new int[uniqueValueCount];
+			for (int i = 0; i < uniqueValueCount; i++) {
+				values[i] = kryo.readObject(input, attributeType);
+				recordIds[i] = input.readVarInt(false);
+			}
+			// the membership record-id bitmap is no longer carried by the part — it is rebuilt from this payload column
+			// (its deduplicated set) in the owner index's restore constructor on load
+			return new UniqueIndexStoragePart(
+				entityIndexPrimaryKey, attributeIndexKey, attributeType, values, recordIds, uniquePartId
+			);
+		} else {
+			return new UniqueIndexStoragePart(
+				entityIndexPrimaryKey, attributeIndexKey, attributeType, uniquePartId
+			);
 		}
-
-		return new UniqueIndexStoragePart(
-			entityIndexPrimaryKey, attributeIndexKey, attributeType, uniqueIndex, recordIds, uniquePartId
-		);
 	}
 
 }

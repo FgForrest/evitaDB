@@ -27,37 +27,55 @@ import io.evitadb.api.SessionTraits.SessionFlags;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.configuration.StorageOptions;
+import io.evitadb.api.configuration.TransactionOptions;
 import io.evitadb.api.exception.ReadOnlyException;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
+import io.evitadb.api.requestResponse.system.EngineSettings;
 import io.evitadb.core.Evita;
-import io.evitadb.export.file.configuration.FileSystemExportOptions;
 import io.evitadb.test.Entities;
 import io.evitadb.test.EvitaTestSupport;
+import io.evitadb.test.EvitaTestSupport.TestPaths;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import java.io.IOException;
+import org.junit.jupiter.api.Tag;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.MANAGEMENT;
+import static io.evitadb.test.TestTags.QUERY;
 
 /**
  * This test contains integration tests for read-only {@link Evita}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
+@Tag(CONTRACT)
+@Tag(QUERY)
 class ReadOnlyEvitaTest implements EvitaTestSupport {
 	public static final String ATTRIBUTE_NAME = "name";
 	public static final String ATTRIBUTE_URL = "url";
-	public static final String DIR_READ_ONLY_EVITA_TEST = "readOnlyEvitaTest";
-	public static final String DIR_READ_ONLY_EVITA_TEST_EXPORT = "readOnlyEvitaTest_export";
+	/**
+	 * Deliberately different from the built-in default conflict resolution, so that the engine
+	 * settings assertion proves the value is read from the configuration and not hard-coded.
+	 */
+	private static final ConflictPolicy CONFLICT_POLICY = ConflictPolicy.COLLECTION;
+	/**
+	 * Likewise different from the built-in default, so the reported capability cannot pass by
+	 * accident.
+	 */
+	private static final boolean TIME_TRAVEL_ENABLED = true;
+	private TestPaths paths;
 	private Evita evita;
 
 	@BeforeEach
 	void setUp() throws IOException {
-		cleanTestSubDirectory(DIR_READ_ONLY_EVITA_TEST);
-		cleanTestSubDirectory(DIR_READ_ONLY_EVITA_TEST_EXPORT);
+		this.paths = createTestPaths("ReadOnlyEvitaTest");
 		this.evita = new Evita(
 			getEvitaConfiguration(false)
 		);
@@ -85,10 +103,9 @@ class ReadOnlyEvitaTest implements EvitaTestSupport {
 	}
 
 	@AfterEach
-	void tearDown() throws IOException {
+	void tearDown() {
 		this.evita.close();
-		cleanTestSubDirectory(DIR_READ_ONLY_EVITA_TEST);
-		cleanTestSubDirectory(DIR_READ_ONLY_EVITA_TEST_EXPORT);
+		cleanupTestPaths(this.paths);
 	}
 
 	@Test
@@ -126,9 +143,27 @@ class ReadOnlyEvitaTest implements EvitaTestSupport {
 		assertNotNull(this.evita.queryCatalog(TEST_CATALOG, EvitaSessionContract::getCatalogSchema));
 	}
 
+	@Test
+	@Tag(MANAGEMENT)
+	void shouldFailToProvideFullConfigurationInReadOnlyMode() {
+		assertThrows(ReadOnlyException.class, () -> this.evita.management().getConfiguration());
+	}
+
+	@Test
+	@Tag(MANAGEMENT)
+	void shouldProvideEngineSettingsInReadOnlyMode() {
+		// contrary to the full configuration, the curated engine settings must stay readable in
+		// read-only mode - clients rely on them to interpret the conflict resolution behaviour
+		// of the server they talk to
+		final EngineSettings engineSettings = this.evita.management().getEngineSettings();
+		assertEquals(CONFLICT_POLICY, engineSettings.conflictResolution().policy());
+		// capability flags must reflect the configuration this instance was booted with
+		assertEquals(TIME_TRAVEL_ENABLED, engineSettings.timeTravelEnabled());
+	}
+
 	@Nonnull
 	private EvitaConfiguration getEvitaConfiguration(boolean readOnly) {
-		return EvitaConfiguration.builder()
+		return newTestEvitaConfigurationBuilder(this.paths)
 			.server(
 				ServerOptions.builder()
 					.readOnly(readOnly)
@@ -136,12 +171,14 @@ class ReadOnlyEvitaTest implements EvitaTestSupport {
 			)
 			.storage(
 				StorageOptions.builder()
-					.storageDirectory(getTestDirectory().resolve(DIR_READ_ONLY_EVITA_TEST))
+					.storageDirectory(this.paths.storage())
+					.workDirectory(this.paths.work())
+					.timeTravelEnabled(TIME_TRAVEL_ENABLED)
 					.build()
 			)
-			.export(
-				FileSystemExportOptions.builder()
-					.directory(getTestDirectory().resolve(DIR_READ_ONLY_EVITA_TEST_EXPORT))
+			.transaction(
+				TransactionOptions.builder()
+					.conflictResolution(CONFLICT_POLICY)
 					.build()
 			)
 			.build();

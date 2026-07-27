@@ -33,12 +33,22 @@ import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
 import java.util.Map;
+import org.junit.jupiter.api.Tag;
+
+import static io.evitadb.test.TestTags.GRPC;
+import static io.evitadb.test.TestTags.EXTERNAL_API;
+import static io.evitadb.test.TestTags.QUERY;
+import static io.evitadb.test.TestTags.HISTOGRAM;
 
 /**
  * This test verifies functionalities of methods in {@link GrpcHistogramBuilder} class.
  *
  * @author Tomáš Pozler, 2022
  */
+@Tag(GRPC)
+@Tag(EXTERNAL_API)
+@Tag(QUERY)
+@Tag(HISTOGRAM)
 class GrpcHistogramBuilderTest {
 	private final Histogram histogram = new Histogram(
 		new Bucket[]{
@@ -62,7 +72,8 @@ class GrpcHistogramBuilderTest {
 			)
 		);
 
-		final Map<String, GrpcHistogram> attributeHistogramMap = GrpcHistogramBuilder.buildAttributeHistogram(attributeHistogram);
+		final Map<String, GrpcHistogram> attributeHistogramMap =
+			GrpcHistogramBuilder.buildAttributeHistogram(attributeHistogram, null);
 
 		GrpcAssertions.assertAttributeHistograms(attributeHistogram, attributeHistogramMap);
 	}
@@ -70,7 +81,7 @@ class GrpcHistogramBuilderTest {
 	@Test
 	void buildPriceHistogram() {
 		final PriceHistogram priceHistogram = new PriceHistogram(this.histogram);
-		final GrpcHistogram grpcHistogram = GrpcHistogramBuilder.buildPriceHistogram(priceHistogram);
+		final GrpcHistogram grpcHistogram = GrpcHistogramBuilder.buildPriceHistogram(priceHistogram, null);
 		GrpcAssertions.assertPriceHistogram(priceHistogram, grpcHistogram);
 	}
 }

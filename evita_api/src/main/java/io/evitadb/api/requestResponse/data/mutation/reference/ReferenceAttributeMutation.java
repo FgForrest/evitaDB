@@ -38,7 +38,6 @@ import io.evitadb.api.requestResponse.data.structure.ExistingReferenceAttributes
 import io.evitadb.api.requestResponse.data.structure.Reference;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictGenerationContext;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
-import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
 import io.evitadb.api.requestResponse.mutation.conflict.ReferenceAttributeConflictKey;
 import io.evitadb.api.requestResponse.mutation.conflict.ReferenceAttributeDeltaConflictKey;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
@@ -57,7 +56,6 @@ import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
 
@@ -117,35 +115,49 @@ public class ReferenceAttributeMutation extends ReferenceMutation<ReferenceKeyWi
 	@Nonnull
 	@Override
 	public Stream<ConflictKey> collectConflictKeys(
-		@Nonnull ConflictGenerationContext context,
-		@Nonnull Set<ConflictPolicy> conflictPolicies
+		@Nonnull ConflictGenerationContext context
 	) {
-        if (this.attributeMutation instanceof ApplyDeltaAttributeMutation<?> adam) {
-            return conflictPolicies.contains(ConflictPolicy.REFERENCE_ATTRIBUTE) ?
-                Stream.of(
-                    new ReferenceAttributeDeltaConflictKey(
-                        context.getEntityType(),
-                        context.getEntityPrimaryKey(),
-                        this.referenceKey,
-                        this.attributeKey,
-                        adam.getDelta(),
-                        adam.getRequiredRangeAfterApplication()
-                    )
-                ) :
-                Stream.empty();
-        } else {
-            return conflictPolicies.contains(ConflictPolicy.REFERENCE_ATTRIBUTE) && context.getEntityPrimaryKey() != null ?
-                Stream.of(
-                    new ReferenceAttributeConflictKey(
-                        context.getEntityType(),
-                        context.getEntityPrimaryKey(),
-                        this.referenceKey.referenceName(),
-                        this.referenceKey.primaryKey(),
-                        this.attributeKey.attributeName()
-                    )
-                ) :
-                Stream.empty();
-        }
+		if (this.attributeMutation instanceof ApplyDeltaAttributeMutation<?> adam) {
+			// A range-constrained delta must always emit its conflict key, regardless of the resolved
+			// conflict policy: keeping the accumulated value inside the required range is a hard
+			// invariant, not something relaxed conflict granularity opts out of. Whether the reference
+			// attribute was carved out of the entity's shared surface is still resolved so the key's parent
+			// chain reaches the right coarse fallback (the absolute reference-attribute key when carved out,
+			// the shared-surface residual otherwise) even when the range guard is the sole reason the key
+			// is emitted.
+			final boolean shouldEmit = context.shouldEmitReferenceAttributeKey(
+				this.referenceKey.referenceName(), this.attributeKey.attributeName()
+			);
+			// a reference attribute that is not carved out into its own granular key belongs to the entity's
+			// shared surface, so its delta key must route through the residual rather than the absolute
+			// reference-attribute key
+			final boolean sharedSurface = !shouldEmit;
+			return adam.getRequiredRangeAfterApplication() != null || shouldEmit ?
+				Stream.of(
+					new ReferenceAttributeDeltaConflictKey(
+						context.getEntityType(),
+						context.getEntityPrimaryKey(),
+						this.referenceKey,
+						this.attributeKey,
+						adam.getDelta(),
+						adam.getRequiredRangeAfterApplication(),
+						sharedSurface
+					)
+				) :
+				Stream.empty();
+		} else {
+			return context.shouldEmitReferenceAttributeKey(this.referenceKey.referenceName(), this.attributeKey.attributeName()) && context.getEntityPrimaryKey() != null ?
+				Stream.of(
+					new ReferenceAttributeConflictKey(
+						context.getEntityType(),
+						context.getEntityPrimaryKey(),
+						this.referenceKey.referenceName(),
+						this.referenceKey.primaryKey(),
+						this.attributeKey.attributeName()
+					)
+				) :
+				Stream.empty();
+		}
 	}
 
 	@Override

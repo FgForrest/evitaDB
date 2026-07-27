@@ -36,22 +36,90 @@ import java.io.Serializable;
 import java.math.BigDecimal;
 
 /**
- * The `priceBetween` constraint restricts the result set to items that have a price for sale within the specified price
- * range. This constraint is typically set by the user interface to allow the user to filter products by price, and
- * should be nested inside the userFilter constraint container so that it can be properly handled by the facet or
- * histogram computations.
+ * Restricts the result set to entities whose "price for sale" falls within the specified numeric range. This constraint
+ * filters entities based on their final computed selling price (as determined by {@link PriceInCurrency},
+ * {@link PriceInPriceLists}, and {@link PriceValidIn}), not on individual price records.
  *
- * Example:
+ * **Range semantics:**
  *
- * <pre>
- * priceBetween(150.25, 220.0)
- * </pre>
+ * Both bounds are inclusive. An entity's price for sale must satisfy `from <= priceForSale <= to` to match. Either
+ * bound can be `null` to represent an unbounded range:
+ * - `priceBetween(100, null)` — matches prices >= 100
+ * - `priceBetween(null, 500)` — matches prices <= 500
+ * - `priceBetween(100, 500)` — matches prices between 100 and 500 (inclusive)
  *
- * Warning: Only a single occurrence of any of this constraint is allowed in the filter part of the query.
- * Currently, there is no way to switch context between different parts of the filter and build queries such as find
- * a product whose price is either in "CZK" or "EUR" currency at this or that time using this constraint.
+ * **Usage patterns:**
  *
- * <p><a href="https://evitadb.io/documentation/query/filtering/price#price-between">Visit detailed user documentation</a></p>
+ * Standalone range filter (unbounded lower limit):
+ * ```
+ * priceBetween(null, 1000.00)
+ * ```
+ *
+ * Typical user-driven filter nested in `userFilter` for correct facet and histogram computation:
+ * ```
+ * filterBy(
+ *   and(
+ *     priceInCurrency("USD"),
+ *     priceInPriceLists("basic"),
+ *     priceValidInNow(),
+ *     userFilter(
+ *       priceBetween(50.00, 200.00)
+ *     )
+ *   )
+ * )
+ * ```
+ *
+ * **UserFilter nesting for facet/histogram correctness:**
+ *
+ * In typical e-commerce scenarios, `priceBetween` should be nested inside the {@link UserFilter} container. This
+ * distinction is critical for computing accurate facet counts and price histograms:
+ *
+ * - **Facet computation:** When calculating facet impact (e.g., "how many products would remain if I apply this brand
+ *   filter?"), the engine temporarily removes constraints inside `userFilter` to compute baseline counts. If
+ *   `priceBetween` is placed outside `userFilter`, it becomes a mandatory constraint that cannot be toggled, skewing
+ *   facet statistics.
+ *
+ * - **Histogram computation:** Price histograms (bucket distributions of prices) are computed over the full result set
+ *   excluding the `userFilter` scope. Placing `priceBetween` inside `userFilter` allows the histogram to show the
+ *   distribution of all products, not just those already filtered by the user's price selection.
+ *
+ * If `priceBetween` is intentionally placed outside `userFilter`, it acts as a hard constraint that cannot be relaxed
+ * during facet or histogram calculations. This is appropriate for programmatic filtering but not for user-controlled
+ * UI widgets like price sliders.
+ *
+ * **Interaction with price constraints:**
+ *
+ * `priceBetween` operates on the final "price for sale" computed by the three primary price constraints. The entity
+ * must first satisfy the currency, price list, and validity constraints to have a computable price for sale, and then
+ * that price is checked against the `priceBetween` range.
+ *
+ * Example query with combined price constraints:
+ * ```
+ * filterBy(
+ *   and(
+ *     priceInCurrency("CZK"),
+ *     priceInPriceLists("vip", "basic"),
+ *     priceValidInNow(),
+ *     userFilter(
+ *       priceBetween(500, 2000)
+ *     )
+ *   )
+ * )
+ * ```
+ *
+ * In this query, only entities with a valid CZK price in the `vip` or `basic` price lists (prioritizing `vip`) that
+ * falls between 500 and 2000 will be returned.
+ *
+ * **Behavior and constraints:**
+ *
+ * - Only entities with a computable "price for sale" are eligible for matching. Entities without any prices or without
+ *   prices matching the currency/price list/validity constraints are excluded before `priceBetween` is evaluated.
+ * - Both bounds are inclusive. Use `null` to express unbounded ranges.
+ * - Only one `priceBetween` constraint is allowed per query. Multiple price ranges cannot be specified in a single
+ *   filter (no OR logic for price ranges within a single query).
+ * - The constraint is applicable only when at least one bound is non-null.
+ *
+ * [Visit detailed user documentation](https://evitadb.io/documentation/query/filtering/price#price-between)
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
@@ -61,10 +129,11 @@ import java.math.BigDecimal;
 	userDocsLink = "/documentation/query/filtering/price#price-between",
 	supportedIn = ConstraintDomain.ENTITY
 )
-public class PriceBetween extends AbstractFilterConstraintLeaf implements PriceConstraint<FilterConstraint>, FilterConstraint {
+public class PriceBetween extends AbstractFilterConstraintLeaf
+	implements PriceConstraint<FilterConstraint>, FilterConstraint {
 	@Serial private static final long serialVersionUID = -4134467514999931163L;
 
-	private PriceBetween(Serializable... arguments) {
+	private PriceBetween(@Nonnull Serializable... arguments) {
 		super(arguments);
 	}
 

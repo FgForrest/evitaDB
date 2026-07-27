@@ -24,13 +24,17 @@
 package io.evitadb.externalApi.grpc.requestResponse.schema;
 
 import io.evitadb.api.proxy.mock.EmptyEntitySchemaAccessor;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolution;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
+import io.evitadb.api.requestResponse.mutation.conflict.GranularConflictPolicy;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
-import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
-import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.GlobalAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedGlobalAttributeUniquenessType;
 import io.evitadb.dataType.Scope;
@@ -41,14 +45,23 @@ import org.junit.jupiter.api.Test;
 import javax.annotation.Nonnull;
 import java.util.EnumSet;
 import java.util.Map;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static io.evitadb.test.TestTags.GRPC;
+import static io.evitadb.test.TestTags.EXTERNAL_API;
+import static io.evitadb.test.TestTags.QUERY;
+import static io.evitadb.test.TestTags.SCHEMA;
 
 /**
  * This test verifies functionalities of methods in {@link CatalogSchemaConverter} class.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
+@Tag(GRPC)
+@Tag(EXTERNAL_API)
+@Tag(QUERY)
+@Tag(SCHEMA)
 class CatalogSchemaConverterTest {
 
 	@Test
@@ -56,6 +69,7 @@ class CatalogSchemaConverterTest {
 		final CatalogSchema catalogSchema = CatalogSchema._internalBuild(
 			TestConstants.TEST_CATALOG,
 			NamingConvention.generate(TestConstants.TEST_CATALOG),
+			null,
 			EnumSet.noneOf(CatalogEvolutionMode.class),
 			EmptyEntitySchemaAccessor.INSTANCE
 		);
@@ -75,6 +89,7 @@ class CatalogSchemaConverterTest {
 			TestConstants.TEST_CATALOG,
 			NamingConvention.generate(TestConstants.TEST_CATALOG),
 			"description",
+			new ConflictResolution(ConflictPolicy.ENTITY, EnumSet.of(GranularConflictPolicy.REFERENCE)),
 			EnumSet.allOf(CatalogEvolutionMode.class),
 			Map.of(
 				"code", GlobalAttributeSchema._internalBuild(
@@ -94,12 +109,14 @@ class CatalogSchemaConverterTest {
 					false,
 					String.class,
 					null,
-					0
+					0,
+					ConflictResolutionOverride.ENTITY
 				),
 				"priority", GlobalAttributeSchema._internalBuild(
 					"code",
 					Long[].class,
-					false
+					false,
+					ConflictResolutionOverride.INHERITED
 				)
 			),
 			EmptyEntitySchemaAccessor.INSTANCE
@@ -118,6 +135,7 @@ class CatalogSchemaConverterTest {
 		assertEquals(expected.getName(), actual.getName());
 		assertEquals(expected.getDescription(), actual.getDescription());
 		assertEquals(expected.getNameVariants(), actual.getNameVariants());
+		assertEquals(expected.getConflictResolution(), actual.getConflictResolution());
 		assertEquals(expected.getAttributes().size(), actual.getAttributes().size());
 		expected.getAttributes().forEach((attributeName, attribute) ->
 			assertGlobalAttributeSchema(attribute, actual.getAttribute(attributeName).orElseThrow()));
@@ -138,5 +156,6 @@ class CatalogSchemaConverterTest {
 		assertEquals(expected.getPlainType(), actual.getPlainType());
 		assertEquals(expected.getDefaultValue(), actual.getDefaultValue());
 		assertEquals(expected.getIndexedDecimalPlaces(), actual.getIndexedDecimalPlaces());
+		assertEquals(expected.getConflictResolutionOverride(), actual.getConflictResolutionOverride());
 	}
 }

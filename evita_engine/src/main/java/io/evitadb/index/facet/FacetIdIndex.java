@@ -113,7 +113,9 @@ public class FacetIdIndex implements VoidTransactionMemoryProducer<FacetIdIndex>
 
 	@Nonnull
 	@Override
-	public FacetIdIndex createCopyWithMergedTransactionalMemory(@Nullable Void layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
+	public FacetIdIndex createCopyWithMergedTransactionalMemory(
+		@Nonnull TransactionalLayerMaintainer transactionalLayer
+	) {
 		return new FacetIdIndex(
 			this.facetId, transactionalLayer.getStateCopyWithCommittedChanges(this.records)
 		);
@@ -122,6 +124,5 @@ public class FacetIdIndex implements VoidTransactionMemoryProducer<FacetIdIndex>
 	@Override
 	public void removeLayer(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		this.records.removeLayer(transactionalLayer);
-		transactionalLayer.removeTransactionalMemoryLayerIfExists(this);
 	}
 }

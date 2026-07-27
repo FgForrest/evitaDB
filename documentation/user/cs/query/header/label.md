@@ -6,6 +6,7 @@ author: Ing. Jan Novotný
 proofreading: done
 preferredLang: evitaql
 commit: cabcf999e7be5b00e0b13e1228a76a8d9e91cb78
+translated: 'true'
 ---
 ## Štítek
 
@@ -37,7 +38,7 @@ s dotazem.
 
 Každý štítek je dvojice klíč-hodnota připojená k hlavičce dotazu, jak je ukázáno v následujícím příkladu:
 
-<SourceCodeTabs requires="/evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="/evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Připojení štítků k dotazu](/documentation/user/en/query/header/examples/labels.evitaql)
 
@@ -59,3 +60,25 @@ Existují také automatické štítky, které jsou k dotazu přidávány systém
 <LS to="g">Pokud používáte GraphQL API, je zde také štítek `operation-name` odvozený z názvu dotazu (pokud je nějaký název definován).</LS>
 
 </Note>
+
+### Kardinalita štítků a export do Prometheus
+
+Štítky jsou navrženy pro označení dotazu za účelem jeho pozdější identifikace v trasování a záznamech provozu, kde je
+neomezený počet různých hodnot očekávaný a neškodný - každé trasování nebo zaznamenaný dotaz se stejně ukládá
+samostatně. To ale neplatí pro [Prometheus metriky](../../operate/observe.md#metriky): každá odlišná kombinace hodnot
+štítků se stane vlastní časovou řadou, takže štítek s neomezenými nebo unikátními hodnotami pro každý požadavek (ID
+uživatele, ID session, časové razítko, celá URL, libovolný text) by donekonečna vytvářel nové časové řady a mohl by
+zahltit Prometheus i libovolný dashboard nad ním postavený.
+
+Z tohoto důvodu se ve výchozím stavu do Prometheus neexportuje žádný štítek. Operátor může jednotlivé názvy štítků
+povolit pomocí nastavení `exportedQueryLabels` Observability API (viz
+[konfigurace Observability](../../operate/configure.md#konfigurace-observability)) - názvy štítků jsou libovolné a volí
+je operátor, který tím přebírá odpovědnost za udržení jejich hodnot omezených. Dokud není název nakonfigurován, jsou
+jeho hodnoty vidět pouze v trasování, záznamech provozu a JFR událostech, nikdy v Prometheus.
+
+Několik inherentně vysokokardinálních štítků automaticky připojovaných systémem - `trace-id`, `client-id`,
+`ip-address` a `uri` - je vyhrazených a nelze je do Prometheus nikdy exportovat, bez ohledu na konfiguraci. Při volbě
+štítků k exportu (nebo při rozhodování, zda je vůbec bezpečné danou hodnotu k dotazu připojit) dbejte na to, aby byly
+omezené a výčtového charakteru - identifikátor dávkové úlohy, název REST endpointu nebo metody kontroleru - a nikoli
+odvozené od uživatelského vstupu, identifikátorů požadavků nebo časových razítek.
+

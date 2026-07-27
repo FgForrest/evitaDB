@@ -23,18 +23,30 @@
 
 package io.evitadb.api.query.require;
 
+import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.QueryConstraints;
+import io.evitadb.api.query.RequireConstraint;
+import io.evitadb.api.query.order.OrderBy;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.utils.ArrayUtils;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.QueryConstraints.*;
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.REQUIRE;
+import static io.evitadb.test.TestTags.REFERENCE;
 
 /**
  * This tests verifies basic properties of {@link ReferenceContent} query.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 202"a"
  */
+@Tag(CONTRACT)
+@Tag(REQUIRE)
+@Tag(REFERENCE)
 class ReferenceContentTest {
 
 	@Test
@@ -376,6 +388,22 @@ class ReferenceContentTest {
 		assertNotEquals(referenceContent("a", filterBy(entityPrimaryKeyInSet(1))).hashCode(), referenceContent("a", entityFetch(), page(2, 40)).hashCode());
 		assertNotEquals(referenceContent("a", filterBy(entityPrimaryKeyInSet(1)), strip(2, 40)), referenceContent("a", entityFetch(), page(2, 40)));
 		assertNotEquals(referenceContent("a", filterBy(entityPrimaryKeyInSet(1)), strip(2, 40)).hashCode(), referenceContent("a", entityFetch(), page(2, 40)).hashCode());
+	}
+
+	@Test
+	@DisplayName("getCopyWithNewChildren() should reject additionalChildren where first is FilterBy but second is not OrderConstraint")
+	void shouldRejectAdditionalChildrenWithWrongSecondType() {
+		final ReferenceContent original = referenceContent("a");
+		// Pass FilterBy as first additional child and another FilterBy as second -- second is wrong type
+		assertThrows(EvitaInvalidUsageException.class, () ->
+			original.getCopyWithNewChildren(
+				new RequireConstraint[0],
+				new Constraint<?>[]{
+					filterBy(entityPrimaryKeyInSet(1)),
+					filterBy(entityPrimaryKeyInSet(2))
+				}
+			)
+		);
 	}
 
 }

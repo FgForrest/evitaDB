@@ -6,6 +6,7 @@ author: Ing. Jan Novotný
 proofreading: done
 preferredLang: java
 commit: ccb0d5d50900bc53b89db18c46df73ddf40e95db
+translated: true
 ---
 **Práce na dokumentu probíhají**
 

@@ -25,7 +25,6 @@ package io.evitadb.api;
 
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.ServerOptions;
-import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.proxy.mock.MockCatalogChangeCaptureSubscriber;
 import io.evitadb.api.proxy.mock.MockEngineChangeCaptureSubscriber;
@@ -39,35 +38,40 @@ import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchema
 import io.evitadb.api.requestResponse.schema.mutation.engine.ModifyCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.entity.ModifyEntitySchemaDescriptionMutation;
 import io.evitadb.core.Evita;
-import io.evitadb.export.file.configuration.FileSystemExportOptions;
 import io.evitadb.test.Entities;
 import io.evitadb.test.EvitaTestSupport;
+import io.evitadb.test.EvitaTestSupport.TestPaths;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.QUERY;
+import static io.evitadb.test.TestTags.SCHEMA;
 
 /**
  * This test contains various integration tests for {@link Evita}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
+@Tag(CONTRACT)
+@Tag(QUERY)
+@Tag(SCHEMA)
 class EvitaSchemaCallbackTest implements EvitaTestSupport {
-	public static final String DIR_EVITA_NOTIFICATION_TEST = "evitaNotificationTest";
-	public static final String DIR_EVITA_NOTIFICATION_TEST_EXPORT = "evitaNotificationTest_export";
+	private TestPaths paths;
 	private Evita evita;
 	private final MockEngineChangeCaptureSubscriber engineSubscriber = new MockEngineChangeCaptureSubscriber(Integer.MAX_VALUE);
 	private final MockCatalogChangeCaptureSubscriber catalogSubscriber = new MockCatalogChangeCaptureSubscriber(Integer.MAX_VALUE);
 
 	@BeforeEach
 	void setUp() {
-		cleanTestSubDirectoryWithRethrow(DIR_EVITA_NOTIFICATION_TEST);
-		cleanTestSubDirectoryWithRethrow(DIR_EVITA_NOTIFICATION_TEST_EXPORT);
+		this.paths = createTestPaths("EvitaSchemaCallbackTest");
 		this.evita = new Evita(
 			getEvitaConfiguration()
 		);
@@ -82,7 +86,7 @@ class EvitaSchemaCallbackTest implements EvitaTestSupport {
 		);
 
 		this.evita.registerSystemChangeCapture(
-			new ChangeSystemCaptureRequest(null, null, ChangeCaptureContent.BODY)
+			new ChangeSystemCaptureRequest(null, null, null, ChangeCaptureContent.BODY)
 		).subscribe(this.engineSubscriber);
 
 		this.evita.updateCatalog(
@@ -108,8 +112,7 @@ class EvitaSchemaCallbackTest implements EvitaTestSupport {
 	@AfterEach
 	void tearDown() {
 		this.evita.close();
-		cleanTestSubDirectoryWithRethrow(DIR_EVITA_NOTIFICATION_TEST);
-		cleanTestSubDirectoryWithRethrow(DIR_EVITA_NOTIFICATION_TEST_EXPORT);
+		cleanupTestPaths(this.paths);
 	}
 
 	@Test
@@ -248,20 +251,10 @@ class EvitaSchemaCallbackTest implements EvitaTestSupport {
 
 	@Nonnull
 	private EvitaConfiguration getEvitaConfiguration(int inactivityTimeoutInSeconds) {
-		return EvitaConfiguration.builder()
+		return newTestEvitaConfigurationBuilder(this.paths)
 			.server(
 				ServerOptions.builder()
 					.closeSessionsAfterSecondsOfInactivity(inactivityTimeoutInSeconds)
-					.build()
-			)
-			.storage(
-				StorageOptions.builder()
-					.storageDirectory(getTestDirectory().resolve(DIR_EVITA_NOTIFICATION_TEST))
-					.build()
-			)
-			.export(
-				FileSystemExportOptions.builder()
-					.directory(getTestDirectory().resolve(DIR_EVITA_NOTIFICATION_TEST_EXPORT))
 					.build()
 			)
 			.build();

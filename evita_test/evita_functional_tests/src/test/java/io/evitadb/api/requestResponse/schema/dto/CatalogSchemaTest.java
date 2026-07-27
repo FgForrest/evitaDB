@@ -26,9 +26,11 @@ package io.evitadb.api.requestResponse.schema.dto;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.GlobalAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedGlobalAttributeUniquenessType;
 import io.evitadb.dataType.Scope;
 import io.evitadb.utils.NamingConvention;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -39,13 +41,18 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.Map;
 import java.util.Optional;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.SCHEMA;
 
 /**
  * Tests for {@link CatalogSchema}.
  */
 @DisplayName("CatalogSchema")
+@Tag(CONTRACT)
+@Tag(SCHEMA)
 class CatalogSchemaTest {
 
 	private static final EntitySchemaProvider EMPTY_PROVIDER = new EntitySchemaProvider() {
@@ -72,6 +79,7 @@ class CatalogSchemaTest {
 			final CatalogSchema schema = CatalogSchema._internalBuild(
 				"testCatalog",
 				NamingConvention.generate("testCatalog"),
+				null,
 				EnumSet.allOf(CatalogEvolutionMode.class),
 				EMPTY_PROVIDER
 			);
@@ -91,6 +99,7 @@ class CatalogSchemaTest {
 				"myCatalog",
 				NamingConvention.generate("myCatalog"),
 				"Test catalog",
+				null,
 				EnumSet.noneOf(CatalogEvolutionMode.class),
 				Collections.emptyMap(),
 				EMPTY_PROVIDER
@@ -115,7 +124,8 @@ class CatalogSchemaTest {
 				new Scope[]{Scope.LIVE},
 				null,
 				false, false, false,
-				String.class, null
+				String.class, null,
+				ConflictResolutionOverride.INHERITED
 			);
 
 			final Map<String, GlobalAttributeSchemaContract> attrs = Map.of("url", attr);
@@ -124,6 +134,7 @@ class CatalogSchemaTest {
 				1,
 				"catalog",
 				NamingConvention.generate("catalog"),
+				null,
 				null,
 				EnumSet.noneOf(CatalogEvolutionMode.class),
 				attrs,
@@ -143,13 +154,15 @@ class CatalogSchemaTest {
 		@DisplayName("should find attribute by name")
 		void shouldFindAttributeByName() {
 			final GlobalAttributeSchema attr = GlobalAttributeSchema._internalBuild(
-				"code", String.class, false
+				"code", String.class, false,
+				ConflictResolutionOverride.INHERITED
 			);
 
 			final CatalogSchema schema = CatalogSchema._internalBuild(
 				1,
 				"catalog",
 				NamingConvention.generate("catalog"),
+				null,
 				null,
 				EnumSet.noneOf(CatalogEvolutionMode.class),
 				Map.of("code", attr),
@@ -164,13 +177,15 @@ class CatalogSchemaTest {
 		@DisplayName("should find attribute by naming convention")
 		void shouldFindAttributeByNamingConvention() {
 			final GlobalAttributeSchema attr = GlobalAttributeSchema._internalBuild(
-				"productCode", String.class, false
+				"productCode", String.class, false,
+				ConflictResolutionOverride.INHERITED
 			);
 
 			final CatalogSchema schema = CatalogSchema._internalBuild(
 				1,
 				"catalog",
 				NamingConvention.generate("catalog"),
+				null,
 				null,
 				EnumSet.noneOf(CatalogEvolutionMode.class),
 				Map.of("productCode", attr),
@@ -191,6 +206,7 @@ class CatalogSchemaTest {
 			final CatalogSchema schema = CatalogSchema._internalBuild(
 				"testCatalog",
 				NamingConvention.generate("testCatalog"),
+				null,
 				EnumSet.noneOf(CatalogEvolutionMode.class),
 				EMPTY_PROVIDER
 			);
@@ -209,12 +225,14 @@ class CatalogSchemaTest {
 			final CatalogSchema a = CatalogSchema._internalBuild(
 				"catalog",
 				NamingConvention.generate("catalog"),
+				null,
 				EnumSet.noneOf(CatalogEvolutionMode.class),
 				EMPTY_PROVIDER
 			);
 			final CatalogSchema b = CatalogSchema._internalBuild(
 				"catalog",
 				NamingConvention.generate("catalog"),
+				null,
 				EnumSet.noneOf(CatalogEvolutionMode.class),
 				EMPTY_PROVIDER
 			);
@@ -229,12 +247,14 @@ class CatalogSchemaTest {
 			final CatalogSchema a = CatalogSchema._internalBuild(
 				"catalog1",
 				NamingConvention.generate("catalog1"),
+				null,
 				EnumSet.noneOf(CatalogEvolutionMode.class),
 				EMPTY_PROVIDER
 			);
 			final CatalogSchema b = CatalogSchema._internalBuild(
 				"catalog2",
 				NamingConvention.generate("catalog2"),
+				null,
 				EnumSet.noneOf(CatalogEvolutionMode.class),
 				EMPTY_PROVIDER
 			);
@@ -254,6 +274,7 @@ class CatalogSchemaTest {
 				1,
 				"catalog",
 				NamingConvention.generate("catalog"),
+				null,
 				null,
 				EnumSet.noneOf(CatalogEvolutionMode.class),
 				Collections.emptyMap(),
@@ -275,6 +296,7 @@ class CatalogSchemaTest {
 				3,
 				"catalog",
 				NamingConvention.generate("catalog"),
+				null,
 				null,
 				EnumSet.noneOf(CatalogEvolutionMode.class),
 				Collections.emptyMap(),
@@ -298,6 +320,7 @@ class CatalogSchemaTest {
 			final CatalogSchema schema = CatalogSchema._internalBuild(
 				"catalog",
 				NamingConvention.generate("catalog"),
+				null,
 				EnumSet.noneOf(CatalogEvolutionMode.class),
 				EMPTY_PROVIDER
 			);
@@ -312,6 +335,7 @@ class CatalogSchemaTest {
 				1,
 				"catalog",
 				NamingConvention.generate("catalog"),
+				null,
 				null,
 				EnumSet.noneOf(CatalogEvolutionMode.class),
 				Collections.emptyMap(),

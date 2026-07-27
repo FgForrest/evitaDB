@@ -32,8 +32,11 @@ import org.mockito.Mockito;
 
 import java.util.Optional;
 import java.util.Set;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.SCHEMA;
 
 /**
  * This test verifies {@link SetCatalogMutabilityMutation} class.
@@ -41,6 +44,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 @DisplayName("SetCatalogMutabilityMutation tests")
+@Tag(CONTRACT)
+@Tag(SCHEMA)
 public class SetCatalogMutabilityMutationTest {
 
     @Test

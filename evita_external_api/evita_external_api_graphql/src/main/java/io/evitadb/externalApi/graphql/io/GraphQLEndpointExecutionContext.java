@@ -26,9 +26,9 @@ package io.evitadb.externalApi.graphql.io;
 import com.linecorp.armeria.common.HttpRequest;
 import com.linecorp.armeria.server.ServiceRequestContext;
 import io.evitadb.core.Evita;
+import io.evitadb.externalApi.event.ResponseStatus;
 import io.evitadb.externalApi.graphql.exception.GraphQLInternalError;
 import io.evitadb.externalApi.graphql.metric.event.request.ExecutedEvent;
-import io.evitadb.externalApi.graphql.metric.event.request.ExecutedEvent.ResponseStatus;
 import io.evitadb.externalApi.http.EndpointExecutionContext;
 import io.evitadb.utils.Assert;
 

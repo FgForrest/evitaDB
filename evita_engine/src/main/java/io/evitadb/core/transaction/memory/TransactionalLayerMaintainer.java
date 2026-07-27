@@ -23,22 +23,28 @@
 
 package io.evitadb.core.transaction.memory;
 
+import com.carrotsearch.hppc.LongObjectHashMap;
+import com.carrotsearch.hppc.cursors.LongObjectCursor;
+import com.carrotsearch.hppc.cursors.ObjectCursor;
+import io.evitadb.core.exception.DataStructureCorruptedException;
 import io.evitadb.core.exception.StaleTransactionMemoryException;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
 import java.io.Closeable;
+import java.util.Collections;
 import java.util.Comparator;
-import java.util.HashMap;
+import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
-
-import static java.util.Optional.ofNullable;
 
 /**
  * Transactional layer is a temporary storage for storing {@link TransactionalLayerCreator#createLayer()} objects.
@@ -55,15 +61,16 @@ public class TransactionalLayerMaintainer {
 	 */
 	@Nonnull private final TransactionalLayerMaintainerFinalizer finalizer;
 	/**
-	 * This field may refer to the upper transaction. Currently, it's not used but it's the preferred way of implementing
-	 * nested transaction if they're going to be supported in the future.
-	 */
-	private final TransactionalLayerMaintainer parent;
-	/**
 	 * Index of all transactional layer memories of all {@link io.evitadb.index.array.TransactionalObject} that work
-	 * with isolated transactional memory.
+	 * with isolated transactional memory, keyed by {@link TransactionalLayerCreator#getId()}.
+	 *
+	 * The map is primitive-keyed on purpose. Ids come from a JVM-wide sequence and therefore always sit outside the
+	 * {@link Long#valueOf(long)} cache, so a `Map<Long, …>` would allocate a boxed key on **every** visit - and the
+	 * registry is visited by every read and write of every transactional data structure. The open-addressed HPPC map
+	 * also drops the per-entry node allocation. It is thread-confined to a single transaction, so the absence of
+	 * concurrency support costs nothing here.
 	 */
-	private final Map<TransactionalLayerCreatorKey, TransactionalLayerWrapper<?>> transactionalLayer;
+	private final LongObjectHashMap<TransactionalLayerEntry<?>> transactionalLayer;
 	/**
 	 * Internal flag that allows to avoid marking the used transactional layer as {@link TransactionalLayerState#DISCARDED}.
 	 * It's used when we need merged transactional state within the current transaction leaving the modification state
@@ -75,22 +82,88 @@ public class TransactionalLayerMaintainer {
 	 * allowed to be created.
 	 */
 	private boolean allowTransactionalLayerCreation = true;
+	/**
+	 * Sentinel memento value recorded for a layer that was first created *inside* the active savepoint. On
+	 * {@link #rollbackSavepoint(Savepoint)} such a layer is removed entirely (rather than restored), because it did
+	 * not exist when the savepoint was opened.
+	 */
+	private static final Object CREATED_IN_SAVEPOINT = new Object();
+	/**
+	 * The currently open savepoint, or {@code null} when none is active. A single active savepoint is sufficient: a
+	 * savepoint brackets exactly one root entity mutation (including its nested cross-entity mutations), and entity
+	 * mutations are processed one at a time on the (single-threaded) transaction. While a savepoint is open, the
+	 * {@link #getOrCreateTransactionalMemoryLayer} hook records each touched layer's pre-mutation state so the
+	 * savepoint can be rolled back independently of the surrounding transaction.
+	 */
+	@Nullable private Savepoint currentSavepoint;
+	/**
+	 * Per-transaction dirty-scope registry feeding the pre-commit (pre-WAL) and post-replay (merge-time) structural
+	 * integrity validation. Maps each participant (a {@link DirtyScopeValidator}) to the set of probe keys it registered
+	 * at its invariant-changing mutation seams during this transaction. The participant axis is identity-keyed (the
+	 * validators are per-tree singletons), while the probe-key axis uses value semantics so equal keys registered by
+	 * successive ops on the same boundary dedup. The whole structure is lazily instantiated on first registration (a
+	 * transaction that touches no participant pays nothing). Registration feeds both the pre-commit and post-replay
+	 * validation passes, which each run unconditionally whenever at least one participant was dirtied.
+	 */
+	@Nullable private Map<DirtyScopeValidator, Set<Object>> dirtyScopes;
 
 	TransactionalLayerMaintainer(
 		@Nonnull TransactionalLayerMaintainerFinalizer finalizer
 	) {
 		this.finalizer = finalizer;
-		this.parent = null;
-		this.transactionalLayer = new HashMap<>(4096);
+		this.transactionalLayer = new LongObjectHashMap<>(4096);
 	}
 
-	TransactionalLayerMaintainer(
-		@Nonnull TransactionalLayerMaintainerFinalizer finalizer,
-		@Nonnull TransactionalLayerMaintainer transactionalLayer
-	) {
-		this.finalizer = finalizer;
-		this.parent = transactionalLayer;
-		this.transactionalLayer = new HashMap<>(4096);
+	/**
+	 * Registers a probe key as dirtied by the given participant during this transaction, so the pre-commit (pre-WAL)
+	 * and post-replay (merge-time) validation can relocate the affected leaf and re-derive its invariants at commit.
+	 * Called unconditionally from the participant's invariant-changing mutation seams; the registered object is the
+	 * boundary key of the dirtied leaf, captured at op time (see {@link DirtyScopeValidator}). Equal keys dedup by
+	 * value — validation is idempotent, so a boundary touched by several ops is validated once.
+	 *
+	 * @param owner    the participant the key belongs to
+	 * @param probeKey the boundary key of the dirtied leaf
+	 */
+	public void registerDirtyScopeToken(@Nonnull DirtyScopeValidator owner, @Nonnull Object probeKey) {
+		if (this.dirtyScopes == null) {
+			this.dirtyScopes = new IdentityHashMap<>(64);
+		}
+		this.dirtyScopes
+			.computeIfAbsent(owner, it -> new HashSet<>(64))
+			.add(probeKey);
+	}
+
+	/**
+	 * Returns the scope tokens registered for the given participant during this transaction, or an empty set when it
+	 * dirtied none. Used by the participant's post-replay validation to relocate each token in the freshly merged
+	 * copy.
+	 *
+	 * @param owner the participant whose registered dirty scope tokens are requested
+	 * @return the registered scope tokens for the participant; never {@code null}
+	 */
+	@Nonnull
+	public Set<Object> getDirtyScopeTokens(@Nonnull DirtyScopeValidator owner) {
+		if (this.dirtyScopes == null) {
+			return Collections.emptySet();
+		}
+		final Set<Object> tokens = this.dirtyScopes.get(owner);
+		return tokens == null ? Collections.emptySet() : tokens;
+	}
+
+	/**
+	 * Runs the pre-commit (pre-WAL) dirty-scope validation: for every participant that dirtied at least one scope
+	 * token, re-derives its invariants over the registered scope against the still-live transactional view. Runs
+	 * unconditionally; a no-op only when no participant was touched. A violation surfaces as
+	 * {@link DataStructureCorruptedException}, which the caller must translate into an exceptional commit completion
+	 * so the shared WAL never receives the transaction.
+	 */
+	public void validateDirtyScopesBeforeCommit() {
+		if (this.dirtyScopes == null) {
+			return;
+		}
+		for (final Entry<DirtyScopeValidator, Set<Object>> entry : this.dirtyScopes.entrySet()) {
+			entry.getKey().validateDirtyScope(entry.getValue());
+		}
 	}
 
 	/**
@@ -108,9 +181,14 @@ public class TransactionalLayerMaintainer {
 	 */
 	@Nonnull
 	public <T> T removeTransactionalMemoryLayer(@Nonnull TransactionalLayerCreator<T> layerCreator) {
-		final TransactionalLayerCreatorKey key = new TransactionalLayerCreatorKey(layerCreator);
-		@SuppressWarnings("unchecked") final TransactionalLayerWrapper<T> removedValue = (TransactionalLayerWrapper<T>) this.transactionalLayer.remove(key);
+		final long id = layerCreator.getId();
+		final TransactionalLayerEntry<T> removedValue = getEntryIfExists(id, layerCreator);
 		Assert.notNull(removedValue, "Value should have been removed but was not!");
+		// when a savepoint is open the removal must be reversible (see recordSavepointRemovalIfNeeded)
+		if (this.currentSavepoint != null) {
+			recordSavepointRemovalIfNeeded(id, removedValue);
+		}
+		this.transactionalLayer.remove(id);
 		return removedValue.getItem();
 	}
 
@@ -119,11 +197,17 @@ public class TransactionalLayerMaintainer {
 	 */
 	@Nullable
 	public <T> T removeTransactionalMemoryLayerIfExists(@Nonnull TransactionalLayerCreator<T> layerCreator) {
-		final TransactionalLayerCreatorKey key = new TransactionalLayerCreatorKey(layerCreator);
-		//noinspection unchecked
-		return (T) ofNullable(this.transactionalLayer.remove(key))
-			.map(TransactionalLayerWrapper::getItem)
-			.orElse(null);
+		final long id = layerCreator.getId();
+		final TransactionalLayerEntry<T> entry = getEntryIfExists(id, layerCreator);
+		if (entry == null) {
+			return null;
+		}
+		// when a savepoint is open the removal must be reversible (see recordSavepointRemovalIfNeeded)
+		if (this.currentSavepoint != null) {
+			recordSavepointRemovalIfNeeded(id, entry);
+		}
+		this.transactionalLayer.remove(id);
+		return entry.getItem();
 	}
 
 	/**
@@ -135,13 +219,13 @@ public class TransactionalLayerMaintainer {
 	 */
 	@Nullable
 	public <T> T getOrCreateTransactionalMemoryLayer(@Nonnull TransactionalLayerCreator<T> layerCreator) {
-		final TransactionalLayerCreatorKey key = new TransactionalLayerCreatorKey(layerCreator);
-		@SuppressWarnings("unchecked") final TransactionalLayerWrapper<T> transactionalMemoryWrapper = (TransactionalLayerWrapper<T>) this.transactionalLayer.get(key);
-		if (transactionalMemoryWrapper != null) {
-			return transactionalMemoryWrapper.getItem();
-		}
-		if (this.parent != null) {
-			return this.parent.getTransactionalMemoryLayerIfExists(layerCreator);
+		final long id = layerCreator.getId();
+		final TransactionalLayerEntry<T> transactionalMemoryEntry = getEntryIfExists(id, layerCreator);
+		if (transactionalMemoryEntry != null) {
+			// the caller is about to mutate this existing layer — if a savepoint is open, capture its
+			// pre-mutation state on first touch so it can be restored on rollbackSavepoint
+			recordSavepointSnapshotIfNeeded(id, transactionalMemoryEntry.getItem());
+			return transactionalMemoryEntry.getItem();
 		}
 
 		final T transactionalMemory;
@@ -152,7 +236,9 @@ public class TransactionalLayerMaintainer {
 
 		transactionalMemory = layerCreator.createLayer();
 		if (transactionalMemory != null) {
-			this.transactionalLayer.put(key, new TransactionalLayerWrapper<>(transactionalMemory));
+			this.transactionalLayer.put(id, new TransactionalLayerEntry<>(layerCreator, transactionalMemory));
+			// the layer was created within an open savepoint — mark it so rollbackSavepoint drops it entirely
+			recordSavepointCreationIfNeeded(id);
 		}
 
 		return transactionalMemory;
@@ -166,12 +252,39 @@ public class TransactionalLayerMaintainer {
 	 */
 	@Nullable
 	public <T> T getTransactionalMemoryLayerIfExists(@Nonnull TransactionalLayerCreator<T> layerProvider) {
-		final TransactionalLayerCreatorKey key = new TransactionalLayerCreatorKey(layerProvider);
-		@SuppressWarnings("unchecked") final TransactionalLayerWrapper<T> transactionalMemory = (TransactionalLayerWrapper<T>) this.transactionalLayer.get(key);
-		if (transactionalMemory == null && this.parent != null) {
-			return this.parent.getTransactionalMemoryLayerIfExists(layerProvider);
+		final TransactionalLayerEntry<T> transactionalMemory = getEntryIfExists(layerProvider.getId(), layerProvider);
+		if (transactionalMemory == null) {
+			return null;
 		}
-		return transactionalMemory == null ? null : transactionalMemory.getItem();
+		// READ-ONLY fast path: no savepoint snapshot is taken here. This is the hot path used by every transactional
+		// data structure's read methods, so snapshotting on every read would capture far more layers than the rollback
+		// ever needs. Callers that intend to MUTATE an already-existing layer through this
+		// fast path (rather than via getOrCreateTransactionalMemoryLayer) must instead use
+		// getTransactionalMemoryLayerForWriteIfExists so the pre-mutation state is captured for per-entity rollback.
+		return transactionalMemory.getItem();
+	}
+
+	/**
+	 * Returns the existing transactional memory diff layer for the passed {@link TransactionalLayerCreator}, or
+	 * {@code null} when none exists (never creates one). Unlike {@link #getTransactionalMemoryLayerIfExists}, this
+	 * variant records the layer's pre-mutation state into the open savepoint on first touch, so it MUST be used by
+	 * callers that mutate an already-existing layer through this fast path instead of via
+	 * {@link #getOrCreateTransactionalMemoryLayer} (e.g. {@code TransactionalBitmap#addAll} / {@code #removeAll}).
+	 * Failing to do so would leave a layer created before the savepoint and mutated inside it unreverted on rollback.
+	 *
+	 * @return NULL value when no diff piece is found, new diff piece is never created by this method
+	 */
+	@Nullable
+	public <T> T getTransactionalMemoryLayerForWriteIfExists(@Nonnull TransactionalLayerCreator<T> layerProvider) {
+		final long id = layerProvider.getId();
+		final TransactionalLayerEntry<T> transactionalMemory = getEntryIfExists(id, layerProvider);
+		if (transactionalMemory == null) {
+			return null;
+		}
+		// the caller is about to mutate this existing layer through the fast path — capture its pre-mutation state on
+		// first touch so it can be restored on rollbackSavepoint
+		recordSavepointSnapshotIfNeeded(id, transactionalMemory.getItem());
+		return transactionalMemory.getItem();
 	}
 
 	/**
@@ -182,8 +295,8 @@ public class TransactionalLayerMaintainer {
 	 * Method returns NULL if no transactional changes were made to the object, and it may remain same.
 	 */
 	@Nonnull
-	public <S, T> S getStateCopyWithCommittedChangesWithoutDiscardingState(
-		@Nonnull TransactionalLayerProducer<T, S> transactionalLayerProducer
+	public <S> S getStateCopyWithCommittedChangesWithoutDiscardingState(
+		@Nonnull TransactionalStateProducer<S> transactionalLayerProducer
 	) {
 		try {
 			Assert.isTrue(
@@ -202,12 +315,30 @@ public class TransactionalLayerMaintainer {
 	 * the transaction.
 	 */
 	@Nonnull
-	public <S, T> S getStateCopyWithCommittedChanges(@Nonnull TransactionalLayerProducer<T, S> transactionalLayerProducer) {
-		final TransactionalLayerWrapper<T> transactionalLayerForItem = getTransactionalMemoryLayerItemWrapperIfExists(transactionalLayerProducer);
+	public <S> S getStateCopyWithCommittedChanges(@Nonnull TransactionalStateProducer<S> transactionalStateProducer) {
+		// pure dispatch - the producer's own type decides whether a diff layer has to be resolved at all, so objects
+		// that own no layer skip the registry lookup that would be guaranteed to miss for them
+		return transactionalStateProducer.createCopyWithMergedTransactionalMemory(this);
+	}
+
+	/**
+	 * Resolves the diff layer owned by the passed producer, lets it merge that layer into a new committed instance and
+	 * disposes of the layer afterwards.
+	 *
+	 * This is the **single** place where a diff layer is resolved and discarded. Implementations therefore cannot forget
+	 * to discard - they never touch the layer's lifecycle - and a layer left `ALIVE` is reported by
+	 * {@link #verifyLayerWasFullySwept()} rather than silently dropping committed changes.
+	 *
+	 * @param transactionalLayerProducer producer that owns a diff layer
+	 * @return committed form of the passed producer
+	 */
+	@Nonnull
+	<T, S> S copyWithOwnLayer(@Nonnull TransactionalLayerProducer<T, S> transactionalLayerProducer) {
+		final TransactionalLayerEntry<T> transactionalLayerForItem = getEntryIfExists(
+			transactionalLayerProducer.getId(), transactionalLayerProducer
+		);
 		final S copyWithCommittedChanges = transactionalLayerProducer.createCopyWithMergedTransactionalMemory(
-			ofNullable(transactionalLayerForItem)
-				.map(TransactionalLayerWrapper::getItem)
-				.orElse(null),
+			transactionalLayerForItem == null ? null : transactionalLayerForItem.getItem(),
 			this
 		);
 		if (!this.avoidDiscardingState.get() && transactionalLayerForItem != null) {
@@ -226,11 +357,10 @@ public class TransactionalLayerMaintainer {
 	public void verifyLayerWasFullySwept() throws StaleTransactionMemoryException {
 		// collect all data that has not been processed and discarded by the consumers and connect them with their creators
 		final List<TransactionalLayerCreator<?>> uncommittedData = new LinkedList<>();
-		for (Entry<TransactionalLayerCreatorKey, TransactionalLayerWrapper<?>> entry : this.transactionalLayer.entrySet()) {
-			if (entry.getValue().getState() == TransactionalLayerState.ALIVE) {
-				final TransactionalLayerCreatorKey key = entry.getKey();
-				final TransactionalLayerCreator<?> transactionalLayerCreator = key.transactionalLayerCreator();
-				uncommittedData.add(transactionalLayerCreator);
+		for (final ObjectCursor<TransactionalLayerEntry<?>> cursor : this.transactionalLayer.values()) {
+			final TransactionalLayerEntry<?> layerEntry = cursor.value;
+			if (layerEntry.getState() == TransactionalLayerState.ALIVE) {
+				uncommittedData.add(layerEntry.getCreator());
 			}
 		}
 		// if any stale uncommitted data found, report exception
@@ -269,6 +399,9 @@ public class TransactionalLayerMaintainer {
 	/**
 	 * Rolls back the changes made in a transactional layer and frees related {@link Closeable} resources.
 	 *
+	 * Structurally a no-op on the diff path: the immutable baseline objects were never mutated in place, so the diff
+	 * layer is simply discarded — there is nothing to undo. Only the {@link Closeable} resources are released.
+	 *
 	 * @param exception the cause of the rollback
 	 */
 	void rollback(@Nullable Throwable exception) {
@@ -281,52 +414,271 @@ public class TransactionalLayerMaintainer {
 	}
 
 	/**
-	 * Returns existing transactional memory for passed {@link TransactionalLayerCreator}. If no transactional memory
-	 * diff piece exists NULL is returned.
+	 * Opens a savepoint over this maintainer. While the returned savepoint is open, every diff layer that is touched
+	 * for writing via {@link #getOrCreateTransactionalMemoryLayer} has its pre-mutation state captured on first touch
+	 * (or is marked as created-within-the-savepoint), so that {@link #rollbackSavepoint(Savepoint)} can revert exactly
+	 * the changes made since this call — independently of the surrounding transaction, which keeps running.
 	 *
-	 * @return NULL value when no diff piece is found, new diff piece is never created by this method
+	 * Only one savepoint may be open at a time (nested savepoints are not supported); the caller must pair this with
+	 * exactly one {@link #commitSavepoint(Savepoint)} or {@link #rollbackSavepoint(Savepoint)}.
+	 *
+	 * @return the opened savepoint handle to pass back to commit / rollback
 	 */
-	@Nullable
-	private <T> TransactionalLayerWrapper<T> getTransactionalMemoryLayerItemWrapperIfExists(@Nonnull TransactionalLayerCreator<T> layerProvider) {
-		final TransactionalLayerCreatorKey key = new TransactionalLayerCreatorKey(layerProvider);
-		@SuppressWarnings("unchecked") final TransactionalLayerWrapper<T> transactionalMemory = (TransactionalLayerWrapper<T>) this.transactionalLayer.get(key);
-		if (transactionalMemory == null && this.parent != null) {
-			return this.parent.getTransactionalMemoryLayerItemWrapperIfExists(layerProvider);
-		}
-		return transactionalMemory;
+	@Nonnull
+	public Savepoint openSavepoint() {
+		Assert.isPremiseValid(
+			this.currentSavepoint == null,
+			"A savepoint is already open - nested savepoints are not supported!"
+		);
+		final Savepoint savepoint = new Savepoint();
+		this.currentSavepoint = savepoint;
+		return savepoint;
 	}
 
 	/**
-	 * Class represents caching key for the diff piece created by {@link TransactionalLayerCreator#createLayer()}.
-	 * Equals and hash logic uses {@link TransactionalLayerCreator#getId()} and {@link TransactionalLayerCreator} class.
+	 * Commits (accepts) the given savepoint: the captured pre-mutation state is discarded and all changes made while
+	 * the savepoint was open remain part of the transaction. This merely drops the savepoint bookkeeping; no diff
+	 * layer is modified.
+	 *
+	 * @param savepoint the savepoint previously returned by {@link #openSavepoint()}
 	 */
-	private record TransactionalLayerCreatorKey(
-		@Nonnull TransactionalLayerCreator<?> transactionalLayerCreator,
-		long transactionalLayerProviderId
-	) {
-
-		TransactionalLayerCreatorKey(@Nonnull TransactionalLayerCreator<?> transactionalLayerCreator) {
-			this(transactionalLayerCreator, transactionalLayerCreator.getId());
+	public void commitSavepoint(@Nonnull Savepoint savepoint) {
+		Assert.isPremiseValid(
+			this.currentSavepoint == savepoint,
+			"The committed savepoint is not the currently open one!"
+		);
+		// deactivate the savepoint first so the releaseMemento() operations below do not re-record into it
+		this.currentSavepoint = null;
+		for (final LongObjectCursor<Object> cursor : savepoint.mementos) {
+			final Object memento = cursor.value;
+			if (memento == CREATED_IN_SAVEPOINT || memento instanceof RemovedLayer) {
+				// a layer created inside the savepoint was never snapshotted (nothing to release); a layer removed
+				// inside the savepoint is already detached from the transactional memory - neither keeps drainable
+				// per-savepoint scratch state on a still-attached layer
+				continue;
+			}
+			// a plain memento is only ever recorded for a layer that still exists (a removal upgrades it to a
+			// RemovedLayer), so the entry must be present - a missing one would be a programming error
+			final TransactionalLayerEntry<?> layerEntry = this.transactionalLayer.get(cursor.key);
+			Assert.isPremiseValid(
+				layerEntry != null,
+				"A snapshotted layer disappeared from the transactional memory without being recorded as removed!"
+			);
+			releaseLayerMemento(layerEntry.getItem(), memento);
 		}
+	}
 
-		@Override
-		public boolean equals(Object o) {
-			if (this == o) return true;
-			if (o == null || getClass() != o.getClass()) return false;
-
-			TransactionalLayerCreatorKey that = (TransactionalLayerCreatorKey) o;
-
-			return this.transactionalLayerProviderId == that.transactionalLayerProviderId &&
-				this.transactionalLayerCreator.getClass().equals(that.transactionalLayerCreator.getClass());
+	/**
+	 * Rolls the given savepoint back: every diff layer touched while the savepoint was open is reverted to the state
+	 * captured at first touch (via {@link Snapshotable#restore(Object)}), and every layer that was created within the
+	 * savepoint is removed entirely. The surrounding transaction is left intact and may continue.
+	 *
+	 * @param savepoint the savepoint previously returned by {@link #openSavepoint()}
+	 */
+	public void rollbackSavepoint(@Nonnull Savepoint savepoint) {
+		Assert.isPremiseValid(
+			this.currentSavepoint == savepoint,
+			"The rolled-back savepoint is not the currently open one!"
+		);
+		// deactivate the savepoint first so the restore() operations below do not re-record into it
+		this.currentSavepoint = null;
+		for (final LongObjectCursor<Object> cursor : savepoint.mementos) {
+			final Object memento = cursor.value;
+			if (memento == CREATED_IN_SAVEPOINT) {
+				// the layer did not exist when the savepoint opened - drop it together with all its changes
+				this.transactionalLayer.remove(cursor.key);
+			} else if (memento instanceof final RemovedLayer removed) {
+				// the layer existed when the savepoint opened but was removed inside it (e.g. a B+ tree node
+				// dropped during a split/merge) - re-attach the original entry and restore its pre-savepoint state
+				this.transactionalLayer.put(cursor.key, removed.entry());
+				restoreLayer(removed.entry().getItem(), removed.memento());
+				// the savepoint is closed - let the layer drop its per-savepoint scratch state (the restore above has
+				// already rewound it), so post-rollback mutations stop paying the savepoint bookkeeping cost
+				releaseLayerMemento(removed.entry().getItem(), removed.memento());
+			} else {
+				final TransactionalLayerEntry<?> layerEntry = this.transactionalLayer.get(cursor.key);
+				// a plain memento is only ever recorded for a layer that still exists - a removal upgrades the
+				// memento to a RemovedLayer (see recordSavepointRemovalIfNeeded), so the entry must be present;
+				// a missing one would be a silent partial-rollback gap and is therefore a programming error
+				Assert.isPremiseValid(
+					layerEntry != null,
+					"A snapshotted layer disappeared from the transactional memory without being recorded as removed!"
+				);
+				restoreLayer(layerEntry.getItem(), memento);
+				// the savepoint is closed - let the layer drop its per-savepoint scratch state (the restore above has
+				// already rewound it), so post-rollback mutations stop paying the savepoint bookkeeping cost
+				releaseLayerMemento(layerEntry.getItem(), memento);
+			}
 		}
+	}
 
-		@Override
-		public int hashCode() {
-			int result = this.transactionalLayerCreator.getClass().hashCode();
-			result = 31 * result + Long.hashCode(this.transactionalLayerProviderId);
-			return result;
+	/**
+	 * Restores a single layer item to the given memento. The item was recorded in the savepoint only because it
+	 * implements {@link Snapshotable} (see the snapshot / removal hooks), so the cast is safe.
+	 *
+	 * @param item    the diff-layer item to restore
+	 * @param memento the memento previously captured for it
+	 */
+	private static void restoreLayer(@Nonnull Object item, @Nonnull Object memento) {
+		@SuppressWarnings("unchecked") final Snapshotable<Object> snapshotable = (Snapshotable<Object>) item;
+		snapshotable.restore(memento);
+	}
+
+	/**
+	 * Releases a single layer's memento on savepoint commit (see {@link Snapshotable#releaseMemento(Object)}). The item
+	 * was recorded in the savepoint only because it implements {@link Snapshotable}, so the cast is safe.
+	 *
+	 * @param item    the diff-layer item whose committed memento is released
+	 * @param memento the memento previously captured for it
+	 */
+	private static void releaseLayerMemento(@Nonnull Object item, @Nonnull Object memento) {
+		@SuppressWarnings("unchecked") final Snapshotable<Object> snapshotable = (Snapshotable<Object>) item;
+		snapshotable.releaseMemento(memento);
+	}
+
+	/**
+	 * Records the pre-mutation state of an existing layer into the open savepoint on first touch. No-op when no
+	 * savepoint is open or the layer was already recorded. A layer modified inside a savepoint that does not implement
+	 * {@link Snapshotable} cannot be rolled back, so this is treated as a programming error rather than silently
+	 * skipped (which would leave a partial-rollback gap).
+	 *
+	 * @param id    the id of the layer being modified
+	 * @param layer the existing (non-null) diff layer about to be mutated
+	 */
+	private void recordSavepointSnapshotIfNeeded(long id, @Nonnull Object layer) {
+		final Savepoint savepoint = this.currentSavepoint;
+		if (savepoint != null && !savepoint.mementos.containsKey(id)) {
+			if (layer instanceof final Snapshotable<?> snapshotable) {
+				savepoint.mementos.put(id, snapshotable.snapshot());
+			} else {
+				throw new GenericEvitaInternalError(
+					"Transactional layer " + layer.getClass().getName() + " is modified inside a savepoint but does " +
+						"not implement Snapshotable - its changes could not be reverted on a per-entity rollback. " +
+						"Make this layer implement Snapshotable.",
+					"A transactional layer modified inside a savepoint does not support snapshotting."
+				);
+			}
 		}
+	}
 
+	/**
+	 * Records that a layer was created inside the open savepoint, so {@link #rollbackSavepoint(Savepoint)} drops it
+	 * entirely. No-op when no savepoint is open or the id was already recorded.
+	 *
+	 * @param id the id of the newly created layer
+	 */
+	private void recordSavepointCreationIfNeeded(long id) {
+		final Savepoint savepoint = this.currentSavepoint;
+		if (savepoint != null && !savepoint.mementos.containsKey(id)) {
+			savepoint.mementos.put(id, CREATED_IN_SAVEPOINT);
+		}
+	}
+
+	/**
+	 * Records that an existing layer is about to be removed while a savepoint is open, so the removal can be undone on
+	 * {@link #rollbackSavepoint(Savepoint)} by re-attaching the captured entry and restoring its pre-savepoint state.
+	 * A layer that was created inside this savepoint is left marked {@link #CREATED_IN_SAVEPOINT} (removing it now plus
+	 * dropping it on rollback are both correct, so no extra bookkeeping is needed). A layer modified inside a savepoint
+	 * that does not implement {@link Snapshotable} cannot be reverted — treated as a programming error rather than a
+	 * silent partial-rollback gap.
+	 *
+	 * @param id    the id of the layer being removed
+	 * @param entry the entry of the layer being removed
+	 */
+	private void recordSavepointRemovalIfNeeded(long id, @Nonnull TransactionalLayerEntry<?> entry) {
+		final Savepoint savepoint = this.currentSavepoint;
+		if (savepoint == null) {
+			return;
+		}
+		final Object existing = savepoint.mementos.get(id);
+		if (existing == CREATED_IN_SAVEPOINT || existing instanceof RemovedLayer) {
+			// created-then-removed inside this savepoint (stays dropped on rollback), or already recorded as removed
+			return;
+		}
+		final Object memento;
+		if (existing == null) {
+			// the removal is the first touch of this layer inside the savepoint — its current state is the
+			// pre-savepoint state we must be able to restore
+			final Object item = entry.getItem();
+			if (item instanceof final Snapshotable<?> snapshotable) {
+				memento = snapshotable.snapshot();
+			} else {
+				throw new GenericEvitaInternalError(
+					"Transactional layer " + item.getClass().getName() + " is removed inside a savepoint but does " +
+						"not implement Snapshotable - its removal could not be reverted on a per-entity rollback. " +
+						"Make this layer implement Snapshotable.",
+					"A transactional layer removed inside a savepoint does not support snapshotting."
+				);
+			}
+		} else {
+			// the layer was already snapshotted earlier in this savepoint — reuse that pre-mutation memento
+			memento = existing;
+		}
+		savepoint.mementos.put(id, new RemovedLayer(entry, memento));
+	}
+
+	/**
+	 * Returns the registry entry registered under the passed id, or NULL when the creator owns no diff layer yet. Never
+	 * creates one.
+	 *
+	 * On a hit it also enforces the invariant the registry rests on: **one id maps to one and only one live creator**.
+	 * Reference identity is the right test - two distinct live objects are distinct owners no matter how they compare -
+	 * and a violation means one object would be handed a diff layer belonging to another, silently mixing two objects'
+	 * changes. The check runs on hits only (a miss returns NULL first), so it costs one reference comparison per layer
+	 * that actually exists.
+	 *
+	 * @param id            id of the requested layer, always {@link TransactionalLayerCreator#getId()} of `creator`
+	 * @param creator       the creator claiming the layer
+	 * @return NULL value when no diff piece is found
+	 */
+	@Nullable
+	private <T> TransactionalLayerEntry<T> getEntryIfExists(long id, @Nonnull TransactionalLayerCreator<T> creator) {
+		final TransactionalLayerEntry<?> entry = this.transactionalLayer.get(id);
+		if (entry == null) {
+			return null;
+		}
+		if (entry.getCreator() != creator) {
+			throw new GenericEvitaInternalError(
+				"Transactional layer id " + id + " is claimed by two distinct creators: " +
+					entry.getCreator().getClass().getName() + " and " + creator.getClass().getName() + "! Ids must be " +
+					"drawn from TransactionalObjectVersion.SEQUENCE - a constant or reused id lets one object be handed " +
+					"the diff layer of another.",
+				"Transactional layer id " + id + " is claimed by two distinct creators!"
+			);
+		}
+		//noinspection unchecked
+		return (TransactionalLayerEntry<T>) entry;
+	}
+
+	/**
+	 * Opaque handle for a savepoint opened via {@link #openSavepoint()}. It holds, per touched layer, the memento
+	 * captured at first touch (or the {@link #CREATED_IN_SAVEPOINT} sentinel for layers created while the savepoint
+	 * was open). Instances are created only by the maintainer and are meant to be passed back verbatim to
+	 * {@link #commitSavepoint(Savepoint)} / {@link #rollbackSavepoint(Savepoint)}.
+	 */
+	public static final class Savepoint {
+		/**
+		 * Per-layer mementos captured while this savepoint is open. The value is one of: a memento produced by
+		 * {@link Snapshotable#snapshot()} (layer present at savepoint open and touched), the
+		 * {@link #CREATED_IN_SAVEPOINT} sentinel (layer first created inside the savepoint → dropped on rollback), or a
+		 * {@link RemovedLayer} (layer present at savepoint open but removed inside it → re-attached + restored on
+		 * rollback).
+		 */
+		private final LongObjectHashMap<Object> mementos = new LongObjectHashMap<>(64);
+
+		private Savepoint() {
+		}
+	}
+
+	/**
+	 * Savepoint bookkeeping for a layer that existed when the savepoint was opened but was removed while it was open.
+	 * On {@link #rollbackSavepoint(Savepoint)} the {@link #entry} is re-attached to the maintainer and its item is
+	 * restored to {@link #memento} (the pre-savepoint state).
+	 *
+	 * @param entry the entry that was removed
+	 * @param memento the pre-savepoint state of the entry's item
+	 */
+	private record RemovedLayer(@Nonnull TransactionalLayerEntry<?> entry, @Nonnull Object memento) {
 	}
 
 }

@@ -24,7 +24,7 @@
 package io.evitadb.api.requestResponse.schema.mutation.attribute;
 
 
-import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.GlobalAttributeUniquenessType;
 import io.evitadb.dataType.Scope;
 import io.evitadb.utils.Assert;
 

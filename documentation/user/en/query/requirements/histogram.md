@@ -42,6 +42,21 @@ The histogram data structure is optimized for frontend rendering. It contains th
       and the bucket threshold lies within the range (inclusive) of the constraint
     - contains `false` otherwise
 
+<Note type="info">
+
+The identity `overallCount = sum of bucket occurrences` always holds. For histograms built over a **range-typed
+source** (reference histograms only — see [reference histograms](../../use/schema.md#reference-histograms)), a single
+element can fall into several buckets at once, so `overallCount` may exceed the number of distinct contributing
+elements. For every scalar-source histogram the two are equal.
+
+`relativeFrequency` stays a valid 0–100 visualization in both cases — it is a ratio of `occurrences` to `overallCount`
+(standard buckets still sum to 100, equalized buckets are still normalized to 100), and for a range source both
+numerator and denominator count the same overlap attributions. The only difference is interpretive: a range-source
+bucket's height reflects the share of **(element × overlapped-bucket) attributions** rather than the share of distinct
+elements, so positions covered by more overlapping ranges appear proportionally taller.
+
+</Note>
+
 ## Attribute histogram
 
 <LS to="e,j,r,c">
@@ -83,14 +98,20 @@ The <LS to="e,j"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResp
 <LS to="g,r">attribute histogram</LS>
 can be computed from any [filterable attribute](../../use/data-model.md#attributes-unique-filterable-sortable-localized)
 whose type is numeric. The histogram is computed only from the attributes of elements that match the current mandatory
-part of the filter. The interval related constraints - i.e. [`attributeBetween`](../filtering/comparable.md#attribute-between)
-and [`priceBetween`](../filtering/price.md#price-between) in the [`userFilter`](../filtering/behavioral.md#user-filter)
-part are excluded for the sake of histogram calculation. If this weren't the case, the user narrowing the filtered range
-based on the histogram results would be driven into a narrower and narrower range and eventually into a dead end.
+part of the filter. Range selections on attributes placed inside the
+[`userFilter`](../filtering/behavioral.md#user-filter) container — both
+[`attributeBetween`](../filtering/comparable.md#attribute-between) and
+[`histogramHaving`](../filtering/references.md#histogram-having) — are **excluded** from the attribute-histogram
+baseline so the slider does not contract under its own handle as the user drags it. Facet selections
+([`facetHaving`](../filtering/references.md#facet-having)) and the price range
+([`priceBetween`](../filtering/price.md#price-between)) remain applied, so the histogram reflects the range of
+attribute values actually reachable under the user's current facet and price picks. The rationale and a worked
+example are covered in [Baseline relaxation](#baseline-relaxation--sliders-dont-contract-under-their-own-handles)
+below.
 
 To demonstrate the use of the histogram, we will use the following example:
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Attribute histogram over `width` and `height` attributes](/documentation/user/en/query/requirements/examples/histogram/attribute-histogram.evitaql)
 
@@ -139,7 +160,7 @@ experience.
 
 To demonstrate the optimization of the histogram, we will use the following example:
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Optimized attribute histogram over `width` attribute](/documentation/user/en/query/requirements/examples/histogram/attribute-histogram-optimized.evitaql)
 
@@ -200,7 +221,7 @@ adapted for filter slider UX. The algorithm:
 
 To demonstrate equalized histogram, we will use the following example:
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Equalized attribute histogram over `width` attribute](/documentation/user/en/query/requirements/examples/histogram/attribute-histogram-equalized.evitaql)
 
@@ -274,18 +295,32 @@ priceHistogram(
 
 The <LS to="e,j"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/extraResult/PriceHistogram.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Models/ExtraResults/PriceHistogram.cs</SourceClass></LS>
 <LS to="g,r">price histogram</LS>
-is computed from the [price for sale](../filtering/price.md). The interval related constraints - i.e.
-[`attributeBetween`](../filtering/comparable.md#attribute-between) and [`priceBetween`](../filtering/price.md#price-between)
-in the [`userFilter`](../filtering/behavioral.md#user-filter) part are excluded for the sake of histogram calculation.
-If this weren't the case, the user narrowing the filtered range based on the histogram results would be driven into
-a narrower and narrower range and eventually into a dead end.
+is computed from the [price for sale](../filtering/price.md). Only
+[`priceBetween`](../filtering/price.md#price-between) placed inside
+[`userFilter`](../filtering/behavioral.md#user-filter) is **excluded** from the price-histogram baseline so the
+price slider does not contract under its own handle as the user drags it. Attribute range sliders
+([`attributeBetween`](../filtering/comparable.md#attribute-between),
+[`histogramHaving`](../filtering/references.md#histogram-having)) and facet selections
+([`facetHaving`](../filtering/references.md#facet-having)) remain applied, so the price histogram reflects the
+prices actually reachable under the user's current attribute range and facet picks.
 
 The [`priceType`](price.md#price-type) requirement the source price property for the histogram computation. If no
 requirement, the histogram visualizes the price with tax.
 
+### Price histogram granularity and inner-record handling {#price-histogram-granularity}
+
+The histogram answers *"what prices are reachable in the candidate pool?"* The answer depends on how the collection
+handles inner records (`PriceInnerRecordHandling`), because that determines what constitutes one price data point:
+
+| Inner-record handling | Histogram data point per entity |
+|-----------------------|--------------------------------|
+| `NONE`                | One — the price for sale of the entity |
+| `SUM`                 | One — the cumulated price of all inner records |
+| `LOWEST_PRICE`        | **One per inner-record id** — the winning price of each variant |
+
 To demonstrate the use of the histogram, we will use the following example:
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Price histogram](/documentation/user/en/query/requirements/examples/histogram/price-histogram.evitaql)
 
@@ -334,7 +369,7 @@ experience.
 
 To demonstrate the optimization of the histogram, we will use the following example:
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Optimized price histogram](/documentation/user/en/query/requirements/examples/histogram/price-histogram-optimized.evitaql)
 
@@ -386,7 +421,7 @@ for e-commerce catalogs with diverse price ranges.
 
 To demonstrate equalized price histogram, we will use the following example:
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Equalized price histogram](/documentation/user/en/query/requirements/examples/histogram/price-histogram-equalized.evitaql)
 
@@ -425,3 +460,72 @@ The equalized histogram result in JSON format is a bit more verbose, but it's st
 </Note>
 
 As you can see, the bucket boundaries are positioned to distribute products more evenly across the slider range.
+
+## Baseline relaxation — sliders don't contract under their own handles
+
+Every histogram answers a "what-if" question: *what range of values would still be reachable if I let go of this
+slider and moved it to the extremes?* A histogram whose `[min, max]` shrank every time the user dragged the slider
+inward would trap the user in a collapsing range — each drag would make the next drag have less room, and returning
+to a wider range would be impossible without resetting the slider to its full extent. To avoid this, every
+histogram's `[min, max]` baseline must **hide the user's own range picks** while still honouring picks made on
+other filter surfaces (facet buttons, the price slider, etc.).
+
+### How evitaDB applies the relaxation
+
+evitaDB classifies every child of [`userFilter`](../filtering/behavioral.md#user-filter) into one of three
+mutually exclusive *filter surfaces*:
+
+1. **Attribute range sliders** — [`attributeBetween`](../filtering/comparable.md#attribute-between) and
+   [`histogramHaving`](../filtering/references.md#histogram-having). These drive attribute histograms, both on
+   plain entity attributes and on reference-level histograms.
+2. **Facet selections** — [`facetHaving`](../filtering/references.md#facet-having). These drive the facet summary
+   and its impact calculations.
+3. **Price range** — [`priceBetween`](../filtering/price.md#price-between). This drives the price histogram.
+
+When an extra-result projection (attribute histogram, facet summary impact, price histogram) is computed, evitaDB
+peels away **only the surface that projection belongs to** and leaves the other two applied. The main entity page
+returned by the query is still narrowed by **all three** surfaces — the relaxation applies strictly to the
+`[min, max]` spans and bucket distributions of the extra-result projections.
+
+### Worked example
+
+Suppose the user is browsing `Product` and has made three independent picks:
+
+```evitaql
+userFilter(
+    facetHaving("brand", entityHaving(attributeEquals("code", "amazon"))),
+    attributeBetween("height", 50, 120),
+    priceBetween(100, 500)
+)
+```
+
+and the query also requests `attributeHistogram(20, "height", "width")`, `priceHistogram(20)`, and a facet summary
+with `IMPACT`. evitaDB computes four baselines in one pass:
+
+| Self-computation | What the baseline hides | What the baseline keeps applied |
+|------------------|-------------------------|---------------------------------|
+| **height histogram** | every attribute range slider — `attributeBetween("height", …)` and every other `attributeBetween` or `histogramHaving` in the same `userFilter` | `facetHaving("brand", …)`, `priceBetween(100, 500)` |
+| **width histogram** | the same — every attribute range slider is peeled for any attribute histogram in the query | `facetHaving("brand", …)`, `priceBetween(100, 500)` |
+| **facet impact** for other brands | every `facetHaving` selection | `attributeBetween("height", …)`, `priceBetween(100, 500)` |
+| **price histogram** | `priceBetween(100, 500)` | `facetHaving("brand", …)`, `attributeBetween("height", …)` |
+
+This also means that **adding a second slider on the same filter surface does not contract the first one**: if the
+query contains both `attributeBetween("height", 50, 120)` and `attributeBetween("width", 10, 40)`, each attribute
+histogram is computed with *both* range sliders peeled, so neither slider contracts the other's `[min, max]` as
+the user drags.
+
+### Recommended range carriers
+
+Pick the `userFilter` child that matches where the slider lives — each one is recognised by evitaDB as a range
+carrier and is peeled from the appropriate histogram baseline:
+
+| Slider lives on … | Recommended `userFilter` child |
+|-------------------|--------------------------------|
+| a plain entity attribute (`Product.width`, `Product.height`, …) | [`attributeBetween`](../filtering/comparable.md#attribute-between) |
+| a reference-level histogram (e.g. `parameterValues.height` on `Product`) | [`histogramHaving`](../filtering/references.md#histogram-having) — the first-class carrier for reference histograms; also disambiguates between multiple histograms on the same reference |
+| the price for sale | [`priceBetween`](../filtering/price.md#price-between) |
+| a facet selection | [`facetHaving`](../filtering/references.md#facet-having) |
+
+Plain [`referenceHaving`](../filtering/references.md#reference-having) is **not** accepted inside `userFilter` —
+it has no slider semantics and would not participate in baseline relaxation. Use
+[`histogramHaving`](../filtering/references.md#histogram-having) for slider carriers on references.

@@ -31,6 +31,7 @@ import com.linecorp.armeria.common.AggregatedHttpResponse;
 import com.linecorp.armeria.common.TlsKeyPair;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.configuration.ExportOptions;
+import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.core.Evita;
 import io.evitadb.driver.EvitaClient;
 import io.evitadb.driver.config.ClientTlsOptions;
@@ -77,13 +78,17 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Predicate;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.utils.CollectionUtils.createHashMap;
 import static io.evitadb.utils.CollectionUtils.property;
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.SERVER;
+import static io.evitadb.test.TestTags.MANAGEMENT;
 
 /**
  * This test tries to start up the {@link EvitaServer} with default configuration.
@@ -91,21 +96,71 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 @Slf4j
+@Tag(SERVER)
+@Tag(MANAGEMENT)
 class EvitaServerTest implements TestConstants, EvitaTestSupport {
 	private static final String DIR_EVITA_SERVER_TEST = "evitaServerTest";
 	public static final int TIMEOUT_IN_MILLIS = 30_000;
+	/**
+	 * Time budget for polling a health probe (`readiness` / `liveness` / `status`) until it settles.
+	 * The probes are eventually-consistent right after start-up — a probe can briefly return a non-2xx
+	 * status (surfaced as an empty result) or a transitional payload before the server settles — so a
+	 * single request is prone to spurious failures. Retrying within this window removes the flakiness.
+	 */
+	private static final long PROBE_POLL_BUDGET_MILLIS = 20_000L;
 
 	@Nonnull
 	private static String replaceVariables(@Nonnull String status) {
 		String output = status;
 		output = Pattern.compile("(\"serverName\": \"evitaDB-)(.+?)\"").matcher(output).replaceAll("$1RANDOM\"");
-		output = Pattern.compile("(\"version\": \")((?:\\?)|(?:\\d{4}\\.\\d{1,2}(-SNAPSHOT)?))\"").matcher(output).replaceAll("$1VARIABLE\"");
+		output = Pattern.compile("(\"version\": \")((?:\\?)|(?:\\d{4}\\.\\d{1,2}(?:\\.[A-Za-z0-9]+)?(-SNAPSHOT)?))\"").matcher(output).replaceAll("$1VARIABLE\"");
 		output = Pattern.compile("(\"startedAt\": \")(.+?)\"").matcher(output).replaceAll("$1VARIABLE\"");
 		output = Pattern.compile("(\"introducedAt\": \")(.+?)\"").matcher(output).replaceAll("$1VARIABLE\"");
 		output = Pattern.compile("(\"uptime\": )(.+?),").matcher(output).replaceAll("$1VARIABLE,");
 		output = Pattern.compile("(\"uptimeForHuman\": \")(.+?)\"").matcher(output).replaceAll("$1VARIABLE\"");
 		output = Pattern.compile("(//)(.+:[0-9]+)(/)").matcher(output).replaceAll("$1VARIABLE$3");
 		return output;
+	}
+
+	/**
+	 * Polls the given health-probe URL until the fetched body satisfies `accept` or the
+	 * `budgetInMillis` window elapses. The `readiness` / `liveness` / `status` probes are
+	 * eventually-consistent right after start-up, so a single request is prone to spurious failures: a
+	 * probe can momentarily return a non-2xx status ({@link NetworkUtils#fetchContent} surfaces that as
+	 * an empty result) or a transitional payload before the server settles. Retrying within a bounded
+	 * window removes that flakiness without masking a genuinely unhealthy server — one that never
+	 * satisfies `accept` returns the last observed result here and still fails the caller's assertions.
+	 *
+	 * @param url            the probe URL to fetch
+	 * @param accept         predicate the fetched body must satisfy for the poll to stop early
+	 * @param budgetInMillis the maximum time to keep retrying
+	 * @return the last fetched content — present and accepted when the poll succeeded, otherwise the
+	 *         last observed result so the caller's assertions report the actual state
+	 */
+	@Nonnull
+	private static Optional<String> fetchContentUntil(
+		@Nonnull String url,
+		@Nonnull Predicate<String> accept,
+		long budgetInMillis
+	) {
+		final long start = System.currentTimeMillis();
+		Optional<String> content;
+		do {
+			log.info("Probing {}", url);
+			content = NetworkUtils.fetchContent(
+				url,
+				"GET",
+				"application/json",
+				null,
+				TIMEOUT_IN_MILLIS,
+				error -> log.error("Error while probing API: {}", error),
+				timeout -> log.error("Timeout while probing API: {}", timeout)
+			);
+			if (content.isPresent() && accept.test(content.get())) {
+				return content;
+			}
+		} while (System.currentTimeMillis() - start < budgetInMillis);
+		return content;
 	}
 
 	/**
@@ -729,26 +784,11 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 				.getConfiguration()
 				.getBaseUrls();
 
-			Optional<String> readiness;
-			final long start = System.currentTimeMillis();
-			do {
-				final String url = baseUrls[0] + "readiness";
-				log.info("Checking readiness at {}", url);
-				readiness = NetworkUtils.fetchContent(
-					url,
-					"GET",
-					"application/json",
-					null,
-					TIMEOUT_IN_MILLIS,
-					error -> log.error("Error while checking readiness of API: {}", error),
-					timeout -> log.error("Error while checking readiness of API: {}", timeout)
-				);
-
-				if (readiness.isPresent() && readiness.get().contains("\"status\": \"READY\"")) {
-					break;
-				}
-
-			} while (System.currentTimeMillis() - start < 20000);
+			final Optional<String> readiness = fetchContentUntil(
+				baseUrls[0] + "readiness",
+				content -> content.contains("\"status\": \"READY\""),
+				PROBE_POLL_BUDGET_MILLIS
+			);
 
 			assertTrue(readiness.isPresent());
 			assertEquals(
@@ -767,14 +807,10 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 				readiness.get().trim()
 			);
 
-			final Optional<String> liveness = NetworkUtils.fetchContent(
+			final Optional<String> liveness = fetchContentUntil(
 				baseUrls[0] + "liveness",
-				"GET",
-				"application/json",
-				null,
-				TIMEOUT_IN_MILLIS,
-				error -> log.error("Error while checking readiness of API: {}", error),
-				timeout -> log.error("Error while checking readiness of API: {}", timeout)
+				content -> content.contains("\"status\": \"healthy\""),
+				PROBE_POLL_BUDGET_MILLIS
 			);
 
 			assertTrue(liveness.isPresent());
@@ -783,14 +819,10 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 				liveness.get().trim()
 			);
 
-			final Optional<String> status = NetworkUtils.fetchContent(
+			final Optional<String> status = fetchContentUntil(
 				baseUrls[0] + "status",
-				"GET",
-				"application/json",
-				null,
-				TIMEOUT_IN_MILLIS,
-				error -> log.error("Error while checking readiness of API: {}", error),
-				timeout -> log.error("Error while checking readiness of API: {}", timeout)
+				content -> content.contains("\"serverName\""),
+				PROBE_POLL_BUDGET_MILLIS
 			);
 
 			assertTrue(status.isPresent());
@@ -860,6 +892,34 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 	}
 
 	@Test
+	void shouldResolveMillisecondNamedPropertiesFromBundledDefaultsCorrectly() {
+		// regression guard: SpecialConfigInputFormatsHandler must scale the seconds-based TIME_FORMAT shorthand
+		// (e.g. "1m") to milliseconds for properties whose name ends in Millis/Milliseconds. Before the fix,
+		// the bundled default `trafficFlushIntervalInMilliseconds: 1m` silently resolved to `60` (60 milliseconds)
+		// instead of the intended `60000` (1 minute) - a 1000x more frequent flush than intended whenever traffic
+		// recording is enabled with the shipped default.
+		final EvitaServer evitaServer = new EvitaServer(
+			getPathInTargetDirectory(DIR_EVITA_SERVER_TEST),
+			constructTestArguments()
+		);
+		try {
+			evitaServer.run();
+
+			final Evita evita = evitaServer.getEvita();
+			assertEquals(5_000L, evita.getConfiguration().server().queryTimeoutInMilliseconds());
+			assertEquals(300_000L, evita.getConfiguration().server().transactionTimeoutInMilliseconds());
+			assertEquals(60_000L, evita.getConfiguration().server().trafficRecording().trafficFlushIntervalInMilliseconds());
+			// same shorthand-resolution mechanism backs the new compaction cadence knobs
+			assertEquals(60_000L, evita.getConfiguration().storage().minCompactionIntervalMilliseconds());
+			assertEquals(0.1, evita.getConfiguration().storage().maxWasteActiveShare());
+		} catch (Exception ex) {
+			fail(ex);
+		} finally {
+			closeServerAndEvita(evitaServer);
+		}
+	}
+
+	@Test
 	void shouldMergeMultipleYamlConfigurationTogether() {
 		EvitaTestSupport.bootstrapEvitaServerConfigurationFileFrom(
 			DIR_EVITA_SERVER_TEST,
@@ -889,6 +949,36 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 			assertNull(externalApiServer.getExternalApiProviderByCode(RestProvider.CODE));
 			assertNull(externalApiServer.getExternalApiProviderByCode(GrpcProvider.CODE));
 			assertNull(externalApiServer.getExternalApiProviderByCode(ObservabilityProvider.CODE));
+
+		} catch (Exception ex) {
+			fail(ex);
+		} finally {
+			closeServerAndEvita(evitaServer);
+		}
+	}
+
+	@Test
+	void shouldLoadCompactionCadenceConfiguration() {
+		EvitaTestSupport.bootstrapEvitaServerConfigurationFileFrom(
+			DIR_EVITA_SERVER_TEST,
+			"/testData/evita-configuration-compaction-cadence.yaml",
+			"evita-configuration-compaction-cadence.yaml"
+		);
+
+		final EvitaServer evitaServer = new EvitaServer(
+			getPathInTargetDirectory(DIR_EVITA_SERVER_TEST),
+			constructTestArguments()
+		);
+		try {
+			evitaServer.run();
+
+			final Evita evita = evitaServer.getEvita();
+			final StorageOptions storageOptions = evita.getConfiguration().storage();
+			// "10m" must be parsed via the seconds-based TIME_FORMAT handler and then scaled to milliseconds
+			// because the property name ends in "Milliseconds" - not left as a raw "10" or unscaled "600"
+			assertEquals(600_000L, storageOptions.minCompactionIntervalMilliseconds());
+			assertEquals(0.4, storageOptions.minimalActiveRecordShare());
+			assertEquals(0.2, storageOptions.maxWasteActiveShare());
 
 		} catch (Exception ex) {
 			fail(ex);
@@ -1036,7 +1126,6 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 						property("export.fileSystem.enabled", "true"),
 						property("export.fileSystem.directory", getTestDirectory().resolve(DIR_EVITA_SERVER_TEST + "_export").toString()),
 						property("cache.enabled", "false"),
-						property("server.directExecutor", "false"),
 						property("api.requestTimeoutInMillis", "10K")
 					),
 					allApis.stream()

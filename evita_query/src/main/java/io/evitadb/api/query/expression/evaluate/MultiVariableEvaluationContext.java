@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024-2025
+ *   Copyright (c) 2024-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,9 +24,14 @@
 package io.evitadb.api.query.expression.evaluate;
 
 
+import io.evitadb.dataType.exception.VariableNotDefinedException;
+import io.evitadb.dataType.expression.ExpressionEvaluationContext;
+
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Random;
 import java.util.stream.Stream;
 
 /**
@@ -35,24 +40,42 @@ import java.util.stream.Stream;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-public final class MultiVariableEvaluationContext extends AbstractPredicateEvaluationContext {
+public final class MultiVariableEvaluationContext extends AbstractExpressionEvaluationContext {
 	/**
 	 * A map storing the variables by their names. The keys are the variable names and the values are the variable values.
 	 */
 	private final Map<String, Object> variables;
 
 	public MultiVariableEvaluationContext(@Nonnull Map<String, Object> variables) {
+		super(null);
 		this.variables = variables;
 	}
 
 	public MultiVariableEvaluationContext(long seed, @Nonnull Map<String, Object> variables) {
-		super(seed);
+		super(null, seed);
 		this.variables = variables;
+	}
+
+	private MultiVariableEvaluationContext(
+		@Nullable Object thisObject,
+		@Nonnull Random random,
+		@Nonnull Map<String, Object> variables
+	) {
+		super(thisObject, random);
+		this.variables = variables;
+	}
+
+	@Override
+	public ExpressionEvaluationContext withThis(@Nullable Object thisObject) {
+		return new MultiVariableEvaluationContext(thisObject, getRandom(), this.variables);
 	}
 
 	@Nonnull
 	@Override
 	public Optional<Object> getVariable(@Nonnull String variableName) {
+		if (!this.variables.containsKey(variableName)) {
+			throw new VariableNotDefinedException(variableName);
+		}
 		return Optional.ofNullable(this.variables.get(variableName));
 	}
 

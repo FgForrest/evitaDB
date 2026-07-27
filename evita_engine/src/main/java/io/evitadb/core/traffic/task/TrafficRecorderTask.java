@@ -35,12 +35,10 @@ import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.spi.export.ExportService;
 import io.evitadb.spi.export.model.ExportFileHandle;
 import io.evitadb.spi.store.catalog.trafficRecorder.RandomAccessFileSessionSink;
-import io.evitadb.spi.store.catalog.trafficRecorder.SessionSink;
 import io.evitadb.spi.store.catalog.trafficRecorder.model.SessionLocation;
 import io.evitadb.stream.RandomAccessFileInputStream;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.IOUtils;
-import io.evitadb.utils.IOUtils.ExceptionThrowingRunnable;
 import io.evitadb.utils.StringUtils;
 import lombok.extern.slf4j.Slf4j;
 
@@ -49,6 +47,8 @@ import javax.annotation.Nullable;
 import java.io.BufferedOutputStream;
 import java.io.Closeable;
 import java.io.FileNotFoundException;
+import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
@@ -175,22 +175,27 @@ public class TrafficRecorderTask extends ClientInfiniteCallableTask<TrafficRecor
 		final TrafficRecordingSettings settings = getStatus().settings();
 		final String fileName = "traffic_recording_" + settings.catalogName() + "_" + OffsetDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
 		ExportSessionSink exportSessionSink = null;
+		// captured separately from the sink so the handle survives even if the sink constructor fails after
+		// the export file has already been created - otherwise that partial file would leak
+		ExportFileHandle exportFileHandle = null;
+		boolean recordingCompleted = false;
 		try {
-			exportSessionSink = settings.exportFile() ?
-				new ExportSessionSink(
+			if (settings.exportFile()) {
+				exportFileHandle = this.exportService.storeFile(
+					fileName + ".zip",
+					"Traffic recording started at " + OffsetDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME) +
+						" with sampling rate " + settings.samplingRate() + "%" + getFinishCondition(settings) + ".",
+					"application/zip",
+					this.getClass().getSimpleName()
+				);
+				exportSessionSink = new ExportSessionSink(
 					this.trafficRecordingEngine.getTrafficOptions().trafficDiskBufferSizeInBytes(),
 					settings,
 					this::stopInternal,
 					this::updateProgress,
-					this.exportService.storeFile(
-						fileName + ".zip",
-						"Traffic recording started at " + OffsetDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME) +
-							" with sampling rate " + settings.samplingRate() + "%" + getFinishCondition(settings) + ".",
-						"application/zip",
-						this.getClass().getSimpleName()
-					)
-				) :
-				null;
+					exportFileHandle
+				);
+			}
 
 			// start recording
 			this.trafficRecordingEngine.startRecording(settings.samplingRate(), exportSessionSink);
@@ -200,6 +205,7 @@ public class TrafficRecorderTask extends ClientInfiniteCallableTask<TrafficRecor
 
 			// stop recording
 			this.trafficRecordingEngine.stopRecording();
+			recordingCompleted = true;
 
 		} catch (InterruptedException e) {
 			this.trafficRecordingEngine.stopRecording();
@@ -215,9 +221,21 @@ public class TrafficRecorderTask extends ClientInfiniteCallableTask<TrafficRecor
 			if (exportSessionSink != null) {
 				IOUtils.close(
 					() -> new UnexpectedIOException("Failed to close export session sink."),
-					(ExceptionThrowingRunnable) exportSessionSink::close
+					exportSessionSink::close
 				);
 			}
+			// close the sink first (it writes the metadata entry and completes the file-for-fetch future), then
+			// delete the export file if the recording aborted or the export got corrupted - so a partial /
+			// corrupted zip does not leak in the export storage. The file-for-fetch read is done via the
+			// throw-safe helper because it runs inside this finally: a future that completed exceptionally
+			// (e.g. an S3 upload failure surfaced without close() throwing) would otherwise rethrow here, mask
+			// any in-flight exception and skip the very cleanup we are performing.
+			cleanupLeakedExportFile(
+				this.exportService,
+				exportFileHandle,
+				exportSessionSink == null ? null : safeGetFileForFetch(exportSessionSink),
+				recordingCompleted
+			);
 		}
 
 		return exportSessionSink == null ?
@@ -225,14 +243,117 @@ public class TrafficRecorderTask extends ClientInfiniteCallableTask<TrafficRecor
 	}
 
 	/**
-	 * A private static class responsible for exporting session data to a compressed archive. This class implements
-	 * {@link SessionSink} and {@link Closeable}, enabling it to act as a sink for session data and supporting proper
-	 * resource management. The class ensures session data is exported in chunks, handles file compress using
-	 * a zip archive, and maintains metadata about the export operation such as exported size and session count.
+	 * Reads the produced file for fetch of the given sink without ever throwing, so it is safe to call from a
+	 * `finally` block. {@link ExportSessionSink#getFileForFetch()} delegates to
+	 * {@link java.util.concurrent.CompletableFuture#getNow(Object)}, which rethrows when the file-for-fetch
+	 * future completed exceptionally (e.g. an asynchronous S3 upload failure). Such a failure means there is no
+	 * healthy exported file, so it is reported as a null result and the partial file is then cleaned up.
+	 *
+	 * @param exportSessionSink the sink to read the produced file from
+	 * @return the produced file for fetch, or null when it is corrupted, not yet available, or finalization failed
 	 */
+	@Nullable
+	private static FileForFetch safeGetFileForFetch(@Nonnull ExportSessionSink exportSessionSink) {
+		try {
+			return exportSessionSink.getFileForFetch();
+		} catch (RuntimeException e) {
+			// the file-for-fetch future completed exceptionally (finalization / upload failed) - no healthy file
+			return null;
+		}
+	}
+
+	/**
+	 * Deletes a partially written / corrupted traffic recording export file when the recording did not finish
+	 * cleanly, so the leftover zip does not leak in the export storage. Mirrors the cleanup performed by
+	 * {@link TrafficRecordingExportTask#doExport()}. A healthy, fully completed export (a non-null result
+	 * produced by a run that finished without throwing) is kept untouched.
+	 *
+	 * @param exportService      service managing the exported files
+	 * @param exportFileHandle   handle of the export file created for this run, or null when no export was requested
+	 * @param validResult        the file for fetch when the export finished uncorrupted, null when corrupted
+	 * @param recordingCompleted true when recording finished without an exception being thrown
+	 */
+	static void cleanupLeakedExportFile(
+		@Nonnull ExportService exportService,
+		@Nullable ExportFileHandle exportFileHandle,
+		@Nullable FileForFetch validResult,
+		boolean recordingCompleted
+	) {
+		if (exportFileHandle == null) {
+			// no export file was created for this run - nothing to clean up
+			return;
+		}
+		if (recordingCompleted && validResult != null) {
+			// healthy, completed export - keep the finished file
+			return;
+		}
+		deleteLeakedExportFile(exportService, exportFileHandle);
+	}
+
+	/**
+	 * Deletes the export file backed by the given handle, swallowing (and logging) any deletion failure so the
+	 * cleanup never masks the primary failure that triggered it.
+	 *
+	 * @param exportService    service managing the exported files
+	 * @param exportFileHandle handle of the export file to delete
+	 */
+	private static void deleteLeakedExportFile(
+		@Nonnull ExportService exportService,
+		@Nonnull ExportFileHandle exportFileHandle
+	) {
+		try {
+			// FileForFetchNotFoundException (an unchecked exception) is folded into this catch - a missing file
+			// simply means there is nothing to clean up
+			exportService.deleteFile(exportFileHandle.fileId());
+		} catch (RuntimeException e) {
+			log.warn(
+				"Failed to delete leaked partial traffic recording export file `{}`.",
+				exportFileHandle.fileId(), e
+			);
+		}
+	}
+
+	/**
+	 * Copies `length` bytes of a session starting at `startingPosition` from the ring-buffer file
+	 * `inputStream` into `outputStream`. If the session physically wraps the end of the ring buffer file
+	 * (i.e. `startingPosition + length > diskBufferSizeInBytes`) it is copied in two segments - first the
+	 * tail of the file from `startingPosition`, then the remainder from offset 0 - so the wrapped portion
+	 * is not silently dropped when a plain `seek + copy of length bytes` runs past EOF (the copy helper
+	 * stops at EOF, truncating the exported record). Package-private and static so the wrap handling can be
+	 * unit-tested directly against a crafted file.
+	 *
+	 * @param inputStream           the ring-buffer file input stream to read from
+	 * @param outputStream          the destination stream to write the session bytes to
+	 * @param startingPosition      the physical position of the session start within the ring buffer file
+	 * @param length                the total number of bytes to copy (descriptor + records)
+	 * @param diskBufferSizeInBytes the physical size of the ring buffer file
+	 * @param buffer                a reusable copy buffer
+	 */
+	static void copyPossiblyWrappingSession(
+		@Nonnull RandomAccessFileInputStream inputStream,
+		@Nonnull OutputStream outputStream,
+		long startingPosition,
+		int length,
+		long diskBufferSizeInBytes,
+		@Nonnull byte[] buffer
+	) {
+		if (startingPosition + length > diskBufferSizeInBytes) {
+			// wrapping session: copy the tail-of-file segment, then the head-of-file remainder
+			final int headLength = Math.toIntExact(diskBufferSizeInBytes - startingPosition);
+			inputStream.seek(startingPosition);
+			IOUtils.copy(inputStream, outputStream, headLength, buffer);
+			inputStream.seek(0);
+			IOUtils.copy(inputStream, outputStream, length - headLength, buffer);
+		} else {
+			inputStream.seek(startingPosition);
+			IOUtils.copy(inputStream, outputStream, length, buffer);
+		}
+	}
+
 	private static class ExportSessionSink implements RandomAccessFileSessionSink, Closeable {
 		private final IntConsumer updateProgress;
 		private final ExportFileHandle exportFileHandle;
+		private final long diskBufferSizeInBytes;
 		private final long chunkFileSizeInBytes;
 		private final long nonExportedSizeLimit;
 		private final long exportedSizeLimit;
@@ -260,6 +381,7 @@ public class TrafficRecorderTask extends ClientInfiniteCallableTask<TrafficRecor
 			@Nonnull IntConsumer updateProgress,
 			@Nonnull ExportFileHandle exportFileHandle
 		) throws FileNotFoundException {
+			this.diskBufferSizeInBytes = diskBufferSizeInBytes;
 			// export by 64kB or half of the disk buffer size if it's lower
 			this.nonExportedSizeLimit = Math.min(65_536L, diskBufferSizeInBytes / 2);
 			this.chunkFileSizeInBytes = settings.chunkFileSizeInBytes();
@@ -322,15 +444,16 @@ public class TrafficRecorderTask extends ClientInfiniteCallableTask<TrafficRecor
 						}
 						final OffsetDateTime finishTime = OffsetDateTime.now();
 						this.outputStream.putNextEntry(new ZipEntry("metadata.txt"));
-						this.outputStream.write("Traffic recording: \n".getBytes());
-						this.outputStream.write(("\n   - started at " + this.startTime.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)).getBytes());
-						this.outputStream.write(("\n   - finished at " + finishTime.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)).getBytes());
-						this.outputStream.write(("\n   - requested sampling rate " + this.settings.samplingRate() + "%").getBytes());
-						this.outputStream.write(("\n   - real sampling rate " + this.lastSamplingRate + "%").getBytes());
-						this.outputStream.write(("\n   - duration " + StringUtils.formatDuration(Duration.between(this.startTime, finishTime))).getBytes());
-						this.outputStream.write(("\n   - exported " + this.exportedSessionCount + " sessions").getBytes());
-						this.outputStream.write(("\n   - exported " + StringUtils.formatByteSize(this.exportedSessionOriginalSize) + " of data").getBytes());
-						this.outputStream.write(("\n   - task was" + getFinishCondition(this.settings)).getBytes());
+						// write with an explicit charset so the archive is portable regardless of the platform default
+						this.outputStream.write("Traffic recording: \n".getBytes(StandardCharsets.UTF_8));
+						this.outputStream.write(("\n   - started at " + this.startTime.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)).getBytes(StandardCharsets.UTF_8));
+						this.outputStream.write(("\n   - finished at " + finishTime.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)).getBytes(StandardCharsets.UTF_8));
+						this.outputStream.write(("\n   - requested sampling rate " + this.settings.samplingRate() + "%").getBytes(StandardCharsets.UTF_8));
+						this.outputStream.write(("\n   - real sampling rate " + this.lastSamplingRate + "%").getBytes(StandardCharsets.UTF_8));
+						this.outputStream.write(("\n   - duration " + StringUtils.formatDuration(Duration.between(this.startTime, finishTime))).getBytes(StandardCharsets.UTF_8));
+						this.outputStream.write(("\n   - exported " + this.exportedSessionCount + " sessions").getBytes(StandardCharsets.UTF_8));
+						this.outputStream.write(("\n   - exported " + StringUtils.formatByteSize(this.exportedSessionOriginalSize) + " of data").getBytes(StandardCharsets.UTF_8));
+						this.outputStream.write(("\n   - task was" + getFinishCondition(this.settings)).getBytes(StandardCharsets.UTF_8));
 					},
 					this.outputStream::close
 				);
@@ -380,9 +503,14 @@ public class TrafficRecorderTask extends ClientInfiniteCallableTask<TrafficRecor
 					this.outputStream.putNextEntry(new ZipEntry("traffic_recording_" + sessionLocation.sequenceOrder() + ".bin"));
 					this.currentChunkSize = 0;
 				}
-				this.inputStream.seek(sessionLocation.location().startingPosition());
 				final int bytesToWrite = sessionLocation.location().recordLength();
-				IOUtils.copy(this.inputStream, this.outputStream, bytesToWrite, this.buffer);
+				// a session may physically wrap the end of the ring buffer file - copy it wrap-aware so the
+				// tail segment (which lives back at offset 0) is not silently truncated at EOF
+				copyPossiblyWrappingSession(
+					this.inputStream, this.outputStream,
+					sessionLocation.location().startingPosition(), bytesToWrite,
+					this.diskBufferSizeInBytes, this.buffer
+				);
 				this.outputStream.flush();
 				this.currentChunkSize += bytesToWrite;
 				this.exportedSessionCount++;

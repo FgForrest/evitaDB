@@ -38,7 +38,7 @@ import io.evitadb.dataType.Scope;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-@Deprecated(since = "2024.11", forRemoval = true)
+@Deprecated(since = "2024.12", forRemoval = true)
 public class CreateSortableAttributeCompoundSchemaMutationSerializer_2024_11 extends Serializer<CreateSortableAttributeCompoundSchemaMutation> {
 
 	@Override

@@ -42,12 +42,14 @@ public interface EngineMutationUnionDescriptor {
 		.type(CreateCatalogSchemaMutationDescriptor.THIS)
 		.type(DuplicateCatalogMutationDescriptor.THIS)
 		.type(MakeCatalogAliveMutationDescriptor.THIS)
+		.type(MarkCatalogMissingMutationDescriptor.THIS)
 		.type(ModifyCatalogSchemaMutationDescriptor.THIS)
 		.type(ModifyCatalogSchemaNameMutationDescriptor.THIS)
 		.type(RemoveCatalogSchemaMutationDescriptor.THIS)
 		.type(RestoreCatalogSchemaMutationDescriptor.THIS)
 		.type(SetCatalogMutabilityMutationDescriptor.THIS)
 		.type(SetCatalogStateMutationDescriptor.THIS)
+		.type(UpgradeCatalogFormatMutationDescriptor.THIS)
 
 		.type(TransactionMutationDescriptor.THIS)
 

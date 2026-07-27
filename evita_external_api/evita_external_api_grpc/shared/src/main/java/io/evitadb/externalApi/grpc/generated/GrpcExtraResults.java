@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2026
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -45,6 +45,7 @@ private static final long serialVersionUID = 0L;
   }
   private GrpcExtraResults() {
     facetGroupStatistics_ = java.util.Collections.emptyList();
+    referenceGroupStatistics_ = java.util.Collections.emptyList();
   }
 
   @java.lang.Override
@@ -88,7 +89,7 @@ private static final long serialVersionUID = 0L;
         java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcHistogram> defaultEntry =
             com.google.protobuf.MapEntry
             .<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcHistogram>newDefaultInstance(
-                io.evitadb.externalApi.grpc.generated.GrpcExtraResultsOuterClass.internal_static_io_evitadb_externalApi_grpc_generated_GrpcExtraResults_AttributeHistogramEntry_descriptor,
+                io.evitadb.externalApi.grpc.generated.GrpcExtraResultsOuterClass.internal_static_io_evitadb_externalApi_grpc_generated_GrpcExtraResults_AttributeHistogramEntry_descriptor, 
                 com.google.protobuf.WireFormat.FieldType.STRING,
                 "",
                 com.google.protobuf.WireFormat.FieldType.MESSAGE,
@@ -299,24 +300,26 @@ io.evitadb.externalApi.grpc.generated.GrpcHistogram defaultValue) {
    * <pre>
    * Contains a collection of FacetGroupStatistics DTOs where each of them contains information about single facet group
    * (if they belong in one) and statistics of the facets that relates to it.
+   * deprecated renamed to `referenceGroupStatistics`
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 3;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 3 [deprecated = true];</code>
    */
   @java.lang.Override
-  public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics> getFacetGroupStatisticsList() {
+  @java.lang.Deprecated public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics> getFacetGroupStatisticsList() {
     return facetGroupStatistics_;
   }
   /**
    * <pre>
    * Contains a collection of FacetGroupStatistics DTOs where each of them contains information about single facet group
    * (if they belong in one) and statistics of the facets that relates to it.
+   * deprecated renamed to `referenceGroupStatistics`
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 3;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 3 [deprecated = true];</code>
    */
   @java.lang.Override
-  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatisticsOrBuilder>
+  @java.lang.Deprecated public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatisticsOrBuilder> 
       getFacetGroupStatisticsOrBuilderList() {
     return facetGroupStatistics_;
   }
@@ -324,36 +327,39 @@ io.evitadb.externalApi.grpc.generated.GrpcHistogram defaultValue) {
    * <pre>
    * Contains a collection of FacetGroupStatistics DTOs where each of them contains information about single facet group
    * (if they belong in one) and statistics of the facets that relates to it.
+   * deprecated renamed to `referenceGroupStatistics`
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 3;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 3 [deprecated = true];</code>
    */
   @java.lang.Override
-  public int getFacetGroupStatisticsCount() {
+  @java.lang.Deprecated public int getFacetGroupStatisticsCount() {
     return facetGroupStatistics_.size();
   }
   /**
    * <pre>
    * Contains a collection of FacetGroupStatistics DTOs where each of them contains information about single facet group
    * (if they belong in one) and statistics of the facets that relates to it.
+   * deprecated renamed to `referenceGroupStatistics`
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 3;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 3 [deprecated = true];</code>
    */
   @java.lang.Override
-  public io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics getFacetGroupStatistics(int index) {
+  @java.lang.Deprecated public io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics getFacetGroupStatistics(int index) {
     return facetGroupStatistics_.get(index);
   }
   /**
    * <pre>
    * Contains a collection of FacetGroupStatistics DTOs where each of them contains information about single facet group
    * (if they belong in one) and statistics of the facets that relates to it.
+   * deprecated renamed to `referenceGroupStatistics`
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 3;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 3 [deprecated = true];</code>
    */
   @java.lang.Override
-  public io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatisticsOrBuilder getFacetGroupStatisticsOrBuilder(
+  @java.lang.Deprecated public io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatisticsOrBuilder getFacetGroupStatisticsOrBuilder(
       int index) {
     return facetGroupStatistics_.get(index);
   }
@@ -405,7 +411,7 @@ io.evitadb.externalApi.grpc.generated.GrpcHistogram defaultValue) {
         java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcHierarchy> defaultEntry =
             com.google.protobuf.MapEntry
             .<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcHierarchy>newDefaultInstance(
-                io.evitadb.externalApi.grpc.generated.GrpcExtraResultsOuterClass.internal_static_io_evitadb_externalApi_grpc_generated_GrpcExtraResults_HierarchyEntry_descriptor,
+                io.evitadb.externalApi.grpc.generated.GrpcExtraResultsOuterClass.internal_static_io_evitadb_externalApi_grpc_generated_GrpcExtraResults_HierarchyEntry_descriptor, 
                 com.google.protobuf.WireFormat.FieldType.STRING,
                 "",
                 com.google.protobuf.WireFormat.FieldType.MESSAGE,
@@ -540,6 +546,72 @@ io.evitadb.externalApi.grpc.generated.GrpcHierarchy defaultValue) {
     return queryTelemetry_ == null ? io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry.getDefaultInstance() : queryTelemetry_;
   }
 
+  public static final int REFERENCEGROUPSTATISTICS_FIELD_NUMBER = 7;
+  @SuppressWarnings("serial")
+  private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcReferenceGroupStatistics> referenceGroupStatistics_;
+  /**
+   * <pre>
+   * Contains a collection of ReferenceGroupStatistics DTOs where each of them contains information about single reference group
+   * (if they belong in one) and statistics of the references that relates to it.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReferenceGroupStatistics referenceGroupStatistics = 7;</code>
+   */
+  @java.lang.Override
+  public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcReferenceGroupStatistics> getReferenceGroupStatisticsList() {
+    return referenceGroupStatistics_;
+  }
+  /**
+   * <pre>
+   * Contains a collection of ReferenceGroupStatistics DTOs where each of them contains information about single reference group
+   * (if they belong in one) and statistics of the references that relates to it.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReferenceGroupStatistics referenceGroupStatistics = 7;</code>
+   */
+  @java.lang.Override
+  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcReferenceGroupStatisticsOrBuilder> 
+      getReferenceGroupStatisticsOrBuilderList() {
+    return referenceGroupStatistics_;
+  }
+  /**
+   * <pre>
+   * Contains a collection of ReferenceGroupStatistics DTOs where each of them contains information about single reference group
+   * (if they belong in one) and statistics of the references that relates to it.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReferenceGroupStatistics referenceGroupStatistics = 7;</code>
+   */
+  @java.lang.Override
+  public int getReferenceGroupStatisticsCount() {
+    return referenceGroupStatistics_.size();
+  }
+  /**
+   * <pre>
+   * Contains a collection of ReferenceGroupStatistics DTOs where each of them contains information about single reference group
+   * (if they belong in one) and statistics of the references that relates to it.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReferenceGroupStatistics referenceGroupStatistics = 7;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcReferenceGroupStatistics getReferenceGroupStatistics(int index) {
+    return referenceGroupStatistics_.get(index);
+  }
+  /**
+   * <pre>
+   * Contains a collection of ReferenceGroupStatistics DTOs where each of them contains information about single reference group
+   * (if they belong in one) and statistics of the references that relates to it.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReferenceGroupStatistics referenceGroupStatistics = 7;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcReferenceGroupStatisticsOrBuilder getReferenceGroupStatisticsOrBuilder(
+      int index) {
+    return referenceGroupStatistics_.get(index);
+  }
+
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
@@ -577,6 +649,9 @@ io.evitadb.externalApi.grpc.generated.GrpcHierarchy defaultValue) {
         5);
     if (((bitField0_ & 0x00000004) != 0)) {
       output.writeMessage(6, getQueryTelemetry());
+    }
+    for (int i = 0; i < referenceGroupStatistics_.size(); i++) {
+      output.writeMessage(7, referenceGroupStatistics_.get(i));
     }
     getUnknownFields().writeTo(output);
   }
@@ -623,6 +698,10 @@ io.evitadb.externalApi.grpc.generated.GrpcHierarchy defaultValue) {
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(6, getQueryTelemetry());
     }
+    for (int i = 0; i < referenceGroupStatistics_.size(); i++) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(7, referenceGroupStatistics_.get(i));
+    }
     size += getUnknownFields().getSerializedSize();
     memoizedSize = size;
     return size;
@@ -659,6 +738,8 @@ io.evitadb.externalApi.grpc.generated.GrpcHierarchy defaultValue) {
       if (!getQueryTelemetry()
           .equals(other.getQueryTelemetry())) return false;
     }
+    if (!getReferenceGroupStatisticsList()
+        .equals(other.getReferenceGroupStatisticsList())) return false;
     if (!getUnknownFields().equals(other.getUnknownFields())) return false;
     return true;
   }
@@ -693,6 +774,10 @@ io.evitadb.externalApi.grpc.generated.GrpcHierarchy defaultValue) {
     if (hasQueryTelemetry()) {
       hash = (37 * hash) + QUERYTELEMETRY_FIELD_NUMBER;
       hash = (53 * hash) + getQueryTelemetry().hashCode();
+    }
+    if (getReferenceGroupStatisticsCount() > 0) {
+      hash = (37 * hash) + REFERENCEGROUPSTATISTICS_FIELD_NUMBER;
+      hash = (53 * hash) + getReferenceGroupStatisticsList().hashCode();
     }
     hash = (29 * hash) + getUnknownFields().hashCode();
     memoizedHashCode = hash;
@@ -858,6 +943,7 @@ io.evitadb.externalApi.grpc.generated.GrpcHierarchy defaultValue) {
         getFacetGroupStatisticsFieldBuilder();
         getSelfHierarchyFieldBuilder();
         getQueryTelemetryFieldBuilder();
+        getReferenceGroupStatisticsFieldBuilder();
       }
     }
     @java.lang.Override
@@ -888,6 +974,13 @@ io.evitadb.externalApi.grpc.generated.GrpcHierarchy defaultValue) {
         queryTelemetryBuilder_.dispose();
         queryTelemetryBuilder_ = null;
       }
+      if (referenceGroupStatisticsBuilder_ == null) {
+        referenceGroupStatistics_ = java.util.Collections.emptyList();
+      } else {
+        referenceGroupStatistics_ = null;
+        referenceGroupStatisticsBuilder_.clear();
+      }
+      bitField0_ = (bitField0_ & ~0x00000040);
       return this;
     }
 
@@ -929,6 +1022,15 @@ io.evitadb.externalApi.grpc.generated.GrpcHierarchy defaultValue) {
         result.facetGroupStatistics_ = facetGroupStatistics_;
       } else {
         result.facetGroupStatistics_ = facetGroupStatisticsBuilder_.build();
+      }
+      if (referenceGroupStatisticsBuilder_ == null) {
+        if (((bitField0_ & 0x00000040) != 0)) {
+          referenceGroupStatistics_ = java.util.Collections.unmodifiableList(referenceGroupStatistics_);
+          bitField0_ = (bitField0_ & ~0x00000040);
+        }
+        result.referenceGroupStatistics_ = referenceGroupStatistics_;
+      } else {
+        result.referenceGroupStatistics_ = referenceGroupStatisticsBuilder_.build();
       }
     }
 
@@ -1030,7 +1132,7 @@ io.evitadb.externalApi.grpc.generated.GrpcHierarchy defaultValue) {
             facetGroupStatisticsBuilder_ = null;
             facetGroupStatistics_ = other.facetGroupStatistics_;
             bitField0_ = (bitField0_ & ~0x00000004);
-            facetGroupStatisticsBuilder_ =
+            facetGroupStatisticsBuilder_ = 
               com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
                  getFacetGroupStatisticsFieldBuilder() : null;
           } else {
@@ -1046,6 +1148,32 @@ io.evitadb.externalApi.grpc.generated.GrpcHierarchy defaultValue) {
       bitField0_ |= 0x00000010;
       if (other.hasQueryTelemetry()) {
         mergeQueryTelemetry(other.getQueryTelemetry());
+      }
+      if (referenceGroupStatisticsBuilder_ == null) {
+        if (!other.referenceGroupStatistics_.isEmpty()) {
+          if (referenceGroupStatistics_.isEmpty()) {
+            referenceGroupStatistics_ = other.referenceGroupStatistics_;
+            bitField0_ = (bitField0_ & ~0x00000040);
+          } else {
+            ensureReferenceGroupStatisticsIsMutable();
+            referenceGroupStatistics_.addAll(other.referenceGroupStatistics_);
+          }
+          onChanged();
+        }
+      } else {
+        if (!other.referenceGroupStatistics_.isEmpty()) {
+          if (referenceGroupStatisticsBuilder_.isEmpty()) {
+            referenceGroupStatisticsBuilder_.dispose();
+            referenceGroupStatisticsBuilder_ = null;
+            referenceGroupStatistics_ = other.referenceGroupStatistics_;
+            bitField0_ = (bitField0_ & ~0x00000040);
+            referenceGroupStatisticsBuilder_ = 
+              com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
+                 getReferenceGroupStatisticsFieldBuilder() : null;
+          } else {
+            referenceGroupStatisticsBuilder_.addAllMessages(other.referenceGroupStatistics_);
+          }
+        }
       }
       this.mergeUnknownFields(other.getUnknownFields());
       onChanged();
@@ -1125,6 +1253,19 @@ io.evitadb.externalApi.grpc.generated.GrpcHierarchy defaultValue) {
               bitField0_ |= 0x00000020;
               break;
             } // case 50
+            case 58: {
+              io.evitadb.externalApi.grpc.generated.GrpcReferenceGroupStatistics m =
+                  input.readMessage(
+                      io.evitadb.externalApi.grpc.generated.GrpcReferenceGroupStatistics.parser(),
+                      extensionRegistry);
+              if (referenceGroupStatisticsBuilder_ == null) {
+                ensureReferenceGroupStatisticsIsMutable();
+                referenceGroupStatistics_.add(m);
+              } else {
+                referenceGroupStatisticsBuilder_.addMessage(m);
+              }
+              break;
+            } // case 58
             default: {
               if (!super.parseUnknownField(input, extensionRegistry, tag)) {
                 done = true; // was an endgroup tag
@@ -1660,7 +1801,7 @@ io.evitadb.externalApi.grpc.generated.GrpcHistogram defaultValue) {
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcHistogram priceHistogram = 2;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcHistogram, io.evitadb.externalApi.grpc.generated.GrpcHistogram.Builder, io.evitadb.externalApi.grpc.generated.GrpcHistogramOrBuilder>
+        io.evitadb.externalApi.grpc.generated.GrpcHistogram, io.evitadb.externalApi.grpc.generated.GrpcHistogram.Builder, io.evitadb.externalApi.grpc.generated.GrpcHistogramOrBuilder> 
         getPriceHistogramFieldBuilder() {
       if (priceHistogramBuilder_ == null) {
         priceHistogramBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -1689,11 +1830,12 @@ io.evitadb.externalApi.grpc.generated.GrpcHistogram defaultValue) {
      * <pre>
      * Contains a collection of FacetGroupStatistics DTOs where each of them contains information about single facet group
      * (if they belong in one) and statistics of the facets that relates to it.
+     * deprecated renamed to `referenceGroupStatistics`
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 3;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 3 [deprecated = true];</code>
      */
-    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics> getFacetGroupStatisticsList() {
+    @java.lang.Deprecated public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics> getFacetGroupStatisticsList() {
       if (facetGroupStatisticsBuilder_ == null) {
         return java.util.Collections.unmodifiableList(facetGroupStatistics_);
       } else {
@@ -1704,11 +1846,12 @@ io.evitadb.externalApi.grpc.generated.GrpcHistogram defaultValue) {
      * <pre>
      * Contains a collection of FacetGroupStatistics DTOs where each of them contains information about single facet group
      * (if they belong in one) and statistics of the facets that relates to it.
+     * deprecated renamed to `referenceGroupStatistics`
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 3;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 3 [deprecated = true];</code>
      */
-    public int getFacetGroupStatisticsCount() {
+    @java.lang.Deprecated public int getFacetGroupStatisticsCount() {
       if (facetGroupStatisticsBuilder_ == null) {
         return facetGroupStatistics_.size();
       } else {
@@ -1719,11 +1862,12 @@ io.evitadb.externalApi.grpc.generated.GrpcHistogram defaultValue) {
      * <pre>
      * Contains a collection of FacetGroupStatistics DTOs where each of them contains information about single facet group
      * (if they belong in one) and statistics of the facets that relates to it.
+     * deprecated renamed to `referenceGroupStatistics`
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 3;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 3 [deprecated = true];</code>
      */
-    public io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics getFacetGroupStatistics(int index) {
+    @java.lang.Deprecated public io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics getFacetGroupStatistics(int index) {
       if (facetGroupStatisticsBuilder_ == null) {
         return facetGroupStatistics_.get(index);
       } else {
@@ -1734,11 +1878,12 @@ io.evitadb.externalApi.grpc.generated.GrpcHistogram defaultValue) {
      * <pre>
      * Contains a collection of FacetGroupStatistics DTOs where each of them contains information about single facet group
      * (if they belong in one) and statistics of the facets that relates to it.
+     * deprecated renamed to `referenceGroupStatistics`
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 3;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 3 [deprecated = true];</code>
      */
-    public Builder setFacetGroupStatistics(
+    @java.lang.Deprecated public Builder setFacetGroupStatistics(
         int index, io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics value) {
       if (facetGroupStatisticsBuilder_ == null) {
         if (value == null) {
@@ -1756,11 +1901,12 @@ io.evitadb.externalApi.grpc.generated.GrpcHistogram defaultValue) {
      * <pre>
      * Contains a collection of FacetGroupStatistics DTOs where each of them contains information about single facet group
      * (if they belong in one) and statistics of the facets that relates to it.
+     * deprecated renamed to `referenceGroupStatistics`
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 3;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 3 [deprecated = true];</code>
      */
-    public Builder setFacetGroupStatistics(
+    @java.lang.Deprecated public Builder setFacetGroupStatistics(
         int index, io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics.Builder builderForValue) {
       if (facetGroupStatisticsBuilder_ == null) {
         ensureFacetGroupStatisticsIsMutable();
@@ -1775,11 +1921,12 @@ io.evitadb.externalApi.grpc.generated.GrpcHistogram defaultValue) {
      * <pre>
      * Contains a collection of FacetGroupStatistics DTOs where each of them contains information about single facet group
      * (if they belong in one) and statistics of the facets that relates to it.
+     * deprecated renamed to `referenceGroupStatistics`
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 3;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 3 [deprecated = true];</code>
      */
-    public Builder addFacetGroupStatistics(io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics value) {
+    @java.lang.Deprecated public Builder addFacetGroupStatistics(io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics value) {
       if (facetGroupStatisticsBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
@@ -1796,11 +1943,12 @@ io.evitadb.externalApi.grpc.generated.GrpcHistogram defaultValue) {
      * <pre>
      * Contains a collection of FacetGroupStatistics DTOs where each of them contains information about single facet group
      * (if they belong in one) and statistics of the facets that relates to it.
+     * deprecated renamed to `referenceGroupStatistics`
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 3;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 3 [deprecated = true];</code>
      */
-    public Builder addFacetGroupStatistics(
+    @java.lang.Deprecated public Builder addFacetGroupStatistics(
         int index, io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics value) {
       if (facetGroupStatisticsBuilder_ == null) {
         if (value == null) {
@@ -1818,11 +1966,12 @@ io.evitadb.externalApi.grpc.generated.GrpcHistogram defaultValue) {
      * <pre>
      * Contains a collection of FacetGroupStatistics DTOs where each of them contains information about single facet group
      * (if they belong in one) and statistics of the facets that relates to it.
+     * deprecated renamed to `referenceGroupStatistics`
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 3;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 3 [deprecated = true];</code>
      */
-    public Builder addFacetGroupStatistics(
+    @java.lang.Deprecated public Builder addFacetGroupStatistics(
         io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics.Builder builderForValue) {
       if (facetGroupStatisticsBuilder_ == null) {
         ensureFacetGroupStatisticsIsMutable();
@@ -1837,11 +1986,12 @@ io.evitadb.externalApi.grpc.generated.GrpcHistogram defaultValue) {
      * <pre>
      * Contains a collection of FacetGroupStatistics DTOs where each of them contains information about single facet group
      * (if they belong in one) and statistics of the facets that relates to it.
+     * deprecated renamed to `referenceGroupStatistics`
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 3;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 3 [deprecated = true];</code>
      */
-    public Builder addFacetGroupStatistics(
+    @java.lang.Deprecated public Builder addFacetGroupStatistics(
         int index, io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics.Builder builderForValue) {
       if (facetGroupStatisticsBuilder_ == null) {
         ensureFacetGroupStatisticsIsMutable();
@@ -1856,11 +2006,12 @@ io.evitadb.externalApi.grpc.generated.GrpcHistogram defaultValue) {
      * <pre>
      * Contains a collection of FacetGroupStatistics DTOs where each of them contains information about single facet group
      * (if they belong in one) and statistics of the facets that relates to it.
+     * deprecated renamed to `referenceGroupStatistics`
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 3;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 3 [deprecated = true];</code>
      */
-    public Builder addAllFacetGroupStatistics(
+    @java.lang.Deprecated public Builder addAllFacetGroupStatistics(
         java.lang.Iterable<? extends io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics> values) {
       if (facetGroupStatisticsBuilder_ == null) {
         ensureFacetGroupStatisticsIsMutable();
@@ -1876,11 +2027,12 @@ io.evitadb.externalApi.grpc.generated.GrpcHistogram defaultValue) {
      * <pre>
      * Contains a collection of FacetGroupStatistics DTOs where each of them contains information about single facet group
      * (if they belong in one) and statistics of the facets that relates to it.
+     * deprecated renamed to `referenceGroupStatistics`
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 3;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 3 [deprecated = true];</code>
      */
-    public Builder clearFacetGroupStatistics() {
+    @java.lang.Deprecated public Builder clearFacetGroupStatistics() {
       if (facetGroupStatisticsBuilder_ == null) {
         facetGroupStatistics_ = java.util.Collections.emptyList();
         bitField0_ = (bitField0_ & ~0x00000004);
@@ -1894,11 +2046,12 @@ io.evitadb.externalApi.grpc.generated.GrpcHistogram defaultValue) {
      * <pre>
      * Contains a collection of FacetGroupStatistics DTOs where each of them contains information about single facet group
      * (if they belong in one) and statistics of the facets that relates to it.
+     * deprecated renamed to `referenceGroupStatistics`
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 3;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 3 [deprecated = true];</code>
      */
-    public Builder removeFacetGroupStatistics(int index) {
+    @java.lang.Deprecated public Builder removeFacetGroupStatistics(int index) {
       if (facetGroupStatisticsBuilder_ == null) {
         ensureFacetGroupStatisticsIsMutable();
         facetGroupStatistics_.remove(index);
@@ -1912,11 +2065,12 @@ io.evitadb.externalApi.grpc.generated.GrpcHistogram defaultValue) {
      * <pre>
      * Contains a collection of FacetGroupStatistics DTOs where each of them contains information about single facet group
      * (if they belong in one) and statistics of the facets that relates to it.
+     * deprecated renamed to `referenceGroupStatistics`
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 3;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 3 [deprecated = true];</code>
      */
-    public io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics.Builder getFacetGroupStatisticsBuilder(
+    @java.lang.Deprecated public io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics.Builder getFacetGroupStatisticsBuilder(
         int index) {
       return getFacetGroupStatisticsFieldBuilder().getBuilder(index);
     }
@@ -1924,11 +2078,12 @@ io.evitadb.externalApi.grpc.generated.GrpcHistogram defaultValue) {
      * <pre>
      * Contains a collection of FacetGroupStatistics DTOs where each of them contains information about single facet group
      * (if they belong in one) and statistics of the facets that relates to it.
+     * deprecated renamed to `referenceGroupStatistics`
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 3;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 3 [deprecated = true];</code>
      */
-    public io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatisticsOrBuilder getFacetGroupStatisticsOrBuilder(
+    @java.lang.Deprecated public io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatisticsOrBuilder getFacetGroupStatisticsOrBuilder(
         int index) {
       if (facetGroupStatisticsBuilder_ == null) {
         return facetGroupStatistics_.get(index);  } else {
@@ -1939,11 +2094,12 @@ io.evitadb.externalApi.grpc.generated.GrpcHistogram defaultValue) {
      * <pre>
      * Contains a collection of FacetGroupStatistics DTOs where each of them contains information about single facet group
      * (if they belong in one) and statistics of the facets that relates to it.
+     * deprecated renamed to `referenceGroupStatistics`
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 3;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 3 [deprecated = true];</code>
      */
-    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatisticsOrBuilder>
+    @java.lang.Deprecated public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatisticsOrBuilder> 
          getFacetGroupStatisticsOrBuilderList() {
       if (facetGroupStatisticsBuilder_ != null) {
         return facetGroupStatisticsBuilder_.getMessageOrBuilderList();
@@ -1955,11 +2111,12 @@ io.evitadb.externalApi.grpc.generated.GrpcHistogram defaultValue) {
      * <pre>
      * Contains a collection of FacetGroupStatistics DTOs where each of them contains information about single facet group
      * (if they belong in one) and statistics of the facets that relates to it.
+     * deprecated renamed to `referenceGroupStatistics`
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 3;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 3 [deprecated = true];</code>
      */
-    public io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics.Builder addFacetGroupStatisticsBuilder() {
+    @java.lang.Deprecated public io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics.Builder addFacetGroupStatisticsBuilder() {
       return getFacetGroupStatisticsFieldBuilder().addBuilder(
           io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics.getDefaultInstance());
     }
@@ -1967,11 +2124,12 @@ io.evitadb.externalApi.grpc.generated.GrpcHistogram defaultValue) {
      * <pre>
      * Contains a collection of FacetGroupStatistics DTOs where each of them contains information about single facet group
      * (if they belong in one) and statistics of the facets that relates to it.
+     * deprecated renamed to `referenceGroupStatistics`
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 3;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 3 [deprecated = true];</code>
      */
-    public io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics.Builder addFacetGroupStatisticsBuilder(
+    @java.lang.Deprecated public io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics.Builder addFacetGroupStatisticsBuilder(
         int index) {
       return getFacetGroupStatisticsFieldBuilder().addBuilder(
           index, io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics.getDefaultInstance());
@@ -1980,16 +2138,17 @@ io.evitadb.externalApi.grpc.generated.GrpcHistogram defaultValue) {
      * <pre>
      * Contains a collection of FacetGroupStatistics DTOs where each of them contains information about single facet group
      * (if they belong in one) and statistics of the facets that relates to it.
+     * deprecated renamed to `referenceGroupStatistics`
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 3;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 3 [deprecated = true];</code>
      */
-    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics.Builder>
+    @java.lang.Deprecated public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics.Builder> 
          getFacetGroupStatisticsBuilderList() {
       return getFacetGroupStatisticsFieldBuilder().getBuilderList();
     }
     private com.google.protobuf.RepeatedFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics, io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics.Builder, io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatisticsOrBuilder>
+        io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics, io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics.Builder, io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatisticsOrBuilder> 
         getFacetGroupStatisticsFieldBuilder() {
       if (facetGroupStatisticsBuilder_ == null) {
         facetGroupStatisticsBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
@@ -2156,7 +2315,7 @@ io.evitadb.externalApi.grpc.generated.GrpcHistogram defaultValue) {
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcHierarchy selfHierarchy = 4;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcHierarchy, io.evitadb.externalApi.grpc.generated.GrpcHierarchy.Builder, io.evitadb.externalApi.grpc.generated.GrpcHierarchyOrBuilder>
+        io.evitadb.externalApi.grpc.generated.GrpcHierarchy, io.evitadb.externalApi.grpc.generated.GrpcHierarchy.Builder, io.evitadb.externalApi.grpc.generated.GrpcHierarchyOrBuilder> 
         getSelfHierarchyFieldBuilder() {
       if (selfHierarchyBuilder_ == null) {
         selfHierarchyBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -2516,7 +2675,7 @@ io.evitadb.externalApi.grpc.generated.GrpcHierarchy defaultValue) {
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry queryTelemetry = 6;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry, io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry.Builder, io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryOrBuilder>
+        io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry, io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry.Builder, io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryOrBuilder> 
         getQueryTelemetryFieldBuilder() {
       if (queryTelemetryBuilder_ == null) {
         queryTelemetryBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -2527,6 +2686,336 @@ io.evitadb.externalApi.grpc.generated.GrpcHierarchy defaultValue) {
         queryTelemetry_ = null;
       }
       return queryTelemetryBuilder_;
+    }
+
+    private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcReferenceGroupStatistics> referenceGroupStatistics_ =
+      java.util.Collections.emptyList();
+    private void ensureReferenceGroupStatisticsIsMutable() {
+      if (!((bitField0_ & 0x00000040) != 0)) {
+        referenceGroupStatistics_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcReferenceGroupStatistics>(referenceGroupStatistics_);
+        bitField0_ |= 0x00000040;
+       }
+    }
+
+    private com.google.protobuf.RepeatedFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcReferenceGroupStatistics, io.evitadb.externalApi.grpc.generated.GrpcReferenceGroupStatistics.Builder, io.evitadb.externalApi.grpc.generated.GrpcReferenceGroupStatisticsOrBuilder> referenceGroupStatisticsBuilder_;
+
+    /**
+     * <pre>
+     * Contains a collection of ReferenceGroupStatistics DTOs where each of them contains information about single reference group
+     * (if they belong in one) and statistics of the references that relates to it.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReferenceGroupStatistics referenceGroupStatistics = 7;</code>
+     */
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcReferenceGroupStatistics> getReferenceGroupStatisticsList() {
+      if (referenceGroupStatisticsBuilder_ == null) {
+        return java.util.Collections.unmodifiableList(referenceGroupStatistics_);
+      } else {
+        return referenceGroupStatisticsBuilder_.getMessageList();
+      }
+    }
+    /**
+     * <pre>
+     * Contains a collection of ReferenceGroupStatistics DTOs where each of them contains information about single reference group
+     * (if they belong in one) and statistics of the references that relates to it.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReferenceGroupStatistics referenceGroupStatistics = 7;</code>
+     */
+    public int getReferenceGroupStatisticsCount() {
+      if (referenceGroupStatisticsBuilder_ == null) {
+        return referenceGroupStatistics_.size();
+      } else {
+        return referenceGroupStatisticsBuilder_.getCount();
+      }
+    }
+    /**
+     * <pre>
+     * Contains a collection of ReferenceGroupStatistics DTOs where each of them contains information about single reference group
+     * (if they belong in one) and statistics of the references that relates to it.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReferenceGroupStatistics referenceGroupStatistics = 7;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcReferenceGroupStatistics getReferenceGroupStatistics(int index) {
+      if (referenceGroupStatisticsBuilder_ == null) {
+        return referenceGroupStatistics_.get(index);
+      } else {
+        return referenceGroupStatisticsBuilder_.getMessage(index);
+      }
+    }
+    /**
+     * <pre>
+     * Contains a collection of ReferenceGroupStatistics DTOs where each of them contains information about single reference group
+     * (if they belong in one) and statistics of the references that relates to it.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReferenceGroupStatistics referenceGroupStatistics = 7;</code>
+     */
+    public Builder setReferenceGroupStatistics(
+        int index, io.evitadb.externalApi.grpc.generated.GrpcReferenceGroupStatistics value) {
+      if (referenceGroupStatisticsBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        ensureReferenceGroupStatisticsIsMutable();
+        referenceGroupStatistics_.set(index, value);
+        onChanged();
+      } else {
+        referenceGroupStatisticsBuilder_.setMessage(index, value);
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Contains a collection of ReferenceGroupStatistics DTOs where each of them contains information about single reference group
+     * (if they belong in one) and statistics of the references that relates to it.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReferenceGroupStatistics referenceGroupStatistics = 7;</code>
+     */
+    public Builder setReferenceGroupStatistics(
+        int index, io.evitadb.externalApi.grpc.generated.GrpcReferenceGroupStatistics.Builder builderForValue) {
+      if (referenceGroupStatisticsBuilder_ == null) {
+        ensureReferenceGroupStatisticsIsMutable();
+        referenceGroupStatistics_.set(index, builderForValue.build());
+        onChanged();
+      } else {
+        referenceGroupStatisticsBuilder_.setMessage(index, builderForValue.build());
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Contains a collection of ReferenceGroupStatistics DTOs where each of them contains information about single reference group
+     * (if they belong in one) and statistics of the references that relates to it.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReferenceGroupStatistics referenceGroupStatistics = 7;</code>
+     */
+    public Builder addReferenceGroupStatistics(io.evitadb.externalApi.grpc.generated.GrpcReferenceGroupStatistics value) {
+      if (referenceGroupStatisticsBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        ensureReferenceGroupStatisticsIsMutable();
+        referenceGroupStatistics_.add(value);
+        onChanged();
+      } else {
+        referenceGroupStatisticsBuilder_.addMessage(value);
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Contains a collection of ReferenceGroupStatistics DTOs where each of them contains information about single reference group
+     * (if they belong in one) and statistics of the references that relates to it.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReferenceGroupStatistics referenceGroupStatistics = 7;</code>
+     */
+    public Builder addReferenceGroupStatistics(
+        int index, io.evitadb.externalApi.grpc.generated.GrpcReferenceGroupStatistics value) {
+      if (referenceGroupStatisticsBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        ensureReferenceGroupStatisticsIsMutable();
+        referenceGroupStatistics_.add(index, value);
+        onChanged();
+      } else {
+        referenceGroupStatisticsBuilder_.addMessage(index, value);
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Contains a collection of ReferenceGroupStatistics DTOs where each of them contains information about single reference group
+     * (if they belong in one) and statistics of the references that relates to it.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReferenceGroupStatistics referenceGroupStatistics = 7;</code>
+     */
+    public Builder addReferenceGroupStatistics(
+        io.evitadb.externalApi.grpc.generated.GrpcReferenceGroupStatistics.Builder builderForValue) {
+      if (referenceGroupStatisticsBuilder_ == null) {
+        ensureReferenceGroupStatisticsIsMutable();
+        referenceGroupStatistics_.add(builderForValue.build());
+        onChanged();
+      } else {
+        referenceGroupStatisticsBuilder_.addMessage(builderForValue.build());
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Contains a collection of ReferenceGroupStatistics DTOs where each of them contains information about single reference group
+     * (if they belong in one) and statistics of the references that relates to it.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReferenceGroupStatistics referenceGroupStatistics = 7;</code>
+     */
+    public Builder addReferenceGroupStatistics(
+        int index, io.evitadb.externalApi.grpc.generated.GrpcReferenceGroupStatistics.Builder builderForValue) {
+      if (referenceGroupStatisticsBuilder_ == null) {
+        ensureReferenceGroupStatisticsIsMutable();
+        referenceGroupStatistics_.add(index, builderForValue.build());
+        onChanged();
+      } else {
+        referenceGroupStatisticsBuilder_.addMessage(index, builderForValue.build());
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Contains a collection of ReferenceGroupStatistics DTOs where each of them contains information about single reference group
+     * (if they belong in one) and statistics of the references that relates to it.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReferenceGroupStatistics referenceGroupStatistics = 7;</code>
+     */
+    public Builder addAllReferenceGroupStatistics(
+        java.lang.Iterable<? extends io.evitadb.externalApi.grpc.generated.GrpcReferenceGroupStatistics> values) {
+      if (referenceGroupStatisticsBuilder_ == null) {
+        ensureReferenceGroupStatisticsIsMutable();
+        com.google.protobuf.AbstractMessageLite.Builder.addAll(
+            values, referenceGroupStatistics_);
+        onChanged();
+      } else {
+        referenceGroupStatisticsBuilder_.addAllMessages(values);
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Contains a collection of ReferenceGroupStatistics DTOs where each of them contains information about single reference group
+     * (if they belong in one) and statistics of the references that relates to it.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReferenceGroupStatistics referenceGroupStatistics = 7;</code>
+     */
+    public Builder clearReferenceGroupStatistics() {
+      if (referenceGroupStatisticsBuilder_ == null) {
+        referenceGroupStatistics_ = java.util.Collections.emptyList();
+        bitField0_ = (bitField0_ & ~0x00000040);
+        onChanged();
+      } else {
+        referenceGroupStatisticsBuilder_.clear();
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Contains a collection of ReferenceGroupStatistics DTOs where each of them contains information about single reference group
+     * (if they belong in one) and statistics of the references that relates to it.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReferenceGroupStatistics referenceGroupStatistics = 7;</code>
+     */
+    public Builder removeReferenceGroupStatistics(int index) {
+      if (referenceGroupStatisticsBuilder_ == null) {
+        ensureReferenceGroupStatisticsIsMutable();
+        referenceGroupStatistics_.remove(index);
+        onChanged();
+      } else {
+        referenceGroupStatisticsBuilder_.remove(index);
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Contains a collection of ReferenceGroupStatistics DTOs where each of them contains information about single reference group
+     * (if they belong in one) and statistics of the references that relates to it.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReferenceGroupStatistics referenceGroupStatistics = 7;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcReferenceGroupStatistics.Builder getReferenceGroupStatisticsBuilder(
+        int index) {
+      return getReferenceGroupStatisticsFieldBuilder().getBuilder(index);
+    }
+    /**
+     * <pre>
+     * Contains a collection of ReferenceGroupStatistics DTOs where each of them contains information about single reference group
+     * (if they belong in one) and statistics of the references that relates to it.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReferenceGroupStatistics referenceGroupStatistics = 7;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcReferenceGroupStatisticsOrBuilder getReferenceGroupStatisticsOrBuilder(
+        int index) {
+      if (referenceGroupStatisticsBuilder_ == null) {
+        return referenceGroupStatistics_.get(index);  } else {
+        return referenceGroupStatisticsBuilder_.getMessageOrBuilder(index);
+      }
+    }
+    /**
+     * <pre>
+     * Contains a collection of ReferenceGroupStatistics DTOs where each of them contains information about single reference group
+     * (if they belong in one) and statistics of the references that relates to it.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReferenceGroupStatistics referenceGroupStatistics = 7;</code>
+     */
+    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcReferenceGroupStatisticsOrBuilder> 
+         getReferenceGroupStatisticsOrBuilderList() {
+      if (referenceGroupStatisticsBuilder_ != null) {
+        return referenceGroupStatisticsBuilder_.getMessageOrBuilderList();
+      } else {
+        return java.util.Collections.unmodifiableList(referenceGroupStatistics_);
+      }
+    }
+    /**
+     * <pre>
+     * Contains a collection of ReferenceGroupStatistics DTOs where each of them contains information about single reference group
+     * (if they belong in one) and statistics of the references that relates to it.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReferenceGroupStatistics referenceGroupStatistics = 7;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcReferenceGroupStatistics.Builder addReferenceGroupStatisticsBuilder() {
+      return getReferenceGroupStatisticsFieldBuilder().addBuilder(
+          io.evitadb.externalApi.grpc.generated.GrpcReferenceGroupStatistics.getDefaultInstance());
+    }
+    /**
+     * <pre>
+     * Contains a collection of ReferenceGroupStatistics DTOs where each of them contains information about single reference group
+     * (if they belong in one) and statistics of the references that relates to it.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReferenceGroupStatistics referenceGroupStatistics = 7;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcReferenceGroupStatistics.Builder addReferenceGroupStatisticsBuilder(
+        int index) {
+      return getReferenceGroupStatisticsFieldBuilder().addBuilder(
+          index, io.evitadb.externalApi.grpc.generated.GrpcReferenceGroupStatistics.getDefaultInstance());
+    }
+    /**
+     * <pre>
+     * Contains a collection of ReferenceGroupStatistics DTOs where each of them contains information about single reference group
+     * (if they belong in one) and statistics of the references that relates to it.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReferenceGroupStatistics referenceGroupStatistics = 7;</code>
+     */
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcReferenceGroupStatistics.Builder> 
+         getReferenceGroupStatisticsBuilderList() {
+      return getReferenceGroupStatisticsFieldBuilder().getBuilderList();
+    }
+    private com.google.protobuf.RepeatedFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcReferenceGroupStatistics, io.evitadb.externalApi.grpc.generated.GrpcReferenceGroupStatistics.Builder, io.evitadb.externalApi.grpc.generated.GrpcReferenceGroupStatisticsOrBuilder> 
+        getReferenceGroupStatisticsFieldBuilder() {
+      if (referenceGroupStatisticsBuilder_ == null) {
+        referenceGroupStatisticsBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
+            io.evitadb.externalApi.grpc.generated.GrpcReferenceGroupStatistics, io.evitadb.externalApi.grpc.generated.GrpcReferenceGroupStatistics.Builder, io.evitadb.externalApi.grpc.generated.GrpcReferenceGroupStatisticsOrBuilder>(
+                referenceGroupStatistics_,
+                ((bitField0_ & 0x00000040) != 0),
+                getParentForChildren(),
+                isClean());
+        referenceGroupStatistics_ = null;
+      }
+      return referenceGroupStatisticsBuilder_;
     }
     @java.lang.Override
     public final Builder setUnknownFields(

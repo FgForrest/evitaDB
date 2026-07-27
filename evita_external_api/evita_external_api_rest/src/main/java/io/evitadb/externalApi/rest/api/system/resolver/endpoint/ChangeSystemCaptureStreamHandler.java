@@ -55,7 +55,15 @@ public class ChangeSystemCaptureStreamHandler extends RestWebSocketHandler<Syste
 
 	private static class ChangeSystemCaptureStreamExecutor extends RestWebSocketExecutor<SystemRestHandlingContext, ChangeSystemCaptureRequestDto> {
 
+		/**
+		 * Empty request used when the WebSocket payload is absent. Mirrors the
+		 * default-criteria divergence documented on
+		 * {@link io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureCriteria}: a `null`
+		 * criteria array means `ENGINE`-only — `HOST` requires an explicit
+		 * criteria element.
+		 */
 		private static final ChangeSystemCaptureRequest EMPTY_REQUEST = new ChangeSystemCaptureRequest(
+			null,
 			null,
 			null,
 			ChangeCaptureContent.HEADER

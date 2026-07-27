@@ -6,6 +6,7 @@ author: Ing. Jan Novotný
 proofreading: needed
 preferredLang: evitaql
 commit: cabcf999e7be5b00e0b13e1228a76a8d9e91cb78
+translated: 'true'
 ---
 ## Vlastnost reference
 
@@ -29,7 +30,7 @@ referenceProperty(
     </dd>
     <dt>constraint:orderingConstraint+</dt>
     <dd>
-        jedno nebo více [řadicích omezení](./natural.md), která určují řazení podle atributu reference
+        jedno nebo více [řadicích omezení](natural.md), která určují řazení podle atributu reference
     </dd>
 </dl>
 
@@ -53,7 +54,7 @@ které jsou v určité kategorii nebo mají určitou skupinu, specificky podle p
 Chcete-li seřadit produkty související se skupinou "sale" podle atributu `orderInGroup` nastaveného na referenci, je třeba použít
 následující dotaz:
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Dotaz na produkty ve "sale" seřazené podle řetězce předchůdců](/documentation/user/en/query/ordering/examples/reference/reference-attribute-natural.evitaql)
 </SourceCodeTabs>
@@ -150,7 +151,7 @@ pickFirstByEntityProperty(
 <dl>
     <dt>constraint:orderingConstraint+</dt>
     <dd>
-        jedno nebo více [řadicích omezení](./natural.md), která určují pořadí referencí, ze kterých se vybírá první
+        jedno nebo více [řadicích omezení](natural.md), která určují pořadí referencí, ze kterých se vybírá první
         z referencí na stejnou entitu, která bude použita pro řazení pomocí `referenceProperty`
     </dd>
 </dl>
@@ -161,7 +162,7 @@ Toto omezení vám umožňuje určit pořadí referencí, ze kterých se vybír�
 
 Rozšiřme si předchozí příklad o produkty, které odkazují jak na skupinu "sale", tak na "new":
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Dotaz na produkty ve skupinách "sale" nebo "new" seřazené podle řetězce předchůdců](/documentation/user/en/query/ordering/examples/reference/reference-attribute-natural-multiple.evitaql)
 </SourceCodeTabs>
@@ -197,7 +198,7 @@ Výsledek bude obsahovat nejprve produkty ze skupiny "new", která má nejnižš
 
 Pokud chceme změnit pořadí skupin, můžeme použít řadicí omezení `pickFirstByEntityProperty` a explicitně určit pořadí skupin. Například pokud chceme nejprve vypsat produkty ve skupině "sale", můžeme použít následující dotaz:
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Dotaz na produkty ve skupinách "sale" nebo "new" seřazené podle řetězce předchůdců s explicitním řazením](/documentation/user/en/query/ordering/examples/reference/reference-attribute-natural-multiple-explicit.evitaql)
 </SourceCodeTabs>
@@ -247,7 +248,7 @@ traverseByEntityProperty(
     </dd>
     <dt>constraint:orderingConstraint+</dt>
     <dd>
-        jedno nebo více [řadicích omezení](./natural.md), která mění pořadí procházení referencí
+        jedno nebo více [řadicích omezení](natural.md), která mění pořadí procházení referencí
         řazené entity před aplikací řadicího omezení `referenceProperty`
     </dd>
 </dl>
@@ -263,7 +264,7 @@ Pokud existuje více referencí, pro řazení je použita pouze ta první, ktero
 Toto chování je nejlépe ilustrováno následujícím příkladem. Vypišme produkty v kategorii 'Accessories' v pořadí
 dle atributu `orderInCategory` na referenci kategorie:
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Dotaz na produkty v kategorii "Accessories" seřazené podle řetězce předchůdců](/documentation/user/en/query/ordering/examples/reference/reference-attribute-natural-hierarchy.evitaql)
 
@@ -313,7 +314,7 @@ na atributu `orderInCategory` na referenci ke kategorii. Ale hierarchii chceme p
 [šířkově (breadth first)](https://en.wikipedia.org/wiki/Breadth-first_search), přičemž každá úroveň hierarchie má být seřazena
 nejprve podle atributu `order` kategorie:
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Výpis produktů šířkově podle pořadí v kategorii v pořadí kategorií](/documentation/user/en/query/ordering/examples/reference/reference-traverse-by.evitaql)
 
@@ -359,7 +360,7 @@ entityProperty(
 <dl>
     <dt>constraint:orderingConstraint+</dt>
     <dd>
-        jedno nebo více [řadicích omezení](./natural.md), která určují řazení podle atributů referencované entity
+        jedno nebo více [řadicích omezení](natural.md), která určují řazení podle atributů referencované entity
     </dd>
 </dl>
 
@@ -369,7 +370,7 @@ Umožňuje změnit kontext řazení reference z atributů samotné reference na 
 Jinými slovy, pokud má entita `Product` více referencí na entity `ParameterValue`, můžete tyto
 reference řadit například podle atributu `order` nebo `name` entity `ParameterValue`. Podívejme se na příklad:
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Získání produktu s parametry seřazenými podle jejich priority](/documentation/user/en/query/ordering/examples/reference/entity-property.evitaql)
 </SourceCodeTabs>
@@ -412,7 +413,7 @@ entityGroupProperty(
 <dl>
     <dt>constraint:orderingConstraint+</dt>
     <dd>
-        jedno nebo více [řadicích omezení](./natural.md), která určují řazení podle atributů skupiny referencované entity
+        jedno nebo více [řadicích omezení](natural.md), která určují řazení podle atributů skupiny referencované entity
     </dd>
 </dl>
 
@@ -422,7 +423,7 @@ Umožňuje změnit kontext řazení reference z atributů samotné reference na 
 Jinými slovy, pokud má entita `Product` více referencí na entity `ParameterValue`, které jsou seskupeny podle jejich
 přiřazení k entitě `Parameter`, můžete tyto reference řadit primárně podle atributu `name` seskupující entity a sekundárně podle atributu `name` referencované entity. Podívejme se na příklad:
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Získání produktu s parametry seřazenými podle názvu skupiny a názvu](/documentation/user/en/query/ordering/examples/reference/entity-group-property.evitaql)
 

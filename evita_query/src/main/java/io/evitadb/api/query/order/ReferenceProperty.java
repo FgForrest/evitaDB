@@ -31,6 +31,7 @@ import io.evitadb.api.query.descriptor.annotation.Child;
 import io.evitadb.api.query.descriptor.annotation.Classifier;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
+import io.evitadb.api.query.require.ReferenceContent;
 import io.evitadb.exception.EvitaInvalidUsageException;
 
 import javax.annotation.Nonnull;
@@ -51,7 +52,7 @@ import java.util.stream.Collectors;
  *
  * Example:
  *
- * <pre>
+ * ```evitaql
  * query(
  *     collection("Product"),
  *     filterBy(
@@ -78,18 +79,19 @@ import java.util.stream.Collectors;
  *         )
  *     )
  * )
- * </pre>
+ * ```
  *
  * **The `referenceProperty` is implicit in requirement `referenceContent`**
  *
- * In the `orderBy` clause within the {@link io.evitadb.api.query.require.ReferenceContent} requirement,
+ * In the `orderBy` clause within the {@link ReferenceContent} requirement,
  * the `referenceProperty` constraint is implicit and must not be repeated. All attribute order constraints
  * in `referenceContent` automatically refer to the reference attributes, unless the {@link EntityProperty} or
  * {@link EntityGroupProperty} container is used there.
  *
  * The example is based on a simple one-to-zero-or-one reference (a product can have at most one reference to a brand
- * entity). The response will only return the products that have a reference to the "Sony" brand, all of which contain the
- * `orderInBrand` attribute (since it's marked as a non-nullable attribute). Because the example is so simple, the returned
+ * entity). The response will only return the products that have a reference to the "Sony" brand, all of which
+ * contain the `orderInBrand` attribute (since it's marked as a non-nullable attribute). Because the example is
+ * so simple, the returned
  * result can be anticipated.
  *
  * ## Behaviour of zero or one to many references ordering
@@ -107,29 +109,51 @@ import java.util.stream.Collectors;
  *
  * ### Hierarchical entity
  *
- * If the referenced entity is **hierarchical** and the returned entity references multiple entities, the reference used
- * for ordering is the one that contains the order property and is the closest hierarchy node to the root of the filtered
- * hierarchy node.
+ * If the referenced entity is **hierarchical** and the returned entity references multiple entities, the
+ * reference used for ordering is the one that contains the order property and is the closest hierarchy node to
+ * the root of the filtered hierarchy node.
  *
  * It sounds complicated, but it's really quite simple. If you list products of a certain category and at the same time
  * order them by a property "priority" set on the reference to the category, the first products will be those directly
  * related to the category, ordered by "priority", followed by the products of the first child category, and so on,
  * maintaining the depth-first order of the category tree.
  *
- * <p><a href="https://evitadb.io/documentation/query/ordering/reference#reference-property">Visit detailed user documentation</a></p>
+ * ### Overriding the default 1:N behaviour
+ *
+ * Both defaults described above can be replaced by an explicit {@link ReferenceOrderingSpecification} child placed
+ * inside this container — at most one is allowed:
+ *
+ * - {@link PickFirstByEntityProperty} — for **non-hierarchical** references: orders the referenced entities by a
+ *   caller-supplied ordering and picks the first one as the sort key. Use this when you need to control which of
+ *   the multiple references wins (e.g. always prefer the "main" stock over other stocks).
+ * - {@link TraverseByEntityProperty} — for **hierarchical** references: traverses the referenced entity hierarchy
+ *   in depth-first or breadth-first order and sorts within each node by the reference attribute. Use this when
+ *   you need to control the traversal order of the category tree (or any other hierarchy).
+ *
+ * If both are supplied simultaneously, {@link #getReferenceOrderingSpecification()} throws
+ * {@link io.evitadb.exception.EvitaInvalidUsageException} because the strategies are mutually exclusive.
+ *
+ * @see ReferenceOrderingSpecification
+ * @see TraverseByEntityProperty
+ * @see PickFirstByEntityProperty
+ *
+ * [Visit detailed user documentation](https://evitadb.io/documentation/query/ordering/reference#reference-property)
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @ConstraintDefinition(
 	name = "property",
-	shortDescription = "The constraint sorts returned entities or references by attribute specified on its reference in natural order.",
+	shortDescription = "Sorts returned entities by attributes defined on a specific reference, such as priority or order within a relationship.",
 	userDocsLink = "/documentation/query/ordering/reference#reference-property",
 	supportedIn = {ConstraintDomain.ENTITY}
 )
-public class ReferenceProperty extends AbstractOrderConstraintContainer implements ReferenceConstraint<OrderConstraint> {
-	@Serial private static final long serialVersionUID = -8564699361608364992L;
+public class ReferenceProperty extends AbstractOrderConstraintContainer
+	implements ReferenceConstraint<OrderConstraint> {
 
-	private ReferenceProperty(Serializable[] arguments, OrderConstraint... children) {
+	@Serial
+	private static final long serialVersionUID = -8564699361608364992L;
+
+	private ReferenceProperty(@Nonnull Serializable[] arguments, @Nonnull OrderConstraint... children) {
 		super(arguments, children);
 	}
 
@@ -152,7 +176,7 @@ public class ReferenceProperty extends AbstractOrderConstraintContainer implemen
 	}
 
 	/**
-	 * Returns reference name of the facet that should be used for applying for ordering according to children constraints.
+	 * Returns the name of the reference used to apply ordering according to child constraints.
 	 */
 	@Nonnull
 	public String getReferenceName() {
@@ -160,11 +184,15 @@ public class ReferenceProperty extends AbstractOrderConstraintContainer implemen
 	}
 
 	/**
-	 * Returns either the {@link TraverseByEntityProperty} or {@link PickFirstByEntityProperty} constraint that is used
-	 * to define sorting order for 1:N references.
+	 * Returns the optional {@link ReferenceOrderingSpecification} child — either {@link TraverseByEntityProperty}
+	 * or {@link PickFirstByEntityProperty} — that overrides the default 1:N reference ordering behaviour.
 	 *
-	 * @return the {@link TraverseByEntityProperty} or {@link PickFirstByEntityProperty} constraint that is used
-	 * to define sorting order for 1:N references.
+	 * If no specification child is present, the engine falls back to built-in defaults (lowest primary key for
+	 * non-hierarchical references; closest-to-root hierarchy node for hierarchical references).
+	 *
+	 * @return empty if no ordering specification was provided; the single specification otherwise
+	 * @throws io.evitadb.exception.EvitaInvalidUsageException if more than one {@link ReferenceOrderingSpecification}
+	 *     child is present, because the two strategies are mutually exclusive
 	 */
 	@Nonnull
 	public Optional<ReferenceOrderingSpecification> getReferenceOrderingSpecification() {
@@ -188,7 +216,7 @@ public class ReferenceProperty extends AbstractOrderConstraintContainer implemen
 	@Nonnull
 	public List<OrderConstraint> getOrderConstraints() {
 		return Arrays.stream(getChildren())
-			.filter(it -> !(it instanceof TraverseByEntityProperty))
+			.filter(it -> !(it instanceof ReferenceOrderingSpecification))
 			.collect(Collectors.toList());
 	}
 
@@ -205,7 +233,10 @@ public class ReferenceProperty extends AbstractOrderConstraintContainer implemen
 
 	@Nonnull
 	@Override
-	public OrderConstraint getCopyWithNewChildren(@Nonnull OrderConstraint[] children, @Nonnull Constraint<?>[] additionalChildren) {
+	public OrderConstraint getCopyWithNewChildren(
+		@Nonnull OrderConstraint[] children,
+		@Nonnull Constraint<?>[] additionalChildren
+	) {
 		return new ReferenceProperty(getReferenceName(), children);
 	}
 }

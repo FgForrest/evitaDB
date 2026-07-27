@@ -57,7 +57,7 @@ public class DefaultCatalogPersistenceServiceFactory implements CatalogPersisten
 		@Nonnull TransactionOptions transactionOptions,
 		@Nonnull Scheduler scheduler,
 		@Nonnull ExportService exportService
-		) {
+	) {
 		return new DefaultCatalogPersistenceService(
 			catalogName, storageOptions, transactionOptions, scheduler, exportService
 		);
@@ -75,6 +75,19 @@ public class DefaultCatalogPersistenceServiceFactory implements CatalogPersisten
 	) {
 		return new DefaultCatalogPersistenceService(
 			catalogInstance, catalogName, storageOptions, transactionOptions, scheduler, exportService
+		);
+	}
+
+	@Override
+	public void upgradeStorageProtocol(
+		@Nonnull String catalogName,
+		@Nonnull StorageOptions storageOptions,
+		@Nonnull TransactionOptions transactionOptions,
+		@Nonnull Scheduler scheduler,
+		@Nonnull ExportService exportService
+	) {
+		DefaultCatalogPersistenceService.runStorageProtocolUpgrade(
+			catalogName, storageOptions, transactionOptions, scheduler, exportService
 		);
 	}
 

@@ -26,7 +26,28 @@ package io.evitadb.api.query.require;
 import io.evitadb.dataType.SupportedEnum;
 
 /**
- * Determines the extra mode for the query planning and execution to support our integration tests.
+ * Enumerates the internal debug modes that can be activated via the {@link Debug} require constraint. These modes
+ * are exclusively for use in integration tests and internal verification — they must never be used in production
+ * queries because they introduce significant additional computation.
+ *
+ * Each value targets a specific aspect of the query engine's correctness:
+ *
+ * - `VERIFY_ALTERNATIVE_INDEX_RESULTS` — exercises index redundancy by computing the query result through every
+ *   available alternative index (e.g. both a sorted and an inverted index for the same attribute) and asserting
+ *   that all paths produce bit-identical result sets. Detects inconsistencies between index implementations.
+ * - `VERIFY_POSSIBLE_CACHING_TREES` — exercises the formula caching layer by materialising every possible variant
+ *   of the query formula tree where sub-trees can be swapped with cached versions, and verifying that all
+ *   variants produce identical results. Detects caching bugs.
+ * - `PREFER_PREFETCHING` — overrides the cost-based strategy selector and unconditionally uses the prefetch
+ *   strategy whenever the query's filter constraints make prefetching feasible. Used to exercise the prefetch
+ *   code path that would otherwise be skipped for large datasets where the index scan is cheaper.
+ * - `PREFER_TREE_SORT` — overrides the cost-based sort selector and resolves sorted pages straight from the
+ *   pre-sort B+tree even when the materialized pre-sort arrays would be preferred. Exercises the tree-direct path.
+ * - `PREFER_PRESORT_ARRAYS` — the mirror of `PREFER_TREE_SORT`: forces the materialized pre-sort array merge-walk
+ *   even when the selection is sparse enough that the tree-direct path would be preferred.
+ * - `PREFER_INDEX_SCAN` — the mirror of `PREFER_PREFETCHING`: suppresses the optional, cost-based prefetch so the
+ *   query is answered by resolving the indexes, exercising the index path that a cheap prefetch would otherwise
+ *   bypass entirely.
  */
 @SupportedEnum
 public enum DebugMode {
@@ -49,6 +70,40 @@ public enum DebugMode {
 	 * This option always selects prefetching strategy if it's possible to use it (depends on the query filter by
 	 * constraints).
 	 */
-	PREFER_PREFETCHING
+	PREFER_PREFETCHING,
+	/**
+	 * This option forces the sorted-page resolution onto the tree-direct path (per-record `O(log N)` tree probes for a
+	 * sparse selection, or a single `O(N)` tree walk for a dense one) even when the pre-sorted arrays are already
+	 * materialized and the cost-based selector would prefer the array merge-walk. Used to exercise the tree-direct path
+	 * deterministically regardless of selectivity or warm-array state.
+	 */
+	PREFER_TREE_SORT,
+	/**
+	 * This option forces the sorted-page resolution onto the pre-sorted array merge-walk (materializing the arrays on a
+	 * cold index if necessary) even when the selection is sparse enough that the cost-based selector would prefer the
+	 * tree-direct path. Used to exercise the array path deterministically regardless of selectivity.
+	 */
+	PREFER_PRESORT_ARRAYS,
+	/**
+	 * This option denies the optional prefetch, forcing the query to be answered by resolving the indexes. It is
+	 * the counterpart of {@link #PREFER_PREFETCHING} and exists because a cheap prefetch silently substitutes for the
+	 * index path: on a small dataset the planner satisfies the whole query from prefetched entity bodies, so an
+	 * assertion aimed at index resolution never reaches the code it is meant to pin. Turning this option on makes such
+	 * assertions honest regardless of dataset size.
+	 *
+	 * Two things this option deliberately does NOT do:
+	 *
+	 * - It cannot suppress the prefetch a query *requires*. When the filter addresses entities by reference (an
+	 *   `MultipleEntityFormula` contributing direct entity references), prefetching is the only way to answer it and
+	 *   happens regardless of this option.
+	 * - It does not preserve the formula cache. The option resolves to the same planning policy as
+	 *   {@link #VERIFY_POSSIBLE_CACHING_TREES}, which bypasses the cache, so the index path is exercised end to end
+	 *   rather than answered from a memoized formula result.
+	 *
+	 * When combined with {@link #PREFER_PREFETCHING} this option wins: the planning policy denies prefetch both when
+	 * the planner asks whether prefetch is possible at all and when it prices the prefetch, and neither decision
+	 * consults the user preference.
+	 */
+	PREFER_INDEX_SCAN
 
 }

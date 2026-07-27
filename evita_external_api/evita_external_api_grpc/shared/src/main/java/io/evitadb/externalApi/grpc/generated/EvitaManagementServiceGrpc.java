@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2026
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -99,6 +99,37 @@ public final class EvitaManagementServiceGrpc {
       }
     }
     return getGetConfigurationMethod;
+  }
+
+  private static volatile io.grpc.MethodDescriptor<com.google.protobuf.Empty,
+      io.evitadb.externalApi.grpc.generated.GrpcEvitaEngineSettingsResponse> getGetEngineSettingsMethod;
+
+  @io.grpc.stub.annotations.RpcMethod(
+      fullMethodName = SERVICE_NAME + '/' + "GetEngineSettings",
+      requestType = com.google.protobuf.Empty.class,
+      responseType = io.evitadb.externalApi.grpc.generated.GrpcEvitaEngineSettingsResponse.class,
+      methodType = io.grpc.MethodDescriptor.MethodType.UNARY)
+  public static io.grpc.MethodDescriptor<com.google.protobuf.Empty,
+      io.evitadb.externalApi.grpc.generated.GrpcEvitaEngineSettingsResponse> getGetEngineSettingsMethod() {
+    io.grpc.MethodDescriptor<com.google.protobuf.Empty, io.evitadb.externalApi.grpc.generated.GrpcEvitaEngineSettingsResponse> getGetEngineSettingsMethod;
+    if ((getGetEngineSettingsMethod = EvitaManagementServiceGrpc.getGetEngineSettingsMethod) == null) {
+      synchronized (EvitaManagementServiceGrpc.class) {
+        if ((getGetEngineSettingsMethod = EvitaManagementServiceGrpc.getGetEngineSettingsMethod) == null) {
+          EvitaManagementServiceGrpc.getGetEngineSettingsMethod = getGetEngineSettingsMethod =
+              io.grpc.MethodDescriptor.<com.google.protobuf.Empty, io.evitadb.externalApi.grpc.generated.GrpcEvitaEngineSettingsResponse>newBuilder()
+              .setType(io.grpc.MethodDescriptor.MethodType.UNARY)
+              .setFullMethodName(generateFullMethodName(SERVICE_NAME, "GetEngineSettings"))
+              .setSampledToLocalTracing(true)
+              .setRequestMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
+                  com.google.protobuf.Empty.getDefaultInstance()))
+              .setResponseMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
+                  io.evitadb.externalApi.grpc.generated.GrpcEvitaEngineSettingsResponse.getDefaultInstance()))
+              .setSchemaDescriptor(new EvitaManagementServiceMethodDescriptorSupplier("GetEngineSettings"))
+              .build();
+        }
+      }
+    }
+    return getGetEngineSettingsMethod;
   }
 
   private static volatile io.grpc.MethodDescriptor<com.google.protobuf.Empty,
@@ -593,6 +624,17 @@ public final class EvitaManagementServiceGrpc {
 
     /**
      * <pre>
+     * Procedure used to obtain the curated subset of the engine configuration that is safe to expose to any client.
+     * Unlike GetConfiguration this procedure is available also when the engine runs in read-only mode.
+     * </pre>
+     */
+    default void getEngineSettings(com.google.protobuf.Empty request,
+        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcEvitaEngineSettingsResponse> responseObserver) {
+      io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getGetEngineSettingsMethod(), responseObserver);
+    }
+
+    /**
+     * <pre>
      * Procedure used to obtain catalog statistics.
      * </pre>
      */
@@ -781,6 +823,18 @@ public final class EvitaManagementServiceGrpc {
 
     /**
      * <pre>
+     * Procedure used to obtain the curated subset of the engine configuration that is safe to expose to any client.
+     * Unlike GetConfiguration this procedure is available also when the engine runs in read-only mode.
+     * </pre>
+     */
+    public void getEngineSettings(com.google.protobuf.Empty request,
+        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcEvitaEngineSettingsResponse> responseObserver) {
+      io.grpc.stub.ClientCalls.asyncUnaryCall(
+          getChannel().newCall(getGetEngineSettingsMethod(), getCallOptions()), request, responseObserver);
+    }
+
+    /**
+     * <pre>
      * Procedure used to obtain catalog statistics.
      * </pre>
      */
@@ -965,6 +1019,17 @@ public final class EvitaManagementServiceGrpc {
 
     /**
      * <pre>
+     * Procedure used to obtain the curated subset of the engine configuration that is safe to expose to any client.
+     * Unlike GetConfiguration this procedure is available also when the engine runs in read-only mode.
+     * </pre>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcEvitaEngineSettingsResponse getEngineSettings(com.google.protobuf.Empty request) throws io.grpc.StatusException {
+      return io.grpc.stub.ClientCalls.blockingV2UnaryCall(
+          getChannel(), getGetEngineSettingsMethod(), getCallOptions(), request);
+    }
+
+    /**
+     * <pre>
      * Procedure used to obtain catalog statistics.
      * </pre>
      */
@@ -1140,6 +1205,17 @@ public final class EvitaManagementServiceGrpc {
 
     /**
      * <pre>
+     * Procedure used to obtain the curated subset of the engine configuration that is safe to expose to any client.
+     * Unlike GetConfiguration this procedure is available also when the engine runs in read-only mode.
+     * </pre>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcEvitaEngineSettingsResponse getEngineSettings(com.google.protobuf.Empty request) {
+      return io.grpc.stub.ClientCalls.blockingUnaryCall(
+          getChannel(), getGetEngineSettingsMethod(), getCallOptions(), request);
+    }
+
+    /**
+     * <pre>
      * Procedure used to obtain catalog statistics.
      * </pre>
      */
@@ -1304,6 +1380,18 @@ public final class EvitaManagementServiceGrpc {
 
     /**
      * <pre>
+     * Procedure used to obtain the curated subset of the engine configuration that is safe to expose to any client.
+     * Unlike GetConfiguration this procedure is available also when the engine runs in read-only mode.
+     * </pre>
+     */
+    public com.google.common.util.concurrent.ListenableFuture<io.evitadb.externalApi.grpc.generated.GrpcEvitaEngineSettingsResponse> getEngineSettings(
+        com.google.protobuf.Empty request) {
+      return io.grpc.stub.ClientCalls.futureUnaryCall(
+          getChannel().newCall(getGetEngineSettingsMethod(), getCallOptions()), request);
+    }
+
+    /**
+     * <pre>
      * Procedure used to obtain catalog statistics.
      * </pre>
      */
@@ -1426,19 +1514,20 @@ public final class EvitaManagementServiceGrpc {
 
   private static final int METHODID_SERVER_STATUS = 0;
   private static final int METHODID_GET_CONFIGURATION = 1;
-  private static final int METHODID_GET_CATALOG_STATISTICS = 2;
-  private static final int METHODID_RESTORE_CATALOG_UNARY = 3;
-  private static final int METHODID_RESTORE_CATALOG_FROM_SERVER_FILE = 4;
-  private static final int METHODID_LIST_TASK_STATUSES = 5;
-  private static final int METHODID_GET_TASK_STATUS = 6;
-  private static final int METHODID_GET_TASK_STATUSES = 7;
-  private static final int METHODID_CANCEL_TASK = 8;
-  private static final int METHODID_LIST_FILES_TO_FETCH = 9;
-  private static final int METHODID_GET_FILE_TO_FETCH = 10;
-  private static final int METHODID_FETCH_FILE = 11;
-  private static final int METHODID_DELETE_FILE = 12;
-  private static final int METHODID_LIST_RESERVED_KEYWORDS = 13;
-  private static final int METHODID_RESTORE_CATALOG = 14;
+  private static final int METHODID_GET_ENGINE_SETTINGS = 2;
+  private static final int METHODID_GET_CATALOG_STATISTICS = 3;
+  private static final int METHODID_RESTORE_CATALOG_UNARY = 4;
+  private static final int METHODID_RESTORE_CATALOG_FROM_SERVER_FILE = 5;
+  private static final int METHODID_LIST_TASK_STATUSES = 6;
+  private static final int METHODID_GET_TASK_STATUS = 7;
+  private static final int METHODID_GET_TASK_STATUSES = 8;
+  private static final int METHODID_CANCEL_TASK = 9;
+  private static final int METHODID_LIST_FILES_TO_FETCH = 10;
+  private static final int METHODID_GET_FILE_TO_FETCH = 11;
+  private static final int METHODID_FETCH_FILE = 12;
+  private static final int METHODID_DELETE_FILE = 13;
+  private static final int METHODID_LIST_RESERVED_KEYWORDS = 14;
+  private static final int METHODID_RESTORE_CATALOG = 15;
 
   private static final class MethodHandlers<Req, Resp> implements
       io.grpc.stub.ServerCalls.UnaryMethod<Req, Resp>,
@@ -1464,6 +1553,10 @@ public final class EvitaManagementServiceGrpc {
         case METHODID_GET_CONFIGURATION:
           serviceImpl.getConfiguration((com.google.protobuf.Empty) request,
               (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcEvitaConfigurationResponse>) responseObserver);
+          break;
+        case METHODID_GET_ENGINE_SETTINGS:
+          serviceImpl.getEngineSettings((com.google.protobuf.Empty) request,
+              (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcEvitaEngineSettingsResponse>) responseObserver);
           break;
         case METHODID_GET_CATALOG_STATISTICS:
           serviceImpl.getCatalogStatistics((com.google.protobuf.Empty) request,
@@ -1548,6 +1641,13 @@ public final class EvitaManagementServiceGrpc {
               com.google.protobuf.Empty,
               io.evitadb.externalApi.grpc.generated.GrpcEvitaConfigurationResponse>(
                 service, METHODID_GET_CONFIGURATION)))
+        .addMethod(
+          getGetEngineSettingsMethod(),
+          io.grpc.stub.ServerCalls.asyncUnaryCall(
+            new MethodHandlers<
+              com.google.protobuf.Empty,
+              io.evitadb.externalApi.grpc.generated.GrpcEvitaEngineSettingsResponse>(
+                service, METHODID_GET_ENGINE_SETTINGS)))
         .addMethod(
           getGetCatalogStatisticsMethod(),
           io.grpc.stub.ServerCalls.asyncUnaryCall(
@@ -1689,6 +1789,7 @@ public final class EvitaManagementServiceGrpc {
               .setSchemaDescriptor(new EvitaManagementServiceFileDescriptorSupplier())
               .addMethod(getServerStatusMethod())
               .addMethod(getGetConfigurationMethod())
+              .addMethod(getGetEngineSettingsMethod())
               .addMethod(getGetCatalogStatisticsMethod())
               .addMethod(getRestoreCatalogMethod())
               .addMethod(getRestoreCatalogUnaryMethod())

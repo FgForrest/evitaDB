@@ -44,7 +44,8 @@ import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.requestResponse.data.Versioned;
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.data.structure.Reference;
-import io.evitadb.api.requestResponse.extraResult.FacetSummary.FacetStatistics;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolution;
+import io.evitadb.api.requestResponse.extraResult.ReferenceSummary.FacetStatistics;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaEditor.ReflectedReferenceSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
@@ -671,6 +672,32 @@ public interface EntitySchemaEditor<S extends EntitySchemaEditor<S>> extends
 	 */
 	@Nonnull
 	S withoutReferenceTo(@Nonnull String name);
+
+	/**
+	 * Declares an explicit transaction conflict resolution for this entity collection, overriding the setting
+	 * inherited from the catalog schema (which in turn inherits from the engine-level default declared on
+	 * {@link io.evitadb.api.configuration.TransactionOptions}).
+	 *
+	 * The passed {@link ConflictResolution} replaces the inherited setting in its entirety — both the coarse
+	 * conflict policy and its optional sub-entity granularity — for every transaction committed against this entity
+	 * collection. Use {@link #withoutConflictResolution()} to drop the override and fall back to the inherited
+	 * setting.
+	 *
+	 * @param conflictResolution the entity-collection-level conflict resolution to apply, never null
+	 * @return this builder to allow method chaining
+	 */
+	@Nonnull
+	S withConflictResolution(@Nonnull ConflictResolution conflictResolution);
+
+	/**
+	 * Removes any entity-collection-level transaction conflict resolution override previously declared via
+	 * {@link #withConflictResolution(ConflictResolution)}, so this entity collection again inherits the setting from
+	 * the catalog schema (which in turn inherits from {@link io.evitadb.api.configuration.TransactionOptions}).
+	 *
+	 * @return this builder to allow method chaining
+	 */
+	@Nonnull
+	S withoutConflictResolution();
 
 	/**
 	 * Interface that simply combines {@link EntitySchemaEditor} and {@link EntitySchemaContract} entity contracts

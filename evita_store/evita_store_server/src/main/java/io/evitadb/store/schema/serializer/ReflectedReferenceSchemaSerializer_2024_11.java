@@ -31,7 +31,7 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract.AttributeInheritanceBehavior;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
-import io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.dto.ReflectedReferenceSchema;
 import io.evitadb.api.requestResponse.schema.dto.SortableAttributeCompoundSchema;
@@ -49,7 +49,7 @@ import java.util.Map;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@Deprecated(since = "2024.11", forRemoval = true)
+@Deprecated(since = "2024.12", forRemoval = true)
 @RequiredArgsConstructor
 public class ReflectedReferenceSchemaSerializer_2024_11 extends Serializer<ReflectedReferenceSchema> {
 
@@ -96,11 +96,15 @@ public class ReflectedReferenceSchemaSerializer_2024_11 extends Serializer<Refle
 			attributesExcludedFromInheritance[i] = input.readString();
 		}
 
+		final Map<Scope, ReferenceIndexType> indexedInScopes =
+			new EnumMap<>(Map.of(Scope.DEFAULT_SCOPE, ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING));
 		return ReflectedReferenceSchema._internalBuild(
 			name, nameVariants, description, deprecationNotice,
 			entityType, reflectedReferenceName, cardinality,
-			new EnumMap<>(Map.of(Scope.DEFAULT_SCOPE, ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING)),
+			indexedInScopes,
+			ReferenceSchema.defaultIndexedComponents(indexedInScopes),
 			faceted == null ? null : (faceted ? EnumSet.of(Scope.DEFAULT_SCOPE) : EnumSet.noneOf(Scope.class)),
+			null, null, null,
 			attributes,
 			sortableAttributeCompounds,
 			attributeInheritanceBehavior, attributesExcludedFromInheritance

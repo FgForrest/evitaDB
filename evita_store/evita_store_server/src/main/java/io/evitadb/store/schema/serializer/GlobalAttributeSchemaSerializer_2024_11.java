@@ -27,10 +27,11 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
-import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
-import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.GlobalAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedGlobalAttributeUniquenessType;
 import io.evitadb.dataType.Scope;
@@ -43,7 +44,7 @@ import java.io.Serializable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@Deprecated(since = "2024.11", forRemoval = true)
+@Deprecated(since = "2024.12", forRemoval = true)
 @RequiredArgsConstructor
 public class GlobalAttributeSchemaSerializer_2024_11 extends Serializer<GlobalAttributeSchema> {
 
@@ -80,7 +81,8 @@ public class GlobalAttributeSchemaSerializer_2024_11 extends Serializer<GlobalAt
 			(sortable ? Scope.DEFAULT_SCOPES : Scope.NO_SCOPE),
 			localized,
 			nullable, representative,
-			type, (Serializable) defaultValue, indexedDecimalPlaces
+			type, (Serializable) defaultValue, indexedDecimalPlaces,
+			ConflictResolutionOverride.INHERITED
 		);
 	}
 

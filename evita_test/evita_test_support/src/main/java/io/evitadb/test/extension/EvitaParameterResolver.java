@@ -30,7 +30,6 @@ import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.SessionTraits;
 import io.evitadb.api.SessionTraits.SessionFlags;
 import io.evitadb.api.configuration.CacheOptions;
-import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.configuration.ThreadPoolOptions;
@@ -39,7 +38,6 @@ import io.evitadb.driver.EvitaClient;
 import io.evitadb.driver.config.ClientTlsOptions;
 import io.evitadb.driver.config.ClientTimeoutOptions;
 import io.evitadb.driver.config.EvitaClientConfiguration;
-import io.evitadb.export.file.configuration.FileSystemExportOptions;
 import io.evitadb.externalApi.configuration.AbstractApiOptions;
 import io.evitadb.externalApi.configuration.ApiOptions;
 import io.evitadb.externalApi.configuration.ApiOptions.Builder;
@@ -65,6 +63,7 @@ import io.evitadb.test.tester.LabApiTester;
 import io.evitadb.test.tester.RestTester;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.StringUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.FileUtils;
 import org.junit.jupiter.api.extension.AfterAllCallback;
@@ -132,7 +131,11 @@ import static org.junit.jupiter.api.Assertions.fail;
  */
 @Slf4j
 public class EvitaParameterResolver
-	implements ParameterResolver, BeforeAllCallback, AfterAllCallback, AfterEachCallback, EvitaTestSupport {
+	implements ParameterResolver,
+	BeforeAllCallback, AfterAllCallback,
+	AfterEachCallback,
+	EvitaTestSupport
+{
 	/**
 	 * Root directory for temporary evitaDB storage used by tests.
 	 */
@@ -149,6 +152,18 @@ public class EvitaParameterResolver
 	 * Peak number of concurrently alive evita instances observed during the test run.
 	 */
 	protected final static AtomicInteger PEAK_EVITA_INSTANCES = new AtomicInteger();
+	/**
+	 * Accumulated wall-clock time (in nanoseconds) spent building each named dataset during this test
+	 * run, keyed by dataset name. Populated on every dataset (re)build so the slowest shared datasets
+	 * can be surfaced at the end of the run — reusing a dataset via `@UseDataSet` avoids paying this
+	 * cost per test method.
+	 */
+	protected final static Map<String, Long> DATASET_BUILD_NANOS = new ConcurrentHashMap<>();
+	/**
+	 * When {@code true} (enabled via `-Dtest.dataset.timing=true`), each individual dataset build logs
+	 * its duration at INFO level in addition to the aggregate summary printed at the end of the run.
+	 */
+	protected final static boolean LOG_DATASET_BUILD_TIMES = Boolean.getBoolean("test.dataset.timing");
 	/**
 	 * Global reference to dataset index allowing cross-extension access (mainly for debugging/metrics).
 	 */
@@ -224,7 +239,8 @@ public class EvitaParameterResolver
 							new LinkedList<>(),
 							it.openWebApi(),
 							it.readOnly(),
-							it.destroyAfterClass()
+							it.destroyAfterClass(),
+							it.useRealThreadPools()
 						)
 					);
 				});
@@ -253,62 +269,74 @@ public class EvitaParameterResolver
 	/**
 	 * Creates new evitaDB instance with one catalog of `catalogName`.
 	 *
-	 * @param catalogName      name of the catalog to be created
-	 * @param randomFolderName unique folder name to be usedfor evitaDB storage
+	 * @param catalogName        name of the catalog to be created
+	 * @param randomFolderName   unique folder name to be used for evitaDB storage
+	 * @param useRealThreadPools when true the instance runs on real (asynchronous) thread pools instead of the
+	 *                           deterministic direct/immediate executor the test lane uses by default
 	 * @return new evitaDB instance
 	 */
 	@Nonnull
-	private static Evita createEvita(@Nonnull String catalogName, @Nonnull String randomFolderName) {
-		final Path evitaDataPath = STORAGE_PATH.resolve(randomFolderName);
-		final Path evitaExportPath = STORAGE_PATH.resolve(randomFolderName + "_export");
-		final Path evitaWorkPath = STORAGE_PATH.resolve(randomFolderName + "_work");
-		if (evitaDataPath.toFile().exists()) {
-			io.evitadb.utils.FileUtils.deleteDirectory(evitaDataPath);
-			io.evitadb.utils.FileUtils.deleteDirectory(evitaExportPath);
+	private Evita createEvita(@Nonnull String catalogName, @Nonnull String randomFolderName, boolean useRealThreadPools) {
+		// dataset-scoped paths: all test methods sharing the same @UseDataSet see the same storage/export
+		// directories for the lifetime of the dataset, which is why randomFolderName is caller-supplied rather
+		// than freshly allocated via createTestPaths(String).
+		final EvitaTestSupport.TestPaths paths = new EvitaTestSupport.TestPaths(
+			STORAGE_PATH.resolve(randomFolderName),
+			STORAGE_PATH.resolve(randomFolderName + "_work"),
+			STORAGE_PATH.resolve(randomFolderName + "_export")
+		);
+		// register with the JVM-local allocation set so `CleaningTestExecutionListener` can wipe leftovers on plan
+		// finish even when the per-test cleanup is bypassed (test crashes, dataset destroy throws, etc.)
+		ALLOCATED_TEST_PATHS.add(paths.storage());
+		ALLOCATED_TEST_PATHS.add(paths.work());
+		ALLOCATED_TEST_PATHS.add(paths.export());
+		// reset any state left behind by a prior run; check each path independently because a previous abort
+		// could have removed one but not the other, in which case the mkdirs() below would fail asymmetrically
+		if (paths.storage().toFile().exists()) {
+			io.evitadb.utils.FileUtils.deleteDirectory(paths.storage());
 		}
-		Assert.isTrue(evitaDataPath.toFile().mkdirs(), "Fail to create directory: " + evitaDataPath);
-		Assert.isTrue(evitaExportPath.toFile().mkdirs(), "Fail to create directory: " + evitaDataPath);
+		if (paths.export().toFile().exists()) {
+			io.evitadb.utils.FileUtils.deleteDirectory(paths.export());
+		}
+		Assert.isTrue(paths.storage().toFile().mkdirs(), "Fail to create directory: " + paths.storage());
+		Assert.isTrue(paths.export().toFile().mkdirs(), "Fail to create directory: " + paths.export());
+		// disable automatic session termination to avoid closing sessions when you stop at breakpoint
+		final ServerOptions.Builder serverOptionsBuilder = ServerOptions
+			.builder()
+			.closeSessionsAfterSecondsOfInactivity(-1)
+			.serviceThreadPool(
+				ThreadPoolOptions.serviceThreadPoolBuilder()
+				                 .minThreadCount(1)
+				                 .maxThreadCount(1)
+				                 .queueSize(10_000)
+				                 .build()
+			)
+			.requestThreadPool(
+				ThreadPoolOptions.requestThreadPoolBuilder()
+				                 .queueSize(10_000)
+				                 .build()
+			)
+			.transactionThreadPool(
+				ThreadPoolOptions.transactionThreadPoolBuilder()
+				                 .queueSize(10_000)
+				                 .build()
+			);
+		// A dataset may opt into real (asynchronous) thread pools via @DataSet(useRealThreadPools = true). The
+		// default collapses the request pool and the scheduler into an immediate executor so that CPU-saturated
+		// parallel tests stay deterministic; the few behaviours that only manifest under real pools (the gRPC
+		// session-cancellation cascade, the CDC register-then-mutate ordering) opt in to be regression tested.
+		// Everything else keeps the deterministic direct executor, hence directExecutor = !useRealThreadPools.
 		final Evita evita = new Evita(
-			EvitaConfiguration
-				.builder()
-				.server(
-					// disable automatic session termination
-					// to avoid closing sessions when you stop at breakpoint
-					ServerOptions
-						.builder()
-						.closeSessionsAfterSecondsOfInactivity(-1)
-						.serviceThreadPool(
-							ThreadPoolOptions.serviceThreadPoolBuilder()
-							                 .minThreadCount(1)
-							                 .maxThreadCount(1)
-							                 .queueSize(10_000)
-							                 .build()
-						)
-						.requestThreadPool(
-							ThreadPoolOptions.requestThreadPoolBuilder()
-							                 .queueSize(10_000)
-							                 .build()
-						)
-						.transactionThreadPool(
-							ThreadPoolOptions.transactionThreadPoolBuilder()
-							                 .queueSize(10_000)
-							                 .build()
-						)
-						.build()
-				)
+			newTestEvitaConfigurationBuilder(paths)
+				.server(serverOptionsBuilder.build())
+				// preserve dataset-specific storage tuning that newTestEvitaConfigurationBuilder does not know about
 				.storage(
-					// point evitaDB to a test directory (temp directory)
 					StorageOptions.builder()
-					              .storageDirectory(evitaDataPath)
-					              .workDirectory(evitaWorkPath)
+					              .storageDirectory(paths.storage())
+					              .workDirectory(paths.work())
 					              .maxOpenedReadHandles(1000)
 					              .syncWrites(false)
 					              .build()
-				)
-				.export(
-					FileSystemExportOptions.builder()
-					    .directory(evitaExportPath)
-					    .build()
 				)
 				.cache(
 					// disable cache for tests
@@ -316,7 +344,11 @@ public class EvitaParameterResolver
 					            .enabled(false)
 					            .build()
 				)
-				.build()
+				.build(),
+			true,
+			null,
+			null,
+			!useRealThreadPools
 		);
 		evita.defineCatalog(catalogName);
 		return evita;
@@ -514,8 +546,8 @@ public class EvitaParameterResolver
 		if (ArrayUtils.isEmpty(unknownApis)) {
 			final Builder apiOptionsBuilder = ApiOptions
 				.builder()
-				// 10 s request timeout - tests are highly parallel, squeezing our CI infrastructure
-				.requestTimeoutInMillis(10_000)
+				// 10 m request timeout - tests are highly parallel, squeezing our CI infrastructure
+				.requestTimeoutInMillis(10 * 60 * 1000)
 				.certificate(
 					CertificateOptions
 						.builder()
@@ -641,7 +673,7 @@ public class EvitaParameterResolver
 	}
 
 	@Override
-	public void beforeAll(ExtensionContext context) {
+	public void beforeAll(@Nonnull ExtensionContext context) {
 		// index data set bootstrap methods
 		final Map<String, DataSetInfo> dataSets = getDataSetIndex(context);
 		final Class<?> testClass = context.getRequiredTestClass();
@@ -649,13 +681,21 @@ public class EvitaParameterResolver
 	}
 
 	@Override
-	public void afterAll(ExtensionContext context) {
+	public void afterAll(@Nonnull ExtensionContext context) {
+		final PortManager portManager = getPortManager();
 		final Map<String, DataSetInfo> dataSetIndex = getDataSetIndex(context);
 		for (Entry<String, DataSetInfo> entry : dataSetIndex.entrySet()) {
 			final DataSetInfo dataSetInfo = entry.getValue();
-			dataSetInfo.destroyIfPredicateMatches(
-				entry.getKey(), dataSetInfo, getPortManager(), context
-			);
+			try {
+				dataSetInfo.destroyIfPredicateMatches(
+					entry.getKey(), dataSetInfo, portManager, context
+				);
+			} catch (Exception ex) {
+				log.error(
+					"Failed to destroy dataset `{}` after test class `{}`! Exception: {}",
+					entry.getKey(), context.getRequiredTestMethod().getName(), ex.getMessage(), ex
+				);
+			}
 		}
 	}
 
@@ -674,15 +714,23 @@ public class EvitaParameterResolver
 			}
 		});
 
+		final PortManager portManager = getPortManager();
 		final Map<String, DataSetInfo> dataSetIndex = getDataSetIndex(context);
 		final Iterator<Entry<String, DataSetInfo>> it = dataSetIndex.entrySet().iterator();
 		while (it.hasNext()) {
 			final Entry<String, DataSetInfo> entry = it.next();
 			final DataSetInfo dataSetInfo = entry.getValue();
-			if (dataSetInfo.destroyIfPredicateMatches(entry.getKey(), dataSetInfo, getPortManager(), context)) {
-				if (entry.getKey().startsWith(EVITA_ANONYMOUS_EVITA)) {
-					it.remove();
+			try {
+				if (dataSetInfo.destroyIfPredicateMatches(entry.getKey(), dataSetInfo, portManager, context)) {
+					if (entry.getKey().startsWith(EVITA_ANONYMOUS_EVITA)) {
+						it.remove();
+					}
 				}
+			} catch (Exception ex) {
+				log.error(
+					"Failed to destroy dataset `{}` after test `{}`! Exception: {}",
+					entry.getKey(), context.getRequiredTestMethod().getName(), ex.getMessage(), ex
+				);
 			}
 		}
 	}
@@ -801,8 +849,7 @@ public class EvitaParameterResolver
 						final AbstractApiOptions systemConfig =
 							evitaServer.getExternalApiServer()
 							           .getApiOptions()
-							           .getEndpointConfiguration(
-								           SystemProvider.CODE);
+							           .getEndpointConfiguration(SystemProvider.CODE);
 						if (systemConfig == null) {
 							throw new ParameterResolutionException(
 								"System web API was not opened for the dataset `" + dataSetName + "`!");
@@ -813,6 +860,12 @@ public class EvitaParameterResolver
 								.host(grpcConfig.getHost()[0].hostAddress())
 								.port(grpcConfig.getHost()[0].port())
 								.systemApiPort(systemConfig.getHost()[0].port())
+								// disable the client keep-alive ping in the test lane: with the direct executor a
+								// legitimate long inline call (e.g. a bulk dataset build) holds the event loop well
+								// past any finite ping interval, so a ping would self-kill a healthy connection
+								// (spurious CANCELLED). The dedicated keep-alive test builds its own client with a
+								// ping. The server ping is already disabled by default (ApiOptions.DEFAULT_PING_INTERVAL).
+								.pingIntervalMillis(0)
 								.tls(
 									ClientTlsOptions.builder()
 										.certificateFolderPath(
@@ -826,6 +879,7 @@ public class EvitaParameterResolver
 								.timeouts(
 									ClientTimeoutOptions.builder()
 										.timeout(10, TimeUnit.MINUTES)
+										.streamingTimeout(10, TimeUnit.MINUTES)
 										.build()
 								)
 								.build()
@@ -952,12 +1006,11 @@ public class EvitaParameterResolver
 			final DataSetInfo alreadyExistingAnonymousInstance = dataSetIndex.get(anonymousEvita);
 			if (alreadyExistingAnonymousInstance == null) {
 
-				// method doesn't use data set - so it needs to start with empty db
-				final Evita evita = createEvita(TestConstants.TEST_CATALOG, evitaInstanceId);
+				// method doesn't use data set - so it needs to start with empty db; anonymous instances never open
+				// web APIs, so they keep the deterministic direct executor
+				final Evita evita = createEvita(TestConstants.TEST_CATALOG, evitaInstanceId, false);
 				evita.updateCatalog(
-					TestConstants.TEST_CATALOG, session -> {
-						session.goLiveAndClose();
-					}
+					TestConstants.TEST_CATALOG, EvitaSessionContract::goLiveAndClose
 				);
 				final DataSetInfo dataSetInfo = new DataSetInfo(
 					anonymousEvita,
@@ -965,6 +1018,7 @@ public class EvitaParameterResolver
 					null,
 					Collections.emptyList(),
 					new String[0],
+					false,
 					false,
 					false,
 					new AtomicReference<>(
@@ -1025,26 +1079,39 @@ public class EvitaParameterResolver
 					// fill in the reference to the test instance, that is known only now
 					dataSetInfo.init(
 						() -> {
+							// capture dataset build start so slow datasets can be surfaced at the end of the run
+							final long buildStartNanos = System.nanoTime();
 							final String randomFolderName = Long.toHexString(RANDOM.nextLong());
-							final Evita evita = createEvita(dataSetInfo.catalogName(), randomFolderName);
-							final EvitaServer evitaServer;
-							if (ArrayUtils.isEmpty(dataSetInfo.webApi())) {
-								evitaServer = null;
-							} else {
-								final ApiOptions apiOptions = createApiOptions(
-									dataSetToUse, evita, getPortManager(), dataSetInfo.webApi()
-								);
-								evitaServer = openWebApi(evita, apiOptions);
-							}
-							// call method that initializes the dataset
-							final Object testClassInstance = extensionContext.getRequiredTestInstance();
-							final Object methodResult;
-							final CatalogInitMethod catalogInitMethod = dataSetInfo.initMethod();
-							if (catalogInitMethod == null) {
-								methodResult = null;
-							} else {
-								try {
+							final boolean webApiEnabled = !ArrayUtils.isEmpty(dataSetInfo.webApi());
+							final Evita evita = createEvita(
+								dataSetInfo.catalogName(), randomFolderName, dataSetInfo.useRealThreadPools()
+							);
+							EvitaServer evitaServer = null;
+							try {
+								if (webApiEnabled) {
+									final ApiOptions apiOptions = createApiOptions(
+										dataSetToUse, evita, getPortManager(), dataSetInfo.webApi()
+									);
+									evitaServer = openWebApi(evita, apiOptions);
+								}
+								// call method that initializes the dataset
+								final Object methodResult;
+								final CatalogInitMethod catalogInitMethod = dataSetInfo.initMethod();
+								if (catalogInitMethod == null) {
+									methodResult = null;
+								} else {
 									final Method initMethod = catalogInitMethod.method();
+									// when the current test lives in a @Nested class, getRequiredTestInstance()
+									// returns the nested-class instance; the @DataSet method may be declared on
+									// an outer/abstract enclosing class. Locate the instance whose class matches
+									// the declaring class so Method.invoke does not fail with
+									// "object is not an instance of declaring class".
+									final Class<?> declaringClass = initMethod.getDeclaringClass();
+									final Optional<?> enclosingInstance = extensionContext.getTestInstances()
+										.flatMap(instances -> instances.findInstance(declaringClass));
+									final Object testClassInstance = enclosingInstance.isPresent()
+										? enclosingInstance.get()
+										: extensionContext.getRequiredTestInstance();
 									final LinkedHashMap<String, Object> argumentDictionary = createLinkedHashMap(
 										property(DATA_NAME_EVITA, evita),
 										property(DATA_NAME_CATALOG_NAME, dataSetInfo.catalogName()),
@@ -1085,38 +1152,46 @@ public class EvitaParameterResolver
 											}
 										);
 									}
-								} catch (Exception e) {
-									// close the server instance and free ports
-									ofNullable(evitaServer)
-										.ifPresent(
-											it -> getPortManager().releasePortsOnCompletion(dataSetToUse, it.stop()));
-
-									// close evita and clear data
-									evita.close();
-
-									throw new ParameterResolutionException(
-										"Failed to set up data set " + dataSetToUse, e);
 								}
-							}
 
-							final DataCarrier dataCarrier;
-							if (methodResult != null) {
-								dataCarrier = methodResult instanceof DataCarrier dc ? dc : new DataCarrier(
-									methodResult);
-							} else {
-								dataCarrier = null;
-							}
+								final DataCarrier dataCarrier;
+								if (methodResult != null) {
+									dataCarrier = methodResult instanceof DataCarrier dc ? dc : new DataCarrier(
+										methodResult);
+								} else {
+									dataCarrier = null;
+								}
 
-							if (dataSetInfo.readOnly()) {
-								evita.setReadOnly();
-							}
+								if (dataSetInfo.readOnly()) {
+									evita.setReadOnly();
+								}
 
-							return new DataSetState(
-								extensionContext.getRequiredTestInstance(),
-								extensionContext.getRequiredTestMethod(),
-								evita, evitaServer, dataCarrier,
-								dataStateTearDownFct
-							);
+								// record how long this dataset took to build for the slowest-datasets summary
+								final long buildNanos = System.nanoTime() - buildStartNanos;
+								DATASET_BUILD_NANOS.merge(dataSetToUse, buildNanos, Long::sum);
+								if (LOG_DATASET_BUILD_TIMES) {
+									log.info("Dataset `{}` built in {}.", dataSetToUse, StringUtils.formatNano(buildNanos));
+								}
+								return new DataSetState(
+									extensionContext.getRequiredTestInstance(),
+									extensionContext.getRequiredTestMethod(),
+									evita, evitaServer, dataCarrier,
+									dataStateTearDownFct
+								);
+							} catch (Exception e) {
+								// close the server instance and free ports
+								ofNullable(evitaServer)
+									.ifPresentOrElse(
+										it -> getPortManager().releasePortsOnCompletion(dataSetToUse, it.stop()),
+										() -> getPortManager().releasePorts(dataSetToUse)
+									);
+
+								// close evita and clear data
+								evita.close();
+
+								throw new ParameterResolutionException(
+									"Failed to set up data set " + dataSetToUse, e);
+							}
 						}
 					);
 
@@ -1134,8 +1209,7 @@ public class EvitaParameterResolver
 					PEAK_EVITA_INSTANCES.get(),
 					dataSetIndex.values()
 					            .stream()
-					            .filter(
-						            it -> it.evitaInstance() != null)
+					            .filter(it -> it.evitaInstance() != null)
 					            .count()
 				));
 				if (evitaInstance != null) {
@@ -1201,6 +1275,7 @@ public class EvitaParameterResolver
 		@Nonnull String[] webApi,
 		boolean readOnly,
 		boolean destroyAfterClass,
+		boolean useRealThreadPools,
 		@Nonnull AtomicReference<DataSetState> dataSetInfoAtomicReference
 	) {
 
@@ -1210,11 +1285,11 @@ public class EvitaParameterResolver
 		public DataSetInfo(
 			@Nonnull String name, @Nonnull String catalogName, @Nullable CatalogInitMethod initMethod,
 			@Nonnull List<Method> destroyMethods, @Nonnull String[] webApi,
-			boolean readOnly, boolean destroyAfterClass
+			boolean readOnly, boolean destroyAfterClass, boolean useRealThreadPools
 		) {
 			this(
 				name, catalogName, initMethod, destroyMethods, webApi, readOnly, destroyAfterClass,
-				new AtomicReference<>()
+				useRealThreadPools, new AtomicReference<>()
 			);
 		}
 

@@ -122,6 +122,13 @@ public sealed abstract class AbstractTransactionStage<T extends TransactionTask>
 		if (!(ex instanceof ConflictingCatalogMutationException)) {
 			// conflicting mutation exceptions are expected in some stages, and we should not log them as errors
 			log.error("Error while processing {} task for catalog `{}`!", getName(), task.catalogName(), ex);
+		} else if (log.isDebugEnabled()) {
+			// a conflict-induced rollback is an expected outcome; surface its diagnostics (conflict key,
+			// resolved policy and the layer it was resolved from — carried in the message) at debug level
+			log.debug(
+				"Transaction conflict while processing {} task for catalog `{}`: {}",
+				getName(), task.catalogName(), ex.getMessage()
+			);
 		}
 		task.commitProgress().completeExceptionally(ex);
 		this.onException.accept(task, ex);

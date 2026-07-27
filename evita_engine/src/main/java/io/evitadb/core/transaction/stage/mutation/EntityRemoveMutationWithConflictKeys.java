@@ -29,18 +29,25 @@ import io.evitadb.api.requestResponse.data.mutation.EntityRemoveMutation;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictGenerationContext;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
-import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolution;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
 import java.util.List;
-import java.util.Set;
 import java.util.stream.Stream;
 
 /**
- * Artificial mutation that wraps {@link EntityRemoveMutation} and is able to provide conflict keys based reflecting
- * all the local mutations that were used to remove it completely.
+ * Artificial mutation that wraps {@link EntityRemoveMutation} and is able to provide conflict keys reflecting
+ * all the local mutations that were used to remove the entity completely.
+ *
+ * This class is no longer created at runtime: conflict detection now works by scope containment, so a plain
+ * entity-remove mutation (emitting the coarse entity conflict key) already conflicts with any concurrent
+ * finer-grained write to the same entity, making the granular decomposition unnecessary. The class is retained
+ * solely because its write-ahead-log serializer is registered under a fixed positional class id in
+ * {@code WalKryoConfigurer}: that registration is part of the released WAL wire format and cannot be removed
+ * without shifting every subsequent class id, so any previously persisted log that recorded this class id must
+ * still deserialize (the serializer resolves it back to a plain {@link EntityRemoveMutation}).
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
@@ -58,17 +65,18 @@ public class EntityRemoveMutationWithConflictKeys extends EntityRemoveMutation i
 
 	public EntityRemoveMutationWithConflictKeys(
 		@Nonnull EntityRemoveMutation delegate,
-		@Nonnull Set<ConflictPolicy> conflictPolicy,
+		@Nonnull ConflictResolution conflictResolution,
 		@Nonnull List<? extends LocalMutation<?,?>> localMutations
 	) {
 		super(delegate.getEntityType(), delegate.getEntityPrimaryKey());
 		this.delegate = delegate;
-		final ConflictGenerationContext context = new ConflictGenerationContext();
+		final ConflictGenerationContext context = new ConflictGenerationContext(conflictResolution);
 		this.conflictKeyStream = context.withEntityType(
 			delegate.getEntityType(),
 			delegate.getEntityPrimaryKey(),
 			ctx -> EntityMutation.getConflictKeyStream(
-				delegate.getEntityType(), delegate.getEntityPrimaryKey(), localMutations, conflictPolicy, ctx
+				delegate.getEntityType(), delegate.getEntityPrimaryKey(), localMutations,
+				delegate.expects(), ctx
 			)
 		);
 	}
@@ -76,8 +84,7 @@ public class EntityRemoveMutationWithConflictKeys extends EntityRemoveMutation i
 	@Nonnull
 	@Override
 	public Stream<ConflictKey> collectConflictKeys(
-		@Nonnull ConflictGenerationContext context,
-		@Nonnull Set<ConflictPolicy> conflictPolicies
+		@Nonnull ConflictGenerationContext context
 	) {
 		return this.conflictKeyStream;
 	}

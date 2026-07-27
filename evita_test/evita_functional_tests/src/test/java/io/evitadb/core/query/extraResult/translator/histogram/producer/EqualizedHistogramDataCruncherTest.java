@@ -39,10 +39,14 @@ import java.util.Comparator;
 import java.util.Map;
 import java.util.Random;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.QUERY;
+import static io.evitadb.test.TestTags.HISTOGRAM;
 
 /**
  * This test verifies {@link EqualizedHistogramDataCruncher} contract.
@@ -51,6 +55,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 @Slf4j
 @DisplayName("EqualizedHistogramDataCruncher tests")
+@Tag(ENGINE)
+@Tag(QUERY)
+@Tag(HISTOGRAM)
 class EqualizedHistogramDataCruncherTest {
 
 	@Test

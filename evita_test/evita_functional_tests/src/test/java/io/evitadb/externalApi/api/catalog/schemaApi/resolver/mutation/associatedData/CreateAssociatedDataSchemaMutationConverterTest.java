@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.associatedData;
 
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.schema.mutation.associatedData.CreateAssociatedDataSchemaMutation;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
@@ -33,17 +34,24 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.util.Map;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.utils.MapBuilder.map;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static io.evitadb.test.TestTags.EXTERNAL_API;
+import static io.evitadb.test.TestTags.QUERY;
+import static io.evitadb.test.TestTags.SCHEMA;
 
 /**
  * Tests for {@link CreateAssociatedDataSchemaMutationConverter}
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
+@Tag(EXTERNAL_API)
+@Tag(QUERY)
+@Tag(SCHEMA)
 class CreateAssociatedDataSchemaMutationConverterTest {
 
 	private CreateAssociatedDataSchemaMutationConverter converter;
@@ -154,7 +162,26 @@ class CreateAssociatedDataSchemaMutationConverterTest {
 					.e(CreateAssociatedDataSchemaMutationDescriptor.TYPE.name(), String.class.getSimpleName())
 					.e(CreateAssociatedDataSchemaMutationDescriptor.LOCALIZED.name(), true)
 					.e(CreateAssociatedDataSchemaMutationDescriptor.NULLABLE.name(), true)
+					.e(CreateAssociatedDataSchemaMutationDescriptor.CONFLICT_RESOLUTION_OVERRIDE.name(), ConflictResolutionOverride.INHERITED.name())
 					.build()
 			);
+	}
+
+	@Test
+	void shouldRoundTripNonDefaultConflictResolutionOverride() {
+		final CreateAssociatedDataSchemaMutation inputMutation = new CreateAssociatedDataSchemaMutation(
+			"labels",
+			"desc",
+			"depr",
+			String.class,
+			true,
+			true,
+			ConflictResolutionOverride.ENTITY
+		);
+
+		final CreateAssociatedDataSchemaMutation roundTripped =
+			this.converter.convertFromInput(this.converter.convertToOutput(inputMutation));
+		assertEquals(ConflictResolutionOverride.ENTITY, roundTripped.getConflictResolutionOverride());
+		assertEquals(inputMutation, roundTripped);
 	}
 }

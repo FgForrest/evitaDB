@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2026
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -27,6 +27,7 @@ import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.configuration.ThreadPoolOptions;
+import io.evitadb.test.EvitaTestSupport.TestPaths;
 import io.evitadb.api.requestResponse.cdc.CaptureArea;
 import io.evitadb.api.requestResponse.cdc.ChangeCaptureContent;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
@@ -35,12 +36,11 @@ import io.evitadb.api.requestResponse.cdc.ChangeCatalogCaptureRequest;
 import io.evitadb.api.requestResponse.cdc.DataSite;
 import io.evitadb.api.requestResponse.cdc.SchemaSite;
 import io.evitadb.api.requestResponse.data.mutation.price.UpsertPriceMutation;
-import io.evitadb.api.requestResponse.mutation.infrastructure.TransactionMutation;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
+import io.evitadb.api.requestResponse.mutation.infrastructure.TransactionMutation;
 import io.evitadb.core.Evita;
 import io.evitadb.dataType.ContainerType;
-import io.evitadb.export.file.configuration.FileSystemExportOptions;
 import io.evitadb.test.Entities;
 import io.evitadb.test.EvitaTestSupport;
 import lombok.extern.slf4j.Slf4j;
@@ -52,11 +52,15 @@ import javax.annotation.Nonnull;
 import java.math.BigDecimal;
 import java.util.Currency;
 import java.util.List;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.QueryConstraints.entityFetchAllContent;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.QUERY;
+import static io.evitadb.test.TestTags.CDC;
 
 /**
  * This test contains various integration tests for {@link Evita}.
@@ -64,14 +68,16 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @Slf4j
+@Tag(CONTRACT)
+@Tag(QUERY)
+@Tag(CDC)
 class EvitaChangeCaptureTest implements EvitaTestSupport {
 	public static final String ATTRIBUTE_NAME = "name";
 	public static final String ATTRIBUTE_URL = "url";
-	public static final String DIR_EVITA_CDC_TEST = "evitaCdcTest";
-	public static final String DIR_EVITA_CDC_TEST_EXPORT = "evitaCdcTest_export";
 	public static final String PRICE_LIST_BASIC = "basic";
 	public static final Currency CURRENCY_CZK = Currency.getInstance("CZK");
 	public static final Currency CURRENCY_USD = Currency.getInstance("USD");
+	private TestPaths paths;
 	private Evita evita;
 
 	private static void createSchema(@Nonnull EvitaSessionContract session) {
@@ -101,8 +107,7 @@ class EvitaChangeCaptureTest implements EvitaTestSupport {
 
 	@BeforeEach
 	void setUp() {
-		cleanTestSubDirectoryWithRethrow(DIR_EVITA_CDC_TEST);
-		cleanTestSubDirectoryWithRethrow(DIR_EVITA_CDC_TEST_EXPORT);
+		this.paths = createTestPaths("EvitaChangeCaptureTest");
 		this.evita = new Evita(
 			getEvitaConfiguration()
 		);
@@ -112,8 +117,7 @@ class EvitaChangeCaptureTest implements EvitaTestSupport {
 	@AfterEach
 	void tearDown() {
 		this.evita.close();
-		cleanTestSubDirectoryWithRethrow(DIR_EVITA_CDC_TEST);
-		cleanTestSubDirectoryWithRethrow(DIR_EVITA_CDC_TEST_EXPORT);
+		cleanupTestPaths(this.paths);
 	}
 
 	@Test
@@ -558,7 +562,7 @@ class EvitaChangeCaptureTest implements EvitaTestSupport {
 
 	@Nonnull
 	private EvitaConfiguration getEvitaConfiguration(int inactivityTimeoutInSeconds) {
-		return EvitaConfiguration.builder()
+		return newTestEvitaConfigurationBuilder(this.paths)
 			.server(
 				ServerOptions.builder()
 					.serviceThreadPool(
@@ -573,13 +577,9 @@ class EvitaChangeCaptureTest implements EvitaTestSupport {
 			)
 			.storage(
 				StorageOptions.builder()
-					.storageDirectory(getTestDirectory().resolve(DIR_EVITA_CDC_TEST))
+					.storageDirectory(this.paths.storage())
+					.workDirectory(this.paths.work())
 					.timeTravelEnabled(false)
-					.build()
-			)
-			.export(
-				FileSystemExportOptions.builder()
-					.directory(getTestDirectory().resolve(DIR_EVITA_CDC_TEST_EXPORT))
 					.build()
 			)
 			.build();

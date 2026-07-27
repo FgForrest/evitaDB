@@ -53,16 +53,23 @@ import java.util.Currency;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static io.evitadb.test.TestTags.GRPC;
+import static io.evitadb.test.TestTags.EXTERNAL_API;
+import static io.evitadb.test.TestTags.QUERY;
 
 /**
  * This test verifies functionalities of methods in {@link EvitaDataTypesConverter} class.
  *
  * @author Tomáš Pozler, 2022
  */
+@Tag(GRPC)
+@Tag(EXTERNAL_API)
+@Tag(QUERY)
 class EvitaDataTypesConverterTest {
 
 	private final ComplexDataObject complexDataObjectValue = new ComplexDataObject(new DataItemMap(Map.of("value", new DataItemValue("test"))));

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2025
+ *   Copyright (c) 2025-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -82,7 +82,7 @@ import static io.evitadb.utils.ArrayUtils.removeRecordFromOrderedArray;
 @Immutable
 public record ExpandedEngineState(
 	long startVersion,
-	@Nonnull EngineState engineState,
+	@Nonnull EngineState<LogRecordReference> engineState,
 	@Nonnull Map<String, CatalogWrapper> catalogs,
 	@Nonnull Set<String> readOnlyCatalogs
 ) {
@@ -110,7 +110,7 @@ public record ExpandedEngineState(
 	 * @param catalogs    catalog instances keyed by name (will be wrapped as unmodifiable)
 	 */
 	public static ExpandedEngineState create(
-		@Nonnull EngineState engineState,
+		@Nonnull EngineState<LogRecordReference> engineState,
 		@Nonnull Map<String, CatalogContract> catalogs
 	) {
 		return new ExpandedEngineState(
@@ -147,7 +147,7 @@ public record ExpandedEngineState(
 	 */
 	private ExpandedEngineState(
 		long startVersion,
-		@Nonnull EngineState engineState,
+		@Nonnull EngineState<LogRecordReference> engineState,
 		@Nonnull Map<String, CatalogWrapper> catalogs
 	) {
 		this(
@@ -218,27 +218,44 @@ public record ExpandedEngineState(
 	/**
 	 * Replaces the in-memory reference for the specified catalog by name if the provided
 	 * {@link Catalog} instance has a higher {@link Catalog#getVersion() version} than the
-	 * current reference.
+	 * current reference, and reports whether the catalog schema version advanced as part of
+	 * the swap.
 	 *
 	 * This is a best-effort, in-place optimization intended for scenarios where the underlying
 	 * {@code catalogs} map is a concurrent and mutable implementation. If the map is unmodifiable,
 	 * calling this method will fail; in such cases prefer {@link #withUpdatedCatalogInstance(CatalogContract)} to
 	 * obtain a new immutable snapshot.
 	 *
-	 * Concurrency: the operation relies on {@link Map#computeIfPresent} which is safe with concurrent
-	 * maps. Only a strictly newer reference replaces the existing one; if the reference is the same or
+	 * Concurrency: the prior schema-version snapshot is read **before** the atomic swap inside
+	 * {@link CatalogWrapper#replaceCatalogReference(Catalog)}, so under concurrent calls for the
+	 * same catalog the read may be stale relative to whoever ultimately wins the swap. The commit
+	 * pipeline (`TransactionManager#propagateCatalogSnapshot`) serializes calls per catalog, so in
+	 * practice this race cannot occur — the read remains consistent with the replaced reference.
+	 * Only a strictly newer reference replaces the existing one; if the reference is the same or
 	 * older, the current catalog remains unchanged.
 	 *
 	 * @param catalog a newer {@link Catalog} instance to swap in by name
+	 * @return {@code true} when the swap actually happened AND the new catalog has a strictly
+	 * higher schema version than the prior reference; {@code false} when the swap was skipped
+	 * (older / identical reference) or when the schema version did not advance (data-only commit)
 	 */
-	public void replaceCatalogReference(@Nonnull Catalog catalog) {
+	public boolean replaceCatalogReference(@Nonnull Catalog catalog) {
 		// catalog indexes are ConcurrentHashMap - we can do it safely here
 		final CatalogWrapper currentCatalogRef = this.catalogs.get(catalog.getName());
-		// replace catalog only when reference/pointer differs
+		// replace catalog only when reference/pointer differs and is strictly newer
 		final CatalogContract currentCatalog = currentCatalogRef.catalog();
-		if (currentCatalog != catalog && currentCatalog.getVersion() < catalog.getVersion()) {
-			currentCatalogRef.replaceCatalogReference(catalog);
+		if (currentCatalog == catalog || currentCatalog.getVersion() >= catalog.getVersion()) {
+			return false;
 		}
+		// UnusableCatalog placeholder cannot read its schema (would throw); treat as -1 so a
+		// real-Catalog replacement always counts as a schema advance. Defensive against a
+		// programming-error path — production swaps here are always Catalog→Catalog from the
+		// commit pipeline.
+		final int priorSchemaVersion = currentCatalog instanceof Catalog priorAlive
+			? priorAlive.getSchema().version()
+			: -1;
+		currentCatalogRef.replaceCatalogReference(catalog);
+		return catalog.getSchema().version() > priorSchemaVersion;
 	}
 
 	/**
@@ -262,7 +279,7 @@ public record ExpandedEngineState(
 		final HashMap<String, CatalogWrapper> updatedCatalogs = new HashMap<>(this.catalogs);
 		updatedCatalogs.put(catalog.getName(), new CatalogWrapper(catalog));
 
-		final EngineState.Builder engineStateBuilder = EngineState
+		final EngineState.Builder<LogRecordReference> engineStateBuilder = EngineState
 			.builder(this.engineState)
 			.version(this.engineState.version());
 
@@ -296,7 +313,7 @@ public record ExpandedEngineState(
 	 * @return a new {@link EngineState} identical to the current one except for the WAL reference
 	 */
 	@Nonnull
-	public EngineState engineState(
+	public EngineState<LogRecordReference> engineState(
 		@Nonnull LogRecordReference walFileReference,
 		long engineStateVersion
 	) {
@@ -318,6 +335,7 @@ public record ExpandedEngineState(
 		@Nonnull private String[] activeCatalogs;
 		@Nonnull private String[] inactiveCatalogs;
 		@Nonnull private String[] readOnlyCatalogs;
+		@Nonnull private String[] missingCatalogs;
 
 		/**
 		 * Initializes builder with values from the provided snapshot.
@@ -330,6 +348,7 @@ public record ExpandedEngineState(
 			this.activeCatalogs = base.engineState.activeCatalogs();
 			this.inactiveCatalogs = base.engineState.inactiveCatalogs();
 			this.readOnlyCatalogs = base.engineState.readOnlyCatalogs();
+			this.missingCatalogs = base.engineState.missingCatalogs();
 		}
 
 		/**
@@ -365,6 +384,25 @@ public record ExpandedEngineState(
 		}
 
 		/**
+		 * Stages a transient placeholder (typically an {@link io.evitadb.core.catalog.UnusableCatalog})
+		 * for a catalog that is mid-flight in a state transition — e.g. `BEING_UPGRADED`,
+		 * `BEING_ACTIVATED` — without touching the persisted bucket arrays.
+		 *
+		 * This is the escape hatch the upgrade operator uses so a crash mid-transition leaves the
+		 * catalog name in whatever bucket (`activeCatalogs` / `inactiveCatalogs`) it was in before,
+		 * allowing the next boot to auto-retry the operation. Unlike {@link #withCatalog}, this method
+		 * never relocates the name between the arrays; only the in-memory catalogs map is updated.
+		 *
+		 * @param placeholder the transient in-flight placeholder to install under its own name
+		 * @return this builder instance
+		 */
+		@Nonnull
+		public Builder withInFlightPlaceholder(@Nonnull CatalogContract placeholder) {
+			this.catalogs.put(placeholder.getName(), new CatalogWrapper(placeholder));
+			return this;
+		}
+
+		/**
 		 * Stages removal of the provided catalog from the snapshot including all arrays.
 		 */
 		@Nonnull
@@ -382,6 +420,43 @@ public record ExpandedEngineState(
 			this.activeCatalogs = removeRecordFromOrderedArray(catalogName, this.activeCatalogs);
 			this.inactiveCatalogs = removeRecordFromOrderedArray(catalogName, this.inactiveCatalogs);
 			this.readOnlyCatalogs = removeRecordFromOrderedArray(catalogName, this.readOnlyCatalogs);
+			this.missingCatalogs = removeRecordFromOrderedArray(catalogName, this.missingCatalogs);
+			return this;
+		}
+
+		/**
+		 * Stages the transition of the specified catalog to the MISSING bucket. The catalog is removed from the
+		 * active / inactive / read-only arrays and its in-memory `CatalogWrapper` is dropped — MISSING catalogs
+		 * cannot serve any requests. The catalog name is added to the `missingCatalogs` array so it remains visible
+		 * to the engine and can be recovered by auto-discovery in a future release.
+		 *
+		 * @param catalogName name of the catalog to mark as missing; must not be null
+		 * @return this builder instance
+		 */
+		@Nonnull
+		public Builder withMissingCatalog(@Nonnull String catalogName) {
+			this.catalogs.remove(catalogName);
+			this.activeCatalogs = removeRecordFromOrderedArray(catalogName, this.activeCatalogs);
+			this.inactiveCatalogs = removeRecordFromOrderedArray(catalogName, this.inactiveCatalogs);
+			this.readOnlyCatalogs = removeRecordFromOrderedArray(catalogName, this.readOnlyCatalogs);
+			this.missingCatalogs = insertRecordIntoOrderedArray(catalogName, this.missingCatalogs);
+			return this;
+		}
+
+		/**
+		 * Stages removal of the catalog from the `missingCatalogs` bucket — used by
+		 * `RestoreCatalogSchemaMutationOperator` to support the flapping-recovery transition (MISSING → INACTIVE).
+		 *
+		 * The call is a no-op when the catalog is not currently in the missing bucket, so it is safe to chain
+		 * unconditionally before `withCatalog(...)` — auto-discovery (catalog name unknown) and flapping recovery
+		 * (catalog name in missing bucket) share the same operator path and only the latter has any work to do here.
+		 *
+		 * @param catalogName name of the catalog whose missing-bucket entry should be cleared
+		 * @return this builder instance
+		 */
+		@Nonnull
+		public Builder withRestoredFromMissing(@Nonnull String catalogName) {
+			this.missingCatalogs = removeRecordFromOrderedArray(catalogName, this.missingCatalogs);
 			return this;
 		}
 
@@ -408,12 +483,13 @@ public record ExpandedEngineState(
 		 */
 		@Nonnull
 		public ExpandedEngineState build() {
-			final EngineState.Builder engineStateBuilder = EngineState
+			final EngineState.Builder<LogRecordReference> engineStateBuilder = EngineState
 				.builder(this.base.engineState)
 				.version(this.version)
 				.activeCatalogs(this.activeCatalogs)
 				.inactiveCatalogs(this.inactiveCatalogs)
-				.readOnlyCatalogs(this.readOnlyCatalogs);
+				.readOnlyCatalogs(this.readOnlyCatalogs)
+				.missingCatalogs(this.missingCatalogs);
 			return new ExpandedEngineState(
 				this.startVersion,
 				engineStateBuilder.build(),

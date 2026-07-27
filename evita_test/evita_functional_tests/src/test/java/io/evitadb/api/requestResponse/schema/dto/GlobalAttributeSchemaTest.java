@@ -23,9 +23,12 @@
 
 package io.evitadb.api.requestResponse.schema.dto;
 
+import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.GlobalAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedGlobalAttributeUniquenessType;
 import io.evitadb.dataType.Scope;
 import io.evitadb.utils.NamingConvention;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -33,13 +36,20 @@ import org.junit.jupiter.api.Test;
 import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.Map;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.SCHEMA;
+import static io.evitadb.test.TestTags.ATTRIBUTE;
 
 /**
  * Tests for {@link GlobalAttributeSchema}.
  */
 @DisplayName("GlobalAttributeSchema")
+@Tag(CONTRACT)
+@Tag(SCHEMA)
+@Tag(ATTRIBUTE)
 class GlobalAttributeSchemaTest {
 
 	@Nested
@@ -50,7 +60,8 @@ class GlobalAttributeSchemaTest {
 		@DisplayName("should build minimal schema")
 		void shouldBuildMinimalSchema() {
 			final GlobalAttributeSchema schema = GlobalAttributeSchema._internalBuild(
-				"code", String.class, false
+				"code", String.class, false,
+				ConflictResolutionOverride.INHERITED
 			);
 
 			assertEquals("code", schema.getName());
@@ -74,7 +85,8 @@ class GlobalAttributeSchemaTest {
 				new Scope[]{Scope.LIVE},
 				null,
 				false, false, false,
-				String.class, null
+				String.class, null,
+				ConflictResolutionOverride.INHERITED
 			);
 
 			assertTrue(schema.isUniqueGloballyInScope(Scope.LIVE));
@@ -94,7 +106,8 @@ class GlobalAttributeSchemaTest {
 				EnumSet.noneOf(Scope.class),
 				EnumSet.noneOf(Scope.class),
 				false, false, false,
-				String.class, null, 0
+				String.class, null, 0,
+				ConflictResolutionOverride.INHERITED
 			);
 
 			assertEquals(
@@ -121,7 +134,8 @@ class GlobalAttributeSchemaTest {
 				},
 				null, null,
 				false, false, false,
-				String.class, null
+				String.class, null,
+				ConflictResolutionOverride.INHERITED
 			);
 
 			assertTrue(schema.isUniqueGloballyInScope(Scope.LIVE));
@@ -145,7 +159,8 @@ class GlobalAttributeSchemaTest {
 				},
 				null, null,
 				true, false, false,
-				String.class, null
+				String.class, null,
+				ConflictResolutionOverride.INHERITED
 			);
 
 			assertTrue(schema.isUniqueGloballyWithinLocaleInScope(Scope.LIVE));
@@ -156,7 +171,8 @@ class GlobalAttributeSchemaTest {
 		@DisplayName("should return NOT_UNIQUE for unregistered scope")
 		void shouldReturnNotUniqueForUnregisteredScope() {
 			final GlobalAttributeSchema schema = GlobalAttributeSchema._internalBuild(
-				"code", String.class, false
+				"code", String.class, false,
+				ConflictResolutionOverride.INHERITED
 			);
 
 			assertEquals(GlobalAttributeUniquenessType.NOT_UNIQUE, schema.getGlobalUniquenessType(Scope.LIVE));
@@ -167,7 +183,8 @@ class GlobalAttributeSchemaTest {
 		@DisplayName("should default global uniqueness to NOT_UNIQUE")
 		void shouldDefaultGlobalUniquenessToNotUnique() {
 			final GlobalAttributeSchema schema = GlobalAttributeSchema._internalBuild(
-				"code", String.class, false
+				"code", String.class, false,
+				ConflictResolutionOverride.INHERITED
 			);
 
 			assertEquals(
@@ -194,7 +211,8 @@ class GlobalAttributeSchemaTest {
 				},
 				null, null,
 				false, false, false,
-				String.class, null
+				String.class, null,
+				ConflictResolutionOverride.INHERITED
 			);
 
 			// isUnique() checks DEFAULT_SCOPE (=LIVE) for both local and global
@@ -214,7 +232,8 @@ class GlobalAttributeSchemaTest {
 				},
 				null, null,
 				true, false, false,
-				String.class, null
+				String.class, null,
+				ConflictResolutionOverride.INHERITED
 			);
 
 			assertTrue(schema.isUniqueWithinLocale());
@@ -236,7 +255,8 @@ class GlobalAttributeSchemaTest {
 				},
 				null, null,
 				false, false, false,
-				String.class, null
+				String.class, null,
+				ConflictResolutionOverride.INHERITED
 			);
 
 			assertEquals(AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION, schema.getUniquenessType(Scope.LIVE));
@@ -279,8 +299,8 @@ class GlobalAttributeSchemaTest {
 		@Test
 		@DisplayName("should be equal for same parameters")
 		void shouldBeEqual() {
-			final GlobalAttributeSchema a = GlobalAttributeSchema._internalBuild("code", String.class, false);
-			final GlobalAttributeSchema b = GlobalAttributeSchema._internalBuild("code", String.class, false);
+			final GlobalAttributeSchema a = GlobalAttributeSchema._internalBuild("code", String.class, false, ConflictResolutionOverride.INHERITED);
+			final GlobalAttributeSchema b = GlobalAttributeSchema._internalBuild("code", String.class, false, ConflictResolutionOverride.INHERITED);
 
 			assertEquals(a, b);
 			assertEquals(a.hashCode(), b.hashCode());
@@ -290,10 +310,12 @@ class GlobalAttributeSchemaTest {
 		@DisplayName("should not equal EntityAttributeSchema")
 		void shouldNotEqualEntityAttributeSchema() {
 			final GlobalAttributeSchema global = GlobalAttributeSchema._internalBuild(
-				"code", String.class, false
+				"code", String.class, false,
+				ConflictResolutionOverride.INHERITED
 			);
 			final EntityAttributeSchema entity = EntityAttributeSchema._internalBuild(
-				"code", String.class, false
+				"code", String.class, false,
+				ConflictResolutionOverride.INHERITED
 			);
 
 			assertNotEquals(global, entity);
@@ -308,7 +330,8 @@ class GlobalAttributeSchemaTest {
 		@DisplayName("should contain GlobalAttributeSchema prefix")
 		void shouldContainPrefix() {
 			final GlobalAttributeSchema schema = GlobalAttributeSchema._internalBuild(
-				"code", String.class, false
+				"code", String.class, false,
+				ConflictResolutionOverride.INHERITED
 			);
 
 			assertTrue(schema.toString().startsWith("GlobalAttributeSchema{"));
@@ -328,7 +351,8 @@ class GlobalAttributeSchemaTest {
 				new Scope[]{Scope.LIVE},
 				null,
 				false, false, false,
-				String.class, null
+				String.class, null,
+				ConflictResolutionOverride.INHERITED
 			);
 
 			final String result = schema.toString();

@@ -1,6 +1,9 @@
 ```json
 {
   "width" : {
+    "min" : "15.90",
+    "max" : "508.00",
+    "overallCount" : 2163,
     "buckets" : [
       {
         "occurrences" : 136,
@@ -122,10 +125,7 @@
         "requested" : true,
         "threshold" : "274.00"
       }
-    ],
-    "max" : "508.00",
-    "min" : "15.90",
-    "overallCount" : 2163
+    ]
   }
 }
 ```

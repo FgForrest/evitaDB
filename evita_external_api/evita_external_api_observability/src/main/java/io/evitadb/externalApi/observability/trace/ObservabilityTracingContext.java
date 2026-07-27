@@ -40,6 +40,7 @@ import org.slf4j.MDC;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Optional;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 /**
@@ -123,6 +124,20 @@ public class ObservabilityTracingContext implements TracingContext {
 	@Override
 	public TracingBlockReference createAndActivateBlock(@Nonnull String taskName, @Nullable SpanAttribute... attributes) {
 		return createAndActivateBlockOpeningParentContext(taskName, attributes, null);
+	}
+
+	@Nonnull
+	@Override
+	public <T> TracingBlockReference createAndActivateBlock(
+		@Nonnull T subject, @Nonnull Function<? super T, String> taskNamer,
+		@Nullable SpanAttribute... attributes
+	) {
+		// this variant opens the parent context itself, so the only thing that can still veto the span is the global
+		// switch - consult it before composing the name, otherwise the whole point of the lazy overload is lost
+		if (!OpenTelemetryTracerSetup.isTracingEnabled()) {
+			return DefaultTracingBlockReference.INSTANCE;
+		}
+		return createAndActivateBlockOpeningParentContext(taskNamer.apply(subject), attributes, null);
 	}
 
 	@Nonnull
@@ -366,6 +381,19 @@ public class ObservabilityTracingContext implements TracingContext {
 	}
 
 	@Override
+	public <S, T> T executeWithinBlockIfParentContextAvailable(
+		@Nonnull S subject, @Nonnull Function<? super S, String> taskNamer, @Nonnull Supplier<T> lambda,
+		@Nullable Supplier<SpanAttribute[]> attributes
+	) {
+		// no span is recorded unless a parent context is already open and tracing is on - both are cheap reads, so
+		// consult them before composing the name instead of paying for a name the internal method would discard
+		if (!isSpanRecorded()) {
+			return lambda.get();
+		}
+		return executeWithinBlockInternal(taskNamer.apply(subject), lambda, null, attributes);
+	}
+
+	@Override
 	public void executeWithinBlockIfParentContextAvailable(@Nonnull String taskName, @Nonnull Runnable runnable) {
 		executeWithinBlockInternal(
 			taskName,
@@ -492,7 +520,7 @@ public class ObservabilityTracingContext implements TracingContext {
 		@Nullable SpanAttribute[] attributes,
 		@Nullable Supplier<SpanAttribute[]> attributeSupplier
 	) {
-		if (!OpenTelemetryTracerSetup.isTracingEnabled() || !Boolean.TRUE.equals(this.parentContextAvailable.get())) {
+		if (!isSpanRecorded()) {
 			return lambda.get();
 		}
 
@@ -634,8 +662,8 @@ public class ObservabilityTracingContext implements TracingContext {
 	                                                             @Nullable SpanAttribute[] attributes,
 	                                                             @Nullable Supplier<SpanAttribute[]> attributeSupplier,
 	                                                             @Nullable Runnable closeCallback) {
-		if (!OpenTelemetryTracerSetup.isTracingEnabled() || !Boolean.TRUE.equals(this.parentContextAvailable.get())) {
-			return new DefaultTracingBlockReference();
+		if (!isSpanRecorded()) {
+			return DefaultTracingBlockReference.INSTANCE;
 		}
 
 		// the context will contain `traceId` provided by the client, if the propagation has been orchestrated on his side
@@ -661,5 +689,21 @@ public class ObservabilityTracingContext implements TracingContext {
 		initMdc(clientId, span.getSpanContext().getTraceId());
 
 		return new ObservabilityTracingBlockReference(span, scope, attributeSupplier, closeCallback);
+	}
+
+	/**
+	 * Tells whether a span opened right now on the current thread would really be recorded - i.e. tracing is switched
+	 * on globally and someone up the stack has already opened a parent context. Both are cheap reads (a static field
+	 * and a thread local), which is what allows the lazily-named overloads to consult this before composing a span
+	 * name that a non-recording path would only discard.
+	 *
+	 * Note that the methods opening the parent context themselves ({@link #createAndActivateBlockOpeningParentContext}
+	 * and friends) force the thread local to `true` before reaching the internal methods, so for those the global
+	 * switch alone decides - they must not be gated on this method.
+	 *
+	 * @return true if a span created at this moment would be recorded
+	 */
+	private boolean isSpanRecorded() {
+		return OpenTelemetryTracerSetup.isTracingEnabled() && Boolean.TRUE.equals(this.parentContextAvailable.get());
 	}
 }

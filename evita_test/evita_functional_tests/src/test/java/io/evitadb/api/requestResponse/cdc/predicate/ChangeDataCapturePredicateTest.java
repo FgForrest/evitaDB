@@ -59,6 +59,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
+import javax.annotation.Nonnull;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
@@ -74,11 +75,12 @@ import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.CDC;
 
 /**
  * This test verifies contract of {@link ExistingEntityBuilder}.
@@ -86,16 +88,18 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("Change data capture predicate test")
-@Tag(FUNCTIONAL_TEST)
 @ExtendWith(EvitaParameterResolver.class)
 @Slf4j
+@Tag(CONTRACT)
+@Tag(CDC)
 class ChangeDataCapturePredicateTest extends AbstractHundredProductsFunctionalTest {
 	private static final String HUNDRED_PRODUCTS = "HundredProductsForCapture";
 	private List<CatalogBoundMutation> mutations;
 
+	@Nonnull
 	@DataSet(value = HUNDRED_PRODUCTS, destroyAfterClass = true)
 	@Override
-	protected DataCarrier setUp(Evita evita) {
+	protected DataCarrier setUp(@Nonnull Evita evita) {
 		final DataCarrier dataCarrier = super.setUp(evita);
 		final List<SealedEntity> products = (List<SealedEntity>) dataCarrier.getValueByName("originalProducts");
 		final List<SealedEntity> brands = (List<SealedEntity>) dataCarrier.getValueByName("originalBrands");

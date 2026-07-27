@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2026
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -128,6 +128,35 @@ public enum GrpcCatalogState
   BEING_DELETED(9),
   /**
    * <pre>
+   * State signalizing that a catalog previously registered with the engine no longer has an on-disk folder.
+   * The engine records this divergence via `MarkCatalogMissingMutation` so it can be diagnosed and later
+   * recovered via auto-discovery or operator action.
+   * </pre>
+   *
+   * <code>MISSING = 10;</code>
+   */
+  MISSING(10),
+  /**
+   * <pre>
+   * State signalizing that the catalog's on-disk storage protocol is older than the engine supports.
+   * Reads and writes are refused until the catalog has been upgraded via `UpgradeCatalogFormatMutation`.
+   * </pre>
+   *
+   * <code>OUT_OF_DATE = 11;</code>
+   */
+  OUT_OF_DATE(11),
+  /**
+   * <pre>
+   * State signalizing that the catalog is currently being upgraded from an older storage protocol
+   * to the one the engine supports. Transient state entered while an `UpgradeCatalogFormatMutation`
+   * is running; the completion phase returns the catalog to its prior operational state.
+   * </pre>
+   *
+   * <code>BEING_UPGRADED = 12;</code>
+   */
+  BEING_UPGRADED(12),
+  /**
+   * <pre>
    * Unknown state of the catalog. Used when catalog is corrupted.
    * </pre>
    *
@@ -229,6 +258,35 @@ public enum GrpcCatalogState
   public static final int BEING_DELETED_VALUE = 9;
   /**
    * <pre>
+   * State signalizing that a catalog previously registered with the engine no longer has an on-disk folder.
+   * The engine records this divergence via `MarkCatalogMissingMutation` so it can be diagnosed and later
+   * recovered via auto-discovery or operator action.
+   * </pre>
+   *
+   * <code>MISSING = 10;</code>
+   */
+  public static final int MISSING_VALUE = 10;
+  /**
+   * <pre>
+   * State signalizing that the catalog's on-disk storage protocol is older than the engine supports.
+   * Reads and writes are refused until the catalog has been upgraded via `UpgradeCatalogFormatMutation`.
+   * </pre>
+   *
+   * <code>OUT_OF_DATE = 11;</code>
+   */
+  public static final int OUT_OF_DATE_VALUE = 11;
+  /**
+   * <pre>
+   * State signalizing that the catalog is currently being upgraded from an older storage protocol
+   * to the one the engine supports. Transient state entered while an `UpgradeCatalogFormatMutation`
+   * is running; the completion phase returns the catalog to its prior operational state.
+   * </pre>
+   *
+   * <code>BEING_UPGRADED = 12;</code>
+   */
+  public static final int BEING_UPGRADED_VALUE = 12;
+  /**
+   * <pre>
    * Unknown state of the catalog. Used when catalog is corrupted.
    * </pre>
    *
@@ -270,6 +328,9 @@ public enum GrpcCatalogState
       case 7: return BEING_DEACTIVATED;
       case 8: return BEING_CREATED;
       case 9: return BEING_DELETED;
+      case 10: return MISSING;
+      case 11: return OUT_OF_DATE;
+      case 12: return BEING_UPGRADED;
       case 2: return UNKNOWN_CATALOG_STATE;
       default: return null;
     }

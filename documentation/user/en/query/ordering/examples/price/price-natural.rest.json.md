@@ -36,6 +36,28 @@
           "priceWithTax" : "5036.0",
           "taxRate" : "21.0",
           "validity" : null
+        },
+        "priceForSaleMin" : {
+          "priceId" : 8737,
+          "priceList" : "basic",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "4161.98",
+          "priceWithTax" : "5036.0",
+          "taxRate" : "21.0",
+          "validity" : null
+        },
+        "priceForSaleMax" : {
+          "priceId" : 8737,
+          "priceList" : "basic",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "4161.98",
+          "priceWithTax" : "5036.0",
+          "taxRate" : "21.0",
+          "validity" : null
         }
       },
       {
@@ -63,6 +85,28 @@
           }
         ],
         "priceForSale" : {
+          "priceId" : 8319,
+          "priceList" : "basic",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "4131.41",
+          "priceWithTax" : "4999.0",
+          "taxRate" : "21.0",
+          "validity" : null
+        },
+        "priceForSaleMin" : {
+          "priceId" : 8319,
+          "priceList" : "basic",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "4131.41",
+          "priceWithTax" : "4999.0",
+          "taxRate" : "21.0",
+          "validity" : null
+        },
+        "priceForSaleMax" : {
           "priceId" : 8319,
           "priceList" : "basic",
           "currency" : "EUR",
@@ -108,6 +152,28 @@
           "priceWithTax" : "4799.0",
           "taxRate" : "21.0",
           "validity" : null
+        },
+        "priceForSaleMin" : {
+          "priceId" : 4451,
+          "priceList" : "basic",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "3966.12",
+          "priceWithTax" : "4799.0",
+          "taxRate" : "21.0",
+          "validity" : null
+        },
+        "priceForSaleMax" : {
+          "priceId" : 4451,
+          "priceList" : "basic",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "3966.12",
+          "priceWithTax" : "4799.0",
+          "taxRate" : "21.0",
+          "validity" : null
         }
       },
       {
@@ -135,6 +201,28 @@
           }
         ],
         "priceForSale" : {
+          "priceId" : 7689,
+          "priceList" : "basic",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "3966.12",
+          "priceWithTax" : "4799.0",
+          "taxRate" : "21.0",
+          "validity" : null
+        },
+        "priceForSaleMin" : {
+          "priceId" : 7689,
+          "priceList" : "basic",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "3966.12",
+          "priceWithTax" : "4799.0",
+          "taxRate" : "21.0",
+          "validity" : null
+        },
+        "priceForSaleMax" : {
           "priceId" : 7689,
           "priceList" : "basic",
           "currency" : "EUR",
@@ -180,6 +268,28 @@
           "priceWithTax" : "4799.0",
           "taxRate" : "21.0",
           "validity" : null
+        },
+        "priceForSaleMin" : {
+          "priceId" : 7691,
+          "priceList" : "basic",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "3966.12",
+          "priceWithTax" : "4799.0",
+          "taxRate" : "21.0",
+          "validity" : null
+        },
+        "priceForSaleMax" : {
+          "priceId" : 7691,
+          "priceList" : "basic",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "3966.12",
+          "priceWithTax" : "4799.0",
+          "taxRate" : "21.0",
+          "validity" : null
         }
       },
       {
@@ -207,6 +317,28 @@
           }
         ],
         "priceForSale" : {
+          "priceId" : 7683,
+          "priceList" : "basic",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "3933.06",
+          "priceWithTax" : "4759.0",
+          "taxRate" : "21.0",
+          "validity" : null
+        },
+        "priceForSaleMin" : {
+          "priceId" : 7683,
+          "priceList" : "basic",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "3933.06",
+          "priceWithTax" : "4759.0",
+          "taxRate" : "21.0",
+          "validity" : null
+        },
+        "priceForSaleMax" : {
           "priceId" : 7683,
           "priceList" : "basic",
           "currency" : "EUR",
@@ -252,6 +384,28 @@
           "priceWithTax" : "4718.0",
           "taxRate" : "21.0",
           "validity" : null
+        },
+        "priceForSaleMin" : {
+          "priceId" : 7685,
+          "priceList" : "basic",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "3899.17",
+          "priceWithTax" : "4718.0",
+          "taxRate" : "21.0",
+          "validity" : null
+        },
+        "priceForSaleMax" : {
+          "priceId" : 7685,
+          "priceList" : "basic",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "3899.17",
+          "priceWithTax" : "4718.0",
+          "taxRate" : "21.0",
+          "validity" : null
         }
       },
       {
@@ -279,6 +433,28 @@
           }
         ],
         "priceForSale" : {
+          "priceId" : 7687,
+          "priceList" : "basic",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "3899.17",
+          "priceWithTax" : "4718.0",
+          "taxRate" : "21.0",
+          "validity" : null
+        },
+        "priceForSaleMin" : {
+          "priceId" : 7687,
+          "priceList" : "basic",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "3899.17",
+          "priceWithTax" : "4718.0",
+          "taxRate" : "21.0",
+          "validity" : null
+        },
+        "priceForSaleMax" : {
           "priceId" : 7687,
           "priceList" : "basic",
           "currency" : "EUR",
@@ -324,6 +500,28 @@
           "priceWithTax" : "4699.0",
           "taxRate" : "21.0",
           "validity" : null
+        },
+        "priceForSaleMin" : {
+          "priceId" : 4447,
+          "priceList" : "basic",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "3883.47",
+          "priceWithTax" : "4699.0",
+          "taxRate" : "21.0",
+          "validity" : null
+        },
+        "priceForSaleMax" : {
+          "priceId" : 4447,
+          "priceList" : "basic",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "3883.47",
+          "priceWithTax" : "4699.0",
+          "taxRate" : "21.0",
+          "validity" : null
         }
       },
       {
@@ -351,6 +549,28 @@
           }
         ],
         "priceForSale" : {
+          "priceId" : 7693,
+          "priceList" : "basic",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "3866.94",
+          "priceWithTax" : "4679.0",
+          "taxRate" : "21.0",
+          "validity" : null
+        },
+        "priceForSaleMin" : {
+          "priceId" : 7693,
+          "priceList" : "basic",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "3866.94",
+          "priceWithTax" : "4679.0",
+          "taxRate" : "21.0",
+          "validity" : null
+        },
+        "priceForSaleMax" : {
           "priceId" : 7693,
           "priceList" : "basic",
           "currency" : "EUR",
@@ -396,6 +616,28 @@
           "priceWithTax" : "4679.0",
           "taxRate" : "21.0",
           "validity" : null
+        },
+        "priceForSaleMin" : {
+          "priceId" : 7695,
+          "priceList" : "basic",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "3866.94",
+          "priceWithTax" : "4679.0",
+          "taxRate" : "21.0",
+          "validity" : null
+        },
+        "priceForSaleMax" : {
+          "priceId" : 7695,
+          "priceList" : "basic",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "3866.94",
+          "priceWithTax" : "4679.0",
+          "taxRate" : "21.0",
+          "validity" : null
         }
       },
       {
@@ -423,6 +665,28 @@
           }
         ],
         "priceForSale" : {
+          "priceId" : 4445,
+          "priceList" : "basic",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "3800.83",
+          "priceWithTax" : "4599.0",
+          "taxRate" : "21.0",
+          "validity" : null
+        },
+        "priceForSaleMin" : {
+          "priceId" : 4445,
+          "priceList" : "basic",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "3800.83",
+          "priceWithTax" : "4599.0",
+          "taxRate" : "21.0",
+          "validity" : null
+        },
+        "priceForSaleMax" : {
           "priceId" : 4445,
           "priceList" : "basic",
           "currency" : "EUR",
@@ -468,6 +732,28 @@
           "priceWithTax" : "4589.0",
           "taxRate" : "21.0",
           "validity" : null
+        },
+        "priceForSaleMin" : {
+          "priceId" : 7697,
+          "priceList" : "basic",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "3792.56",
+          "priceWithTax" : "4589.0",
+          "taxRate" : "21.0",
+          "validity" : null
+        },
+        "priceForSaleMax" : {
+          "priceId" : 7697,
+          "priceList" : "basic",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "3792.56",
+          "priceWithTax" : "4589.0",
+          "taxRate" : "21.0",
+          "validity" : null
         }
       },
       {
@@ -495,6 +781,28 @@
           }
         ],
         "priceForSale" : {
+          "priceId" : 7699,
+          "priceList" : "basic",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "3792.56",
+          "priceWithTax" : "4589.0",
+          "taxRate" : "21.0",
+          "validity" : null
+        },
+        "priceForSaleMin" : {
+          "priceId" : 7699,
+          "priceList" : "basic",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "3792.56",
+          "priceWithTax" : "4589.0",
+          "taxRate" : "21.0",
+          "validity" : null
+        },
+        "priceForSaleMax" : {
           "priceId" : 7699,
           "priceList" : "basic",
           "currency" : "EUR",
@@ -651,6 +959,28 @@
           "taxRate" : "21.0",
           "validity" : null
         },
+        "priceForSaleMin" : {
+          "priceId" : 7701,
+          "priceList" : "basic",
+          "currency" : "EUR",
+          "innerRecordId" : 111157,
+          "indexed" : true,
+          "priceWithoutTax" : "3751.24",
+          "priceWithTax" : "4539.0",
+          "taxRate" : "21.0",
+          "validity" : null
+        },
+        "priceForSaleMax" : {
+          "priceId" : 7689,
+          "priceList" : "basic",
+          "currency" : "EUR",
+          "innerRecordId" : 111151,
+          "indexed" : true,
+          "priceWithoutTax" : "3966.12",
+          "priceWithTax" : "4799.0",
+          "taxRate" : "21.0",
+          "validity" : null
+        },
         "multiplePricesForSaleAvailable" : true
       },
       {
@@ -678,6 +1008,28 @@
           }
         ],
         "priceForSale" : {
+          "priceId" : 7701,
+          "priceList" : "basic",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "3751.24",
+          "priceWithTax" : "4539.0",
+          "taxRate" : "21.0",
+          "validity" : null
+        },
+        "priceForSaleMin" : {
+          "priceId" : 7701,
+          "priceList" : "basic",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "3751.24",
+          "priceWithTax" : "4539.0",
+          "taxRate" : "21.0",
+          "validity" : null
+        },
+        "priceForSaleMax" : {
           "priceId" : 7701,
           "priceList" : "basic",
           "currency" : "EUR",
@@ -723,6 +1075,28 @@
           "priceWithTax" : "4539.0",
           "taxRate" : "21.0",
           "validity" : null
+        },
+        "priceForSaleMin" : {
+          "priceId" : 7703,
+          "priceList" : "basic",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "3751.24",
+          "priceWithTax" : "4539.0",
+          "taxRate" : "21.0",
+          "validity" : null
+        },
+        "priceForSaleMax" : {
+          "priceId" : 7703,
+          "priceList" : "basic",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "3751.24",
+          "priceWithTax" : "4539.0",
+          "taxRate" : "21.0",
+          "validity" : null
         }
       },
       {
@@ -750,6 +1124,28 @@
           }
         ],
         "priceForSale" : {
+          "priceId" : 4431,
+          "priceList" : "basic",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "3718.18",
+          "priceWithTax" : "4499.0",
+          "taxRate" : "21.0",
+          "validity" : null
+        },
+        "priceForSaleMin" : {
+          "priceId" : 4431,
+          "priceList" : "basic",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "3718.18",
+          "priceWithTax" : "4499.0",
+          "taxRate" : "21.0",
+          "validity" : null
+        },
+        "priceForSaleMax" : {
           "priceId" : 4431,
           "priceList" : "basic",
           "currency" : "EUR",
@@ -795,6 +1191,28 @@
           "priceWithTax" : "4499.0",
           "taxRate" : "21.0",
           "validity" : null
+        },
+        "priceForSaleMin" : {
+          "priceId" : 4435,
+          "priceList" : "basic",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "3718.18",
+          "priceWithTax" : "4499.0",
+          "taxRate" : "21.0",
+          "validity" : null
+        },
+        "priceForSaleMax" : {
+          "priceId" : 4435,
+          "priceList" : "basic",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "3718.18",
+          "priceWithTax" : "4499.0",
+          "taxRate" : "21.0",
+          "validity" : null
         }
       },
       {
@@ -822,6 +1240,28 @@
           }
         ],
         "priceForSale" : {
+          "priceId" : 4455,
+          "priceList" : "basic",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "3718.18",
+          "priceWithTax" : "4499.0",
+          "taxRate" : "21.0",
+          "validity" : null
+        },
+        "priceForSaleMin" : {
+          "priceId" : 4455,
+          "priceList" : "basic",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "3718.18",
+          "priceWithTax" : "4499.0",
+          "taxRate" : "21.0",
+          "validity" : null
+        },
+        "priceForSaleMax" : {
           "priceId" : 4455,
           "priceList" : "basic",
           "currency" : "EUR",

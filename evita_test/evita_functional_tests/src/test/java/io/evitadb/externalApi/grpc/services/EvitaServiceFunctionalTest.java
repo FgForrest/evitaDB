@@ -60,14 +60,18 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.GRPC;
+import static io.evitadb.test.TestTags.EXTERNAL_API;
+import static io.evitadb.test.TestTags.QUERY;
 
 @DisplayName("EvitaService gRPC functional test")
 @ExtendWith(EvitaParameterResolver.class)
-@Tag(FUNCTIONAL_TEST)
 @Slf4j
+@Tag(GRPC)
+@Tag(EXTERNAL_API)
+@Tag(QUERY)
 class EvitaServiceFunctionalTest {
 	private static final String GRPC_THOUSAND_PRODUCTS = "EvitaServiceFunctionalTest";
 	private static final String DUMMY_CATALOG = "dummy-catalog";

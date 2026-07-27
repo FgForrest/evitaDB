@@ -34,8 +34,13 @@ import java.io.Serial;
 import java.util.Currency;
 
 /**
- * No extra information provided - see (selfexplanatory) method signatures.
- * I have the best intention to write more detailed documentation but if you see this, there was not enough time or will to do so.
+ * Mock extension of {@link PriceListAndCurrencyPriceSuperIndex} that stores a pre-built array
+ * of {@link PriceRecordContract} and their extracted price IDs. Overrides
+ * {@link #getPriceRecords()} and {@link #getIndexedPriceIds()} to return the pre-built arrays
+ * directly, bypassing the real index's transactional storage layer.
+ *
+ * Used by {@link PriceIdsWithPriceRecordsRecordState} to back the {@link PriceIdContainerFormula}
+ * with realistic price data for benchmark price-ID-to-entity-ID translation.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */

@@ -101,7 +101,8 @@ public class ModifyAssociatedDataSchemaNameMutation
 			associatedDataSchema.getDeprecationNotice(),
 			associatedDataSchema.getType(),
 			associatedDataSchema.isLocalized(),
-			associatedDataSchema.isNullable()
+			associatedDataSchema.isNullable(),
+			associatedDataSchema.getConflictResolutionOverride()
 		);
 	}
 

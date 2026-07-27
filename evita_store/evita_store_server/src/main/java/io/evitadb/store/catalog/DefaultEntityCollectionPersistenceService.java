@@ -25,9 +25,6 @@ package io.evitadb.store.catalog;
 
 import com.esotericsoftware.kryo.Kryo;
 import io.evitadb.api.EvitaSessionContract;
-import io.evitadb.api.configuration.StorageOptions;
-import io.evitadb.api.configuration.TransactionOptions;
-import io.evitadb.api.exception.AttributeNotFoundException;
 import io.evitadb.api.exception.EntityAlreadyRemovedException;
 import io.evitadb.api.exception.EntityMissingException;
 import io.evitadb.api.query.require.EntityFetch;
@@ -45,7 +42,6 @@ import io.evitadb.api.requestResponse.data.structure.predicate.AttributeValueSer
 import io.evitadb.api.requestResponse.data.structure.predicate.HierarchySerializablePredicate;
 import io.evitadb.api.requestResponse.data.structure.predicate.PriceContractSerializablePredicate;
 import io.evitadb.api.requestResponse.data.structure.predicate.ReferenceContractSerializablePredicate;
-import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.core.buffer.DataStoreChanges.RemovedStoragePart;
@@ -59,33 +55,23 @@ import io.evitadb.core.metric.event.storage.FileType;
 import io.evitadb.core.metric.event.storage.OffsetIndexHistoryKeptEvent;
 import io.evitadb.core.metric.event.storage.OffsetIndexNonFlushedEvent;
 import io.evitadb.core.query.response.ServerEntityDecorator;
-import io.evitadb.dataType.Scope;
-import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.EntityIndexType;
+import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.index.bitmap.EmptyBitmap;
+import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.ReducedEntityIndex;
+import io.evitadb.index.ReducedGroupEntityIndex;
 import io.evitadb.index.ReferencedTypeEntityIndex;
-import io.evitadb.index.attribute.AttributeIndex;
-import io.evitadb.index.attribute.ChainIndex;
-import io.evitadb.index.attribute.FilterIndex;
-import io.evitadb.index.attribute.SortIndex;
-import io.evitadb.index.attribute.UniqueIndex;
-import io.evitadb.index.cardinality.AttributeCardinalityIndex;
-import io.evitadb.index.cardinality.ReferenceTypeCardinalityIndex;
-import io.evitadb.index.facet.FacetIndex;
-import io.evitadb.index.hierarchy.HierarchyIndex;
-import io.evitadb.index.price.PriceListAndCurrencyPriceRefIndex;
-import io.evitadb.index.price.PriceListAndCurrencyPriceSuperIndex;
-import io.evitadb.index.price.PriceRefIndex;
-import io.evitadb.index.price.PriceSuperIndex;
-import io.evitadb.index.price.model.PriceIndexKey;
+import io.evitadb.index.component.loader.IndexReloadPlan;
+import io.evitadb.index.component.loader.LoadContext;
 import io.evitadb.spi.store.catalog.chunk.ServerChunkTransformerAccessor;
 import io.evitadb.spi.store.catalog.header.HeaderInfoSupplier;
 import io.evitadb.spi.store.catalog.persistence.EntityCollectionPersistenceService;
-import io.evitadb.spi.store.catalog.persistence.StoragePartPersistenceService;
+import io.evitadb.spi.store.catalog.persistence.storageParts.DeferredRemovalStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.AssociatedDataStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.AssociatedDataStoragePart.EntityAssociatedDataKey;
@@ -95,8 +81,9 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.entity.EntityBodySt
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.EntityStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.PricesStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.ReferencesStoragePart;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.*;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStoragePart.AttributeIndexType;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIdsStoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIndexStoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIndexStoragePartDeprecated;
 import io.evitadb.store.entity.EntityFactory;
 import io.evitadb.store.entity.EntityStoragePartConfigurer;
 import io.evitadb.store.index.IndexStoragePartConfigurer;
@@ -109,15 +96,17 @@ import io.evitadb.store.offsetIndex.OffsetIndex;
 import io.evitadb.store.offsetIndex.OffsetIndex.NonFlushedBlock;
 import io.evitadb.store.offsetIndex.OffsetIndexDescriptor;
 import io.evitadb.store.offsetIndex.io.CatalogOffHeapMemoryManager;
+import io.evitadb.store.offsetIndex.io.PendingSyncRegistry;
 import io.evitadb.store.offsetIndex.io.WriteOnlyFileHandle;
 import io.evitadb.store.offsetIndex.model.OffsetIndexRecordTypeRegistry;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
 import io.evitadb.store.schema.SchemaKryoConfigurer;
+import io.evitadb.store.settings.StorageSettings;
 import io.evitadb.store.shared.kryo.SharedClassesConfigurer;
 import io.evitadb.store.shared.kryo.VersionedKryoFactory;
 import io.evitadb.store.shared.model.PersistentStorageDescriptor;
 import io.evitadb.store.wal.TransactionalStoragePartPersistenceService;
-import io.evitadb.utils.CollectionUtils;
+import io.evitadb.utils.Functions;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -126,6 +115,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.BufferedOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -143,7 +133,6 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService.getEntityCollectionDataStoreFileNamePattern;
-import static io.evitadb.spi.store.catalog.persistence.storageParts.index.PriceListAndCurrencySuperIndexStoragePart.computeUniquePartId;
 import static io.evitadb.utils.Assert.isPremiseValid;
 import static io.evitadb.utils.Assert.notNull;
 import static java.util.Optional.empty;
@@ -163,6 +152,21 @@ public class DefaultEntityCollectionPersistenceService
 	CatalogConsumersListener
 {
 	public static final byte[][] BYTE_TWO_DIMENSIONAL_ARRAY = new byte[0][];
+	/**
+	 * Buffer size for the {@link BufferedOutputStream} that wraps the raw compaction output file. The snapshot
+	 * copy emits three tiny writes per record (header, payload, tail); without buffering a multi-million-record
+	 * collection turns the copy into millions of write syscalls. Batching them through this buffer collapses it
+	 * into far fewer, larger writes.
+	 */
+	private static final int COMPACTION_OUTPUT_BUFFER_SIZE = 65_536;
+	/**
+	 * Mirrors {@link io.evitadb.api.configuration.StorageOptions#syncWrites()}.
+	 *
+	 * Retained because the compaction path writes its output file through a raw stream rather than through a
+	 * {@link io.evitadb.store.offsetIndex.io.WriteOnlyHandle}, so it has to honour the setting itself instead of
+	 * inheriting it from the handle.
+	 */
+	private final boolean syncWrites;
 	/**
 	 * Factory function that configures new instance of the versioned kryo factory.
 	 */
@@ -219,6 +223,14 @@ public class DefaultEntityCollectionPersistenceService
 	 * Contains information about the time the non-flushed block was reported.
 	 */
 	private long lastReportTimestamp;
+	/**
+	 * Wall-clock time (epoch millis) at which this instance was created. Because a compacted collection is always
+	 * replaced by a brand-new {@link DefaultEntityCollectionPersistenceService} instance
+	 * ({@link DefaultCatalogPersistenceService#flush}), this value doubles as "time of the last compaction" for the
+	 * {@code minCompactionIntervalMilliseconds} cadence gate without needing to be updated anywhere else.
+	 */
+	@Getter
+	private final long lastCompactionAtMillis;
 
 	@Nonnull
 	private static Optional<EntityWithFetchCount> toEntity(
@@ -247,28 +259,41 @@ public class DefaultEntityCollectionPersistenceService
 
 			// load additional containers only when requested
 			final ReferencesStoragePart referencesStorageContainer = fetchReferences(
-				null, new ReferenceContractSerializablePredicate(evitaRequest),
-				() -> Arrays.stream(storageParts)
-					.filter(ReferencesStoragePart.class::isInstance)
-					.map(ReferencesStoragePart.class::cast)
-					.findFirst()
-					.orElseGet(
-						() -> ioFetchStatistics.record(
-							dataStoreReader.fetch(catalogVersion, entityPrimaryKey, ReferencesStoragePart.class)
-						)
-					)
+				null,
+				new ReferenceContractSerializablePredicate(evitaRequest),
+				new Supplier<>() {
+					@Nullable
+					@Override
+					public ReferencesStoragePart get() {
+						return Arrays.stream(storageParts)
+							.filter(ReferencesStoragePart.class::isInstance)
+							.map(ReferencesStoragePart.class::cast)
+							.findFirst()
+							.orElseGet(
+								() -> ioFetchStatistics.record(
+									dataStoreReader.fetch(catalogVersion, entityPrimaryKey, ReferencesStoragePart.class)
+								)
+							);
+					}
+				}
 			);
 			final PricesStoragePart priceStorageContainer = fetchPrices(
 				null, new PriceContractSerializablePredicate(evitaRequest, (Boolean) null),
-				() -> Arrays.stream(storageParts)
-					.filter(PricesStoragePart.class::isInstance)
-					.map(PricesStoragePart.class::cast)
-					.findFirst()
-					.orElseGet(
-						() -> ioFetchStatistics.record(
-							dataStoreReader.fetch(catalogVersion, entityPrimaryKey, PricesStoragePart.class)
-						)
-					)
+				new Supplier<>() {
+					@Nullable
+					@Override
+					public PricesStoragePart get() {
+						return Arrays.stream(storageParts)
+							.filter(PricesStoragePart.class::isInstance)
+							.map(PricesStoragePart.class::cast)
+							.findFirst()
+							.orElseGet(
+								() -> ioFetchStatistics.record(
+									dataStoreReader.fetch(catalogVersion, entityPrimaryKey, PricesStoragePart.class)
+								)
+							);
+					}
+				}
 			);
 
 			final List<AttributesStoragePart> attributesStorageContainers = fetchAttributes(
@@ -323,298 +348,6 @@ public class DefaultEntityCollectionPersistenceService
 				)
 			);
 		}
-	}
-
-	/**
-	 * Fetches {@link io.evitadb.index.facet.FacetIndex} from the {@link OffsetIndex} and returns it.
-	 */
-	@Nonnull
-	private static FacetIndex fetchFacetIndex(
-		long catalogVersion,
-		int entityIndexId,
-		@Nonnull StoragePartPersistenceService<PersistentStorageDescriptor> persistenceService,
-		@Nonnull EntityIndexStoragePart entityIndexCnt) {
-		final FacetIndex facetIndex;
-		final Set<String> facetIndexes = entityIndexCnt.getFacetIndexes();
-		if (facetIndexes.isEmpty()) {
-			facetIndex = new FacetIndex();
-		} else {
-			final List<FacetIndexStoragePart> facetIndexParts = new ArrayList<>(facetIndexes.size());
-			for (String referenceName : facetIndexes) {
-				final long primaryKey = FacetIndexStoragePart.computeUniquePartId(entityIndexId, referenceName, persistenceService.getReadOnlyKeyCompressor());
-				final FacetIndexStoragePart facetIndexStoragePart = persistenceService.getStoragePart(catalogVersion, primaryKey, FacetIndexStoragePart.class);
-				isPremiseValid(
-					facetIndexStoragePart != null,
-					"Facet index with id " + entityIndexId + " (id=" + primaryKey + ") and key " + referenceName + " was not found in persistent storage!"
-				);
-				facetIndexParts.add(facetIndexStoragePart);
-			}
-			facetIndex = new FacetIndex(facetIndexParts);
-		}
-		return facetIndex;
-	}
-
-	/**
-	 * Fetches {@link HierarchyIndex} from the {@link OffsetIndex} and returns it.
-	 */
-	@Nonnull
-	private static HierarchyIndex fetchHierarchyIndex(
-		long catalogVersion,
-		int entityIndexId,
-		@Nonnull StoragePartPersistenceService<PersistentStorageDescriptor> persistenceService,
-		@Nonnull EntityIndexStoragePart entityIndexCnt
-	) {
-		final HierarchyIndex hierarchyIndex;
-		if (entityIndexCnt.isHierarchyIndex()) {
-			final HierarchyIndexStoragePart hierarchyIndexStoragePart = persistenceService.getStoragePart(catalogVersion, entityIndexId, HierarchyIndexStoragePart.class);
-			isPremiseValid(
-				hierarchyIndexStoragePart != null,
-				"Hierarchy index with id " + entityIndexId + " was not found in persistent storage!"
-			);
-			hierarchyIndex = new HierarchyIndex(
-				hierarchyIndexStoragePart.getRoots(),
-				hierarchyIndexStoragePart.getLevelIndex(),
-				hierarchyIndexStoragePart.getItemIndex(),
-				hierarchyIndexStoragePart.getOrphans()
-			);
-		} else {
-			hierarchyIndex = new HierarchyIndex();
-		}
-		return hierarchyIndex;
-	}
-
-	/**
-	 * Fetches {@link SortIndex} from the {@link OffsetIndex} and puts it into the `sortIndexes` key-value index.
-	 */
-	private static void fetchSortIndex(
-		long catalogVersion,
-		int entityIndexId,
-		@Nonnull StoragePartPersistenceService<PersistentStorageDescriptor> persistenceService,
-		@Nonnull Map<AttributeIndexKey, SortIndex> sortIndexes,
-		@Nullable RepresentativeReferenceKey referenceKey,
-		@Nonnull AttributeIndexStorageKey attributeIndexStorageKey
-	) {
-		final long primaryKey = AttributeIndexStoragePart.computeUniquePartId(entityIndexId, AttributeIndexType.SORT, attributeIndexStorageKey.attribute(), persistenceService.getReadOnlyKeyCompressor());
-		final SortIndexStoragePart sortIndexCnt = persistenceService.getStoragePart(catalogVersion, primaryKey, SortIndexStoragePart.class);
-		isPremiseValid(
-			sortIndexCnt != null,
-			"Sort index with id " + entityIndexId + " with key " + attributeIndexStorageKey.attribute() + " was not found in persistent storage!"
-		);
-		final AttributeIndexKey attributeIndexKey = sortIndexCnt.getAttributeIndexKey();
-		sortIndexes.put(
-			attributeIndexKey,
-			new SortIndex(
-				sortIndexCnt.getComparatorBase(),
-				referenceKey,
-				sortIndexCnt.getAttributeIndexKey(),
-				sortIndexCnt.getSortedRecords(),
-				sortIndexCnt.getSortedRecordsValues(),
-				sortIndexCnt.getValueCardinalities()
-			)
-		);
-	}
-
-	/**
-	 * Fetches {@link ChainIndex} from the {@link OffsetIndex} and puts it into the `chainIndexes` key-value index.
-	 */
-	private static void fetchChainIndex(
-		long catalogVersion,
-		int entityIndexId,
-		@Nonnull StoragePartPersistenceService<PersistentStorageDescriptor> persistenceService,
-		@Nonnull Map<AttributeIndexKey, ChainIndex> chainIndexes,
-		@Nullable RepresentativeReferenceKey referenceKey,
-		@Nonnull AttributeIndexStorageKey attributeIndexStorageKey
-	) {
-		final long primaryKey = AttributeIndexStoragePart.computeUniquePartId(entityIndexId, AttributeIndexType.CHAIN, attributeIndexStorageKey.attribute(), persistenceService.getReadOnlyKeyCompressor());
-		final ChainIndexStoragePart chainIndexCnt = persistenceService.getStoragePart(catalogVersion, primaryKey, ChainIndexStoragePart.class);
-		isPremiseValid(
-			chainIndexCnt != null,
-			"Chain index with id " + entityIndexId + " with key " + attributeIndexStorageKey.attribute() + " was not found in persistent storage!"
-		);
-		final AttributeIndexKey attributeIndexKey = chainIndexCnt.getAttributeIndexKey();
-		chainIndexes.put(
-			attributeIndexKey,
-			new ChainIndex(
-				referenceKey,
-				chainIndexCnt.getAttributeIndexKey(),
-				chainIndexCnt.getChains(),
-				chainIndexCnt.getElementStates()
-			)
-		);
-	}
-
-	/**
-	 * Fetches {@link AttributeCardinalityIndex} from the {@link OffsetIndex} and puts it into the `cardinalityIndexes` key-value index.
-	 */
-	private static void fetchAttributeCardinalityIndex(
-		long catalogVersion,
-		int entityIndexId,
-		@Nonnull StoragePartPersistenceService<PersistentStorageDescriptor> persistenceService,
-		@Nonnull Map<AttributeIndexKey, AttributeCardinalityIndex> cardinalityIndexes,
-		@Nonnull AttributeIndexStorageKey attributeIndexStorageKey
-	) {
-		final long primaryKey = AttributeIndexStoragePart.computeUniquePartId(entityIndexId, AttributeIndexType.CARDINALITY, attributeIndexStorageKey.attribute(), persistenceService.getReadOnlyKeyCompressor());
-		final AttributeCardinalityIndexStoragePart cardinalityIndexCnt = persistenceService.getStoragePart(catalogVersion, primaryKey, AttributeCardinalityIndexStoragePart.class);
-		isPremiseValid(
-			cardinalityIndexCnt != null,
-			"Cardinality index with id " + entityIndexId + " with key " + attributeIndexStorageKey.attribute() + " was not found in persistent storage!"
-		);
-		final AttributeIndexKey attributeIndexKey = cardinalityIndexCnt.getAttributeIndexKey();
-		cardinalityIndexes.put(
-			attributeIndexKey,
-			cardinalityIndexCnt.getCardinalityIndex()
-		);
-	}
-
-	/**
-	 * Fetches {@link ReferenceTypeCardinalityIndex} from the {@link OffsetIndex} and returns it.
-	 */
-	@Nonnull
-	private static ReferenceTypeCardinalityIndex fetchReferenceTypeCardinalityIndex(
-		long catalogVersion,
-		int entityIndexId,
-		@Nonnull StoragePartPersistenceService<PersistentStorageDescriptor> persistenceService,
-		@Nonnull String referenceName
-	) {
-		final long primaryKey = ReferenceTypeCardinalityIndexStoragePart.computeUniquePartId(entityIndexId, referenceName, persistenceService.getReadOnlyKeyCompressor());
-		final ReferenceTypeCardinalityIndexStoragePart cardinalityIndexCnt = persistenceService.getStoragePart(catalogVersion, primaryKey, ReferenceTypeCardinalityIndexStoragePart.class);
-		isPremiseValid(
-			cardinalityIndexCnt != null,
-			"Cardinality index with id `" + entityIndexId + "` with key `" + referenceName + "` was not found in persistent storage!"
-		);
-		return cardinalityIndexCnt.getCardinalityIndex();
-	}
-
-	/**
-	 * Fetches {@link FilterIndex} from the {@link OffsetIndex} and puts it into the `filterIndexes` key-value index.
-	 */
-	private static void fetchFilterIndex(
-		long catalogVersion,
-		int entityIndexId,
-		@Nonnull StoragePartPersistenceService<PersistentStorageDescriptor> persistenceService,
-		@Nonnull Map<AttributeIndexKey, FilterIndex> filterIndexes,
-		@Nonnull AttributeIndexStorageKey attributeIndexStorageKey,
-		@SuppressWarnings("rawtypes")
-		@Nonnull Function<AttributeIndexKey, Class> attributeTypeSupplier
-	) {
-		final long primaryKey = AttributeIndexStoragePart.computeUniquePartId(entityIndexId, AttributeIndexType.FILTER, attributeIndexStorageKey.attribute(), persistenceService.getReadOnlyKeyCompressor());
-		final FilterIndexStoragePart filterIndexCnt = persistenceService.getStoragePart(catalogVersion, primaryKey, FilterIndexStoragePart.class);
-		isPremiseValid(
-			filterIndexCnt != null,
-			"Filter index with id " + entityIndexId + " with key " + attributeIndexStorageKey.attribute() + " was not found in persistent storage!"
-		);
-		final AttributeIndexKey attributeIndexKey = filterIndexCnt.getAttributeIndexKey();
-		/* TOBEDONE #538 - remove with new versions */
-		//noinspection unchecked
-		final Class<?> attributeType = ofNullable(filterIndexCnt.getAttributeType())
-			.orElseGet(() -> attributeTypeSupplier.apply(attributeIndexKey));
-		filterIndexes.put(
-			attributeIndexKey,
-			new FilterIndex(
-				filterIndexCnt.getAttributeIndexKey(),
-				filterIndexCnt.getHistogramPoints(),
-				filterIndexCnt.getRangeIndex(),
-				attributeType,
-				filterIndexCnt.getAttributeType() == null
-			)
-		);
-	}
-
-	/**
-	 * Fetches {@link UniqueIndex} from the {@link OffsetIndex} and puts it into the `uniqueIndexes` key-value index.
-	 */
-	private static void fetchUniqueIndex(
-		long catalogVersion,
-		int entityIndexId,
-		@Nonnull String entityType,
-		@Nonnull StoragePartPersistenceService<PersistentStorageDescriptor> persistenceService,
-		@Nonnull Map<AttributeIndexKey, UniqueIndex> uniqueIndexes,
-		@Nonnull AttributeIndexStorageKey attributeIndexStorageKey
-	) {
-		final long primaryKey = AttributeIndexStoragePart.computeUniquePartId(
-			entityIndexId,
-			AttributeIndexType.UNIQUE,
-			attributeIndexStorageKey.attribute(),
-			persistenceService.getReadOnlyKeyCompressor()
-		);
-		final UniqueIndexStoragePart uniqueIndexCnt = persistenceService.getStoragePart(catalogVersion, primaryKey, UniqueIndexStoragePart.class);
-		isPremiseValid(
-			uniqueIndexCnt != null,
-			"Unique index with id " + entityIndexId + " with key " + attributeIndexStorageKey.attribute() + " was not found in persistent storage!"
-		);
-		final AttributeIndexKey attributeIndexKey = uniqueIndexCnt.getAttributeIndexKey();
-		uniqueIndexes.put(
-			attributeIndexKey,
-			new UniqueIndex(
-				entityType,
-				attributeIndexKey,
-				uniqueIndexCnt.getType(),
-				uniqueIndexCnt.getUniqueValueToRecordId(),
-				uniqueIndexCnt.getRecordIds()
-			)
-		);
-	}
-
-	/**
-	 * Fetches {@link PriceListAndCurrencyPriceSuperIndex price indexes} from the {@link OffsetIndex} and returns key-value
-	 * index of them.
-	 */
-	private static Map<PriceIndexKey, PriceListAndCurrencyPriceSuperIndex> fetchPriceSuperIndexes(
-		long catalogVersion,
-		int entityIndexId,
-		@Nonnull Set<PriceIndexKey> priceIndexes,
-		@Nonnull StoragePartPersistenceService<PersistentStorageDescriptor> persistenceService
-	) {
-		final Map<PriceIndexKey, PriceListAndCurrencyPriceSuperIndex> priceSuperIndexes = CollectionUtils.createHashMap(priceIndexes.size());
-		for (PriceIndexKey priceIndexKey : priceIndexes) {
-			final long primaryKey = computeUniquePartId(entityIndexId, priceIndexKey, persistenceService.getReadOnlyKeyCompressor());
-			final PriceListAndCurrencySuperIndexStoragePart priceIndexCnt = persistenceService.getStoragePart(catalogVersion, primaryKey, PriceListAndCurrencySuperIndexStoragePart.class);
-			isPremiseValid(
-				priceIndexCnt != null,
-				"Price index with id " + entityIndexId + " with key " + priceIndexKey + " was not found in persistent storage!"
-			);
-			priceSuperIndexes.put(
-				priceIndexKey,
-				new PriceListAndCurrencyPriceSuperIndex(
-					priceIndexKey,
-					priceIndexCnt.getValidityIndex(),
-					priceIndexCnt.getPriceRecords()
-				)
-			);
-		}
-		return priceSuperIndexes;
-	}
-
-	/**
-	 * Fetches {@link PriceListAndCurrencyPriceRefIndex price indexes} from the {@link OffsetIndex} and returns key-value
-	 * index of them.
-	 */
-	private static Map<PriceIndexKey, PriceListAndCurrencyPriceRefIndex> fetchPriceRefIndexes(
-		long catalogVersion,
-		int entityIndexId,
-		@Nonnull Scope scope,
-		@Nonnull Set<PriceIndexKey> priceIndexes,
-		@Nonnull StoragePartPersistenceService<PersistentStorageDescriptor> persistenceService
-	) {
-		final Map<PriceIndexKey, PriceListAndCurrencyPriceRefIndex> priceRefIndexes = CollectionUtils.createHashMap(priceIndexes.size());
-		for (PriceIndexKey priceIndexKey : priceIndexes) {
-			final long primaryKey = computeUniquePartId(entityIndexId, priceIndexKey, persistenceService.getReadOnlyKeyCompressor());
-			final PriceListAndCurrencyRefIndexStoragePart priceIndexCnt = persistenceService.getStoragePart(catalogVersion, primaryKey, PriceListAndCurrencyRefIndexStoragePart.class);
-			isPremiseValid(
-				priceIndexCnt != null,
-				"Price index with id " + entityIndexId + " with key " + priceIndexKey + " was not found in persistent storage!"
-			);
-			priceRefIndexes.put(
-				priceIndexKey,
-				new PriceListAndCurrencyPriceRefIndex(
-					scope,
-					priceIndexKey,
-					priceIndexCnt.getValidityIndex(),
-					priceIndexCnt.getPriceIds()
-				)
-			);
-		}
-		return priceRefIndexes;
 	}
 
 	/**
@@ -676,7 +409,7 @@ public class DefaultEntityCollectionPersistenceService
 			final Set<Locale> previouslyFetchedLanguages = ofNullable(previousAttributePredicate).map(AttributeValueSerializablePredicate::getAllLocales).orElse(null);
 			final Set<Locale> newlyFetchedLanguages = newAttributePredicate.getAllLocales();
 			final Predicate<Locale> fetchedPreviously = firstRequest ?
-				locale -> false :
+				Functions.alwaysFalse() :
 				locale -> previouslyFetchedLanguages != null && (previouslyFetchedLanguages.isEmpty() || previouslyFetchedLanguages.contains(locale));
 			final Predicate<Locale> fetchedNewly = locale -> newlyFetchedLanguages != null && (newlyFetchedLanguages.isEmpty() || newlyFetchedLanguages.contains(locale));
 			allAvailableLocales
@@ -756,16 +489,30 @@ public class DefaultEntityCollectionPersistenceService
 		return Collections.emptyList();
 	}
 
+	/**
+	 * Creates the persistence service backing a single entity collection's data file.
+	 *
+	 * @param catalogVersion                the catalog version the collection is being opened at
+	 * @param catalogName                   name of the owning catalog
+	 * @param catalogStoragePath            directory the collection file lives in
+	 * @param entityTypeHeader              header describing the collection file and its location
+	 * @param storageSettings               storage settings, including whether writes are flushed to the device
+	 * @param offHeapMemoryManager          manager handing out off-heap buffers for isolated writes
+	 * @param observableOutputKeeper        keeper owning the lifetime of the write output
+	 * @param offsetIndexRecordTypeRegistry registry mapping storage part types to their record ids
+	 * @param pendingSyncRegistry           registry taking over the device flush of this collection's data file, or
+	 *                                      null to have each write flushed to the device inline
+	 */
 	public DefaultEntityCollectionPersistenceService(
 		long catalogVersion,
 		@Nonnull String catalogName,
 		@Nonnull Path catalogStoragePath,
 		@Nonnull EntityCollectionFileHeader entityTypeHeader,
-		@Nonnull StorageOptions storageOptions,
-		@Nonnull TransactionOptions transactionOptions,
+		@Nonnull StorageSettings storageSettings,
 		@Nonnull CatalogOffHeapMemoryManager offHeapMemoryManager,
 		@Nonnull ObservableOutputKeeper observableOutputKeeper,
-		@Nonnull OffsetIndexRecordTypeRegistry offsetIndexRecordTypeRegistry
+		@Nonnull OffsetIndexRecordTypeRegistry offsetIndexRecordTypeRegistry,
+		@Nullable PendingSyncRegistry pendingSyncRegistry
 	) {
 		this.entityCollectionFileReference = new CollectionFileReference(
 			entityTypeHeader.entityType(),
@@ -774,16 +521,22 @@ public class DefaultEntityCollectionPersistenceService
 			entityTypeHeader.fileLocation()
 		);
 		this.entityCollectionFile = this.entityCollectionFileReference.toFilePath(catalogStoragePath);
+		this.syncWrites = storageSettings.syncWrites();
 		this.entityCollectionHeader = entityTypeHeader;
 		this.offsetIndexRecordTypeRegistry = offsetIndexRecordTypeRegistry;
 		this.observableOutputKeeper = observableOutputKeeper;
+		this.lastCompactionAtMillis = DefaultCatalogPersistenceService.getNowEpochMillis();
 		final WriteOnlyFileHandle writeHandle = new WriteOnlyFileHandle(
 			catalogName,
 			FileType.ENTITY_COLLECTION,
 			this.entityCollectionFileReference.entityType(),
-			storageOptions,
+			storageSettings.outputBufferSize(),
+			storageSettings.syncWrites(),
+			storageSettings,
+			storageSettings,
 			this.entityCollectionFile,
-			observableOutputKeeper
+			observableOutputKeeper,
+			pendingSyncRegistry
 		);
 		try {
 			this.storagePartPersistenceService = new OffsetIndexStoragePartPersistenceService(
@@ -791,7 +544,7 @@ public class DefaultEntityCollectionPersistenceService
 				catalogName,
 				this.entityCollectionFileReference.entityType(),
 				FileType.ENTITY_COLLECTION,
-				transactionOptions,
+				storageSettings,
 				new OffsetIndex(
 					catalogVersion,
 					new OffsetIndexDescriptor(
@@ -801,7 +554,12 @@ public class DefaultEntityCollectionPersistenceService
 						entityTypeHeader.activeRecordShare(),
 						this.entityCollectionFile.toFile().length()
 					),
-					storageOptions,
+					storageSettings.outputBufferSize(),
+					storageSettings.maxOpenedReadHandlesOrDefault(),
+					storageSettings.lockTimeoutSeconds(),
+					storageSettings.waitOnCloseSeconds(),
+					storageSettings,
+					storageSettings,
 					offsetIndexRecordTypeRegistry,
 					writeHandle,
 					nonFlushedBlock -> reportNonFlushedContents(catalogName, nonFlushedBlock),
@@ -841,6 +599,16 @@ public class DefaultEntityCollectionPersistenceService
 					catalogVersion,
 					removedStoragePart.getStoragePartPKOrElseThrowException(),
 					removedStoragePart.containerType()
+				);
+			} else if (storagePart instanceof DeferredRemovalStoragePart deferredRemoval) {
+				// a removal whose primary key can only be resolved store-side (e.g. a freed granular FilterIndex leaf page
+				// whose streamId is a compressor dictionary id) — resolve it against the live compressor and remove it.
+				// The read-only view suffices: the stream was registered when the page was first written.
+				final long removedPartPK = deferredRemoval.computeUniquePartIdAndSet(
+					this.storagePartPersistenceService.getReadOnlyKeyCompressor()
+				);
+				this.storagePartPersistenceService.removeStoragePart(
+					catalogVersion, removedPartPK, deferredRemoval.removedContainerType()
 				);
 			} else {
 				this.storagePartPersistenceService.putStoragePart(catalogVersion, storagePart);
@@ -1089,146 +857,79 @@ public class DefaultEntityCollectionPersistenceService
 	@Nonnull
 	@Override
 	public EntityIndex readEntityIndex(long catalogVersion, int entityIndexId, @Nonnull EntitySchema entitySchema) {
-		final EntityIndexStoragePart entityIndexCnt = this.storagePartPersistenceService.getStoragePart(catalogVersion, entityIndexId, EntityIndexStoragePart.class);
+		final EntityIndexStoragePart manifest = this.storagePartPersistenceService.getStoragePart(
+			catalogVersion, entityIndexId, EntityIndexStoragePart.class
+		);
 		isPremiseValid(
-			entityIndexCnt != null,
+			manifest != null,
 			"Entity index with PK `" + entityIndexId + "` was unexpectedly not found in the persistent storage!"
 		);
 
-		int uniqueIndexCount = 0;
-		int filterIndexCount = 0;
-		int sortIndexCount = 0;
-		int chainIndexCount = 0;
-		int cardinalityIndexCount = 0;
-		for (AttributeIndexStorageKey attributeIndex : entityIndexCnt.getAttributeIndexes()) {
-			switch (attributeIndex.indexType()) {
-				case UNIQUE -> uniqueIndexCount++;
-				case FILTER -> filterIndexCount++;
-				case SORT -> sortIndexCount++;
-				case CHAIN -> chainIndexCount++;
-				case CARDINALITY -> cardinalityIndexCount++;
-				default -> throw new GenericEvitaInternalError("Unknown attribute index type: " + attributeIndex.indexType());
-			}
-		}
-
-		final Map<AttributeIndexKey, UniqueIndex> uniqueIndexes = CollectionUtils.createHashMap(uniqueIndexCount);
-		final Map<AttributeIndexKey, FilterIndex> filterIndexes = CollectionUtils.createHashMap(filterIndexCount);
-		final Map<AttributeIndexKey, SortIndex> sortIndexes = CollectionUtils.createHashMap(sortIndexCount);
-		final Map<AttributeIndexKey, ChainIndex> chainIndexes = CollectionUtils.createHashMap(chainIndexCount);
-		final Map<AttributeIndexKey, AttributeCardinalityIndex> cardinalityIndexes = CollectionUtils.createHashMap(cardinalityIndexCount);
-
-		/* TOBEDONE #538 - REMOVE IN FUTURE VERSIONS */
-		//noinspection rawtypes
-		final Function<AttributeIndexKey, Class> attributeTypeFetcher;
-		final EntityIndexKey entityIndexKey = entityIndexCnt.getEntityIndexKey();
+		final EntityIndexKey entityIndexKey = manifest.getEntityIndexKey();
 		final RepresentativeReferenceKey referenceKey;
 		if (entityIndexKey.type() == EntityIndexType.GLOBAL) {
 			referenceKey = null;
-			attributeTypeFetcher = attributeKey -> entitySchema
-				.getAttribute(attributeKey.attributeName())
-				.map(AttributeSchemaContract::getType)
-				.orElseThrow(() -> new AttributeNotFoundException(attributeKey.attributeName(), entitySchema));
 		} else {
-			final String referenceName;
-			if (entityIndexKey.type() == EntityIndexType.REFERENCED_ENTITY_TYPE) {
+			if (
+				entityIndexKey.type() == EntityIndexType.REFERENCED_ENTITY_TYPE ||
+					entityIndexKey.type() == EntityIndexType.REFERENCED_GROUP_ENTITY_TYPE
+			) {
 				referenceKey = null;
-				referenceName = Objects.requireNonNull((String) entityIndexKey.discriminator());
 			} else {
 				referenceKey = Objects.requireNonNull((RepresentativeReferenceKey) entityIndexKey.discriminator());
-				referenceName = referenceKey.referenceName();
-			}
-			final ReferenceSchema referenceSchema = entitySchema
-				.getReferenceOrThrowException(referenceName);
-
-			attributeTypeFetcher = attributeKey -> referenceSchema
-				.getAttribute(attributeKey.attributeName())
-				.or(() -> entitySchema.getAttribute(attributeKey.attributeName()))
-				.map(AttributeSchemaContract::getType)
-				.orElseThrow(() -> new AttributeNotFoundException(attributeKey.attributeName(), referenceSchema, entitySchema));
-		}
-
-		for (AttributeIndexStorageKey attributeIndexKey : entityIndexCnt.getAttributeIndexes()) {
-			switch (attributeIndexKey.indexType()) {
-				case UNIQUE ->
-					fetchUniqueIndex(catalogVersion, entityIndexId, entitySchema.getName(), this.storagePartPersistenceService, uniqueIndexes, attributeIndexKey);
-				case FILTER ->
-					fetchFilterIndex(catalogVersion, entityIndexId, this.storagePartPersistenceService, filterIndexes, attributeIndexKey, attributeTypeFetcher);
-				case SORT ->
-					fetchSortIndex(catalogVersion, entityIndexId, this.storagePartPersistenceService, sortIndexes, referenceKey, attributeIndexKey);
-				case CHAIN ->
-					fetchChainIndex(catalogVersion, entityIndexId, this.storagePartPersistenceService, chainIndexes, referenceKey, attributeIndexKey);
-				case CARDINALITY ->
-					fetchAttributeCardinalityIndex(catalogVersion, entityIndexId, this.storagePartPersistenceService, cardinalityIndexes, attributeIndexKey);
-				default ->
-					throw new GenericEvitaInternalError("Unknown attribute index type: " + attributeIndexKey.indexType());
 			}
 		}
 
-		final HierarchyIndex hierarchyIndex = fetchHierarchyIndex(catalogVersion, entityIndexId, this.storagePartPersistenceService, entityIndexCnt);
-		final FacetIndex facetIndex = fetchFacetIndex(catalogVersion, entityIndexId, this.storagePartPersistenceService, entityIndexCnt);
-
-		final EntityIndexType entityIndexType = entityIndexKey.type();
-		// base on entity index type we either create GlobalEntityIndex or ReducedEntityIndex
-		if (entityIndexType == EntityIndexType.GLOBAL) {
-			final Map<PriceIndexKey, PriceListAndCurrencyPriceSuperIndex> priceIndexes = fetchPriceSuperIndexes(
-				catalogVersion, entityIndexId, entityIndexCnt.getPriceIndexes(), this.storagePartPersistenceService
-			);
-			return new GlobalEntityIndex(
-				entityIndexCnt.getPrimaryKey(),
-				entityIndexKey,
-				entityIndexCnt.getVersion(),
-				entityIndexCnt.getEntityIds(),
-				entityIndexCnt.getEntityIdsByLanguage(),
-				new AttributeIndex(
-					entitySchema.getName(), null,
-					uniqueIndexes, filterIndexes, sortIndexes, chainIndexes
-				),
-				new PriceSuperIndex(priceIndexes),
-				hierarchyIndex,
-				facetIndex
-			);
-		} else if (entityIndexType == EntityIndexType.REFERENCED_ENTITY_TYPE) {
-			final String referenceName = Objects.requireNonNull((String) entityIndexKey.discriminator());
-			final ReferenceTypeCardinalityIndex referenceTypeCardinalityIndex = fetchReferenceTypeCardinalityIndex(
-				catalogVersion, entityIndexId, this.storagePartPersistenceService, referenceName
-			);
-			return new ReferencedTypeEntityIndex(
-				entityIndexCnt.getPrimaryKey(),
-				entityIndexKey,
-				entityIndexCnt.getVersion(),
-				entityIndexCnt.getEntityIds(),
-				entityIndexCnt.getEntityIdsByLanguage(),
-				new AttributeIndex(
-					entitySchema.getName(),
-					null,
-					uniqueIndexes, filterIndexes, sortIndexes, chainIndexes
-				),
-				hierarchyIndex,
-				facetIndex,
-				referenceTypeCardinalityIndex,
-				cardinalityIndexes
-			);
+		// the entity-id bitmaps were evicted out of the manifest into a sibling EntityIdsStoragePart from
+		// the 2026.2 format onwards — resolve them from the sibling when present, else fall back to the
+		// manifest's legacy inline carrier (released formats up to 2026.1), else an empty index
+		final EntityIdsStoragePart bitmapsPart = this.storagePartPersistenceService.getStoragePart(
+			catalogVersion, entityIndexId, EntityIdsStoragePart.class
+		);
+		final Bitmap entityIds;
+		final Map<Locale, TransactionalBitmap> entityIdsByLanguage;
+		final int effectiveVersion;
+		if (bitmapsPart != null) {
+			entityIds = bitmapsPart.getEntityIds();
+			entityIdsByLanguage = bitmapsPart.getEntityIdsByLanguage();
+			// the bitmaps part is re-emitted on every membership change while the manifest is not, so its
+			// version may run ahead of the manifest's — reconcile by taking the maximum
+			effectiveVersion = Math.max(manifest.getVersion(), bitmapsPart.getVersion());
 		} else {
-			final Scope scope = entityIndexKey.scope();
-			final Map<PriceIndexKey, PriceListAndCurrencyPriceRefIndex> priceIndexes = fetchPriceRefIndexes(
-				catalogVersion, entityIndexId, scope, entityIndexCnt.getPriceIndexes(), this.storagePartPersistenceService
-			);
-			return new ReducedEntityIndex(
-				entityIndexCnt.getPrimaryKey(),
-				entityIndexKey,
-				entityIndexCnt.getVersion(),
-				entityIndexCnt.getEntityIds(),
-				entityIndexCnt.getEntityIdsByLanguage(),
-				new AttributeIndex(
-					entitySchema.getName(),
-					referenceKey,
-					uniqueIndexes, filterIndexes, sortIndexes, chainIndexes
-				),
-				new PriceRefIndex(scope, priceIndexes),
-				hierarchyIndex,
-				facetIndex
-			);
+			final Bitmap legacyEntityIds = manifest.getEntityIds();
+			entityIds = legacyEntityIds == null ? EmptyBitmap.INSTANCE : legacyEntityIds;
+			final Map<Locale, TransactionalBitmap> legacyByLanguage = manifest.getEntityIdsByLanguage();
+			entityIdsByLanguage = legacyByLanguage == null ? Map.of() : legacyByLanguage;
+			effectiveVersion = manifest.getVersion();
 		}
+
+		final LoadContext context = new LoadContext(
+			catalogVersion, entityIndexId, entitySchema, entityIndexKey, manifest,
+			effectiveVersion, entityIds, entityIdsByLanguage,
+			this.storagePartPersistenceService, referenceKey
+		);
+
+		return resolvePlanFor(entityIndexKey.type()).run(context);
+	}
+
+	/**
+	 * Picks the read-side reload plan for the given {@link EntityIndexType}: `GLOBAL` resolves
+	 * to `GlobalEntityIndex`, `REFERENCED_*_TYPE` to `ReferencedTypeEntityIndex`,
+	 * `REFERENCED_GROUP_ENTITY` to `ReducedGroupEntityIndex`, and `REFERENCED_ENTITY` (plus
+	 * `REFERENCED_HIERARCHY_NODE`, which lacks a dedicated subclass) to `ReducedEntityIndex`.
+	 *
+	 * @param type the `EntityIndexType` of the manifest being reloaded
+	 * @return the immutable reload plan for the matching subclass
+	 */
+	@Nonnull
+	private static IndexReloadPlan resolvePlanFor(@Nonnull EntityIndexType type) {
+		return switch (type) {
+			case GLOBAL -> GlobalEntityIndex.reloadPlan();
+			case REFERENCED_ENTITY_TYPE, REFERENCED_GROUP_ENTITY_TYPE ->
+				ReferencedTypeEntityIndex.reloadPlan();
+			case REFERENCED_GROUP_ENTITY -> ReducedGroupEntityIndex.reloadPlan();
+			case REFERENCED_ENTITY, REFERENCED_HIERARCHY_NODE -> ReducedEntityIndex.reloadPlan();
+		};
 	}
 
 	@Override
@@ -1297,8 +998,18 @@ public class DefaultEntityCollectionPersistenceService
 		final Path catalogStoragePath = this.entityCollectionFile.getParent();
 		final Path newFilePath = newReference.toFilePath(catalogStoragePath);
 		final OffsetIndexDescriptor offsetIndexDescriptor;
-		try (final FileOutputStream fos = new FileOutputStream(newFilePath.toFile())) {
+		try (
+			final FileOutputStream compactedFileStream = new FileOutputStream(newFilePath.toFile());
+			final OutputStream fos = new BufferedOutputStream(compactedFileStream, COMPACTION_OUTPUT_BUFFER_SIZE)
+		) {
 			offsetIndexDescriptor = this.storagePartPersistenceService.copySnapshotTo(catalogVersion, fos, null);
+			// The collection header produced below points into this file and reaches the disk behind a fsynced
+			// bootstrap record. Closing a BufferedOutputStream only pushes its buffer into the page cache, so
+			// without this a crash could leave a durable pointer addressing data that was never written.
+			fos.flush();
+			if (this.syncWrites) {
+				compactedFileStream.getFD().sync();
+			}
 		} catch (IOException e) {
 			throw new UnexpectedIOException(
 				"Error occurred while compacting entity " + this.entityCollectionFile + " data file: " + e.getMessage(),

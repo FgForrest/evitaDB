@@ -23,33 +23,58 @@
 
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation;
 
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolution;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
+import io.evitadb.api.requestResponse.mutation.conflict.GranularConflictPolicy;
 import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.associatedData.SetAssociatedDataSchemaConflictResolutionOverrideMutation;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaConflictResolutionOverrideMutation;
 import io.evitadb.api.requestResponse.schema.mutation.entity.AllowLocaleInEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.entity.DisallowCurrencyInEntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.entity.ModifyEntitySchemaConflictResolutionMutation;
+import io.evitadb.api.requestResponse.schema.mutation.reference.SetReferenceSchemaConflictResolutionOverrideMutation;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.ConflictResolutionDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.LocalEntitySchemaMutationInputAggregateDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.AssociatedDataSchemaMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.SetAssociatedDataSchemaConflictResolutionOverrideMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.AttributeSchemaMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.SetAttributeSchemaConflictResolutionOverrideMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.entity.AllowLocaleInEntitySchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.entity.DisallowCurrencyInEntitySchemaMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.entity.ModifyEntitySchemaConflictResolutionMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference.ReferenceSchemaMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference.SetReferenceSchemaConflictResolutionOverrideMutationDescriptor;
 import io.evitadb.externalApi.api.resolver.mutation.PassThroughMutationObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.util.Currency;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.utils.MapBuilder.map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static io.evitadb.test.TestTags.EXTERNAL_API;
+import static io.evitadb.test.TestTags.QUERY;
+import static io.evitadb.test.TestTags.SCHEMA;
+import static io.evitadb.test.TestTags.TRANSACTION;
 
 /**
  * Tests for {@link LocalEntitySchemaMutationInputAggregateConverter}
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
+@Tag(EXTERNAL_API)
+@Tag(QUERY)
+@Tag(SCHEMA)
 class LocalEntitySchemaMutationInputAggregateConverterTest {
 
 	private LocalEntitySchemaMutationInputAggregateConverter converter;
@@ -94,6 +119,46 @@ class LocalEntitySchemaMutationInputAggregateConverterTest {
 		);
 		assertEquals(expectedMutations, convertedMutations2);
 	}
+	@Tag(TRANSACTION)
+	@Test
+	void shouldResolveConflictResolutionMutationsThroughAggregate() {
+		final List<LocalEntitySchemaMutation> expectedMutations = List.of(
+			new ModifyEntitySchemaConflictResolutionMutation(
+				new ConflictResolution(ConflictPolicy.ENTITY, EnumSet.of(GranularConflictPolicy.PRICE))),
+			new SetAttributeSchemaConflictResolutionOverrideMutation("code", ConflictResolutionOverride.GRANULAR),
+			new SetAssociatedDataSchemaConflictResolutionOverrideMutation("labels", ConflictResolutionOverride.ENTITY),
+			new SetReferenceSchemaConflictResolutionOverrideMutation("tags", ConflictResolutionOverride.GRANULAR)
+		);
+
+		final List<LocalEntitySchemaMutation> convertedMutations = this.converter.convertFromInput(
+			map()
+				.e(
+					LocalEntitySchemaMutationInputAggregateDescriptor.MODIFY_ENTITY_SCHEMA_CONFLICT_RESOLUTION_MUTATION.name(), map()
+					.e(ModifyEntitySchemaConflictResolutionMutationDescriptor.CONFLICT_RESOLUTION.name(), map()
+						.e(ConflictResolutionDescriptor.POLICY.name(), ConflictPolicy.ENTITY)
+						.e(ConflictResolutionDescriptor.GRANULARITY.name(), new GranularConflictPolicy[] { GranularConflictPolicy.PRICE })
+						.build())
+					.build())
+				.e(
+					LocalEntitySchemaMutationInputAggregateDescriptor.SET_ATTRIBUTE_SCHEMA_CONFLICT_RESOLUTION_OVERRIDE_MUTATION.name(), map()
+					.e(AttributeSchemaMutationDescriptor.NAME.name(), "code")
+					.e(SetAttributeSchemaConflictResolutionOverrideMutationDescriptor.CONFLICT_RESOLUTION_OVERRIDE.name(), ConflictResolutionOverride.GRANULAR)
+					.build())
+				.e(
+					LocalEntitySchemaMutationInputAggregateDescriptor.SET_ASSOCIATED_DATA_SCHEMA_CONFLICT_RESOLUTION_OVERRIDE_MUTATION.name(), map()
+					.e(AssociatedDataSchemaMutationDescriptor.NAME.name(), "labels")
+					.e(SetAssociatedDataSchemaConflictResolutionOverrideMutationDescriptor.CONFLICT_RESOLUTION_OVERRIDE.name(), ConflictResolutionOverride.ENTITY)
+					.build())
+				.e(
+					LocalEntitySchemaMutationInputAggregateDescriptor.SET_REFERENCE_SCHEMA_CONFLICT_RESOLUTION_OVERRIDE_MUTATION.name(), map()
+					.e(ReferenceSchemaMutationDescriptor.NAME.name(), "tags")
+					.e(SetReferenceSchemaConflictResolutionOverrideMutationDescriptor.CONFLICT_RESOLUTION_OVERRIDE.name(), ConflictResolutionOverride.GRANULAR)
+					.build())
+				.build()
+		);
+		assertEquals(expectedMutations, convertedMutations);
+	}
+
 	@Test
 	void shouldResolveInputToLocalMutationWithOnlyRequiredData() {
 		final List<LocalEntitySchemaMutation> convertedMutations = this.converter.convertFromInput(Map.of());

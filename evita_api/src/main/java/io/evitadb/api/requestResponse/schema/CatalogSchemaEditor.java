@@ -26,6 +26,7 @@ package io.evitadb.api.requestResponse.schema;
 import io.evitadb.api.EvitaContract;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.requestResponse.data.Versioned;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolution;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.ModifyCatalogSchemaMutation;
@@ -87,6 +88,30 @@ public interface CatalogSchemaEditor<S extends CatalogSchemaEditor<S>> extends
 	 */
 	@Nonnull
 	CatalogSchemaBuilder withEntitySchema(@Nonnull String entityType, @Nullable Consumer<EntitySchemaBuilder> whichIs);
+
+	/**
+	 * Declares an explicit transaction conflict resolution for this whole catalog, overriding the engine-level
+	 * default inherited from {@link io.evitadb.api.configuration.TransactionOptions}.
+	 *
+	 * The passed {@link ConflictResolution} replaces the inherited setting in its entirety — both the coarse
+	 * conflict policy and its optional sub-entity granularity — for every transaction committed against this
+	 * catalog. Use {@link #withoutConflictResolution()} to drop the override and fall back to the engine default.
+	 *
+	 * @param conflictResolution the catalog-level conflict resolution to apply, never null
+	 * @return this builder to allow method chaining
+	 */
+	@Nonnull
+	S withConflictResolution(@Nonnull ConflictResolution conflictResolution);
+
+	/**
+	 * Removes any catalog-level transaction conflict resolution override previously declared via
+	 * {@link #withConflictResolution(ConflictResolution)}, so this catalog again inherits the engine-level default
+	 * from {@link io.evitadb.api.configuration.TransactionOptions}.
+	 *
+	 * @return this builder to allow method chaining
+	 */
+	@Nonnull
+	S withoutConflictResolution();
 
 	/**
 	 * Interface that simply combines {@link CatalogSchemaEditor} and {@link CatalogSchemaContract} entity contracts

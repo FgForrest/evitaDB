@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2025-2026
+ *   Copyright (c) 2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -34,7 +34,7 @@ import java.util.UUID;
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
 
 /**
- * Descriptor representing the {@link TransactionMutation}
+ * Descriptor representing the {@link io.evitadb.api.requestResponse.mutation.infrastructure.TransactionMutation}
  *
  * Note: this descriptor has static structure.
  *

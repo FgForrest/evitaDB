@@ -49,38 +49,45 @@ import static java.util.Optional.empty;
 import static java.util.Optional.of;
 
 /**
- * The siblings requirement computes the hierarchy tree starting at the same hierarchy node that is targeted by
- * the filtering part of the same query using the hierarchyWithin. It lists all sibling nodes to the node that is
- * requested by hierarchyWithin constraint (that's why the siblings has no sense with {@link HierarchyWithinRoot}
- * constraint - "virtual" top level node cannot have any siblings). Siblings will produce a flat list of siblings unless
- * the {@link HierarchyStopAt} constraint is used as an inner constraint. The {@link HierarchyStopAt} constraint
- * triggers a top-down hierarchy traversal from each of the sibling nodes until the {@link HierarchyStopAt} is
- * satisfied. If you need to access statistical data, use the statistics constraint.
+ * Computes all sibling nodes of the hierarchy node targeted by the `hierarchyWithin` filter constraint — that is,
+ * all other children of the parent of the currently focused node that share the same parent. This is useful for
+ * rendering a "you are here, and here are the alternatives at the same level" navigation panel alongside the
+ * current page's primary breadcrumb or sub-navigation.
  *
- * The constraint accepts following arguments:
+ * By default, `siblings` produces a flat list of the sibling nodes with no further descent. Adding a
+ * {@link HierarchyStopAt} inner constraint triggers a top-down traversal from each sibling node down to the
+ * specified stopping condition, producing a tree rather than a flat list.
  *
- * - mandatory String argument specifying the output name for the calculated data structure
- * - optional one or more constraints that allow you to define the completeness of the hierarchy entities, the scope
- *   of the traversed hierarchy tree, and the statistics computed along the way; any or all of the constraints may
- *   be present:
+ * **Constraint has no meaning with `hierarchyWithinRoot`:** the virtual top root has no parent, and therefore no
+ * siblings are possible; using `siblings` in that context yields no results.
  *
- *      - {@link EntityFetch}
- *      - {@link HierarchyStopAt}
- *      - {@link HierarchyStatistics}
+ * **Two usage modes — standalone vs. nested inside `parents`:**
  *
- * The following query lists products in category Audio and its subcategories. Along with the products returned, it also
- * returns a computed audioSiblings data structure that lists the flat category list the currently focused category
- * Audio with a computed count of child categories for each menu item and an aggregated count of all products that would
- * fall into the given category.
+ * When used as a direct child of {@link HierarchyOfSelf} or {@link HierarchyOfReference}, the `outputName`
+ * argument is mandatory and specifies the key under which the sibling list is registered in the extra results.
  *
- * <pre>
+ * When used as a nested child of {@link HierarchyParents}, the `outputName` argument is omitted (it is `null`).
+ * In this mode, the `siblings` constraint extends each node on the ancestor axis with its sibling nodes, and
+ * the output is integrated into the parent axis result rather than registered as a separate extra result entry.
+ *
+ * **Interaction with `hierarchyWithin` filter:**
+ *
+ * The `having`, `anyHaving`, and `excluding` inner constraints of `hierarchyWithin` are respected during statistics
+ * computation, keeping entity counts consistent with the user-facing query result.
+ *
+ * **Optional inner constraints:**
+ *
+ * - {@link EntityFetch}: specifies which data to fetch for each sibling hierarchy entity
+ * - {@link HierarchyStopAt}: limits the top-down traversal depth from each sibling node
+ * - {@link HierarchyStatistics}: requests computation of `CHILDREN_COUNT` and/or `QUERIED_ENTITY_COUNT` per node
+ *
+ * **Example — flat sibling list of the focused "Audio" category with statistics:**
+ *
+ * ```evitaql
  * query(
  *     collection("Product"),
  *     filterBy(
- *         hierarchyWithin(
- *             "categories",
- *             attributeEquals("code", "audio")
- *         )
+ *         hierarchyWithin("categories", attributeEquals("code", "audio"))
  *     ),
  *     require(
  *         hierarchyOfReference(
@@ -88,37 +95,20 @@ import static java.util.Optional.of;
  *             siblings(
  *                 "audioSiblings",
  *                 entityFetch(attributeContent("code")),
- *                 statistics(
- *                     CHILDREN_COUNT,
- *                     QUERIED_ENTITY_COUNT
- *                 )
+ *                 statistics(CHILDREN_COUNT, QUERIED_ENTITY_COUNT)
  *             )
  *         )
  *     )
  * )
- * </pre>
+ * ```
  *
- * The calculated result for siblings is connected with the {@link HierarchyWithin} pivot hierarchy node. If
- * the {@link HierarchyWithin} contains inner constraints {@link HierarchyHaving}, {@link HierarchyAnyHaving}
- * or {@link HierarchyExcluding}, the children will respect them as well. The reason is simple: when you render a menu
- * for the query result, you want the calculated statistics to respect the rules that apply to the hierarchyWithin so
- * that the calculated number remains consistent for the end user.
- *
- * <strong>Different siblings syntax when used within parents parent constraint</strong>
- *
- * The siblings constraint can be used separately as a child of {@link HierarchyOfSelf} or {@link HierarchyOfReference},
- * or it can be used as a child constraint of {@link HierarchyParents}. In such a case, the siblings constraint lacks
- * the first string argument that defines the name for the output data structure. The reason is that this name is
- * already defined on the enclosing parents constraint, and the siblings constraint simply extends the data available
- * in its data structure.
- *
- * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#siblings">Visit detailed user documentation</a></p>
+ * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/hierarchy#siblings)
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 @ConstraintDefinition(
 	name = "siblings",
-	shortDescription = "The constraint triggers computing the sibling axis for currently requested hierarchy node in filter by constraint or processed node by hierarchy parents axis.",
+	shortDescription = "The constraint computes sibling nodes (nodes sharing the same parent) of the node targeted by the hierarchyWithin filter constraint.",
 	userDocsLink = "/documentation/query/requirements/hierarchy#siblings",
 	supportedIn = ConstraintDomain.HIERARCHY
 )
@@ -126,7 +116,11 @@ public class HierarchySiblings extends AbstractRequireConstraintContainer implem
 	@Serial private static final long serialVersionUID = 6203461550836216251L;
 	private static final String CONSTRAINT_NAME = "siblings";
 
-	private HierarchySiblings(@Nullable String outputName, @Nonnull RequireConstraint[] children, @Nonnull Constraint<?>... additionalChildren) {
+	private HierarchySiblings(
+		@Nullable String outputName,
+		@Nonnull RequireConstraint[] children,
+		@Nonnull Constraint<?>... additionalChildren
+	) {
 		super(CONSTRAINT_NAME, new Serializable[]{outputName}, children, additionalChildren);
 		for (RequireConstraint requireConstraint : children) {
 			Assert.isTrue(
@@ -228,7 +222,10 @@ public class HierarchySiblings extends AbstractRequireConstraintContainer implem
 
 	@Nonnull
 	@Override
-	public RequireConstraint getCopyWithNewChildren(@Nonnull RequireConstraint[] children, @Nonnull Constraint<?>[] additionalChildren) {
+	public RequireConstraint getCopyWithNewChildren(
+		@Nonnull RequireConstraint[] children,
+		@Nonnull Constraint<?>[] additionalChildren
+	) {
 		return new HierarchySiblings(getOutputName(), children, additionalChildren);
 	}
 
@@ -240,7 +237,7 @@ public class HierarchySiblings extends AbstractRequireConstraintContainer implem
 			(newArguments.length == 1 && newArguments[0] instanceof String),
 			"HierarchySiblings container accepts zero or only single String argument!"
 		);
-		return new HierarchySiblings((String) newArguments[0], getChildren(), getAdditionalChildren());
+		return new HierarchySiblings(newArguments.length == 0 ? null : (String) newArguments[0], getChildren(), getAdditionalChildren());
 	}
 
 }

@@ -6,6 +6,7 @@ author: Ing. Jan Novotný
 proofreading: done
 preferredLang: evitaql
 commit: cabcf999e7be5b00e0b13e1228a76a8d9e91cb78
+translated: 'true'
 ---
 ## Typ ceny
 
@@ -28,7 +29,7 @@ v souladu s maloobchodními standardy a předpisy. Pro segment B2B je naopak kl�
 odpovídá jejich finančním procesům a umožňuje jim spravovat odpočet DPH samostatně.
 
 Proto je potřeba mít pod kontrolou, s jakým typem ceny v dotazech pracujeme, protože různá nastavení povedou k různým
-výsledkům. Požadavek [`priceType`](../requirements/price.md#typ-ceny) nám toto umožňuje.
+výsledkům. Požadavek [`priceType`](price.md#typ-ceny) nám toto umožňuje.
 
 Požadavek <LS to="j,e,r,g"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/PriceType.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Queries/Requires/PriceType.cs</SourceClass></LS>
 určuje, který typ ceny se použije při výpočtu prodejní ceny a při filtrování nebo řazení podle ceny. Pokud není tento
@@ -37,7 +38,7 @@ požadavek zadán, **výchozí je cena s daní**.
 Abychom ukázali vliv tohoto požadavku, předpokládejme, že uživatel chce najít všechny produkty s prodejní cenou
 mezi `€100` a `€105`. Následující dotaz toto provede:
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Příklad dotazu pro filtrování produktů s cenou mezi `€100` a `€105`](/documentation/user/en/query/requirements/examples/price/price-type.evitaql)
 
@@ -74,7 +75,7 @@ Výsledek obsahuje některé produkty, které můžete vidět v následující t
 Pokud je však uživatel právnickou osobou a může si odečíst DPH z ceny, pravděpodobně bude chtít najít všechny produkty
 v tomto rozmezí s cenou bez daně. K tomu je potřeba upravit dotaz a přidat požadavek `priceType`:
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Příklad dotazu pro filtrování produktů s cenou mezi `€100` a `€105` bez daně](/documentation/user/en/query/requirements/examples/price/price-type-without-tax.evitaql)
 

@@ -46,6 +46,9 @@ message GrpcEntitySchemaMutation {
     // Mutation is responsible for setting value to a `AssociatedDataSchema.nullable` in `EntitySchema`.
     // Mutation can be used for altering also the existing `AssociatedDataSchema` alone.
     GrpcSetAssociatedDataSchemaNullableMutation setAssociatedDataSchemaNullableMutation = 8;
+    // Mutation is responsible for setting value to a `AssociatedDataSchema.conflictResolutionOverride` in `EntitySchema`.
+    // Mutation can be used for altering also the existing `AssociatedDataSchema` alone.
+    GrpcSetAssociatedDataSchemaConflictResolutionOverrideMutation setAssociatedDataSchemaConflictResolutionOverrideMutation = 9;
 
     // Mutation is responsible for setting up a new `AttributeSchema` in the `EntitySchema`.
     // Mutation can be used for altering also the existing `AttributeSchema` alone.
@@ -88,6 +91,8 @@ message GrpcEntitySchemaMutation {
     GrpcSetAttributeSchemaUniqueMutation setAttributeSchemaUniqueMutation = 32;
     // Mutation is responsible for introducing a `GlobalAttributeSchema` into an `EvitaSession`.
     GrpcUseGlobalAttributeSchemaMutation useGlobalAttributeSchemaMutation = 33;
+    // Mutation is responsible for setting value `AttributeSchema.conflictResolutionOverride` in `EntitySchema`.
+    GrpcSetAttributeSchemaConflictResolutionOverrideMutation setAttributeSchemaConflictResolutionOverrideMutation = 34;
 
     // Mutation is responsible for adding one or more currencies to a `EntitySchema.currencies` in `EntitySchema`.
     GrpcAllowCurrencyInEntitySchemaMutation allowCurrencyInEntitySchemaMutation = 50;
@@ -119,6 +124,8 @@ message GrpcEntitySchemaMutation {
     GrpcCreateEntitySchemaMutation createEntitySchemaMutation = 63;
     // Mutation is responsible for modifying existing `EntitySchema` in the `CatalogSchema`.
     GrpcModifyEntitySchemaMutation modifyEntitySchemaMutation = 64;
+    // Mutation is responsible for setting value to a `EntitySchema.conflictResolution` in `EntitySchema`.
+    GrpcModifyEntitySchemaConflictResolutionMutation modifyEntitySchemaConflictResolutionMutation = 65;
 
     // Mutation is responsible for setting up a new `ReferenceSchema` in the `EntitySchema`.
     // Mutation can be used for altering also the existing `ReferenceSchema` alone.
@@ -159,6 +166,12 @@ message GrpcEntitySchemaMutation {
     // Mutation is a holder for a single `SortableAttributeCompoundSchema` that affect any of
     // `ReferenceSchema.sortableAttributeCompound` in the `EntitySchema`.
     GrpcModifyReferenceSortableAttributeCompoundSchemaMutation ModifyReferenceSortableAttributeCompoundSchemaMutation = 93;
+    // Mutation is responsible for setting bucketed histogram configuration on a `ReferenceSchema`
+    // in `EntitySchema`. Mutation can be used for altering also the existing `ReferenceSchema` alone.
+    GrpcSetReferenceSchemaBucketedMutation setReferenceSchemaBucketedMutation = 94;
+    // Mutation is responsible for setting value to a `ReferenceSchema.conflictResolutionOverride` in `EntitySchema`.
+    // Mutation can be used for altering also the existing `ReferenceSchema` alone.
+    GrpcSetReferenceSchemaConflictResolutionOverrideMutation setReferenceSchemaConflictResolutionOverrideMutation = 95;
 
     // Mutation is responsible for setting up a new `SortableAttributeCompoundSchema` in the `EntitySchema`.
     // Mutation can be used for altering also the existing `SortableAttributeCompoundSchema` alone.

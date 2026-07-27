@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.constraint;
 
+import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
@@ -40,12 +41,20 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
+import org.junit.jupiter.api.Tag;
+
+import static io.evitadb.test.TestTags.REST;
+import static io.evitadb.test.TestTags.EXTERNAL_API;
+import static io.evitadb.test.TestTags.QUERY;
 
 /**
  * Common ancestor for all constraint resolver tests.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
+@Tag(REST)
+@Tag(EXTERNAL_API)
+@Tag(QUERY)
 abstract class AbstractConstraintResolverTest {
 
 	protected Map<String, EntitySchemaContract> entitySchemaIndex;
@@ -56,6 +65,7 @@ abstract class AbstractConstraintResolverTest {
 		this.catalogSchema = CatalogSchema._internalBuild(
 			TestConstants.TEST_CATALOG,
 			Map.of(),
+			null,
 			EnumSet.allOf(CatalogEvolutionMode.class),
 			new EntitySchemaProvider() {
 				@Nonnull
@@ -89,18 +99,35 @@ abstract class AbstractConstraintResolverTest {
 			.toInstance();
 		this.entitySchemaIndex.put(Entities.BRAND, brandSchema);
 
+		// managed group entity schemas — needed because GroupHaving's @Child(domain = GROUP_ENTITY)
+		// switches the constraint resolver into the group entity's schema lookup path
+		final EntitySchemaContract categoryGroupSchema = new InternalEntitySchemaBuilder(
+			this.catalogSchema,
+			EntitySchema._internalBuild("categoryGroup")
+		)
+			.withAttribute("NAME", String.class)
+			.toInstance();
+		this.entitySchemaIndex.put("categoryGroup", categoryGroupSchema);
+
+		final EntitySchemaContract brandGroupSchema = new InternalEntitySchemaBuilder(
+			this.catalogSchema,
+			EntitySchema._internalBuild("brandGroup")
+		)
+			.toInstance();
+		this.entitySchemaIndex.put("brandGroup", brandGroupSchema);
+
 		final EntitySchemaContract productSchema = new InternalEntitySchemaBuilder(
 			this.catalogSchema,
 			EntitySchema._internalBuild(Entities.PRODUCT)
 		)
 			.withPrice()
 			.withAttribute("CODE", String.class)
-			.withAttribute("AGE", Integer.class, thatIs -> thatIs.filterable())
+			.withAttribute("AGE", Integer.class, AttributeSchemaEditor::filterable)
 			.withReferenceToEntity(Entities.CATEGORY, Entities.CATEGORY, Cardinality.ONE_OR_MORE, thatIs -> thatIs
 				.withAttribute("CODE", String.class)
-				.withGroupType("categoryGroup"))
+				.withGroupTypeRelatedToEntity("categoryGroup"))
 			.withReferenceToEntity(Entities.BRAND, Entities.BRAND, Cardinality.EXACTLY_ONE, thatIs -> thatIs
-				.withGroupType("brandGroup"))
+				.withGroupTypeRelatedToEntity("brandGroup"))
 			.toInstance();
 
 		this.entitySchemaIndex.put(Entities.PRODUCT, productSchema);

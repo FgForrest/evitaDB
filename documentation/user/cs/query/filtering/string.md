@@ -6,6 +6,7 @@ author: Ing. Jan Novotný
 proofreading: done
 preferredLang: evitaql
 commit: cabcf999e7be5b00e0b13e1228a76a8d9e91cb78
+translated: true
 ---
 <Note type="info">
 V souvislosti s omezeními popsanými v této kapitole by vás mohly zajímat obecná pravidla pro práci s datovými typy a poli, která jsou popsána v [základech dotazovacího jazyka](../basics.md#obecná-pravidla-dotazů).
@@ -34,7 +35,7 @@ attributeContains(
 `attributeContains` prohledává filtrovatelný nebo unikátní [atribut entity](../../use/data-model.md#atributy-unikátní-filtrovatelné-řaditelné-lokalizované) na výskyt zadaného řetězce. Omezení se chová přesně jako <LS to="e,j,r,g">[Java metoda `contains`](https://www.javatpoint.com/java-string-contains)</LS><LS to="c">[C# metoda `Contains`](https://learn.microsoft.com/en-us/dotnet/api/system.string.contains)</LS>.
 Rozlišuje malá a velká písmena, funguje s národními znaky (protože pracujeme s řetězci v UTF-8) a vyžaduje přesnou shodu hledaného řetězce kdekoliv v hodnotě atributu.
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Produkty obsahující řetězec `epix` v atributu `code`](/documentation/user/en/query/filtering/examples/string/attribute-contains.evitaql)
 </SourceCodeTabs>
@@ -91,7 +92,7 @@ attributeStartsWith(
 `attributeStartsWith` prohledává filtrovatelný nebo unikátní [atribut entity](../../use/data-model.md#atributy-unikátní-filtrovatelné-řaditelné-lokalizované) a ověřuje, zda začíná zadaným řetězcem. Omezení se chová přesně jako <LS to="e,j,r,g">[Java metoda `startsWith`](https://www.javatpoint.com/java-string-startswith)</LS><LS to="c">[C# metoda `StartsWith`](https://learn.microsoft.com/en-us/dotnet/api/system.string.startswith)</LS>.
 Rozlišuje malá a velká písmena, funguje s národními znaky (protože pracujeme s řetězci v UTF-8) a vyžaduje přesnou shodu hledaného řetězce na začátku hodnoty atributu.
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Produkty začínající řetězcem `garmin` v atributu `code`](/documentation/user/en/query/filtering/examples/string/attribute-starts-with.evitaql)
 </SourceCodeTabs>
@@ -149,7 +150,7 @@ attributeEndsWith(
 <LS to="e,j,r,g">[Java metoda `endsWith`](https://www.javatpoint.com/java-string-endswith)</LS><LS to="c">[C# metoda `EndsWith`](https://learn.microsoft.com/en-us/dotnet/api/system.string.endswith)</LS>.
 Rozlišuje malá a velká písmena, funguje s národními znaky (protože pracujeme s řetězci v UTF-8) a vyžaduje přesnou shodu hledaného řetězce na konci hodnoty atributu.
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Produkty končící řetězcem `solar` v atributu `code`](/documentation/user/en/query/filtering/examples/string/attribute-ends-with.evitaql)
 </SourceCodeTabs>

@@ -47,6 +47,7 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.reference.Remov
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.reference.SetReferenceGroupMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.model.cdc.ChangeCatalogCaptureDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.AttributeElementDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.ConflictResolutionDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.NameVariantsDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.LocalCatalogSchemaMutationUnionDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.LocalEntitySchemaMutationUnionDescriptor;
@@ -56,12 +57,14 @@ import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedDat
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.ModifyAssociatedDataSchemaNameMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.ModifyAssociatedDataSchemaTypeMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.RemoveAssociatedDataSchemaMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.SetAssociatedDataSchemaConflictResolutionOverrideMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.SetAssociatedDataSchemaLocalizedMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.SetAssociatedDataSchemaNullableMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.*;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.AllowEvolutionModeInCatalogSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.CreateEntitySchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.DisallowEvolutionModeInCatalogSchemaMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.ModifyCatalogSchemaConflictResolutionMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.ModifyCatalogSchemaDescriptionMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.ModifyEntitySchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.ModifyEntitySchemaNameMutationDescriptor;
@@ -80,7 +83,12 @@ import io.evitadb.externalApi.api.model.mutation.MutationDescriptor;
 import io.evitadb.externalApi.api.system.model.CatalogDescriptor;
 import io.evitadb.externalApi.api.system.model.CatalogUnionDescriptor;
 import io.evitadb.externalApi.api.system.model.UnusableCatalogDescriptor;
+import io.evitadb.externalApi.api.system.model.cdc.CatalogInstalledIntoLiveViewDescriptor;
+import io.evitadb.externalApi.api.system.model.cdc.CatalogRemovedFromLiveViewDescriptor;
+import io.evitadb.externalApi.api.system.model.cdc.CatalogSchemaUpdatedDescriptor;
+import io.evitadb.externalApi.api.system.model.cdc.ChangeSystemCaptureCriteriaDescriptor;
 import io.evitadb.externalApi.api.system.model.cdc.ChangeSystemCaptureDescriptor;
+import io.evitadb.externalApi.api.system.model.cdc.HostSystemEventDescriptor;
 import io.evitadb.externalApi.api.transaction.model.mutation.TransactionMutationDescriptor;
 import io.evitadb.externalApi.configuration.HeaderOptions;
 import io.evitadb.externalApi.dataType.DataTypeSerializer;
@@ -155,16 +163,27 @@ public class SystemRestBuilder extends FinalRestBuilder<SystemRestBuildingContex
 		this.buildingContext.registerType(AttributeElementDescriptor.THIS_INPUT.to(this.objectBuilderTransformer).build());
 
 		// these objects are not used by the endpoints directly, but are used within the WebSocket protocol for CDC streams,
-		// which we currently cannot specify in the OpenAPI specification. So we at least provide the object documention
+		// which we currently cannot specify in the OpenAPI specification. So we at least provide the object documentation
 		// for client developers.
+		this.buildingContext.registerType(ChangeSystemCaptureCriteriaDescriptor.THIS.to(this.objectBuilderTransformer).build());
 		this.buildingContext.registerType(ChangeSystemCaptureRequestDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(CatalogInstalledIntoLiveViewDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(CatalogRemovedFromLiveViewDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(CatalogSchemaUpdatedDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(HostSystemEventDescriptor.THIS.to(this.unionBuilderTransformer).build());
 		this.buildingContext.registerType(buildChangeSystemCaptureObject());
+		this.buildingContext.registerType(ConflictResolutionDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(ConflictResolutionDescriptor.THIS_INPUT.to(this.objectBuilderTransformer).build());
 		buildMutationInterface();
 		buildOutputMutations();
 	}
 
 	@Nonnull
 	private OpenApiObject buildChangeSystemCaptureObject() {
+		// the body is polymorphic at runtime: either an engine mutation (`ENGINE` area) or a
+		// host system event (`HOST` area). We document the engine-mutation shape here
+		// as the primary union — host event shapes are registered alongside via
+		// `HostSystemEventDescriptor` so client developers can discover them.
 		return ChangeSystemCaptureDescriptor.THIS
 			.to(this.objectBuilderTransformer)
 			.property(ChangeSystemCaptureDescriptor.BODY.to(this.propertyBuilderTransformer)
@@ -212,12 +231,14 @@ public class SystemRestBuilder extends FinalRestBuilder<SystemRestBuildingContex
 			CreateCatalogSchemaMutationDescriptor.THIS,
 			DuplicateCatalogMutationDescriptor.THIS,
 			MakeCatalogAliveMutationDescriptor.THIS,
+			MarkCatalogMissingMutationDescriptor.THIS,
 			ModifyCatalogSchemaMutationDescriptor.THIS,
 			ModifyCatalogSchemaNameMutationDescriptor.THIS,
 			RemoveCatalogSchemaMutationDescriptor.THIS,
 			RestoreCatalogSchemaMutationDescriptor.THIS,
 			SetCatalogMutabilityMutationDescriptor.THIS,
 			SetCatalogStateMutationDescriptor.THIS,
+			UpgradeCatalogFormatMutationDescriptor.THIS,
 
 			// schema mutations
 
@@ -234,6 +255,7 @@ public class SystemRestBuilder extends FinalRestBuilder<SystemRestBuildingContex
 			SetEntitySchemaWithGeneratedPrimaryKeyMutationDescriptor.THIS,
 			SetEntitySchemaWithHierarchyMutationDescriptor.THIS,
 			SetEntitySchemaWithPriceMutationDescriptor.THIS,
+			ModifyEntitySchemaConflictResolutionMutationDescriptor.THIS,
 
 			// associated data schema mutations
 			CreateAssociatedDataSchemaMutationDescriptor.THIS,
@@ -244,6 +266,7 @@ public class SystemRestBuilder extends FinalRestBuilder<SystemRestBuildingContex
 			RemoveAssociatedDataSchemaMutationDescriptor.THIS,
 			SetAssociatedDataSchemaLocalizedMutationDescriptor.THIS,
 			SetAssociatedDataSchemaNullableMutationDescriptor.THIS,
+			SetAssociatedDataSchemaConflictResolutionOverrideMutationDescriptor.THIS,
 
 			// attribute schema mutations
 			CreateAttributeSchemaMutationDescriptor.THIS,
@@ -260,6 +283,7 @@ public class SystemRestBuilder extends FinalRestBuilder<SystemRestBuildingContex
 			SetAttributeSchemaSortableMutationDescriptor.THIS,
 			UseGlobalAttributeSchemaMutationDescriptor.THIS,
 			SetAttributeSchemaUniqueMutationDescriptor.THIS,
+			SetAttributeSchemaConflictResolutionOverrideMutationDescriptor.THIS,
 
 			// sortable attribute compound schema mutations
 			CreateSortableAttributeCompoundSchemaMutationDescriptor.THIS,
@@ -282,14 +306,17 @@ public class SystemRestBuilder extends FinalRestBuilder<SystemRestBuildingContex
 			ModifyReferenceSortableAttributeCompoundSchemaMutationDescriptor.THIS,
 			ModifyReflectedReferenceAttributeInheritanceSchemaMutationDescriptor.THIS,
 			RemoveReferenceSchemaMutationDescriptor.THIS,
+			SetReferenceSchemaBucketedMutationDescriptor.THIS,
 			SetReferenceSchemaFacetedMutationDescriptor.THIS,
 			SetReferenceSchemaIndexedMutationDescriptor.THIS,
+			SetReferenceSchemaConflictResolutionOverrideMutationDescriptor.THIS,
 
 			// catalog schema mutations
 			CreateEntitySchemaMutationDescriptor.THIS,
 			ModifyEntitySchemaMutationDescriptor.THIS,
 			RemoveEntitySchemaMutationDescriptor.THIS,
 			ModifyCatalogSchemaDescriptionMutationDescriptor.THIS,
+			ModifyCatalogSchemaConflictResolutionMutationDescriptor.THIS,
 			AllowEvolutionModeInCatalogSchemaMutationDescriptor.THIS,
 			DisallowEvolutionModeInCatalogSchemaMutationDescriptor.THIS,
 
@@ -414,6 +441,7 @@ public class SystemRestBuilder extends FinalRestBuilder<SystemRestBuildingContex
 					typeRefTo(ModifyReferenceSchemaRelatedEntityMutationDescriptor.THIS.name()),
 					typeRefTo(ModifyReflectedReferenceAttributeInheritanceSchemaMutationDescriptor.THIS.name()),
 					typeRefTo(RemoveReferenceSchemaMutationDescriptor.THIS.name()),
+					typeRefTo(SetReferenceSchemaBucketedMutationDescriptor.THIS.name()),
 					typeRefTo(SetReferenceSchemaFacetedMutationDescriptor.THIS.name()),
 					typeRefTo(SetReferenceSchemaIndexedMutationDescriptor.THIS.name()),
 

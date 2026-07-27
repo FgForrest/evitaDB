@@ -198,4 +198,15 @@ public @interface ConstraintDefinition {
 	 * @see ConstraintSupportedValues
 	 */
 	ConstraintSupportedValues supportedValues() default @ConstraintSupportedValues();
+
+	/**
+	 * Deprecation reason for this constraint. When non-empty, the constraint is considered deprecated and external
+	 * API builders (GraphQL, REST) will mark generated schema fields accordingly.
+	 *
+	 * The value should describe why the constraint is deprecated and what to use instead, e.g.:
+	 * `"Use attributeXyz instead."`
+	 *
+	 * An empty string (the default) means the constraint is not deprecated.
+	 */
+	String deprecated() default "";
 }

@@ -32,19 +32,24 @@ import org.junit.jupiter.api.Test;
 
 import java.time.OffsetDateTime;
 import java.util.UUID;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.QueryConstraints.collection;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.TRAFFIC_ENGINE;
 
 /**
  * Tests for all traffic recording container types.
  *
- * @author Claude
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @DisplayName("Traffic recording containers")
+@Tag(CONTRACT)
+@Tag(TRAFFIC_ENGINE)
 class TrafficRecordingContainerTest {
 
 	private static final UUID SESSION_ID = UUID.randomUUID();

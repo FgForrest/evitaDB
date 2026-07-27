@@ -45,7 +45,6 @@ import java.util.Map;
 import java.util.stream.Stream;
 
 import static io.evitadb.utils.Assert.notNull;
-import static java.util.Optional.ofNullable;
 
 /**
  * Price index contains data structures that allow processing price related filtering and sorting constraints such as
@@ -107,16 +106,21 @@ abstract class AbstractPriceIndex<T extends PriceListAndCurrencyPriceIndex> impl
 		@Nullable Integer innerRecordId,
 		@Nullable DateTimeRange validity,
 		int priceWithoutTax,
-		int priceWithTax
+		int priceWithTax,
+		@Nonnull PriceSuperIndex superPriceIndex
 	) {
-		final T priceListIndex = this.getPriceIndexes().computeIfAbsent(
-			new PriceIndexKey(priceKey.priceList(), priceKey.currency(), innerRecordHandling),
-			this::createNewPriceListAndCurrencyIndex
-		);
+		final PriceIndexKey lookupKey = new PriceIndexKey(priceKey.priceList(), priceKey.currency(), innerRecordHandling);
+		// the combination almost always exists already - probe first so the common path allocates no capturing lambda
+		T priceListIndex = this.getPriceIndexes().get(lookupKey);
+		if (priceListIndex == null) {
+			priceListIndex = this.getPriceIndexes().computeIfAbsent(
+				lookupKey, key -> createNewPriceListAndCurrencyIndex(key, superPriceIndex)
+			);
+		}
 		return addPrice(
 			referenceSchema, priceListIndex, entityPrimaryKey,
 			internalPriceId, priceKey.priceId(), innerRecordId,
-			validity, priceWithoutTax, priceWithTax
+			validity, priceWithoutTax, priceWithTax, superPriceIndex
 		);
 	}
 
@@ -129,7 +133,8 @@ abstract class AbstractPriceIndex<T extends PriceListAndCurrencyPriceIndex> impl
 		@Nullable Integer innerRecordId,
 		@Nullable DateTimeRange validity,
 		int priceWithoutTax,
-		int priceWithTax
+		int priceWithTax,
+		@Nonnull PriceSuperIndex superPriceIndex
 	) {
 		final PriceIndexKey lookupKey = new PriceIndexKey(priceKey.priceList(), priceKey.currency(), innerRecordHandling);
 		final T priceListIndex = this.getPriceIndexes().get(lookupKey);
@@ -138,7 +143,7 @@ abstract class AbstractPriceIndex<T extends PriceListAndCurrencyPriceIndex> impl
 		removePrice(
 			referenceSchema, priceListIndex, entityPrimaryKey,
 			internalPriceId, priceKey.priceId(), innerRecordId,
-			validity, priceWithoutTax, priceWithTax
+			validity, priceWithoutTax, priceWithTax, superPriceIndex
 		);
 
 		if (!priceListIndex.isTerminated() && priceListIndex.isEmpty()) {
@@ -168,14 +173,16 @@ abstract class AbstractPriceIndex<T extends PriceListAndCurrencyPriceIndex> impl
 	 */
 	public void getModifiedStorageParts(int entityIndexPrimaryKey, @Nonnull TrappedChanges trappedChanges) {
 		for (T index : this.getPriceIndexes().values()) {
-			ofNullable(index.createStoragePart(entityIndexPrimaryKey))
-				.ifPresent(trappedChanges::addChangeToStore);
+			// each per-list index appends its own parts: the ref index (and any non-paged index) emits a single
+			// whole-index part, while the super price index emits granular PAGED leaf pages when its tree spans
+			// multiple leaves
+			index.appendStorageParts(entityIndexPrimaryKey, trappedChanges);
 		}
 	}
 
 	@Override
 	public void resetDirty() {
-		for (PriceListAndCurrencyPriceIndex<?,?> priceIndex : getPriceIndexes().values()) {
+		for (PriceListAndCurrencyPriceIndex<?> priceIndex : getPriceIndexes().values()) {
 			priceIndex.resetDirty();
 		}
 	}
@@ -185,7 +192,10 @@ abstract class AbstractPriceIndex<T extends PriceListAndCurrencyPriceIndex> impl
 	 */
 
 	@Nonnull
-	protected abstract T createNewPriceListAndCurrencyIndex(@Nonnull PriceIndexKey lookupKey);
+	protected abstract T createNewPriceListAndCurrencyIndex(
+		@Nonnull PriceIndexKey lookupKey,
+		@Nonnull PriceSuperIndex superPriceIndex
+	);
 
 	protected void removeExistingIndex(@Nonnull PriceIndexKey lookupKey, @Nonnull T priceListIndex) {
 		final T removedIndex = getPriceIndexes().remove(lookupKey);
@@ -201,7 +211,8 @@ abstract class AbstractPriceIndex<T extends PriceListAndCurrencyPriceIndex> impl
 		@Nullable Integer innerRecordId,
 		@Nullable DateTimeRange validity,
 		int priceWithoutTax,
-		int priceWithTax
+		int priceWithTax,
+		@Nonnull PriceSuperIndex superPriceIndex
 	);
 
 	protected abstract void removePrice(
@@ -213,7 +224,8 @@ abstract class AbstractPriceIndex<T extends PriceListAndCurrencyPriceIndex> impl
 		@Nullable Integer innerRecordId,
 		@Nullable DateTimeRange validity,
 		int priceWithoutTax,
-		int priceWithTax
+		int priceWithTax,
+		@Nonnull PriceSuperIndex superPriceIndex
 	);
 
 	@Nonnull

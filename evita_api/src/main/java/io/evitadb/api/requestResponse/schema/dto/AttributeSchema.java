@@ -23,7 +23,9 @@
 
 package io.evitadb.api.requestResponse.schema.dto;
 
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.dataType.Predecessor;
@@ -62,7 +64,14 @@ import static java.util.Optional.ofNullable;
 @EqualsAndHashCode
 public sealed class AttributeSchema implements AttributeSchemaContract
 	permits EntityAttributeSchema, GlobalAttributeSchema {
-	@Serial private static final long serialVersionUID = -4825670975814791474L;
+	@Serial private static final long serialVersionUID = -4825670975814791473L;
+	/**
+	 * Per-item override of the conflict resolution granularity applied to this attribute. It never carries `null`;
+	 * the default is {@link ConflictResolutionOverride#INHERITED}. See
+	 * {@link AttributeSchemaContract#getConflictResolutionOverride()} for the meaning of the individual values and
+	 * how the meaning depends on the attribute location (entity attribute vs. reference attribute).
+	 */
+	@Getter @Nonnull protected final ConflictResolutionOverride conflictResolutionOverride;
 	/**
 	 * Default value used when the entity is created without explicitly providing this attribute. See
 	 * {@link AttributeSchemaContract#getDefaultValue()} for behavior details and its relation to
@@ -175,7 +184,8 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 	public static AttributeSchema _internalBuild(
 		@Nonnull String name,
 		@Nonnull Class<? extends Serializable> type,
-		boolean localized
+		boolean localized,
+		@Nonnull ConflictResolutionOverride conflictResolutionOverride
 	) {
 		return new AttributeSchema(
 			name, NamingConvention.generate(name),
@@ -185,7 +195,8 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 			EnumSet.noneOf(Scope.class),
 			localized, false, false,
 			type, null,
-			0
+			0,
+			conflictResolutionOverride
 		);
 	}
 
@@ -205,7 +216,8 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 		boolean nullable,
 		boolean representative,
 		@Nonnull Class<T> type,
-		@Nullable T defaultValue
+		@Nullable T defaultValue,
+		@Nonnull ConflictResolutionOverride conflictResolutionOverride
 	) {
 		final EnumMap<Scope, AttributeUniquenessType> theUniquenessType = toUniquenessEnumMap(uniqueInScopes);
 		final EnumSet<Scope> theFilterableInScopes = ArrayUtils.toEnumSet(Scope.class, filterableInScopes);
@@ -225,7 +237,8 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 			theSortableInScopes,
 			localized, nullable, representative,
 			type, defaultValue,
-			0
+			0,
+			conflictResolutionOverride
 		);
 	}
 
@@ -248,7 +261,8 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 		boolean representative,
 		@Nonnull Class<T> type,
 		@Nullable T defaultValue,
-		int indexedDecimalPlaces
+		int indexedDecimalPlaces,
+		@Nonnull ConflictResolutionOverride conflictResolutionOverride
 	) {
 		final EnumMap<Scope, AttributeUniquenessType> theUniquenessType = toUniquenessEnumMap(uniqueInScopes);
 		final EnumSet<Scope> theFilterableInScopes = ArrayUtils.toEnumSet(Scope.class, filterableInScopes);
@@ -262,7 +276,8 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 			theSortableInScopes,
 			localized, nullable, representative,
 			type, defaultValue,
-			indexedDecimalPlaces
+			indexedDecimalPlaces,
+			conflictResolutionOverride
 		);
 	}
 
@@ -285,7 +300,8 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 		boolean representative,
 		@Nonnull Class<T> type,
 		@Nullable T defaultValue,
-		int indexedDecimalPlaces
+		int indexedDecimalPlaces,
+		@Nonnull ConflictResolutionOverride conflictResolutionOverride
 	) {
 		return new AttributeSchema(
 			name, NamingConvention.generate(name),
@@ -295,7 +311,8 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 			sortableInScopes,
 			localized, nullable, representative,
 			type, defaultValue,
-			indexedDecimalPlaces
+			indexedDecimalPlaces,
+			conflictResolutionOverride
 		);
 	}
 
@@ -319,7 +336,8 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 		boolean representative,
 		@Nonnull Class<T> type,
 		@Nullable T defaultValue,
-		int indexedDecimalPlaces
+		int indexedDecimalPlaces,
+		@Nonnull ConflictResolutionOverride conflictResolutionOverride
 	) {
 		return new AttributeSchema(
 			name, nameVariants,
@@ -329,7 +347,8 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 			sortableInScopes,
 			localized, nullable, representative,
 			type, defaultValue,
-			indexedDecimalPlaces
+			indexedDecimalPlaces,
+			conflictResolutionOverride
 		);
 	}
 
@@ -353,7 +372,8 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 		boolean representative,
 		@Nonnull Class<T> type,
 		@Nullable T defaultValue,
-		int indexedDecimalPlaces
+		int indexedDecimalPlaces,
+		@Nonnull ConflictResolutionOverride conflictResolutionOverride
 	) {
 		final EnumMap<Scope, AttributeUniquenessType> theUniquenessType = toUniquenessEnumMap(uniqueInScopes);
 		final EnumSet<Scope> theFilterableInScopes = ArrayUtils.toEnumSet(Scope.class, filterableInScopes);
@@ -367,7 +387,8 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 			theSortableInScopes,
 			localized, nullable, representative,
 			type, defaultValue,
-			indexedDecimalPlaces
+			indexedDecimalPlaces,
+			conflictResolutionOverride
 		);
 	}
 
@@ -384,7 +405,8 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 		boolean representative,
 		@Nonnull Class<T> type,
 		@Nullable T defaultValue,
-		int indexedDecimalPlaces
+		int indexedDecimalPlaces,
+		@Nonnull ConflictResolutionOverride conflictResolutionOverride
 	) {
 		this.name = name;
 		this.nameVariants = CollectionUtils.toUnmodifiableMap(nameVariants);
@@ -413,6 +435,7 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 		);
 		this.defaultValue = EvitaDataTypes.toTargetType(defaultValue, this.plainType);
 		this.indexedDecimalPlaces = indexedDecimalPlaces;
+		this.conflictResolutionOverride = conflictResolutionOverride;
 	}
 
 	@Override
@@ -483,7 +506,8 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 				this.representative,
 				ReferencedEntityPredecessor.class,
 				null,
-				this.indexedDecimalPlaces
+				this.indexedDecimalPlaces,
+				this.conflictResolutionOverride
 			);
 		} else if (ReferencedEntityPredecessor.class.equals(this.plainType)) {
 			return new AttributeSchema(
@@ -499,7 +523,8 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 				this.representative,
 				Predecessor.class,
 				null,
-				this.indexedDecimalPlaces
+				this.indexedDecimalPlaces,
+				this.conflictResolutionOverride
 			);
 		} else {
 			throw new GenericEvitaInternalError(
@@ -523,6 +548,7 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 			", type=" + this.type +
 			", indexedDecimalPlaces=" + this.indexedDecimalPlaces +
 			", defaultValue=" + this.defaultValue +
+			", conflictResolutionOverride=" + this.conflictResolutionOverride +
 			'}';
 	}
 

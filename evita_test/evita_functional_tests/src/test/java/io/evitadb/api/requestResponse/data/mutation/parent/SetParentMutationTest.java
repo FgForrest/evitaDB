@@ -27,16 +27,21 @@ import io.evitadb.api.requestResponse.data.mutation.AbstractMutationTest;
 import org.junit.jupiter.api.Test;
 
 import java.util.OptionalInt;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.QUERY;
 
 /**
  * This test verifies contract of {@link SetParentMutation} mutation.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
+@Tag(CONTRACT)
+@Tag(QUERY)
 class SetParentMutationTest extends AbstractMutationTest {
 
 	@Test

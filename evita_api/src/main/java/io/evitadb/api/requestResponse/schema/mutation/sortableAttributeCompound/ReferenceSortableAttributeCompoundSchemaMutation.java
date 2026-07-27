@@ -195,7 +195,11 @@ public interface ReferenceSortableAttributeCompoundSchemaMutation extends Sortab
 						Collections.emptyMap() : referenceSchema.getGroupTypeNameVariants(s -> null),
 					referenceSchema.isReferencedGroupTypeManaged(),
 					referenceSchema.getReferenceIndexTypeInScopes(),
+					referenceSchema.getIndexedComponentsInScopes(),
 					referenceSchema.getFacetedInScopes(),
+					referenceSchema.getFacetedPartiallyInScopes(),
+					referenceSchema.getAllHistogramIndexDefinitions(),
+					referenceSchema.getBucketedPartiallyInScopes(),
 					referenceSchema.getAttributes(),
 					Stream.concat(
 							referenceSchema.getSortableAttributeCompounds().values().stream().filter(it -> !updatedSchema.getName().equals(it.getName())),
@@ -206,7 +210,8 @@ public interface ReferenceSortableAttributeCompoundSchemaMutation extends Sortab
 								SortableAttributeCompoundSchemaContract::getName,
 								Function.identity()
 							)
-						)
+						),
+					referenceSchema.getConflictResolutionOverride()
 				);
 			}
 		}

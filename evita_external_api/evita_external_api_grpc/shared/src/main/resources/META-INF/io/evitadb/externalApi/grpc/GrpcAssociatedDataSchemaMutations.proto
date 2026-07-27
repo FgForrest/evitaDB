@@ -29,6 +29,8 @@ message GrpcCreateAssociatedDataSchemaMutation {
   // When associated data is nullable, its values may be missing in the entities. Otherwise, the system will enforce
   // non-null checks upon upserting of the entity.
   bool nullable = 6;
+  // The per-associated-data override of the conflict resolution granularity.
+  GrpcConflictResolutionOverride conflictResolutionOverride = 7;
 }
 
 // Mutation is responsible for setting value to a `AssociatedDataSchemaContract.deprecationNotice`
@@ -106,4 +108,14 @@ message GrpcSetAssociatedDataSchemaNullableMutation {
   // When associated data is nullable, its values may be missing in the entities. Otherwise, the system will enforce
   // non-null checks upon upserting of the entity.
   bool nullable = 2;
+}
+
+// Mutation is responsible for setting value to a `AssociatedDataSchema.conflictResolutionOverride` in `EntitySchema`.
+// Mutation can be used for altering also the existing `AssociatedDataSchema` alone.
+message GrpcSetAssociatedDataSchemaConflictResolutionOverrideMutation {
+  // Contains unique name of the model. Case-sensitive. Distinguishes one model item from another
+  // within single entity instance.
+  string name = 1;
+  // The per-associated-data override of the conflict resolution granularity.
+  GrpcConflictResolutionOverride conflictResolutionOverride = 2;
 }

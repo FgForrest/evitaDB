@@ -31,7 +31,6 @@ import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.mutation.conflict.CatalogConflictKey;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictGenerationContext;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
-import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.mutation.TopLevelCatalogSchemaMutation;
@@ -46,7 +45,7 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
-import java.util.Set;
+import java.util.Optional;
 import java.util.stream.Stream;
 
 /**
@@ -72,13 +71,25 @@ public class RestoreCatalogSchemaMutation implements TopLevelCatalogSchemaMutati
 		this.catalogName = catalogName;
 	}
 
+	/**
+	 * Permits the mutation when the catalog name is unknown to the engine (restore-from-backup or auto-discovery) or
+	 * when it is currently parked in the {@link CatalogState#MISSING} bucket (flapping recovery). Any other state
+	 * means the catalog is already live and a restore would clobber it, so we reject loudly. The naming-convention
+	 * uniqueness check only runs for unknown names — for the flapping-recovery branch the name is, by definition,
+	 * already registered so re-checking it would produce a false conflict against itself.
+	 */
 	@Override
 	public void verifyApplicability(@Nonnull EvitaContract evita) throws InvalidMutationException {
-		if (evita.getCatalogNames().contains(this.catalogName)) {
-			throw new InvalidSchemaMutationException("Catalog `" + this.catalogName + "` already exists!");
+		final Optional<CatalogState> currentState = evita.getCatalogState(this.catalogName);
+		if (currentState.isPresent() && currentState.get() != CatalogState.MISSING) {
+			throw new InvalidSchemaMutationException(
+				"Catalog `" + this.catalogName + "` already exists in state `" + currentState.get() + "`!"
+			);
 		}
-		// check the names in all naming conventions are unique among catalogs
-		CatalogSchema.checkCatalogNameIsAvailable(evita, this.catalogName);
+		if (currentState.isEmpty()) {
+			// check the names in all naming conventions are unique among catalogs
+			CatalogSchema.checkCatalogNameIsAvailable(evita, this.catalogName);
+		}
 	}
 
 	@Nonnull
@@ -106,8 +117,7 @@ public class RestoreCatalogSchemaMutation implements TopLevelCatalogSchemaMutati
 	@Nonnull
 	@Override
 	public Stream<ConflictKey> collectConflictKeys(
-		@Nonnull ConflictGenerationContext context,
-		@Nonnull Set<ConflictPolicy> conflictPolicies
+		@Nonnull ConflictGenerationContext context
 	) {
 		return Stream.of(new CatalogConflictKey(this.catalogName));
 	}

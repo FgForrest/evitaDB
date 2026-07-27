@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.grpc.builders.query.extraResults;
 
+import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.extraResult.AttributeHistogram;
 import io.evitadb.api.requestResponse.extraResult.HistogramContract;
 import io.evitadb.api.requestResponse.extraResult.HistogramContract.Bucket;
@@ -30,10 +31,13 @@ import io.evitadb.api.requestResponse.extraResult.PriceHistogram;
 import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
 import io.evitadb.externalApi.grpc.generated.GrpcHistogram;
 import io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket;
+import io.evitadb.externalApi.grpc.requestResponse.data.EntityConverter;
+import io.evitadb.utils.VersionUtils.SemVer;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -51,14 +55,20 @@ public class GrpcHistogramBuilder {
 	 * This method converts {@link AttributeHistogram} to {@link GrpcHistogram}s and returns them in a map where
 	 * histogram is specified by attribute name.
 	 *
-	 * @param histograms  {@link AttributeHistogram} returned by evita response
+	 * @param histograms    {@link AttributeHistogram} returned by evita response
+	 * @param clientVersion version of the client so that anchor entity serialization can respect it
+	 *                      (attribute histograms never carry anchor entities, so the argument is effectively unused
+	 *                      but kept for signature symmetry with {@link #buildHistogram(HistogramContract, SemVer)})
 	 * @return map of histograms where the key is the attribute name and the value is the histogram
 	 */
 	@Nonnull
-	public static Map<String, GrpcHistogram> buildAttributeHistogram(@Nonnull AttributeHistogram histograms) {
+	public static Map<String, GrpcHistogram> buildAttributeHistogram(
+		@Nonnull AttributeHistogram histograms,
+		@Nullable SemVer clientVersion
+	) {
 		final Map<String, GrpcHistogram> computedHistograms = new HashMap<>();
 		for (Map.Entry<String, HistogramContract> histogram : histograms.getHistograms().entrySet()) {
-			computedHistograms.put(histogram.getKey(), buildHistogram(histogram.getValue()));
+			computedHistograms.put(histogram.getKey(), buildHistogram(histogram.getValue(), clientVersion));
 		}
 		return computedHistograms;
 	}
@@ -66,22 +76,32 @@ public class GrpcHistogramBuilder {
 	/**
 	 * This method converts {@link PriceHistogram} to {@link GrpcHistogram} .
 	 *
-	 * @param histogram {@link PriceHistogram} returned by evita response
+	 * @param histogram     {@link PriceHistogram} returned by evita response
+	 * @param clientVersion version of the client so that anchor entity serialization can respect it
+	 *                      (price histograms never carry anchor entities, kept for signature symmetry)
 	 * @return converted histogram
 	 */
 	@Nonnull
-	public static GrpcHistogram buildPriceHistogram(PriceHistogram histogram) {
-		return buildHistogram(histogram);
+	public static GrpcHistogram buildPriceHistogram(
+		@Nonnull PriceHistogram histogram,
+		@Nullable SemVer clientVersion
+	) {
+		return buildHistogram(histogram, clientVersion);
 	}
 
 	/**
 	 * This method converts {@link HistogramContract} to {@link GrpcHistogram}.
 	 *
-	 * @param histogram which could be either {@link PriceHistogram} or one of {@link AttributeHistogram}s.
+	 * @param histogram     which could be either {@link PriceHistogram}, one of {@link AttributeHistogram}s or
+	 *                      a reference-scope histogram carrying anchor entities
+	 * @param clientVersion version of the client used when serializing anchor {@link SealedEntity} instances
 	 * @return converted histogram
 	 */
 	@Nonnull
-	private static GrpcHistogram buildHistogram(HistogramContract histogram) {
+	static GrpcHistogram buildHistogram(
+		@Nonnull HistogramContract histogram,
+		@Nullable SemVer clientVersion
+	) {
 		final Bucket[] originalBuckets = histogram.getBuckets();
 		final List<GrpcBucket> buckets = new ArrayList<>(originalBuckets.length);
 		Arrays.stream(originalBuckets).forEach(bucket -> buckets.add(GrpcBucket.newBuilder()
@@ -90,11 +110,17 @@ public class GrpcHistogramBuilder {
 			.setRequested(bucket.requested())
 			.setRelativeFrequency(EvitaDataTypesConverter.toGrpcBigDecimal(bucket.relativeFrequency()))
 			.build()));
-		return GrpcHistogram.newBuilder()
+		final GrpcHistogram.Builder builder = GrpcHistogram.newBuilder()
 			.setMin(EvitaDataTypesConverter.toGrpcBigDecimal(histogram.getMin()))
 			.setMax(EvitaDataTypesConverter.toGrpcBigDecimal(histogram.getMax()))
 			.setOverallCount(histogram.getOverallCount())
-			.addAllBuckets(buckets)
-			.build();
+			.addAllBuckets(buckets);
+		histogram.getMinReferencedEntity().ifPresent(entity ->
+			builder.setMinReferencedEntity(EntityConverter.toGrpcSealedEntity(entity, clientVersion))
+		);
+		histogram.getMaxReferencedEntity().ifPresent(entity ->
+			builder.setMaxReferencedEntity(EntityConverter.toGrpcSealedEntity(entity, clientVersion))
+		);
+		return builder.build();
 	}
 }

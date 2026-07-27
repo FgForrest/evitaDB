@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2026
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -29,8 +29,13 @@ package io.evitadb.externalApi.grpc.generated;
 
 /**
  * <pre>
- * This enum controls whether FacetSummary should contain only basic statistics about facets - e.g. count only,
+ * This enum controls whether ReferenceSummary should contain only basic statistics about facets - e.g. count only,
  * or whether the selection impact should be computed as well.
+ *
+ * Backward compatibility: `COUNTS` is kept at tag 0 (the proto3 default) and `IMPACT` at tag 1 so existing clients
+ * continue to deserialize unchanged. The newer `NONE` option is assigned a fresh tag; older clients that never
+ * request it are unaffected, and since this enum is used only as a request parameter (never as a server-emitted
+ * response), servers never push `NONE` to an unaware client.
  * </pre>
  *
  * Protobuf enum {@code io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsDepth}
@@ -53,6 +58,17 @@ public enum GrpcFacetStatisticsDepth
    * <code>IMPACT = 1;</code>
    */
   IMPACT(1),
+  /**
+   * <pre>
+   * No per-facet statistics are computed. The engine returns facet options without counts or impact — the cheapest
+   * option, appropriate when the UI only needs to enumerate available facets without any numeric indicator.
+   * Proto3 enum values share a file-level namespace, so this value is prefixed (plain `NONE` is used by
+   * `GrpcPriceInnerRecordHandling` elsewhere in this file).
+   * </pre>
+   *
+   * <code>STATISTICS_NONE = 2;</code>
+   */
+  STATISTICS_NONE(2),
   UNRECOGNIZED(-1),
   ;
 
@@ -72,6 +88,17 @@ public enum GrpcFacetStatisticsDepth
    * <code>IMPACT = 1;</code>
    */
   public static final int IMPACT_VALUE = 1;
+  /**
+   * <pre>
+   * No per-facet statistics are computed. The engine returns facet options without counts or impact — the cheapest
+   * option, appropriate when the UI only needs to enumerate available facets without any numeric indicator.
+   * Proto3 enum values share a file-level namespace, so this value is prefixed (plain `NONE` is used by
+   * `GrpcPriceInnerRecordHandling` elsewhere in this file).
+   * </pre>
+   *
+   * <code>STATISTICS_NONE = 2;</code>
+   */
+  public static final int STATISTICS_NONE_VALUE = 2;
 
 
   public final int getNumber() {
@@ -100,6 +127,7 @@ public enum GrpcFacetStatisticsDepth
     switch (value) {
       case 0: return COUNTS;
       case 1: return IMPACT;
+      case 2: return STATISTICS_NONE;
       default: return null;
     }
   }

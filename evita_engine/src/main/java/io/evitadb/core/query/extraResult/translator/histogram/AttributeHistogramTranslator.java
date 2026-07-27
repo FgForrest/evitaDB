@@ -31,10 +31,6 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.exception.AttributeNotFilterableException;
-import io.evitadb.core.query.algebra.Formula;
-import io.evitadb.core.query.algebra.attribute.AttributeFormula;
-import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder;
-import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder.LookUp;
 import io.evitadb.core.query.extraResult.ExtraResultPlanningVisitor;
 import io.evitadb.core.query.extraResult.ExtraResultPlanningVisitor.ProcessingScope;
 import io.evitadb.core.query.extraResult.ExtraResultProducer;
@@ -48,10 +44,8 @@ import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -66,7 +60,7 @@ import java.util.stream.Collectors;
  */
 public class AttributeHistogramTranslator implements RequireConstraintTranslator<AttributeHistogram> {
 
-	@Nullable
+	@Nonnull
 	@Override
 	public ExtraResultProducer createProducer(@Nonnull AttributeHistogram attributeHistogram, @Nonnull ExtraResultPlanningVisitor extraResultPlanner) {
 		// initialize basic data necessary for th computation
@@ -79,13 +73,6 @@ public class AttributeHistogramTranslator implements RequireConstraintTranslator
 		// get scopes the histogram will be created from
 		final ProcessingScope processingScope = extraResultPlanner.getProcessingScope();
 		final Set<Scope> scopes = processingScope.getScopes();
-
-		// find user filters that enclose variable user defined part
-		final Set<Formula> userFilters = extraResultPlanner.getUserFilteringFormula();
-		// in them find all AttributeFormulas and create index for them
-		final Map<String, List<AttributeFormula>> attributeFormulas = userFilters.stream()
-			.flatMap(it -> FormulaFinder.find(it, AttributeFormula.class, LookUp.SHALLOW).stream())
-			.collect(Collectors.groupingBy(AttributeFormula::getAttributeName));
 
 		// get all indexes that should be used for query execution
 		final TargetIndexes<?> indexSetToUse = extraResultPlanner.getIndexSetToUse();
@@ -111,7 +98,9 @@ public class AttributeHistogramTranslator implements RequireConstraintTranslator
 				.filter(Objects::nonNull)
 				.collect(Collectors.toList());
 
-			// register computational lambda for producing attribute histogram
+			// register computational lambda for producing attribute histogram — the producer peels every
+			// AttributeRangeCarrierFormula inside userFilter at fabrication time via UserFilterRelaxer, so there is
+			// no need to forward the per-attribute formula set collected from the user filter tree anymore
 			attributeHistogramProducer.addAttributeHistogramRequest(
 				attributeSchema,
 				FilterIndex.getComparator(
@@ -122,8 +111,7 @@ public class AttributeHistogramTranslator implements RequireConstraintTranslator
 					),
 					attributeSchema.getPlainType()
 				),
-				attributeIndexes,
-				attributeFormulas.get(attributeName)
+				attributeIndexes
 			);
 		}
 

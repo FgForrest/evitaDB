@@ -1,11 +1,12 @@
 ---
 title: Filtrování referencí
-date: '10.2.2025'
+date: '11.5.2026'
 perex: Filtrování referencí se používá k filtrování entit na základě jejich odkazů na jiné entity v katalogu nebo atributů specifikovaných v těchto vztazích.
 author: Ing. Jan Novotný
 proofreading: done
 preferredLang: evitaql
 commit: cabcf999e7be5b00e0b13e1228a76a8d9e91cb78
+translated: 'true'
 ---
 ## Reference having
 
@@ -200,9 +201,9 @@ facetHaving(
 </dl>
 
 Filtrační omezení <LS to="e,j,r,g"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/filter/FacetHaving.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Queries/Filter/FacetHaving.cs</SourceClass></LS>
-se obvykle umisťuje do kontejneru omezení [`userFilter`](behavioral.md#uživatelský-filtr) a reprezentuje požadavek uživatele na zúžení výsledné množiny podle konkrétního facetu. Omezení `facetHaving` funguje stejně jako omezení [`referenceHaving`](#reference-having), ale spolupracuje s požadavkem [`facetSummary`](../requirements/facet.md#fasetový-souhrn) pro správný výpočet statistik facetu a predikcí dopadu. Pokud je použito mimo kontejner [`userFilter`](behavioral.md#uživatelský-filtr), chová se omezení `facetHaving` stejně jako [`referenceHaving`](#reference-having).
+se obvykle umisťuje do kontejneru omezení [`userFilter`](behavioral.md#uživatelský-filtr) a reprezentuje požadavek uživatele na zúžení výsledné množiny podle konkrétního facetu. Omezení `facetHaving` funguje stejně jako omezení [`referenceHaving`](#reference-having), ale spolupracuje s požadavkem [`referenceSummary`](../requirements/reference.md#souhrn-referencí) pro správný výpočet statistik facetu a predikcí dopadu. Pokud je použito mimo kontejner [`userFilter`](behavioral.md#uživatelský-filtr), chová se omezení `facetHaving` stejně jako [`referenceHaving`](#reference-having).
 
-Pro ukázku spolupráce mezi omezením `facetHaving` uvnitř `userFilter` a požadavkem `facetSummary` si vyžádáme produkty v kategorii *e-readery* a požádáme o souhrn facetů pro referenci `brand`. Zároveň předstíráme, že uživatel již zaškrtl facet *amazon*:
+Pro ukázku spolupráce mezi omezením `facetHaving` uvnitř `userFilter` a požadavkem `referenceSummary` si vyžádáme produkty v kategorii *e-readery* a požádáme o souhrn referencí pro referenci `brand`. Zároveň předstíráme, že uživatel již zaškrtl facet *amazon*:
 
 [Facet having example](/documentation/user/en/query/filtering/examples/references/facet-having.evitaql)
 
@@ -224,19 +225,19 @@ Protože JSON souhrnu facetů je poměrně dlouhý a nepřehledný, v této doku
 
 <LS to="e,j,c">
 
-<MDInclude sourceVariable="extraResults.FacetSummary">[The result of facet having filtering constraint](/documentation/user/en/query/filtering/examples/references/facet-having.evitaql.string.md)</MDInclude>
+<MDInclude sourceVariable="extraResults.ReferenceSummary">[The result of facet having filtering constraint](/documentation/user/en/query/filtering/examples/references/facet-having.evitaql.string.md)</MDInclude>
 
 </LS>
 
 <LS to="g">
 
-<MDInclude sourceVariable="data.queryProduct.extraResults.facetSummary">[The result of facet having filtering constraint](/documentation/user/en/query/filtering/examples/references/facet-having.graphql.json.md)</MDInclude>
+<MDInclude sourceVariable="data.queryProduct.extraResults.referenceSummary">[The result of facet having filtering constraint](/documentation/user/en/query/filtering/examples/references/facet-having.graphql.json.md)</MDInclude>
 
 </LS>
 
 <LS to="r">
 
-<MDInclude sourceVariable="extraResults.facetSummary">[The result of facet having filtering constraint](/documentation/user/en/query/filtering/examples/references/facet-having.rest.json.md)</MDInclude>
+<MDInclude sourceVariable="extraResults.referenceSummary">[The result of facet having filtering constraint](/documentation/user/en/query/filtering/examples/references/facet-having.rest.json.md)</MDInclude>
 
 </LS>
 
@@ -253,7 +254,7 @@ Ukažme si tuto situaci na reálných datech. Představte si, že máte kategori
 
 ![Laptops category listing](../../../en/query/filtering/assets/laptops-category-listing.png "Laptops category listing")
 
-Produkty mohou být přiřazeny k některé z těchto podkategorií, nebo přímo ke kategorii `Laptops` (pokud neodpovídají žádné podkategorii). Pokud vygenerujete souhrn facetů pro referenci `category`, získáte všechny kategorie s odpovídajícími produkty na stejné úrovni. Můžete ale chtít vizualizovat část souhrnu facetů pro kategorii jako strom pomocí požadavku [`hierarchy`](../requirements/hierarchy.md#hierarchie-reference). Když uživatel vybere jednu z možností kategorie, měly by se automaticky vybrat i všechny podkategorie a zároveň se změní predikované [statistiky facetů](../requirements/facet.md#fasetový-souhrn-reference).
+Produkty mohou být přiřazeny k některé z těchto podkategorií, nebo přímo ke kategorii `Laptops` (pokud neodpovídají žádné podkategorii). Pokud vygenerujete souhrn referencí pro referenci `category`, získáte všechny kategorie s odpovídajícími produkty na stejné úrovni. Můžete ale chtít vizualizovat část souhrnu referencí pro kategorii jako strom pomocí požadavku [`hierarchy`](../requirements/hierarchy.md#hierarchie-reference). Když uživatel vybere jednu z možností kategorie, měly by se automaticky vybrat i všechny podkategorie a zároveň se změní predikované [statistiky referencí](../requirements/reference.md#souhrn-vybrané-reference).
 
 K tomu můžete použít omezení `includingChildren` uvnitř omezení `facetHaving`. Dotaz je zároveň omezen na produkty výrobce `ASUS`, aby souhrn facetů nebyl příliš dlouhý:
 
@@ -275,19 +276,19 @@ Protože JSON souhrnu facetů je poměrně dlouhý a nepřehledný, v této doku
 
 <LS to="e,j,c">
 
-<MDInclude sourceVariable="extraResults.FacetSummary">[The result of facet having including children](/documentation/user/en/query/filtering/examples/references/facet-including-children.evitaql.string.md)</MDInclude>
+<MDInclude sourceVariable="extraResults.ReferenceSummary">[The result of facet having including children](/documentation/user/en/query/filtering/examples/references/facet-including-children.evitaql.string.md)</MDInclude>
 
 </LS>
 
 <LS to="g">
 
-<MDInclude sourceVariable="data.queryProduct.extraResults.facetSummary">[The result of facet having including children](/documentation/user/en/query/filtering/examples/references/facet-including-children.graphql.json.md)</MDInclude>
+<MDInclude sourceVariable="data.queryProduct.extraResults.referenceSummary">[The result of facet having including children](/documentation/user/en/query/filtering/examples/references/facet-including-children.graphql.json.md)</MDInclude>
 
 </LS>
 
 <LS to="r">
 
-<MDInclude sourceVariable="extraResults.facetSummary">[The result of facet having including children](/documentation/user/en/query/filtering/examples/references/facet-including-children.rest.json.md)</MDInclude>
+<MDInclude sourceVariable="extraResults.referenceSummary">[The result of facet having including children](/documentation/user/en/query/filtering/examples/references/facet-including-children.rest.json.md)</MDInclude>
 
 </LS>
 
@@ -307,7 +308,7 @@ includingChildrenHaving(
 </dl>
 
 Filtrační omezení <LS to="e,j,r,g"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/filter/ReferenceIncludingChildren.java</SourceClass></LS>
-je specializací omezení [`includingChildren`](#including-children), která umožňuje omezit podřízené entity zahrnuté do nadřazeného omezení `facetHaving`. To může být užitečné, pokud používáte filtry v požadavku [`facetSummary`](../requirements/facet.md#fasetový-souhrn-reference) a vaše logika výběru je s tímto filtrem svázaná.
+je specializací omezení [`includingChildren`](#including-children), která umožňuje omezit podřízené entity zahrnuté do nadřazeného omezení `facetHaving`. To může být užitečné, pokud používáte filtry v požadavku [`referenceSummary`](../requirements/reference.md#souhrn-vybrané-reference) a vaše logika výběru je s tímto filtrem svázaná.
 
 Abychom lépe pochopili, jak omezení `includingChildrenHaving` funguje, podívejme se na příklad (dotaz je také omezen na produkty výrobce `ASUS`, aby souhrn facetů nebyl příliš dlouhý):
 
@@ -329,19 +330,19 @@ Protože JSON souhrnu facetů je poměrně dlouhý a nepřehledný, v této doku
 
 <LS to="e,j,c">
 
-<MDInclude sourceVariable="extraResults.FacetSummary">[The result of facet having including children having](/documentation/user/en/query/filtering/examples/references/facet-including-children-having.evitaql.string.md)</MDInclude>
+<MDInclude sourceVariable="extraResults.ReferenceSummary">[The result of facet having including children having](/documentation/user/en/query/filtering/examples/references/facet-including-children-having.evitaql.string.md)</MDInclude>
 
 </LS>
 
 <LS to="g">
 
-<MDInclude sourceVariable="data.queryProduct.extraResults.facetSummary">[The result of facet having including children having](/documentation/user/en/query/filtering/examples/references/facet-including-children-having.graphql.json.md)</MDInclude>
+<MDInclude sourceVariable="data.queryProduct.extraResults.referenceSummary">[The result of facet having including children having](/documentation/user/en/query/filtering/examples/references/facet-including-children-having.graphql.json.md)</MDInclude>
 
 </LS>
 
 <LS to="r">
 
-<MDInclude sourceVariable="extraResults.facetSummary">[The result of facet having including children having](/documentation/user/en/query/filtering/examples/references/facet-including-children-having.rest.json.md)</MDInclude>
+<MDInclude sourceVariable="extraResults.referenceSummary">[The result of facet having including children having](/documentation/user/en/query/filtering/examples/references/facet-including-children-having.rest.json.md)</MDInclude>
 
 </LS>
 
@@ -361,7 +362,7 @@ includingChildrenExcept(
 </dl>
 
 Filtrační omezení <LS to="e,j,r,g"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/filter/ReferenceIncludingChildren.java</SourceClass></LS>
-je specializací omezení [`includingChildren`](#including-children) a přesným opakem [`includingChildrenHaving`], která umožňuje vyloučit odpovídající podřízené entity ze zahrnutí do nadřazeného omezení `facetHaving`. To může být užitečné, pokud používáte filtry v požadavku [`facetSummary`](../requirements/facet.md#fasetový-souhrn-reference) a vaše logika výběru je s tímto filtrem svázaná.
+je specializací omezení [`includingChildren`](#including-children) a přesným opakem [`includingChildrenHaving`], která umožňuje vyloučit odpovídající podřízené entity ze zahrnutí do nadřazeného omezení `facetHaving`. To může být užitečné, pokud používáte filtry v požadavku [`referenceSummary`](../requirements/reference.md#souhrn-vybrané-reference) a vaše logika výběru je s tímto filtrem svázaná.
 
 Omezení `includingChildrenExcept` lze také kombinovat s omezením `includingChildrenHaving`. V tomto případě je nejprve vyhodnoceno omezení `includingChildrenHaving` a poté je na výsledek aplikováno omezení `includingChildrenExcept`.
 
@@ -385,19 +386,19 @@ Protože JSON souhrnu facetů je poměrně dlouhý a nepřehledný, v této doku
 
 <LS to="e,j,c">
 
-<MDInclude sourceVariable="extraResults.FacetSummary">[The result of facet except including children except](/documentation/user/en/query/filtering/examples/references/facet-including-children-except.evitaql.string.md)</MDInclude>
+<MDInclude sourceVariable="extraResults.ReferenceSummary">[The result of facet except including children except](/documentation/user/en/query/filtering/examples/references/facet-including-children-except.evitaql.string.md)</MDInclude>
 
 </LS>
 
 <LS to="g">
 
-<MDInclude sourceVariable="data.queryProduct.extraResults.facetSummary">[The result of facet except including children except](/documentation/user/en/query/filtering/examples/references/facet-including-children-except.graphql.json.md)</MDInclude>
+<MDInclude sourceVariable="data.queryProduct.extraResults.referenceSummary">[The result of facet except including children except](/documentation/user/en/query/filtering/examples/references/facet-including-children-except.graphql.json.md)</MDInclude>
 
 </LS>
 
 <LS to="r">
 
-<MDInclude sourceVariable="extraResults.facetSummary">[The result of facet except including children except](/documentation/user/en/query/filtering/examples/references/facet-including-children-except.rest.json.md)</MDInclude>
+<MDInclude sourceVariable="extraResults.referenceSummary">[The result of facet except including children except](/documentation/user/en/query/filtering/examples/references/facet-including-children-except.rest.json.md)</MDInclude>
 
 </LS>
 

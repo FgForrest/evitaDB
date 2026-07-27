@@ -106,7 +106,7 @@ The following code snippet contains a query that lists all (transitive) categori
 returns menu items that contain direct children of the *Audio* category and its direct parent category (which is
 *Accessories*):
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Hierarchy request association](/documentation/user/en/query/requirements/examples/hierarchy/hierarchy-data-structure-association.java)
 </SourceCodeTabs>
@@ -375,7 +375,7 @@ requires a computed *megaMenu* data structure that lists the top 2 levels of the
 a computed count of child categories for each menu item and an aggregated count of all filtered products that would
 fall into the given category.
 
-<SourceCodeTabs  requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs  requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Example of using `hierarchyWithin` and `fromRoot` in a single query](/documentation/user/en/query/requirements/examples/hierarchy/hierarchy-from-root.java)
 </SourceCodeTabs>
@@ -477,7 +477,7 @@ returns a computed *sideMenu1* and *sideMenu2* data structure that lists the fla
 *Portables* and *Laptops* with a computed count of child categories for each menu item and an aggregated count of all
 products that would fall into the given category.
 
-<SourceCodeTabs  requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs  requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Example of using `hierarchyWithin` and `fromNode` in a single query](/documentation/user/en/query/requirements/examples/hierarchy/hierarchy-from-node.java)
 </SourceCodeTabs>
@@ -570,7 +570,7 @@ returns a computed *subcategories* data structure that lists the flat category l
 *Audio* with a computed count of child categories for each menu item and an aggregated count of all products that
 would fall into the given category.
 
-<SourceCodeTabs  requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs  requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Example of using `children` requirement](/documentation/user/en/query/requirements/examples/hierarchy/hierarchy-children.java)
 </SourceCodeTabs>
@@ -666,7 +666,7 @@ also returns a computed *parentAxis* data structure that lists all the parent no
 *True wireless* with a computed count of child categories for each menu item and an aggregated count of all products that
 would fall into the given category.
 
-<SourceCodeTabs  requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs  requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Example of using `children` requirement](/documentation/user/en/query/requirements/examples/hierarchy/hierarchy-parents.java)
 </SourceCodeTabs>
@@ -697,7 +697,7 @@ The computed result *parentAxis* looks like this:
 
 You can also list all siblings of the parent node as you move up the tree:
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Example of using `children` requirement](/documentation/user/en/query/requirements/examples/hierarchy/hierarchy-parents-siblings.java)
 </SourceCodeTabs>
@@ -837,7 +837,7 @@ returns a computed *audioSiblings* data structure that lists the flat category l
 *Audio* with a computed count of child categories for each menu item and an aggregated count of all products that
 would fall into the given category.
 
-<SourceCodeTabs  requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs  requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Example of using `siblings` requirement](/documentation/user/en/query/requirements/examples/hierarchy/hierarchy-siblings.java)
 </SourceCodeTabs>
@@ -870,7 +870,7 @@ If you need to return all siblings and also the level below them (their children
 <LS to="e,j,c,r">constraint</LS><LS to="g">argument</LS> and
 extend the default scope of the `siblings` <LS to="e,j,c,r">constraint</LS><LS to="g">data structure</LS>.
 
-<SourceCodeTabs  requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs  requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Example of using `siblings` subtree requirement](/documentation/user/en/query/requirements/examples/hierarchy/hierarchy-siblings-with-subtree.java)
 </SourceCodeTabs>
@@ -943,7 +943,8 @@ distance(
     <dd>
         defines a maximum relative distance from the pivot node that can be traversed;
         the pivot node itself is at distance zero, its direct child or direct parent is at distance one, each additional
-        step adds a one to the distance
+        step adds a one to the distance. A distance of `0` is allowed and stops the traversal right at the pivot node -
+        the pivot (or, in a `siblings` traversal, each sibling) is returned without any of its descendants.
     </dd>
 </dl>
 
@@ -952,7 +953,10 @@ The `distance` constraint can only be used within the `stopAt`
 and limits the hierarchy traversal to stop when
 the number of levels traversed reaches the specified constant. The distance is always relative to the pivot node
 (the node where the hierarchy traversal starts) and is the same whether we are traversing the hierarchy top-down or
-bottom-up. The distance between any two nodes in the hierarchy can be calculated as `abs(level(nodeA) - level(nodeB))`.
+bottom-up. Along a direct ancestor/descendant line, distance equals `abs(level(node) - level(pivot))` - but it is
+not a general distance between two arbitrary nodes in the tree (siblings, for example, sit in different branches
+and are two edges apart despite sharing the same level). In a `siblings` traversal, distance is measured from each
+sibling as its own local pivot, not from the original one.
 See the following figure when the pivot node is *Audio*:
 
 <Note type="info">
@@ -966,7 +970,7 @@ The following query lists products in category *Audio* and its subcategories. Al
 returns a computed *subcategories* data structure that lists the flat category list the currently focused category
 *Audio*.
 
-<SourceCodeTabs  requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs  requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Example of using `distance` with `children` requirement](/documentation/user/en/query/requirements/examples/hierarchy/hierarchy-direct-children.java)
 </SourceCodeTabs>
@@ -995,7 +999,7 @@ The following query lists products in the category *Audio* and its subcategories
 also returns a computed *parent* data structure that lists single direct parent category of the currently focused
 *Audio* category.
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Example of using `distance` with `parents` requirement](/documentation/user/en/query/requirements/examples/hierarchy/hierarchy-parent.java)
 </SourceCodeTabs>
@@ -1019,6 +1023,32 @@ That returns simply:
 <MDInclude sourceVariable="extraResults.hierarchy.categories.parent">[Direct parent](/documentation/user/en/query/requirements/examples/hierarchy/hierarchy-parent.rest.json.md)</MDInclude>
 
 </LS>
+
+</Note>
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### Why would I use `distance(0)`?
+</NoteTitle>
+
+Because `distance` limits how deep the traversal expands, `distance(0)` stops right at the pivot - you get the focused
+node itself with no descendants. Combined with [`statistics`](#statistics) (whose counts still reflect the whole
+subtree), it is the way to render the current node on its own - e.g. as a menu header or breadcrumb showing how many
+items sit below it - without listing its children:
+
+```evitaql
+children(
+    "currentCategory",
+    entityFetch(attributeContent("code")),
+    stopAt(distance(0)),
+    statistics(CHILDREN_COUNT, QUERIED_ENTITY_COUNT)
+)
+```
+
+Inside a [`siblings`](#siblings) traversal `distance(0)` means "the sibling row only, unexpanded" - the explicit
+equivalent of omitting `stopAt` there.
 
 </Note>
 
@@ -1056,7 +1086,7 @@ following figure:
 The following query lists products in *Audio* category and its subcategories. Along with the products returned, it also
 returns a computed *megaMenu* data structure that lists top two levels of the entire hierarchy.
 
-<SourceCodeTabs  requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs  requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Example of using `level` with `fromRoot` requirement](/documentation/user/en/query/requirements/examples/hierarchy/hierarchy-level.java)
 </SourceCodeTabs>
@@ -1085,7 +1115,7 @@ The following query lists products in the *Audio* category and its subcategories
 also returns a computed *parent* data structure that lists all the parents of the currently focused *True wireless*
 category up to level two.
 
-<SourceCodeTabs  requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs  requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Example of using `level` with `parents` requirement](/documentation/user/en/query/requirements/examples/hierarchy/hierarchy-level-parent.java)
 </SourceCodeTabs>
@@ -1144,7 +1174,7 @@ a meaningful example of this in the demo dataset, so our example query will be s
 demonstration, let's list the entire *Accessories* hierarchy, but stop traversing at the nodes whose code starts with
 the letter *w*.
 
-<SourceCodeTabs  requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs  requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Example of using `node` with `children` requirement](/documentation/user/en/query/requirements/examples/hierarchy/hierarchy-node.java)
 </SourceCodeTabs>

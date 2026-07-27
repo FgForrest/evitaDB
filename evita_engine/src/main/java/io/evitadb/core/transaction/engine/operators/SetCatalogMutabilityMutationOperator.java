@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2025
+ *   Copyright (c) 2025-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -35,6 +35,7 @@ import io.evitadb.core.transaction.engine.AbstractEngineStateUpdater;
 import io.evitadb.core.transaction.engine.EngineStateUpdater;
 
 import javax.annotation.Nonnull;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Consumer;
 
@@ -117,6 +118,51 @@ public class SetCatalogMutabilityMutationOperator
 				}
 			);
 		}
+	}
+
+	/**
+	 * The completion phase of `SetCatalogMutabilityMutation` toggles the read-only flag on the live `Catalog`
+	 * instance and updates the `readOnlyCatalogs` set in engine state. Both steps are idempotent: calling
+	 * `setReadOnly(true/false)` a second time is a no-op, and the `ExpandedEngineState.Builder` tolerates adding /
+	 * removing a catalog name from the set when it is already present / absent. Safe to replay.
+	 *
+	 * The `theCatalog.setReadOnly(...)` call is the canonical example of the *idempotent in-memory toggle on an
+	 * already-open Catalog instance* allowed by the `replayCompletionState` contract: it neither opens nor closes
+	 * a lifecycle resource and is a no-op when re-applied, but it is also the only way to make the live in-memory
+	 * Catalog consistent with the replayed engine-state snapshot (the original work phase flipped the flag before
+	 * the crash, so without this toggle the live instance would diverge from the rebuilt state).
+	 *
+	 * If the catalog referenced by the mutation is not present as a live `Catalog` at replay time (e.g., it is still
+	 * loading asynchronously), we return `Optional.empty()` so the transaction manager wedges rather than applying
+	 * an inconsistent snapshot.
+	 */
+	@Nonnull
+	@Override
+	public Optional<ExpandedEngineState> replayCompletionState(
+		@Nonnull SetCatalogMutabilityMutation mutation,
+		long targetVersion,
+		@Nonnull ExpandedEngineState currentState,
+		@Nonnull Evita evita
+	) {
+		final String catalogName = mutation.getCatalogName();
+		final CatalogContract catalogContract = currentState.getCatalog(catalogName).orElse(null);
+		if (!(catalogContract instanceof Catalog theCatalog)) {
+			// Forward-replay is not safe when the catalog is not yet a live instance — wedge.
+			return Optional.empty();
+		}
+		// Idempotent in-memory toggle on the already-open Catalog instance — the only way to make the
+		// live in-memory representation consistent with the replayed snapshot. Allowed by the
+		// `replayCompletionState` contract (see `EngineMutationOperator#replayCompletionState`).
+		theCatalog.setReadOnly(!mutation.isMutable());
+		final ExpandedEngineState.Builder builder = ExpandedEngineState
+			.builder(currentState)
+			.withVersion(targetVersion);
+		if (mutation.isMutable()) {
+			builder.withoutReadOnlyCatalog(theCatalog);
+		} else {
+			builder.withReadOnlyCatalog(theCatalog);
+		}
+		return Optional.of(builder.build());
 	}
 
 }

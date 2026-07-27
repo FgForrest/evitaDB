@@ -27,6 +27,8 @@ import io.evitadb.api.query.require.HistogramBehavior;
 import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.core.query.algebra.base.AndFormula;
+import io.evitadb.core.query.algebra.base.ConstantFormula;
+import io.evitadb.core.query.algebra.entity.EntityPrimaryKeyRangeFormula;
 import io.evitadb.core.query.algebra.base.DisentangleFormula;
 import io.evitadb.core.query.algebra.base.JoinFormula;
 import io.evitadb.core.query.algebra.base.NotFormula;
@@ -44,6 +46,7 @@ import io.evitadb.core.query.extraResult.translator.histogram.producer.Attribute
 import io.evitadb.core.query.extraResult.translator.histogram.producer.PriceHistogramComputer;
 import io.evitadb.index.invertedIndex.suppliers.HistogramBitmapSupplier;
 import io.evitadb.index.price.model.PriceIndexKey;
+import io.evitadb.index.price.model.priceRecord.PriceRecordContract;
 import io.evitadb.spike.mock.BucketsRecordState;
 import io.evitadb.spike.mock.EntityIdsWithPriceRecordsRecordState;
 import io.evitadb.spike.mock.InnerRecordIdsWithPriceRecordsRecordState;
@@ -63,10 +66,25 @@ import java.util.Currency;
 import java.util.concurrent.TimeUnit;
 
 /**
- * This spike test tries to test how fast are formulas.
+ * JMH benchmark suite that measures throughput of individual formula implementations used in
+ * the evitaDB query engine. The results are used to derive **operation cost coefficients** for the
+ * formula caching layer — a cost of 1 corresponds to 1 million ops/s.
  *
- * Results:
- * (COST = 1 = 1mil. ops/s)
+ * All benchmarks operate on datasets of comparable cardinality (~100K records) so that throughput
+ * numbers are directly comparable across formula types. Each benchmark creates a fresh formula instance
+ * per invocation (no caching between iterations) and consumes results via {@link Blackhole} to prevent
+ * dead-code elimination.
+ *
+ * **Note on `plainPriceTermination`:** {@link PlainPriceTerminationFormula} is a pure delegation wrapper
+ * — its `computeInternal()` only forwards to the inner formula without price filtering. The extremely
+ * high throughput (~45M ops/s) reflects this delegation overhead and is intentional — the formula
+ * genuinely has near-zero cost in the cost model. Compare with
+ * {@link PlainPriceTerminationFormulaWithPriceFilter} which performs per-entity price predicate
+ * evaluation and shows realistic filtering cost (~312 ops/s).
+ *
+ * ## Results
+ *
+ * (COST = 1 = 1 mil. ops/s)
  *
  * Benchmark                                                       Mode  Cnt        Score   Error  Units
  * FormulaCostMeasurement.andFormulaInteger                       thrpt    2   116094.151          ops/s
@@ -104,6 +122,10 @@ public class FormulaCostMeasurement {
 		org.openjdk.jmh.Main.main(args);
 	}
 
+	/**
+	 * Measures throughput of {@link AndFormula} — set intersection of two 100K-element
+	 * RoaringBitmap-backed bitmaps.
+	 */
 	@Benchmark
 	public void andFormulaInteger(IntegerBitmapState bitmapDataSet, Blackhole blackhole) {
 		blackhole.consume(
@@ -115,6 +137,10 @@ public class FormulaCostMeasurement {
 		);
 	}
 
+	/**
+	 * Measures throughput of {@link OrFormula} — set union of two 100K-element
+	 * RoaringBitmap-backed bitmaps.
+	 */
 	@Benchmark
 	public void orFormulaInteger(IntegerBitmapState bitmapDataSet, Blackhole blackhole) {
 		blackhole.consume(
@@ -126,6 +152,10 @@ public class FormulaCostMeasurement {
 		);
 	}
 
+	/**
+	 * Measures throughput of {@link NotFormula} — set difference (A minus B) of two 100K-element
+	 * RoaringBitmap-backed bitmaps.
+	 */
 	@Benchmark
 	public void notFormulaInteger(IntegerBitmapState bitmapDataSet, Blackhole blackhole) {
 		blackhole.consume(
@@ -136,6 +166,10 @@ public class FormulaCostMeasurement {
 		);
 	}
 
+	/**
+	 * Measures throughput of {@link JoinFormula} — concatenation (multiset union) of two 100K-element
+	 * RoaringBitmap-backed bitmaps.
+	 */
 	@Benchmark
 	public void joinFormula(IntegerBitmapState bitmapDataSet, Blackhole blackhole) {
 		blackhole.consume(
@@ -147,6 +181,10 @@ public class FormulaCostMeasurement {
 		);
 	}
 
+	/**
+	 * Measures throughput of {@link DisentangleFormula} — separates records unique to A from records
+	 * shared with B, operating on two 100K-element RoaringBitmap-backed bitmaps.
+	 */
 	@Benchmark
 	public void disentangleFormula(IntegerBitmapState bitmapDataSet, Blackhole blackhole) {
 		blackhole.consume(
@@ -157,6 +195,27 @@ public class FormulaCostMeasurement {
 		);
 	}
 
+	/**
+	 * Measures throughput of {@link EntityPrimaryKeyRangeFormula} — iterates a 100K-element
+	 * RoaringBitmap-backed superset bitmap and retains only primary keys within a range covering
+	 * approximately the middle 50% of values (25th to 75th percentile).
+	 */
+	@Benchmark
+	public void entityPrimaryKeyRangeFormula(IntegerBitmapState bitmapDataSet, Blackhole blackhole) {
+		blackhole.consume(
+			new EntityPrimaryKeyRangeFormula(
+				50_000,
+				150_000,
+				new ConstantFormula(bitmapDataSet.getBitmapA())
+			).compute()
+		);
+	}
+
+	/**
+	 * Measures throughput of {@link PriceIdContainerFormula} — resolves price IDs from a price index
+	 * and materializes corresponding {@link PriceRecordContract} array via
+	 * {@link PriceIdContainerFormula#getFilteredPriceRecords}. Operates on ~100K price records.
+	 */
 	@Benchmark
 	public void priceIdContainer(PriceIdsWithPriceRecordsRecordState priceDataSet, Blackhole blackhole) {
 		final PriceIdContainerFormula testedFormula = new PriceIdContainerFormula(
@@ -167,6 +226,11 @@ public class FormulaCostMeasurement {
 		blackhole.consume(testedFormula.getFilteredPriceRecords(priceDataSet.getQueryExecutionContext()));
 	}
 
+	/**
+	 * Measures throughput of {@link PriceIdToEntityIdTranslateFormula} — translates ~100K price IDs
+	 * to entity IDs by looking up each price record in the underlying price index, and collects
+	 * the corresponding filtered price records.
+	 */
 	@Benchmark
 	public void priceIdToEntityIdTranslate(PriceIdsWithPriceRecordsRecordState priceDataSet, Blackhole blackhole) {
 		final PriceIdToEntityIdTranslateFormula testedFormula = new PriceIdToEntityIdTranslateFormula(priceDataSet.getPriceIdsFormula());
@@ -174,6 +238,12 @@ public class FormulaCostMeasurement {
 		blackhole.consume(testedFormula.getFilteredPriceRecords(priceDataSet.getQueryExecutionContext()));
 	}
 
+	/**
+	 * Measures throughput of {@link PlainPriceTerminationFormula} — a pure delegation wrapper that
+	 * returns entity IDs from the inner formula without applying any price predicate filtering.
+	 * The extremely high throughput (~45M ops/s) reflects the near-zero cost of delegation only.
+	 * Operates on an OR-combined formula tree of 3 × 100K price records over ~10K entities.
+	 */
 	@Benchmark
 	public void plainPriceTermination(EntityIdsWithPriceRecordsRecordState priceDataSet, Blackhole blackhole) {
 		final PlainPriceTerminationFormula testedFormula = new PlainPriceTerminationFormula(
@@ -188,6 +258,12 @@ public class FormulaCostMeasurement {
 		blackhole.consume(testedFormula.compute());
 	}
 
+	/**
+	 * Measures throughput of {@link PlainPriceTerminationFormulaWithPriceFilter} — iterates through
+	 * all entity IDs, looks up their associated price records, and evaluates each price against
+	 * a {@link PricePredicate}. Operates on the same dataset as {@link #plainPriceTermination} but
+	 * performs actual per-entity price filtering work (~312 ops/s vs ~45M ops/s for pure delegation).
+	 */
 	@Benchmark
 	public void plainPriceTerminationWithPriceFilter(EntityIdsWithPriceRecordsRecordState priceDataSet, Blackhole blackhole) {
 		final PlainPriceTerminationFormulaWithPriceFilter testedFormula = new PlainPriceTerminationFormulaWithPriceFilter(
@@ -203,6 +279,11 @@ public class FormulaCostMeasurement {
 		blackhole.consume(testedFormula.compute());
 	}
 
+	/**
+	 * Measures throughput of {@link LowestPriceTerminationFormula} — selects the lowest-priced
+	 * variant for each entity from inner-record-specific price records, applying a price predicate.
+	 * Operates on an OR-combined formula tree of 3 × 100K price records with inner record grouping.
+	 */
 	@Benchmark
 	public void firstVariantPriceTermination(InnerRecordIdsWithPriceRecordsRecordState priceDataSet, Blackhole blackhole) {
 		final LowestPriceTerminationFormula testedFormula = new LowestPriceTerminationFormula(
@@ -214,11 +295,17 @@ public class FormulaCostMeasurement {
 				null, new PriceIndexKey("whatever", Currency.getInstance("CZK"), PriceInnerRecordHandling.NONE)
 			),
 			QueryPriceMode.WITH_TAX,
-			PricePredicate.ALL_RECORD_FILTER
+			PricePredicate.ALL_RECORD_FILTER,
+			false
 		);
 		blackhole.consume(testedFormula.compute());
 	}
 
+	/**
+	 * Measures throughput of {@link SumPriceTerminationFormula} — sums prices across all inner
+	 * records for each entity and applies a price predicate to the aggregate. Operates on the same
+	 * dataset as {@link #firstVariantPriceTermination} (3 × 100K inner-record-specific price records).
+	 */
 	@Benchmark
 	public void sumPriceTermination(InnerRecordIdsWithPriceRecordsRecordState priceDataSet, Blackhole blackhole) {
 		final SumPriceTerminationFormula testedFormula = new SumPriceTerminationFormula(
@@ -235,14 +322,24 @@ public class FormulaCostMeasurement {
 		blackhole.consume(testedFormula.compute());
 	}
 
+	/**
+	 * Measures throughput of {@link HistogramBitmapSupplier} — merges bitmaps from 2000 histogram
+	 * buckets (~50 records each, ~100K total) into a single bitmap.
+	 */
 	@Benchmark
 	public void histogramBitmapSupplier(BucketsRecordState bucketDataSet, Blackhole blackhole) {
 		final HistogramBitmapSupplier testedFormula = new HistogramBitmapSupplier(
+			1L,
 			bucketDataSet.getBuckets()
 		);
 		blackhole.consume(testedFormula.get());
 	}
 
+	/**
+	 * Measures throughput of {@link AttributeHistogramComputer} — computes a 40-bucket attribute
+	 * histogram by intersecting 5 filter indices (each with 2000 value buckets) against ~100K
+	 * entity IDs.
+	 */
 	@Benchmark
 	public void attributeHistogramComputer(BucketsRecordState bucketDataSet, Blackhole blackhole) {
 		final AttributeHistogramComputer testedFormula = new AttributeHistogramComputer(
@@ -254,6 +351,11 @@ public class FormulaCostMeasurement {
 		blackhole.consume(testedFormula.compute());
 	}
 
+	/**
+	 * Measures throughput of {@link PriceHistogramComputer} — computes a 40-bucket price histogram
+	 * from two price record accessors (70K + 30K = 100K prices) over ~10K entities, using
+	 * WITH_TAX price mode with 2 decimal places.
+	 */
 	@Benchmark
 	public void priceHistogramComputer(PriceBucketRecordState bucketDataSet, Blackhole blackhole) {
 		final PriceHistogramComputer testedFormula = new PriceHistogramComputer(

@@ -60,6 +60,7 @@ import io.evitadb.function.TriFunction;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.ClassUtils;
 import io.evitadb.utils.CollectorUtils;
+import io.evitadb.utils.Functions;
 import io.evitadb.utils.NamingConvention;
 import io.evitadb.utils.NumberUtils;
 import io.evitadb.utils.ReflectionLookup;
@@ -1798,7 +1799,7 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 		) {
 			if (predicate == null) {
 				if (constantPredicate == null) {
-					return ref -> true;
+					return Functions.alwaysTrue();
 				} else {
 					return ref -> constantPredicate.test(args, ref);
 				}

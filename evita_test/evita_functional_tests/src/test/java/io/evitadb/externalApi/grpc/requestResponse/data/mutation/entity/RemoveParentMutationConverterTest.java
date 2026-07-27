@@ -26,9 +26,16 @@ package io.evitadb.externalApi.grpc.requestResponse.data.mutation.entity;
 import io.evitadb.api.requestResponse.data.mutation.parent.RemoveParentMutation;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static io.evitadb.test.TestTags.GRPC;
+import static io.evitadb.test.TestTags.EXTERNAL_API;
+import static io.evitadb.test.TestTags.QUERY;
 
+@Tag(GRPC)
+@Tag(EXTERNAL_API)
+@Tag(QUERY)
 class RemoveParentMutationConverterTest {
 
 	private static RemoveParentMutationConverter converter;

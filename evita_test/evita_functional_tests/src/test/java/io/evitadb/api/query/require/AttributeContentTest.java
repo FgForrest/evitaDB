@@ -25,17 +25,24 @@ package io.evitadb.api.query.require;
 
 import io.evitadb.exception.GenericEvitaInternalError;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.QueryConstraints.associatedDataContentAll;
 import static io.evitadb.api.query.QueryConstraints.attributeContent;
 import static io.evitadb.api.query.QueryConstraints.attributeContentAll;
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.REQUIRE;
+import static io.evitadb.test.TestTags.ATTRIBUTE;
 
 /**
  * This tests verifies basic properties of {@link AttributeContent} query.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
+@Tag(CONTRACT)
+@Tag(REQUIRE)
+@Tag(ATTRIBUTE)
 class AttributeContentTest {
 
 	@Test

@@ -53,14 +53,19 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.DATA_TYPE;
 
 /**
  * This test verifies behaviour of {@link ComplexDataObjectToJsonConverter}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
+@Tag(CONTRACT)
+@Tag(DATA_TYPE)
 class ComplexDataObjectToJsonConverterTest {
 	private final ObjectMapper objectMapper = JsonMapper.builder()
 		.nodeFactory(new SortingNodeFactory())

@@ -27,15 +27,22 @@ import io.evitadb.api.query.QueryConstraints;
 import io.evitadb.api.query.require.AccompanyingPriceContent;
 import io.evitadb.utils.ArrayUtils;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.QueryConstraints.accompanyingPriceContent;
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.QUERY;
+import static io.evitadb.test.TestTags.PRICE;
 
 /**
  * This tests verifies basic properties of {@link AccompanyingPriceContent} query.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
+@Tag(CONTRACT)
+@Tag(QUERY)
+@Tag(PRICE)
 class AccompanyingPriceTest {
 
     @Test

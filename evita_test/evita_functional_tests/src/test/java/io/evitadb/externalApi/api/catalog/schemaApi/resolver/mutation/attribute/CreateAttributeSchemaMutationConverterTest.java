@@ -23,7 +23,8 @@
 
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.attribute;
 
-import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
+import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.CreateAttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
 import io.evitadb.dataType.Scope;
@@ -40,6 +41,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.util.Map;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.utils.ListBuilder.array;
 import static io.evitadb.utils.ListBuilder.list;
@@ -47,12 +49,20 @@ import static io.evitadb.utils.MapBuilder.map;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static io.evitadb.test.TestTags.EXTERNAL_API;
+import static io.evitadb.test.TestTags.QUERY;
+import static io.evitadb.test.TestTags.SCHEMA;
+import static io.evitadb.test.TestTags.ATTRIBUTE;
 
 /**
  * Tests for {@link CreateAttributeSchemaMutationConverter}
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
+@Tag(EXTERNAL_API)
+@Tag(QUERY)
+@Tag(SCHEMA)
+@Tag(ATTRIBUTE)
 class CreateAttributeSchemaMutationConverterTest {
 
 	private CreateAttributeSchemaMutationConverter converter;
@@ -220,7 +230,34 @@ class CreateAttributeSchemaMutationConverterTest {
 					.e(CreateAttributeSchemaMutationDescriptor.TYPE.name(), String.class.getSimpleName())
 					.e(CreateAttributeSchemaMutationDescriptor.DEFAULT_VALUE.name(), "defaultCode")
 					.e(CreateAttributeSchemaMutationDescriptor.INDEXED_DECIMAL_PLACES.name(), 2)
+					.e(CreateAttributeSchemaMutationDescriptor.CONFLICT_RESOLUTION_OVERRIDE.name(), ConflictResolutionOverride.INHERITED.name())
 					.build()
 			);
+	}
+
+	@Test
+	void shouldRoundTripNonDefaultConflictResolutionOverride() {
+		final CreateAttributeSchemaMutation inputMutation = new CreateAttributeSchemaMutation(
+			"code",
+			"desc",
+			"depr",
+			new ScopedAttributeUniquenessType[]{
+				new ScopedAttributeUniquenessType(Scope.LIVE, AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION)
+			},
+			new Scope[] { Scope.LIVE },
+			new Scope[] { Scope.LIVE },
+			false,
+			true,
+			true,
+			String.class,
+			"defaultCode",
+			2,
+			ConflictResolutionOverride.ENTITY
+		);
+
+		final CreateAttributeSchemaMutation roundTripped =
+			this.converter.convertFromInput(this.converter.convertToOutput(inputMutation));
+		assertEquals(ConflictResolutionOverride.ENTITY, roundTripped.getConflictResolutionOverride());
+		assertEquals(inputMutation, roundTripped);
 	}
 }

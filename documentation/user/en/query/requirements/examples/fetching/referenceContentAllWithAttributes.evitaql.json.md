@@ -51,21 +51,21 @@
             "referencedKey" : 1940,
             "attributes" : {
               "gallery" : "galerie",
-              "mediaOrder" : 3
+              "mediaOrder" : 4
             }
           },
           {
             "referencedKey" : 1941,
             "attributes" : {
               "gallery" : "galerie",
-              "mediaOrder" : 2
+              "mediaOrder" : 3
             }
           },
           {
             "referencedKey" : 1942,
             "attributes" : {
               "gallery" : "galerie",
-              "mediaOrder" : 1
+              "mediaOrder" : 2
             }
           }
         ],

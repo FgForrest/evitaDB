@@ -23,16 +23,26 @@
 
 package io.evitadb.api.query.require;
 
+import io.evitadb.api.query.RequireConstraint;
 import org.junit.jupiter.api.Test;
+
+import java.io.Serializable;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.QueryConstraints.*;
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.REQUIRE;
+import static io.evitadb.test.TestTags.HIERARCHY;
 
 /**
  * This tests verifies basic properties of {@link io.evitadb.api.query.require.HierarchyOfSelf} query.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
+@Tag(CONTRACT)
+@Tag(REQUIRE)
+@Tag(HIERARCHY)
 class HierarchyOfSelfTest {
 
 	@Test
@@ -90,6 +100,15 @@ class HierarchyOfSelfTest {
 			"hierarchyOfSelf(orderBy(attributeNatural('name',ASC)),fromRoot('megaMenu',entityFetch(attributeContentAll())))",
 			hierarchyStatisticsOfSelf3.toString()
 		);
+	}
+
+	@Test
+	void shouldReturnNewInstanceFromCloneWithArguments() {
+		final HierarchyOfSelf constraint = hierarchyOfSelf(fromRoot("megaMenu"));
+
+		final RequireConstraint cloned = constraint.cloneWithArguments(new Serializable[0]);
+		assertNotSame(constraint, cloned);
+		assertEquals(constraint, cloned);
 	}
 
 	@Test

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2025
+ *   Copyright (c) 2025-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -45,6 +45,13 @@ import java.util.function.Consumer;
 /**
  * Duplicates an existing catalog to create a new catalog with a specified name.
  * Tracks the progress of the duplication process and handles completion or failure.
+ *
+ * Forward-replay is intentionally **not** implemented here. Duplicating a catalog involves deep folder-copy work in
+ * the work phase. Re-applying the completion is still conceptually safe (the duplicate folder already exists), but
+ * there is no guarantee the WAL-visible mutation carries enough information to rebuild the `UnusableCatalog` stub
+ * with the same identity the original run would have produced. We prefer to wedge loudly rather than risk silent
+ * drift — the default `Optional.empty()` in `EngineMutationOperator` causes the transaction manager to log a loud
+ * error and stop.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
@@ -95,6 +102,11 @@ public class DuplicateCatalogMutationOperator implements EngineMutationOperator<
 						}
 					}
 				);
+
+				// Emit the host event AFTER the engine state update so the freshly-duplicated
+				// (and INACTIVE-by-default) target catalog is observable on the system stream
+				// strictly after the underlying mutation.
+				evita.notifyCatalogStateSettled(targetCatalogName, CatalogState.INACTIVE);
 
 				return null;
 			}

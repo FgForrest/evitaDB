@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2026
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -113,7 +113,7 @@ public interface GrpcHistogramOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket buckets = 4;</code>
    */
-  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket>
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket> 
       getBucketsList();
   /**
    * <pre>
@@ -141,7 +141,7 @@ public interface GrpcHistogramOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket buckets = 4;</code>
    */
-  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucketOrBuilder>
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucketOrBuilder> 
       getBucketsOrBuilderList();
   /**
    * <pre>
@@ -153,4 +153,64 @@ public interface GrpcHistogramOrBuilder extends
    */
   io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucketOrBuilder getBucketsOrBuilder(
       int index);
+
+  /**
+   * <pre>
+   * Referenced entity whose value anchors the minimum bucket of the histogram. Populated only for
+   * reference-scope histograms when an entity fetch is requested for the associated reference.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity minReferencedEntity = 5;</code>
+   * @return Whether the minReferencedEntity field is set.
+   */
+  boolean hasMinReferencedEntity();
+  /**
+   * <pre>
+   * Referenced entity whose value anchors the minimum bucket of the histogram. Populated only for
+   * reference-scope histograms when an entity fetch is requested for the associated reference.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity minReferencedEntity = 5;</code>
+   * @return The minReferencedEntity.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcSealedEntity getMinReferencedEntity();
+  /**
+   * <pre>
+   * Referenced entity whose value anchors the minimum bucket of the histogram. Populated only for
+   * reference-scope histograms when an entity fetch is requested for the associated reference.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity minReferencedEntity = 5;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder getMinReferencedEntityOrBuilder();
+
+  /**
+   * <pre>
+   * Referenced entity whose value anchors the maximum bucket of the histogram. Populated only for
+   * reference-scope histograms when an entity fetch is requested for the associated reference.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity maxReferencedEntity = 6;</code>
+   * @return Whether the maxReferencedEntity field is set.
+   */
+  boolean hasMaxReferencedEntity();
+  /**
+   * <pre>
+   * Referenced entity whose value anchors the maximum bucket of the histogram. Populated only for
+   * reference-scope histograms when an entity fetch is requested for the associated reference.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity maxReferencedEntity = 6;</code>
+   * @return The maxReferencedEntity.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcSealedEntity getMaxReferencedEntity();
+  /**
+   * <pre>
+   * Referenced entity whose value anchors the maximum bucket of the histogram. Populated only for
+   * reference-scope histograms when an entity fetch is requested for the associated reference.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity maxReferencedEntity = 6;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder getMaxReferencedEntityOrBuilder();
 }

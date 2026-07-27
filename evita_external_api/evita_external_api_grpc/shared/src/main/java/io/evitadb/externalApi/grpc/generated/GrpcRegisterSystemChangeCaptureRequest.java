@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2026
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -45,6 +45,7 @@ private static final long serialVersionUID = 0L;
   }
   private GrpcRegisterSystemChangeCaptureRequest() {
     content_ = 0;
+    criteria_ = java.util.Collections.emptyList();
   }
 
   @java.lang.Override
@@ -172,6 +173,77 @@ private static final long serialVersionUID = 0L;
     return result == null ? io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContent.UNRECOGNIZED : result;
   }
 
+  public static final int CRITERIA_FIELD_NUMBER = 4;
+  @SuppressWarnings("serial")
+  private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCaptureCriteria> criteria_;
+  /**
+   * <pre>
+   * OR-ed criteria for the capture. When empty, defaults to ENGINE only on the system stream
+   * (NOTE: this differs from the catalog stream, which defaults to all areas including
+   * INFRASTRUCTURE). HOST on the system stream requires explicit opt-in.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCaptureCriteria criteria = 4;</code>
+   */
+  @java.lang.Override
+  public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCaptureCriteria> getCriteriaList() {
+    return criteria_;
+  }
+  /**
+   * <pre>
+   * OR-ed criteria for the capture. When empty, defaults to ENGINE only on the system stream
+   * (NOTE: this differs from the catalog stream, which defaults to all areas including
+   * INFRASTRUCTURE). HOST on the system stream requires explicit opt-in.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCaptureCriteria criteria = 4;</code>
+   */
+  @java.lang.Override
+  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCaptureCriteriaOrBuilder> 
+      getCriteriaOrBuilderList() {
+    return criteria_;
+  }
+  /**
+   * <pre>
+   * OR-ed criteria for the capture. When empty, defaults to ENGINE only on the system stream
+   * (NOTE: this differs from the catalog stream, which defaults to all areas including
+   * INFRASTRUCTURE). HOST on the system stream requires explicit opt-in.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCaptureCriteria criteria = 4;</code>
+   */
+  @java.lang.Override
+  public int getCriteriaCount() {
+    return criteria_.size();
+  }
+  /**
+   * <pre>
+   * OR-ed criteria for the capture. When empty, defaults to ENGINE only on the system stream
+   * (NOTE: this differs from the catalog stream, which defaults to all areas including
+   * INFRASTRUCTURE). HOST on the system stream requires explicit opt-in.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCaptureCriteria criteria = 4;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCaptureCriteria getCriteria(int index) {
+    return criteria_.get(index);
+  }
+  /**
+   * <pre>
+   * OR-ed criteria for the capture. When empty, defaults to ENGINE only on the system stream
+   * (NOTE: this differs from the catalog stream, which defaults to all areas including
+   * INFRASTRUCTURE). HOST on the system stream requires explicit opt-in.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCaptureCriteria criteria = 4;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCaptureCriteriaOrBuilder getCriteriaOrBuilder(
+      int index) {
+    return criteria_.get(index);
+  }
+
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
@@ -195,6 +267,9 @@ private static final long serialVersionUID = 0L;
     if (content_ != io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContent.CHANGE_HEADER.getNumber()) {
       output.writeEnum(3, content_);
     }
+    for (int i = 0; i < criteria_.size(); i++) {
+      output.writeMessage(4, criteria_.get(i));
+    }
     getUnknownFields().writeTo(output);
   }
 
@@ -215,6 +290,10 @@ private static final long serialVersionUID = 0L;
     if (content_ != io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContent.CHANGE_HEADER.getNumber()) {
       size += com.google.protobuf.CodedOutputStream
         .computeEnumSize(3, content_);
+    }
+    for (int i = 0; i < criteria_.size(); i++) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(4, criteria_.get(i));
     }
     size += getUnknownFields().getSerializedSize();
     memoizedSize = size;
@@ -242,6 +321,8 @@ private static final long serialVersionUID = 0L;
           .equals(other.getSinceIndex())) return false;
     }
     if (content_ != other.content_) return false;
+    if (!getCriteriaList()
+        .equals(other.getCriteriaList())) return false;
     if (!getUnknownFields().equals(other.getUnknownFields())) return false;
     return true;
   }
@@ -263,6 +344,10 @@ private static final long serialVersionUID = 0L;
     }
     hash = (37 * hash) + CONTENT_FIELD_NUMBER;
     hash = (53 * hash) + content_;
+    if (getCriteriaCount() > 0) {
+      hash = (37 * hash) + CRITERIA_FIELD_NUMBER;
+      hash = (53 * hash) + getCriteriaList().hashCode();
+    }
     hash = (29 * hash) + getUnknownFields().hashCode();
     memoizedHashCode = hash;
     return hash;
@@ -399,6 +484,7 @@ private static final long serialVersionUID = 0L;
               .alwaysUseFieldBuilders) {
         getSinceVersionFieldBuilder();
         getSinceIndexFieldBuilder();
+        getCriteriaFieldBuilder();
       }
     }
     @java.lang.Override
@@ -416,6 +502,13 @@ private static final long serialVersionUID = 0L;
         sinceIndexBuilder_ = null;
       }
       content_ = 0;
+      if (criteriaBuilder_ == null) {
+        criteria_ = java.util.Collections.emptyList();
+      } else {
+        criteria_ = null;
+        criteriaBuilder_.clear();
+      }
+      bitField0_ = (bitField0_ & ~0x00000008);
       return this;
     }
 
@@ -442,9 +535,22 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcRegisterSystemChangeCaptureRequest buildPartial() {
       io.evitadb.externalApi.grpc.generated.GrpcRegisterSystemChangeCaptureRequest result = new io.evitadb.externalApi.grpc.generated.GrpcRegisterSystemChangeCaptureRequest(this);
+      buildPartialRepeatedFields(result);
       if (bitField0_ != 0) { buildPartial0(result); }
       onBuilt();
       return result;
+    }
+
+    private void buildPartialRepeatedFields(io.evitadb.externalApi.grpc.generated.GrpcRegisterSystemChangeCaptureRequest result) {
+      if (criteriaBuilder_ == null) {
+        if (((bitField0_ & 0x00000008) != 0)) {
+          criteria_ = java.util.Collections.unmodifiableList(criteria_);
+          bitField0_ = (bitField0_ & ~0x00000008);
+        }
+        result.criteria_ = criteria_;
+      } else {
+        result.criteria_ = criteriaBuilder_.build();
+      }
     }
 
     private void buildPartial0(io.evitadb.externalApi.grpc.generated.GrpcRegisterSystemChangeCaptureRequest result) {
@@ -521,6 +627,32 @@ private static final long serialVersionUID = 0L;
       if (other.content_ != 0) {
         setContentValue(other.getContentValue());
       }
+      if (criteriaBuilder_ == null) {
+        if (!other.criteria_.isEmpty()) {
+          if (criteria_.isEmpty()) {
+            criteria_ = other.criteria_;
+            bitField0_ = (bitField0_ & ~0x00000008);
+          } else {
+            ensureCriteriaIsMutable();
+            criteria_.addAll(other.criteria_);
+          }
+          onChanged();
+        }
+      } else {
+        if (!other.criteria_.isEmpty()) {
+          if (criteriaBuilder_.isEmpty()) {
+            criteriaBuilder_.dispose();
+            criteriaBuilder_ = null;
+            criteria_ = other.criteria_;
+            bitField0_ = (bitField0_ & ~0x00000008);
+            criteriaBuilder_ = 
+              com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
+                 getCriteriaFieldBuilder() : null;
+          } else {
+            criteriaBuilder_.addAllMessages(other.criteria_);
+          }
+        }
+      }
       this.mergeUnknownFields(other.getUnknownFields());
       onChanged();
       return this;
@@ -566,6 +698,19 @@ private static final long serialVersionUID = 0L;
               bitField0_ |= 0x00000004;
               break;
             } // case 24
+            case 34: {
+              io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCaptureCriteria m =
+                  input.readMessage(
+                      io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCaptureCriteria.parser(),
+                      extensionRegistry);
+              if (criteriaBuilder_ == null) {
+                ensureCriteriaIsMutable();
+                criteria_.add(m);
+              } else {
+                criteriaBuilder_.addMessage(m);
+              }
+              break;
+            } // case 34
             default: {
               if (!super.parseUnknownField(input, extensionRegistry, tag)) {
                 done = true; // was an endgroup tag
@@ -727,7 +872,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.Int64Value sinceVersion = 1;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        com.google.protobuf.Int64Value, com.google.protobuf.Int64Value.Builder, com.google.protobuf.Int64ValueOrBuilder>
+        com.google.protobuf.Int64Value, com.google.protobuf.Int64Value.Builder, com.google.protobuf.Int64ValueOrBuilder> 
         getSinceVersionFieldBuilder() {
       if (sinceVersionBuilder_ == null) {
         sinceVersionBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -884,7 +1029,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.Int32Value sinceIndex = 2;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder>
+        com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder> 
         getSinceIndexFieldBuilder() {
       if (sinceIndexBuilder_ == null) {
         sinceIndexBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -973,6 +1118,354 @@ private static final long serialVersionUID = 0L;
       content_ = 0;
       onChanged();
       return this;
+    }
+
+    private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCaptureCriteria> criteria_ =
+      java.util.Collections.emptyList();
+    private void ensureCriteriaIsMutable() {
+      if (!((bitField0_ & 0x00000008) != 0)) {
+        criteria_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCaptureCriteria>(criteria_);
+        bitField0_ |= 0x00000008;
+       }
+    }
+
+    private com.google.protobuf.RepeatedFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCaptureCriteria, io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCaptureCriteria.Builder, io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCaptureCriteriaOrBuilder> criteriaBuilder_;
+
+    /**
+     * <pre>
+     * OR-ed criteria for the capture. When empty, defaults to ENGINE only on the system stream
+     * (NOTE: this differs from the catalog stream, which defaults to all areas including
+     * INFRASTRUCTURE). HOST on the system stream requires explicit opt-in.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCaptureCriteria criteria = 4;</code>
+     */
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCaptureCriteria> getCriteriaList() {
+      if (criteriaBuilder_ == null) {
+        return java.util.Collections.unmodifiableList(criteria_);
+      } else {
+        return criteriaBuilder_.getMessageList();
+      }
+    }
+    /**
+     * <pre>
+     * OR-ed criteria for the capture. When empty, defaults to ENGINE only on the system stream
+     * (NOTE: this differs from the catalog stream, which defaults to all areas including
+     * INFRASTRUCTURE). HOST on the system stream requires explicit opt-in.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCaptureCriteria criteria = 4;</code>
+     */
+    public int getCriteriaCount() {
+      if (criteriaBuilder_ == null) {
+        return criteria_.size();
+      } else {
+        return criteriaBuilder_.getCount();
+      }
+    }
+    /**
+     * <pre>
+     * OR-ed criteria for the capture. When empty, defaults to ENGINE only on the system stream
+     * (NOTE: this differs from the catalog stream, which defaults to all areas including
+     * INFRASTRUCTURE). HOST on the system stream requires explicit opt-in.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCaptureCriteria criteria = 4;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCaptureCriteria getCriteria(int index) {
+      if (criteriaBuilder_ == null) {
+        return criteria_.get(index);
+      } else {
+        return criteriaBuilder_.getMessage(index);
+      }
+    }
+    /**
+     * <pre>
+     * OR-ed criteria for the capture. When empty, defaults to ENGINE only on the system stream
+     * (NOTE: this differs from the catalog stream, which defaults to all areas including
+     * INFRASTRUCTURE). HOST on the system stream requires explicit opt-in.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCaptureCriteria criteria = 4;</code>
+     */
+    public Builder setCriteria(
+        int index, io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCaptureCriteria value) {
+      if (criteriaBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        ensureCriteriaIsMutable();
+        criteria_.set(index, value);
+        onChanged();
+      } else {
+        criteriaBuilder_.setMessage(index, value);
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * OR-ed criteria for the capture. When empty, defaults to ENGINE only on the system stream
+     * (NOTE: this differs from the catalog stream, which defaults to all areas including
+     * INFRASTRUCTURE). HOST on the system stream requires explicit opt-in.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCaptureCriteria criteria = 4;</code>
+     */
+    public Builder setCriteria(
+        int index, io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCaptureCriteria.Builder builderForValue) {
+      if (criteriaBuilder_ == null) {
+        ensureCriteriaIsMutable();
+        criteria_.set(index, builderForValue.build());
+        onChanged();
+      } else {
+        criteriaBuilder_.setMessage(index, builderForValue.build());
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * OR-ed criteria for the capture. When empty, defaults to ENGINE only on the system stream
+     * (NOTE: this differs from the catalog stream, which defaults to all areas including
+     * INFRASTRUCTURE). HOST on the system stream requires explicit opt-in.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCaptureCriteria criteria = 4;</code>
+     */
+    public Builder addCriteria(io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCaptureCriteria value) {
+      if (criteriaBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        ensureCriteriaIsMutable();
+        criteria_.add(value);
+        onChanged();
+      } else {
+        criteriaBuilder_.addMessage(value);
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * OR-ed criteria for the capture. When empty, defaults to ENGINE only on the system stream
+     * (NOTE: this differs from the catalog stream, which defaults to all areas including
+     * INFRASTRUCTURE). HOST on the system stream requires explicit opt-in.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCaptureCriteria criteria = 4;</code>
+     */
+    public Builder addCriteria(
+        int index, io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCaptureCriteria value) {
+      if (criteriaBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        ensureCriteriaIsMutable();
+        criteria_.add(index, value);
+        onChanged();
+      } else {
+        criteriaBuilder_.addMessage(index, value);
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * OR-ed criteria for the capture. When empty, defaults to ENGINE only on the system stream
+     * (NOTE: this differs from the catalog stream, which defaults to all areas including
+     * INFRASTRUCTURE). HOST on the system stream requires explicit opt-in.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCaptureCriteria criteria = 4;</code>
+     */
+    public Builder addCriteria(
+        io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCaptureCriteria.Builder builderForValue) {
+      if (criteriaBuilder_ == null) {
+        ensureCriteriaIsMutable();
+        criteria_.add(builderForValue.build());
+        onChanged();
+      } else {
+        criteriaBuilder_.addMessage(builderForValue.build());
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * OR-ed criteria for the capture. When empty, defaults to ENGINE only on the system stream
+     * (NOTE: this differs from the catalog stream, which defaults to all areas including
+     * INFRASTRUCTURE). HOST on the system stream requires explicit opt-in.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCaptureCriteria criteria = 4;</code>
+     */
+    public Builder addCriteria(
+        int index, io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCaptureCriteria.Builder builderForValue) {
+      if (criteriaBuilder_ == null) {
+        ensureCriteriaIsMutable();
+        criteria_.add(index, builderForValue.build());
+        onChanged();
+      } else {
+        criteriaBuilder_.addMessage(index, builderForValue.build());
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * OR-ed criteria for the capture. When empty, defaults to ENGINE only on the system stream
+     * (NOTE: this differs from the catalog stream, which defaults to all areas including
+     * INFRASTRUCTURE). HOST on the system stream requires explicit opt-in.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCaptureCriteria criteria = 4;</code>
+     */
+    public Builder addAllCriteria(
+        java.lang.Iterable<? extends io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCaptureCriteria> values) {
+      if (criteriaBuilder_ == null) {
+        ensureCriteriaIsMutable();
+        com.google.protobuf.AbstractMessageLite.Builder.addAll(
+            values, criteria_);
+        onChanged();
+      } else {
+        criteriaBuilder_.addAllMessages(values);
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * OR-ed criteria for the capture. When empty, defaults to ENGINE only on the system stream
+     * (NOTE: this differs from the catalog stream, which defaults to all areas including
+     * INFRASTRUCTURE). HOST on the system stream requires explicit opt-in.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCaptureCriteria criteria = 4;</code>
+     */
+    public Builder clearCriteria() {
+      if (criteriaBuilder_ == null) {
+        criteria_ = java.util.Collections.emptyList();
+        bitField0_ = (bitField0_ & ~0x00000008);
+        onChanged();
+      } else {
+        criteriaBuilder_.clear();
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * OR-ed criteria for the capture. When empty, defaults to ENGINE only on the system stream
+     * (NOTE: this differs from the catalog stream, which defaults to all areas including
+     * INFRASTRUCTURE). HOST on the system stream requires explicit opt-in.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCaptureCriteria criteria = 4;</code>
+     */
+    public Builder removeCriteria(int index) {
+      if (criteriaBuilder_ == null) {
+        ensureCriteriaIsMutable();
+        criteria_.remove(index);
+        onChanged();
+      } else {
+        criteriaBuilder_.remove(index);
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * OR-ed criteria for the capture. When empty, defaults to ENGINE only on the system stream
+     * (NOTE: this differs from the catalog stream, which defaults to all areas including
+     * INFRASTRUCTURE). HOST on the system stream requires explicit opt-in.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCaptureCriteria criteria = 4;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCaptureCriteria.Builder getCriteriaBuilder(
+        int index) {
+      return getCriteriaFieldBuilder().getBuilder(index);
+    }
+    /**
+     * <pre>
+     * OR-ed criteria for the capture. When empty, defaults to ENGINE only on the system stream
+     * (NOTE: this differs from the catalog stream, which defaults to all areas including
+     * INFRASTRUCTURE). HOST on the system stream requires explicit opt-in.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCaptureCriteria criteria = 4;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCaptureCriteriaOrBuilder getCriteriaOrBuilder(
+        int index) {
+      if (criteriaBuilder_ == null) {
+        return criteria_.get(index);  } else {
+        return criteriaBuilder_.getMessageOrBuilder(index);
+      }
+    }
+    /**
+     * <pre>
+     * OR-ed criteria for the capture. When empty, defaults to ENGINE only on the system stream
+     * (NOTE: this differs from the catalog stream, which defaults to all areas including
+     * INFRASTRUCTURE). HOST on the system stream requires explicit opt-in.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCaptureCriteria criteria = 4;</code>
+     */
+    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCaptureCriteriaOrBuilder> 
+         getCriteriaOrBuilderList() {
+      if (criteriaBuilder_ != null) {
+        return criteriaBuilder_.getMessageOrBuilderList();
+      } else {
+        return java.util.Collections.unmodifiableList(criteria_);
+      }
+    }
+    /**
+     * <pre>
+     * OR-ed criteria for the capture. When empty, defaults to ENGINE only on the system stream
+     * (NOTE: this differs from the catalog stream, which defaults to all areas including
+     * INFRASTRUCTURE). HOST on the system stream requires explicit opt-in.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCaptureCriteria criteria = 4;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCaptureCriteria.Builder addCriteriaBuilder() {
+      return getCriteriaFieldBuilder().addBuilder(
+          io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCaptureCriteria.getDefaultInstance());
+    }
+    /**
+     * <pre>
+     * OR-ed criteria for the capture. When empty, defaults to ENGINE only on the system stream
+     * (NOTE: this differs from the catalog stream, which defaults to all areas including
+     * INFRASTRUCTURE). HOST on the system stream requires explicit opt-in.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCaptureCriteria criteria = 4;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCaptureCriteria.Builder addCriteriaBuilder(
+        int index) {
+      return getCriteriaFieldBuilder().addBuilder(
+          index, io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCaptureCriteria.getDefaultInstance());
+    }
+    /**
+     * <pre>
+     * OR-ed criteria for the capture. When empty, defaults to ENGINE only on the system stream
+     * (NOTE: this differs from the catalog stream, which defaults to all areas including
+     * INFRASTRUCTURE). HOST on the system stream requires explicit opt-in.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCaptureCriteria criteria = 4;</code>
+     */
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCaptureCriteria.Builder> 
+         getCriteriaBuilderList() {
+      return getCriteriaFieldBuilder().getBuilderList();
+    }
+    private com.google.protobuf.RepeatedFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCaptureCriteria, io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCaptureCriteria.Builder, io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCaptureCriteriaOrBuilder> 
+        getCriteriaFieldBuilder() {
+      if (criteriaBuilder_ == null) {
+        criteriaBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
+            io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCaptureCriteria, io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCaptureCriteria.Builder, io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCaptureCriteriaOrBuilder>(
+                criteria_,
+                ((bitField0_ & 0x00000008) != 0),
+                getParentForChildren(),
+                isClean());
+        criteria_ = null;
+      }
+      return criteriaBuilder_;
     }
     @java.lang.Override
     public final Builder setUnknownFields(

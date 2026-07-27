@@ -24,16 +24,23 @@
 package io.evitadb.utils;
 
 import io.evitadb.exception.EvitaInternalError;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.DATA_TYPE;
 
 /**
  * Test verifies contract of {@link ClassUtils}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
+@DisplayName("ClassUtils contract tests")
+@Tag(ENGINE)
+@Tag(DATA_TYPE)
 public class ClassUtilsTest {
 
 	@Test

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2026
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -111,7 +111,7 @@ private static final long serialVersionUID = 0L;
     if (ref instanceof java.lang.String) {
       return (java.lang.String) ref;
     } else {
-      com.google.protobuf.ByteString bs =
+      com.google.protobuf.ByteString bs = 
           (com.google.protobuf.ByteString) ref;
       java.lang.String s = bs.toStringUtf8();
       catalogName_ = s;
@@ -131,7 +131,7 @@ private static final long serialVersionUID = 0L;
       getCatalogNameBytes() {
     java.lang.Object ref = catalogName_;
     if (ref instanceof java.lang.String) {
-      com.google.protobuf.ByteString b =
+      com.google.protobuf.ByteString b = 
           com.google.protobuf.ByteString.copyFromUtf8(
               (java.lang.String) ref);
       catalogName_ = b;
@@ -139,6 +139,23 @@ private static final long serialVersionUID = 0L;
     } else {
       return (com.google.protobuf.ByteString) ref;
     }
+  }
+
+  public static final int ROLLBACK_FIELD_NUMBER = 3;
+  private boolean rollback_ = false;
+  /**
+   * <pre>
+   * When true, the session's transaction is discarded (rolled back) instead of committed. The client sets this when
+   * an exception escaped the transaction block uncaught, so the server rolls back exactly as an embedded session
+   * would. When false (the default) the surviving changes are committed.
+   * </pre>
+   *
+   * <code>bool rollback = 3;</code>
+   * @return The rollback.
+   */
+  @java.lang.Override
+  public boolean getRollback() {
+    return rollback_;
   }
 
   private byte memoizedIsInitialized = -1;
@@ -161,6 +178,9 @@ private static final long serialVersionUID = 0L;
     if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(catalogName_)) {
       com.google.protobuf.GeneratedMessageV3.writeString(output, 2, catalogName_);
     }
+    if (rollback_ != false) {
+      output.writeBool(3, rollback_);
+    }
     getUnknownFields().writeTo(output);
   }
 
@@ -176,6 +196,10 @@ private static final long serialVersionUID = 0L;
     }
     if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(catalogName_)) {
       size += com.google.protobuf.GeneratedMessageV3.computeStringSize(2, catalogName_);
+    }
+    if (rollback_ != false) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeBoolSize(3, rollback_);
     }
     size += getUnknownFields().getSerializedSize();
     memoizedSize = size;
@@ -195,6 +219,8 @@ private static final long serialVersionUID = 0L;
     if (commitBehaviour_ != other.commitBehaviour_) return false;
     if (!getCatalogName()
         .equals(other.getCatalogName())) return false;
+    if (getRollback()
+        != other.getRollback()) return false;
     if (!getUnknownFields().equals(other.getUnknownFields())) return false;
     return true;
   }
@@ -210,6 +236,9 @@ private static final long serialVersionUID = 0L;
     hash = (53 * hash) + commitBehaviour_;
     hash = (37 * hash) + CATALOGNAME_FIELD_NUMBER;
     hash = (53 * hash) + getCatalogName().hashCode();
+    hash = (37 * hash) + ROLLBACK_FIELD_NUMBER;
+    hash = (53 * hash) + com.google.protobuf.Internal.hashBoolean(
+        getRollback());
     hash = (29 * hash) + getUnknownFields().hashCode();
     memoizedHashCode = hash;
     return hash;
@@ -347,6 +376,7 @@ private static final long serialVersionUID = 0L;
       bitField0_ = 0;
       commitBehaviour_ = 0;
       catalogName_ = "";
+      rollback_ = false;
       return this;
     }
 
@@ -385,6 +415,9 @@ private static final long serialVersionUID = 0L;
       }
       if (((from_bitField0_ & 0x00000002) != 0)) {
         result.catalogName_ = catalogName_;
+      }
+      if (((from_bitField0_ & 0x00000004) != 0)) {
+        result.rollback_ = rollback_;
       }
     }
 
@@ -440,6 +473,9 @@ private static final long serialVersionUID = 0L;
         bitField0_ |= 0x00000002;
         onChanged();
       }
+      if (other.getRollback() != false) {
+        setRollback(other.getRollback());
+      }
       this.mergeUnknownFields(other.getUnknownFields());
       onChanged();
       return this;
@@ -476,6 +512,11 @@ private static final long serialVersionUID = 0L;
               bitField0_ |= 0x00000002;
               break;
             } // case 18
+            case 24: {
+              rollback_ = input.readBool();
+              bitField0_ |= 0x00000004;
+              break;
+            } // case 24
             default: {
               if (!super.parseUnknownField(input, extensionRegistry, tag)) {
                 done = true; // was an endgroup tag
@@ -599,7 +640,7 @@ private static final long serialVersionUID = 0L;
         getCatalogNameBytes() {
       java.lang.Object ref = catalogName_;
       if (ref instanceof String) {
-        com.google.protobuf.ByteString b =
+        com.google.protobuf.ByteString b = 
             com.google.protobuf.ByteString.copyFromUtf8(
                 (java.lang.String) ref);
         catalogName_ = b;
@@ -654,6 +695,56 @@ private static final long serialVersionUID = 0L;
       checkByteStringIsUtf8(value);
       catalogName_ = value;
       bitField0_ |= 0x00000002;
+      onChanged();
+      return this;
+    }
+
+    private boolean rollback_ ;
+    /**
+     * <pre>
+     * When true, the session's transaction is discarded (rolled back) instead of committed. The client sets this when
+     * an exception escaped the transaction block uncaught, so the server rolls back exactly as an embedded session
+     * would. When false (the default) the surviving changes are committed.
+     * </pre>
+     *
+     * <code>bool rollback = 3;</code>
+     * @return The rollback.
+     */
+    @java.lang.Override
+    public boolean getRollback() {
+      return rollback_;
+    }
+    /**
+     * <pre>
+     * When true, the session's transaction is discarded (rolled back) instead of committed. The client sets this when
+     * an exception escaped the transaction block uncaught, so the server rolls back exactly as an embedded session
+     * would. When false (the default) the surviving changes are committed.
+     * </pre>
+     *
+     * <code>bool rollback = 3;</code>
+     * @param value The rollback to set.
+     * @return This builder for chaining.
+     */
+    public Builder setRollback(boolean value) {
+
+      rollback_ = value;
+      bitField0_ |= 0x00000004;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * When true, the session's transaction is discarded (rolled back) instead of committed. The client sets this when
+     * an exception escaped the transaction block uncaught, so the server rolls back exactly as an embedded session
+     * would. When false (the default) the surviving changes are committed.
+     * </pre>
+     *
+     * <code>bool rollback = 3;</code>
+     * @return This builder for chaining.
+     */
+    public Builder clearRollback() {
+      bitField0_ = (bitField0_ & ~0x00000004);
+      rollback_ = false;
       onChanged();
       return this;
     }

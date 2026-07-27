@@ -84,7 +84,7 @@ public interface EntityAttributeSchemaMutation extends AttributeSchemaMutation, 
 		@Nonnull EntityAttributeSchemaContract updatedAttributeSchema
 	) {
 		if (existingAttributeSchema.equals(updatedAttributeSchema)) {
-			// we don't need to update entity schema - the associated data already contains the requested change
+			// we don't need to update entity schema - the attribute already contains the requested change
 			return entitySchema;
 		} else {
 			return EntitySchema._internalBuild(
@@ -93,6 +93,7 @@ public interface EntityAttributeSchemaMutation extends AttributeSchemaMutation, 
 				entitySchema.getNameVariants(),
 				entitySchema.getDescription(),
 				entitySchema.getDeprecationNotice(),
+				entitySchema.getConflictResolution().orElse(null),
 				entitySchema.isWithGeneratedPrimaryKey(),
 				entitySchema.isWithHierarchy(),
 				entitySchema.getHierarchyIndexedInScopes(),

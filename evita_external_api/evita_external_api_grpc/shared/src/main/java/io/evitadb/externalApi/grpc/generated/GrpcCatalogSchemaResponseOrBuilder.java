@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2026
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -57,4 +57,25 @@ public interface GrpcCatalogSchemaResponseOrBuilder extends
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcCatalogSchema catalogSchema = 1;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcCatalogSchemaOrBuilder getCatalogSchemaOrBuilder();
+
+  /**
+   * <pre>
+   * The current catalog version (data version, incremented with each transaction commit).
+   * Zero for catalogs that are in the warming-up state.
+   * </pre>
+   *
+   * <code>int64 catalogVersion = 2;</code>
+   * @return The catalogVersion.
+   */
+  long getCatalogVersion();
+
+  /**
+   * <pre>
+   * The current catalog schema version.
+   * </pre>
+   *
+   * <code>int32 catalogSchemaVersion = 3;</code>
+   * @return The catalogSchemaVersion.
+   */
+  int getCatalogSchemaVersion();
 }

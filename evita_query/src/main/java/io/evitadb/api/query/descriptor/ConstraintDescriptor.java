@@ -63,6 +63,7 @@ public class ConstraintDescriptor implements Comparable<ConstraintDescriptor> {
 	@Nonnull private final String fullName;
 	@Nonnull private final String shortDescription;
 	@Nonnull private final String userDocsLink;
+	@Nullable private final String deprecated;
 	@Nonnull private final Set<ConstraintDomain> supportedIn;
 	@Nullable private final SupportedValues supportedValues;
 	@Nonnull private final ConstraintCreator creator;
@@ -73,6 +74,7 @@ public class ConstraintDescriptor implements Comparable<ConstraintDescriptor> {
 	                            @Nonnull String fullName,
 								@Nonnull String shortDescription,
 								@Nonnull String userDocsLink,
+								@Nullable String deprecated,
 	                            @Nonnull Set<ConstraintDomain> supportedIn,
 	                            @Nullable SupportedValues supportedValues,
 	                            @Nonnull ConstraintCreator creator) {
@@ -82,6 +84,7 @@ public class ConstraintDescriptor implements Comparable<ConstraintDescriptor> {
 		this.fullName = fullName;
 		this.shortDescription = shortDescription;
 		this.userDocsLink = constructFullUserDocsLink(userDocsLink);
+		this.deprecated = deprecated;
 		this.supportedIn = supportedIn;
 		this.supportedValues = supportedValues;
 		this.creator = creator;
@@ -97,6 +100,10 @@ public class ConstraintDescriptor implements Comparable<ConstraintDescriptor> {
 		Assert.isPremiseValid(
 			!userDocsLink.isEmpty() && userDocsLink.charAt(0) == '/',
 			"Constraint `" + fullName + "` is missing user documentation link or the link has incorrect format."
+		);
+		Assert.isPremiseValid(
+			this.deprecated == null || !this.deprecated.isEmpty(),
+			"Constraint `" + fullName + "` has empty deprecated reason. Use null for non-deprecated constraints."
 		);
 
 		if (propertyType == ConstraintPropertyType.GENERIC) {
@@ -151,6 +158,16 @@ public class ConstraintDescriptor implements Comparable<ConstraintDescriptor> {
 	@Nonnull
 	public String userDocsLink() {
 		return this.userDocsLink;
+	}
+
+	/**
+	 * Deprecation reason for this constraint, or `null` if the constraint is not deprecated.
+	 * When non-null, external API builders should mark generated schema fields as deprecated
+	 * with this message.
+	 */
+	@Nullable
+	public String deprecated() {
+		return this.deprecated;
 	}
 
 	/**
@@ -209,6 +226,7 @@ public class ConstraintDescriptor implements Comparable<ConstraintDescriptor> {
 			", fullName='" + this.fullName + '\'' +
 			", shortDescription='" + this.shortDescription + '\'' +
 			", userDocsLink='" + this.userDocsLink + '\'' +
+			", deprecated='" + this.deprecated + '\'' +
 			", supportedIn=" + this.supportedIn +
 			", supportedValues=" + this.supportedValues +
 			", creator=" + this.creator +

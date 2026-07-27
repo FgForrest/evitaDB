@@ -34,18 +34,6 @@ public interface TestConstants {
 	 */
 	String DATA_FOLDER_ENV_VARIABLE = "dataFolder";
 	/**
-	 * Name of the tag for functional test suite tests.
-	 */
-	String FUNCTIONAL_TEST = "functional";
-	/**
-	 * Name of the tag for documentation code snippets.
-	 */
-	String DOCUMENTATION_TEST = "documentation";
-	/**
-	 * Name of the tag for long running tests that needs to be executed separately.
-	 */
-	String LONG_RUNNING_TEST = "longRunning";
-	/**
 	 * Name of the default catalog when no other name has been specified. Pretty good for most of the tests.
 	 */
 	String TEST_CATALOG = "testCatalog";

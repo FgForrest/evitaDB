@@ -43,19 +43,26 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.SCHEMA;
+import static io.evitadb.test.TestTags.REFERENCE;
 
 /**
  * Tests for {@link ReflectedReferenceSchemaEditor} default methods that throw
  * exceptions to prevent unsupported operations on reflected references.
  *
- * @author evitaDB
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("ReflectedReferenceSchemaEditor default methods")
+@Tag(CONTRACT)
+@Tag(SCHEMA)
+@Tag(REFERENCE)
 class ReflectedReferenceSchemaEditorTest {
 
 	private static final EntitySchema PRODUCT_SCHEMA =
@@ -66,6 +73,7 @@ class ReflectedReferenceSchemaEditorTest {
 		CatalogSchema._internalBuild(
 			APITestConstants.TEST_CATALOG,
 			NamingConvention.generate(APITestConstants.TEST_CATALOG),
+			null,
 			EnumSet.allOf(CatalogEvolutionMode.class),
 			new EntitySchemaProvider() {
 				@Nonnull

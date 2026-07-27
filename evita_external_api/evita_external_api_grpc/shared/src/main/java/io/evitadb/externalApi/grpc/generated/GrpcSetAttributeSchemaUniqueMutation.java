@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2026
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -87,7 +87,7 @@ private static final long serialVersionUID = 0L;
     if (ref instanceof java.lang.String) {
       return (java.lang.String) ref;
     } else {
-      com.google.protobuf.ByteString bs =
+      com.google.protobuf.ByteString bs = 
           (com.google.protobuf.ByteString) ref;
       java.lang.String s = bs.toStringUtf8();
       name_ = s;
@@ -107,7 +107,7 @@ private static final long serialVersionUID = 0L;
       getNameBytes() {
     java.lang.Object ref = name_;
     if (ref instanceof java.lang.String) {
-      com.google.protobuf.ByteString b =
+      com.google.protobuf.ByteString b = 
           com.google.protobuf.ByteString.copyFromUtf8(
               (java.lang.String) ref);
       name_ = b;
@@ -128,7 +128,7 @@ private static final long serialVersionUID = 0L;
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType unique = 2 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaUniqueMutation.unique is deprecated.
-   *     See GrpcAttributeSchemaMutations.proto;l=278
+   *     See GrpcAttributeSchemaMutations.proto;l=291
    * @return The enum numeric value on the wire for unique.
    */
   @java.lang.Override @java.lang.Deprecated public int getUniqueValue() {
@@ -143,7 +143,7 @@ private static final long serialVersionUID = 0L;
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType unique = 2 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaUniqueMutation.unique is deprecated.
-   *     See GrpcAttributeSchemaMutations.proto;l=278
+   *     See GrpcAttributeSchemaMutations.proto;l=291
    * @return The unique.
    */
   @java.lang.Override @java.lang.Deprecated public io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType getUnique() {
@@ -175,7 +175,7 @@ private static final long serialVersionUID = 0L;
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessType uniqueInScopes = 13;</code>
    */
   @java.lang.Override
-  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessTypeOrBuilder>
+  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessTypeOrBuilder> 
       getUniqueInScopesOrBuilderList() {
     return uniqueInScopes_;
   }
@@ -568,7 +568,7 @@ private static final long serialVersionUID = 0L;
             uniqueInScopesBuilder_ = null;
             uniqueInScopes_ = other.uniqueInScopes_;
             bitField0_ = (bitField0_ & ~0x00000004);
-            uniqueInScopesBuilder_ =
+            uniqueInScopesBuilder_ = 
               com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
                  getUniqueInScopesFieldBuilder() : null;
           } else {
@@ -675,7 +675,7 @@ private static final long serialVersionUID = 0L;
         getNameBytes() {
       java.lang.Object ref = name_;
       if (ref instanceof String) {
-        com.google.protobuf.ByteString b =
+        com.google.protobuf.ByteString b = 
             com.google.protobuf.ByteString.copyFromUtf8(
                 (java.lang.String) ref);
         name_ = b;
@@ -744,7 +744,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType unique = 2 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaUniqueMutation.unique is deprecated.
-     *     See GrpcAttributeSchemaMutations.proto;l=278
+     *     See GrpcAttributeSchemaMutations.proto;l=291
      * @return The enum numeric value on the wire for unique.
      */
     @java.lang.Override @java.lang.Deprecated public int getUniqueValue() {
@@ -759,7 +759,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType unique = 2 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaUniqueMutation.unique is deprecated.
-     *     See GrpcAttributeSchemaMutations.proto;l=278
+     *     See GrpcAttributeSchemaMutations.proto;l=291
      * @param value The enum numeric value on the wire for unique to set.
      * @return This builder for chaining.
      */
@@ -778,7 +778,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType unique = 2 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaUniqueMutation.unique is deprecated.
-     *     See GrpcAttributeSchemaMutations.proto;l=278
+     *     See GrpcAttributeSchemaMutations.proto;l=291
      * @return The unique.
      */
     @java.lang.Override
@@ -795,7 +795,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType unique = 2 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaUniqueMutation.unique is deprecated.
-     *     See GrpcAttributeSchemaMutations.proto;l=278
+     *     See GrpcAttributeSchemaMutations.proto;l=291
      * @param value The unique to set.
      * @return This builder for chaining.
      */
@@ -817,7 +817,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType unique = 2 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaUniqueMutation.unique is deprecated.
-     *     See GrpcAttributeSchemaMutations.proto;l=278
+     *     See GrpcAttributeSchemaMutations.proto;l=291
      * @return This builder for chaining.
      */
     @java.lang.Deprecated public Builder clearUnique() {
@@ -1097,7 +1097,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessType uniqueInScopes = 13;</code>
      */
-    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessTypeOrBuilder>
+    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessTypeOrBuilder> 
          getUniqueInScopesOrBuilderList() {
       if (uniqueInScopesBuilder_ != null) {
         return uniqueInScopesBuilder_.getMessageOrBuilderList();
@@ -1138,12 +1138,12 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessType uniqueInScopes = 13;</code>
      */
-    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessType.Builder>
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessType.Builder> 
          getUniqueInScopesBuilderList() {
       return getUniqueInScopesFieldBuilder().getBuilderList();
     }
     private com.google.protobuf.RepeatedFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessType, io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessType.Builder, io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessTypeOrBuilder>
+        io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessType, io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessType.Builder, io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessTypeOrBuilder> 
         getUniqueInScopesFieldBuilder() {
       if (uniqueInScopesBuilder_ == null) {
         uniqueInScopesBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<

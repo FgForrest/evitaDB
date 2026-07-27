@@ -203,13 +203,13 @@ class BuilderReferenceBundle {
 				// zero in the map means that there are duplicates for this generic key
 				upsertDuplicateReference(upsertedReference);
 			} else if (!genericInternalPk.equals(referenceKey.internalPrimaryKey())) {
+				// the conversion registers the upserted reference as a duplicate on its own
 				convertToDuplicateReference(
 					upsertedReference,
 					previousReferenceFetcher.apply(
 						new ReferenceKey(referenceKey.referenceName(), referenceKey.primaryKey(), genericInternalPk)
 					)
 				);
-				upsertDuplicateReference(upsertedReference);
 			}
 		}
 	}
@@ -258,11 +258,16 @@ class BuilderReferenceBundle {
 			);
 		} else {
 			final RepresentativeReferenceKey previousRRK = this.internalPkToRepRefKeys.put(internalPk, rrk);
-			final Integer removedPk = this.repRefKeysToInternalPk.remove(previousRRK);
-			Assert.isPremiseValid(
-				removedPk == null || removedPk == internalPk,
-				() -> "Inconsistent internal structure!"
-			);
+			// the reference might have been registered under a different representative key before and that
+			// stale key needs to be dropped - but never the key we have just written, otherwise the reference
+			// would silently lose its slot and an indistinguishable twin could take it over
+			if (previousRRK != null && !previousRRK.equals(rrk)) {
+				final Integer removedPk = this.repRefKeysToInternalPk.remove(previousRRK);
+				Assert.isPremiseValid(
+					removedPk == null || removedPk == internalPk,
+					() -> "Inconsistent internal structure!"
+				);
+			}
 			this.usedReferenceKeys.compute(
 				rrk.referenceKey(),
 				(rk, cardinality) -> cardinality == null ? 1 : cardinality + 1

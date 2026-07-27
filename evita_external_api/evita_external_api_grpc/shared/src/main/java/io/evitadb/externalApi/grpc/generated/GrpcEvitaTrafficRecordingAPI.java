@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2026
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -40,57 +40,62 @@ public final class GrpcEvitaTrafficRecordingAPI {
   }
   static final com.google.protobuf.Descriptors.Descriptor
     internal_static_io_evitadb_externalApi_grpc_generated_GetTrafficHistoryListRequest_descriptor;
-  static final
+  static final 
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GetTrafficHistoryListRequest_fieldAccessorTable;
   static final com.google.protobuf.Descriptors.Descriptor
     internal_static_io_evitadb_externalApi_grpc_generated_GetTrafficHistoryListResponse_descriptor;
-  static final
+  static final 
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GetTrafficHistoryListResponse_fieldAccessorTable;
   static final com.google.protobuf.Descriptors.Descriptor
     internal_static_io_evitadb_externalApi_grpc_generated_GetTrafficHistoryRequest_descriptor;
-  static final
+  static final 
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GetTrafficHistoryRequest_fieldAccessorTable;
   static final com.google.protobuf.Descriptors.Descriptor
     internal_static_io_evitadb_externalApi_grpc_generated_GetTrafficHistoryResponse_descriptor;
-  static final
+  static final 
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GetTrafficHistoryResponse_fieldAccessorTable;
   static final com.google.protobuf.Descriptors.Descriptor
     internal_static_io_evitadb_externalApi_grpc_generated_GetTrafficRecordingLabelNamesRequest_descriptor;
-  static final
+  static final 
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GetTrafficRecordingLabelNamesRequest_fieldAccessorTable;
   static final com.google.protobuf.Descriptors.Descriptor
     internal_static_io_evitadb_externalApi_grpc_generated_GetTrafficRecordingLabelNamesResponse_descriptor;
-  static final
+  static final 
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GetTrafficRecordingLabelNamesResponse_fieldAccessorTable;
   static final com.google.protobuf.Descriptors.Descriptor
     internal_static_io_evitadb_externalApi_grpc_generated_GetTrafficRecordingValuesNamesRequest_descriptor;
-  static final
+  static final 
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GetTrafficRecordingValuesNamesRequest_fieldAccessorTable;
   static final com.google.protobuf.Descriptors.Descriptor
     internal_static_io_evitadb_externalApi_grpc_generated_GetTrafficRecordingValuesNamesResponse_descriptor;
-  static final
+  static final 
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GetTrafficRecordingValuesNamesResponse_fieldAccessorTable;
   static final com.google.protobuf.Descriptors.Descriptor
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcStartTrafficRecordingRequest_descriptor;
-  static final
+  static final 
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcStartTrafficRecordingRequest_fieldAccessorTable;
   static final com.google.protobuf.Descriptors.Descriptor
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcStopTrafficRecordingRequest_descriptor;
-  static final
+  static final 
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcStopTrafficRecordingRequest_fieldAccessorTable;
   static final com.google.protobuf.Descriptors.Descriptor
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcExportTrafficRecordingRequest_descriptor;
+  static final 
+    com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
+      internal_static_io_evitadb_externalApi_grpc_generated_GrpcExportTrafficRecordingRequest_fieldAccessorTable;
+  static final com.google.protobuf.Descriptors.Descriptor
     internal_static_io_evitadb_externalApi_grpc_generated_GetTrafficRecordingStatusResponse_descriptor;
-  static final
+  static final 
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GetTrafficRecordingStatusResponse_fieldAccessorTable;
 
@@ -136,43 +141,50 @@ public final class GrpcEvitaTrafficRecordingAPI {
       "\0132\033.google.protobuf.Int64Value\"h\n\037GrpcSt" +
       "opTrafficRecordingRequest\022E\n\014taskStatusI" +
       "d\030\001 \001(\0132/.io.evitadb.externalApi.grpc.ge" +
-      "nerated.GrpcUuid\"n\n!GetTrafficRecordingS" +
-      "tatusResponse\022I\n\ntaskStatus\030\001 \001(\01325.io.e" +
-      "vitadb.externalApi.grpc.generated.GrpcTa" +
-      "skStatus2\250\n\n GrpcEvitaTrafficRecordingSe" +
-      "rvice\022\253\001\n\036GetTrafficRecordingHistoryList" +
-      "\022C.io.evitadb.externalApi.grpc.generated" +
-      ".GetTrafficHistoryListRequest\032D.io.evita" +
-      "db.externalApi.grpc.generated.GetTraffic" +
-      "HistoryListResponse\022\263\001\n&GetTrafficRecord" +
-      "ingHistoryListReversed\022C.io.evitadb.exte" +
-      "rnalApi.grpc.generated.GetTrafficHistory" +
-      "ListRequest\032D.io.evitadb.externalApi.grp" +
-      "c.generated.GetTrafficHistoryListRespons" +
-      "e\022\241\001\n\032GetTrafficRecordingHistory\022?.io.ev" +
-      "itadb.externalApi.grpc.generated.GetTraf" +
-      "ficHistoryRequest\032@.io.evitadb.externalA" +
-      "pi.grpc.generated.GetTrafficHistoryRespo" +
-      "nse0\001\022\317\001\n2GetTrafficRecordingLabelsNames" +
-      "OrderedByCardinality\022K.io.evitadb.extern" +
-      "alApi.grpc.generated.GetTrafficRecording" +
-      "LabelNamesRequest\032L.io.evitadb.externalA" +
-      "pi.grpc.generated.GetTrafficRecordingLab" +
-      "elNamesResponse\022\321\001\n2GetTrafficRecordingL" +
-      "abelValuesOrderedByCardinality\022L.io.evit" +
-      "adb.externalApi.grpc.generated.GetTraffi" +
-      "cRecordingValuesNamesRequest\032M.io.evitad" +
-      "b.externalApi.grpc.generated.GetTrafficR" +
-      "ecordingValuesNamesResponse\022\252\001\n\025StartTra" +
-      "fficRecording\022G.io.evitadb.externalApi.g" +
-      "rpc.generated.GrpcStartTrafficRecordingR" +
-      "equest\032H.io.evitadb.externalApi.grpc.gen" +
-      "erated.GetTrafficRecordingStatusResponse" +
-      "\022\250\001\n\024StopTrafficRecording\022F.io.evitadb.e" +
-      "xternalApi.grpc.generated.GrpcStopTraffi" +
-      "cRecordingRequest\032H.io.evitadb.externalA" +
-      "pi.grpc.generated.GetTrafficRecordingSta" +
-      "tusResponseB\014P\001\252\002\007EvitaDBb\006proto3"
+      "nerated.GrpcUuid\"^\n!GrpcExportTrafficRec" +
+      "ordingRequest\0229\n\024chunkFileSizeInBytes\030\001 " +
+      "\001(\0132\033.google.protobuf.Int64Value\"n\n!GetT" +
+      "rafficRecordingStatusResponse\022I\n\ntaskSta" +
+      "tus\030\001 \001(\01325.io.evitadb.externalApi.grpc." +
+      "generated.GrpcTaskStatus2\327\013\n GrpcEvitaTr" +
+      "afficRecordingService\022\253\001\n\036GetTrafficReco" +
+      "rdingHistoryList\022C.io.evitadb.externalAp" +
+      "i.grpc.generated.GetTrafficHistoryListRe" +
+      "quest\032D.io.evitadb.externalApi.grpc.gene" +
+      "rated.GetTrafficHistoryListResponse\022\263\001\n&" +
+      "GetTrafficRecordingHistoryListReversed\022C" +
+      ".io.evitadb.externalApi.grpc.generated.G" +
+      "etTrafficHistoryListRequest\032D.io.evitadb" +
+      ".externalApi.grpc.generated.GetTrafficHi" +
+      "storyListResponse\022\241\001\n\032GetTrafficRecordin" +
+      "gHistory\022?.io.evitadb.externalApi.grpc.g" +
+      "enerated.GetTrafficHistoryRequest\032@.io.e" +
+      "vitadb.externalApi.grpc.generated.GetTra" +
+      "fficHistoryResponse0\001\022\317\001\n2GetTrafficReco" +
+      "rdingLabelsNamesOrderedByCardinality\022K.i" +
+      "o.evitadb.externalApi.grpc.generated.Get" +
+      "TrafficRecordingLabelNamesRequest\032L.io.e" +
+      "vitadb.externalApi.grpc.generated.GetTra" +
+      "fficRecordingLabelNamesResponse\022\321\001\n2GetT" +
+      "rafficRecordingLabelValuesOrderedByCardi" +
+      "nality\022L.io.evitadb.externalApi.grpc.gen" +
+      "erated.GetTrafficRecordingValuesNamesReq" +
+      "uest\032M.io.evitadb.externalApi.grpc.gener" +
+      "ated.GetTrafficRecordingValuesNamesRespo" +
+      "nse\022\252\001\n\025StartTrafficRecording\022G.io.evita" +
+      "db.externalApi.grpc.generated.GrpcStartT" +
+      "rafficRecordingRequest\032H.io.evitadb.exte" +
+      "rnalApi.grpc.generated.GetTrafficRecordi" +
+      "ngStatusResponse\022\250\001\n\024StopTrafficRecordin" +
+      "g\022F.io.evitadb.externalApi.grpc.generate" +
+      "d.GrpcStopTrafficRecordingRequest\032H.io.e" +
+      "vitadb.externalApi.grpc.generated.GetTra" +
+      "fficRecordingStatusResponse\022\254\001\n\026ExportTr" +
+      "afficRecording\022H.io.evitadb.externalApi." +
+      "grpc.generated.GrpcExportTrafficRecordin" +
+      "gRequest\032H.io.evitadb.externalApi.grpc.g" +
+      "enerated.GetTrafficRecordingStatusRespon" +
+      "seB\014P\001\252\002\007EvitaDBb\006proto3"
     };
     descriptor = com.google.protobuf.Descriptors.FileDescriptor
       .internalBuildGeneratedFileFrom(descriptorData,
@@ -241,8 +253,14 @@ public final class GrpcEvitaTrafficRecordingAPI {
       com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
         internal_static_io_evitadb_externalApi_grpc_generated_GrpcStopTrafficRecordingRequest_descriptor,
         new java.lang.String[] { "TaskStatusId", });
-    internal_static_io_evitadb_externalApi_grpc_generated_GetTrafficRecordingStatusResponse_descriptor =
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcExportTrafficRecordingRequest_descriptor =
       getDescriptor().getMessageTypes().get(10);
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcExportTrafficRecordingRequest_fieldAccessorTable = new
+      com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
+        internal_static_io_evitadb_externalApi_grpc_generated_GrpcExportTrafficRecordingRequest_descriptor,
+        new java.lang.String[] { "ChunkFileSizeInBytes", });
+    internal_static_io_evitadb_externalApi_grpc_generated_GetTrafficRecordingStatusResponse_descriptor =
+      getDescriptor().getMessageTypes().get(11);
     internal_static_io_evitadb_externalApi_grpc_generated_GetTrafficRecordingStatusResponse_fieldAccessorTable = new
       com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
         internal_static_io_evitadb_externalApi_grpc_generated_GetTrafficRecordingStatusResponse_descriptor,

@@ -34,18 +34,23 @@ import org.junit.jupiter.api.Test;
 
 import java.util.Collections;
 import java.util.Set;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.QueryConstraints.attributeContent;
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.QUERY;
 
 /**
  * Tests for inner record types of {@link EvitaRequest}:
  * {@link RequirementContext}, {@link AttributeRequest},
  * and {@link ReferenceContentKey}.
  *
- * @author evitaDB
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("EvitaRequest inner records")
+@Tag(CONTRACT)
+@Tag(QUERY)
 class EvitaRequestInnerRecordsTest {
 
 	@Nested

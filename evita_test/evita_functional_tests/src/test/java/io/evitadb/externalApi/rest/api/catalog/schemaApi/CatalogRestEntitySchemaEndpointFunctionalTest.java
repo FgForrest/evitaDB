@@ -27,7 +27,10 @@ import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.OrderBehaviour;
-import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
+import io.evitadb.api.requestResponse.mutation.conflict.GranularConflictPolicy;
+import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
 import io.evitadb.core.Evita;
 import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.api.catalog.model.VersionedDescriptor;
@@ -46,6 +49,7 @@ import org.junit.jupiter.api.Test;
 import javax.annotation.Nonnull;
 import java.util.List;
 import java.util.Map;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.externalApi.graphql.api.testSuite.TestDataGenerator.ENTITY_EMPTY;
 import static io.evitadb.externalApi.rest.api.testSuite.TestDataGenerator.REST_THOUSAND_PRODUCTS;
@@ -55,12 +59,20 @@ import static io.evitadb.utils.MapBuilder.map;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static io.evitadb.test.TestTags.REST;
+import static io.evitadb.test.TestTags.EXTERNAL_API;
+import static io.evitadb.test.TestTags.QUERY;
+import static io.evitadb.test.TestTags.SCHEMA;
 
 /**
  * Functional tests for REST endpoints managing internal evitaDB entity schemas.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
+@Tag(REST)
+@Tag(EXTERNAL_API)
+@Tag(QUERY)
+@Tag(SCHEMA)
 class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEndpointFunctionalTest {
 
 	private static final String REST_THOUSAND_PRODUCTS_FOR_SCHEMA_UPDATE = REST_THOUSAND_PRODUCTS + "forEntitySchemaUpdate";
@@ -111,7 +123,7 @@ class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEnd
                 {
                     "mutations": []
                 }
-				""")
+                """)
 			.executeAndThen()
 			.statusCode(200)
 			.body(VersionedDescriptor.VERSION.name(), equalTo(initialEntitySchemaVersion))
@@ -252,6 +264,7 @@ class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEnd
 						.e(AttributeSchemaDescriptor.TYPE.name(), String.class.getSimpleName())
 						.e(AttributeSchemaDescriptor.DEFAULT_VALUE.name(), null)
 						.e(AttributeSchemaDescriptor.INDEXED_DECIMAL_PLACES.name(), 0)
+						.e(AttributeSchemaDescriptor.CONFLICT_RESOLUTION_OVERRIDE.name(), ConflictResolutionOverride.INHERITED.name())
 						.build()
 				)
 			)
@@ -303,6 +316,7 @@ class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEnd
 						.e(AttributeSchemaDescriptor.TYPE.name(), String.class.getSimpleName())
 						.e(AttributeSchemaDescriptor.DEFAULT_VALUE.name(), null)
 						.e(AttributeSchemaDescriptor.INDEXED_DECIMAL_PLACES.name(), 0)
+						.e(AttributeSchemaDescriptor.CONFLICT_RESOLUTION_OVERRIDE.name(), ConflictResolutionOverride.INHERITED.name())
 						.build()
 				)
 			)
@@ -567,6 +581,7 @@ class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEnd
 						.e(AssociatedDataSchemaDescriptor.TYPE.name(), String.class.getSimpleName())
 						.e(AssociatedDataSchemaDescriptor.LOCALIZED.name(), true)
 						.e(AssociatedDataSchemaDescriptor.NULLABLE.name(), false)
+						.e(AssociatedDataSchemaDescriptor.CONFLICT_RESOLUTION_OVERRIDE.name(), ConflictResolutionOverride.INHERITED.name())
 						.build()
 				)
 			)
@@ -613,6 +628,7 @@ class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEnd
 						.e(AssociatedDataSchemaDescriptor.TYPE.name(), String.class.getSimpleName())
 						.e(AssociatedDataSchemaDescriptor.LOCALIZED.name(), true)
 						.e(AssociatedDataSchemaDescriptor.NULLABLE.name(), false)
+						.e(AssociatedDataSchemaDescriptor.CONFLICT_RESOLUTION_OVERRIDE.name(), ConflictResolutionOverride.INHERITED.name())
 						.build()
 				)
 			)
@@ -732,7 +748,15 @@ class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEnd
 							ReferenceSchemaDescriptor.INDEXED.name(),
 							createReferenceIndexTypeDto(getEntitySchemaFromTestData(evita, ENTITY_EMPTY).getReference("mySpecialTags").orElseThrow())
 						)
+						.e(
+							ReferenceSchemaDescriptor.INDEXED_COMPONENTS.name(),
+							createReferenceIndexedComponentsDto(getEntitySchemaFromTestData(evita, ENTITY_EMPTY).getReference("mySpecialTags").orElseThrow())
+						)
 						.e(ReferenceSchemaDescriptor.FACETED.name(), list().i(Scope.LIVE.name()))
+						.e(ReferenceSchemaDescriptor.FACETED_PARTIALLY.name(), list())
+						.e(ReferenceSchemaDescriptor.BUCKETED.name(), list())
+						.e(ReferenceSchemaDescriptor.BUCKETED_PARTIALLY.name(), list())
+						.e(ReferenceSchemaDescriptor.CONFLICT_RESOLUTION_OVERRIDE.name(), ConflictResolutionOverride.INHERITED.name())
 						.e(ReferenceSchemaDescriptor.ATTRIBUTES.name(), map())
 						.e(SortableAttributeCompoundsSchemaProviderDescriptor.SORTABLE_ATTRIBUTE_COMPOUNDS.name(), map())
 						.build()
@@ -814,7 +838,364 @@ class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEnd
 	}
 
 
-	private int getEntitySchemaVersion(@Nonnull RestTester tester, @Nonnull String entityType) {
+	@Test
+	@UseDataSet(REST_THOUSAND_PRODUCTS_FOR_SCHEMA_UPDATE)
+	@DisplayName("Should change reference schema with bucketed histogram")
+	void shouldChangeReferenceSchemaWithBucketedHistogram(Evita evita, RestTester tester) {
+		// create reference with numeric filterable attribute for bucketed histogram
+		createBucketedReferenceWithAttribute(tester);
+		final int refCreatedVersion = getEntitySchemaVersion(tester, ENTITY_EMPTY);
+
+		// set bucketed config with valid valueExpression referencing the attribute
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/empty/schema")
+			.httpMethod(Request.METHOD_PUT)
+			.requestBody("""
+				{
+					"mutations": [
+						{
+							"setReferenceSchemaBucketedMutation": {
+								"name": "myBucketedRef",
+								"bucketedInScopes": [
+									{
+										"scope": "LIVE",
+										"nameOfTheIndex": "priceHistogram",
+										"valueExpression": "$reference.attributes['quantity']"
+									}
+								],
+								"bucketedPartiallyInScopes": [
+									{
+										"scope": "LIVE",
+										"expression": "1 > 0"
+									}
+								]
+							}
+						}
+					]
+				}
+				""")
+			.executeAndThen()
+			.statusCode(200)
+			.body(VersionedDescriptor.VERSION.name(), equalTo(refCreatedVersion + 1))
+			.body(
+				"",
+				equalTo(
+					createEntitySchemaDto(evita, getEntitySchemaFromTestData(evita, ENTITY_EMPTY))
+				)
+			);
+
+		// verify the bucketed reference schema with valueExpression and bucketedPartially
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/empty/schema")
+			.httpMethod(Request.METHOD_GET)
+			.executeAndThen()
+			.statusCode(200)
+			.body(
+				EntitySchemaDescriptor.REFERENCES.name() + ".myBucketedRef."
+					+ ReferenceSchemaDescriptor.BUCKETED.name(),
+				equalTo(
+					list().i(
+						map()
+							.e(ScopedDataDescriptor.SCOPE.name(), Scope.LIVE.name())
+							.e(ScopedHistogramIndexDefinitionDescriptor.NAME_OF_THE_INDEX.name(), "priceHistogram")
+							.e(ScopedHistogramIndexDefinitionDescriptor.NAME_VARIANTS.name(), map()
+								.e(NameVariantsDescriptor.CAMEL_CASE.name(), "priceHistogram")
+								.e(NameVariantsDescriptor.PASCAL_CASE.name(), "PriceHistogram")
+								.e(NameVariantsDescriptor.SNAKE_CASE.name(), "price_histogram")
+								.e(NameVariantsDescriptor.UPPER_SNAKE_CASE.name(), "PRICE_HISTOGRAM")
+								.e(NameVariantsDescriptor.KEBAB_CASE.name(), "price-histogram")
+								.build())
+							.e(ScopedHistogramIndexDefinitionDescriptor.VALUE_EXPRESSION.name(), "$reference.attributes['quantity']")
+							.e(ScopedHistogramIndexDefinitionDescriptor.ASSIGNED_WHEN.name(), null)
+							.build()
+					).build()
+				)
+			)
+			.body(
+				EntitySchemaDescriptor.REFERENCES.name() + ".myBucketedRef."
+					+ ReferenceSchemaDescriptor.BUCKETED_PARTIALLY.name(),
+				equalTo(
+					list().i(
+						map()
+							.e(ScopedDataDescriptor.SCOPE.name(), Scope.LIVE.name())
+							.e(ScopedBucketedPartiallyDescriptor.EXPRESSION.name(), "1 > 0")
+							.build()
+					).build()
+				)
+			)
+			.body(
+				"",
+				equalTo(
+					createEntitySchemaDto(evita, getEntitySchemaFromTestData(evita, ENTITY_EMPTY))
+				)
+			);
+
+		// update bucketed config with null valueExpression and remove bucketedPartially
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/empty/schema")
+			.httpMethod(Request.METHOD_PUT)
+			.requestBody("""
+				{
+					"mutations": [
+						{
+							"setReferenceSchemaBucketedMutation": {
+								"name": "myBucketedRef",
+								"bucketedInScopes": [
+									{
+										"scope": "LIVE",
+										"nameOfTheIndex": "countHistogram"
+									}
+								],
+								"bucketedPartiallyInScopes": []
+							}
+						}
+					]
+				}
+				""")
+			.executeAndThen()
+			.statusCode(200)
+			.body(VersionedDescriptor.VERSION.name(), equalTo(refCreatedVersion + 2))
+			.body(
+				"",
+				equalTo(
+					createEntitySchemaDto(evita, getEntitySchemaFromTestData(evita, ENTITY_EMPTY))
+				)
+			);
+
+		// verify updated bucketed config with null valueExpression
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/empty/schema")
+			.httpMethod(Request.METHOD_GET)
+			.executeAndThen()
+			.statusCode(200)
+			.body(
+				EntitySchemaDescriptor.REFERENCES.name() + ".myBucketedRef."
+					+ ReferenceSchemaDescriptor.BUCKETED.name(),
+				equalTo(
+					list().i(
+						map()
+							.e(ScopedDataDescriptor.SCOPE.name(), Scope.LIVE.name())
+							.e(ScopedHistogramIndexDefinitionDescriptor.NAME_OF_THE_INDEX.name(), "countHistogram")
+							.e(ScopedHistogramIndexDefinitionDescriptor.NAME_VARIANTS.name(), map()
+								.e(NameVariantsDescriptor.CAMEL_CASE.name(), "countHistogram")
+								.e(NameVariantsDescriptor.PASCAL_CASE.name(), "CountHistogram")
+								.e(NameVariantsDescriptor.SNAKE_CASE.name(), "count_histogram")
+								.e(NameVariantsDescriptor.UPPER_SNAKE_CASE.name(), "COUNT_HISTOGRAM")
+								.e(NameVariantsDescriptor.KEBAB_CASE.name(), "count-histogram")
+								.build())
+							.e(ScopedHistogramIndexDefinitionDescriptor.VALUE_EXPRESSION.name(), null)
+							.e(ScopedHistogramIndexDefinitionDescriptor.ASSIGNED_WHEN.name(), null)
+							.build()
+					).build()
+				)
+			)
+			.body(
+				EntitySchemaDescriptor.REFERENCES.name() + ".myBucketedRef."
+					+ ReferenceSchemaDescriptor.BUCKETED_PARTIALLY.name(),
+				equalTo(List.of())
+			)
+			.body(
+				"",
+				equalTo(
+					createEntitySchemaDto(evita, getEntitySchemaFromTestData(evita, ENTITY_EMPTY))
+				)
+			);
+
+		// clean up: remove the reference
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/empty/schema")
+			.httpMethod(Request.METHOD_PUT)
+			.requestBody("""
+				{
+					"mutations": [
+						{
+							"removeReferenceSchemaMutation": {
+								"name": "myBucketedRef"
+							}
+						}
+					]
+				}
+				""")
+			.executeAndThen()
+			.statusCode(200)
+			.body(VersionedDescriptor.VERSION.name(), equalTo(refCreatedVersion + 3))
+			.body(EntitySchemaDescriptor.REFERENCES.name() + ".myBucketedRef", nullValue())
+			.body(
+				"",
+				equalTo(
+					createEntitySchemaDto(evita, getEntitySchemaFromTestData(evita, ENTITY_EMPTY))
+				)
+			);
+	}
+
+
+	/**
+	 * Creates a reference "myBucketedRef" to "tag" with a numeric filterable attribute "quantity"
+	 * so that bucketed histogram expressions can reference it.
+	 */
+	private static void createBucketedReferenceWithAttribute(@Nonnull RestTester tester) {
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/empty/schema")
+			.httpMethod(Request.METHOD_PUT)
+			.requestBody("""
+				{
+					"mutations": [
+						{
+							"createReferenceSchemaMutation": {
+								"name": "myBucketedRef",
+								"referencedEntityType": "tag",
+								"referencedEntityTypeManaged": false,
+								"referencedGroupTypeManaged": false,
+								"indexedInScopes": [
+									{
+										"scope": "LIVE",
+										"indexType": "FOR_FILTERING"
+									}
+								]
+							}
+						},
+						{
+							"modifyReferenceAttributeSchemaMutation": {
+								"name": "myBucketedRef",
+								"attributeSchemaMutation": {
+									"createAttributeSchemaMutation": {
+										"name": "quantity",
+										"uniqueInScopes": [
+											{
+												"scope": "LIVE",
+												"uniquenessType": "NOT_UNIQUE"
+											}
+										],
+										"filterableInScopes": ["LIVE"],
+										"sortableInScopes": [],
+										"localized": false,
+										"nullable": true,
+										"type": "Integer",
+										"indexedDecimalPlaces": 0
+									}
+								}
+							}
+						}
+					]
+				}
+				""")
+			.executeAndThen()
+			.statusCode(200);
+	}
+
+	@Test
+	@UseDataSet(REST_THOUSAND_PRODUCTS_FOR_SCHEMA_UPDATE)
+	@DisplayName("Should change conflict resolution of entity schema and attribute override")
+	void shouldChangeConflictResolutionOfEntitySchema(Evita evita, RestTester tester) {
+		final int initialEntitySchemaVersion = getEntitySchemaVersion(tester, ENTITY_EMPTY);
+
+		// create an attribute, a reference and an associated data we can attach non-default overrides to
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/empty/schema")
+			.httpMethod(Request.METHOD_PUT)
+			.requestBody("""
+				{
+					"mutations": [
+						{
+							"createAttributeSchemaMutation": {
+								"name": "conflictAttribute",
+								"type": "String",
+								"indexedDecimalPlaces": 0
+							}
+						},
+						{
+							"createReferenceSchemaMutation": {
+								"name": "conflictReference",
+								"referencedEntityType": "tag",
+								"referencedEntityTypeManaged": false,
+								"referencedGroupTypeManaged": false
+							}
+						},
+						{
+							"createAssociatedDataSchemaMutation": {
+								"name": "conflictLabel",
+								"type": "String",
+								"localized": false,
+								"nullable": false
+							}
+						}
+					]
+				}
+				""")
+			.executeAndExpectOkAndThen()
+			.body(VersionedDescriptor.VERSION.name(), equalTo(initialEntitySchemaVersion + 3));
+
+		// set a non-default entity-level conflict resolution and non-default overrides on all three elements
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/empty/schema")
+			.httpMethod(Request.METHOD_PUT)
+			.requestBody("""
+				{
+					"mutations": [
+						{
+							"modifyEntitySchemaConflictResolutionMutation": {
+								"conflictResolution": {
+									"policy": "ENTITY",
+									"granularity": ["ENTITY_ATTRIBUTE"]
+								}
+							}
+						},
+						{
+							"setAttributeSchemaConflictResolutionOverrideMutation": {
+								"name": "conflictAttribute",
+								"conflictResolutionOverride": "GRANULAR"
+							}
+						},
+						{
+							"setReferenceSchemaConflictResolutionOverrideMutation": {
+								"name": "conflictReference",
+								"conflictResolutionOverride": "GRANULAR"
+							}
+						},
+						{
+							"setAssociatedDataSchemaConflictResolutionOverrideMutation": {
+								"name": "conflictLabel",
+								"conflictResolutionOverride": "GRANULAR"
+							}
+						}
+					]
+				}
+				""")
+			.executeAndExpectOkAndThen()
+			.body(VersionedDescriptor.VERSION.name(), equalTo(initialEntitySchemaVersion + 7));
+
+		// read the schema back and assert the non-default values survived the hand-written serialization
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/empty/schema")
+			.httpMethod(Request.METHOD_GET)
+			.executeAndExpectOkAndThen()
+			.body(
+				EntitySchemaDescriptor.CONFLICT_RESOLUTION.name(),
+				equalTo(
+					map()
+						.e(ConflictResolutionDescriptor.POLICY.name(), ConflictPolicy.ENTITY.name())
+						.e(
+							ConflictResolutionDescriptor.GRANULARITY.name(),
+							List.of(GranularConflictPolicy.ENTITY_ATTRIBUTE.name())
+						)
+						.build()
+				)
+			)
+			.body(
+				EntitySchemaDescriptor.ATTRIBUTES.name() + ".conflictAttribute." + AttributeSchemaDescriptor.CONFLICT_RESOLUTION_OVERRIDE.name(),
+				equalTo(ConflictResolutionOverride.GRANULAR.name())
+			)
+			.body(
+				EntitySchemaDescriptor.REFERENCES.name() + ".conflictReference." + ReferenceSchemaDescriptor.CONFLICT_RESOLUTION_OVERRIDE.name(),
+				equalTo(ConflictResolutionOverride.GRANULAR.name())
+			)
+			.body(
+				EntitySchemaDescriptor.ASSOCIATED_DATA.name() + ".conflictLabel." + AssociatedDataSchemaDescriptor.CONFLICT_RESOLUTION_OVERRIDE.name(),
+				equalTo(ConflictResolutionOverride.GRANULAR.name())
+			);
+	}
+
+	private static int getEntitySchemaVersion(@Nonnull RestTester tester, @Nonnull String entityType) {
 		return tester.test(TEST_CATALOG)
 			.urlPathSuffix("/" + entityType + "/schema")
 			.httpMethod(Request.METHOD_GET)

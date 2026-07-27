@@ -69,6 +69,28 @@
           "taxRate" : "21.0",
           "validity" : null
         },
+        "priceForSaleMin" : {
+          "priceId" : 3375,
+          "priceList" : "basic",
+          "currency" : "EUR",
+          "innerRecordId" : 107893,
+          "indexed" : true,
+          "priceWithoutTax" : "48.76",
+          "priceWithTax" : "59.0",
+          "taxRate" : "21.0",
+          "validity" : null
+        },
+        "priceForSaleMax" : {
+          "priceId" : 3375,
+          "priceList" : "basic",
+          "currency" : "EUR",
+          "innerRecordId" : 107893,
+          "indexed" : true,
+          "priceWithoutTax" : "48.76",
+          "priceWithTax" : "59.0",
+          "taxRate" : "21.0",
+          "validity" : null
+        },
         "multiplePricesForSaleAvailable" : false,
         "stocks" : [
           {
@@ -116,6 +138,28 @@
           }
         ],
         "priceForSale" : {
+          "priceId" : 3375,
+          "priceList" : "basic",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "48.76",
+          "priceWithTax" : "59.0",
+          "taxRate" : "21.0",
+          "validity" : null
+        },
+        "priceForSaleMin" : {
+          "priceId" : 3375,
+          "priceList" : "basic",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "48.76",
+          "priceWithTax" : "59.0",
+          "taxRate" : "21.0",
+          "validity" : null
+        },
+        "priceForSaleMax" : {
           "priceId" : 3375,
           "priceList" : "basic",
           "currency" : "EUR",
@@ -182,6 +226,28 @@
           "taxRate" : "21.0",
           "validity" : null
         },
+        "priceForSaleMin" : {
+          "priceId" : 3377,
+          "priceList" : "basic",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "48.76",
+          "priceWithTax" : "59.0",
+          "taxRate" : "21.0",
+          "validity" : null
+        },
+        "priceForSaleMax" : {
+          "priceId" : 3377,
+          "priceList" : "basic",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "48.76",
+          "priceWithTax" : "59.0",
+          "taxRate" : "21.0",
+          "validity" : null
+        },
         "stocks" : [
           {
             "referencedPrimaryKey" : 119334,
@@ -228,6 +294,28 @@
           }
         ],
         "priceForSale" : {
+          "priceId" : 3379,
+          "priceList" : "basic",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "48.76",
+          "priceWithTax" : "59.0",
+          "taxRate" : "21.0",
+          "validity" : null
+        },
+        "priceForSaleMin" : {
+          "priceId" : 3379,
+          "priceList" : "basic",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "48.76",
+          "priceWithTax" : "59.0",
+          "taxRate" : "21.0",
+          "validity" : null
+        },
+        "priceForSaleMax" : {
           "priceId" : 3379,
           "priceList" : "basic",
           "currency" : "EUR",
@@ -306,10 +394,32 @@
           }
         ],
         "priceForSale" : {
-          "priceId" : 3385,
+          "priceId" : 3383,
           "priceList" : "basic",
           "currency" : "EUR",
-          "innerRecordId" : 107901,
+          "innerRecordId" : 107900,
+          "indexed" : true,
+          "priceWithoutTax" : "57.02",
+          "priceWithTax" : "69.0",
+          "taxRate" : "21.0",
+          "validity" : null
+        },
+        "priceForSaleMin" : {
+          "priceId" : 3383,
+          "priceList" : "basic",
+          "currency" : "EUR",
+          "innerRecordId" : 107900,
+          "indexed" : true,
+          "priceWithoutTax" : "57.02",
+          "priceWithTax" : "69.0",
+          "taxRate" : "21.0",
+          "validity" : null
+        },
+        "priceForSaleMax" : {
+          "priceId" : 3383,
+          "priceList" : "basic",
+          "currency" : "EUR",
+          "innerRecordId" : 107900,
           "indexed" : true,
           "priceWithoutTax" : "57.02",
           "priceWithTax" : "69.0",
@@ -363,6 +473,28 @@
           }
         ],
         "priceForSale" : {
+          "priceId" : 3383,
+          "priceList" : "basic",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "57.02",
+          "priceWithTax" : "69.0",
+          "taxRate" : "21.0",
+          "validity" : null
+        },
+        "priceForSaleMin" : {
+          "priceId" : 3383,
+          "priceList" : "basic",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "57.02",
+          "priceWithTax" : "69.0",
+          "taxRate" : "21.0",
+          "validity" : null
+        },
+        "priceForSaleMax" : {
           "priceId" : 3383,
           "priceList" : "basic",
           "currency" : "EUR",
@@ -429,6 +561,28 @@
           "taxRate" : "21.0",
           "validity" : null
         },
+        "priceForSaleMin" : {
+          "priceId" : 3385,
+          "priceList" : "basic",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "57.02",
+          "priceWithTax" : "69.0",
+          "taxRate" : "21.0",
+          "validity" : null
+        },
+        "priceForSaleMax" : {
+          "priceId" : 3385,
+          "priceList" : "basic",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "57.02",
+          "priceWithTax" : "69.0",
+          "taxRate" : "21.0",
+          "validity" : null
+        },
         "stocks" : [
           {
             "referencedPrimaryKey" : 119334,
@@ -475,6 +629,28 @@
           }
         ],
         "priceForSale" : {
+          "priceId" : 3387,
+          "priceList" : "basic",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "57.02",
+          "priceWithTax" : "69.0",
+          "taxRate" : "21.0",
+          "validity" : null
+        },
+        "priceForSaleMin" : {
+          "priceId" : 3387,
+          "priceList" : "basic",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "57.02",
+          "priceWithTax" : "69.0",
+          "taxRate" : "21.0",
+          "validity" : null
+        },
+        "priceForSaleMax" : {
           "priceId" : 3387,
           "priceList" : "basic",
           "currency" : "EUR",
@@ -574,6 +750,28 @@
           "taxRate" : "21.0",
           "validity" : null
         },
+        "priceForSaleMin" : {
+          "priceId" : 3391,
+          "priceList" : "basic",
+          "currency" : "EUR",
+          "innerRecordId" : 107913,
+          "indexed" : true,
+          "priceWithoutTax" : "57.02",
+          "priceWithTax" : "69.0",
+          "taxRate" : "21.0",
+          "validity" : null
+        },
+        "priceForSaleMax" : {
+          "priceId" : 3391,
+          "priceList" : "basic",
+          "currency" : "EUR",
+          "innerRecordId" : 107913,
+          "indexed" : true,
+          "priceWithoutTax" : "57.02",
+          "priceWithTax" : "69.0",
+          "taxRate" : "21.0",
+          "validity" : null
+        },
         "multiplePricesForSaleAvailable" : false,
         "stocks" : [
           {
@@ -621,6 +819,28 @@
           }
         ],
         "priceForSale" : {
+          "priceId" : 3391,
+          "priceList" : "basic",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "57.02",
+          "priceWithTax" : "69.0",
+          "taxRate" : "21.0",
+          "validity" : null
+        },
+        "priceForSaleMin" : {
+          "priceId" : 3391,
+          "priceList" : "basic",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "57.02",
+          "priceWithTax" : "69.0",
+          "taxRate" : "21.0",
+          "validity" : null
+        },
+        "priceForSaleMax" : {
           "priceId" : 3391,
           "priceList" : "basic",
           "currency" : "EUR",
@@ -687,6 +907,28 @@
           "taxRate" : "21.0",
           "validity" : null
         },
+        "priceForSaleMin" : {
+          "priceId" : 3393,
+          "priceList" : "basic",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "57.02",
+          "priceWithTax" : "69.0",
+          "taxRate" : "21.0",
+          "validity" : null
+        },
+        "priceForSaleMax" : {
+          "priceId" : 3393,
+          "priceList" : "basic",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "57.02",
+          "priceWithTax" : "69.0",
+          "taxRate" : "21.0",
+          "validity" : null
+        },
         "stocks" : [
           {
             "referencedPrimaryKey" : 119334,
@@ -743,6 +985,28 @@
           "taxRate" : "21.0",
           "validity" : null
         },
+        "priceForSaleMin" : {
+          "priceId" : 3395,
+          "priceList" : "basic",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "57.02",
+          "priceWithTax" : "69.0",
+          "taxRate" : "21.0",
+          "validity" : null
+        },
+        "priceForSaleMax" : {
+          "priceId" : 3395,
+          "priceList" : "basic",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "57.02",
+          "priceWithTax" : "69.0",
+          "taxRate" : "21.0",
+          "validity" : null
+        },
         "stocks" : [
           {
             "referencedPrimaryKey" : 119334,
@@ -789,6 +1053,28 @@
           }
         ],
         "priceForSale" : {
+          "priceId" : 3397,
+          "priceList" : "basic",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "57.02",
+          "priceWithTax" : "69.0",
+          "taxRate" : "21.0",
+          "validity" : null
+        },
+        "priceForSaleMin" : {
+          "priceId" : 3397,
+          "priceList" : "basic",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "57.02",
+          "priceWithTax" : "69.0",
+          "taxRate" : "21.0",
+          "validity" : null
+        },
+        "priceForSaleMax" : {
           "priceId" : 3397,
           "priceList" : "basic",
           "currency" : "EUR",
@@ -867,10 +1153,32 @@
           }
         ],
         "priceForSale" : {
-          "priceId" : 3403,
+          "priceId" : 3401,
           "priceList" : "basic",
           "currency" : "EUR",
-          "innerRecordId" : 107925,
+          "innerRecordId" : 107924,
+          "indexed" : true,
+          "priceWithoutTax" : "40.5",
+          "priceWithTax" : "49.0",
+          "taxRate" : "21.0",
+          "validity" : null
+        },
+        "priceForSaleMin" : {
+          "priceId" : 3401,
+          "priceList" : "basic",
+          "currency" : "EUR",
+          "innerRecordId" : 107924,
+          "indexed" : true,
+          "priceWithoutTax" : "40.5",
+          "priceWithTax" : "49.0",
+          "taxRate" : "21.0",
+          "validity" : null
+        },
+        "priceForSaleMax" : {
+          "priceId" : 3401,
+          "priceList" : "basic",
+          "currency" : "EUR",
+          "innerRecordId" : 107924,
           "indexed" : true,
           "priceWithoutTax" : "40.5",
           "priceWithTax" : "49.0",
@@ -934,6 +1242,28 @@
           "taxRate" : "21.0",
           "validity" : null
         },
+        "priceForSaleMin" : {
+          "priceId" : 3401,
+          "priceList" : "basic",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "40.5",
+          "priceWithTax" : "49.0",
+          "taxRate" : "21.0",
+          "validity" : null
+        },
+        "priceForSaleMax" : {
+          "priceId" : 3401,
+          "priceList" : "basic",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "40.5",
+          "priceWithTax" : "49.0",
+          "taxRate" : "21.0",
+          "validity" : null
+        },
         "stocks" : [
           {
             "referencedPrimaryKey" : 119334,
@@ -980,6 +1310,28 @@
           }
         ],
         "priceForSale" : {
+          "priceId" : 3403,
+          "priceList" : "basic",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "40.5",
+          "priceWithTax" : "49.0",
+          "taxRate" : "21.0",
+          "validity" : null
+        },
+        "priceForSaleMin" : {
+          "priceId" : 3403,
+          "priceList" : "basic",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "40.5",
+          "priceWithTax" : "49.0",
+          "taxRate" : "21.0",
+          "validity" : null
+        },
+        "priceForSaleMax" : {
           "priceId" : 3403,
           "priceList" : "basic",
           "currency" : "EUR",

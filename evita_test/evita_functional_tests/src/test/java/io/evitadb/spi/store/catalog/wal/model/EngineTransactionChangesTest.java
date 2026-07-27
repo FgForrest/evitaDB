@@ -29,9 +29,13 @@ import org.junit.jupiter.api.Test;
 
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.EXPORT;
+import static io.evitadb.test.TestTags.TRANSACTION;
 
 /**
  * Unit tests for {@link EngineTransactionChanges} record,
@@ -40,6 +44,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * and missing space bugs before mutation info.
  */
 @DisplayName("EngineTransactionChanges")
+@Tag(ENGINE)
+@Tag(EXPORT)
+@Tag(TRANSACTION)
 class EngineTransactionChangesTest {
 
 	private static final OffsetDateTime COMMIT_TIME =

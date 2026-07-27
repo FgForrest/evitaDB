@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2025
+ *   Copyright (c) 2025-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -44,15 +44,19 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.CDC;
 
 /**
  * Tests for {@link ChangeCaptureRingBuffer} class.
@@ -62,6 +66,8 @@ import static org.junit.jupiter.api.Assertions.fail;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 @DisplayName("Ring buffer should")
+@Tag(ENGINE)
+@Tag(CDC)
 class ChangeCaptureRingBufferTest {
 
     public static final BiConsumer<Integer, ChangeCatalogCapture> DEFAULT_ASSERTIONS = (i, capture) -> {
@@ -978,6 +984,52 @@ class ChangeCaptureRingBufferTest {
     }
 
     /**
+     * Tests clearAllAfter on a wrapped-around buffer when the boundary falls in a gap between two retained
+     * versions (version 7 is absent). Because the buffer has wrapped, the clear runs over two segments; the
+     * boundary must still resolve to its insertion point in whichever segment contains the gap, removing
+     * only the entries strictly above it (version 8) while every retained version below it survives. This is
+     * the wrapped-around counterpart of the interior-gap regression guarded for the non-wrapped buffer.
+     */
+    @Test
+    @DisplayName("handle clearAllAfter on wrapped around buffer with the boundary in a gap")
+    void shouldHandleClearAllAfterOnWrappedAroundBufferWithBoundaryInGap() {
+        // Create a buffer with size 5
+        final ChangeCaptureRingBuffer<ChangeCatalogCapture> buffer = new ChangeCaptureRingBuffer<>(
+			null, 1L, 0, 10L, 5,
+			ChangeCatalogCapture.class
+        );
+
+        // Add 7 captures with a gap at version 7 (versions 1,2,3,4,5,6,8), overflowing the capacity-5
+        // buffer so it wraps and retains only the last five offered versions: 3,4,5,6,8
+        final long[] versions = {1L, 2L, 3L, 4L, 5L, 6L, 8L};
+        for (int i = 0; i < versions.length; i++) {
+            buffer.offer(createCapture(versions[i], 0, "entity" + i));
+        }
+
+        // Verify buffer has wrapped around and retained version 3 as the oldest
+        assertEquals(3, buffer.getEffectiveStartCatalogVersion());
+
+        // Clear all entries at or after the absent boundary version 7 — only version 8 sits above it
+        buffer.clearAllAfter(7L);
+
+        // Copy data and verify versions 3, 4, 5 and 6 remain (version 8 removed, nothing below 7 touched)
+        final Queue<ChangeCatalogCapture> result = new ArrayDeque<>();
+        try {
+            buffer.copyTo(new WalPointer(3L, 0), result);
+            assertEquals(4, result.size());
+
+            for (int i = 0; i < 4; i++) {
+                final ChangeCatalogCapture capture = result.poll();
+                assertEquals(i + 3L, capture.version());
+                assertEquals(0, capture.index());
+                assertEquals("entity" + (i + 2), capture.entityType());
+            }
+        } catch (OutsideScopeException e) {
+            fail("Should not throw OutsideScopeException");
+        }
+    }
+
+    /**
      * Fuzzy test for the ring buffer that tests different types of rotations and copy-to operations.
      * For each seed, it creates a random number of captures and adds them to the buffer, then performs
      * random copy-to operations and verifies the results against a control ArrayList.
@@ -1151,6 +1203,7 @@ class ChangeCaptureRingBufferTest {
 
         // Shutdown the executor and wait for the threads to finish
         executor.shutdown();
+        executor.awaitTermination(10, TimeUnit.SECONDS);
 
         // Verify that we have captured some results
         assertTrue(exceptions.isEmpty(), "Exceptions occurred during execution: " + exceptions);

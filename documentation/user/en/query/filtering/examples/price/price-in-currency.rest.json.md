@@ -17291,17 +17291,6 @@
           "validity" : null
         },
         {
-          "priceId" : 613,
-          "priceList" : "reference",
-          "currency" : "EUR",
-          "innerRecordId" : null,
-          "indexed" : false,
-          "priceWithoutTax" : "305.24",
-          "priceWithTax" : "369.34",
-          "taxRate" : "21.0",
-          "validity" : null
-        },
-        {
           "priceId" : 8887,
           "priceList" : "b2b-basic-price",
           "currency" : "EUR",

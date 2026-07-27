@@ -6,6 +6,7 @@ author: Ing. Jan Novotný
 proofreading: done
 preferredLang: java
 commit: '6904cac47f914640a021d8e49bed3c2f040085c9'
+translated: 'true'
 ---
 **Práce ve vývoji**
 
@@ -223,6 +224,45 @@ balíčku, který obsahuje metriky, které chceme povolit, se suffixem ".*", co�
 Lze také zadat konkrétní metriky uvedením plného názvu jejich třídy (*package_path.class_name*).
 
 Interní metriky jsou popsány v sekci [Reference metrik](#referenční-dokumentace).
+
+### Export štítků dotazu do Prometheus
+
+Štítky [dotazu](../query/header/label.md) jsou standardně vidět pouze v trasování, záznamech provozu a JFR
+událostech - nikoliv v Prometheus - protože hodnoty štítků jsou libovolná klientská data a často neomezené (viz
+[poznámky o bezpečné kardinalitě štítků](../query/header/label.md#kardinalita-štítků-a-export-do-prometheus)).
+Jednotlivé názvy štítků můžete zpřístupnit jako dimenze Prometheus metrik dotazů jejich uvedením v konfiguraci
+`exportedQueryLabels` (`job_name` a `rest_method` níže jsou pouze příklady - názvy jsou zcela na vás):
+
+```yaml
+api:
+  endpoints:
+    observability:
+      enabled: ${api.endpoints.observability.enabled:true}
+      host: ${api.endpoints.observability.host:":5555"}
+      exposeOn: ${api.endpoints.observability.exposeOn:"localhost:5555"}
+      tlsMode: ${api.endpoints.observability.tlsMode:FORCE_NO_TLS}
+      exportedQueryLabels:
+        - job_name
+        - rest_method
+```
+
+evitaDB žádné názvy štítků nevyhrazuje - každý nakonfigurovaný název pouze porovnává se štítky, které daný dotaz nese,
+a stane se dimenzí metriky pojmenovanou podle své podoby upravené pro Prometheus (znaky mimo `[a-zA-Z0-9_]` se nahradí
+`_`). Dotaz, který nakonfigurovaný štítek nenese, vykreslí tuto dimenzi jako `N/A`.
+
+Na rozdíl od `allowedEvents` znamená nenastavený nebo prázdný `exportedQueryLabels`, že se *nic* neexportuje - toto je
+bezpečné výchozí chování, protože neomezený štítek povýšený na dimenzi by roztrhal kardinalitu časových řad Prometheus.
+Uvedení názvu zde je vaším explicitním potvrzením, že jeho hodnoty jsou omezené. Několik inherentně vysokokardinálních
+štítků automaticky připojovaných systémem - `trace-id`, `client-id`, `ip-address` a `uri` - je vyhrazených a nelze je
+nikdy exportovat; server se s jasnou chybou odmítne spustit, pokud se kterýkoli z nich (nebo dva názvy, které se upraví
+na stejnou dimenzi) v seznamu objeví.
+
+Dvě další poznámky k exportovaným štítkům dotazu:
+- Nakonfigurovaný název, jehož upravená podoba koliduje s vlastní vestavěnou dimenzí metriky (u metrik dotazů
+  `entityType` nebo `prefetched`), je odmítnut při registraci metrik krátce po startu - to se zaloguje a sběr metrik se
+  neinicializuje, na rozdíl od obou konfiguračních kontrol výše nepřeruší start serveru.
+- Hodnoty se čtou z čárkou/rovnítkem oddělovaného balíku, proto se v hodnotách exportovaných štítků vyhněte čárkám
+  (`,`) a rovnítkům (`=`); udržujte je omezené a jednoduché, jak to jejich bezpečná kardinalita stejně vyžaduje.
 
 ### JFR události
 
@@ -504,7 +544,7 @@ v [Logback](https://logback.qos.ch/index.html) lze použít vzory `%X{traceId}` 
 
 Kromě výše zmíněných nástrojů pro observabilitu nabízí evitaDB také možnost zaznamenávat veškerý příchozí provoz
 do serveru. Tato funkce je užitečná pro ladění a vývoj, protože umožňuje přehrát zaznamenaný provoz a detailně analyzovat chování serveru.
-Funkce záznamu provozu je ve výchozím stavu vypnuta a musí být povolena v [konfiguraci serveru](../operate/configure.md#konfigurace-záznamu-provozu).
+Funkce záznamu provozu je ve výchozím stavu vypnuta a musí být povolena v [konfiguraci serveru](configure.md#konfigurace-záznamu-provozu).
 
 Tato nastavení jsou doporučena pro lokální vývoj:
 
@@ -526,6 +566,27 @@ Tento soubor lze použít pro další analýzu nebo pro přehrání provozu na j
 Zaznamenaný provoz lze procházet a filtrovat v evitaLab a jakýkoli dotaz lze snadno spustit v příslušném konzoli dotazů na aktuální datové sadě.
 Záznamy lze filtrovat také podle vlastních [štítků](../query/header/label.md#štítek), traceId nebo typů protokolu.
 Snadno tak můžete izolovat sady záznamů provozu, které souvisejí s jedním obchodním případem, například jedním vykreslením stránky nebo jedním voláním API.
+
+### Export záznamu provozu na vyžádání
+
+Výše popsaná úloha pro export provozu *spouští* nový záznam a streamuje jej do ZIP souboru v průběhu jeho vzniku. Když
+místo toho potřebujete provoz, který je *již* uložen v bufferu — nedávné okno, které si server drží na disku bez ohledu
+na to, zda běží nějaká exportní úloha — použijte export na vyžádání. Ten pořídí konzistentní jednorázový snímek aktuálního
+okna bufferu a zapíše jej do stažitelného ZIP souboru, aniž by spouštěl, zastavoval nebo jakkoli přerušoval živý záznam.
+
+Export se spouští přes gRPC API pro záznam provozu (`ExportTrafficRecording` na `GrpcEvitaTrafficRecordingService`),
+volitelně s předáním cílové velikosti chunk souboru v bajtech; uložené session jsou v archivu rozděleny do několika souborů
+`traffic_recording_*.bin` přibližně této velikosti. Výsledný ZIP se získává stejně jako jakýkoli jiný exportní soubor serveru
+prostřednictvím file-fetch API (`ListFilesToFetch` pro jeho nalezení, `FetchFile` pro stažení) a je automaticky odstraněn
+z exportní složky serveru po uplynutí nakonfigurované doby uchování.
+
+Každý `.bin` chunk obsahuje surové, doslovné záznamy session, které lze přehrát na jiné instanci evitaDB. Archiv rovněž
+obsahuje soubor `metadata.txt` shrnující daný běh; nad rámec časových a bajtových součtů sdílených se streamovaným reportem
+export na vyžádání navíc uvádí, kolik session bylo `skipped` (vytlačeno z bufferu nebo zamčeno k zápisu živým rekordérem
+během procházení snímku — takové session jsou započítány, nikdy nejsou vyexportovány jen zčásti) a kolik session zmražený
+snímek celkem obsahoval (`snapshot contained`). Vygenerovaný soubor je označen původem exportní úlohy
+(`TrafficRecordingExportTask`, na rozdíl od `TrafficRecorderTask` u streamovaného reportu), takže klient vypisující soubory
+přes `ListFilesToFetch` dokáže odlišit exporty na vyžádání od streamovaných záznamů.
 
 ## Change data capture
 

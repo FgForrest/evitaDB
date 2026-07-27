@@ -24,6 +24,7 @@
 package io.evitadb.core.buffer;
 
 import io.evitadb.core.collection.EntityCollection;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.Index;
 import io.evitadb.index.IndexKey;
 import io.evitadb.spi.store.catalog.persistence.StoragePartPersistenceService;
@@ -54,6 +55,13 @@ public class WarmUpDataStoreMemoryBuffer implements DataStoreMemoryBuffer {
 	 * DTO contains all trapped changes in this memory buffer.
 	 */
 	@Nonnull private final DataStoreChanges dataStoreChanges;
+	/**
+	 * The failure of a previous flush, or {@code null} while this buffer is healthy. Declared {@code volatile} because
+	 * the catalog-level buffer is poisoned from inside a flush-future completion callback that may run on a worker
+	 * thread, while {@link #popTrappedChanges()} reads this field on the catalog writer thread — a plain field would not
+	 * guarantee the writer observes the poison.
+	 */
+	@Nullable private volatile Throwable flushFailure;
 
 	public WarmUpDataStoreMemoryBuffer(
 		@Nonnull StoragePartPersistenceService persistenceService
@@ -70,6 +78,7 @@ public class WarmUpDataStoreMemoryBuffer implements DataStoreMemoryBuffer {
 		this.dataStoreChanges.setPersistenceService(persistenceService);
 	}
 
+	@Nonnull
 	@Override
 	public <IK extends IndexKey, I extends Index<IK>> I getOrCreateIndexForModification(@Nonnull IK entityIndexKey, @Nonnull Function<IK, I> accessorWhenMissing) {
 		return this.dataStoreChanges.getOrCreateIndexForModification(entityIndexKey, accessorWhenMissing);
@@ -86,9 +95,19 @@ public class WarmUpDataStoreMemoryBuffer implements DataStoreMemoryBuffer {
 		return this.dataStoreChanges.getIndexIfExists(entityIndexPrimaryKey, accessorWhenMissing);
 	}
 
+	@Nonnull
 	@Override
-	public <IK extends IndexKey, I extends Index<IK>> I removeIndex(@Nonnull IK entityIndexKey, @Nonnull Function<IK, I> removalPropagation) {
-		return this.dataStoreChanges.removeIndex(entityIndexKey, removalPropagation);
+	public <IK extends IndexKey, I extends Index<IK>> I getOrCreateIndexForModification(
+		int entityIndexPrimaryKey,
+		@Nonnull IntFunction<I> accessorWhenMissing
+	) {
+		return this.dataStoreChanges.getIndexForModification(entityIndexPrimaryKey, accessorWhenMissing);
+	}
+
+	@Nullable
+	@Override
+	public <IK extends IndexKey, I extends Index<IK>> I removeIndex(long catalogVersion, @Nonnull IK entityIndexKey, @Nonnull Function<IK, I> removalPropagation) {
+		return this.dataStoreChanges.removeIndex(catalogVersion, entityIndexKey, removalPropagation);
 	}
 
 	@Override
@@ -161,7 +180,28 @@ public class WarmUpDataStoreMemoryBuffer implements DataStoreMemoryBuffer {
 	@Nonnull
 	@Override
 	public TrappedChanges popTrappedChanges() {
+		// every warm-up collect passes through here, whatever triggered it - a session close, a collection being
+		// created / removed / replaced, going live or terminating - so this is the single point at which a warm-up
+		// buffer whose flush failed can be stopped before it writes again (this buffer backs both an entity collection
+		// and the catalog, so the refusal is phrased for either)
+		final Throwable theFlushFailure = this.flushFailure;
+		if (theFlushFailure != null) {
+			throw new GenericEvitaInternalError(
+				"Cannot collect changes: a previous warm-up flush failed, so the changes it had already collected are " +
+					"lost and the persisted state is incomplete. Reload the catalog from disk to recover.",
+				theFlushFailure
+			);
+		}
 		return this.dataStoreChanges.popTrappedUpdates();
+	}
+
+	@Override
+	public void poison(@Nonnull Throwable cause) {
+		// keep the FIRST failure: it is the one that actually lost the collected changes, and every later refusal is
+		// merely its consequence
+		if (this.flushFailure == null) {
+			this.flushFailure = cause;
+		}
 	}
 
 }

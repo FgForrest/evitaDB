@@ -36,7 +36,6 @@ import java.io.Serializable;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.Arrays;
-import java.util.stream.LongStream;
 
 import static java.time.LocalDateTime.ofEpochSecond;
 
@@ -92,13 +91,11 @@ public record PriceEvaluationContext(
 	 * {@link #hashCode()} and is targeted to be used in cache key.
 	 */
 	public long computeHash(@Nonnull LongHashFunction hashFunction) {
-		return hashFunction.hashLongs(
-			LongStream.concat(
-					LongStream.of(this.validIn),
-					Arrays.stream(this.targetPriceIndexes)
-						.mapToLong(it -> hashFunction.hashChars(it.toString()))
-				)
-				.toArray()
-		);
+		final long[] hashes = new long[1 + this.targetPriceIndexes.length];
+		hashes[0] = this.validIn;
+		for (int i = 0; i < this.targetPriceIndexes.length; i++) {
+			hashes[i + 1] = hashFunction.hashChars(this.targetPriceIndexes[i].toString());
+		}
+		return hashFunction.hashLongs(hashes);
 	}
 }

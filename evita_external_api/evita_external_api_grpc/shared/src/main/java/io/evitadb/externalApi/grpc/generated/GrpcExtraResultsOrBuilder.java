@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2026
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -204,49 +204,54 @@ io.evitadb.externalApi.grpc.generated.GrpcHistogram defaultValue);
    * <pre>
    * Contains a collection of FacetGroupStatistics DTOs where each of them contains information about single facet group
    * (if they belong in one) and statistics of the facets that relates to it.
+   * deprecated renamed to `referenceGroupStatistics`
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 3;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 3 [deprecated = true];</code>
    */
-  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics>
+  @java.lang.Deprecated java.util.List<io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics> 
       getFacetGroupStatisticsList();
   /**
    * <pre>
    * Contains a collection of FacetGroupStatistics DTOs where each of them contains information about single facet group
    * (if they belong in one) and statistics of the facets that relates to it.
+   * deprecated renamed to `referenceGroupStatistics`
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 3;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 3 [deprecated = true];</code>
    */
-  io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics getFacetGroupStatistics(int index);
+  @java.lang.Deprecated io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics getFacetGroupStatistics(int index);
   /**
    * <pre>
    * Contains a collection of FacetGroupStatistics DTOs where each of them contains information about single facet group
    * (if they belong in one) and statistics of the facets that relates to it.
+   * deprecated renamed to `referenceGroupStatistics`
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 3;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 3 [deprecated = true];</code>
    */
-  int getFacetGroupStatisticsCount();
+  @java.lang.Deprecated int getFacetGroupStatisticsCount();
   /**
    * <pre>
    * Contains a collection of FacetGroupStatistics DTOs where each of them contains information about single facet group
    * (if they belong in one) and statistics of the facets that relates to it.
+   * deprecated renamed to `referenceGroupStatistics`
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 3;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 3 [deprecated = true];</code>
    */
-  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatisticsOrBuilder>
+  @java.lang.Deprecated java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatisticsOrBuilder> 
       getFacetGroupStatisticsOrBuilderList();
   /**
    * <pre>
    * Contains a collection of FacetGroupStatistics DTOs where each of them contains information about single facet group
    * (if they belong in one) and statistics of the facets that relates to it.
+   * deprecated renamed to `referenceGroupStatistics`
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 3;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 3 [deprecated = true];</code>
    */
-  io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatisticsOrBuilder getFacetGroupStatisticsOrBuilder(
+  @java.lang.Deprecated io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatisticsOrBuilder getFacetGroupStatisticsOrBuilder(
       int index);
 
   /**
@@ -369,4 +374,53 @@ io.evitadb.externalApi.grpc.generated.GrpcHierarchy defaultValue);
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry queryTelemetry = 6;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryOrBuilder getQueryTelemetryOrBuilder();
+
+  /**
+   * <pre>
+   * Contains a collection of ReferenceGroupStatistics DTOs where each of them contains information about single reference group
+   * (if they belong in one) and statistics of the references that relates to it.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReferenceGroupStatistics referenceGroupStatistics = 7;</code>
+   */
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcReferenceGroupStatistics> 
+      getReferenceGroupStatisticsList();
+  /**
+   * <pre>
+   * Contains a collection of ReferenceGroupStatistics DTOs where each of them contains information about single reference group
+   * (if they belong in one) and statistics of the references that relates to it.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReferenceGroupStatistics referenceGroupStatistics = 7;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcReferenceGroupStatistics getReferenceGroupStatistics(int index);
+  /**
+   * <pre>
+   * Contains a collection of ReferenceGroupStatistics DTOs where each of them contains information about single reference group
+   * (if they belong in one) and statistics of the references that relates to it.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReferenceGroupStatistics referenceGroupStatistics = 7;</code>
+   */
+  int getReferenceGroupStatisticsCount();
+  /**
+   * <pre>
+   * Contains a collection of ReferenceGroupStatistics DTOs where each of them contains information about single reference group
+   * (if they belong in one) and statistics of the references that relates to it.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReferenceGroupStatistics referenceGroupStatistics = 7;</code>
+   */
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcReferenceGroupStatisticsOrBuilder> 
+      getReferenceGroupStatisticsOrBuilderList();
+  /**
+   * <pre>
+   * Contains a collection of ReferenceGroupStatistics DTOs where each of them contains information about single reference group
+   * (if they belong in one) and statistics of the references that relates to it.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReferenceGroupStatistics referenceGroupStatistics = 7;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcReferenceGroupStatisticsOrBuilder getReferenceGroupStatisticsOrBuilder(
+      int index);
 }

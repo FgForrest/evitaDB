@@ -37,64 +37,109 @@ import java.io.Serial;
 import java.io.Serializable;
 
 /**
- * The constraint `having` is a constraint that can only be used within {@link HierarchyWithin} or
- * {@link HierarchyWithinRoot} parent constraints. It simply makes no sense anywhere else because it changes the default
- * behavior of those constraints. Hierarchy constraints return all hierarchy children of the parent node or entities
- * that are transitively or directly related to them, and the parent node itself.
+ * The `having` constraint filters hierarchy subtrees by requiring each node along the traversal path from root to leaf
+ * to satisfy specified filter conditions. When a node fails to satisfy the constraint, that node and all its
+ * descendants are excluded from results. This enables conditional visibility of hierarchy branches and can only be used
+ * within {@link HierarchyWithin} or {@link HierarchyWithinRoot} parent constraints.
  *
- * The `having` constraint allows you to set a constraint that must be fulfilled by each hierarchical entity in while
- * traversing through the hierarchical tree from top to down to be accepted by the filter. This constraint is especially
- * useful if you want to conditionally display certain parts of the tree. Imagine you have a category Christmas Sale
- * that should only be available during a certain period of the year, or a category B2B Partners that should only be
- * accessible to a certain role of users. All of these scenarios can take advantage of the having constraint (but there
- * are other approaches to solving the above use cases).
+ * **Syntax**
  *
- * The constraint accepts the following arguments:
+ * ```evitaql
+ * having(
+ *     filtering: FilterConstraint+
+ * )
+ * ```
  *
- * - one or more mandatory constraints that must be satisfied by all returned hierarchy nodes and that mark the visible
- *   part of the tree, the implicit relation between constraints is logical conjunction (boolean AND)
+ * **Arguments**
  *
- * When the hierarchy constraint targets the hierarchy entity, the children that don't satisfy the inner constraints
- * (and their children, whether they satisfy them or not) are excluded from the result.
+ * - `filtering` (required): one or more filter constraints that must be satisfied by each hierarchy node for its
+ *   subtree to remain visible. Multiple constraints are combined with implicit logical AND. The lookup traverses from
+ *   root to leaf, stopping at the first node that fails the constraints and excluding that node plus all descendants.
  *
- * For demonstration purposes, let's list all categories within the Accessories category, but only those that are valid
- * at 01:00 AM on October 1, 2023.
+ * **Early Termination Semantics**
  *
- * <pre>
+ * The `having` constraint implements top-down early termination during hierarchy traversal:
+ * 1. Traversal proceeds from root nodes toward leaf nodes
+ * 2. For each node along the path, the engine evaluates whether it satisfies the `having` filter
+ * 3. If a node fails the filter, that node and its entire subtree are excluded from results
+ * 4. Traversal does NOT continue into the excluded subtree (descendants are not evaluated)
+ *
+ * This "gate-keeper" behavior ensures that if an ancestor fails the `having` constraint, all its descendants are
+ * automatically excluded regardless of whether they would individually pass the filter.
+ *
+ * **Difference from Excluding**
+ *
+ * The `having` and `excluding` constraints are semantic opposites:
+ * - `having(condition)`: stops at first node that FAILS the condition, excluding that subtree (inclusion filter)
+ * - `excluding(condition)`: stops at first node that MATCHES the condition, excluding that subtree (exclusion filter)
+ * - `having(condition)` is semantically equivalent to `excluding(not(condition))`
+ *
+ * The `having` constraint exists separately for improved query readability when expressing inclusion logic rather than
+ * exclusion logic.
+ *
+ * **Query Mode Behavior**
+ *
+ * The constraint behaves differently depending on whether the query is self-hierarchical or reference-hierarchical:
+ *
+ * 1. **Self-hierarchical mode**: evaluates against the queried entities themselves. Categories failing the `having`
+ *    filter and all their subcategories are removed from results.
+ *
+ * 2. **Reference-hierarchical mode**: evaluates against the referenced hierarchical entities but affects the queried
+ *    non-hierarchical entities. Products referencing categories that fail the `having` filter (or any ancestors of
+ *    those categories) are removed from results.
+ *
+ * **Multiple Category Assignment**
+ *
+ * In reference-hierarchical mode, when a product is assigned to multiple categories and only some pass the `having`
+ * filter, the product remains in the result if at least one of its assigned categories is within the visible part of
+ * the tree:
+ *
+ * ```
+ * Category tree with validity constraints:
+ *   - Electronics (valid year-round)
+ *     - Smartphones (valid year-round)
+ *     - Christmas Electronics (valid Dec 1-24 only)
+ *
+ * Product "Garmin Vivosmart 5": assigned to both "Smartphones" and "Christmas Electronics"
+ * Query time: October 1st with having(attributeInRange("validity", now()))
+ * Result: Product is INCLUDED because "Smartphones" passes the validity check
+ * ```
+ *
+ * **Use Cases**
+ *
+ * Common scenarios for `having`:
+ * - **Temporal visibility**: show only categories/products valid during a specific time period (seasonal sales,
+ *   promotional periods)
+ * - **Access control**: display only categories accessible to the current user role or permission level
+ * - **Status filtering**: show only active/published categories and their products
+ * - **Localization**: display only categories with translations for the current locale
+ * - **Feature flags**: conditionally show categories based on feature toggles or A/B testing flags
+ *
+ * **Examples**
+ *
+ * ```java
+ * // Self-hierarchical: return only categories valid at specific time
  * query(
- *     collection('Category'),
+ *     collection("Category"),
  *     filterBy(
  *         hierarchyWithinSelf(
- *             attributeEquals('code', 'accessories'),
+ *             attributeEquals("code", "accessories"),
  *             having(
  *                 or(
- *                     attributeIsNull('validity'),
- *                     attributeInRange('validity', 2023-10-01T01:00:00-01:00)
+ *                     attributeIsNull("validity"),
+ *                     attributeInRange("validity", ZonedDateTime.now())
  *                 )
  *             )
  *         )
  *     ),
  *     require(
- *         entityFetch(
- *             attributeContent('code')
- *         )
+ *         entityFetch(attributeContent("code"))
  *     )
  * )
- * </pre>
+ * // If "Christmas Electronics" is valid only Dec 1-24, it's excluded in October
+ * // All its subcategories are also excluded (even if individually valid)
  *
- * Because the category Christmas electronics has its validity set to be valid only between December 1st and December
- * 24th, it will be omitted from the result. If it had subcategories, they would also be omitted (even if they had no
- * validity restrictions).
- *
- * If the hierarchy constraint targets a non-hierarchical entity that references the hierarchical one (typical example
- * is a product assigned to a category), the having constraint is evaluated against the hierarchical entity (category),
- * but affects the queried non-hierarchical entities (products). It excludes all products referencing categories that
- * don't satisfy the having inner constraints.
- *
- * Let's use again our example with Christmas electronics that is valid only between 1st and 24th December. To list all
- * products available at 01:00 AM on October 1, 2023, issue a following query:
- *
- * <pre>
+ * // Reference-hierarchical: products in valid categories only
  * query(
  *     collection("Product"),
  *     filterBy(
@@ -104,36 +149,103 @@ import java.io.Serializable;
  *             having(
  *                 or(
  *                     attributeIsNull("validity"),
- *                     attributeInRange("validity", 2023-10-01T01:00:00-01:00)
+ *                     attributeInRange("validity", ZonedDateTime.now())
  *                 )
  *             )
  *         )
  *     ),
  *     require(
- *         entityFetch(
- *             attributeContent("code")
+ *         entityFetch(attributeContent("code"))
+ *     )
+ * )
+ * // Products in "Christmas Electronics" subtree are excluded in October
+ *
+ * // Status-based filtering (only active categories)
+ * query(
+ *     collection("Product"),
+ *     filterBy(
+ *         hierarchyWithinRoot(
+ *             "categories",
+ *             having(attributeEquals("status", "ACTIVE"))
  *         )
  *     )
  * )
- * </pre>
  *
- * You can see that Christmas products like Retlux Blue Christmas lightning, Retlux Warm white Christmas lightning or
- * Emos Candlestick are not present in the listing.
+ * // Access control (only categories for current user role)
+ * query(
+ *     collection("Product"),
+ *     filterBy(
+ *         hierarchyWithinRoot(
+ *             "categories",
+ *             having(
+ *                 or(
+ *                     attributeIsNull("requiredRole"),
+ *                     attributeEquals("requiredRole", currentUserRole)
+ *                 )
+ *             )
+ *         )
+ *     )
+ * )
  *
- * <strong>The lookup stops at the first node that doesn't satisfy the constraint!</strong>
+ * // Combine with other specifications
+ * query(
+ *     collection("Product"),
+ *     filterBy(
+ *         hierarchyWithin(
+ *             "categories",
+ *             attributeEquals("code", "electronics"),
+ *             having(attributeEquals("status", "ACTIVE")),
+ *             excluding(attributeEquals("clearance", true))
+ *         )
+ *     )
+ * )
+ * ```
  *
- * The hierarchical query traverses from the root nodes to the leaf nodes. For each of the nodes, the engine checks
- * whether the having constraint is still valid, and if not, it excludes that hierarchy node and all of its child nodes
- * (entire subtree).
+ * **Practical Example: Seasonal Category Visibility**
  *
- * <strong>What if the product is linked to two categories - one that meets the constraint and one that does not?</strong>
+ * Consider an e-commerce site with a "Holiday" category tree containing subcategories like "Christmas", "Halloween",
+ * "Easter", each with a validity date range. Outside the holiday season, these categories should be hidden:
  *
- * In the situation where the single product, let's say Garmin Vivosmart 5, is in both the excluded category Christmas
- * Electronics and the included category Smartwatches, it will remain in the query result because there is at least one
- * product reference that is part of the visible part of the tree.
+ * ```java
+ * // Show only currently valid holiday categories
+ * query(
+ *     collection("Category"),
+ *     filterBy(
+ *         hierarchyWithinSelf(
+ *             attributeEquals("code", "holidays"),
+ *             having(attributeInRange("validity", ZonedDateTime.now()))
+ *         )
+ *     ),
+ *     require(
+ *         entityFetch(attributeContent("name", "validity"))
+ *     )
+ * )
+ * // In July: Christmas (Dec 1-25) and Easter (April) are excluded
+ * // In December: Christmas is visible but Easter remains excluded
+ * ```
  *
- * <p><a href="https://evitadb.io/documentation/query/filtering/hierarchy#having">Visit detailed user documentation</a></p>
+ * **Combining with AnyHaving**
  *
+ * While `having` requires every ancestor to pass the filter, {@link HierarchyAnyHaving} only requires at least one
+ * node in the subtree to pass. These can be combined for complex filtering logic:
+ *
+ * ```java
+ * hierarchyWithinRoot(
+ *     "categories",
+ *     having(attributeEquals("status", "ACTIVE")),  // All ancestors must be active
+ *     anyHaving(attributeEquals("featured", true))  // At least one descendant must be featured
+ * )
+ * ```
+ *
+ * **Performance Characteristics**
+ *
+ * The early termination behavior makes `having` highly efficient for pruning large subtrees. When a high-level
+ * category fails the filter, the engine avoids evaluating potentially thousands of descendants.
+ *
+ * @see HierarchyExcluding inverse constraint for excluding subtrees based on filter
+ * @see HierarchyAnyHaving variant requiring at least one subtree node to satisfy filter
+ * @see HierarchyWithin primary hierarchy filter constraint
+ * @see HierarchyWithinRoot hierarchy filter for entire tree
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 @ConstraintDefinition(
@@ -142,7 +254,8 @@ import java.io.Serializable;
 	userDocsLink = "/documentation/query/filtering/hierarchy#having",
 	supportedIn = ConstraintDomain.HIERARCHY
 )
-public class HierarchyHaving extends AbstractFilterConstraintContainer implements HierarchySpecificationFilterConstraint {
+public class HierarchyHaving extends AbstractFilterConstraintContainer
+	implements HierarchySpecificationFilterConstraint {
 	@Serial private static final long serialVersionUID = -6950287451642746676L;
 	private static final String CONSTRAINT_NAME = "having";
 
@@ -152,8 +265,8 @@ public class HierarchyHaving extends AbstractFilterConstraintContainer implement
 	}
 
 	/**
-	 * Returns filtering constraints that return entities whose trees should be excluded from {@link HierarchyWithin}
-	 * query.
+	 * Returns filtering constraints that must be satisfied by hierarchy nodes for their subtrees to be included
+	 * in the {@link HierarchyWithin} query result.
 	 */
 	@Nonnull
 	public FilterConstraint[] getFiltering() {
@@ -173,12 +286,15 @@ public class HierarchyHaving extends AbstractFilterConstraintContainer implement
 	@Nonnull
 	@Override
 	public FilterConstraint cloneWithArguments(@Nonnull Serializable[] newArguments) {
-		return this;
+		return new HierarchyHaving(getChildren());
 	}
 
 	@Nonnull
 	@Override
-	public FilterConstraint getCopyWithNewChildren(@Nonnull FilterConstraint[] children, @Nonnull Constraint<?>[] additionalChildren) {
+	public FilterConstraint getCopyWithNewChildren(
+		@Nonnull FilterConstraint[] children,
+		@Nonnull Constraint<?>[] additionalChildren
+	) {
 		Assert.isTrue(
 			ArrayUtils.isEmpty(additionalChildren),
 			"Constraint HierarchyHaving doesn't accept other than filtering constraints!"

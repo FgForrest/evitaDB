@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -43,7 +43,7 @@ import java.util.Arrays;
  *
  * Example usage:
  *
- * <pre>
+ * ```evitaql
  * query(
  *    filterBy(
  *       attributeEqualsTrue("shortcut")
@@ -52,28 +52,29 @@ import java.util.Arrays;
  *       attributeSetExact("code", "t-shirt", "sweater", "pants")
  *    )
  * )
- * </pre>
+ * ```
  *
  * The example will return the selected entities (if present) in the exact order of their `code` attributes that is
  * stated in the second to Nth argument of this ordering constraint. If there are entities, that have not the attribute
  * `code` , then they will be present at the end of the output in ascending order of their primary keys (or they will be
  * sorted by additional ordering constraint in the chain).
  *
- * <p><a href="https://evitadb.io/documentation/query/ordering/constant#exact-entity-attribute-value-order">Visit detailed user documentation</a></p>
+ * [Visit detailed user documentation](https://evitadb.io/documentation/query/ordering/constant#exact-entity-attribute-value-order)
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @ConstraintDefinition(
 	name = "setExact",
-	shortDescription = "The constraint sorts returned entities by ordering of the values specified in arguments matching the entity attribute of specified name.",
+	shortDescription = "Sorts returned entities by attribute values in the exact order specified in the constraint arguments.",
 	userDocsLink = "/documentation/query/ordering/constant#exact-entity-attribute-value-order",
 	supportedIn = { ConstraintDomain.ENTITY, ConstraintDomain.REFERENCE, ConstraintDomain.INLINE_REFERENCE },
 	supportedValues = @ConstraintSupportedValues(allTypesSupported = true)
 )
 public class AttributeSetExact extends AbstractOrderConstraintLeaf implements AttributeConstraint<OrderConstraint> {
-	@Serial private static final long serialVersionUID = -8627803791652731430L;
+	@Serial
+	private static final long serialVersionUID = -8627803791652731430L;
 
-	private AttributeSetExact(Serializable... arguments) {
+	private AttributeSetExact(@Nonnull Serializable... arguments) {
 		super(arguments);
 	}
 

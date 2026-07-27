@@ -7,7 +7,7 @@
   ~             |  __/\ V /| | || (_| | |_| | |_) |
   ~              \___| \_/ |_|\__\__,_|____/|____/
   ~
-  ~   Copyright (c) 2023-2025
+  ~   Copyright (c) 2023-2026
   ~
   ~   Licensed under the Business Source License, Version 1.1 (the "License");
   ~   you may not use this file except in compliance with the License.
@@ -30,12 +30,21 @@
 	<parent>
 		<groupId>io.evitadb</groupId>
 		<artifactId>evita_root</artifactId>
-		<version>2026.1-SNAPSHOT</version>
+		<version>2026.2.RC1-SNAPSHOT</version>
 		<relativePath>../../pom.xml</relativePath>
 	</parent>
 
 	<properties>
 		<sonar.skip>true</sonar.skip>
+		<!--
+			Test modules are not published to Maven Central. Skipping install/deploy
+			here also avoids the test-jar resolution failure during the deploy step,
+			which runs with `-Dmaven.test.skip=true` and therefore does not produce
+			the `-tests` classifier consumed by `evita_long_running_tests`.
+		-->
+		<maven.install.skip>true</maven.install.skip>
+		<maven.deploy.skip>true</maven.deploy.skip>
+		<skipNexusStagingDeployMojo>true</skipNexusStagingDeployMojo>
 	</properties>
 
 	<dependencies>
@@ -129,11 +138,38 @@
 			<version>${project.parent.version}</version>
 			<scope>test</scope>
 		</dependency>
+		<!--
+			ExportS3ServiceTest exercises real S3 wire behavior against a
+			containerized adobe/s3mock instance (see the test itself). We
+			use Testcontainers' GenericContainer + AWS SDK v2 directly,
+			which keeps Spring Boot / Tomcat / spring-webmvc out of our
+			compile-time test classpath entirely.
+		-->
 		<dependency>
-			<groupId>com.adobe.testing</groupId>
-			<artifactId>s3mock-junit5</artifactId>
-			<version>4.11.0</version>
+			<groupId>org.testcontainers</groupId>
+			<artifactId>junit-jupiter</artifactId>
+			<version>1.21.4</version>
 			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>software.amazon.awssdk</groupId>
+			<artifactId>s3</artifactId>
+			<version>2.49.3</version>
+			<scope>test</scope>
+			<!--
+				The test uses only the synchronous S3Client, served by the
+				transitive apache-client. Exclude the async netty-nio-client
+				so AWS SDK does not drag Netty 4.1 onto the classpath where
+				it would shadow Armeria's required Netty 4.2 transport
+				classes (TransportType references the 4.2-only
+				IoEventLoopGroup at class-init time).
+			-->
+			<exclusions>
+				<exclusion>
+					<groupId>software.amazon.awssdk</groupId>
+					<artifactId>netty-nio-client</artifactId>
+				</exclusion>
+			</exclusions>
 		</dependency>
 		<dependency>
 			<groupId>${project.parent.groupId}</groupId>
@@ -159,12 +195,12 @@
 			<version>${project.parent.version}</version>
 			<scope>test</scope>
 		</dependency>
-        <dependency>
-            <groupId>commons-codec</groupId>
-            <artifactId>commons-codec</artifactId>
-            <version>1.21.0</version>
-	        <scope>test</scope>
-        </dependency>
+		<dependency>
+			<groupId>commons-codec</groupId>
+			<artifactId>commons-codec</artifactId>
+			<version>1.22.0</version>
+			<scope>test</scope>
+		</dependency>
 		<dependency>
 			<groupId>com.fasterxml.jackson.dataformat</groupId>
 			<artifactId>jackson-dataformat-yaml</artifactId>
@@ -207,12 +243,34 @@
 		<dependency>
 			<groupId>net.javacrumbs.json-unit</groupId>
 			<artifactId>json-unit</artifactId>
-			<version>5.1.0</version>
+			<version>6.0.1</version>
 		</dependency>
 		<dependency>
 			<groupId>net.javacrumbs.json-unit</groupId>
 			<artifactId>json-unit-assertj</artifactId>
-			<version>5.1.0</version>
+			<version>6.0.1</version>
 		</dependency>
 	</dependencies>
+
+	<build>
+		<plugins>
+			<!--
+				Publish a test-jar so other test modules (notably evita_long_running_tests)
+				can reuse helper / fixture / mock classes that live in src/test/java here.
+				The test-jar contains compiled .class files only; test resources are not
+				bundled (long-running tests have their own resources where needed).
+			-->
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-jar-plugin</artifactId>
+				<executions>
+					<execution>
+						<goals>
+							<goal>test-jar</goal>
+						</goals>
+					</execution>
+				</executions>
+			</plugin>
+		</plugins>
+	</build>
 </project>

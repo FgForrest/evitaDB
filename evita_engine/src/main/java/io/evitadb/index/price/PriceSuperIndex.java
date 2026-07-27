@@ -27,7 +27,9 @@ import io.evitadb.api.query.order.PriceNatural;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.transaction.Transaction;
+import io.evitadb.core.transaction.memory.Snapshotable;
 import io.evitadb.core.transaction.memory.TransactionalContainerChanges;
+import io.evitadb.core.transaction.memory.TransactionalContainerChanges.ContainerChangesMemento;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.dataType.DateTimeRange;
@@ -37,10 +39,12 @@ import io.evitadb.index.price.model.PriceIndexKey;
 import io.evitadb.index.price.model.priceRecord.PriceRecord;
 import io.evitadb.index.price.model.priceRecord.PriceRecordContract;
 import io.evitadb.index.price.model.priceRecord.PriceRecordInnerRecordSpecific;
+import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Function;
@@ -62,7 +66,9 @@ import static java.util.Optional.ofNullable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class PriceSuperIndex extends AbstractPriceIndex<PriceListAndCurrencyPriceSuperIndex> implements TransactionalLayerProducer<PriceIndexChanges, PriceSuperIndex> {
+public class PriceSuperIndex
+	extends AbstractPriceIndex<PriceListAndCurrencyPriceSuperIndex>
+	implements TransactionalLayerProducer<PriceIndexChanges, PriceSuperIndex> {
 	@Serial private static final long serialVersionUID = 7596276815836027747L;
 	/**
 	 * Map of {@link PriceListAndCurrencyPriceSuperIndex indexes} that contains prices that relates to specific price-list
@@ -89,7 +95,10 @@ public class PriceSuperIndex extends AbstractPriceIndex<PriceListAndCurrencyPric
 
 	@Nonnull
 	@Override
-	public PriceSuperIndex createCopyWithMergedTransactionalMemory(@Nullable PriceIndexChanges layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
+	public PriceSuperIndex createCopyWithMergedTransactionalMemory(
+		@Nullable PriceIndexChanges layer,
+		@Nonnull TransactionalLayerMaintainer transactionalLayer
+	) {
 		final PriceSuperIndex priceIndex = new PriceSuperIndex(
 			transactionalLayer.getStateCopyWithCommittedChanges(this.priceIndexes)
 		);
@@ -110,11 +119,35 @@ public class PriceSuperIndex extends AbstractPriceIndex<PriceListAndCurrencyPric
 
 	@Nonnull
 	@Override
-	protected PriceListAndCurrencyPriceSuperIndex createNewPriceListAndCurrencyIndex(@Nonnull PriceIndexKey lookupKey) {
+	protected PriceListAndCurrencyPriceSuperIndex createNewPriceListAndCurrencyIndex(
+		@Nonnull PriceIndexKey lookupKey,
+		@Nonnull PriceSuperIndex superPriceIndex
+	) {
+		assertIsThisIndex(superPriceIndex);
 		final PriceListAndCurrencyPriceSuperIndex newPriceListIndex = new PriceListAndCurrencyPriceSuperIndex(lookupKey);
 		ofNullable(Transaction.getOrCreateTransactionalMemoryLayer(this))
 			.ifPresent(it -> it.addCreatedItem(newPriceListIndex));
 		return newPriceListIndex;
+	}
+
+	/**
+	 * Verifies that the super price index the caller threaded down the write path is this very index.
+	 *
+	 * A super index owns the memory-expensive price records outright and so has no use for the parameter - but the check
+	 * is free and it is the only place where the caller's claim ("this is the price index of the GLOBAL entity index that
+	 * backs the index you are mutating") can be falsified cheaply. A mutation executor resolves the GLOBAL once and
+	 * threads the same instance into both the GLOBAL's own price index and every reduced index it touches, so a caller
+	 * that picked up the wrong catalog version's GLOBAL - the failure the removed super-index pointer used to be able to
+	 * introduce silently - trips here on the very first price it writes.
+	 *
+	 * @param superPriceIndex the super price index handed over by the caller
+	 */
+	private void assertIsThisIndex(@Nonnull PriceSuperIndex superPriceIndex) {
+		Assert.isPremiseValid(
+			superPriceIndex == this,
+			"Price write routed to a super index with a foreign GLOBAL price index handed in - " +
+				"the caller resolved a different (or stale) GLOBAL entity index than the one it is mutating!"
+		);
 	}
 
 	@Override
@@ -129,8 +162,10 @@ public class PriceSuperIndex extends AbstractPriceIndex<PriceListAndCurrencyPric
 		@Nullable ReferenceSchemaContract referenceSchema,
 		@Nonnull PriceListAndCurrencyPriceSuperIndex priceListIndex, int entityPrimaryKey,
 		int internalPriceId, int priceId, @Nullable Integer innerRecordId,
-		@Nullable DateTimeRange validity, int priceWithoutTax, int priceWithTax
+		@Nullable DateTimeRange validity, int priceWithoutTax, int priceWithTax,
+		@Nonnull PriceSuperIndex superPriceIndex
 	) {
+		assertIsThisIndex(superPriceIndex);
 		final PriceRecordContract priceRecord = innerRecordId == null ?
 			new PriceRecord(internalPriceId, priceId, entityPrimaryKey, priceWithTax, priceWithoutTax) :
 			new PriceRecordInnerRecordSpecific(
@@ -145,8 +180,10 @@ public class PriceSuperIndex extends AbstractPriceIndex<PriceListAndCurrencyPric
 		@Nullable ReferenceSchemaContract referenceSchema,
 		@Nonnull PriceListAndCurrencyPriceSuperIndex priceListIndex, int entityPrimaryKey,
 		int internalPriceId, int priceId, @Nullable Integer innerRecordId,
-		@Nullable DateTimeRange validity, int priceWithoutTax, int priceWithTax
+		@Nullable DateTimeRange validity, int priceWithoutTax, int priceWithTax,
+		@Nonnull PriceSuperIndex superPriceIndex
 	) {
+		assertIsThisIndex(superPriceIndex);
 		priceListIndex.removePrice(entityPrimaryKey, internalPriceId, validity);
 	}
 
@@ -157,10 +194,48 @@ public class PriceSuperIndex extends AbstractPriceIndex<PriceListAndCurrencyPric
 	}
 
 	/**
+	 * Narrows the contract's wildcard element type to the concrete super index this implementation maintains. Every
+	 * per-price-list index held by a super index is a {@link PriceListAndCurrencyPriceSuperIndex} - the class generic
+	 * bound already guarantees it, and this override lets callers that need the super-index API (such as reclaiming
+	 * the persisted leaf pages of a dropped index) rely on it statically instead of casting.
+	 *
+	 * @return the per-price-list super indexes maintained by this index
+	 */
+	@Nonnull
+	@Override
+	public Collection<PriceListAndCurrencyPriceSuperIndex> getPriceListAndCurrencyIndexes() {
+		return this.priceIndexes.values();
+	}
+
+	/**
+	 * Resolves the super index of a single price-list / currency combination, which a reduced
+	 * {@link PriceListAndCurrencyPriceRefIndex} of the same combination needs in order to reach the memory-expensive
+	 * {@link PriceRecord} and {@link io.evitadb.index.price.model.entityPrices.EntityPrices} instances it shares rather
+	 * than owns.
+	 *
+	 * Unlike {@link #getPriceIndex(PriceIndexKey)} the combination is required to exist: a price is always added to the
+	 * super index before the reduced index that references it, so an absent combination is a programming error rather
+	 * than an expected miss. The read inside consults the transactional combo map, so a combination created earlier in
+	 * the same transaction is visible.
+	 *
+	 * @param priceIndexKey the price-list / currency combination to resolve
+	 * @return the super price index backing the combination (never `null`)
+	 */
+	@Nonnull
+	public PriceListAndCurrencyPriceSuperIndex getPriceIndexOrThrow(@Nonnull PriceIndexKey priceIndexKey) {
+		final PriceListAndCurrencyPriceSuperIndex superIndex = this.priceIndexes.get(priceIndexKey);
+		Assert.isPremiseValid(
+			superIndex != null,
+			() -> "Super price index for `" + priceIndexKey + "` must exist in the GLOBAL entity index!"
+		);
+		return superIndex;
+	}
+
+	/**
 	 * This class collects changes in {@link #priceIndexes} transactional map.
 	 */
-	public static class PriceIndexChanges {
-		private final TransactionalContainerChanges<Void, PriceListAndCurrencyPriceSuperIndex, PriceListAndCurrencyPriceSuperIndex> collectedPriceIndexChanges = new TransactionalContainerChanges<>();
+	public static class PriceIndexChanges implements Snapshotable<PriceIndexChanges.PriceIndexChangesMemento> {
+		private final TransactionalContainerChanges<PriceListAndCurrencyPriceSuperIndex, PriceListAndCurrencyPriceSuperIndex> collectedPriceIndexChanges = new TransactionalContainerChanges<>();
 
 		public void addCreatedItem(PriceListAndCurrencyPriceSuperIndex priceIndex) {
 			this.collectedPriceIndexChanges.addCreatedItem(priceIndex);
@@ -176,6 +251,27 @@ public class PriceSuperIndex extends AbstractPriceIndex<PriceListAndCurrencyPric
 
 		public void cleanAll(TransactionalLayerMaintainer transactionalLayer) {
 			this.collectedPriceIndexChanges.cleanAll(transactionalLayer);
+		}
+
+		@Nonnull
+		@Override
+		public PriceIndexChangesMemento snapshot() {
+			return new PriceIndexChangesMemento(this.collectedPriceIndexChanges.snapshot());
+		}
+
+		@Override
+		public void restore(@Nonnull PriceIndexChangesMemento memento) {
+			this.collectedPriceIndexChanges.restore(memento.collectedPriceIndexChanges());
+		}
+
+		/**
+		 * Memento bundling the savepoint state of every {@link TransactionalContainerChanges} this aggregate tracks.
+		 *
+		 * @param collectedPriceIndexChanges snapshot of the price-index created/removed bookkeeping
+		 */
+		public record PriceIndexChangesMemento(
+			@Nonnull ContainerChangesMemento<PriceListAndCurrencyPriceSuperIndex> collectedPriceIndexChanges
+		) {
 		}
 	}
 

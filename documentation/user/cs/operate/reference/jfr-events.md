@@ -1,5 +1,6 @@
 ---
-commit: '792ae01876da693d62d7b9e006a02925c0e31fb6'
+commit: '0197da1799074ccf582750c7096c21cec0705568'
+translated: true
 ---
 ### Události Java Flight Recorder (JFR)
 
@@ -128,13 +129,13 @@ commit: '792ae01876da693d62d7b9e006a02925c0e31fb6'
   <dd>Událost, která je vyvolána, když úkol na pozadí překročí časový limit a je zrušen.</dd>
   <dt><SourceClass>evita_engine/src/main/java/io/evitadb/core/metric/event/system/EvitaStatisticsEvent.java</SourceClass> Evita started</dt>
   <dd>Událost, která je spuštěna při startu instance evitaDB.</dd>
-  <dt><SourceClass>evita_engine/src/main/java/io/evitadb/core/metric/event/system/RequestForkJoinPoolStatisticsEvent.java</SourceClass> Request executor statistics</dt>
+  <dt><SourceClass>evita_engine/src/main/java/io/evitadb/core/metric/event/system/RequestThreadPoolStatisticsEvent.java</SourceClass> Request executor statistics</dt>
   <dd>Událost, která je v pravidelných intervalech vyvolána pro sledování statistik vykonavatele požadavků.</dd>
   <dt><SourceClass>evita_engine/src/main/java/io/evitadb/core/metric/event/system/RingBufferStatisticsEvent.java</SourceClass> Ring buffer statistics</dt>
   <dd>Událost, která pravidelně monitoruje statistiky kruhového bufferu v paměti.</dd>
   <dt><SourceClass>evita_engine/src/main/java/io/evitadb/core/metric/event/system/ScheduledExecutorStatisticsEvent.java</SourceClass> Scheduled executor statistics</dt>
   <dd>Událost, která je v pravidelných intervalech vyvolána pro sledování statistik plánovaného vykonavatele.</dd>
-  <dt><SourceClass>evita_engine/src/main/java/io/evitadb/core/metric/event/system/TransactionForkJoinPoolStatisticsEvent.java</SourceClass> Transaction executor statistics</dt>
+  <dt><SourceClass>evita_engine/src/main/java/io/evitadb/core/metric/event/system/TransactionThreadPoolStatisticsEvent.java</SourceClass> Transaction executor statistics</dt>
   <dd>Událost, která je v pravidelných intervalech vyvolána pro sledování statistik vykonavatele transakcí.</dd>
 </dl>
 

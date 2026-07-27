@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,9 +23,10 @@
 
 package io.evitadb.api.query.expression;
 
+import io.evitadb.api.query.expression.bool.ConjunctionOperator;
 import io.evitadb.api.query.expression.exception.ParserException;
-import io.evitadb.api.query.expression.parser.grammar.ExpressionLexer;
-import io.evitadb.api.query.expression.parser.grammar.ExpressionParser;
+import io.evitadb.api.query.expression.parser.grammar.EvitaELLexer;
+import io.evitadb.api.query.expression.parser.grammar.EvitaELParser;
 import io.evitadb.api.query.expression.parser.visitor.DefaultExpressionVisitor;
 import io.evitadb.api.query.parser.exception.BailErrorStrategy;
 import io.evitadb.api.query.parser.exception.EvitaSyntaxException;
@@ -40,6 +41,7 @@ import org.antlr.v4.runtime.CommonTokenStream;
 import org.antlr.v4.runtime.misc.ParseCancellationException;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 /**
  * The ExpressionFactory interface provides methods for parsing an expression string and generating the corresponding
@@ -89,18 +91,47 @@ public interface ExpressionFactory {
 	}
 
 	/**
+	 * Combines two optional expressions into a single logical conjunction (`AND`). The helper is null-safe:
+	 *
+	 * - `and(null, null)` returns `null` (no condition at all).
+	 * - `and(null, b)` returns `b` unchanged.
+	 * - `and(a, null)` returns `a` unchanged.
+	 * - `and(a, b)` returns a new `Expression` whose root is a `ConjunctionOperator` over both operands.
+	 *
+	 * The contract makes the helper safe to use anywhere two independent expression sources need to be merged
+	 * without forcing callers to write boilerplate null checks. The returned `Expression` shares the operand
+	 * nodes of the inputs — it does **not** clone or rewrite them.
+	 *
+	 * @param left  left-hand operand of the conjunction, may be `null`
+	 * @param right right-hand operand of the conjunction, may be `null`
+	 * @return combined expression, or `null` if both inputs are `null`
+	 */
+	@Nullable
+	static Expression and(@Nullable Expression left, @Nullable Expression right) {
+		if (left == null) {
+			return right;
+		}
+		if (right == null) {
+			return left;
+		}
+		return new Expression(
+			new ConjunctionOperator(left.getOperand(), right.getOperand())
+		);
+	}
+
+	/**
 	 * Returns new preconfigured expression parser with preconfigured lexer to string that is being parsed.
 	 *
 	 * @param stringToParse the input string to be parsed by the ExpressionFactory
 	 * @return a configured ExpressionFactory instance ready to parse the input string
 	 */
 	@Nonnull
-	private static ExpressionParser getParser(@Nonnull String stringToParse) {
-		final ExpressionLexer lexer = new ExpressionLexer(CharStreams.fromString(stringToParse));
+	private static EvitaELParser getParser(@Nonnull String stringToParse) {
+		final EvitaELLexer lexer = new EvitaELLexer(CharStreams.fromString(stringToParse));
 		lexer.removeErrorListeners();
 		lexer.addErrorListener(SyntaxErrorReporter.getInstance());
 
-		final ExpressionParser parser = new ExpressionParser(new CommonTokenStream(lexer));
+		final EvitaELParser parser = new EvitaELParser(new CommonTokenStream(lexer));
 		parser.setErrorHandler(new BailErrorStrategy());
 		parser.removeErrorListeners();
 		parser.addErrorListener(SyntaxErrorReporter.getInstance());

@@ -23,24 +23,32 @@
 
 package io.evitadb.index.array;
 
+import io.evitadb.core.transaction.memory.Snapshotable;
+import io.evitadb.index.array.IntArrayChanges.IntArrayChangesMemento;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.ArrayUtils.InsertionPosition;
 
+import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
 import java.util.Arrays;
 
 /**
- * Support class that handles isolated transactional changes upon an integer array.
- * This data object is not thread safe and contains modification layer data that can be merged with immutable delegate
- * array to produce new array with requested modifications.
+ * Transactional diff layer for {@link TransactionalIntArray}. This class is part of evitaDB's Software Transactional
+ * Memory (STM) framework and holds insertion and removal commands recorded during a transaction. When the transaction
+ * commits, these commands are merged with the immutable delegate array to produce an updated snapshot; on rollback,
+ * they are simply discarded.
+ *
+ * This class is not thread-safe because each diff layer is bound to a single transaction thread via
+ * a ThreadLocal-bound Transaction object.
  *
  * Note: I tested the performance with using RoaringBitmaps instead of plain arrays but the insertion was 25% slower.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2019
  */
 @NotThreadSafe
-public class IntArrayChanges implements ArrayChangesIteratorSupport {
+public class IntArrayChanges
+	implements ArrayChangesIteratorSupport, Snapshotable<IntArrayChangesMemento> {
 	private static final int[][] EMPTY_BI_INT_ARRAY = new int[0][];
 	/**
 	 * Unmodifiable underlying array.
@@ -67,28 +75,11 @@ public class IntArrayChanges implements ArrayChangesIteratorSupport {
 	@Nullable private int[] memoizedMergedArray;
 
 	/**
-	 * Computes closest modification operation that should occur upon the original array.
+	 * Creates a new change layer over the given delegate array.
 	 *
-	 * @param nextInsertionPosition index of the next non-processed insertion command
-	 * @param nextRemovalPosition   index of the next non-processed removal command
+	 * @param delegate the immutable baseline array
 	 */
-	private static void getNextOperations(int nextInsertionPosition, int nextRemovalPosition, ChangePlan plan) {
-		if (nextInsertionPosition >= 0) {
-			if (nextRemovalPosition == -1 || nextRemovalPosition > nextInsertionPosition) {
-				plan.planInsertOperation(nextInsertionPosition);
-			} else if (nextInsertionPosition == nextRemovalPosition) {
-				plan.planBothOperations(nextInsertionPosition);
-			} else {
-				plan.planRemovalOperation(nextRemovalPosition);
-			}
-		} else if (nextRemovalPosition >= 0 && nextInsertionPosition == -1) {
-			plan.planRemovalOperation(nextRemovalPosition);
-		} else {
-			plan.noOperations();
-		}
-	}
-
-	IntArrayChanges(int[] delegate) {
+	IntArrayChanges(@Nonnull int[] delegate) {
 		this.delegate = delegate;
 	}
 
@@ -183,7 +174,7 @@ public class IntArrayChanges implements ArrayChangesIteratorSupport {
 		final InsertionPosition position = ArrayUtils.computeInsertPositionOfIntInOrderedArray(recordId, this.delegate);
 		// record id was already part of the array, but may have been removed
 		if (position.alreadyPresent()) {
-			int removalIndex = Arrays.binarySearch(this.removals, position.position());
+			final int removalIndex = Arrays.binarySearch(this.removals, position.position());
 			if (removalIndex >= 0) {
 				// just remove the position from the removals
 				this.removals = ArrayUtils.removeIntFromArrayOnIndex(this.removals, removalIndex);
@@ -197,8 +188,12 @@ public class IntArrayChanges implements ArrayChangesIteratorSupport {
 			} else {
 				// if not - create new list of additions on expected position
 				final int startIndex = -1 * (index) - 1;
-				this.insertions = ArrayUtils.insertIntIntoArrayOnIndex(position.position(), this.insertions, startIndex);
-				this.insertedValues = ArrayUtils.insertRecordIntoArrayOnIndex(new int[]{recordId}, this.insertedValues, startIndex);
+				this.insertions = ArrayUtils.insertIntIntoArrayOnIndex(
+					position.position(), this.insertions, startIndex
+				);
+				this.insertedValues = ArrayUtils.insertRecordIntoArrayOnIndex(
+					new int[]{recordId}, this.insertedValues, startIndex
+				);
 			}
 		}
 		// nullify memoized result that becomes obsolete by this operation
@@ -217,11 +212,14 @@ public class IntArrayChanges implements ArrayChangesIteratorSupport {
 			this.removals = ArrayUtils.insertIntIntoOrderedArray(position, this.removals);
 		} else {
 			// record is not part of the original array but might be present on change layer
-			final int changePosition = ArrayUtils.computeInsertPositionOfIntInOrderedArray(recordId, this.delegate).position();
-			int insertionIndex = Arrays.binarySearch(this.insertions, changePosition);
+			final int changePosition =
+				ArrayUtils.computeInsertPositionOfIntInOrderedArray(recordId, this.delegate).position();
+			final int insertionIndex = Arrays.binarySearch(this.insertions, changePosition);
 			if (insertionIndex >= 0) {
 				// yes the record was added recently and we need to rollback this insertion
-				this.insertedValues[insertionIndex] = ArrayUtils.removeIntFromOrderedArray(recordId, this.insertedValues[insertionIndex]);
+				this.insertedValues[insertionIndex] = ArrayUtils.removeIntFromOrderedArray(
+					recordId, this.insertedValues[insertionIndex]
+				);
 				if (this.insertedValues[insertionIndex].length == 0) {
 					// inserted values are now empty, we need to shrink insertion arrays
 					this.insertions = ArrayUtils.removeIntFromArrayOnIndex(this.insertions, insertionIndex);
@@ -237,6 +235,7 @@ public class IntArrayChanges implements ArrayChangesIteratorSupport {
 	 * This method computes new array from the immutable original array and the set of insertions / removals made upon
 	 * it.
 	 */
+	@Nonnull
 	int[] getMergedArray() {
 		if (this.insertions.length == 0 && this.removals.length == 0) {
 			// if there are no insertions / removals - return the original
@@ -257,67 +256,93 @@ public class IntArrayChanges implements ArrayChangesIteratorSupport {
 
 				// from left to right get first position with change operations
 				final ChangePlan plan = new ChangePlan();
-				getNextOperations(nextInsertionPosition, nextRemovalPosition, plan);
+				plan.planNextOperation(nextInsertionPosition, nextRemovalPosition);
 
 				while (plan.hasAnythingToDo()) {
 					if (plan.bothOperationsRequested()) {
-						// both insertion and removal occurred on this position - move indexes in both insertion and removal arrays
+						// both insertion and removal on this position - advance both indexes
 						insPositionIndex++;
 						remPositionIndex++;
 
-						// insert requested records in to the target array and skip removed record from original array
+						// insert requested records and skip removed record from original array
 						final int[] insertedRecords = this.insertedValues[insPositionIndex];
 						final int originalCopyLength = plan.getPosition() - lastPosition;
-						System.arraycopy(this.delegate, lastPosition, computedArray, lastComputedPosition, originalCopyLength);
+						System.arraycopy(
+							this.delegate, lastPosition,
+							computedArray, lastComputedPosition, originalCopyLength
+						);
 						final int insertedLength = insertedRecords.length;
-						System.arraycopy(insertedRecords, 0, computedArray, lastComputedPosition + originalCopyLength, insertedLength);
+						System.arraycopy(
+							insertedRecords, 0,
+							computedArray, lastComputedPosition + originalCopyLength, insertedLength
+						);
 						lastPosition = plan.getPosition() + 1;
 						lastComputedPosition = lastComputedPosition + originalCopyLength + insertedLength;
 
 						// move insertions / removal cursors - if there are any
-						nextInsertionPosition = this.insertions.length > insPositionIndex + 1 ? this.insertions[insPositionIndex + 1] : -1;
-						nextRemovalPosition = this.removals.length > remPositionIndex + 1 ? this.removals[remPositionIndex + 1] : -1;
+						nextInsertionPosition = this.insertions.length > insPositionIndex + 1
+							? this.insertions[insPositionIndex + 1] : -1;
+						nextRemovalPosition = this.removals.length > remPositionIndex + 1
+							? this.removals[remPositionIndex + 1] : -1;
 
 					} else {
 						if (plan.isInsertion()) {
-							// insertion is requested on specified position - move index in insertion array
+							// insertion requested on this position - advance insertion index
 							insPositionIndex++;
 
-							// insert requested records in to the target array and after the existing record in original array
+							// insert requested records after the existing record in original array
 							final int[] insertedRecords = this.insertedValues[insPositionIndex];
 							final int originalCopyLength = plan.getPosition() - lastPosition;
-							System.arraycopy(this.delegate, lastPosition, computedArray, lastComputedPosition, originalCopyLength);
+							System.arraycopy(
+								this.delegate, lastPosition,
+								computedArray, lastComputedPosition, originalCopyLength
+							);
 							final int insertedLength = insertedRecords.length;
-							System.arraycopy(insertedRecords, 0, computedArray, lastComputedPosition + originalCopyLength, insertedLength);
+							System.arraycopy(
+								insertedRecords, 0,
+								computedArray, lastComputedPosition + originalCopyLength,
+								insertedLength
+							);
 							lastPosition = plan.getPosition();
 							lastComputedPosition = lastComputedPosition + originalCopyLength + insertedLength;
 
 							// move insertions / removal cursors - if there are any
-							nextInsertionPosition = this.insertions.length > insPositionIndex + 1 ? this.insertions[insPositionIndex + 1] : -1;
+							nextInsertionPosition =
+								this.insertions.length > insPositionIndex + 1
+									? this.insertions[insPositionIndex + 1] : -1;
 
 						} else {
-							// removal is requested on specified position - move index in removal array
+							// removal requested on this position - advance removal index
 							remPositionIndex++;
 
 							// copy contents of the original array skipping removed record
 							final int originalCopyLength = plan.getPosition() - lastPosition;
-							System.arraycopy(this.delegate, lastPosition, computedArray, lastComputedPosition, originalCopyLength);
+							System.arraycopy(
+								this.delegate, lastPosition,
+								computedArray, lastComputedPosition, originalCopyLength
+							);
 							lastPosition = plan.getPosition() + 1;
 							lastComputedPosition = lastComputedPosition + originalCopyLength;
 
 							// move insertions / removal cursors - if there are any
-							nextRemovalPosition = this.removals.length > remPositionIndex + 1 ? this.removals[remPositionIndex + 1] : -1;
+							nextRemovalPosition =
+								this.removals.length > remPositionIndex + 1
+									? this.removals[remPositionIndex + 1] : -1;
 
 						}
 					}
 
 					// plan next operations
-					getNextOperations(nextInsertionPosition, nextRemovalPosition, plan);
+					plan.planNextOperation(nextInsertionPosition, nextRemovalPosition);
 				}
 
 				// copy rest of the original array into the result (no operations were planned for this part)
 				if (lastPosition < this.delegate.length) {
-					System.arraycopy(this.delegate, lastPosition, computedArray, lastComputedPosition, this.delegate.length - lastPosition);
+					System.arraycopy(
+						this.delegate, lastPosition,
+						computedArray, lastComputedPosition,
+						this.delegate.length - lastPosition
+					);
 				}
 
 				// memoize costly computation and return
@@ -339,6 +364,94 @@ public class IntArrayChanges implements ArrayChangesIteratorSupport {
 			result += insertedValue.length;
 		}
 		return result;
+	}
+
+	/**
+	 * Captures the current diff state (insertion positions, inserted payload rows, removal positions and the
+	 * memoized merged-array cache) into an immutable memento for a transactional savepoint.
+	 *
+	 * Independence is guaranteed cheaply because the layer mutates its arrays with strict copy-on-write
+	 * discipline:
+	 *
+	 * - `insertions` and `removals` are reference-captured as-is — every mutation path replaces the whole
+	 *   field with a freshly allocated array (via the {@link ArrayUtils} helpers), never writing an existing
+	 *   element, so the captured reference can never be observed mutating.
+	 * - `insertedValues` requires a ONE-LEVEL clone of the outer array: the outer slots are reassigned in
+	 *   place by {@link #addRecordId(int)} and {@link #removeRecordId(int)}, which would otherwise corrupt
+	 *   the memento. The inner rows are shared by reference and stay safe because rows are only ever replaced
+	 *   wholesale with fresh allocations, never element-mutated.
+	 * - `memoizedMergedArray` is a derived cache and is captured by reference; it is recomputable on demand.
+	 *
+	 * The immutable `delegate` baseline is intentionally NOT captured — it is final, shared with the owning
+	 * {@link TransactionalIntArray} and never mutated, so it is the unchanging reference point that both
+	 * snapshot and restore implicitly share.
+	 *
+	 * @return a memento that {@link #restore(IntArrayChangesMemento)} can later use to reset this layer
+	 */
+	@Nonnull
+	@Override
+	public IntArrayChangesMemento snapshot() {
+		return new IntArrayChangesMemento(
+			// reference-captured: replaced wholesale on each mutation, never element-mutated
+			this.insertions,
+			// one-level clone: outer slots are reassigned in place (addRecordId / removeRecordId)
+			this.insertedValues.clone(),
+			// reference-captured: replaced wholesale on each mutation, never element-mutated
+			this.removals,
+			// derived cache captured by reference; recomputable on demand
+			this.memoizedMergedArray
+		);
+	}
+
+	/**
+	 * Resets this diff layer back to the exact state captured by the given memento, undoing every
+	 * modification made since the memento was produced. All three diff arrays (kept index-parallel and
+	 * sorted) are restored atomically together with the memoized merged-array cache, so the parallel/sorted
+	 * invariants are preserved by construction.
+	 *
+	 * The memento may be restored repeatedly: `insertions`, `removals` and `memoizedMergedArray` are only
+	 * ever reassigned wholesale by subsequent mutations (never element-mutated), so aliasing the memento's
+	 * references into the live fields is safe. The outer `insertedValues` array, however, has its slots
+	 * reassigned in place by `addRecordId` / `removeRecordId`, so it MUST be re-cloned here (mirroring the
+	 * snapshot clone); otherwise a mutation after the first restore would write through into the memento and
+	 * corrupt a subsequent restore. The final `delegate` baseline is intentionally left untouched.
+	 *
+	 * @param memento a memento previously produced by {@link #snapshot()} on this same layer
+	 */
+	@Override
+	public void restore(@Nonnull IntArrayChangesMemento memento) {
+		this.insertions = memento.insertions();
+		// one-level clone: the live outer array must not alias the memento's, because addRecordId /
+		// removeRecordId reassign outer slots in place (which would otherwise corrupt the memento)
+		this.insertedValues = memento.insertedValues().clone();
+		this.removals = memento.removals();
+		this.memoizedMergedArray = memento.memoizedMergedArray();
+		// delegate is final and shared with the immutable baseline — intentionally untouched
+	}
+
+	/**
+	 * Immutable carrier of the {@link IntArrayChanges} diff state for a transactional savepoint.
+	 *
+	 * The `delegate` baseline is deliberately absent — it is final on the layer and shared by reference with
+	 * the owning {@link TransactionalIntArray}, so it never needs to be captured or restored.
+	 *
+	 * @param insertions          sorted positions in the delegate array where insertions occur;
+	 *                            index-parallel to `insertedValues`. Captured by reference (the layer side is
+	 *                            copy-on-write).
+	 * @param insertedValues      one-level clone of the outer payload array (`insertedValues[i]` is the sorted
+	 *                            set of recordIds inserted at delegate position `insertions[i]`); inner rows
+	 *                            shared by reference (rows are replaced wholesale, never element-mutated).
+	 * @param removals            sorted positions in the delegate array marked for removal. Captured by
+	 *                            reference (the layer side is copy-on-write).
+	 * @param memoizedMergedArray derived merged-array cache, or `null` if not yet computed; recomputable on
+	 *                            demand.
+	 */
+	public record IntArrayChangesMemento(
+		@Nonnull int[] insertions,
+		@Nonnull int[][] insertedValues,
+		@Nonnull int[] removals,
+		@Nullable int[] memoizedMergedArray
+	) {
 	}
 
 }

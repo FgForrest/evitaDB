@@ -33,18 +33,14 @@ import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.utils.Assert;
 import net.openhft.hashing.LongHashFunction;
-import org.roaringbitmap.RoaringBitmap;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 
 import javax.annotation.Nonnull;
 import java.util.Arrays;
-import java.util.Objects;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
-import java.util.stream.LongStream;
-import java.util.stream.Stream;
 
 /**
- * And formula will perform boolean negation (NOT) on two bitmaps: superset and subtracted one
+ * Not formula will perform boolean negation (NOT) on two bitmaps: superset and subtracted one
  * Example input:
  *
  * superset:   [   2, 3, 4, 5, 8]
@@ -57,8 +53,17 @@ import java.util.stream.Stream;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public class NotFormula extends AbstractCacheableFormula {
+	/**
+	 * Unique identifier of this formula used in {@link AbstractCacheableFormula#getClassId()} for hash computation.
+	 */
 	private static final long CLASS_ID = -588386855739382284L;
+	/**
+	 * Bitmap of entity primary keys to subtract from the superset (used when formula is constructed from raw bitmaps).
+	 */
 	private final Bitmap subtractedBitmap;
+	/**
+	 * Bitmap of entity primary keys representing the superset from which subtracted keys are removed.
+	 */
 	private final Bitmap supersetBitmap;
 
 	protected NotFormula(@Nonnull Consumer<CacheableFormula> computationCallback, @Nonnull Formula subtractedFormula, @Nonnull Formula supersetFormula) {
@@ -133,7 +138,7 @@ public class NotFormula extends AbstractCacheableFormula {
 	@Override
 	public String toString() {
 		if (this.subtractedBitmap != null && this.supersetBitmap != null) {
-			return "NOT: " + Stream.of(this.subtractedBitmap, this.supersetBitmap).map(Bitmap::toString).collect(Collectors.joining(", "));
+			return "NOT: " + this.subtractedBitmap + ", " + this.supersetBitmap;
 		} else {
 			return "NOT";
 		}
@@ -146,18 +151,24 @@ public class NotFormula extends AbstractCacheableFormula {
 
 	@Nonnull
 	@Override
-	public long[] gatherBitmapIdsInternal() {
-		return LongStream.concat(
-				Stream.of(this.subtractedBitmap, this.supersetBitmap)
-					.filter(TransactionalLayerProducer.class::isInstance)
-					.mapToLong(it -> ((TransactionalLayerProducer<?, ?>) it).getId()),
-				Arrays.stream(this.innerFormulas).flatMapToLong(it -> LongStream.of(it.gatherTransactionalIds()))
-			)
-			.toArray();
+	protected long[] gatherBitmapIdsInternal() {
+		if (this.subtractedBitmap != null && this.supersetBitmap != null) {
+			int idx = 0;
+			final long[] ids = new long[2];
+			if (this.subtractedBitmap instanceof TransactionalLayerProducer<?, ?> tlp) {
+				ids[idx++] = tlp.getId();
+			}
+			if (this.supersetBitmap instanceof TransactionalLayerProducer<?, ?> tlp) {
+				ids[idx++] = tlp.getId();
+			}
+			return idx == ids.length ? ids : Arrays.copyOf(ids, idx);
+		} else {
+			return super.gatherBitmapIdsInternal();
+		}
 	}
 
 	@Override
-	public long getEstimatedCostInternal() {
+	protected long getEstimatedCostInternal() {
 		if (this.subtractedBitmap != null && this.supersetBitmap != null) {
 			try {
 				long costs = this.subtractedBitmap.size();
@@ -174,7 +185,7 @@ public class NotFormula extends AbstractCacheableFormula {
 	@Override
 	protected long getEstimatedBaseCost() {
 		if (this.supersetBitmap != null && this.subtractedBitmap != null) {
-			return Stream.of(this.supersetBitmap, this.subtractedBitmap).mapToLong(Bitmap::size).sum();
+			return (long) this.supersetBitmap.size() + (long) this.subtractedBitmap.size();
 		} else {
 			return super.getEstimatedBaseCost();
 		}
@@ -182,20 +193,23 @@ public class NotFormula extends AbstractCacheableFormula {
 
 	@Override
 	protected long includeAdditionalHash(@Nonnull LongHashFunction hashFunction) {
-		return hashFunction.hashLongs(
-			Stream.of(this.subtractedBitmap, this.supersetBitmap)
-				.filter(Objects::nonNull)
-				.mapToLong(it -> {
-					if (it instanceof TransactionalLayerProducer) {
-						return ((TransactionalLayerProducer<?, ?>) it).getId();
-					} else {
-						// this shouldn't happen for long arrays - these are expected to be always linked to transactional
-						// bitmaps located in indexes and represented by "transactional id"
-						return hashFunction.hashInts(it.getArray());
-					}
-				})
-				.toArray()
-		);
+		int idx = 0;
+		final long[] hashes = new long[2];
+		if (this.subtractedBitmap != null) {
+			hashes[idx++] = this.subtractedBitmap instanceof TransactionalLayerProducer<?, ?> tlp
+				? tlp.getId()
+				// this shouldn't happen for long arrays - these are expected to be always linked to transactional
+				// bitmaps located in indexes and represented by "transactional id"
+				: hashFunction.hashInts(this.subtractedBitmap.getArray());
+		}
+		if (this.supersetBitmap != null) {
+			hashes[idx++] = this.supersetBitmap instanceof TransactionalLayerProducer<?, ?> tlp
+				? tlp.getId()
+				// this shouldn't happen for long arrays - these are expected to be always linked to transactional
+				// bitmaps located in indexes and represented by "transactional id"
+				: hashFunction.hashInts(this.supersetBitmap.getArray());
+		}
+		return hashFunction.hashLongs(idx == hashes.length ? hashes : Arrays.copyOf(hashes, idx));
 	}
 
 	@Override
@@ -206,7 +220,7 @@ public class NotFormula extends AbstractCacheableFormula {
 	@Override
 	protected long getCostInternal() {
 		if (this.supersetBitmap != null && this.subtractedBitmap != null) {
-			return Stream.of(this.supersetBitmap, this.subtractedBitmap).mapToLong(Bitmap::size).sum();
+			return (long) this.supersetBitmap.size() + (long) this.subtractedBitmap.size();
 		} else {
 			final Bitmap supersetBitmap = getSupersetFormula().compute();
 			if (supersetBitmap.isEmpty()) {
@@ -236,23 +250,27 @@ public class NotFormula extends AbstractCacheableFormula {
 	protected Bitmap computeInternal() {
 		final Bitmap theResult;
 		if (this.subtractedBitmap != null && this.supersetBitmap != null) {
-			if (this.supersetBitmap.isEmpty()) {
+			// X \ X = ∅ — guards against direct construction with the same bitmap on both sides
+			if (this.supersetBitmap.isEmpty() || this.subtractedBitmap == this.supersetBitmap) {
 				theResult = EmptyBitmap.INSTANCE;
 			} else {
 				theResult = new BaseBitmap(
-					RoaringBitmap.andNot(
+					PersistentRoaringBitmap.andNot(
 						RoaringBitmapBackedBitmap.getRoaringBitmap(this.supersetBitmap),
 						RoaringBitmapBackedBitmap.getRoaringBitmap(this.subtractedBitmap)
 					)
 				);
 			}
+		} else if (getSubtractedFormula() == getSupersetFormula()) {
+			// X \ X = ∅ — guards against direct construction with the same formula on both sides
+			theResult = EmptyBitmap.INSTANCE;
 		} else {
 			final Bitmap supersetBitmap = getSupersetFormula().compute();
 			if (supersetBitmap.isEmpty()) {
 				theResult = EmptyBitmap.INSTANCE;
 			} else {
 				theResult = new BaseBitmap(
-					RoaringBitmap.andNot(
+					PersistentRoaringBitmap.andNot(
 						RoaringBitmapBackedBitmap.getRoaringBitmap(supersetBitmap),
 						RoaringBitmapBackedBitmap.getRoaringBitmap(getSubtractedFormula().compute())
 					)

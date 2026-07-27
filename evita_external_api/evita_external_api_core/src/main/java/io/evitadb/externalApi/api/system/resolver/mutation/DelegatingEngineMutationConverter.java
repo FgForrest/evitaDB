@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2025-2026
+ *   Copyright (c) 2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,16 +24,18 @@
 package io.evitadb.externalApi.api.system.resolver.mutation;
 
 import io.evitadb.api.requestResponse.mutation.EngineMutation;
-import io.evitadb.api.requestResponse.mutation.infrastructure.TransactionMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.CreateCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.DuplicateCatalogMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.MakeCatalogAliveMutation;
+import io.evitadb.api.requestResponse.schema.mutation.engine.MarkCatalogMissingMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.ModifyCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.ModifyCatalogSchemaNameMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.RemoveCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.RestoreCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.SetCatalogMutabilityMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.SetCatalogStateMutation;
+import io.evitadb.api.requestResponse.schema.mutation.engine.UpgradeCatalogFormatMutation;
+import io.evitadb.api.requestResponse.mutation.infrastructure.TransactionMutation;
 import io.evitadb.externalApi.api.resolver.mutation.DelegatingMutationConverter;
 import io.evitadb.externalApi.api.resolver.mutation.MutationObjectMapper;
 import io.evitadb.externalApi.api.resolver.mutation.MutationResolvingExceptionFactory;
@@ -70,6 +72,8 @@ public class DelegatingEngineMutationConverter extends DelegatingMutationConvert
 		registerConverter(DuplicateCatalogMutation.class, new DuplicateCatalogMutationConverter(objectParser, exceptionFactory));
 		registerConverter(SetCatalogMutabilityMutation.class, new SetCatalogMutabilityMutationConverter(objectParser, exceptionFactory));
 		registerConverter(SetCatalogStateMutation.class, new SetCatalogStateMutationConverter(objectParser, exceptionFactory));
+		registerConverter(MarkCatalogMissingMutation.class, new MarkCatalogMissingMutationConverter(objectParser, exceptionFactory));
+		registerConverter(UpgradeCatalogFormatMutation.class, new UpgradeCatalogFormatMutationConverter(objectParser, exceptionFactory));
 		registerConverter(ModifyCatalogSchemaMutation.class, new ModifyCatalogSchemaMutationConverter(objectParser, exceptionFactory));
 		registerConverter(ModifyCatalogSchemaNameMutation.class, new ModifyCatalogSchemaNameMutationConverter(objectParser, exceptionFactory));
 		registerConverter(RemoveCatalogSchemaMutation.class, new RemoveCatalogSchemaMutationConverter(objectParser, exceptionFactory));

@@ -1,0 +1,13 @@
+{
+  "network": {
+	"domainWhitelist": [
+	  "demo.evitadb.io",
+	  "evitadb.io"
+	]
+  },
+  "hooks": {
+	"setup": {
+	  "script": ".hole/setup.sh"
+	}
+  }
+}

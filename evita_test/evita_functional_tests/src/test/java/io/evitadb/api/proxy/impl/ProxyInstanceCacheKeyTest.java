@@ -30,10 +30,14 @@ import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.PROXY;
+import static io.evitadb.test.TestTags.CACHE;
 
 /**
  * Tests for the various {@link ProxyInstanceCacheKey} implementations used
@@ -42,6 +46,9 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 @DisplayName("ProxyInstanceCacheKey implementations")
+@Tag(CONTRACT)
+@Tag(PROXY)
+@Tag(CACHE)
 class ProxyInstanceCacheKeyTest {
 
 	@Nested

@@ -147,13 +147,12 @@ public class AttributeIsTranslator extends AbstractAttributeTranslator
 						attributeSchema,
 						attributeSchema.isLocalized() ? filterByVisitor.getLocale() : null
 					);
-					if (filterIndex == null) {
-						return it.getAllPrimaryKeysFormula();
-					}
-					return new NotFormula(
-						filterIndex.getAllRecordsFormula(),
-						it.getAllPrimaryKeysFormula()
-					);
+					return filterIndex == null ?
+						it.getAllPrimaryKeysFormula() :
+						new NotFormula(
+							filterIndex.getAllRecordsFormula(),
+							it.getAllPrimaryKeysFormula()
+						);
 				}
 			)
 			.toArray(Formula[]::new);
@@ -176,7 +175,7 @@ public class AttributeIsTranslator extends AbstractAttributeTranslator
 			filterByVisitor.applyOnGlobalUniqueIndexes(
 				attributeDefinition,
 				uniqueIndex -> new NotFormula(
-					uniqueIndex.getRecordIdsFormula(filterByVisitor.getEntityType()),
+					uniqueIndex.getRecordIdsFormula(filterByVisitor.getEntityType(), filterByVisitor.getEntityTypeClassifierResolver()),
 					FormulaFactory.or(
 						filterByVisitor.getEntityIndexStream()
 							.map(EntityIndex::getAllPrimaryKeysFormula)
@@ -272,7 +271,7 @@ public class AttributeIsTranslator extends AbstractAttributeTranslator
 					filterByVisitor.applyOnGlobalUniqueIndexes(
 						globalAttributeSchema,
 						index -> {
-							final Bitmap recordIds = index.getRecordIds(filterByVisitor.getEntityType());
+							final Bitmap recordIds = index.getRecordIds(filterByVisitor.getEntityType(), filterByVisitor.getEntityTypeClassifierResolver());
 							return recordIds.isEmpty() ? EmptyFormula.INSTANCE : new ConstantFormula(recordIds);
 						}
 					)

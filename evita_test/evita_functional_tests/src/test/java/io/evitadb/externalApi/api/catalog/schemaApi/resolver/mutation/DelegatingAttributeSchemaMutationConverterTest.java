@@ -23,28 +23,43 @@
 
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation;
 
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.schema.mutation.AttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ModifyAttributeSchemaDescriptionMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ModifyAttributeSchemaNameMutation;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaConflictResolutionOverrideMutation;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.AttributeSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.ModifyAttributeSchemaDescriptionMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.ModifyAttributeSchemaNameMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.SetAttributeSchemaConflictResolutionOverrideMutationDescriptor;
+import io.evitadb.externalApi.api.model.mutation.MutationDescriptor;
 import io.evitadb.externalApi.api.resolver.mutation.PassThroughMutationObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
 import java.util.Map;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.utils.ListBuilder.list;
 import static io.evitadb.utils.MapBuilder.map;
 import static org.assertj.core.api.Assertions.assertThat;
+import static io.evitadb.test.TestTags.EXTERNAL_API;
+import static io.evitadb.test.TestTags.QUERY;
+import static io.evitadb.test.TestTags.SCHEMA;
+import static io.evitadb.test.TestTags.ATTRIBUTE;
+import static io.evitadb.test.TestTags.TRANSACTION;
 
 /**
  * Tests for {@link DelegatingAttributeSchemaMutationConverter}
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
+@Tag(EXTERNAL_API)
+@Tag(QUERY)
+@Tag(SCHEMA)
+@Tag(ATTRIBUTE)
 class DelegatingAttributeSchemaMutationConverterTest {
 
 	private DelegatingAttributeSchemaMutationConverter converter;
@@ -75,6 +90,27 @@ class DelegatingAttributeSchemaMutationConverterTest {
 						.e(ModifyAttributeSchemaNameMutationDescriptor.MUTATION_TYPE.name(), ModifyAttributeSchemaNameMutation.class.getSimpleName())
 						.e(ModifyAttributeSchemaNameMutationDescriptor.NAME.name(), "code")
 						.e(ModifyAttributeSchemaNameMutationDescriptor.NEW_NAME.name(), "betterCode"))
+					.build()
+			);
+	}
+
+	@Tag(TRANSACTION)
+	@Test
+	void shouldSerializeConflictResolutionOverrideMutationToOutput() {
+		final List<AttributeSchemaMutation> inputMutation = List.of(
+			new SetAttributeSchemaConflictResolutionOverrideMutation("code", ConflictResolutionOverride.ENTITY)
+		);
+
+		//noinspection unchecked
+		final List<Map<String, Object>> serializedMutation = (List<Map<String, Object>>) this.converter.convertToOutput(inputMutation);
+		assertThat(serializedMutation)
+			.usingRecursiveComparison()
+			.isEqualTo(
+				list()
+					.i(map()
+						.e(MutationDescriptor.MUTATION_TYPE.name(), SetAttributeSchemaConflictResolutionOverrideMutation.class.getSimpleName())
+						.e(AttributeSchemaMutationDescriptor.NAME.name(), "code")
+						.e(SetAttributeSchemaConflictResolutionOverrideMutationDescriptor.CONFLICT_RESOLUTION_OVERRIDE.name(), ConflictResolutionOverride.ENTITY.name()))
 					.build()
 			);
 	}

@@ -23,15 +23,24 @@
 
 package io.evitadb.api.requestResponse.extraResult;
 
+import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.extraResult.HistogramContract.Bucket;
 import io.evitadb.test.EvitaTestSupport;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import javax.annotation.Nonnull;
 import java.math.BigDecimal;
+import java.util.Optional;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.QUERY;
+import static io.evitadb.test.TestTags.HISTOGRAM;
 
 /**
  * This test verifies {@link Histogram} contract.
@@ -39,6 +48,9 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @DisplayName("Histogram")
+@Tag(CONTRACT)
+@Tag(QUERY)
+@Tag(HISTOGRAM)
 class HistogramTest implements EvitaTestSupport {
 
 	@Nested
@@ -243,6 +255,150 @@ class HistogramTest implements EvitaTestSupport {
 			final Histogram histogram = createHistogram();
 			final String result = histogram.toString();
 			assertTrue(result.contains("Histogram["));
+		}
+	}
+
+	@Nested
+	@DisplayName("Referenced entity anchors")
+	class ReferencedEntityAnchors {
+
+		@Test
+		@DisplayName("should default to empty anchor entities when using simple constructor")
+		void shouldDefaultToEmptyAnchorEntitiesWhenUsingSimpleConstructor() {
+			final Histogram histogram = createHistogram();
+			assertEquals(Optional.empty(), histogram.getMinReferencedEntity());
+			assertEquals(Optional.empty(), histogram.getMaxReferencedEntity());
+		}
+
+		@Test
+		@DisplayName("should expose anchor entities when constructed with them")
+		void shouldExposeAnchorEntitiesWhenConstructedWithThem() {
+			final SealedEntity minEntity = mockEntity(1);
+			final SealedEntity maxEntity = mockEntity(2);
+			final Histogram histogram = createHistogramWithAnchors(minEntity, maxEntity);
+			assertEquals(Optional.of(minEntity), histogram.getMinReferencedEntity());
+			assertEquals(Optional.of(maxEntity), histogram.getMaxReferencedEntity());
+		}
+
+		@Test
+		@DisplayName("should reject histogram with only min referenced entity")
+		void shouldRejectHistogramWithOnlyMinReferencedEntity() {
+			final SealedEntity minEntity = mockEntity(1);
+			assertThrows(
+				Exception.class,
+				() -> createHistogramWithAnchors(minEntity, null)
+			);
+		}
+
+		@Test
+		@DisplayName("should reject histogram with only max referenced entity")
+		void shouldRejectHistogramWithOnlyMaxReferencedEntity() {
+			final SealedEntity maxEntity = mockEntity(2);
+			assertThrows(
+				Exception.class,
+				() -> createHistogramWithAnchors(null, maxEntity)
+			);
+		}
+
+		@Test
+		@DisplayName("should accept histogram with both anchors null (degenerates to simple histogram)")
+		void shouldAcceptHistogramWithBothAnchorsNull() {
+			final Histogram histogram = createHistogramWithAnchors(null, null);
+			assertEquals(Optional.empty(), histogram.getMinReferencedEntity());
+			assertEquals(Optional.empty(), histogram.getMaxReferencedEntity());
+		}
+
+		@Test
+		@DisplayName("equals and hashCode exclude anchor entities")
+		void shouldExcludeAnchorEntitiesFromEquality() {
+			final SealedEntity minEntityA = mockEntity(1);
+			final SealedEntity maxEntityA = mockEntity(2);
+			final SealedEntity minEntityB = mockEntity(3);
+			final SealedEntity maxEntityB = mockEntity(4);
+			final Histogram withAnchorsA = createHistogramWithAnchors(minEntityA, maxEntityA);
+			final Histogram withAnchorsB = createHistogramWithAnchors(minEntityB, maxEntityB);
+			final Histogram withoutAnchors = createHistogram();
+
+			assertEquals(withAnchorsA, withAnchorsB);
+			assertEquals(withAnchorsA.hashCode(), withAnchorsB.hashCode());
+			assertEquals(withAnchorsA, withoutAnchors);
+			assertEquals(withAnchorsA.hashCode(), withoutAnchors.hashCode());
+		}
+
+		@Test
+		@DisplayName("estimateSize grows when anchor entities are present")
+		void shouldAccountForAnchorsInEstimateSize() {
+			final SealedEntity minEntity = mockEntity(1);
+			final SealedEntity maxEntity = mockEntity(2);
+			when(minEntity.estimateSize()).thenReturn(128);
+			when(maxEntity.estimateSize()).thenReturn(256);
+
+			final Histogram withAnchors = createHistogramWithAnchors(minEntity, maxEntity);
+			final Histogram withoutAnchors = createHistogram();
+			assertEquals(withoutAnchors.estimateSize() + 128 + 256, withAnchors.estimateSize());
+		}
+
+		@Nonnull
+		private Histogram createHistogramWithAnchors(
+			@javax.annotation.Nullable SealedEntity minEntity,
+			@javax.annotation.Nullable SealedEntity maxEntity
+		) {
+			final Bucket[] buckets = new Bucket[]{
+				new Bucket(BigDecimal.ONE, 5, false, new BigDecimal("50")),
+				new Bucket(new BigDecimal("5"), 3, false, new BigDecimal("30")),
+				new Bucket(BigDecimal.TEN, 2, true, new BigDecimal("20"))
+			};
+			return new Histogram(buckets, new BigDecimal("20"), minEntity, maxEntity);
+		}
+
+		@Nonnull
+		private SealedEntity mockEntity(int primaryKey) {
+			final SealedEntity entity = mock(SealedEntity.class);
+			when(entity.getPrimaryKey()).thenReturn(primaryKey);
+			return entity;
+		}
+	}
+
+	@Nested
+	@DisplayName("Explicit overall count")
+	class ExplicitOverallCount {
+
+		@Test
+		@DisplayName("should retain an explicit overall count distinct from the bucket sum")
+		void shouldRetainExplicitOverallCountDistinctFromBucketSum() {
+			// buckets sum to 5 + 3 + 2 = 10, but the range (overlap) histogram carries 4 distinct records
+			final Bucket[] buckets = new Bucket[]{
+				new Bucket(BigDecimal.ONE, 5, false, new BigDecimal("50")),
+				new Bucket(new BigDecimal("5"), 3, false, new BigDecimal("30")),
+				new Bucket(BigDecimal.TEN, 2, false, new BigDecimal("20"))
+			};
+			final int explicitOverallCount = 4;
+			final Histogram histogram = new Histogram(
+				buckets, new BigDecimal("20"), explicitOverallCount, null, null
+			);
+
+			assertEquals(
+				explicitOverallCount, histogram.getOverallCount(),
+				"explicit overall count must be returned verbatim, not the bucket sum"
+			);
+		}
+
+		@Test
+		@DisplayName("should default overall count to the bucket sum via the legacy constructor")
+		void shouldDefaultOverallCountToBucketSumViaLegacyConstructor() {
+			final Bucket[] buckets = new Bucket[]{
+				new Bucket(BigDecimal.ONE, 5, false, new BigDecimal("50")),
+				new Bucket(new BigDecimal("5"), 3, false, new BigDecimal("30")),
+				new Bucket(BigDecimal.TEN, 2, false, new BigDecimal("20"))
+			};
+
+			// the two-argument constructor must default overallCount to the sum of bucket occurrences
+			final Histogram twoArg = new Histogram(buckets, new BigDecimal("20"));
+			assertEquals(10, twoArg.getOverallCount(), "two-arg constructor must sum bucket occurrences");
+
+			// the four-argument (anchor) constructor must likewise default to the bucket sum
+			final Histogram fourArg = new Histogram(buckets, new BigDecimal("20"), null, null);
+			assertEquals(10, fourArg.getOverallCount(), "four-arg constructor must sum bucket occurrences");
 		}
 	}
 

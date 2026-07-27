@@ -44,7 +44,8 @@ import java.util.function.BooleanSupplier;
  */
 public interface AttributeSchemaEditor<T extends AttributeSchemaEditor<T>> extends
 	NamedSchemaWithDeprecationEditor<T>,
-	AttributeSchemaContract
+	AttributeSchemaContract,
+	ConflictResolutionOverrideAwareSchemaEditor<T>
 {
 	/**
 	 * Default value is used when the entity is created without this attribute specified. Default values allow to pass
@@ -261,7 +262,7 @@ public interface AttributeSchemaEditor<T extends AttributeSchemaEditor<T>> exten
 	 *
 	 * @return builder to continue with configuration
 	 */
-	@Deprecated(since = "2025.5", forRemoval = true)
+	@Deprecated(since = "2025.6", forRemoval = true)
 	@Nonnull
 	default T nonUniqueWithinLocale() {
 		return nonUniqueWithinLocaleInScope(Scope.values());
@@ -277,7 +278,7 @@ public interface AttributeSchemaEditor<T extends AttributeSchemaEditor<T>> exten
 	 * @param inScope one or more scopes in which the attribute should not be unique within particular locale
 	 * @return builder to continue with configuration
 	 */
-	@Deprecated(since = "2025.5", forRemoval = true)
+	@Deprecated(since = "2025.6", forRemoval = true)
 	@Nonnull
 	T nonUniqueWithinLocaleInScope(@Nonnull Scope... inScope);
 

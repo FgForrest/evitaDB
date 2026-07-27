@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2026
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -68,6 +68,48 @@ private static final long serialVersionUID = 0L;
   }
 
   private int bitField0_;
+  private int bodyCase_ = 0;
+  @SuppressWarnings("serial")
+  private java.lang.Object body_;
+  public enum BodyCase
+      implements com.google.protobuf.Internal.EnumLite,
+          com.google.protobuf.AbstractMessage.InternalOneOfEnum {
+    SYSTEMMUTATION(4),
+    HOSTEVENT(6),
+    BODY_NOT_SET(0);
+    private final int value;
+    private BodyCase(int value) {
+      this.value = value;
+    }
+    /**
+     * @param value The number of the enum to look for.
+     * @return The enum associated with the given number.
+     * @deprecated Use {@link #forNumber(int)} instead.
+     */
+    @java.lang.Deprecated
+    public static BodyCase valueOf(int value) {
+      return forNumber(value);
+    }
+
+    public static BodyCase forNumber(int value) {
+      switch (value) {
+        case 4: return SYSTEMMUTATION;
+        case 6: return HOSTEVENT;
+        case 0: return BODY_NOT_SET;
+        default: return null;
+      }
+    }
+    public int getNumber() {
+      return this.value;
+    }
+  };
+
+  public BodyCase
+  getBodyCase() {
+    return BodyCase.forNumber(
+        bodyCase_);
+  }
+
   public static final int VERSION_FIELD_NUMBER = 1;
   private long version_ = 0L;
   /**
@@ -125,10 +167,9 @@ private static final long serialVersionUID = 0L;
   }
 
   public static final int SYSTEMMUTATION_FIELD_NUMBER = 4;
-  private io.evitadb.externalApi.grpc.generated.GrpcEngineMutation systemMutation_;
   /**
    * <pre>
-   * optional body of the operation when it is requested by the GrpcContent
+   * Engine mutation body - durable, WAL-replicated event (ENGINE area).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEngineMutation systemMutation = 4;</code>
@@ -136,11 +177,11 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public boolean hasSystemMutation() {
-    return ((bitField0_ & 0x00000001) != 0);
+    return bodyCase_ == 4;
   }
   /**
    * <pre>
-   * optional body of the operation when it is requested by the GrpcContent
+   * Engine mutation body - durable, WAL-replicated event (ENGINE area).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEngineMutation systemMutation = 4;</code>
@@ -148,18 +189,67 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcEngineMutation getSystemMutation() {
-    return systemMutation_ == null ? io.evitadb.externalApi.grpc.generated.GrpcEngineMutation.getDefaultInstance() : systemMutation_;
+    if (bodyCase_ == 4) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcEngineMutation) body_;
+    }
+    return io.evitadb.externalApi.grpc.generated.GrpcEngineMutation.getDefaultInstance();
   }
   /**
    * <pre>
-   * optional body of the operation when it is requested by the GrpcContent
+   * Engine mutation body - durable, WAL-replicated event (ENGINE area).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEngineMutation systemMutation = 4;</code>
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcEngineMutationOrBuilder getSystemMutationOrBuilder() {
-    return systemMutation_ == null ? io.evitadb.externalApi.grpc.generated.GrpcEngineMutation.getDefaultInstance() : systemMutation_;
+    if (bodyCase_ == 4) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcEngineMutation) body_;
+    }
+    return io.evitadb.externalApi.grpc.generated.GrpcEngineMutation.getDefaultInstance();
+  }
+
+  public static final int HOSTEVENT_FIELD_NUMBER = 6;
+  /**
+   * <pre>
+   * Host event body (HOST area, opt-in only).
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcHostSystemEvent hostEvent = 6;</code>
+   * @return Whether the hostEvent field is set.
+   */
+  @java.lang.Override
+  public boolean hasHostEvent() {
+    return bodyCase_ == 6;
+  }
+  /**
+   * <pre>
+   * Host event body (HOST area, opt-in only).
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcHostSystemEvent hostEvent = 6;</code>
+   * @return The hostEvent.
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcHostSystemEvent getHostEvent() {
+    if (bodyCase_ == 6) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcHostSystemEvent) body_;
+    }
+    return io.evitadb.externalApi.grpc.generated.GrpcHostSystemEvent.getDefaultInstance();
+  }
+  /**
+   * <pre>
+   * Host event body (HOST area, opt-in only).
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcHostSystemEvent hostEvent = 6;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcHostSystemEventOrBuilder getHostEventOrBuilder() {
+    if (bodyCase_ == 6) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcHostSystemEvent) body_;
+    }
+    return io.evitadb.externalApi.grpc.generated.GrpcHostSystemEvent.getDefaultInstance();
   }
 
   public static final int TIMESTAMP_FIELD_NUMBER = 5;
@@ -174,7 +264,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public boolean hasTimestamp() {
-    return ((bitField0_ & 0x00000002) != 0);
+    return ((bitField0_ & 0x00000001) != 0);
   }
   /**
    * <pre>
@@ -223,11 +313,14 @@ private static final long serialVersionUID = 0L;
     if (operation_ != io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureOperation.UPSERT.getNumber()) {
       output.writeEnum(3, operation_);
     }
-    if (((bitField0_ & 0x00000001) != 0)) {
-      output.writeMessage(4, getSystemMutation());
+    if (bodyCase_ == 4) {
+      output.writeMessage(4, (io.evitadb.externalApi.grpc.generated.GrpcEngineMutation) body_);
     }
-    if (((bitField0_ & 0x00000002) != 0)) {
+    if (((bitField0_ & 0x00000001) != 0)) {
       output.writeMessage(5, getTimestamp());
+    }
+    if (bodyCase_ == 6) {
+      output.writeMessage(6, (io.evitadb.externalApi.grpc.generated.GrpcHostSystemEvent) body_);
     }
     getUnknownFields().writeTo(output);
   }
@@ -250,13 +343,17 @@ private static final long serialVersionUID = 0L;
       size += com.google.protobuf.CodedOutputStream
         .computeEnumSize(3, operation_);
     }
+    if (bodyCase_ == 4) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(4, (io.evitadb.externalApi.grpc.generated.GrpcEngineMutation) body_);
+    }
     if (((bitField0_ & 0x00000001) != 0)) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(4, getSystemMutation());
-    }
-    if (((bitField0_ & 0x00000002) != 0)) {
-      size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(5, getTimestamp());
+    }
+    if (bodyCase_ == 6) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(6, (io.evitadb.externalApi.grpc.generated.GrpcHostSystemEvent) body_);
     }
     size += getUnknownFields().getSerializedSize();
     memoizedSize = size;
@@ -278,15 +375,23 @@ private static final long serialVersionUID = 0L;
     if (getIndex()
         != other.getIndex()) return false;
     if (operation_ != other.operation_) return false;
-    if (hasSystemMutation() != other.hasSystemMutation()) return false;
-    if (hasSystemMutation()) {
-      if (!getSystemMutation()
-          .equals(other.getSystemMutation())) return false;
-    }
     if (hasTimestamp() != other.hasTimestamp()) return false;
     if (hasTimestamp()) {
       if (!getTimestamp()
           .equals(other.getTimestamp())) return false;
+    }
+    if (!getBodyCase().equals(other.getBodyCase())) return false;
+    switch (bodyCase_) {
+      case 4:
+        if (!getSystemMutation()
+            .equals(other.getSystemMutation())) return false;
+        break;
+      case 6:
+        if (!getHostEvent()
+            .equals(other.getHostEvent())) return false;
+        break;
+      case 0:
+      default:
     }
     if (!getUnknownFields().equals(other.getUnknownFields())) return false;
     return true;
@@ -306,13 +411,21 @@ private static final long serialVersionUID = 0L;
     hash = (53 * hash) + getIndex();
     hash = (37 * hash) + OPERATION_FIELD_NUMBER;
     hash = (53 * hash) + operation_;
-    if (hasSystemMutation()) {
-      hash = (37 * hash) + SYSTEMMUTATION_FIELD_NUMBER;
-      hash = (53 * hash) + getSystemMutation().hashCode();
-    }
     if (hasTimestamp()) {
       hash = (37 * hash) + TIMESTAMP_FIELD_NUMBER;
       hash = (53 * hash) + getTimestamp().hashCode();
+    }
+    switch (bodyCase_) {
+      case 4:
+        hash = (37 * hash) + SYSTEMMUTATION_FIELD_NUMBER;
+        hash = (53 * hash) + getSystemMutation().hashCode();
+        break;
+      case 6:
+        hash = (37 * hash) + HOSTEVENT_FIELD_NUMBER;
+        hash = (53 * hash) + getHostEvent().hashCode();
+        break;
+      case 0:
+      default:
     }
     hash = (29 * hash) + getUnknownFields().hashCode();
     memoizedHashCode = hash;
@@ -448,7 +561,6 @@ private static final long serialVersionUID = 0L;
     private void maybeForceBuilderInitialization() {
       if (com.google.protobuf.GeneratedMessageV3
               .alwaysUseFieldBuilders) {
-        getSystemMutationFieldBuilder();
         getTimestampFieldBuilder();
       }
     }
@@ -459,16 +571,19 @@ private static final long serialVersionUID = 0L;
       version_ = 0L;
       index_ = 0;
       operation_ = 0;
-      systemMutation_ = null;
       if (systemMutationBuilder_ != null) {
-        systemMutationBuilder_.dispose();
-        systemMutationBuilder_ = null;
+        systemMutationBuilder_.clear();
+      }
+      if (hostEventBuilder_ != null) {
+        hostEventBuilder_.clear();
       }
       timestamp_ = null;
       if (timestampBuilder_ != null) {
         timestampBuilder_.dispose();
         timestampBuilder_ = null;
       }
+      bodyCase_ = 0;
+      body_ = null;
       return this;
     }
 
@@ -496,6 +611,7 @@ private static final long serialVersionUID = 0L;
     public io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCapture buildPartial() {
       io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCapture result = new io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCapture(this);
       if (bitField0_ != 0) { buildPartial0(result); }
+      buildPartialOneofs(result);
       onBuilt();
       return result;
     }
@@ -512,19 +628,26 @@ private static final long serialVersionUID = 0L;
         result.operation_ = operation_;
       }
       int to_bitField0_ = 0;
-      if (((from_bitField0_ & 0x00000008) != 0)) {
-        result.systemMutation_ = systemMutationBuilder_ == null
-            ? systemMutation_
-            : systemMutationBuilder_.build();
-        to_bitField0_ |= 0x00000001;
-      }
-      if (((from_bitField0_ & 0x00000010) != 0)) {
+      if (((from_bitField0_ & 0x00000020) != 0)) {
         result.timestamp_ = timestampBuilder_ == null
             ? timestamp_
             : timestampBuilder_.build();
-        to_bitField0_ |= 0x00000002;
+        to_bitField0_ |= 0x00000001;
       }
       result.bitField0_ |= to_bitField0_;
+    }
+
+    private void buildPartialOneofs(io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCapture result) {
+      result.bodyCase_ = bodyCase_;
+      result.body_ = this.body_;
+      if (bodyCase_ == 4 &&
+          systemMutationBuilder_ != null) {
+        result.body_ = systemMutationBuilder_.build();
+      }
+      if (bodyCase_ == 6 &&
+          hostEventBuilder_ != null) {
+        result.body_ = hostEventBuilder_.build();
+      }
     }
 
     @java.lang.Override
@@ -580,11 +703,21 @@ private static final long serialVersionUID = 0L;
       if (other.operation_ != 0) {
         setOperationValue(other.getOperationValue());
       }
-      if (other.hasSystemMutation()) {
-        mergeSystemMutation(other.getSystemMutation());
-      }
       if (other.hasTimestamp()) {
         mergeTimestamp(other.getTimestamp());
+      }
+      switch (other.getBodyCase()) {
+        case SYSTEMMUTATION: {
+          mergeSystemMutation(other.getSystemMutation());
+          break;
+        }
+        case HOSTEVENT: {
+          mergeHostEvent(other.getHostEvent());
+          break;
+        }
+        case BODY_NOT_SET: {
+          break;
+        }
       }
       this.mergeUnknownFields(other.getUnknownFields());
       onChanged();
@@ -631,16 +764,23 @@ private static final long serialVersionUID = 0L;
               input.readMessage(
                   getSystemMutationFieldBuilder().getBuilder(),
                   extensionRegistry);
-              bitField0_ |= 0x00000008;
+              bodyCase_ = 4;
               break;
             } // case 34
             case 42: {
               input.readMessage(
                   getTimestampFieldBuilder().getBuilder(),
                   extensionRegistry);
-              bitField0_ |= 0x00000010;
+              bitField0_ |= 0x00000020;
               break;
             } // case 42
+            case 50: {
+              input.readMessage(
+                  getHostEventFieldBuilder().getBuilder(),
+                  extensionRegistry);
+              bodyCase_ = 6;
+              break;
+            } // case 50
             default: {
               if (!super.parseUnknownField(input, extensionRegistry, tag)) {
                 done = true; // was an endgroup tag
@@ -656,6 +796,21 @@ private static final long serialVersionUID = 0L;
       } // finally
       return this;
     }
+    private int bodyCase_ = 0;
+    private java.lang.Object body_;
+    public BodyCase
+        getBodyCase() {
+      return BodyCase.forNumber(
+          bodyCase_);
+    }
+
+    public Builder clearBody() {
+      bodyCase_ = 0;
+      body_ = null;
+      onChanged();
+      return this;
+    }
+
     private int bitField0_;
 
     private long version_ ;
@@ -819,38 +974,45 @@ private static final long serialVersionUID = 0L;
       return this;
     }
 
-    private io.evitadb.externalApi.grpc.generated.GrpcEngineMutation systemMutation_;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcEngineMutation, io.evitadb.externalApi.grpc.generated.GrpcEngineMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcEngineMutationOrBuilder> systemMutationBuilder_;
     /**
      * <pre>
-     * optional body of the operation when it is requested by the GrpcContent
+     * Engine mutation body - durable, WAL-replicated event (ENGINE area).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEngineMutation systemMutation = 4;</code>
      * @return Whether the systemMutation field is set.
      */
+    @java.lang.Override
     public boolean hasSystemMutation() {
-      return ((bitField0_ & 0x00000008) != 0);
+      return bodyCase_ == 4;
     }
     /**
      * <pre>
-     * optional body of the operation when it is requested by the GrpcContent
+     * Engine mutation body - durable, WAL-replicated event (ENGINE area).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEngineMutation systemMutation = 4;</code>
      * @return The systemMutation.
      */
+    @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcEngineMutation getSystemMutation() {
       if (systemMutationBuilder_ == null) {
-        return systemMutation_ == null ? io.evitadb.externalApi.grpc.generated.GrpcEngineMutation.getDefaultInstance() : systemMutation_;
+        if (bodyCase_ == 4) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcEngineMutation) body_;
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcEngineMutation.getDefaultInstance();
       } else {
-        return systemMutationBuilder_.getMessage();
+        if (bodyCase_ == 4) {
+          return systemMutationBuilder_.getMessage();
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcEngineMutation.getDefaultInstance();
       }
     }
     /**
      * <pre>
-     * optional body of the operation when it is requested by the GrpcContent
+     * Engine mutation body - durable, WAL-replicated event (ENGINE area).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEngineMutation systemMutation = 4;</code>
@@ -860,17 +1022,17 @@ private static final long serialVersionUID = 0L;
         if (value == null) {
           throw new NullPointerException();
         }
-        systemMutation_ = value;
+        body_ = value;
+        onChanged();
       } else {
         systemMutationBuilder_.setMessage(value);
       }
-      bitField0_ |= 0x00000008;
-      onChanged();
+      bodyCase_ = 4;
       return this;
     }
     /**
      * <pre>
-     * optional body of the operation when it is requested by the GrpcContent
+     * Engine mutation body - durable, WAL-replicated event (ENGINE area).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEngineMutation systemMutation = 4;</code>
@@ -878,102 +1040,294 @@ private static final long serialVersionUID = 0L;
     public Builder setSystemMutation(
         io.evitadb.externalApi.grpc.generated.GrpcEngineMutation.Builder builderForValue) {
       if (systemMutationBuilder_ == null) {
-        systemMutation_ = builderForValue.build();
+        body_ = builderForValue.build();
+        onChanged();
       } else {
         systemMutationBuilder_.setMessage(builderForValue.build());
       }
-      bitField0_ |= 0x00000008;
-      onChanged();
+      bodyCase_ = 4;
       return this;
     }
     /**
      * <pre>
-     * optional body of the operation when it is requested by the GrpcContent
+     * Engine mutation body - durable, WAL-replicated event (ENGINE area).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEngineMutation systemMutation = 4;</code>
      */
     public Builder mergeSystemMutation(io.evitadb.externalApi.grpc.generated.GrpcEngineMutation value) {
       if (systemMutationBuilder_ == null) {
-        if (((bitField0_ & 0x00000008) != 0) &&
-          systemMutation_ != null &&
-          systemMutation_ != io.evitadb.externalApi.grpc.generated.GrpcEngineMutation.getDefaultInstance()) {
-          getSystemMutationBuilder().mergeFrom(value);
+        if (bodyCase_ == 4 &&
+            body_ != io.evitadb.externalApi.grpc.generated.GrpcEngineMutation.getDefaultInstance()) {
+          body_ = io.evitadb.externalApi.grpc.generated.GrpcEngineMutation.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcEngineMutation) body_)
+              .mergeFrom(value).buildPartial();
         } else {
-          systemMutation_ = value;
+          body_ = value;
         }
-      } else {
-        systemMutationBuilder_.mergeFrom(value);
-      }
-      if (systemMutation_ != null) {
-        bitField0_ |= 0x00000008;
         onChanged();
+      } else {
+        if (bodyCase_ == 4) {
+          systemMutationBuilder_.mergeFrom(value);
+        } else {
+          systemMutationBuilder_.setMessage(value);
+        }
       }
+      bodyCase_ = 4;
       return this;
     }
     /**
      * <pre>
-     * optional body of the operation when it is requested by the GrpcContent
+     * Engine mutation body - durable, WAL-replicated event (ENGINE area).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEngineMutation systemMutation = 4;</code>
      */
     public Builder clearSystemMutation() {
-      bitField0_ = (bitField0_ & ~0x00000008);
-      systemMutation_ = null;
-      if (systemMutationBuilder_ != null) {
-        systemMutationBuilder_.dispose();
-        systemMutationBuilder_ = null;
+      if (systemMutationBuilder_ == null) {
+        if (bodyCase_ == 4) {
+          bodyCase_ = 0;
+          body_ = null;
+          onChanged();
+        }
+      } else {
+        if (bodyCase_ == 4) {
+          bodyCase_ = 0;
+          body_ = null;
+        }
+        systemMutationBuilder_.clear();
       }
-      onChanged();
       return this;
     }
     /**
      * <pre>
-     * optional body of the operation when it is requested by the GrpcContent
+     * Engine mutation body - durable, WAL-replicated event (ENGINE area).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEngineMutation systemMutation = 4;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcEngineMutation.Builder getSystemMutationBuilder() {
-      bitField0_ |= 0x00000008;
-      onChanged();
       return getSystemMutationFieldBuilder().getBuilder();
     }
     /**
      * <pre>
-     * optional body of the operation when it is requested by the GrpcContent
+     * Engine mutation body - durable, WAL-replicated event (ENGINE area).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEngineMutation systemMutation = 4;</code>
      */
+    @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcEngineMutationOrBuilder getSystemMutationOrBuilder() {
-      if (systemMutationBuilder_ != null) {
+      if ((bodyCase_ == 4) && (systemMutationBuilder_ != null)) {
         return systemMutationBuilder_.getMessageOrBuilder();
       } else {
-        return systemMutation_ == null ?
-            io.evitadb.externalApi.grpc.generated.GrpcEngineMutation.getDefaultInstance() : systemMutation_;
+        if (bodyCase_ == 4) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcEngineMutation) body_;
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcEngineMutation.getDefaultInstance();
       }
     }
     /**
      * <pre>
-     * optional body of the operation when it is requested by the GrpcContent
+     * Engine mutation body - durable, WAL-replicated event (ENGINE area).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEngineMutation systemMutation = 4;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcEngineMutation, io.evitadb.externalApi.grpc.generated.GrpcEngineMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcEngineMutationOrBuilder>
+        io.evitadb.externalApi.grpc.generated.GrpcEngineMutation, io.evitadb.externalApi.grpc.generated.GrpcEngineMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcEngineMutationOrBuilder> 
         getSystemMutationFieldBuilder() {
       if (systemMutationBuilder_ == null) {
+        if (!(bodyCase_ == 4)) {
+          body_ = io.evitadb.externalApi.grpc.generated.GrpcEngineMutation.getDefaultInstance();
+        }
         systemMutationBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
             io.evitadb.externalApi.grpc.generated.GrpcEngineMutation, io.evitadb.externalApi.grpc.generated.GrpcEngineMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcEngineMutationOrBuilder>(
-                getSystemMutation(),
+                (io.evitadb.externalApi.grpc.generated.GrpcEngineMutation) body_,
                 getParentForChildren(),
                 isClean());
-        systemMutation_ = null;
+        body_ = null;
       }
+      bodyCase_ = 4;
+      onChanged();
       return systemMutationBuilder_;
+    }
+
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcHostSystemEvent, io.evitadb.externalApi.grpc.generated.GrpcHostSystemEvent.Builder, io.evitadb.externalApi.grpc.generated.GrpcHostSystemEventOrBuilder> hostEventBuilder_;
+    /**
+     * <pre>
+     * Host event body (HOST area, opt-in only).
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcHostSystemEvent hostEvent = 6;</code>
+     * @return Whether the hostEvent field is set.
+     */
+    @java.lang.Override
+    public boolean hasHostEvent() {
+      return bodyCase_ == 6;
+    }
+    /**
+     * <pre>
+     * Host event body (HOST area, opt-in only).
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcHostSystemEvent hostEvent = 6;</code>
+     * @return The hostEvent.
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcHostSystemEvent getHostEvent() {
+      if (hostEventBuilder_ == null) {
+        if (bodyCase_ == 6) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcHostSystemEvent) body_;
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcHostSystemEvent.getDefaultInstance();
+      } else {
+        if (bodyCase_ == 6) {
+          return hostEventBuilder_.getMessage();
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcHostSystemEvent.getDefaultInstance();
+      }
+    }
+    /**
+     * <pre>
+     * Host event body (HOST area, opt-in only).
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcHostSystemEvent hostEvent = 6;</code>
+     */
+    public Builder setHostEvent(io.evitadb.externalApi.grpc.generated.GrpcHostSystemEvent value) {
+      if (hostEventBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        body_ = value;
+        onChanged();
+      } else {
+        hostEventBuilder_.setMessage(value);
+      }
+      bodyCase_ = 6;
+      return this;
+    }
+    /**
+     * <pre>
+     * Host event body (HOST area, opt-in only).
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcHostSystemEvent hostEvent = 6;</code>
+     */
+    public Builder setHostEvent(
+        io.evitadb.externalApi.grpc.generated.GrpcHostSystemEvent.Builder builderForValue) {
+      if (hostEventBuilder_ == null) {
+        body_ = builderForValue.build();
+        onChanged();
+      } else {
+        hostEventBuilder_.setMessage(builderForValue.build());
+      }
+      bodyCase_ = 6;
+      return this;
+    }
+    /**
+     * <pre>
+     * Host event body (HOST area, opt-in only).
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcHostSystemEvent hostEvent = 6;</code>
+     */
+    public Builder mergeHostEvent(io.evitadb.externalApi.grpc.generated.GrpcHostSystemEvent value) {
+      if (hostEventBuilder_ == null) {
+        if (bodyCase_ == 6 &&
+            body_ != io.evitadb.externalApi.grpc.generated.GrpcHostSystemEvent.getDefaultInstance()) {
+          body_ = io.evitadb.externalApi.grpc.generated.GrpcHostSystemEvent.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcHostSystemEvent) body_)
+              .mergeFrom(value).buildPartial();
+        } else {
+          body_ = value;
+        }
+        onChanged();
+      } else {
+        if (bodyCase_ == 6) {
+          hostEventBuilder_.mergeFrom(value);
+        } else {
+          hostEventBuilder_.setMessage(value);
+        }
+      }
+      bodyCase_ = 6;
+      return this;
+    }
+    /**
+     * <pre>
+     * Host event body (HOST area, opt-in only).
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcHostSystemEvent hostEvent = 6;</code>
+     */
+    public Builder clearHostEvent() {
+      if (hostEventBuilder_ == null) {
+        if (bodyCase_ == 6) {
+          bodyCase_ = 0;
+          body_ = null;
+          onChanged();
+        }
+      } else {
+        if (bodyCase_ == 6) {
+          bodyCase_ = 0;
+          body_ = null;
+        }
+        hostEventBuilder_.clear();
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Host event body (HOST area, opt-in only).
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcHostSystemEvent hostEvent = 6;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcHostSystemEvent.Builder getHostEventBuilder() {
+      return getHostEventFieldBuilder().getBuilder();
+    }
+    /**
+     * <pre>
+     * Host event body (HOST area, opt-in only).
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcHostSystemEvent hostEvent = 6;</code>
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcHostSystemEventOrBuilder getHostEventOrBuilder() {
+      if ((bodyCase_ == 6) && (hostEventBuilder_ != null)) {
+        return hostEventBuilder_.getMessageOrBuilder();
+      } else {
+        if (bodyCase_ == 6) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcHostSystemEvent) body_;
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcHostSystemEvent.getDefaultInstance();
+      }
+    }
+    /**
+     * <pre>
+     * Host event body (HOST area, opt-in only).
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcHostSystemEvent hostEvent = 6;</code>
+     */
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcHostSystemEvent, io.evitadb.externalApi.grpc.generated.GrpcHostSystemEvent.Builder, io.evitadb.externalApi.grpc.generated.GrpcHostSystemEventOrBuilder> 
+        getHostEventFieldBuilder() {
+      if (hostEventBuilder_ == null) {
+        if (!(bodyCase_ == 6)) {
+          body_ = io.evitadb.externalApi.grpc.generated.GrpcHostSystemEvent.getDefaultInstance();
+        }
+        hostEventBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            io.evitadb.externalApi.grpc.generated.GrpcHostSystemEvent, io.evitadb.externalApi.grpc.generated.GrpcHostSystemEvent.Builder, io.evitadb.externalApi.grpc.generated.GrpcHostSystemEventOrBuilder>(
+                (io.evitadb.externalApi.grpc.generated.GrpcHostSystemEvent) body_,
+                getParentForChildren(),
+                isClean());
+        body_ = null;
+      }
+      bodyCase_ = 6;
+      onChanged();
+      return hostEventBuilder_;
     }
 
     private io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime timestamp_;
@@ -988,7 +1342,7 @@ private static final long serialVersionUID = 0L;
      * @return Whether the timestamp field is set.
      */
     public boolean hasTimestamp() {
-      return ((bitField0_ & 0x00000010) != 0);
+      return ((bitField0_ & 0x00000020) != 0);
     }
     /**
      * <pre>
@@ -1021,7 +1375,7 @@ private static final long serialVersionUID = 0L;
       } else {
         timestampBuilder_.setMessage(value);
       }
-      bitField0_ |= 0x00000010;
+      bitField0_ |= 0x00000020;
       onChanged();
       return this;
     }
@@ -1039,7 +1393,7 @@ private static final long serialVersionUID = 0L;
       } else {
         timestampBuilder_.setMessage(builderForValue.build());
       }
-      bitField0_ |= 0x00000010;
+      bitField0_ |= 0x00000020;
       onChanged();
       return this;
     }
@@ -1052,7 +1406,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder mergeTimestamp(io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime value) {
       if (timestampBuilder_ == null) {
-        if (((bitField0_ & 0x00000010) != 0) &&
+        if (((bitField0_ & 0x00000020) != 0) &&
           timestamp_ != null &&
           timestamp_ != io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.getDefaultInstance()) {
           getTimestampBuilder().mergeFrom(value);
@@ -1063,7 +1417,7 @@ private static final long serialVersionUID = 0L;
         timestampBuilder_.mergeFrom(value);
       }
       if (timestamp_ != null) {
-        bitField0_ |= 0x00000010;
+        bitField0_ |= 0x00000020;
         onChanged();
       }
       return this;
@@ -1076,7 +1430,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime timestamp = 5;</code>
      */
     public Builder clearTimestamp() {
-      bitField0_ = (bitField0_ & ~0x00000010);
+      bitField0_ = (bitField0_ & ~0x00000020);
       timestamp_ = null;
       if (timestampBuilder_ != null) {
         timestampBuilder_.dispose();
@@ -1093,7 +1447,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime timestamp = 5;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder getTimestampBuilder() {
-      bitField0_ |= 0x00000010;
+      bitField0_ |= 0x00000020;
       onChanged();
       return getTimestampFieldBuilder().getBuilder();
     }
@@ -1120,7 +1474,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime timestamp = 5;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder>
+        io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder> 
         getTimestampFieldBuilder() {
       if (timestampBuilder_ == null) {
         timestampBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<

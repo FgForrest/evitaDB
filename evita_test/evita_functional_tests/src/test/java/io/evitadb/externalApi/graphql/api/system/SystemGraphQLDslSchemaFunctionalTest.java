@@ -27,16 +27,27 @@ import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.tester.GraphQLSchemaTester;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.externalApi.graphql.api.testSuite.TestDataGenerator.GRAPHQL_THOUSAND_PRODUCTS;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyOrNullString;
 import static org.hamcrest.Matchers.not;
+import static io.evitadb.test.TestTags.GRAPHQL;
+import static io.evitadb.test.TestTags.EXTERNAL_API;
+import static io.evitadb.test.TestTags.QUERY;
+import static io.evitadb.test.TestTags.SCHEMA;
 
 /**
  * Tests for GraphQL system DSL endpoint.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
+@Tag(GRAPHQL)
+@Tag(EXTERNAL_API)
+@Tag(QUERY)
+@Tag(SCHEMA)
 public class SystemGraphQLDslSchemaFunctionalTest extends SystemGraphQLEndpointFunctionalTest {
 
 	@Test
@@ -46,5 +57,23 @@ public class SystemGraphQLDslSchemaFunctionalTest extends SystemGraphQLEndpointF
 		tester.test(SYSTEM_URL)
 			.executeAndExpectOkAndThen()
 			.body(not(emptyOrNullString()));
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should expose the conflict-resolution schema mutations in the system GraphQL DSL")
+	void shouldExposeConflictResolutionMutationsInSystemGraphQLDsl(GraphQLSchemaTester tester) {
+		// the 5 conflict-resolution schema mutations must be members of the schema-mutation unions and
+		// resolvable as output object types in the system schema (asserting presence, not merely a
+		// successful build: a silently dropped union member would boot green yet vanish from the DSL)
+		tester.test(SYSTEM_URL)
+			.executeAndExpectOkAndThen()
+			.body(allOf(
+				containsString("ModifyCatalogSchemaConflictResolutionMutation"),
+				containsString("ModifyEntitySchemaConflictResolutionMutation"),
+				containsString("SetAttributeSchemaConflictResolutionOverrideMutation"),
+				containsString("SetAssociatedDataSchemaConflictResolutionOverrideMutation"),
+				containsString("SetReferenceSchemaConflictResolutionOverrideMutation")
+			));
 	}
 }

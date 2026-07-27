@@ -48,9 +48,13 @@ import org.mockito.Mockito;
 import javax.annotation.Nonnull;
 import java.util.Arrays;
 import java.util.List;
+import org.junit.jupiter.api.Tag;
 
 import static java.util.Optional.of;
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.SCHEMA;
+import static io.evitadb.test.TestTags.ATTRIBUTE;
 
 /**
  * Test verifies {@link CreateSortableAttributeCompoundSchemaMutation} class.
@@ -58,6 +62,9 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 @DisplayName("CreateSortableAttributeCompoundSchemaMutation")
+@Tag(CONTRACT)
+@Tag(SCHEMA)
+@Tag(ATTRIBUTE)
 class CreateSortableAttributeCompoundSchemaMutationTest {
 
 	static final String ATTRIBUTE_COMPOUND_NAME = "name";

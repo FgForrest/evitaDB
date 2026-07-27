@@ -93,8 +93,10 @@ import io.evitadb.core.metric.event.query.EntityEnrichEvent;
 import io.evitadb.core.metric.event.query.EntityFetchEvent;
 import io.evitadb.core.query.response.ServerEntityDecorator;
 import io.evitadb.core.traffic.TrafficRecordingEngine;
+import io.evitadb.core.traffic.TrafficRecordingExportSettings;
 import io.evitadb.core.traffic.TrafficRecordingSettings;
 import io.evitadb.core.traffic.task.TrafficRecorderTask;
+import io.evitadb.core.traffic.task.TrafficRecordingExportTask;
 import io.evitadb.core.transaction.Transaction;
 import io.evitadb.core.transaction.TransactionWalFinalizer;
 import io.evitadb.dataType.Scope;
@@ -205,7 +207,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	 * Represents the starting version of the catalog schema.
 	 * This variable is used to keep track of the initial version of the catalog schema.
 	 */
-	private final long startCatalogSchemaVersion;
+	private final int startCatalogSchemaVersion;
 	/**
 	 * Contains reference to the proxy factory that is used to create proxies for the entities.
 	 */
@@ -231,11 +233,23 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	 */
 	private volatile CompletionStage<CommitVersions> closedFuture;
 	/**
-	 * Timestamp of the last session activity (call).
+	 * Timestamp of the last session activity (call). Volatile because read-only sessions permit parallel reads
+	 * from multiple threads (see `EvitaSessionProxy`), and a plain `long` write is allowed to tear under the JMM.
 	 */
-	private long lastCall = System.currentTimeMillis();
+	private volatile long lastCall = System.currentTimeMillis();
 	/**
 	 * Contains a number of nested session calls.
+	 *
+	 * For sessions whose transaction is controlled by an external client
+	 * ({@link SessionTraits#isTransactionControlledExternally()}) the base value is pinned to `1` in the constructor,
+	 * so that every individual operation invoked over the wire runs as a *nested* call (level `2`) and never counts as
+	 * a root-level execution. This defers the commit-or-rollback decision to the external client and prevents a single
+	 * recoverable operation failure from poisoning the whole transaction.
+	 *
+	 * The counter is intentionally non-atomic: it is only meaningful in read-write sessions, which are enforced to be
+	 * single-threaded by the concurrency guard in `EvitaSessionProxy`. Read-only sessions permit parallel reads and
+	 * may race on this field, but they never consult it — {@link #isRootLevelExecution()} only influences transaction
+	 * rollback semantics and read-only sessions cannot open a transaction.
 	 */
 	private int nestLevel;
 	/**
@@ -366,6 +380,13 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 			(commitVersions, throwable) -> executeTerminationSteps(throwable, catalog)
 		);
 		this.catalogConsumerControl = catalogConsumerControl;
+		// when the transaction is controlled by an external client (e.g. the gRPC driver), pin the base nesting level
+		// to 1 so that every individual operation runs as a nested call — a recoverable per-operation failure is then
+		// reverted by the savepoint without marking the whole transaction rollback-only, and the external client
+		// decides at close time whether to commit the survivors or discard the transaction (1:1 with embedded)
+		if (sessionTraits.isTransactionControlledExternally()) {
+			this.nestLevel = 1;
+		}
 		if (catalog.supportsTransaction() && sessionTraits.isReadWrite()) {
 			this.transactionAccessor.set(createAndInitTransaction());
 		}
@@ -1698,6 +1719,26 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		}
 	}
 
+	@Nonnull
+	@Override
+	public ServerTask<TrafficRecordingExportSettings, FileForFetch> exportTrafficRecording(
+		long chunkFileSizeInBytes
+	) {
+		isTrue(
+			!isReadOnly(),
+			ReadOnlyException::sessionReadOnly
+		);
+
+		final Scheduler scheduler = this.evita.getServiceExecutor();
+		final ServerTask<TrafficRecordingExportSettings, FileForFetch> trafficRecordingExportTask = new TrafficRecordingExportTask(
+			getCatalogName(), chunkFileSizeInBytes,
+			this.catalog.getTrafficRecordingEngine(),
+			this.evita.management().exportService()
+		);
+		scheduler.submit(trafficRecordingExportTask);
+		return trafficRecordingExportTask;
+	}
+
 	/**
 	 * Returns a transaction wrapped in optional. If no transaction is bound to the session, an empty optional is returned.
 	 *
@@ -1811,8 +1852,24 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 						transaction == null,
 						"In warming-up mode no transaction is expected to be opened!"
 					);
-					final ProgressingFuture<Void> flushFuture = this.catalog.flush();
-					flushFuture.execute(this.evita.getTransactionExecutor());
+					final ProgressingFuture<Void> flushFuture;
+					try {
+						// building the warm-up flush future pops the trapped changes SYNCHRONOUSLY
+						// (Catalog.flush -> EntityCollection.createFlushFuture -> popTrappedChanges); a throw
+						// here (e.g. a corrupted index serialized at close) must complete the close future
+						// EXCEPTIONALLY instead of escaping and leaving `commitProgress` / `closingSequenceFuture`
+						// pending forever, which would hang SessionRegistry.closeAllActiveSessionsAndSuspend and
+						// Evita.close()
+						flushFuture = this.catalog.flush();
+					} catch (Throwable ex) {
+						this.commitProgress.completeExceptionally(ex);
+						this.closedFuture = this.commitProgress.on(commitBehavior);
+						this.closingSequenceFuture.get().complete(this.closedFuture);
+						return this.commitProgress;
+					}
+					// register the completion callback BEFORE dispatching to the executor — otherwise a
+					// synchronous RejectedExecutionException (e.g. during evitaDB shutdown) would escape
+					// without the callback ever being attached, leaving `commitProgress` pending forever
 					flushFuture.whenComplete(
 							(__, throwable) -> {
 								if (throwable == null) {
@@ -1824,7 +1881,12 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 												this.catalog.getSchema().version()
 											)
 										);
-									} catch (Exception ex) {
+									} catch (Throwable ex) {
+										// catch Throwable, not just Exception — anything escaping
+										// this callback would land on the returned CompletionStage
+										// (which we discard), silently leaving commitProgress
+										// pending forever. Route every escape, including Errors,
+										// to completeExceptionally so waiters are unblocked
 										this.commitProgress.completeExceptionally(ex);
 									}
 								} else {
@@ -1832,6 +1894,15 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 								}
 							}
 						);
+					try {
+						flushFuture.execute(this.evita.getTransactionExecutor());
+					} catch (Throwable ex) {
+						// execute() threw synchronously (e.g. RejectedExecutionException from a shut-down
+						// executor) — the flush will never run, so we must fail the progress record
+						// ourselves to unblock any client awaiting it
+						this.commitProgress.completeExceptionally(ex);
+						throw ex;
+					}
 				} else {
 					if (transaction != null) {
 						// close transaction at the end of this block
@@ -1906,6 +1977,18 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 				this.beingClosed.compareAndSet(true, false),
 				"Expectation failed!"
 			);
+			// emit inside `finally` so a throwing termination callback does not
+			// swallow the schema-update signal — the schema mutation is already persistent at
+			// this point, so downstream observers must be notified regardless of callback
+			// success. ALIVE sessions are owned by the transaction-commit path
+			// (`Evita#replaceCatalogReference`) so we skip them here to avoid double-emit;
+			// read-only and pure data sessions trivially fall through
+			// (newSchemaVersion == startCatalogSchemaVersion).
+			final int newSchemaVersion = theCatalog.getSchema().version();
+			if (theCatalog.getCatalogState() != CatalogState.ALIVE
+					&& newSchemaVersion > this.startCatalogSchemaVersion) {
+				this.evita.notifyCatalogSchemaUpdated(theCatalog.getName(), newSchemaVersion);
+			}
 		}
 	}
 

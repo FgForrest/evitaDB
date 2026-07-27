@@ -29,8 +29,10 @@ import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract.AttributeInheritanceBehavior;
-import io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.mutation.reference.CreateReflectedReferenceSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedBucketedPartially;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedHistogramIndexDefinition;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexType;
 import io.evitadb.dataType.Scope;
 import io.evitadb.store.wal.schema.MutationSerializationFunctions;
@@ -42,7 +44,7 @@ import java.util.Arrays;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-@Deprecated(since = "2025.5", forRemoval = true)
+@Deprecated(since = "2025.6", forRemoval = true)
 public class CreateReflectedReferenceSchemaMutationSerializer_2025_5 extends Serializer<CreateReflectedReferenceSchemaMutation> implements MutationSerializationFunctions {
 
 	@Override
@@ -69,6 +71,8 @@ public class CreateReflectedReferenceSchemaMutationSerializer_2025_5 extends Ser
 			attributesExcludedFromInheritance[i] = input.readString();
 		}
 
+		// the 2025.5 wire format predates per-scope facetedPartially/bucketed/bucketedPartially;
+		// route through the 14-arg constructor with the same defaults the old 11-arg form used
 		return new CreateReflectedReferenceSchemaMutation(
 			name,
 			description,
@@ -83,7 +87,11 @@ public class CreateReflectedReferenceSchemaMutationSerializer_2025_5 extends Ser
 						scope -> new ScopedReferenceIndexType(scope, ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING)
 					)
 					.toArray(ScopedReferenceIndexType[]::new),
+			null,
 			facetedInScopes,
+			null,
+			ScopedHistogramIndexDefinition.EMPTY,
+			ScopedBucketedPartially.EMPTY,
 			attributeInheritanceBehavior,
 			attributesExcludedFromInheritance
 		);

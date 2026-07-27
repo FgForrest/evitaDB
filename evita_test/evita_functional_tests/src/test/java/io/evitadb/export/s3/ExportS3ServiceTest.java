@@ -23,7 +23,6 @@
 
 package io.evitadb.export.s3;
 
-import com.adobe.testing.s3mock.junit5.S3MockExtension;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.Lists;
 import io.evitadb.api.configuration.StorageOptions;
@@ -43,9 +42,17 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.RegisterExtension;
+import org.testcontainers.containers.GenericContainer;
+import org.testcontainers.containers.wait.strategy.Wait;
+import org.testcontainers.junit.jupiter.Container;
+import org.testcontainers.junit.jupiter.Testcontainers;
+import org.testcontainers.utility.DockerImageName;
+import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
+import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.core.sync.RequestBody;
+import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.S3Configuration;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
 import javax.annotation.Nonnull;
@@ -55,6 +62,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.time.OffsetDateTime;
@@ -64,29 +72,40 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.EXPORT;
 
 /**
  * This test verifies behavior of {@link ExportS3Service}.
- * Uses Adobe S3Mock library to simulate S3-compatible storage.
  *
- * Note: All tests are expected to fail with {@link UnsupportedOperationException} until
- * the {@link ExportS3Service} implementation is completed.
+ * The S3-compatible server is supplied by the `adobe/s3mock` Docker image launched via
+ * Testcontainers, which keeps the Spring Boot / Tomcat baggage that ships with the in-process
+ * `s3mock-junit5` extension out of our test classpath. The test requires a working Docker
+ * daemon on the host.
  *
  * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 @DisplayName("S3 Export Service Test")
+@Tag(CONTRACT)
+@Tag(EXPORT)
+@Testcontainers
 class ExportS3ServiceTest {
 
 	/**
-	 * S3Mock extension for JUnit 5 that starts an in-memory S3-compatible server.
+	 * Containerized S3-compatible server. Pinned to a specific 4.x tag to keep test runs
+	 * reproducible; the JVM-based 4.x line is the last to target Java 17 (5.x moves to Spring
+	 * Boot 4 / Java 25).
 	 */
-	@RegisterExtension
-	static final S3MockExtension S3_MOCK = S3MockExtension.builder()
-		.silent()
-		.withSecureConnection(false)
-		.build();
+	@Container
+	static final GenericContainer<?> S3_MOCK = new GenericContainer<>(
+		DockerImageName.parse("adobe/s3mock:4.12.4")
+	)
+		.withExposedPorts(9090)
+		.withEnv("debug", "false")
+		.waitingFor(Wait.forHttp("/").forPort(9090).forStatusCode(200));
 
 	/**
 	 * Name of the S3 bucket used for testing.
@@ -176,16 +195,41 @@ class ExportS3ServiceTest {
 		return (Map<String, String>) method.invoke(null, input);
 	}
 
+	/**
+	 * Returns the HTTP endpoint of the running S3Mock container.
+	 */
+	@Nonnull
+	private static String s3MockEndpoint() {
+		return "http://" + S3_MOCK.getHost() + ":" + S3_MOCK.getMappedPort(9090);
+	}
+
+	/**
+	 * Builds an AWS SDK v2 S3 client pointed at the running S3Mock container. Path-style
+	 * access is required because S3Mock does not implement virtual-hosted-style request
+	 * routing.
+	 */
+	@Nonnull
+	private static S3Client createS3Client() {
+		return S3Client.builder()
+			.endpointOverride(URI.create(s3MockEndpoint()))
+			.region(Region.US_EAST_1)
+			.credentialsProvider(StaticCredentialsProvider.create(
+				AwsBasicCredentials.create("accessKey", "secretKey")
+			))
+			.serviceConfiguration(S3Configuration.builder().pathStyleAccessEnabled(true).build())
+			.build();
+	}
+
 	@BeforeEach
 	void setUp() {
 		// Create S3 client connected to the mock server (used only for cleanup in tearDown)
-		this.s3Client = S3_MOCK.createS3ClientV2();
+		this.s3Client = createS3Client();
 
 		// Create S3ExportOptions pointing to mock server
 		// The ExportS3Service will create the bucket if it doesn't exist
 		this.exportOptions = S3ExportOptions.builder()
 			.enabled(true)
-			.endpoint("http://localhost:" + S3_MOCK.getHttpPort())
+			.endpoint(s3MockEndpoint())
 			.bucket(BUCKET_NAME)
 			.accessKey("accessKey")
 			.secretKey("secretKey")

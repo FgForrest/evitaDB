@@ -43,16 +43,25 @@ import java.util.List;
 import java.util.Random;
 
 /**
- * No extra information provided - see (selfexplanatory) method signatures.
- * I have the best intention to write more detailed documentation but if you see this, there was not enough time or will to do so.
+ * JMH benchmark state providing two disjoint entity-price datasets for the price histogram
+ * benchmark ({@link io.evitadb.spike.FormulaCostMeasurement#priceHistogramComputer}).
+ *
+ * Dataset A contains 70% of the total ({@link #PRICE_COUNT} × 0.7 = 70K prices over ~7K entities)
+ * and dataset B contains the remaining 30% (30K prices over ~3K entities), with non-overlapping
+ * entity ID ranges. Each dataset provides both a {@link ConstantFormula} wrapping the entity ID
+ * bitmap and a {@link FilteredPriceRecordAccessor} backed by {@link MockEntityIdsFormula} for
+ * price record access.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 @State(Scope.Benchmark)
 public class PriceBucketRecordState {
+	/** Total number of distinct entities across both datasets. */
 	private static final int ENTITY_COUNT = 10_000;
+	/** Total number of price records across both datasets. */
 	private static final int PRICE_COUNT = 100_000;
 	private static final Random random = new Random(42);
+	/** Monotonic price ID generator — shared across all instances within the same JVM fork. */
 	private static int PRICE_ID_SEQ;
 	@Getter private Bitmap entityIdsA;
 	@Getter private Bitmap entityIdsB;
@@ -61,7 +70,8 @@ public class PriceBucketRecordState {
 	@Getter private Formula formulaB;
 
 	/**
-	 * This setup is called once for each `valueCount`.
+	 * Generates two non-overlapping entity-price datasets (70/30 split), creates filtered
+	 * price record accessors, and wraps entity IDs in {@link ConstantFormula} instances.
 	 */
 	@Setup(Level.Trial)
 	public void setUp() {

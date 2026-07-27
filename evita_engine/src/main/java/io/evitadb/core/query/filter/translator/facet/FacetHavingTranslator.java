@@ -42,6 +42,7 @@ import io.evitadb.core.query.algebra.facet.CombinedFacetFormula;
 import io.evitadb.core.query.algebra.facet.FacetGroupAndFormula;
 import io.evitadb.core.query.algebra.facet.FacetGroupFormula;
 import io.evitadb.core.query.algebra.facet.FacetGroupOrFormula;
+import io.evitadb.core.query.algebra.facet.FacetHavingFormula;
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.common.translator.SelfTraversingTranslator;
 import io.evitadb.core.query.filter.FilterByVisitor;
@@ -359,34 +360,73 @@ public class FacetHavingTranslator implements FilteringConstraintTranslator<Face
 			.map(it -> FormulaFactory.or(it.toArray(Formula[]::new)))
 			.orElse(null);
 
+		return composeFacetSelectionFormula(facetHaving.getReferenceName(), notFormula, andFormula, orFormula);
+	}
+
+	/**
+	 * Composes the final facet-selection formula from the `(not, and, or)` triple produced by the `facetHaving`
+	 * translation, then wraps it in {@link FacetHavingFormula} so the `FACET_IMPACT` baseline relaxer can strip
+	 * exactly the carriers produced by this translator without touching facet-impact probes that reuse the same
+	 * concrete `FacetGroup*` classes.
+	 *
+	 * When the triple contains **only** negation terms (i.e. `andFormula == null && orFormula == null`), the method
+	 * returns a {@link FutureNotFormula} sentinel so the `UserFilterTranslator` / `FutureNotFormula.postProcess`
+	 * pipeline can combine it with the superset at the enclosing level. The inner formula of that sentinel is still
+	 * wrapped in {@link FacetHavingFormula} so that once the sentinel is post-processed into a regular
+	 * {@link NotFormula}, the wrapper stays reachable by
+	 * {@link io.evitadb.core.query.extraResult.translator.common.UserFilterRelaxer}. Without the inner wrap the
+	 * facet-impact baseline relaxer would have no carrier to peel and the user's NOT-only facet pick would leak into
+	 * every `what-if I add facet X` projection.
+	 *
+	 * @param notFormula the combined negation-relation facet group formula, or `null` when no group is negated
+	 * @param andFormula the combined conjunction-relation facet group formula, or `null` when no group uses AND
+	 * @param orFormula  the combined disjunction-relation facet group formula, or `null` when no group uses OR
+	 * @return the composed facet-selection formula, either a {@link FacetHavingFormula} wrapping the compound or a
+	 * {@link FutureNotFormula} sentinel for the NOT-only case
+	 */
+	@Nonnull
+	static Formula composeFacetSelectionFormula(
+		@Nonnull String referenceName,
+		@Nullable Formula notFormula,
+		@Nullable Formula andFormula,
+		@Nullable Formula orFormula
+	) {
+		final Formula composed;
 		if (notFormula == null) {
 			if (andFormula == null && orFormula == null) {
 				throw new GenericEvitaInternalError("This should be not possible!");
 			} else if (andFormula == null) {
-				return orFormula;
+				composed = orFormula;
 			} else if (orFormula == null) {
-				return andFormula;
+				composed = andFormula;
 			} else if (orFormula instanceof FacetGroupFormula) {
-				return new CombinedFacetFormula(andFormula, orFormula);
+				composed = new CombinedFacetFormula(andFormula, orFormula);
 			} else {
-				return orFormula.getCloneWithInnerFormulas(
+				composed = orFormula.getCloneWithInnerFormulas(
 					ArrayUtils.insertRecordIntoArrayOnIndex(andFormula, orFormula.getInnerFormulas(), orFormula.getInnerFormulas().length)
 				);
 			}
 		} else {
 			if (andFormula == null && orFormula == null) {
-				return new FutureNotFormula(notFormula);
+				// NOT-only branch: the sentinel `FutureNotFormula` itself MUST stay un-wrapped because upstream
+				// `UserFilterTranslator` detects it via `instanceof FutureNotFormula`. The inner side, however,
+				// is wrapped in `FacetHavingFormula` so that once `FutureNotFormula.postProcess` rewraps the
+				// sentinel into a regular `NotFormula(inner, superset)` inside `UserFilterFormula`, the wrapper
+				// stays reachable — otherwise `UserFilterRelaxer.FACET_IMPACT` has no carrier to peel and the
+				// user's NOT-only facet pick leaks into every impact projection.
+				return new FutureNotFormula(new FacetHavingFormula(referenceName, notFormula));
 			} else if (andFormula == null) {
-				return new NotFormula(notFormula, orFormula);
+				composed = new NotFormula(notFormula, orFormula);
 			} else if (orFormula == null) {
-				return new NotFormula(notFormula, andFormula);
+				composed = new NotFormula(notFormula, andFormula);
 			} else {
-				return new NotFormula(
+				composed = new NotFormula(
 					notFormula,
 					new CombinedFacetFormula(andFormula, orFormula)
 				);
 			}
 		}
+		return new FacetHavingFormula(referenceName, composed);
 	}
 
 	/**

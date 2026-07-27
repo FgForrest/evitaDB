@@ -39,20 +39,25 @@ import org.junit.jupiter.api.Test;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.QUERY;
 
 /**
  * Tests for the chunk package verifying {@link OffsetAndLimit},
  * {@link NoTransformer}, {@link PageTransformer},
  * {@link StripTransformer}, and {@link DefaultSlicer}.
  *
- * @author evitaDB
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("Chunk transformers and slicers")
+@Tag(CONTRACT)
+@Tag(QUERY)
 class ChunkTransformerTest {
 
 	/**

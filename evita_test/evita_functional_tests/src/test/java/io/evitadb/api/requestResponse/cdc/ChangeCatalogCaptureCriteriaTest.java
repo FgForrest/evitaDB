@@ -28,12 +28,15 @@ import io.evitadb.test.EvitaTestSupport;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.CDC;
 
 /**
  * Tests for {@link ChangeCatalogCaptureCriteria} covering compareTo, constructor validation,
@@ -42,6 +45,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 @DisplayName("ChangeCatalogCaptureCriteria")
+@Tag(CONTRACT)
+@Tag(CDC)
 class ChangeCatalogCaptureCriteriaTest implements EvitaTestSupport {
 
 	@Nested

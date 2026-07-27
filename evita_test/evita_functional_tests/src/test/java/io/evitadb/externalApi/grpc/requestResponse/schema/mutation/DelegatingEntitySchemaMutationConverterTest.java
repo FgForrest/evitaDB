@@ -24,16 +24,29 @@
 package io.evitadb.externalApi.grpc.requestResponse.schema.mutation;
 
 import io.evitadb.api.requestResponse.schema.mutation.associatedData.ModifyAssociatedDataSchemaNameMutation;
+import io.evitadb.api.requestResponse.schema.mutation.reference.SetReferenceSchemaBucketedMutation;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedHistogramIndexDefinition;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedBucketedPartially;
+import io.evitadb.dataType.Scope;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static io.evitadb.test.TestTags.GRPC;
+import static io.evitadb.test.TestTags.EXTERNAL_API;
+import static io.evitadb.test.TestTags.QUERY;
+import static io.evitadb.test.TestTags.SCHEMA;
 
 /**
  * Tests for {@link DelegatingEntitySchemaMutationConverter}
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
+@Tag(GRPC)
+@Tag(EXTERNAL_API)
+@Tag(QUERY)
+@Tag(SCHEMA)
 class DelegatingEntitySchemaMutationConverterTest {
 
 	private static DelegatingEntitySchemaMutationConverter converter;
@@ -46,6 +59,28 @@ class DelegatingEntitySchemaMutationConverterTest {
 	@Test
 	void shouldConvertMutation() {
 		final ModifyAssociatedDataSchemaNameMutation mutation = new ModifyAssociatedDataSchemaNameMutation("label", "labels");
+		assertEquals(
+			mutation,
+			converter.convert(converter.convert(mutation))
+		);
+	}
+
+	/**
+	 * Verifies that {@link SetReferenceSchemaBucketedMutation} is correctly wired in the
+	 * delegating converter's TO_GRPC_CONVERTERS / TO_JAVA_CONVERTERS maps and survives
+	 * round-trip conversion.
+	 */
+	@Test
+	void shouldConvertBucketedMutation() {
+		final SetReferenceSchemaBucketedMutation mutation = new SetReferenceSchemaBucketedMutation(
+			"tags",
+			new ScopedHistogramIndexDefinition[]{
+				new ScopedHistogramIndexDefinition(Scope.LIVE, "priceHistogram", null, null)
+			},
+			new ScopedBucketedPartially[]{
+				new ScopedBucketedPartially(Scope.LIVE, null)
+			}
+		);
 		assertEquals(
 			mutation,
 			converter.convert(converter.convert(mutation))

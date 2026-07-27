@@ -23,19 +23,25 @@
 
 package io.evitadb.server.yaml;
 
+import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.databind.DeserializationContext;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
 import java.io.IOException;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static io.evitadb.test.TestTags.SERVER;
+import static io.evitadb.test.TestTags.MANAGEMENT;
 
 /**
  * The test verifies conversion logic for loading yaml file.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
+@Tag(SERVER)
+@Tag(MANAGEMENT)
 class SpecialConfigInputFormatsHandlerTest {
 	private static final DeserializationContext MOCK_CONTEXT = Mockito.mock(DeserializationContext.class);
 	private static final SpecialConfigInputFormatsHandler TESTED_HANDLER = new SpecialConfigInputFormatsHandler();
@@ -58,6 +64,7 @@ class SpecialConfigInputFormatsHandlerTest {
 
 	@Test
 	void shouldConvertTimeValues() throws IOException {
+		// no current-property context (as in production without a real parser position) -> seconds base, unaffected
 		assertConvertedValueEquals(1L, "1s");
 		assertConvertedValueEquals(60L, "1m");
 		assertConvertedValueEquals(60L * 60L, "1h");
@@ -66,8 +73,30 @@ class SpecialConfigInputFormatsHandlerTest {
 		assertConvertedValueEquals(31_556_926L, "1y");
 	}
 
+	@Test
+	void shouldConvertTimeValuesToMillisecondsForMillisecondNamedProperties() throws IOException {
+		assertConvertedValueEquals(1_000L, "1s", "queryTimeoutInMilliseconds");
+		assertConvertedValueEquals(60_000L, "1m", "flushFrequencyInMillis");
+		assertConvertedValueEquals(3_600_000L, "1h", "trafficFlushIntervalInMilliseconds");
+		assertConvertedValueEquals(20_000L, "20s", "waitForTransactionAcceptanceInMillis");
+	}
+
+	@Test
+	void shouldNotScaleTimeValuesForSecondsNamedProperties() throws IOException {
+		// property name ends in "Seconds", not "Millis"/"Milliseconds" -> stays seconds-based
+		assertConvertedValueEquals(60L, "1m", "closeSessionsAfterSecondsOfInactivity");
+	}
+
 	private static void assertConvertedValueEquals(long converted, String original) throws IOException {
 		assertEquals(converted, TESTED_HANDLER.handleWeirdStringValue(MOCK_CONTEXT, Long.class, original, "Error!"));
+	}
+
+	private static void assertConvertedValueEquals(long converted, String original, String propertyName) throws IOException {
+		final DeserializationContext context = Mockito.mock(DeserializationContext.class);
+		final JsonParser parser = Mockito.mock(JsonParser.class);
+		Mockito.when(context.getParser()).thenReturn(parser);
+		Mockito.when(parser.currentName()).thenReturn(propertyName);
+		assertEquals(converted, TESTED_HANDLER.handleWeirdStringValue(context, Long.class, original, "Error!"));
 	}
 
 }

@@ -29,10 +29,13 @@ import io.evitadb.test.extension.EvitaParameterResolver;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.MANAGEMENT;
 
 /**
  * Example of the test with empty database.
@@ -41,6 +44,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 @ExtendWith(EvitaParameterResolver.class)
 @Slf4j
+@Tag(ENGINE)
+@Tag(MANAGEMENT)
 public class EmptyDataSetAlternativeTest implements EvitaTestSupport {
 
 	@Test

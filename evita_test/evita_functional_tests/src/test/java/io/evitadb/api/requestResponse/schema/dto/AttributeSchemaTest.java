@@ -24,25 +24,34 @@
 package io.evitadb.api.requestResponse.schema.dto;
 
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
 import io.evitadb.dataType.Predecessor;
 import io.evitadb.dataType.ReferencedEntityPredecessor;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.NamingConvention;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import java.util.EnumMap;
 import java.util.Map;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.SCHEMA;
+import static io.evitadb.test.TestTags.ATTRIBUTE;
 
 /**
  * Tests for {@link AttributeSchema} and its sealed subtypes.
  */
 @DisplayName("AttributeSchema")
+@Tag(CONTRACT)
+@Tag(SCHEMA)
+@Tag(ATTRIBUTE)
 class AttributeSchemaTest {
 
 	@Nested
@@ -52,7 +61,7 @@ class AttributeSchemaTest {
 		@Test
 		@DisplayName("should build minimal schema with name, type and localized flag")
 		void shouldBuildMinimalSchema() {
-			final AttributeSchema schema = AttributeSchema._internalBuild("code", String.class, false);
+			final AttributeSchema schema = AttributeSchema._internalBuild("code", String.class, false, ConflictResolutionOverride.INHERITED);
 
 			assertEquals("code", schema.getName());
 			assertSame(String.class, schema.getType());
@@ -80,7 +89,8 @@ class AttributeSchemaTest {
 				new Scope[]{Scope.LIVE},
 				false, true, true,
 				Integer.class, 0,
-				0
+				0,
+				ConflictResolutionOverride.INHERITED
 			);
 
 			assertEquals("priority", schema.getName());
@@ -98,7 +108,7 @@ class AttributeSchemaTest {
 		@Test
 		@DisplayName("should generate name variants for naming conventions")
 		void shouldGenerateNameVariants() {
-			final AttributeSchema schema = AttributeSchema._internalBuild("productCode", String.class, false);
+			final AttributeSchema schema = AttributeSchema._internalBuild("productCode", String.class, false, ConflictResolutionOverride.INHERITED);
 
 			final String camelCase = schema.getNameVariant(NamingConvention.CAMEL_CASE);
 			assertNotNull(camelCase);
@@ -115,7 +125,8 @@ class AttributeSchemaTest {
 				(Map<Scope, AttributeUniquenessType>) null,
 				null, null,
 				false, false, false,
-				String.class, null, 0
+				String.class, null, 0,
+				ConflictResolutionOverride.INHERITED
 			);
 
 			assertEquals(
@@ -127,7 +138,7 @@ class AttributeSchemaTest {
 		@Test
 		@DisplayName("should wrap primitive types to wrapper types")
 		void shouldWrapPrimitiveTypes() {
-			final AttributeSchema schema = AttributeSchema._internalBuild("count", int.class, false);
+			final AttributeSchema schema = AttributeSchema._internalBuild("count", int.class, false, ConflictResolutionOverride.INHERITED);
 
 			assertSame(Integer.class, schema.getType());
 			assertSame(Integer.class, schema.getPlainType());
@@ -136,7 +147,7 @@ class AttributeSchemaTest {
 		@Test
 		@DisplayName("should resolve plain type from array type")
 		void shouldResolvePlainTypeFromArrayType() {
-			final AttributeSchema schema = AttributeSchema._internalBuild("tags", String[].class, false);
+			final AttributeSchema schema = AttributeSchema._internalBuild("tags", String[].class, false, ConflictResolutionOverride.INHERITED);
 
 			assertSame(String[].class, schema.getType());
 			assertSame(String.class, schema.getPlainType());
@@ -145,7 +156,7 @@ class AttributeSchemaTest {
 		@Test
 		@DisplayName("should default uniqueness to NOT_UNIQUE when null")
 		void shouldDefaultUniquenessToNotUnique() {
-			final AttributeSchema schema = AttributeSchema._internalBuild("code", String.class, false);
+			final AttributeSchema schema = AttributeSchema._internalBuild("code", String.class, false, ConflictResolutionOverride.INHERITED);
 
 			assertEquals(AttributeUniquenessType.NOT_UNIQUE, schema.getUniquenessType(Scope.DEFAULT_SCOPE));
 			assertFalse(schema.isUnique());
@@ -167,7 +178,8 @@ class AttributeSchemaTest {
 				},
 				null, null,
 				false, false, false,
-				String.class, null
+				String.class, null,
+				ConflictResolutionOverride.INHERITED
 			);
 
 			assertTrue(schema.isUniqueInScope(Scope.LIVE));
@@ -188,7 +200,8 @@ class AttributeSchemaTest {
 				},
 				null, null,
 				true, false, false,
-				String.class, null
+				String.class, null,
+				ConflictResolutionOverride.INHERITED
 			);
 
 			assertTrue(schema.isUniqueInScope(Scope.LIVE));
@@ -206,7 +219,8 @@ class AttributeSchemaTest {
 				},
 				null, null,
 				false, false, false,
-				String.class, null
+				String.class, null,
+				ConflictResolutionOverride.INHERITED
 			);
 
 			assertEquals(AttributeUniquenessType.NOT_UNIQUE, schema.getUniquenessType(Scope.ARCHIVED));
@@ -227,7 +241,8 @@ class AttributeSchemaTest {
 				new Scope[]{Scope.LIVE},
 				null,
 				false, false, false,
-				String.class, null
+				String.class, null,
+				ConflictResolutionOverride.INHERITED
 			);
 
 			assertTrue(schema.isFilterableInScope(Scope.LIVE));
@@ -242,7 +257,8 @@ class AttributeSchemaTest {
 				null, null,
 				new Scope[]{Scope.LIVE, Scope.ARCHIVED},
 				false, false, false,
-				String.class, null
+				String.class, null,
+				ConflictResolutionOverride.INHERITED
 			);
 
 			assertTrue(schema.isSortableInScope(Scope.LIVE));
@@ -252,7 +268,7 @@ class AttributeSchemaTest {
 		@Test
 		@DisplayName("should report empty scopes when none specified")
 		void shouldReportEmptyScopes() {
-			final AttributeSchema schema = AttributeSchema._internalBuild("code", String.class, false);
+			final AttributeSchema schema = AttributeSchema._internalBuild("code", String.class, false, ConflictResolutionOverride.INHERITED);
 
 			assertFalse(schema.isFilterableInScope(Scope.LIVE));
 			assertFalse(schema.isSortableInScope(Scope.LIVE));
@@ -268,7 +284,7 @@ class AttributeSchemaTest {
 		@Test
 		@DisplayName("should invert Predecessor to ReferencedEntityPredecessor")
 		void shouldInvertPredecessorType() {
-			final AttributeSchema schema = AttributeSchema._internalBuild("order", Predecessor.class, false);
+			final AttributeSchema schema = AttributeSchema._internalBuild("order", Predecessor.class, false, ConflictResolutionOverride.INHERITED);
 
 			final AttributeSchemaContract inverted = schema.withInvertedType();
 
@@ -279,7 +295,8 @@ class AttributeSchemaTest {
 		@DisplayName("should invert ReferencedEntityPredecessor to Predecessor")
 		void shouldInvertReferencedEntityPredecessorType() {
 			final AttributeSchema schema = AttributeSchema._internalBuild(
-				"order", ReferencedEntityPredecessor.class, false
+				"order", ReferencedEntityPredecessor.class, false,
+				ConflictResolutionOverride.INHERITED
 			);
 
 			final AttributeSchemaContract inverted = schema.withInvertedType();
@@ -290,7 +307,7 @@ class AttributeSchemaTest {
 		@Test
 		@DisplayName("should throw when inverting non-predecessor type")
 		void shouldThrowWhenInvertingNonPredecessorType() {
-			final AttributeSchema schema = AttributeSchema._internalBuild("name", String.class, false);
+			final AttributeSchema schema = AttributeSchema._internalBuild("name", String.class, false, ConflictResolutionOverride.INHERITED);
 
 			assertThrows(GenericEvitaInternalError.class, schema::withInvertedType);
 		}
@@ -332,8 +349,8 @@ class AttributeSchemaTest {
 		@Test
 		@DisplayName("should be equal for same construction parameters")
 		void shouldBeEqualForSameParams() {
-			final AttributeSchema a = AttributeSchema._internalBuild("code", String.class, false);
-			final AttributeSchema b = AttributeSchema._internalBuild("code", String.class, false);
+			final AttributeSchema a = AttributeSchema._internalBuild("code", String.class, false, ConflictResolutionOverride.INHERITED);
+			final AttributeSchema b = AttributeSchema._internalBuild("code", String.class, false, ConflictResolutionOverride.INHERITED);
 
 			assertEquals(a, b);
 			assertEquals(a.hashCode(), b.hashCode());
@@ -342,8 +359,8 @@ class AttributeSchemaTest {
 		@Test
 		@DisplayName("should not be equal when names differ")
 		void shouldNotBeEqualWhenNamesDiffer() {
-			final AttributeSchema a = AttributeSchema._internalBuild("code", String.class, false);
-			final AttributeSchema b = AttributeSchema._internalBuild("name", String.class, false);
+			final AttributeSchema a = AttributeSchema._internalBuild("code", String.class, false, ConflictResolutionOverride.INHERITED);
+			final AttributeSchema b = AttributeSchema._internalBuild("name", String.class, false, ConflictResolutionOverride.INHERITED);
 
 			assertNotEquals(a, b);
 		}
@@ -351,10 +368,20 @@ class AttributeSchemaTest {
 		@Test
 		@DisplayName("should not be equal when types differ")
 		void shouldNotBeEqualWhenTypesDiffer() {
-			final AttributeSchema a = AttributeSchema._internalBuild("code", String.class, false);
-			final AttributeSchema b = AttributeSchema._internalBuild("code", Integer.class, false);
+			final AttributeSchema a = AttributeSchema._internalBuild("code", String.class, false, ConflictResolutionOverride.INHERITED);
+			final AttributeSchema b = AttributeSchema._internalBuild("code", Integer.class, false, ConflictResolutionOverride.INHERITED);
 
 			assertNotEquals(a, b);
+		}
+
+		@Test
+		@DisplayName("should not be equal when conflict resolution override differs")
+		void shouldNotBeEqualWhenConflictResolutionOverrideDiffers() {
+			final AttributeSchema a = AttributeSchema._internalBuild("code", String.class, false, ConflictResolutionOverride.INHERITED);
+			final AttributeSchema b = AttributeSchema._internalBuild("code", String.class, false, ConflictResolutionOverride.GRANULAR);
+
+			assertNotEquals(a, b);
+			assertNotEquals(a.hashCode(), b.hashCode());
 		}
 	}
 
@@ -365,7 +392,7 @@ class AttributeSchemaTest {
 		@Test
 		@DisplayName("should contain schema name and type in output")
 		void shouldContainNameAndType() {
-			final AttributeSchema schema = AttributeSchema._internalBuild("code", String.class, false);
+			final AttributeSchema schema = AttributeSchema._internalBuild("code", String.class, false, ConflictResolutionOverride.INHERITED);
 
 			final String result = schema.toString();
 
@@ -383,7 +410,8 @@ class AttributeSchemaTest {
 				},
 				null, null,
 				false, false, false,
-				String.class, null
+				String.class, null,
+				ConflictResolutionOverride.INHERITED
 			);
 
 			final String result = schema.toString();

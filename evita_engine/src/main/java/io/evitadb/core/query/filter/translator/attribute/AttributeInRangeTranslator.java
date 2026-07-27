@@ -207,7 +207,12 @@ public class AttributeInRangeTranslator extends AbstractAttributeTranslator
 			if (theValue instanceof BigDecimal) {
 				return BigDecimalNumberRange.toComparableLong((BigDecimal) theValue, attributeDefinition.getIndexedDecimalPlaces());
 			} else {
-				return theValue.longValue();
+				// non-BigDecimal numeric arguments must be scaled by indexedDecimalPlaces too, otherwise the
+				// probe (e.g. `90`) is encoded as a raw long while the range index holds scale-encoded bounds
+				// (e.g. `900000` at 4 decimal places) - mirrors AttributeBetweenTranslator's bound encoding
+				return BigDecimalNumberRange.toComparableLong(
+					BigDecimal.valueOf(theValue.longValue()), attributeDefinition.getIndexedDecimalPlaces()
+				);
 			}
 		} else if (DateTimeRange.class.isAssignableFrom(attributeDefinition.getPlainType())) {
 			final OffsetDateTime theMoment = ofNullable(filterConstraint.getTheMoment()).orElseGet(filterByVisitor::getNow);
@@ -227,13 +232,18 @@ public class AttributeInRangeTranslator extends AbstractAttributeTranslator
 			final ProcessingScope<? extends Index<?>> processingScope = filterByVisitor.getProcessingScope();
 			final AttributeKey attributeKey = createAttributeKey(filterByVisitor, attributeSchema);
 			final long comparableValue = getComparableValue(attributeInRange, filterByVisitor, attributeSchema);
+			final boolean isNowOnDateTimeRange =
+				DateTimeRange.class.isAssignableFrom(attributeSchema.getPlainType())
+					&& attributeInRange.getTheMoment() == null;
 			final AttributeFormula filteringFormula = new AttributeFormula(
 				attributeSchema instanceof GlobalAttributeSchemaContract,
 				attributeKey,
 				filterByVisitor.applyOnFilterIndexes(
 					processingScope.getReferenceSchema(),
 					attributeSchema,
-					index -> index.getRecordsValidInFormula(comparableValue)
+					isNowOnDateTimeRange
+						? index -> index.getRecordsValidNowFormula(comparableValue)
+						: index -> index.getRecordsValidInFormula(comparableValue)
 				)
 			);
 			if (filterByVisitor.isPrefetchPossible()) {

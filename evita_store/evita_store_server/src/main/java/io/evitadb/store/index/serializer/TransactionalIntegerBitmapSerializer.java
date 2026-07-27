@@ -34,7 +34,7 @@ import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.store.offsetIndex.exception.KryoSerializationException;
-import org.roaringbitmap.RoaringBitmap;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 
 import java.io.IOException;
 
@@ -47,7 +47,7 @@ public class TransactionalIntegerBitmapSerializer extends Serializer<Transaction
 
 	@Override
 	public void write(Kryo kryo, Output output, TransactionalBitmap bitmap) {
-		final RoaringBitmap roaringBitmap = RoaringBitmapBackedBitmap.getRoaringBitmap(bitmap);
+		final PersistentRoaringBitmap roaringBitmap = RoaringBitmapBackedBitmap.getRoaringBitmap(bitmap);
 		try {
 			roaringBitmap.serialize(new KryoDataOutput(output));
 		} catch (IOException e) {
@@ -57,7 +57,7 @@ public class TransactionalIntegerBitmapSerializer extends Serializer<Transaction
 
 	@Override
 	public TransactionalBitmap read(Kryo kryo, Input input, Class<? extends TransactionalBitmap> type) {
-		final RoaringBitmap bitmap = new RoaringBitmap();
+		final PersistentRoaringBitmap bitmap = new PersistentRoaringBitmap();
 		try {
 			bitmap.deserialize(new KryoDataInput(input));
 		} catch (IOException e) {

@@ -25,16 +25,26 @@ package io.evitadb.api.query.require;
 
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+
+import java.io.Serializable;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.QueryConstraints.*;
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.REQUIRE;
+import static io.evitadb.test.TestTags.HIERARCHY;
 
 /**
  * This tests verifies basic properties of {@link HierarchyContent} query.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
+@Tag(CONTRACT)
+@Tag(REQUIRE)
+@Tag(HIERARCHY)
 class HierarchyContentTest {
 
 	@Test
@@ -168,6 +178,15 @@ class HierarchyContentTest {
 		final HierarchyContent hierarchyContent1 = hierarchyContent(stopAt(distance(1)));
 		final HierarchyContent hierarchyContent2 = hierarchyContent(stopAt(distance(2)));
 		assertThrows(EvitaInvalidUsageException.class, () -> hierarchyContent1.combineWith(hierarchyContent2));
+	}
+
+	@Test
+	@DisplayName("cloneWithArguments() should return new instance, not this")
+	void shouldReturnNewInstanceFromCloneWithArguments() {
+		final HierarchyContent original = hierarchyContent(stopAt(distance(1)), entityFetch());
+		final HierarchyContent cloned = (HierarchyContent) original.cloneWithArguments(new Serializable[0]);
+		assertNotSame(original, cloned);
+		assertEquals(original, cloned);
 	}
 
 }

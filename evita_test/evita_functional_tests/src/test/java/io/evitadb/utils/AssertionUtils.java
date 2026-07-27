@@ -31,8 +31,8 @@ import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.transaction.Transaction;
 import io.evitadb.core.transaction.TransactionHandler;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
-import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
-import lombok.Getter;
+import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer.Savepoint;
+import io.evitadb.core.transaction.memory.TransactionalStateProducer;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -46,6 +46,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
@@ -108,12 +109,12 @@ public class AssertionUtils {
 	 * This method executes operation in lambda `doInTransaction` on `tested` instance and verifies the results visible
 	 * after transactional memory is committed in `verifyAfterCommit` lambda.
 	 */
-	public static <S, X, T extends TransactionalLayerProducer<X, S>> void assertStateAfterCommit(
+	public static <S, T extends TransactionalStateProducer<S>> void assertStateAfterCommit(
 		@Nonnull T tested,
 		@Nonnull Consumer<T> doInTransaction,
 		@Nonnull BiConsumer<T, S> verifyAfterCommit
 	) {
-		final TestTransactionHandler<S, X, T> transactionHandler = new TestTransactionHandler<>(tested);
+		final TestTransactionHandler<S, T> transactionHandler = new TestTransactionHandler<>(tested);
 		Transaction.executeInTransactionIfProvided(
 			new Transaction(
 				UUID.randomUUID(),
@@ -140,12 +141,12 @@ public class AssertionUtils {
 	 * This method executes operation in lambda `doInTransaction` on `tested` instance and verifies the results visible
 	 * after transactional memory is committed in `verifyAfterCommit` lambda.
 	 */
-	public static <S, X, T extends TransactionalLayerProducer<X, S>> void assertStateAfterCommit(
+	public static <S, T extends TransactionalStateProducer<S>> void assertStateAfterCommit(
 		@Nonnull List<T> tested,
 		@Nonnull Consumer<List<T>> doInTransaction,
 		@Nonnull BiConsumer<List<T>, List<S>> verifyAfterCommit
 	) {
-		final TestTransactionHandlerWithMultipleValues<S, X, T> transactionHandler = new TestTransactionHandlerWithMultipleValues<>(tested);
+		final TestTransactionHandlerWithMultipleValues<S, T> transactionHandler = new TestTransactionHandlerWithMultipleValues<>(tested);
 		Transaction.executeInTransactionIfProvided(
 			new Transaction(
 				UUID.randomUUID(),
@@ -172,12 +173,12 @@ public class AssertionUtils {
 	 * This method executes operation in lambda `doInTransaction` on `tested` instance and verifies the results visible
 	 * after transactional memory is rollbacked in `verifyAfterRollback` lambda.
 	 */
-	public static <S, X, T extends TransactionalLayerProducer<X, S>> void assertStateAfterRollback(
+	public static <S, T extends TransactionalStateProducer<S>> void assertStateAfterRollback(
 		@Nonnull T tested,
 		@Nonnull Consumer<T> doInTransaction,
 		@Nonnull BiConsumer<T, S> verifyAfterRollback
 	) {
-		final TestTransactionHandler<S, X, T> transactionHandler = new TestTransactionHandler<>(tested);
+		final TestTransactionHandler<S, T> transactionHandler = new TestTransactionHandler<>(tested);
 		Transaction.executeInTransactionIfProvided(
 			new Transaction(
 				UUID.randomUUID(),
@@ -201,12 +202,12 @@ public class AssertionUtils {
 	 * This method executes operation in lambda `doInTransaction` on `tested` instance and verifies the results visible
 	 * after transactional memory is rollbacked in `verifyAfterRollback` lambda.
 	 */
-	public static <S, X, T extends TransactionalLayerProducer<X, S>> void assertStateAfterRollback(
+	public static <S, T extends TransactionalStateProducer<S>> void assertStateAfterRollback(
 		@Nonnull List<T> tested,
 		@Nonnull Consumer<List<T>> doInTransaction,
 		@Nonnull BiConsumer<List<T>, List<S>> verifyAfterRollback
 	) {
-		final TestTransactionHandlerWithMultipleValues<S, X, T> transactionHandler = new TestTransactionHandlerWithMultipleValues<>(tested);
+		final TestTransactionHandlerWithMultipleValues<S, T> transactionHandler = new TestTransactionHandlerWithMultipleValues<>(tested);
 		Transaction.executeInTransactionIfProvided(
 			new Transaction(
 				UUID.randomUUID(),
@@ -224,6 +225,102 @@ public class AssertionUtils {
 		);
 
 		verifyAfterRollback.accept(tested, transactionHandler.getCommitted());
+	}
+
+	/**
+	 * Per-entity savepoint **rollback fidelity** assertion. Runs inside a real transaction:
+	 *
+	 * 1. `baselineOps` mutate `tested` — these stand for changes of *prior* entities in the same transaction and
+	 *    must SURVIVE the savepoint rollback;
+	 * 2. the logical content is captured via `oracleReader` (an `.equals`-comparable reference value);
+	 * 3. a savepoint is opened, `savepointOps` mutate `tested` — these stand for the *failing* entity and must be
+	 *    REVERTED;
+	 * 4. `rollbackSavepoint` runs and the content is asserted equal to the captured reference — exactly;
+	 * 5. the transaction then commits normally, so the commit-time layer-sweep verification
+	 *    ({@link TransactionalLayerMaintainer#verifyLayerWasFullySwept()}) proves the restore left no dangling or
+	 *    stale layer (post-rollback usability).
+	 *
+	 * `openSavepoint` is intentionally called *after* `baselineOps` so the savepoint's snapshot-on-first-touch
+	 * captures the post-baseline diff — the state the rollback must return to.
+	 *
+	 * @param tested       the transactional structure under test
+	 * @param baselineOps  mutations applied before the savepoint (must survive)
+	 * @param oracleReader reads the structure's logical content into an `.equals`-comparable reference value
+	 * @param savepointOps mutations applied while the savepoint is open (must be reverted)
+	 */
+	public static <S, T extends TransactionalStateProducer<S>, R> void assertSavepointRollbackRestores(
+		@Nonnull T tested,
+		@Nonnull Consumer<T> baselineOps,
+		@Nonnull Function<T, R> oracleReader,
+		@Nonnull Consumer<T> savepointOps
+	) {
+		final TestTransactionHandler<S, T> transactionHandler = new TestTransactionHandler<>(tested);
+		Transaction.executeInTransactionIfProvided(
+			new Transaction(UUID.randomUUID(), transactionHandler, false),
+			() -> {
+				final Transaction transaction = Transaction.getTransaction().orElseThrow();
+				try {
+					final TransactionalLayerMaintainer maintainer = Transaction.getTransactionalLayerMaintainer();
+					baselineOps.accept(tested);
+					final R expected = oracleReader.apply(tested);
+					final Savepoint savepoint = maintainer.openSavepoint();
+					savepointOps.accept(tested);
+					maintainer.rollbackSavepoint(savepoint);
+					assertEquals(
+						expected, oracleReader.apply(tested),
+						"Savepoint rollback must restore the exact pre-savepoint logical state!"
+					);
+				} catch (Throwable ex) {
+					transaction.setRollbackOnly();
+					throw ex;
+				} finally {
+					transaction.close();
+				}
+			}
+		);
+	}
+
+	/**
+	 * Per-entity savepoint **commit fidelity** assertion. Mirrors
+	 * {@link #assertSavepointRollbackRestores} but commits the savepoint instead of rolling it back: the content
+	 * captured *after* `savepointOps` must remain unchanged once `commitSavepoint` runs (committing a savepoint only
+	 * drops bookkeeping; no diff layer is modified).
+	 *
+	 * @param tested       the transactional structure under test
+	 * @param baselineOps  mutations applied before the savepoint
+	 * @param oracleReader reads the structure's logical content into an `.equals`-comparable reference value
+	 * @param savepointOps mutations applied while the savepoint is open (must be kept)
+	 */
+	public static <S, T extends TransactionalStateProducer<S>, R> void assertSavepointCommitKeeps(
+		@Nonnull T tested,
+		@Nonnull Consumer<T> baselineOps,
+		@Nonnull Function<T, R> oracleReader,
+		@Nonnull Consumer<T> savepointOps
+	) {
+		final TestTransactionHandler<S, T> transactionHandler = new TestTransactionHandler<>(tested);
+		Transaction.executeInTransactionIfProvided(
+			new Transaction(UUID.randomUUID(), transactionHandler, false),
+			() -> {
+				final Transaction transaction = Transaction.getTransaction().orElseThrow();
+				try {
+					final TransactionalLayerMaintainer maintainer = Transaction.getTransactionalLayerMaintainer();
+					baselineOps.accept(tested);
+					final Savepoint savepoint = maintainer.openSavepoint();
+					savepointOps.accept(tested);
+					final R expected = oracleReader.apply(tested);
+					maintainer.commitSavepoint(savepoint);
+					assertEquals(
+						expected, oracleReader.apply(tested),
+						"Savepoint commit must keep all changes made while it was open!"
+					);
+				} catch (Throwable ex) {
+					transaction.setRollbackOnly();
+					throw ex;
+				} finally {
+					transaction.close();
+				}
+			}
+		);
 	}
 
 	/**
@@ -293,7 +390,7 @@ public class AssertionUtils {
 	/**
 	 * Verifies whether the passed arrays differ one from another. Arrays are expected to be of the same size.
 	 */
-	public static void assertArrayAreDifferent(int[] arrayA, int[] arrayB) {
+	public static void assertArrayAreDifferent(@Nonnull int[] arrayA, @Nonnull int[] arrayB) {
 		assertEquals(arrayA.length, arrayB.length, "Both arrays should have same size.");
 		for (int i = 0; i < arrayA.length; i++) {
 			int i1 = arrayA[i];
@@ -310,15 +407,18 @@ public class AssertionUtils {
 	 * It simply creates instance of the tested item in case of commit and provides access to it in `committed` field.
 	 *
 	 * @param <S> the type of the state
-	 * @param <X> the type of the transactional layer producer
-	 * @param <T> a subtype of {@link TransactionalLayerProducer}
+	 * @param <T> a subtype of {@link TransactionalStateProducer}
 	 */
-	private static class TestTransactionHandler<S, X, T extends TransactionalLayerProducer<X, S>> implements TransactionHandler {
+	private static class TestTransactionHandler<S, T extends TransactionalStateProducer<S>> implements TransactionHandler {
 		private final T tested;
-		@Getter private S committed;
+		private S committed;
 
 		public TestTransactionHandler(@Nonnull T tested) {
 			this.tested = tested;
+		}
+
+		public S getCommitted() {
+			return this.committed;
 		}
 
 		@Override
@@ -344,15 +444,18 @@ public class AssertionUtils {
 	 * New versions of those items are provided in `committed` field.
 	 *
 	 * @param <S> the type of state
-	 * @param <X> the type of difference piece
-	 * @param <T> a transactional layer producer that extends TransactionalLayerProducer<X, S>
+	 * @param <T> a transactional state producer that extends TransactionalStateProducer<S>
 	 */
-	private static class TestTransactionHandlerWithMultipleValues<S, X, T extends TransactionalLayerProducer<X, S>> implements TransactionHandler {
+	private static class TestTransactionHandlerWithMultipleValues<S, T extends TransactionalStateProducer<S>> implements TransactionHandler {
 		private final List<T> tested;
-		@Getter private List<S> committed;
+		private List<S> committed;
 
 		public TestTransactionHandlerWithMultipleValues(@Nonnull List<T> tested) {
 			this.tested = tested;
+		}
+
+		public List<S> getCommitted() {
+			return this.committed;
 		}
 
 		@Override

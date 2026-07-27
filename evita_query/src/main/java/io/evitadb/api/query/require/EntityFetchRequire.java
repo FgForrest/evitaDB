@@ -30,7 +30,30 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 /**
- * Ancestor for all requirement containers that serves as entity richness definers.
+ * Marker interface for require constraints that *trigger loading of an entity body* and define which content should
+ * be included in that body. Implementations represent the top-level "fetch" containers, rather than individual
+ * content specifiers.
+ *
+ * There are two concrete implementations in the standard require API:
+ * - {@link EntityFetch} — defines the body richness for *primary queried entities* (and referenced entities when
+ *   used inside {@link ReferenceContent})
+ * - {@link EntityGroupFetch} — defines the body richness for *reference group entities* inside {@link ReferenceContent}
+ *   / facet contexts
+ *
+ * An `EntityFetchRequire` is also a {@link SeparateEntityContentRequireContainer}, which signals to the query
+ * planner that the {@link EntityContentRequire} children nested inside it define an *isolated fetch scope*. This
+ * prevents the children from being merged with `EntityContentRequire` constraints that belong to a different
+ * entity context.
+ *
+ * The interface defines:
+ * - `getRequirements()` — returns the flat list of {@link EntityContentRequire} children that together specify
+ *   which data dimensions (attributes, prices, references, …) should be loaded
+ * - `combineWith(T)` — merges two compatible fetch requirements into one by taking the union of their
+ *   nested content requirements; null-safe via the static `combineRequirements(T, T)` factory
+ * - `isFullyContainedWithin(T)` — allows the query planner to determine whether one fetch requirement is
+ *   already covered by another, enabling deduplication
+ *
+ * All implementations must be immutable.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
@@ -58,7 +81,8 @@ public interface EntityFetchRequire extends EntityConstraint<RequireConstraint>,
 	}
 
 	/**
-	 * Returns all requirements that are needed to be satisfied for this requirement to be fulfilled.
+	 * Returns all requirements that need to be satisfied for this requirement to be fulfilled.
+	 *
 	 * @return array of requirements
 	 */
 	@Nonnull
@@ -75,8 +99,12 @@ public interface EntityFetchRequire extends EntityConstraint<RequireConstraint>,
 	<T extends EntityFetchRequire> boolean isFullyContainedWithin(@Nonnull T anotherRequirement);
 
 	/**
-	 * Method allows to combine two requirements of same type (that needs to be compatible with "this" type) into one
-	 * combining the arguments of both of them.
+	 * Combines two requirements of the same type (that needs to be compatible with "this" type) into one by merging
+	 * the arguments of both of them.
+	 *
+	 * @param anotherRequirement another requirement to be combined with
+	 * @param <T> type of the requirement to be combined with
+	 * @return a new combined requirement
 	 */
 	@Nonnull
 	<T extends EntityFetchRequire> T combineWith(@Nullable T anotherRequirement);

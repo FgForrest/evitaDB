@@ -102,6 +102,7 @@ import io.evitadb.driver.config.ClientTimeoutOptions;
 import io.evitadb.driver.config.EvitaClientConfiguration;
 import io.evitadb.driver.exception.EvitaClientServerCallException;
 import io.evitadb.driver.exception.EvitaClientTimedOutException;
+import io.evitadb.driver.exception.TransportException;
 import io.evitadb.driver.interceptor.ClientSessionInterceptor.SessionIdHolder;
 import io.evitadb.driver.requestResponse.schema.ClientCatalogSchemaDecorator;
 import io.evitadb.exception.EvitaInvalidUsageException;
@@ -259,6 +260,14 @@ public class EvitaClientSession implements EvitaSessionContract {
 	 * Reference, that allows to access transaction object.
 	 */
 	private final AtomicReference<EvitaClientTransaction> transactionAccessor = new AtomicReference<>();
+	/**
+	 * Contains the number of nested session calls, mirroring the embedded session. The root-level frame (level `1`)
+	 * represents the client's transaction block (`updateCatalog` / {@link #execute(Function)}); individual operations
+	 * invoked inside it run nested (level `2`) and therefore do not mark the transaction rollback-only when they fail.
+	 * Only an exception that escapes the root frame uncaught flips the transaction to rollback-only, which the client
+	 * then propagates to the server at close time — making a remote session behave 1:1 with an embedded one.
+	 */
+	private int nestLevel;
 	/**
 	 * Contains reference to the proxy factory that is used to create proxies for the entities.
 	 */
@@ -421,12 +430,41 @@ public class EvitaClientSession implements EvitaSessionContract {
 	@Override
 	public long getCatalogVersion() {
 		assertActive();
+		// the cache is lazy - when no request has yet brought catalog/schema versions back
+		// from the server (e.g. a brand new client that has only opened a read-only session
+		// and has not issued any schema/query/transaction call), zero would be returned even
+		// for a fully populated catalog; force a server round-trip to populate the cache
+		if (!this.schemaCache.isInitialized()) {
+			fetchCatalogSchema();
+		}
 		return this.schemaCache.getLastKnownCatalogVersion();
 	}
 
 	@Override
 	public boolean isActive() {
 		return this.closedFuture == null;
+	}
+
+	/**
+	 * {@inheritDoc}
+	 *
+	 * Overridden to route through {@link #closeNowWithProgress()} rather than the
+	 * single-response {@link #closeNow(CommitBehavior)}. The progress variant
+	 * streams intermediate milestone messages from the server, and every received
+	 * message restarts the Armeria response deadline via {@link TimeoutMode#SET_FROM_NOW}.
+	 * This means the caller is bounded by "no server activity for
+	 * {@link ClientTimeoutOptions#streamingTimeout()}" - a commit that legitimately
+	 * takes longer than the streaming timeout to reach the requested behaviour keeps
+	 * the call alive as long as progress keeps flowing, while a silent/dead connection
+	 * unblocks the caller once the streaming timeout elapses without activity.
+	 */
+	@Nonnull
+	@Override
+	public CommitVersions closeWhen(@Nonnull CommitBehavior commitBehaviour) {
+		return closeNowWithProgress()
+			.on(commitBehaviour)
+			.toCompletableFuture()
+			.join();
 	}
 
 	@Nonnull
@@ -439,56 +477,87 @@ public class EvitaClientSession implements EvitaSessionContract {
 			progressObserver
 		);
 
+		// wire the termination callback chain so that stream completion (or error) removes
+		// the session from EvitaClient.activeSessions via onTerminationCallback
+		final CompletableFuture<CommitVersions> closeFuture = closeInternally();
 		final Duration timeout = this.streamingTimeout;
 
-		executeWithStreamingEvitaSessionService(
-			evitaSessionService -> {
-				final StreamObserver<GrpcGoLiveAndCloseWithProgressResponse> observer = new StreamObserver<>() {
-					private long catalogVersion = -1;
-					private int catalogSchemaVersion = -1;
+		try {
+			executeWithStreamingEvitaSessionService(
+				evitaSessionService -> {
+					final StreamObserver<GrpcGoLiveAndCloseWithProgressResponse> observer = new StreamObserver<>() {
+						private long catalogVersion = -1;
+						private int catalogSchemaVersion = -1;
 
-					@Override
-					public void onNext(GrpcGoLiveAndCloseWithProgressResponse grpcResponse) {
-						goLiveProgress.updatePercentCompleted(
-							grpcResponse.getProgressInPercent()
-						);
-
-						this.catalogVersion = grpcResponse.getCatalogVersion();
-						this.catalogSchemaVersion = grpcResponse.getCatalogSchemaVersion();
-
-						if (progressObserver != null) {
-							progressObserver.accept(grpcResponse.getProgressInPercent());
-						}
-
-						// postpone timeout with each message received
-						ClientRequestContext.current().setResponseTimeout(TimeoutMode.EXTEND, timeout);
-					}
-
-					@Override
-					public void onError(Throwable throwable) {
-						goLiveProgress.completeExceptionally(throwable);
-					}
-
-					@Override
-					public void onCompleted() {
-						goLiveProgress.complete(
-							new CommitVersions(this.catalogVersion, this.catalogSchemaVersion)
-						);
-
-						if (this.catalogVersion > -1 && this.catalogSchemaVersion > -1) {
-							EvitaClientSession.this.schemaCache.updateLastKnownCatalogVersion(
-								this.catalogVersion, this.catalogSchemaVersion
+						@Override
+						public void onNext(GrpcGoLiveAndCloseWithProgressResponse grpcResponse) {
+							goLiveProgress.updatePercentCompleted(
+								grpcResponse.getProgressInPercent()
 							);
+
+							this.catalogVersion = grpcResponse.getCatalogVersion();
+							this.catalogSchemaVersion = grpcResponse.getCatalogSchemaVersion();
+
+							if (progressObserver != null) {
+								progressObserver.accept(grpcResponse.getProgressInPercent());
+							}
+
+							// restart the response deadline from now so a silent stream unblocks the
+							// caller within `streamingTimeout` of the last event, regardless of how
+							// many events have already been received
+							ClientRequestContext.current().setResponseTimeout(TimeoutMode.SET_FROM_NOW, timeout);
 						}
-					}
-				};
-				evitaSessionService.goLiveAndCloseWithProgress(
-					Empty.newBuilder().build(),
-					observer
-				);
-				return null;
+
+						@Override
+						public void onError(Throwable throwable) {
+							closeFuture.completeExceptionally(throwable);
+							goLiveProgress.completeExceptionally(throwable);
+						}
+
+						@Override
+						public void onCompleted() {
+							try {
+								final CommitVersions commitVersions = new CommitVersions(
+									this.catalogVersion, this.catalogSchemaVersion
+								);
+
+								final CommitProgressRecord cpr = new CommitProgressRecord();
+								cpr.complete(CommitBehavior.WAIT_FOR_CHANGES_VISIBLE, commitVersions);
+								EvitaClientSession.this.commitProgress = cpr;
+
+								if (this.catalogVersion > -1 && this.catalogSchemaVersion > -1) {
+									EvitaClientSession.this.schemaCache.updateLastKnownCatalogVersion(
+										this.catalogVersion, this.catalogSchemaVersion
+									);
+								}
+
+								// completing the close future triggers onTerminationCallback which
+								// removes this session from EvitaClient.activeSessions
+								closeFuture.complete(commitVersions);
+								goLiveProgress.complete(commitVersions);
+							} catch (Exception e) {
+								closeFuture.completeExceptionally(e);
+								goLiveProgress.completeExceptionally(e);
+							}
+						}
+					};
+					evitaSessionService.goLiveAndCloseWithProgress(
+						Empty.newBuilder().build(),
+						observer
+					);
+					return null;
+				}
+			);
+		} catch (RuntimeException ex) {
+			// the stream was never successfully started — without this the observer would
+			// never be attached and any caller awaiting the progress or the close future
+			// would sit forever; both completeExceptionally calls are idempotent
+			if (!closeFuture.isDone()) {
+				closeFuture.completeExceptionally(ex);
 			}
-		);
+			goLiveProgress.completeExceptionally(ex);
+			throw ex;
+		}
 
 		return goLiveProgress;
 	}
@@ -497,47 +566,71 @@ public class EvitaClientSession implements EvitaSessionContract {
 	@Override
 	public CompletionStage<CommitVersions> closeNow(@Nonnull CommitBehavior commitBehaviour) {
 		if (isActive()) {
+			// capture the rollback decision while the session is still active — closeInternally() sets closedFuture
+			// (flipping isActive() to false), after which isRollbackOnly() would fail its assertActive() check
+			final boolean rollback = isRollbackOnly();
 			final CompletableFuture<CommitVersions> result = closeInternally();
 			final Duration timeout = this.streamingTimeout;
 
-			executeWithStreamingEvitaSessionService(
-				evitaSessionService -> {
-					final StreamObserver<GrpcCloseResponse> observer = new StreamObserver<>() {
-						@Override
-						public void onNext(GrpcCloseResponse grpcResponse) {
-							result.complete(
-								new CommitVersions(
-									grpcResponse.getCatalogVersion(),
-									grpcResponse.getCatalogSchemaVersion()
-								)
-							);
-							EvitaClientSession.this.schemaCache.updateLastKnownCatalogVersion(
-								grpcResponse.getCatalogVersion(), grpcResponse.getCatalogSchemaVersion()
-							);
-							// postpone timeout with each message received
-							ClientRequestContext.current().setResponseTimeout(TimeoutMode.EXTEND, timeout);
-						}
+			try {
+				executeWithStreamingEvitaSessionService(
+					evitaSessionService -> {
+						final StreamObserver<GrpcCloseResponse> observer = new StreamObserver<>() {
+							@Override
+							public void onNext(GrpcCloseResponse grpcResponse) {
+								result.complete(
+									new CommitVersions(
+										grpcResponse.getCatalogVersion(),
+										grpcResponse.getCatalogSchemaVersion()
+									)
+								);
+								EvitaClientSession.this.schemaCache.updateLastKnownCatalogVersion(
+									grpcResponse.getCatalogVersion(), grpcResponse.getCatalogSchemaVersion()
+								);
+								// restart the response deadline from now so a silent stream unblocks the
+								// caller within `streamingTimeout` of the last event, regardless of how
+								// many events have already been received
+								ClientRequestContext.current().setResponseTimeout(TimeoutMode.SET_FROM_NOW, timeout);
+							}
 
-						@Override
-						public void onError(Throwable throwable) {
-							result.completeExceptionally(throwable);
-						}
+							@Override
+							public void onError(Throwable throwable) {
+								result.completeExceptionally(throwable);
+							}
 
-						@Override
-						public void onCompleted() {
-
-						}
-					};
-					evitaSessionService.close(
-						GrpcCloseRequest.newBuilder()
-							.setCatalogName(this.catalogName)
-							.setCommitBehaviour(EvitaEnumConverter.toGrpcCommitBehavior(commitBehaviour))
-							.build(),
-						observer
-					);
-					return null;
+							@Override
+							public void onCompleted() {
+								if (!result.isDone()) {
+									result.completeExceptionally(
+										new GenericEvitaInternalError(
+											"Server completed the close stream without sending final commit versions! This should never happen and indicates a bug in the server implementation.",
+											"Unexpected end of close progress stream!"
+										)
+									);
+								}
+							}
+						};
+						evitaSessionService.close(
+							GrpcCloseRequest.newBuilder()
+								.setCatalogName(this.catalogName)
+								.setCommitBehaviour(EvitaEnumConverter.toGrpcCommitBehavior(commitBehaviour))
+								// discard the transaction on the server when the block failed uncaught (1:1 embedded)
+								.setRollback(rollback)
+								.build(),
+							observer
+						);
+						return null;
+					}
+				);
+			} catch (RuntimeException ex) {
+				// the stream was never successfully started — without this the observer would
+				// never be attached and any caller awaiting `closedFuture` (or a commitProgress
+				// synthesized from it by a later closeNowWithProgress call) would sit forever
+				if (!result.isDone()) {
+					result.completeExceptionally(ex);
 				}
-			);
+				throw ex;
+			}
 		}
 		return this.closedFuture;
 	}
@@ -545,10 +638,13 @@ public class EvitaClientSession implements EvitaSessionContract {
 	@Nonnull
 	@Override
 	public ChangeCapturePublisher<ChangeCatalogCapture> registerChangeCatalogCapture(@Nonnull ChangeCatalogCaptureRequest request) {
+		final EvitaClient.CatalogBoundCaptureKey key = new EvitaClient.CatalogBoundCaptureKey(
+			this.catalogName, request
+		);
 		//noinspection unchecked
 		return (ChangeCapturePublisher<ChangeCatalogCapture>) this.evita.activePublishers.compute(
-			request,
-			(theRequest, existingInstance) ->
+			key,
+			(theKey, existingInstance) ->
 				existingInstance == null || existingInstance.isClosed() ?
 					new ClientChangeCatalogCaptureProcessor(
 						this.evita.getConfiguration().changeCaptureQueueSize(),
@@ -557,8 +653,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 						subscriber -> {
 							final AsyncCallFunction<EvitaSessionServiceStub, Void> callFunction = evitaService -> {
 								evitaService.registerChangeCatalogCapture(
-									ChangeCaptureConverter.toGrpcChangeCatalogCaptureRequest(
-										(ChangeCatalogCaptureRequest) theRequest),
+									ChangeCaptureConverter.toGrpcChangeCatalogCaptureRequest(request),
 									subscriber
 								);
 								return null;
@@ -574,7 +669,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 								session.executeWithStreamingEvitaSessionService(callFunction);
 							}
 						},
-						publisher -> this.evita.activePublishers.remove(theRequest, publisher)
+						publisher -> this.evita.activePublishers.remove(key, publisher)
 					) : existingInstance
 		);
 	}
@@ -583,54 +678,108 @@ public class EvitaClientSession implements EvitaSessionContract {
 	@Override
 	public CommitProgress closeNowWithProgress() {
 		if (isActive()) {
+			// capture the rollback decision while the session is still active — closeInternally() sets closedFuture
+			// (flipping isActive() to false), after which isRollbackOnly() would fail its assertActive() check
+			final boolean rollback = isRollbackOnly();
 			final CompletableFuture<CommitVersions> result = closeInternally();
-			this.commitProgress = new CommitProgressRecord();
-			this.commitProgress.on(this.commitBehaviour).thenAccept(result::complete);
-			final Duration timeout = this.streamingTimeout;
-
-			executeWithStreamingEvitaSessionService(
-				evitaSessionService -> {
-					final StreamObserver<GrpcCloseWithProgressResponse> observer = new StreamObserver<>() {
-						@Override
-						public void onNext(GrpcCloseWithProgressResponse grpcResponse) {
-							final CommitVersions commitVersions = new CommitVersions(
-								grpcResponse.getCatalogVersion(),
-								grpcResponse.getCatalogSchemaVersion()
-							);
-							final GrpcTransactionPhase finishedPhase = grpcResponse.getFinishedPhase();
-							switch (finishedPhase) {
-								case CONFLICTS_RESOLVED -> EvitaClientSession.this.commitProgress.complete(CommitBehavior.WAIT_FOR_CONFLICT_RESOLUTION, commitVersions);
-								case WAL_PERSISTED -> EvitaClientSession.this.commitProgress.complete(CommitBehavior.WAIT_FOR_WAL_PERSISTENCE, commitVersions);
-								case CHANGES_VISIBLE -> {
-									EvitaClientSession.this.schemaCache.updateLastKnownCatalogVersion(
-										grpcResponse.getCatalogVersion(), grpcResponse.getCatalogSchemaVersion()
-									);
-									EvitaClientSession.this.commitProgress.complete(CommitBehavior.WAIT_FOR_CHANGES_VISIBLE, commitVersions);
-								}
-							}
-							// postpone timeout with each message received
-							ClientRequestContext.current().setResponseTimeout(TimeoutMode.EXTEND, timeout);
-						}
-
-						@Override
-						public void onError(Throwable throwable) {
-							result.completeExceptionally(throwable);
-						}
-
-						@Override
-						public void onCompleted() {
-
-						}
-					};
-					evitaSessionService.closeWithProgress(
-						GrpcCloseWithProgressRequest.newBuilder()
-							.setCatalogName(this.catalogName)
-							.build(),
-						observer
-					);
-					return null;
+			this.commitProgress = new CommitProgressRecord(
+				(commitVersions, throwable) -> {
+					if (throwable == null) {
+						result.complete(commitVersions);
+					} else {
+						result.completeExceptionally(throwable);
+					}
 				}
 			);
+			final Duration timeout = this.streamingTimeout;
+
+			try {
+				executeWithStreamingEvitaSessionService(
+					evitaSessionService -> {
+						final StreamObserver<GrpcCloseWithProgressResponse> observer = new StreamObserver<>() {
+							@Override
+							public void onNext(GrpcCloseWithProgressResponse grpcResponse) {
+								final CommitVersions commitVersions = new CommitVersions(
+									grpcResponse.getCatalogVersion(),
+									grpcResponse.getCatalogSchemaVersion()
+								);
+								final GrpcTransactionPhase finishedPhase = grpcResponse.getFinishedPhase();
+								switch (finishedPhase) {
+									case CONFLICTS_RESOLVED -> EvitaClientSession.this.commitProgress.complete(CommitBehavior.WAIT_FOR_CONFLICT_RESOLUTION, commitVersions);
+									case WAL_PERSISTED -> EvitaClientSession.this.commitProgress.complete(CommitBehavior.WAIT_FOR_WAL_PERSISTENCE, commitVersions);
+									case CHANGES_VISIBLE -> {
+										EvitaClientSession.this.schemaCache.updateLastKnownCatalogVersion(
+											grpcResponse.getCatalogVersion(), grpcResponse.getCatalogSchemaVersion()
+										);
+										EvitaClientSession.this.commitProgress.complete(CommitBehavior.WAIT_FOR_CHANGES_VISIBLE, commitVersions);
+									}
+								}
+								// restart the response deadline from now so a silent stream unblocks the
+								// caller within `streamingTimeout` of the last event, regardless of how
+								// many events have already been received
+								ClientRequestContext.current().setResponseTimeout(TimeoutMode.SET_FROM_NOW, timeout);
+							}
+
+							@Override
+							public void onError(Throwable throwable) {
+								EvitaClientSession.this.commitProgress.completeExceptionally(throwable);
+							}
+
+							@Override
+							public void onCompleted() {
+								if (!EvitaClientSession.this.commitProgress.isDone()) {
+									EvitaClientSession.this.commitProgress.completeExceptionally(
+										new GenericEvitaInternalError(
+											"Server completed the commit progress stream without sending final commit versions! This should never happen and indicates a bug in the server implementation.",
+											"Unexpected end of commit progress stream!"
+										)
+									);
+								}
+							}
+						};
+						evitaSessionService.closeWithProgress(
+							GrpcCloseWithProgressRequest.newBuilder()
+								.setCatalogName(this.catalogName)
+								// discard the transaction on the server when the block failed uncaught (1:1 embedded)
+								.setRollback(rollback)
+								.build(),
+							observer
+						);
+						return null;
+					}
+				);
+			} catch (RuntimeException ex) {
+				// the stream was never successfully started — without this the observer would
+				// never be attached, the three stages would stay pending and any caller awaiting
+				// this record would sit in `CompletableFuture.join()` forever
+				if (!this.commitProgress.isDone()) {
+					this.commitProgress.completeExceptionally(ex);
+				}
+				throw ex;
+			}
+		} else if (this.commitProgress == null) {
+			// Session is already closing via a different path (closeNow() or
+			// goLiveAndCloseWithProgress()) that populated closedFuture but has not
+			// yet produced a commitProgress record. Synthesize one wired to the
+			// existing closedFuture so we honor the @Nonnull contract instead of
+			// tripping callers like closeWhen() with an NPE. The synthetic is also
+			// time-bounded — a dangling closedFuture (e.g. a previous closeNow stream
+			// that died without firing any observer method) would otherwise leave this
+			// record pending forever. copy() yields a detached dependent future so
+			// orTimeout does not mutate the shared closedFuture (which would make
+			// every other consumer of closedFuture susceptible to the same timeout).
+			final CommitProgressRecord synthetic = new CommitProgressRecord();
+			this.closedFuture
+				.copy()
+				.orTimeout(this.streamingTimeout.toMillis(), TimeUnit.MILLISECONDS)
+				.whenComplete((commitVersions, throwable) -> {
+					if (throwable != null) {
+						synthetic.completeExceptionally(throwable);
+					} else {
+						synthetic.complete(commitVersions);
+					}
+				});
+			this.commitProgress = synthetic;
 		}
 		return this.commitProgress;
 	}
@@ -1818,26 +1967,42 @@ public class EvitaClientSession implements EvitaSessionContract {
 	) throws TemporalDataNotAvailableException {
 		assertActive();
 		return executeInTransactionIfPossible(session -> {
-			final GrpcBackupCatalogResponse grpcResponse = executeWithBlockingEvitaSessionService(
-				evitaSessionService ->
-				{
+			final Duration timeout = this.streamingTimeout;
+			final CompletableFuture<Task<?, FileForFetch>> taskFuture = new CompletableFuture<>();
+
+			executeWithStreamingEvitaSessionService(
+				evitaSessionService -> {
 					final Builder builder = GrpcBackupCatalogRequest.newBuilder();
 					ofNullable(pastMoment)
 						.ifPresent(pm -> builder.setPastMoment(EvitaDataTypesConverter.toGrpcOffsetDateTime(pm)));
 					ofNullable(catalogVersion)
 						.ifPresent(cv -> builder.setCatalogVersion(Int64Value.newBuilder().setValue(cv).build()));
-					return evitaSessionService.backupCatalog(
-						builder
-							.setIncludingWAL(includingWAL)
-							.build()
+
+					evitaSessionService.backupCatalogWithProgress(
+						builder.setIncludingWAL(includingWAL).build(),
+						new BackupProgressObserver<>(
+							taskFuture, timeout,
+							GrpcBackupCatalogResponse::getTaskStatus
+						)
 					);
+					return null;
 				}
 			);
 
-			//noinspection unchecked
-			return (Task<?, FileForFetch>) this.management.createTask(
-				toTaskStatus(grpcResponse.getTaskStatus())
-			);
+			try {
+				return taskFuture.get();
+			} catch (InterruptedException e) {
+				Thread.currentThread().interrupt();
+				throw new EvitaClientServerCallException("Server call interrupted.", e);
+			} catch (ExecutionException e) {
+				final Throwable cause = e.getCause() != null ? e.getCause() : e;
+				if (cause instanceof RuntimeException runtimeException) {
+					throw runtimeException;
+				}
+				throw new GenericEvitaInternalError(
+					"Backup catalog failed: " + cause.getMessage(), cause
+				);
+			}
 		});
 	}
 
@@ -1846,16 +2011,36 @@ public class EvitaClientSession implements EvitaSessionContract {
 	public Task<?, FileForFetch> fullBackupCatalog() {
 		assertActive();
 		return executeInTransactionIfPossible(session -> {
-			final GrpcFullBackupCatalogResponse grpcResponse = executeWithBlockingEvitaSessionService(
-				evitaSessionService -> evitaSessionService.fullBackupCatalog(
-					Empty.newBuilder().build()
-				)
+			final Duration timeout = this.streamingTimeout;
+			final CompletableFuture<Task<?, FileForFetch>> taskFuture = new CompletableFuture<>();
+
+			executeWithStreamingEvitaSessionService(
+				evitaSessionService -> {
+					evitaSessionService.fullBackupCatalogWithProgress(
+						Empty.newBuilder().build(),
+						new BackupProgressObserver<>(
+							taskFuture, timeout,
+							GrpcFullBackupCatalogResponse::getTaskStatus
+						)
+					);
+					return null;
+				}
 			);
 
-			//noinspection unchecked
-			return (Task<?, FileForFetch>) this.management.createTask(
-				toTaskStatus(grpcResponse.getTaskStatus())
-			);
+			try {
+				return taskFuture.get();
+			} catch (InterruptedException e) {
+				Thread.currentThread().interrupt();
+				throw new EvitaClientServerCallException("Server call interrupted.", e);
+			} catch (ExecutionException e) {
+				final Throwable cause = e.getCause() != null ? e.getCause() : e;
+				if (cause instanceof RuntimeException runtimeException) {
+					throw runtimeException;
+				}
+				throw new GenericEvitaInternalError(
+					"Full backup catalog failed: " + cause.getMessage(), cause
+				);
+			}
 		});
 	}
 
@@ -1956,6 +2141,22 @@ public class EvitaClientSession implements EvitaSessionContract {
 			return closeFuture;
 		}
 		return this.closedFuture;
+	}
+
+	/**
+	 * Marks this session as terminated without any server round-trip. Intended for cases
+	 * where the server has already invalidated the session — e.g. the catalog was deleted,
+	 * renamed, or replaced through this same `EvitaClient` — and only the local bookkeeping
+	 * needs to catch up (fire `onTerminationCallback`, remove this session from
+	 * `EvitaClient.activeSessions`, and flip `isActive()` to false so subsequent calls fail
+	 * fast instead of attempting a round-trip that the server would reject).
+	 *
+	 * Idempotent: a session that is already closing is left alone.
+	 */
+	public void terminateLocally() {
+		if (isActive()) {
+			closeInternally().complete(null);
+		}
 	}
 
 	/**
@@ -2161,6 +2362,20 @@ public class EvitaClientSession implements EvitaSessionContract {
 			return Objects.requireNonNull(result);
 		} catch (ExecutionException e) {
 			final Throwable theException = e.getCause() == null ? e : e.getCause();
+			if (EvitaClient.isTransportFailure(theException)) {
+				// The connection died mid-call: the server-side invocation is orphaned and the outcome is
+				// indeterminate for us. Mark the session dead locally (terminateLocally() completes the close
+				// future without a server round-trip and flips isActive() to false) so the try-with-resources
+				// close becomes a local no-op instead of racing the orphan with a remote close — the source of
+				// the ConcurrentSessionAccessException cascade. The server's SessionKiller reaps the orphaned
+				// session on inactivity.
+				terminateLocally();
+				throw new TransportException(
+					"Connection to the evitaDB server was lost while executing a session call; the session has " +
+						"been closed locally and the outcome of the call is indeterminate.",
+					theException
+				);
+			}
 			throw EvitaClient.transformException(
 				theException,
 				() -> {
@@ -2212,6 +2427,20 @@ public class EvitaClientSession implements EvitaSessionContract {
 			return lambda.apply(this.evitaSessionServiceStub.withDeadlineAfter(this.streamingTimeout));
 		} catch (ExecutionException e) {
 			final Throwable theException = e.getCause() == null ? e : e.getCause();
+			if (EvitaClient.isTransportFailure(theException)) {
+				// The connection died mid-call: the server-side invocation is orphaned and the outcome is
+				// indeterminate for us. Mark the session dead locally (terminateLocally() completes the close
+				// future without a server round-trip and flips isActive() to false) so the try-with-resources
+				// close becomes a local no-op instead of racing the orphan with a remote close — the source of
+				// the ConcurrentSessionAccessException cascade. The server's SessionKiller reaps the orphaned
+				// session on inactivity.
+				terminateLocally();
+				throw new TransportException(
+					"Connection to the evitaDB server was lost while executing a session call; the session has " +
+						"been closed locally and the outcome of the call is indeterminate.",
+					theException
+				);
+			}
 			throw EvitaClient.transformException(
 				theException,
 				() -> {
@@ -2523,6 +2752,9 @@ public class EvitaClientSession implements EvitaSessionContract {
 
 	/**
 	 * This internal method will physically call over the network and fetch actual {@link CatalogSchema}.
+	 * The response also carries current catalog and catalog schema versions, which are fed back into
+	 * the shared {@link EvitaEntitySchemaCache} so that subsequent calls to {@link #getCatalogVersion()}
+	 * can be served from the cache.
 	 */
 	@Nonnull
 	private CatalogSchema fetchCatalogSchema() {
@@ -2531,6 +2763,10 @@ public class EvitaClientSession implements EvitaSessionContract {
 				evitaSessionService.getCatalogSchema(
 					GrpcGetCatalogSchemaRequest.newBuilder().build()
 				)
+		);
+		this.schemaCache.updateLastKnownCatalogVersion(
+			grpcResponse.getCatalogVersion(),
+			grpcResponse.getCatalogSchemaVersion()
 		);
 		return CatalogSchemaConverter.convert(
 			grpcResponse.getCatalogSchema(), this.clientEntitySchemaAccessor
@@ -2611,24 +2847,97 @@ public class EvitaClientSession implements EvitaSessionContract {
 		if (this.transactionAccessor.get() == null && getCatalogState() == CatalogState.ALIVE) {
 			//noinspection unused
 			try (final EvitaClientTransaction newTransaction = createAndInitTransaction()) {
+				increaseNestLevel();
 				try {
 					return logic.apply(this);
 				} catch (Throwable ex) {
-					ofNullable(this.transactionAccessor.get())
-						.ifPresent(EvitaClientTransaction::setRollbackOnly);
+					markRollbackOnlyIfRootLevel();
 					throw ex;
+				} finally {
+					decreaseNestLevel();
 				}
 			}
 		} else {
 			// the transaction might already exist
+			increaseNestLevel();
 			try {
 				return logic.apply(this);
 			} catch (Throwable ex) {
-				ofNullable(this.transactionAccessor.get())
-					.ifPresent(EvitaClientTransaction::setRollbackOnly);
+				markRollbackOnlyIfRootLevel();
 				throw ex;
+			} finally {
+				decreaseNestLevel();
 			}
 		}
+	}
+
+	/**
+	 * Marks the current transaction rollback-only, but only when the failing call is the root-level frame — i.e. an
+	 * exception escaped the outermost `updateCatalog` / {@link #execute(Function)} block uncaught. Nested per-operation
+	 * failures (which the caller is expected to catch) must not poison the transaction, mirroring the embedded session
+	 * so that a single caught mutation exception doesn't discard the surrounding transaction.
+	 */
+	private void markRollbackOnlyIfRootLevel() {
+		if (isRootLevelExecution()) {
+			ofNullable(this.transactionAccessor.get())
+				.ifPresent(EvitaClientTransaction::setRollbackOnly);
+		}
+	}
+
+	/**
+	 * Returns true when the current execution is at the outermost (root) transaction frame.
+	 *
+	 * @return true if this is the root-level execution
+	 */
+	private boolean isRootLevelExecution() {
+		return this.nestLevel == 1;
+	}
+
+	/**
+	 * Increases the nesting level of session calls and returns the previous value.
+	 *
+	 * @return the nesting level before the increment
+	 */
+	private int increaseNestLevel() {
+		return this.nestLevel++;
+	}
+
+	/**
+	 * Decreases the nesting level of session calls and returns the previous value.
+	 *
+	 * @return the nesting level before the decrement
+	 */
+	private int decreaseNestLevel() {
+		return this.nestLevel--;
+	}
+
+	/**
+	 * Executes the passed logic within the root-level transaction frame of this session. This is the client-side
+	 * counterpart of the embedded `session.execute(...)` block: it establishes the unit of atomicity so that
+	 * individual operations invoked inside `logic` run nested and a single caught failure does not discard the
+	 * surrounding transaction. It is used by `EvitaClient.updateCatalog(...)` to run the client-supplied updater.
+	 *
+	 * @param logic the logic to execute, must not be null
+	 * @param <T>   the type of the result
+	 * @return the result of the logic
+	 */
+	public <T> T execute(@Nonnull Function<EvitaSessionContract, T> logic) {
+		return executeInTransactionIfPossible(logic);
+	}
+
+	/**
+	 * Executes the passed logic within the root-level transaction frame of this session. This is the client-side
+	 * counterpart of the embedded `session.execute(...)` block (see {@link #execute(Function)}).
+	 *
+	 * @param logic the logic to execute, must not be null
+	 */
+	public void execute(@Nonnull Consumer<EvitaSessionContract> logic) {
+		executeInTransactionIfPossible(
+			session -> {
+				logic.accept(session);
+				return null;
+			}
+		);
 	}
 
 	/**
@@ -2663,8 +2972,9 @@ public class EvitaClientSession implements EvitaSessionContract {
 				.map(ChangeCaptureConverter::toChangeCatalogCapture)
 				.forEach(it -> this.queue.add(new StreamValueWrapper<>(it)));
 
-			// postpone timeout with each message received
-			ClientRequestContext.current().setResponseTimeout(TimeoutMode.EXTEND, this.streamingTimeout);
+			// restart the response deadline from now so a silent stream unblocks the caller
+			// within `streamingTimeout` of the last event, regardless of how many have arrived
+			ClientRequestContext.current().setResponseTimeout(TimeoutMode.SET_FROM_NOW, this.streamingTimeout);
 		}
 
 		@Override
@@ -2772,6 +3082,68 @@ public class EvitaClientSession implements EvitaSessionContract {
 			this(null, error, true);
 		}
 
+	}
+
+	/**
+	 * Stream observer for backup progress updates. On the first received message, it creates
+	 * a {@link ClientTask} and completes the task future so the calling method can return.
+	 * Subsequent messages update the task status. Re-arms the client timeout to a fresh
+	 * per-message deadline with each message received.
+	 *
+	 * @param <R> the gRPC response type (e.g. {@link GrpcBackupCatalogResponse})
+	 */
+	@RequiredArgsConstructor
+	private class BackupProgressObserver<R> implements StreamObserver<R> {
+		/**
+		 * Future that is completed with the task once the first streamed message arrives.
+		 */
+		@Nonnull
+		private final CompletableFuture<Task<?, FileForFetch>> taskFuture;
+		/**
+		 * Duration to re-arm the response timeout to (from now) for each received message.
+		 */
+		@Nonnull
+		private final Duration timeout;
+		/**
+		 * Function to extract the {@link GrpcTaskStatus} from the gRPC response.
+		 */
+		@Nonnull
+		private final Function<R, GrpcTaskStatus> taskStatusExtractor;
+		/**
+		 * Reference to the client task, initialized on first message.
+		 */
+		private ClientTask<?, FileForFetch> clientTask;
+
+		@Override
+		public void onNext(R response) {
+			final GrpcTaskStatus grpcTaskStatus = this.taskStatusExtractor.apply(response);
+			if (this.clientTask == null) {
+				// first message - create the task and unblock the caller
+				//noinspection unchecked
+				this.clientTask = (ClientTask<?, FileForFetch>) EvitaClientSession.this.management.createTask(
+					toTaskStatus(grpcTaskStatus)
+				);
+				this.taskFuture.complete(this.clientTask);
+			} else {
+				// subsequent messages - update task status
+				this.clientTask.updateStatus(toTaskStatus(grpcTaskStatus));
+			}
+
+			// re-arm to a fresh per-message deadline with each message received
+			ClientRequestContext.current().setResponseTimeout(TimeoutMode.SET_FROM_NOW, this.timeout);
+		}
+
+		@Override
+		public void onError(Throwable throwable) {
+			if (!this.taskFuture.isDone()) {
+				this.taskFuture.completeExceptionally(throwable);
+			}
+		}
+
+		@Override
+		public void onCompleted() {
+			// no-op: task is already updated to final state via onNext
+		}
 	}
 
 	/**

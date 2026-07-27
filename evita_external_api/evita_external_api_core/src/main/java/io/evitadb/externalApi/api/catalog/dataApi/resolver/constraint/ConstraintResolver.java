@@ -36,6 +36,7 @@ import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.ConstraintType;
 import io.evitadb.api.query.descriptor.ConstraintValueStructure;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
+import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.ConstraintKeyBuilder;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocatorResolver;
@@ -68,14 +69,16 @@ import java.util.stream.Stream;
  * <p>
  * If needed, an implementation can alter the process of resolving altogether.
  *
- * <h3>Resolving process</h3>
+ * ### Resolving process
+ *
  * The resolving process begin with parsing of JSON field key to determine original {@link Constraint} and {@link ConstraintDescriptor}
  * for that constraint is found. After that, constraint creator corresponding to JSON field key is found and
  * from its parameters it is determined how to resolve JSON field value (none, primitive, child, or wrapper object).
  * Using these parameters constraint instantiation arguments are reconstructed from that JSON field value.
  * Finally, original constraint is instantiated using the built instantiation arguments and returned.
  *
- * <h3>Children resolving</h3>
+ * ### Children resolving
+ *
  * Resolving of container children is a bit tricky because JSON objects don't have named constructors or factory methods,
  * and thus constraint names are placed in keys instead of actual objects. Therefore, if constraint expects child (or children)
  * all the possible constraints have to be listed in arbitrary object as unique fields. This is fine in case of one concrete
@@ -88,13 +91,13 @@ import java.util.stream.Stream;
  * expects that its children are unique to each other, then no `default` constraint container is needed, inner constraints
  * are simply put as array directly into the parent container.
  *
- * <h3>Constraint key formats</h3>
+ * ### Constraint key formats
+ *
  * Key can have one of 3 formats depending on descriptor data:
- * <ul>
- *     <li>`{fullName}` - if it's generic constraint without classifier</li>
- *     <li>`{propertyType}{fullName}` - if it's not generic constraint and doesn't have classifier</li>
- *     <li>`{propertyType}{classifier}{fullName}` - if it's not generic constraint and has classifier</li>
- * </ul>
+ *
+ * - `{fullName}` - if it's generic constraint without classifier
+ * - `{propertyType}{fullName}` - if it's not generic constraint and doesn't have classifier
+ * - `{propertyType}{classifier}{fullName}` - if it's not generic constraint and has classifier
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
@@ -491,6 +494,10 @@ public abstract class ConstraintResolver<C extends Constraint<?>> {
 				listArgument
 			);
 		} else {
+			final Class<? extends Serializable> declaredType = valueParameterDescriptor.type();
+			if (Number.class.isAssignableFrom(declaredType) && argument instanceof Serializable serializableArgument) {
+				return EvitaDataTypes.toTargetType(serializableArgument, declaredType);
+			}
 			return argument;
 		}
 	}
@@ -546,13 +553,30 @@ public abstract class ConstraintResolver<C extends Constraint<?>> {
 			if (!childParameterType.isArray() && !ClassUtils.isAbstract(childParameterType) && Constraint.class.isAssignableFrom(childParameterType)) {
 				//noinspection unchecked
 				final Set<ConstraintDescriptor> constraints = ConstraintDescriptorProvider.getConstraints((Class<Constraint<?>>) childParameterType);
-				for (ConstraintDescriptor constraint : constraints) {
-					final String expectedConstraintKey = this.keyBuilder.build(resolveContext, constraint, null);
-					final Object possibleValue = extractChildArgumentFromWrapperObject(parsedConstraintDescriptor, value, expectedConstraintKey);
+				// Schema builders (GraphQL/REST) emit:
+				//   - single-variant concrete @Child types: wrapper field keyed by parameter name
+				//     (e.g. HistogramHaving.@Child GroupHaving groupHaving,
+				//      ReferenceHistogramStatistics.@Child EntityFetch entityFetch),
+				//   - multi-variant types: one wrapper field per variant keyed by constraint key
+				//     (e.g. ReferenceContent.@Child AttributeContent attributeContent — plain + withAttributes).
+				// Mirror both cases here. argumentName is always set to the canonical constraint key
+				// so downstream resolve(...) routes by constraint key, not parameter name.
+				if (constraints.size() == 1) {
+					final ConstraintDescriptor constraint = constraints.iterator().next();
+					final Object possibleValue = extractChildArgumentFromWrapperObject(parsedConstraintDescriptor, value, parameterDescriptor.name());
 					if (possibleValue != null) {
-						argumentName = expectedConstraintKey;
+						argumentName = this.keyBuilder.build(resolveContext, constraint, null);
 						argument = possibleValue;
-						break;
+					}
+				} else {
+					for (ConstraintDescriptor constraint : constraints) {
+						final String expectedConstraintKey = this.keyBuilder.build(resolveContext, constraint, null);
+						final Object possibleValue = extractChildArgumentFromWrapperObject(parsedConstraintDescriptor, value, expectedConstraintKey);
+						if (possibleValue != null) {
+							argumentName = expectedConstraintKey;
+							argument = possibleValue;
+							break;
+						}
 					}
 				}
 			} else {

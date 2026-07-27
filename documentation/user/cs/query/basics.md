@@ -1,11 +1,12 @@
 ---
 title: Dotazovací jazyk
 perex: Dotazovací jazyk je jádrem každého databázového systému. evitaDB zvolila funkcionální podobu jazyka namísto SQL-podobného jazyka, což je více v souladu s jejím vnitřním fungováním a především to umožňuje mnohem větší otevřenost vůči transformacím.
-date: '15.12.2022'
+date: '11.5.2026'
 author: Ing. Jan Novotný
 proofreading: done
 preferredLang: evitaql
 commit: cef96d8320d36c91c100c5dfc9c45020b5a7ad0d
+translated: 'true'
 ---
 Jazyk dotazů evitaDB se skládá z vnořené sady funkcí, které představují jednotlivá „omezení“.
 Každé omezení (funkce) má svůj název a sadu argumentů uzavřených v závorkách `constraintName(arguments)`,
@@ -462,7 +463,7 @@ ve výstupu.
 
 - [`list` dotazy](requirements/paging.md#stránkování-dotazů-typu-list)
 - [`query` dotazy – `recordPage`](requirements/paging.md#page-recordpage)
-- [`query` dotazy – `recordStrip`](requirements/paging.md#page-recordstrip)
+- [`query` dotazy – `recordStrip`](requirements/paging.md#page-recordpage)
 - [gap](requirements/paging.md#gap)
 - [spacing](requirements/paging.md#spacing)
 
@@ -500,17 +501,21 @@ které organizuje entity do srozumitelnější stromové kategorizace:
 - [node](requirements/hierarchy.md#node)
 - [statistics](requirements/hierarchy.md#statistics)
 
-### Facety
+### Reference
 
-Požadavky na facety spouštějí výpočet další datové struktury, která vypisuje všechny facettované reference entit,
-uspořádané do skupin s vypočteným počtem všech entit, které odpovídají každému příslušnému facetu. Alternativně
-může souhrn obsahovat výpočet, kolik entit zůstane, když bude do filtru přidán konkrétní facet:
+Požadavky na souhrn referencí spouštějí výpočet další datové struktury, která vypisuje všechny fasetované
+reference na entitě, uspořádané do skupin s vypočteným počtem všech entit, které odpovídají každé možnosti.
+Alternativně může souhrn obsahovat predikci toho, kolik entit zůstane, pokud bude daná možnost přidána
+do filtru, plus volitelné číselné histogramy na úrovni skupiny pro filtry řízené posuvníky:
 
-- [facet summary](requirements/facet.md#fasetový-souhrn)
-- [facet summary of reference](requirements/facet.md#fasetový-souhrn-reference)
-- [facet conjunction](requirements/facet.md#konjunkce-skupin-faset)
-- [facet disjunction](requirements/facet.md#disjunkce-skupin-faset)
-- [facet negation](requirements/facet.md#negace-skupin-faset)
+- [souhrn referencí](requirements/reference.md#souhrn-referencí)
+<LS to="e,j,r,c">
+- [souhrn vybrané reference](requirements/reference.md#souhrn-vybrané-reference)
+</LS>
+- [statistiky histogramu](requirements/reference.md#statistiky-histogramu)
+- [konjunkce skupin faset](requirements/reference.md#konjunkce-skupin-faset)
+- [disjunkce skupin faset](requirements/reference.md#disjunkce-skupin-faset)
+- [negace skupin faset](requirements/reference.md#negace-skupin-faset)
 
 ### Histogram
 

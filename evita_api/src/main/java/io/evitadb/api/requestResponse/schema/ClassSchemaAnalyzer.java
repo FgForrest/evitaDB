@@ -29,20 +29,23 @@ import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.exception.SchemaClassInvalidException;
 import io.evitadb.api.requestResponse.data.annotation.*;
 import io.evitadb.api.requestResponse.data.annotation.ReflectedReference.InheritableBoolean;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolution;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
+import io.evitadb.api.requestResponse.mutation.conflict.GranularConflictPolicy;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor.CatalogSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaEditor.ReferenceSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract.AttributeInheritanceBehavior;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaEditor.ReflectedReferenceSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
-import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
-import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
-import io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
+import io.evitadb.api.query.expression.ExpressionFactory;
+import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.ComplexDataObject;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
@@ -82,9 +85,18 @@ import static java.util.Optional.ofNullable;
  * Analyzer is a stateful class, that traverses record / class getters or fields for annotations from `io.data.annotation`
  * package and sets up the entity / catalog schema accordingly.
  *
- * The analyzer only creates or expands existing schema and never removes anything from it. The expected form of use is
- * to define new entity properties and mark old one as deprecated. When the already deprecated properties are about to be
- * removed completely the removal should occur in an explicit way (command or API call) outside this analyzer.
+ * Schema reconciliation contract:
+ *
+ * - **Structural elements** (attributes, associated data, references, sortable compounds) are
+ *   only created or expanded — the analyzer never removes them. Removal of a deprecated property
+ *   must happen explicitly outside this analyzer.
+ * - **Annotation flag reconciliation** is symmetric for booleans and their enum analogues
+ *   (`nullable`, `localized`, `representative`, `filterable`, `sortable`, `unique`, `uniqueGlobally`,
+ *   `faceted`, …). The class annotation is the source of truth: if a flag is `false` / `NOT_UNIQUE`
+ *   on the annotation but `true` on the schema, the analyzer flips the schema back to match.
+ *   This means a bare `@Attribute String foo()` is a strong assertion that every default-valued
+ *   flag must be at its default — re-analyzing such a class clears any previously-set flag on
+ *   the same attribute.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  * @see Entity
@@ -358,110 +370,52 @@ public class ClassSchemaAnalyzer {
 				isStringNotEqual(editor.getDeprecationNotice(), attributeAnnotation.deprecated())) {
 				editor.deprecated(attributeAnnotation.deprecated());
 			}
-			// nullable - only set if not already nullable
+			// nullable - reconcile with annotation
 			if (attributeAnnotation.nullable() && !editor.isNullable()) {
 				editor.nullable();
+			} else if (!attributeAnnotation.nullable() && editor.isNullable()) {
+				editor.nonNullable();
 			}
 
-			final ScopeAttributeSettings[] scopedDefinition = attributeAnnotation.scope();
-			if (ArrayUtils.isEmptyOrItsValuesNull(scopedDefinition)) {
-				// unique - only set if not already unique in default scope
-				if (attributeAnnotation.unique() == AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION &&
-					!editor.isUniqueInScope(Scope.DEFAULT_SCOPE)) {
-					editor.unique();
-				}
-				// unique within locale - only set if not already unique within locale in default scope
-				if (attributeAnnotation.unique() == AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION_LOCALE &&
-					!editor.isUniqueWithinLocaleInScope(Scope.DEFAULT_SCOPE)) {
-					editor.uniqueWithinLocale();
-				}
-				// filterable - only set if not already filterable in default scope
-				if (attributeAnnotation.filterable() && !editor.isFilterableInScope(Scope.DEFAULT_SCOPE)) {
-					editor.filterable();
-				}
-				// sortable - only set if not already sortable in default scope
-				if (attributeAnnotation.sortable() && !editor.isSortableInScope(Scope.DEFAULT_SCOPE)) {
-					editor.sortable();
-				}
-			} else {
-				Assert.isTrue(
-					attributeAnnotation.unique() == AttributeUniquenessType.NOT_UNIQUE,
-					"When `scope` is defined in `@Attribute` annotation, " +
-						"the value of `unique` property is not taken into an account " +
-						"(and thus it doesn't make sense to set it to any value)!"
-				);
-				// unique in scopes - only set for scopes not already unique
-				final Scope[] uniqueInScopes = Arrays.stream(scopedDefinition)
-					.filter(it -> it.unique() == AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION)
-					.map(ScopeAttributeSettings::scope)
-					.filter(scope -> !editor.isUniqueInScope(scope))
-					.toArray(Scope[]::new);
-				if (!ArrayUtils.isEmptyOrItsValuesNull(uniqueInScopes)) {
-					editor.uniqueInScope(uniqueInScopes);
-				}
-				// unique within locale in scopes - only set for scopes not already unique within locale
-				final Scope[] uniqueWithinLocaleInScopes = Arrays.stream(scopedDefinition)
-					.filter(it -> it.unique() == AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION_LOCALE)
-					.map(ScopeAttributeSettings::scope)
-					.filter(scope -> !editor.isUniqueWithinLocaleInScope(scope))
-					.toArray(Scope[]::new);
-				if (!ArrayUtils.isEmptyOrItsValuesNull(uniqueWithinLocaleInScopes)) {
-					editor.uniqueWithinLocaleInScope(uniqueWithinLocaleInScopes);
-				}
+			applyAttributeScopedProperties(editor, attributeAnnotation);
 
-				Assert.isTrue(
-					!attributeAnnotation.filterable(),
-					"When `scope` is defined in `@Attribute` annotation, " +
-						"the value of `filterable` property is not taken into an account " +
-						"(and thus it doesn't make sense to set it to true)!"
-				);
-				// filterable in scopes - only set for scopes not already filterable
-				final Scope[] filterableInScopes = Arrays.stream(scopedDefinition)
-					.filter(ScopeAttributeSettings::filterable)
-					.map(ScopeAttributeSettings::scope)
-					.filter(scope -> !editor.isFilterableInScope(scope))
-					.toArray(Scope[]::new);
-				if (!ArrayUtils.isEmptyOrItsValuesNull(filterableInScopes)) {
-					editor.filterableInScope(filterableInScopes);
-				}
-				Assert.isTrue(
-					!attributeAnnotation.sortable(),
-					"When `scope` is defined in `@Attribute` annotation, " +
-						"the value of `sortable` property is not taken into an account " +
-						"(and thus it doesn't make sense to set it to true)!"
-				);
-				// sortable in scopes - only set for scopes not already sortable
-				final Scope[] sortableInScopes = Arrays.stream(scopedDefinition)
-					.filter(ScopeAttributeSettings::sortable)
-					.map(ScopeAttributeSettings::scope)
-					.filter(scope -> !editor.isSortableInScope(scope))
-					.toArray(Scope[]::new);
-				if (!ArrayUtils.isEmptyOrItsValuesNull(sortableInScopes)) {
-					editor.sortableInScope(sortableInScopes);
-				}
-			}
-			// representative - only set if not already representative
+			// representative - reconcile with annotation
 			if (attributeAnnotation.representative() && !editor.isRepresentative()) {
 				editor.representative();
+			} else if (!attributeAnnotation.representative() && editor.isRepresentative()) {
+				editor.representative(() -> false);
 			}
-			// localized - only set if not already localized
+			// localized - reconcile with annotation
 			if (attributeAnnotation.localized() && !editor.isLocalized()) {
 				editor.localized();
+			} else if (!attributeAnnotation.localized() && editor.isLocalized()) {
+				editor.nonLocalized();
 			}
-			// indexed decimal places - only set if different
-			if (BigDecimal.class.equals(attributeType) &&
+			// indexed decimal places - applies to BigDecimal and BigDecimalNumberRange (incl. array variants),
+			// whose values are scaled to comparable longs using this decimal-places count for filtering/sorting
+			final Class<?> indexedBaseType = attributeType.isArray() ? attributeType.getComponentType() : attributeType;
+			if ((BigDecimal.class.equals(indexedBaseType) || BigDecimalNumberRange.class.equals(indexedBaseType)) &&
 				editor.getIndexedDecimalPlaces() != attributeAnnotation.indexedDecimalPlaces()) {
 				editor.indexDecimalPlaces(attributeAnnotation.indexedDecimalPlaces());
 			}
+			// conflict resolution granularity override - reconcile with annotation (covers entity, global and
+			// reference attributes, which all route through this consumer). A defaulted (INHERITED) annotation
+			// carries no opinion and must never overwrite an explicit override set through the fluent builder,
+			// otherwise an idempotent re-derivation would silently reset it back to INHERITED.
+			if (attributeAnnotation.conflictResolution() != ConflictResolutionOverride.INHERITED &&
+				attributeAnnotation.conflictResolution() != editor.getConflictResolutionOverride()) {
+				editor.withConflictResolutionOverride(attributeAnnotation.conflictResolution());
+			}
 		};
 
-		final ScopeAttributeSettings[] scopedDefinition = attributeAnnotation.scope();
+		// An attribute is promoted to a (catalog-level) global attribute only when global uniqueness is requested -
+		// either via `global=true`, the default-scope `uniqueGlobally`, or a per-scope `uniqueGlobally`. A per-scope
+		// plain `unique` (within-collection) is an entity-level property and must NOT make the attribute global,
+		// otherwise its uniqueness mutation is emitted at the catalog level and silently no-ops on the entity attribute.
 		if (attributeAnnotation.global() ||
 			attributeAnnotation.uniqueGlobally() != GlobalAttributeUniquenessType.NOT_UNIQUE ||
 			Arrays.stream(attributeAnnotation.scope()).anyMatch(
-				it -> it.uniqueGlobally() != GlobalAttributeUniquenessType.NOT_UNIQUE) ||
-			(!ArrayUtils.isEmptyOrItsValuesNull(scopedDefinition) && Arrays.stream(scopedDefinition).anyMatch(
-				it -> it.unique() != AttributeUniquenessType.NOT_UNIQUE || it.uniqueGlobally() != GlobalAttributeUniquenessType.NOT_UNIQUE))
+				it -> it.uniqueGlobally() != GlobalAttributeUniquenessType.NOT_UNIQUE)
 		) {
 			Assert.notNull(
 				catalogBuilder,
@@ -474,46 +428,11 @@ public class ClassSchemaAnalyzer {
 
 					if (attributeAnnotation.representative() && !whichIs.isRepresentative()) {
 						whichIs.representative();
+					} else if (!attributeAnnotation.representative() && whichIs.isRepresentative()) {
+						whichIs.representative(() -> false);
 					}
 
-					if (ArrayUtils.isEmptyOrItsValuesNull(scopedDefinition)) {
-						// unique globally - only set if not already unique globally in default scope
-						if (attributeAnnotation.uniqueGlobally() == GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG &&
-							!whichIs.isUniqueGloballyInScope(Scope.DEFAULT_SCOPE)) {
-							whichIs.uniqueGlobally();
-						}
-						// unique globally within locale - only set if not already unique globally within locale in default scope
-						if (attributeAnnotation.uniqueGlobally() == GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG_LOCALE &&
-							!whichIs.isUniqueGloballyWithinLocaleInScope(Scope.DEFAULT_SCOPE)) {
-							whichIs.uniqueGloballyWithinLocale();
-						}
-					} else {
-						Assert.isTrue(
-							attributeAnnotation.uniqueGlobally() == GlobalAttributeUniquenessType.NOT_UNIQUE,
-							"When `scope` is defined in `@Attribute` annotation, " +
-								"the value of `uniqueGlobally` property is not taken into an account " +
-								"(and thus it doesn't make sense to set it to any value)!"
-						);
-						// unique globally in scopes - only set for scopes not already unique globally
-						final Scope[] uniqueGloballyInScopes = Arrays.stream(scopedDefinition)
-							.filter(it -> it.uniqueGlobally() == GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG)
-							.map(ScopeAttributeSettings::scope)
-							.filter(scope -> !whichIs.isUniqueGloballyInScope(scope))
-							.toArray(Scope[]::new);
-						if (!ArrayUtils.isEmptyOrItsValuesNull(uniqueGloballyInScopes)) {
-							whichIs.uniqueGloballyInScope(uniqueGloballyInScopes);
-						}
-						// unique globally within locale in scopes - only set for scopes not already unique globally within locale
-						final Scope[] uniqueGloballyWithinLocaleInScopes = Arrays.stream(scopedDefinition)
-							.filter(
-								it -> it.uniqueGlobally() == GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG_LOCALE)
-							.map(ScopeAttributeSettings::scope)
-							.filter(scope -> !whichIs.isUniqueGloballyWithinLocaleInScope(scope))
-							.toArray(Scope[]::new);
-						if (!ArrayUtils.isEmptyOrItsValuesNull(uniqueGloballyWithinLocaleInScopes)) {
-							whichIs.uniqueGloballyWithinLocaleInScope(uniqueGloballyWithinLocaleInScopes);
-						}
-					}
+					applyGlobalAttributeScopedProperties(whichIs, attributeAnnotation);
 				}
 			);
 			if (attributeSchemaEditor instanceof EntitySchemaBuilder entitySchemaBuilder) {
@@ -680,6 +599,576 @@ public class ClassSchemaAnalyzer {
 	}
 
 	/**
+	 * Applies the requested indexed components to the editor for the given scope when they differ
+	 * from the current state.
+	 *
+	 * The call is a no-op when the scope is not indexed (`indexed == NONE`); components carry no
+	 * meaning without an index, so a non-default annotation value silently drops in that case
+	 * (matching `Reference#indexedComponents()` documentation).
+	 *
+	 * Idempotency: when the requested components match the current components on the editor,
+	 * no mutation is fired. This keeps re-analysis (e.g. `@ReferenceRef` flow) from clobbering
+	 * previously-set explicit components.
+	 *
+	 * @param editor    the reference schema editor
+	 * @param requested the requested components from the annotation
+	 * @param scope     the scope where components should be applied
+	 */
+	private static void applyReferenceIndexedComponents(
+		@Nonnull ReferenceSchemaEditor<?> editor,
+		@Nonnull ReferenceIndexedComponents[] requested,
+		@Nonnull Scope scope
+	) {
+		if (editor.getReferenceIndexType(scope) == ReferenceIndexType.NONE) {
+			return;
+		}
+		final Set<ReferenceIndexedComponents> requestedSet = requested.length == 0
+			? Collections.emptySet()
+			: EnumSet.copyOf(Arrays.asList(requested));
+		final Set<ReferenceIndexedComponents> currentSet = editor.getIndexedComponents(scope);
+		if (!requestedSet.equals(currentSet)) {
+			editor.indexedWithComponentsInScope(scope, requested);
+		}
+	}
+
+	/**
+	 * Configures scope-aware properties (`indexed`, `indexedComponents`, `faceted`, `facetedPartially`,
+	 * `bucketed`, `bucketedPartially`) on a {@link Reference}-driven editor.
+	 *
+	 * Behavior contract — see {@link Reference#scope()}:
+	 *
+	 * - When `reference.scope()` is empty, the general settings are applied to {@link Scope#DEFAULT_SCOPE}.
+	 * - When `reference.scope()` is non-empty, the per-scope settings completely replace what the
+	 *   general settings would otherwise produce. Asserts ensure the general scope-aware properties
+	 *   were left at their (neutral) defaults so they aren't silently dropped.
+	 *
+	 * Note on `indexedComponents` asymmetry: there is no Assert that the general
+	 * `reference.indexedComponents()` was left at its default in the per-scope branch.
+	 * {@link Reference#indexedComponents()} defaults to `{REFERENCED_ENTITY}` (a positive default
+	 * reflecting the common case). Asserting against that default would force every `scope = {…}`
+	 * user to write a redundant override. The general value is therefore silently dropped when scope
+	 * settings are present — same posture as {@link ReflectedReference#indexed()} (see method
+	 * javadoc on {@link #applyReflectedReferenceScopedProperties}). Documented on
+	 * {@link Reference#scope()}.
+	 */
+	private static void applyReferenceScopedProperties(
+		@Nonnull ReferenceSchemaBuilder editor,
+		@Nonnull Reference reference
+	) {
+		final ScopeReferenceSettings[] scopedDefinition = reference.scope();
+		final Histogram[] bucketedProperty = reference.bucketed();
+		if (ArrayUtils.isEmptyOrItsValuesNull(scopedDefinition)) {
+			// general settings apply to DEFAULT_SCOPE
+			applyReferenceIndexType(
+				editor,
+				reference.indexed(),
+				editor.getReferenceIndexType(Scope.DEFAULT_SCOPE),
+				null
+			);
+			applyReferenceIndexedComponents(editor, reference.indexedComponents(), Scope.DEFAULT_SCOPE);
+			// faceted - reconcile DEFAULT_SCOPE with annotation
+			if (reference.faceted() && !editor.isFacetedInScope(Scope.DEFAULT_SCOPE)) {
+				editor.faceted();
+			} else if (!reference.faceted() && editor.isFacetedInScope(Scope.DEFAULT_SCOPE)) {
+				editor.nonFaceted(Scope.DEFAULT_SCOPE);
+			}
+			final String facetedPartiallyExpr = reference.facetedPartially().value();
+			if (!facetedPartiallyExpr.isEmpty()) {
+				editor.facetedPartially(ExpressionFactory.parse(facetedPartiallyExpr));
+			}
+			applyBucketedHistograms(editor, Scope.DEFAULT_SCOPE, bucketedProperty);
+			final String bucketedPartiallyExpr = reference.bucketedPartially().value();
+			if (!bucketedPartiallyExpr.isEmpty()) {
+				editor.bucketedPartially(ExpressionFactory.parse(bucketedPartiallyExpr));
+			}
+		} else {
+			// per-scope settings COMPLETELY REPLACE general settings; assert general values stayed at defaults.
+			Assert.isTrue(
+				reference.indexed() == ReferenceIndexType.NONE,
+				"When `scope` is defined in `@Reference` annotation, " +
+					"the value of `indexed` property is not taken into an account " +
+					"(and thus it doesn't make sense to set it to true)!"
+			);
+			Assert.isTrue(
+				!reference.faceted(),
+				"When `scope` is defined in `@Reference` annotation, " +
+					"the value of `faceted` property is not taken into an account " +
+					"(and thus it doesn't make sense to set it to true)!"
+			);
+			Assert.isTrue(
+				reference.facetedPartially().value().isEmpty(),
+				"When `scope` is defined in `@Reference` annotation, " +
+					"the value of `facetedPartially` property is not taken into an account " +
+					"(and thus it doesn't make sense to set it)!"
+			);
+			Assert.isTrue(
+				ArrayUtils.isEmptyOrItsValuesNull(bucketedProperty),
+				"When `scope` is defined in `@Reference` annotation, " +
+					"the value of `bucketed` property is not taken into an account " +
+					"(and thus it doesn't make sense to set it)!"
+			);
+			Assert.isTrue(
+				reference.bucketedPartially().value().isEmpty(),
+				"When `scope` is defined in `@Reference` annotation, " +
+					"the value of `bucketedPartially` property is not taken into an account " +
+					"(and thus it doesn't make sense to set it)!"
+			);
+
+			// 1) index types — must be set first so the components helper sees correct scope state.
+			// 2) components + faceted-scope collection in a single pass — components depend on index
+			//    types from step 1, faceted-scope collection has no ordering dependency.
+			final EnumSet<Scope> facetedScopes = EnumSet.noneOf(Scope.class);
+			for (ScopeReferenceSettings ss : scopedDefinition) {
+				applyReferenceIndexType(
+					editor, ss.indexed(), editor.getReferenceIndexType(ss.scope()), ss.scope()
+				);
+			}
+			for (ScopeReferenceSettings ss : scopedDefinition) {
+				final Scope scope = ss.scope();
+				applyReferenceIndexedComponents(editor, ss.indexedComponents(), scope);
+				if (ss.faceted()) {
+					facetedScopes.add(scope);
+				}
+			}
+			// 3) `facetedInScope` MUST be called before any per-scope `facetedPartiallyInScope` —
+			// the builder's `facetedInScope` filters existing partial expressions to the scopes it's
+			// passed, so a later partial call cannot recover dropped state.
+			//
+			// Fire only when the desired faceted-scope set differs from the current state so the
+			// reconciliation is idempotent on repeat analysis but still narrows when the annotation
+			// drops a previously faceted scope.
+			final EnumSet<Scope> currentFacetedScopes = collectScopes(
+				Scope.values(), editor::isFacetedInScope
+			);
+			if (!facetedScopes.equals(currentFacetedScopes)) {
+				editor.facetedInScope(facetedScopes.toArray(Scope[]::new));
+			}
+			// 4) remaining per-scope settings — ordering between them is independent.
+			for (ScopeReferenceSettings ss : scopedDefinition) {
+				final Scope scope = ss.scope();
+				final String fpExpr = ss.facetedPartially().value();
+				if (!fpExpr.isEmpty()) {
+					editor.facetedPartiallyInScope(scope, ExpressionFactory.parse(fpExpr));
+				}
+				applyBucketedHistograms(editor, scope, ss.bucketed());
+				final String bpExpr = ss.bucketedPartially().value();
+				if (!bpExpr.isEmpty()) {
+					editor.bucketedPartiallyInScope(scope, ExpressionFactory.parse(bpExpr));
+				}
+			}
+		}
+	}
+
+	/**
+	 * Iterates over the {@link Histogram} array declared on a {@link Reference} or
+	 * {@link ScopeReferenceSettings} annotation and emits one
+	 * {@link ReferenceSchemaEditor#bucketedInScope} call per entry. Validates that each
+	 * entry carries a non-blank {@code nameOfTheIndex} (blank histogram entries inside a
+	 * non-empty array are rejected) and that names are unique within the (reference, scope)
+	 * pair. A {@code null} entry inside a non-empty array is a programming error and surfaces
+	 * as a {@link GenericEvitaInternalError}.
+	 *
+	 * @param editor     the reference schema editor to configure
+	 * @param scope      the scope under which the histograms should be installed
+	 * @param histograms the histogram annotation entries (may be empty)
+	 */
+	private static void applyBucketedHistograms(
+		@Nonnull ReferenceSchemaEditor<?> editor,
+		@Nonnull Scope scope,
+		@Nullable Histogram[] histograms
+	) {
+		if (ArrayUtils.isEmptyOrItsValuesNull(histograms)) {
+			return;
+		}
+		final Set<String> seenNames = CollectionUtils.createHashSet(histograms.length);
+		for (final Histogram histogram : histograms) {
+			// `isEmptyOrItsValuesNull` only short-circuits on all-null arrays; a mixed array
+			// like `{validHistogram, null}` reaches this loop and would NPE on the next line.
+			// Surface this as a programming-error (defensive-design rule) before dereferencing.
+			if (histogram == null) {
+				throw new GenericEvitaInternalError(
+					"Reference '" + editor.getName() + "' declares a null @Histogram entry — null " +
+						"histogram entries inside a non-empty array are not allowed."
+				);
+			}
+			final String bucketedIndexName = histogram.nameOfTheIndex();
+			if (bucketedIndexName.isBlank()) {
+				throw new InvalidSchemaMutationException(
+					"Reference '" + editor.getName() + "' declares a @Histogram with a blank " +
+						"nameOfTheIndex — blank histogram entries inside a non-empty array " +
+						"are not allowed."
+				);
+			}
+			if (!seenNames.add(bucketedIndexName)) {
+				throw new InvalidSchemaMutationException(
+					"Reference '" + editor.getName() + "' declares histogram index name '" +
+						bucketedIndexName + "' more than once in scope " + scope +
+						" — names must be unique within a (reference, scope)."
+				);
+			}
+			final String bucketedValueExpr = histogram.value().value();
+			final String assignedWhenExpr = histogram.assignedWhen().value();
+			editor.bucketedInScope(
+				scope,
+				bucketedIndexName,
+				bucketedValueExpr.isEmpty() ? null : ExpressionFactory.parse(bucketedValueExpr),
+				assignedWhenExpr.isEmpty() ? null : ExpressionFactory.parse(assignedWhenExpr)
+			);
+		}
+	}
+
+	/**
+	 * Configures scope-aware properties (`indexed`, `indexedComponents`, `faceted`, per-scope
+	 * `facetedPartially`) on a {@link ReflectedReference}-driven editor.
+	 *
+	 * Behavior contract — see {@link ReflectedReference#scope()}:
+	 *
+	 * - When `reference.scope()` is empty, the general settings are applied to {@link Scope#DEFAULT_SCOPE}.
+	 *   `faceted` honors {@link InheritableBoolean} ({@link InheritableBoolean#INHERITED} leaves the
+	 *   editor untouched).
+	 * - When `reference.scope()` is non-empty, the per-scope settings completely replace what the
+	 *   general settings would otherwise produce. The general `faceted` value is asserted to be
+	 *   {@link InheritableBoolean#FALSE}.
+	 *
+	 * Note on `indexed`/`indexedComponents` asymmetry vs {@link Reference}: there is no Assert that
+	 * `reference.indexed() == NONE` or that `reference.indexedComponents()` was left at its default
+	 * in the scope branch. {@link ReflectedReference#indexed()} defaults to
+	 * {@link ReferenceIndexType#FOR_FILTERING} and {@link ReflectedReference#indexedComponents()}
+	 * defaults to `{REFERENCED_ENTITY}` — both positive defaults reflecting the common case.
+	 * Asserting against those defaults would force every `scope = {…}` user to write a redundant
+	 * override. The general values are therefore silently dropped when scope settings are present —
+	 * this is intentional and documented on `@ReflectedReference#scope()`.
+	 *
+	 * Note on `bucketed`/`bucketedPartially`: these have no general-level counterpart on
+	 * {@link ReflectedReference} (they exist only on {@link ScopeReferenceSettings}). The current
+	 * analyzer does not propagate them from the per-scope settings to reflected references; this is
+	 * preserved here unchanged.
+	 */
+	private static void applyReflectedReferenceScopedProperties(
+		@Nonnull ReflectedReferenceSchemaBuilder editor,
+		@Nonnull ReflectedReference reference
+	) {
+		final ScopeReferenceSettings[] scopedDefinition = reference.scope();
+		if (ArrayUtils.isEmptyOrItsValuesNull(scopedDefinition)) {
+			// general settings apply to DEFAULT_SCOPE
+			final ReferenceIndexType currentIndexType = editor.isIndexedInherited() ?
+				null : editor.getReferenceIndexType(Scope.DEFAULT_SCOPE);
+			applyReferenceIndexType(editor, reference.indexed(), currentIndexType, null);
+
+			applyReferenceIndexedComponents(editor, reference.indexedComponents(), Scope.DEFAULT_SCOPE);
+
+			// inherited state (null) must differ from both TRUE and FALSE so the editor call fires
+			// and converts the reflected reference to an explicit value
+			final Boolean facetedInScope = editor.isFacetedInherited() ?
+				null : editor.isFacetedInScope(Scope.DEFAULT_SCOPE);
+			if (reference.faceted() == InheritableBoolean.TRUE && !Boolean.TRUE.equals(facetedInScope)) {
+				editor.faceted();
+			} else if (reference.faceted() == InheritableBoolean.FALSE && !Boolean.FALSE.equals(facetedInScope)) {
+				editor.nonFaceted();
+			}
+		} else {
+			// per-scope settings COMPLETELY REPLACE general settings.
+			// `indexed` and `indexedComponents` are intentionally NOT asserted here — see method javadoc.
+			Assert.isTrue(
+				reference.faceted() == InheritableBoolean.FALSE,
+				"When `scope` is defined in `@ReflectedReference` annotation, " +
+					"the value of `faceted` property of reflected reference `" + reference + "` is not taken " +
+					"into an account (and thus it doesn't make sense to set it to true)!"
+			);
+
+			// 1) index types — must be set first so the components helper sees correct scope state.
+			// 2) components + faceted-scope collection in a single pass — components depend on index
+			//    types from step 1, faceted-scope collection has no ordering dependency.
+			final EnumSet<Scope> facetedScopes = EnumSet.noneOf(Scope.class);
+			for (ScopeReferenceSettings ss : scopedDefinition) {
+				final ReferenceIndexType currentIndexType = editor.isIndexedInherited() ?
+					null : editor.getReferenceIndexType(ss.scope());
+				applyReferenceIndexType(editor, ss.indexed(), currentIndexType, ss.scope());
+			}
+			final boolean facetedInherited = editor.isFacetedInherited();
+			for (ScopeReferenceSettings ss : scopedDefinition) {
+				final Scope scope = ss.scope();
+				applyReferenceIndexedComponents(editor, ss.indexedComponents(), scope);
+				if (ss.faceted() && (facetedInherited || !editor.isFacetedInScope(scope))) {
+					facetedScopes.add(scope);
+				}
+			}
+			// 3) `facetedInScope` MUST be called before per-scope `facetedPartiallyInScope` — the
+			// builder's `facetedInScope` filters existing partial expressions to the scopes it's
+			// passed. If no scope opts in, force the editor out of inherited mode so the reflected
+			// reference doesn't pick up the source's facetedPartially expression (whose direction-
+			// specific paths would resolve to the wrong entity type).
+			if (!facetedScopes.isEmpty()) {
+				editor.facetedInScope(facetedScopes.toArray(Scope[]::new));
+			} else if (facetedInherited) {
+				editor.nonFaceted();
+			}
+			// 4) facetedPartially per scope.
+			for (ScopeReferenceSettings ss : scopedDefinition) {
+				final String fpExpr = ss.facetedPartially().value();
+				if (!fpExpr.isEmpty()) {
+					editor.facetedPartiallyInScope(ss.scope(), ExpressionFactory.parse(fpExpr));
+				}
+			}
+		}
+	}
+
+	/**
+	 * Configures entity-level scope-aware properties (`unique`, `filterable`, `sortable`) from
+	 * {@link Attribute} annotation onto the given editor.
+	 *
+	 * Behavior contract — see {@link Attribute#scope()}:
+	 *
+	 * - When `attributeAnnotation.scope()` is empty, the general settings apply to
+	 *   {@link Scope#DEFAULT_SCOPE} only.
+	 * - When `attributeAnnotation.scope()` is non-empty, the per-scope settings completely replace
+	 *   what the general settings would otherwise produce; asserts ensure general scope-aware values
+	 *   stayed at their (neutral) defaults.
+	 */
+	private static void applyAttributeScopedProperties(
+		@Nonnull AttributeSchemaEditor<?> editor,
+		@Nonnull Attribute attributeAnnotation
+	) {
+		final ScopeAttributeSettings[] scopedDefinition = attributeAnnotation.scope();
+		if (ArrayUtils.isEmptyOrItsValuesNull(scopedDefinition)) {
+			// unique - reconcile DEFAULT_SCOPE with annotation enum
+			final AttributeUniquenessType currentUniqueType = editor.getUniquenessType(Scope.DEFAULT_SCOPE);
+			if (attributeAnnotation.unique() == AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION &&
+				currentUniqueType != AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION) {
+				editor.unique();
+			} else if (attributeAnnotation.unique() == AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION_LOCALE &&
+				currentUniqueType != AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION_LOCALE) {
+				editor.uniqueWithinLocale();
+			} else if (attributeAnnotation.unique() == AttributeUniquenessType.NOT_UNIQUE &&
+				currentUniqueType != AttributeUniquenessType.NOT_UNIQUE) {
+				editor.nonUniqueInScope(Scope.DEFAULT_SCOPE);
+			}
+			// filterable - reconcile DEFAULT_SCOPE with annotation
+			if (attributeAnnotation.filterable() && !editor.isFilterableInScope(Scope.DEFAULT_SCOPE)) {
+				editor.filterable();
+			} else if (!attributeAnnotation.filterable() && editor.isFilterableInScope(Scope.DEFAULT_SCOPE)) {
+				editor.nonFilterableInScope(Scope.DEFAULT_SCOPE);
+			}
+			// sortable - reconcile DEFAULT_SCOPE with annotation
+			if (attributeAnnotation.sortable() && !editor.isSortableInScope(Scope.DEFAULT_SCOPE)) {
+				editor.sortable();
+			} else if (!attributeAnnotation.sortable() && editor.isSortableInScope(Scope.DEFAULT_SCOPE)) {
+				editor.nonSortableInScope(Scope.DEFAULT_SCOPE);
+			}
+		} else {
+			Assert.isTrue(
+				attributeAnnotation.unique() == AttributeUniquenessType.NOT_UNIQUE,
+				"When `scope` is defined in `@Attribute` annotation, " +
+					"the value of `unique` property is not taken into an account " +
+					"(and thus it doesn't make sense to set it to any value)!"
+			);
+			Assert.isTrue(
+				!attributeAnnotation.filterable(),
+				"When `scope` is defined in `@Attribute` annotation, " +
+					"the value of `filterable` property is not taken into an account " +
+					"(and thus it doesn't make sense to set it to true)!"
+			);
+			Assert.isTrue(
+				!attributeAnnotation.sortable(),
+				"When `scope` is defined in `@Attribute` annotation, " +
+					"the value of `sortable` property is not taken into an account " +
+					"(and thus it doesn't make sense to set it to true)!"
+			);
+
+			// unique - reconcile per-scope from a single pre-mutation snapshot. Both
+			// `uniqueInScope` and `uniqueWithinLocaleInScope` emit a SetAttributeSchemaUniqueMutation
+			// that replaces the whole uniqueness map, and combineWith keeps only the last of them -
+			// so emitting both would let one silently clobber the other. A single full-replacement
+			// call for the requested kind already expresses the complete desired state (it clears
+			// the opposite kind as well). Mixing both kinds across scopes on one attribute cannot be
+			// expressed by these kind-specific setters and is surfaced rather than silently corrupted.
+			final EnumSet<Scope> desiredUniqueScopes = collectScopesByUnique(
+				scopedDefinition, AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION
+			);
+			final EnumSet<Scope> desiredUniqueLocaleScopes = collectScopesByUnique(
+				scopedDefinition, AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION_LOCALE
+			);
+			final EnumSet<Scope> currentUniqueScopes = collectScopes(
+				Scope.values(), s -> editor.getUniquenessType(s) == AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION
+			);
+			final EnumSet<Scope> currentUniqueLocaleScopes = collectScopes(
+				Scope.values(), s -> editor.getUniquenessType(s) == AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION_LOCALE
+			);
+			if (!desiredUniqueScopes.equals(currentUniqueScopes) ||
+				!desiredUniqueLocaleScopes.equals(currentUniqueLocaleScopes)) {
+				if (desiredUniqueLocaleScopes.isEmpty()) {
+					editor.uniqueInScope(desiredUniqueScopes.toArray(Scope[]::new));
+				} else if (desiredUniqueScopes.isEmpty()) {
+					editor.uniqueWithinLocaleInScope(desiredUniqueLocaleScopes.toArray(Scope[]::new));
+				} else {
+					throw new GenericEvitaInternalError(
+						"Attribute `" + editor.getName() + "` mixes `UNIQUE_WITHIN_COLLECTION` and " +
+							"`UNIQUE_WITHIN_COLLECTION_LOCALE` uniqueness across scopes, which the class " +
+							"schema analyzer cannot apply within a single mutation."
+					);
+				}
+			}
+			// filterable - reconcile per-scope desired set
+			final EnumSet<Scope> desiredFilterableScopes = collectScopesByPredicate(
+				scopedDefinition, ScopeAttributeSettings::filterable
+			);
+			final EnumSet<Scope> currentFilterableScopes = collectScopes(
+				Scope.values(), editor::isFilterableInScope
+			);
+			if (!desiredFilterableScopes.equals(currentFilterableScopes)) {
+				editor.filterableInScope(desiredFilterableScopes.toArray(Scope[]::new));
+			}
+			// sortable - reconcile per-scope desired set
+			final EnumSet<Scope> desiredSortableScopes = collectScopesByPredicate(
+				scopedDefinition, ScopeAttributeSettings::sortable
+			);
+			final EnumSet<Scope> currentSortableScopes = collectScopes(
+				Scope.values(), editor::isSortableInScope
+			);
+			if (!desiredSortableScopes.equals(currentSortableScopes)) {
+				editor.sortableInScope(desiredSortableScopes.toArray(Scope[]::new));
+			}
+		}
+	}
+
+	/**
+	 * Returns the {@link EnumSet} of scopes for which the predicate is `true`.
+	 */
+	@Nonnull
+	private static EnumSet<Scope> collectScopes(
+		@Nonnull Scope[] scopes,
+		@Nonnull Predicate<Scope> predicate
+	) {
+		final EnumSet<Scope> result = EnumSet.noneOf(Scope.class);
+		for (final Scope scope : scopes) {
+			if (predicate.test(scope)) {
+				result.add(scope);
+			}
+		}
+		return result;
+	}
+
+	/**
+	 * Returns the {@link EnumSet} of scopes in `scopedDefinition` whose predicate is `true`.
+	 */
+	@Nonnull
+	private static EnumSet<Scope> collectScopesByPredicate(
+		@Nonnull ScopeAttributeSettings[] scopedDefinition,
+		@Nonnull Predicate<ScopeAttributeSettings> predicate
+	) {
+		final EnumSet<Scope> result = EnumSet.noneOf(Scope.class);
+		for (final ScopeAttributeSettings settings : scopedDefinition) {
+			if (predicate.test(settings)) {
+				result.add(settings.scope());
+			}
+		}
+		return result;
+	}
+
+	/**
+	 * Returns the {@link EnumSet} of scopes in `scopedDefinition` whose `unique()` matches
+	 * `target`.
+	 */
+	@Nonnull
+	private static EnumSet<Scope> collectScopesByUnique(
+		@Nonnull ScopeAttributeSettings[] scopedDefinition,
+		@Nonnull AttributeUniquenessType target
+	) {
+		final EnumSet<Scope> result = EnumSet.noneOf(Scope.class);
+		for (final ScopeAttributeSettings settings : scopedDefinition) {
+			if (settings.unique() == target) {
+				result.add(settings.scope());
+			}
+		}
+		return result;
+	}
+
+	/**
+	 * Configures global-level scope-aware property (`uniqueGlobally`) from {@link Attribute}
+	 * annotation onto the given catalog/global editor. Counterpart to
+	 * {@link #applyAttributeScopedProperties} for the catalog-side `uniqueGlobally` knob.
+	 */
+	private static void applyGlobalAttributeScopedProperties(
+		@Nonnull GlobalAttributeSchemaEditor<?> editor,
+		@Nonnull Attribute attributeAnnotation
+	) {
+		final ScopeAttributeSettings[] scopedDefinition = attributeAnnotation.scope();
+		if (ArrayUtils.isEmptyOrItsValuesNull(scopedDefinition)) {
+			// uniqueGlobally - reconcile DEFAULT_SCOPE with annotation enum
+			final GlobalAttributeUniquenessType currentGlobalUniqueType =
+				editor.getGlobalUniquenessType(Scope.DEFAULT_SCOPE);
+			if (attributeAnnotation.uniqueGlobally() == GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG &&
+				currentGlobalUniqueType != GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG) {
+				editor.uniqueGlobally();
+			} else if (attributeAnnotation.uniqueGlobally() == GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG_LOCALE &&
+				currentGlobalUniqueType != GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG_LOCALE) {
+				editor.uniqueGloballyWithinLocale();
+			} else if (attributeAnnotation.uniqueGlobally() == GlobalAttributeUniquenessType.NOT_UNIQUE &&
+				currentGlobalUniqueType != GlobalAttributeUniquenessType.NOT_UNIQUE) {
+				editor.nonUniqueGloballyInScope(Scope.DEFAULT_SCOPE);
+			}
+		} else {
+			Assert.isTrue(
+				attributeAnnotation.uniqueGlobally() == GlobalAttributeUniquenessType.NOT_UNIQUE,
+				"When `scope` is defined in `@Attribute` annotation, " +
+					"the value of `uniqueGlobally` property is not taken into an account " +
+					"(and thus it doesn't make sense to set it to any value)!"
+			);
+			// uniqueGlobally per-scope - reconcile from a single pre-mutation snapshot. As with
+			// entity-level uniqueness, both global setters emit a full-replacement mutation that
+			// combineWith collapses to the last one, so a single call for the requested kind
+			// expresses the complete desired state (clearing the opposite kind too). Mixing both
+			// global kinds across scopes is surfaced rather than silently corrupted.
+			final EnumSet<Scope> desiredUniqueGloballyScopes = collectScopesByUniqueGlobally(
+				scopedDefinition, GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG
+			);
+			final EnumSet<Scope> desiredUniqueGloballyLocaleScopes = collectScopesByUniqueGlobally(
+				scopedDefinition, GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG_LOCALE
+			);
+			final EnumSet<Scope> currentUniqueGloballyScopes = collectScopes(
+				Scope.values(), s -> editor.getGlobalUniquenessType(s) == GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG
+			);
+			final EnumSet<Scope> currentUniqueGloballyLocaleScopes = collectScopes(
+				Scope.values(), s -> editor.getGlobalUniquenessType(s) == GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG_LOCALE
+			);
+			if (!desiredUniqueGloballyScopes.equals(currentUniqueGloballyScopes) ||
+				!desiredUniqueGloballyLocaleScopes.equals(currentUniqueGloballyLocaleScopes)) {
+				if (desiredUniqueGloballyLocaleScopes.isEmpty()) {
+					editor.uniqueGloballyInScope(desiredUniqueGloballyScopes.toArray(Scope[]::new));
+				} else if (desiredUniqueGloballyScopes.isEmpty()) {
+					editor.uniqueGloballyWithinLocaleInScope(
+						desiredUniqueGloballyLocaleScopes.toArray(Scope[]::new)
+					);
+				} else {
+					throw new GenericEvitaInternalError(
+						"Attribute `" + editor.getName() + "` mixes `UNIQUE_WITHIN_CATALOG` and " +
+							"`UNIQUE_WITHIN_CATALOG_LOCALE` global uniqueness across scopes, which the " +
+							"class schema analyzer cannot apply within a single mutation."
+					);
+				}
+			}
+		}
+	}
+
+	/**
+	 * Returns the {@link EnumSet} of scopes in `scopedDefinition` whose `uniqueGlobally()`
+	 * matches `target`.
+	 */
+	@Nonnull
+	private static EnumSet<Scope> collectScopesByUniqueGlobally(
+		@Nonnull ScopeAttributeSettings[] scopedDefinition,
+		@Nonnull GlobalAttributeUniquenessType target
+	) {
+		final EnumSet<Scope> result = EnumSet.noneOf(Scope.class);
+		for (final ScopeAttributeSettings settings : scopedDefinition) {
+			if (settings.uniqueGlobally() == target) {
+				result.add(settings.scope());
+			}
+		}
+		return result;
+	}
+
+	/**
 	 * Creates MemberAccessor instances for all record components in the target class.
 	 *
 	 * @param targetClass the record class to extract components from
@@ -817,6 +1306,19 @@ public class ClassSchemaAnalyzer {
 				final Set<EvolutionMode> newEvolutionMode = Set.of(entityAnnotation.allowedEvolution());
 				if (!existingEvolutionMode.equals(newEvolutionMode)) {
 					entityBuilder.verifySchemaButAllow(entityAnnotation.allowedEvolution());
+				}
+
+				// entity-level conflict resolution - only set an explicit resolution; while the annotation is
+				// inherited (the default) leave any pre-existing resolution untouched, mirroring how the other
+				// facets treat their default value as "don't touch"
+				final EntityConflictResolution conflictResolution = entityAnnotation.conflictResolution();
+				if (!conflictResolution.inherited()) {
+					final EnumSet<GranularConflictPolicy> granularity = EnumSet.noneOf(GranularConflictPolicy.class);
+					Collections.addAll(granularity, conflictResolution.granularity());
+					final ConflictResolution resolution = new ConflictResolution(conflictResolution.policy(), granularity);
+					if (!entityBuilder.getConflictResolution().map(resolution::equals).orElse(false)) {
+						entityBuilder.withConflictResolution(resolution);
+					}
 				}
 
 				// now return the mutations that needs to be done
@@ -1080,13 +1582,24 @@ public class ClassSchemaAnalyzer {
 				) {
 					whichIs.deprecated(associatedDataAnnotation.deprecated());
 				}
-				// nullable - only set if not already nullable
+				// nullable - reconcile with annotation
 				if (associatedDataAnnotation.nullable() && !whichIs.isNullable()) {
 					whichIs.nullable();
+				} else if (!associatedDataAnnotation.nullable() && whichIs.isNullable()) {
+					whichIs.nullable(() -> false);
 				}
-				// localized - only set if not already localized
+				// localized - reconcile with annotation
 				if (associatedDataAnnotation.localized() && !whichIs.isLocalized()) {
 					whichIs.localized();
+				} else if (!associatedDataAnnotation.localized() && whichIs.isLocalized()) {
+					whichIs.localized(() -> false);
+				}
+				// conflict resolution granularity override - reconcile with annotation. A defaulted (INHERITED)
+				// annotation carries no opinion and must never overwrite an explicit override set through the
+				// fluent builder, otherwise an idempotent re-derivation would silently reset it to INHERITED.
+				if (associatedDataAnnotation.conflictResolution() != ConflictResolutionOverride.INHERITED &&
+					associatedDataAnnotation.conflictResolution() != whichIs.getConflictResolutionOverride()) {
+					whichIs.withConflictResolutionOverride(associatedDataAnnotation.conflictResolution());
 				}
 			}
 		);
@@ -1165,52 +1678,15 @@ public class ClassSchemaAnalyzer {
 				editor.deprecated(reference.deprecated());
 			}
 
-			final ScopeReferenceSettings[] scopedDefinition = reference.scope();
-			if (ArrayUtils.isEmptyOrItsValuesNull(scopedDefinition)) {
-				// indexed - only set if index type differs in default scope
-				applyReferenceIndexType(
-					editor,
-					reference.indexed(),
-					editor.getReferenceIndexType(Scope.DEFAULT_SCOPE),
-					null
-				);
-				// faceted - only set if not already faceted in default scope
-				if (reference.faceted() && !editor.isFacetedInScope(Scope.DEFAULT_SCOPE)) {
-					editor.faceted();
-				}
-			} else {
-				Assert.isTrue(
-					reference.indexed() == ReferenceIndexType.NONE,
-					"When `scope` is defined in `@Reference` annotation, " +
-						"the value of `indexed` property is not taken into an account " +
-						"(and thus it doesn't make sense to set it to true)!"
-				);
+			applyReferenceScopedProperties(editor, reference);
 
-				// indexed in scopes - only set for scopes where index type differs
-				for (ScopeReferenceSettings scopeReferenceSettings : scopedDefinition) {
-					applyReferenceIndexType(
-						editor,
-						scopeReferenceSettings.indexed(),
-						editor.getReferenceIndexType(scopeReferenceSettings.scope()),
-						scopeReferenceSettings.scope()
-					);
-				}
-
-				Assert.isTrue(
-					!reference.faceted(),
-					"When `scope` is defined in `@Reference` annotation, " +
-						"the value of `faceted` property is not taken into an account " +
-						"(and thus it doesn't make sense to set it to true)!"
-				);
-				// faceted in scopes - only set for scopes not already faceted
-				final Scope[] facetedInScopes = Arrays.stream(scopedDefinition)
-					.filter(ScopeReferenceSettings::faceted)
-					.map(ScopeReferenceSettings::scope)
-					.filter(scope -> !editor.isFacetedInScope(scope))
-					.toArray(Scope[]::new);
-				if (!ArrayUtils.isEmptyOrItsValuesNull(facetedInScopes)) {
-					editor.facetedInScope(facetedInScopes);
-				}
+			// conflict resolution granularity override - reconcile with annotation (reflected references are
+			// read projections and deliberately never receive an override). A defaulted (INHERITED) annotation
+			// carries no opinion and must never overwrite an explicit override set through the fluent builder,
+			// otherwise an idempotent re-derivation would silently reset it back to INHERITED.
+			if (reference.conflictResolution() != ConflictResolutionOverride.INHERITED &&
+				reference.conflictResolution() != editor.getConflictResolutionOverride()) {
+				editor.withConflictResolutionOverride(reference.conflictResolution());
 			}
 
 			defineReferenceAttributes(referenceType, editor, examinedReferenceType, relationAttributes);
@@ -1420,54 +1896,7 @@ public class ClassSchemaAnalyzer {
 				editor.deprecated(reference.deprecated());
 			}
 
-			final ScopeReferenceSettings[] scopedDefinition = reference.scope();
-			if (ArrayUtils.isEmptyOrItsValuesNull(scopedDefinition)) {
-
-				// indexed - only set if index type differs in default scope
-				final ReferenceIndexType currentIndexType = editor.isIndexedInherited() ?
-					null : editor.getReferenceIndexType(Scope.DEFAULT_SCOPE);
-				applyReferenceIndexType(editor, reference.indexed(), currentIndexType, null);
-
-				// faceted - only set if different
-				final Boolean facetedInScope = editor.isFacetedInherited() ?
-					null : editor.isFacetedInScope(Scope.DEFAULT_SCOPE);
-				if (reference.faceted() == InheritableBoolean.TRUE && Boolean.FALSE.equals(facetedInScope)) {
-					editor.faceted();
-				} else if (reference.faceted() == InheritableBoolean.FALSE && Boolean.TRUE.equals(facetedInScope)) {
-					editor.nonFaceted();
-				}
-
-			} else {
-
-				// indexed in scopes - only set for scopes where index type differs
-				for (ScopeReferenceSettings scopeReferenceSettings : scopedDefinition) {
-					final ReferenceIndexType currentIndexType = editor.isIndexedInherited() ?
-						null : editor.getReferenceIndexType(scopeReferenceSettings.scope());
-					applyReferenceIndexType(
-						editor,
-						scopeReferenceSettings.indexed(),
-						currentIndexType,
-						scopeReferenceSettings.scope()
-					);
-				}
-
-				Assert.isTrue(
-					reference.faceted() == InheritableBoolean.FALSE,
-					"When `scope` is defined in `@ReflectedReference` annotation, " +
-						"the value of `faceted` property of reflected reference `" + reference + "` is not taken " +
-						"into an account (and thus it doesn't make sense to set it to true)!"
-				);
-
-				// faceted in scopes - only set for scopes not already faceted
-				final Scope[] facetedInScopes = Arrays.stream(scopedDefinition)
-					.filter(ScopeReferenceSettings::faceted)
-					.map(ScopeReferenceSettings::scope)
-					.filter(scope -> editor.isFacetedInherited() || !editor.isFacetedInScope(scope))
-					.toArray(Scope[]::new);
-				if (!ArrayUtils.isEmptyOrItsValuesNull(facetedInScopes)) {
-					editor.facetedInScope(facetedInScopes);
-				}
-			}
+			applyReflectedReferenceScopedProperties(editor, reference);
 
 			final Set<String> referencedAttributes = CollectionUtils.createHashSet(32);
 			// we need also to analyze the target type for presence of control annotations in case the type is not

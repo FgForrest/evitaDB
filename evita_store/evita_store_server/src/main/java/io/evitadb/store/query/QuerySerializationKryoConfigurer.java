@@ -48,6 +48,7 @@ import java.util.function.Consumer;
  * This {@link Consumer} implementation takes default Kryo instance and registers additional serializers that are
  * required to (de)serialize {@link io.evitadb.api.query.Query}.
  */
+@SuppressWarnings("deprecation")
 public class QuerySerializationKryoConfigurer implements Consumer<Kryo> {
 	private static final int QUERY_BASE = 1000;
 	public static final QuerySerializationKryoConfigurer INSTANCE = new QuerySerializationKryoConfigurer();
@@ -115,6 +116,7 @@ public class QuerySerializationKryoConfigurer implements Consumer<Kryo> {
 		kryo.register(EntityScope.class, new EntityScopeSerializer(), index++);
 		kryo.register(FilterInScope.class, new FilterInScopeSerializer(), index++);
 		kryo.register(HierarchyAnyHaving.class, new HierarchyAnyHavingSerializer(), index++);
+		kryo.register(GroupHaving.class, new GroupHavingSerializer(), index++);
 
 		index = QUERY_BASE + 300;
 		kryo.register(AttributeNatural.class, new AttributeNaturalSerializer(), index++);
@@ -187,6 +189,18 @@ public class QuerySerializationKryoConfigurer implements Consumer<Kryo> {
 
 		kryo.register(DefaultAccompanyingPriceLists.class, new DefaultAccompanyingPriceSerializer(), index++);
 		kryo.register(AccompanyingPriceContent.class, new AccompanyingPriceContentSerializer(), index++);
+
+		kryo.register(EntityPrimaryKeyGreaterThan.class, new EntityPrimaryKeyGreaterThanSerializer(), index++);
+		kryo.register(EntityPrimaryKeyGreaterThanEquals.class, new EntityPrimaryKeyGreaterThanEqualsSerializer(), index++);
+		kryo.register(EntityPrimaryKeyLessThan.class, new EntityPrimaryKeyLessThanSerializer(), index++);
+		kryo.register(EntityPrimaryKeyLessThanEquals.class, new EntityPrimaryKeyLessThanEqualsSerializer(), index++);
+		kryo.register(EntityPrimaryKeyBetween.class, new EntityPrimaryKeyBetweenSerializer(), index++);
+
+		kryo.register(HistogramHaving.class, new HistogramHavingSerializer(), index++);
+
+		kryo.register(ReferenceHistogramStatistics.class, new ReferenceHistogramStatisticsSerializer(), index++);
+		kryo.register(ReferenceSummary.class, new ReferenceSummarySerializer(), index++);
+		kryo.register(ReferenceSummaryOfReference.class, new ReferenceSummaryOfReferenceSerializer(), index++);
 
 		Assert.isPremiseValid(index < 2000, "Index count overflow.");
 	}

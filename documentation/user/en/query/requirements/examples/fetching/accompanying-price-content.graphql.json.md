@@ -8,8 +8,8 @@
         "priceWithTax" : "340.0",
         "taxRate" : "21.0",
         "accompanyingPrice" : {
-          "priceWithoutTax" : "305.24",
-          "priceWithTax" : "369.34",
+          "priceWithoutTax" : "296.0",
+          "priceWithTax" : "358.16",
           "taxRate" : "21.0"
         },
         "special" : {

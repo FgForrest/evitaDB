@@ -46,6 +46,7 @@ import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.extension.DataCarrier;
 import io.evitadb.test.extension.EvitaParameterResolver;
 import io.evitadb.test.generator.DataGenerator;
+import io.evitadb.utils.Functions;
 import lombok.extern.slf4j.Slf4j;
 import one.edee.oss.pmptt.model.HierarchyItem;
 import org.junit.jupiter.api.DisplayName;
@@ -77,7 +78,6 @@ import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.api.query.require.EmptyHierarchicalEntityBehaviour.LEAVE_EMPTY;
 import static io.evitadb.api.query.require.EmptyHierarchicalEntityBehaviour.REMOVE_EMPTY;
-import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.test.extension.DataCarrier.tuple;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_CODE;
@@ -90,6 +90,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.HIERARCHY;
+import static io.evitadb.test.TestTags.FILTER;
 
 /**
  * This test verifies whether entities can be filtered by hierarchy constraints.
@@ -97,9 +100,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("Evita entity filtering by hierarchy functionality")
-@Tag(FUNCTIONAL_TEST)
 @ExtendWith(EvitaParameterResolver.class)
 @Slf4j
+@Tag(CONTRACT)
+@Tag(HIERARCHY)
+@Tag(FILTER)
 public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyTest {
 	private static final String THOUSAND_CATEGORIES = "ThousandCategories";
 	private static final String ATTRIBUTE_SHORTCUT = "shortcut";
@@ -194,7 +199,7 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 
 				assertResultIs(
 					originalCategoryEntities,
-					sealedEntity -> true,
+					Functions.alwaysTrue(),
 					result.getRecordData()
 				);
 				return null;
@@ -1120,7 +1125,7 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 						"megaMenu",
 						computeParents(
 							session, 53, categoryHierarchy,
-							categoryCardinalities, entity -> true,
+							categoryCardinalities, Functions.alwaysTrue(),
 							statisticsType.contains(StatisticsType.CHILDREN_COUNT),
 							statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT),
 							53
@@ -1293,7 +1298,7 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 						"megaMenu",
 						computeParents(
 							session, 30, categoryHierarchy,
-							categoryCardinalities, entity -> true,
+							categoryCardinalities, Functions.alwaysTrue(),
 							statisticsType.contains(StatisticsType.CHILDREN_COUNT),
 							statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT),
 							30
@@ -1683,6 +1688,71 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 						(sealedEntity.getPrimaryKey() == 1 || hasParentNode) &&
 						(level <= 2);
 				};
+
+				final Hierarchy expectedStatistics = computeExpectedStatistics(
+					categoryHierarchy, originalCategoryIndex,
+					languagePredicate, treePredicate,
+					categoryCardinalities -> new HierarchyStatisticsTuple(
+						"megaMenu",
+						computeChildren(
+							session, 1, categoryHierarchy,
+							categoryCardinalities, false,
+							statisticsType.contains(StatisticsType.CHILDREN_COUNT),
+							statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT),
+							1
+						)
+					)
+				);
+
+				final Hierarchy statistics = result.getExtraResult(Hierarchy.class);
+				assertNotNull(statistics);
+				assertEquals(expectedStatistics, statistics);
+
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return requested category itself in distance 0 (without its children)")
+	@UseDataSet(THOUSAND_CATEGORIES)
+	@ParameterizedTest
+	@MethodSource("statisticTypeVariants")
+	void shouldReturnCardinalitiesForRequestedCategoriesInDistanceZero(EnumSet<StatisticsType> statisticsType, Evita evita, Map<Integer, SealedEntity> originalCategoryIndex, one.edee.oss.pmptt.model.Hierarchy categoryHierarchy) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.CATEGORY),
+						filterBy(
+							and(
+								entityLocaleEquals(CZECH_LOCALE),
+								hierarchyWithinSelf(entityPrimaryKeyInSet(1))
+							)
+						),
+						require(
+							// we don't need the results whatsoever
+							page(1, 0),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
+							// we need only data about cardinalities
+							hierarchyOfSelf(
+								children(
+									"megaMenu",
+									entityFetch(attributeContentAll()),
+									stopAt(distance(0)),
+									statisticsType.isEmpty() ? null : statistics(statisticsType.toArray(StatisticsType[]::new))
+								)
+							)
+						)
+					),
+					EntityReference.class
+				);
+
+				final TestHierarchyPredicate languagePredicate = (entity, parentItems) -> entity.getLocales().contains(CZECH_LOCALE);
+				// distance 0 stops the traversal right at the pivot: only category 1 itself is part of the returned
+				// tree (no children), yet its childrenCount / queriedEntityCount still reflect the whole subtree below it
+				final TestHierarchyPredicate treePredicate = (sealedEntity, parentItems) ->
+					languagePredicate.test(sealedEntity, parentItems) && sealedEntity.getPrimaryKey() == 1;
 
 				final Hierarchy expectedStatistics = computeExpectedStatistics(
 					categoryHierarchy, originalCategoryIndex,

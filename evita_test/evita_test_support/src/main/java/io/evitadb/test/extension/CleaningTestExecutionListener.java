@@ -38,6 +38,7 @@ import org.junit.platform.launcher.TestIdentifier;
 import org.junit.platform.launcher.TestPlan;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.Random;
@@ -46,7 +47,6 @@ import java.util.stream.Collectors;
 
 import static io.evitadb.test.extension.EvitaParameterResolver.DATA_SET_INFO;
 import static io.evitadb.test.extension.EvitaParameterResolver.STORAGE_PATH;
-import static org.junit.jupiter.api.Assertions.fail;
 
 /**
  * This listener prepares the test directory and also cleans it.
@@ -102,20 +102,27 @@ public class CleaningTestExecutionListener implements TestExecutionListener, Evi
 	};
 	private final ConcurrentSkipListSet<String> failedTests = new ConcurrentSkipListSet<>();
 	private long testsStarted;
+	private Thread shutdownHook;
 
 	@Override
 	public void testPlanExecutionStarted(TestPlan testPlan) {
-		if (STORAGE_PATH.toFile().exists()) {
-			try {
-				FileUtils.cleanDirectory(STORAGE_PATH.toFile());
-			} catch (IOException e) {
-				fail("Failed to empty directory: " + STORAGE_PATH, e);
-			}
-		} else {
+		// the shared `STORAGE_PATH` (`/tmp/evita`) may host concurrent test JVMs whose own per-test sub-directories
+		// (allocated via `createTestPaths(...)`) are still in use; wiping the base here used to race with those JVMs
+		// and surfaced as `listFiles → null` / `targetFile.length() == 0` failures in the engine. Each test owns its
+		// own UUID-suffixed triplet and cleans it in `@AfterEach`, so we only need to ensure the shared base exists
+		if (!STORAGE_PATH.toFile().exists()) {
 			Assert.isTrue(STORAGE_PATH.toFile().mkdirs(), "Fail to create directory: " + STORAGE_PATH);
 		}
 		System.setProperty(DevelopmentConstants.TEST_RUN, "true");
 		this.testsStarted = System.nanoTime();
+		// best-effort safety net for ungraceful exits (Ctrl-C, SIGTERM): when the JVM dies between
+		// `testPlanExecutionStarted` and `testPlanExecutionFinished`, the listener's finish hook never fires; the
+		// shutdown hook covers that gap. SIGKILL / OOM-killer are out of reach
+		this.shutdownHook = new Thread(
+			() -> sweepAllocatedTestPaths(true),
+			"evita-test-cleanup"
+		);
+		Runtime.getRuntime().addShutdownHook(this.shutdownHook);
 	}
 
 	@Override
@@ -147,14 +154,61 @@ public class CleaningTestExecutionListener implements TestExecutionListener, Evi
 			ConsoleColor.DARK_GREEN
 		);
 
+		// surface the datasets that cost the most to build; reusing them via @UseDataSet amortises this
+		if (!EvitaParameterResolver.DATASET_BUILD_NANOS.isEmpty()) {
+			final String slowestDatasets = EvitaParameterResolver.DATASET_BUILD_NANOS.entrySet().stream()
+				.sorted(Entry.<String, Long>comparingByValue().reversed())
+				.limit(10)
+				.map(it -> "\t- " + it.getKey() + ": " + StringUtils.formatNano(it.getValue()) + "\n")
+				.collect(Collectors.joining());
+			ConsoleWriter.write(
+				"Dataset build time (slowest first — reuse via @UseDataSet to amortise):\n" + slowestDatasets + "\n",
+				ConsoleColor.DARK_GREEN
+			);
+		}
+
 		String[] quote = QUOTES[new Random().nextInt(QUOTES.length)];
 		ConsoleWriter.write(quote[0], ConsoleColor.BRIGHT_BLUE);
 		ConsoleWriter.write("\n(OpenGPT believes the author is: " + quote[1] + ")\n", ConsoleColor.DARK_BLUE);
+		// PID-scoped sweep: delete only directories *this* JVM allocated. The shared base (`/tmp/evita`) is left
+		// alone because concurrent test JVMs may still be using their own sibling sub-directories
+		sweepAllocatedTestPaths(false);
+		if (this.shutdownHook != null) {
+			try {
+				Runtime.getRuntime().removeShutdownHook(this.shutdownHook);
+			} catch (IllegalStateException ignored) {
+				// JVM is already shutting down — the hook will run (or has run) and clean up; nothing to do
+			}
+			this.shutdownHook = null;
+		}
+	}
 
-		try {
-			FileUtils.cleanDirectory(STORAGE_PATH.toFile());
-		} catch (IOException e) {
-			fail("Failed to empty directory: " + STORAGE_PATH, e);
+	/**
+	 * Drains and deletes every directory recorded in [EvitaTestSupport#ALLOCATED_TEST_PATHS] — i.e. every test
+	 * directory allocated by *this JVM*. The set is JVM-local (a static field), so this sweep cannot affect any
+	 * concurrently running test JVM's working directories.
+	 *
+	 * @param silent when true, suppress IO failures (used from the shutdown hook where we cannot afford to throw)
+	 */
+	private static void sweepAllocatedTestPaths(boolean silent) {
+		// snapshot-and-clear so a late `cleanupTestPaths(...)` racing with the sweep does not double-delete
+		final Path[] survivors = EvitaTestSupport.ALLOCATED_TEST_PATHS.toArray(new Path[0]);
+		EvitaTestSupport.ALLOCATED_TEST_PATHS.clear();
+		for (final Path path : survivors) {
+			final java.io.File file = path.toFile();
+			if (!file.exists()) {
+				continue;
+			}
+			try {
+				FileUtils.deleteDirectory(file);
+			} catch (IOException e) {
+				if (!silent) {
+					ConsoleWriter.write(
+						"Failed to delete leftover test directory `" + path + "`: " + e.getMessage() + "\n",
+						ConsoleColor.BRIGHT_RED
+					);
+				}
+			}
 		}
 	}
 

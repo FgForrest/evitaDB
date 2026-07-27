@@ -25,6 +25,7 @@ package io.evitadb.core.query.algebra.price.priceIndex;
 
 import io.evitadb.core.cache.payload.FlattenedFormula;
 import io.evitadb.core.cache.payload.FlattenedFormulaWithFilteredPrices;
+import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.CacheableFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.NotFormula;
@@ -37,7 +38,6 @@ import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
 import java.io.Serializable;
-import java.util.Arrays;
 import java.util.function.Consumer;
 
 /**
@@ -72,9 +72,21 @@ import java.util.function.Consumer;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public class PriceListCombinationFormula extends NotFormula implements CacheablePriceFormula {
+	/**
+	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} for hash computation.
+	 */
 	private static final long CLASS_ID = -379304706891548493L;
+	/**
+	 * Name of the price list whose entity ids are subtracted from the superset formula result.
+	 */
 	@Getter private final Serializable subtractedPriceListName;
+	/**
+	 * Name of the price list whose entity ids form the superset formula result.
+	 */
 	@Getter private final Serializable priceListName;
+	/**
+	 * Price evaluation context carrying information about price lists and currency used for price evaluation.
+	 */
 	@Getter private final PriceEvaluationContext priceEvaluationContext;
 
 	public PriceListCombinationFormula(@Nonnull Serializable subtractedPriceListName, @Nonnull Serializable priceListName, @Nonnull PriceEvaluationContext priceEvaluationContext, @Nonnull Formula subtractedFormula, @Nonnull Formula supersetFormula) {
@@ -94,14 +106,12 @@ public class PriceListCombinationFormula extends NotFormula implements Cacheable
 	@Override
 	public FlattenedFormula toSerializableFormula(long formulaHash, @Nonnull LongHashFunction hashFunction) {
 		final Bitmap computationalResult = compute();
+		final long[] sortedDistinctIds = sortAndDeduplicateLongArray(gatherTransactionalIds());
 		// by this time computation result should be already memoized
 		return new FlattenedFormulaWithFilteredPrices(
 			formulaHash,
 			getTransactionalIdHash(),
-			Arrays.stream(gatherTransactionalIds())
-				.distinct()
-				.sorted()
-				.toArray(),
+			sortedDistinctIds,
 			computationalResult,
 			FilteredPriceRecords.createFromFormulas(this, computationalResult, this.executionContext),
 			this.priceEvaluationContext
@@ -145,4 +155,5 @@ public class PriceListCombinationFormula extends NotFormula implements Cacheable
 	public String toString() {
 		return "WITH PRICE IN " + this.priceListName + " WHEN NO PRICE EXISTS IN " + this.subtractedPriceListName;
 	}
+
 }

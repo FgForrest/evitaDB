@@ -27,11 +27,15 @@ import io.evitadb.test.EvitaTestSupport;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.CDC;
 
 /**
  * Tests for {@link ChangeSystemCaptureRequest} and its builder covering builder defaults,
@@ -40,6 +44,8 @@ import static org.junit.jupiter.api.Assertions.assertNull;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 @DisplayName("ChangeSystemCaptureRequest")
+@Tag(CONTRACT)
+@Tag(CDC)
 class ChangeSystemCaptureRequestTest implements EvitaTestSupport {
 
 	@Nested
@@ -133,6 +139,63 @@ class ChangeSystemCaptureRequestTest implements EvitaTestSupport {
 			assertEquals(10, request2.sinceIndex());
 			assertEquals(ChangeCaptureContent.BODY, request2.content());
 		}
+
+		@Test
+		@DisplayName("should build with explicit criteria array")
+		void shouldBuildWithCriteriaArray() {
+			final ChangeSystemCaptureCriteria[] criteria = new ChangeSystemCaptureCriteria[] {
+				new ChangeSystemCaptureCriteria(SystemCaptureArea.ENGINE),
+				new ChangeSystemCaptureCriteria(SystemCaptureArea.HOST)
+			};
+
+			final ChangeSystemCaptureRequest request = ChangeSystemCaptureRequest.builder()
+				.criteria(criteria)
+				.build();
+
+			assertNotNull(request.criteria());
+			assertEquals(2, request.criteria().length);
+			assertEquals(SystemCaptureArea.ENGINE, request.criteria()[0].area());
+			assertEquals(SystemCaptureArea.HOST, request.criteria()[1].area());
+		}
+
+		@Test
+		@DisplayName("should build with engine area convenience method")
+		void shouldBuildWithEngineAreaConvenience() {
+			final ChangeSystemCaptureRequest request = ChangeSystemCaptureRequest.builder()
+				.engineArea()
+				.build();
+
+			assertNotNull(request.criteria());
+			assertEquals(1, request.criteria().length);
+			assertEquals(SystemCaptureArea.ENGINE, request.criteria()[0].area());
+		}
+
+		@Test
+		@DisplayName("should build with host area convenience method")
+		void shouldBuildWithHostAreaConvenience() {
+			// `hostArea()` is the documented opt-in path for receiving HostSystemEvents;
+			// without it the request stays in the engine-only default-divergence flow.
+			final ChangeSystemCaptureRequest request = ChangeSystemCaptureRequest.builder()
+				.hostArea()
+				.build();
+
+			assertNotNull(request.criteria());
+			assertEquals(1, request.criteria().length);
+			assertEquals(SystemCaptureArea.HOST, request.criteria()[0].area());
+		}
+
+		@Test
+		@DisplayName("should retain null criteria when builder convenience is not invoked")
+		void shouldRetainNullCriteriaWhenBuilderNotInvoked() {
+			// The `null` criteria value carries the documented default-criteria divergence rule:
+			// engine-only flow with no host events. Locking this in protects existing clients
+			// from a silent stream-shape change.
+			final ChangeSystemCaptureRequest request = ChangeSystemCaptureRequest.builder()
+				.sinceVersion(0L)
+				.build();
+
+			assertNull(request.criteria());
+		}
 	}
 
 	@Nested
@@ -221,6 +284,41 @@ class ChangeSystemCaptureRequestTest implements EvitaTestSupport {
 				.build();
 
 			assertEquals(request, request);
+		}
+
+		@Test
+		@DisplayName("should distinguish null criteria from empty criteria array")
+		void shouldDistinguishNullCriteriaFromEmptyArray() {
+			// The default-criteria divergence rule treats `null` and `new T[0]` as semantically
+			// different — null = engine-only-default, empty = explicitly-no-area. The equals
+			// contract must reflect this so consumers can tell them apart.
+			final ChangeSystemCaptureRequest withNullCriteria = ChangeSystemCaptureRequest.builder()
+				.build();
+			final ChangeSystemCaptureRequest withEmptyCriteria = ChangeSystemCaptureRequest.builder()
+				.criteria(new ChangeSystemCaptureCriteria[0])
+				.build();
+
+			assertNull(withNullCriteria.criteria());
+			assertNotNull(withEmptyCriteria.criteria());
+			assertNotEquals(withNullCriteria, withEmptyCriteria);
+		}
+
+		@Test
+		@DisplayName("should include criteria in toString output")
+		void shouldIncludeCriteriaInToString() {
+			final ChangeSystemCaptureRequest request = ChangeSystemCaptureRequest.builder()
+				.hostArea()
+				.build();
+
+			final String stringForm = request.toString();
+			assertTrue(
+				stringForm.contains("criteria"),
+				"toString must include the criteria field; got: " + stringForm
+			);
+			assertTrue(
+				stringForm.contains("HOST"),
+				"toString must include the criterion area; got: " + stringForm
+			);
 		}
 	}
 }

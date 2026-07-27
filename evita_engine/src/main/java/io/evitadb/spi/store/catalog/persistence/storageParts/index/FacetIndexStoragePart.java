@@ -27,7 +27,6 @@ import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
-import io.evitadb.utils.Assert;
 import io.evitadb.utils.NumberUtils;
 import lombok.Getter;
 import lombok.Setter;
@@ -49,7 +48,7 @@ import java.util.Map;
 @NotThreadSafe
 @ToString(of = {"referenceName", "entityIndexPrimaryKey"})
 public class FacetIndexStoragePart implements StoragePart {
-	@Serial private static final long serialVersionUID = -2348533783771242845L;
+	@Serial private static final long serialVersionUID = 6184029571648392013L;
 
 	/**
 	 * Unique id that identifies {@link io.evitadb.index.EntityIndex}.
@@ -80,18 +79,15 @@ public class FacetIndexStoragePart implements StoragePart {
 	}
 
 	public static long computeUniquePartId(Integer entityIndexPrimaryKey, String referenceName, KeyCompressor keyCompressor) {
-		return NumberUtils.join(entityIndexPrimaryKey, keyCompressor.getId(new ReferenceNameKey(referenceName)));
+		return NumberUtils.pack(entityIndexPrimaryKey, keyCompressor.getId(new ReferenceNameKey(referenceName)));
 	}
 
 	@Override
 	public long computeUniquePartIdAndSet(@Nonnull KeyCompressor keyCompressor) {
-		final long computedUniquePartId = computeUniquePartId(this.entityIndexPrimaryKey, this.referenceName, keyCompressor);
-		final Long theUniquePartId = getStoragePartPK();
-		if (theUniquePartId == null) {
-			setStoragePartPK(computedUniquePartId);
-		} else {
-			Assert.isTrue(theUniquePartId == computedUniquePartId, "Unique part ids must never differ!");
-		}
+		final long computedUniquePartId = StoragePart.verifyUniquePartId(
+			computeUniquePartId(this.entityIndexPrimaryKey, this.referenceName, keyCompressor), getStoragePartPK()
+		);
+		setStoragePartPK(computedUniquePartId);
 		return computedUniquePartId;
 	}
 

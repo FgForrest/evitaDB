@@ -39,15 +39,20 @@ import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
 import javax.annotation.Nonnull;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.CACHE;
 
 /**
  * This test verifies behaviour of {@link FormulaCacheVisitor}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
+@Tag(ENGINE)
+@Tag(CACHE)
 class FormulaCacheVisitorTest {
 	public static final String SOME_ENTITY = "SomeEntity";
 	private static final LongHashFunction HASH_FUNCTION = CacheSupervisor.createHashFunction();

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2026
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -259,7 +259,7 @@ io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema defaultValue);
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariant = 6;</code>
    */
-  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcNameVariant>
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcNameVariant> 
       getNameVariantList();
   /**
    * <pre>
@@ -284,7 +284,7 @@ io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema defaultValue);
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariant = 6;</code>
    */
-  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder>
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder> 
       getNameVariantOrBuilderList();
   /**
    * <pre>
@@ -295,4 +295,34 @@ io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema defaultValue);
    */
   io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder getNameVariantOrBuilder(
       int index);
+
+  /**
+   * <pre>
+   * Contains the catalog-level conflict resolution setting. When not set (absent), the catalog schema inherits the
+   * resolved conflict resolution from the transaction options.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcConflictResolution conflictResolution = 7;</code>
+   * @return Whether the conflictResolution field is set.
+   */
+  boolean hasConflictResolution();
+  /**
+   * <pre>
+   * Contains the catalog-level conflict resolution setting. When not set (absent), the catalog schema inherits the
+   * resolved conflict resolution from the transaction options.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcConflictResolution conflictResolution = 7;</code>
+   * @return The conflictResolution.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcConflictResolution getConflictResolution();
+  /**
+   * <pre>
+   * Contains the catalog-level conflict resolution setting. When not set (absent), the catalog schema inherits the
+   * resolved conflict resolution from the transaction options.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcConflictResolution conflictResolution = 7;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcConflictResolutionOrBuilder getConflictResolutionOrBuilder();
 }

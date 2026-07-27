@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2025
+ *   Copyright (c) 2025-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -38,6 +38,7 @@ import io.evitadb.core.transaction.engine.EngineStateUpdater;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Consumer;
 
@@ -121,6 +122,27 @@ public class ModifyCatalogSchemaMutationOperator implements EngineMutationOperat
 					.build();
 			}
 		};
+	}
+
+	/**
+	 * The completion phase of `ModifyCatalogSchemaMutation` only advances the engine version — the actual catalog
+	 * schema update was executed in the work phase against the mutable `Catalog` instance and its own WAL, so there
+	 * is nothing to re-apply to engine state other than the version bump. This is trivially pure and safe to replay.
+	 */
+	@Nonnull
+	@Override
+	public Optional<ExpandedEngineState> replayCompletionState(
+		@Nonnull ModifyCatalogSchemaMutation mutation,
+		long targetVersion,
+		@Nonnull ExpandedEngineState currentState,
+		@Nonnull Evita evita
+	) {
+		return Optional.of(
+			ExpandedEngineState
+				.builder(currentState)
+				.withVersion(targetVersion)
+				.build()
+		);
 	}
 
 }

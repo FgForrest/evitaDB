@@ -37,8 +37,8 @@ import java.util.Arrays;
  * This internal data structure aggregates prices for single entity. We need to answer the question of which prices
  * (with or without tax) are assigned to which entity.
  *
- * This implementation of {@link EntityPrices} maintains the richest set of prices possibles. It means that it maintains
- * more than single price and that at least one prices is {@link PriceRecordContract#isInnerRecordSpecific()}.
+ * This implementation of {@link EntityPrices} maintains the richest set of prices possible. It means that it maintains
+ * more than a single price and that at least one price is {@link PriceRecordContract#isInnerRecordSpecific()}.
  */
 @ThreadSafe
 class FullBlownEntityPrices extends EntityPrices {
@@ -78,6 +78,7 @@ class FullBlownEntityPrices extends EntityPrices {
 		Arrays.sort(this.lowestPrices, PRICE_ID_COMPARATOR);
 	}
 
+	@Nonnull
 	@Override
 	public PriceRecordContract[] getLowestPriceRecords() {
 		return this.lowestPrices;
@@ -90,12 +91,22 @@ class FullBlownEntityPrices extends EntityPrices {
 
 	@Override
 	public boolean containsPriceRecord(int priceId) {
-		return Arrays.stream(this.prices).anyMatch(it -> it.priceId() == priceId);
+		for (final PriceRecordContract price : this.prices) {
+			if (price.priceId() == priceId) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	@Override
 	public boolean containsInnerRecord(int innerRecordId) {
-		return Arrays.stream(this.prices).anyMatch(it -> it.innerRecordId() == innerRecordId);
+		for (final PriceRecordContract price : this.prices) {
+			if (price.innerRecordId() == innerRecordId) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	@Nonnull

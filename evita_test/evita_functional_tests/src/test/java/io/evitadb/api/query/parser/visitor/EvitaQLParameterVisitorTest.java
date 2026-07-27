@@ -32,15 +32,20 @@ import org.junit.jupiter.api.Test;
 import javax.annotation.Nonnull;
 import java.util.List;
 import java.util.Map;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.QUERY;
 
 /**
  * Tests for {@link EvitaQLParameterVisitor}
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
+@Tag(CONTRACT)
+@Tag(QUERY)
 class EvitaQLParameterVisitorTest {
 
 	@Test

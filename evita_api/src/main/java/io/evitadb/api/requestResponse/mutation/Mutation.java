@@ -23,16 +23,14 @@
 
 package io.evitadb.api.requestResponse.mutation;
 
+import io.evitadb.api.requestResponse.cdc.ChangeCaptureBody;
 import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictGenerationContext;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
-import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
 
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
-import java.io.Serializable;
-import java.util.Set;
 import java.util.stream.Stream;
 
 /**
@@ -44,7 +42,9 @@ import java.util.stream.Stream;
  */
 @Immutable
 @ThreadSafe
-public sealed interface Mutation extends Serializable permits EngineMutation, CatalogBoundMutation {
+public sealed interface Mutation
+	extends MutationContract, ChangeCaptureBody
+	permits EngineMutation, CatalogBoundMutation {
 
 	/**
 	 * Returns operation classification.
@@ -55,15 +55,17 @@ public sealed interface Mutation extends Serializable permits EngineMutation, Ca
 	/**
 	 * Collects all conflict keys that this mutation may produce when applied to the data.
 	 *
-	 * @param context          context allowing to pass additional information for conflict key generation from outer
-	 *                         mutations / context of the generation
-	 * @param conflictPolicies policies that should be considered when collecting conflict keys
+	 * The effective conflict resolution is carried by the {@code context}: implementations decide which
+	 * keys to emit by asking its {@code shouldEmit*} predicates and {@link ConflictGenerationContext#coarsePolicy()},
+	 * never by inspecting a raw policy set.
+	 *
+	 * @param context context that both scopes the generation (catalog / entity) and decides, through its
+	 *                {@code shouldEmit*} predicates, which conflict keys must be produced
 	 * @return stream providing conflict keys
 	 */
 	@Nonnull
 	Stream<ConflictKey> collectConflictKeys(
-		@Nonnull ConflictGenerationContext context,
-		@Nonnull Set<ConflictPolicy> conflictPolicies
+		@Nonnull ConflictGenerationContext context
 	);
 
 }

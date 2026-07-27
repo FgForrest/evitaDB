@@ -1,0 +1,86 @@
+TOTAL SAMPLES: 122510
+BENCHMARK-RELATED (attributeFiltering) SAMPLES: 98574 (80.5%)
+
+=== TOP 40 LEAF FRAMES (overall) ===
+   14525 (11.86%)  java/lang/StringBuilder.append_[i]
+   10527 ( 8.59%)  io/evitadb/roaringbitmap/Util.fillArray_[i]
+    9678 ( 7.90%)  io/evitadb/roaringbitmap/RoaringArray.<init>_[i]
+    7363 ( 6.01%)  io/evitadb/roaringbitmap/Util.hybridUnsignedBinarySearch_[i]
+    4563 ( 3.72%)  G1ParScanThreadState::trim_queue_to_threshold
+    3794 ( 3.10%)  java/lang/ThreadLocal$ThreadLocalMap.getEntry_[i]
+    3077 ( 2.51%)  io/evitadb/roaringbitmap/BitmapContainer.computeCardinality_[i]
+    2567 ( 2.10%)  jdk/internal/icu/text/NormalizerBase.nextNormalize_[i]
+    2521 ( 2.06%)  io/evitadb/roaringbitmap/BitmapContainer.contains_[j]
+    2375 ( 1.94%)  java/text/CollationElementIterator.next_[j]
+    2337 ( 1.91%)  void OopOopIterateDispatch<G1CMOopClosure>::Table::oop_oop_iterate<InstanceKlass, narrowOop>
+    1657 ( 1.35%)  jshort_disjoint_arraycopy_avx3
+    1482 ( 1.21%)  vtable stub
+    1382 ( 1.13%)  G1CardSet::add_card
+    1323 ( 1.08%)  void G1ScanCardClosure::do_oop_work<narrowOop>
+    1320 ( 1.08%)  java/lang/ref/Reference.refersToImpl_[i]
+    1292 ( 1.05%)  io/evitadb/roaringbitmap/Container.lazyIOR_[i]
+    1290 ( 1.05%)  void OopOopIterateDispatch<G1CMOopClosure>::Table::oop_oop_iterate<ObjArrayKlass, narrowOop>
+    1253 ( 1.02%)  G1ScanHRForRegionClosure::scan_heap_roots
+    1247 ( 1.02%)  java/lang/ThreadLocal.get_[i]
+    1211 ( 0.99%)  io/evitadb/roaringbitmap/PersistentRoaringBitmap.naivelazyor_[j]
+    1144 ( 0.93%)  io/evitadb/core/query/algebra/base/OrFormula.getRoaringBitmaps_[j]
+    1094 ( 0.89%)  java/util/Arrays.fill_[i]
+    1032 ( 0.84%)  void OopOopIterateDispatch<G1RebuildRemSetClosure>::Table::oop_oop_iterate<ObjArrayKlass, narrowOop>
+     925 ( 0.76%)  io/evitadb/roaringbitmap/RoaringArray.getContainerAtIndex_[i]
+     924 ( 0.75%)  io/evitadb/roaringbitmap/BitmapContainer.remove_[i]
+     918 ( 0.75%)  java/util/DualPivotQuicksort.sort_[j]
+     842 ( 0.69%)  io/evitadb/core/query/algebra/base/OrFormula.getEstimatedCardinality_[j]
+     788 ( 0.64%)  io/evitadb/index/bPlusTree/FrontCodedStringColumn.commonPrefix_[i]
+     784 ( 0.64%)  io/evitadb/roaringbitmap/BitmapContainer.ilazyor_[i]
+     777 ( 0.63%)  io/evitadb/index/attribute/SortedRecordsSupplier.resolvePositionsByDenseWalk_[j]
+     776 ( 0.63%)  void OopOopIterateDispatch<G1RebuildRemSetClosure>::Table::oop_oop_iterate<InstanceKlass, narrowOop>
+     746 ( 0.61%)  /usr/lib/x86_64-linux-gnu/libc.so.6
+     740 ( 0.60%)  io/evitadb/index/array/UnorderedLookupTree$PositionCursor.recordAt_[i]
+     730 ( 0.60%)  io/evitadb/roaringbitmap/RoaringArray.getKeyAtIndex_[i]
+     704 ( 0.57%)  io/evitadb/roaringbitmap/PersistentRoaringBitmap.remove_[j]
+     658 ( 0.54%)  G1RebuildRSAndScrubTask::G1RebuildRSAndScrubRegionClosure::do_heap_region
+     654 ( 0.53%)  io/evitadb/roaringbitmap/Util.lowbits_[i]
+     583 ( 0.48%)  io/evitadb/core/query/algebra/base/AbstractBitmapCacheableFormula.includeAdditionalHash_[j]
+     558 ( 0.46%)  java/util/DualPivotQuicksort.mixedInsertionSort_[j]
+
+=== TOP 40 io/evitadb FRAMES WITHIN attributeFiltering STACKS (any depth, self+ancestor weight) ===
+  135192 (137.15% of bench)  io/evitadb/core/session/EvitaSession.query_[i]
+   98574 (100.00% of bench)  io/evitadb/performance/artificial/jmh_generated/ArtificialEntitiesThroughputBenchmark_attributeFiltering_jmhTest.attributeFiltering_Throughput_[0]
+   97416 (98.83% of bench)  io/evitadb/core/transaction/Transaction.executeInTransactionIfProvided_[j]
+   72533 (73.58% of bench)  io/evitadb/core/query/algebra/AbstractCacheableFormula.compute_[j]
+   69398 (70.40% of bench)  io/evitadb/performance/artificial/ArtificialEntitiesThroughputBenchmark.attributeFiltering_[j]
+   69395 (70.40% of bench)  io/evitadb/performance/artificial/ArtificialEntitiesBenchmark.attributeFiltering_[i]
+   69385 (70.39% of bench)  io/evitadb/core/session/EvitaSessionProxy.invoke_[j]
+   69385 (70.39% of bench)  io/evitadb/core/session/EvitaSessionProxy.executeWithinTransactionContext_[i]
+   69384 (70.39% of bench)  io/evitadb/core/session/EvitaSessionProxy.executeDelegateMethod_[i]
+   69384 (70.39% of bench)  io/evitadb/core/session/EvitaSessionProxy.lambda$executeWithinTransactionContext$2_[i]
+   69383 (70.39% of bench)  io/evitadb/core/session/EvitaSessionProxy$$Lambda.0x000073a4002fe7d0.get_[j]
+   69382 (70.39% of bench)  io/evitadb/core/session/EvitaSessionProxy.executeMethodWithTracingAndMetrics_[i]
+   69381 (70.38% of bench)  io/evitadb/core/session/EvitaSessionProxy.lambda$executeMethodWithTracingAndMetrics$1_[i]
+   69380 (70.38% of bench)  io/evitadb/core/session/EvitaSessionProxy$$Lambda.0x000073a4002ff890.get_[i]
+   69380 (70.38% of bench)  io/evitadb/core/session/EvitaSessionProxy.invokeMethodSafely_[i]
+   69379 (70.38% of bench)  io/evitadb/core/session/$Proxy27.query_[i]
+   69243 (70.24% of bench)  io/evitadb/core/query/algebra/AbstractFormula.compute_[j]
+   68769 (69.76% of bench)  io/evitadb/performance/artificial/jmh_generated/ArtificialEntitiesThroughputBenchmark_attributeFiltering_jmhTest.attributeFiltering_thrpt_jmhStub_[0]
+   67572 (68.55% of bench)  io/evitadb/core/collection/EntityCollection.getEntities_[i]
+   61586 (62.48% of bench)  io/evitadb/core/traffic/TrafficRecordingEngine.recordQuery_[j]
+   61548 (62.44% of bench)  io/evitadb/externalApi/observability/trace/ObservabilityTracingContext.executeWithinBlockIfParentContextAvailable_[i]
+   61548 (62.44% of bench)  io/evitadb/externalApi/observability/trace/ObservabilityTracingContext.executeWithinBlockInternal_[i]
+   61547 (62.44% of bench)  io/evitadb/core/traffic/TrafficRecordingEngine$$Lambda.0x000073a4005f57c0.get_[i]
+   61547 (62.44% of bench)  io/evitadb/core/query/QueryPlan.execute_[i]
+   61547 (62.44% of bench)  io/evitadb/core/query/QueryPlan.execute_[j]
+   57848 (58.68% of bench)  io/evitadb/core/transaction/Transaction.executeInTransactionIfProvided_[0]
+   57590 (58.42% of bench)  io/evitadb/api/EvitaContract.updateCatalog_[0]
+   56132 (56.94% of bench)  io/evitadb/core/session/EvitaSession.upsertEntity_[i]
+   38250 (38.80% of bench)  io/evitadb/comparator/LocalizedStringComparator.compare_[i]
+   37778 (38.32% of bench)  io/evitadb/core/query/algebra/base/AndFormula.getRoaringBitmaps_[j]
+   37774 (38.32% of bench)  io/evitadb/core/query/algebra/AbstractFormula.computeSortedConjunctionBitmaps_[i]
+   34620 (35.12% of bench)  io/evitadb/core/query/algebra/attribute/AttributeFormula.computeInternal_[j]
+   34611 (35.11% of bench)  io/evitadb/core/query/algebra/prefetch/SelectionFormula.computeInternal_[j]
+   31251 (31.70% of bench)  io/evitadb/core/query/algebra/base/OrFormula.computeInternal_[1]
+   29054 (29.47% of bench)  io/evitadb/core/session/EvitaSessionProxy.invoke_[0]
+   29053 (29.47% of bench)  io/evitadb/core/session/EvitaSessionProxy.executeDelegateMethod_[0]
+   29053 (29.47% of bench)  io/evitadb/core/session/EvitaSessionProxy.executeWithinTransactionContext_[0]
+   29053 (29.47% of bench)  io/evitadb/core/session/EvitaSessionProxy$$Lambda.0x000073a4002fe7d0.get_[0]
+   29053 (29.47% of bench)  io/evitadb/core/session/EvitaSessionProxy.lambda$executeWithinTransactionContext$2_[0]
+   29053 (29.47% of bench)  io/evitadb/core/session/EvitaSessionProxy.executeMethodWithTracingAndMetrics_[0]

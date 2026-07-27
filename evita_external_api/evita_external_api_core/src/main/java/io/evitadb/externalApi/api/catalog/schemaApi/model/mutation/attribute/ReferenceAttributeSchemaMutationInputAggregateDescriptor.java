@@ -79,6 +79,10 @@ public interface ReferenceAttributeSchemaMutationInputAggregateDescriptor {
 		"setAttributeSchemaNullableMutation",
 		SetAttributeSchemaNullableMutationDescriptor.THIS_INPUT
 	);
+	PropertyDescriptor SET_ATTRIBUTE_SCHEMA_CONFLICT_RESOLUTION_OVERRIDE_MUTATION = PropertyDescriptor.nullableFromObject(
+		"setAttributeSchemaConflictResolutionOverrideMutation",
+		SetAttributeSchemaConflictResolutionOverrideMutationDescriptor.THIS_INPUT
+	);
 	PropertyDescriptor SET_ATTRIBUTE_SCHEMA_REPRESENTATIVE_MUTATION = PropertyDescriptor.nullableFromObject(
 		"setAttributeSchemaRepresentativeMutation",
 		SetAttributeSchemaRepresentativeMutationDescriptor.THIS_INPUT
@@ -108,6 +112,7 @@ public interface ReferenceAttributeSchemaMutationInputAggregateDescriptor {
 			SET_ATTRIBUTE_SCHEMA_FILTERABLE_MUTATION,
 			SET_ATTRIBUTE_SCHEMA_LOCALIZED_MUTATION,
 			SET_ATTRIBUTE_SCHEMA_NULLABLE_MUTATION,
+			SET_ATTRIBUTE_SCHEMA_CONFLICT_RESOLUTION_OVERRIDE_MUTATION,
 			SET_ATTRIBUTE_SCHEMA_REPRESENTATIVE_MUTATION,
 			SET_ATTRIBUTE_SCHEMA_SORTABLE_MUTATION,
 			SET_ATTRIBUTE_SCHEMA_UNIQUE_MUTATION

@@ -1,5 +1,8 @@
 ```json
 {
+  "min" : "80.00",
+  "max" : "150.00",
+  "overallCount" : 10,
   "buckets" : [
     {
       "occurrences" : 2,
@@ -121,9 +124,6 @@
       "requested" : true,
       "threshold" : "112.00"
     }
-  ],
-  "max" : "150.00",
-  "min" : "80.00",
-  "overallCount" : 10
+  ]
 }
 ```

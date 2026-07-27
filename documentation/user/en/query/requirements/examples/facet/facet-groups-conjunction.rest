@@ -15,15 +15,17 @@ POST /rest/evita/Product/query
     ]
   },
   "require" : {
-    "facetGroupsSummary" : {
+    "referenceGroupsSummary" : {
       "statisticsDepth" : "IMPACT",
-      "requirements" : {
-        "entityFetch" : {
-          "attributeContent" : [
-            "code"
-          ]
+      "requirements" : [
+        {
+          "entityFetch" : {
+            "attributeContent" : [
+              "code"
+            ]
+          }
         }
-      }
+      ]
     },
     "facetGroupsGroupsConjunction" : { }
   }

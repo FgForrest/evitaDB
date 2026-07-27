@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,13 +23,14 @@
 
 package io.evitadb.store.offsetIndex.io;
 
-import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.core.metric.event.transaction.IsolatedWalFileClosedEvent;
 import io.evitadb.core.metric.event.transaction.IsolatedWalFileOpenedEvent;
 import io.evitadb.exception.EvitaIOException;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.exception.UnexpectedIOException;
+import io.evitadb.store.checksum.ChecksumFactory;
+import io.evitadb.store.compression.CompressionFactory;
 import io.evitadb.store.kryo.ObservableInput;
 import io.evitadb.store.kryo.ObservableOutput;
 import io.evitadb.store.kryo.ObservableOutputKeeper;
@@ -47,6 +48,7 @@ import java.nio.BufferOverflowException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.Optional;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
@@ -89,6 +91,29 @@ public class WriteOnlyOffHeapWithFileBackupHandle implements WriteOnlyHandle {
 	 */
 	private final OffHeapMemoryManager offHeapMemoryManager;
 	/**
+	 * Size of the memory buffer used for write operations, in bytes.
+	 * This buffer size limits the maximum size of individual records that can be written.
+	 * Sourced from {@link io.evitadb.api.configuration.StorageOptions#outputBufferSize()}, typically defaults to 2MB.
+	 */
+	private final int outputBufferSize;
+	/**
+	 * Controls whether OS buffer flush is forced at safe points to ensure data durability.
+	 * When true, forces file system sync operations to persist data to physical storage.
+	 * Sourced from {@link io.evitadb.api.configuration.StorageOptions#syncWrites()}.
+	 */
+	private final boolean syncWrites;
+	/**
+	 * Factory for creating checksums for data integrity verification during write operations.
+	 * Sourced from {@link io.evitadb.api.configuration.StorageOptions#computeCRC32C()}.
+	 */
+	private final ChecksumFactory checksumFactory;
+	/**
+	 * Factory for creating compressor and decompressor instances for optional data compression.
+	 * Compression is applied only when it reduces data size below the original.
+	 * Sourced from {@link io.evitadb.api.configuration.StorageOptions#compress()}.
+	 */
+	private final CompressionFactory compressionFactory;
+	/**
 	 * OutputStream that is used to write data to the off-heap memory.
 	 */
 	@Nullable private ObservableOutput<OffHeapMemoryOutputStream> offHeapMemoryOutput;
@@ -96,14 +121,18 @@ public class WriteOnlyOffHeapWithFileBackupHandle implements WriteOnlyHandle {
 	 * OutputStream that is used to write data to the file.
 	 */
 	@Nullable private ObservableOutput<FileOutputStream> fileOutput;
-	/**
-	 * Reference to the {@link StorageOptions} object that contains configuration options for the storage system.
-	 */
-	private final StorageOptions storageOptions;
+
 	/**
 	 * Contains the information about the last end byte of fully written record.
 	 */
 	private int lastConsistentWrittenPosition = 0;
+	/**
+	 * Contains the cumulative CRC32C checksum of all data written up to {@link #lastConsistentWrittenPosition}.
+	 * This checksum is used to verify data integrity when switching from off-heap memory to file-based storage,
+	 * and when creating {@link OffHeapWithFileBackupReference} instances for reading the written data.
+	 * The checksum is updated after each successful write operation that is synchronized to ensure consistency.
+	 */
+	private long lastConsistentChecksum = 0L;
 
 	/**
 	 * Synchronizes the data stored in the provided observable output stream to the disk.
@@ -125,14 +154,20 @@ public class WriteOnlyOffHeapWithFileBackupHandle implements WriteOnlyHandle {
 
 	public WriteOnlyOffHeapWithFileBackupHandle(
 		@Nonnull Path targetFile,
-		@Nonnull StorageOptions storageOptions,
+		int outputBufferSize,
+		boolean syncWrites,
 		@Nonnull ObservableOutputKeeper observableOutputKeeper,
-		@Nonnull OffHeapMemoryManager offHeapMemoryManager
+		@Nonnull OffHeapMemoryManager offHeapMemoryManager,
+		@Nonnull ChecksumFactory checksumCalculatorFactory,
+		@Nonnull CompressionFactory compressionFactory
 	) {
 		this.targetFile = targetFile;
-		this.storageOptions = storageOptions;
+		this.outputBufferSize = outputBufferSize;
+		this.syncWrites = syncWrites;
 		this.offHeapMemoryManager = offHeapMemoryManager;
 		this.observableOutputKeeper = observableOutputKeeper;
+		this.checksumFactory = checksumCalculatorFactory;
+		this.compressionFactory = compressionFactory;
 	}
 
 	@Override
@@ -174,6 +209,22 @@ public class WriteOnlyOffHeapWithFileBackupHandle implements WriteOnlyHandle {
 			(o) -> postExecutionLogic.apply(o, logic.apply(o)),
 			true
 		);
+	}
+
+	@Override
+	public void forceDurable() {
+		// this handle backs an isolated transaction WAL, not the checkpointed catalog data files, so it is not
+		// on the deferred-checkpoint path. It is implemented anyway so the contract holds for every handle.
+		// While the content still lives off-heap there is no file to force - that is a real state of this
+		// handle (nothing has spilled yet), not an unhandled branch: the bytes are not on disk at all, so no
+		// fsync could make them durable. Once it has spilled, the backing file is forced like any other.
+		if (this.fileOutput != null) {
+			try (final FileChannel channel = FileChannel.open(this.targetFile, StandardOpenOption.WRITE)) {
+				channel.force(true);
+			} catch (IOException e) {
+				throw new SyncFailedException(e);
+			}
+		}
 	}
 
 	@Override
@@ -226,17 +277,22 @@ public class WriteOnlyOffHeapWithFileBackupHandle implements WriteOnlyHandle {
 		execute("flush", noOpRunnable(), noOpFunction(), true);
 
 		if (this.offHeapMemoryOutput != null) {
-			final ByteBuffer byteBuffer = this.offHeapMemoryOutput.getOutputStream().getByteBuffer();
+			final OffHeapMemoryOutputStream outputStream = this.offHeapMemoryOutput.getOutputStream();
+			final ByteBuffer byteBuffer = outputStream.getByteBuffer();
 			byteBuffer.limit(this.lastConsistentWrittenPosition);
 			return OffHeapWithFileBackupReference.withByteBuffer(
 				byteBuffer,
 				this.lastConsistentWrittenPosition,
+				this.lastConsistentChecksum,
 				this::releaseOffHeapMemory
 			);
 		} else if (this.fileOutput != null) {
+			// finalize cumulative checksum for the file output
+			final long cumulativeChecksum = this.fileOutput.markCumulativeChecksumEnd();
 			return OffHeapWithFileBackupReference.withFilePath(
 				this.targetFile,
 				Math.toIntExact(this.targetFile.toFile().length()),
+				cumulativeChecksum,
 				this::releaseTemporaryFile
 			);
 		} else {
@@ -275,13 +331,25 @@ public class WriteOnlyOffHeapWithFileBackupHandle implements WriteOnlyHandle {
 	/**
 	 * Releases the off-heap memory allocated for writing data.
 	 *
-	 * This method closes the off-heap memory output stream and sets it to null.
+	 * This method closes the underlying off-heap region stream (freeing the region slot) and hands the
+	 * {@link ObservableOutput} instance back to {@link #observableOutputKeeper} for reuse by a future
+	 * transaction, instead of discarding it. Safe to recycle while a read reference is outstanding: the
+	 * reference reads from the off-heap region's {@link ByteBuffer} directly (see
+	 * {@link #toReadOffHeapWithFileBackupReference()}), never from this output's heap buffer.
 	 */
 	private void releaseOffHeapMemory() {
-		if (this.offHeapMemoryOutput != null) {
-			this.offHeapMemoryOutput.close();
+		final ObservableOutput<OffHeapMemoryOutputStream> output = this.offHeapMemoryOutput;
+		if (output != null) {
+			// null the field first so a second release (both the reference-close callback and handle #close()
+			// may call this) is a no-op and never double-recycles the same instance
+			this.offHeapMemoryOutput = null;
+			// flush any not-yet-written bytes, then release the off-heap region (frees the region slot) -
+			// mirrors what Output#close() would have done, without calling it (that would tear down the
+			// instance); the buffer, checksum and deflater are left untouched so the instance stays usable
+			output.flush();
+			output.getOutputStream().close();
+			this.observableOutputKeeper.recycleOffHeapOutput(output);
 		}
-		this.offHeapMemoryOutput = null;
 	}
 
 	/**
@@ -345,10 +413,13 @@ public class WriteOnlyOffHeapWithFileBackupHandle implements WriteOnlyHandle {
 	) {
 		final T result = logic.apply(output);
 		if (sync) {
-			doSync(output, this.storageOptions.syncWrites());
+			doSync(output, this.syncWrites);
 		}
 		// update the last consistent written position
+		final int previousPosition = this.lastConsistentWrittenPosition;
 		this.lastConsistentWrittenPosition = Math.toIntExact(output.getWrittenBytesSinceReset());
+		this.lastConsistentChecksum = previousPosition != this.lastConsistentWrittenPosition ?
+			output.getCumulativeChecksum() : this.lastConsistentChecksum;
 		return result;
 	}
 
@@ -384,7 +455,10 @@ public class WriteOnlyOffHeapWithFileBackupHandle implements WriteOnlyHandle {
 
 		// switch output streams
 		this.offHeapMemoryOutput = null;
-		this.fileOutput = this.observableOutputKeeper.getObservableOutputOrCreate(this.targetFile, this::createObservableOutput);
+		this.fileOutput = this.observableOutputKeeper.getObservableOutputOrCreate(
+			this.targetFile,
+			path -> this.createObservableOutput(path, this.lastConsistentChecksum)
+		);
 	}
 
 	/**
@@ -414,21 +488,26 @@ public class WriteOnlyOffHeapWithFileBackupHandle implements WriteOnlyHandle {
 		final Optional<OffHeapMemoryOutputStream> offHeapRegion = this.offHeapMemoryManager.acquireRegionOutputStream();
 		if (offHeapRegion.isEmpty()) {
 			Assert.isPremiseValid(getTargetFile(this.targetFile).exists(), "Target file does not exist!");
-			this.fileOutput = this.observableOutputKeeper.getObservableOutputOrCreate(this.targetFile, this::createObservableOutput);
+			this.fileOutput = this.observableOutputKeeper.getObservableOutputOrCreate(
+				this.targetFile, path -> this.createObservableOutput(path, 0L)
+			);
 			return this.fileOutput;
 		} else {
-			final StorageOptions options = this.observableOutputKeeper.getOptions();
-			this.offHeapMemoryOutput = new ObservableOutput<>(
-				offHeapRegion.get(),
-				options.outputBufferSize(),
-				0
+			final OffHeapMemoryOutputStream stream = offHeapRegion.get();
+			this.offHeapMemoryOutput = this.observableOutputKeeper.borrowOffHeapOutput(
+				stream,
+				() -> {
+					final ObservableOutput<OffHeapMemoryOutputStream> newOutput = new ObservableOutput<>(
+						stream,
+						this.outputBufferSize,
+						0,
+						this.checksumFactory.createChecksum(),
+						this.compressionFactory.createCompressor().orElse(null)
+					);
+					newOutput.markCumulativeChecksumStart();
+					return newOutput;
+				}
 			);
-			if (options.computeCRC32C()) {
-				this.offHeapMemoryOutput.computeCRC32();
-			}
-			if (options.compress()) {
-				this.offHeapMemoryOutput.compress();
-			}
 			return this.offHeapMemoryOutput;
 		}
 	}
@@ -479,7 +558,8 @@ public class WriteOnlyOffHeapWithFileBackupHandle implements WriteOnlyHandle {
 		 */
 		@Nonnull
 		private ReadOnlyHandle getDelegate() {
-			final StorageOptions storageOptions = this.writeOnlyOffHeapWithFileBackupHandle.storageOptions;
+			final ChecksumFactory checksumFactory = this.writeOnlyOffHeapWithFileBackupHandle.checksumFactory;
+			final CompressionFactory compressionFactory = this.writeOnlyOffHeapWithFileBackupHandle.compressionFactory;
 			if (this.writeOnlyOffHeapWithFileBackupHandle.offHeapMemoryOutput != null) {
 				// initial state - we may be reading the data from the off-heap memory
 				if (!(this.delegate instanceof ReadOnlyGenericHandle)) {
@@ -487,14 +567,10 @@ public class WriteOnlyOffHeapWithFileBackupHandle implements WriteOnlyHandle {
 					Assert.isPremiseValid(this.delegate == null, "Delegate already set!");
 					// create a new delegate to off-heap memory
 					final ObservableInput<InputStream> observableInput = new ObservableInput<>(
-						this.writeOnlyOffHeapWithFileBackupHandle.offHeapMemoryOutput.getOutputStream().getInputStream()
+						this.writeOnlyOffHeapWithFileBackupHandle.offHeapMemoryOutput.getOutputStream().getInputStream(),
+						checksumFactory.createChecksum(),
+						compressionFactory.createDecompressor().orElse(null)
 					);
-					if (storageOptions.computeCRC32C()) {
-						observableInput.computeCRC32();
-					}
-					if (storageOptions.compress()) {
-						observableInput.compress();
-					}
 					this.delegate = new ReadOnlyGenericHandle(observableInput, this.writeOnlyOffHeapWithFileBackupHandle.lastConsistentWrittenPosition);
 				}
 			} else if (this.writeOnlyOffHeapWithFileBackupHandle.fileOutput != null) {
@@ -505,7 +581,8 @@ public class WriteOnlyOffHeapWithFileBackupHandle implements WriteOnlyHandle {
 					// and also because there may be multiple read-only handles created from the same write handle
 					this.delegate = new ReadOnlyFileHandle(
 						this.writeOnlyOffHeapWithFileBackupHandle.targetFile,
-						storageOptions
+						checksumFactory,
+						compressionFactory
 					);
 				}
 			} else {
@@ -522,8 +599,15 @@ public class WriteOnlyOffHeapWithFileBackupHandle implements WriteOnlyHandle {
 	 * A factory function that creates an observable output stream for a file using the provided path and storage options.
 	 */
 	@Nonnull
-	private ObservableOutput<FileOutputStream> createObservableOutput(@Nonnull Path theFilePath) {
-		return WriteOnlyFileHandle.createObservableOutput(theFilePath, this.storageOptions);
+	private ObservableOutput<FileOutputStream> createObservableOutput(@Nonnull Path theFilePath, long initialChecksum) {
+		final ObservableOutput<FileOutputStream> observableOutput = WriteOnlyFileHandle.createObservableOutput(
+			theFilePath,
+			this.outputBufferSize,
+			this.checksumFactory.createChecksum(),
+			this.compressionFactory.createCompressor().orElse(null)
+		);
+		observableOutput.markCumulativeChecksumStart(initialChecksum);
+		return observableOutput;
 	}
 
 }

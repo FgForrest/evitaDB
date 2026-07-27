@@ -158,7 +158,8 @@ public class ModifyAttributeSchemaTypeMutation
 				ofNullable(globalAttributeSchema.getDefaultValue())
 					.map(it -> EvitaDataTypes.toTargetType(it, newType))
 					.orElse(null),
-				this.indexedDecimalPlaces
+				this.indexedDecimalPlaces,
+				globalAttributeSchema.getConflictResolutionOverride()
 			);
 		} else if (attributeSchema instanceof EntityAttributeSchemaContract entityAttributeSchema) {
 			//noinspection unchecked
@@ -177,7 +178,8 @@ public class ModifyAttributeSchemaTypeMutation
 				ofNullable(entityAttributeSchema.getDefaultValue())
 					.map(it -> EvitaDataTypes.toTargetType(it, newType))
 					.orElse(null),
-				this.indexedDecimalPlaces
+				this.indexedDecimalPlaces,
+				entityAttributeSchema.getConflictResolutionOverride()
 			);
 		} else  {
 			//noinspection unchecked
@@ -196,7 +198,8 @@ public class ModifyAttributeSchemaTypeMutation
 				ofNullable(attributeSchema.getDefaultValue())
 					.map(it -> EvitaDataTypes.toTargetType(it, newType))
 					.orElse(null),
-				this.indexedDecimalPlaces
+				this.indexedDecimalPlaces,
+				attributeSchema.getConflictResolutionOverride()
 			);
 		}
 	}

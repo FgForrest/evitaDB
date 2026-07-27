@@ -109,7 +109,7 @@
       }
     }
     extraResults {
-      facetSummary {
+      referenceSummary {
         groups {
           count
           facetStatistics {

@@ -24,13 +24,17 @@
 package io.evitadb.externalApi.rest.api.catalog.schemaApi;
 
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
-import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
-import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
+import io.evitadb.api.requestResponse.mutation.conflict.GranularConflictPolicy;
+import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.GlobalAttributeUniquenessType;
 import io.evitadb.core.Evita;
 import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.api.catalog.model.VersionedDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.AttributeSchemaDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.CatalogSchemaDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.ConflictResolutionDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.EntityAttributeSchemaDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.EntitySchemaDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.GlobalAttributeSchemaDescriptor;
@@ -53,6 +57,7 @@ import javax.annotation.Nonnull;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.externalApi.rest.api.testSuite.TestDataGenerator.REST_THOUSAND_PRODUCTS;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
@@ -62,12 +67,20 @@ import static io.evitadb.utils.MapBuilder.map;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static io.evitadb.test.TestTags.REST;
+import static io.evitadb.test.TestTags.EXTERNAL_API;
+import static io.evitadb.test.TestTags.QUERY;
+import static io.evitadb.test.TestTags.SCHEMA;
 
 /**
  * Functional tests for REST endpoints managing internal evitaDB entity schemas.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
+@Tag(REST)
+@Tag(EXTERNAL_API)
+@Tag(QUERY)
+@Tag(SCHEMA)
 class CatalogRestCatalogSchemaEndpointFunctionalTest extends CatalogRestSchemaEndpointFunctionalTest {
 
 	private static final String REST_THOUSAND_PRODUCTS_FOR_SCHEMA_UPDATE = REST_THOUSAND_PRODUCTS + "forCatalogSchemaUpdate";
@@ -237,6 +250,7 @@ class CatalogRestCatalogSchemaEndpointFunctionalTest extends CatalogRestSchemaEn
 						.e(AttributeSchemaDescriptor.TYPE.name(), String.class.getSimpleName())
 						.e(AttributeSchemaDescriptor.DEFAULT_VALUE.name(), null)
 						.e(AttributeSchemaDescriptor.INDEXED_DECIMAL_PLACES.name(), 0)
+						.e(AttributeSchemaDescriptor.CONFLICT_RESOLUTION_OVERRIDE.name(), ConflictResolutionOverride.INHERITED.name())
 						.build()
 				)
 			)
@@ -340,6 +354,7 @@ class CatalogRestCatalogSchemaEndpointFunctionalTest extends CatalogRestSchemaEn
 						.e(EntitySchemaDescriptor.LOCALES.name(), List.of())
 						.e(EntitySchemaDescriptor.CURRENCIES.name(), List.of())
 						.e(EntitySchemaDescriptor.EVOLUTION_MODE.name(), Arrays.stream(EvolutionMode.values()).map(Enum::toString).collect(Collectors.toList()))
+						.e(EntitySchemaDescriptor.CONFLICT_RESOLUTION.name(), null)
 						.e(EntitySchemaDescriptor.ATTRIBUTES.name(), map())
 						.e(SortableAttributeCompoundsSchemaProviderDescriptor.SORTABLE_ATTRIBUTE_COMPOUNDS.name(), map())
 						.e(EntitySchemaDescriptor.ASSOCIATED_DATA.name(), map())
@@ -496,6 +511,52 @@ class CatalogRestCatalogSchemaEndpointFunctionalTest extends CatalogRestSchemaEn
 			.body(VersionedDescriptor.VERSION.name(), equalTo(initialCatalogSchemaVersion + 2))
 			.body(CatalogSchemaDescriptor.ENTITY_SCHEMAS.name() + ".product", notNullValue())
 			.body(CatalogSchemaDescriptor.ENTITY_SCHEMAS.name() + ".myNewCollection", nullValue());
+	}
+
+	@Test
+	@UseDataSet(REST_THOUSAND_PRODUCTS_FOR_SCHEMA_UPDATE)
+	@DisplayName("Should change conflict resolution of catalog schema")
+	void shouldChangeConflictResolutionOfCatalogSchema(Evita evita, RestTester tester) {
+		final int initialCatalogSchemaVersion = getCatalogSchemaVersion(tester);
+
+		// set a non-default catalog-level conflict resolution
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/schema")
+			.httpMethod(Request.METHOD_PUT)
+			.requestBody("""
+				{
+					"mutations": [
+						{
+							"modifyCatalogSchemaConflictResolutionMutation": {
+								"conflictResolution": {
+									"policy": "ENTITY",
+									"granularity": ["ENTITY_ATTRIBUTE"]
+								}
+							}
+						}
+					]
+				}
+				""")
+			.executeAndExpectOkAndThen()
+			.body(VersionedDescriptor.VERSION.name(), equalTo(initialCatalogSchemaVersion + 1));
+
+		// read the catalog schema back and assert the non-default value survived the hand-written serialization
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/schema")
+			.httpMethod(Request.METHOD_GET)
+			.executeAndExpectOkAndThen()
+			.body(
+				CatalogSchemaDescriptor.CONFLICT_RESOLUTION.name(),
+				equalTo(
+					map()
+						.e(ConflictResolutionDescriptor.POLICY.name(), ConflictPolicy.ENTITY.name())
+						.e(
+							ConflictResolutionDescriptor.GRANULARITY.name(),
+							List.of(GranularConflictPolicy.ENTITY_ATTRIBUTE.name())
+						)
+						.build()
+				)
+			);
 	}
 
 	private int getCatalogSchemaVersion(@Nonnull RestTester tester) {

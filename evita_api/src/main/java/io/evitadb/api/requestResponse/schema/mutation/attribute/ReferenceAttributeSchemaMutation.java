@@ -142,7 +142,7 @@ public interface ReferenceAttributeSchemaMutation extends
 		@Nonnull AttributeSchemaContract updatedAttributeSchema
 	) {
 		if (existingAttributeSchema.equals(updatedAttributeSchema)) {
-			// we don't need to update entity schema - the associated data already contains the requested change
+			// we don't need to update reference schema - the attribute already contains the requested change
 			return referenceSchema;
 		} else {
 			if (referenceSchema instanceof ReflectedReferenceSchema reflectedReferenceSchema) {
@@ -173,7 +173,11 @@ public interface ReferenceAttributeSchemaMutation extends
 					referenceSchema.isReferencedGroupTypeManaged() ? Collections.emptyMap() : referenceSchema.getGroupTypeNameVariants(s -> null),
 					referenceSchema.isReferencedGroupTypeManaged(),
 					referenceSchema.getReferenceIndexTypeInScopes(),
+					referenceSchema.getIndexedComponentsInScopes(),
 					referenceSchema.getFacetedInScopes(),
+					referenceSchema.getFacetedPartiallyInScopes(),
+					referenceSchema.getAllHistogramIndexDefinitions(),
+					referenceSchema.getBucketedPartiallyInScopes(),
 					Stream.concat(
 							referenceSchema.getAttributes().values().stream().filter(it -> !updatedAttributeSchema.getName().equals(it.getName())),
 							Stream.of(updatedAttributeSchema)
@@ -184,7 +188,8 @@ public interface ReferenceAttributeSchemaMutation extends
 								Function.identity()
 							)
 						),
-					referenceSchema.getSortableAttributeCompounds()
+					referenceSchema.getSortableAttributeCompounds(),
+					referenceSchema.getConflictResolutionOverride()
 				);
 			}
 		}

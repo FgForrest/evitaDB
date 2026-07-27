@@ -1,6 +1,6 @@
 ---
 title: Reference filtering
-date: '10.2.2025'
+date: '11.5.2026'
 perex: |
   Reference filtering is used to filter entities based on their references to other entities in the catalog or
   attributes specified in those relations.
@@ -33,9 +33,10 @@ referenceHaving(
 
 The <LS to="e,j,r,g"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/filter/ReferenceHaving.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Queries/Filter/ReferenceHaving.cs</SourceClass></LS> constraint
 eliminates entities which has no reference of particular name satisfying set of filtering constraints. You can examine
-either the attributes specified on the relation itself or wrap the filtering constraint
-in [`entityHaving`](#entity-having)
-constraint to examine the attributes of the referenced entity. The constraint is similar to
+either the attributes specified on the relation itself, wrap the filtering constraint
+in [`entityHaving`](#entity-having) constraint to examine the attributes of the referenced entity,
+or in [`groupHaving`](#group-having) constraint to examine the attributes of the group entity associated
+with the reference. The constraint is similar to
 SQL [`EXISTS`](https://www.w3schools.com/sql/sql_exists.asp) operator.
 
 To demonstrate how the `referenceHaving` constraint works, let's query for products that have at least one alternative
@@ -44,9 +45,10 @@ have the `category` attribute set to `alternativeProduct`. There can be differen
 alternative products, for example spare parts and so on - that's why we need to specify the `category` attribute in
 the filtering constraint.
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Product with at least one `relatedProducts` reference of `alternativeProduct` category](/documentation/user/en/query/filtering/examples/references/reference-having.evitaql)
+
 </SourceCodeTabs>
 
 Returns the following result:
@@ -82,9 +84,10 @@ Returns the following result:
 If we wanted to query for products that have at least one related product reference of any `category` type, we could use
 the following simplified query:
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Product with at least one `relatedProducts` reference of any category](/documentation/user/en/query/filtering/examples/references/reference-having-any.evitaql)
+
 </SourceCodeTabs>
 
 Which returns the following result:
@@ -121,9 +124,10 @@ Another frequently used use-case is to query for entities that have at least one
 certain primary key. For example, we want to query for products that are related to `brand` with primary key `66465`.
 This can be achieved by following query:
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Products referencing `brand` of particular primary key](/documentation/user/en/query/filtering/examples/references/reference-having-exact-id.evitaql)
+
 </SourceCodeTabs>
 
 Which returns the following result:
@@ -180,7 +184,7 @@ of [filtering operators](../basics.md#filter-by).
 
 Let's use our previous example to query for products that relate to `brand` with particular attribute `code`:
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Products referencing `brand` of with code `apple`](/documentation/user/en/query/filtering/examples/references/entity-having.evitaql)
 
@@ -216,6 +220,72 @@ Which returns the following result:
 
 </Note>
 
+## Group having
+
+```evitaql-syntax
+groupHaving(
+    filterConstraint:any+
+)
+```
+
+<dl>
+    <dt>filterConstraint:any+</dt>
+    <dd>
+        one or more filter constraints that must be satisfied by the group entity of any of the source
+        entity references identified by the parent `referenceHaving` constraint
+    </dd>
+</dl>
+
+The <LS to="e,j,r,g"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/filter/GroupHaving.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Queries/Filter/GroupHaving.cs</SourceClass></LS> constraint
+is used to examine the attributes or other filterable properties of the **group entity** associated with a reference.
+It can only be used within the [`referenceHaving`](#reference-having) constraint, which defines the name of the entity
+reference whose group entity is subjected to the filtering restrictions in the `groupHaving` constraint. The filtering
+constraints for the group entity can use the entire range of [filtering operators](../basics.md#filter-by).
+
+This constraint requires the reference to be configured with a group type and to have the `REFERENCED_GROUP_ENTITY`
+[indexed component](../../use/schema.md#reference) enabled. The three sibling constraints address different
+"layers" of a single reference and can be combined freely inside `referenceHaving`:
+
+| Filter constraint                 | Targets                                  |
+|-----------------------------------|------------------------------------------|
+| (no wrapper, plain attribute…)    | attributes on the **reference relation** |
+| [`entityHaving`](#entity-having)  | attributes on the **referenced entity**  |
+| `groupHaving`                     | attributes on the **group entity**       |
+
+In the demo dataset, the `parameterValues` reference points to a `ParameterValue` entity (e.g. *RAM 16 GB*) and is
+**grouped** by a `Parameter` entity (e.g. *RAM memory*). To find MacBooks that expose the *RAM memory* parameter at
+all — regardless of how much memory each one has — you select the reference by its **group**, not by the individual
+parameter values:
+
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+
+[MacBooks whose `parameterValues` reference is grouped by the *RAM memory* parameter](/documentation/user/en/query/filtering/examples/references/group-having.evitaql)
+
+</SourceCodeTabs>
+
+Note how `groupHaving` filters at the **group level** while the sibling `referenceContentWithAttributes` filter at the
+fetch level uses `entityHaving` to project the matching individual values back into the result. This pairing —
+*"select by group, project by entity"* — is the typical shape of a `groupHaving` query: the example narrows the
+result to MacBooks that have at least one `parameterValues` reference whose group entity is the `ram-memory`
+parameter, and then for each surviving MacBook fetches only those parameter values whose own code begins with
+`ram-memory` (so the response shows the actual memory size without listing every other parameter the product exposes).
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### MacBooks exposing the *RAM memory* parameter group
+
+</NoteTitle>
+
+<LS to="e,j,c">
+
+<MDInclude>[MacBooks whose `parameterValues` reference is grouped by the *RAM memory* parameter](/documentation/user/en/query/filtering/examples/references/group-having.evitaql.md)</MDInclude>
+
+</LS>
+
+</Note>
+
 ## Facet having
 
 ```evitaql-syntax
@@ -242,15 +312,15 @@ The <LS to="e,j,r,g"><SourceClass>evita_query/src/main/java/io/evitadb/api/query
 constraint is typically placed inside the [`userFilter`](behavioral.md#user-filter) constraint container and represents
 the user's request to drill down the result set by a particular facet. The `facetHaving` constraint works exactly like
 the [`referenceHaving`](#reference-having) constraint, but works in conjunction with
-the [`facetSummary`](../requirements/facet.md#facet-summary) requirement to correctly calculate the facet statistics
-and impact predictions. When used outside the [`userFilter`](behavioral.md#user-filter) constraint container,
-the `facetHaving` constraint behaves like the [`referenceHaving`](#reference-having) constraint.
+the [`referenceSummary`](../requirements/reference.md#reference-summary) requirement to correctly calculate the
+facet statistics and impact predictions. When used outside the [`userFilter`](behavioral.md#user-filter) constraint
+container, the `facetHaving` constraint behaves like the [`referenceHaving`](#reference-having) constraint.
 
-To demonstrate the cooperation between the `facetHaving` constraint inside `userFilter` and the `facetSummary`
+To demonstrate the cooperation between the `facetHaving` constraint inside `userFilter` and the `referenceSummary`
 requirement, let's query for products in category *e-readers* and request the facet summary for reference `brand`.
 At the same time, let's pretend that the user has already checked the *amazon* facet:
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Facet having example](/documentation/user/en/query/filtering/examples/references/facet-having.evitaql)
 
@@ -279,19 +349,19 @@ changed accordingly:
 
 <LS to="e,j,c">
 
-<MDInclude sourceVariable="extraResults.FacetSummary">[The result of facet having filtering constraint](/documentation/user/en/query/filtering/examples/references/facet-having.evitaql.string.md)</MDInclude>
+<MDInclude sourceVariable="extraResults.ReferenceSummary">[The result of facet having filtering constraint](/documentation/user/en/query/filtering/examples/references/facet-having.evitaql.string.md)</MDInclude>
 
 </LS>
 
 <LS to="g">
 
-<MDInclude sourceVariable="data.queryProduct.extraResults.facetSummary">[The result of facet having filtering constraint](/documentation/user/en/query/filtering/examples/references/facet-having.graphql.json.md)</MDInclude>
+<MDInclude sourceVariable="data.queryProduct.extraResults.referenceSummary">[The result of facet having filtering constraint](/documentation/user/en/query/filtering/examples/references/facet-having.graphql.json.md)</MDInclude>
 
 </LS>
 
 <LS to="r">
 
-<MDInclude sourceVariable="extraResults.facetSummary">[The result of facet having filtering constraint](/documentation/user/en/query/filtering/examples/references/facet-having.rest.json.md)</MDInclude>
+<MDInclude sourceVariable="extraResults.referenceSummary">[The result of facet having filtering constraint](/documentation/user/en/query/filtering/examples/references/facet-having.rest.json.md)</MDInclude>
 
 </LS>
 
@@ -318,12 +388,12 @@ of the sub-categories). If you generated a facet summary for the `category` refe
 matching products on the same level. But you may want to visualise the category part of the facet summary as a tree
 using the [`hierarchy](../requirements/hierarchy.md#hierarchy-of-reference) requirement. When the user selects one of 
 the category options, it should automatically select all subcategories as well, and also change the predicted
-[facet statistics](../requirements/facet.md#facet-summary-of-reference) accordingly.
+[reference statistics](../requirements/reference.md#reference-summary-of-reference) accordingly.
 
 To achieve this, you can use the `includingChildren` constraint within the `facetHaving` constraint. The query is also
 restricted to the products of the `ASUS` manufacturer so that the facet summary is not too long:
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Facet including children example](/documentation/user/en/query/filtering/examples/references/facet-including-children.evitaql)
 
@@ -347,19 +417,19 @@ but also all of its children. The predicted numbers have changed accordingly:
 
 <LS to="e,j,c">
 
-<MDInclude sourceVariable="extraResults.FacetSummary">[The result of facet having including children](/documentation/user/en/query/filtering/examples/references/facet-including-children.evitaql.string.md)</MDInclude>
+<MDInclude sourceVariable="extraResults.ReferenceSummary">[The result of facet having including children](/documentation/user/en/query/filtering/examples/references/facet-including-children.evitaql.string.md)</MDInclude>
 
 </LS>
 
 <LS to="g">
 
-<MDInclude sourceVariable="data.queryProduct.extraResults.facetSummary">[The result of facet having including children](/documentation/user/en/query/filtering/examples/references/facet-including-children.graphql.json.md)</MDInclude>
+<MDInclude sourceVariable="data.queryProduct.extraResults.referenceSummary">[The result of facet having including children](/documentation/user/en/query/filtering/examples/references/facet-including-children.graphql.json.md)</MDInclude>
 
 </LS>
 
 <LS to="r">
 
-<MDInclude sourceVariable="extraResults.facetSummary">[The result of facet having including children](/documentation/user/en/query/filtering/examples/references/facet-including-children.rest.json.md)</MDInclude>
+<MDInclude sourceVariable="extraResults.referenceSummary">[The result of facet having including children](/documentation/user/en/query/filtering/examples/references/facet-including-children.rest.json.md)</MDInclude>
 
 </LS>
 
@@ -384,13 +454,13 @@ includingChildrenHaving(
 The <LS to="e,j,r,g"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/filter/ReferenceIncludingChildren.java</SourceClass></LS>
 filtering constraint is a specialisation of [`includingChildren`](#including-children) that allows you to restrict
 the child entities that are included in the `facetHaving` parent constraint. This can be useful if you are using 
-filters in the [`facetSummary`](../requirements/facet.md#facet-summary-of-reference) and your selection logic needs 
-to match it.
+filters in the [`referenceSummary`](../requirements/reference.md#reference-summary-of-reference) and your selection
+logic needs to match it.
 
 To better understand how the `includingChildrenHaving` constraint works, let's look at an example (the query is also
 restricted to the products of the `ASUS` manufacturer so that the facet summary is not too long):
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Facet including children having example](/documentation/user/en/query/filtering/examples/references/facet-including-children-having.evitaql)
 
@@ -415,19 +485,19 @@ changed accordingly:
 
 <LS to="e,j,c">
 
-<MDInclude sourceVariable="extraResults.FacetSummary">[The result of facet having including children having](/documentation/user/en/query/filtering/examples/references/facet-including-children-having.evitaql.string.md)</MDInclude>
+<MDInclude sourceVariable="extraResults.ReferenceSummary">[The result of facet having including children having](/documentation/user/en/query/filtering/examples/references/facet-including-children-having.evitaql.string.md)</MDInclude>
 
 </LS>
 
 <LS to="g">
 
-<MDInclude sourceVariable="data.queryProduct.extraResults.facetSummary">[The result of facet having including children having](/documentation/user/en/query/filtering/examples/references/facet-including-children-having.graphql.json.md)</MDInclude>
+<MDInclude sourceVariable="data.queryProduct.extraResults.referenceSummary">[The result of facet having including children having](/documentation/user/en/query/filtering/examples/references/facet-including-children-having.graphql.json.md)</MDInclude>
 
 </LS>
 
 <LS to="r">
 
-<MDInclude sourceVariable="extraResults.facetSummary">[The result of facet having including children having](/documentation/user/en/query/filtering/examples/references/facet-including-children-having.rest.json.md)</MDInclude>
+<MDInclude sourceVariable="extraResults.referenceSummary">[The result of facet having including children having](/documentation/user/en/query/filtering/examples/references/facet-including-children-having.rest.json.md)</MDInclude>
 
 </LS>
 
@@ -452,8 +522,9 @@ includingChildrenExcept(
 The <LS to="e,j,r,g"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/filter/ReferenceIncludingChildren.java</SourceClass></LS>
 filtering constraint is a specialisation of [`includingChildren`](#including-children) and exact opposite to [`includingChildrenHaving`]
 that allows you to exclude the matched child entities from being included in the `facetHaving` parent constraint.
-This can be useful if you are using filters in the [`facetSummary`](../requirements/facet.md#facet-summary-of-reference) 
-and your selection logic needs to match it.
+This can be useful if you are using filters in the
+[`referenceSummary`](../requirements/reference.md#reference-summary-of-reference) and your selection logic needs to
+match it.
 
 You can also combine the `includingChildrenExcept` constraint with the `includingChildrenHaving` constraint. 
 In this case, the `includingChildrenHaving` constraint is evaluated first and the `includingChildrenExcept` constraint 
@@ -462,7 +533,7 @@ is applied to the result of the `includingChildrenHaving` constraint.
 To better understand how the `includingChildrenExcept` constraint works, let's look at an example (the query is also
 restricted to the products of the `ASUS` manufacturer so that the facet summary is not too long):
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Facet including children except example](/documentation/user/en/query/filtering/examples/references/facet-including-children-except.evitaql)
 
@@ -487,19 +558,119 @@ have changed accordingly:
 
 <LS to="e,j,c">
 
-<MDInclude sourceVariable="extraResults.FacetSummary">[The result of facet except including children except](/documentation/user/en/query/filtering/examples/references/facet-including-children-except.evitaql.string.md)</MDInclude>
+<MDInclude sourceVariable="extraResults.ReferenceSummary">[The result of facet except including children except](/documentation/user/en/query/filtering/examples/references/facet-including-children-except.evitaql.string.md)</MDInclude>
 
 </LS>
 
 <LS to="g">
 
-<MDInclude sourceVariable="data.queryProduct.extraResults.facetSummary">[The result of facet except including children except](/documentation/user/en/query/filtering/examples/references/facet-including-children-except.graphql.json.md)</MDInclude>
+<MDInclude sourceVariable="data.queryProduct.extraResults.referenceSummary">[The result of facet except including children except](/documentation/user/en/query/filtering/examples/references/facet-including-children-except.graphql.json.md)</MDInclude>
 
 </LS>
 
 <LS to="r">
 
-<MDInclude sourceVariable="extraResults.facetSummary">[The result of facet except including children except](/documentation/user/en/query/filtering/examples/references/facet-including-children-except.rest.json.md)</MDInclude>
+<MDInclude sourceVariable="extraResults.referenceSummary">[The result of facet except including children except](/documentation/user/en/query/filtering/examples/references/facet-including-children-except.rest.json.md)</MDInclude>
+
+</LS>
+
+</Note>
+
+## Histogram having
+
+```evitaql-syntax
+histogramHaving(
+    argument:string!,
+    argument:string?,
+    argument:any?,
+    argument:any?,
+    filterConstraint:groupHaving?
+)
+```
+
+<dl>
+    <dt>argument:string!</dt>
+    <dd>
+        the name of the [entity reference](../../use/schema.md#reference) that hosts the histogram to be narrowed
+    </dd>
+    <dt>argument:string?</dt>
+    <dd>
+        optional histogram name within the reference; may be omitted (or passed as `null` / empty string) when
+        the reference hosts exactly one histogram
+    </dd>
+    <dt>argument:any?</dt>
+    <dd>
+        optional inclusive lower bound (`from`) of the range; `null` leaves the range open-ended on the lower side
+    </dd>
+    <dt>argument:any?</dt>
+    <dd>
+        optional inclusive upper bound (`to`) of the range; `null` leaves the range open-ended on the upper side;
+        at least one of `from` / `to` must be non-null
+    </dd>
+    <dt>filterConstraint:groupHaving?</dt>
+    <dd>
+        optional single [`groupHaving`](#group-having) constraint selecting the **group** entity for a grouped
+        histogram slot (for example "the `height` parameter" within the `parameterValues` reference); omitted for
+        non-grouped slots
+    </dd>
+</dl>
+
+<Note type="warning">
+
+**Group primary key `0` is reserved.** Reference histograms use the value `0` as a reserved non-grouped sentinel
+across the entire subsystem (in `histogramHaving` range maps, in the grouped-vs-non-grouped slot key, and in the
+`ResolvedHistogramHaving` carrier). Because evitaDB accepts client-supplied primary keys of any `int` value
+(including negatives), you **must not** use `0` as a primary key for any entity that may appear as the **group**
+of a reference hosting a histogram. A real group entity with PK `0` will be rejected with an internal error at
+query time. Use any non-zero integer (positive or negative) for such entities.
+
+</Note>
+
+The <LS to="e,j,r,g"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/filter/HistogramHaving.java</SourceClass></LS> constraint narrows a reference histogram to a specific `[from, to]` range. It is the first-class carrier for
+slider-driven range selection on **references** — for example, a product's `parameterValues` reference that hosts one
+histogram per parameter (`height`, `weight`, `depth`, …). A single `histogramHaving` identifies one
+`(referenceName, histogramName, groupSelector, [from, to])` tuple.
+
+Inside the [`userFilter`](behavioral.md#user-filter) container, `histogramHaving` plays a dual role:
+
+1. it is applied to the filter formula like any other `userFilter` child — the result set is narrowed by the range;
+2. it is registered as a **range carrier** so the histogram's own `[min, max]` baseline cloner peels it out when
+   computing the histogram — moving one slider does not contract the `[min, max]` span of sibling sliders (see the
+   [peel-by-family rule in behavioral filtering](behavioral.md#how-userfilter-shapes-predictions)).
+
+Outside `userFilter`, `histogramHaving` behaves like an equivalent [`referenceHaving`](#reference-having) rewrite —
+it narrows the result set and does not participate in histogram baseline relaxation.
+
+### Expressing independent ranges on the same reference
+
+Two `histogramHaving` siblings inside one `userFilter` express independent per-histogram ranges that are combined as
+a logical AND — each slider has its own `(histogramName, groupSelector, from, to)` tuple. The example below narrows
+the *e-readers* category to the products that simultaneously fall into the *200–400 g* weight slice **and** the
+*6–10 mm* thickness slice. Both sliders point at the same `parameterValues` reference and the same physical
+histogram index (`intervalParameterValues`); the **group selector** — an `groupHaving` against the parameter group
+entity — is what tells evitaDB which slot (`weight` vs `thickness`) each `histogramHaving` is talking about. The
+sibling `referenceSummaryOfReferenceWithHistograms` in `require()` then asks the server to compute one full
+histogram per parameter group, and because `histogramHaving` is registered as a *range carrier* inside `userFilter`,
+each slider's own `[min, max]` span stays at the catalog-wide baseline rather than collapsing to the user's current
+range:
+
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+
+[Two `histogramHaving` siblings on the same reference](/documentation/user/en/query/filtering/examples/references/histogram-having.evitaql)
+
+</SourceCodeTabs>
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### E-readers narrowed by independent weight and thickness sliders
+
+</NoteTitle>
+
+<LS to="e,j,c">
+
+<MDInclude>[Two `histogramHaving` siblings on the same reference](/documentation/user/en/query/filtering/examples/references/histogram-having.evitaql.md)</MDInclude>
 
 </LS>
 

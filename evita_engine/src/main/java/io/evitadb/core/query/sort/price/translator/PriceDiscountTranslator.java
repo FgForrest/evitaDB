@@ -76,7 +76,7 @@ import io.evitadb.index.price.model.priceRecord.PriceRecordContract;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import lombok.RequiredArgsConstructor;
-import org.roaringbitmap.RoaringBitmap;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -122,11 +122,14 @@ public class PriceDiscountTranslator implements OrderingConstraintTranslator<Pri
 	) {
 		final Currency currency = priceFilteringEnvelopeContainer.getCurrency();
 		final OffsetDateTime theMoment = priceFilteringEnvelopeContainer.getValidIn();
+		// the LP built here is part of the SORT-side discount tree, not the filter tree — the histogram
+		// walks only the filter tree, so this LP never participates in the per-inner-record collection
 		return PriceListCompositionTerminationVisitor.translate(
 			theMoment == null ?
 				PriceInPriceListsTranslator.createFormula(orderByVisitor.getFilterByVisitor(), priceLists, currency) :
 				PriceValidInTranslator.createFormula(orderByVisitor.getFilterByVisitor(), theMoment, priceLists, currency),
-			priceLists, currency, theMoment, queryPriceMode, null
+			priceLists, currency, theMoment, queryPriceMode, null,
+			false
 		);
 	}
 
@@ -411,7 +414,7 @@ public class PriceDiscountTranslator implements OrderingConstraintTranslator<Pri
 		@Override
 		public void setPriceRecordsLookupResult(
 			@Nonnull QueryExecutionContext queryContext,
-			@Nonnull RoaringBitmap filteredEntityPrimaryKeys,
+			@Nonnull PersistentRoaringBitmap filteredEntityPrimaryKeys,
 			@Nonnull FilteredPriceRecordsLookupResult priceRecordsLookupResult
 		) {
 			// initialize the selling price records

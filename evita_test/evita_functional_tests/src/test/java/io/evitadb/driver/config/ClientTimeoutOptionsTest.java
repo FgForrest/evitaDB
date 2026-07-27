@@ -28,8 +28,11 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.DRIVER;
+import static io.evitadb.test.TestTags.MANAGEMENT;
 
 /**
  * Tests for {@link ClientTimeoutOptions} record and its builder.
@@ -37,6 +40,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 @DisplayName("ClientTimeoutOptions")
+@Tag(DRIVER)
+@Tag(MANAGEMENT)
 class ClientTimeoutOptionsTest {
 
 	@Test
@@ -57,7 +62,7 @@ class ClientTimeoutOptionsTest {
 
 		assertEquals(5, options.timeout());
 		assertEquals(TimeUnit.SECONDS, options.timeoutUnit());
-		assertEquals(3600, options.streamingTimeout());
+		assertEquals(300, options.streamingTimeout());
 		assertEquals(TimeUnit.SECONDS, options.streamingTimeoutUnit());
 	}
 
@@ -102,6 +107,34 @@ class ClientTimeoutOptionsTest {
 			assertEquals(TimeUnit.SECONDS, options.timeoutUnit());
 			assertEquals(1, options.streamingTimeout());
 			assertEquals(TimeUnit.HOURS, options.streamingTimeoutUnit());
+		}
+
+		@Test
+		@DisplayName("should normalize a zero streaming timeout to the default")
+		void shouldNormalizeZeroStreamingTimeoutToDefault() {
+			// streamed calls re-arm their deadline via TimeoutMode.SET_FROM_NOW after every
+			// message, which requires a strictly positive duration — a disabled (0) streaming
+			// timeout would crash the very first re-arm, so it is normalized away at construction
+			// instead, mirroring how ApiOptions normalizes the server's own request timeout
+			final ClientTimeoutOptions options =
+				ClientTimeoutOptions.builder()
+					.streamingTimeout(0, TimeUnit.MINUTES)
+					.build();
+
+			assertEquals(ClientTimeoutOptions.DEFAULT_STREAMING_TIMEOUT, options.streamingTimeout());
+			assertEquals(ClientTimeoutOptions.DEFAULT_STREAMING_TIMEOUT_UNIT, options.streamingTimeoutUnit());
+		}
+
+		@Test
+		@DisplayName("should normalize a negative streaming timeout to the default")
+		void shouldNormalizeNegativeStreamingTimeoutToDefault() {
+			final ClientTimeoutOptions options =
+				ClientTimeoutOptions.builder()
+					.streamingTimeout(-5, TimeUnit.MINUTES)
+					.build();
+
+			assertEquals(ClientTimeoutOptions.DEFAULT_STREAMING_TIMEOUT, options.streamingTimeout());
+			assertEquals(ClientTimeoutOptions.DEFAULT_STREAMING_TIMEOUT_UNIT, options.streamingTimeoutUnit());
 		}
 	}
 

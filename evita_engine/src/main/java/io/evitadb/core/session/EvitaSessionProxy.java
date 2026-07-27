@@ -23,6 +23,7 @@
 
 package io.evitadb.core.session;
 
+import io.evitadb.api.exception.ConcurrentSessionAccessException;
 import io.evitadb.api.exception.RollbackException;
 import io.evitadb.api.exception.TransactionException;
 import io.evitadb.api.observability.trace.RepresentsMutation;
@@ -57,6 +58,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 /**
@@ -86,6 +88,13 @@ final class EvitaSessionProxy implements InvocationHandler {
 	);
 	private static final Method INACTIVITY_IN_SECONDS = resolveMethod("getInactivityDurationInSeconds");
 	private static final Method IS_INACTIVE_AND_IDLE = resolveMethod("isInactiveAndIdle", long.class);
+	/**
+	 * Composes the span name for a proxied session call. Every single call through this proxy would
+	 * otherwise concatenate a string that no-one reads while tracing is off. Held in a constant so
+	 * the lambda captures nothing and the disabled path stays allocation-free.
+	 */
+	private static final Function<Method, String> SESSION_CALL_SPAN_NAMER =
+		method -> "session call - " + method.getName();
 
 	private final EvitaSession evitaSession;
 	private final TracingContext tracingContext;
@@ -93,6 +102,33 @@ final class EvitaSessionProxy implements InvocationHandler {
 	private final AtomicInteger insideInvocation = new AtomicInteger(0);
 	private final AtomicLong lastCall = new AtomicLong(System.currentTimeMillis());
 	private final AtomicReference<ClosingSequence> closeLambda = new AtomicReference<>(null);
+	/**
+	 * Thread that currently owns (is executing a business method on) this {@code @NotThreadSafe}
+	 * session, or {@code null} when no business method is in flight. A second thread that tries to
+	 * enter while another owns the session is rejected with a
+	 * {@link ConcurrentSessionAccessException} rather than being allowed to race the shared mutable
+	 * session state — the guard is thread-identity based so a legitimate re-entrant call on the very
+	 * same thread is permitted. Only guards the
+	 * delegated business-method path in {@link #invoke}; the housekeeping methods
+	 * {@link io.evitadb.core.session.task.SessionKiller} polls concurrently (e.g. `isActive`,
+	 * `isInactiveAndIdle`) are intentionally left unguarded.
+	 *
+	 * The guard is enforced only when {@link #concurrentAccessGuarded} is `true` — see that field
+	 * for the reasoning why read-only sessions are exempt.
+	 */
+	private final AtomicReference<Thread> owningThread = new AtomicReference<>(null);
+	/**
+	 * `true` when the {@link #owningThread} guard is enforced, which is the case for read-write
+	 * sessions only. A read-write session either operates on an open {@link Transaction} whose
+	 * isolated diff layers are strictly single-threaded, or — during catalog warm-up — mutates the
+	 * live index trees directly, so a second concurrent thread would silently corrupt shared state.
+	 *
+	 * A read-only session, on the other hand, can never open a transaction and merely reads the
+	 * immutable catalog snapshot pinned at session creation, so parallel reads through one session
+	 * are safe and intentionally permitted — the GraphQL API opens a single read-only session per
+	 * query operation and fans the root fields out to several request-executor threads at once.
+	 */
+	private final boolean concurrentAccessGuarded;
 
 	/**
 	 * Resolves a method from {@link EvitaInternalSessionContract} by name and parameter types.
@@ -352,7 +388,8 @@ final class EvitaSessionProxy implements InvocationHandler {
 		@Nonnull Supplier<Object> invocation
 	) {
 		return this.tracingContext.executeWithinBlockIfParentContextAvailable(
-			"session call - " + method.getName(),
+			method,
+			SESSION_CALL_SPAN_NAMER,
 			invocation,
 			() -> buildSpanAttributes(method, args, session)
 		);
@@ -501,6 +538,7 @@ final class EvitaSessionProxy implements InvocationHandler {
 	EvitaSessionProxy(@Nonnull EvitaSession evitaSession, @Nonnull TracingContext tracingContext) {
 		this.evitaSession = evitaSession;
 		this.tracingContext = tracingContext;
+		this.concurrentAccessGuarded = evitaSession.getSessionTraits().isReadWrite();
 		final String catalogName = evitaSession.getCatalogName();
 
 		// emit and prepare events
@@ -520,6 +558,23 @@ final class EvitaSessionProxy implements InvocationHandler {
 			});
 	}
 
+	/**
+	 * Dispatches a proxied session method call. Housekeeping methods polled by
+	 * {@link io.evitadb.core.session.task.SessionKiller} ({@code isActive}, {@code isInactiveAndIdle}
+	 * and friends) are handled directly and bypass the concurrency guard below since they must remain
+	 * safely callable from a different thread than the one currently executing a business method.
+	 * Every other (business) method is delegated to the wrapped {@link EvitaSession}; in read-write
+	 * sessions the calling thread must first claim exclusive ownership of {@link #owningThread} —
+	 * see the {@link #concurrentAccessGuarded} JavaDoc for why read-write sessions cannot tolerate
+	 * two threads inside a business method at once while read-only sessions safely execute reads
+	 * from multiple threads in parallel.
+	 *
+	 * @param proxy  the proxy instance the method was invoked on (unused — calls are delegated to
+	 *               the wrapped {@link #evitaSession})
+	 * @param method the method that was invoked on the proxy
+	 * @param args   the arguments passed to the method invocation
+	 * @return the result of the delegated call, or a directly computed value for housekeeping methods
+	 */
 	@Nullable
 	@Override
 	public Object invoke(Object proxy, Method method, Object[] args) {
@@ -570,6 +625,26 @@ final class EvitaSessionProxy implements InvocationHandler {
 			}
 			return null;
 		} else {
+			// reject concurrent access from a second thread in read-write sessions: a racing call would
+			// silently corrupt the shared mutable session state (open transaction diff layers, warm-up
+			// index trees). The guard is thread-identity based, so a legitimate re-entrant call on the
+			// very same thread is allowed; only a genuinely different thread entering while this one
+			// owns the session fails. Read-only sessions skip the guard entirely — they read an
+			// immutable catalog snapshot, so parallel reads are safe (see `concurrentAccessGuarded`).
+			final boolean outermostInvocation;
+			if (this.concurrentAccessGuarded) {
+				final Thread currentThread = Thread.currentThread();
+				final Thread previousOwner = this.owningThread.compareAndExchange(null, currentThread);
+				if (previousOwner != null && previousOwner != currentThread) {
+					throw new ConcurrentSessionAccessException(
+						this.evitaSession.getId(), previousOwner.getName(), currentThread.getName()
+					);
+				}
+				// only the outermost invocation on the owning thread releases ownership when it unwinds
+				outermostInvocation = previousOwner == null;
+			} else {
+				outermostInvocation = false;
+			}
 			try {
 				final ClosingSequence closingSequence = this.closeLambda.get();
 				// if there's a closing sequence in place
@@ -586,6 +661,9 @@ final class EvitaSessionProxy implements InvocationHandler {
 					return executeDelegateMethod(method, args);
 				}
 			} finally {
+				if (outermostInvocation) {
+					this.owningThread.set(null);
+				}
 				final ClosingSequence closingSequence = this.closeLambda.get();
 				// if there is newly registered close lambda and there is no other method being executed
 				if (this.insideInvocation.get() == 0 && closingSequence != null) {

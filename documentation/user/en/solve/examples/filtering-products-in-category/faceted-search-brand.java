@@ -41,7 +41,7 @@ final EvitaResponse<SealedEntity> entities = evita.queryCatalog(
 					)
 				),
 				require(
-					facetSummaryOfReference(
+					referenceSummaryOfReference(
 						"brand",
 						IMPACT,
 						orderBy(

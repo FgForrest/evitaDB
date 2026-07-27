@@ -27,9 +27,9 @@ package io.evitadb.api.requestResponse.mutation.conflict;
 import javax.annotation.Nonnull;
 
 /**
- * Entity price-level conflict key for serializing concurrent engine mutations.
- *
- * The mutation conflict resolver uses this key to group all mutations that target the same entity.
+ * Conflict key for serializing concurrent mutations of an entity's price inner-record-handling strategy. The
+ * strategy governs the entity as a whole rather than an individual price, so this key always serializes at
+ * entity level (it is never price-scoped) and is contained by the owning entity's scope.
  *
  * @see ConflictKey
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
@@ -38,6 +38,29 @@ public record PriceInnerRecordHandlingStrategyConflictKey(
 	@Nonnull String entityType,
 	int entityPrimaryKey
 ) implements ConflictKey {
+
+	/**
+	 * The price inner-record-handling strategy is contained by its owning entity: any entity-wide conflict implies a
+	 * conflict on this strategy.
+	 *
+	 * @return an {@link EntityConflictKey} for the owning entity
+	 */
+	@Nonnull
+	@Override
+	public ConflictKey parentConflictKey() {
+		return new EntityConflictKey(this.entityType, this.entityPrimaryKey);
+	}
+
+	/**
+	 * {@inheritDoc}
+	 *
+	 * @return {@link ConflictScope#PRICE_INNER_RECORD_HANDLING}
+	 */
+	@Nonnull
+	@Override
+	public ConflictScope conflictScope() {
+		return ConflictScope.PRICE_INNER_RECORD_HANDLING;
+	}
 
 	/**
 	 * Returns a concise, human-readable representation of this conflict key.

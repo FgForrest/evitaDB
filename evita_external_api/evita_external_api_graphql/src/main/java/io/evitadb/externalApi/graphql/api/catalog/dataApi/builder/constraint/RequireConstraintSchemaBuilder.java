@@ -41,6 +41,7 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.externalApi.api.catalog.dataApi.builder.constraint.ConstraintSchemaBuilder;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.GenericDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.ManagedEntityTypePointer;
+import io.evitadb.utils.Functions;
 
 import javax.annotation.Nonnull;
 import java.util.Map;
@@ -155,6 +156,6 @@ public class RequireConstraintSchemaBuilder extends GraphQLConstraintSchemaBuild
 	@Nonnull
 	@Override
 	protected Predicate<AttributeSchemaContract> getAttributeSchemaFilter() {
-		return attributeSchema -> true;
+		return Functions.alwaysTrue();
 	}
 }

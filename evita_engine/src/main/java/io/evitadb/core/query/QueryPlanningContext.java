@@ -60,7 +60,7 @@ import io.evitadb.core.metric.event.query.FinishedEvent;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.extraResult.CacheableEvitaResponseExtraResultComputer;
 import io.evitadb.core.query.extraResult.EvitaResponseExtraResultComputer;
-import io.evitadb.core.query.extraResult.translator.facet.producer.FilteringFormulaPredicate;
+import io.evitadb.core.query.extraResult.translator.reference.producer.FilteringFormulaPredicate;
 import io.evitadb.core.query.policy.BitmapFavouringNoCachePolicy;
 import io.evitadb.core.query.policy.DefaultPolicy;
 import io.evitadb.core.query.policy.PlanningPolicy;
@@ -68,15 +68,7 @@ import io.evitadb.core.query.policy.PlanningPolicy.PrefetchPolicy;
 import io.evitadb.core.session.EvitaSession;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
-import io.evitadb.index.CatalogIndexKey;
-import io.evitadb.index.EntityIndex;
-import io.evitadb.index.EntityIndexKey;
-import io.evitadb.index.EntityIndexType;
-import io.evitadb.index.GlobalEntityIndex;
-import io.evitadb.index.Index;
-import io.evitadb.index.IndexKey;
-import io.evitadb.index.ReducedEntityIndex;
-import io.evitadb.index.ReferencedTypeEntityIndex;
+import io.evitadb.index.*;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
@@ -144,7 +136,7 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * Contains reference to the enveloping {@link EvitaSessionContract} within which the {@link #evitaRequest} is executed.
 	 */
 	@Getter
-	@Nonnull private final EvitaSession evitaSession;
+	@Nullable private final EvitaSession evitaSession;
 	/**
 	 * Contains input in {@link EvitaRequest}.
 	 */
@@ -249,6 +241,7 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 				evitaRequest.getLabels()
 			)
 		);
+		Assert.isPremiseValid(evitaSession instanceof EvitaSession, "The session must be an instance of EvitaSession!");
 	}
 
 	public <S extends IndexKey, T extends Index<S>> QueryPlanningContext(
@@ -267,13 +260,47 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 			evitaSession, evitaRequest, telemetry, indexes, indexesByPk,
 			cacheSupervisor, null
 		);
+		// guard only when session is expected — nested contexts during session-less evaluation
+		// (WAL replay) inherit the null session from the parent and should not assert
+		if (parentQueryContext == null || parentQueryContext.evitaSession != null) {
+			Assert.isPremiseValid(evitaSession instanceof EvitaSession, "The session must be an instance of EvitaSession!");
+		}
+	}
+
+	/**
+	 * Creates a session-optional context for internal index-only evaluation (e.g., facet expression re-evaluation
+	 * during WAL replay where no session is available). The session is nullable — cache analysis and binary format
+	 * checks gracefully degrade when absent. All other query planning features (indexes, schema, telemetry) work
+	 * normally.
+	 *
+	 * **Do not use for normal query processing** — use the public constructors that enforce a non-null session.
+	 *
+	 * @param catalog           the catalog instance
+	 * @param entityCollection  the entity collection being queried (nullable for catalog-level queries)
+	 * @param evitaSession      the session, or null when no session context is available (WAL replay)
+	 * @param evitaRequest      the request describing the query
+	 * @param indexes           the index map for formula resolution
+	 * @param indexesByPk       the index map keyed by primary key
+	 * @param cacheSupervisor   the cache supervisor (tolerates null session)
+	 */
+	@SuppressWarnings({"unchecked", "rawtypes"})
+	public QueryPlanningContext(
+		@Nonnull Catalog catalog,
+		@Nullable EntityCollection entityCollection,
+		@Nullable EvitaSessionContract evitaSession,
+		@Nonnull EvitaRequest evitaRequest,
+		@Nonnull Map indexes,
+		@Nonnull Map indexesByPk,
+		@Nonnull CacheSupervisor cacheSupervisor
+	) {
+		this(null, catalog, entityCollection, evitaSession, evitaRequest, null, indexes, indexesByPk, cacheSupervisor, null);
 	}
 
 	private <S extends IndexKey, T extends Index<S>> QueryPlanningContext(
 		@Nullable QueryPlanningContext parentQueryContext,
 		@Nonnull Catalog catalog,
 		@Nullable EntityCollection entityCollection,
-		@Nonnull EvitaSessionContract evitaSession,
+		@Nullable EvitaSessionContract evitaSession,
 		@Nonnull EvitaRequest evitaRequest,
 		@Nullable QueryTelemetry telemetry,
 		@Nonnull Map<S, T> indexes,
@@ -288,13 +315,15 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 			.map(EntityCollection::getSchema)
 			.map(EntitySchemaContract::getName)
 			.orElse(null);
-		Assert.isPremiseValid(evitaSession instanceof EvitaSession, "The session must be an instance of EvitaSession!");
-		this.evitaSession = (EvitaSession) evitaSession;
+		this.evitaSession = evitaSession instanceof EvitaSession es ? es : null;
 		this.evitaRequest = evitaRequest;
 		if (parentQueryContext == null) {
 			// when debug mode is enabled we need to enforce the main plan to be non-cached
 			// the cached variants needs to be derived from it
-			this.planningPolicy = isDebugModeEnabled(DebugMode.VERIFY_POSSIBLE_CACHING_TREES) ?
+			// the same policy serves `PREFER_INDEX_SCAN`, which needs the prefetch denied so the query resolves
+			// the indexes - and gets the cache bypass along with it, which keeps that resolution observable
+			this.planningPolicy = isDebugModeEnabled(DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+				|| isDebugModeEnabled(DebugMode.PREFER_INDEX_SCAN) ?
 				BitmapFavouringNoCachePolicy.INSTANCE : DefaultPolicy.INSTANCE;
 			this.prefetchPossible = true;
 		} else {
@@ -425,8 +454,8 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	}
 
 	/**
-	 * Retrieves a stream of {@link ReducedEntityIndex} objects based on the provided scope, referenced entity ID,
-	 * entity schema, reference schema, and a supplier for handling missing indexes.
+	 * Retrieves a stream of {@link ReducedEntityIndex} objects based on the provided scope, referenced
+	 * entity ID, entity schema, reference schema, and a supplier for handling missing indexes.
 	 *
 	 * @param scope the scope within which the entity indexes are retrieved
 	 * @param referencedEntityId the ID of the referenced entity
@@ -454,7 +483,7 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 						referencedEntityId
 					);
 					return Arrays.stream(allReducedEntityIndexPks)
-					             .mapToObj(pk -> getEntityIndexByPrimaryKey(pk, ReducedEntityIndex.class));
+						.mapToObj(pk -> getEntityIndexByPrimaryKey(pk, ReducedEntityIndex.class));
 				})
 				.orElseGet(() -> {
 					final ReducedEntityIndex missingIndex = missingIndexSupplier.apply(entitySchema, entityIndexKey);
@@ -468,11 +497,52 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 					new ReferenceKey(referenceName, referencedEntityId)
 				)
 			);
-			return Stream.of(
-				getEntityIndex(entitySchema.getName(), entityIndexKey, ReducedEntityIndex.class)
-				  .orElseGet(() -> missingIndexSupplier.apply(entitySchema, entityIndexKey))
-			).filter(Objects::nonNull);
+			return getEntityIndex(entitySchema.getName(), entityIndexKey, ReducedEntityIndex.class)
+				.or(() -> Optional.ofNullable(missingIndexSupplier.apply(entitySchema, entityIndexKey)))
+				.stream();
 		}
+	}
+
+	/**
+	 * Retrieves a stream of {@link AbstractReducedEntityIndex} instances corresponding to the group entity
+	 * identified by `groupEntityId` within the given scope. This method mirrors
+	 * {@link #getReducedEntityIndexes(Scope, int, EntitySchemaContract, ReferenceSchemaContract, BiFunction)}
+	 * but uses group-specific index types (`REFERENCED_GROUP_ENTITY_TYPE` / `REFERENCED_GROUP_ENTITY`)
+	 * instead of entity-level ones.
+	 *
+	 * @param scope the scope within which the group entity indexes are retrieved
+	 * @param groupEntityId the ID of the group entity
+	 * @param entitySchema the schema of the entity used for configuration
+	 * @param referenceSchema the schema of the reference defining the relationship to the group entity
+	 * @param missingIndexSupplier a supplier function to provide a fallback index when a requested index is missing
+	 * @return a stream of {@link AbstractReducedEntityIndex} corresponding to the specified query criteria
+	 */
+	@Nonnull
+	public Stream<ReducedGroupEntityIndex> getReducedGroupEntityIndexes(
+		@Nonnull Scope scope,
+		int groupEntityId,
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull BiFunction<EntitySchemaContract, EntityIndexKey, ReducedGroupEntityIndex> missingIndexSupplier
+	) {
+		final String referenceName = referenceSchema.getName();
+		// always use the type index path to locate all reduced group indexes for a given group PK
+		final EntityIndexKey entityIndexKey = new EntityIndexKey(
+			EntityIndexType.REFERENCED_GROUP_ENTITY_TYPE, scope, referenceName
+		);
+		return getEntityIndex(entitySchema.getName(), entityIndexKey, ReferencedTypeEntityIndex.class)
+			.map(referencedTypeEntityIndex -> {
+				final int[] allReducedEntityIndexPks = referencedTypeEntityIndex.getAllReferenceIndexes(
+					groupEntityId
+				);
+				return Arrays.stream(allReducedEntityIndexPks)
+					.mapToObj(pk -> getEntityIndexByPrimaryKey(pk, ReducedGroupEntityIndex.class));
+			})
+			.orElseGet(() -> {
+				final ReducedGroupEntityIndex missingIndex =
+					missingIndexSupplier.apply(entitySchema, entityIndexKey);
+				return missingIndex == null ? Stream.empty() : Stream.of(missingIndex);
+			});
 	}
 
 	/**
@@ -611,6 +681,16 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	}
 
 	/**
+	 * Returns the entity-type name ↔ compact primary key resolver backed by the catalog targeted by this query.
+	 * Used by the globally-unique attribute filter translators to decode the entity type stored inside the
+	 * global unique index's packed tuples.
+	 */
+	@Nonnull
+	public EntityTypeClassifierResolver getEntityTypeClassifierResolver() {
+		return this.catalog;
+	}
+
+	/**
 	 * Returns entity schema.
 	 */
 	@Nonnull
@@ -668,9 +748,12 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 */
 	@Nonnull
 	public Formula analyse(@Nonnull Formula formula) {
-		return ofNullable(this.evitaRequest.getEntityType())
-			.map(it -> this.cacheSupervisor.analyse(this.evitaSession, it, formula))
-			.orElse(formula);
+		final String theEntityType = this.evitaRequest.getEntityType();
+		if (this.evitaSession != null && theEntityType != null) {
+			return this.cacheSupervisor.analyse(this.evitaSession, theEntityType, formula);
+		} else {
+			return formula;
+		}
 	}
 
 	/**
@@ -679,9 +762,12 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 */
 	@Nonnull
 	public <U, T extends CacheableEvitaResponseExtraResultComputer<U>> EvitaResponseExtraResultComputer<U> analyse(@Nonnull T computer) {
-		return ofNullable(this.evitaRequest.getEntityType())
-			.map(it -> this.planningPolicy.analyse(this.cacheSupervisor, this.evitaSession, it, computer))
-			.orElse(computer);
+		final String theEntityType = this.evitaRequest.getEntityType();
+		if (this.evitaSession != null && theEntityType != null) {
+			return this.planningPolicy.analyse(this.cacheSupervisor, this.evitaSession, theEntityType, computer);
+		} else {
+			return computer;
+		}
 	}
 
 	/**
@@ -690,7 +776,7 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * @see io.evitadb.api.requestResponse.EvitaBinaryEntityResponse
 	 */
 	public boolean isRequiresBinaryForm() {
-		return this.evitaSession.isBinaryFormat();
+		return this.evitaSession != null && this.evitaSession.isBinaryFormat();
 	}
 
 	/**
@@ -1072,7 +1158,10 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	@Nonnull
 	public QueryExecutionContext createExecutionContext(boolean prefetchExecution, @Nullable byte[] frozenRandom) {
 		return new QueryExecutionContext(
-			this, prefetchExecution, frozenRandom, this.evitaSession::createEntityProxy
+			this, prefetchExecution, frozenRandom,
+			this.evitaSession != null ? this.evitaSession::createEntityProxy : (type, entity) -> {
+				throw new GenericEvitaInternalError("Entity proxy creation is not available without a session.");
+			}
 		);
 	}
 

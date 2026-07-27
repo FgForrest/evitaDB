@@ -35,44 +35,145 @@ import java.io.Serializable;
 import java.util.Locale;
 
 /**
- * If any filter constraint of the query targets a localized attribute, the `entityLocaleEquals` must also be provided,
- * otherwise the query interpreter will return an error. Localized attributes must be identified by both their name and
- * {@link Locale} in order to be used.
+ * Specifies the locale context for all localized attributes and associated data accessed in the query. This constraint
+ * establishes the language/region context used to resolve localized entity properties, ensuring that attribute filters,
+ * sorting operations, and fetched data all respect the same locale. It is a mandatory constraint when any part of the
+ * query references localized attributes or associated data.
  *
- * Only a single occurrence of entityLocaleEquals is allowed in the filter part of the query. Currently, there is no way
- * to switch context between different parts of the filter and build queries such as find a product whose name in en-US
- * is "screwdriver" or in cs is "šroubovák".
+ * **Purpose**
  *
- * Also, it's not possible to omit the language specification for a localized attribute and ask questions like: find
- * a product whose name in any language is "screwdriver".
+ * evitaDB supports fully localized entity data using {@link Locale} instances that follow the IETF BCP 47 standard for
+ * language tags (e.g., `en-US`, `fr-FR`, `cs-CZ`). Localized attributes are stored separately for each locale, and to
+ * access them, you must explicitly specify which locale's values to use. This constraint serves that purpose.
  *
- * Example:
+ * Without this constraint, the query engine cannot determine which locale variant of a localized attribute to access,
+ * and attempting to filter or sort by a localized attribute without providing `entityLocaleEquals` will result in a
+ * query validation error.
  *
- * <pre>
+ * **Constraint Classification**
+ *
+ * This constraint implements {@link EntityConstraint} because it operates on the built-in `locale` property that
+ * defines the context for localized entity data. It is a {@link FilterConstraint} that narrows the result set to
+ * entities that have data available in the specified locale.
+ *
+ * **Single Locale Restriction**
+ *
+ * Only a single `entityLocaleEquals` constraint is permitted per query filter. This means you cannot build queries like
+ * "find products whose English name is 'screwdriver' OR whose Czech name is 'šroubovák'" within a single filter. Each
+ * query operates in exactly one locale context.
+ *
+ * Similarly, you cannot omit the locale and ask "find products whose name is 'screwdriver' in any language." Localized
+ * attributes must always be accessed in a specific locale context.
+ *
+ * If you need to query across multiple locales, you must execute separate queries for each locale and combine the
+ * results in your application logic.
+ *
+ * **Effect on Query Results**
+ *
+ * When `entityLocaleEquals` is specified:
+ * - All localized attribute filters operate on values in the specified locale
+ * - All localized attribute sorting operates on values in the specified locale
+ * - All fetched localized attributes and associated data are returned in the specified locale
+ * - Entities without data in the specified locale may be excluded or return null values for localized properties
+ *
+ * **Supported Constraint Domains**
+ *
+ * This constraint is only valid in the `ENTITY` domain — it establishes the locale context for the primary queried
+ * entities. It does not apply to referenced entities or facets, which inherit the locale context from the main query.
+ *
+ * **EvitaQL Syntax**
+ *
+ * ```
+ * entityLocaleEquals(argument:string!)
+ * ```
+ *
+ * The argument is a string representation of a locale in IETF BCP 47 format.
+ *
+ * **Usage Examples**
+ *
+ * ```java
+ * // Filter products with localized attribute in English
  * query(
  *     collection("Product"),
  *     filterBy(
- *         hierarchyWithin(
- *             "categories",
- *             attributeEquals("code", "vouchers-for-shareholders")
- *         ),
- *         entityLocaleEquals("en")
+ *         and(
+ *             entityLocaleEquals(Locale.ENGLISH),
+ *             attributeContains("name", "phone")  // searches English "name" attribute
+ *         )
  *     ),
  *     require(
- *        entityFetch(
- *            attributeContent("code", "name")
- *        )
+ *         entityFetch(
+ *             attributeContent("name")  // returns English "name" value
+ *         )
  *     )
  * )
- * </pre>
+ * ```
  *
- * <p><a href="https://evitadb.io/documentation/query/filtering/locale#entity-locale-equals">Visit detailed user documentation</a></p>
+ * ```java
+ * // Fetch product data in French
+ * query(
+ *     collection("Product"),
+ *     filterBy(
+ *         and(
+ *             entityPrimaryKeyInSet(1, 2, 3),
+ *             entityLocaleEquals(Locale.FRANCE)  // establishes French locale context
+ *         )
+ *     ),
+ *     require(
+ *         entityFetch(
+ *             attributeContentAll(),  // all localized attributes returned in French
+ *             associatedDataContentAll()  // all localized associated data returned in French
+ *         )
+ *     )
+ * )
+ * ```
+ *
+ * ```java
+ * // Sort by localized attribute in specific locale
+ * query(
+ *     collection("Product"),
+ *     filterBy(
+ *         entityLocaleEquals(new Locale("cs", "CZ"))  // Czech locale
+ *     ),
+ *     orderBy(
+ *         attributeNatural("name", ASC)  // sorts by Czech "name" values
+ *     )
+ * )
+ * ```
+ *
+ * ```java
+ * // Combine with hierarchy navigation
+ * query(
+ *     collection("Product"),
+ *     filterBy(
+ *         and(
+ *             entityLocaleEquals(Locale.ENGLISH),
+ *             hierarchyWithin(
+ *                 "categories",
+ *                 attributeEquals("code", "electronics")  // "code" might be localized
+ *             )
+ *         )
+ *     )
+ * )
+ * ```
+ *
+ * **Mandatory Requirement**
+ *
+ * If your query uses any localized attribute constraints (e.g., `attributeEquals`, `attributeContains`,
+ * `attributeNatural` in orderBy), you MUST include `entityLocaleEquals` in your filter. Otherwise, the query
+ * interpreter will throw a validation error because it cannot determine which locale variant to access.
+ *
+ * Non-localized attributes (those not declared with `localized()` in the schema) do not require this constraint and
+ * can be queried without specifying a locale.
+ *
+ * [Visit detailed user documentation](https://evitadb.io/documentation/query/filtering/locale#entity-locale-equals)
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @ConstraintDefinition(
 	name = "equals",
-	shortDescription = "The constraint if at least one of entity locales (derived from entity attributes or associated data) equals to the passed one.",
+	shortDescription = "The constraint sets the locale context for the query, affecting all localized attributes and associated data." +
+		" Entities without data in the specified locale may be excluded from results.",
 	userDocsLink = "/documentation/query/filtering/locale#entity-locale-equals",
 	supportedIn = ConstraintDomain.ENTITY
 )
@@ -81,7 +182,7 @@ public class EntityLocaleEquals extends AbstractFilterConstraintLeaf
 
 	@Serial private static final long serialVersionUID = 4716406488516855299L;
 
-	private EntityLocaleEquals(Serializable... arguments) {
+	private EntityLocaleEquals(@Nonnull Serializable... arguments) {
 		super(arguments);
 	}
 

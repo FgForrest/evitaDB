@@ -34,7 +34,9 @@ import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.exception.SchemaAlteringException;
 import io.evitadb.api.exception.SchemaNotFoundException;
+import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.Query;
+import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.requestResponse.EvitaEntityReferenceResponse;
 import io.evitadb.api.requestResponse.EvitaRequest;
@@ -47,7 +49,6 @@ import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
-import io.evitadb.api.requestResponse.data.mutation.ConsistencyCheckingLocalMutationExecutor.ImplicitMutationBehavior;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExistence;
 import io.evitadb.api.requestResponse.data.mutation.EntityRemoveMutation;
@@ -93,12 +94,17 @@ import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.core.buffer.WarmUpDataStoreMemoryBuffer;
 import io.evitadb.core.cache.CacheSupervisor;
 import io.evitadb.core.catalog.Catalog;
+import io.evitadb.core.catalog.CatalogExpressionTriggerRegistry;
 import io.evitadb.core.catalog.CatalogRelatedDataStructure;
+import io.evitadb.core.expression.trigger.DependencyType;
+import io.evitadb.core.expression.trigger.FacetExpressionTrigger;
+import io.evitadb.core.expression.trigger.HistogramExpressionTrigger;
 import io.evitadb.core.query.QueryPlan;
 import io.evitadb.core.query.QueryPlanner;
 import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.fetch.ReferencedEntityFetcher;
+import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.response.ServerBinaryEntityDecorator;
 import io.evitadb.core.query.response.ServerEntityDecorator;
 import io.evitadb.core.sequence.SequenceService;
@@ -109,22 +115,26 @@ import io.evitadb.core.transaction.Transaction;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
+import io.evitadb.core.transaction.memory.TransactionalStateProducer;
 import io.evitadb.core.transaction.stage.mutation.ServerEntityRemoveMutation;
 import io.evitadb.core.transaction.stage.mutation.ServerEntityUpsertMutation;
 import io.evitadb.dataType.Scope;
+import io.evitadb.dataType.champ.ChampMap;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.function.Functions;
-import io.evitadb.index.EntityIndex;
-import io.evitadb.index.EntityIndexKey;
-import io.evitadb.index.EntityIndexType;
-import io.evitadb.index.GlobalEntityIndex;
-import io.evitadb.index.Index;
-import io.evitadb.index.IndexKey;
-import io.evitadb.index.IndexMaintainer;
-import io.evitadb.index.ReducedEntityIndex;
-import io.evitadb.index.ReferencedTypeEntityIndex;
-import io.evitadb.index.map.TransactionalMap;
-import io.evitadb.index.mutation.index.EntityIndexLocalMutationExecutor;
+import io.evitadb.index.*;
+import io.evitadb.index.attribute.FilterIndex;
+import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.index.map.MapChanges;
+import io.evitadb.index.map.MapChanges.ValueMerger;
+import io.evitadb.index.map.PersistentTransactionalProducerMap;
+import io.evitadb.index.mutation.ConsistencyCheckingLocalMutationExecutor.ImplicitMutationBehavior;
+import io.evitadb.index.mutation.EntityIndexMutation;
+import io.evitadb.index.mutation.IndexMutation;
+import io.evitadb.index.mutation.IndexMutationExecutor;
+import io.evitadb.index.mutation.IndexMutationExecutorRegistry;
+import io.evitadb.index.mutation.IndexMutationTarget;
+import io.evitadb.index.mutation.local.EntityIndexLocalMutationExecutor;
 import io.evitadb.index.mutation.storagePart.ContainerizedLocalMutationExecutor;
 import io.evitadb.index.reference.ReferenceChanges;
 import io.evitadb.index.reference.TransactionalReference;
@@ -141,6 +151,7 @@ import io.evitadb.spi.store.catalog.persistence.StorageDescriptor;
 import io.evitadb.spi.store.catalog.persistence.StoragePartPersistenceService;
 import io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.schema.EntitySchemaStoragePart;
 import io.evitadb.spi.store.catalog.shared.model.LogRecordReference;
 import io.evitadb.spi.store.catalog.shared.model.PriceInternalIdContainer;
@@ -158,7 +169,6 @@ import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.time.OffsetDateTime;
 import java.util.*;
-import java.util.Map.Entry;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
@@ -211,16 +221,27 @@ public final class EntityCollection implements
 	private final EntitySchema initialSchema;
 	/**
 	 * Contains sequence that allows automatic assigning monotonic primary keys to the entities.
+	 *
+	 * The sequence guarantees uniqueness and monotonicity, not contiguity. A drawn value cannot be
+	 * un-consumed, so when a single entity mutation is reverted while the surrounding transaction keeps
+	 * going (partial rollback of one failed entity in a larger batch) the assigned key is simply skipped,
+	 * leaving a harmless gap — nothing relies on the keys being consecutive.
 	 */
 	private final AtomicInteger pkSequence;
 	/**
 	 * Contains sequence that allows assigning monotonic primary keys to the entity indexes.
+	 *
+	 * Like {@link #pkSequence}, it only guarantees uniqueness and monotonicity; a value consumed for an
+	 * index that is then rolled back is left as a harmless gap (an {@link AtomicInteger} cannot be un-consumed).
 	 */
 	private final AtomicInteger indexPkSequence;
 	/**
 	 * Contains the sequence for assigning {@link PriceInternalIdContainer#getInternalPriceId()} to a newly encountered
 	 * prices in the input data. See {@link PriceInternalIdContainer} to see the reasons behind it. The price sequence
 	 * is shared among live and archive scope to avoid ambiguities.
+	 *
+	 * Like {@link #pkSequence}, it only guarantees uniqueness and monotonicity; an internal price id consumed for
+	 * a price whose entity mutation is then rolled back is left as a harmless gap.
 	 */
 	private final AtomicInteger pricePkSequence;
 	/**
@@ -229,13 +250,25 @@ public final class EntityCollection implements
 	private final CatalogPersistenceService<LogRecordReference, CollectionReference, EntityCollectionHeader> catalogPersistenceService;
 	/**
 	 * Collection of search indexes prepared to handle queries.
+	 *
+	 * Held as a persistent (structure-sharing) map because its commit is derived, not rebuilt: the next catalog version's
+	 * map is path-copied from this one over the handful of keys the transaction touched, so the untouched remainder — in
+	 * a production workload hundreds of thousands of entries — is carried across the version boundary as shared trie
+	 * nodes instead of being walked entry by entry. The dirty-key set driving that walk is supplied explicitly by
+	 * {@link #pruneMergeIndexes(TransactionalLayerMaintainer, Set)}; iteration order is unspecified, which no consumer
+	 * relies on (`getIndexPrimaryKeys` is the only walk, and its consumers load each id independently).
 	 */
-	private final TransactionalMap<EntityIndexKey, EntityIndex> indexes;
+	private final PersistentTransactionalProducerMap<EntityIndexKey, EntityIndex> indexes;
 	/**
 	 * Collection of search indexes indexed by their primary keys. Contains identical data as {@link #indexes} but
 	 * the key in the map is their {@link EntityIndex#getPrimaryKey()}.
+	 *
+	 * Persistent for the same reason as {@link #indexes} and derived from the very same transaction delta: the two maps
+	 * hold the SAME index instances under two different keys, so whatever the commit does to one it does to the other.
+	 * {@link #pruneMergeIndexes(TransactionalLayerMaintainer, Set)} applies that single delta to both and returns them
+	 * together, which is what keeps them from drifting apart.
 	 */
-	private final TransactionalMap<Integer, EntityIndex> indexesByPrimaryKey;
+	private final PersistentTransactionalProducerMap<Integer, EntityIndex> indexesByPrimaryKey;
 	/**
 	 * True if collection was already terminated. No other termination will be allowed.
 	 */
@@ -389,20 +422,20 @@ public final class EntityCollection implements
 					"Unexpected situation - global index doesn't exist but there are " +
 						entityHeader.usedEntityIndexPrimaryKeys().size() + " reduced indexes!"
 				);
-				this.indexes = new TransactionalMap<>(
+				this.indexes = PersistentTransactionalProducerMap.withExplicitDirtyKeyMerge(
 					CollectionUtils.createHashMap(64),
 					EntityIndex.class::cast
 				);
-				this.indexesByPrimaryKey = new TransactionalMap<>(
+				this.indexesByPrimaryKey = PersistentTransactionalProducerMap.withExplicitDirtyKeyMerge(
 					CollectionUtils.createHashMap(64),
 					EntityIndex.class::cast
 				);
 			} else {
-				this.indexes = new TransactionalMap<>(
+				this.indexes = PersistentTransactionalProducerMap.withExplicitDirtyKeyMerge(
 					CollectionUtils.createHashMap(entityIndexesExpectedCount),
 					EntityIndex.class::cast
 				);
-				this.indexesByPrimaryKey = new TransactionalMap<>(
+				this.indexesByPrimaryKey = PersistentTransactionalProducerMap.withExplicitDirtyKeyMerge(
 					CollectionUtils.createHashMap(entityIndexesExpectedCount),
 					EntityIndex.class::cast
 				);
@@ -471,12 +504,12 @@ public final class EntityCollection implements
 			this::getIndexByPrimaryKeyIfExists,
 			this::getInternalSchema
 		);
-		final IndexTuple indexTuple = previousCollection.createIndexCopiesForNewCatalogAttachment(catalogState);
-		this.indexes = new TransactionalMap<>(
+		final IndexTuple indexTuple = previousCollection.createIndexCopiesForNewCatalogAttachment();
+		this.indexes = PersistentTransactionalProducerMap.withExplicitDirtyKeyMerge(
 			indexTuple.indexes(),
 			EntityIndex.class::cast
 		);
-		this.indexesByPrimaryKey = new TransactionalMap<>(
+		this.indexesByPrimaryKey = PersistentTransactionalProducerMap.withExplicitDirtyKeyMerge(
 			indexTuple.indexesByPk(),
 			EntityIndex.class::cast
 		);
@@ -487,40 +520,6 @@ public final class EntityCollection implements
 			OffsetDateTime.MIN, // we don't care about the time
 			EntityReference.class,
 			null
-		);
-	}
-
-	/**
-	 * Private constructor used for creating new entity collection instance on transaction commit.
-	 */
-	private EntityCollection(
-		long catalogVersion,
-		@Nonnull CatalogState catalogState,
-		int entityTypePrimaryKey,
-		@Nonnull EntitySchema entitySchema,
-		@Nonnull AtomicInteger pkSequence,
-		@Nonnull AtomicInteger indexPkSequence,
-		@Nonnull AtomicInteger pricePkSequence,
-		@Nonnull CatalogPersistenceService<LogRecordReference, CollectionReference, EntityCollectionHeader> catalogPersistenceService,
-		@Nonnull EntityCollectionPersistenceService<StorageDescriptor, EntityCollectionHeader> persistenceService,
-		@Nonnull Map<EntityIndexKey, EntityIndex> indexes,
-		@Nonnull CacheSupervisor cacheSupervisor,
-		@Nonnull TrafficRecordingEngine trafficRecorder
-	) {
-		this(
-			catalogVersion,
-			catalogState,
-			entityTypePrimaryKey,
-			entitySchema,
-			pkSequence,
-			indexPkSequence,
-			pricePkSequence,
-			catalogPersistenceService,
-			persistenceService,
-			indexes,
-			createIndexByPk(indexes),
-			cacheSupervisor,
-			trafficRecorder
 		);
 	}
 
@@ -559,8 +558,10 @@ public final class EntityCollection implements
 			this::getIndexByPrimaryKeyIfExists,
 			this::getInternalSchema
 		);
-		this.indexes = new TransactionalMap<>(indexes, EntityIndex.class::cast);
-		this.indexesByPrimaryKey = new TransactionalMap<>(indexesByPk, EntityIndex.class::cast);
+		// `indexes` arrives as a ChampMap on the commit path, which the persistent map adopts sealed in O(1) - a plain
+		// map (bulk load, compaction re-attach) is copied into the mutable warm-up buffer exactly as before
+		this.indexes = PersistentTransactionalProducerMap.withExplicitDirtyKeyMerge(indexes, EntityIndex.class::cast);
+		this.indexesByPrimaryKey = PersistentTransactionalProducerMap.withExplicitDirtyKeyMerge(indexesByPk, EntityIndex.class::cast);
 		this.cacheSupervisor = cacheSupervisor;
 		this.emptyOnStart = this.persistenceService.isEmpty(catalogVersion, this.dataStoreReader);
 		this.defaultMinimalQuery = new EvitaRequest(
@@ -574,6 +575,19 @@ public final class EntityCollection implements
 	@Delegate(types = DataStoreReader.class)
 	public DataStoreReader getDataStoreReader() {
 		return this.dataStoreReader;
+	}
+
+	/**
+	 * Returns the service this collection persists its storage parts through. Unlike {@link #getDataStoreReader()},
+	 * which resolves single parts by key, this exposes the store itself — the only way to enumerate the collection's
+	 * live record set, which diagnostics and storage-reclaim tests need in order to assert the ABSENCE of records they
+	 * cannot name in advance. Read-only use only; mutating the store behind the collection's back corrupts it.
+	 *
+	 * @return the storage-part persistence service backing this collection
+	 */
+	@Nonnull
+	public StoragePartPersistenceService<StorageDescriptor> getStoragePartPersistenceService() {
+		return this.persistenceService.getStoragePartPersistenceService();
 	}
 
 	@Override
@@ -1446,7 +1460,9 @@ public final class EntityCollection implements
 	}
 
 	/**
-	 * Returns entity index by its key. If such index doesn't exist, NULL is returned.
+	 * Returns entity index by its storage primary key, or null if not found. Used to resolve `int[]` storage PKs
+	 * returned by `ReferencedTypeEntityIndex.getAllReferenceIndexes(int)` into actual `ReducedGroupEntityIndex` /
+	 * `ReducedEntityIndex` instances.
 	 */
 	@Nullable
 	public EntityIndex getIndexByPrimaryKeyIfExists(int entityIndexPrimaryKey) {
@@ -1493,6 +1509,37 @@ public final class EntityCollection implements
 				return ofNullable((GlobalEntityIndex) it);
 			})
 			.orElse(empty());
+	}
+
+
+	/**
+	 * Dispatches {@link IndexMutation} instances to their registered {@link IndexMutationExecutor}. Passes the
+	 * {@link EntityIndexMaintainer} (which implements {@link IndexMutationTarget}) so executors can access indexes,
+	 * schema, triggers, and query evaluation without seeing the full {@link EntityCollection} API surface.
+	 *
+	 * Zero allocations — `entityIndexCreator` is the target (already exists as a field).
+	 * No switch/case or orchestration logic in the collection.
+	 *
+	 * The session is temporarily set on the `entityIndexCreator` for the duration of the dispatch so that
+	 * `evaluateFilter()` can create a `QueryPlanningContext`. The session reference is cleared in a `finally`
+	 * block to prevent leaking beyond the dispatch scope.
+	 *
+	 * @param entityIndexMutation transport envelope containing mutations to dispatch
+	 * @param session             active session for query evaluation during dispatch, may be null during WAL replay
+	 *                            when no session context is available
+	 */
+	public void applyIndexMutations(
+		@Nonnull EntityIndexMutation entityIndexMutation,
+		@Nullable EvitaSessionContract session
+	) {
+		this.entityIndexCreator.setSession(session);
+		try {
+			for (final IndexMutation mutation : entityIndexMutation.mutations()) {
+				IndexMutationExecutorRegistry.INSTANCE.dispatch(mutation, this.entityIndexCreator);
+			}
+		} finally {
+			this.entityIndexCreator.setSession(null);
+		}
 	}
 
 	/**
@@ -1606,57 +1653,84 @@ public final class EntityCollection implements
 		@Nonnull IntConsumer progressObserver,
 		@Nonnull TrappedChanges trappedChanges
 	) {
-		this.persistenceService.flushTrappedUpdates(0L, trappedChanges, progressObserver);
-		final EntityCollectionHeader entityCollectionHeader = this.persistenceService.getEntityCollectionHeader();
-		final long previousVersion = entityCollectionHeader.version();
-		return this.catalogPersistenceService.flush(
-				0L,
-				this.headerInfoSupplier,
-				entityCollectionHeader,
-				this.dataStoreBuffer
-			)
-			.map(
-				it -> {
-					final EntityCollectionHeader newHeader = it.getEntityCollectionHeader();
-					return this.persistenceService == it ?
-						new EntityCollectionHeaderWithCollection(
-							newHeader,
-							this,
-							newHeader.version() > previousVersion
-						) :
-						new EntityCollectionHeaderWithCollection(
-							newHeader,
-							this.createCopyWithNewPersistenceService(newHeader.version(), CatalogState.WARMING_UP, it),
-							true
-						);
-				}
-			)
-			.orElseGet(
-				() -> new EntityCollectionHeaderWithCollection(
-					this.getEntityCollectionHeader(), this, false
+		// the caller has already popped `trappedChanges` off the buffer, destructively and along with every index's
+		// change-detection baseline, so nothing below can be re-collected if it fails. Both flush shapes - the
+		// asynchronous `createFlushFuture` and the synchronous `flush` - run their write through here, which makes this
+		// the single point where such a failure can be recorded against the collection that suffered it.
+		try {
+			this.persistenceService.flushTrappedUpdates(0L, trappedChanges, progressObserver);
+			final EntityCollectionHeader entityCollectionHeader = this.persistenceService.getEntityCollectionHeader();
+			final long previousVersion = entityCollectionHeader.version();
+			return this.catalogPersistenceService.flush(
+					0L,
+					this.headerInfoSupplier,
+					entityCollectionHeader,
+					this.dataStoreBuffer
 				)
-			);
-	}
-
-	@Override
-	public void attachToCatalog(@Nullable String entityType, @Nonnull Catalog catalog) {
-		this.catalog = catalog;
-		this.schema = new TransactionalReference<>(
-			new EntitySchemaDecorator(catalog::getSchema, this.initialSchema)
-		);
-		for (EntityIndex entityIndex : this.indexes.values()) {
-			if (entityIndex instanceof CatalogRelatedDataStructure<?> catalogRelatedEntityIndex) {
-				catalogRelatedEntityIndex.attachToCatalog(this.getEntityType(), this.catalog);
-			}
+				.map(
+					it -> {
+						final EntityCollectionHeader newHeader = it.getEntityCollectionHeader();
+						return this.persistenceService == it ?
+							new EntityCollectionHeaderWithCollection(
+								newHeader,
+								this,
+								newHeader.version() > previousVersion
+							) :
+							new EntityCollectionHeaderWithCollection(
+								newHeader,
+								this.createCopyWithNewPersistenceService(newHeader.version(), CatalogState.WARMING_UP, it),
+								true
+							);
+					}
+				)
+				.orElseGet(
+					() -> new EntityCollectionHeaderWithCollection(
+						this.getEntityCollectionHeader(), this, false
+					)
+				);
+		} catch (Throwable ex) {
+			// the collected changes are lost and this collection's persisted state is now incomplete: refuse every
+			// later flush of it rather than write on top of baselines that claim the lost changes were persisted.
+			// Catching Throwable rather than RuntimeException is deliberate: an Error such as an OutOfMemoryError mid
+			// flush must poison too, otherwise a later collect could silently write over baselines. The cause is always
+			// rethrown, so this never uses exceptions for control flow
+			this.dataStoreBuffer.poison(ex);
+			throw ex;
 		}
 	}
 
 	@Override
+	public void attachToCatalog(@Nullable String entityType, @Nonnull Catalog catalog) {
+		attachCatalogShell(catalog);
+		// wire the reduced indexes' price ref chains to the super price indexes of this collection's own GLOBAL
+		// entity index (same scope) — the price chain no longer holds a catalog back-reference of its own
+	}
+
+	/**
+	 * Attaches only the catalog-level shell of this collection: the catalog back-reference and the schema decorator
+	 * that reads through it. Enforces single attachment (this is the one sanctioned catalog back-edge, so a second
+	 * attach is a programming error). Deliberately does NOT wire the reduced indexes' price ref chains — callers that
+	 * build a fresh collection sharing {@link #indexes} by reference (see {@link #createCopyWithNewPersistenceService})
+	 * hold indexes that are already wired, and re-running the wiring would trip the price chain's single-assign guards.
+	 *
+	 * @param catalog the catalog version this collection is being attached to
+	 */
+	private void attachCatalogShell(@Nonnull Catalog catalog) {
+		Assert.isPremiseValid(this.catalog == null, "Catalog was already attached to this collection!");
+		this.catalog = catalog;
+		this.schema = new TransactionalReference<>(
+			new EntitySchemaDecorator(catalog::getSchema, this.initialSchema)
+		);
+	}
+
+	@Override
 	public DataStoreChanges createLayer() {
+		// captures the dirty-index-key snapshot: this collection's merge prunes on it (see pruneMergeIndexes)
 		return new DataStoreChanges(
 			Transaction.createTransactionalPersistenceService(
 				this.persistenceService.getStoragePartPersistenceService()
-			)
+			),
+			true
 		);
 	}
 
@@ -1677,12 +1751,19 @@ public final class EntityCollection implements
 			catalogVersion, this.getEntityType(), this.entityTypePrimaryKey
 		);
 		if (transactionalChanges != null) {
-			// when we register all storage parts for persisting, we can now release transactional memory
+			// this is the DIRTY branch, and it must stay the only route for a collection that has pending changes:
+			// indexes are rebuilt here by merging their transactional layer, which yields fresh instances. The clean
+			// branch below instead forwards indexes to the next catalog version BY REFERENCE
+			// (createIndexCopiesForNewCatalogAttachment), which is sound only because a dirty collection never reaches
+			// it — routing one through there would share a live transactional layer across two catalog versions
 			transactionalLayer.removeTransactionalMemoryLayer(this);
-			// this creates copy of the indexes with all changes applied
-			final Map<EntityIndexKey, EntityIndex> modifiedIndexes = transactionalLayer.getStateCopyWithCommittedChanges(this.indexes);
-			// now we need to remove the transactional layer for the secondary index as well
-			this.indexesByPrimaryKey.removeLayer(transactionalLayer);
+			// this creates copy of the indexes with all changes applied - pruned: only the indexes this transaction
+			// actually mutated (plus the ones its key delta added or replaced) are rebuilt, every other index is
+			// carried across the catalog version by reference. Both keyings of the forest come back derived from that
+			// one delta, layers disposed of
+			final IndexTuple indexTuple = pruneMergeIndexes(
+				transactionalLayer, transactionalChanges.popLastCommittedDirtyIndexKeys()
+			);
 			return new EntityCollection(
 				catalogVersion,
 				CatalogState.ALIVE,
@@ -1695,7 +1776,8 @@ public final class EntityCollection implements
 				this.pricePkSequence,
 				this.catalogPersistenceService,
 				newPersistenceService,
-				modifiedIndexes,
+				indexTuple.indexes(),
+				indexTuple.indexesByPk(),
 				this.cacheSupervisor,
 				this.trafficRecorder
 			);
@@ -1719,7 +1801,7 @@ public final class EntityCollection implements
 			if (this.persistenceService != newPersistenceService) {
 				// if the compaction occurred, the persistence service may have changed
 				// we just create a new collection with the new persistence service, but leave the rest of the state intact
-				final IndexTuple indexTuple = createIndexCopiesForNewCatalogAttachment(CatalogState.ALIVE);
+				final IndexTuple indexTuple = createIndexCopiesForNewCatalogAttachment();
 				return new EntityCollection(
 					catalogVersion,
 					CatalogState.ALIVE,
@@ -1755,6 +1837,14 @@ public final class EntityCollection implements
 		@Nonnull EntityCollectionPersistenceService<StorageDescriptor, EntityCollectionHeader> newPersistenceService
 	) {
 		final EntitySchema internalSchema = this.getInternalSchema();
+		// an ALIVE collection forwards its immutable snapshots, which the target adopts in O(1); a WARMING_UP one has no
+		// snapshot to forward - its backing buffers are deliberately mutable so bulk writes stay O(1) - and sealing them
+		// here would only build tries that the next warm-up write immediately thaws again
+		final boolean warmingUp = catalogState == CatalogState.WARMING_UP;
+		final Map<EntityIndexKey, EntityIndex> forwardedIndexes = warmingUp ?
+			this.indexes : this.indexes.sealed();
+		final Map<Integer, EntityIndex> forwardedIndexesByPk = warmingUp ?
+			this.indexesByPrimaryKey : this.indexesByPrimaryKey.sealed();
 		final EntityCollection entityCollection = new EntityCollection(
 			catalogVersion,
 			catalogState,
@@ -1765,16 +1855,16 @@ public final class EntityCollection implements
 			this.pricePkSequence,
 			this.catalogPersistenceService,
 			newPersistenceService,
-			this.indexes,
-			this.indexesByPrimaryKey,
+			forwardedIndexes,
+			forwardedIndexesByPk,
 			this.cacheSupervisor,
 			this.trafficRecorder
 		);
-		// the catalog remains the same here
-		entityCollection.catalog = this.catalog;
-		entityCollection.schema = new TransactionalReference<>(
-			new EntitySchemaDecorator(this.catalog::getSchema, internalSchema)
-		);
+		// the catalog remains the same here; attach only the collection shell. The fresh copy shares this.indexes by
+		// reference and they are already wired to their super price indexes, so index wiring must NOT re-run here —
+		// re-wiring would trip the price chain's single-assign guards. The copy's initialSchema equals internalSchema
+		// (set by the constructor above), so the shell's schema decorator is identical to the previous hand-wiring.
+		entityCollection.attachCatalogShell(this.catalog);
 		return entityCollection;
 	}
 
@@ -1786,7 +1876,7 @@ public final class EntityCollection implements
 	@Override
 	@Nonnull
 	public EntityCollection createCopyForNewCatalogAttachment(@Nonnull CatalogState catalogState) {
-		final IndexTuple indexTuple = createIndexCopiesForNewCatalogAttachment(catalogState);
+		final IndexTuple indexTuple = createIndexCopiesForNewCatalogAttachment();
 		return new EntityCollection(
 			this.catalog.getVersion(),
 			catalogState,
@@ -1811,8 +1901,14 @@ public final class EntityCollection implements
 	 * @param entityIndex the index to be added, must not be null
 	 */
 	public void addIndex(@Nonnull EntityIndex entityIndex) {
-		if (entityIndex instanceof CatalogRelatedDataStructure<?> crds) {
-			crds.attachToCatalog(this.getEntityType(), this.catalog);
+		// disk load / WAL replay register GLOBAL indexes before reduced ones, so the shared price records a freshly
+		// deserialized reduced index has to be repointed at are already present in this collection's GLOBAL entity index.
+		// This is the ONLY attach-time price step left: the reduced index keeps no super-index pointer to refresh, it is
+		// handed the GLOBAL's price index per operation instead.
+		if (entityIndex instanceof AbstractReducedEntityIndex reducedIndex) {
+			reducedIndex.getPriceIndex().restorePriceRecords(
+				resolveGlobalIndex(reducedIndex.getIndexKey().scope()).getPriceIndex()
+			);
 		}
 		this.indexes.put(entityIndex.getIndexKey(), entityIndex);
 		this.indexesByPrimaryKey.put(entityIndex.getPrimaryKey(), entityIndex);
@@ -1893,7 +1989,7 @@ public final class EntityCollection implements
 			applyMutations(
 				session,
 				entityMutation,
-				removeMutation.shouldApplyUndoOnError(),
+				removeMutation.shouldRollbackOnError(),
 				removeMutation.shouldVerifyConsistency(),
 				null,
 				removeMutation.getImplicitMutationsBehavior(),
@@ -2365,7 +2461,7 @@ public final class EntityCollection implements
 			return applyMutations(
 				session,
 				entityMutationToUpsert,
-				veum.shouldApplyUndoOnError(),
+				veum.shouldRollbackOnError(),
 				veum.shouldVerifyConsistency(),
 				returnUpdatedEntity,
 				veum.getImplicitMutationsBehavior(),
@@ -2438,8 +2534,9 @@ public final class EntityCollection implements
 	 * Method applies all `localMutations` on entity with passed `entityPrimaryKey`.
 	 *
 	 * @param entityMutation            entity mutation to apply
-	 * @param undoOnError               whether to undo the changes on error
-	 *                                  (if set to false, the changes will be left in the storage)
+	 * @param atomicRollback            whether a failed mutation should be atomically reverted via the
+	 *                                  diff-layer savepoint; only effective when a transaction
+	 *                                  is active — pass {@code false} for WAL replay, where no rollback is needed
 	 * @param checkConsistency          whether to check the consistency of the entity after the mutation
 	 *                                  (if set to false, the consistency will not be checked)
 	 * @param generateImplicitMutations set of implicit mutations to generate
@@ -2450,7 +2547,7 @@ public final class EntityCollection implements
 	<T> Optional<T> applyMutations(
 		@Nullable EvitaSessionContract session,
 		@Nonnull EntityMutation entityMutation,
-		boolean undoOnError,
+		boolean atomicRollback,
 		boolean checkConsistency,
 		@Nullable EvitaRequest returnUpdatedEntity,
 		@Nonnull EnumSet<ImplicitMutationBehavior> generateImplicitMutations,
@@ -2467,10 +2564,13 @@ public final class EntityCollection implements
 			entityMutation.expects(),
 			this.catalog::getInternalSchema,
 			this::getInternalSchema,
-			theEntityType -> this.catalog.getCollectionForEntityInternal(theEntityType).orElse(null),
+			theEntityType -> this.catalog.getCollectionForEntityInternal(theEntityType)
+				.map(EntityCollection::getDataStoreReader)
+				.orElse(null),
 			this::nextInternalPriceId,
 			entityMutation instanceof EntityRemoveMutation
 		);
+		final String entityType = getInternalSchema().getName();
 		final EntityIndexLocalMutationExecutor entityIndexUpdater = new EntityIndexLocalMutationExecutor(
 			changeCollector,
 			entityPrimaryKey,
@@ -2478,8 +2578,17 @@ public final class EntityCollection implements
 			this.catalog.getCatalogIndexMaintainer(),
 			this::getInternalSchema,
 			this::nextInternalPriceId,
-			undoOnError,
-			() -> localMutationExecutorCollector.getFullEntityContents(changeCollector).entity()
+			() -> localMutationExecutorCollector.getFullEntityContents(changeCollector).entity(),
+			() -> this.catalog.getExpressionTriggerRegistry(),
+			(referenceName, scope) -> this.catalog.getExpressionTriggerRegistry()
+				.getLocalTrigger(entityType, referenceName, scope),
+			otherEntityType -> this.catalog.getCollectionForEntityInternal(otherEntityType)
+				.map(EntityCollection::getInternalSchema)
+				.orElseThrow(() -> new IllegalStateException(
+					"No entity collection found for entity type `" + otherEntityType + "` " +
+						"while resolving schema for cross-entity expression evaluation."
+				)),
+			this.catalog
 		);
 
 		return localMutationExecutorCollector.execute(
@@ -2487,6 +2596,7 @@ public final class EntityCollection implements
 			getInternalSchema(),
 			entityMutation,
 			checkConsistency,
+			atomicRollback,
 			generateImplicitMutations,
 			changeCollector,
 			entityIndexUpdater,
@@ -2516,30 +2626,280 @@ public final class EntityCollection implements
 	}
 
 	/**
-	 * Creates a map of index copies for a new catalog attachment, based on the current indexes.
-	 * If an index is a catalog-related data structure, a copy for the new catalog attachment is created;
-	 * otherwise, the original index is reused.
+	 * Casts an {@link EntityIndex} to its {@link TransactionalStateProducer} facet — every concrete entity index is one
+	 * (via {@code VoidTransactionMemoryProducer}) — and returns its committed copy. This is the type reconciliation the
+	 * merging {@code TransactionalMap} performs internally; the pruned merge needs it because it resolves individual
+	 * indexes rather than merging the whole map.
 	 *
-	 * @param catalogState the state of the new catalog to which the indices will be attached
-	 * @return a map containing keys and their corresponding index copies or original indexes
+	 * @param transactionalLayer the maintainer resolving committed state
+	 * @param index              the (concrete) entity index to commit
+	 * @return the committed copy of the index
 	 */
 	@Nonnull
-	private IndexTuple createIndexCopiesForNewCatalogAttachment(@Nonnull CatalogState catalogState) {
-		final Map<EntityIndexKey, EntityIndex> indexes = CollectionUtils.createHashMap(this.indexes.size());
-		final Map<Integer, EntityIndex> indexesByPk = CollectionUtils.createHashMap(this.indexes.size());
-		for (Entry<EntityIndexKey, EntityIndex> entry : this.indexes.entrySet()) {
-			if (entry.getValue() instanceof CatalogRelatedDataStructure) {
-				//noinspection unchecked
-				final EntityIndex copyForNewCatalogAttachment = ((CatalogRelatedDataStructure<? extends EntityIndex>) entry.getValue())
-					.createCopyForNewCatalogAttachment(catalogState);
-				indexes.put(entry.getKey(), copyForNewCatalogAttachment);
-				indexesByPk.put(copyForNewCatalogAttachment.getPrimaryKey(), copyForNewCatalogAttachment);
-			} else {
-				indexes.put(entry.getKey(), entry.getValue());
-				indexesByPk.put(entry.getValue().getPrimaryKey(), entry.getValue());
+	@SuppressWarnings("unchecked")
+	private static EntityIndex mergeCommittedIndex(
+		@Nonnull TransactionalLayerMaintainer transactionalLayer,
+		@Nonnull EntityIndex index
+	) {
+		return transactionalLayer.getStateCopyWithCommittedChanges((TransactionalStateProducer<? extends EntityIndex>) index);
+	}
+
+	/**
+	 * Commit-merge prune for {@link #indexes}. Instead of rebuilding every entity index by merging its transactional
+	 * layer — a walk that is ~99% clean-discovery, since a typical transaction dirties a handful of indexes out of the
+	 * whole forest — this rebuilds only the indexes that were genuinely acquired for modification this transaction (the
+	 * `dirtyIndexKeys` snapshot, ground truth captured by the just-completed flush) and carries every unchanged index
+	 * across the catalog version by reference.
+	 *
+	 * An unchanged index is now carried **without being looked at**: the next version's map is derived from the previous
+	 * immutable one by path-copying just the touched keys, so a clean index is neither merged nor visited and the trie
+	 * nodes holding it are shared outright. That is the difference from the earlier form of this prune, which still had
+	 * to walk all N entries to discover that N−Δ of them needed nothing done — the discovery itself was the cost.
+	 *
+	 * A clean index owns no transactional layer anywhere in its sub-tree (it was never acquired for modification), so
+	 * skipping its merge cannot orphan a diff layer — and if that invariant were ever violated,
+	 * {@link TransactionalLayerMaintainer#verifyLayerWasFullySwept()} fails loudly at commit rather than silently
+	 * dropping changes.
+	 *
+	 * Price wiring used to be the one subtlety here and no longer is: a reduced index's price chain kept a pointer to its
+	 * scope's GLOBAL entity index, and because the GLOBAL is rebuilt whenever it changes (nearly every transaction),
+	 * every clean reduced index of that scope had to be re-shelled and re-wired purely to refresh that pointer. The
+	 * pointer is gone — the GLOBAL's price index is handed in per operation by a caller that is already pinned to
+	 * a catalog version — so a clean reduced index is now shared **wholesale**, exactly like a clean referenced-type
+	 * index (which holds a void price index and always was).
+	 *
+	 * GLOBAL indexes are still materialized first, so the merge hands back exactly one committed instance per GLOBAL key.
+	 *
+	 * A transaction that adds or removes an index gives the index map a diff layer of its own. That key delta is applied
+	 * by {@link MapChanges} the ordinary way — including the layer bookkeeping of removed and created-then-removed
+	 * values — while the values are still partitioned here, because the delta is tiny compared to the map (in a
+	 * production workload a handful of keys out of hundreds of thousands) and merging the whole forest to record it
+	 * would waste the entire prune.
+	 *
+	 * One consistency check is deliberately given up in exchange: the merge used to see every surviving key, so it could
+	 * assert that a scope whose reduced index survives still has a GLOBAL. A walk that visits only touched keys cannot
+	 * ask that question without re-introducing the very O(N) scan it removes. The invariant itself is unchanged — a
+	 * scope's GLOBAL holds every entity of that scope, so it can only be dropped once its reduced indexes are empty and
+	 * dropped in the same commit — it is simply no longer restated here.
+	 *
+	 * The by-primary-key map is derived here as well, from the very same delta rather than rebuilt from the merged
+	 * result, which is what keeps the two views of the same index forest in step: one delta, applied twice.
+	 *
+	 * @param transactionalLayer the maintainer resolving committed state for the indexes that are rebuilt
+	 * @param dirtyIndexKeys     keys of the indexes genuinely mutated this transaction
+	 * @return the committed index maps, with unchanged indexes carried by reference
+	 */
+	@Nonnull
+	private IndexTuple pruneMergeIndexes(
+		@Nonnull TransactionalLayerMaintainer transactionalLayer,
+		@Nonnull Set<IndexKey> dirtyIndexKeys
+	) {
+		final MapChanges<EntityIndexKey, EntityIndex> indexChanges =
+			transactionalLayer.getTransactionalMemoryLayerIfExists(this.indexes);
+		// an index the key delta added or replaced is a fresh instance that must be merged, not carried - fold those
+		// few keys into the dirty set so the per-index decision below stays a single lookup. The set is retyped to
+		// EntityIndexKey because it now DRIVES the merge walk (the keys are looked up in the map), where it used only to
+		// be consulted by it - a key of any other type would silently address nothing
+		final Set<EntityIndexKey> rebuiltKeys = CollectionUtils.createHashSet(
+			dirtyIndexKeys.size() + (indexChanges == null ? 0 : indexChanges.getModifiedKeys().size())
+		);
+		for (final IndexKey dirtyIndexKey : dirtyIndexKeys) {
+			Assert.isPremiseValid(
+				dirtyIndexKey instanceof EntityIndexKey,
+				() -> "Dirty index key `" + dirtyIndexKey + "` of an entity collection is not an EntityIndexKey!"
+			);
+			rebuiltKeys.add((EntityIndexKey) dirtyIndexKey);
+		}
+		if (indexChanges != null) {
+			rebuiltKeys.addAll(indexChanges.getModifiedKeys().keySet());
+		}
+
+		// Phase 1 — materialize each scope's GLOBAL index first, by direct key lookup rather than by scanning the map, so
+		// the merge hands back exactly one committed instance per GLOBAL key. Two lookups per scope, whether or not the
+		// GLOBAL changed; a clean one resolves to the very instance already in the map, so carrying it costs nothing.
+		final Scope[] scopes = Scope.values();
+		final GlobalEntityIndex[] globalsByScope = new GlobalEntityIndex[scopes.length];
+		for (final Scope scope : scopes) {
+			final EntityIndexKey globalKey = new EntityIndexKey(EntityIndexType.GLOBAL, scope);
+			// the transaction-visible view: a GLOBAL created this transaction is already here, a removed one is gone
+			final EntityIndex globalIndex = this.indexes.get(globalKey);
+			if (globalIndex != null) {
+				globalsByScope[scope.ordinal()] = rebuiltKeys.contains(globalKey) ?
+					(GlobalEntityIndex) mergeCommittedIndex(transactionalLayer, globalIndex) :
+					(GlobalEntityIndex) globalIndex;
 			}
 		}
-		return new IndexTuple(indexes, indexesByPk);
+
+		// Phase 2 — only the touched indexes, resolved through the merger below; the map applies its own key delta around
+		// them and derives the next version by path-copying just those keys onto the previous immutable snapshot
+		final ChampMap<EntityIndexKey, EntityIndex> mergedIndexes =
+			this.indexes.createCopyWithMergedTransactionalMemory(
+				indexChanges, transactionalLayer, rebuiltKeys,
+				new PrunedIndexMerger(transactionalLayer, rebuiltKeys, globalsByScope)
+			);
+
+		// Phase 3 — apply the SAME delta to the by-primary-key view. Both maps hold the same index instances, so the
+		// merged forest above is already the answer; only the two maps' keys differ. Rebuilding this one from the merged
+		// result instead would be the last remaining O(N) pass of the commit - and it would make the two views agree only
+		// by coincidence, whereas deriving both from one delta makes them agree by construction.
+		// `sealed()` deliberately reads the base snapshot even though a diff layer may exist: the delta that layer holds
+		// is exactly the delta applied below, from the key map's own record of it. The seal is O(1) whenever the layer
+		// exists (the layer is created over the sealed state) and O(N) exactly once on the first commit after a disk
+		// load, when the map is still the mutable buffer the load filled.
+		ChampMap<Integer, EntityIndex> mergedIndexesByPk = this.indexesByPrimaryKey.sealed();
+		final ChampMap<EntityIndexKey, EntityIndex> previousIndexes = this.indexes.sealed();
+		// Pass 1 — retire every primary key the previous version held under a key this transaction touched. Both halves
+		// are needed because the key delta expresses removals of KEYS, while this map is keyed on something the delta
+		// cannot express at all: the primary key of the instance behind the key.
+		if (indexChanges != null) {
+			for (final EntityIndexKey removedKey : indexChanges.getRemovedKeys()) {
+				final EntityIndex removedIndex = previousIndexes.get(removedKey);
+				if (removedIndex != null) {
+					mergedIndexesByPk = mergedIndexesByPk.removed(removedIndex.getPrimaryKey());
+				}
+			}
+		}
+		for (final EntityIndexKey rebuiltKey : rebuiltKeys) {
+			final EntityIndex previousIndex = previousIndexes.get(rebuiltKey);
+			if (previousIndex != null) {
+				final EntityIndex committedIndex = mergedIndexes.get(rebuiltKey);
+				// an index dropped and re-created within ONE transaction keeps its index key but is assigned a FRESH
+				// storage primary key, so the key delta reports it as merely modified while the by-PK view must both
+				// retire the old key and publish the new one. Retiring by the key's PREVIOUS primary key covers that
+				// case and the plain removal alike, and is a no-op whenever the instance kept its primary key
+				if (committedIndex == null || committedIndex.getPrimaryKey() != previousIndex.getPrimaryKey()) {
+					mergedIndexesByPk = mergedIndexesByPk.removed(previousIndex.getPrimaryKey());
+				}
+			}
+		}
+		// Pass 2 — only once every retirement is applied may the survivors be published, so that a primary key retired
+		// under one key and legitimately taken by another in the same transaction is not dropped after being published
+		for (final EntityIndexKey rebuiltKey : rebuiltKeys) {
+			// a rebuilt key absent from the merged result was removed by this transaction (or created and removed again
+			// within it) - the retirement pass above has already dropped its primary key, or it never had one in the map
+			final EntityIndex committedIndex = mergedIndexes.get(rebuiltKey);
+			if (committedIndex != null) {
+				mergedIndexesByPk = mergedIndexesByPk.updated(committedIndex.getPrimaryKey(), committedIndex);
+			}
+		}
+
+		// the pruned merge does not go through TransactionalLayerMaintainer#getStateCopyWithCommittedChanges, so both
+		// maps' OWN layers have to be disposed of here. Neither may be `removeLayer(...)`, which descends into every
+		// value and would restore the very walk this method exists to avoid - and for the by-PK map that walk would be
+		// all-miss on top, since it holds the same instances the merge above has already swept. A forgotten disposal
+		// surfaces loudly in TransactionalLayerMaintainer#verifyLayerWasFullySwept.
+		transactionalLayer.removeTransactionalMemoryLayerIfExists(this.indexes);
+		transactionalLayer.removeTransactionalMemoryLayerIfExists(this.indexesByPrimaryKey);
+		return new IndexTuple(mergedIndexes, mergedIndexesByPk);
+	}
+
+	/**
+	 * Rebuilds an index the commit-time merge of {@link EntityCollection#indexes} decided to visit. Only touched keys are
+	 * ever passed here — the merge walks the transaction's delta, so an index this transaction did not mutate never
+	 * reaches this merger at all and is carried across the version boundary as a shared trie node. See
+	 * {@link EntityCollection#pruneMergeIndexes(TransactionalLayerMaintainer, Set)} for the reasoning behind that
+	 * partition.
+	 *
+	 * @param transactionalLayer    the maintainer resolving committed state for the indexes that are rebuilt
+	 * @param rebuiltKeys           keys of the indexes that must be rebuilt - those genuinely mutated this transaction
+	 *                              plus those the index map's own key delta added or replaced; this merger sees no other
+	 * @param globalsByScope        the committed GLOBAL entity index of each scope, indexed by {@link Scope#ordinal()},
+	 *                              resolved before the walk so no GLOBAL is ever merged twice
+	 */
+	private record PrunedIndexMerger(
+		@Nonnull TransactionalLayerMaintainer transactionalLayer,
+		@Nonnull Set<EntityIndexKey> rebuiltKeys,
+		@Nonnull GlobalEntityIndex[] globalsByScope
+	) implements ValueMerger<EntityIndexKey, EntityIndex> {
+
+		@Nonnull
+		@Override
+		public EntityIndex mergeSurviving(@Nonnull EntityIndexKey key, @Nullable EntityIndex index) {
+			if (key.type() == EntityIndexType.GLOBAL) {
+				// resolved (and possibly merged) upfront - hand back the very same instance every other resolution uses
+				final Scope scope = key.scope();
+				final GlobalEntityIndex newGlobal = this.globalsByScope[scope.ordinal()];
+				Assert.isPremiseValid(
+					newGlobal != null,
+					() -> "GLOBAL entity index of scope `" + scope + "` survives the commit but was not resolved!"
+				);
+				return newGlobal;
+			}
+			final EntityIndex theIndex = index;
+			Assert.isPremiseValid(
+				theIndex != null, () -> "Entity index `" + key + "` is unexpectedly NULL!"
+			);
+			// the merge walks the delta, and every key of that delta is in `rebuiltKeys` by construction. A key arriving
+			// here that is NOT means the walk widened behind this merger's back - which would hand a clean index to
+			// getStateCopyWithCommittedChanges and discard a layer it never owned, so it must fail rather than proceed
+			Assert.isPremiseValid(
+				this.rebuiltKeys.contains(key),
+				() -> "Entity index `" + key + "` reached the commit merge without being marked as rebuilt!"
+			);
+			return mergeCommittedIndex(this.transactionalLayer, theIndex);
+		}
+
+		@Override
+		public void releaseRemoved(@Nonnull EntityIndexKey key, @Nonnull EntityIndex index) {
+			// nothing to do - EntityIndexAccessor#removeIndex already released the whole sub-tree eagerly the moment
+			// the index left the map, and every entity index implements removeLayer as exactly that same call, so the
+			// ordinary commit-time release would only repeat an identical, by then all-miss descent. Should an index
+			// ever leave the map without that eager release, its orphaned layer is reported by
+			// TransactionalLayerMaintainer#verifyLayerWasFullySwept instead of being silently dropped.
+		}
+
+	}
+
+	/**
+	 * Creates the index maps for a new catalog attachment from a **clean** collection, carrying every index — GLOBAL,
+	 * referenced-type and reduced alike — across the version boundary **by reference** inside a fresh map wrapper.
+	 *
+	 * Reduced indexes hold nothing that a version bump could invalidate: their price ref chain keeps no pointer to the
+	 * super price indexes backing it, and is handed the GLOBAL's price index per operation by a caller that is already
+	 * pinned to a catalog version. So a reduced index needs neither re-shelling nor re-wiring here - it is simply
+	 * forwarded, like every other index.
+	 *
+	 * Carrying transactional sub-structures by reference is only sound when this collection is clean. What actually
+	 * guarantees that is the routing: a dirty collection is rebuilt through the merge path and never reaches this
+	 * method. The premise assertion below is a partial backstop on top of that routing, not a replacement for it — a
+	 * layer on the index maps records an uncommitted change to the index *set* (an index added or removed), because a
+	 * transactional map tracks its key-to-value mapping rather than mutation happening inside a mapped value. An index
+	 * mutated internally therefore leaves these maps untouched and is caught by the routing, not by this check.
+	 *
+	 * @return the index maps whose values are the current indexes shared by reference
+	 */
+	@Nonnull
+	private IndexTuple createIndexCopiesForNewCatalogAttachment() {
+		Assert.isPremiseValid(
+			Transaction.getTransactionalMemoryLayerIfExists(this.indexes) == null &&
+				Transaction.getTransactionalMemoryLayerIfExists(this.indexesByPrimaryKey) == null,
+			"Indexes may only be carried to a new catalog version from a clean collection, but an uncommitted change to the index set was found!"
+		);
+		// BOTH maps are forwarded WHOLESALE - every value is carried by reference anyway, so the previous immutable
+		// snapshots already ARE the next version's maps and the target constructor adopts them in O(1). Rebuilding either
+		// entry by entry would cost a full N-entry map here AND leave the next version holding a mutable buffer, which the
+		// first transactional touch would then have to seal into a fresh trie: three O(N) passes for a version bump that
+		// changed nothing
+		return new IndexTuple(this.indexes.sealed(), this.indexesByPrimaryKey.sealed());
+	}
+
+	/**
+	 * Resolves this collection's {@link GlobalEntityIndex} of the given scope, which owns the super price indexes that
+	 * back the scope's reduced indexes. The GLOBAL index is always present by the time a reduced index references it
+	 * (GLOBAL indexes are registered first on load, and a reduced index cannot exist before its collection's GLOBAL) —
+	 * the assertion makes that ordering assumption loud rather than silently resolving `null`.
+	 *
+	 * @param scope the scope whose GLOBAL entity index should be resolved
+	 * @return the GLOBAL entity index of the given scope
+	 */
+	@Nonnull
+	private GlobalEntityIndex resolveGlobalIndex(@Nonnull Scope scope) {
+		final EntityIndex globalIndex = this.indexes.get(new EntityIndexKey(EntityIndexType.GLOBAL, scope));
+		Assert.isPremiseValid(
+			globalIndex instanceof GlobalEntityIndex,
+			() -> "Global entity index of scope `" + scope + "` must exist to wire super price indexes!"
+		);
+		return (GlobalEntityIndex) globalIndex;
 	}
 
 	/**
@@ -2585,21 +2945,6 @@ public final class EntityCollection implements
 				}
 			}
 		}
-	}
-
-	/**
-	 * Creates a map of {@link EntityIndex} objects indexed by their primary key.
-	 *
-	 * @param indexes a map of {@link EntityIndexKey} to {@link EntityIndex} from which the primary key-indexed map will be created
-	 * @return a map of {@link EntityIndex} objects indexed by their primary key
-	 */
-	@Nonnull
-	private static Map<Integer, EntityIndex> createIndexByPk(@Nonnull Map<EntityIndexKey, EntityIndex> indexes) {
-		final Map<Integer, EntityIndex> indexesByPk = CollectionUtils.createHashMap(indexes.size());
-		for (final EntityIndex entityIndex : indexes.values()) {
-			indexesByPk.put(entityIndex.getPrimaryKey(), entityIndex);
-		}
-		return indexesByPk;
 	}
 
 	/**
@@ -2695,9 +3040,35 @@ public final class EntityCollection implements
 	}
 
 	/**
-	 * This implementation just manipulates with the set of EntityIndex in entity collection.
+	 * This implementation manipulates the set of {@link EntityIndex} instances in the entity collection and
+	 * provides a narrow {@link IndexMutationTarget} view for {@link IndexMutationExecutor} implementations.
+	 *
+	 * Implements both {@link IndexMaintainer} (used by {@link EntityIndexLocalMutationExecutor} for index
+	 * creation/removal during entity mutation processing) and {@link IndexMutationTarget} (used by
+	 * {@link IndexMutationExecutor} implementations for cross-entity trigger dispatch). Both interfaces share
+	 * a common {@link IndexProvider} super-type for index lookup methods. This dual role isolates callers from
+	 * the full {@link EntityCollection} API surface — passing the entire collection would be one cast away from
+	 * accessing internal methods that should not be visible to mutation executors.
 	 */
-	private class EntityIndexMaintainer implements IndexMaintainer<EntityIndexKey, EntityIndex> {
+	private class EntityIndexMaintainer implements IndexMaintainer<EntityIndexKey, EntityIndex>, IndexMutationTarget {
+
+		/**
+		 * Active session for query evaluation during cross-entity trigger dispatch. Set temporarily by
+		 * `applyIndexMutations()` for the duration of the dispatch and cleared in a `finally` block.
+		 * May be null during WAL replay when no session context is available.
+		 */
+		@Nullable
+		private EvitaSessionContract session;
+
+		/**
+		 * Sets the active session for query evaluation. Called by `applyIndexMutations()` before dispatch
+		 * and cleared after dispatch completes.
+		 *
+		 * @param session the active session, or null to clear
+		 */
+		void setSession(@Nullable EvitaSessionContract session) {
+			this.session = session;
+		}
 
 		/**
 		 * Returns entity index by its key. If such index doesn't exist, it is automatically created.
@@ -2720,15 +3091,18 @@ public final class EntityCollection implements
 									EntityCollection.this.getEntityType(),
 									eikAgain
 								);
-							} else if (eikAgain.type() == EntityIndexType.REFERENCED_ENTITY_TYPE) {
-								assertReferenceIndexPrerequisities(
+							} else if (
+								eikAgain.type() == EntityIndexType.REFERENCED_ENTITY_TYPE ||
+									eikAgain.type() == EntityIndexType.REFERENCED_GROUP_ENTITY_TYPE
+							) {
+								assertReferenceIndexPrerequisites(
 									((String) Objects.requireNonNull(eikAgain.discriminator()))
 								);
 								entityIndex = new ReferencedTypeEntityIndex(
 									EntityCollection.this.indexPkSequence.incrementAndGet(), EntityCollection.this.getEntityType(), eikAgain
 								);
 							} else if (eikAgain.type() == EntityIndexType.REFERENCED_ENTITY) {
-								assertReferenceIndexPrerequisities(
+								assertReferenceIndexPrerequisites(
 									((RepresentativeReferenceKey) Objects.requireNonNull(eikAgain.discriminator()))
 										.referenceName()
 								);
@@ -2737,12 +3111,18 @@ public final class EntityCollection implements
 									EntityCollection.this.getEntityType(),
 									eikAgain
 								);
+							} else if (eikAgain.type() == EntityIndexType.REFERENCED_GROUP_ENTITY) {
+								assertReferenceIndexPrerequisites(
+									((RepresentativeReferenceKey) Objects.requireNonNull(eikAgain.discriminator()))
+										.referenceName()
+								);
+								entityIndex = new ReducedGroupEntityIndex(
+									EntityCollection.this.indexPkSequence.incrementAndGet(),
+									EntityCollection.this.getEntityType(),
+									eikAgain
+								);
 							} else {
 								throw new GenericEvitaInternalError("Unsupported entity index type: " + eikAgain.type());
-							}
-
-							if (entityIndex instanceof CatalogRelatedDataStructure<?> lateInitializationIndex) {
-								lateInitializationIndex.attachToCatalog(EntityCollection.this.getEntityType(), EntityCollection.this.catalog);
 							}
 
 							// register index also in the map by primary key for fast access
@@ -2751,6 +3131,20 @@ public final class EntityCollection implements
 							return entityIndex;
 						}
 					)
+			);
+		}
+
+		/**
+		 * Returns entity index by its storage primary key and registers it in the "dirty" memory so that its
+		 * modified storage parts are captured on flush. Returns `null` when no index with the given PK exists.
+		 * Used by cross-entity mutation executors that modify indexes fetched by storage PK.
+		 */
+		@Nonnull
+		@Override
+		public EntityIndex getOrCreateIndexByPrimaryKey(int indexPrimaryKey) {
+			return EntityCollection.this.dataStoreBuffer.getOrCreateIndexForModification(
+				indexPrimaryKey,
+				EntityCollection.this.indexesByPrimaryKey::get
 			);
 		}
 
@@ -2764,35 +3158,16 @@ public final class EntityCollection implements
 		}
 
 		/**
-		 * Retrieves an existing index by its unique primary key.
+		 * Returns entity index by its storage primary key, or null if not found. Used to resolve `int[]` storage PKs
+		 * returned by `ReferencedTypeEntityIndex.getAllReferenceIndexes(int)` into actual `ReducedGroupEntityIndex` /
+		 * `ReducedEntityIndex` instances. Satisfies both {@link IndexProvider#getIndexByPrimaryKeyIfExists(int)} and
+		 * the inherited contract on {@link IndexMaintainer} (where the throwing
+		 * {@link IndexMaintainer#getIndexByPrimaryKey(int)} default delegates to this method).
 		 */
-		@Nonnull
+		@Nullable
 		@Override
-		public EntityIndex getIndexByPrimaryKey(int indexPrimaryKey) {
-			final EntityIndex index = EntityCollection.this.getIndexByPrimaryKeyIfExists(indexPrimaryKey);
-			Assert.isPremiseValid(
-				index != null,
-				() -> new GenericEvitaInternalError("Entity index for primary key " + indexPrimaryKey + " doesn't exists!")
-			);
-			return index;
-		}
-
-		/**
-		 * Ensures that the reference index prerequisites are satisfied before proceeding.
-		 * Verifies the existence of a global index and the presence of the specified reference in the entity schema.
-		 *
-		 * @param referenceName the name of the reference to check in the schema; must not be null
-		 */
-		private void assertReferenceIndexPrerequisities(@Nonnull String referenceName) {
-			final EntityIndex globalIndex = getIndexIfExists(new EntityIndexKey(EntityIndexType.GLOBAL));
-			Assert.isPremiseValid(
-				globalIndex instanceof GlobalEntityIndex,
-				"When a reduced index is created global one must already exist!"
-			);
-			// check that the reference exists in the schema
-			EntityCollection.this
-				.getSchema()
-				.getReferenceOrThrowException(referenceName);
+		public EntityIndex getIndexByPrimaryKeyIfExists(int indexPrimaryKey) {
+			return EntityCollection.this.getIndexByPrimaryKeyIfExists(indexPrimaryKey);
 		}
 
 		/**
@@ -2803,8 +3178,10 @@ public final class EntityCollection implements
 		@Override
 		public void removeIndex(@Nonnull EntityIndexKey entityIndexKey) {
 			final EntityIndex removedIndex = EntityCollection.this.dataStoreBuffer.removeIndex(
-				entityIndexKey, eik -> {
-					final EntityIndex index = EntityCollection.this.indexes.remove(eik);
+				EntityCollection.this.catalog.getVersion(),
+				entityIndexKey,
+				eik -> {
+					final EntityIndex index = Objects.requireNonNull(EntityCollection.this.indexes.remove(eik));
 					final EntityIndex indexByPk = EntityCollection.this.indexesByPrimaryKey.remove(index.getPrimaryKey());
 					Assert.isPremiseValid(
 						index == indexByPk,
@@ -2821,6 +3198,153 @@ public final class EntityCollection implements
 				ofNullable(getTransactionalLayerMaintainer())
 					.ifPresent(removedIndex::removeTransactionalMemoryOfReferencedProducers);
 			}
+		}
+
+		/**
+		 * Returns the current entity schema for this collection. Used by mutation executors to look up
+		 * `ReferenceSchemaContract` for the reference being modified.
+		 */
+		@Nonnull
+		@Override
+		public EntitySchema getEntitySchema() {
+			return EntityCollection.this.getInternalSchema();
+		}
+
+		/**
+		 * Returns the facet expression trigger for the given reference name, dependency type, and scope.
+		 * Delegates to the catalog's {@link CatalogExpressionTriggerRegistry#getLocalTrigger} which stores
+		 * one facet trigger per `(ownerEntityType, referenceName, scope)` triple.
+		 */
+		@Nullable
+		@Override
+		public FacetExpressionTrigger getFacetTrigger(
+			@Nonnull String referenceName,
+			@Nonnull DependencyType dependencyType,
+			@Nonnull Scope scope
+		) {
+			return EntityCollection.this.catalog.getExpressionTriggerRegistry()
+				.getLocalTrigger(EntityCollection.this.getEntityType(), referenceName, scope);
+		}
+
+		/**
+		 * Evaluates a {@link FilterBy} constraint against this collection's `GlobalEntityIndex` for the specified
+		 * scope and returns the matching entity PK bitmap. Uses the full query planning infrastructure
+		 * (`FilterByVisitor` + `Formula`) to evaluate the filter.
+		 *
+		 * The session is used when available (normal session execution) for cache analysis but is **not required** —
+		 * during WAL replay (trunk incorporation) no session exists and the evaluation proceeds without caching.
+		 *
+		 * @param filterBy the filter constraint to evaluate (typically a parameterized expression from a trigger)
+		 * @param scope    the scope whose `GlobalEntityIndex` should be queried
+		 * @return bitmap of entity primary keys matching the filter, never null (may be empty)
+		 */
+		@Nonnull
+		@Override
+		public Bitmap evaluateFilter(@Nonnull FilterBy filterBy, @Nonnull Scope scope) {
+			// inject EntityScope into the filter so that EvitaRequest.getScopes() returns the correct scope;
+			// without this, nested constraint processing (e.g., ReferenceHaving translator) would default to
+			// LIVE scope and look up wrong indexes when evaluating ARCHIVED entities
+			final FilterConstraint[] originalChildren = filterBy.getChildren();
+			final FilterConstraint[] scopedChildren = new FilterConstraint[originalChildren.length + 1];
+			scopedChildren[0] = scope(scope);
+			System.arraycopy(originalChildren, 0, scopedChildren, 1, originalChildren.length);
+			final FilterBy scopedFilterBy = new FilterBy(scopedChildren);
+
+			final EvitaRequest evitaRequest = new EvitaRequest(
+				Query.query(
+					collection(EntityCollection.this.getEntityType()),
+					scopedFilterBy
+				),
+				OffsetDateTime.now(),
+				EntityReference.class,
+				null
+			);
+			// use session-optional QueryPlanningContext — session may be null during WAL replay
+			final QueryPlanningContext queryContext = new QueryPlanningContext(
+				EntityCollection.this.catalog,
+				EntityCollection.this,
+				this.session,
+				evitaRequest,
+				EntityCollection.this.indexes,
+				EntityCollection.this.indexesByPrimaryKey,
+				EntityCollection.this.cacheSupervisor
+			);
+			final Set<Scope> requestedScopes = EnumSet.of(scope);
+			final Formula formula = FilterByVisitor.createFormulaForTheFilter(
+				queryContext,
+				requestedScopes,
+				scopedFilterBy,
+				EntityCollection.this.getEntityType(),
+				() -> "Evaluating conditional facet expression"
+			);
+			return formula.compute();
+		}
+
+		/**
+		 * Returns the local histogram triggers for the given reference name and scope.
+		 */
+		@Nonnull
+		@Override
+		public Collection<HistogramExpressionTrigger> getHistogramTriggers(
+			@Nonnull String referenceName,
+			@Nonnull Scope scope
+		) {
+			return EntityCollection.this.catalog.getExpressionTriggerRegistry()
+				.getLocalHistogramTriggers(EntityCollection.this.getEntityType(), referenceName, scope);
+		}
+
+		/**
+		 * Returns the {@link FilterIndex} for a source attribute on another entity type's
+		 * `GlobalEntityIndex`. Used for cross-collection value resolution in histogram processing.
+		 */
+		@Nullable
+		@Override
+		public FilterIndex getSourceFilterIndex(
+			@Nonnull String entityType,
+			@Nonnull String attributeName,
+			@Nullable Locale locale,
+			@Nonnull Scope scope
+		) {
+			final EntityCollection sourceCollection = EntityCollection.this.catalog
+				.getCollectionForEntityOrThrowException(entityType);
+			final EntityIndex globalIndex = sourceCollection.getIndexByKeyIfExists(
+				new EntityIndexKey(EntityIndexType.GLOBAL, scope)
+			);
+			if (globalIndex == null) {
+				return null;
+			}
+			return globalIndex.getFilterIndex(
+				new AttributeIndexKey(null, attributeName, locale)
+			);
+		}
+
+		/**
+		 * Returns locales declared in the entity schema of the given entity type.
+		 */
+		@Nonnull
+		@Override
+		public Set<Locale> getEntitySchemaLocales(@Nonnull String entityType) {
+			final EntityCollection sourceCollection = EntityCollection.this.catalog
+				.getCollectionForEntityOrThrowException(entityType);
+			return sourceCollection.getInternalSchema().getLocales();
+		}
+
+		/**
+		 * Ensures that the reference index prerequisites are satisfied before proceeding.
+		 * Verifies the existence of a global index and the presence of the specified reference in the entity schema.
+		 *
+		 * @param referenceName the name of the reference to check in the schema; must not be null
+		 */
+		private void assertReferenceIndexPrerequisites(@Nonnull String referenceName) {
+			final EntityIndex globalIndex = getIndexIfExists(new EntityIndexKey(EntityIndexType.GLOBAL));
+			Assert.isPremiseValid(
+				globalIndex instanceof GlobalEntityIndex,
+				"When a reduced index is created global one must already exist!"
+			);
+			// check that the reference exists in the schema
+			EntityCollection.this
+				.getSchema()
+				.getReferenceOrThrowException(referenceName);
 		}
 
 	}
@@ -2857,11 +3381,11 @@ public final class EntityCollection implements
 		@Nonnull
 		@Override
 		public List<Integer> getIndexPrimaryKeys() {
-			return EntityCollection.this.indexes
-				.values()
-				.stream()
-				.map(EntityIndex::getPrimaryKey)
-				.collect(Collectors.toList());
+			// read the keys of the by-primary-key view rather than walking the index forest and re-deriving them: those
+			// keys ARE the primary keys, already boxed, so this costs one array copy instead of a walk that unboxes and
+			// re-boxes every index. This runs on every flush of every collection, alongside the commit merge that was
+			// itself made proportional to the transaction
+			return new ArrayList<>(EntityCollection.this.indexesByPrimaryKey.keySet());
 		}
 	}
 

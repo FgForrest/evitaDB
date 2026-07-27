@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -33,6 +33,7 @@ import io.evitadb.store.model.reference.LogFileRecordReference;
 import io.evitadb.store.shared.model.FileLocation;
 import io.evitadb.utils.Assert;
 
+import javax.annotation.Nonnull;
 import java.time.OffsetDateTime;
 
 /**
@@ -43,7 +44,7 @@ import java.time.OffsetDateTime;
  * - Engine version
  * - Introduction timestamp
  * - WAL file reference
- * - Active, inactive, and read-only catalogs
+ * - Active, inactive, read-only, and missing catalogs
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
@@ -72,6 +73,8 @@ public class EngineStateSerializer extends Serializer<EngineState> {
 			final FileLocation fileLocation = walFileReference.fileLocation();
 			output.writeVarLong(fileLocation.startingPosition(), true);
 			output.writeVarInt(fileLocation.recordLength(), true);
+			// Write cumulative checksum for WAL integrity verification
+			output.writeLong(walFileReference.cumulativeChecksum());
 		}
 
 		// Write active catalogs
@@ -91,8 +94,15 @@ public class EngineStateSerializer extends Serializer<EngineState> {
 		for (String catalogName : engineState.readOnlyCatalogs()) {
 			output.writeString(catalogName);
 		}
+
+		// Write missing catalogs — catalogs whose on-disk folder is no longer present
+		output.writeVarInt(engineState.missingCatalogs().length, true);
+		for (String catalogName : engineState.missingCatalogs()) {
+			output.writeString(catalogName);
+		}
 	}
 
+	@Nonnull
 	@Override
 	public EngineState read(Kryo kryo, Input input, Class<? extends EngineState> aClass) {
 		// Read basic engine state properties
@@ -107,10 +117,13 @@ public class EngineStateSerializer extends Serializer<EngineState> {
 			final int fileIndex = input.readVarInt(true);
 			final long startingPosition = input.readVarLong(true);
 			final int recordLength = input.readVarInt(true);
+			// Read cumulative checksum for WAL integrity verification
+			final long cumulativeChecksum = input.readLong();
 			walFileReference = new LogFileRecordReference(
 				EnginePersistenceService::getWalFileName,
 				fileIndex,
-				new FileLocation(startingPosition, recordLength)
+				new FileLocation(startingPosition, recordLength),
+				cumulativeChecksum
 			);
 		} else {
 			// No WAL file reference
@@ -138,6 +151,15 @@ public class EngineStateSerializer extends Serializer<EngineState> {
 			readOnlyCatalogs[i] = input.readString();
 		}
 
+		// Read missing catalogs. The backward-compatible serializer handles the legacy format where this section is
+		// absent — readers of this serializer always see the new tail present because the writer above always emits
+		// it.
+		final int missingCatalogsCount = input.readVarInt(true);
+		final String[] missingCatalogs = new String[missingCatalogsCount];
+		for (int i = 0; i < missingCatalogsCount; i++) {
+			missingCatalogs[i] = input.readString();
+		}
+
 		// Create and return a new EngineState with the read values
 		return new EngineState<>(
 			storageProtocolVersion,
@@ -146,7 +168,8 @@ public class EngineStateSerializer extends Serializer<EngineState> {
 			walFileReference,
 			activeCatalogs,
 			inactiveCatalogs,
-			readOnlyCatalogs
+			readOnlyCatalogs,
+			missingCatalogs
 		);
 	}
 }

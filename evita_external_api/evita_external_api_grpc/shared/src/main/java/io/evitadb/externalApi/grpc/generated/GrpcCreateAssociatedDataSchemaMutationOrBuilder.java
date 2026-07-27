@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2026
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -157,4 +157,23 @@ public interface GrpcCreateAssociatedDataSchemaMutationOrBuilder extends
    * @return The nullable.
    */
   boolean getNullable();
+
+  /**
+   * <pre>
+   * The per-associated-data override of the conflict resolution granularity.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcConflictResolutionOverride conflictResolutionOverride = 7;</code>
+   * @return The enum numeric value on the wire for conflictResolutionOverride.
+   */
+  int getConflictResolutionOverrideValue();
+  /**
+   * <pre>
+   * The per-associated-data override of the conflict resolution granularity.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcConflictResolutionOverride conflictResolutionOverride = 7;</code>
+   * @return The conflictResolutionOverride.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcConflictResolutionOverride getConflictResolutionOverride();
 }

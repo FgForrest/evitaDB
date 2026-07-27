@@ -34,7 +34,12 @@ module evita.engine {
 	exports io.evitadb.core.catalog;
 	exports io.evitadb.core.cdc;
 	exports io.evitadb.core.collection;
+	exports io.evitadb.core.expression.proxy;
+	exports io.evitadb.core.expression.proxy.entity;
+	exports io.evitadb.core.expression.proxy.reference;
+	exports io.evitadb.core.expression.trigger;
 	exports io.evitadb.core.engine;
+	exports io.evitadb.core.exception;
 	exports io.evitadb.core.executor;
 	exports io.evitadb.core.management;
 	exports io.evitadb.core.metric.event;
@@ -65,6 +70,8 @@ module evita.engine {
 	exports io.evitadb.index.bool;
 	exports io.evitadb.index.bPlusTree;
 	exports io.evitadb.index.cardinality;
+	exports io.evitadb.index.component;
+	exports io.evitadb.index.component.loader;
 	exports io.evitadb.index.attribute;
 	exports io.evitadb.index.bitmap;
 	exports io.evitadb.index.invertedIndex;
@@ -76,9 +83,11 @@ module evita.engine {
 	exports io.evitadb.index.price.model;
 	exports io.evitadb.index.price.model.priceRecord;
 	exports io.evitadb.index.range;
+	exports io.evitadb.index.result;
 	exports io.evitadb.index.relation;
 	exports io.evitadb.index.reference;
 	exports io.evitadb.index.facet;
+	exports io.evitadb.index.mutation;
 	exports io.evitadb.spi.store.catalog.chunk;
 	exports io.evitadb.spi.store.catalog.header;
 	exports io.evitadb.spi.store.catalog.header.model;
@@ -96,6 +105,7 @@ module evita.engine {
 	exports io.evitadb.spi.store.catalog.wal;
 	exports io.evitadb.spi.store.catalog.wal.model;
 	exports io.evitadb.spi.store.engine;
+	exports io.evitadb.spi.store.engine.exception;
 	exports io.evitadb.spi.store.engine.model;
 	exports io.evitadb.spi.export;
 	exports io.evitadb.spi.export.model;
@@ -118,7 +128,7 @@ module evita.engine {
 	requires com.esotericsoftware.kryo;
 	requires net.bytebuddy;
 	requires proxycian.bytebuddy;
-	requires roaringbitmap;
+	requires evita.roaringbitmap;
 	requires zero.allocation.hashing;
 
 	opens io.evitadb.core.metric.event to evita.common;

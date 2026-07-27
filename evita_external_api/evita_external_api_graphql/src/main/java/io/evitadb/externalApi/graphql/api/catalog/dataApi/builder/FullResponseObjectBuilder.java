@@ -37,11 +37,12 @@ import io.evitadb.api.query.order.OrderGroupBy;
 import io.evitadb.api.query.require.HierarchyNode;
 import io.evitadb.api.query.require.HierarchyStopAt;
 import io.evitadb.api.query.require.Spacing;
-import io.evitadb.api.requestResponse.extraResult.FacetSummary.RequestImpact;
+import io.evitadb.api.requestResponse.extraResult.ReferenceSummary.RequestImpact;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.EntityDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.ExternalEntityTypePointer;
@@ -59,17 +60,21 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.AttributeHis
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ExtraResultsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetGroupStatisticsDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetRequestImpactDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.EntityFacetStatisticsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HistogramDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HistogramDescriptor.BucketDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ReferenceSummaryDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ReferenceSummaryDescriptor.EntityFacetStatisticsDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ReferenceSummaryDescriptor.FacetRequestImpactDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ReferenceSummaryDescriptor.HistogramStatisticsDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ReferenceSummaryDescriptor.ReferenceGroupStatisticsDescriptor;
 import io.evitadb.externalApi.graphql.api.builder.BuiltFieldDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.builder.CatalogGraphQLSchemaBuildingContext;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.constraint.FilterConstraintSchemaBuilder;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.constraint.GraphQLConstraintSchemaBuildingContext;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.constraint.OrderConstraintSchemaBuilder;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.constraint.RequireConstraintSchemaBuilder;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.extraResult.ReferenceHistogramObjectBuilder;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.BucketsFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.PaginatedListFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.RecordPageFieldHeaderDescriptor;
@@ -91,9 +96,11 @@ import io.evitadb.externalApi.graphql.exception.GraphQLSchemaBuildingError;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static graphql.schema.GraphQLFieldDefinition.newFieldDefinition;
@@ -125,6 +132,7 @@ public class FullResponseObjectBuilder {
 	@Nonnull private final FilterConstraintSchemaBuilder filterConstraintSchemaBuilder;
 	@Nonnull private final OrderConstraintSchemaBuilder orderConstraintSchemaBuilder;
 	@Nonnull private final RequireConstraintSchemaBuilder complementaryRequireConstraintSchemaBuilder;
+	@Nonnull private final ReferenceHistogramObjectBuilder referenceHistogramObjectBuilder;
 
 	public FullResponseObjectBuilder(
 		@Nonnull CatalogGraphQLSchemaBuildingContext buildingContext,
@@ -151,6 +159,12 @@ public class FullResponseObjectBuilder {
 			constraintSchemaBuildingContext,
 			new AtomicReference<>(filterConstraintSchemaBuilder)
 		);
+		this.referenceHistogramObjectBuilder = new ReferenceHistogramObjectBuilder(
+			buildingContext,
+			objectBuilderTransformer,
+			fieldBuilderTransformer,
+			argumentBuilderTransformer
+		);
 	}
 
 	public void buildCommonTypes() {
@@ -165,9 +179,20 @@ public class FullResponseObjectBuilder {
 		this.buildingContext.registerTypeResolver(recordStripInterface, HelperInterfaceTypeResolver.getInstance());
 
 		this.buildingContext.registerType(BucketDescriptor.THIS.to(this.objectBuilderTransformer).build());
+
+		// register the shared `Histogram` interface first so that the concrete BaseHistogram and
+		// per-reference-entity-type histograms can implement it. The transformer emits the four
+		// base fields from the descriptor's static properties; we then override just `buckets` to
+		// attach the `requestedCount` / `behavior` arguments so implementing types (which declare
+		// the same arguments) satisfy GraphQL's "field signature must match interface" rule.
+		final GraphQLInterfaceType histogramInterface = HistogramDescriptor.THIS_INTERFACE
+			.to(this.interfaceBuilderTransformer)
+			.field(buildHistogramBucketsField())
+			.build();
+		this.buildingContext.registerType(histogramInterface);
+		this.buildingContext.registerTypeResolver(histogramInterface, HelperInterfaceTypeResolver.getInstance());
+
 		this.buildingContext.registerType(buildHistogramObject());
-		// TOBEDONE LHO: remove after https://github.com/FgForrest/evitaDB/issues/8 is implemented
-		this.buildingContext.registerType(buildAttributeNamedHistogramObject());
 		this.buildingContext.registerType(buildFacetRequestImpactObject());
 	}
 
@@ -295,9 +320,8 @@ public class FullResponseObjectBuilder {
 		final List<BuiltFieldDescriptor> extraResultFields = new ArrayList<>(10);
 
 		buildAttributeHistogramField(entitySchema).ifPresent(extraResultFields::add);
-		// TOBEDONE LHO: remove after https://github.com/FgForrest/evitaDB/issues/8 is implemented
-		buildAttributeHistogramsField(entitySchema).ifPresent(extraResultFields::add);
 		buildPriceHistogramField(entitySchema).ifPresent(extraResultFields::add);
+		buildReferenceSummaryField(entitySchema).ifPresent(extraResultFields::add);
 		buildFacetSummaryField(entitySchema).ifPresent(extraResultFields::add);
 		buildHierarchyField(entitySchema).ifPresent(extraResultFields::add);
 		if (!extraResultFields.isEmpty()) {
@@ -416,23 +440,6 @@ public class FullResponseObjectBuilder {
 		);
 	}
 
-	// TOBEDONE LHO: remove after https://github.com/FgForrest/evitaDB/issues/8 is implemented
-	@Nonnull
-	private static Optional<BuiltFieldDescriptor> buildAttributeHistogramsField(@Nonnull EntitySchemaContract entitySchema) {
-		final GraphQLFieldDefinition attributeHistogramField = newFieldDefinition()
-			.name("attributeHistograms")
-			.type(list(nonNull(typeRef("AttributeNamedHistogram"))))
-			.argument(a -> a
-				.name("attributes")
-				.type(nonNull(list(nonNull(STRING)))))
-			.build();
-
-		return Optional.of(new BuiltFieldDescriptor(
-			attributeHistogramField,
-			new AttributeHistogramsDataFetcher(entitySchema)
-		));
-	}
-
 	@Nonnull
 	private Optional<BuiltFieldDescriptor> buildPriceHistogramField(@Nonnull EntitySchemaContract entitySchema) {
 		if (entitySchema.getCurrencies().isEmpty()) {
@@ -445,6 +452,245 @@ public class FullResponseObjectBuilder {
 		));
 	}
 
+	@Nonnull
+	private Optional<BuiltFieldDescriptor> buildReferenceSummaryField(@Nonnull EntitySchemaContract entitySchema) {
+		final Optional<GraphQLObjectType> referenceSummaryObject = buildReferenceSummaryObject(entitySchema);
+		if (referenceSummaryObject.isEmpty()) {
+			return Optional.empty();
+		}
+
+		final GraphQLFieldDefinition referenceSummaryField = ExtraResultsDescriptor.REFERENCE_SUMMARY
+			.to(this.fieldBuilderTransformer)
+			.type(referenceSummaryObject.get())
+			.build();
+
+		return Optional.of(new BuiltFieldDescriptor(
+			referenceSummaryField,
+			ReferenceSummaryDataFetcher.getInstance()
+		));
+	}
+
+	@Nonnull
+	private Optional<GraphQLObjectType> buildReferenceSummaryObject(@Nonnull EntitySchemaContract entitySchema) {
+		final List<ReferenceSchemaContract> referenceSchemas = entitySchema
+			.getReferences()
+			.values()
+			.stream()
+			.filter(ref -> ref.isFacetedInAnyScope() || ref.isBucketedInAnyScope())
+			.toList();
+
+		if (referenceSchemas.isEmpty()) {
+			return Optional.empty();
+		}
+
+		final String objectName = ReferenceSummaryDescriptor.THIS.name(entitySchema);
+
+		final GraphQLObjectType.Builder referenceSummaryObjectBuilder = ReferenceSummaryDescriptor.THIS
+			.to(this.objectBuilderTransformer)
+			.name(objectName);
+
+
+		referenceSchemas.forEach(referenceSchema -> {
+			final BuiltFieldDescriptor referenceGroupStatisticsField = buildReferenceGroupStatisticsField(
+				entitySchema,
+				referenceSchema
+			);
+
+			this.buildingContext.registerFieldToObject(
+				objectName,
+				referenceSummaryObjectBuilder,
+				referenceGroupStatisticsField
+			);
+		});
+
+		return Optional.of(referenceSummaryObjectBuilder.build());
+	}
+
+	@Nonnull
+	private BuiltFieldDescriptor buildReferenceGroupStatisticsField(
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull ReferenceSchemaContract referenceSchema
+	) {
+		final GraphQLObjectType referenceGroupStatisticsObject = buildReferenceGroupStatisticsObject(
+			entitySchema,
+			referenceSchema
+		);
+
+		final boolean isGrouped = referenceSchema.getReferencedGroupType() != null;
+
+		final GraphQLFieldDefinition.Builder referenceGroupStatisticsFieldBuilder = newFieldDefinition()
+			.name(referenceSchema.getNameVariant(PROPERTY_NAME_NAMING_CONVENTION));
+		if (isGrouped) {
+			referenceGroupStatisticsFieldBuilder.type(list(nonNull(referenceGroupStatisticsObject)));
+		} else {
+			// if there is no group type, then the result will always be a single virtual group covering all facet statistics
+			referenceGroupStatisticsFieldBuilder.type(referenceGroupStatisticsObject);
+		}
+
+		if (referenceSchema.getReferencedGroupType() != null) {
+			final DataLocator groupEntityDataLocator = new EntityDataLocator(
+				referenceSchema.isReferencedGroupTypeManaged()
+					? new ManagedEntityTypePointer(referenceSchema.getReferencedGroupType())
+					: new ExternalEntityTypePointer(referenceSchema.getReferencedGroupType())
+			);
+			final GraphQLInputType filterGroupByConstraint = this.filterConstraintSchemaBuilder.build(groupEntityDataLocator, FilterGroupBy.class);
+			final GraphQLInputType orderGroupByConstraint = this.orderConstraintSchemaBuilder.build(groupEntityDataLocator, OrderGroupBy.class);
+
+			referenceGroupStatisticsFieldBuilder
+				.argument(
+					ReferenceGroupStatisticsHeaderDescriptor.FILTER_GROUP_BY
+						.to(this.argumentBuilderTransformer)
+						.type(filterGroupByConstraint)
+				)
+				.argument(
+					ReferenceGroupStatisticsHeaderDescriptor.ORDER_GROUP_BY
+						.to(this.argumentBuilderTransformer)
+						.type(orderGroupByConstraint)
+				);
+		}
+
+		return new BuiltFieldDescriptor(
+			referenceGroupStatisticsFieldBuilder.build(),
+			isGrouped ? new ReferenceGroupStatisticsDataFetcher(referenceSchema) : new NonGroupedReferenceGroupStatisticsDataFetcher(referenceSchema)
+		);
+	}
+
+	@Nonnull
+	private GraphQLObjectType buildReferenceGroupStatisticsObject(
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull ReferenceSchemaContract referenceSchema
+	) {
+		final String objectName = ReferenceGroupStatisticsDescriptor.THIS.name(entitySchema, referenceSchema);
+
+		final GraphQLObjectType.Builder referenceGroupStatisticsBuilder = ReferenceGroupStatisticsDescriptor.THIS
+			.to(this.objectBuilderTransformer)
+			.name(objectName);
+
+		if (referenceSchema.getReferencedGroupType() != null) {
+			this.buildingContext.registerFieldToObject(
+				objectName,
+				referenceGroupStatisticsBuilder,
+				buildReferenceGroupEntityField(referenceSchema)
+			);
+		}
+
+		this.buildingContext.registerFieldToObject(
+			objectName,
+			referenceGroupStatisticsBuilder,
+			buildFacetStatisticsField(entitySchema, referenceSchema, true)
+		);
+
+		// register the histogram statistics wrapper field (if any histogram indexes are defined)
+		final Set<String> histogramIndexNames = collectHistogramIndexNames(referenceSchema);
+		if (!histogramIndexNames.isEmpty()) {
+			this.buildingContext.registerFieldToObject(
+				objectName,
+				referenceGroupStatisticsBuilder,
+				buildHistogramStatisticsField(entitySchema, referenceSchema, histogramIndexNames)
+			);
+		}
+
+		return referenceGroupStatisticsBuilder.build();
+	}
+
+	/**
+	 * Collects unique histogram index names defined on the reference schema across all scopes.
+	 */
+	@Nonnull
+	private static Set<String> collectHistogramIndexNames(@Nonnull ReferenceSchemaContract referenceSchema) {
+		final Set<String> histogramIndexNames = new LinkedHashSet<>();
+		for (Scope scope : Scope.values()) {
+			if (referenceSchema.isBucketedInScope(scope)) {
+				histogramIndexNames.addAll(referenceSchema.getHistogramIndexDefinitions(scope).keySet());
+			}
+		}
+		return histogramIndexNames;
+	}
+
+	/**
+	 * Builds the `histogramStatistics` wrapper field on the reference group statistics object. The wrapper is a
+	 * dynamically-generated type with one field per histogram index name, each typed as the common `Histogram`.
+	 * The data fetcher passes through the parent {@link io.evitadb.api.requestResponse.extraResult.ReferenceSummary.ReferenceGroupStatistics}
+	 * so child field fetchers can extract the named histograms from it.
+	 */
+	@Nonnull
+	private BuiltFieldDescriptor buildHistogramStatisticsField(
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull Set<String> histogramIndexNames
+	) {
+		final GraphQLObjectType wrapperType = buildHistogramStatisticsWrapperObject(
+			entitySchema, referenceSchema, histogramIndexNames
+		);
+
+		final GraphQLFieldDefinition field = ReferenceGroupStatisticsDescriptor.HISTOGRAM_STATISTICS
+			.to(this.fieldBuilderTransformer)
+			.type(wrapperType)
+			.build();
+		return new BuiltFieldDescriptor(
+			field,
+			HistogramStatisticsWrapperDataFetcher.getInstance()
+		);
+	}
+
+	/**
+	 * Builds the dynamic wrapper object type that exposes one field per named histogram index. Each
+	 * index field is typed as the per-referenced-entity-type `{EntityType}Histogram` concrete type
+	 * produced by {@link ReferenceHistogramObjectBuilder}, so that anchor referenced entity fields
+	 * are exposed with the correct entity type.
+	 */
+	@Nonnull
+	private GraphQLObjectType buildHistogramStatisticsWrapperObject(
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull Set<String> histogramIndexNames
+	) {
+		final String objectName = HistogramStatisticsDescriptor.THIS.name(entitySchema, referenceSchema);
+
+		final GraphQLObjectType.Builder wrapperBuilder = HistogramStatisticsDescriptor.THIS
+			.to(this.objectBuilderTransformer)
+			.name(objectName);
+
+		// trigger/ensure the per-referenced-entity-type histogram concrete type is built and cached
+		final GraphQLObjectType referenceHistogramType =
+			this.referenceHistogramObjectBuilder.getOrBuild(referenceSchema);
+
+		for (String indexName : histogramIndexNames) {
+			final GraphQLFieldDefinition indexField = newFieldDefinition()
+				.name(indexName)
+				.type(typeRef(referenceHistogramType.getName()))
+				.build();
+			this.buildingContext.registerFieldToObject(
+				objectName,
+				wrapperBuilder,
+				new BuiltFieldDescriptor(indexField, new HistogramStatisticsDataFetcher(indexName))
+			);
+		}
+
+		return wrapperBuilder.build();
+	}
+
+	@Nonnull
+	private BuiltFieldDescriptor buildReferenceGroupEntityField(@Nonnull ReferenceSchemaContract referenceSchema) {
+		final EntitySchemaContract groupEntitySchema = referenceSchema.isReferencedGroupTypeManaged() ?
+			Optional.ofNullable(referenceSchema.getReferencedGroupType())
+				.map(groupType -> this.buildingContext
+					.getSchema()
+					.getEntitySchemaOrThrowException(groupType))
+				.orElse(null) :
+			null;
+
+		final GraphQLOutputType groupEntityObject = buildReferencedEntityObject(groupEntitySchema);
+
+		final GraphQLFieldDefinition groupEntityField = ReferenceGroupStatisticsDescriptor.GROUP_ENTITY
+			.to(this.fieldBuilderTransformer)
+			.type(groupEntityObject)
+			.build();
+
+		return new BuiltFieldDescriptor(groupEntityField, null);
+	}
+
+	// TOBEDONE: deprecated - remove when FacetSummary constraint is removed (https://github.com/FgForrest/evitaDB/issues/538)
 	@Nonnull
 	private Optional<BuiltFieldDescriptor> buildFacetSummaryField(@Nonnull EntitySchemaContract entitySchema) {
 		final Optional<GraphQLObjectType> facetSummaryObject = buildFacetSummaryObject(entitySchema);
@@ -463,6 +709,7 @@ public class FullResponseObjectBuilder {
 		));
 	}
 
+	// TOBEDONE: deprecated - remove when FacetSummary constraint is removed (https://github.com/FgForrest/evitaDB/issues/538)
 	@Nonnull
 	private Optional<GraphQLObjectType> buildFacetSummaryObject(@Nonnull EntitySchemaContract entitySchema) {
 		final List<ReferenceSchemaContract> referenceSchemas = entitySchema
@@ -499,6 +746,7 @@ public class FullResponseObjectBuilder {
 		return Optional.of(facetSummaryObjectBuilder.build());
 	}
 
+	// TOBEDONE: deprecated - remove when FacetSummary constraint is removed (https://github.com/FgForrest/evitaDB/issues/538)
 	@Nonnull
 	private BuiltFieldDescriptor buildFacetGroupStatisticsField(@Nonnull EntitySchemaContract entitySchema,
 	                                                            @Nonnull ReferenceSchemaContract referenceSchema) {
@@ -528,20 +776,21 @@ public class FullResponseObjectBuilder {
 			final GraphQLInputType orderGroupByConstraint = this.orderConstraintSchemaBuilder.build(groupEntityDataLocator, OrderGroupBy.class);
 
 			facetGroupStatisticsFieldBuilder
-				.argument(FacetGroupStatisticsHeaderDescriptor.FILTER_GROUP_BY
+				.argument(ReferenceGroupStatisticsHeaderDescriptor.FILTER_GROUP_BY
 					.to(this.argumentBuilderTransformer)
 					.type(filterGroupByConstraint))
-				.argument(FacetGroupStatisticsHeaderDescriptor.ORDER_GROUP_BY
+				.argument(ReferenceGroupStatisticsHeaderDescriptor.ORDER_GROUP_BY
 					.to(this.argumentBuilderTransformer)
 					.type(orderGroupByConstraint));
 		}
 
 		return new BuiltFieldDescriptor(
 			facetGroupStatisticsFieldBuilder.build(),
-			isGrouped ? new FacetGroupStatisticsDataFetcher(referenceSchema) : new NonGroupedFacetGroupStatisticsDataFetcher(referenceSchema)
+			isGrouped ? new ReferenceGroupStatisticsDataFetcher(referenceSchema) : new NonGroupedReferenceGroupStatisticsDataFetcher(referenceSchema)
 		);
 	}
 
+	// TOBEDONE: deprecated - remove when FacetSummary constraint is removed (https://github.com/FgForrest/evitaDB/issues/538)
 	@Nonnull
 	private GraphQLObjectType buildFacetGroupStatisticsObject(@Nonnull EntitySchemaContract entitySchema,
 	                                                          @Nonnull ReferenceSchemaContract referenceSchema) {
@@ -562,12 +811,13 @@ public class FullResponseObjectBuilder {
 		this.buildingContext.registerFieldToObject(
 			objectName,
 			facetGroupStatisticsBuilder,
-			buildFacetStatisticsField(entitySchema, referenceSchema)
+			buildFacetStatisticsField(entitySchema, referenceSchema, false) // do not build the object, it is being build by `referenceSummary`
 		);
 
 		return facetGroupStatisticsBuilder.build();
 	}
 
+	// TOBEDONE: deprecated - remove when FacetSummary constraint is removed (https://github.com/FgForrest/evitaDB/issues/538)
 	@Nonnull
 	private BuiltFieldDescriptor buildFacetGroupEntityField(@Nonnull ReferenceSchemaContract referenceSchema) {
 		final EntitySchemaContract groupEntitySchema = referenceSchema.isReferencedGroupTypeManaged() ?
@@ -589,8 +839,11 @@ public class FullResponseObjectBuilder {
 	}
 
 	@Nonnull
-	private BuiltFieldDescriptor buildFacetStatisticsField(@Nonnull EntitySchemaContract entitySchema,
-	                                                       @Nonnull ReferenceSchemaContract referenceSchema) {
+	private BuiltFieldDescriptor buildFacetStatisticsField(
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		boolean buildObject // TOBEDONE: deprecated - remove when FacetSummary constraint is removed (https://github.com/FgForrest/evitaDB/issues/538)
+	) {
 		final DataLocator facetEntityDataLocator = new EntityDataLocator(
 			referenceSchema.isReferencedEntityTypeManaged()
 				? new ManagedEntityTypePointer(referenceSchema.getReferencedEntityType())
@@ -598,15 +851,15 @@ public class FullResponseObjectBuilder {
 		);
 		final GraphQLInputType filterByConstraint = this.filterConstraintSchemaBuilder.build(facetEntityDataLocator, FilterBy.class);
 		final GraphQLInputType orderByConstraint = this.orderConstraintSchemaBuilder.build(facetEntityDataLocator, OrderBy.class);
-		final GraphQLObjectType facetStatisticsObject = buildFacetStatisticsObject(entitySchema, referenceSchema);
+		final GraphQLOutputType facetStatisticsObject = buildFacetStatisticsObject(entitySchema, referenceSchema, buildObject);
 
 		final GraphQLFieldDefinition facetStatisticsField = FacetGroupStatisticsDescriptor.FACET_STATISTICS
 			.to(this.fieldBuilderTransformer)
 			.type(nonNull(list(nonNull(facetStatisticsObject))))
-			.argument(FacetStatisticsHeaderDescriptor.FILTER_BY
+			.argument(ReferenceStatisticsHeaderDescriptor.FILTER_BY
 				.to(this.argumentBuilderTransformer)
 				.type(filterByConstraint))
-			.argument(FacetStatisticsHeaderDescriptor.ORDER_BY
+			.argument(ReferenceStatisticsHeaderDescriptor.ORDER_BY
 				.to(this.argumentBuilderTransformer)
 				.type(orderByConstraint))
 			.build();
@@ -615,8 +868,15 @@ public class FullResponseObjectBuilder {
 	}
 
 	@Nonnull
-	private GraphQLObjectType buildFacetStatisticsObject(@Nonnull EntitySchemaContract entitySchema,
-	                                                     @Nonnull ReferenceSchemaContract referenceSchema) {
+	private GraphQLOutputType buildFacetStatisticsObject(
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		boolean buildObject // TOBEDONE: deprecated - remove when FacetSummary constraint is removed (https://github.com/FgForrest/evitaDB/issues/538)
+	) {
+		if (!buildObject) {
+			return typeRef(EntityFacetStatisticsDescriptor.THIS.name(entitySchema, referenceSchema));
+		}
+
 		final EntitySchemaContract facetEntitySchema = referenceSchema.isReferencedEntityTypeManaged() ?
 			this.buildingContext
 				.getSchema()
@@ -1023,24 +1283,22 @@ public class FullResponseObjectBuilder {
 	private GraphQLObjectType buildHistogramObject() {
 		return HistogramDescriptor.THIS
 			.to(this.objectBuilderTransformer)
-			.field(HistogramDescriptor.BUCKETS
-				.to(this.fieldBuilderTransformer)
-				.argument(BucketsFieldHeaderDescriptor.REQUESTED_COUNT.to(this.argumentBuilderTransformer))
-				.argument(BucketsFieldHeaderDescriptor.BEHAVIOR.to(this.argumentBuilderTransformer)))
+			.withInterface(typeRef(HistogramDescriptor.THIS_INTERFACE.name()))
+			.field(buildHistogramBucketsField())
 			.build();
 	}
 
-	// TOBEDONE LHO: remove after https://github.com/FgForrest/evitaDB/issues/8 is implemented
+	/**
+	 * Builds the `buckets` {@link GraphQLFieldDefinition} shared by the Histogram GraphQL interface
+	 * and every concrete histogram object type. Keeping the field definition in one place guarantees
+	 * identical signatures across interface + implementations — a GraphQL schema-validity requirement.
+	 */
 	@Nonnull
-	private GraphQLObjectType buildAttributeNamedHistogramObject() {
-		return HistogramDescriptor.THIS
-			.to(this.objectBuilderTransformer)
-			.name("AttributeNamedHistogram")
-			.field(f -> f.name("attributeName").type(nonNull(STRING)))
-			.field(HistogramDescriptor.BUCKETS
-				.to(this.fieldBuilderTransformer)
-				.argument(BucketsFieldHeaderDescriptor.REQUESTED_COUNT.to(this.argumentBuilderTransformer))
-				.argument(BucketsFieldHeaderDescriptor.BEHAVIOR.to(this.argumentBuilderTransformer)))
+	private GraphQLFieldDefinition buildHistogramBucketsField() {
+		return HistogramDescriptor.BUCKETS
+			.to(this.fieldBuilderTransformer)
+			.argument(BucketsFieldHeaderDescriptor.REQUESTED_COUNT.to(this.argumentBuilderTransformer))
+			.argument(BucketsFieldHeaderDescriptor.BEHAVIOR.to(this.argumentBuilderTransformer))
 			.build();
 	}
 

@@ -54,12 +54,11 @@ import io.evitadb.index.price.model.priceRecord.PriceRecordContract;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
 import net.openhft.hashing.LongHashFunction;
-import org.roaringbitmap.RoaringBitmap;
-import org.roaringbitmap.RoaringBitmapWriter;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
+import io.evitadb.roaringbitmap.RoaringBitmapWriter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Objects;
 import java.util.function.Consumer;
@@ -75,6 +74,9 @@ import java.util.function.Consumer;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public class PlainPriceTerminationFormulaWithPriceFilter extends AbstractCacheableFormula implements FilteredPriceRecordAccessor, PriceTerminationFormula {
+	/**
+	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} for hash computation.
+	 */
 	private static final long CLASS_ID = -2971377943765598548L;
 
 	/**
@@ -151,9 +153,9 @@ public class PlainPriceTerminationFormulaWithPriceFilter extends AbstractCacheab
 	}
 
 	@Override
-	public void initialize(@Nonnull QueryExecutionContext executionContextt) {
-		getDelegate().initialize(this.executionContext);
-		super.initialize(this.executionContext);
+	public void initialize(@Nonnull QueryExecutionContext executionContext) {
+		getDelegate().initialize(executionContext);
+		super.initialize(executionContext);
 	}
 
 	@Nonnull
@@ -210,13 +212,11 @@ public class PlainPriceTerminationFormulaWithPriceFilter extends AbstractCacheab
 
 	@Override
 	public FlattenedFormula toSerializableFormula(long formulaHash, @Nonnull LongHashFunction hashFunction) {
+		final long[] sortedDistinctIds = sortAndDeduplicateLongArray(gatherTransactionalIds());
 		return new FlattenedFormulaWithFilteredPricesAndFilteredOutRecords(
 			formulaHash,
 			getTransactionalIdHash(),
-			Arrays.stream(gatherTransactionalIds())
-				.distinct()
-				.sorted()
-				.toArray(),
+			sortedDistinctIds,
 			compute(),
 			getFilteredPriceRecords(this.executionContext),
 			Objects.requireNonNull(getRecordsFilteredOutByPredicate()),
@@ -242,7 +242,7 @@ public class PlainPriceTerminationFormulaWithPriceFilter extends AbstractCacheab
 	@Override
 	protected Bitmap computeInternal() {
 		// retrieve filtered entity ids from the delegate formula
-		final RoaringBitmap computedRoaringBitmap = RoaringBitmapBackedBitmap.getRoaringBitmap(getDelegate().compute());
+		final PersistentRoaringBitmap computedRoaringBitmap = RoaringBitmapBackedBitmap.getRoaringBitmap(getDelegate().compute());
 
 		// if there are any entities found
 		if (!computedRoaringBitmap.isEmpty()) {
@@ -251,19 +251,20 @@ public class PlainPriceTerminationFormulaWithPriceFilter extends AbstractCacheab
 				getDelegate(), FilteredPriceRecordAccessor.class, LookUp.SHALLOW
 			);
 			// collect price iterators ordered by price list importance
-			final PriceRecordLookup[] priceRecordIterators = filteredPriceRecordAccessors
-				.stream()
-				.map(it -> it.getFilteredPriceRecords(this.executionContext))
-				.map(FilteredPriceRecords::getPriceRecordsLookup)
-				.toArray(PriceRecordLookup[]::new);
+			final PriceRecordLookup[] priceRecordIterators = new PriceRecordLookup[filteredPriceRecordAccessors.size()];
+			int idx = 0;
+			for (FilteredPriceRecordAccessor accessor : filteredPriceRecordAccessors) {
+				priceRecordIterators[idx++] = accessor.getFilteredPriceRecords(this.executionContext)
+					.getPriceRecordsLookup();
+			}
 
 			// create array for the lowest prices by entity
 			final CompositeObjectArray<PriceRecordContract> priceRecordsFunnel = new CompositeObjectArray<>(PriceRecordContract.class, false);
 
 			// create new roaring bitmap builder for matching records
-			final RoaringBitmapWriter<RoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
+			final RoaringBitmapWriter<PersistentRoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
 			// create new roaring bitmap builder for records excluded by predicate
-			final RoaringBitmapWriter<RoaringBitmap> predicateExcludedWriter = RoaringBitmapBackedBitmap.buildWriter();
+			final RoaringBitmapWriter<PersistentRoaringBitmap> predicateExcludedWriter = RoaringBitmapBackedBitmap.buildWriter();
 			final int[] buffer = SharedBufferPool.INSTANCE.obtain();
 			try {
 				final BatchArrayIterator entityIdIterator = new RoaringBitmapBatchArrayIterator(
@@ -324,7 +325,11 @@ public class PlainPriceTerminationFormulaWithPriceFilter extends AbstractCacheab
 
 	@Override
 	public int getEstimatedCardinality() {
-		return Arrays.stream(this.innerFormulas).mapToInt(Formula::getEstimatedCardinality).sum();
+		int sum = 0;
+		for (int i = 0; i < this.innerFormulas.length; i++) {
+			sum += this.innerFormulas[i].getEstimatedCardinality();
+		}
+		return sum;
 	}
 
 	@Override

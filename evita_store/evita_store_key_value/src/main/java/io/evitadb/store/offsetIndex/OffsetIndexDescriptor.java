@@ -130,9 +130,17 @@ public class OffsetIndexDescriptor implements PersistentStorageDescriptor {
 		this.version = version;
 		this.fileLocation = fileLocation;
 		this.kryoFactory = kryoFactory;
+		// take the seed size before building derived instances, so a concurrent mutation of a shared
+		// seed map (which must never happen) is detected instead of silently producing an incomplete compressor
+		final int seedSize = compressedKeys.size();
 		// create writable instances
 		this.writeKeyCompressor = new ReadWriteKeyCompressor(compressedKeys);
-		this.readOnlyKeyCompressor = new ReadOnlyKeyCompressor(compressedKeys);
+		this.readOnlyKeyCompressor = new ReadOnlyKeyCompressor(compressedKeys, "bootstrap");
+		Assert.isPremiseValid(
+			this.readOnlyKeyCompressor.getKeys().size() == seedSize,
+			() -> "KeyCompressor seed loss during bootstrap: seed=" + seedSize +
+				" readOnly=" + this.readOnlyKeyCompressor.getKeys().size()
+		);
 		final VersionedKryoKeyInputs versionedInputs = new VersionedKryoKeyInputs(this.writeKeyCompressor, 1);
 		this.writeKryo = kryoFactory.apply(versionedInputs);
 		// create read only instances
@@ -160,7 +168,21 @@ public class OffsetIndexDescriptor implements PersistentStorageDescriptor {
 		this.kryoFactory = fileOffsetIndexDescriptor.kryoFactory;
 		// keep all write instances
 		this.writeKeyCompressor = fileOffsetIndexDescriptor.writeKeyCompressor;
-		this.readOnlyKeyCompressor = new ReadOnlyKeyCompressor(this.writeKeyCompressor.getKeys());
+		// take the previous read-only size before rebuilding, so a regression (fewer keys than before) trips
+		// immediately rather than surfacing later as a cryptic "There is no key for id N!" failure
+		final int previousReadOnlySize = fileOffsetIndexDescriptor.readOnlyKeyCompressor.getKeys().size();
+		final int writeSize = this.writeKeyCompressor.getKeys().size();
+		this.readOnlyKeyCompressor = new ReadOnlyKeyCompressor(this.writeKeyCompressor.getKeys(), "post-flush");
+		Assert.isPremiseValid(
+			this.readOnlyKeyCompressor.getKeys().size() == writeSize,
+			() -> "KeyCompressor seed loss during post-flush rebuild: writeSize=" + writeSize +
+				" readOnly=" + this.readOnlyKeyCompressor.getKeys().size()
+		);
+		Assert.isPremiseValid(
+			this.readOnlyKeyCompressor.getKeys().size() >= previousReadOnlySize,
+			() -> "KeyCompressor regression during post-flush rebuild: previous=" + previousReadOnlySize +
+				" new=" + this.readOnlyKeyCompressor.getKeys().size()
+		);
 		this.writeKryo = fileOffsetIndexDescriptor.writeKryo;
 		// reset read only instances according to current state of write instances
 		this.readKryoFactory = updatedVersion -> this.kryoFactory.apply(
@@ -194,7 +216,20 @@ public class OffsetIndexDescriptor implements PersistentStorageDescriptor {
 	@Override
 	@Nonnull
 	public Map<Integer, Object> compressedKeys() {
+		// Returns the **live** map from the descriptor's write compressor. The only production consumer
+		// (the delegating constructor at line 111) immediately copies the seed into a fresh
+		// `ReadWriteKeyCompressor` / `ReadOnlyKeyCompressor` and never retains the reference; in practice
+		// this is invoked with deserialized header records (e.g. `EntityCollectionHeader`) whose maps are
+		// already detached from any live compressor. Callers that retain the result past the descriptor's
+		// quiescent window must defensively copy or call the writer's `getAtomicSnapshot()` instead.
 		return this.writeKeyCompressor.getKeys();
+	}
+
+	@Override
+	public int peakCompressedKeyId() {
+		// the write compressor tracks the peak via a monotonic sequence counter, so we can avoid iterating
+		// (and avoid the defensive copy that compressedKeys() would produce)
+		return this.writeKeyCompressor.getPeakId();
 	}
 
 	@Override

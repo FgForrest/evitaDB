@@ -39,7 +39,7 @@ import javax.annotation.Nonnull;
  * @deprecated temporal utility for migration purposes
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
-@Deprecated(since = "2025.5", forRemoval = true)
+@Deprecated(since = "2025.7", forRemoval = true)
 public interface AttributeKeyToAttributeKeyIndexBridge {
 	/**
 	 * Constructs an {@link AttributeIndexKey} instance by deserializing data using the provided {@link Input} and
@@ -53,7 +53,7 @@ public interface AttributeKeyToAttributeKeyIndexBridge {
 	 * @deprecated this method should be removed when we can be sure there is no serialized data in the wild that
 	 * 		       AttributeKey in stored indexes, new correct data type is AttributeIndexKey
 	 */
-	@Deprecated(since = "2025.5", forRemoval = true)
+	@Deprecated(since = "2025.7", forRemoval = true)
 	@Nonnull
 	default AttributeIndexKey getAttributeIndexKey(@Nonnull Input input, @Nonnull KeyCompressor keyCompressor) {
 		final Object keyForId = keyCompressor.getKeyForId(input.readVarInt(true));

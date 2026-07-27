@@ -24,8 +24,10 @@
 package io.evitadb.performance.externalApi.javaDriver.artificial;
 
 import io.evitadb.performance.externalApi.javaDriver.artificial.state.*;
+import io.evitadb.performance.setup.BenchmarkForkArgs;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
+import org.openjdk.jmh.annotations.Fork;
 import org.openjdk.jmh.annotations.Measurement;
 import org.openjdk.jmh.annotations.Mode;
 import org.openjdk.jmh.annotations.Threads;
@@ -41,6 +43,14 @@ import java.util.concurrent.TimeUnit;
 @BenchmarkMode({Mode.Throughput})
 @Measurement(time = 1, timeUnit = TimeUnit.MINUTES)
 @Threads(Threads.MAX)
+@Fork(
+	jvmArgsAppend = {
+		BenchmarkForkArgs.ADD_OPENS, BenchmarkForkArgs.OPEN_LANG,
+		BenchmarkForkArgs.ADD_OPENS, BenchmarkForkArgs.OPEN_LANG_INVOKE,
+		BenchmarkForkArgs.ADD_OPENS, BenchmarkForkArgs.OPEN_MATH,
+		BenchmarkForkArgs.ADD_OPENS, BenchmarkForkArgs.OPEN_UTIL
+	}
+)
 public class JavaDriverArtificialEntitiesThroughputBenchmark extends JavaDriverArtificialEntitiesBenchmark {
 
 	@Benchmark

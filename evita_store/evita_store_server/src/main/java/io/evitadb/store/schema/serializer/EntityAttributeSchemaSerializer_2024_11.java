@@ -27,8 +27,9 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
-import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.dto.EntityAttributeSchema;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
 import io.evitadb.dataType.Scope;
@@ -44,7 +45,7 @@ import java.util.Map;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@Deprecated(since = "2024.11", forRemoval = true)
+@Deprecated(since = "2024.12", forRemoval = true)
 @RequiredArgsConstructor
 public class EntityAttributeSchemaSerializer_2024_11 extends Serializer<EntityAttributeSchema> {
 
@@ -84,7 +85,8 @@ public class EntityAttributeSchemaSerializer_2024_11 extends Serializer<EntityAt
 			(filterable ? Scope.DEFAULT_SCOPES : Scope.NO_SCOPE),
 			(sortable ? Scope.DEFAULT_SCOPES : Scope.NO_SCOPE),
 			localized, nullable, representative,
-			type, (Serializable) defaultValue, indexedDecimalPlaces
+			type, (Serializable) defaultValue, indexedDecimalPlaces,
+			ConflictResolutionOverride.INHERITED
 		);
 	}
 

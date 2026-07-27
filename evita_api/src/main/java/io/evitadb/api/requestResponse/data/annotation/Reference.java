@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,8 +23,10 @@
 
 package io.evitadb.api.requestResponse.data.annotation;
 
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
-import io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType;
 import io.evitadb.dataType.Scope;
 
 import java.lang.annotation.Documented;
@@ -125,17 +127,75 @@ public @interface Reference {
 	ReferenceIndexType indexed() default ReferenceIndexType.NONE;
 
 	/**
+	 * Configures which components of this reference are indexed (referenced entity, referenced
+	 * group entity, or both). Effective only when {@link #indexed()} is not
+	 * {@link ReferenceIndexType#NONE}.
+	 * Propagates to {@link ReferenceSchemaContract#getIndexedComponents(Scope)}.
+	 */
+	ReferenceIndexedComponents[] indexedComponents() default { ReferenceIndexedComponents.REFERENCED_ENTITY };
+
+	/**
 	 * Enables facet computation for reference of this name.
 	 * Propagates to {@link ReferenceSchemaContract#isFaceted()}.
 	 */
 	boolean faceted() default false;
 
 	/**
-	 * Allows to define different settings for different scopes. If not specified, the general settings apply only to
-	 * the {@link Scope#LIVE} and in the {@link Scope#ARCHIVED} the reference and its attributes are not indexed
-	 * whatsoever (not filterable, not sortable, not unique, not faceted). If scope settings are specified for
-	 * {@link Scope#LIVE}, the general settings are ignored completely.
+	 * Defines a condition to further narrow down the facet scope.
+	 * This is only evaluated if {@link #faceted()} is set to true.
+	 */
+	Expression facetedPartially() default @Expression;
+
+	/**
+	 * Enables histogram (bucketed) computation for reference of this name.
+	 *
+	 * Each {@link Histogram} entry declares a distinct named histogram index. Multiple
+	 * histograms may be declared for a single reference, each with its own
+	 * `nameOfTheIndex`, `value` expression and optional `assignedWhen` per-histogram
+	 * partition selector. The default empty array means no histograms are computed for
+	 * this reference.
+	 *
+	 * Within the array, every entry must declare a non-empty `nameOfTheIndex`; empty
+	 * histogram entries inside a non-empty array are rejected by the analyzer. Names
+	 * must be unique within a (reference, scope) pair.
+	 */
+	Histogram[] bucketed() default {};
+
+	/**
+	 * Eligibility gate. References (or referenced entities) for which this expression
+	 * evaluates to `true` are eligible for the histograms declared in {@link #bucketed()}.
+	 * References failing this predicate are excluded from every bucketed histogram on this
+	 * reference. Pairs with each {@link Histogram#assignedWhen()} (which decides — among
+	 * the eligible set — which histogram each entity is assigned to). Evaluated only when
+	 * at least one {@link Histogram} is declared in {@link #bucketed()}.
+	 */
+	Expression bucketedPartially() default @Expression;
+
+	/**
+	 * Allows to define different settings for different scopes.
+	 *
+	 * If `scope = {}` (default, empty array), the general settings (`indexed`, `indexedComponents`, `faceted`,
+	 * `facetedPartially`, `bucketed`, `bucketedPartially`) apply to {@link Scope#LIVE} only; in
+	 * {@link Scope#ARCHIVED} the reference and its attributes are not indexed whatsoever (not filterable,
+	 * not sortable, not unique, not faceted).
+	 *
+	 * If `scope = {…}` is non-empty, the per-scope settings **completely replace** what the general settings would
+	 * otherwise produce — the analyzer requires the general `indexed`, `faceted`, `facetedPartially`, `bucketed`
+	 * and `bucketedPartially` properties to be left at their defaults (otherwise an assertion fires). The general
+	 * `indexedComponents` is silently ignored. Scopes not listed in the array remain non-indexed/non-faceted;
+	 * the general settings are not used as a fallback.
 	 */
 	ScopeReferenceSettings[] scope() default {};
+
+	/**
+	 * Per-item conflict resolution granularity override for this reference. {@link ConflictResolutionOverride#INHERITED}
+	 * (the default) follows the conflict resolution resolved from the entity schema, catalog schema and engine
+	 * configuration; {@link ConflictResolutionOverride#GRANULAR} opts this reference into its own reference-scoped
+	 * conflict key (finer-grained detection); {@link ConflictResolutionOverride#ENTITY} pins it to the whole-entity
+	 * conflict key. Attributes of the reference carry their own {@link Attribute#conflictResolution()} override
+	 * independently.
+	 * Propagates to {@link ReferenceSchemaContract#getConflictResolutionOverride()}.
+	 */
+	ConflictResolutionOverride conflictResolution() default ConflictResolutionOverride.INHERITED;
 
 }

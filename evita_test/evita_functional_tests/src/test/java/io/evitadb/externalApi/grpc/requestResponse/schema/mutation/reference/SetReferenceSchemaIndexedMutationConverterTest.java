@@ -23,12 +23,30 @@
 
 package io.evitadb.externalApi.grpc.requestResponse.schema.mutation.reference;
 
+import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexType;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.schema.mutation.reference.SetReferenceSchemaIndexedMutation;
+import io.evitadb.dataType.Scope;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static io.evitadb.test.TestTags.GRPC;
+import static io.evitadb.test.TestTags.EXTERNAL_API;
+import static io.evitadb.test.TestTags.QUERY;
+import static io.evitadb.test.TestTags.SCHEMA;
+import static io.evitadb.test.TestTags.REFERENCE;
 
+@DisplayName("SetReferenceSchemaIndexedMutation gRPC converter test")
+@Tag(GRPC)
+@Tag(EXTERNAL_API)
+@Tag(QUERY)
+@Tag(SCHEMA)
+@Tag(REFERENCE)
 class SetReferenceSchemaIndexedMutationConverterTest {
 
 	private static SetReferenceSchemaIndexedMutationConverter converter;
@@ -39,10 +57,41 @@ class SetReferenceSchemaIndexedMutationConverterTest {
 	}
 
 	@Test
+	@DisplayName("should convert simple indexed mutation")
 	void shouldConvertMutation() {
 		final SetReferenceSchemaIndexedMutation mutation1 = new SetReferenceSchemaIndexedMutation(
 			"tags", true
 		);
 		assertEquals(mutation1, converter.convert(converter.convert(mutation1)));
+	}
+
+	@Test
+	@DisplayName("should convert mutation with scoped index types and indexed components")
+	void shouldConvertMutationWithIndexedComponents() {
+		final SetReferenceSchemaIndexedMutation mutation = new SetReferenceSchemaIndexedMutation(
+			"tags",
+			new ScopedReferenceIndexType[]{
+				new ScopedReferenceIndexType(Scope.LIVE, ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING)
+			},
+			new ScopedReferenceIndexedComponents[]{
+				new ScopedReferenceIndexedComponents(
+					Scope.LIVE,
+					new ReferenceIndexedComponents[]{
+						ReferenceIndexedComponents.REFERENCED_ENTITY,
+						ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
+					}
+				)
+			}
+		);
+		assertEquals(mutation, converter.convert(converter.convert(mutation)));
+	}
+
+	@Test
+	@DisplayName("should convert inherited (null) indexed mutation")
+	void shouldConvertInheritedMutation() {
+		final SetReferenceSchemaIndexedMutation mutation = new SetReferenceSchemaIndexedMutation(
+			"tags", (ScopedReferenceIndexType[]) null
+		);
+		assertEquals(mutation, converter.convert(converter.convert(mutation)));
 	}
 }

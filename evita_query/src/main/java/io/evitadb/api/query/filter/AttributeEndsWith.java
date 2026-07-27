@@ -35,29 +35,69 @@ import java.io.Serial;
 import java.io.Serializable;
 
 /**
- * This `endsWith` is query that searches value of the attribute with name passed in first argument for presence of the
- * {@link String} value passed in the second argument.
+ * Filters entities by testing whether an attribute value ends with a specified suffix string.
  *
- * Function returns true if attribute value contains secondary argument (using reverse lookup from last position).
- * InSet other words attribute value ends with string passed in second argument. Function is case sensitive and comparison
- * is executed using `UTF-8` encoding (Java native).
+ * This constraint implements suffix matching semantics identical to Java's {@link String#endsWith(String)} method. It performs case-sensitive
+ * matching using UTF-8 encoding (Java native string representation) and returns true if the attribute value ends with the search pattern.
  *
- * Example:
+ * ## Syntax
  *
- * <pre>
- * endsWith("code", "ida")
- * </pre>
+ * ```
+ * attributeEndsWith(attributeName:string!, searchValue:string!)
+ * ```
  *
- * Function supports attribute arrays and when attribute is of array type `endsWith` returns true if any of attribute
- * values ends with the value in the query. If we have the attribute `code` with value `["cat","mouse","dog"]` all these
- * constraints will match:
+ * ## Type Requirements
  *
- * <pre>
- * contains("code","at")
- * contains("code","og")
- * </pre>
+ * The target attribute must be of type {@link String} and must be defined as either filterable or unique in the entity schema. Non-string
+ * attributes or attributes lacking the required filterable/unique definition will cause query execution to fail.
  *
- * <p><a href="https://evitadb.io/documentation/query/filtering/string#attribute-ends-with">Visit detailed user documentation</a></p>
+ * ## Matching Behavior
+ *
+ * - **Case-sensitive**: "xyz" matches "abcxyz" but not "abcXYZ" or "abcXyz"
+ * - **UTF-8 encoding**: Full Unicode character support including multi-byte characters
+ * - **Suffix-only**: Matches only if the search pattern appears at the end of the attribute value
+ * - **Exact suffix**: No wildcard expansion — the search pattern is matched literally
+ *
+ * ## Array Support
+ *
+ * When the attribute is an array type, the constraint returns true if ANY element in the array ends with the search pattern. This uses
+ * existential quantification semantics: at least one array element must match.
+ *
+ * For example, given an attribute `filenames` with value `["report.pdf", "invoice.pdf", "data.csv"]`:
+ *
+ * ```
+ * attributeEndsWith("filenames", ".pdf")     // matches (found "report.pdf" and "invoice.pdf")
+ * attributeEndsWith("filenames", ".csv")     // matches (found "data.csv")
+ * attributeEndsWith("filenames", ".xlsx")    // does not match
+ * attributeEndsWith("filenames", "invoice")  // does not match (must include ".pdf" suffix)
+ * ```
+ *
+ * ## Usage Patterns
+ *
+ * Common use cases include:
+ * - **File extension filtering**: Match files by extension (e.g., ".pdf", ".jpg", ".xml")
+ * - **Domain matching**: Find URLs ending with specific domains or TLDs
+ * - **Suffix-based codes**: Filter by identifier suffixes or classification codes
+ * - **Unit detection**: Match product codes or SKUs with specific unit suffixes (e.g., "-KG", "-LTR")
+ *
+ * Example query filtering documents whose filename ends with ".pdf":
+ *
+ * ```
+ * query(
+ *     collection("Document"),
+ *     filterBy(
+ *         attributeEndsWith("filename", ".pdf")
+ *     )
+ * )
+ * ```
+ *
+ * ## Related Constraints
+ *
+ * - {@link AttributeContains}: Match substring at any position
+ * - {@link AttributeStartsWith}: Match prefix patterns (more efficient with sorted indexes)
+ * - {@link AttributeEquals}: Exact string matching (most efficient for equality checks)
+ *
+ * [Visit detailed user documentation](https://evitadb.io/documentation/query/filtering/string#attribute-ends-with)
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
@@ -71,7 +111,7 @@ import java.io.Serializable;
 public class AttributeEndsWith extends AbstractAttributeFilterStringSearchConstraintLeaf {
 	@Serial private static final long serialVersionUID = -8551542903236177197L;
 
-	private AttributeEndsWith(Serializable... arguments) {
+	private AttributeEndsWith(@Nonnull Serializable... arguments) {
 		super(arguments);
 	}
 

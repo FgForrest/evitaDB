@@ -31,6 +31,7 @@ import io.evitadb.externalApi.api.model.PropertyDescriptor;
 import java.util.List;
 
 import static io.evitadb.externalApi.api.model.TypePropertyDataTypeDescriptor.nonNullListRef;
+import static io.evitadb.externalApi.api.model.TypePropertyDataTypeDescriptor.nullableRef;
 
 /**
  * Descriptor of {@link CatalogSchema} for schema-based external APIs. It describes what properties of catalog schema are
@@ -95,6 +96,15 @@ public interface CatalogSchemaDescriptor extends VersionedDescriptor, NamedSchem
 		.type(nonNullListRef(EntitySchemaDescriptor.THIS_GENERIC))
 		.build();
 
+	PropertyDescriptor CONFLICT_RESOLUTION = PropertyDescriptor.builder()
+		.name("conflictResolution")
+		.description("""
+			The transaction conflict resolution declared at the catalog level. A `null` value means the catalog inherits
+			the engine-level default; a non-null value overrides that default for the whole catalog.
+			""")
+		.type(nullableRef(ConflictResolutionDescriptor.THIS))
+		.build();
+
 	ObjectDescriptor THIS = ObjectDescriptor.builder()
 		.name("CatalogSchema")
 		.description("""
@@ -104,7 +114,8 @@ public interface CatalogSchemaDescriptor extends VersionedDescriptor, NamedSchem
 			VERSION,
 			NAME,
 			NAME_VARIANTS,
-			DESCRIPTION
+			DESCRIPTION,
+			CONFLICT_RESOLUTION
 		))
 		.build();
 

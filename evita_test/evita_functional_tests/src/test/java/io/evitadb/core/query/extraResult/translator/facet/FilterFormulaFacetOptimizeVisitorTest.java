@@ -31,17 +31,27 @@ import io.evitadb.core.query.algebra.base.OrFormula;
 import io.evitadb.core.query.algebra.facet.FacetGroupOrFormula;
 import io.evitadb.core.query.algebra.facet.UserFilterFormula;
 import io.evitadb.core.query.algebra.utils.visitor.PrettyPrintingFormulaVisitor;
+import io.evitadb.core.query.extraResult.translator.reference.FilterFormulaFacetOptimizeVisitor;
 import io.evitadb.index.bitmap.ArrayBitmap;
 import io.evitadb.test.Entities;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.QUERY;
+import static io.evitadb.test.TestTags.FACET;
+import static io.evitadb.test.TestTags.FILTER;
 
 /**
  * This test verifies behaviour of {@link FilterFormulaFacetOptimizeVisitor}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
+@Tag(ENGINE)
+@Tag(QUERY)
+@Tag(FACET)
+@Tag(FILTER)
 class FilterFormulaFacetOptimizeVisitorTest {
 
 	@Test

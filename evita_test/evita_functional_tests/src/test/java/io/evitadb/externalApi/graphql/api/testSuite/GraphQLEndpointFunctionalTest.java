@@ -35,7 +35,10 @@ import org.junit.jupiter.api.extension.ExtendWith;
 
 import javax.annotation.Nonnull;
 
-import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
+import static io.evitadb.test.TestTags.GRAPHQL;
+import static io.evitadb.test.TestTags.EXTERNAL_API;
+import static io.evitadb.test.TestTags.QUERY;
+
 
 /**
  * Common ancestor for functional testing of GraphQL API server. It sets up Evita instance, GraphQL API server and
@@ -43,9 +46,11 @@ import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-@Tag(FUNCTIONAL_TEST)
 @ExtendWith(EvitaParameterResolver.class)
 @Slf4j
+@Tag(GRAPHQL)
+@Tag(EXTERNAL_API)
+@Tag(QUERY)
 public abstract class GraphQLEndpointFunctionalTest {
 
 	public static final String TYPENAME_FIELD = "__typename";

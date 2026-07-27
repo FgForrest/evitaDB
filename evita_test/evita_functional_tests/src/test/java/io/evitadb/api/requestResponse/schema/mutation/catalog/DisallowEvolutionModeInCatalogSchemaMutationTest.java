@@ -27,6 +27,8 @@ import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.mutation.conflict.CatalogConflictKey;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictGenerationContext;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolution;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.mutation.CatalogSchemaMutation.CatalogSchemaWithImpactOnEntitySchemas;
@@ -37,8 +39,11 @@ import org.mockito.Mockito;
 
 import java.util.List;
 import java.util.Set;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.SCHEMA;
 
 /**
  * This test verifies {@link DisallowEvolutionModeInCatalogSchemaMutation} class.
@@ -46,6 +51,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 @DisplayName("DisallowEvolutionModeInCatalogSchemaMutation")
+@Tag(CONTRACT)
+@Tag(SCHEMA)
 class DisallowEvolutionModeInCatalogSchemaMutationTest {
 
 	@Nested
@@ -109,9 +116,9 @@ class DisallowEvolutionModeInCatalogSchemaMutationTest {
 		void shouldReturnCatalogConflictKey() {
 			final DisallowEvolutionModeInCatalogSchemaMutation mutation =
 				new DisallowEvolutionModeInCatalogSchemaMutation(CatalogEvolutionMode.ADDING_ENTITY_TYPES);
-			final List<ConflictKey> keys = new ConflictGenerationContext().withCatalogName(
+			final List<ConflictKey> keys = new ConflictGenerationContext(new ConflictResolution(ConflictPolicy.NONE)).withCatalogName(
 				"testCatalog",
-				ctx -> mutation.collectConflictKeys(ctx, Set.of()).toList()
+				ctx -> mutation.collectConflictKeys(ctx).toList()
 			);
 			assertEquals(1, keys.size());
 			assertInstanceOf(CatalogConflictKey.class, keys.get(0));

@@ -79,17 +79,24 @@ import java.util.Collection;
 import java.util.EnumSet;
 import java.util.Iterator;
 import java.util.Map;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.test.builder.JsonArrayBuilder.jsonArray;
 import static io.evitadb.test.builder.JsonObjectBuilder.jsonObject;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static io.evitadb.test.TestTags.REST;
+import static io.evitadb.test.TestTags.EXTERNAL_API;
+import static io.evitadb.test.TestTags.QUERY;
 
 /**
  * Tests for {@link RestEntityMutationConverterTest}
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
+@Tag(REST)
+@Tag(EXTERNAL_API)
+@Tag(QUERY)
 class RestEntityMutationConverterTest {
 
 	private static final String ASSOCIATED_DATA_LABELS = "labels";
@@ -104,7 +111,7 @@ class RestEntityMutationConverterTest {
 	@BeforeEach
 	void init() {
 		final EntitySchemaContract entitySchema = new InternalEntitySchemaBuilder(
-			CatalogSchema._internalBuild(TestConstants.TEST_CATALOG, Map.of(), EnumSet.allOf(CatalogEvolutionMode.class), EmptyEntitySchemaAccessor.INSTANCE),
+			CatalogSchema._internalBuild(TestConstants.TEST_CATALOG, Map.of(), null, EnumSet.allOf(CatalogEvolutionMode.class), EmptyEntitySchemaAccessor.INSTANCE),
 			EntitySchema._internalBuild(Entities.PRODUCT)
 		)
 			.withAssociatedData(ASSOCIATED_DATA_LABELS, Dummy.class)

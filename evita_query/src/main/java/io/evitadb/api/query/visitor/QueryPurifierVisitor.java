@@ -31,6 +31,7 @@ import io.evitadb.exception.GenericEvitaInternalError;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import javax.annotation.concurrent.NotThreadSafe;
 import java.lang.reflect.Array;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -42,12 +43,13 @@ import static java.util.Optional.ofNullable;
 
 /**
  * Returns this query or copy of this query without constraints that make no sense or are unnecessary. In other
- * words - all constraints that has not all required arguments (not {@link Constraint#isApplicable()}) are removed
- * from the query, all query containers that are {@link ConstraintContainer#isNecessary()} are removed
- * and their contents are propagated to their parent.
+ * words - all constraints that do not have all required arguments (not {@link Constraint#isApplicable()}) are
+ * removed from the query, all query containers that are not {@link ConstraintContainer#isNecessary() necessary}
+ * are removed and their contents are propagated to their parent.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
+@NotThreadSafe
 public class QueryPurifierVisitor implements ConstraintVisitor {
 	private final Deque<List<Constraint<?>>> levelConstraints = new ArrayDeque<>(16);
 	private final UnaryOperator<Constraint<?>> constraintTranslator;
@@ -94,16 +96,17 @@ public class QueryPurifierVisitor implements ConstraintVisitor {
 	}
 
 	/**
-	 * Returns true only if array and list contents are same - i.e. has same count and same instances (in terms of reference
-	 * identity).
+	 * Returns true only if array and list contents are same - i.e. have same quantity and same instances
+	 * in terms of reference identity (==), not value equality. This is intentional for performance:
+	 * if no child constraint object was replaced by a new instance, the original container can be reused.
 	 */
 	private static boolean isEqual(@Nonnull Constraint<?>[] constraints, @Nonnull List<Constraint<?>> comparedConstraints) {
 		if (constraints.length != comparedConstraints.size()) {
 			return false;
 		}
 		for (int i = 0; i < constraints.length; i++) {
-			Constraint<?> constraint = constraints[i];
-			Constraint<?> comparedConstraint = comparedConstraints.get(i);
+			final Constraint<?> constraint = constraints[i];
+			final Constraint<?> comparedConstraint = comparedConstraints.get(i);
 			if (constraint != comparedConstraint) {
 				return false;
 			}
@@ -123,6 +126,10 @@ public class QueryPurifierVisitor implements ConstraintVisitor {
 	public void visit(@Nonnull Constraint<?> constraint) {
 		final boolean applicable = constraint.isApplicable();
 		if (constraint instanceof final ConstraintContainer<?> container) {
+			if (!applicable) {
+				// non-applicable container — skip entirely without processing children
+				return;
+			}
 			this.levelConstraints.push(new ArrayList<>(container.getChildrenCount()));
 			for (Constraint<?> child : container) {
 				child.accept(this);

@@ -22,3 +22,4 @@
 #
 
 io.evitadb.test.extension.CleaningTestExecutionListener
+io.evitadb.test.extension.TestTagPolicyListener

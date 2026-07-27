@@ -34,16 +34,10 @@ import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.utils.Assert;
 import lombok.Data;
 import net.openhft.hashing.LongHashFunction;
-import org.roaringbitmap.IntIterator;
+import io.evitadb.roaringbitmap.IntIterator;
 
 import javax.annotation.Nonnull;
-import java.util.Arrays;
-import java.util.Objects;
 import java.util.PriorityQueue;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
-
-import static java.util.Optional.ofNullable;
 
 /**
  * This formula produces bitmap with possible duplicated record ids but still maintaining ascending order.
@@ -60,9 +54,21 @@ import static java.util.Optional.ofNullable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public class JoinFormula extends AbstractFormula {
+	/**
+	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} for hash computation.
+	 */
 	private static final long CLASS_ID = 1167849768781680098L;
+	/**
+	 * Sentinel value indicating that a bitmap iterator has been fully exhausted.
+	 */
 	private static final int END_OF_STREAM = -1;
+	/**
+	 * Transaction id of the index from which the bitmaps originate, used for cache invalidation.
+	 */
 	private final long[] indexTransactionId;
+	/**
+	 * Array of bitmaps to be merged into a single bitmap preserving duplicates in ascending order.
+	 */
 	private final Bitmap[] bitmaps;
 
 	/**
@@ -145,16 +151,30 @@ public class JoinFormula extends AbstractFormula {
 
 	@Nonnull
 	private static IntIterator[] getImmutableRoaringBitmapIterators(@Nonnull Bitmap[] bitmaps) {
-		return Arrays.stream(bitmaps)
-			.map(RoaringBitmapBackedBitmap::getRoaringBitmap)
-			.map(it -> it.getBatchIterator().asIntIterator(new int[256]))
-			.toArray(IntIterator[]::new);
+		final IntIterator[] iterators = new IntIterator[bitmaps.length];
+		for (int i = 0; i < bitmaps.length; i++) {
+			iterators[i] = RoaringBitmapBackedBitmap.getRoaringBitmap(bitmaps[i])
+				.getBatchIterator().asIntIterator(new int[256]);
+		}
+		return iterators;
 	}
 
 	public JoinFormula(long indexTransactionId, @Nonnull Bitmap... bitmaps) {
-		this.bitmaps = Arrays.stream(bitmaps)
-			.filter(it -> !(it instanceof EmptyBitmap))
-			.toArray(Bitmap[]::new);
+		// filter out empty bitmaps without stream allocation
+		int nonEmptyCount = 0;
+		for (Bitmap bitmap : bitmaps) {
+			if (!(bitmap instanceof EmptyBitmap)) {
+				nonEmptyCount++;
+			}
+		}
+		final Bitmap[] filtered = new Bitmap[nonEmptyCount];
+		int idx = 0;
+		for (Bitmap bitmap : bitmaps) {
+			if (!(bitmap instanceof EmptyBitmap)) {
+				filtered[idx++] = bitmap;
+			}
+		}
+		this.bitmaps = filtered;
 		Assert.isTrue(this.bitmaps.length > 1, "Join formula has to have at least two bitmaps - otherwise use EmptyFormula.INSTANCE or just the bitmap itself.");
 		this.indexTransactionId = new long[]{indexTransactionId};
 		this.initFields();
@@ -172,13 +192,30 @@ public class JoinFormula extends AbstractFormula {
 
 	@Override
 	public String toString() {
-		return "JOIN: " + Arrays.stream(this.bitmaps).map(it -> String.valueOf(it.size())).collect(Collectors.joining(", ")) + " primary keys";
+		final StringBuilder sb = new StringBuilder(64);
+		sb.append("JOIN: ");
+		for (int i = 0; i < this.bitmaps.length; i++) {
+			if (i > 0) {
+				sb.append(", ");
+			}
+			sb.append(this.bitmaps[i].size());
+		}
+		sb.append(" primary keys");
+		return sb.toString();
 	}
 
 	@Nonnull
 	@Override
 	public String toStringVerbose() {
-		return "JOIN: " + Arrays.stream(this.bitmaps).map(Bitmap::toString).collect(Collectors.joining(", "));
+		final StringBuilder sb = new StringBuilder(128);
+		sb.append("JOIN: ");
+		for (int i = 0; i < this.bitmaps.length; i++) {
+			if (i > 0) {
+				sb.append(", ");
+			}
+			sb.append(this.bitmaps[i]);
+		}
+		return sb.toString();
 	}
 
 	@Nonnull
@@ -189,7 +226,11 @@ public class JoinFormula extends AbstractFormula {
 
 	@Override
 	public int getEstimatedCardinality() {
-		return Arrays.stream(this.bitmaps).mapToInt(Bitmap::size).sum();
+		int sum = 0;
+		for (Bitmap bitmap : this.bitmaps) {
+			sum += bitmap.size();
+		}
+		return sum;
 	}
 
 	@Override
@@ -206,12 +247,30 @@ public class JoinFormula extends AbstractFormula {
 	@Override
 	public long[] gatherBitmapIdsInternal() {
 		if (this.bitmaps.length > EXCESSIVE_HIGH_CARDINALITY) {
+			// the high-cardinality fallback substitutes the index/leaf-page transactional id set for the per-bitmap
+			// ids; a null OR EMPTY set would leave this cacheable formula with no staleness dependency and make it
+			// impossible to ever invalidate. Fail fast instead.
+			Assert.isPremiseValid(
+				this.indexTransactionId != null && this.indexTransactionId.length > 0,
+				"High-cardinality bitmaps require a non-empty indexTransactionId (else the cached result could never " +
+					"be invalidated)!"
+			);
 			return this.indexTransactionId;
 		} else {
-			return Stream.of(this.bitmaps)
-				.filter(TransactionalLayerProducer.class::isInstance)
-				.mapToLong(it -> ((TransactionalLayerProducer<?, ?>) it).getId())
-				.toArray();
+			int count = 0;
+			for (Bitmap bitmap : this.bitmaps) {
+				if (bitmap instanceof TransactionalLayerProducer) {
+					count++;
+				}
+			}
+			final long[] ids = new long[count];
+			int idx = 0;
+			for (Bitmap bitmap : this.bitmaps) {
+				if (bitmap instanceof TransactionalLayerProducer) {
+					ids[idx++] = ((TransactionalLayerProducer<?, ?>) bitmap).getId();
+				}
+			}
+			return ids;
 		}
 	}
 
@@ -230,29 +289,27 @@ public class JoinFormula extends AbstractFormula {
 
 	@Override
 	protected long getEstimatedBaseCost() {
-		return Arrays.stream(this.bitmaps).mapToLong(Bitmap::size).min().orElse(0L);
+		long sum = 0L;
+		for (final Bitmap bitmap : this.bitmaps) {
+			sum += bitmap.size();
+		}
+		return sum;
 	}
 
 	@Override
 	protected long includeAdditionalHash(@Nonnull LongHashFunction hashFunction) {
-		if (this.bitmaps.length > EXCESSIVE_HIGH_CARDINALITY) {
-			return hashFunction.hashLongs(this.indexTransactionId);
-		} else {
-			return hashFunction.hashLongs(
-				Stream.of(this.bitmaps)
-					.filter(Objects::nonNull)
-					.mapToLong(it -> {
-						if (it instanceof TransactionalLayerProducer) {
-							return ((TransactionalLayerProducer<?, ?>) it).getId();
-						} else {
-							// this shouldn't happen for long arrays - these are expected to be always linked to transactional
-							// bitmaps located in indexes and represented by "transactional id"
-							return hashFunction.hashInts(it.getArray());
-						}
-					})
-					.toArray()
-			);
+		final long[] hashes = new long[this.bitmaps.length];
+		for (int i = 0; i < this.bitmaps.length; i++) {
+			final Bitmap bitmap = this.bitmaps[i];
+			if (bitmap instanceof TransactionalLayerProducer) {
+				hashes[i] = ((TransactionalLayerProducer<?, ?>) bitmap).getId();
+			} else {
+				// this shouldn't happen for long arrays - these are expected to be always linked to transactional
+				// bitmaps located in indexes and represented by "transactional id"
+				hashes[i] = hashFunction.hashInts(bitmap.getArray());
+			}
 		}
+		return hashFunction.hashLongs(hashes);
 	}
 
 	@Override
@@ -262,9 +319,14 @@ public class JoinFormula extends AbstractFormula {
 
 	@Override
 	protected long getCostInternal() {
-		return ofNullable(this.bitmaps)
-			.map(it -> Arrays.stream(it).mapToLong(Bitmap::size).sum())
-			.orElseGet(super::getCostInternal);
+		if (this.bitmaps.length > 0) {
+			long sum = 0L;
+			for (Bitmap bitmap : this.bitmaps) {
+				sum += bitmap.size();
+			}
+			return sum;
+		}
+		return super.getCostInternal();
 	}
 
 	/*

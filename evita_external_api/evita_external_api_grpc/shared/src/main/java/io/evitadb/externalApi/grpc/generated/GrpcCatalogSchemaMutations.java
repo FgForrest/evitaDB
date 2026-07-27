@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2026
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -40,17 +40,22 @@ public final class GrpcCatalogSchemaMutations {
   }
   static final com.google.protobuf.Descriptors.Descriptor
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcModifyCatalogSchemaDescriptionMutation_descriptor;
-  static final
+  static final 
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcModifyCatalogSchemaDescriptionMutation_fieldAccessorTable;
   static final com.google.protobuf.Descriptors.Descriptor
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcModifyCatalogSchemaConflictResolutionMutation_descriptor;
+  static final 
+    com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
+      internal_static_io_evitadb_externalApi_grpc_generated_GrpcModifyCatalogSchemaConflictResolutionMutation_fieldAccessorTable;
+  static final com.google.protobuf.Descriptors.Descriptor
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcAllowEvolutionModeInCatalogSchemaMutation_descriptor;
-  static final
+  static final 
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcAllowEvolutionModeInCatalogSchemaMutation_fieldAccessorTable;
   static final com.google.protobuf.Descriptors.Descriptor
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcDisallowEvolutionModeInCatalogSchemaMutation_descriptor;
-  static final
+  static final 
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcDisallowEvolutionModeInCatalogSchemaMutation_fieldAccessorTable;
 
@@ -67,15 +72,18 @@ public final class GrpcCatalogSchemaMutations {
       "nums.proto\032\036google/protobuf/wrappers.pro" +
       "to\"_\n*GrpcModifyCatalogSchemaDescription" +
       "Mutation\0221\n\013description\030\001 \001(\0132\034.google.p" +
-      "rotobuf.StringValue\"\210\001\n-GrpcAllowEvoluti" +
-      "onModeInCatalogSchemaMutation\022W\n\016evoluti" +
-      "onModes\030\001 \003(\0162?.io.evitadb.externalApi.g" +
-      "rpc.generated.GrpcCatalogEvolutionMode\"\213" +
-      "\001\n0GrpcDisallowEvolutionModeInCatalogSch" +
-      "emaMutation\022W\n\016evolutionModes\030\001 \003(\0162?.io" +
-      ".evitadb.externalApi.grpc.generated.Grpc" +
-      "CatalogEvolutionModeB\014P\001\252\002\007EvitaDBb\006prot" +
-      "o3"
+      "rotobuf.StringValue\"\216\001\n1GrpcModifyCatalo" +
+      "gSchemaConflictResolutionMutation\022Y\n\022con" +
+      "flictResolution\030\001 \001(\0132=.io.evitadb.exter" +
+      "nalApi.grpc.generated.GrpcConflictResolu" +
+      "tion\"\210\001\n-GrpcAllowEvolutionModeInCatalog" +
+      "SchemaMutation\022W\n\016evolutionModes\030\001 \003(\0162?" +
+      ".io.evitadb.externalApi.grpc.generated.G" +
+      "rpcCatalogEvolutionMode\"\213\001\n0GrpcDisallow" +
+      "EvolutionModeInCatalogSchemaMutation\022W\n\016" +
+      "evolutionModes\030\001 \003(\0162?.io.evitadb.extern" +
+      "alApi.grpc.generated.GrpcCatalogEvolutio" +
+      "nModeB\014P\001\252\002\007EvitaDBb\006proto3"
     };
     descriptor = com.google.protobuf.Descriptors.FileDescriptor
       .internalBuildGeneratedFileFrom(descriptorData,
@@ -89,14 +97,20 @@ public final class GrpcCatalogSchemaMutations {
       com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
         internal_static_io_evitadb_externalApi_grpc_generated_GrpcModifyCatalogSchemaDescriptionMutation_descriptor,
         new java.lang.String[] { "Description", });
-    internal_static_io_evitadb_externalApi_grpc_generated_GrpcAllowEvolutionModeInCatalogSchemaMutation_descriptor =
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcModifyCatalogSchemaConflictResolutionMutation_descriptor =
       getDescriptor().getMessageTypes().get(1);
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcModifyCatalogSchemaConflictResolutionMutation_fieldAccessorTable = new
+      com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
+        internal_static_io_evitadb_externalApi_grpc_generated_GrpcModifyCatalogSchemaConflictResolutionMutation_descriptor,
+        new java.lang.String[] { "ConflictResolution", });
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcAllowEvolutionModeInCatalogSchemaMutation_descriptor =
+      getDescriptor().getMessageTypes().get(2);
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcAllowEvolutionModeInCatalogSchemaMutation_fieldAccessorTable = new
       com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
         internal_static_io_evitadb_externalApi_grpc_generated_GrpcAllowEvolutionModeInCatalogSchemaMutation_descriptor,
         new java.lang.String[] { "EvolutionModes", });
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcDisallowEvolutionModeInCatalogSchemaMutation_descriptor =
-      getDescriptor().getMessageTypes().get(2);
+      getDescriptor().getMessageTypes().get(3);
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcDisallowEvolutionModeInCatalogSchemaMutation_fieldAccessorTable = new
       com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
         internal_static_io_evitadb_externalApi_grpc_generated_GrpcDisallowEvolutionModeInCatalogSchemaMutation_descriptor,

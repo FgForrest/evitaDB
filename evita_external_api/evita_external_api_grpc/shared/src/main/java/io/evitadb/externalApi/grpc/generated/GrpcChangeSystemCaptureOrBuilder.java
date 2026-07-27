@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2026
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -72,7 +72,7 @@ public interface GrpcChangeSystemCaptureOrBuilder extends
 
   /**
    * <pre>
-   * optional body of the operation when it is requested by the GrpcContent
+   * Engine mutation body - durable, WAL-replicated event (ENGINE area).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEngineMutation systemMutation = 4;</code>
@@ -81,7 +81,7 @@ public interface GrpcChangeSystemCaptureOrBuilder extends
   boolean hasSystemMutation();
   /**
    * <pre>
-   * optional body of the operation when it is requested by the GrpcContent
+   * Engine mutation body - durable, WAL-replicated event (ENGINE area).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEngineMutation systemMutation = 4;</code>
@@ -90,12 +90,39 @@ public interface GrpcChangeSystemCaptureOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcEngineMutation getSystemMutation();
   /**
    * <pre>
-   * optional body of the operation when it is requested by the GrpcContent
+   * Engine mutation body - durable, WAL-replicated event (ENGINE area).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEngineMutation systemMutation = 4;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcEngineMutationOrBuilder getSystemMutationOrBuilder();
+
+  /**
+   * <pre>
+   * Host event body (HOST area, opt-in only).
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcHostSystemEvent hostEvent = 6;</code>
+   * @return Whether the hostEvent field is set.
+   */
+  boolean hasHostEvent();
+  /**
+   * <pre>
+   * Host event body (HOST area, opt-in only).
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcHostSystemEvent hostEvent = 6;</code>
+   * @return The hostEvent.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcHostSystemEvent getHostEvent();
+  /**
+   * <pre>
+   * Host event body (HOST area, opt-in only).
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcHostSystemEvent hostEvent = 6;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcHostSystemEventOrBuilder getHostEventOrBuilder();
 
   /**
    * <pre>
@@ -123,4 +150,6 @@ public interface GrpcChangeSystemCaptureOrBuilder extends
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime timestamp = 5;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder getTimestampOrBuilder();
+
+  io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCapture.BodyCase getBodyCase();
 }

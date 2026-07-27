@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -53,6 +53,7 @@ import io.evitadb.core.query.algebra.attribute.AttributeFormula;
 import io.evitadb.core.query.algebra.base.AndFormula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
+import io.evitadb.core.query.algebra.facet.FacetHavingFormula;
 import io.evitadb.core.query.algebra.facet.ScopeContainerFormula;
 import io.evitadb.core.query.algebra.facet.UserFilterFormula;
 import io.evitadb.core.query.algebra.infra.SkipFormula;
@@ -70,21 +71,31 @@ import io.evitadb.core.query.filter.translator.bool.AndTranslator;
 import io.evitadb.core.query.filter.translator.bool.NotTranslator;
 import io.evitadb.core.query.filter.translator.bool.OrTranslator;
 import io.evitadb.core.query.filter.translator.entity.EntityLocaleEqualsTranslator;
+import io.evitadb.core.query.filter.translator.entity.EntityPrimaryKeyBetweenTranslator;
+import io.evitadb.core.query.filter.translator.entity.EntityPrimaryKeyGreaterThanEqualsTranslator;
+import io.evitadb.core.query.filter.translator.entity.EntityPrimaryKeyGreaterThanTranslator;
 import io.evitadb.core.query.filter.translator.entity.EntityPrimaryKeyInSetTranslator;
+import io.evitadb.core.query.filter.translator.entity.EntityPrimaryKeyLessThanEqualsTranslator;
+import io.evitadb.core.query.filter.translator.entity.EntityPrimaryKeyLessThanTranslator;
 import io.evitadb.core.query.filter.translator.facet.FacetHavingTranslator;
 import io.evitadb.core.query.filter.translator.hierarchy.HierarchyWithinRootTranslator;
 import io.evitadb.core.query.filter.translator.hierarchy.HierarchyWithinTranslator;
+import io.evitadb.core.query.filter.translator.histogram.HistogramHavingTranslator;
+import io.evitadb.core.query.filter.translator.histogram.ResolvedHistogramHaving;
 import io.evitadb.core.query.filter.translator.price.PriceBetweenTranslator;
 import io.evitadb.core.query.filter.translator.price.PriceInCurrencyTranslator;
 import io.evitadb.core.query.filter.translator.price.PriceInPriceListsTranslator;
 import io.evitadb.core.query.filter.translator.price.PriceValidInTranslator;
 import io.evitadb.core.query.filter.translator.reference.EntityHavingTranslator;
+import io.evitadb.core.query.filter.translator.reference.GroupHavingTranslator;
 import io.evitadb.core.query.filter.translator.reference.ReferenceHavingTranslator;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
 import io.evitadb.core.query.sort.entity.comparator.EntityNestedQueryComparator;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.index.price.PriceSuperIndex;
 import io.evitadb.function.TriFunction;
+import io.evitadb.index.AbstractReducedEntityIndex;
 import io.evitadb.index.CatalogIndex;
 import io.evitadb.index.CatalogIndexKey;
 import io.evitadb.index.EntityIndex;
@@ -93,20 +104,22 @@ import io.evitadb.index.EntityIndexType;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.Index;
 import io.evitadb.index.ReducedEntityIndex;
+import io.evitadb.index.ReducedGroupEntityIndex;
 import io.evitadb.index.ReferencedTypeEntityIndex;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.attribute.GlobalUniqueIndex;
 import io.evitadb.index.attribute.UniqueIndex;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.experimental.Delegate;
-import org.roaringbitmap.RoaringBitmap;
-import org.roaringbitmap.RoaringBitmapWriter;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
+import io.evitadb.roaringbitmap.RoaringBitmapWriter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -154,19 +167,29 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	private static final BiFunction<EntitySchemaContract, EntityIndexKey, ReferencedTypeEntityIndex> THROWING_MISSING_RTEI_SUPPLIER =
 		ReferencedTypeEntityIndex::createThrowingStub;
 	/**
-	 * A no-operation (no-op) implementation of a {@link BiFunction} that returns {@code null} for any input value combination.
+	 * A no-op supplier that returns `null` for any missing reduced entity index lookup.
 	 */
-	private static final BiFunction<EntitySchemaContract, EntityIndexKey, ReducedEntityIndex> NO_OP_MISSING_REI_SUPPLIER =
-		(entitySchema, entityIndexKey) -> null;
+	private static final BiFunction<EntitySchemaContract, EntityIndexKey, ReducedEntityIndex>
+		NO_OP_MISSING_REI_SUPPLIER = (entitySchema, entityIndexKey) -> null;
+	/**
+	 * A no-op supplier that returns `null` for any missing reduced group entity index lookup.
+	 */
+	private static final BiFunction<EntitySchemaContract, EntityIndexKey, ReducedGroupEntityIndex>
+		NO_OP_MISSING_RGEI_SUPPLIER = (entitySchema, entityIndexKey) -> null;
 
 	/* initialize list of all FilterableConstraint handlers once for a lifetime */
 	static {
-		TRANSLATORS = createHashMap(40);
+		TRANSLATORS = createHashMap(64);
 		TRANSLATORS.put(FilterBy.class, new FilterByTranslator());
 		TRANSLATORS.put(And.class, new AndTranslator());
 		TRANSLATORS.put(Or.class, new OrTranslator());
 		TRANSLATORS.put(Not.class, new NotTranslator());
 		TRANSLATORS.put(EntityPrimaryKeyInSet.class, new EntityPrimaryKeyInSetTranslator());
+		TRANSLATORS.put(EntityPrimaryKeyGreaterThan.class, new EntityPrimaryKeyGreaterThanTranslator());
+		TRANSLATORS.put(EntityPrimaryKeyGreaterThanEquals.class, new EntityPrimaryKeyGreaterThanEqualsTranslator());
+		TRANSLATORS.put(EntityPrimaryKeyLessThan.class, new EntityPrimaryKeyLessThanTranslator());
+		TRANSLATORS.put(EntityPrimaryKeyLessThanEquals.class, new EntityPrimaryKeyLessThanEqualsTranslator());
+		TRANSLATORS.put(EntityPrimaryKeyBetween.class, new EntityPrimaryKeyBetweenTranslator());
 		TRANSLATORS.put(AttributeEquals.class, new AttributeEqualsTranslator());
 		TRANSLATORS.put(AttributeLessThan.class, new AttributeLessThanTranslator());
 		TRANSLATORS.put(AttributeLessThanEquals.class, new AttributeLessThanEqualsTranslator());
@@ -181,6 +204,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 		TRANSLATORS.put(AttributeContains.class, new AttributeContainsTranslator());
 		TRANSLATORS.put(EntityLocaleEquals.class, new EntityLocaleEqualsTranslator());
 		TRANSLATORS.put(EntityHaving.class, new EntityHavingTranslator());
+		TRANSLATORS.put(GroupHaving.class, new GroupHavingTranslator());
 		TRANSLATORS.put(ReferenceHaving.class, new ReferenceHavingTranslator());
 		TRANSLATORS.put(PriceInCurrency.class, new PriceInCurrencyTranslator());
 		TRANSLATORS.put(PriceValidIn.class, new PriceValidInTranslator());
@@ -189,18 +213,20 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 		TRANSLATORS.put(HierarchyWithin.class, new HierarchyWithinTranslator());
 		TRANSLATORS.put(HierarchyWithinRoot.class, new HierarchyWithinRootTranslator());
 		TRANSLATORS.put(FacetHaving.class, new FacetHavingTranslator());
+		TRANSLATORS.put(HistogramHaving.class, new HistogramHavingTranslator());
 		TRANSLATORS.put(UserFilter.class, new UserFilterTranslator());
 		TRANSLATORS.put(FilterInScope.class, new FilterInScopeTranslator());
 		TRANSLATORS.put(EntityScope.class, FilteringConstraintTranslator.noOpTranslator());
 
-		CONJUNCTIVE_FORMULAS = new HashSet<>();
+		CONJUNCTIVE_FORMULAS = new HashSet<>(16);
 		CONJUNCTIVE_FORMULAS.add(AndFormula.class);
 		CONJUNCTIVE_FORMULAS.add(UserFilterFormula.class);
 		CONJUNCTIVE_FORMULAS.add(SelectionFormula.class);
 		CONJUNCTIVE_FORMULAS.add(AttributeFormula.class);
 		CONJUNCTIVE_FORMULAS.add(ScopeContainerFormula.class);
+		CONJUNCTIVE_FORMULAS.add(FacetHavingFormula.class);
 
-		CONJUNCTIVE_CONSTRAINTS = new HashSet<>();
+		CONJUNCTIVE_CONSTRAINTS = new HashSet<>(16);
 		CONJUNCTIVE_CONSTRAINTS.add(And.class);
 		CONJUNCTIVE_CONSTRAINTS.add(UserFilter.class);
 		CONJUNCTIVE_CONSTRAINTS.add(FilterInScope.class);
@@ -248,6 +274,20 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	 */
 	@Nullable
 	private Formula computedFormula;
+	/**
+	 * Plan-time registry of resolved `histogramHaving` carriers populated by
+	 * {@link HistogramHavingTranslator} during this visitor's filter translation pass and consumed
+	 * by `ReferenceHistogramStatisticsTranslator` during extra-result planning of the same plan.
+	 *
+	 * The registry lives on the visitor (not on the shared {@link QueryPlanningContext}) because
+	 * {@link io.evitadb.core.query.QueryPlanner#createFilterFormula} constructs a fresh
+	 * {@link FilterByVisitor} per eligible {@link io.evitadb.core.query.indexSelection.TargetIndexes}
+	 * — every alternative plan re-translates the filter tree and would otherwise append duplicate
+	 * entries to a shared registry. Per-visitor scoping ensures each plan's extra-result phase reads
+	 * exactly its own pass's resolved tuples.
+	 */
+	@Nonnull
+	private final List<ResolvedHistogramHaving> resolvedHistogramHavings = new ArrayList<>(4);
 
 	/**
 	 * Method returns true for all {@link FilterConstraint} types that are conjunctive.
@@ -435,6 +475,31 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	}
 
 	/**
+	 * Records a `histogramHaving` carrier resolved by {@link HistogramHavingTranslator} during this
+	 * visitor's filter translation pass. Called once per `histogramHaving` constraint in the filter
+	 * tree; alternative-plan re-walks (a fresh {@link FilterByVisitor} per
+	 * {@link io.evitadb.core.query.indexSelection.TargetIndexes}) maintain their own independent
+	 * registries, so duplicate appends are impossible.
+	 *
+	 * @param entry the fully resolved tuple describing the histogram slot and its `[from, to]` range
+	 */
+	public void registerResolvedHistogramHaving(@Nonnull ResolvedHistogramHaving entry) {
+		this.resolvedHistogramHavings.add(entry);
+	}
+
+	/**
+	 * Returns an unmodifiable view of all `histogramHaving` carriers resolved during this visitor's
+	 * filter translation pass. Consumers filter the list by their own `(referenceName, histogramName)`
+	 * tuple to locate the slot(s) they care about.
+	 *
+	 * @return the resolved carriers in document order; empty when the query has no `histogramHaving`
+	 */
+	@Nonnull
+	public List<ResolvedHistogramHaving> getResolvedHistogramHavings() {
+		return Collections.unmodifiableList(this.resolvedHistogramHavings);
+	}
+
+	/**
 	 * Returns the computed formula that represents the filter query visited by this implementation.
 	 * The computed formula is reset to NULL after this method is called so that the visitor instance can be reused.
 	 */
@@ -491,6 +556,42 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 		return getProcessingScope()
 			.getAttributeSchemaAccessor()
 			.getAttributeSchema(entitySchema, attributeName, this.getProcessingScope().getScopes(), requiredTrait);
+	}
+
+	/**
+	 * Returns `true` when the currently translated constraint has **no** {@link UserFilter} ancestor in
+	 * the processing stack — i.e. it is being translated outside any `userFilter` block. Used by
+	 * price-filter translators to decide whether a
+	 * {@link io.evitadb.core.query.algebra.price.termination.LowestPriceTerminationFormula} they're about
+	 * to construct should collect the per-inner-record histogram side-output — the rule is "outer LP
+	 * only", so an LP being built under `userFilter(priceBetween(...))` must remain un-flagged to avoid
+	 * double-counting in the histogram bypass.
+	 */
+	public boolean isOutsideUserFilter() {
+		for (FilterConstraint ancestor : getProcessingScope().getProcessedConstraintParents()) {
+			if (ancestor instanceof UserFilter) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	/**
+	 * Returns `true` when the {@link io.evitadb.core.query.algebra.price.termination.LowestPriceTerminationFormula}
+	 * being built by a price-filter translator should collect the per-inner-record histogram side-output.
+	 *
+	 * The side-output is required precisely when both conditions hold:
+	 *
+	 * - the planner asked for a `priceHistogram` extra result
+	 *   (see {@link EvitaRequest#isPriceHistogramRequested()}), and
+	 * - the current translation site is outside any `userFilter` block
+	 *   (see {@link #isOutsideUserFilter()}) — the "outer LP only" rule, otherwise an LP built under
+	 *   `userFilter(priceBetween(...))` would double-count inner records in the histogram bypass.
+	 *
+	 * Consolidates a predicate previously duplicated across every price-filter translator.
+	 */
+	public boolean isHistogramSideOutputApplicable() {
+		return getEvitaRequest().isPriceHistogramRequested() && isOutsideUserFilter();
 	}
 
 	/**
@@ -742,32 +843,34 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 		@Nonnull Set<Scope> scope,
 		@Nonnull BiFunction<EntitySchemaContract, EntityIndexKey, ReferencedTypeEntityIndex> missingReferencedIndexSupplier
 	) {
-		final String referenceName = referenceHaving.getReferenceName();
+		final ReferenceSchemaContract referenceSchema = resolveReferenceSchema(
+			getProcessingScope().getEntitySchema(), referenceHaving
+		);
 		final ProcessingScope<? extends Index<?>> processingScope = getProcessingScope();
-		final EntitySchemaContract entitySchema = processingScope.getEntitySchema();
-		final ReferenceSchemaContract referenceSchema = ofNullable(entitySchema)
-			.flatMap(it -> it.getReference(referenceName))
-			.orElseThrow(() -> entitySchema == null ? new ReferenceNotFoundException(referenceName) : new ReferenceNotFoundException(referenceName, entitySchema));
+		final EntitySchemaContract entitySchema = Objects.requireNonNull(processingScope.getEntitySchema());
 
 		final Formula reducedIndexPksFormula = processingScope.doWithScope(
 			scope,
-			() -> getReducedEntityIndexPrimaryKeyFormula(
+			() -> getReducedIndexPrimaryKeyFormula(
 				entitySchema,
 				referenceSchema,
 				new FilterBy(referenceHaving.getChildren()),
+				EntityIndexType.REFERENCED_ENTITY_TYPE,
 				missingReferencedIndexSupplier
 			)
 		);
 
 		final IntFunction<ReducedEntityIndex> indexAccessor;
 		if (this.getSchema().getName().equals(entitySchema.getName())) {
-			indexAccessor = reducedIndexPk -> getEntityIndexByPrimaryKey(reducedIndexPk, ReducedEntityIndex.class);
+			indexAccessor = reducedIndexPk ->
+				getEntityIndexByPrimaryKey(reducedIndexPk, ReducedEntityIndex.class);
 		} else {
 			final EntityCollection targetCollection = getEntityCollectionOrThrowException(
 				entitySchema.getName(),
 				"locate referenced record entity indexes"
 			);
-			indexAccessor = reducedIndexPk -> targetCollection.getIndexIfExists(reducedIndexPk, value -> (ReducedEntityIndex) null);
+			indexAccessor = reducedIndexPk ->
+				targetCollection.getIndexIfExists(reducedIndexPk, value -> (ReducedEntityIndex) null);
 		}
 
 		final Bitmap reducedIndexPks = reducedIndexPksFormula.compute();
@@ -785,6 +888,83 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	}
 
 	/**
+	 * Returns bitmap of group entity primary keys that match the given group-level filter constraints.
+	 * This method evaluates the filter against {@link EntityIndexType#REFERENCED_GROUP_ENTITY_TYPE} indexes
+	 * and translates the resulting index PKs to group entity PKs.
+	 *
+	 * @param referenceHaving            the reference having constraint wrapping group filter children
+	 * @param scopes                     the scopes to evaluate
+	 * @param missingReferencedIndexSupplier supplier for missing indexes
+	 * @return bitmap of matching group entity primary keys
+	 */
+	@Nonnull
+	public Bitmap getMatchingGroupEntityPrimaryKeys(
+		@Nonnull ReferenceHaving referenceHaving,
+		@Nonnull Set<Scope> scopes,
+		@Nonnull BiFunction<EntitySchemaContract, EntityIndexKey, ReferencedTypeEntityIndex> missingReferencedIndexSupplier
+	) {
+		final EntitySchemaContract entitySchema = getProcessingScope().getEntitySchemaOrThrowException();
+		final ReferenceSchemaContract referenceSchema = resolveReferenceSchema(entitySchema, referenceHaving);
+		final ProcessingScope<? extends Index<?>> processingScope = getProcessingScope();
+		final String referenceName = referenceSchema.getName();
+
+		final Formula reducedIndexPksFormula = processingScope.doWithScope(
+			scopes,
+			() -> getReducedIndexPrimaryKeyFormula(
+				entitySchema,
+				referenceSchema,
+				new FilterBy(referenceHaving.getChildren()),
+				EntityIndexType.REFERENCED_GROUP_ENTITY_TYPE,
+				missingReferencedIndexSupplier
+			)
+		);
+
+		final Bitmap reducedIndexPks = reducedIndexPksFormula.compute();
+		if (reducedIndexPks.isEmpty()) {
+			return EmptyBitmap.INSTANCE;
+		}
+
+		// translate reduced-group-index PKs back to group entity PKs via the type-level cardinality index
+		final RoaringBitmapWriter<PersistentRoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
+		for (Scope scope : scopes) {
+			final EntityIndexKey groupTypeKey = new EntityIndexKey(
+				EntityIndexType.REFERENCED_GROUP_ENTITY_TYPE, scope, referenceName
+			);
+			final Optional<ReferencedTypeEntityIndex> groupTypeIndex = getEntityIndex(
+				entitySchema.getName(), groupTypeKey, ReferencedTypeEntityIndex.class
+			);
+			if (groupTypeIndex.isPresent()) {
+				final Bitmap groupPks = groupTypeIndex.get().getReferencedPrimaryKeysForIndexPks(reducedIndexPks);
+				groupPks.forEach(writer::add);
+			}
+		}
+		final PersistentRoaringBitmap bitmap = writer.get();
+		return bitmap.isEmpty() ? EmptyBitmap.INSTANCE : new BaseBitmap(bitmap);
+	}
+
+	/**
+	 * Resolves the {@link ReferenceSchemaContract} for the given {@link ReferenceHaving} constraint
+	 * using the current processing scope's entity schema.
+	 *
+	 * @param entitySchema    the entity schema to resolve the reference from
+	 * @param referenceHaving the constraint identifying the reference by name
+	 * @return the resolved reference schema
+	 * @throws ReferenceNotFoundException if the reference is not found in the entity schema
+	 */
+	@Nonnull
+	private static ReferenceSchemaContract resolveReferenceSchema(
+		@Nullable EntitySchemaContract entitySchema,
+		@Nonnull ReferenceHaving referenceHaving
+	) {
+		final String referenceName = referenceHaving.getReferenceName();
+		return ofNullable(entitySchema)
+			.flatMap(it -> it.getReference(referenceName))
+			.orElseThrow(() -> entitySchema == null
+				? new ReferenceNotFoundException(referenceName)
+				: new ReferenceNotFoundException(referenceName, entitySchema));
+	}
+
+	/**
 	 * Returns bitmap of primary keys ({@link EntityContract#getPrimaryKey()}) of referenced entities that satisfy
 	 * the passed filtering constraint.
 	 *
@@ -799,58 +979,39 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull FilterBy filterBy
 	) {
-		final Formula reducedEntityIndexPrimaryKeys = getReducedEntityIndexPrimaryKeyFormula(
-			entitySchema, referenceSchema, filterBy
+		final Formula reducedEntityIndexPrimaryKeys = getReducedIndexPrimaryKeyFormula(
+			entitySchema, referenceSchema, filterBy,
+			EntityIndexType.REFERENCED_ENTITY_TYPE,
+			THROWING_MISSING_RTEI_SUPPLIER
 		);
 		// we need to translate entity index primary keys to referenced entity primary keys
-		final RoaringBitmapWriter<RoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
+		final RoaringBitmapWriter<PersistentRoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
 		for (Integer indexPk : reducedEntityIndexPrimaryKeys.compute()) {
 			final ReducedEntityIndex reducedIndex = this.getEntityIndexByPrimaryKey(indexPk, ReducedEntityIndex.class);
 			writer.add(reducedIndex.getReferenceKey().primaryKey());
 		}
-		final RoaringBitmap bitmap = writer.get();
+		final PersistentRoaringBitmap bitmap = writer.get();
 		return bitmap.isEmpty() ? EmptyFormula.INSTANCE : new ConstantFormula(new BaseBitmap(bitmap));
 	}
 
 	/**
-	 * Returns bitmap of entity index primary keys ({@link EntityIndex#getPrimaryKey()}) that satisfy
-	 * the passed filtering constraint.
+	 * Shared implementation for evaluating a filter against a reference type-level index. The `indexType`
+	 * parameter controls whether entity-level ({@link EntityIndexType#REFERENCED_ENTITY_TYPE}) or
+	 * group-level ({@link EntityIndexType#REFERENCED_GROUP_ENTITY_TYPE}) indexes are used.
 	 *
-	 * @param entitySchema    that identifies the examined entities
-	 * @param referenceSchema that identifies the examined entities
-	 * @param filterBy        the filtering constraint to satisfy
-	 * @return bitmap with referenced entity ids
+	 * @param entitySchema                       the schema of the entity being queried
+	 * @param referenceSchema                    the reference schema
+	 * @param filterBy                           the filter constraint to evaluate
+	 * @param indexType                          the type of reference index to use
+	 * @param missingReferencedTypeIndexSupplier supplier for missing indexes
+	 * @return formula computing matching index primary keys
 	 */
 	@Nonnull
-	public Formula getReducedEntityIndexPrimaryKeyFormula(
-		@Nonnull EntitySchemaContract entitySchema,
-		@Nonnull ReferenceSchemaContract referenceSchema,
-		@Nonnull FilterBy filterBy
-	) {
-		return getReducedEntityIndexPrimaryKeyFormula(
-			entitySchema,
-			referenceSchema,
-			filterBy,
-			THROWING_MISSING_RTEI_SUPPLIER
-		);
-	}
-
-	/**
-	 * Returns bitmap of entity index primary keys ({@link EntityIndex#getPrimaryKey()}) that satisfy
-	 * the passed filtering constraint.
-	 *
-	 * @param entitySchema                       that identifies the examined entities
-	 * @param referenceSchema                    that identifies the examined entities
-	 * @param filterBy                           the filtering constraint to satisfy
-	 * @param missingReferencedTypeIndexSupplier supplier that will produce missing {@link ReferencedTypeEntityIndex}
-	 *                                           index or NULL
-	 * @return bitmap with referenced entity ids
-	 */
-	@Nonnull
-	public Formula getReducedEntityIndexPrimaryKeyFormula(
+	private Formula getReducedIndexPrimaryKeyFormula(
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull FilterBy filterBy,
+		@Nonnull EntityIndexType indexType,
 		@Nonnull BiFunction<EntitySchemaContract, EntityIndexKey, ReferencedTypeEntityIndex> missingReferencedTypeIndexSupplier
 	) {
 		final String referenceName = referenceSchema.getName();
@@ -859,9 +1020,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 			scopesToLookUp
 				.stream()
 				.map(scope -> {
-					final EntityIndexKey entityIndexKey = new EntityIndexKey(
-						EntityIndexType.REFERENCED_ENTITY_TYPE, scope, referenceName
-					);
+					final EntityIndexKey entityIndexKey = new EntityIndexKey(indexType, scope, referenceName);
 					final Optional<ReferencedTypeEntityIndex> entityIndex = getEntityIndex(
 						entitySchema.getName(),
 						entityIndexKey,
@@ -943,16 +1102,16 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	 * words - when {@link ReferenceHaving} constraint is part of the query. This situation must be taken into an
 	 * account in hierarchy translators.
 	 */
-	public boolean isReferenceQueriedByOtherConstraints() {
+	public boolean isReferenceNotQueriedByOtherConstraints() {
 		return this.targetIndexes.stream()
-			.anyMatch(it -> it.getRepresentedConstraint() instanceof ReferenceHaving);
+			.noneMatch(it -> it.getRepresentedConstraint() instanceof ReferenceHaving);
 	}
 
 	/**
 	 * Returns {@link EntityIndex} that contains indexed entities that reference `referenceName` and `referencedEntityId`.
 	 */
 	@Nonnull
-	public Stream<ReducedEntityIndex> getReferencedEntityIndexes(
+	public Stream<AbstractReducedEntityIndex> getReferencedEntityIndexes(
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		int referencedEntityId
@@ -962,6 +1121,27 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 			.flatMap(
 				scope -> getQueryContext().getReducedEntityIndexes(
 					scope, referencedEntityId, entitySchema, referenceSchema, NO_OP_MISSING_REI_SUPPLIER
+				)
+			);
+	}
+
+	/**
+	 * Returns {@link EntityIndex} that contains indexed entities whose references have
+	 * group entity `referenceName` and `groupEntityId`. This method mirrors
+	 * {@link #getReferencedEntityIndexes(EntitySchemaContract, ReferenceSchemaContract, int)} but uses
+	 * group-specific index types.
+	 */
+	@Nonnull
+	public Stream<AbstractReducedEntityIndex> getReferencedGroupEntityIndexes(
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		int groupEntityId
+	) {
+		final Set<Scope> scopes = getProcessingScope().getScopes();
+		return (scopes.isEmpty() ? Stream.of(Scope.DEFAULT_SCOPE) : scopes.stream())
+			.flatMap(
+				scope -> getQueryContext().getReducedGroupEntityIndexes(
+					scope, groupEntityId, entitySchema, referenceSchema, NO_OP_MISSING_RGEI_SUPPLIER
 				)
 			);
 	}
@@ -1126,6 +1306,38 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	@Nonnull
 	public Formula applyOnIndexes(@Nonnull Function<EntityIndex, Formula> formulaFunction) {
 		return joinFormulas(getEntityIndexStream().map(formulaFunction));
+	}
+
+	/**
+	 * Resolves the {@link PriceSuperIndex} that owns the memory-expensive price records behind the price indexes of
+	 * the passed entity index.
+	 *
+	 * A reduced entity index keeps no pointer to the super price indexes backing it, so a price formula built over one
+	 * must be handed the super index explicitly. Resolving it here - from the query context, which is pinned to a single
+	 * catalog version for the whole query - is what makes that hand-over version-correct by construction: the reduced
+	 * index and the GLOBAL it is paired with are read out of the same catalog snapshot, so they cannot straddle
+	 * a version boundary.
+	 *
+	 * @param entityIndex the entity index a price formula is being built over
+	 * @return the price index of the GLOBAL entity index of the same collection and scope
+	 */
+	@Nonnull
+	public PriceSuperIndex getSuperPriceIndex(@Nonnull EntityIndex entityIndex) {
+		// a GLOBAL index owns its super price indexes outright - no lookup needed
+		if (entityIndex instanceof GlobalEntityIndex globalEntityIndex) {
+			return globalEntityIndex.getPriceIndex();
+		}
+		final String entityType = getProcessingScope().getEntitySchemaOrThrowException().getName();
+		final Scope scope = entityIndex.getIndexKey().scope();
+		return getQueryContext()
+			.getGlobalEntityIndexIfExists(entityType, scope)
+			.orElseThrow(
+				() -> new GenericEvitaInternalError(
+					"Global index of entity `" + entityType + "` in scope `" + scope +
+						"` unexpectedly not found while resolving super price index!"
+				)
+			)
+			.getPriceIndex();
 	}
 
 	/**
@@ -1635,6 +1847,30 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 		 */
 		public void popConstraint() {
 			this.processedConstraints.pop();
+		}
+
+		/**
+		 * Returns an {@link Iterable} over the parent chain of the currently processed constraint,
+		 * ordered from innermost parent to outermost. The currently processed constraint itself
+		 * (the head of the processed-constraints stack) is NOT included in the iteration — callers
+		 * only observe its ancestors.
+		 *
+		 * Intended for translators that must validate their constraint's nesting context at plan
+		 * time, e.g. to detect pathological parent combinations that cannot be caught at
+		 * constraint-construction time because they depend on the surrounding container.
+		 *
+		 * @return iterable over the parent chain, innermost first, excluding the current constraint
+		 */
+		@Nonnull
+		public Iterable<FilterConstraint> getProcessedConstraintParents() {
+			return () -> {
+				final Iterator<FilterConstraint> it = this.processedConstraints.iterator();
+				if (it.hasNext()) {
+					// skip the currently processed constraint — callers want ancestors only
+					it.next();
+				}
+				return it;
+			};
 		}
 
 		/**

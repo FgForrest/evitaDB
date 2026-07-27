@@ -23,7 +23,6 @@
 
 package io.evitadb.spi.store.catalog.persistence.storageParts.entity;
 
-import io.evitadb.api.requestResponse.data.Droppable;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.mutation.reference.ComparableReferenceKey;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
@@ -89,7 +88,8 @@ public class ReferencesStoragePart implements EntityStoragePart {
 	 */
 	@Getter private int lastUsedPrimaryKey;
 	/**
-	 * See {@link Entity#getReferences()}. References are sorted in ascending order according to {@link EntityReference} comparator.
+	 * See {@link Entity#getReferences()}. References are sorted in ascending order according to
+	 * {@link EntityReference} comparator.
 	 */
 	private Reference[] references = EMPTY_REFERENCES;
 	/**
@@ -101,14 +101,48 @@ public class ReferencesStoragePart implements EntityStoragePart {
 	 */
 	@Getter private boolean dirty;
 	/**
-	 * Contains true if some of the references in this container have unassigned internal primary keys (negative or zero values).
+	 * Contains true if some of the references in this container have unassigned internal primary keys
+	 * (negative or zero values).
 	 */
 	private boolean unassignedPrimaryKeys = false;
 	/**
-	 * Contains set of all reference keys that contains "known" internal id, which was not found in the current reference set
-	 * and needs to be treated as unknown and reassigned. Set is initialized only if such reference is found.
+	 * Contains set of all reference keys that contains "known" internal id, which was not found in the current
+	 * reference set and needs to be treated as unknown and reassigned. Set is initialized only if such reference
+	 * is found.
 	 */
 	@Nullable private Set<ComparableReferenceKey> referenceKeysForReassignment = null;
+
+	/**
+	 * Finds the position of the provided {@link ReferenceKey} in the references array in a general manner.
+	 * If the reference is already present in the array, the method adjusts the position to the first occurrence
+	 * of the same generic key. Otherwise, it determines where the reference should be inserted while maintaining
+	 * order.
+	 *
+	 * @param references   The array of references to search within; must not be null.
+	 * @param referenceKey The reference key to locate or determine the insertion position for; must not be null.
+	 * @return The {@link InsertionPosition} object that contains the calculated position and whether the reference
+	 * key was already present in the array.
+	 */
+	@Nonnull
+	private static InsertionPosition findPositionInGeneralManner(
+		@Nonnull ReferenceContract[] references,
+		@Nonnull ReferenceKey referenceKey
+	) {
+		final InsertionPosition position = ArrayUtils.computeInsertPositionOfObjInOrderedArray(
+			referenceKey, references, GENERIC_COMPARISON_FUNCTION
+		);
+		if (position.alreadyPresent()) {
+			int index = position.position();
+			while (index > 0 && references[index - 1].getReferenceKey().equalsInGeneral(
+				references[index].getReferenceKey())) {
+				// move to the first occurrence of the same generic key
+				index--;
+			}
+			return new InsertionPosition(index, true);
+		} else {
+			return position;
+		}
+	}
 
 	public ReferencesStoragePart(int entityPrimaryKey) {
 		this.entityPrimaryKey = entityPrimaryKey;
@@ -138,7 +172,12 @@ public class ReferencesStoragePart implements EntityStoragePart {
 	@Override
 	public boolean isEmpty() {
 		final Reference[] theReferences = getReferences();
-		return theReferences.length == 0 || Arrays.stream(theReferences).noneMatch(Droppable::exists);
+		for (final Reference reference : theReferences) {
+			if (reference.exists()) {
+				return false;
+			}
+		}
+		return true;
 	}
 
 	@Nonnull
@@ -176,15 +215,18 @@ public class ReferencesStoragePart implements EntityStoragePart {
 						ReferenceKey.FULL_COMPARATOR.compare(previousReferenceKey, reference.getReferenceKey()) < 0,
 						() -> "References must be sorted in ascending order according to their business key: "
 							+ Arrays.stream(theReferences)
-							        .map(Reference::getReferenceKey)
-							        .map(String::valueOf)
-							        .collect(Collectors.joining(", "))
+							.map(Reference::getReferenceKey)
+							.map(String::valueOf)
+							.collect(Collectors.joining(", "))
 					);
 				}
 				// remember the previous key for the next iteration
 				previousReferenceKey = reference.getReferenceKey();
 				// assign primary keys to references that don't have it yet (update the key)
-				if (!reference.getReferenceKey().isKnownInternalPrimaryKey() || refKeysForReassignment.contains(new ComparableReferenceKey(reference.getReferenceKey()))) {
+				if (
+					!reference.getReferenceKey().isKnownInternalPrimaryKey()
+						|| refKeysForReassignment.contains(new ComparableReferenceKey(reference.getReferenceKey()))
+				) {
 					reference = new Reference(++this.lastUsedPrimaryKey, reference);
 					theReferences[i] = reference;
 					this.dirty = true;
@@ -265,15 +307,17 @@ public class ReferencesStoragePart implements EntityStoragePart {
 				theReferences[position] = mutatedReference;
 				Assert.isPremiseValid(
 					originalReference.getReferenceKey().equals(mutatedReference.getReferenceKey()) &&
-						originalReference.getReferenceKey().internalPrimaryKey() == mutatedReference.getReferenceKey()
-						                                                                            .internalPrimaryKey(),
+						originalReference.getReferenceKey().internalPrimaryKey()
+							== mutatedReference.getReferenceKey().internalPrimaryKey(),
 					() -> "Mutation must not remove the internal primary key from the existing reference!"
 				);
 				this.dirty = true;
 			}
 		} else {
 			mutatedReference = (Reference) mutator.apply(null);
-			this.modifiedReferences = ArrayUtils.insertRecordIntoArrayOnIndex(mutatedReference, theReferences, position);
+			this.modifiedReferences = ArrayUtils.insertRecordIntoArrayOnIndex(
+				mutatedReference, theReferences, position
+			);
 			this.dirty = true;
 			this.unassignedPrimaryKeys = true;
 			if (missingReferenceBehavior.get() == MissingReferenceBehavior.GENERATE_NEW_INTERNAL_KEY) {
@@ -292,7 +336,7 @@ public class ReferencesStoragePart implements EntityStoragePart {
 	 * they will be returned; otherwise, the default references will be provided.
 	 *
 	 * @return an array of references to be used for reading, either the modified references
-	 *         or the default references if the modified references are null.
+	 * or the default references if the modified references are null.
 	 */
 	@Nonnull
 	public Reference[] getReferences() {
@@ -312,11 +356,25 @@ public class ReferencesStoragePart implements EntityStoragePart {
 	 */
 	@Nonnull
 	public int[] getReferencedIds(@Nonnull String referenceName) {
-		return Arrays.stream(getReferences())
-		             .filter(Droppable::exists)
-		             .filter(it -> Objects.equals(referenceName, it.getReferenceName()))
-		             .mapToInt(it -> it.getReferenceKey().primaryKey())
-		             .toArray();
+		final ReferenceRange range = findReferenceRange(referenceName);
+		if (range == null) {
+			return ArrayUtils.EMPTY_INT_ARRAY;
+		}
+
+		final int[] refIds = new int[range.maxSize()];
+		int index = 0;
+		for (int i = range.start(); i < range.refs().length && i < range.end(); i++) {
+			final Reference ref = range.refs()[i];
+			if (referenceName.equals(ref.getReferenceName())) {
+				if (ref.exists()) {
+					refIds[index++] = ref.getReferenceKey().primaryKey();
+				}
+			} else {
+				break;
+			}
+		}
+
+		return refIds.length == index ? refIds : Arrays.copyOf(refIds, index);
 	}
 
 	/**
@@ -324,24 +382,15 @@ public class ReferencesStoragePart implements EntityStoragePart {
 	 */
 	@Nonnull
 	public int[] getDistinctReferencedIds(@Nonnull String referenceName) {
-		final Reference[] refs = getReferences();
-		if (refs.length == 0) {
+		final ReferenceRange range = findReferenceRange(referenceName);
+		if (range == null) {
 			return ArrayUtils.EMPTY_INT_ARRAY;
 		}
 
-		final int startPosition = ArrayUtils.computeInsertPositionOfObjInOrderedArray(
-			new ReferenceKey(referenceName, Integer.MIN_VALUE, Integer.MIN_VALUE),
-			refs, FULL_COMPARISON_FUNCTION
-		).position();
-		final int endPosition = ArrayUtils.computeInsertPositionOfObjInOrderedArray(
-			new ReferenceKey(referenceName, Integer.MAX_VALUE, Integer.MAX_VALUE),
-			refs, FULL_COMPARISON_FUNCTION
-		).position();
-
-		final int[] refIds = new int[Math.max(endPosition - startPosition, 0)];
+		final int[] refIds = new int[range.maxSize()];
 		int index = 0;
-		for (int i = startPosition; i < refs.length && i < endPosition; i++) {
-			final Reference ref = refs[i];
+		for (int i = range.start(); i < range.refs().length && i < range.end(); i++) {
+			final Reference ref = range.refs()[i];
 			if (referenceName.equals(ref.getReferenceName())) {
 				if (ref.exists() && (index == 0 || refIds[index - 1] != ref.getReferencedPrimaryKey())) {
 					refIds[index++] = ref.getReferencedPrimaryKey();
@@ -359,9 +408,50 @@ public class ReferencesStoragePart implements EntityStoragePart {
 	 */
 	@Nonnull
 	public int[] getDistinctReferencedGroupIds(@Nonnull String referenceName) {
+		final ReferenceRange range = findReferenceRange(referenceName);
+		if (range == null) {
+			return ArrayUtils.EMPTY_INT_ARRAY;
+		}
+
+		final int[] refIds = new int[range.maxSize()];
+		int index = 0;
+		for (int i = range.start(); i < range.refs().length && i < range.end(); i++) {
+			final Reference ref = range.refs()[i];
+			if (referenceName.equals(ref.getReferenceName())) {
+				if (ref.exists() && ref.getGroup().isPresent()) {
+					final int groupId = ref.getGroup().get().getPrimaryKeyOrThrowException();
+					final InsertionPosition position = ArrayUtils.computeInsertPositionOfIntInOrderedArray(
+						groupId, refIds, 0, index);
+					if (!position.alreadyPresent()) {
+						System.arraycopy(
+							refIds, position.position(), refIds, position.position() + 1,
+							index - position.position()
+						);
+						refIds[position.position()] = groupId;
+						index++;
+					}
+				}
+			} else {
+				break;
+			}
+		}
+
+		return refIds.length == index ? refIds : Arrays.copyOf(refIds, index);
+	}
+
+	/**
+	 * Computes the start and end positions of references matching the given `referenceName`
+	 * within the sorted references array using binary search boundaries.
+	 *
+	 * @param referenceName the name of the reference to search for
+	 * @return a {@link ReferenceRange} containing the references array and computed boundaries,
+	 *         or null if the references array is empty
+	 */
+	@Nullable
+	private ReferenceRange findReferenceRange(@Nonnull String referenceName) {
 		final Reference[] refs = getReferences();
 		if (refs.length == 0) {
-			return ArrayUtils.EMPTY_INT_ARRAY;
+			return null;
 		}
 
 		final int startPosition = ArrayUtils.computeInsertPositionOfObjInOrderedArray(
@@ -373,28 +463,28 @@ public class ReferencesStoragePart implements EntityStoragePart {
 			refs, FULL_COMPARISON_FUNCTION
 		).position();
 
-		final int[] refIds = new int[Math.max(endPosition - startPosition, 0)];
-		int index = 0;
-		for (int i = startPosition; i < refs.length && i < endPosition; i++) {
-			final Reference ref = refs[i];
-			if (referenceName.equals(ref.getReferenceName())) {
-				if (ref.exists() && ref.getGroup().isPresent()) {
-					final int groupId = ref.getGroup().get().getPrimaryKeyOrThrowException();
-					final InsertionPosition position = ArrayUtils.computeInsertPositionOfIntInOrderedArray(
-						groupId, refIds, 0, index);
-					if (!position.alreadyPresent()) {
-						System.arraycopy(
-							refIds, position.position(), refIds, position.position() + 1, index - position.position());
-						refIds[position.position()] = groupId;
-						index++;
-					}
-				}
-			} else {
-				break;
-			}
-		}
+		return new ReferenceRange(refs, startPosition, endPosition);
+	}
 
-		return refIds.length == index ? refIds : Arrays.copyOf(refIds, index);
+	/**
+	 * Holds the result of a binary-search boundary computation over the sorted references array
+	 * for a particular reference name.
+	 *
+	 * @param refs  the references array that was searched
+	 * @param start the start index (inclusive) of references matching the name
+	 * @param end   the end index (exclusive) of references matching the name
+	 */
+	private record ReferenceRange(
+		@Nonnull Reference[] refs,
+		int start,
+		int end
+	) {
+		/**
+		 * Returns the maximum possible number of references in the range.
+		 */
+		int maxSize() {
+			return Math.max(this.end - this.start, 0);
+		}
 	}
 
 	/**
@@ -480,18 +570,20 @@ public class ReferencesStoragePart implements EntityStoragePart {
 	}
 
 	/**
-	 * Finds all dropped references associated with the given reference key.
+	 * Finds all references matching the given generic reference key and filter predicate.
 	 *
-	 * This method is specifically used to retrieve references that are marked as "dropped"
-	 * for the provided generic reference key. If no dropped references are present
-	 * or if the reference key is not associated with this entity, an empty list is returned.
+	 * This method searches for references associated with the provided generic reference key
+	 * and returns only those that satisfy the given filter predicate. If no matching references
+	 * are found or if the reference key is not associated with this entity, an empty list
+	 * is returned.
 	 *
 	 * @param referenceKey the unique key identifying the reference(s) to search for;
-	 *                     it must be a generic reference key.
-	 * @return a list of dropped references corresponding to the provided reference key;
-	 *         if no dropped references exist, an empty list is returned.
-	 * @throws IllegalArgumentException if the provided reference key is not a generic reference key
-	 *                                  or if it does not exist within the context of this entity.
+	 *                     it must be a generic reference key
+	 * @param filter       predicate to apply to each found reference
+	 * @return a list of references matching the key and filter; if none match, an empty
+	 * list is returned
+	 * @throws IllegalArgumentException if the provided reference key is not a generic
+	 *                                  reference key
 	 */
 	@Nonnull
 	public List<ReferenceContract> findAllReferences(
@@ -557,12 +649,16 @@ public class ReferencesStoragePart implements EntityStoragePart {
 
 	/**
 	 * Finds a reference within the storage part that matches the given `referenceSchema`, `referenceKey`,
-	 * and the required `representativeAttributeValues`. If no matching reference is found, an exception is thrown.
+	 * and the required `representativeAttributeValues`. If no matching reference is found, an exception
+	 * is thrown.
 	 *
-	 * @param referenceSchema the schema defining the structure and attributes of the reference; must not be null
-	 * @param referenceKey the key identifying the target reference; must not be null
-	 * @param requiredRepresentativeAttributeValues an array of values that must match the representative attributes of the reference; must not be null
-	 * @return the located {@link ReferenceContract} that matches the specified criteria, or null if no matching reference is found
+	 * @param referenceSchema                       the schema defining the structure and attributes of
+	 *                                              the reference; must not be null
+	 * @param referenceKey                          the key identifying the target reference; must not
+	 *                                              be null
+	 * @param requiredRepresentativeAttributeValues an array of values that must match the representative
+	 *                                              attributes of the reference; must not be null
+	 * @return the located {@link ReferenceContract} that matches the specified criteria
 	 * @throws GenericEvitaInternalError if no matching reference is found
 	 */
 	@Nonnull
@@ -581,14 +677,18 @@ public class ReferencesStoragePart implements EntityStoragePart {
 	}
 
 	/**
-	 * Finds a reference within the storage part that matches the given `referenceSchema`, `genericReferenceKey`,
-	 * and the required `representativeAttributeValues`. If no matching reference is found, an exception is thrown.
+	 * Finds a reference within the storage part that matches the given `referenceSchema`,
+	 * `genericReferenceKey`, and the required `representativeAttributeValues`. If no matching
+	 * reference is found, an empty optional is returned.
 	 *
-	 * @param referenceSchema the schema defining the structure and attributes of the reference; must not be null
-	 * @param genericReferenceKey the key identifying the target reference; must not be null
-	 * @param requiredRepresentativeAttributeValues an array of values that must match the representative attributes of the reference; must not be null
-	 * @return the located {@link ReferenceContract} that matches the specified criteria, or null if no matching reference is found
-	 * @throws GenericEvitaInternalError if no matching reference is found
+	 * @param referenceSchema                       the schema defining the structure and attributes of
+	 *                                              the reference; must not be null
+	 * @param genericReferenceKey                   the key identifying the target reference; must not
+	 *                                              be null
+	 * @param requiredRepresentativeAttributeValues an array of values that must match the representative
+	 *                                              attributes of the reference; must not be null
+	 * @return the located {@link ReferenceContract} that matches the specified criteria, or empty
+	 * optional if no matching reference is found
 	 */
 	@Nonnull
 	public Optional<ReferenceContract> findReference(
@@ -624,13 +724,15 @@ public class ReferencesStoragePart implements EntityStoragePart {
 	 * Replaces references in the existing collection of references based on the provided reference schema,
 	 * reference key, representative attribute values function, and reference modifier function.
 	 *
-	 * @param referenceSchema               the schema defining how references are structured and the rules for representative
-	 *                                      attributes, must not be null
-	 * @param genericReferenceKey           the key used to identify a group of references to be processed, must not be null
-	 * @param representativeAttributeValues a function that determines the position or index to resolve based
-	 *                                      on the representative attribute values, must not be null
-	 * @param referenceModifier             a function that modifies the reference based on a specific index and the existing
-	 *                                      reference, must not be null
+	 * @param referenceSchema               the schema defining how references are structured and the
+	 *                                      rules for representative attributes, must not be null
+	 * @param genericReferenceKey           the key used to identify a group of references to be
+	 *                                      processed, must not be null
+	 * @param representativeAttributeValues a function that determines the position or index to resolve
+	 *                                      based on the representative attribute values, must not
+	 *                                      be null
+	 * @param referenceModifier             a function that modifies the reference based on a specific
+	 *                                      index and the existing reference, must not be null
 	 * @return the number of references that were replaced
 	 */
 	public int replaceReferences(
@@ -674,6 +776,34 @@ public class ReferencesStoragePart implements EntityStoragePart {
 	}
 
 	/**
+	 * Checks if the provided {@link ReferenceKey} is present in the references.
+	 *
+	 * @param referenceKey the key to be checked for presence in the references
+	 * @return true if the reference key exists in the references, false otherwise
+	 */
+	public boolean contains(@Nonnull ReferenceKey referenceKey) {
+		final ReferenceContract[] theReferences = getReferences();
+		if (referenceKey.isKnownInternalPrimaryKey()) {
+			return ArrayUtils.binarySearch(theReferences, referenceKey, FULL_COMPARISON_FUNCTION) >= 0;
+		} else if (referenceKey.isNewReference()) {
+			final int exactIndex = ArrayUtils.binarySearch(theReferences, referenceKey, FULL_COMPARISON_FUNCTION);
+			if (exactIndex >= 0) {
+				return true;
+			} else {
+				// try to find nonsingle reference matching generic part of the key
+				final InsertionPosition position = findPositionInGeneralManner(theReferences, referenceKey);
+				/* TOBEDONE #538 - due to backward compatibility with 2025.6, we may simplify later */
+				return position.alreadyPresent() &&
+					theReferences[position.position()].getReferenceKey().isUnknownReference();
+			}
+		} else {
+			final InsertionPosition position = findPositionInGeneralManner(theReferences, referenceKey);
+			assertNoConflictingReferencePresent(referenceKey, position);
+			return position.alreadyPresent();
+		}
+	}
+
+	/**
 	 * Finds the index of a given {@link ReferenceKey} in the references array. The method determines the index
 	 * based on various conditions, including whether the reference is a known internal primary key,
 	 * a new reference, or an unknown reference. If the reference is not found, the method may return -1.
@@ -710,66 +840,6 @@ public class ReferencesStoragePart implements EntityStoragePart {
 	}
 
 	/**
-	 * Finds the position of the provided {@link ReferenceKey} in the references array in a general manner.
-	 * If the reference is already present in the array, the method adjusts the position to the first occurrence
-	 * of the same generic key. Otherwise, it determines where the reference should be inserted while maintaining
-	 * order.
-	 *
-	 * @param references   The array of references to search within; must not be null.
-	 * @param referenceKey The reference key to locate or determine the insertion position for; must not be null.
-	 * @return The {@link InsertionPosition} object that contains the calculated position and whether the reference
-	 *         key was already present in the array.
-	 */
-	@Nonnull
-	private static InsertionPosition findPositionInGeneralManner(
-		@Nonnull ReferenceContract[] references,
-		@Nonnull ReferenceKey referenceKey
-	) {
-		final InsertionPosition position = ArrayUtils.computeInsertPositionOfObjInOrderedArray(
-			referenceKey, references, GENERIC_COMPARISON_FUNCTION
-		);
-		if (position.alreadyPresent()) {
-			int index = position.position();
-			while (index > 0 && references[index - 1].getReferenceKey().equalsInGeneral(
-				references[index].getReferenceKey())) {
-				// move to the first occurrence of the same generic key
-				index--;
-			}
-			return new InsertionPosition(index, true);
-		} else {
-			return position;
-		}
-	}
-
-	/**
-	 * Checks if the provided {@link ReferenceKey} is present in the references.
-	 *
-	 * @param referenceKey the key to be checked for presence in the references
-	 * @return true if the reference key exists in the references, false otherwise
-	 */
-	public boolean contains(@Nonnull ReferenceKey referenceKey) {
-		final ReferenceContract[] theReferences = getReferences();
-		if (referenceKey.isKnownInternalPrimaryKey()) {
-			return ArrayUtils.binarySearch(theReferences, referenceKey, FULL_COMPARISON_FUNCTION) >= 0;
-		} else if (referenceKey.isNewReference()) {
-			final int exactIndex = ArrayUtils.binarySearch(theReferences, referenceKey, FULL_COMPARISON_FUNCTION);
-			if (exactIndex >= 0) {
-				return true;
-			} else {
-				// try to find nonsingle reference matching generic part of the key
-				final InsertionPosition position = findPositionInGeneralManner(theReferences, referenceKey);
-				/* TOBEDONE #538 - due to backward compatibility with 2025.6, we may simplify later */
-				return position.alreadyPresent() &&
-					theReferences[position.position()].getReferenceKey().isUnknownReference();
-			}
-		} else {
-			final InsertionPosition position = findPositionInGeneralManner(theReferences, referenceKey);
-			assertNoConflictingReferencePresent(referenceKey, position);
-			return position.alreadyPresent();
-		}
-	}
-
-	/**
 	 * Ensures that no conflicting reference exists at the provided insertion position for the given reference key.
 	 * A conflict is identified if:
 	 * - The reference already exists in the specified position.
@@ -793,7 +863,8 @@ public class ReferencesStoragePart implements EntityStoragePart {
 				insertionPosition.position() + 1 == theReferences.length ||
 				// or the next reference is different than the one we are adding
 				!theReferences[insertionPosition.position() + 1].getReferenceKey().equals(referenceKey),
-			() -> "There is already existing reference with key " + referenceKey + " in entity " + this.entityPrimaryKey + "! References must be unique!"
+			() -> "There is already existing reference with key " + referenceKey +
+				" in entity " + this.entityPrimaryKey + "! References must be unique!"
 		);
 	}
 
@@ -813,7 +884,7 @@ public class ReferencesStoragePart implements EntityStoragePart {
 	}
 
 	/**
-	 * Defines behavior when a reference wit assigned (known) internal primary key is missing in the storage part.
+	 * Defines behavior when a reference with assigned (known) internal primary key is missing in the storage part.
 	 */
 	public enum MissingReferenceBehavior {
 

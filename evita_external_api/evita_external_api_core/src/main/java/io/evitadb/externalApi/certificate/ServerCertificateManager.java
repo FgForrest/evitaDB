@@ -147,7 +147,9 @@ public class ServerCertificateManager {
 
 		// Issue server and client certificates
 		if (Arrays.stream(type).anyMatch(it -> it == CertificateType.SERVER)) {
-			final TlsKeyPair serverKeyPair = TlsKeyPair.ofSelfSigned();
+			// "localhost" (not the machine hostname) makes Armeria add DNS:localhost/IP:127.0.0.1/IP:::1 SANs,
+			// which TLS hostname verification requires to match the addresses clients actually connect to
+			final TlsKeyPair serverKeyPair = TlsKeyPair.ofSelfSigned("localhost");
 			writeCertificateToFile(serverKeyPair, CertificateUtils.getServerCertName());
 		}
 

@@ -55,6 +55,7 @@ import io.evitadb.test.extension.EvitaParameterResolver;
 import io.evitadb.test.generator.DataGenerator;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.Functions;
 import lombok.extern.slf4j.Slf4j;
 import one.edee.oss.pmptt.model.Hierarchy;
 import one.edee.oss.pmptt.model.HierarchyItem;
@@ -82,10 +83,12 @@ import static graphql.Assert.assertNotNull;
 import static io.evitadb.api.functional.attribute.EntityByChainOrderingFunctionalTest.collectProductIndex;
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
-import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_NAME;
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.ATTRIBUTE;
+import static io.evitadb.test.TestTags.REFERENCE;
 
 /**
  * This test verifies the behavior related to the duplicate references of the same type in entities and reflected
@@ -94,9 +97,11 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 @DisplayName("Evita entity duplicate references handling")
-@Tag(FUNCTIONAL_TEST)
 @ExtendWith(EvitaParameterResolver.class)
 @Slf4j
+@Tag(CONTRACT)
+@Tag(ATTRIBUTE)
+@Tag(REFERENCE)
 public class EntityByDuplicateReferencesFunctionalTest {
 	private static final String DUPLICATE_REFERENCES = "duplicateReferences";
 	private static final String DUPLICATE_REFERENCES_SCHEMA_ONLY = "duplicateReferencesSchemaOnly";
@@ -283,7 +288,7 @@ public class EntityByDuplicateReferencesFunctionalTest {
 		@Nonnull String country,
 		@Nonnull HierarchyItem rootItem
 	) {
-		addProducts(products, productsInCategory, categoryHierarchy, country, rootItem, it -> true);
+		addProducts(products, productsInCategory, categoryHierarchy, country, rootItem, Functions.alwaysTrue());
 	}
 
 	/**
@@ -715,7 +720,7 @@ public class EntityByDuplicateReferencesFunctionalTest {
 					.setOrUpdateReference(
 						REFERENCE_BRAND,
 						1,
-						ref -> false,
+						Functions.alwaysFalse(),
 						refBuilder -> refBuilder
 							.setAttribute(ATTRIBUTE_BRAND_ORDER, Predecessor.HEAD)
 							.setAttribute(ATTRIBUTE_COUNTRY, "DE")
@@ -723,7 +728,7 @@ public class EntityByDuplicateReferencesFunctionalTest {
 					.setOrUpdateReference(
 						REFERENCE_BRAND,
 						1,
-						ref -> true,
+						Functions.alwaysTrue(),
 						refBuilder -> refBuilder
 							.setAttribute(ATTRIBUTE_BRAND_ORDER, Predecessor.HEAD)
 							.setAttribute(ATTRIBUTE_COUNTRY, "US")
@@ -731,7 +736,7 @@ public class EntityByDuplicateReferencesFunctionalTest {
 					.setOrUpdateReference(
 						REFERENCE_CATEGORIES,
 						1,
-						ref -> false,
+						Functions.alwaysFalse(),
 						refBuilder -> refBuilder
 							.setAttribute(ATTRIBUTE_CATEGORY_ORDER, Predecessor.HEAD)
 							.setAttribute(ATTRIBUTE_COUNTRY, "DE")
@@ -739,7 +744,7 @@ public class EntityByDuplicateReferencesFunctionalTest {
 					.setOrUpdateReference(
 						REFERENCE_CATEGORIES,
 						1,
-						ref -> false,
+						Functions.alwaysFalse(),
 						refBuilder -> refBuilder
 							.setAttribute(ATTRIBUTE_CATEGORY_ORDER, Predecessor.HEAD)
 							.setAttribute(ATTRIBUTE_COUNTRY, "US")
@@ -747,7 +752,7 @@ public class EntityByDuplicateReferencesFunctionalTest {
 					.setOrUpdateReference(
 						REFERENCE_CATEGORIES,
 						2,
-						ref -> false,
+						Functions.alwaysFalse(),
 						refBuilder -> refBuilder
 							.setAttribute(ATTRIBUTE_CATEGORY_ORDER, Predecessor.HEAD)
 							.setAttribute(ATTRIBUTE_COUNTRY, "DE")
@@ -755,7 +760,7 @@ public class EntityByDuplicateReferencesFunctionalTest {
 					.setOrUpdateReference(
 						REFERENCE_CATEGORIES,
 						2,
-						ref -> false,
+						Functions.alwaysFalse(),
 						refBuilder -> refBuilder
 							.setAttribute(ATTRIBUTE_CATEGORY_ORDER, Predecessor.HEAD)
 							.setAttribute(ATTRIBUTE_COUNTRY, "US")
@@ -783,7 +788,7 @@ public class EntityByDuplicateReferencesFunctionalTest {
 					.setOrUpdateReference(
 						REFERENCE_BRAND,
 						1,
-						ref -> false,
+						Functions.alwaysFalse(),
 						refBuilder -> refBuilder
 							.setAttribute(ATTRIBUTE_BRAND_ORDER, Predecessor.HEAD)
 							.setAttribute(ATTRIBUTE_COUNTRY, "DE")
@@ -791,7 +796,7 @@ public class EntityByDuplicateReferencesFunctionalTest {
 					.setOrUpdateReference(
 						REFERENCE_BRAND,
 						1,
-						ref -> true,
+						Functions.alwaysTrue(),
 						refBuilder -> refBuilder
 							.setAttribute(ATTRIBUTE_BRAND_ORDER, Predecessor.HEAD)
 							.setAttribute(ATTRIBUTE_COUNTRY, "US")
@@ -799,7 +804,7 @@ public class EntityByDuplicateReferencesFunctionalTest {
 					.setOrUpdateReference(
 						REFERENCE_CATEGORIES,
 						1,
-						ref -> false,
+						Functions.alwaysFalse(),
 						refBuilder -> refBuilder
 							.setAttribute(ATTRIBUTE_CATEGORY_ORDER, Predecessor.HEAD)
 							.setAttribute(ATTRIBUTE_COUNTRY, "DE")
@@ -807,7 +812,7 @@ public class EntityByDuplicateReferencesFunctionalTest {
 					.setOrUpdateReference(
 						REFERENCE_CATEGORIES,
 						1,
-						ref -> false,
+						Functions.alwaysFalse(),
 						refBuilder -> refBuilder
 							.setAttribute(ATTRIBUTE_CATEGORY_ORDER, Predecessor.HEAD)
 							.setAttribute(ATTRIBUTE_COUNTRY, "US")
@@ -815,7 +820,7 @@ public class EntityByDuplicateReferencesFunctionalTest {
 					.setOrUpdateReference(
 						REFERENCE_CATEGORIES,
 						2,
-						ref -> false,
+						Functions.alwaysFalse(),
 						refBuilder -> refBuilder
 							.setAttribute(ATTRIBUTE_CATEGORY_ORDER, Predecessor.HEAD)
 							.setAttribute(ATTRIBUTE_COUNTRY, "DE")
@@ -823,7 +828,7 @@ public class EntityByDuplicateReferencesFunctionalTest {
 					.setOrUpdateReference(
 						REFERENCE_CATEGORIES,
 						2,
-						ref -> false,
+						Functions.alwaysFalse(),
 						refBuilder -> refBuilder
 							.setAttribute(ATTRIBUTE_CATEGORY_ORDER, Predecessor.HEAD)
 							.setAttribute(ATTRIBUTE_COUNTRY, "US")
@@ -985,7 +990,7 @@ public class EntityByDuplicateReferencesFunctionalTest {
 					.setOrUpdateReference(
 						REFERENCE_BRAND,
 						1,
-						ref -> true,
+						Functions.alwaysTrue(),
 						refBuilder -> refBuilder
 							.setAttribute(ATTRIBUTE_BRAND_ORDER, Predecessor.HEAD)
 							.setAttribute(ATTRIBUTE_COUNTRY, "US")
@@ -1007,14 +1012,14 @@ public class EntityByDuplicateReferencesFunctionalTest {
 					.setOrUpdateReference(
 						REFERENCE_CATEGORY_PRODUCTS,
 						1,
-						filter -> false,
+						Functions.alwaysFalse(),
 						whichIs -> whichIs
 							.setAttribute(ATTRIBUTE_COUNTRY, "DE")
 					)
 					.setOrUpdateReference(
 						REFERENCE_CATEGORY_PRODUCTS,
 						1,
-						filter -> false,
+						Functions.alwaysFalse(),
 						whichIs -> whichIs
 							.setAttribute(ATTRIBUTE_COUNTRY, "US")
 					)
@@ -1028,14 +1033,14 @@ public class EntityByDuplicateReferencesFunctionalTest {
 					.setOrUpdateReference(
 						REFERENCE_CATEGORY_PRODUCTS,
 						1,
-						filter -> false,
+						Functions.alwaysFalse(),
 						whichIs -> whichIs
 							.setAttribute(ATTRIBUTE_COUNTRY, "DE")
 					)
 					.setOrUpdateReference(
 						REFERENCE_CATEGORY_PRODUCTS,
 						1,
-						filter -> false,
+						Functions.alwaysFalse(),
 						whichIs -> whichIs
 							.setAttribute(ATTRIBUTE_COUNTRY, "US")
 					)
@@ -1118,7 +1123,7 @@ public class EntityByDuplicateReferencesFunctionalTest {
 
 				// remove all US references at once
 				updatedProductWithoutDE.openForWrite()
-				                       .removeReferences(REFERENCE_CATEGORIES, ref -> true)
+				                       .removeReferences(REFERENCE_CATEGORIES, Functions.alwaysTrue())
 				                       .upsertVia(session);
 
 				final SealedEntity updatedProductWithoutCategories = session

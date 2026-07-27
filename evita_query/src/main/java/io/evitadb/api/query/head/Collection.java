@@ -35,16 +35,32 @@ import java.io.Serial;
 import java.io.Serializable;
 
 /**
- * Each query must specify collection. This mandatory {@link String} entity type controls what collection
- * the query will be applied on.
+ * The `collection` constraint specifies which entity collection (entity type) the query targets. Each query
+ * must target exactly one entity type, making this constraint mandatory in most cases.
  *
- * Sample of the header is:
+ * **Exception:** If the filter contains a constraint targeting a globally unique attribute (such as `entityPrimaryKeyInSet`
+ * or `attributeEquals` on a globally unique attribute), the `collection` constraint can be omitted. In such cases,
+ * evitaDB automatically identifies the implicit collection from the attribute, since globally unique attributes
+ * can only belong to one collection. This is especially useful in e-commerce routing scenarios where the requested
+ * URI needs to match one of the existing entities without knowing its type upfront.
  *
- * <pre>
- * collection('category')
- * </pre>
+ * Example:
  *
- * <p><a href="https://evitadb.io/documentation/query/header/header#collection">Visit detailed user documentation</a></p>
+ * ```evitaql
+ * query(
+ *    collection('Product'),
+ *    filterBy(
+ *       attributeEquals('code', 'garmin-fenix')
+ *    )
+ * )
+ * ```
+ *
+ * The constraint accepts a single {@link String} argument identifying the entity type (collection name).
+ *
+ * Note: This class extends {@link ConstraintLeaf} directly rather than {@link AbstractHeadConstraintLeaf}
+ * for historical reasons, predating the introduction of the abstract base class.
+ *
+ * [Visit detailed user documentation](https://evitadb.io/documentation/query/header/header#collection)
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */

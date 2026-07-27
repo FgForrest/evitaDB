@@ -26,6 +26,7 @@ package io.evitadb.externalApi.rest.api.catalog.dataApi.builder;
 import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.api.catalog.dataApi.model.DataChunkDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityRecordPageDescriptor;
@@ -37,12 +38,16 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.AttributeHis
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ExtraResultsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetGroupStatisticsDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetRequestImpactDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.EntityFacetStatisticsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HistogramDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HistogramDescriptor.BucketDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.QueryTelemetryDescriptor;
+import io.evitadb.externalApi.rest.api.catalog.dataApi.builder.extraResult.ReferenceHistogramObjectBuilder;
+import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ReferenceSummaryDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ReferenceSummaryDescriptor.EntityFacetStatisticsDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ReferenceSummaryDescriptor.FacetRequestImpactDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ReferenceSummaryDescriptor.HistogramStatisticsDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ReferenceSummaryDescriptor.ReferenceGroupStatisticsDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.builder.CatalogRestBuildingContext;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.dto.DataChunkType;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.DataChunkUnionDescriptor;
@@ -58,13 +63,14 @@ import io.evitadb.externalApi.rest.api.openApi.OpenApiProperty;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiTypeReference;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiUnion;
 import io.evitadb.externalApi.rest.exception.OpenApiBuildingError;
-import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import static io.evitadb.externalApi.api.ExternalApiNamingConventions.PROPERTY_NAME_NAMING_CONVENTION;
 import static io.evitadb.externalApi.rest.api.catalog.dataApi.builder.DataApiNamesConstructor.*;
@@ -72,6 +78,7 @@ import static io.evitadb.externalApi.rest.api.openApi.OpenApiArray.arrayOf;
 import static io.evitadb.externalApi.rest.api.openApi.OpenApiNonNull.nonNull;
 import static io.evitadb.externalApi.rest.api.openApi.OpenApiProperty.newProperty;
 import static io.evitadb.externalApi.rest.api.openApi.OpenApiTypeReference.typeRefTo;
+import static io.evitadb.utils.CollectionUtils.createLinkedHashSet;
 
 /**
  * Builder for full query response. Response contains in this case not only main entity data but also additional data
@@ -79,7 +86,6 @@ import static io.evitadb.externalApi.rest.api.openApi.OpenApiTypeReference.typeR
  *
  * @author Martin Veska (veska@fg.cz), FG Forrest a.s. (c) 2022
  */
-@RequiredArgsConstructor
 public class FullResponseObjectBuilder {
 
 	@Nonnull private final CatalogRestBuildingContext buildingContext;
@@ -87,6 +93,26 @@ public class FullResponseObjectBuilder {
 	@Nonnull private final ObjectDescriptorToOpenApiObjectTransformer objectBuilderTransformer;
 	@Nonnull private final UnionDescriptorToOpenApiUnionTransformer unionBuilderTransformer;
 	@Nonnull private final ObjectDescriptorToOpenApiDictionaryTransformer dictionaryBuilderTransformer;
+	@Nonnull private final ReferenceHistogramObjectBuilder referenceHistogramObjectBuilder;
+
+	public FullResponseObjectBuilder(
+		@Nonnull CatalogRestBuildingContext buildingContext,
+		@Nonnull PropertyDescriptorToOpenApiPropertyTransformer propertyBuilderTransformer,
+		@Nonnull ObjectDescriptorToOpenApiObjectTransformer objectBuilderTransformer,
+		@Nonnull UnionDescriptorToOpenApiUnionTransformer unionBuilderTransformer,
+		@Nonnull ObjectDescriptorToOpenApiDictionaryTransformer dictionaryBuilderTransformer
+	) {
+		this.buildingContext = buildingContext;
+		this.propertyBuilderTransformer = propertyBuilderTransformer;
+		this.objectBuilderTransformer = objectBuilderTransformer;
+		this.unionBuilderTransformer = unionBuilderTransformer;
+		this.dictionaryBuilderTransformer = dictionaryBuilderTransformer;
+		this.referenceHistogramObjectBuilder = new ReferenceHistogramObjectBuilder(
+			buildingContext,
+			objectBuilderTransformer,
+			propertyBuilderTransformer
+		);
+	}
 
 	public void buildCommonTypes() {
 		// these should be generated using interface transformer, but we need a robust framework for that
@@ -94,6 +120,10 @@ public class FullResponseObjectBuilder {
 		this.buildingContext.registerType(RecordStripDescriptor.THIS_INTERFACE.to(this.objectBuilderTransformer).build());
 
 		this.buildingContext.registerType(BucketDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		// register the shared Histogram interface (as object — REST has no native interface type)
+		// before the concrete BaseHistogram, so the `allOf` reference produced by the concrete type's
+		// `implementedInterface` resolves correctly.
+		this.buildingContext.registerType(HistogramDescriptor.THIS_INTERFACE.to(this.objectBuilderTransformer).build());
 		this.buildingContext.registerType(HistogramDescriptor.THIS.to(this.objectBuilderTransformer).build());
 		this.buildingContext.registerType(QueryTelemetryDescriptor.THIS.to(this.objectBuilderTransformer).build());
 		this.buildingContext.registerType(FacetRequestImpactDescriptor.THIS.to(this.objectBuilderTransformer).build());
@@ -209,6 +239,7 @@ public class FullResponseObjectBuilder {
 
 		buildAttributeHistogramProperty(entitySchema).ifPresent(extraResultProperties::add);
 		buildPriceHistogramProperty(entitySchema).ifPresent(extraResultProperties::add);
+		buildReferenceSummaryProperty(entitySchema, localized).ifPresent(extraResultProperties::add);
 		buildFacetSummaryProperty(entitySchema, localized).ifPresent(extraResultProperties::add);
 		buildHierarchyProperty(entitySchema, localized).ifPresent(extraResultProperties::add);
 		extraResultProperties.add(ExtraResultsDescriptor.QUERY_TELEMETRY.to(this.propertyBuilderTransformer).build());
@@ -281,6 +312,177 @@ public class FullResponseObjectBuilder {
 	}
 
 	@Nonnull
+	private Optional<OpenApiProperty> buildReferenceSummaryProperty(
+		@Nonnull EntitySchemaContract entitySchema,
+		boolean localized
+	) {
+		final Optional<OpenApiTypeReference> referenceSummaryObject = buildReferenceSummaryObject(entitySchema, localized);
+		if (referenceSummaryObject.isEmpty()) {
+			return Optional.empty();
+		}
+
+		return Optional.of(
+			ExtraResultsDescriptor.REFERENCE_SUMMARY
+				.to(this.propertyBuilderTransformer)
+				.type(referenceSummaryObject.get())
+				.build()
+		);
+	}
+
+	@Nonnull
+	private Optional<OpenApiTypeReference> buildReferenceSummaryObject(
+		@Nonnull EntitySchemaContract entitySchema,
+		boolean localized
+	) {
+		final List<ReferenceSchemaContract> referenceSchemas = entitySchema
+			.getReferences()
+			.values()
+			.stream()
+			.filter(ref -> ref.isFacetedInAnyScope() || ref.isBucketedInAnyScope())
+			.toList();
+
+		if (referenceSchemas.isEmpty()) {
+			return Optional.empty();
+		}
+
+		final OpenApiObject.Builder referenceSummaryObjectBuilder = ReferenceSummaryDescriptor.THIS
+			.to(this.objectBuilderTransformer)
+			.name(constructReferenceSummaryObjectName(entitySchema, localized));
+
+		referenceSchemas.forEach(referenceSchema ->
+             referenceSummaryObjectBuilder.property(buildReferenceGroupStatisticsProperty(entitySchema, referenceSchema, localized)));
+
+		return Optional.of(this.buildingContext.registerType(referenceSummaryObjectBuilder.build()));
+	}
+
+	@Nonnull
+	private OpenApiProperty buildReferenceGroupStatisticsProperty(
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		boolean localized
+	) {
+		final OpenApiTypeReference referenceGroupStatisticsObject = buildReferenceGroupStatisticsObject(
+			entitySchema,
+			referenceSchema,
+			localized
+		);
+
+		final boolean isGrouped = referenceSchema.getReferencedGroupType() != null;
+
+		final OpenApiProperty.Builder referenceGroupStatisticsFieldBuilder = newProperty()
+			.name(referenceSchema.getNameVariant(PROPERTY_NAME_NAMING_CONVENTION));
+		if (isGrouped) {
+			referenceGroupStatisticsFieldBuilder.type(arrayOf(referenceGroupStatisticsObject));
+		} else {
+			referenceGroupStatisticsFieldBuilder.type(referenceGroupStatisticsObject);
+		}
+
+		return referenceGroupStatisticsFieldBuilder
+			.build();
+	}
+
+	@Nonnull
+	private OpenApiTypeReference buildReferenceGroupStatisticsObject(
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		boolean localized
+	) {
+		final EntitySchemaContract groupEntitySchema = referenceSchema.isReferencedGroupTypeManaged() ?
+			Optional.ofNullable(referenceSchema.getReferencedGroupType())
+				.flatMap(groupType -> this.buildingContext
+					.getSchema()
+					.getEntitySchema(groupType))
+				.orElse(null) :
+			null;
+
+		final OpenApiTypeReference groupEntityObject = buildReferencedEntityObject(groupEntitySchema, localized);
+		final OpenApiTypeReference facetStatisticsObject = buildFacetStatisticsObject(
+			entitySchema,
+			referenceSchema,
+			localized
+		);
+
+		final OpenApiObject.Builder facetGroupStatisticsObjectBuilder = FacetGroupStatisticsDescriptor.THIS
+			.to(this.objectBuilderTransformer)
+			.name(constructReferenceGroupStatisticsObjectName(entitySchema, referenceSchema, localized));
+
+		if (referenceSchema.getReferencedGroupType() != null) {
+			facetGroupStatisticsObjectBuilder
+				.property(
+					ReferenceGroupStatisticsDescriptor.GROUP_ENTITY
+						.to(this.propertyBuilderTransformer)
+			            .type(groupEntityObject));
+		}
+
+		facetGroupStatisticsObjectBuilder
+			.property(
+				ReferenceGroupStatisticsDescriptor.FACET_STATISTICS
+					.to(this.propertyBuilderTransformer)
+					.type(nonNull(arrayOf(facetStatisticsObject))));
+
+		// add the `histogramStatistics` wrapper property (if any histogram indexes are defined)
+		final Set<String> histogramIndexNames = collectHistogramIndexNames(referenceSchema);
+		if (!histogramIndexNames.isEmpty()) {
+			final OpenApiTypeReference histogramStatisticsObject = buildHistogramStatisticsObject(
+				entitySchema, referenceSchema, histogramIndexNames, localized
+			);
+			facetGroupStatisticsObjectBuilder
+				.property(
+					ReferenceGroupStatisticsDescriptor.HISTOGRAM_STATISTICS
+						.to(this.propertyBuilderTransformer)
+						.type(histogramStatisticsObject));
+		}
+
+		return this.buildingContext.registerType(facetGroupStatisticsObjectBuilder.build());
+	}
+
+	/**
+	 * Builds the dynamic histogram statistics wrapper object that exposes one property per named histogram index,
+	 * each typed as the per-referenced-entity-type `{EntityType}Histogram` concrete schema produced by
+	 * {@link ReferenceHistogramObjectBuilder}.
+	 */
+	@Nonnull
+	private OpenApiTypeReference buildHistogramStatisticsObject(
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull Set<String> histogramIndexNames,
+		boolean localized
+	) {
+		final OpenApiObject.Builder wrapperBuilder = HistogramStatisticsDescriptor.THIS
+			.to(this.objectBuilderTransformer)
+			.name(constructHistogramStatisticsObjectName(entitySchema, referenceSchema, localized));
+
+		final OpenApiTypeReference referenceHistogramType =
+			this.referenceHistogramObjectBuilder.getOrBuild(referenceSchema, localized);
+
+		for (String indexName : histogramIndexNames) {
+			wrapperBuilder.property(
+				newProperty()
+					.name(indexName)
+					.type(referenceHistogramType)
+					.build()
+			);
+		}
+
+		return this.buildingContext.registerType(wrapperBuilder.build());
+	}
+
+	/**
+	 * Collects unique histogram index names defined on the reference schema across all scopes.
+	 */
+	@Nonnull
+	private static Set<String> collectHistogramIndexNames(@Nonnull ReferenceSchemaContract referenceSchema) {
+		final Set<String> histogramIndexNames = createLinkedHashSet(10);
+		for (Scope scope : Scope.values()) {
+			if (referenceSchema.isBucketedInScope(scope)) {
+				histogramIndexNames.addAll(referenceSchema.getHistogramIndexDefinitions(scope).keySet());
+			}
+		}
+		return histogramIndexNames;
+	}
+
+	// TOBEDONE: deprecated - remove when FacetSummary constraint is removed (https://github.com/FgForrest/evitaDB/issues/538)
+	@Nonnull
 	private Optional<OpenApiProperty> buildFacetSummaryProperty(@Nonnull EntitySchemaContract entitySchema,
 	                                                            boolean localized) {
 		final Optional<OpenApiTypeReference> facetSummaryObject = buildFacetSummaryObject(entitySchema, localized);
@@ -296,6 +498,7 @@ public class FullResponseObjectBuilder {
 		);
 	}
 
+	// TOBEDONE: deprecated - remove when FacetSummary constraint is removed (https://github.com/FgForrest/evitaDB/issues/538)
 	@Nonnull
 	private Optional<OpenApiTypeReference> buildFacetSummaryObject(@Nonnull EntitySchemaContract entitySchema,
 	                                                               boolean localized) {
@@ -320,6 +523,7 @@ public class FullResponseObjectBuilder {
 		return Optional.of(this.buildingContext.registerType(facetSummaryObjectBuilder.build()));
 	}
 
+	// TOBEDONE: deprecated - remove when FacetSummary constraint is removed (https://github.com/FgForrest/evitaDB/issues/538)
 	@Nonnull
 	private OpenApiProperty buildFacetGroupStatisticsProperty(@Nonnull EntitySchemaContract entitySchema,
 	                                                          @Nonnull ReferenceSchemaContract referenceSchema,
@@ -344,7 +548,7 @@ public class FullResponseObjectBuilder {
 			.build();
 	}
 
-
+	// TOBEDONE: deprecated - remove when FacetSummary constraint is removed (https://github.com/FgForrest/evitaDB/issues/538)
 	@Nonnull
 	private OpenApiTypeReference buildFacetGroupStatisticsObject(@Nonnull EntitySchemaContract entitySchema,
 	                                                             @Nonnull ReferenceSchemaContract referenceSchema,
@@ -358,10 +562,8 @@ public class FullResponseObjectBuilder {
 			null;
 
 		final OpenApiTypeReference groupEntityObject = buildReferencedEntityObject(groupEntitySchema, localized);
-		final OpenApiTypeReference facetStatisticsObject = buildFacetStatisticsObject(
-			entitySchema,
-			referenceSchema,
-			localized
+		final OpenApiTypeReference facetStatisticsObject = typeRefTo(
+			constructFacetStatisticsObjectName(entitySchema, referenceSchema, localized)
 		);
 
 		final OpenApiObject.Builder facetGroupStatisticsObjectBuilder = FacetGroupStatisticsDescriptor.THIS

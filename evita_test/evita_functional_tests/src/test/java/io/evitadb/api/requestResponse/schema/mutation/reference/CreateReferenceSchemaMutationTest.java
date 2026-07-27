@@ -24,50 +24,56 @@
 package io.evitadb.api.requestResponse.schema.mutation.reference;
 
 import io.evitadb.api.exception.InvalidSchemaMutationException;
+import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.mutation.conflict.CollectionConflictKey;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictGenerationContext;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolution;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
+import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.OrderBehaviour;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract.AttributeInheritanceBehavior;
+import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
+import io.evitadb.api.query.expression.ExpressionFactory;
+import io.evitadb.dataType.expression.Expression;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
-import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
-import io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.dto.ReflectedReferenceSchema;
 import io.evitadb.api.requestResponse.schema.dto.SortableAttributeCompoundSchema;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
-import io.evitadb.api.query.order.OrderDirection;
-import io.evitadb.api.requestResponse.schema.OrderBehaviour;
-import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.dataType.Scope;
+import io.evitadb.utils.NamingConvention;
 import io.evitadb.exception.InvalidClassifierFormatException;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.junit.jupiter.api.Tag;
 
 import static java.util.Optional.of;
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertInstanceOf;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.SCHEMA;
+import static io.evitadb.test.TestTags.REFERENCE;
 
 /**
  * Tests for {@link CreateReferenceSchemaMutation} verifying creation of reference schemas,
@@ -76,6 +82,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 @DisplayName("CreateReferenceSchemaMutation")
+@Tag(CONTRACT)
+@Tag(SCHEMA)
+@Tag(REFERENCE)
 class CreateReferenceSchemaMutationTest {
 
 	static final String REFERENCE_NAME = "categories";
@@ -103,21 +112,27 @@ class CreateReferenceSchemaMutationTest {
 	 */
 	@Nonnull
 	static ReferenceSchemaContract createExistingReferenceSchema(boolean indexed) {
-		return ReferenceSchema._internalBuild(
+		final Map<Scope, ReferenceIndexType> indexedScopesMap = indexed ?
+				Map.of(Scope.DEFAULT_SCOPE, ReferenceIndexType.FOR_FILTERING) :
+				Collections.emptyMap();
+			return ReferenceSchema._internalBuild(
 			REFERENCE_NAME,
+			NamingConvention.generate(REFERENCE_NAME),
 			"oldDescription",
 			"oldDeprecationNotice",
-			REFERENCE_TYPE,
-			false,
 			Cardinality.ZERO_OR_MORE,
-			GROUP_TYPE,
+			REFERENCE_TYPE,
+			NamingConvention.generate(REFERENCE_TYPE),
 			false,
-			indexed ?
-				new ScopedReferenceIndexType[]{
-					new ScopedReferenceIndexType(Scope.DEFAULT_SCOPE, ReferenceIndexType.FOR_FILTERING)
-				} :
-				ScopedReferenceIndexType.EMPTY,
-			indexed ? new Scope[]{Scope.LIVE} : Scope.NO_SCOPE,
+			GROUP_TYPE,
+			NamingConvention.generate(GROUP_TYPE),
+			false,
+			indexedScopesMap,
+			ReferenceSchema.defaultIndexedComponents(indexedScopesMap),
+			indexed ? EnumSet.of(Scope.LIVE) : EnumSet.noneOf(Scope.class),
+			Collections.emptyMap(),
+			Collections.emptyMap(),
+			Collections.emptyMap(),
 			Map.of(
 				REFERENCE_ATTRIBUTE_PRIORITY,
 				AttributeSchema._internalBuild(
@@ -136,7 +151,8 @@ class CreateReferenceSchemaMutationTest {
 					false,
 					Integer.class,
 					null,
-					2
+					2,
+					ConflictResolutionOverride.INHERITED
 				),
 				REFERENCE_ATTRIBUTE_QUANTITY,
 				AttributeSchema._internalBuild(
@@ -155,7 +171,8 @@ class CreateReferenceSchemaMutationTest {
 					false,
 					Integer.class,
 					null,
-					2
+					2,
+					ConflictResolutionOverride.INHERITED
 				)
 			),
 			Map.of(
@@ -178,7 +195,8 @@ class CreateReferenceSchemaMutationTest {
 						)
 					)
 				)
-			)
+			),
+			ConflictResolutionOverride.INHERITED
 		);
 	}
 
@@ -202,7 +220,9 @@ class CreateReferenceSchemaMutationTest {
 			new ScopedReferenceIndexType[]{
 				new ScopedReferenceIndexType(Scope.DEFAULT_SCOPE, ReferenceIndexType.FOR_FILTERING)
 			},
+			null,
 			new Scope[]{Scope.LIVE},
+			null, null, null,
 			Collections.emptyMap(),
 			Collections.emptyMap(),
 			AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED,
@@ -237,45 +257,105 @@ class CreateReferenceSchemaMutationTest {
 
 			assertNotNull(result);
 			assertFalse(result.discarded());
-			assertEquals(10, result.current().length);
+			assertEquals(11, result.current().length);
 			assertTrue(
 				Arrays.stream(result.current())
-					.anyMatch(m -> m instanceof ModifyReferenceSchemaDescriptionMutation)
+					.anyMatch(ModifyReferenceSchemaDescriptionMutation.class::isInstance)
 			);
 			assertTrue(
 				Arrays.stream(result.current())
-					.anyMatch(m -> m instanceof ModifyReferenceSchemaDeprecationNoticeMutation)
+					.anyMatch(ModifyReferenceSchemaDeprecationNoticeMutation.class::isInstance)
 			);
 			assertTrue(
 				Arrays.stream(result.current())
-					.anyMatch(m -> m instanceof ModifyReferenceSchemaCardinalityMutation)
+					.anyMatch(ModifyReferenceSchemaCardinalityMutation.class::isInstance)
 			);
 			assertTrue(
 				Arrays.stream(result.current())
-					.anyMatch(m -> m instanceof ModifyReferenceSchemaRelatedEntityMutation)
+					.anyMatch(ModifyReferenceSchemaRelatedEntityMutation.class::isInstance)
 			);
 			assertTrue(
 				Arrays.stream(result.current())
-					.anyMatch(m -> m instanceof ModifyReferenceSchemaRelatedEntityGroupMutation)
+					.anyMatch(ModifyReferenceSchemaRelatedEntityGroupMutation.class::isInstance)
 			);
 			assertTrue(
 				Arrays.stream(result.current())
-					.anyMatch(m -> m instanceof SetReferenceSchemaIndexedMutation)
+					.anyMatch(SetReferenceSchemaIndexedMutation.class::isInstance)
 			);
 			assertTrue(
 				Arrays.stream(result.current())
-					.anyMatch(m -> m instanceof SetReferenceSchemaFacetedMutation)
+					.anyMatch(SetReferenceSchemaFacetedMutation.class::isInstance)
 			);
 			assertTrue(
 				Arrays.stream(result.current())
-					.anyMatch(m -> m instanceof ModifyReferenceAttributeSchemaMutation)
+					.anyMatch(ModifyReferenceAttributeSchemaMutation.class::isInstance)
 			);
 			assertTrue(
 				Arrays.stream(result.current())
 					.anyMatch(
-						m -> m instanceof ModifyReferenceSortableAttributeCompoundSchemaMutation
+						ModifyReferenceSortableAttributeCompoundSchemaMutation.class::isInstance
 					)
 			);
+		}
+
+		@Test
+		@DisplayName("should emit single SetReferenceSchemaFacetedMutation carrying both scopes and expressions")
+		void shouldEmitSingleFacetedMutationWithBothScopesAndExpressions() {
+			// Create has faceted={LIVE} + facetedPartially={LIVE: expr}
+			// Existing has faceted={} (not faceted) + facetedPartially={}
+			final Expression expression = ExpressionFactory.parse("1 > 0");
+			final CreateReferenceSchemaMutation mutation = new CreateReferenceSchemaMutation(
+				REFERENCE_NAME,
+				"oldDescription", "oldDeprecationNotice",
+				Cardinality.ZERO_OR_MORE, REFERENCE_TYPE, false,
+				GROUP_TYPE, false,
+				new ScopedReferenceIndexType[]{
+					new ScopedReferenceIndexType(Scope.LIVE, ReferenceIndexType.FOR_FILTERING)
+				},
+				null,
+				new Scope[]{Scope.LIVE},
+				new ScopedFacetedPartially[]{
+					new ScopedFacetedPartially(Scope.LIVE, expression)
+				},
+				null, null
+			);
+			// existing schema is NOT faceted — facetedInScopes={}
+			final EntitySchemaContract entitySchema = Mockito.mock(EntitySchemaContract.class);
+			Mockito.when(entitySchema.getReference(REFERENCE_NAME))
+				.thenReturn(of(createExistingReferenceSchema(false)));
+			final RemoveReferenceSchemaMutation removeMutation =
+				new RemoveReferenceSchemaMutation(REFERENCE_NAME);
+
+			final MutationCombinationResult<LocalEntitySchemaMutation> result =
+				mutation.combineWith(
+					Mockito.mock(CatalogSchemaContract.class), entitySchema, removeMutation
+				);
+
+			assertNotNull(result);
+			// Count SetReferenceSchemaFacetedMutation instances — must be exactly 1
+			final SetReferenceSchemaFacetedMutation[] facetedMutations = Arrays.stream(result.current())
+				.filter(SetReferenceSchemaFacetedMutation.class::isInstance)
+				.map(SetReferenceSchemaFacetedMutation.class::cast)
+				.toArray(SetReferenceSchemaFacetedMutation[]::new);
+			assertEquals(
+				1, facetedMutations.length,
+				"Expected exactly one SetReferenceSchemaFacetedMutation but found " +
+					facetedMutations.length + " — two separate mutations would cause " +
+					"Set+Set combining to lose facetedInScopes"
+			);
+			// The single mutation must carry both facetedInScopes AND facetedPartially
+			final SetReferenceSchemaFacetedMutation facetedMutation = facetedMutations[0];
+			assertNotNull(
+				facetedMutation.getFacetedInScopes(),
+				"facetedInScopes must not be null — null means 'don't change'"
+			);
+			assertArrayEquals(new Scope[]{Scope.LIVE}, facetedMutation.getFacetedInScopes());
+			assertNotNull(
+				facetedMutation.getFacetedPartiallyInScopes(),
+				"facetedPartiallyInScopes must not be null"
+			);
+			assertEquals(1, facetedMutation.getFacetedPartiallyInScopes().length);
+			assertEquals(Scope.LIVE, facetedMutation.getFacetedPartiallyInScopes()[0].scope());
 		}
 
 		@Test
@@ -351,6 +431,64 @@ class CreateReferenceSchemaMutationTest {
 
 			assertNull(result);
 		}
+
+		/**
+		 * Verifies that when a create mutation with bucketed config is combined
+		 * with a remove mutation against a non-bucketed existing schema, exactly one
+		 * SetReferenceSchemaBucketedMutation is emitted carrying both bucketed
+		 * histogram definitions and bucketedPartially expressions.
+		 */
+		@Test
+		@DisplayName("should emit single bucketed mutation when remove+create with different bucketed")
+		void shouldEmitSingleBucketedMutationWhenRemoveAndCreateWithDifferentBucketed() {
+			final Expression expression = ExpressionFactory.parse("1 > 0");
+			final CreateReferenceSchemaMutation mutation = new CreateReferenceSchemaMutation(
+				REFERENCE_NAME,
+				"oldDescription", "oldDeprecationNotice",
+				Cardinality.ZERO_OR_MORE, REFERENCE_TYPE, false,
+				GROUP_TYPE, false,
+				new ScopedReferenceIndexType[]{
+					new ScopedReferenceIndexType(Scope.LIVE, ReferenceIndexType.FOR_FILTERING)
+				},
+				null,
+				new Scope[]{Scope.LIVE},
+				null,
+				new ScopedHistogramIndexDefinition[]{
+					new ScopedHistogramIndexDefinition(Scope.LIVE, "priceHistogram", null, null)
+				},
+				new ScopedBucketedPartially[]{
+					new ScopedBucketedPartially(Scope.LIVE, expression)
+				}
+			);
+			// existing schema is NOT bucketed
+			final EntitySchemaContract entitySchema = Mockito.mock(EntitySchemaContract.class);
+			Mockito.when(entitySchema.getReference(REFERENCE_NAME))
+				.thenReturn(of(createExistingReferenceSchema()));
+			final RemoveReferenceSchemaMutation removeMutation =
+				new RemoveReferenceSchemaMutation(REFERENCE_NAME);
+
+			final MutationCombinationResult<LocalEntitySchemaMutation> result =
+				mutation.combineWith(
+					Mockito.mock(CatalogSchemaContract.class), entitySchema, removeMutation
+				);
+
+			assertNotNull(result);
+			// Count SetReferenceSchemaBucketedMutation instances -- must be exactly 1
+			final SetReferenceSchemaBucketedMutation[] bucketedMutations =
+				Arrays.stream(result.current())
+					.filter(SetReferenceSchemaBucketedMutation.class::isInstance)
+					.map(SetReferenceSchemaBucketedMutation.class::cast)
+					.toArray(SetReferenceSchemaBucketedMutation[]::new);
+			assertEquals(
+				1, bucketedMutations.length,
+				"Expected exactly one SetReferenceSchemaBucketedMutation"
+			);
+			final SetReferenceSchemaBucketedMutation bucketedMutation = bucketedMutations[0];
+			assertNotNull(bucketedMutation.getBucketedInScopes());
+			assertEquals(1, bucketedMutation.getBucketedInScopes().length);
+			assertNotNull(bucketedMutation.getBucketedPartiallyInScopes());
+			assertEquals(1, bucketedMutation.getBucketedPartiallyInScopes().length);
+		}
 	}
 
 	@Nested
@@ -390,6 +528,113 @@ class CreateReferenceSchemaMutationTest {
 		}
 
 		@Test
+		@DisplayName("should propagate a non-default conflict resolution override into the created reference")
+		void shouldCreateReferenceWithConflictResolutionOverride() {
+			final CreateReferenceSchemaMutation mutation = new CreateReferenceSchemaMutation(
+				REFERENCE_NAME,
+				"description",
+				"deprecationNotice",
+				Cardinality.ZERO_OR_MORE,
+				REFERENCE_TYPE,
+				false,
+				GROUP_TYPE,
+				false,
+				null, null, null, null, null, null,
+				ConflictResolutionOverride.GRANULAR
+			);
+
+			final ReferenceSchemaContract referenceSchema =
+				mutation.mutate(Mockito.mock(EntitySchemaContract.class), null);
+
+			assertNotNull(referenceSchema);
+			assertEquals(ConflictResolutionOverride.GRANULAR, referenceSchema.getConflictResolutionOverride());
+		}
+
+		@Test
+		@DisplayName("should create reference with explicit indexed components")
+		void shouldCreateReferenceWithExplicitIndexedComponents() {
+			final CreateReferenceSchemaMutation mutation = createReferenceSchemaMutation(
+				REFERENCE_NAME,
+				"description", "deprecationNotice",
+				Cardinality.ZERO_OR_MORE,
+				REFERENCE_TYPE, false,
+				GROUP_TYPE, false,
+				new ScopedReferenceIndexType[]{
+					new ScopedReferenceIndexType(Scope.LIVE, ReferenceIndexType.FOR_FILTERING)
+				},
+				new ScopedReferenceIndexedComponents[]{
+					new ScopedReferenceIndexedComponents(
+						Scope.LIVE,
+						new ReferenceIndexedComponents[]{
+							ReferenceIndexedComponents.REFERENCED_ENTITY,
+							ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
+						}
+					)
+				},
+				new Scope[]{Scope.LIVE}
+			);
+
+			final ReferenceSchemaContract referenceSchema =
+				mutation.mutate(Mockito.mock(EntitySchemaContract.class), null);
+
+			assertNotNull(referenceSchema);
+			final Set<ReferenceIndexedComponents> components =
+				referenceSchema.getIndexedComponents(Scope.LIVE);
+			assertEquals(2, components.size());
+			assertTrue(components.contains(ReferenceIndexedComponents.REFERENCED_ENTITY));
+			assertTrue(components.contains(ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY));
+
+			final Map<Scope, Set<ReferenceIndexedComponents>> allComponents =
+				referenceSchema.getIndexedComponentsInScopes();
+			assertEquals(1, allComponents.size());
+			assertNotNull(allComponents.get(Scope.LIVE));
+		}
+
+		/**
+		 * Verifies that the 12-arg constructor with facetedPartially produces
+		 * a reference schema where the expression is retrievable.
+		 */
+		@Test
+		@DisplayName("should create reference with facetedPartially expression")
+		void shouldCreateReferenceWithFacetedPartially() {
+			final Expression expression = ExpressionFactory.parse("1 > 0");
+			final CreateReferenceSchemaMutation mutation = new CreateReferenceSchemaMutation(
+				REFERENCE_NAME,
+				"description",
+				"deprecationNotice",
+				Cardinality.ZERO_OR_MORE,
+				REFERENCE_TYPE,
+				false,
+				GROUP_TYPE,
+				false,
+				new ScopedReferenceIndexType[]{
+					new ScopedReferenceIndexType(
+						Scope.LIVE, ReferenceIndexType.FOR_FILTERING
+					)
+				},
+				null,
+				new Scope[]{Scope.LIVE},
+				new ScopedFacetedPartially[]{
+					new ScopedFacetedPartially(Scope.LIVE, expression)
+				},
+				null, null
+			);
+
+			final ReferenceSchemaContract referenceSchema =
+				mutation.mutate(Mockito.mock(EntitySchemaContract.class), null);
+
+			assertNotNull(referenceSchema);
+			assertTrue(referenceSchema.isFacetedInScope(Scope.LIVE));
+			final Expression actual =
+				referenceSchema.getFacetedPartiallyInScope(Scope.LIVE);
+			assertNotNull(actual);
+			assertEquals(
+				expression.toExpressionString(),
+				actual.toExpressionString()
+			);
+		}
+
+		@Test
 		@DisplayName("should reject invalid classifier name")
 		void shouldThrowExceptionWhenInvalidNameIsProvided() {
 			assertThrows(
@@ -400,6 +645,182 @@ class CreateReferenceSchemaMutationTest {
 					null, false,
 					false, false
 				)
+			);
+		}
+
+		/**
+		 * Verifies that the 14-arg constructor with bucketed histogram data produces
+		 * a reference schema where the histogram definition is retrievable.
+		 */
+		@Test
+		@DisplayName("should create reference with bucketed histogram")
+		void shouldCreateReferenceWithBucketedHistogram() {
+			final Expression expression = ExpressionFactory.parse("1 > 0");
+			final CreateReferenceSchemaMutation mutation = new CreateReferenceSchemaMutation(
+				REFERENCE_NAME,
+				"description",
+				"deprecationNotice",
+				Cardinality.ZERO_OR_MORE,
+				REFERENCE_TYPE,
+				false,
+				GROUP_TYPE,
+				false,
+				new ScopedReferenceIndexType[]{
+					new ScopedReferenceIndexType(Scope.LIVE, ReferenceIndexType.FOR_FILTERING)
+				},
+				null,
+				new Scope[]{Scope.LIVE},
+				null,
+				new ScopedHistogramIndexDefinition[]{
+					new ScopedHistogramIndexDefinition(Scope.LIVE, "priceHistogram", expression, null)
+				},
+				new ScopedBucketedPartially[]{
+					new ScopedBucketedPartially(Scope.LIVE, expression)
+				}
+			);
+
+			final ReferenceSchemaContract referenceSchema =
+				mutation.mutate(Mockito.mock(EntitySchemaContract.class), null);
+
+			assertNotNull(referenceSchema);
+			assertTrue(referenceSchema.isBucketedInScope(Scope.LIVE));
+			assertEquals(
+				"priceHistogram",
+				referenceSchema.getHistogramIndexDefinition(Scope.LIVE, "priceHistogram").nameOfTheIndex()
+			);
+			assertNotNull(referenceSchema.getBucketedPartiallyInScope(Scope.LIVE));
+		}
+
+		/**
+		 * Verifies that a non-null `assignedWhen` partition selector supplied on
+		 * {@link ScopedHistogramIndexDefinition} survives `mutate(...)` and lands unchanged on
+		 * the resulting {@link io.evitadb.api.requestResponse.schema.dto.HistogramIndexDefinition}.
+		 * Guards against a refactor that silently drops the field while building the schema.
+		 */
+		@Test
+		@DisplayName("should preserve non-null assignedWhen through mutate round-trip")
+		void shouldPreserveNonNullAssignedWhenInMutateRoundTrip() {
+			final Expression valueExpr = ExpressionFactory.parse("$reference.attributes['quantity']");
+			final Expression assignedWhenExpr = ExpressionFactory.parse("$active == 1");
+			final CreateReferenceSchemaMutation mutation = new CreateReferenceSchemaMutation(
+				REFERENCE_NAME,
+				"description",
+				"deprecationNotice",
+				Cardinality.ZERO_OR_MORE,
+				REFERENCE_TYPE,
+				false,
+				GROUP_TYPE,
+				false,
+				new ScopedReferenceIndexType[]{
+					new ScopedReferenceIndexType(Scope.LIVE, ReferenceIndexType.FOR_FILTERING)
+				},
+				null,
+				new Scope[]{Scope.LIVE},
+				null,
+				new ScopedHistogramIndexDefinition[]{
+					new ScopedHistogramIndexDefinition(
+						Scope.LIVE, "priceHistogram", valueExpr, assignedWhenExpr
+					)
+				},
+				null
+			);
+
+			final ReferenceSchemaContract referenceSchema =
+				mutation.mutate(Mockito.mock(EntitySchemaContract.class), null);
+
+			assertNotNull(referenceSchema);
+			final Expression preserved = referenceSchema
+				.getHistogramIndexDefinition(Scope.LIVE, "priceHistogram")
+				.assignedWhen();
+			assertNotNull(preserved, "assignedWhen must survive mutate(...)");
+			assertEquals(
+				assignedWhenExpr.toExpressionString(),
+				preserved.toExpressionString(),
+				"assignedWhen expression must round-trip unchanged"
+			);
+		}
+
+		/**
+		 * Verifies that when the only difference between the created and existing reference
+		 * versions is the per-histogram `assignedWhen` selector, the diff path inside
+		 * {@code combineWith(...)} still emits a {@link SetReferenceSchemaBucketedMutation}.
+		 * Pins the equality check on `getAllHistogramIndexDefinitions()` against a regression
+		 * that ignores the `assignedWhen` slot.
+		 */
+		@Test
+		@DisplayName("should emit bucketed diff when only assignedWhen differs")
+		void shouldEmitBucketedDiffWhenOnlyAssignedWhenDiffers() {
+			final Expression existingAssignedWhen = ExpressionFactory.parse("$active == 1");
+			final Expression createdAssignedWhen = ExpressionFactory.parse("$active == 2");
+			final ReferenceSchemaContract existingSchema = ReferenceSchema._internalBuild(
+				REFERENCE_NAME,
+				NamingConvention.generate(REFERENCE_NAME),
+				"description",
+				"deprecationNotice",
+				REFERENCE_TYPE,
+				NamingConvention.generate(REFERENCE_TYPE),
+				false,
+				Cardinality.ZERO_OR_MORE,
+				null,
+				Collections.emptyMap(),
+				false,
+				new ScopedReferenceIndexType[]{
+					new ScopedReferenceIndexType(Scope.LIVE, ReferenceIndexType.FOR_FILTERING)
+				},
+				null,
+				new Scope[]{Scope.LIVE},
+				null,
+				new ScopedHistogramIndexDefinition[]{
+					new ScopedHistogramIndexDefinition(
+						Scope.LIVE, "priceHistogram", null, existingAssignedWhen
+					)
+				},
+				null,
+				Collections.emptyMap(),
+				Collections.emptyMap(),
+				ConflictResolutionOverride.INHERITED
+			);
+			final CreateReferenceSchemaMutation mutation = new CreateReferenceSchemaMutation(
+				REFERENCE_NAME,
+				"description",
+				"deprecationNotice",
+				Cardinality.ZERO_OR_MORE,
+				REFERENCE_TYPE,
+				false,
+				GROUP_TYPE,
+				false,
+				new ScopedReferenceIndexType[]{
+					new ScopedReferenceIndexType(Scope.LIVE, ReferenceIndexType.FOR_FILTERING)
+				},
+				null,
+				new Scope[]{Scope.LIVE},
+				null,
+				new ScopedHistogramIndexDefinition[]{
+					new ScopedHistogramIndexDefinition(
+						Scope.LIVE, "priceHistogram", null, createdAssignedWhen
+					)
+				},
+				null
+			);
+			final EntitySchemaContract entitySchema = Mockito.mock(EntitySchemaContract.class);
+			Mockito.when(entitySchema.getReference(REFERENCE_NAME))
+				.thenReturn(of(existingSchema));
+			final RemoveReferenceSchemaMutation removeMutation =
+				new RemoveReferenceSchemaMutation(REFERENCE_NAME);
+
+			final MutationCombinationResult<LocalEntitySchemaMutation> result = mutation.combineWith(
+				Mockito.mock(CatalogSchemaContract.class), entitySchema, removeMutation
+			);
+
+			assertNotNull(result);
+			final SetReferenceSchemaBucketedMutation[] bucketedMutations =
+				Arrays.stream(result.current())
+					.filter(SetReferenceSchemaBucketedMutation.class::isInstance)
+					.map(SetReferenceSchemaBucketedMutation.class::cast)
+					.toArray(SetReferenceSchemaBucketedMutation[]::new);
+			assertEquals(
+				1, bucketedMutations.length,
+				"assignedWhen-only diff must still emit a SetReferenceSchemaBucketedMutation"
 			);
 		}
 	}
@@ -505,9 +926,9 @@ class CreateReferenceSchemaMutationTest {
 				null, false,
 				true, false
 			);
-			final List<ConflictKey> keys = new ConflictGenerationContext().withEntityType(
+			final List<ConflictKey> keys = new ConflictGenerationContext(new ConflictResolution(ConflictPolicy.NONE)).withEntityType(
 				"testEntity", null,
-				ctx -> mutation.collectConflictKeys(ctx, Set.of()).toList()
+				ctx -> mutation.collectConflictKeys(ctx).toList()
 			);
 
 			assertEquals(1, keys.size());
@@ -531,5 +952,68 @@ class CreateReferenceSchemaMutationTest {
 			assertTrue(result.contains(REFERENCE_NAME));
 			assertTrue(result.contains(REFERENCE_TYPE));
 		}
+
+		/**
+		 * Verifies that toString output includes bucketed and bucketedPartially
+		 * substrings when bucketed fields are set.
+		 */
+		@Test
+		@DisplayName("should include bucketed in toString")
+		void shouldIncludeBucketedInToString() {
+			final CreateReferenceSchemaMutation mutation = new CreateReferenceSchemaMutation(
+				REFERENCE_NAME,
+				"desc", null,
+				Cardinality.ZERO_OR_MORE, REFERENCE_TYPE, false,
+				null, false,
+				new ScopedReferenceIndexType[]{
+					new ScopedReferenceIndexType(Scope.LIVE, ReferenceIndexType.FOR_FILTERING)
+				},
+				null,
+				new Scope[]{Scope.LIVE},
+				null,
+				new ScopedHistogramIndexDefinition[]{
+					new ScopedHistogramIndexDefinition(Scope.LIVE, "priceHistogram", null, null)
+				},
+				new ScopedBucketedPartially[]{
+					new ScopedBucketedPartially(Scope.LIVE, ExpressionFactory.parse("1 > 0"))
+				}
+			);
+
+			final String result = mutation.toString();
+
+			assertTrue(result.contains("bucketed="));
+			assertTrue(result.contains("bucketedPartially="));
+		}
+	}
+
+	/**
+	 * Test-only helper producing a {@link CreateReferenceSchemaMutation} with empty
+	 * `facetedPartially`, `bucketed` and `bucketedPartially` arrays. The production
+	 * code intentionally no longer exposes an 11-arg constructor so that callers
+	 * rebuilding mutations from an existing schema cannot silently drop the per-scope
+	 * expression fields; tests that don't exercise those fields use this helper to
+	 * preserve readability.
+	 */
+	@Nonnull
+	private static CreateReferenceSchemaMutation createReferenceSchemaMutation(
+		@Nonnull String name,
+		@Nullable String description,
+		@Nullable String deprecationNotice,
+		@Nullable Cardinality cardinality,
+		@Nonnull String referencedEntityType,
+		boolean referencedEntityTypeManaged,
+		@Nullable String referencedGroupType,
+		boolean referencedGroupTypeManaged,
+		@Nullable ScopedReferenceIndexType[] indexedInScopes,
+		@Nullable ScopedReferenceIndexedComponents[] indexedComponentsInScopes,
+		@Nullable Scope[] facetedInScopes
+	) {
+		return new CreateReferenceSchemaMutation(
+			name, description, deprecationNotice, cardinality,
+			referencedEntityType, referencedEntityTypeManaged,
+			referencedGroupType, referencedGroupTypeManaged,
+			indexedInScopes, indexedComponentsInScopes, facetedInScopes,
+			null, null, null
+		);
 	}
 }

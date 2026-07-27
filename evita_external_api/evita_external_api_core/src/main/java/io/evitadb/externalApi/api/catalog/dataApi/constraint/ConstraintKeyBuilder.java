@@ -27,6 +27,8 @@ import io.evitadb.api.query.descriptor.ConstraintCreator;
 import io.evitadb.api.query.descriptor.ConstraintCreator.FixedImplicitClassifier;
 import io.evitadb.api.query.descriptor.ConstraintCreator.ImplicitClassifier;
 import io.evitadb.api.query.descriptor.ConstraintDescriptor;
+import io.evitadb.api.query.descriptor.ConstraintDomain;
+import io.evitadb.api.query.descriptor.ConstraintPropertyType;
 import io.evitadb.externalApi.api.catalog.dataApi.builder.constraint.ConstraintSchemaBuilder;
 import io.evitadb.externalApi.exception.ExternalApiInternalError;
 import io.evitadb.utils.Assert;
@@ -48,14 +50,13 @@ import static io.evitadb.externalApi.api.ExternalApiNamingConventions.PROPERTY_N
  * Used to build constraint key in {@link ConstraintSchemaBuilder} to uniquely represent {@link ConstraintDescriptor} in
  * certain context.
  *
- * <h3>Formats</h3>
- * This parser supports following key formats
+ * ### Formats
+ *
  * Key can have one of 3 formats depending on descriptor data:
- * <ul>
- *     <li>`{fullName}` - if it's generic constraint without classifier</li>
- *     <li>`{propertyType}{fullName}` - if it's not generic constraint and doesn't have classifier</li>
- *     <li>`{propertyType}{classifier}{fullName}` - if it's not generic constraint and has classifier</li>
- * </ul>
+ *
+ * - `{fullName}` - if it's generic constraint without classifier
+ * - `{propertyType}{fullName}` - if it's not generic constraint and doesn't have classifier
+ * - `{propertyType}{classifier}{fullName}` - if it's not generic constraint and has classifier
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
@@ -76,15 +77,17 @@ public class ConstraintKeyBuilder {
 		final ConstraintCreator creator = constraintDescriptor.creator();
 
 		final String prefix = ConstraintProcessingUtils.getPrefixForPropertyType(constraintDescriptor.propertyType())
-			.orElseThrow(() -> new ExternalApiInternalError("Missing prefix pro constraint property type `" + constraintDescriptor.propertyType() + "`."));
+			.orElseThrow(() -> new ExternalApiInternalError("Missing prefix for constraint property type `" + constraintDescriptor.propertyType() + "`."));
 
 		// we can simplify child constraint if is in same domain as its parent and if it has property type the
 		// one that is expected when derived from child domain. These constraints are usually valid only in specific context
 		// and not globally available
+		final ConstraintDomain currentDomain = traverseContext.dataLocator().targetDomain();
+		final ConstraintPropertyType fallbackType = ConstraintProcessingUtils.getFallbackPropertyTypeForDomain(currentDomain);
 		if (!traverseContext.isAtRoot() &&
-			Objects.equals(traverseContext.dataLocator().targetDomain(), Objects.requireNonNull(traverseContext.parentDataLocator()).targetDomain()) &&
+			Objects.equals(currentDomain, Objects.requireNonNull(traverseContext.parentDataLocator()).targetDomain()) &&
 			!creator.hasClassifier() &&
-			constraintDescriptor.propertyType().equals(ConstraintProcessingUtils.getFallbackPropertyTypeForDomain(traverseContext.dataLocator().targetDomain()))) {
+			constraintDescriptor.propertyType().equals(fallbackType)) {
 			return StringUtils.toSpecificCase(constraintDescriptor.fullName(), PROPERTY_NAME_NAMING_CONVENTION);
 		}
 

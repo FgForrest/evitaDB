@@ -29,17 +29,23 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.TASK;
 
 /**
  * This test verifies behavior of DelayedAsyncTask class.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
+@Tag(ENGINE)
+@Tag(TASK)
 class DelayedAsyncTaskTest implements TestConstants {
 	private Scheduler scheduler;
 
@@ -60,10 +66,12 @@ class DelayedAsyncTaskTest implements TestConstants {
 	@Test
 	void shouldScheduleCallOnlyOnce() throws InterruptedException {
 		final AtomicInteger executed = new AtomicInteger();
+		final CountDownLatch completionLatch = new CountDownLatch(1);
 		final DelayedAsyncTask tested = new DelayedAsyncTask(
 			TEST_CATALOG, "testTask", this.scheduler,
 			() -> {
 				executed.incrementAndGet();
+				completionLatch.countDown();
 				return -1;
 			},
 			0, TimeUnit.MILLISECONDS, 0
@@ -71,18 +79,22 @@ class DelayedAsyncTaskTest implements TestConstants {
 
 		tested.schedule();
 
+		assertTrue(completionLatch.await(10, TimeUnit.SECONDS), "Task did not execute in time.");
+		// grace window to catch an erroneous re-run; a correct task stays paused after returning -1,
+		// so this can only turn a false pass into a (correct) failure, never flake under CPU churn
 		Thread.sleep(100);
-
 		assertEquals(1, executed.get());
 	}
 
 	@Test
 	void shouldScheduleCallManyTimes() throws InterruptedException {
 		final AtomicInteger executed = new AtomicInteger();
+		final CountDownLatch multipleExecutionsLatch = new CountDownLatch(2);
 		final DelayedAsyncTask tested = new DelayedAsyncTask(
 			TEST_CATALOG, "testTask", this.scheduler,
 			() -> {
 				executed.incrementAndGet();
+				multipleExecutionsLatch.countDown();
 				return 0;
 			},
 			0, TimeUnit.MILLISECONDS, 0
@@ -90,8 +102,10 @@ class DelayedAsyncTaskTest implements TestConstants {
 
 		tested.schedule();
 
-		Thread.sleep(100);
-
+		assertTrue(
+			multipleExecutionsLatch.await(10, TimeUnit.SECONDS),
+			"Task did not execute more than once in time."
+		);
 		assertTrue(executed.get() > 1);
 	}
 
@@ -99,12 +113,15 @@ class DelayedAsyncTaskTest implements TestConstants {
 	void shouldScheduleLogNTimes() throws InterruptedException {
 		final AtomicInteger executed = new AtomicInteger();
 		final AtomicInteger counter = new AtomicInteger(100);
+		final CountDownLatch completionLatch = new CountDownLatch(1);
 		final DelayedAsyncTask tested = new DelayedAsyncTask(
 			TEST_CATALOG, "testTask", this.scheduler,
 			() -> {
 				executed.incrementAndGet();
 				final int planAgainIn = counter.updateAndGet(i -> i / 2 == 0 ? -1 : i / 2);
-				System.out.println(planAgainIn);
+				if (planAgainIn < 0) {
+					completionLatch.countDown();
+				}
 				return planAgainIn;
 			},
 			0, TimeUnit.MILLISECONDS, 0
@@ -112,30 +129,43 @@ class DelayedAsyncTaskTest implements TestConstants {
 
 		tested.schedule();
 
-		Thread.sleep(500);
-
 		// 100 -> 50 -> 25 -> 12 -> 6 -> 3 -> 1 -> -1
+		assertTrue(
+			completionLatch.await(10, TimeUnit.SECONDS),
+			"Task did not finish all scheduled executions in time."
+		);
 		assertEquals(7, executed.get());
 	}
 
 	@Test
 	void shouldScheduleLogNTimesWithDifferentInitialDelay() throws InterruptedException {
+		final int expectedExecutions = 8;
 		final AtomicInteger executed = new AtomicInteger();
-		final AtomicInteger counter = new AtomicInteger(8);
+		final AtomicInteger counter = new AtomicInteger(expectedExecutions);
+		final CountDownLatch completionLatch = new CountDownLatch(1);
 		final DelayedAsyncTask tested = new DelayedAsyncTask(
 			TEST_CATALOG, "testTask", this.scheduler,
 			() -> {
 				executed.incrementAndGet();
-				return counter.decrementAndGet() > 0 ? 180 : -1;
+				final int planAgainIn = counter.decrementAndGet() > 0 ? 180 : -1;
+				if (planAgainIn < 0) {
+					completionLatch.countDown();
+				}
+				return planAgainIn;
 			},
 			200, TimeUnit.MILLISECONDS, 0
 		);
 
 		tested.schedule();
 
-		Thread.sleep(500);
-
-		assertEquals(8, executed.get());
+		// wait for the task to reach its terminal (pausing) execution instead of assuming a fixed
+		// wall-clock window - the schedule is CPU-latency sensitive under contended CI runners,
+		// but the task self-pauses after the expected number of executions regardless of timing
+		assertTrue(
+			completionLatch.await(10, TimeUnit.SECONDS),
+			"Task did not finish all scheduled executions in time."
+		);
+		assertEquals(expectedExecutions, executed.get());
 	}
 
 }

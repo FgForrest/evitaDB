@@ -45,6 +45,7 @@ import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
 import java.io.Serializable;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Locale;
@@ -132,11 +133,7 @@ public abstract class Attributes<S extends AttributeSchemaContract> implements A
 				)
 			);
 		this.attributeTypes = attributeTypes;
-		this.attributeLocales = attributeValues.stream()
-			.filter(Droppable::exists)
-			.map(it -> it.key().locale())
-			.filter(Objects::nonNull)
-			.collect(Collectors.toCollection(LinkedHashSet::new));
+		this.attributeLocales = collectAttributeLocales(attributeValues);
 	}
 
 	/**
@@ -151,11 +148,36 @@ public abstract class Attributes<S extends AttributeSchemaContract> implements A
 		this.entitySchema = entitySchema;
 		this.attributeValues = attributeValues;
 		this.attributeTypes = attributeTypes;
-		this.attributeLocales = attributeValues.values().stream()
-			.filter(Droppable::exists)
-			.map(it -> it.key().locale())
-			.filter(Objects::nonNull)
-			.collect(Collectors.toCollection(LinkedHashSet::new));
+		this.attributeLocales = collectAttributeLocales(attributeValues.values());
+	}
+
+	/**
+	 * Collects the locales of all existing localized attribute values, preserving encounter order.
+	 *
+	 * Written as a loop that allocates the set lazily rather than as a stream pipeline: this runs once per
+	 * constructed attribute container, and on the reference-deserialization path that is once per reference of
+	 * every entity read. The overwhelmingly common case is a container with NO localized attribute at all, which
+	 * this way costs no set, no unmodifiable wrapper and no pipeline objects — the stream form allocated four
+	 * pipeline stages plus a `LinkedHashSet` just to discover there was nothing to collect.
+	 *
+	 * @param attributeValues the attribute values to scan
+	 * @return the locales carrying at least one existing localized attribute, empty when there are none
+	 */
+	@Nonnull
+	private static Set<Locale> collectAttributeLocales(@Nonnull Collection<AttributeValue> attributeValues) {
+		LinkedHashSet<Locale> locales = null;
+		for (final AttributeValue attributeValue : attributeValues) {
+			if (attributeValue.exists()) {
+				final Locale locale = attributeValue.key().locale();
+				if (locale != null) {
+					if (locales == null) {
+						locales = CollectionUtils.createLinkedHashSet(4);
+					}
+					locales.add(locale);
+				}
+			}
+		}
+		return locales == null ? Collections.emptySet() : Collections.unmodifiableSet(locales);
 	}
 
 	@Override
@@ -260,16 +282,18 @@ public abstract class Attributes<S extends AttributeSchemaContract> implements A
 	@Nonnull
 	public Set<String> getAttributeNames() {
 		if (this.attributeNames == null) {
-			this.attributeNames = this.attributeValues
-				.values()
-				.stream()
-				.filter(attributeValue -> attributeValue.value() != null)
-				.map(attributeValue -> attributeValue.key().attributeName())
-				.collect(
-					Collectors.toCollection(
-						() -> CollectionUtils.createLinkedHashSet(this.attributeValues.size())
+			this.attributeNames = Collections.unmodifiableSet(
+				this.attributeValues
+					.values()
+					.stream()
+					.filter(attributeValue -> attributeValue.value() != null)
+					.map(attributeValue -> attributeValue.key().attributeName())
+					.collect(
+						Collectors.toCollection(
+							() -> CollectionUtils.createLinkedHashSet(this.attributeValues.size())
+						)
 					)
-				);
+			);
 		}
 		return this.attributeNames;
 	}
@@ -297,9 +321,33 @@ public abstract class Attributes<S extends AttributeSchemaContract> implements A
 		final String attributeName = attributeKey.attributeName();
 		final AttributeSchemaContract schema = getAttributeSchema(attributeName)
 			.orElseThrow(() -> createAttributeNotFoundException(attributeName));
-		return schema.isLocalized() ?
-			ofNullable(this.attributeValues.get(attributeKey)) :
-			ofNullable(this.attributeValues.get(attributeKey.localized() ? new AttributeKey(attributeName) : attributeKey));
+		if (schema.isLocalized()) {
+			Assert.isTrue(
+				attributeKey.localized(),
+				() -> ContextMissingException.localeForAttributeContextMissing(attributeName)
+			);
+			return ofNullable(this.attributeValues.get(attributeKey));
+		} else {
+			return ofNullable(this.attributeValues.get(attributeKey.localized() ? new AttributeKey(attributeName) : attributeKey));
+		}
+	}
+
+	/**
+	 * Returns TRUE when an existing (non-dropped) attribute value is stored under the exact passed
+	 * key. This is an allocation-free membership probe performing a single map lookup: it is
+	 * equivalent to testing whether the key is contained in the set of existing attribute keys (see
+	 * the `exists()` filtering done when that key set is built), but without materializing that set -
+	 * which matters on the hot mutation path where mandatory / default-valued attributes are verified
+	 * per reference. Unlike {@link #getAttributeValue(AttributeKey)} this does not validate the
+	 * attribute against the schema (no lookup, no exception, no `Optional` allocation); the caller is
+	 * expected to probe keys derived from the schema itself.
+	 *
+	 * @param attributeKey the attribute key to test, must not be null
+	 * @return TRUE if an existing (non-dropped) attribute value is stored under the given key
+	 */
+	public boolean isAttributeValuePresentAndExists(@Nonnull AttributeKey attributeKey) {
+		final AttributeValue value = this.attributeValues.get(attributeKey);
+		return value != null && value.exists();
 	}
 
 	/**
@@ -307,7 +355,7 @@ public abstract class Attributes<S extends AttributeSchemaContract> implements A
 	 */
 	@Nonnull
 	public Collection<AttributeValue> getAttributeValues() {
-		return this.attributeValues.values();
+		return Collections.unmodifiableCollection(this.attributeValues.values());
 	}
 
 	@Nonnull
@@ -321,7 +369,7 @@ public abstract class Attributes<S extends AttributeSchemaContract> implements A
 				.stream()
 				.filter(it -> attributeName.equals(it.getKey().attributeName()))
 				.map(Entry::getValue)
-				.collect(Collectors.toList());
+				.toList();
 		}
 	}
 
@@ -334,8 +382,7 @@ public abstract class Attributes<S extends AttributeSchemaContract> implements A
 				.stream()
 				.filter(Droppable::exists)
 				.map(it -> it.key().locale())
-				.filter(Objects::nonNull)
-				.collect(Collectors.toSet());
+				.filter(Objects::nonNull).collect(Collectors.toUnmodifiableSet());
 		}
 		return this.attributeLocales;
 	}

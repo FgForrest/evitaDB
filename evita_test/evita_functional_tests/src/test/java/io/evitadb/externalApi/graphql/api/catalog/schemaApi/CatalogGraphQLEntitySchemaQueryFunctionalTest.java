@@ -48,6 +48,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.externalApi.graphql.api.testSuite.TestDataGenerator.*;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
@@ -59,12 +60,20 @@ import static io.evitadb.utils.MapBuilder.map;
 import static org.hamcrest.Matchers.*;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.fail;
+import static io.evitadb.test.TestTags.GRAPHQL;
+import static io.evitadb.test.TestTags.EXTERNAL_API;
+import static io.evitadb.test.TestTags.QUERY;
+import static io.evitadb.test.TestTags.SCHEMA;
 
 /**
  * Tests for GraphQL catalog entity schema query.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
+@Tag(GRAPHQL)
+@Tag(EXTERNAL_API)
+@Tag(QUERY)
+@Tag(SCHEMA)
 public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQLEvitaSchemaEndpointFunctionalTest {
 
 	private static final String PRODUCT_SCHEMA_PATH = "data.getProductSchema";
@@ -751,7 +760,21 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 										scope
 										indexType
 									}
+									indexedComponents {
+										scope
+										indexedComponents
+									}
 									faceted
+									bucketed {
+										scope
+										nameOfTheIndex
+										valueExpression
+										assignedWhen
+									}
+									bucketedPartially {
+										scope
+										expression
+									}
 								}
 								obsoleteBrand {
 									deprecationNotice
@@ -814,7 +837,10 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 								.e(ReferenceSchemaDescriptor.GROUP_TYPE_NAME_VARIANTS.name(), null)
 								.e(ReferenceSchemaDescriptor.REFERENCED_GROUP_TYPE_MANAGED.name(), brandReferenceSchema.isReferencedGroupTypeManaged())
 								.e(ReferenceSchemaDescriptor.INDEXED.name(), createReferenceIndexedDto(brandReferenceSchema))
+								.e(ReferenceSchemaDescriptor.INDEXED_COMPONENTS.name(), createReferenceIndexedComponentsDto(brandReferenceSchema))
 								.e(ReferenceSchemaDescriptor.FACETED.name(), createReferencedFacetedDto(brandReferenceSchema))
+								.e(ReferenceSchemaDescriptor.BUCKETED.name(), createBucketedHistogramDto(brandReferenceSchema))
+								.e(ReferenceSchemaDescriptor.BUCKETED_PARTIALLY.name(), createBucketedPartiallyDto(brandReferenceSchema))
 								.build())
 							.e(REFERENCE_OBSOLETE_BRAND, map()
 								.e(NamedSchemaWithDeprecationDescriptor.DEPRECATION_NOTICE.name(), obsoleteBrandReferenceSchema.getDeprecationNotice())
@@ -1085,6 +1111,45 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 		).orElseThrow();
 		assertFalse(productSchema.getReferences().isEmpty());
 
+		// Build the expected GraphQL payload for the `bucketed` field: one sub-list per reference, containing
+		// one entry for every (scope, histogram index definition) pair. The GraphQL `bucketed` field projects
+		// `scope`, `nameOfTheIndex`, and the optional `valueExpression` — we mirror the same shape from the
+		// server-side schema so the assertion matches field-for-field.
+		final List<List<Map<String, Object>>> referencesWithBucketed = productSchema.getReferences()
+			.values()
+			.stream()
+			.map(r -> r.getAllHistogramIndexDefinitions().entrySet().stream()
+				.flatMap(scopeEntry -> scopeEntry.getValue().values().stream()
+					.map(definition -> map()
+						.e("scope", scopeEntry.getKey().name())
+						.e("nameOfTheIndex", definition.nameOfTheIndex())
+						.e(
+							"valueExpression",
+							definition.valueExpression() != null
+								? definition.valueExpression().toExpressionString()
+								: null
+						)
+						.build()))
+				.collect(Collectors.toList()))
+			.toList();
+
+		// Build the expected GraphQL payload for the `bucketedPartially` field: one sub-list per reference,
+		// containing one entry per scope that opts into partial bucketing. The GraphQL field exposes only
+		// `scope` and the optional gating `expression`.
+		final List<List<Map<String, Object>>> referencesWithBucketedPartially = productSchema.getReferences()
+			.values()
+			.stream()
+			.map(r -> r.getBucketedPartiallyInScopes().entrySet().stream()
+				.map(entry -> map()
+					.e("scope", entry.getKey().name())
+					.e(
+						"expression",
+						entry.getValue() != null ? entry.getValue().toExpressionString() : null
+					)
+					.build())
+				.collect(Collectors.toList()))
+			.toList();
+
 		tester.test(TEST_CATALOG)
 			.urlPathSuffix("/schema")
 			.document(
@@ -1094,6 +1159,15 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 							allReferences {
 								__typename
 								name
+								bucketed {
+									scope
+									nameOfTheIndex
+									valueExpression
+								}
+								bucketedPartially {
+									scope
+									expression
+								}
 							}
 						}
 					}
@@ -1109,6 +1183,14 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 			.body(
 				PRODUCT_SCHEMA_PATH + "." + EntitySchemaDescriptor.ALL_REFERENCES.name() + "." + NamedSchemaDescriptor.NAME.name(),
 				containsInAnyOrder(productSchema.getReferences().keySet().toArray(String[]::new))
+			)
+			.body(
+				PRODUCT_SCHEMA_PATH + "." + EntitySchemaDescriptor.ALL_REFERENCES.name() + "." + ReferenceSchemaDescriptor.BUCKETED.name(),
+				containsInAnyOrder(referencesWithBucketed.toArray())
+			)
+			.body(
+				PRODUCT_SCHEMA_PATH + "." + EntitySchemaDescriptor.ALL_REFERENCES.name() + "." + ReferenceSchemaDescriptor.BUCKETED_PARTIALLY.name(),
+				containsInAnyOrder(referencesWithBucketedPartially.toArray())
 			);
 	}
 

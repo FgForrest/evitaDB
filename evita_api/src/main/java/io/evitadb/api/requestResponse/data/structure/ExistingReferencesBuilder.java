@@ -65,6 +65,7 @@ import io.evitadb.dataType.PlainChunk;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
+import io.evitadb.utils.Functions;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
@@ -199,19 +200,38 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 	}
 
 	/**
-	 * Merges the given reference mutation change set with the current state of the reference, ensuring that
-	 * the resulting mutations reflect any removals and redundant operations are skipped. This method is designed
-	 * to restore removals for groups or attributes that were not re-upserted after a prior removal, ensuring the
-	 * minimal and correct set of mutations is generated.
+	 * Merges the configurator-produced mutations (`changeSet`) with the projected working
+	 * state of the reference, emitting only the minimal set of mutations needed to bring
+	 * the working layer from its current effective state to the desired state.
 	 *
-	 * @param changeSet    a list of reference mutations to be merged and filtered
-	 * @param refInBase    the base reference state, which is used to compare the existing state with the incoming mutations
-	 * @param referenceKey the key that identifies the reference being mutated
-	 * @return a list of merged and filtered reference mutations, including any necessary removal mutations and excluding redundant operations
+	 * The effective working state is `refInBase` overlaid with `priorMutations` — i.e.
+	 * any already-queued mutations from earlier in-session setReference calls. Comparing
+	 * the configurator's intent against this projection (rather than against the frozen
+	 * `refInBase` snapshot alone) is required for two correctness properties:
+	 *
+	 * 1. **Filter only genuinely redundant upserts.** If an earlier in-session call
+	 *    removed an attribute, `refInBase` still reports the pre-transaction value; a
+	 *    naive filter against `refInBase` would drop the re-add and leave working-layer
+	 *    indexes stuck on the prior remove.
+	 *
+	 * 2. **Emit removes for attributes added by prior in-session RESETs but omitted by
+	 *    the current one.** RESET-mode semantics say the configurator describes the
+	 *    complete attribute set; attributes the previous call added must disappear.
+	 *    Iterating only `refInBase.getAttributeValues()` would miss those keys.
+	 *
+	 * @param changeSet       the new builder's mutations (post-`upsertModification`),
+	 *                        which describe the desired complete state in RESET mode
+	 * @param priorMutations  snapshot of the queue *before* the new builder's mutations
+	 *                        were merged in; used to project effective working state
+	 * @param refInBase       the base reference state (frozen at builder construction)
+	 * @param referenceKey    the key that identifies the reference being mutated
+	 * @param referenceSchema the schema (for default-value handling on attribute removal)
+	 * @return minimal merged list of mutations producing the desired working-layer state
 	 */
 	@Nonnull
-	private static List<ReferenceMutation<?>> collectMergedReferenceMutations(
+	static List<ReferenceMutation<?>> collectMergedReferenceMutations(
 		@Nonnull List<ReferenceMutation<?>> changeSet,
+		@Nonnull List<ReferenceMutation<?>> priorMutations,
 		@Nonnull ReferenceContract refInBase,
 		@Nonnull ReferenceKey referenceKey,
 		@Nonnull ReferenceSchemaContract referenceSchema
@@ -238,9 +258,16 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 		final Set<AttributeKey> finalAttributesUpsertedOrRemoved =
 			attributesUpsertedOrRemoved != null ? attributesUpsertedOrRemoved : Collections.emptySet();
 
+		// Build the projection map ONLY when there are prior in-session mutations on this
+		// reference. With an empty queue, `refInBase` IS the effective working state and is
+		// consulted directly below — no HashMap allocation, no per-upsert linear rescan.
+		final Map<AttributeKey, Serializable> projectedState = priorMutations.isEmpty()
+			? null
+			: projectEffectiveState(refInBase, priorMutations);
+
 		// Build merged mutation list with minimal allocations
 		// Heuristic capacity: original + possible removals
-		List<ReferenceMutation<?>> merged = new ArrayList<>(changeSet.size() + 8);
+		final List<ReferenceMutation<?>> merged = new ArrayList<>(changeSet.size() + 8);
 
 		// If group was NOT upserted, add removal of previous group (if any)
 		if (!groupUpserted) {
@@ -253,28 +280,19 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 			}
 		}
 
-		// For attributes not upserted, add their removals if they existed before
-		final Collection<AttributeValue> attrs = refInBase.getAttributeValues();
-		for (final AttributeValue av : attrs) {
-			if (av.exists()) {
-				final AttributeKey key = av.key();
+		// For attributes that are currently effective but not re-asserted by this RESET's
+		// configurator, emit a removal (or an upsert-to-default if the schema has one).
+		if (projectedState == null) {
+			// Fast path: only refInBase contributes effective keys.
+			for (final AttributeValue av : refInBase.getAttributeValues()) {
+				if (av.exists() && !finalAttributesUpsertedOrRemoved.contains(av.key())) {
+					appendRemoveOrDefault(merged, referenceKey, referenceSchema, av.key());
+				}
+			}
+		} else {
+			for (final AttributeKey key : projectedState.keySet()) {
 				if (!finalAttributesUpsertedOrRemoved.contains(key)) {
-					final Serializable defaultValue = referenceSchema
-						.getAttribute(key.attributeName())
-						.map(AttributeSchemaContract::getDefaultValue)
-						.orElse(null);
-					if (defaultValue == null) {
-						merged.add(
-							new ReferenceAttributeMutation(referenceKey, new RemoveAttributeMutation(key))
-						);
-					} else {
-						merged.add(
-							new ReferenceAttributeMutation(
-								referenceKey,
-								new UpsertAttributeMutation(key, defaultValue)
-							)
-						);
-					}
+					appendRemoveOrDefault(merged, referenceKey, referenceSchema, key);
 				}
 			}
 		}
@@ -301,25 +319,28 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 				}
 			}
 
-			// Skip redundant attribute upserts if value equals previous one
-			if (rm instanceof ReferenceAttributeMutation ram) {
-				final AttributeMutation am = ram.getAttributeMutation();
-				if (am instanceof UpsertAttributeMutation upsert) {
-					boolean sameAsBefore = false;
-					final AttributeKey aKey = am.getAttributeKey();
-
-					// Check schema existence before reading value, as in original logic
-					final boolean schemaPresent = refInBase
-						.getAttributeSchema(aKey.attributeName())
-						.isPresent();
-					if (schemaPresent) {
-						final Optional<AttributeValue> avOpt = refInBase.getAttributeValue(aKey);
-						if (avOpt.isPresent()) {
-							final AttributeValue prev = avOpt.get();
-							sameAsBefore = Objects.equals(prev.value(), upsert.getAttributeValue());
-						}
+			// Skip redundant attribute upsert when the new value matches the projected
+			// effective value. Comparing against the *projection* (refInBase + priorMutations)
+			// rather than against `refInBase` alone keeps the optimization safe across
+			// multiple in-session RESET calls on the same reference.
+			if (rm instanceof ReferenceAttributeMutation ram
+				&& ram.getAttributeMutation() instanceof UpsertAttributeMutation upsert) {
+				final AttributeKey aKey = upsert.getAttributeKey();
+				// Schema check preserves the original behaviour: only filter against a
+				// known-schema attribute (avoid comparing locally-implicit attribute types).
+				if (refInBase.getAttributeSchema(aKey.attributeName()).isPresent()) {
+					final Serializable effective;
+					if (projectedState == null) {
+						// Fast path: refInBase directly, no Optional chain allocation.
+						final AttributeValue av = refInBase
+							.getAttributeValue(aKey)
+							.orElse(null);
+						effective = (av != null && av.exists()) ? av.value() : null;
+					} else {
+						// O(1) lookup against the prebuilt projection (null = absent).
+						effective = projectedState.get(aKey);
 					}
-					if (sameAsBefore) {
+					if (effective != null && Objects.equals(effective, upsert.getAttributeValue())) {
 						continue;
 					}
 				}
@@ -328,6 +349,79 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 			merged.add(rm);
 		}
 		return merged;
+	}
+
+	/**
+	 * Emits the trailing-mutation for an attribute that was effective on the reference but
+	 * not re-asserted by the current RESET configurator. If the schema defines a default
+	 * value, falls back to upserting that default; otherwise emits an outright remove.
+	 */
+	private static void appendRemoveOrDefault(
+		@Nonnull List<ReferenceMutation<?>> merged,
+		@Nonnull ReferenceKey referenceKey,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull AttributeKey attributeKey
+	) {
+		final Serializable defaultValue = referenceSchema
+			.getAttribute(attributeKey.attributeName())
+			.map(AttributeSchemaContract::getDefaultValue)
+			.orElse(null);
+		if (defaultValue == null) {
+			merged.add(
+				new ReferenceAttributeMutation(referenceKey, new RemoveAttributeMutation(attributeKey))
+			);
+		} else {
+			merged.add(
+				new ReferenceAttributeMutation(
+					referenceKey,
+					new UpsertAttributeMutation(attributeKey, defaultValue)
+				)
+			);
+		}
+	}
+
+	/**
+	 * Projects the effective working state of the reference — `refInBase` overlaid with all
+	 * already-queued mutations from earlier in-session calls — into a single map. Returned
+	 * map contains only currently-present attributes (`UpsertAttributeMutation` puts, base
+	 * values seed, `RemoveAttributeMutation` evicts), so iterating its key set yields the
+	 * effective key set and `get(key)` yields the effective value (or `null` if absent).
+	 *
+	 * Linear walk in mutation order — the latest matching op on this `(refKey, attrKey)` wins.
+	 * Called only when `priorMutations` is non-empty; the empty case is handled inline by the
+	 * caller against `refInBase` directly to avoid any intermediate allocation.
+	 */
+	@Nonnull
+	private static Map<AttributeKey, Serializable> projectEffectiveState(
+		@Nonnull ReferenceContract refInBase,
+		@Nonnull List<ReferenceMutation<?>> priorMutations
+	) {
+		final Collection<AttributeValue> baseAttrs = refInBase.getAttributeValues();
+		final Map<AttributeKey, Serializable> state = CollectionUtils.createHashMap(
+			baseAttrs.size() + priorMutations.size()
+		);
+		for (final AttributeValue av : baseAttrs) {
+			if (av.exists()) {
+				state.put(av.key(), av.value());
+			}
+		}
+		for (final ReferenceMutation<?> rm : priorMutations) {
+			if (rm instanceof ReferenceAttributeMutation ram) {
+				final AttributeMutation am = ram.getAttributeMutation();
+				if (am instanceof UpsertAttributeMutation upsert) {
+					state.put(upsert.getAttributeKey(), upsert.getAttributeValue());
+				} else if (am instanceof RemoveAttributeMutation) {
+					state.remove(am.getAttributeKey());
+				}
+			}
+		}
+		return state;
+	}
+
+	@Nonnull
+	@Override
+	public EntitySchemaContract getSchema() {
+		return this.entitySchema;
 	}
 
 	ExistingReferencesBuilder(
@@ -883,6 +977,19 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
         return this;
 	}
 
+	/**
+	 * Returns the raw, unfiltered mutation queues indexed by the business reference key and the internal
+	 * primary key of the reference they target. Unlike {@link #buildChangeSet()} these queues are not narrowed
+	 * by the version increase rule - the working layer indexes consume them eagerly during the session, before
+	 * that filter ever runs, so this is the state their correctness depends on.
+	 *
+	 * @return the mutation queues, empty when nothing is pending
+	 */
+	@Nonnull
+	Map<ReferenceKey, Map<Integer, List<ReferenceMutation<?>>>> getRawReferenceMutations() {
+		return this.referenceMutations == null ? Map.of() : this.referenceMutations;
+	}
+
 	@Nonnull
 	@Override
 	public Stream<? extends ReferenceMutation<?>> buildChangeSet() {
@@ -1035,6 +1142,13 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 			.map(it -> it.get(referenceKey.internalPrimaryKey()))
 			.map(ArrayList::new)
 			.orElseGet(() -> new ArrayList<>(16));
+		// Snapshot the queue BEFORE the new builder's mutations are merged in. The merge path
+		// needs this to project the effective working state (refInBase + queued earlier-in-session
+		// mutations) so it can both: (1) filter genuinely redundant upserts and (2) emit removes
+		// for attributes added by prior in-session RESET calls that the current call omits.
+		final List<ReferenceMutation<?>> priorMutationsSnapshot = changeSet.isEmpty()
+			? List.of()
+			: List.copyOf(changeSet);
 		referenceBuilder
 			.buildChangeSet()
 			.forEach(newMutation -> upsertModification(changeSet, newMutation));
@@ -1080,7 +1194,7 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 			} else {
 				final ReferenceSchemaContract referenceSchema = getReferenceSchemaOrThrowException(referenceKey.referenceName());
 				final List<ReferenceMutation<?>> merged = collectMergedReferenceMutations(
-					changeSet, refInBaseOpt.get(), referenceKey, referenceSchema
+					changeSet, priorMutationsSnapshot, refInBaseOpt.get(), referenceKey, referenceSchema
 				);
 
 				replaceChangeSet(
@@ -1474,7 +1588,7 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
                 referenceName,
                 theBundle,
                 this.removedReferences == null ?
-                    ref -> true :
+                    Functions.alwaysTrue() :
                     ref -> !this.removedReferences.contains(new FullyComparableReferenceKey(ref.getReferenceKey()))
             )
 		);
@@ -1687,22 +1801,30 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 		}
 
 		boolean removed = removedMutations != null && !removedMutations.isEmpty();
-		List<ReferenceMutation<?>> discardedMutations = null;
+		// mutations discarded by this removal, keyed by the internal primary key of the reference they target
+		Map<Integer, List<ReferenceMutation<?>>> discardedMutations = null;
 		if (removed) {
 			if (referenceKey.isUnknownReference()) {
+				// an incomplete key discards the pending mutations of every duplicate sharing the business key,
+				// which is allowed only when the caller asked for removing all of them
 				Assert.isTrue(
-					removedMutations.size() == 1,
+					allowRemovingAllDuplicates || removedMutations.size() == 1,
 					() -> new ReferenceAllowsDuplicatesException(referenceName, this.entitySchema, Operation.WRITE)
 				);
-				discardedMutations = removedMutations.values().iterator().next();
+				// the map was already detached from the mutation index and is ours to keep
+				discardedMutations = removedMutations;
 			} else {
 				this.referenceMutations.put(genericReferenceKey, removedMutations);
-				discardedMutations = removedMutations.remove(referenceKey.internalPrimaryKey());
-				removed = discardedMutations != null && !discardedMutations.isEmpty();
+				final int internalPrimaryKey = referenceKey.internalPrimaryKey();
+				final List<ReferenceMutation<?>> singleReferenceMutations = removedMutations.remove(internalPrimaryKey);
+				removed = singleReferenceMutations != null && !singleReferenceMutations.isEmpty();
+				// a detached single entry map - the index still holds the queues of the remaining duplicates
+				discardedMutations = removed ? Map.of(internalPrimaryKey, singleReferenceMutations) : null;
 			}
 		}
 
-		ReferenceContract formerReference = null;
+		// an incomplete reference key may match multiple duplicates of the very same business key
+		List<ReferenceContract> formerReferences = null;
 		for (ReferenceContract theReference : this.baseReferences.getReferencesWithoutSchemaCheck(referenceKey)) {
 			if (
 				theReference.exists() &&
@@ -1712,7 +1834,10 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 							referenceKey.internalPrimaryKey() == theReference.getReferenceKey().internalPrimaryKey()
 					)
 			) {
-				formerReference = theReference;
+				if (formerReferences == null) {
+					formerReferences = new ArrayList<>(2);
+				}
+				formerReferences.add(theReference);
 				// if the reference was part of the previous entity version we build upon, remove it as-well
 				final ReferenceKey completeReferenceKey = theReference.getReferenceKey();
 				getReferenceMutationsForKey(referenceKey)
@@ -1732,38 +1857,122 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 			this.memoizedReferences = null;
 			final BuilderReferenceBundle referenceBundle = getReferenceBundleForUpdate(referenceName, 8);
 			if (referenceBundle.isInitialized()) {
-				if (discardedMutations == null) {
-					Assert.isPremiseValid(
-						formerReference != null,
-						"We always expect former reference to be non-null if no mutations were discarded!"
-					);
-					if (referenceBundle.isDuplicate(referenceKey)) {
-						referenceBundle.removeDuplicateReference(formerReference);
-					} else {
-						referenceBundle.removeNonDuplicateReference(formerReference);
-					}
-				} else {
-					ReferenceContract updatedReference = formerReference;
-					for (ReferenceMutation<?> discardedMutation : discardedMutations) {
-						updatedReference = discardedMutation.mutateLocal(
-							this.entitySchema, updatedReference, referenceBundle.getAttributeTypes()
+				boolean bundleUpdated = false;
+				if (discardedMutations != null) {
+					for (Entry<Integer, List<ReferenceMutation<?>>> discarded : discardedMutations.entrySet()) {
+						// each discarded queue either updates one of the removed base references, or creates
+						// a brand-new reference that has no counterpart in the base entity at all
+						removeReferenceFromBundle(
+							referenceBundle,
+							applyDiscardedMutations(
+								referenceBundle,
+								discarded.getValue(),
+								findByInternalPrimaryKey(formerReferences, discarded.getKey())
+							)
 						);
-					}
-					Assert.isPremiseValid(
-						updatedReference != null,
-						"We always expect updated reference to be non-null after applying discarded mutations!"
-					);
-					if (referenceBundle.isDuplicate(updatedReference.getReferenceKey())) {
-						referenceBundle.removeDuplicateReference(updatedReference);
-					} else {
-						referenceBundle.removeNonDuplicateReference(updatedReference);
+						bundleUpdated = true;
 					}
 				}
+				if (formerReferences != null) {
+					for (ReferenceContract formerReference : formerReferences) {
+						// references with a discarded queue were already removed in their mutated state above
+						if (
+							discardedMutations == null ||
+								!discardedMutations.containsKey(
+									formerReference.getReferenceKey().internalPrimaryKey()
+								)
+						) {
+							removeReferenceFromBundle(referenceBundle, formerReference);
+							bundleUpdated = true;
+						}
+					}
+				}
+				// every removed reference must disappear from the bundle - otherwise its representative
+				// attributes keep occupying the slot and the very same reference cannot be added again
+				Assert.isPremiseValid(
+					bundleUpdated,
+					"The reference bundle must be updated whenever a reference was removed!"
+				);
 			}
 		} else {
 			throw new InvalidMutationException(
 				"There's no reference of a type `" + referenceName + "` and primary key `" + referencedPrimaryKey + "`!"
 			);
+		}
+	}
+
+	/**
+	 * Applies the mutations discarded by a reference removal on top of the reference they target, so that
+	 * the resulting reference reflects the state the {@link BuilderReferenceBundle} was updated with when
+	 * those mutations were registered. Only such a reference can be removed from the bundle again.
+	 *
+	 * @param referenceBundle    the bundle providing the attribute types the mutations are evaluated against
+	 * @param discardedMutations the mutation queue of a single reference discarded by the removal,
+	 *                           must not be null
+	 * @param formerReference    the reference the mutations were built upon, null when the mutations created
+	 *                           a brand-new reference that has no counterpart in the base entity
+	 * @return the reference in the state the bundle knows it
+	 */
+	@Nonnull
+	private ReferenceContract applyDiscardedMutations(
+		@Nonnull BuilderReferenceBundle referenceBundle,
+		@Nonnull List<ReferenceMutation<?>> discardedMutations,
+		@Nullable ReferenceContract formerReference
+	) {
+		ReferenceContract updatedReference = formerReference;
+		for (ReferenceMutation<?> discardedMutation : discardedMutations) {
+			updatedReference = discardedMutation.mutateLocal(
+				this.entitySchema, updatedReference, referenceBundle.getAttributeTypes()
+			);
+		}
+		Assert.isPremiseValid(
+			updatedReference != null,
+			"We always expect updated reference to be non-null after applying discarded mutations!"
+		);
+		return updatedReference;
+	}
+
+	/**
+	 * Looks up the reference carrying the passed internal primary key among the references the removal
+	 * matched in the base entity.
+	 *
+	 * @param references         the matched base references, null when the removal matched none of them
+	 * @param internalPrimaryKey the internal primary key to look for
+	 * @return the matching reference, or null when the key belongs to a reference that was created solely
+	 * by this builder and thus has no counterpart in the base entity
+	 */
+	@Nullable
+	private static ReferenceContract findByInternalPrimaryKey(
+		@Nullable List<ReferenceContract> references,
+		int internalPrimaryKey
+	) {
+		if (references != null) {
+			for (int i = 0; i < references.size(); i++) {
+				final ReferenceContract reference = references.get(i);
+				if (reference.getReferenceKey().internalPrimaryKey() == internalPrimaryKey) {
+					return reference;
+				}
+			}
+		}
+		return null;
+	}
+
+	/**
+	 * Removes a single reference from the passed bundle, choosing the removal variant matching the way
+	 * the reference is registered in it. The reference key must be complete - the bundle is indexed by
+	 * internal primary keys and cannot resolve an incomplete one.
+	 *
+	 * @param referenceBundle the bundle to remove the reference from, must not be null
+	 * @param reference       the reference to remove, must not be null
+	 */
+	private static void removeReferenceFromBundle(
+		@Nonnull BuilderReferenceBundle referenceBundle,
+		@Nonnull ReferenceContract reference
+	) {
+		if (referenceBundle.isDuplicate(reference.getReferenceKey())) {
+			referenceBundle.removeDuplicateReference(reference);
+		} else {
+			referenceBundle.removeNonDuplicateReference(reference);
 		}
 	}
 

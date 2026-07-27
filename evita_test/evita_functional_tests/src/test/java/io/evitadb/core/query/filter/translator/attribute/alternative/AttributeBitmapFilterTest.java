@@ -67,6 +67,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.core.query.filter.translator.attribute.AbstractAttributeComparisonTranslator.getPredicate;
@@ -75,12 +76,18 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.FILTER;
+import static io.evitadb.test.TestTags.ATTRIBUTE;
 
 /**
  * This test verifies behaviour of {@link AttributeBitmapFilter}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
+@Tag(ENGINE)
+@Tag(FILTER)
+@Tag(ATTRIBUTE)
 class AttributeBitmapFilterTest {
 	public static final String NUMBER_RANGE = "numberRange";
 	private static final int SEED = 40;
@@ -95,6 +102,7 @@ class AttributeBitmapFilterTest {
 		final CatalogSchema catalogSchema = CatalogSchema._internalBuild(
 			TestConstants.TEST_CATALOG,
 			NamingConvention.generate(TestConstants.TEST_CATALOG),
+			null,
 			EnumSet.allOf(CatalogEvolutionMode.class),
 			new EmptyEntitySchemaAccessor()
 		);

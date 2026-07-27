@@ -24,15 +24,15 @@
 package io.evitadb.core.metric.event.system;
 
 
-import io.evitadb.api.configuration.metric.MetricType;
-import io.evitadb.api.observability.annotation.ExportMetric;
 import jdk.jfr.Description;
 import jdk.jfr.Label;
 import jdk.jfr.Name;
 import jdk.jfr.Period;
 
 /**
- * Event related to request thread pool statistics.
+ * Event related to the scheduled (service) thread pool statistics. Shares the common
+ * {@link AbstractThreadPoolStatisticsEvent} field set, since the scheduled executor is itself a
+ * {@link java.util.concurrent.ThreadPoolExecutor}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
@@ -40,50 +40,18 @@ import jdk.jfr.Period;
 @Description("Event that is fired on regular intervals to track scheduled executor statistics.")
 @Label("Scheduled executor statistics")
 @Period("1m")
-public class ScheduledExecutorStatisticsEvent extends AbstractSystemEvent {
+public class ScheduledExecutorStatisticsEvent extends AbstractThreadPoolStatisticsEvent {
 
-	@Label("Tasks completed")
-	@Description("The approximate total number of tasks that have completed execution")
-	@ExportMetric(metricType = MetricType.COUNTER)
-	final long completed;
-
-	@Label("Tasks active")
-	@Description("The approximate number of threads that are actively executing tasks")
-	@ExportMetric(metricType = MetricType.GAUGE)
-	final int active;
-
-	@Label("Tasks queued")
-	@Description("The approximate number of queued tasks that are waiting to be executed")
-	@ExportMetric(metricType = MetricType.GAUGE)
-	final int queued;
-
-	@Label("Queue remaining")
-	@Description("The number of additional elements that this queue can ideally accept without blocking")
-	@ExportMetric(metricType = MetricType.GAUGE)
-	final int queueRemaining;
-
-	@Label("Current worker count")
-	@Description("The current number of threads in the pool")
-	@ExportMetric(metricType = MetricType.GAUGE)
-	final int poolSize;
-
-	@Label("Minimal worker count")
-	@Description("The core number of threads for the pool")
-	@ExportMetric(metricType = MetricType.GAUGE)
-	final int poolCore;
-
-	@Label("Max worker count")
-	@Description("The maximum allowed number of threads in the pool")
-	@ExportMetric(metricType = MetricType.GAUGE)
-	final int poolMax;
-
-	public ScheduledExecutorStatisticsEvent(long completed, int active, int queued, int queueRemaining, int poolSize, int poolCore, int poolMax) {
-		this.completed = completed;
-		this.active = active;
-		this.queued = queued;
-		this.queueRemaining = queueRemaining;
-		this.poolSize = poolSize;
-		this.poolCore = poolCore;
-		this.poolMax = poolMax;
+	public ScheduledExecutorStatisticsEvent(
+		long completed,
+		int active,
+		int queued,
+		int queueRemaining,
+		int poolSize,
+		int poolCore,
+		int poolMax,
+		int largestPoolSize
+	) {
+		super(completed, active, queued, queueRemaining, poolSize, poolCore, poolMax, largestPoolSize);
 	}
 }

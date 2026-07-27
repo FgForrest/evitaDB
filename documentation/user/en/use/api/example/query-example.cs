@@ -21,7 +21,7 @@ EvitaResponse<ISealedEntity> response = evita.QueryCatalog(
 						AttributeContentAll(),
 						PriceContentRespectingFilter()
 					),
-					FacetSummary()
+					ReferenceSummary()
 				)
 			)
 		);
@@ -33,4 +33,4 @@ IList<ISealedEntity> entities = paginatedList.Data;
 int pageNumber = paginatedList.PageNumber;
 int pageSize = paginatedList.PageSize;
 int totalRecordCount = paginatedList.TotalRecordCount;
-FacetSummary facetSummary = response.GetExtraResult<FacetSummary>();
+ReferenceSummary referenceSummary = response.GetExtraResult<ReferenceSummary>();

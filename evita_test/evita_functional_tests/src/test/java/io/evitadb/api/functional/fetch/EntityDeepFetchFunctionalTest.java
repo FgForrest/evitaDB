@@ -62,7 +62,6 @@ import java.util.stream.Collectors;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
-import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_CATEGORY_PRIORITY;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_CODE;
@@ -70,18 +69,21 @@ import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_NAME;
 import static io.evitadb.test.generator.DataGenerator.CZECH_LOCALE;
 import static java.util.Optional.ofNullable;
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.QUERY;
 
 /**
  * This test verifies deep fetching of referenced entity bodies, including eager and lazy deep
  * fetching, filtered and ordered reference fetching, reference attribute filtering/ordering,
  * handling of missing references, and binary entity deep fetching.
  *
- * @author evitaDB contributors
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("Evita entity deep fetch functionality")
-@Tag(FUNCTIONAL_TEST)
 @ExtendWith(EvitaParameterResolver.class)
 @Slf4j
+@Tag(CONTRACT)
+@Tag(QUERY)
 class EntityDeepFetchFunctionalTest extends AbstractEntityFetchingFunctionalTest {
 
 	@DisplayName("References can be eagerly deeply fetched")

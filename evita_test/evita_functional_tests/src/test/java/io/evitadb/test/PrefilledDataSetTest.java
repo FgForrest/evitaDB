@@ -32,10 +32,13 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
 import java.util.Locale;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.QueryConstraints.attributeContent;
 import static io.evitadb.api.query.QueryConstraints.dataInLocales;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.MANAGEMENT;
 
 /**
  * Example of the test with database filled with initial data.
@@ -43,6 +46,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 @ExtendWith(EvitaParameterResolver.class)
+@Tag(ENGINE)
+@Tag(MANAGEMENT)
 public class PrefilledDataSetTest implements EvitaTestSupport {
 	private static final String DATA_SET_WITH_A_FEW_DATA = "dataSetWithAFewData";
 	private static final String ENTITY_BRAND = "Brand";

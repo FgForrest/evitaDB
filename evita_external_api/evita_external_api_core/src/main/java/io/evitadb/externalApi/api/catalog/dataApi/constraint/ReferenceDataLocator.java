@@ -27,6 +27,7 @@ import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.externalApi.exception.ExternalApiInternalError;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 /**
  * Specifies how to get data from reference.
@@ -35,7 +36,7 @@ import javax.annotation.Nonnull;
  */
 public record ReferenceDataLocator(
 	@Nonnull EntityTypePointer entityTypePointer,
-	@Nonnull String referenceName
+	@Nullable String referenceName
 ) implements AbstractReferenceDataLocator {
 
 	public ReferenceDataLocator {

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,16 +24,18 @@
 package io.evitadb.api.requestResponse.schema.mutation.reference;
 
 import io.evitadb.api.requestResponse.cdc.Operation;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.NamedSchemaContract;
 import io.evitadb.api.requestResponse.schema.NamedSchemaWithDeprecationContract;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.annotation.SerializableCreator;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
-import io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableLocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.CreateMutation;
@@ -45,6 +47,7 @@ import io.evitadb.dataType.ClassifierType;
 import io.evitadb.dataType.Scope;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.ClassifierUtils;
+import io.evitadb.utils.NamingConvention;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 
@@ -77,7 +80,7 @@ import static io.evitadb.dataType.Scope.NO_SCOPE;
 public class CreateReferenceSchemaMutation
 	extends AbstractReferenceDataSchemaMutation
 	implements ReferenceSchemaMutation, CombinableLocalEntitySchemaMutation, CreateMutation {
-	@Serial private static final long serialVersionUID = -5200773391501101688L;
+	@Serial private static final long serialVersionUID = -4158068801437475007L;
 
 	@Getter @Nullable private final String description;
 	@Getter @Nullable private final String deprecationNotice;
@@ -87,7 +90,12 @@ public class CreateReferenceSchemaMutation
 	@Getter @Nullable private final String referencedGroupType;
 	@Getter private final boolean referencedGroupTypeManaged;
 	@Getter @Nonnull private final ScopedReferenceIndexType[] indexedInScopes;
+	@Getter @Nonnull private final ScopedReferenceIndexedComponents[] indexedComponentsInScopes;
 	@Getter @Nonnull private final Scope[] facetedInScopes;
+	@Getter @Nonnull private final ScopedFacetedPartially[] facetedPartiallyInScopes;
+	@Getter @Nonnull private final ScopedHistogramIndexDefinition[] bucketedInScopes;
+	@Getter @Nonnull private final ScopedBucketedPartially[] bucketedPartiallyInScopes;
+	@Getter @Nonnull private final ConflictResolutionOverride conflictResolutionOverride;
 
 	/**
 	 * Creates mutation that sets up a new reference schema with the given properties using simple boolean
@@ -110,16 +118,52 @@ public class CreateReferenceSchemaMutation
 			referencedEntityType, referencedEntityTypeManaged,
 			referencedGroupType, referencedGroupTypeManaged,
 			indexed
-				? new ScopedReferenceIndexType[] {
-					new ScopedReferenceIndexType(DEFAULT_SCOPE, ReferenceIndexType.FOR_FILTERING)
-				}
+				? ScopedReferenceIndexType.DEFAULT
 				: ScopedReferenceIndexType.EMPTY,
-			faceted ? Scope.DEFAULT_SCOPES : NO_SCOPE
+			indexed
+				? ScopedReferenceIndexedComponents.DEFAULT
+				: ScopedReferenceIndexedComponents.EMPTY,
+			faceted ? Scope.DEFAULT_SCOPES : NO_SCOPE,
+			null, null, null
 		);
 	}
 
 	/**
-	 * Creates mutation that sets up a new reference schema with detailed per-scope indexed/faceted configuration.
+	 * Creates mutation that sets up a new reference schema with detailed per-scope indexed/faceted configuration
+	 * including per-scope facetedPartially and bucketed histogram expressions. The conflict resolution override
+	 * defaults to {@link ConflictResolutionOverride#INHERITED}.
+	 */
+	public CreateReferenceSchemaMutation(
+		@Nonnull String name,
+		@Nullable String description,
+		@Nullable String deprecationNotice,
+		@Nullable Cardinality cardinality,
+		@Nonnull String referencedEntityType,
+		boolean referencedEntityTypeManaged,
+		@Nullable String referencedGroupType,
+		boolean referencedGroupTypeManaged,
+		@Nullable ScopedReferenceIndexType[] indexedInScopes,
+		@Nullable ScopedReferenceIndexedComponents[] indexedComponentsInScopes,
+		@Nullable Scope[] facetedInScopes,
+		@Nullable ScopedFacetedPartially[] facetedPartiallyInScopes,
+		@Nullable ScopedHistogramIndexDefinition[] bucketedInScopes,
+		@Nullable ScopedBucketedPartially[] bucketedPartiallyInScopes
+	) {
+		this(
+			name, description, deprecationNotice, cardinality,
+			referencedEntityType, referencedEntityTypeManaged,
+			referencedGroupType, referencedGroupTypeManaged,
+			indexedInScopes, indexedComponentsInScopes,
+			facetedInScopes, facetedPartiallyInScopes,
+			bucketedInScopes, bucketedPartiallyInScopes,
+			ConflictResolutionOverride.INHERITED
+		);
+	}
+
+	/**
+	 * Creates mutation that sets up a new reference schema with detailed per-scope indexed/faceted configuration
+	 * including per-scope facetedPartially and bucketed histogram expressions and a per-reference conflict
+	 * resolution override.
 	 */
 	@SerializableCreator
 	public CreateReferenceSchemaMutation(
@@ -132,7 +176,12 @@ public class CreateReferenceSchemaMutation
 		@Nullable String referencedGroupType,
 		boolean referencedGroupTypeManaged,
 		@Nullable ScopedReferenceIndexType[] indexedInScopes,
-		@Nullable Scope[] facetedInScopes
+		@Nullable ScopedReferenceIndexedComponents[] indexedComponentsInScopes,
+		@Nullable Scope[] facetedInScopes,
+		@Nullable ScopedFacetedPartially[] facetedPartiallyInScopes,
+		@Nullable ScopedHistogramIndexDefinition[] bucketedInScopes,
+		@Nullable ScopedBucketedPartially[] bucketedPartiallyInScopes,
+		@Nonnull ConflictResolutionOverride conflictResolutionOverride
 	) {
 		super(name);
 		ClassifierUtils.validateClassifierFormat(ClassifierType.REFERENCE, name);
@@ -145,7 +194,26 @@ public class CreateReferenceSchemaMutation
 		this.referencedGroupType = referencedGroupType;
 		this.referencedGroupTypeManaged = referencedGroupTypeManaged;
 		this.indexedInScopes = indexedInScopes == null ? ScopedReferenceIndexType.EMPTY : indexedInScopes;
+		if (indexedComponentsInScopes == null) {
+			if (indexedInScopes == null) {
+				this.indexedComponentsInScopes = ScopedReferenceIndexedComponents.EMPTY;
+			} else {
+				this.indexedComponentsInScopes = Arrays.stream(indexedInScopes)
+					.filter(it -> it.indexType() != ReferenceIndexType.NONE)
+					.map(it -> new ScopedReferenceIndexedComponents(it.scope(), ReferenceIndexedComponents.DEFAULT_INDEXED_COMPONENTS))
+					.toArray(ScopedReferenceIndexedComponents[]::new);
+			}
+		} else {
+			this.indexedComponentsInScopes = indexedComponentsInScopes;
+		}
 		this.facetedInScopes = facetedInScopes == null ? NO_SCOPE : facetedInScopes;
+		this.facetedPartiallyInScopes = facetedPartiallyInScopes == null
+			? ScopedFacetedPartially.EMPTY : facetedPartiallyInScopes;
+		this.bucketedInScopes = bucketedInScopes == null
+			? ScopedHistogramIndexDefinition.EMPTY : bucketedInScopes;
+		this.bucketedPartiallyInScopes = bucketedPartiallyInScopes == null
+			? ScopedBucketedPartially.EMPTY : bucketedPartiallyInScopes;
+		this.conflictResolutionOverride = conflictResolutionOverride;
 	}
 
 	/**
@@ -228,6 +296,12 @@ public class CreateReferenceSchemaMutation
 								makeMutationIfDifferent(
 									ReferenceSchemaContract.class,
 									createdVersion, existingVersion,
+									ReferenceSchemaContract::getConflictResolutionOverride,
+									newValue -> new SetReferenceSchemaConflictResolutionOverrideMutation(this.name, newValue)
+								),
+								makeMutationIfDifferent(
+									ReferenceSchemaContract.class,
+									createdVersion, existingVersion,
 									ref -> ref.getReferenceIndexTypeInScopes()
 										.entrySet()
 										.stream()
@@ -238,10 +312,61 @@ public class CreateReferenceSchemaMutation
 								makeMutationIfDifferent(
 									ReferenceSchemaContract.class,
 									createdVersion, existingVersion,
-									ref -> Arrays.stream(Scope.values())
-										.filter(ref::isFacetedInScope)
+									ReferenceSchemaContract::getIndexedComponentsInScopes,
+									newValue -> new SetReferenceSchemaIndexedMutation(
+										this.name,
+										createdVersion.getReferenceIndexTypeInScopes()
+											.entrySet()
+											.stream()
+											.map(it -> new ScopedReferenceIndexType(it.getKey(), it.getValue()))
+											.toArray(ScopedReferenceIndexType[]::new),
+										createdVersion.getIndexedComponentsInScopes()
+											.entrySet()
+											.stream()
+											.map(
+												it -> new ScopedReferenceIndexedComponents(
+													it.getKey(),
+													it.getValue().toArray(ReferenceIndexedComponents[]::new)
+												)
+											)
+											.toArray(ScopedReferenceIndexedComponents[]::new)
+									)
+								),
+							// emit a single mutation carrying both facetedInScopes and facetedPartially
+							(createdVersion.getFacetedInScopes().equals(existingVersion.getFacetedInScopes()) &&
+								createdVersion.getFacetedPartiallyInScopes()
+									.equals(existingVersion.getFacetedPartiallyInScopes()))
+								? null
+								: new SetReferenceSchemaFacetedMutation(
+									this.name,
+									Arrays.stream(Scope.values())
+										.filter(createdVersion::isFacetedInScope)
 										.toArray(Scope[]::new),
-									newValue -> new SetReferenceSchemaFacetedMutation(this.name, newValue)
+									createdVersion.getFacetedPartiallyInScopes().entrySet().stream()
+										.map(e -> new ScopedFacetedPartially(e.getKey(), e.getValue()))
+										.toArray(ScopedFacetedPartially[]::new)
+								),
+							// emit a single mutation carrying both bucketedInScopes and bucketedPartially
+							(createdVersion.getAllHistogramIndexDefinitions()
+								.equals(existingVersion.getAllHistogramIndexDefinitions()) &&
+								createdVersion.getBucketedPartiallyInScopes()
+									.equals(existingVersion.getBucketedPartiallyInScopes()))
+								? null
+								: new SetReferenceSchemaBucketedMutation(
+									this.name,
+									createdVersion.getAllHistogramIndexDefinitions().entrySet().stream()
+										.flatMap(scopeEntry -> scopeEntry.getValue().values().stream()
+											.map(def -> new ScopedHistogramIndexDefinition(
+												scopeEntry.getKey(),
+												def.nameOfTheIndex(),
+												def.valueExpression(),
+												def.assignedWhen()
+											))
+										)
+										.toArray(ScopedHistogramIndexDefinition[]::new),
+									createdVersion.getBucketedPartiallyInScopes().entrySet().stream()
+										.map(e -> new ScopedBucketedPartially(e.getKey(), e.getValue()))
+										.toArray(ScopedBucketedPartially[]::new)
 								)
 							),
 							existingVersion.getAttributes()
@@ -283,13 +408,25 @@ public class CreateReferenceSchemaMutation
 		@Nonnull ConsistencyChecks consistencyChecks
 	) {
 		return ReferenceSchema._internalBuild(
-			this.name, this.description, this.deprecationNotice,
-			this.referencedEntityType, this.referencedEntityTypeManaged,
+			this.name, NamingConvention.generate(this.name),
+			this.description, this.deprecationNotice,
+			this.referencedEntityType,
+			this.referencedEntityTypeManaged
+				? Collections.emptyMap()
+				: NamingConvention.generate(this.referencedEntityType),
+			this.referencedEntityTypeManaged,
 			this.cardinality,
-			this.referencedGroupType, this.referencedGroupTypeManaged,
-			this.indexedInScopes, this.facetedInScopes,
+			this.referencedGroupType,
+			this.referencedGroupType != null && !this.referencedGroupType.isBlank() && !this.referencedGroupTypeManaged
+				? NamingConvention.generate(this.referencedGroupType)
+				: Collections.emptyMap(),
+			this.referencedGroupTypeManaged,
+			this.indexedInScopes, this.indexedComponentsInScopes,
+			this.facetedInScopes, this.facetedPartiallyInScopes,
+			this.bucketedInScopes, this.bucketedPartiallyInScopes,
 			Collections.emptyMap(),
-			Collections.emptyMap()
+			Collections.emptyMap(),
+			this.conflictResolutionOverride
 		);
 	}
 
@@ -324,7 +461,12 @@ public class CreateReferenceSchemaMutation
 			", groupType='" + this.referencedGroupType + '\'' +
 			", referencedGroupTypeManaged=" + this.referencedGroupTypeManaged +
 			", indexed=" + Arrays.toString(this.indexedInScopes) +
-			", faceted=" + Arrays.toString(this.facetedInScopes);
+			", indexedComponents=" + Arrays.toString(this.indexedComponentsInScopes) +
+			", faceted=" + Arrays.toString(this.facetedInScopes) +
+			", facetedPartially=" + Arrays.toString(this.facetedPartiallyInScopes) +
+			", bucketed=" + Arrays.toString(this.bucketedInScopes) +
+			", bucketedPartially=" + Arrays.toString(this.bucketedPartiallyInScopes) +
+			", conflictResolutionOverride=" + this.conflictResolutionOverride;
 	}
 
 }

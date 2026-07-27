@@ -23,17 +23,24 @@
 
 package io.evitadb.utils;
 
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.util.Map;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.DATA_TYPE;
 
 /**
  * This test verifies {@link NamingConvention}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
+@DisplayName("NamingConvention contract tests")
+@Tag(ENGINE)
+@Tag(DATA_TYPE)
 class NamingConventionTest {
 
 	@Test

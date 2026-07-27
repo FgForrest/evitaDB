@@ -23,26 +23,22 @@
 
 package io.evitadb.core.transaction.memory;
 
-import javax.annotation.Nonnull;
-
-import static io.evitadb.core.transaction.Transaction.getTransactionalLayerMaintainer;
-import static java.util.Optional.ofNullable;
-
 /**
  * Interface allowing classes to participate in a transaction memory handling process. Implementations should implement
- * all get / set state methods in following pattern:
+ * all get / set state methods in following pattern (these accessors are normally reached through the static
+ * {@link io.evitadb.core.transaction.Transaction} facade rather than {@link TransactionalMemory} directly):
  *
  * ``` java
  * GET:
- *      final Changes layer = TransactionalMemory.getTransactionalMemoryLayerIfExists(this);
+ *      final Changes layer = Transaction.getTransactionalMemoryLayerIfExists(this);
  * 		if (layer == null) {
  * 			// execute original logic
  *      } else {
-* 			// execute logic and propagate all changes captured in transactional layer (Changes object)
+ * 			// execute logic and propagate all changes captured in transactional layer (Changes object)
  *      }
  *
  * SET:
- *      final Changes layer = TransactionalMemory.getTransactionalMemoryLayer(this);
+ *      final Changes layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
  * 		if (layer == null) {
  * 			// execute original logic
  *      } else {
@@ -55,11 +51,17 @@ import static java.util.Optional.ofNullable;
 public interface TransactionalLayerCreator<T> {
 
 	/**
-	 * Uniquely identifies instance of {@link TransactionalLayerCreator} among other instances of the same class.
-	 * Each instance of the class must return unique id that doesn't change in time. Id connect origin object with
-	 * its transactional states in memory.
+	 * Uniquely identifies this instance among **all** live {@link TransactionalLayerCreator} instances, not merely among
+	 * instances of the same class. The id must not change in time - it connects the origin object with its transactional
+	 * state in memory, and is the sole key of the diff-layer registry.
 	 *
-	 * Using {@link TransactionalObjectVersion} is highly recommended.
+	 * Ids must be drawn from {@link TransactionalObjectVersion#SEQUENCE}, which is what guarantees the global
+	 * uniqueness this contract requires. Returning a constant, or an id from any other source, lets one object be handed
+	 * a diff layer belonging to another - {@link TransactionalLayerMaintainer} therefore verifies the invariant and
+	 * fails loudly on a collision.
+	 *
+	 * The value {@link TransactionalObjectVersion#NO_LAYER_ID} is reserved to denote "no layer" and is never emitted by
+	 * the sequence, so it must never be returned here.
 	 */
 	long getId();
 
@@ -69,22 +71,5 @@ public interface TransactionalLayerCreator<T> {
 	 * {@link #getId()} value.
 	 */
 	T createLayer();
-
-	/**
-	 * Method implementation must remove entire diff memory from the current transaction. If object maintains inner
-	 * objects, their memory must be removed as well.
-	 */
-	default void removeLayer() {
-		ofNullable(getTransactionalLayerMaintainer())
-			.ifPresent(this::removeLayer);
-	}
-
-	/**
-	 * Method implementation must remove entire diff memory from the current transaction. If object maintains inner
-	 * objects, their memory must be removed as well.
-	 *
-	 * @param transactionalLayer object that provides access to entire transactional memory so that it can be manipulated
-	 */
-	void removeLayer(@Nonnull TransactionalLayerMaintainer transactionalLayer);
 
 }

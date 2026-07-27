@@ -31,7 +31,7 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract.AttributeInheritanceBehavior;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
-import io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.dto.ReflectedReferenceSchema;
 import io.evitadb.api.requestResponse.schema.dto.SortableAttributeCompoundSchema;
@@ -52,7 +52,7 @@ import static io.evitadb.store.schema.serializer.EntitySchemaSerializer.readScop
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@Deprecated(since = "2025.5", forRemoval = true)
+@Deprecated(since = "2025.6", forRemoval = true)
 @RequiredArgsConstructor
 public class ReflectedReferenceSchemaSerializer_2025_5 extends Serializer<ReflectedReferenceSchema> {
 
@@ -101,20 +101,25 @@ public class ReflectedReferenceSchemaSerializer_2025_5 extends Serializer<Reflec
 			attributesExcludedFromInheritance[i] = input.readString();
 		}
 
+		final Map<Scope, ReferenceIndexType> indexedScopesMap = indexedInScopes == null ?
+			null :
+			indexedInScopes
+				.stream()
+				.collect(
+					Collectors.toMap(
+						Function.identity(),
+						scope -> ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING
+					)
+				);
 		return ReflectedReferenceSchema._internalBuild(
 			name, nameVariants, description, deprecationNotice,
 			entityType, reflectedReferenceName, cardinality,
-			indexedInScopes == null ?
-				null :
-				indexedInScopes
-					.stream()
-					.collect(
-						Collectors.toMap(
-							Function.identity(),
-							scope -> ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING
-						)
-					),
+			indexedScopesMap,
+			indexedScopesMap != null
+				? ReferenceSchema.defaultIndexedComponents(indexedScopesMap)
+				: null,
 			facetedInScopes,
+			null, null, null,
 			attributes, sortableAttributeCompounds,
 			attributeInheritanceBehavior, attributesExcludedFromInheritance
 		);

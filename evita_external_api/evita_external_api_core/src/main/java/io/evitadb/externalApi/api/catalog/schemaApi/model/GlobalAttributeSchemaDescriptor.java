@@ -89,7 +89,8 @@ public interface GlobalAttributeSchemaDescriptor extends EntityAttributeSchemaDe
 			REPRESENTATIVE,
 			TYPE,
 			DEFAULT_VALUE,
-			INDEXED_DECIMAL_PLACES
+			INDEXED_DECIMAL_PLACES,
+			CONFLICT_RESOLUTION_OVERRIDE
 		))
 		.build();
 }

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@
 package io.evitadb.api.requestResponse.schema.mutation.attribute;
 
 import io.evitadb.api.exception.InvalidSchemaMutationException;
+import io.evitadb.api.query.expression.visitor.PathItem;
 import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
@@ -37,12 +38,16 @@ import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntityAttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
+import io.evitadb.api.requestResponse.schema.dto.HistogramIndexDefinition;
+import io.evitadb.api.requestResponse.schema.dto.HistogramIndexDefinition.AttributePathClassification;
+import io.evitadb.api.requestResponse.schema.dto.HistogramIndexDefinition.AttributeSource;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableLocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.ReferenceSchemaMutator;
 import io.evitadb.dataType.Scope;
+import io.evitadb.dataType.expression.Expression;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import lombok.EqualsAndHashCode;
@@ -56,8 +61,10 @@ import java.io.Serial;
 import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
+import static io.evitadb.api.query.expression.visitor.AccessedDataFinder.findAccessedPaths;
 import static io.evitadb.dataType.Scope.NO_SCOPE;
 
 /**
@@ -157,7 +164,8 @@ public class SetAttributeSchemaFilterableMutation
 					globalAttributeSchema.isRepresentative(),
 					(Class) globalAttributeSchema.getType(),
 					globalAttributeSchema.getDefaultValue(),
-					globalAttributeSchema.getIndexedDecimalPlaces()
+					globalAttributeSchema.getIndexedDecimalPlaces(),
+					globalAttributeSchema.getConflictResolutionOverride()
 				);
 			}
 		} else if (attributeSchema instanceof EntityAttributeSchemaContract entityAttributeSchema) {
@@ -178,7 +186,8 @@ public class SetAttributeSchemaFilterableMutation
 					entityAttributeSchema.isRepresentative(),
 					(Class) entityAttributeSchema.getType(),
 					entityAttributeSchema.getDefaultValue(),
-					entityAttributeSchema.getIndexedDecimalPlaces()
+					entityAttributeSchema.getIndexedDecimalPlaces(),
+					entityAttributeSchema.getConflictResolutionOverride()
 				);
 			}
 		} else {
@@ -199,7 +208,8 @@ public class SetAttributeSchemaFilterableMutation
 					attributeSchema.isRepresentative(),
 					(Class) attributeSchema.getType(),
 					attributeSchema.getDefaultValue(),
-					attributeSchema.getIndexedDecimalPlaces()
+					attributeSchema.getIndexedDecimalPlaces(),
+					attributeSchema.getConflictResolutionOverride()
 				);
 			}
 		}
@@ -233,8 +243,28 @@ public class SetAttributeSchemaFilterableMutation
 						"Non-indexed references must not contain filterable attribute `" + this.name + "`!"
 				)
 			);
+			verifyNotUsedAsHistogramValueSource(referenceSchema, entitySchema.getName());
 		}
 		return ReferenceAttributeSchemaMutation.super.mutate(entitySchema, referenceSchema, consistencyChecks);
+	}
+
+	/**
+	 * Validates that the attribute is not used as a histogram value source when filterability is
+	 * being removed, then delegates to the default entity attribute schema mutation logic.
+	 */
+	@Nonnull
+	@Override
+	public EntitySchemaContract mutate(
+		@Nonnull CatalogSchemaContract catalogSchema,
+		@Nullable EntitySchemaContract entitySchema
+	) {
+		Assert.isPremiseValid(entitySchema != null, "Entity schema is mandatory!");
+		if (!isFilterable()) {
+			verifyNotUsedAsReferencedEntityHistogramValueSource(
+				catalogSchema, entitySchema.getName()
+			);
+		}
+		return EntityAttributeSchemaMutation.super.mutate(catalogSchema, entitySchema);
 	}
 
 	@Nonnull
@@ -247,5 +277,117 @@ public class SetAttributeSchemaFilterableMutation
 	public String toString() {
 		return "Set attribute `" + this.name + "` schema: " +
 			"filterable=" + (isFilterable() ? "(in scopes: " + Arrays.toString(this.filterableInScopes) + ")" : "no");
+	}
+
+	/**
+	 * Verifies that a reference attribute is not used as a histogram value source when its filterability
+	 * is being removed. Scans all histogram index definitions on the given reference for value expressions
+	 * of the form `$reference.attributes['x']` that match the attribute being mutated.
+	 *
+	 * @param referenceSchema the reference schema whose histogram definitions are checked
+	 * @param entityTypeName  the entity type name for error messages
+	 * @throws InvalidSchemaMutationException if the attribute is referenced by a histogram value expression
+	 */
+	private void verifyNotUsedAsHistogramValueSource(
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull String entityTypeName
+	) {
+		if (isFilterable()) {
+			return;
+		}
+		final Map<Scope, Map<String, HistogramIndexDefinition>> allDefs =
+			referenceSchema.getAllHistogramIndexDefinitions();
+		for (Map.Entry<Scope, Map<String, HistogramIndexDefinition>> scopeEntry : allDefs.entrySet()) {
+			for (Map.Entry<String, HistogramIndexDefinition> defEntry : scopeEntry.getValue().entrySet()) {
+				final Expression valueExpression = defEntry.getValue().valueExpression();
+				if (valueExpression == null) {
+					continue;
+				}
+				final String referencedAttr = extractAttributeNameBySource(
+					valueExpression, AttributeSource.REFERENCE_ATTRIBUTE
+				);
+				if (this.name.equals(referencedAttr)) {
+					throw new InvalidSchemaMutationException(
+						"Cannot remove filterability from attribute `" + this.name +
+							"` on reference `" + referenceSchema.getName() +
+							"` in entity `" + entityTypeName +
+							"` because it is used as the value source in histogram `" +
+							defEntry.getKey() + "` (scope " + scopeEntry.getKey().name() +
+							"). The attribute must remain filterable."
+					);
+				}
+			}
+		}
+	}
+
+	/**
+	 * Verifies that an entity attribute is not used as a histogram value source via
+	 * `$reference.referencedEntity?.attributes['x']` on any reference in any other entity schema that
+	 * references the entity type being modified.
+	 *
+	 * @param catalogSchema  the catalog schema providing access to all entity schemas
+	 * @param entityTypeName the name of the entity type whose attribute is being modified
+	 * @throws InvalidSchemaMutationException if the attribute is referenced by a histogram value expression
+	 */
+	private void verifyNotUsedAsReferencedEntityHistogramValueSource(
+		@Nonnull CatalogSchemaContract catalogSchema,
+		@Nonnull String entityTypeName
+	) {
+		for (EntitySchemaContract otherEntitySchema : catalogSchema.getEntitySchemas()) {
+			for (ReferenceSchemaContract refSchema : otherEntitySchema.getReferences().values()) {
+				if (!entityTypeName.equals(refSchema.getReferencedEntityType())) {
+					continue;
+				}
+				final Map<Scope, Map<String, HistogramIndexDefinition>> allDefs =
+					refSchema.getAllHistogramIndexDefinitions();
+				for (Map.Entry<Scope, Map<String, HistogramIndexDefinition>> scopeEntry : allDefs.entrySet()) {
+					for (Map.Entry<String, HistogramIndexDefinition> defEntry : scopeEntry.getValue().entrySet()) {
+						final Expression valueExpression = defEntry.getValue().valueExpression();
+						if (valueExpression == null) {
+							continue;
+						}
+						final String referencedAttr = extractAttributeNameBySource(
+							valueExpression, AttributeSource.REFERENCED_ENTITY_ATTRIBUTE
+						);
+						if (this.name.equals(referencedAttr)) {
+							throw new InvalidSchemaMutationException(
+								"Cannot remove filterability from attribute `" + this.name +
+									"` on entity `" + entityTypeName +
+									"` because it is used as the value source in histogram `" +
+									defEntry.getKey() + "` (scope " + scopeEntry.getKey().name() +
+									") on reference `" + refSchema.getName() +
+									"` in entity `" + otherEntitySchema.getName() +
+									"`. The attribute must remain filterable."
+							);
+						}
+					}
+				}
+			}
+		}
+	}
+
+	/**
+	 * Extracts the attribute name from a value expression that matches the given
+	 * {@link AttributeSource}. Delegates path classification to
+	 * {@link HistogramIndexDefinition#classifyAttributePath(List)}.
+	 *
+	 * @param valueExpression the histogram value expression to analyze
+	 * @param expectedSource  the expected attribute source to match
+	 * @return the attribute name if found for the given source, null otherwise
+	 */
+	@Nullable
+	private static String extractAttributeNameBySource(
+		@Nonnull Expression valueExpression,
+		@Nonnull AttributeSource expectedSource
+	) {
+		final List<List<PathItem>> paths = findAccessedPaths(valueExpression);
+		for (final List<PathItem> path : paths) {
+			final AttributePathClassification classification =
+				HistogramIndexDefinition.classifyAttributePath(path);
+			if (classification != null && classification.source() == expectedSource) {
+				return classification.attributeName();
+			}
+		}
+		return null;
 	}
 }

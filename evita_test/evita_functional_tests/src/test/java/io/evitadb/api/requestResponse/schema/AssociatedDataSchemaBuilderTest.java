@@ -41,10 +41,13 @@ import java.util.Collection;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Optional;
+import org.junit.jupiter.api.Tag;
 
 import static java.util.Optional.empty;
 import static java.util.Optional.of;
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.SCHEMA;
 
 /**
  * Tests for {@link io.evitadb.api.requestResponse.schema.builder.AssociatedDataSchemaBuilder}
@@ -52,9 +55,11 @@ import static org.junit.jupiter.api.Assertions.*;
  * chaining, and default value behavior when building associated data
  * schemas through the {@link InternalEntitySchemaBuilder}.
  *
- * @author evitaDB
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("AssociatedDataSchemaBuilder")
+@Tag(CONTRACT)
+@Tag(SCHEMA)
 class AssociatedDataSchemaBuilderTest {
 
 	private EntitySchema productSchema;
@@ -69,6 +74,7 @@ class AssociatedDataSchemaBuilderTest {
 			NamingConvention.generate(
 				APITestConstants.TEST_CATALOG
 			),
+			null,
 			EnumSet.allOf(CatalogEvolutionMode.class),
 			new EntitySchemaProvider() {
 				@Nonnull

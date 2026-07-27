@@ -53,7 +53,7 @@ import java.util.Set;
  */
 @ToString(of = "entityIndexKey")
 public class EntityIndexStoragePart implements StoragePart {
-	@Serial private static final long serialVersionUID = -5960890423106351315L;
+	@Serial private static final long serialVersionUID = -3842757193845629481L;
 
 	/**
 	 * Unique id that identifies {@link io.evitadb.index.EntityIndex}.
@@ -69,13 +69,20 @@ public class EntityIndexStoragePart implements StoragePart {
 	 */
 	@Getter private final EntityIndexKey entityIndexKey;
 	/**
-	 * IntegerBitmap contains all entity ids known to this index. This bitmap represents superset of all inner bitmaps.
+	 * Legacy inline carrier of the all-entities bitmap. From the 2026.2 format onwards the entity-id
+	 * bitmaps are evicted into a sibling {@link EntityIdsStoragePart} and this field is left `null` by
+	 * the current serializer; it is populated **only** when this manifest is rehydrated by a
+	 * backward-compatible serializer (released formats up to and including 2026.1, which stored the
+	 * bitmaps inline) or constructed by a migration. The reload path prefers the sibling part and falls
+	 * back to this carrier for legacy catalogs.
 	 */
-	@Getter private final Bitmap entityIds;
+	@Getter @Nullable private final Bitmap entityIds;
 	/**
-	 * Map contains entity ids by their supported language.
+	 * Legacy inline carrier of the per-locale entity-id bitmaps. See {@link #entityIds} for the
+	 * eviction / backward-compatibility semantics — `null` on freshly-written 2026.2 manifests,
+	 * populated only by backward-compatible readers and migrations.
 	 */
-	@Getter private final Map<Locale, TransactionalBitmap> entityIdsByLanguage;
+	@Getter @Nullable private final Map<Locale, TransactionalBitmap> entityIdsByLanguage;
 	/**
 	 * Contains references to the {@link AttributeIndexStoragePart} in the form of {@link AttributeIndexStorageKey} that
 	 * allows to translate itself to a unique key allowing to fetch {@link StoragePart} from persistent storage.
@@ -96,17 +103,28 @@ public class EntityIndexStoragePart implements StoragePart {
 	 * allows to translate itself to a unique key allowing to fetch {@link StoragePart} from persistent storage.
 	 */
 	@Getter private final Set<String> facetIndexes;
+	/**
+	 * Contains references to histogram index storage parts in the form of {@link HistogramIndexStorageKey} that
+	 * allows to locate both filter and cardinality sub-parts in persistent storage.
+	 */
+	@Getter private final Set<HistogramIndexStorageKey> histogramIndexes;
 
+	/**
+	 * Canonical constructor used by backward-compatible serializers and migrations that still carry the
+	 * entity-id bitmaps inline. The current (2026.2) write path uses the bitmap-less constructor
+	 * {@link #EntityIndexStoragePart(int, int, EntityIndexKey, Set, Set, boolean, Set, Set)} instead.
+	 */
 	public EntityIndexStoragePart(
 		int primaryKey,
 		int version,
 		@Nonnull EntityIndexKey entityIndexKey,
-		@Nonnull Bitmap entityIds,
-		@Nonnull Map<Locale, TransactionalBitmap> entityIdsByLanguage,
+		@Nullable Bitmap entityIds,
+		@Nullable Map<Locale, TransactionalBitmap> entityIdsByLanguage,
 		@Nonnull Set<AttributeIndexStorageKey> attributeIndexes,
 		@Nonnull Set<PriceIndexKey> priceIndexes,
 		boolean hierarchyIndex,
-		@Nonnull Set<String> facetIndexes
+		@Nonnull Set<String> facetIndexes,
+		@Nonnull Set<HistogramIndexStorageKey> histogramIndexes
 	) {
 		this.primaryKey = primaryKey;
 		this.version = version;
@@ -117,6 +135,29 @@ public class EntityIndexStoragePart implements StoragePart {
 		this.priceIndexes = priceIndexes;
 		this.hierarchyIndex = hierarchyIndex;
 		this.facetIndexes = facetIndexes;
+		this.histogramIndexes = histogramIndexes;
+	}
+
+	/**
+	 * Modern (2026.2) constructor: the entity-id bitmaps are persisted separately in a sibling
+	 * {@link EntityIdsStoragePart}, so this manifest carries no inline bitmaps ({@link #entityIds} and
+	 * {@link #entityIdsByLanguage} are left `null`).
+	 */
+	public EntityIndexStoragePart(
+		int primaryKey,
+		int version,
+		@Nonnull EntityIndexKey entityIndexKey,
+		@Nonnull Set<AttributeIndexStorageKey> attributeIndexes,
+		@Nonnull Set<PriceIndexKey> priceIndexes,
+		boolean hierarchyIndex,
+		@Nonnull Set<String> facetIndexes,
+		@Nonnull Set<HistogramIndexStorageKey> histogramIndexes
+	) {
+		this(
+			primaryKey, version, entityIndexKey,
+			null, null,
+			attributeIndexes, priceIndexes, hierarchyIndex, facetIndexes, histogramIndexes
+		);
 	}
 
 	@Nullable

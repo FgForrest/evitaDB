@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -33,17 +33,20 @@ import io.evitadb.api.query.require.ReferenceContent;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.data.structure.Reference;
-import io.evitadb.api.requestResponse.extraResult.FacetSummary.FacetStatistics;
+import io.evitadb.api.requestResponse.extraResult.ReferenceSummary.FacetStatistics;
+import io.evitadb.api.requestResponse.schema.dto.HistogramIndexDefinition;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
-import io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType;
 import io.evitadb.dataType.Scope;
+import io.evitadb.dataType.expression.Expression;
 import io.evitadb.utils.NamingConvention;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 
@@ -73,7 +76,8 @@ import java.util.function.Function;
  */
 public interface ReferenceSchemaContract extends
 	NamedSchemaWithDeprecationContract,
-	SortableAttributeCompoundSchemaProvider<AttributeSchemaContract, SortableAttributeCompoundSchemaContract>
+	SortableAttributeCompoundSchemaProvider<AttributeSchemaContract, SortableAttributeCompoundSchemaContract>,
+	ConflictResolutionOverrideAwareSchemaContract
 {
 
 	/**
@@ -286,6 +290,40 @@ public interface ReferenceSchemaContract extends
 	Map<Scope, ReferenceIndexType> getReferenceIndexTypeInScopes();
 
 	/**
+	 * Returns the set of indexed components for the reference in the {@link Scope#DEFAULT_SCOPE}.
+	 * Indexed components specify which parts of the reference relationship (referenced entity,
+	 * referenced group entity, or both) are indexed and queryable.
+	 *
+	 * @return set of indexed components for the default scope, empty if not indexed
+	 */
+	@Nonnull
+	default Set<ReferenceIndexedComponents> getIndexedComponents() {
+		return getIndexedComponents(Scope.DEFAULT_SCOPE);
+	}
+
+	/**
+	 * Returns the set of indexed components for the reference in the given scope.
+	 * Indexed components specify which parts of the reference relationship (referenced entity,
+	 * referenced group entity, or both) are indexed and queryable.
+	 *
+	 * Returns an empty set if the reference is not indexed in the given scope.
+	 *
+	 * @param scope the scope to get indexed components for
+	 * @return set of indexed components for the given scope, empty if not indexed in that scope
+	 */
+	@Nonnull
+	Set<ReferenceIndexedComponents> getIndexedComponents(@Nonnull Scope scope);
+
+	/**
+	 * Returns a map of all scopes to their corresponding indexed components that are configured
+	 * for this reference. Only scopes where the reference is actually indexed are included.
+	 *
+	 * @return map where keys are scopes and values are the sets of indexed components
+	 */
+	@Nonnull
+	Map<Scope, Set<ReferenceIndexedComponents>> getIndexedComponentsInScopes();
+
+	/**
 	 * Returns TRUE if the statistics data in any scope for this reference should be maintained and this
 	 * allowing to get {@link FacetSummary} for this reference or use {@link FacetHaving} filtering query.
 	 *
@@ -337,6 +375,160 @@ public interface ReferenceSchemaContract extends
 	 */
 	@Nonnull
 	Set<Scope> getFacetedInScopes();
+
+	/**
+	 * Returns the expression that narrows which entities participate in faceting in
+	 * the {@link Scope#DEFAULT_SCOPE}, or null if all faceted entities participate.
+	 *
+	 * @return the expression narrowing facet participation, or null if not set
+	 */
+	@Nullable
+	default Expression getFacetedPartially() {
+		return getFacetedPartiallyInScope(Scope.DEFAULT_SCOPE);
+	}
+
+	/**
+	 * Returns the expression that narrows which entities participate in faceting in
+	 * the given scope, or null if all faceted entities participate in that scope.
+	 *
+	 * @param scope the scope to get the expression for
+	 * @return the expression narrowing facet participation, or null if not set
+	 */
+	@Nullable
+	Expression getFacetedPartiallyInScope(@Nonnull Scope scope);
+
+	/**
+	 * Returns a map of all scopes to their corresponding facetedPartially expressions.
+	 * Only scopes where an expression is actually configured are included. An empty map
+	 * means no partial-faceting expressions are defined.
+	 *
+	 * @return map where keys are scopes and values are the expressions
+	 */
+	@Nonnull
+	default Map<Scope, Expression> getFacetedPartiallyInScopes() {
+		return Collections.emptyMap();
+	}
+
+	/**
+	 * Returns TRUE if the bucketed histogram index in any scope for this reference should be created
+	 * and maintained.
+	 *
+	 * @return true if reference is bucketed in any scope
+	 */
+	default boolean isBucketedInAnyScope() {
+		return Arrays.stream(Scope.values()).anyMatch(this::isBucketedInScope);
+	}
+
+	/**
+	 * Returns TRUE if the bucketed histogram index in {@link Scope#DEFAULT_SCOPE} for this reference
+	 * should be created and maintained.
+	 *
+	 * @return true if reference is bucketed in {@link Scope#DEFAULT_SCOPE}
+	 */
+	default boolean isBucketed() {
+		return isBucketedInScope(Scope.DEFAULT_SCOPE);
+	}
+
+	/**
+	 * Returns TRUE if the bucketed histogram index in the particular {@link Scope} for this reference
+	 * should be created and maintained.
+	 *
+	 * @param scope the scope to check
+	 * @return true if reference is bucketed in the given scope
+	 */
+	boolean isBucketedInScope(@Nonnull Scope scope);
+
+	/**
+	 * Returns set of all scopes where bucketed histogram indexing is enabled for this reference.
+	 *
+	 * @return set of all scopes where the reference is bucketed
+	 */
+	@Nonnull
+	Set<Scope> getBucketedInScopes();
+
+	/**
+	 * Returns the bucketed histogram definition for the given scope and histogram name,
+	 * or null if no such histogram exists in that scope.
+	 *
+	 * @param scope the scope to get the definition for
+	 * @param name the name of the histogram index
+	 * @return the histogram definition, or null if not found
+	 */
+	@Nullable
+	HistogramIndexDefinition getHistogramIndexDefinition(@Nonnull Scope scope, @Nonnull String name);
+
+	/**
+	 * Returns the bucketed histogram definition for the given scope and histogram name
+	 * translated through the given {@link NamingConvention}, or an empty {@link Optional}
+	 * if no histogram with the given variant name exists in that scope.
+	 *
+	 * Kept in the schema because translating a name to a specific convention is
+	 * computationally expensive and lossy in reverse — we memoize it alongside the
+	 * canonical name.
+	 *
+	 * @param scope the scope to get the definition for
+	 * @param name the variant name of the histogram index
+	 * @param namingConvention the naming convention under which {@code name} is expressed
+	 * @return the histogram definition, or empty if not found in the given scope
+	 */
+	@Nonnull
+	Optional<HistogramIndexDefinition> getHistogramIndexDefinitionByName(
+		@Nonnull Scope scope,
+		@Nonnull String name,
+		@Nonnull NamingConvention namingConvention
+	);
+
+	/**
+	 * Returns all named histogram definitions for the given scope. If the reference is not
+	 * bucketed in that scope, an empty map is returned.
+	 *
+	 * @param scope the scope to get definitions for
+	 * @return map where keys are histogram names and values are the definitions
+	 */
+	@Nonnull
+	Map<String, HistogramIndexDefinition> getHistogramIndexDefinitions(@Nonnull Scope scope);
+
+	/**
+	 * Returns a map of all scopes to their corresponding named bucketed histogram definitions.
+	 * Only scopes where the reference is actually bucketed are included.
+	 *
+	 * @return map where keys are scopes and values are maps of histogram name to definition
+	 */
+	@Nonnull
+	Map<Scope, Map<String, HistogramIndexDefinition>> getAllHistogramIndexDefinitions();
+
+	/**
+	 * Returns the expression that narrows which entities participate in bucketed histogram
+	 * computation in the {@link Scope#DEFAULT_SCOPE}, or null if all bucketed entities participate.
+	 *
+	 * @return the expression narrowing bucketed participation, or null if not set
+	 */
+	@Nullable
+	default Expression getBucketedPartially() {
+		return getBucketedPartiallyInScope(Scope.DEFAULT_SCOPE);
+	}
+
+	/**
+	 * Returns the expression that narrows which entities participate in bucketed histogram
+	 * computation in the given scope, or null if all bucketed entities participate in that scope.
+	 *
+	 * @param scope the scope to get the expression for
+	 * @return the expression narrowing bucketed participation, or null if not set
+	 */
+	@Nullable
+	Expression getBucketedPartiallyInScope(@Nonnull Scope scope);
+
+	/**
+	 * Returns a map of all scopes to their corresponding bucketedPartially expressions.
+	 * Only scopes where an expression is actually configured are included. An empty map
+	 * means no partial-bucketing expressions are defined.
+	 *
+	 * @return map where keys are scopes and values are the expressions
+	 */
+	@Nonnull
+	default Map<Scope, Expression> getBucketedPartiallyInScopes() {
+		return Collections.emptyMap();
+	}
 
 	/**
 	 * Validates current reference schema for invalid settings using the information from current catalog schema.

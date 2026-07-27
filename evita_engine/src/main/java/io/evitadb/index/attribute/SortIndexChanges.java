@@ -23,26 +23,23 @@
 
 package io.evitadb.index.attribute;
 
-import io.evitadb.index.array.TransactionalObjArray;
-import io.evitadb.index.map.TransactionalMap;
+import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
+import io.evitadb.core.query.sort.SortedRecordsSupplierFactory;
+import io.evitadb.core.transaction.memory.Snapshotable;
+import io.evitadb.dataType.bPlusTree.CumulativeWeightBPlusTree;
+import io.evitadb.index.array.TransactionalUnorderedIntArray;
+import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.utils.ArrayUtils;
-import io.evitadb.utils.ArrayUtils.InsertionPosition;
-import io.evitadb.utils.Assert;
-import io.evitadb.utils.StringUtils;
-import lombok.AllArgsConstructor;
-import lombok.Getter;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
 import java.io.Serial;
 import java.io.Serializable;
-import java.util.Arrays;
 import java.util.Comparator;
-import java.util.Iterator;
-import java.util.Objects;
+import java.util.function.Supplier;
 
 import static io.evitadb.index.attribute.SortIndex.invert;
-import static java.util.Optional.ofNullable;
 
 /**
  * Class contains intermediate computation data structures that speed up access to the {@link SortedRecordsSupplier}
@@ -52,7 +49,8 @@ import static java.util.Optional.ofNullable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @NotThreadSafe
-public class SortIndexChanges implements Serializable {
+public class SortIndexChanges
+	implements Serializable, Snapshotable<SortIndexChanges.SortIndexChangesMemento> {
 	@Serial private static final long serialVersionUID = -4791973822619493092L;
 
 	/**
@@ -67,79 +65,159 @@ public class SortIndexChanges implements Serializable {
 	@SuppressWarnings("rawtypes") private final Comparator valueComparator;
 
 	/**
-	 * Contains information about indexes of the record chunks that belong to {@link SortIndex#sortedRecordsValues}.
-	 * This intermediate structure is used only when contents of the {@link SortIndex} are modified.
-	 * The sort index itself avoids holding this data for memory optimization. The {@link SortIndex#valueCardinalities}
-	 * only hold cardinalities larger than one, and this field expands that data into a full form.
+	 * Maps each distinct value to the start offset of its record-id block within {@link SortIndex#sortedRecords} — the
+	 * cumulative weight (rank) of all strictly-smaller values. This intermediate structure is used only when contents of
+	 * the {@link SortIndex} are modified. The sort index itself avoids holding this data for memory optimization.
+	 *
+	 * It is a {@link CumulativeWeightBPlusTree} keyed by value (using {@link #valueComparator}) whose per-key weight is
+	 * the value's cardinality: {@link CumulativeWeightBPlusTree#rankOf} yields a block start offset in `O(log V)`, and
+	 * inserting / removing a value or adjusting a cardinality is `O(log V)` — replacing the former flat prefix-sum array
+	 * that re-stamped every following offset on each mutation. The cardinalities are sourced mode-agnostically from the
+	 * owning {@link SortIndex} (owner mode: its `sortedValues` tree; view mode: the shared inverted index) when the tree
+	 * is first built — see {@link #getValueTree()}. Transient: it is a rebuildable cache, never persisted.
 	 */
-	private ValueStartIndex[] valueLocationIndex;
+	@Nullable private transient CumulativeWeightBPlusTree<Serializable> valueLocationTree;
 
 	/**
-	 * Verifies that value is not present in value index.
+	 * Memoized ascending-direction supplier arrays (see {@link MaterializedSortRecords}), rebuilt lazily on first
+	 * request after each `sortedRecords` mutation. Transient rebuildable cache, never persisted.
 	 */
-	private static void assertNotPresent(boolean present, @Nonnull Serializable value) {
-		Assert.isTrue(present, "Value `" + StringUtils.unknownToString(value) + "` unexpectedly found in value start index!");
-	}
+	@Nullable private transient MaterializedSortRecords memoizedAscending;
 
-	public SortIndexChanges(@Nonnull SortIndex sortIndex, @SuppressWarnings("rawtypes") @Nonnull Comparator valueComparator) {
+	/**
+	 * Memoized descending-direction supplier arrays (see {@link MaterializedSortRecords}), rebuilt lazily on first
+	 * request after each `sortedRecords` mutation. Transient rebuildable cache, never persisted.
+	 */
+	@Nullable private transient MaterializedSortRecords memoizedDescending;
+
+	public SortIndexChanges(
+		@Nonnull SortIndex sortIndex,
+		@SuppressWarnings("rawtypes") @Nonnull Comparator valueComparator
+	) {
 		this.sortIndex = sortIndex;
 		this.valueComparator = valueComparator;
 	}
 
 	/**
-	 * Returns {@link SortedRecordsSupplier} that contains records ids sorted by value in ascending order.
-	 * Result of the method is cached and additional calls obtain memoized result.
+	 * Returns {@link SortedRecordsSupplier} that contains record ids sorted by value in ascending order.
+	 *
+	 * The expensive materialized arrays (record-id order, record positions and the record-id bitmap — each an
+	 * `O(N log N)` derivation of the owning index's `sortedRecords`) are memoized per direction and reused across calls
+	 * until the next `sortedRecords` mutation invalidates them (see {@link #invalidateSupplierArrays()}). A fresh,
+	 * lightweight forward seeker and provider wrapper are nonetheless built on every call: the seeker is a stateful,
+	 * monotonic cursor and must never be shared between concurrent queries.
 	 */
 	@Nonnull
 	public SortedRecordsSupplier getAscendingOrderRecordsSupplier() {
-		return ofNullable(this.sortIndex.getReferenceKey())
-			.map(
-				referenceKey -> (SortedRecordsSupplier) new ReferenceSortedRecordsProvider(
-					this.sortIndex.sortedRecords.getId(),
-					this.sortIndex.sortedRecords.getArray(),
-					this.sortIndex.sortedRecords.getPositions(),
-					this.sortIndex.sortedRecords.getRecordIds(),
-					this.sortIndex.createSortedComparableForwardSeeker(),
-					referenceKey
-				)
-			)
-			.orElseGet(
-				() -> new SortedRecordsSupplier(
-					this.sortIndex.sortedRecords.getId(),
-					this.sortIndex.sortedRecords.getArray(),
-					this.sortIndex.sortedRecords.getPositions(),
-					this.sortIndex.sortedRecords.getRecordIds(),
-					this.sortIndex.createSortedComparableForwardSeeker()
-				)
-			);
+		return buildSupplier(false, this.sortIndex.createSortedComparableForwardSeeker());
 	}
 
 	/**
-	 * Returns {@link SortedRecordsSupplier} that contains records ids sorted by value in descending order.
-	 * Result of the method is cached and additional calls obtain memoized result.
+	 * Returns {@link SortedRecordsSupplier} that contains record ids sorted by value in descending order.
+	 *
+	 * Like the ascending counterpart, the materialized arrays are memoized per direction and reused until the next
+	 * `sortedRecords` mutation invalidates them; the stateful seeker and provider wrapper are rebuilt on every call.
 	 */
 	@Nonnull
 	public SortedRecordsSupplier getDescendingOrderRecordsSupplier() {
-		return ofNullable(this.sortIndex.getReferenceKey())
-			.map(
-				referenceKey -> (SortedRecordsSupplier) new ReferenceSortedRecordsProvider(
-					this.sortIndex.getId(),
-					ArrayUtils.reverse(this.sortIndex.sortedRecords.getArray()),
-					invert(this.sortIndex.sortedRecords.getPositions()),
-					this.sortIndex.sortedRecords.getRecordIds(),
-					this.sortIndex.createReversedSortedComparableForwardSeeker(),
-					referenceKey
-				)
-			)
-			.orElseGet(
-				() -> new SortedRecordsSupplier(
-					this.sortIndex.getId(),
-					ArrayUtils.reverse(this.sortIndex.sortedRecords.getArray()),
-					invert(this.sortIndex.sortedRecords.getPositions()),
-					this.sortIndex.sortedRecords.getRecordIds(),
-					this.sortIndex.createReversedSortedComparableForwardSeeker()
-				)
+		return buildSupplier(true, this.sortIndex.createReversedSortedComparableForwardSeeker());
+	}
+
+	/**
+	 * Builds a tree-backed {@link SortedRecordsSupplier} resolving positions straight from the owning index's live
+	 * `sortedRecords` (`O(log N)`, no materialization). The expensive materialized arrays are exposed only lazily, via
+	 * the direction-appropriate warm-memo accessors ({@link #getAscendingArrays()} / {@link #getDescendingArrays()}),
+	 * so they are (re)built solely when a large-selection query falls back to the array merge-walk. A
+	 * {@link ReferenceSortedRecordsProvider} is produced when the owning index carries a reference key, otherwise a
+	 * plain {@link SortedRecordsSupplier}. The seeker is built fresh by the caller and passed in per request — it is a
+	 * stateful, monotonic cursor and MUST NOT be memoized or shared between concurrent queries.
+	 *
+	 * @param descending whether the descending order is requested
+	 * @param seeker     the freshly built value seeker for this direction
+	 */
+	@Nonnull
+	private SortedRecordsSupplier buildSupplier(
+		boolean descending,
+		@Nonnull SortedRecordsSupplierFactory.SortedComparableForwardSeeker seeker
+	) {
+		final RepresentativeReferenceKey referenceKey = this.sortIndex.getReferenceKey();
+		final TransactionalUnorderedIntArray sortedRecords = this.sortIndex.sortedRecords;
+		final int recordCount = sortedRecords.getLength();
+		// identity mirrors the former per-direction MaterializedSortRecords id
+		final long transactionalId = descending ? this.sortIndex.getId() : sortedRecords.getId();
+		// lazy, direction-appropriate warm-memo accessors used only by the array fallback (large selections)
+		final Supplier<int[]> sortedRecordIdsSupplier = descending
+			? () -> getDescendingArrays().sortedRecordIds()
+			: () -> getAscendingArrays().sortedRecordIds();
+		final Supplier<int[]> recordPositionsSupplier = descending
+			? () -> getDescendingArrays().recordPositions()
+			: () -> getAscendingArrays().recordPositions();
+		final Supplier<Bitmap> allRecordsSupplier = descending
+			? () -> getDescendingArrays().allRecords()
+			: () -> getAscendingArrays().allRecords();
+		// per-transaction layer is short-lived: a cold dense selection walks the tree (materializing nothing) rather
+		// than warming arrays that this throwaway layer would rarely reuse - hence DenseSelectionWarmup.COLD_WALK.
+		// The descending accessors already yield reversed/inverted arrays -> DESCENDING_OWN_ARRAYS (not mirrored).
+		final SortDirectionBacking directionBacking = descending
+			? SortDirectionBacking.DESCENDING_OWN_ARRAYS
+			: SortDirectionBacking.ASCENDING;
+		return SortedRecordsSupplier.createTreeBacked(
+			transactionalId, sortedRecords, recordCount,
+			sortedRecordIdsSupplier, recordPositionsSupplier, allRecordsSupplier, seeker, referenceKey,
+			DenseSelectionWarmup.COLD_WALK, directionBacking
+		);
+	}
+
+	/**
+	 * Lazily materializes and memoizes the ascending-direction supplier arrays from the owning index's `sortedRecords`:
+	 * the record-id order, the record positions and the (shared) record-id bitmap, all produced in a SINGLE tree walk +
+	 * sort via {@link TransactionalUnorderedIntArray#materialize()} (see that method for why one sort yields all three),
+	 * built once and reused until a mutation invalidates them via {@link #invalidateSupplierArrays()}.
+	 */
+	@Nonnull
+	private MaterializedSortRecords getAscendingArrays() {
+		if (this.memoizedAscending == null) {
+			final TransactionalUnorderedIntArray.MaterializedOrder order = this.sortIndex.sortedRecords.materialize();
+			this.memoizedAscending = new MaterializedSortRecords(
+				this.sortIndex.sortedRecords.getId(),
+				order.sortedRecordIds(),
+				order.recordPositions(),
+				order.allRecords()
 			);
+		}
+		return this.memoizedAscending;
+	}
+
+	/**
+	 * Lazily materializes and memoizes the descending-direction supplier arrays as pure `O(N)` derivations of the
+	 * ascending arrays — the ascending record-id order reversed and the ascending positions inverted (both fresh
+	 * allocations — {@link ArrayUtils#reverse(int[])} and {@link SortIndex#invert(int[])} never mutate their input, so
+	 * the shared ascending arrays are untouched) — never a second tree walk + sort. The record-id bitmap is
+	 * direction-independent and shared with the ascending holder.
+	 */
+	@Nonnull
+	private MaterializedSortRecords getDescendingArrays() {
+		if (this.memoizedDescending == null) {
+			final MaterializedSortRecords ascending = getAscendingArrays();
+			this.memoizedDescending = new MaterializedSortRecords(
+				this.sortIndex.getId(),
+				ArrayUtils.reverse(ascending.sortedRecordIds()),
+				invert(ascending.recordPositions()),
+				ascending.allRecords()
+			);
+		}
+		return this.memoizedDescending;
+	}
+
+	/**
+	 * Drops the memoized per-direction supplier arrays so the next supplier request rematerializes them from the
+	 * current `sortedRecords` state (the shared record-id bitmap rides along inside {@link #memoizedAscending}). Invoked
+	 * from every `sortedRecords` mutation hook and on {@link #restore(SortIndexChangesMemento)}, mirroring the
+	 * rebuild-on-change discipline of {@link #valueLocationTree}.
+	 */
+	private void invalidateSupplierArrays() {
+		this.memoizedAscending = null;
+		this.memoizedDescending = null;
 	}
 
 	/**
@@ -148,39 +226,43 @@ public class SortIndexChanges implements Serializable {
 	 * with {@link io.evitadb.index.array.TransactionalUnorderedIntArray#add(int, int)} contract.
 	 */
 	public int computePreviousRecord(@Nonnull Serializable value, int recordId) {
-		final ValueStartIndex[] valueIndex = getValueIndex(this.sortIndex.sortedRecordsValues, this.sortIndex.valueCardinalities);
-		// compute index of the value in the value index
-		//noinspection unchecked
-		final InsertionPosition valueInsertionPosition = ArrayUtils.computeInsertPositionOfObjInOrderedArray(
-			new ValueStartIndex(value, this.valueComparator, -1), valueIndex,
-			(Comparator<ValueStartIndex>) (o1, o2) -> SortIndexChanges.this.valueComparator.compare(o1.getValue(), o2.getValue())
-		);
-		final int position = valueInsertionPosition.position();
-		// if the value is already part of the index
-		if (valueInsertionPosition.alreadyPresent()) {
-			// compute record id block of the value (block size is equal to value cardinality)
-			final ValueStartIndex targetBlock = valueIndex[position];
-			final int blockStart = targetBlock.getIndex();
-			final int blockEnd = position + 1 < valueIndex.length ? valueIndex[position + 1].getIndex() : this.sortIndex.sortedRecords.getLength();
-			final int[] allRecordIds = this.sortIndex.sortedRecords.getArray();
-			final int[] recordIdsInBlock = Arrays.copyOfRange(allRecordIds, blockStart, blockEnd);
-			// within the block record ids are sorted in natural integer order
-			final InsertionPosition recordInsertionPosition = ArrayUtils.computeInsertPositionOfIntInOrderedArray(recordId, recordIdsInBlock);
-			// compute the target record id position as block start + relative position in the block
-			final int recordPosition = blockStart + recordInsertionPosition.position() - 1;
-			// if the record position is negative the record should be placed as first record of the sort index
-			return recordPosition >= 0 ? allRecordIds[recordPosition] : Integer.MIN_VALUE;
-		} else {
-			if (position == 0) {
-				// value is not in the index and should be placed as first
-				return Integer.MIN_VALUE;
-			} else if (position < valueIndex.length) {
-				// value is not in the index and should be placed in the middle
-				return this.sortIndex.sortedRecords.get(valueIndex[position].getIndex() - 1);
-			} else {
-				// value is not in the index and should be placed as last
-				return this.sortIndex.sortedRecords.get(this.sortIndex.sortedRecords.getLength() - 1);
+		final CumulativeWeightBPlusTree<Serializable> valueTree = getValueTree();
+		// block start = cumulative weight (rank) of all strictly-smaller values
+		final int blockStart = valueTree.rankOf(value);
+		if (valueTree.containsKey(value)) {
+			// the value already owns a record block; its size equals the value's cardinality (its weight)
+			final int blockEnd = blockStart + valueTree.weightOf(value);
+			// Binary-search the block through positional reads instead of materializing it. Within the block record ids
+			// are sorted in natural integer order, so the search is the same one `computeInsertPositionOfIntInOrderedArray`
+			// performs — it just reads each probe through the position tree (O(depth), no allocation) rather than out of
+			// a copy of the WHOLE sort index, which this method used to build on every single sort-attribute insert.
+			int low = blockStart;
+			int high = blockEnd - 1;
+			// absolute index the record would be inserted at; stays at the block end when every id in the block is smaller
+			int insertionIndex = blockEnd;
+			while (low <= high) {
+				final int middle = (low + high) >>> 1;
+				final int middleRecordId = this.sortIndex.sortedRecords.get(middle);
+				if (middleRecordId < recordId) {
+					low = middle + 1;
+				} else {
+					insertionIndex = middle;
+					if (middleRecordId == recordId) {
+						break;
+					}
+					high = middle - 1;
+				}
 			}
+			// the target record id sits immediately before the insertion point
+			final int recordPosition = insertionIndex - 1;
+			// a negative position means the record should be placed as the very first record of the sort index
+			return recordPosition >= 0 ? this.sortIndex.sortedRecords.get(recordPosition) : Integer.MIN_VALUE;
+		} else {
+			// the value is absent and starts a fresh block at `blockStart`; the predecessor is the record immediately
+			// before that offset, or none when the value sorts before every present value
+			return blockStart == 0
+				? Integer.MIN_VALUE
+				: this.sortIndex.sortedRecords.get(blockStart - 1);
 		}
 	}
 
@@ -188,37 +270,20 @@ public class SortIndexChanges implements Serializable {
 	 * Method alters internal data structures when new value (that was not present before) is inserted in the {@link SortIndex}.
 	 */
 	public void valueAdded(@Nonnull Serializable value) {
-		final ValueStartIndex[] valueIndex = getValueIndex(this.sortIndex.sortedRecordsValues, this.sortIndex.valueCardinalities);
-		// compute the insertion position in value index
-		@SuppressWarnings({"unchecked"}) final InsertionPosition insertionPosition = ArrayUtils.computeInsertPositionOfObjInOrderedArray(
-			new ValueStartIndex(value, this.valueComparator, -1), valueIndex,
-			(Comparator<ValueStartIndex>) (o1, o2) -> this.valueComparator.compare(o1.getValue(), o2.getValue())
-		);
-		assertNotPresent(!insertionPosition.alreadyPresent(), value);
-		// nod place the value in the value index with start position as previous block start + previous value cardinality
-		final ValueStartIndex newValue = new ValueStartIndex(value, this.valueComparator, getStartPositionFor(valueIndex, insertionPosition.position()));
-		this.valueLocationIndex = ArrayUtils.insertRecordIntoArrayOnIndex(newValue, valueIndex, insertionPosition.position());
-		// update all values after the inserted one - their index should be greater by exactly one inserted record
-		for (int i = insertionPosition.position() + 1; i < this.valueLocationIndex.length; i++) {
-			this.valueLocationIndex[i].increment();
-		}
+		// a value's FIRST record: insert it with cardinality one (the tree rejects an already-present value)
+		getValueTree().insert(value, 1);
+		// the sorted record order changed - drop the memoized supplier arrays
+		invalidateSupplierArrays();
 	}
 
 	/**
 	 * Method alters internal data structures when existing value cardinality is incremented in the {@link SortIndex}.
 	 */
 	public void valueCardinalityIncreased(@Nonnull Serializable value) {
-		final ValueStartIndex[] valueIndex = getValueIndex(this.sortIndex.sortedRecordsValues, this.sortIndex.valueCardinalities);
-		// find the value in the index
-		@SuppressWarnings({"unchecked"}) final int position = Arrays.binarySearch(
-			valueIndex, new ValueStartIndex(value, this.valueComparator, -1),
-			(o1, o2) -> this.valueComparator.compare(o1.getValue(), o2.getValue())
-		);
-		assertNotPresent(position >= 0, value);
-		// update this and all values after it - their index should be greater by exactly one inserted record
-		for (int i = position + 1; i < valueIndex.length; i++) {
-			valueIndex[i].increment();
-		}
+		// one more record for an already-present value: bump its weight (the tree rejects an absent value)
+		getValueTree().updateWeight(value, 1);
+		// the sorted record order changed - drop the memoized supplier arrays
+		invalidateSupplierArrays();
 	}
 
 	/**
@@ -226,153 +291,142 @@ public class SortIndexChanges implements Serializable {
 	 * is changed.
 	 */
 	public void prepare() {
-		// force computation of the value index
-		getValueIndex(this.sortIndex.sortedRecordsValues, this.sortIndex.valueCardinalities);
+		// force computation of the value tree
+		getValueTree();
 	}
 
 	/**
 	 * Method alters internal data structures when existing value is removed entirely from the {@link SortIndex}.
 	 */
 	public void valueRemoved(@Nonnull Serializable value) {
-		final ValueStartIndex[] valueIndex = getValueIndex(this.sortIndex.sortedRecordsValues, this.sortIndex.valueCardinalities);
-		// find the value in the index
-		@SuppressWarnings({"unchecked"}) final int position = Arrays.binarySearch(
-			valueIndex, new ValueStartIndex(value, this.valueComparator, -1),
-			(o1, o2) -> this.valueComparator.compare(o1.getValue(), o2.getValue())
-		);
-		assertNotPresent(position >= 0, value);
-		// remove it from the value location index
-		this.valueLocationIndex = ArrayUtils.removeRecordFromArrayOnIndex(valueIndex, position);
-		// update all values after it - their index should be lesser by exactly one inserted record
-		for (int i = position; i < this.valueLocationIndex.length; i++) {
-			this.valueLocationIndex[i].decrement();
-		}
+		// the value's LAST record was removed: drop it entirely (the tree rejects an absent value)
+		getValueTree().remove(value);
+		// the sorted record order changed - drop the memoized supplier arrays
+		invalidateSupplierArrays();
 	}
 
 	/**
 	 * Method alters internal data structures when existing value cardinality is decremented in the {@link SortIndex}.
 	 */
 	public void valueCardinalityDecreased(@Nonnull Serializable value) {
-		final ValueStartIndex[] valueIndex = getValueIndex(this.sortIndex.sortedRecordsValues, this.sortIndex.valueCardinalities);
-		// find the value in the index
-		@SuppressWarnings({"unchecked"}) final int position = Arrays.binarySearch(
-			valueIndex, new ValueStartIndex(value, this.valueComparator, -1),
-			(o1, o2) -> this.valueComparator.compare(o1.getValue(), o2.getValue())
-		);
-		assertNotPresent(position >= 0, value);
-		// update it and all values after it - their index should be lesser by exactly one inserted record
-		for (int i = position + 1; i < valueIndex.length; i++) {
-			valueIndex[i].decrement();
-		}
+		// one fewer record for a value that keeps at least one: drop its weight by one
+		getValueTree().updateWeight(value, -1);
+		// the sorted record order changed - drop the memoized supplier arrays
+		invalidateSupplierArrays();
 	}
 
-	/*
-		PRIVATE METHODS
-	 */
-
 	/**
-	 * Computes value index if it hasn't exist yet. Result of this method is memoized. Method computes starting index
-	 * (position) of the record ids block that belongs to specific value from {@link SortIndex#sortedRecordsValues} and
-	 * {@link SortIndex#valueCardinalities} information.
+	 * Builds the value→cardinality tree lazily (memoized) if it does not yet exist. The owning index's ordered
+	 * `(value, cardinality)` cursor — owner mode over its `sortedValues` tree, view mode over the shared inverted
+	 * index's buckets — yields each distinct value in ascending order with its current cardinality (`>= 1`), which is
+	 * inserted as the value's weight. {@link CumulativeWeightBPlusTree#rankOf} then answers a value's block start offset
+	 * in `O(log V)`.
 	 */
 	@Nonnull
-	ValueStartIndex[] getValueIndex(
-		@Nonnull TransactionalObjArray<? extends Serializable> sortedRecordsValues,
-		@Nonnull TransactionalMap<?, Integer> valueCardinalities
-	) {
-		if (this.valueLocationIndex == null) {
-			final int valueCount = sortedRecordsValues.getLength();
-			final ValueStartIndex[] theValueLocationIndex = new ValueStartIndex[valueCount];
-			final Iterator<? extends Serializable> it = sortedRecordsValues.iterator();
-			int index = 0;
-			int accumulator = 0;
-			while (it.hasNext()) {
-				final Serializable value = it.next();
-				theValueLocationIndex[index++] = new ValueStartIndex(value, this.valueComparator, accumulator);
-				accumulator += ofNullable(valueCardinalities.get(value)).orElse(1);
+	CumulativeWeightBPlusTree<Serializable> getValueTree() {
+		if (this.valueLocationTree == null) {
+			@SuppressWarnings("unchecked")
+			final CumulativeWeightBPlusTree<Serializable> theTree =
+				new CumulativeWeightBPlusTree<>((Comparator<? super Serializable>) this.valueComparator);
+			final SortIndex.ValueCardinalityCursor cursor = this.sortIndex.valueCursor();
+			while (cursor.hasNext()) {
+				final Serializable value = cursor.next();
+				theTree.insert(value, cursor.cardinality());
 			}
-			this.valueLocationIndex = theValueLocationIndex;
+			this.valueLocationTree = theTree;
 		}
-		return this.valueLocationIndex;
+		return this.valueLocationTree;
 	}
 
 	/**
-	 * Computes start position for value at specified position in value index. The position is computed from previous
-	 * value start position and previous value cardinality.
+	 * Returns the start offset of `value`'s record-id block within {@link SortIndex#sortedRecords} — the cumulative
+	 * weight (rank) of all strictly-smaller values. Used by {@link SortIndex#getRecordsEqualToInternal(Serializable)}
+	 * to slice the records associated with a value.
+	 *
+	 * @param value the value whose block start offset is computed
+	 * @return the block start offset (`0` when `value` sorts before every present value)
 	 */
-	private int getStartPositionFor(@Nonnull ValueStartIndex[] valueIndex, int position) {
-		if (position == 0) {
-			return 0;
-		} else {
-			final ValueStartIndex previousPosition = valueIndex[position - 1];
-			final int previousPositionStart = previousPosition.getIndex();
-			final Integer cardinality = ofNullable(this.sortIndex.valueCardinalities.get(previousPosition.getValue())).orElse(1);
-			return previousPositionStart + cardinality;
-		}
+	int computeBlockStart(@Nonnull Serializable value) {
+		return getValueTree().rankOf(value);
 	}
 
 	/**
-	 * Class that maintains information about record id block for certain value.
+	 * Captures the current state of this layer for a
+	 * {@link io.evitadb.core.transaction.memory.TransactionalLayerMaintainer} savepoint. Because
+	 * {@link #valueLocationTree} is a rebuildable derived cache of the owning {@link SortIndex} (the class
+	 * JavaDoc notes all data here can be safely thrown out and recreated), the memento is a cheap invalidation
+	 * marker rather than a deep copy: it captures only the current tree reference (possibly `null` if the tree
+	 * was never built) by reference. No B+ tree nodes are deep-copied; on rollback the tree is rebuilt from the
+	 * already-restored authoritative sibling structures.
+	 *
+	 * @return a memento that {@link #restore(SortIndexChangesMemento)} uses to invalidate the derived caches
 	 */
-	@SuppressWarnings("rawtypes")
-	@AllArgsConstructor
-	static class ValueStartIndex implements Comparable<ValueStartIndex>, Serializable {
-		@Serial private static final long serialVersionUID = -4953895484396265436L;
+	@Nonnull
+	@Override
+	public SortIndexChangesMemento snapshot() {
+		// O(1): capture the current value-tree reference (possibly null); it and the memoized supplier arrays are all
+		// rebuildable caches and are never deep-copied — restore() drops them and they are lazily rebuilt from the SortIndex
+		return new SortIndexChangesMemento(this.valueLocationTree);
+	}
 
-		/**
-		 * The comparable value representing the sort key.
-		 * This could be an attribute, timestamp, or any value used to determine ordering.
-		 */
-		@Getter private final Serializable value;
-		/**
-		 * The comparator used to compare the value with other values.
-		 */
-		private final Comparator valueComparator;
-		/**
-		 * Start index of the block of record IDs in the {@link SortIndex#sortedRecords} that belong to this value.
-		 * This index points to where the records associated with the value begin in the sorted sequence.
-		 */
-		@Getter private int index;
+	/**
+	 * Restores this layer to the captured savepoint state by invalidating its rebuildable derived caches — the
+	 * memoized {@link #valueLocationTree} and the memoized per-direction supplier arrays
+	 * ({@link #memoizedAscending} / {@link #memoizedDescending}).
+	 *
+	 * All of these are pure, rebuildable caches of {@link SortIndex} state, so the correct rollback is to drop them
+	 * and let {@link #getValueTree()} / {@link #getAscendingArrays()} rebuild them lazily from the (already-restored)
+	 * authoritative sibling structures — {@link SortIndex#sortedRecords} and, in owner mode, the value-side tree — on
+	 * the next access. This is O(1), always consistent given those siblings are restored by their own
+	 * {@link io.evitadb.core.transaction.memory.Snapshotable} implementations, and is safe to invoke repeatedly
+	 * with the same memento (each call simply nulls the caches).
+	 *
+	 * @param memento a memento previously produced by {@link #snapshot()} on this same layer
+	 */
+	@Override
+	public void restore(@Nonnull SortIndexChangesMemento memento) {
+		// O(1): drop the memoized caches so they rebuild from the restored SortIndex on next access
+		this.valueLocationTree = null;
+		invalidateSupplierArrays();
+	}
 
-		/**
-		 * Increments start index of the block.
-		 */
-		public void increment() {
-			this.index++;
-		}
+	/**
+	 * Immutable memento carrying the savepoint state of a {@link SortIndexChanges} layer. The single captured
+	 * value is the memoized {@link SortIndexChanges#valueLocationTree} reference at snapshot time (held by
+	 * reference only, never deep-copied, possibly `null`). The layer's other rebuildable derived caches (the
+	 * memoized per-direction supplier arrays) are not captured because {@link #restore} drops every derived cache
+	 * unconditionally; the value-tree reference is retained to faithfully record the snapshot moment.
+	 *
+	 * @param valueLocationTree the memoized value tree reference at snapshot time, or `null` if not yet built
+	 */
+	public record SortIndexChangesMemento(
+		@Nullable CumulativeWeightBPlusTree<Serializable> valueLocationTree
+	) {
+	}
 
-		/**
-		 * Decrements start index of the block.
-		 */
-		public void decrement() {
-			Assert.isPremiseValid(this.index > 0, "Index of the value start index cannot be negative!");
-			this.index--;
-		}
-
-		@SuppressWarnings({"unchecked"})
-		@Override
-		public int compareTo(ValueStartIndex o) {
-			return this.valueComparator.compare(this.value, o.value);
-		}
-
-		@Override
-		public int hashCode() {
-			return Objects.hash(this.value);
-		}
-
-		@Override
-		public boolean equals(Object o) {
-			if (this == o) return true;
-			if (o == null || getClass() != o.getClass()) return false;
-			ValueStartIndex that = (ValueStartIndex) o;
-			return this.value.equals(that.value);
-		}
-
-		@Override
-		public String toString() {
-			return this.value + ", " + this.index + '+';
-		}
-
+	/**
+	 * Immutable holder of the memoized, expensive-to-build supplier arrays for one sort direction: the record-id order,
+	 * the record positions and the record-id bitmap (each an `O(N log N)` derivation of the owning index's
+	 * `sortedRecords`). A fresh stateful forward seeker and provider wrapper are built around these on every supplier
+	 * request, so the seeker is never shared across queries.
+	 *
+	 * All three array/bitmap fields are READ-ONLY and shared across reader threads and (for {@link #allRecords}) across
+	 * both directions — they must never be mutated in place.
+	 *
+	 * Package-private (not {@code private}) so {@link SortIndex} can reuse the same shape for its own
+	 * committed-snapshot cache — see {@code SortIndex#getAscendingOrderRecordsSupplier()}.
+	 *
+	 * @param id              the transactional id carried by the produced provider
+	 * @param sortedRecordIds record ids in sorted (value) order
+	 * @param recordPositions record positions aligned with the sorted record ids
+	 * @param allRecords      bitmap of all record ids in natural id order (direction-independent, shared)
+	 */
+	record MaterializedSortRecords(
+		long id,
+		@Nonnull int[] sortedRecordIds,
+		@Nonnull int[] recordPositions,
+		@Nonnull Bitmap allRecords
+	) {
 	}
 
 }

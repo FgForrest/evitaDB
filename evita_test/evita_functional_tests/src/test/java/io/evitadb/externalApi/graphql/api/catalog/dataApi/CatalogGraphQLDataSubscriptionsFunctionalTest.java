@@ -40,15 +40,22 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static net.javacrumbs.jsonunit.assertj.JsonAssertions.assertThatJson;
+import static io.evitadb.test.TestTags.GRAPHQL;
+import static io.evitadb.test.TestTags.EXTERNAL_API;
+import static io.evitadb.test.TestTags.QUERY;
 
 /**
  * Tests for GraphQL catalog data subscriptions.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2025
  */
+@Tag(GRAPHQL)
+@Tag(EXTERNAL_API)
+@Tag(QUERY)
 public class CatalogGraphQLDataSubscriptionsFunctionalTest
 	extends GraphQLEndpointFunctionalTest
 	implements ExternalApiFunctionTestsSupport, ExternalApiWebSocketFunctionTestsSupport {
@@ -70,9 +77,9 @@ public class CatalogGraphQLDataSubscriptionsFunctionalTest
 	void shouldTestBasicSubprotocolOperations(GraphQLTester tester) {
 		tester.testWebSocket(
 			TEST_CATALOG,
-			writer -> {
-				writer.write(createPingMessage());
-				writer.write(createConnectionInitMessage());
+			ctx -> {
+				ctx.writer().write(createPingMessage());
+				ctx.writer().write(createConnectionInitMessage());
 			},
 			2, receivedEvents -> {
 				assertThatJson(receivedEvents.get(0)).node("type").isEqualTo("pong");
@@ -90,7 +97,7 @@ public class CatalogGraphQLDataSubscriptionsFunctionalTest
 
 		tester.testWebSocket(
 			TEST_CATALOG,
-			writer -> {
+			ctx -> {
 				// prepare collection
 				evita.updateCatalog(
 					TEST_CATALOG,
@@ -102,11 +109,15 @@ public class CatalogGraphQLDataSubscriptionsFunctionalTest
 				final long startVersion = getStartVersionForCatalogCDC(evita, TEST_CATALOG);
 
 				// open subscription
-				writer.write(createConnectionInitMessage());
-				writer.write(createSubscriptionQueryMessage(
+				ctx.writer().write(createConnectionInitMessage());
+				ctx.writer().write(createSubscriptionQueryMessage(
 					subscriptionId,
 					"onDataChange(sinceVersion: \\\"" + startVersion + "\\\") { version index operation }"
 				));
+
+				// wait for connection_ack before triggering the data change — gives the server
+				// time to finish registering the CDC subscription so the upsert is not raced
+				ctx.awaitEvents(1);
 
 				// apply operation to trigger a new event
 				evita.updateCatalog(
@@ -134,7 +145,7 @@ public class CatalogGraphQLDataSubscriptionsFunctionalTest
 
 		tester.testWebSocket(
 			TEST_CATALOG,
-			writer -> {
+			ctx -> {
 				// prepare collection
 				evita.updateCatalog(
 					TEST_CATALOG,
@@ -146,11 +157,15 @@ public class CatalogGraphQLDataSubscriptionsFunctionalTest
 				final long startVersion = getStartVersionForCatalogCDC(evita, TEST_CATALOG);
 
 				// open subscription
-				writer.write(createConnectionInitMessage());
-				writer.write(createSubscriptionQueryMessage(
+				ctx.writer().write(createConnectionInitMessage());
+				ctx.writer().write(createSubscriptionQueryMessage(
 					subscriptionId,
 					"onDataChangeUntyped(sinceVersion: \\\"" + startVersion + "\\\") { version index operation }"
 				));
+
+				// wait for connection_ack before triggering the data change — gives the server
+				// time to finish registering the CDC subscription so the upsert is not raced
+				ctx.awaitEvents(1);
 
 				// apply operation to trigger a new event
 				evita.updateCatalog(
@@ -178,7 +193,7 @@ public class CatalogGraphQLDataSubscriptionsFunctionalTest
 
 		tester.testWebSocket(
 			TEST_CATALOG,
-			writer -> {
+			ctx -> {
 				// prepare collection
 				evita.updateCatalog(
 					TEST_CATALOG,
@@ -190,11 +205,15 @@ public class CatalogGraphQLDataSubscriptionsFunctionalTest
 				final long startVersion = getStartVersionForCatalogCDC(evita, TEST_CATALOG);
 
 				// open subscription
-				writer.write(createConnectionInitMessage());
-				writer.write(createSubscriptionQueryMessage(
+				ctx.writer().write(createConnectionInitMessage());
+				ctx.writer().write(createSubscriptionQueryMessage(
 					subscriptionId,
 					"onDataChange(sinceVersion: \\\"" + startVersion + "\\\") { version index operation body { ... on EntityUpsertMutation { mutationType } } }"
 				));
+
+				// wait for connection_ack before triggering the data change — gives the server
+				// time to finish registering the CDC subscription so the upsert is not raced
+				ctx.awaitEvents(1);
 
 				// apply operation to trigger a new event
 				evita.updateCatalog(
@@ -226,7 +245,7 @@ public class CatalogGraphQLDataSubscriptionsFunctionalTest
 
 		tester.testWebSocket(
 			TEST_CATALOG,
-			writer -> {
+			ctx -> {
 				// prepare collection
 				evita.updateCatalog(
 					TEST_CATALOG,
@@ -238,11 +257,15 @@ public class CatalogGraphQLDataSubscriptionsFunctionalTest
 				final long startVersion = getStartVersionForCatalogCDC(evita, TEST_CATALOG);
 
 				// open subscription
-				writer.write(createConnectionInitMessage());
-				writer.write(createSubscriptionQueryMessage(
+				ctx.writer().write(createConnectionInitMessage());
+				ctx.writer().write(createSubscriptionQueryMessage(
 					subscriptionId,
 					"onDataChangeUntyped(sinceVersion: \\\"" + startVersion + "\\\") { version index operation body }"
 				));
+
+				// wait for connection_ack before triggering the data change — gives the server
+				// time to finish registering the CDC subscription so the upsert is not raced
+				ctx.awaitEvents(1);
 
 				// apply operation to trigger a new event
 				evita.updateCatalog(
@@ -274,7 +297,7 @@ public class CatalogGraphQLDataSubscriptionsFunctionalTest
 
 		tester.testWebSocket(
 			TEST_CATALOG,
-			writer -> {
+			ctx -> {
 				// prepare collection
 				evita.updateCatalog(
 					TEST_CATALOG,
@@ -286,11 +309,15 @@ public class CatalogGraphQLDataSubscriptionsFunctionalTest
 				final long startVersion = getStartVersionForCatalogCDC(evita, TEST_CATALOG);
 
 				// open subscription
-				writer.write(createConnectionInitMessage());
-				writer.write(createSubscriptionQueryMessage(
+				ctx.writer().write(createConnectionInitMessage());
+				ctx.writer().write(createSubscriptionQueryMessage(
 					subscriptionId,
 					"onMyEntityType" + subscriptionId + "DataChange(sinceVersion: \\\"" + startVersion + "\\\") { version index operation }"
 				));
+
+				// wait for connection_ack before triggering the data change — gives the server
+				// time to finish registering the CDC subscription so the upsert is not raced
+				ctx.awaitEvents(1);
 
 				// apply operation to trigger a new event
 				evita.updateCatalog(
@@ -318,7 +345,7 @@ public class CatalogGraphQLDataSubscriptionsFunctionalTest
 
 		tester.testWebSocket(
 			TEST_CATALOG,
-			writer -> {
+			ctx -> {
 				// prepare collection
 				evita.updateCatalog(
 					TEST_CATALOG,
@@ -330,11 +357,15 @@ public class CatalogGraphQLDataSubscriptionsFunctionalTest
 				final long startVersion = getStartVersionForCatalogCDC(evita, TEST_CATALOG);
 
 				// open subscription
-				writer.write(createConnectionInitMessage());
-				writer.write(createSubscriptionQueryMessage(
+				ctx.writer().write(createConnectionInitMessage());
+				ctx.writer().write(createSubscriptionQueryMessage(
 					subscriptionId,
 					"onMyEntityType" + subscriptionId + "DataChangeUntyped(sinceVersion: \\\"" + startVersion + "\\\") { version index operation }"
 				));
+
+				// wait for connection_ack before triggering the data change — gives the server
+				// time to finish registering the CDC subscription so the upsert is not raced
+				ctx.awaitEvents(1);
 
 				// apply operation to trigger a new event
 				evita.updateCatalog(
@@ -362,7 +393,7 @@ public class CatalogGraphQLDataSubscriptionsFunctionalTest
 
 		tester.testWebSocket(
 			TEST_CATALOG,
-			writer -> {
+			ctx -> {
 				// prepare collection
 				evita.updateCatalog(
 					TEST_CATALOG,
@@ -374,11 +405,15 @@ public class CatalogGraphQLDataSubscriptionsFunctionalTest
 				final long startVersion = getStartVersionForCatalogCDC(evita, TEST_CATALOG);
 
 				// open subscription
-				writer.write(createConnectionInitMessage());
-				writer.write(createSubscriptionQueryMessage(
+				ctx.writer().write(createConnectionInitMessage());
+				ctx.writer().write(createSubscriptionQueryMessage(
 					subscriptionId,
 					"onMyEntityType" + subscriptionId + "DataChange(sinceVersion: \\\"" + startVersion + "\\\") { version index operation body { ... on EntityUpsertMutation { mutationType } } }"
 				));
+
+				// wait for connection_ack before triggering the data change — gives the server
+				// time to finish registering the CDC subscription so the upsert is not raced
+				ctx.awaitEvents(1);
 
 				// apply operation to trigger a new event
 				evita.updateCatalog(
@@ -410,7 +445,7 @@ public class CatalogGraphQLDataSubscriptionsFunctionalTest
 
 		tester.testWebSocket(
 			TEST_CATALOG,
-			writer -> {
+			ctx -> {
 				// prepare collection
 				evita.updateCatalog(
 					TEST_CATALOG,
@@ -422,11 +457,15 @@ public class CatalogGraphQLDataSubscriptionsFunctionalTest
 				final long startVersion = getStartVersionForCatalogCDC(evita, TEST_CATALOG);
 
 				// open subscription
-				writer.write(createConnectionInitMessage());
-				writer.write(createSubscriptionQueryMessage(
+				ctx.writer().write(createConnectionInitMessage());
+				ctx.writer().write(createSubscriptionQueryMessage(
 					subscriptionId,
 					"onMyEntityType" + subscriptionId + "DataChangeUntyped(sinceVersion: \\\"" + startVersion + "\\\") { version index operation body }"
 				));
+
+				// wait for connection_ack before triggering the data change — gives the server
+				// time to finish registering the CDC subscription so the upsert is not raced
+				ctx.awaitEvents(1);
 
 				// apply operation to trigger a new event
 				evita.updateCatalog(

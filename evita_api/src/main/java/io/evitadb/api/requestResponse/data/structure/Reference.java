@@ -29,7 +29,7 @@ import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.ReferenceEditor.ReferenceBuilder;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
-import io.evitadb.api.requestResponse.extraResult.FacetSummary.FacetStatistics;
+import io.evitadb.api.requestResponse.extraResult.ReferenceSummary.FacetStatistics;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -296,6 +296,21 @@ public class Reference implements ReferenceContract {
 	@Override
 	public ReferenceKey getReferenceKey() {
 		return this.referenceKey;
+	}
+
+	/**
+	 * Delegates to {@link Attributes#isAttributeValuePresentAndExists(AttributeKey)} - an
+	 * allocation-free probe for the presence of an existing (non-dropped) attribute value under the
+	 * given key on this reference. This is not part of the {@link AttributesContract} surface
+	 * delegated via Lombok, so it is declared explicitly here to guarantee the fast, set-free
+	 * membership test used when verifying mandatory / default-valued reference attributes.
+	 *
+	 * @param attributeKey the attribute key to test, must not be null
+	 * @return TRUE if an existing (non-dropped) attribute value is stored under the given key on
+	 * this reference
+	 */
+	public boolean isAttributeValuePresentAndExists(@Nonnull AttributeKey attributeKey) {
+		return this.attributes.isAttributeValuePresentAndExists(attributeKey);
 	}
 
 	@Nonnull

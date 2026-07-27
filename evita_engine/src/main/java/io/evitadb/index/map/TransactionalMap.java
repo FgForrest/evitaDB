@@ -27,13 +27,16 @@ import io.evitadb.core.transaction.Transaction;
 import io.evitadb.core.transaction.memory.TransactionalLayerCreator;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
+import io.evitadb.core.transaction.memory.TransactionalStateProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.CollectionUtils;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
 import java.io.Serializable;
@@ -45,20 +48,24 @@ import static io.evitadb.core.transaction.Transaction.getTransactionalMemoryLaye
 import static java.util.Optional.ofNullable;
 
 /**
- * This class envelopes simple map and makes it transactional. This means, that the map contents can be updated
- * by multiple writers and also multiple readers can read from its original map without spotting the changes made
- * in transactional access. Each transaction is bound to the same thread and different threads doesn't see changes in
- * another threads.
+ * Transactional decorator for {@link Map} that participates in the Software Transactional Memory (STM) framework.
+ * When a transaction is active, all mutations are recorded in a {@link MapChanges} diff layer that is visible only
+ * to the owning transaction; concurrent readers observe the original, unmodified delegate map. On commit the diff
+ * layer is merged into a new immutable snapshot; on rollback it is simply discarded.
  *
- * If no transaction is opened, changes are applied directly to the delegate map. In such case the class is not thread
- * safe for multiple writers!
+ * If no transaction is open, mutations fall through directly to the underlying delegate map. In that mode the class
+ * is **not** thread-safe for concurrent writers.
  *
+ * When the value type `V` itself implements {@link TransactionalLayerProducer}, the map propagates commit/rollback
+ * into each value so that nested transactional structures are handled correctly.
+ *
+ * @param <K> key type
+ * @param <V> value type
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2017
  */
 @ThreadSafe
 public class TransactionalMap<K, V> implements Map<K, V>,
 	Serializable,
-	Cloneable,
 	TransactionalLayerCreator<MapChanges<K, V>>,
 	TransactionalLayerProducer<MapChanges<K, V>, Map<K, V>>
 {
@@ -69,8 +76,11 @@ public class TransactionalMap<K, V> implements Map<K, V>,
 	private final Function<Object, V> transactionalLayerWrapper;
 
 	/**
-	 * Don't use this constructor if V implements {@link TransactionalLayerProducer}.
-	 * @param mapDelegate original map
+	 * Creates a transactional map whose values are plain (non-transactional) objects. Do **not** use this
+	 * constructor when `V` implements {@link TransactionalLayerProducer} — use one of the overloaded
+	 * constructors that accept a wrapper function instead.
+	 *
+	 * @param mapDelegate the backing map to decorate
 	 */
 	public TransactionalMap(@Nonnull Map<K, V> mapDelegate) {
 		this.mapDelegate = mapDelegate;
@@ -79,18 +89,26 @@ public class TransactionalMap<K, V> implements Map<K, V>,
 	}
 
 	/**
-	 * Use this constructor if V implements TransactionalLayerProducer itself.
-	 * @param mapDelegate original map
-	 * @param transactionalLayerWrapper the function that wraps result of {@link TransactionalLayerProducer#createCopyWithMergedTransactionalMemory(Object, TransactionalLayerMaintainer)} into a V type
+	 * Creates a transactional map whose values implement {@link TransactionalLayerProducer}. During commit,
+	 * each value is merged via its own STM layer and the result is converted back to `V` using the supplied
+	 * wrapper function.
+	 *
+	 * @param mapDelegate              the backing map to decorate
+	 * @param valueType                concrete class of the transactional value producer
+	 * @param transactionalLayerWrapper function that converts the merged state produced by
+	 *                                  {@link TransactionalLayerProducer#createCopyWithMergedTransactionalMemory(Object, TransactionalLayerMaintainer)}
+	 *                                  back into type `V`
+	 * @param <S> the state type produced by the transactional layer producer
+	 * @param <T> the concrete type of the transactional layer producer
 	 */
-	public <S, T extends TransactionalLayerProducer<?, S>> TransactionalMap(
+	public <S, T extends TransactionalStateProducer<S>> TransactionalMap(
 		@Nonnull Map<K, V> mapDelegate,
 		@Nonnull Class<T> valueType,
 		@Nonnull Function<S, V> transactionalLayerWrapper
 	) {
 		Assert.isTrue(
-			TransactionalLayerProducer.class.isAssignableFrom(valueType),
-			"Value type is expected to implement TransactionalLayerProducer!"
+			TransactionalStateProducer.class.isAssignableFrom(valueType),
+			"Value type is expected to implement TransactionalStateProducer!"
 		);
 		this.valueType = valueType;
 		this.mapDelegate = mapDelegate;
@@ -99,9 +117,12 @@ public class TransactionalMap<K, V> implements Map<K, V>,
 	}
 
 	/**
-	 * Use this constructor if V implements TransactionalLayerProducer itself.
-	 * @param mapDelegate original map
-	 * @param transactionalLayerWrapper the function that wraps result of {@link TransactionalLayerProducer#createCopyWithMergedTransactionalMemory(Object, TransactionalLayerMaintainer)} into a V type
+	 * Creates a transactional map whose values are themselves transactional maps (or other producers whose
+	 * concrete type is not statically known). The wrapper function receives the raw merged state object and
+	 * must cast/convert it to `V`.
+	 *
+	 * @param mapDelegate              the backing map to decorate
+	 * @param transactionalLayerWrapper function that converts the raw merged state into type `V`
 	 */
 	public TransactionalMap(
 		@Nonnull Map<K, V> mapDelegate,
@@ -112,10 +133,13 @@ public class TransactionalMap<K, V> implements Map<K, V>,
 		this.transactionalLayerWrapper = (o) -> (V) transactionalLayerWrapper.apply(o);
 	}
 
-	/*
-		TransactionalLayerCreator IMPLEMENTATION
+	/**
+	 * {@inheritDoc}
+	 *
+	 * Creates a new {@link MapChanges} diff layer. If the value type is a {@link TransactionalLayerProducer},
+	 * the layer is configured with the wrapper function so that nested producers are handled on commit.
 	 */
-
+	@Nonnull
 	@Override
 	public MapChanges<K, V> createLayer() {
 		//noinspection unchecked,rawtypes
@@ -124,24 +148,35 @@ public class TransactionalMap<K, V> implements Map<K, V>,
 			new MapChanges<K, V>(this.mapDelegate, (Class) this.valueType, this.transactionalLayerWrapper);
 	}
 
+	/**
+	 * {@inheritDoc}
+	 *
+	 * Produces a new map snapshot that includes all committed changes. When a diff layer is present its
+	 * mutations are merged via {@link MapChanges#createMergedMap(TransactionalLayerMaintainer)}. When
+	 * no layer exists but values are transactional producers, each value is individually committed so
+	 * that nested transactional state is not lost.
+	 */
 	@Nonnull
 	@Override
-	public Map<K, V> createCopyWithMergedTransactionalMemory(MapChanges<K, V> layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
+	public Map<K, V> createCopyWithMergedTransactionalMemory(
+		@Nullable MapChanges<K, V> layer,
+		@Nonnull TransactionalLayerMaintainer transactionalLayer
+	) {
 		// iterate over inserted or updated keys
 		if (layer != null) {
 			return layer.createMergedMap(transactionalLayer);
-		} else if (this.valueType == null || TransactionalLayerProducer.class.isAssignableFrom(this.valueType)) {
+		} else if (this.valueType == null || TransactionalStateProducer.class.isAssignableFrom(this.valueType)) {
 			// iterate original map and copy all values from it
 			List<Tuple<K, V>> modifiedEntries = null;
 			for (Entry<K, V> entry : this.mapDelegate.entrySet()) {
 				K key = entry.getKey();
 				// we need to always create copy - something in the referenced object might have changed
 				// even the removed values need to be evaluated (in order to discard them from transactional memory set)
-				if (key instanceof TransactionalLayerProducer) {
+				if (key instanceof TransactionalStateProducer) {
 					throw new IllegalStateException("Transactional layer producer is not expected to be used as a key!");
 				}
 				V value = entry.getValue();
-				if (value instanceof TransactionalLayerProducer<?,?> transactionalLayerProducer) {
+				if (value instanceof TransactionalStateProducer<?> transactionalLayerProducer) {
 					value = this.transactionalLayerWrapper.apply(
 						transactionalLayer.getStateCopyWithCommittedChanges(transactionalLayerProducer)
 					);
@@ -149,7 +184,7 @@ public class TransactionalMap<K, V> implements Map<K, V>,
 
 				if (key != entry.getKey() || value != entry.getValue()) {
 					if (modifiedEntries == null) {
-						modifiedEntries = new LinkedList<>();
+						modifiedEntries = new ArrayList<>();
 					}
 					modifiedEntries.add(new Tuple<>(key, value));
 				}
@@ -166,13 +201,58 @@ public class TransactionalMap<K, V> implements Map<K, V>,
 		}
 	}
 
+	/**
+	 * Produces a new map snapshot that includes all committed changes, letting the caller decide how each value is
+	 * committed (see {@link MapChanges.ValueMerger}). This is what makes a **pruned** commit possible: a map whose
+	 * values are expensive to rebuild can carry the ones this transaction never touched across the version boundary by
+	 * reference and merge only the rest, while the key delta of the diff layer (and the layer bookkeeping of removed
+	 * values) is still applied by the ordinary code path.
+	 *
+	 * Unlike the {@link TransactionalLayerProducer} contract method this one is **not** routed through
+	 * {@link TransactionalLayerMaintainer#getStateCopyWithCommittedChanges(TransactionalStateProducer)}, so the caller
+	 * must dispose of this map's own diff layer itself — with
+	 * {@link TransactionalLayerMaintainer#removeTransactionalMemoryLayerIfExists(TransactionalLayerCreator)}, never
+	 * with {@link #removeLayer(TransactionalLayerMaintainer)}, which would descend into every value and undo the very
+	 * walk the prune avoids. A forgotten disposal is reported by
+	 * {@link TransactionalLayerMaintainer#verifyLayerWasFullySwept()} rather than silently dropping changes.
+	 *
+	 * @param layer              this map's diff layer, or `null` when the key set did not change this transaction
+	 * @param transactionalLayer the maintainer resolving committed state
+	 * @param valueMerger        resolves the committed value of every surviving key
+	 * @return the committed map
+	 */
+	@Nonnull
+	public Map<K, V> createCopyWithMergedTransactionalMemory(
+		@Nullable MapChanges<K, V> layer,
+		@Nonnull TransactionalLayerMaintainer transactionalLayer,
+		@Nonnull MapChanges.ValueMerger<K, V> valueMerger
+	) {
+		if (layer != null) {
+			return layer.createMergedMap(transactionalLayer, valueMerger);
+		} else {
+			// no key changed this transaction - the delegate map is the key set, only the values need resolving
+			final Map<K, V> copy = CollectionUtils.createHashMap(this.mapDelegate.size());
+			for (final Entry<K, V> entry : this.mapDelegate.entrySet()) {
+				final K key = entry.getKey();
+				copy.put(key, valueMerger.mergeSurviving(key, entry.getValue()));
+			}
+			return copy;
+		}
+	}
+
+	/**
+	 * {@inheritDoc}
+	 *
+	 * Removes this map's diff layer from the transactional memory and propagates the removal into every
+	 * value that is itself a {@link TransactionalLayerProducer}, ensuring full cleanup on rollback.
+	 */
 	@Override
 	public void removeLayer(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		final MapChanges<K, V> changes = transactionalLayer.removeTransactionalMemoryLayerIfExists(this);
 		ofNullable(changes).ifPresent(it -> it.cleanAll(transactionalLayer));
 		for (Entry<K, V> entry : this.mapDelegate.entrySet()) {
 			V value = entry.getValue();
-			if (value instanceof TransactionalLayerProducer<?,?> transactionalLayerProducer) {
+			if (value instanceof TransactionalStateProducer<?> transactionalLayerProducer) {
 				transactionalLayerProducer.removeLayer(transactionalLayer);
 			}
 		}
@@ -203,7 +283,8 @@ public class TransactionalMap<K, V> implements Map<K, V>,
 	}
 
 	@Override
-	public boolean containsKey(Object key) {
+	public boolean containsKey(@Nullable Object key) {
+		Assert.notNull(key, "Null keys are not supported in transactional maps!");
 		final MapChanges<K, V> layer = getTransactionalMemoryLayerIfExists(this);
 		if (layer == null) {
 			return this.mapDelegate.containsKey(key);
@@ -213,7 +294,7 @@ public class TransactionalMap<K, V> implements Map<K, V>,
 	}
 
 	@Override
-	public boolean containsValue(Object value) {
+	public boolean containsValue(@Nullable Object value) {
 		final MapChanges<K, V> layer = getTransactionalMemoryLayerIfExists(this);
 		if (layer == null) {
 			return this.mapDelegate.containsValue(value);
@@ -222,8 +303,10 @@ public class TransactionalMap<K, V> implements Map<K, V>,
 		}
 	}
 
+	@Nullable
 	@Override
-	public V get(Object key) {
+	public V get(@Nullable Object key) {
+		Assert.notNull(key, "Null keys are not supported in transactional maps!");
 		final MapChanges<K, V> layer = getTransactionalMemoryLayerIfExists(this);
 		if (layer == null) {
 			return this.mapDelegate.get(key);
@@ -232,8 +315,9 @@ public class TransactionalMap<K, V> implements Map<K, V>,
 		}
 	}
 
+	@Nullable
 	@Override
-	public V put(K key, V value) {
+	public V put(K key, @Nullable V value) {
 		final MapChanges<K, V> layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		if (layer == null) {
 			return this.mapDelegate.put(key, value);
@@ -242,8 +326,10 @@ public class TransactionalMap<K, V> implements Map<K, V>,
 		}
 	}
 
+	@Nullable
 	@Override
-	public V remove(Object key) {
+	public V remove(@Nullable Object key) {
+		Assert.notNull(key, "Null keys are not supported in transactional maps!");
 		final MapChanges<K, V> layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		if (layer == null) {
 			return this.mapDelegate.remove(key);
@@ -284,7 +370,7 @@ public class TransactionalMap<K, V> implements Map<K, V>,
 		if (layer == null) {
 			return this.mapDelegate.keySet();
 		} else {
-			return new TransactionalMemoryKeySet<>(layer, getTransactionalLayerMaintainer());
+			return new TransactionalMemoryKeySet<>(layer, this, getTransactionalLayerMaintainer());
 		}
 	}
 
@@ -295,7 +381,7 @@ public class TransactionalMap<K, V> implements Map<K, V>,
 		if (layer == null) {
 			return this.mapDelegate.values();
 		} else {
-			return new TransactionalMemoryValues<>(layer, getTransactionalLayerMaintainer());
+			return new TransactionalMemoryValues<>(layer, this, getTransactionalLayerMaintainer());
 		}
 	}
 
@@ -306,31 +392,44 @@ public class TransactionalMap<K, V> implements Map<K, V>,
 		if (layer == null) {
 			return this.mapDelegate.entrySet();
 		} else {
-			return new TransactionalMemoryEntrySet<>(layer);
+			return new TransactionalMemoryEntrySet<>(layer, this);
 		}
 	}
 
+	/**
+	 * Computes the hash code as the sum of hash codes of all entries, consistent with the {@link Map} contract.
+	 * Uses the transactional entry set so the result reflects in-transaction state.
+	 */
+	@Override
 	public int hashCode() {
 		int h = 0;
-		for (Entry<K, V> kvEntry : entrySet()) h += kvEntry.hashCode();
+		for (final Entry<K, V> kvEntry : entrySet()) {
+			h += kvEntry.hashCode();
+		}
 		return h;
 	}
 
+	/**
+	 * Compares this map with another object for equality following the {@link Map} contract. Two maps are equal
+	 * when they contain the same key-value pairs. The comparison uses the transactional entry set so it
+	 * reflects in-transaction state.
+	 */
+	@Override
 	@SuppressWarnings("unchecked")
-	public boolean equals(Object o) {
+	public boolean equals(@Nullable Object o) {
 		if (o == this)
 			return true;
 
 		if (!(o instanceof Map))
 			return false;
-		Map<K, V> m = (Map<K, V>) o;
+		final Map<K, V> m = (Map<K, V>) o;
 		if (m.size() != size())
 			return false;
 
 		try {
-			for (Entry<K, V> e : entrySet()) {
-				K key = e.getKey();
-				V value = e.getValue();
+			for (final Entry<K, V> e : entrySet()) {
+				final K key = e.getKey();
+				final V value = e.getValue();
 				if (value == null) {
 					if (!(m.get(key) == null && m.containsKey(key)))
 						return false;
@@ -346,30 +445,23 @@ public class TransactionalMap<K, V> implements Map<K, V>,
 		return true;
 	}
 
+	/**
+	 * Returns a string representation of this map in `{key=value, ...}` format, reflecting the transactional
+	 * view when a transaction is active.
+	 */
+	@Nonnull
 	@Override
-	public Object clone() throws CloneNotSupportedException {
-		@SuppressWarnings("unchecked") final TransactionalMap<K, V> clone = (TransactionalMap<K, V>) super.clone();
-		final MapChanges<K, V> layer = getTransactionalMemoryLayerIfExists(this);
-		if (layer != null) {
-			final MapChanges<K, V> clonedLayer = Transaction.getOrCreateTransactionalMemoryLayer(clone);
-			if (clonedLayer != null) {
-				clonedLayer.copyState(layer);
-			}
-		}
-		return clone;
-	}
-
 	public String toString() {
 		final Iterator<Entry<K, V>> i = entrySet().iterator();
 		if (!i.hasNext())
 			return "{}";
 
-		StringBuilder sb = new StringBuilder(128);
+		final StringBuilder sb = new StringBuilder(128);
 		sb.append('{');
 		for (; ; ) {
-			Entry<K, V> e = i.next();
-			K key = e.getKey();
-			V value = e.getValue();
+			final Entry<K, V> e = i.next();
+			final K key = e.getKey();
+			final V value = e.getValue();
 			sb.append(key == this ? "(this Map)" : key);
 			sb.append('=');
 			sb.append(value == this ? "(this Map)" : value);
@@ -379,24 +471,37 @@ public class TransactionalMap<K, V> implements Map<K, V>,
 		}
 	}
 
-	/*
-		INTERNALS
-	 */
-
 	/**
-	 * Iterator implementation that aggregates values from the original map with modified data on transaction level.
+	 * Lazy-prefetch iterator that merges entries from the transactional diff layer with the original delegate
+	 * map. Created/modified entries from the layer are yielded first, followed by delegate entries that have
+	 * not been removed or overwritten. Removal via {@link #remove()} is propagated back into the diff layer.
+	 *
+	 * @param <K> key type
+	 * @param <V> value type
 	 */
 	private static class TransactionalMemoryEntryAbstractIterator<K, V> implements Iterator<Entry<K, V>> {
 		private final MapChanges<K, V> layer;
+		private final TransactionalLayerCreator<MapChanges<K, V>> layerCreator;
 		private final Iterator<Entry<K, V>> layerIt;
 		private final Iterator<Entry<K, V>> stateIt;
 
-		private Entry<K, V> currentValue;
+		@Nullable private Entry<K, V> currentValue;
 		private boolean fetched = true;
 		private boolean endOfData;
 
-		TransactionalMemoryEntryAbstractIterator(@Nonnull MapChanges<K, V> layer) {
+		/**
+		 * Creates a new iterator over the merged view of the given diff layer and its delegate map.
+		 *
+		 * @param layer        the transactional diff layer to iterate over
+		 * @param layerCreator the creator owning the diff layer, used to register the write-touch with the
+		 *                     maintainer when {@link #remove()} mutates the layer
+		 */
+		TransactionalMemoryEntryAbstractIterator(
+			@Nonnull MapChanges<K, V> layer,
+			@Nonnull TransactionalLayerCreator<MapChanges<K, V>> layerCreator
+		) {
 			this.layer = layer;
+			this.layerCreator = layerCreator;
 			this.layerIt = layer.getCreatedOrModifiedValuesIterator();
 			this.stateIt = layer.getMapDelegate().entrySet().iterator();
 		}
@@ -410,6 +515,7 @@ public class TransactionalMap<K, V> implements Map<K, V>,
 			return !this.endOfData;
 		}
 
+		@Nullable
 		@Override
 		public Entry<K, V> next() {
 			if (this.endOfData) {
@@ -428,9 +534,14 @@ public class TransactionalMap<K, V> implements Map<K, V>,
 				throw new GenericEvitaInternalError("Value unexpectedly not found!");
 			}
 
+			// register the write-touch with the maintainer FIRST: when a savepoint is open and this layer has not
+			// been touched inside it yet, this records the layer's pre-mutation snapshot (and activates its undo
+			// journal) BEFORE the removal below mutates the diff layer - otherwise the removal would be unrevertable
+			Transaction.getTransactionalMemoryLayerForWriteIfExists(this.layerCreator);
+
 			final K key = this.currentValue.getKey();
 			final boolean existing = this.layer.getMapDelegate().containsKey(key);
-			boolean removedFromTransactionalMemory = !(this.currentValue instanceof TransactionalMemoryEntryWrapper);
+			final boolean removedFromTransactionalMemory = !(this.currentValue instanceof TransactionalMemoryEntryWrapper);
 			if (removedFromTransactionalMemory) {
 				this.layerIt.remove();
 				if (!existing) {
@@ -442,17 +553,35 @@ public class TransactionalMap<K, V> implements Map<K, V>,
 			}
 		}
 
+		/**
+		 * Marks this iterator as exhausted and returns `null`. All subsequent calls to
+		 * {@link #hasNext()} will return `false`.
+		 *
+		 * @return always `null`
+		 */
+		@Nullable
 		Entry<K, V> endOfData() {
 			this.endOfData = true;
 			return null;
 		}
 
+		/**
+		 * Advances to the next entry in the merged view. Layer entries (created/modified) are returned first,
+		 * then delegate entries that are neither removed nor overwritten in the layer. Returns `null` and
+		 * sets the end-of-data flag when all entries have been exhausted.
+		 *
+		 * @return the next entry, or `null` if no more entries remain
+		 */
+		@Nullable
 		Entry<K, V> computeNext() {
 			if (this.endOfData) {
 				return null;
 			}
 			if (this.layerIt.hasNext()) {
-				return this.layerIt.next();
+				// wrap the raw diff-layer entry so an in-place setValue journals + registers the write-touch instead of
+				// mutating the layer map directly (which would escape a per-entity savepoint rollback); the wrapper is
+				// deliberately NOT a TransactionalMemoryEntryWrapper, so remove() still routes it through layerIt.remove()
+				return new TransactionalMemoryLayerEntryWrapper<>(this.layer, this.layerCreator, this.layerIt.next());
 			} else if (this.stateIt.hasNext()) {
 				Entry<K, V> adept;
 				do {
@@ -461,8 +590,9 @@ public class TransactionalMap<K, V> implements Map<K, V>,
 					} else {
 						return endOfData();
 					}
-				} while (this.layer.containsRemoved(adept.getKey()) || this.layer.containsCreatedOrModified(adept.getKey()));
-				return new TransactionalMemoryEntryWrapper<>(this.layer, adept);
+				} while (this.layer.containsRemoved(adept.getKey()) ||
+				this.layer.containsCreatedOrModified(adept.getKey()));
+				return new TransactionalMemoryEntryWrapper<>(this.layer, this.layerCreator, adept);
 			} else {
 				return endOfData();
 			}
@@ -470,9 +600,14 @@ public class TransactionalMap<K, V> implements Map<K, V>,
 
 	}
 
+	/**
+	 * Wraps a delegate map entry and proxies write operations through the transactional diff layer,
+	 * so that modifications via {@link Entry#setValue(Object)} are tracked in the transaction.
+	 */
 	@RequiredArgsConstructor
 	private static class TransactionalMemoryEntryWrapper<K, V> implements Entry<K, V> {
 		private final MapChanges<K, V> layer;
+		private final TransactionalLayerCreator<MapChanges<K, V>> layerCreator;
 		private final Entry<K, V> delegate;
 
 		@Override
@@ -485,24 +620,35 @@ public class TransactionalMap<K, V> implements Map<K, V>,
 			return this.delegate.getValue();
 		}
 
+		@Nullable
 		@Override
 		public V setValue(V value) {
+			// register the write-touch with the maintainer FIRST: when a savepoint is open and this layer has not been
+			// touched inside it yet, this records the layer's pre-mutation snapshot (and activates its undo journal)
+			// BEFORE registerModifiedKey mutates the diff layer - otherwise the in-place overwrite would be unrevertable
+			Transaction.getTransactionalMemoryLayerForWriteIfExists(this.layerCreator);
 			return this.layer.registerModifiedKey(this.delegate.getKey(), value);
 		}
 
 		@Override
 		public int hashCode() {
-			final V overwrittenValue = this.layer.getCreatedOrModifiedValue(this.delegate.getKey());
-			return overwrittenValue != null ? overwrittenValue.hashCode() : this.delegate.hashCode();
+			final K key = this.delegate.getKey();
+			final V overwrittenValue = this.layer.getCreatedOrModifiedValue(key);
+			if (overwrittenValue != null) {
+				return Objects.hashCode(key) ^ Objects.hashCode(overwrittenValue);
+			}
+			return this.delegate.hashCode();
 		}
 
 		@Override
-		public boolean equals(Object obj) {
-			if (!this.delegate.getClass().isInstance(obj)) {
+		public boolean equals(@Nullable Object obj) {
+			if (!(obj instanceof Entry<?, ?> other)) {
 				return false;
 			}
-			final V overwrittenValue = this.layer.getCreatedOrModifiedValue(this.delegate.getKey());
-			return overwrittenValue != null ? overwrittenValue.equals(obj) : this.delegate.equals(obj);
+			final K key = this.delegate.getKey();
+			final V overwrittenValue = this.layer.getCreatedOrModifiedValue(key);
+			final V effectiveValue = overwrittenValue != null ? overwrittenValue : this.delegate.getValue();
+			return Objects.equals(key, other.getKey()) && Objects.equals(effectiveValue, other.getValue());
 		}
 
 		@Override
@@ -513,18 +659,75 @@ public class TransactionalMap<K, V> implements Map<K, V>,
 	}
 
 	/**
-	 * Basic implementation that maps key set in main class. Iterator is delegated to {@link TransactionalMemoryEntryAbstractIterator}.
+	 * Wraps a raw diff-layer entry (a created / modified key held in {@link MapChanges}'s own {@code modifiedKeys} map)
+	 * so an in-place {@link Entry#setValue(Object)} is journaled through {@link MapChanges#registerModifiedKey} and
+	 * registers the maintainer write-touch, instead of mutating the layer map directly - a raw {@code Entry#setValue}
+	 * would escape a per-entity savepoint rollback. It is deliberately NOT a {@link TransactionalMemoryEntryWrapper}, so
+	 * the entry iterator's {@code remove()} still classifies it as a layer entry and drops it via the layer iterator.
+	 * All read operations delegate to the wrapped entry, which is a live view of the layer value.
 	 */
 	@RequiredArgsConstructor
-	private static class TransactionalMemoryKeySet<K, V> extends AbstractSet<K> {
+	private static class TransactionalMemoryLayerEntryWrapper<K, V> implements Entry<K, V> {
 		private final MapChanges<K, V> layer;
+		private final TransactionalLayerCreator<MapChanges<K, V>> layerCreator;
+		private final Entry<K, V> delegate;
+
+		@Override
+		public K getKey() {
+			return this.delegate.getKey();
+		}
+
+		@Override
+		public V getValue() {
+			return this.delegate.getValue();
+		}
+
+		@Nullable
+		@Override
+		public V setValue(V value) {
+			// register the write-touch with the maintainer FIRST (see TransactionalMemoryEntryWrapper#setValue), then
+			// route the overwrite through registerModifiedKey so it is journaled - a raw Entry#setValue on the layer map
+			// would be unrevertable on a per-entity savepoint rollback
+			Transaction.getTransactionalMemoryLayerForWriteIfExists(this.layerCreator);
+			return this.layer.registerModifiedKey(this.delegate.getKey(), value);
+		}
+
+		@Override
+		public int hashCode() {
+			return this.delegate.hashCode();
+		}
+
+		@Override
+		public boolean equals(@Nullable Object obj) {
+			return this.delegate.equals(obj);
+		}
+
+		@Override
+		public String toString() {
+			return this.delegate.toString();
+		}
+	}
+
+	/**
+	 * Represents the key set view of a transactional map. Iterator is delegated to
+	 * {@link TransactionalMemoryEntryAbstractIterator}.
+	 *
+	 * Package-private (rather than private) so the sibling {@link PersistentTransactionalMap}, which reuses the very
+	 * same {@link MapChanges} diff layer, can present the same layered-read view without duplicating it.
+	 */
+	@RequiredArgsConstructor
+	static class TransactionalMemoryKeySet<K, V> extends AbstractSet<K> {
+		private final MapChanges<K, V> layer;
+		private final TransactionalLayerCreator<MapChanges<K, V>> layerCreator;
 		private final TransactionalLayerMaintainer maintainer;
 
 		@Nonnull
 		@Override
 		public Iterator<K> iterator() {
 			return new Iterator<>() {
-				private final Iterator<Entry<K, V>> i = new TransactionalMemoryEntrySet<>(TransactionalMemoryKeySet.this.layer).iterator();
+				private final Iterator<Entry<K, V>> i = new TransactionalMemoryEntrySet<>(
+					TransactionalMemoryKeySet.this.layer, TransactionalMemoryKeySet.this.layerCreator
+				).iterator();
 
 				@Override
 				public boolean hasNext() {
@@ -560,23 +763,35 @@ public class TransactionalMap<K, V> implements Map<K, V>,
 
 		@Override
 		public void clear() {
+			// register the write-touch with the maintainer FIRST: clearing through a collection view forwards straight
+			// to MapChanges#cleanAll, bypassing the getOrCreate hook that map.clear() uses - so when a savepoint is open
+			// and this is the layer's first touch inside it, record the pre-clear snapshot (and activate the undo
+			// journal) before cleanAll wipes the diff, otherwise the clear would be unrevertable on rollback
+			Transaction.getTransactionalMemoryLayerForWriteIfExists(this.layerCreator);
 			this.layer.cleanAll(this.maintainer);
 		}
 	}
 
 	/**
-	 * Basic implementation that maps value set in main class. Iterator is delegated to {@link TransactionalMemoryEntryAbstractIterator}.
+	 * Represents the values collection view of a transactional map. Iterator is delegated to
+	 * {@link TransactionalMemoryEntryAbstractIterator}.
+	 *
+	 * Package-private (rather than private) so the sibling {@link PersistentTransactionalMap}, which reuses the very
+	 * same {@link MapChanges} diff layer, can present the same layered-read view without duplicating it.
 	 */
 	@RequiredArgsConstructor
-	private static class TransactionalMemoryValues<K, V> extends AbstractCollection<V> {
+	static class TransactionalMemoryValues<K, V> extends AbstractCollection<V> {
 		private final MapChanges<K, V> layer;
+		private final TransactionalLayerCreator<MapChanges<K, V>> layerCreator;
 		private final TransactionalLayerMaintainer maintainer;
 
 		@Nonnull
 		@Override
 		public Iterator<V> iterator() {
 			return new Iterator<>() {
-				private final Iterator<Entry<K, V>> i = new TransactionalMemoryEntrySet<>(TransactionalMemoryValues.this.layer).iterator();
+				private final Iterator<Entry<K, V>> i = new TransactionalMemoryEntrySet<>(
+					TransactionalMemoryValues.this.layer, TransactionalMemoryValues.this.layerCreator
+				).iterator();
 
 				@Override
 				public boolean hasNext() {
@@ -612,25 +827,39 @@ public class TransactionalMap<K, V> implements Map<K, V>,
 
 		@Override
 		public void clear() {
+			// register the write-touch with the maintainer FIRST: clearing through a collection view forwards straight
+			// to MapChanges#cleanAll, bypassing the getOrCreate hook that map.clear() uses - so when a savepoint is open
+			// and this is the layer's first touch inside it, record the pre-clear snapshot (and activate the undo
+			// journal) before cleanAll wipes the diff, otherwise the clear would be unrevertable on rollback
+			Transaction.getTransactionalMemoryLayerForWriteIfExists(this.layerCreator);
 			this.layer.cleanAll(this.maintainer);
 		}
 
 	}
 
 	/**
-	 * Basic implementation that entry key set in main class. Iterator is delegated to {@link TransactionalMemoryEntryAbstractIterator}.
+	 * Represents the entry set view of a transactional map. Iterator is delegated to
+	 * {@link TransactionalMemoryEntryAbstractIterator}.
+	 *
+	 * Package-private (rather than private) so the sibling {@link PersistentTransactionalMap}, which reuses the very
+	 * same {@link MapChanges} diff layer, can present the same layered-read view without duplicating it.
 	 */
-	private static class TransactionalMemoryEntrySet<K, V> extends AbstractSet<Entry<K, V>> {
+	static class TransactionalMemoryEntrySet<K, V> extends AbstractSet<Entry<K, V>> {
 		private final MapChanges<K, V> layer;
+		private final TransactionalLayerCreator<MapChanges<K, V>> layerCreator;
 
-		public TransactionalMemoryEntrySet(@Nonnull MapChanges<K, V> layer) {
+		public TransactionalMemoryEntrySet(
+			@Nonnull MapChanges<K, V> layer,
+			@Nonnull TransactionalLayerCreator<MapChanges<K, V>> layerCreator
+		) {
 			this.layer = layer;
+			this.layerCreator = layerCreator;
 		}
 
 		@Nonnull
 		@Override
 		public Iterator<Entry<K, V>> iterator() {
-			return new TransactionalMemoryEntryAbstractIterator<>(this.layer);
+			return new TransactionalMemoryEntryAbstractIterator<>(this.layer, this.layerCreator);
 		}
 
 		@Override
@@ -644,16 +873,25 @@ public class TransactionalMap<K, V> implements Map<K, V>,
 			if (o == null || getClass() != o.getClass()) return false;
 			if (!super.equals(o)) return false;
 			@SuppressWarnings("unchecked")
-			TransactionalMemoryEntrySet<K, V> that = (TransactionalMemoryEntrySet<K, V>) o;
+			final TransactionalMemoryEntrySet<K, V> that = (TransactionalMemoryEntrySet<K, V>) o;
 			return this.layer.equals(that.layer);
 		}
 
 		@Override
 		public int hashCode() {
-			return Objects.hash(super.hashCode(), this.layer);
+			return 31 * super.hashCode() + this.layer.hashCode();
 		}
 	}
 
+	/**
+	 * Lightweight key-value pair used internally to collect modified entries during
+	 * {@link #createCopyWithMergedTransactionalMemory(MapChanges, TransactionalLayerMaintainer)}.
+	 *
+	 * @param key   the map key
+	 * @param value the (possibly merged) map value
+	 * @param <K>   key type
+	 * @param <V>   value type
+	 */
 	private record Tuple<K, V>(@Nonnull K key, @Nonnull V value) {}
 
 }

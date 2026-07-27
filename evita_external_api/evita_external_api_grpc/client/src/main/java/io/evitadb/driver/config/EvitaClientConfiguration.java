@@ -144,6 +144,28 @@ public record EvitaClientConfiguration(
 		return this.connection.systemApiPort();
 	}
 
+	/**
+	 * Returns the HTTP/2 keep-alive PING interval in milliseconds.
+	 *
+	 * Delegates to {@link ClientConnectionOptions#pingIntervalMillis()}.
+	 *
+	 * @return the keep-alive ping interval in milliseconds
+	 */
+	public int pingIntervalMillis() {
+		return this.connection.pingIntervalMillis();
+	}
+
+	/**
+	 * Returns the connection idle timeout in milliseconds.
+	 *
+	 * Delegates to {@link ClientConnectionOptions#idleTimeoutMillis()}.
+	 *
+	 * @return the connection idle timeout in milliseconds
+	 */
+	public int idleTimeoutMillis() {
+		return this.connection.idleTimeoutMillis();
+	}
+
 	// ============================================================================================
 	// Deprecated delegate accessor methods for backward compatibility
 	// ============================================================================================
@@ -152,7 +174,7 @@ public record EvitaClientConfiguration(
 	 * @return Whether to use TLS encryption.
 	 * @deprecated Use {@link #tls()}.{@link ClientTlsOptions#tlsEnabled() tlsEnabled()} instead.
 	 */
-	@Deprecated(since = "2026.3", forRemoval = true)
+	@Deprecated(since = "2026.1", forRemoval = true)
 	public boolean tlsEnabled() {
 		return this.tls.tlsEnabled();
 	}
@@ -161,7 +183,7 @@ public record EvitaClientConfiguration(
 	 * @return Whether to use mutual TLS authentication.
 	 * @deprecated Use {@link #tls()}.{@link ClientTlsOptions#mtlsEnabled() mtlsEnabled()} instead.
 	 */
-	@Deprecated(since = "2026.3", forRemoval = true)
+	@Deprecated(since = "2026.1", forRemoval = true)
 	public boolean mtlsEnabled() {
 		return this.tls.mtlsEnabled();
 	}
@@ -170,7 +192,7 @@ public record EvitaClientConfiguration(
 	 * @return Whether to use generated certificate.
 	 * @deprecated Use {@link #tls()} and {@link ClientTlsOptions#useGeneratedCertificate()} instead.
 	 */
-	@Deprecated(since = "2026.3", forRemoval = true)
+	@Deprecated(since = "2026.1", forRemoval = true)
 	public boolean useGeneratedCertificate() {
 		return this.tls.useGeneratedCertificate();
 	}
@@ -179,7 +201,7 @@ public record EvitaClientConfiguration(
 	 * @return Whether to trust the server certificate.
 	 * @deprecated Use {@link #tls()} and {@link ClientTlsOptions#trustCertificate()} instead.
 	 */
-	@Deprecated(since = "2026.3", forRemoval = true)
+	@Deprecated(since = "2026.1", forRemoval = true)
 	public boolean trustCertificate() {
 		return this.tls.trustCertificate();
 	}
@@ -188,7 +210,7 @@ public record EvitaClientConfiguration(
 	 * @return Path to the server certificate.
 	 * @deprecated Use {@link #tls()} and {@link ClientTlsOptions#serverCertificatePath()} instead.
 	 */
-	@Deprecated(since = "2026.3", forRemoval = true)
+	@Deprecated(since = "2026.1", forRemoval = true)
 	@Nullable
 	public Path serverCertificatePath() {
 		return this.tls.serverCertificatePath();
@@ -208,7 +230,7 @@ public record EvitaClientConfiguration(
 	 * @return Path to the client certificate file.
 	 * @deprecated Use {@link #tls()} and {@link ClientTlsOptions#certificateFileName()} instead.
 	 */
-	@Deprecated(since = "2026.3", forRemoval = true)
+	@Deprecated(since = "2026.1", forRemoval = true)
 	@Nullable
 	public Path certificateFileName() {
 		return this.tls.certificateFileName();
@@ -218,7 +240,7 @@ public record EvitaClientConfiguration(
 	 * @return Path to the client private key file.
 	 * @deprecated Use {@link #tls()} and {@link ClientTlsOptions#certificateKeyFileName()} instead.
 	 */
-	@Deprecated(since = "2026.3", forRemoval = true)
+	@Deprecated(since = "2026.1", forRemoval = true)
 	@Nullable
 	public Path certificateKeyFileName() {
 		return this.tls.certificateKeyFileName();
@@ -228,7 +250,7 @@ public record EvitaClientConfiguration(
 	 * @return Password for the client's private key.
 	 * @deprecated Use {@link #tls()} and {@link ClientTlsOptions#certificateKeyPassword()} instead.
 	 */
-	@Deprecated(since = "2026.3", forRemoval = true)
+	@Deprecated(since = "2026.1", forRemoval = true)
 	@Nullable
 	public String certificateKeyPassword() {
 		return this.tls.certificateKeyPassword();
@@ -238,7 +260,7 @@ public record EvitaClientConfiguration(
 	 * @return Path to the certificate folder.
 	 * @deprecated Use {@link #tls()} and {@link ClientTlsOptions#certificateFolderPath()} instead.
 	 */
-	@Deprecated(since = "2026.3", forRemoval = true)
+	@Deprecated(since = "2026.1", forRemoval = true)
 	@Nullable
 	public Path certificateFolderPath() {
 		return this.tls.certificateFolderPath();
@@ -248,7 +270,7 @@ public record EvitaClientConfiguration(
 	 * @return Password for the trust store.
 	 * @deprecated Use {@link #tls()} and {@link ClientTlsOptions#trustStorePassword()} instead.
 	 */
-	@Deprecated(since = "2026.3", forRemoval = true)
+	@Deprecated(since = "2026.1", forRemoval = true)
 	@Nonnull
 	public String trustStorePassword() {
 		return this.tls.trustStorePassword();
@@ -258,7 +280,7 @@ public record EvitaClientConfiguration(
 	 * @return Number of time units for regular call timeout.
 	 * @deprecated Use {@link #timeouts()}.{@link ClientTimeoutOptions#timeout() timeout()} instead.
 	 */
-	@Deprecated(since = "2026.3", forRemoval = true)
+	@Deprecated(since = "2026.1", forRemoval = true)
 	public long timeout() {
 		return this.timeouts.timeout();
 	}
@@ -267,7 +289,7 @@ public record EvitaClientConfiguration(
 	 * @return Time unit for the regular call timeout.
 	 * @deprecated Use {@link #timeouts()} and {@link ClientTimeoutOptions#timeoutUnit()} instead.
 	 */
-	@Deprecated(since = "2026.3", forRemoval = true)
+	@Deprecated(since = "2026.1", forRemoval = true)
 	@Nonnull
 	public TimeUnit timeoutUnit() {
 		return this.timeouts.timeoutUnit();
@@ -277,7 +299,7 @@ public record EvitaClientConfiguration(
 	 * @return Number of time units for streaming call timeout.
 	 * @deprecated Use {@link #timeouts()} and {@link ClientTimeoutOptions#streamingTimeout()} instead.
 	 */
-	@Deprecated(since = "2026.3", forRemoval = true)
+	@Deprecated(since = "2026.1", forRemoval = true)
 	public long streamingTimeout() {
 		return this.timeouts.streamingTimeout();
 	}
@@ -286,7 +308,7 @@ public record EvitaClientConfiguration(
 	 * @return Time unit for the streaming call timeout.
 	 * @deprecated Use {@link #timeouts()} and {@link ClientTimeoutOptions#streamingTimeoutUnit()} instead.
 	 */
-	@Deprecated(since = "2026.3", forRemoval = true)
+	@Deprecated(since = "2026.1", forRemoval = true)
 	@Nonnull
 	public TimeUnit streamingTimeoutUnit() {
 		return this.timeouts.streamingTimeoutUnit();
@@ -418,6 +440,34 @@ public record EvitaClientConfiguration(
 			return this;
 		}
 
+		/**
+		 * Sets the HTTP/2 keep-alive PING interval in milliseconds.
+		 *
+		 * Delegates to {@link ClientConnectionOptions.Builder#pingIntervalMillis(int)}.
+		 *
+		 * @param pingIntervalMillis the keep-alive ping interval in milliseconds (`0` disables, otherwise `>= 1000`)
+		 * @return this builder for chaining
+		 */
+		@Nonnull
+		public EvitaClientConfiguration.Builder pingIntervalMillis(int pingIntervalMillis) {
+			this.connectionBuilder.pingIntervalMillis(pingIntervalMillis);
+			return this;
+		}
+
+		/**
+		 * Sets the connection idle timeout in milliseconds.
+		 *
+		 * Delegates to {@link ClientConnectionOptions.Builder#idleTimeoutMillis(int)}.
+		 *
+		 * @param idleTimeoutMillis the connection idle timeout in milliseconds (`0` disables the idle timeout)
+		 * @return this builder for chaining
+		 */
+		@Nonnull
+		public EvitaClientConfiguration.Builder idleTimeoutMillis(int idleTimeoutMillis) {
+			this.connectionBuilder.idleTimeoutMillis(idleTimeoutMillis);
+			return this;
+		}
+
 		// ========================================================================================
 		// Deprecated flat setter methods for backward compatibility
 		// ========================================================================================
@@ -425,7 +475,7 @@ public record EvitaClientConfiguration(
 		/**
 		 * @deprecated Use {@link #tls(ClientTlsOptions)} instead.
 		 */
-		@Deprecated(since = "2026.3", forRemoval = true)
+		@Deprecated(since = "2026.1", forRemoval = true)
 		@Nonnull
 		public EvitaClientConfiguration.Builder useGeneratedCertificate(boolean useGeneratedCertificate) {
 			this.tlsBuilder.useGeneratedCertificate(useGeneratedCertificate);
@@ -435,7 +485,7 @@ public record EvitaClientConfiguration(
 		/**
 		 * @deprecated Use {@link #tls(ClientTlsOptions)} instead.
 		 */
-		@Deprecated(since = "2026.3", forRemoval = true)
+		@Deprecated(since = "2026.1", forRemoval = true)
 		@Nonnull
 		public EvitaClientConfiguration.Builder trustCertificate(boolean trustCertificate) {
 			this.tlsBuilder.trustCertificate(trustCertificate);
@@ -449,7 +499,7 @@ public record EvitaClientConfiguration(
 		 * @param rootCaCertificatePath Path to the server certificate.
 		 * @return Builder instance for chaining.
 		 */
-		@Deprecated(since = "2024.11", forRemoval = true)
+		@Deprecated(since = "2025.1", forRemoval = true)
 		@Nonnull
 		public EvitaClientConfiguration.Builder rootCaCertificatePath(@Nonnull Path rootCaCertificatePath) {
 			this.tlsBuilder.serverCertificatePath(rootCaCertificatePath);
@@ -459,7 +509,7 @@ public record EvitaClientConfiguration(
 		/**
 		 * @deprecated Use {@link #tls(ClientTlsOptions)} instead.
 		 */
-		@Deprecated(since = "2026.3", forRemoval = true)
+		@Deprecated(since = "2026.1", forRemoval = true)
 		@Nonnull
 		public EvitaClientConfiguration.Builder serverCertificatePath(@Nonnull Path serverCertificatePath) {
 			this.tlsBuilder.serverCertificatePath(serverCertificatePath);
@@ -469,7 +519,7 @@ public record EvitaClientConfiguration(
 		/**
 		 * @deprecated Use {@link #tls(ClientTlsOptions)} instead.
 		 */
-		@Deprecated(since = "2026.3", forRemoval = true)
+		@Deprecated(since = "2026.1", forRemoval = true)
 		@Nonnull
 		public EvitaClientConfiguration.Builder tlsEnabled(boolean tlsEnabled) {
 			this.tlsBuilder.tlsEnabled(tlsEnabled);
@@ -479,7 +529,7 @@ public record EvitaClientConfiguration(
 		/**
 		 * @deprecated Use {@link #tls(ClientTlsOptions)} instead.
 		 */
-		@Deprecated(since = "2026.3", forRemoval = true)
+		@Deprecated(since = "2026.1", forRemoval = true)
 		@Nonnull
 		public EvitaClientConfiguration.Builder mtlsEnabled(boolean mtlsEnabled) {
 			this.tlsBuilder.mtlsEnabled(mtlsEnabled);
@@ -489,7 +539,7 @@ public record EvitaClientConfiguration(
 		/**
 		 * @deprecated Use {@link #tls(ClientTlsOptions)} instead.
 		 */
-		@Deprecated(since = "2026.3", forRemoval = true)
+		@Deprecated(since = "2026.1", forRemoval = true)
 		@Nonnull
 		public EvitaClientConfiguration.Builder certificateFileName(@Nonnull Path certificateFileName) {
 			this.tlsBuilder.certificateFileName(certificateFileName);
@@ -499,7 +549,7 @@ public record EvitaClientConfiguration(
 		/**
 		 * @deprecated Use {@link #tls(ClientTlsOptions)} instead.
 		 */
-		@Deprecated(since = "2026.3", forRemoval = true)
+		@Deprecated(since = "2026.1", forRemoval = true)
 		@Nonnull
 		public EvitaClientConfiguration.Builder certificateKeyFileName(@Nonnull Path certificateKeyFileName) {
 			this.tlsBuilder.certificateKeyFileName(certificateKeyFileName);
@@ -509,7 +559,7 @@ public record EvitaClientConfiguration(
 		/**
 		 * @deprecated Use {@link #tls(ClientTlsOptions)} instead.
 		 */
-		@Deprecated(since = "2026.3", forRemoval = true)
+		@Deprecated(since = "2026.1", forRemoval = true)
 		@Nonnull
 		public EvitaClientConfiguration.Builder certificateKeyPassword(@Nonnull String certificateKeyPassword) {
 			this.tlsBuilder.certificateKeyPassword(certificateKeyPassword);
@@ -519,7 +569,7 @@ public record EvitaClientConfiguration(
 		/**
 		 * @deprecated Use {@link #tls(ClientTlsOptions)} instead.
 		 */
-		@Deprecated(since = "2026.3", forRemoval = true)
+		@Deprecated(since = "2026.1", forRemoval = true)
 		@Nonnull
 		public EvitaClientConfiguration.Builder certificateFolderPath(@Nonnull Path certificateFolderPath) {
 			this.tlsBuilder.certificateFolderPath(certificateFolderPath);
@@ -529,7 +579,7 @@ public record EvitaClientConfiguration(
 		/**
 		 * @deprecated Use {@link #tls(ClientTlsOptions)} instead.
 		 */
-		@Deprecated(since = "2026.3", forRemoval = true)
+		@Deprecated(since = "2026.1", forRemoval = true)
 		@Nonnull
 		public EvitaClientConfiguration.Builder trustStorePassword(@Nonnull String trustStorePassword) {
 			this.tlsBuilder.trustStorePassword(trustStorePassword);
@@ -561,7 +611,7 @@ public record EvitaClientConfiguration(
 		/**
 		 * @deprecated Use {@link #timeouts(ClientTimeoutOptions)} instead.
 		 */
-		@Deprecated(since = "2026.3", forRemoval = true)
+		@Deprecated(since = "2026.1", forRemoval = true)
 		@Nonnull
 		public EvitaClientConfiguration.Builder timeout(long timeout, @Nonnull TimeUnit unit) {
 			this.timeoutsBuilder.timeout(timeout, unit);
@@ -571,7 +621,7 @@ public record EvitaClientConfiguration(
 		/**
 		 * @deprecated Use {@link #timeouts(ClientTimeoutOptions)} instead.
 		 */
-		@Deprecated(since = "2026.3", forRemoval = true)
+		@Deprecated(since = "2026.1", forRemoval = true)
 		@Nonnull
 		public EvitaClientConfiguration.Builder streamingTimeout(long streamingTimeout, @Nonnull TimeUnit unit) {
 			this.timeoutsBuilder.streamingTimeout(streamingTimeout, unit);

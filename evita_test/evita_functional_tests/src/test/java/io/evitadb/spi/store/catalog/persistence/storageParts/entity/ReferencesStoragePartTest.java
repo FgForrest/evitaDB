@@ -52,9 +52,13 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.when;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.EXPORT;
+import static io.evitadb.test.TestTags.REFERENCE;
 
 /**
  * Tests for ReferencesStoragePart focusing on sorted order of references and key operations.
@@ -62,6 +66,9 @@ import static org.mockito.Mockito.when;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 @DisplayName("ReferencesStoragePart behavioral tests")
+@Tag(ENGINE)
+@Tag(EXPORT)
+@Tag(REFERENCE)
 class ReferencesStoragePartTest {
 	public static final String EXAMPLE_ENTITY_TYPE = "someType";
 

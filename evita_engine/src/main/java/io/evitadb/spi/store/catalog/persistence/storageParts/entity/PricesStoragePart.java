@@ -46,7 +46,6 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
 import java.io.Serial;
 import java.util.Arrays;
-import java.util.Objects;
 import java.util.OptionalInt;
 import java.util.function.ToIntBiFunction;
 import java.util.function.ToIntFunction;
@@ -80,11 +79,11 @@ public class PricesStoragePart implements EntityStoragePart {
 	/**
 	 * See {@link Prices#getPriceInnerRecordHandling()}.
 	 */
-	@Getter private PriceInnerRecordHandling priceInnerRecordHandling = PriceInnerRecordHandling.NONE;
+	@Nonnull @Getter private PriceInnerRecordHandling priceInnerRecordHandling = PriceInnerRecordHandling.NONE;
 	/**
 	 * See {@link Prices#getPrices()}. Prices are sorted in ascending order according to {@link PriceKey} comparator.
 	 */
-	@Getter private PriceWithInternalIds[] prices = EMPTY_PRICES;
+	@Nonnull @Getter private PriceWithInternalIds[] prices = EMPTY_PRICES;
 	/**
 	 * Contains information about size of this container in bytes.
 	 */
@@ -94,12 +93,18 @@ public class PricesStoragePart implements EntityStoragePart {
 	 */
 	@Getter private boolean dirty;
 
+	/**
+	 * Creates a new empty prices storage part for the given entity.
+	 */
 	public PricesStoragePart(int entityPrimaryKey) {
 		this.entityPrimaryKey = entityPrimaryKey;
 		this.version = 0;
 		this.sizeInBytes = -1;
 	}
 
+	/**
+	 * Creates a prices storage part loaded from persistent storage.
+	 */
 	public PricesStoragePart(
 		int entityPrimaryKey,
 		int version,
@@ -131,8 +136,15 @@ public class PricesStoragePart implements EntityStoragePart {
 
 	@Override
 	public boolean isEmpty() {
-		return (this.prices.length == 0 || Arrays.stream(this.prices).noneMatch(Droppable::exists)) &&
-			this.priceInnerRecordHandling == PriceInnerRecordHandling.NONE;
+		if (this.priceInnerRecordHandling != PriceInnerRecordHandling.NONE) {
+			return false;
+		}
+		for (final PriceWithInternalIds price : this.prices) {
+			if (price.exists()) {
+				return false;
+			}
+		}
+		return true;
 	}
 
 	@Nonnull
@@ -154,7 +166,7 @@ public class PricesStoragePart implements EntityStoragePart {
 	/**
 	 * Sets {@link PriceInnerRecordHandling} strategy for this entity.
 	 */
-	public void setPriceInnerRecordHandling(PriceInnerRecordHandling priceInnerRecordHandling) {
+	public void setPriceInnerRecordHandling(@Nonnull PriceInnerRecordHandling priceInnerRecordHandling) {
 		if (this.priceInnerRecordHandling != priceInnerRecordHandling) {
 			this.priceInnerRecordHandling = priceInnerRecordHandling;
 			this.dirty = true;
@@ -218,12 +230,11 @@ public class PricesStoragePart implements EntityStoragePart {
 	 */
 	@Nonnull
 	public OptionalInt findExistingInternalIds(@Nonnull PriceKey priceKey) {
-		for (PriceWithInternalIds price : this.prices) {
-			if (Objects.equals(priceKey, price.priceKey())) {
-				return OptionalInt.of(price.getInternalPriceId());
-			}
-		}
-		return OptionalInt.empty();
+		final int index = ArrayUtils.binarySearch(
+			this.prices, priceKey,
+			(examinedPrice, pk) -> PriceIdFirstPriceKeyComparator.INSTANCE.compare(examinedPrice.priceKey(), pk)
+		);
+		return index >= 0 ? OptionalInt.of(this.prices[index].getInternalPriceId()) : OptionalInt.empty();
 	}
 
 	/**

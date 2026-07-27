@@ -33,6 +33,7 @@ import io.evitadb.externalApi.api.catalog.dataApi.builder.constraint.ConstraintS
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.GenericDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.ManagedEntityTypePointer;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiSimpleType;
+import io.evitadb.utils.Functions;
 
 import javax.annotation.Nonnull;
 import java.util.Map;
@@ -156,6 +157,6 @@ public class RequireConstraintSchemaBuilder extends OpenApiConstraintSchemaBuild
 	@Nonnull
 	@Override
 	protected Predicate<AttributeSchemaContract> getAttributeSchemaFilter() {
-		return attributeSchema -> true;
+		return Functions.alwaysTrue();
 	}
 }

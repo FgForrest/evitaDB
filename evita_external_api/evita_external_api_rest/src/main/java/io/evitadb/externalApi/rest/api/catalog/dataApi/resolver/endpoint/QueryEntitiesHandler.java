@@ -126,6 +126,7 @@ public class QueryEntitiesHandler extends QueryOrientedEntitiesHandler {
 	@Nonnull
 	private JsonNode serializeExtraResults(EvitaResponse<EntityClassifier> evitaResponse) {
 		return this.extraResultsJsonSerializer.serialize(
+			evitaResponse.getSourceQuery(),
 			evitaResponse.getExtraResults(),
 			this.restHandlingContext.getEntitySchema(),
 			this.restHandlingContext.getCatalogSchema()

@@ -33,16 +33,23 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.QueryConstraints.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.MANAGEMENT;
+import static io.evitadb.test.TestTags.FILTER;
 
 /**
  * Tests for {@link FilterConstraintToJsonConverter}.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-class FilterConstraintToJsonConverterTest extends ConstraintToJsonConverterTest {
+@Tag(ENGINE)
+@Tag(MANAGEMENT)
+@Tag(FILTER)
+class FilterConstraintToJsonConverterTest extends AbstractConstraintToJsonConverterTest {
 
 	private FilterConstraintToJsonConverter converter;
 
@@ -62,7 +69,7 @@ class FilterConstraintToJsonConverterTest extends ConstraintToJsonConverterTest 
 			this.converter.convert(
 				new EntityDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT)),
 				attributeEquals("CODE", 123)
-			).get()
+			).orElseThrow()
 		);
 	}
 
@@ -82,7 +89,7 @@ class FilterConstraintToJsonConverterTest extends ConstraintToJsonConverterTest 
 					attributeEquals("CODE", "123"),
 					attributeIs("AGE", AttributeSpecialValue.NULL)
 				)
-			).get()
+			).orElseThrow()
 		);
 
 		final ArrayNode and2 = jsonNodeFactory.arrayNode();
@@ -101,7 +108,7 @@ class FilterConstraintToJsonConverterTest extends ConstraintToJsonConverterTest 
 					attributeEquals("CODE", "123"),
 					attributeEquals("CODE", 321)
 				)
-			).get()
+			).orElseThrow()
 		);
 	}
 
@@ -129,7 +136,7 @@ class FilterConstraintToJsonConverterTest extends ConstraintToJsonConverterTest 
 					entityPrimaryKeyInSet(1),
 					directRelation()
 				)
-			).get()
+			).orElseThrow()
 		);
 	}
 
@@ -148,7 +155,7 @@ class FilterConstraintToJsonConverterTest extends ConstraintToJsonConverterTest 
 					1,
 					2
 				)
-			).get()
+			).orElseThrow()
 		);
 
 		final ArrayNode between2 = jsonNodeFactory.arrayNode();
@@ -164,7 +171,7 @@ class FilterConstraintToJsonConverterTest extends ConstraintToJsonConverterTest 
 					null,
 					2
 				)
-			).get()
+			).orElseThrow()
 		);
 
 		final ArrayNode between3 = jsonNodeFactory.arrayNode();
@@ -180,7 +187,79 @@ class FilterConstraintToJsonConverterTest extends ConstraintToJsonConverterTest 
 					1,
 					null
 				)
-			).get()
+			).orElseThrow()
+		);
+	}
+
+	@Test
+	void shouldResolveHistogramHavingWithBoundsOnly() {
+		// histogramHaving with only classifier and bounds (no histogramName, no groupSelector)
+		// renders as COMPLEX wrapper object whose keys mirror the creator parameter names.
+		// Bounds are BigDecimal on the constraint, so the JSON serializer emits them as text nodes
+		// (the JS-precision-safe convention shared with the production REST/GraphQL wire format).
+		final ObjectNode wrapperObject = jsonNodeFactory.objectNode();
+		wrapperObject.putIfAbsent("from", jsonNodeFactory.textNode("10"));
+		wrapperObject.putIfAbsent("to", jsonNodeFactory.textNode("20"));
+
+		assertEquals(
+			new JsonConstraint("referenceCategoryHistogramHaving", wrapperObject),
+			this.converter.convert(
+				new EntityDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT)),
+				histogramHaving("CATEGORY", 10, 20)
+			).orElseThrow()
+		);
+	}
+
+	@Test
+	void shouldResolveHistogramHavingWithHistogramNameAndBounds() {
+		// histogramHaving with classifier, histogramName and bounds — the histogramName parameter
+		// is rendered as a named field inside the wrapper object alongside `from` and `to`
+		final ObjectNode wrapperObject = jsonNodeFactory.objectNode();
+		wrapperObject.putIfAbsent("histogramName", jsonNodeFactory.textNode("basicUnitValue"));
+		wrapperObject.putIfAbsent("from", jsonNodeFactory.textNode("50"));
+		wrapperObject.putIfAbsent("to", jsonNodeFactory.textNode("120"));
+
+		assertEquals(
+			new JsonConstraint("referenceCategoryHistogramHaving", wrapperObject),
+			this.converter.convert(
+				new EntityDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT)),
+				histogramHaving("CATEGORY", "basicUnitValue", 50, 120)
+			).orElseThrow()
+		);
+	}
+
+	@Test
+	void shouldResolveHistogramHavingFullArityWithGroupSelector() {
+		// full-arity histogramHaving with classifier, histogramName, bounds and a groupHaving
+		// child — the outer wrapper is the @Child parameter name `groupHaving` (schema flattens
+		// single-variant concrete @Child to the parameter name). The inner constraint key is
+		// `groupHaving` — the descriptor key builder applies the `group` prefix derived from
+		// `GroupConstraint` to the fullName `having`, mirroring how EntityHaving becomes
+		// `entityHaving`.
+		final ObjectNode wrapperObject = jsonNodeFactory.objectNode();
+		wrapperObject.putIfAbsent("histogramName", jsonNodeFactory.textNode("basicUnitValue"));
+		wrapperObject.putIfAbsent("from", jsonNodeFactory.textNode("50"));
+		wrapperObject.putIfAbsent("to", jsonNodeFactory.textNode("120"));
+
+		final ObjectNode groupHavingValue = jsonNodeFactory.objectNode();
+		groupHavingValue.putIfAbsent("attributeNameEquals", jsonNodeFactory.textNode("height"));
+
+		final ObjectNode groupHavingWrapper = jsonNodeFactory.objectNode();
+		groupHavingWrapper.putIfAbsent("groupHaving", groupHavingValue);
+		wrapperObject.putIfAbsent("groupHaving", groupHavingWrapper);
+
+		assertEquals(
+			new JsonConstraint("referenceCategoryHistogramHaving", wrapperObject),
+			this.converter.convert(
+				new EntityDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT)),
+				histogramHaving(
+					"CATEGORY",
+					"basicUnitValue",
+					50,
+					120,
+					groupHaving(attributeEquals("NAME", "height"))
+				)
+			).orElseThrow()
 		);
 	}
 
@@ -279,7 +358,8 @@ class FilterConstraintToJsonConverterTest extends ConstraintToJsonConverterTest 
 						)
 					)
 				)
-			).get()
+			).orElseThrow()
 		);
 	}
+
 }

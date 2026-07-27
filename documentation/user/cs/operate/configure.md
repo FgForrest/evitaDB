@@ -5,6 +5,7 @@ date: '14.7.2024'
 author: Ing. Jan Novotný
 proofreading: done
 commit: '550d04a927cac92ff1a2e14d5aaa23b87f101618'
+translated: 'true'
 ---
 Server evitaDB je konfigurován ve formátu YAML a jeho výchozí nastavení je nejlépe popsáno následujícím ukázkovým kódem:
 
@@ -181,6 +182,7 @@ api:                                              # [viz konfigurace API](#konfi
         endpoint: null
         protocol: grpc
       allowedEvents: null
+      exportedQueryLabels: null
       mTLS:
         enabled: null
         allowedClientCertificatePaths: null
@@ -1142,7 +1144,7 @@ To vám umožňuje nastavit společná nastavení pro všechny endpointy na jedn
     <dt>tlsMode</dt>
     <dd>
         <p>**Výchozí:** `FORCE_TLS`</p>
-        <p>Zda povolit [TLS](./tls.md) pro konkrétní API. K dispozici jsou tři režimy:</p>
+        <p>Zda povolit [TLS](tls.md) pro konkrétní API. K dispozici jsou tři režimy:</p>
         <ol>
             <li>`FORCE_TLS`: Povolená je pouze šifrovaná (TLS) komunikace.</li>
             <li>`FORCE_NO_TLS`: Povolená je pouze nešifrovaná (non-TLS) komunikace.</li>
@@ -1157,7 +1159,7 @@ To vám umožňuje nastavit společná nastavení pro všechny endpointy na jedn
     <dt>mTls.enabled</dt>
     <dd>
         <p>**Výchozí:** `false`</p>
-        <p>Povoluje / zakazuje [vzájemnou autentizaci](tls.md#mutual-tls-for-http) pro konkrétní API.</p>
+        <p>Povoluje / zakazuje [vzájemnou autentizaci](tls.md#vzájemné-tls) pro konkrétní API.</p>
     </dd>
     <dt>mTls.allowedClientCertificatePaths</dt>
     <dd>
@@ -1431,6 +1433,17 @@ pro scraping Prometheus metrik, OTEL trace exporter a záznam událostí Java Fl
         <p>**Výchozí:** `grpc`</p>
         <p>Určuje protokol použitý mezi aplikací a OTEL collectorem pro předávání trace záznamů. Možné
         hodnoty jsou `grpc` a `http`. gRPC je výrazně výkonnější a je preferovanou možností.</p>
+    </dd>
+    <dt>exportedQueryLabels</dt>
+    <dd>
+        <p>**Výchozí:** `null` (nic se neexportuje)</p>
+        <p>Seznam názvů [štítků dotazu](../query/header/label.md#štítek), jejichž hodnota se zpřístupní jako dimenze
+        Prometheus metrik dotazů. Názvy jsou libovolné a volí je operátor - evitaDB žádné nevyhrazuje - a každý se
+        zpřístupní ve své podobě upravené pro Prometheus. Na rozdíl od většiny ostatních konfiguračních seznamů v
+        evitaDB znamená nenastavený nebo prázdný seznam, že se *nic* neexportuje - nikoliv vše; důvod tohoto obráceného
+        výchozího chování je popsán v poznámkách o
+        [bezpečné kardinalitě štítků](../query/header/label.md#kardinalita-štítků-a-export-do-prometheus). Inherentně
+        vysokokardinální štítky (`trace-id`, `client-id`, `ip-address`, `uri`) jsou vyhrazené a při startu odmítnuté.</p>
     </dd>
     <dt>mTls.enabled</dt>
     <dd>

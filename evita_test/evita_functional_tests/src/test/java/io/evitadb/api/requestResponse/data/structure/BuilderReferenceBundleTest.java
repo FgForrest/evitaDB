@@ -32,6 +32,7 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentMatchers;
@@ -43,13 +44,20 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.QUERY;
+import static io.evitadb.test.TestTags.REFERENCE;
 
 @DisplayName("BuilderReferenceBundle behavior")
+@Tag(CONTRACT)
+@Tag(QUERY)
+@Tag(REFERENCE)
 class BuilderReferenceBundleTest {
 
 	@Nonnull
@@ -67,7 +75,8 @@ class BuilderReferenceBundleTest {
 				true,
 				true,
 				String.class,
-				null
+				null,
+				ConflictResolutionOverride.INHERITED
 			)
 		);
 		// non-representative noise attribute
@@ -82,7 +91,8 @@ class BuilderReferenceBundleTest {
 				true,
 				false,
 				String.class,
-				null
+				null,
+				ConflictResolutionOverride.INHERITED
 			)
 		);
 		return Collections.unmodifiableMap(attrs);

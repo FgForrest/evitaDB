@@ -30,6 +30,9 @@ import com.linecorp.armeria.common.HttpResponse;
 import com.linecorp.armeria.common.HttpStatus;
 import com.linecorp.armeria.common.MediaType;
 import com.linecorp.armeria.server.HttpService;
+import io.evitadb.api.exception.CatalogBeingUpgradedException;
+import io.evitadb.api.exception.CatalogMissingException;
+import io.evitadb.api.exception.CatalogRequiresUpgradeException;
 import io.evitadb.exception.EvitaError;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.exception.HttpExchangeException;
@@ -57,6 +60,17 @@ public abstract class JsonApiExceptionHandler extends ExternalApiExceptionHandle
 	protected HttpResponse renderError(@Nonnull EvitaError evitaError, @Nonnull HttpRequest httpRequest) {
 		if (evitaError instanceof final HttpExchangeException httpExchangeException) {
 			return setResponse(httpExchangeException.getStatusCode(), httpExchangeException);
+		} else if (evitaError instanceof CatalogMissingException) {
+			// catalog's on-disk folder is gone — treat as 404 Not Found so clients surface the resource-not-available
+			// semantic rather than a generic bad-request.
+			return setResponse(HttpStatus.NOT_FOUND.code(), evitaError);
+		} else if (evitaError instanceof CatalogBeingUpgradedException) {
+			// transient conflict: the upgrade is in flight and will complete — retryable.
+			return setResponse(HttpStatus.CONFLICT.code(), evitaError);
+		} else if (evitaError instanceof CatalogRequiresUpgradeException) {
+			// catalog exists but its current state (OUT_OF_DATE) conflicts with any access attempt until the upgrade
+			// mutation is executed.
+			return setResponse(HttpStatus.CONFLICT.code(), evitaError);
 		} else if (evitaError instanceof EvitaInvalidUsageException) {
 			return setResponse(HttpStatus.BAD_REQUEST.code(), evitaError);
 		} else {

@@ -23,17 +23,14 @@
 
 package io.evitadb.index.price;
 
-import io.evitadb.core.query.SharedBufferPool;
+import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.price.priceIndex.PriceIdContainerFormula;
-import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
+import io.evitadb.core.transaction.memory.TransactionalStateProducer;
 import io.evitadb.dataType.array.CompositeObjectArray;
-import io.evitadb.dataType.iterator.BatchArrayIterator;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.IndexDataStructure;
 import io.evitadb.index.bitmap.Bitmap;
-import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
-import io.evitadb.index.iterator.RoaringBitmapBatchArrayIterator;
 import io.evitadb.index.price.model.PriceIndexKey;
 import io.evitadb.index.price.model.priceRecord.PriceRecord;
 import io.evitadb.index.price.model.priceRecord.PriceRecordContract;
@@ -44,7 +41,6 @@ import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
 import java.time.OffsetDateTime;
-import java.util.Arrays;
 import java.util.function.Consumer;
 import java.util.function.IntConsumer;
 
@@ -54,7 +50,7 @@ import java.util.function.IntConsumer;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public interface PriceListAndCurrencyPriceIndex<DIFF_PIECE, COPY> extends IndexDataStructure, TransactionalLayerProducer<DIFF_PIECE, COPY>, Serializable {
+public interface PriceListAndCurrencyPriceIndex<COPY> extends IndexDataStructure, TransactionalStateProducer<COPY>, Serializable {
 
 	/**
 	 * Returns unique identification of this index - contains price list name and currency combination.
@@ -75,114 +71,39 @@ public interface PriceListAndCurrencyPriceIndex<DIFF_PIECE, COPY> extends IndexD
 	int[] getIndexedPriceIds() throws PriceListAndCurrencyPriceIndexTerminated;
 
 	/**
-	 * Returns array of {@link PriceRecordContract} for passed bitmap of ids.
+	 * Materializes the price records for the passed id bitmap into an array, in ascending key order.
+	 * Every requested id MUST exist here — a missing id raises {@link GenericEvitaInternalError}.
+	 * Prefer {@link #forEachPriceRecord} when the records only need streaming; this array form is for
+	 * consumers that need random access (for example binary search).
 	 */
 	@Nonnull
-	default PriceRecordContract[] getPriceRecords(@Nonnull Bitmap priceIds)  throws PriceListAndCurrencyPriceIndexTerminated {
-		return getPriceRecords(
+	default PriceRecordContract[] getPriceRecords(@Nonnull Bitmap priceIds) throws PriceListAndCurrencyPriceIndexTerminated {
+		final CompositeObjectArray<PriceRecordContract> filteredPriceRecords =
+			new CompositeObjectArray<>(PriceRecordContract.class);
+		forEachPriceRecord(
 			priceIds,
-			priceRecordContract -> {
-			},
+			filteredPriceRecords::add,
 			notFoundPriceId -> {
 				throw new GenericEvitaInternalError("Price with id " + notFoundPriceId + " was not found in the same index!");
 			}
 		);
+		return filteredPriceRecords.toArray();
 	}
 
 	/**
-	 * Returns array of {@link PriceRecordContract} for passed bitmap of ids.
+	 * Streams the price records for the passed id bitmap to `priceFoundCallback` in ascending key order; every id
+	 * absent from this index is reported to `priceIdNotFoundCallback`. Unlike {@link #getPriceRecords(Bitmap)} it
+	 * never materializes an array, so streaming consumers pay no per-call allocation.
+	 *
+	 * @param priceIds                ascending bitmap of internal price ids to resolve
+	 * @param priceFoundCallback      receives each resolved price record in ascending key order
+	 * @param priceIdNotFoundCallback receives each requested id not present in this index
 	 */
-	@Nonnull
-	default PriceRecordContract[] getPriceRecords(
+	void forEachPriceRecord(
 		@Nonnull Bitmap priceIds,
 		@Nonnull Consumer<PriceRecordContract> priceFoundCallback,
 		@Nonnull IntConsumer priceIdNotFoundCallback
-	)  throws PriceListAndCurrencyPriceIndexTerminated {
-		// TOBEDONE JNO - there is also an issue https://github.com/RoaringBitmap/RoaringBitmap/issues/562 that could make this algorithm faster
-		final CompositeObjectArray<PriceRecordContract> filteredPriceRecords = new CompositeObjectArray<>(PriceRecordContract.class);
-		final int[] buffer = SharedBufferPool.INSTANCE.obtain();
-		try {
-			final BatchArrayIterator filteredPriceIdsIterator = new RoaringBitmapBatchArrayIterator(
-				RoaringBitmapBackedBitmap.getRoaringBitmap(priceIds).getBatchIterator(), buffer
-			);
-			final int[] supersetPriceIds = getIndexedPriceIds();
-			final PriceRecordContract[] priceRecords = getPriceRecords();
-
-			int priceIndex;
-			int lastPriceId = 0;
-			int lastPriceIndex = -1;
-			int lastExpectedPriceIndex;
-			int searchEndIndex;
-
-			while (filteredPriceIdsIterator.hasNext()) {
-				final int[] filteredBatch = filteredPriceIdsIterator.nextBatch();
-				// get the last price id from the batch
-				final int lastExpectedPriceId = filteredPriceIdsIterator.getPeek() > 0 ? filteredBatch[filteredPriceIdsIterator.getPeek() - 1] : -1;
-				// compute the index of the last price in a batch
-				lastExpectedPriceIndex = Arrays.binarySearch(
-					supersetPriceIds,
-					lastPriceIndex + 1,
-					// we can even here optimise the end index to the max difference of the last really found price to batch end price
-					lastExpectedPriceId == -1 ? supersetPriceIds.length : Math.min(supersetPriceIds.length, lastPriceIndex + lastExpectedPriceId - lastPriceId + 1),
-					lastExpectedPriceId
-				);
-				// compute the end index that needs to be looked within for all prices in filter batch
-				searchEndIndex = lastExpectedPriceIndex >= 0 ? lastExpectedPriceIndex + 1 : -1 * (lastExpectedPriceIndex) - 2 + 1;
-
-				// iterate over all prices in filter batch
-				for (int i = 0; i < filteredPriceIdsIterator.getPeek(); i++) {
-					int filteredPriceId = filteredBatch[i];
-
-					// if we reached the end of our price records
-					if (lastPriceIndex >= priceRecords.length) {
-						// iterate over rest of the filtered prices and report they were not found and finish
-						for (int j = i; j < filteredPriceIdsIterator.getPeek(); j++) {
-							priceIdNotFoundCallback.accept(filteredBatch[j]);
-						}
-						break;
-					} else if (filteredPriceId == lastExpectedPriceId) {
-						// if we reached the end price of the current batch - we can reuse the already known information
-						if (lastExpectedPriceIndex < 0) {
-							// the price was not found - report it
-							priceIdNotFoundCallback.accept(filteredPriceId);
-							lastPriceIndex = -1 * (lastExpectedPriceIndex) - 2;
-						} else {
-							// the price was found - report it
-							final PriceRecordContract priceRecord = priceRecords[lastExpectedPriceIndex];
-							priceFoundCallback.accept(priceRecord);
-							filteredPriceRecords.add(priceRecord);
-							lastPriceIndex = lastExpectedPriceIndex;
-						}
-					} else {
-						// look for the index of price detail (searched block is getting smaller and smaller with each match)
-						final int fromIndex = lastPriceIndex + 1;
-						final int toIndex = Math.min(fromIndex + filteredPriceId - lastPriceId, searchEndIndex);
-
-						// look for the price in currently read super set batch
-						priceIndex = Arrays.binarySearch(supersetPriceIds, fromIndex, toIndex, filteredPriceId);
-
-						if (priceIndex < 0) {
-							// the price was not found - report it
-							priceIdNotFoundCallback.accept(filteredPriceId);
-							lastPriceIndex = -1 * (priceIndex) - 2;
-						} else {
-							// the price was found - report it
-							final PriceRecordContract priceRecord = priceRecords[priceIndex];
-							priceFoundCallback.accept(priceRecord);
-							filteredPriceRecords.add(priceRecord);
-							lastPriceIndex = priceIndex;
-						}
-					}
-					lastPriceId = filteredPriceId;
-				}
-			}
-		} finally {
-			SharedBufferPool.INSTANCE.free(buffer);
-		}
-
-		// return found prices as array
-		return filteredPriceRecords.toArray();
-	}
+	) throws PriceListAndCurrencyPriceIndexTerminated;
 
 	/**
 	 * Returns formula that computes all indexed records of this combination of price list and currency.
@@ -196,6 +117,16 @@ public interface PriceListAndCurrencyPriceIndex<DIFF_PIECE, COPY> extends IndexD
 	 */
 	@Nonnull
 	PriceIdContainerFormula getIndexedRecordIdsValidInFormula(@Nonnull OffsetDateTime theMoment) throws PriceListAndCurrencyPriceIndexTerminated;
+
+	/**
+	 * Cache-aware variant of {@link #getIndexedRecordIdsValidInFormula(OffsetDateTime)} intended for the
+	 * {@code priceValidInNow} (suffix-{@code now}) variant of
+	 * {@link io.evitadb.api.query.filter.PriceValidIn}. Routes the underlying validity-range lookup through
+	 * the memoizing path on the internal {@code RangeIndex}, so consecutive same-bucket queries reuse the
+	 * previously materialized bitmap.
+	 */
+	@Nonnull
+	PriceIdContainerFormula getIndexedRecordIdsValidNowFormula(@Nonnull OffsetDateTime theMoment) throws PriceListAndCurrencyPriceIndexTerminated;
 
 	/**
 	 * Returns array of all {@link PriceRecord#internalPriceId()} of the entity.
@@ -219,9 +150,17 @@ public interface PriceListAndCurrencyPriceIndex<DIFF_PIECE, COPY> extends IndexD
 	/**
 	 * Returns formula that computes all indexed records in this index. Depending on the type of the index it returns
 	 * either entity ids or inner record ids.
+	 *
+	 * @param superPriceIndex the price index of the GLOBAL entity index of this index's collection and scope. The
+	 *                        returned formula resolves the lowest price records of an entity through it, because only
+	 *                        a super index owns the entity-to-prices mapping - a reduced (ref) index merely narrows
+	 *                        which entities are in scope. Supplying it here, rather than letting the index hold
+	 *                        a pointer to it, is what keeps a reduced index free of any catalog-version pin: the caller
+	 *                        is already pinned to a catalog version and hands over that version's GLOBAL.
 	 */
 	@Nonnull
-	Formula createPriceIndexFormulaWithAllRecords() throws PriceListAndCurrencyPriceIndexTerminated;
+	Formula createPriceIndexFormulaWithAllRecords(@Nonnull PriceSuperIndex superPriceIndex)
+		throws PriceListAndCurrencyPriceIndexTerminated;
 
 	/**
 	 * Returns true if index is empty.
@@ -233,6 +172,22 @@ public interface PriceListAndCurrencyPriceIndex<DIFF_PIECE, COPY> extends IndexD
 	 */
 	@Nullable
 	StoragePart createStoragePart(int entityIndexPrimaryKey) throws PriceListAndCurrencyPriceIndexTerminated;
+
+	/**
+	 * Appends this index's modified storage parts to `sink`. The default emits the single whole-index part from
+	 * {@link #createStoragePart(int)} (the ref index and any non-paged index); the super price index overrides this to
+	 * emit the granular `PAGED` leaf pages when its price-record tree spans multiple leaves.
+	 *
+	 * @param entityIndexPrimaryKey the owning entity index pk
+	 * @param sink                  the trapped-changes accumulator for this commit
+	 */
+	default void appendStorageParts(int entityIndexPrimaryKey, @Nonnull TrappedChanges sink)
+		throws PriceListAndCurrencyPriceIndexTerminated {
+		final StoragePart part = createStoragePart(entityIndexPrimaryKey);
+		if (part != null) {
+			sink.addChangeToStore(part);
+		}
+	}
 
 	/**
 	 * Returns true if index is terminated.

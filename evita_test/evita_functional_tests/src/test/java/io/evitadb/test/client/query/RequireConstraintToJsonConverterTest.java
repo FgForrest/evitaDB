@@ -41,16 +41,21 @@ import org.junit.jupiter.api.Test;
 import javax.annotation.Nonnull;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.QueryConstraints.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.MANAGEMENT;
 
 /**
  * Tests for {@link RequireConstraintToJsonConverter}.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-class RequireConstraintToJsonConverterTest extends ConstraintToJsonConverterTest {
+@Tag(ENGINE)
+@Tag(MANAGEMENT)
+class RequireConstraintToJsonConverterTest extends AbstractConstraintToJsonConverterTest {
 
 	@Nonnull private static final Set<Class<? extends Constraint<?>>> allowedRequireConstraints = Set.of(
 		Require.class,

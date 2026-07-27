@@ -38,18 +38,23 @@ import java.io.IOException;
 import java.io.Serializable;
 import java.time.OffsetDateTime;
 import java.util.Set;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.dataType.data.ComplexDataObjectToJsonConverterTest.createArrayComplexObject;
 import static io.evitadb.dataType.data.ComplexDataObjectToJsonConverterTest.createVeryComplexObject;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.DATA_TYPE;
 
 /**
  * This test verifies behaviour of {@link JsonToComplexDataObjectConverter}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
+@Tag(CONTRACT)
+@Tag(DATA_TYPE)
 class JsonToComplexDataObjectConverterTest {
 	private final ObjectMapper objectMapper = JsonMapper.builder()
 		.nodeFactory(new SortingNodeFactory())

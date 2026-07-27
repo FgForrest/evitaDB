@@ -35,6 +35,8 @@ import io.evitadb.api.requestResponse.mutation.StreamDirection;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictGenerationContext;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolution;
+import io.evitadb.api.requestResponse.mutation.conflict.GranularConflictPolicy;
 import io.evitadb.api.requestResponse.mutation.infrastructure.TransactionMutation;
 import io.evitadb.store.shared.model.FileLocation;
 import io.evitadb.store.wal.supplier.TransactionMutationWithLocation;
@@ -48,20 +50,24 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.EnumSet;
 import java.util.List;
-import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.TRANSACTION;
 
 /**
  * Tests for {@link TransactionMutation} verifying construction, getter
  * access, CDC capture generation, conflict key collection, equality,
  * and string representation.
  *
- * @author evitaDB
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("TransactionMutation")
+@Tag(CONTRACT)
+@Tag(TRANSACTION)
 class TransactionMutationTest implements EvitaTestSupport {
 
 	private static final UUID TX_ID =
@@ -97,7 +103,7 @@ class TransactionMutationTest implements EvitaTestSupport {
 			new MutationPredicateContext(StreamDirection.FORWARD);
 		return new MutationPredicate(context) {
 			@Override
-			public boolean test(@Nonnull Mutation mutation) {
+			public boolean test(Mutation mutation) {
 				return result;
 			}
 		};
@@ -178,7 +184,7 @@ class TransactionMutationTest implements EvitaTestSupport {
 		void shouldReturnVoidProgressResultType() {
 			final TransactionMutation mutation = createDefault();
 
-			assertEquals(Void.class, mutation.getProgressResultType());
+			assertSame(Void.class, mutation.getProgressResultType());
 		}
 	}
 
@@ -307,9 +313,11 @@ class TransactionMutationTest implements EvitaTestSupport {
 			final TransactionMutation mutation = createDefault();
 			final MutationPredicate predicate = constantPredicate(false);
 
-			mutation.toChangeCatalogCapture(
-				predicate, ChangeCaptureContent.BODY
-			).toList();
+			assertNotNull(
+				mutation.toChangeCatalogCapture(
+					predicate, ChangeCaptureContent.BODY
+				).toList()
+			);
 
 			// context side-effect happens before predicate test
 			final MutationPredicateContext context =
@@ -346,7 +354,7 @@ class TransactionMutationTest implements EvitaTestSupport {
 		@DisplayName(
 			"should return system capture when predicate matches"
 		)
-		void shouldReturnSystemCaptureWhenPredicateMatches() {
+		void shouldReturnEngineMutationCaptureWhenPredicateMatches() {
 			final TransactionMutation mutation = createDefault();
 			final MutationPredicate predicate = constantPredicate(true);
 
@@ -374,7 +382,7 @@ class TransactionMutationTest implements EvitaTestSupport {
 		@DisplayName(
 			"should return system capture without body for HEADER"
 		)
-		void shouldReturnSystemCaptureWithoutBodyForHeader() {
+		void shouldReturnEngineMutationCaptureWithoutBodyForHeader() {
 			final TransactionMutation mutation = createDefault();
 			final MutationPredicate predicate = constantPredicate(true);
 
@@ -413,12 +421,10 @@ class TransactionMutationTest implements EvitaTestSupport {
 		void shouldReturnEmptyConflictKeys() {
 			final TransactionMutation mutation = createDefault();
 			final ConflictGenerationContext context =
-				new ConflictGenerationContext();
+				new ConflictGenerationContext(new ConflictResolution(ConflictPolicy.CATALOG));
 
 			final Stream<ConflictKey> keys =
-				mutation.collectConflictKeys(
-					context, Set.of(ConflictPolicy.CATALOG)
-				);
+				mutation.collectConflictKeys(context);
 
 			assertEquals(0L, keys.count());
 		}
@@ -430,12 +436,15 @@ class TransactionMutationTest implements EvitaTestSupport {
 		void shouldReturnEmptyConflictKeysWithMultiplePolicies() {
 			final TransactionMutation mutation = createDefault();
 			final ConflictGenerationContext context =
-				new ConflictGenerationContext();
-			final Set<ConflictPolicy> allPolicies =
-				EnumSet.allOf(ConflictPolicy.class);
+				new ConflictGenerationContext(
+					new ConflictResolution(
+						ConflictPolicy.ENTITY,
+						EnumSet.allOf(GranularConflictPolicy.class)
+					)
+				);
 
 			final Stream<ConflictKey> keys =
-				mutation.collectConflictKeys(context, allPolicies);
+				mutation.collectConflictKeys(context);
 
 			assertEquals(0L, keys.count());
 		}

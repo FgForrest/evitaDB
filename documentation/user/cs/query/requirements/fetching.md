@@ -6,6 +6,7 @@ author: Ing. Jan Novotný
 proofreading: done
 preferredLang: evitaql
 commit: af4674ef54ec8fefb74b62622c04e5a275889f79
+translated: 'true'
 ---
 <LS to="e,j,c,r">
 
@@ -204,7 +205,7 @@ snížíte pouze množství dat přenášených po síti. Není na škodu načí
 
 Chcete-li vybrat atributy `code` a lokalizovaný `name` pro entitu `Brand`, použijte následující dotaz:
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Získání kódu a názvu značky](/documentation/user/en/query/requirements/examples/fetching/attributeContent.evitaql)
 </SourceCodeTabs>
@@ -332,7 +333,7 @@ Tato podmínka je zkratkou pro podmínku `attributeContent` se všemi atributy e
 
 Chcete-li vybrat všechny nelokalizované atributy entity `Brand`, použijte následující dotaz:
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Získání kódu a názvu značky](/documentation/user/en/query/requirements/examples/fetching/attributeContentAll.evitaql)
 </SourceCodeTabs>
@@ -388,7 +389,7 @@ nebo požadavkem [`dataInLocales`](#data-v-lokalizacích).
 
 Chcete-li vybrat *allActiveUrls* a lokalizovaná *localization* související data entity `Brand`, použijte následující dotaz:
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Získání kódu a názvu značky](/documentation/user/en/query/requirements/examples/fetching/associatedDataContent.evitaql)
 </SourceCodeTabs>
@@ -516,7 +517,7 @@ Protože se očekává, že související data budou obsahovat velké množství
 
 Chcete-li vybrat všechna nelokalizovaná související data entity `Brand`, použijte následující dotaz:
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Získání kódu a názvu značky](/documentation/user/en/query/requirements/examples/fetching/associatedDataContentAll.evitaql)
 </SourceCodeTabs>
@@ -578,7 +579,7 @@ se používá ve dvou scénářích:
 
 Pokud v dotazu chybí filtrační podmínka pro lokalizaci, ale přesto chcete přistupovat k lokalizovaným datům, můžete použít následující dotaz:
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Získání lokalizovaného názvu značky](/documentation/user/en/query/requirements/examples/fetching/dataInLocales.evitaql)
 </SourceCodeTabs>
@@ -610,7 +611,7 @@ V uvedeném příkladu je atribut *name* dostupný v české lokalizaci, i když
 
 Pro ukázku druhého scénáře, pokud chcete filtrovat značku, která má českou lokalizaci, ale chcete získat hodnoty atributu *name* v češtině a angličtině, použijte následující dotaz:
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Získání kódu a názvu značky ve více lokalizacích](/documentation/user/en/query/requirements/examples/fetching/dataInLocalesWithFilter.evitaql)
 </SourceCodeTabs>
@@ -654,7 +655,7 @@ Požadavek `dataInLocalesAll` vám umožňuje načíst atributy a související 
 
 Chcete-li načíst entitu ve všech dostupných lokalizacích, použijte následující dotaz:
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Získání lokalizovaného názvu značky](/documentation/user/en/query/requirements/examples/fetching/dataInLocalesAll.evitaql)
 </SourceCodeTabs>
@@ -725,7 +726,7 @@ Pokud zadáte vnořené omezení [`entityFetch`](#načtení-entity), hierarchick
 
 Pro načtení entity se základními hierarchickými informacemi použijte následující dotaz:
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Získání lokalizovaného názvu značky](/documentation/user/en/query/requirements/examples/fetching/hierarchyContent.evitaql)
 </SourceCodeTabs>
@@ -757,7 +758,7 @@ Entita `Category` je vrácena s hierarchickými informacemi až ke kořeni strom
 Pro ukázku složitějšího a užitečnějšího příkladu načtěme produkt s referencí na kategorii a pro kategorii
 načtěme její kompletní hierarchické umístění až ke kořeni stromu hierarchie s atributy `code` a `name` těchto kategorií. Dotaz vypadá takto:
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Získání lokalizovaného názvu značky](/documentation/user/en/query/requirements/examples/fetching/hierarchyContentViaReference.evitaql)
 </SourceCodeTabs>
@@ -805,7 +806,7 @@ informace o statistikách a možnost vypsat sourozence rodičovských entit. Na 
 
 Pro načtení entity se základními hierarchickými informacemi použijte následující dotaz:
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Získání lokalizovaného názvu značky](/documentation/user/en/query/requirements/examples/fetching/hierarchyContent.evitaql)
 </SourceCodeTabs>
@@ -828,7 +829,7 @@ Entita `Category` je vrácena s hierarchickými informacemi až ke kořeni strom
 Pro ukázku složitějšího a užitečnějšího příkladu načtěme produkt s referencí na kategorii a pro kategorii
 načtěme její kompletní hierarchické umístění až ke kořeni stromu hierarchie s atributy `code` a `name` těchto kategorií. Dotaz vypadá takto:
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Získání lokalizovaného názvu značky](/documentation/user/en/query/requirements/examples/fetching/hierarchyContentViaReference.evitaql)
 </SourceCodeTabs>
@@ -895,7 +896,7 @@ načíst neindexované ceny entity, které nemohou (a nemají) být použity k f
 U entit, které mají vnitřní zpracování záznamů `LOWEST_PRICE` nebo `SUM`, je vrácena vlastnost `multiplePricesForSaleAvailable`,
 která označuje, zda je k dispozici více _unikátních_ cen k prodeji (seskupených podle `innerRecordId`).
 Je důležité poznamenat, že nevrací pouze počet všech cen k prodeji.
-Místo toho používá omezení [`priceType`](../requirements/price.md#typ-ceny) k určení jedinečnosti každé
+Místo toho používá omezení [`priceType`](price.md#typ-ceny) k určení jedinečnosti každé
 cenové hodnoty. To znamená, že i když jsou například 3 ceny k prodeji, ale všechny mají stejnou hodnotu, tato vlastnost
 vrátí `false`. To je užitečné zejména pro
 UI, aby bylo možné určit, zda zobrazit cenové rozpětí nebo jen jednu cenu, aniž by bylo nutné načítat všechny ceny k prodeji.
@@ -904,7 +905,7 @@ UI, aby bylo možné určit, zda zobrazit cenové rozpětí nebo jen jednu cenu,
 
 Pro získání entity s cenami, podle kterých filtrujete, použijte následující dotaz:
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Získání entity s cenami a referenční cenou](/documentation/user/en/query/requirements/examples/fetching/priceContent.evitaql)
 </SourceCodeTabs>
@@ -962,7 +963,7 @@ Tento požadavek je pouze variantou obecného požadavku [`priceContent`](#obsah
 
 Pro získání entity s cenami, podle kterých filtrujete, a *referenční* cenou navíc, použijte následující dotaz:
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Získání entity s filtrovanými cenami a referenční cenou](/documentation/user/en/query/requirements/examples/fetching/priceContentRespectingFilter.evitaql)
 </SourceCodeTabs>
@@ -1005,7 +1006,7 @@ Tento požadavek je pouze variantou obecného požadavku [`priceContent`](#obsah
 
 Pro získání entity se všemi jejími cenami použijte následující dotaz:
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Získání entity s cenami a referenční cenou](/documentation/user/en/query/requirements/examples/fetching/priceContentAll.evitaql)
 </SourceCodeTabs>
@@ -1109,11 +1110,11 @@ chtít znát (a zobrazit) ceny k prodeji pro každou variantu (nebo nějaké roz
 to vždy vrátí maximálně jednu skutečnou cenu k prodeji. Pro vnitřní zpracování záznamů `SUM` to vrátí ceny k prodeji
 pro každý `innerRecordId` stejně jako pro `FIRST_OCCURRENCE`, ale použití je omezené.
 
-Vrácený seznam cen je seřazen podle hodnoty ceny od nejnižší po nejvyšší v závislosti na použití omezení [`priceType`](../requirements/price.md#typ-ceny).
+Vrácený seznam cen je seřazen podle hodnoty ceny od nejnižší po nejvyšší v závislosti na použití omezení [`priceType`](price.md#typ-ceny).
 
 Existuje také jednodušší pole `multiplePricesForSaleAvailable`, které vrací boolean určující, zda je
 k dispozici více _unikátních_ cen k prodeji. Je důležité poznamenat, že nevrací pouze počet `allPricesForSale`.
-Místo toho používá omezení [`priceType`](../requirements/price.md#typ-ceny) k určení jedinečnosti každé
+Místo toho používá omezení [`priceType`](price.md#typ-ceny) k určení jedinečnosti každé
 cenové hodnoty. To znamená, že i když jsou například 3 ceny k prodeji, ale všechny mají stejnou hodnotu, toto pole
 vrátí `false` (na rozdíl od `allPricesForSale`, které by vrátilo všechny ceny). To je užitečné zejména pro
 UI, aby bylo možné určit, zda zobrazit cenové rozpětí nebo jen jednu cenu, aniž by bylo nutné načítat všechny ceny k prodeji.
@@ -1161,7 +1162,7 @@ Následující dotaz požaduje výpočet ceny k prodeji i referenční ceny pro 
 
 Ukažme si tento princip na složitějším příkladu:
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Příklad dotazu na výpočet různých doprovodných cen](/documentation/user/en/query/requirements/examples/fetching/accompanying-price-content.evitaql)
 
@@ -1294,7 +1295,7 @@ referenceContent(
         <p>
         nepovinný argument, pokud je nastaven na `EXISTING`, vrací pouze existující reference na spravované entity;
         výchozí chování je nastaveno na `ANY`, což vrací všechny reference nastavené na entitě, bez ohledu na to,
-        zda ukazují na existující nebo neexistující entity (podrobnosti viz kapitola [chování spravovaných referencí](../requirements/reference.md#managed-references-behaviour))
+        zda ukazují na existující nebo neexistující entity (podrobnosti viz kapitola [chování spravovaných referencí](reference.md#managed-references-behaviour))
         </p>
     </dd>
     <dt>argument:string*</dt>
@@ -1356,7 +1357,7 @@ strukturu podle konkrétního schématu reference.
 
 Chcete-li získat entitu s referencí na kategorie a značku, použijte následující dotaz:
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Získání referencí na kategorii a značku entity](/documentation/user/en/query/requirements/examples/fetching/referenceContent.evitaql)
 
@@ -1394,7 +1395,7 @@ Vrácená entita `Product` bude obsahovat primární klíče všech kategorií a
 V mnoha scénářích budete potřebovat načíst nejen primární klíče referencovaných entit, ale také jejich těla a
 těla skupin, na které reference odkazují. Jedním z běžných scénářů je načítání parametrů produktu:
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Získání hodnot parametrů entity](/documentation/user/en/query/requirements/examples/fetching/referenceContentBodies.evitaql)
 
@@ -1435,7 +1436,7 @@ Pro demonstraci grafového načítání více úrovní referencí načteme produ
 pro každou skupinu načteme její tagy a pro každý tag název kategorie tagu. Dotaz obsahuje 4 úrovně
 souvisejících entit: produkt → skupina → tag → kategorie tagu. Dotaz vypadá takto:
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Získání skupin entity a jejich tagů](/documentation/user/en/query/requirements/examples/fetching/referenceContentNested.evitaql)
 
@@ -1482,7 +1483,7 @@ podobně jako atributy entity.
 Chcete-li získat entitu s referencí na hodnotu parametru, která ukazuje, která asociace definuje unikátní kombinaci
 produkt-varianta a které hodnoty parametrů jsou pouze informativní, použijte následující dotaz:
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Získání entity s referencemi a jejich atributy](/documentation/user/en/query/requirements/examples/fetching/referenceContentWithAttributes.graphql)
 </SourceCodeTabs>
@@ -1545,7 +1546,7 @@ Například váš produkt má mnoho parametrů, ale na detailní stránce produk
 součástí skupiny obsahující atribut *isVisibleInDetail* nastavený na *TRUE*. Pro načtení pouze těchto parametrů použijte
 následující dotaz:
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Získání hodnot parametrů entity viditelných na detailní stránce](/documentation/user/en/query/requirements/examples/fetching/referenceContentFilter.evitaql)
 
@@ -1600,7 +1601,7 @@ omezení na atributech referencované entity, musíte je zabalit do kontejneru [
 Řekněme, že chcete, aby vaše parametry byly seřazeny podle anglického názvu parametru. K tomu použijte následující
 dotaz:
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Získání hodnot parametrů entity seřazených podle názvu](/documentation/user/en/query/requirements/examples/fetching/referenceContentOrder.evitaql)
 
@@ -1651,7 +1652,7 @@ a načtěte pouze počet referencí bez načítání skutečných dat.
 
 Řekněme, že potřebujete pouze zjistit, zda existuje nějaký parametr pro produkt. K tomu použijte následující dotaz:
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Získání počtu hodnot parametrů entity bez jejich načtení](/documentation/user/en/query/requirements/examples/fetching/referenceContentPageEmpty.evitaql)
 
@@ -1688,7 +1689,7 @@ Pokud je možný počet hodnot parametrů velký, je lepší omezit vrácený po
 může zpracovat/zobrazit. V této situaci pravděpodobně budete chtít zobrazit nejdůležitější jako první, takže
 se vám bude hodit omezení `orderBy`:
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Získání počtu hodnot parametrů entity bez jejich načtení](/documentation/user/en/query/requirements/examples/fetching/referenceContentPage.evitaql)
 
@@ -1778,7 +1779,7 @@ Podrobné informace naleznete v kapitole požadavku [`referenceContent`](#refere
 
 Chcete-li získat entitu se všemi dostupnými referencemi, použijte následující dotaz:
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Získání entity se všemi referencemi](/documentation/user/en/query/requirements/examples/fetching/referenceContentAll.evitaql)
 </SourceCodeTabs>
@@ -1875,7 +1876,7 @@ Podrobné informace naleznete v kapitole požadavku [`referenceContent`](#refere
 Chcete-li získat entitu s referencí na hodnotu parametru, která ukazuje, která asociace definuje unikátní kombinaci
 produkt-varianta a které hodnoty parametrů jsou pouze informativní, použijte následující dotaz:
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Získání entity s referencemi a jejich atributy](/documentation/user/en/query/requirements/examples/fetching/referenceContentWithAttributes.evitaql)
 </SourceCodeTabs>
@@ -1988,7 +1989,7 @@ k definici více referenčních polí s různými parametry.
 Chcete-li rozlišit mediální soubory podle galerie jako samostatné kolekce, můžete definovat více referenčních polí s
 unikátními aliasy a vlastním filtrováním: 
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Příklad dotazu pro požadavek různých konfigurací stejného typu reference](/documentation/user/en/query/requirements/examples/fetching/namedReferenceContent.graphql)
 
@@ -2006,7 +2007,7 @@ To povede k následujícímu výsledku:
 
 Chcete-li získat entitu se všemi referencemi a jejich atributy, použijte následující dotaz:
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Získání entity se všemi referencemi a jejich atributy](/documentation/user/en/query/requirements/examples/fetching/referenceContentAllWithAttributes.evitaql)
 
@@ -2081,7 +2082,7 @@ Podrobnosti si můžete ověřit v [tomto issue](https://github.com/FgForrest/ev
 
 Tento princip si ukážeme na složitějším příkladu:
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Příklad dotazu pro výpočet různých doprovodných cen](/documentation/user/en/query/requirements/examples/fetching/accompanying-price-content.evitaql)
 

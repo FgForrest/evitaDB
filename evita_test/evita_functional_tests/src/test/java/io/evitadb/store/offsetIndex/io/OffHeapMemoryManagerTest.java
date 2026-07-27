@@ -24,17 +24,21 @@
 package io.evitadb.store.offsetIndex.io;
 
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.store.checksum.ChecksumFactory;
 import io.evitadb.test.TestConstants;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
 import java.nio.BufferOverflowException;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static io.evitadb.test.TestTags.STORAGE;
+import static io.evitadb.test.TestTags.MANAGEMENT;
 
 /**
  * Tests for {@link CatalogOffHeapMemoryManager} focusing on:
@@ -47,9 +51,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 @DisplayName("CatalogOffHeapMemoryManager off-heap regions and stream semantics")
+@Tag(STORAGE)
+@Tag(MANAGEMENT)
 class OffHeapMemoryManagerTest {
 	private final CatalogOffHeapMemoryManager memoryManager = new CatalogOffHeapMemoryManager(
-		TestConstants.TEST_CATALOG, 1024, 16);
+		TestConstants.TEST_CATALOG, 1024, 16, ChecksumFactory.NO_OP
+	);
 
 	/**
 	 * Verifies that a region output stream can be acquired, written to, and read back
@@ -165,7 +172,7 @@ class OffHeapMemoryManagerTest {
 	void shouldReleaseRegionAndIncreaseFreeRegionsWhenStreamIsReleased() {
 		try (
 			final CatalogOffHeapMemoryManager memoryManager = new CatalogOffHeapMemoryManager(
-				TestConstants.TEST_CATALOG, 1024, 16
+				TestConstants.TEST_CATALOG, 1024, 16, ChecksumFactory.NO_OP
 			);
 			final OffHeapMemoryOutputStream outputStream = memoryManager.acquireRegionOutputStream().orElseThrow()
 		) {
@@ -196,7 +203,7 @@ class OffHeapMemoryManagerTest {
 	void shouldThrowExceptionWhenReleasingAlreadyReleasedRegion() {
 		try (
 			final CatalogOffHeapMemoryManager memoryManager = new CatalogOffHeapMemoryManager(
-				TestConstants.TEST_CATALOG, 1024, 16
+				TestConstants.TEST_CATALOG, 1024, 16, ChecksumFactory.NO_OP
 			);
 			final OffHeapMemoryOutputStream outputStream = memoryManager.acquireRegionOutputStream().orElseThrow()
 		) {

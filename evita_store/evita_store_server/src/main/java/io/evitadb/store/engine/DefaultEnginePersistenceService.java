@@ -35,8 +35,11 @@ import io.evitadb.core.executor.Scheduler;
 import io.evitadb.core.metric.event.storage.FileType;
 import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.function.Functions;
+import io.evitadb.spi.store.catalog.shared.model.TransactionMutationWithWalReference;
 import io.evitadb.spi.store.engine.EnginePersistenceService;
+import io.evitadb.spi.store.engine.model.CatalogInventoryDivergence;
 import io.evitadb.spi.store.engine.model.EngineState;
+import io.evitadb.spi.store.engine.model.UnprocessedTransactionRecord;
 import io.evitadb.store.kryo.ObservableOutputKeeper;
 import io.evitadb.store.model.reference.LogFileRecordReference;
 import io.evitadb.store.model.reference.TransactionMutationWithWalFileReference;
@@ -44,7 +47,10 @@ import io.evitadb.store.offsetIndex.io.OffHeapMemoryManager;
 import io.evitadb.store.offsetIndex.io.ReadOnlyFileHandle;
 import io.evitadb.store.offsetIndex.io.WriteOnlyFileHandle;
 import io.evitadb.store.offsetIndex.io.WriteOnlyOffHeapWithFileBackupHandle;
+import io.evitadb.store.catalog.Migration_2026_1;
+import io.evitadb.spi.store.engine.exception.WriteAheadLogCorruptedException;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
+import io.evitadb.store.settings.StorageSettings;
 import io.evitadb.store.shared.kryo.KryoFactory;
 import io.evitadb.store.wal.EngineMutationLog;
 import io.evitadb.store.wal.WalKryoConfigurer;
@@ -65,11 +71,13 @@ import java.nio.file.Path;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.locks.ReentrantLock;
-import java.util.function.IntFunction;
+import java.util.function.Function;
 import java.util.stream.Stream;
 
 import static io.evitadb.store.offsetIndex.model.StorageRecord.read;
@@ -91,12 +99,7 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 	/**
 	 * Storage configuration options.
 	 */
-	private final StorageOptions storageOptions;
-
-	/**
-	 * Transaction configuration options.
-	 */
-	private final TransactionOptions transactionOptions;
+	private final StorageSettings storageSettings;
 
 	/**
 	 * Scheduler for asynchronous operations.
@@ -159,6 +162,16 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 	private EngineState<LogFileRecordReference> engineState;
 
 	/**
+	 * Boot-time divergence between the persisted {@link EngineState}'s catalog inventory and the catalog folders
+	 * that are actually present on disk. Computed once during construction by `computeCatalogInventoryDivergence`,
+	 * and exposed to `Evita` through {@link #getPendingCatalogInventoryDivergence()} so it can be drained as
+	 * WAL-backed engine mutations once {@code EngineTransactionManager} is available. Stays at
+	 * {@link CatalogInventoryDivergence#EMPTY} for fresh services or when the persisted state already matches the
+	 * on-disk reality.
+	 */
+	@Nonnull private CatalogInventoryDivergence pendingCatalogInventoryDivergence = CatalogInventoryDivergence.EMPTY;
+
+	/**
 	 * Flag indicating whether the engine state was newly created.
 	 */
 	@Getter private boolean created;
@@ -180,25 +193,27 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 		@Nonnull TransactionOptions transactionOptions,
 		@Nonnull Scheduler scheduler
 	) {
-		this.storageOptions = storageOptions;
-		this.transactionOptions = transactionOptions;
+		this.storageSettings = new StorageSettings(storageOptions, transactionOptions);
 		this.scheduler = scheduler;
 
 		// Initialize off-heap memory manager with transaction memory limits
 		this.offHeapMemoryManager = new OffHeapMemoryManager(
-			transactionOptions.transactionMemoryBufferLimitSizeBytes(),
-			transactionOptions.transactionMemoryRegionCount()
+			this.storageSettings.transactionMemoryBufferLimitSizeBytes(),
+			this.storageSettings.transactionMemoryRegionCount(),
+			this.storageSettings
 		);
 
 		// Create output keeper for observing and managing outputs
 		this.observableOutputKeeper = new ObservableOutputKeeper(
-			storageOptions,
+			this.storageSettings.outputBufferSize(),
+			this.storageSettings.lockTimeoutSeconds(),
+			this.storageSettings.waitOnCloseSeconds(),
 			scheduler
 		);
 
 		// Try to acquire lock over storage directory to ensure exclusive access
-		this.folderLock = new FolderLock(storageOptions.storageDirectory());
-		this.bootstrapFilePath = storageOptions.storageDirectory()
+		this.folderLock = new FolderLock(this.storageSettings.storageDirectory());
+		this.bootstrapFilePath = this.storageSettings.storageDirectory()
 		                                       .resolve(EnginePersistenceService.getBootstrapFileName());
 
 		// We need to do this before we create the write handle, because it will create the file if it doesn't exist.
@@ -208,27 +223,100 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 		if (bootstrapFileExists) {
 			this.engineState = readEngineState();
 			this.created = false;
-			this.engineState = syncEngineStateByFolderContents(storageOptions, this.engineState);
+			// Migrate WAL files if needed (version 4 -> 5)
+			if (this.engineState.storageProtocolVersion() < STORAGE_PROTOCOL_VERSION) {
+				final LogFileRecordReference correctedWalRef = Migration_2026_1.upgradeEngineWalFiles(
+					this.storageSettings.storageDirectory(),
+					this.engineState.walReference(),
+					this.storageSettings
+				);
+				// Update engine state with new storage protocol version and corrected WAL reference.
+				// Storage protocol version is orthogonal to the logical version counter — a migration
+				// is not a WAL-backed mutation, so the version counter must not advance here.
+				final EngineState<LogFileRecordReference> newEngineState = new EngineState<>(
+					STORAGE_PROTOCOL_VERSION,
+					this.engineState.version(),
+					this.engineState.introducedAt(),
+					correctedWalRef != null ? correctedWalRef : this.engineState.walReference(),
+					this.engineState.activeCatalogs(),
+					this.engineState.inactiveCatalogs(),
+					this.engineState.readOnlyCatalogs()
+				);
+				rewriteEngineStateInPlace(newEngineState);
+			}
 		} else {
-			this.engineState = createNewEngineState(storageOptions);
+			this.engineState = createNewEngineState(this.storageSettings);
 			this.created = true;
 		}
+
+		final LogFileRecordReference logFileRecordReference = this.engineState.walReference() == null ?
+			new LogFileRecordReference(EnginePersistenceService::getWalFileName) : this.engineState.walReference();
 
 		// Initialize the write-ahead log if there are any WAL files present
 		this.mutationLog = createWalIfAnyWalFilePresent(
 			this.engineState.version(),
-			EnginePersistenceService::getWalFileName,
-			storageOptions, transactionOptions, scheduler,
+			logFileRecordReference,
+			this.storageSettings,
+			scheduler,
 			this.walKryoPool
 		);
+
+		// Fail-loud startup invariant check.
+		//
+		// The engine state bootstrap file and the WAL are kept in lock-step by EngineTransactionManager: the WAL is
+		// appended first, then the bootstrap file is rewritten with the matching version. Any disagreement between
+		// the two on startup signals that the previous run left persistent state in an inconsistent shape —
+		// typically either a crash between the two writes, or a WAL/state file that has been externally tampered
+		// with. Silently recovering from drift would mask the root cause and can wedge the engine in subtle ways.
+		// We surface the condition immediately.
+		//
+		// Legitimate non-matching cases permitted here:
+		//
+		// 1. `walVersion == stateVersion` — the normal post-commit steady state.
+		// 2. `walVersion == 0 && stateVersion == 1` — a never-used service whose initial engine state is stored at
+		//    version 1 before any WAL file exists (also covers a rebooted fresh service that never saw a committed
+		//    mutation).
+		// 3. `walVersion == stateVersion + 1` — an OS-level crash inside the fused critical section of
+		//    `appendWalAndStoreState` between the WAL append and the bootstrap rewrite. The WAL entry is durable,
+		//    the work-phase side effects already happened before the fused call, but the bootstrap still reports
+		//    the old version. Forward WAL replay reconciles the bootstrap at a higher layer
+		//    (`EngineTransactionManager.replayCrashedMutationIfNeeded`) without appending to the WAL.
+		//
+		// Any other combination still throws — those indicate actual corruption or tampering and require operator
+		// intervention.
+		//
+		// This check runs BEFORE `syncEngineStateByFolderContents` so a drifted state cannot be
+		// silently "healed" by the reconciliation (which rewrites the bootstrap file in place).
+		// Preserving the drift on disk is critical for post-mortem diagnosis.
+		final long walVersion = this.mutationLog == null ? 0L : this.mutationLog.getLastWrittenVersion();
+		final long stateVersion = this.engineState.version();
+		Assert.isPremiseValid(
+			walVersion == stateVersion
+				|| (walVersion == 0L && stateVersion == 1L)
+				|| walVersion == stateVersion + 1L,
+			() -> "Engine state / WAL version drift detected on startup! " +
+				"WAL lastWrittenVersion=" + walVersion + ", engineState.version=" + stateVersion + ". " +
+				"Refusing to boot — the on-disk state is inconsistent and requires operator intervention. " +
+				"Allowed combinations are: walVersion == stateVersion, " +
+				"(walVersion == 0 && stateVersion == 1), or walVersion == stateVersion + 1 " +
+				"(the single-mutation crash window recovered by forward WAL replay)."
+		);
+
+		// The reconciliation here is a pure value computation: we capture which catalogs are now
+		// missing on disk, which previously-missing catalogs reappeared, and which folders are
+		// brand new. The persisted bootstrap is **not** rewritten. `Evita` later drains this
+		// divergence as proper WAL-backed engine mutations once `EngineTransactionManager` exists,
+		// preserving the WAL-first invariant and making the boot-time reconciliation observable through CDC.
+		if (!this.created) {
+			this.pendingCatalogInventoryDivergence = computeCatalogInventoryDivergence(this.storageSettings, this.engineState);
+		}
 	}
 
 	/**
 	 * Creates a CatalogWriteAheadLog if there are any WAL files present in the catalog file path.
 	 *
 	 * @param version            the version of the engine
-	 * @param storageOptions     the storage options
-	 * @param transactionOptions the transaction options
+	 * @param storageSettings     the storage options
 	 * @param scheduler          the executor service
 	 * @param kryoPool           the Kryo pool
 	 * @return a EngineMutationLog object if WAL files are present, otherwise null
@@ -236,21 +324,20 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 	@Nullable
 	static EngineMutationLog createWalIfAnyWalFilePresent(
 		long version,
-		@Nonnull IntFunction<String> walFileNameProvider,
-		@Nonnull StorageOptions storageOptions,
-		@Nonnull TransactionOptions transactionOptions,
+		@Nonnull LogFileRecordReference logFileRecordReference,
+		@Nonnull StorageSettings storageSettings,
 		@Nonnull Scheduler scheduler,
 		@Nonnull Pool<Kryo> kryoPool
 	) {
-		final Path storageFolder = storageOptions.storageDirectory();
+		final Path storageFolder = storageSettings.storageDirectory();
 		final File[] walFiles = storageFolder
 			.toFile()
 			.listFiles((dir, name) -> name.endsWith(WAL_FILE_SUFFIX));
 		return walFiles == null || walFiles.length == 0 ?
 			null :
 			new EngineMutationLog(
-				version, walFileNameProvider, storageFolder, kryoPool,
-				storageOptions, transactionOptions, scheduler
+				version, logFileRecordReference, storageFolder, kryoPool,
+				storageSettings, scheduler
 			);
 	}
 
@@ -270,10 +357,18 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 		return this.engineState;
 	}
 
+	@Nonnull
+	@Override
+	public CatalogInventoryDivergence getPendingCatalogInventoryDivergence() {
+		return this.pendingCatalogInventoryDivergence;
+	}
+
 	@Override
 	public void storeEngineState(@Nonnull EngineState<LogFileRecordReference> engineState) {
 		this.created = false;
-		// Validate that the version is incremented by exactly one
+		// Validate that the version is incremented by exactly one — this is the
+		// public entry point for WAL-backed state transitions, so the new version
+		// must correspond to exactly one appended mutation.
 		Assert.isPremiseValid(
 			(this.engineState == null && engineState.version() == 1) ||
 				(this.engineState != null && this.engineState.version() + 1 == engineState.version()),
@@ -282,7 +377,85 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 				"Engine state version must be incremented by one when storing new engine state! " +
 					"Current version: " + this.engineState.version() + ", new version: " + engineState.version()
 		);
+		writeBootstrapFile(engineState);
+	}
 
+	/**
+	 * Rewrites the bootstrap file in place without advancing the engine version counter.
+	 *
+	 * This is used for non-mutation reconciliation paths where only storage-layer metadata changes (e.g. storage
+	 * protocol upgrade, catalog list reconciliation against on-disk contents). Such changes are **not** backed by
+	 * WAL entries, so bumping the version counter here would drift the engine state version ahead of the WAL and
+	 * permanently wedge the engine.
+	 *
+	 * @param engineState the reconciled engine state to persist; must have the
+	 *                    same version as the current in-memory state
+	 */
+	private void rewriteEngineStateInPlace(@Nonnull EngineState<LogFileRecordReference> engineState) {
+		Assert.isPremiseValid(
+			this.engineState != null && this.engineState.version() == engineState.version(),
+			() -> "In-place engine state rewrite must preserve the version counter! " +
+				"Current version: " + (this.engineState == null ? "<none>" : this.engineState.version()) +
+				", new version: " + engineState.version()
+		);
+		writeBootstrapFile(engineState);
+	}
+
+	/**
+	 * Forward-replay reconciliation of the bootstrap file.
+	 *
+	 * Only callable during forward WAL replay. The WAL must already contain a committed mutation
+	 * at `newState.version()` — this method just reconciles the bootstrap file with that committed
+	 * entry without appending to WAL.
+	 *
+	 * This path exists to recover from the single OS-crash window inside the fused critical section
+	 * of `appendWalAndStoreState`, in which the WAL entry was durably written but the bootstrap
+	 * rewrite never completed. The caller (`EngineTransactionManager.replayCrashedMutationIfNeeded`)
+	 * has already re-applied the committed mutation to the in-memory `ExpandedEngineState`; this
+	 * method persists the reconciled snapshot.
+	 *
+	 * Preconditions (asserted via `Assert.isPremiseValid`):
+	 *
+	 * - `newState.version() == this.engineState.version() + 1`
+	 * - `this.mutationLog != null && this.mutationLog.getLastWrittenVersion() == newState.version()`
+	 *
+	 * Holds the WAL write lock to prevent any interleaving append from observing the intermediate
+	 * state; the lock is always released before returning.
+	 *
+	 * @param newState engine state at the next version to persist; must not be null
+	 */
+	@Override
+	public void rewriteEngineStateAtNextVersion(@Nonnull EngineState<LogFileRecordReference> newState) {
+		this.walWriteLock.lock();
+		try {
+			final long currentVersion = this.engineState.version();
+			final long targetVersion = newState.version();
+			Assert.isPremiseValid(
+				currentVersion + 1L == targetVersion,
+				() -> "Forward-replay bootstrap rewrite must advance engine state by exactly one version! " +
+					"Current version: " + currentVersion + ", target version: " + targetVersion
+			);
+			Assert.isPremiseValid(
+				this.mutationLog != null
+					&& this.mutationLog.getLastWrittenVersion() == targetVersion,
+				() -> "Forward-replay bootstrap rewrite requires the WAL to already contain a committed " +
+					"mutation at the target version! Target version: " + targetVersion +
+					", WAL lastWrittenVersion=" +
+					(this.mutationLog == null ? "<no WAL>" : this.mutationLog.getLastWrittenVersion())
+			);
+			// WAL already holds the committed mutation — we just reconcile the bootstrap.
+			writeBootstrapFile(newState);
+		} finally {
+			this.walWriteLock.unlock();
+		}
+	}
+
+	/**
+	 * Serializes the given engine state into the bootstrap file via a tmp-rename
+	 * swap and updates the in-memory reference. The caller is responsible for
+	 * enforcing the version-counter invariant appropriate for the call site.
+	 */
+	private void writeBootstrapFile(@Nonnull EngineState<LogFileRecordReference> engineState) {
 		// Initialize handle for writing engine state data to file
 		final Path tmpFile = this.bootstrapFilePath.getParent().resolve(
 			this.bootstrapFilePath.getName(this.bootstrapFilePath.getNameCount() - 1) + ".tmp");
@@ -292,7 +465,10 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 				FileType.ENGINE,
 				"engine",
 				tmpFile,
-				this.storageOptions,
+				this.storageSettings.outputBufferSize(),
+				this.storageSettings.syncWrites(),
+				this.storageSettings,
+				this.storageSettings,
 				this.observableOutputKeeper
 			)
 		) {
@@ -324,11 +500,19 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 
 		// Update the current engine state
 		this.engineState = engineState;
-
 	}
 
+	/**
+	 * Appends a transaction mutation to the WAL **without** advancing the engine state. Test-only — production
+	 * code must use {@link #appendWalAndStoreState} so the WAL append and the matching bootstrap rewrite happen
+	 * atomically and the WAL-first invariant cannot be violated by mistake.
+	 *
+	 * Retained on the concrete implementation (and removed from the SPI) so tests exercising deliberate WAL ↔
+	 * engine-state desynchronization — startup-invariant negative tests and forward-replay setup — can construct
+	 * the desync state that the fused primitive prevents by construction. Any caller outside {@code src/test}
+	 * is a bug.
+	 */
 	@Nonnull
-	@Override
 	public TransactionMutationWithWalFileReference appendWal(
 		long version,
 		@Nonnull UUID transactionId,
@@ -336,72 +520,211 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 	) {
 		this.walWriteLock.lock();
 		try {
-			// Initialize WAL if it doesn't exist yet
-			if (this.mutationLog == null) {
-				this.mutationLog = new EngineMutationLog(
-					getVersion(),
-					EnginePersistenceService::getWalFileName,
-					this.storageOptions.storageDirectory(),
-					this.walKryoPool,
-					this.storageOptions,
-					this.transactionOptions,
-					this.scheduler
-				);
-			}
+			return doAppendWalLocked(version, transactionId, mutation);
+		} finally {
+			this.walWriteLock.unlock();
+		}
+	}
 
-			// Initialize handle for writing WAL data to off-heap memory
-			try (
-				final WriteOnlyOffHeapWithFileBackupHandle logWriteHandle = new WriteOnlyOffHeapWithFileBackupHandle(
-					this.transactionOptions.transactionWorkDirectory().resolve(transactionId + ".tmp"),
-					this.storageOptions,
-					this.observableOutputKeeper,
-					this.offHeapMemoryManager
-				)
-			) {
+	/**
+	 * Fused WAL-first commit.
+	 *
+	 * Appends the transaction mutation to the WAL AND writes the matching engine state to the bootstrap file as one
+	 * indivisible critical section guarded by `walWriteLock`. This removes the window in which a caller could,
+	 * through a refactoring mistake, advance engine state without a matching WAL append and silently violate the
+	 * startup invariant.
+	 *
+	 * On success both `getLastVersionInMutationStream()` and `getEngineState().version()` equal `version` by
+	 * construction.
+	 *
+	 * Failure semantics (all-or-nothing): if `stateFactory` throws, the WAL append is rolled back (WAL file
+	 * truncated to the pre-append position and the in-memory mutation log reset), then the throwable is rethrown.
+	 */
+	@Nonnull
+	@Override
+	public TransactionMutationWithWalReference appendWalAndStoreState(
+		long version,
+		@Nonnull UUID transactionId,
+		@Nonnull EngineMutation<?> mutation,
+		@Nonnull Function<TransactionMutationWithWalReference, EngineState<LogFileRecordReference>> stateFactory
+	) {
+		this.walWriteLock.lock();
+		try {
+			// Validate the WAL-backed version invariant BEFORE any side-effect so
+			// a non-incremental call cannot leave the WAL or bootstrap file partially
+			// advanced.
+			final long currentVersion = this.engineState.version();
+			Assert.isPremiseValid(
+				currentVersion + 1 == version,
+				() -> "Engine state version must be incremented by one when storing new engine state! " +
+					"Current version: " + currentVersion + ", new version: " + version
+			);
 
-				// Write the mutation to the WAL and get its size in bytes
-				final int mutationSizeInBytes = logWriteHandle.checkAndExecute(
-					"write mutation",
-					() -> {
-					},
-					output -> {
-						final Kryo writeKryo = this.walKryoPool.obtain();
-						try {
-							// Create a storage record with the mutation
-							final StorageRecord<Mutation> record = new StorageRecord<>(
-								output, version, true,
-								theOutput -> {
-									// Serialize the mutation using Kryo
-									writeKryo.writeClassAndObject(output, mutation);
-									return mutation;
-								}
-							);
-							// Return the size of the record
-							return record.fileLocation().recordLength();
-						} finally {
-							// Return Kryo instance to the pool
-							this.walKryoPool.free(writeKryo);
-						}
-					}
-				);
+			// Initialize WAL up front so we can read its file path for the rollback
+			// snapshot before the append touches it.
+			@SuppressWarnings("resource") final EngineMutationLog log = ensureMutationLogInitialized();
 
-				// Create a transaction mutation with the mutation size
-				final TransactionMutation transactionMutation = new TransactionMutation(
-					transactionId, version, 1, mutationSizeInBytes, OffsetDateTime.now()
-				);
+			// Capture pre-append state for rollback on factory failure (Option A).
+			// We remember the WAL file path and its physical size so we can
+			// truncate back exactly to the pre-append offset if the state factory
+			// throws. When the pre-append size is zero the WAL file was freshly
+			// created by this call and will be deleted instead of truncated.
+			final Path preAppendWalFilePath = log.getWalFilePath();
+			final long preAppendWalFileSize = preAppendWalFilePath.toFile().length();
+			final LogFileRecordReference preAppendWalReference = this.engineState.walReference();
 
-				// Append the transaction mutation to the WAL
-				return new TransactionMutationWithWalFileReference(
-					this.mutationLog.append(
-						transactionMutation,
-						// when reading is done, the off-heap memory will be released automatically
-						logWriteHandle.toReadOffHeapWithFileBackupReference()
-					),
-					transactionMutation
+			final TransactionMutationWithWalFileReference txRef = doAppendWalLocked(version, transactionId, mutation);
+
+			// Invoke the state factory and store the resulting engine state. If
+			// the factory throws we roll the WAL append back and rethrow.
+			try {
+				final EngineState<LogFileRecordReference> newEngineState = stateFactory.apply(txRef);
+				Assert.isPremiseValid(
+					newEngineState != null && newEngineState.version() == version,
+					() -> "State factory must return a non-null engine state at version " + version +
+						", but returned " + (newEngineState == null ? "<null>" : "version=" + newEngineState.version())
 				);
+				// We already hold walWriteLock and have already enforced the
+				// `current + 1 == version` invariant up front, so bypass the
+				// public storeEngineState re-check and write the bootstrap file
+				// directly. This keeps the WAL append + bootstrap write as a
+				// single fused critical section.
+				this.created = false;
+				writeBootstrapFile(newEngineState);
+				return txRef;
+			} catch (Throwable t) {
+				rollbackWalAppend(preAppendWalFilePath, preAppendWalFileSize, preAppendWalReference);
+				throw t;
 			}
 		} finally {
 			this.walWriteLock.unlock();
+		}
+	}
+
+	/**
+	 * Lazily initialises {@link #mutationLog} on first use and returns the non-null reference so
+	 * callers can chain accesses without re-reading the field (which would force them through a
+	 * nullable read again). Idempotent — subsequent calls return the existing log. Caller must
+	 * hold {@code walWriteLock} so the assignment is safely published to other threads that
+	 * observe the field through the lock.
+	 */
+	@Nonnull
+	private EngineMutationLog ensureMutationLogInitialized() {
+		if (this.mutationLog == null) {
+			this.mutationLog = new EngineMutationLog(
+				getVersion(),
+				new LogFileRecordReference(EnginePersistenceService::getWalFileName),
+				this.storageSettings.storageDirectory(),
+				this.walKryoPool,
+				this.storageSettings,
+				this.scheduler
+			);
+		}
+		return this.mutationLog;
+	}
+
+	/**
+	 * Shared WAL-append primitive used by both {@link #appendWal} (test-only desync helper) and
+	 * {@link #appendWalAndStoreState} (production fused commit). Serializes the mutation into an
+	 * off-heap buffer, builds the {@link TransactionMutation} header and appends the pair to the
+	 * mutation log. Caller must hold {@code walWriteLock}.
+	 */
+	@Nonnull
+	private TransactionMutationWithWalFileReference doAppendWalLocked(
+		long version,
+		@Nonnull UUID transactionId,
+		@Nonnull EngineMutation<?> mutation
+	) {
+		@SuppressWarnings("resource") final EngineMutationLog log = ensureMutationLogInitialized();
+
+		// Initialize handle for writing WAL data to off-heap memory
+		try (
+			final WriteOnlyOffHeapWithFileBackupHandle logWriteHandle = new WriteOnlyOffHeapWithFileBackupHandle(
+				this.storageSettings.transactionWorkDirectory().resolve(transactionId + ".tmp"),
+				this.storageSettings.outputBufferSize(),
+				this.storageSettings.syncWrites(),
+				this.observableOutputKeeper,
+				this.offHeapMemoryManager,
+				this.storageSettings,
+				this.storageSettings
+			)
+		) {
+			// Write the mutation to the WAL and get its size in bytes
+			final int mutationSizeInBytes = logWriteHandle.checkAndExecute(
+				"write mutation",
+				() -> {
+				},
+				output -> {
+					final Kryo writeKryo = this.walKryoPool.obtain();
+					try {
+						// Create a storage record with the mutation
+						final StorageRecord<Mutation> record = new StorageRecord<>(
+							output, version, true,
+							theOutput -> {
+								// Serialize the mutation using Kryo
+								writeKryo.writeClassAndObject(output, mutation);
+								return mutation;
+							}
+						);
+						// Return the size of the record
+						return record.fileLocation().recordLength();
+					} finally {
+						// Return Kryo instance to the pool
+						this.walKryoPool.free(writeKryo);
+					}
+				}
+			);
+
+			// Create a transaction mutation with the mutation size
+			final TransactionMutation transactionMutation = new TransactionMutation(
+				transactionId, version, 1, mutationSizeInBytes, OffsetDateTime.now()
+			);
+
+			// Append the transaction mutation to the WAL
+			return new TransactionMutationWithWalFileReference(
+				log.append(
+					transactionMutation,
+					// when reading is done, the off-heap memory will be released automatically
+					logWriteHandle.toReadOffHeapWithFileBackupReference()
+				),
+				transactionMutation
+			);
+		}
+	}
+
+	/**
+	 * Rolls the most recent WAL append back to the captured pre-append position.
+	 *
+	 * The rollback implements Option A all-or-nothing semantics of
+	 * `appendWalAndStoreState`: on a failure after a successful WAL append the
+	 * WAL file is truncated back to `preAppendFileSize` (or deleted when the
+	 * file was freshly created by the failing call) and the in-memory
+	 * `mutationLog` is closed so that the next append reopens it and
+	 * re-derives its state from the truncated file.
+	 *
+	 * This is called under `walWriteLock` so no concurrent append can observe
+	 * the intermediate state.
+	 */
+	private void rollbackWalAppend(
+		@Nonnull Path preAppendWalFilePath,
+		long preAppendWalFileSize,
+		@Nullable LogFileRecordReference preAppendWalReference
+	) {
+		// Close the current mutation log so the next legitimate append rebuilds
+		// it from the truncated file — this guarantees the in-memory
+		// lastWrittenVersion and cumulative checksum are consistent with disk.
+		if (this.mutationLog != null) {
+			IOUtils.closeQuietly(this.mutationLog::close);
+			this.mutationLog = null;
+		}
+		if (preAppendWalFileSize > 0L && preAppendWalReference != null && preAppendWalReference.fileLocation() != null) {
+			// A prior WAL record existed — truncate back to its end position using
+			// the public helper that already implements this operation.
+			truncateWriteAheadLog(preAppendWalReference);
+		} else {
+			// The WAL file was freshly created by the failing call; deleting it
+			// leaves the service in the same shape as before the call.
+			FileUtils.deleteFileIfExists(preAppendWalFilePath);
 		}
 	}
 
@@ -432,6 +755,58 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 
 	@Nonnull
 	@Override
+	public Optional<UnprocessedTransactionRecord<LogFileRecordReference>> getUnprocessedTransaction() {
+		// Forward-replay helper. Composes `mutationLog.getFirstNonProcessedTransaction` (which returns the
+		// transaction header + WAL reference past the engine state's walRef) with the engine-mutation body read
+		// at the same version, so the caller gets the full replay payload (`version`, `mutation`, `walReference`)
+		// in one round-trip.
+		//
+		// Contract: empty result is reserved for legitimate "no work to do" cases — the WAL was never
+		// initialised, or the engine state's walReference already covers everything in the WAL. Detecting
+		// a transaction header without a matching engine-mutation body is a structural data-integrity
+		// violation (every committed `TransactionMutation` header in the engine WAL must be followed by
+		// exactly one body); we surface that as `WriteAheadLogCorruptedException` (WalKind.ENGINE) so the corruption
+		// is visible at the persistence boundary rather than being re-encoded as an absent return value
+		// the caller would have to translate back into an error.
+		if (this.mutationLog == null) {
+			return Optional.empty();
+		}
+		final Optional<TransactionMutationWithWalFileReference> headerOpt =
+			this.mutationLog.getFirstNonProcessedTransaction(this.engineState.walReference());
+		if (headerOpt.isEmpty()) {
+			return Optional.empty();
+		}
+		final TransactionMutationWithWalFileReference header = headerOpt.get();
+		final long version = header.transactionMutation().getVersion();
+
+		// Locate the first business mutation that immediately follows the transaction header. For
+		// engine-level transactions there is exactly one business mutation per version, so we return the first
+		// non-header mutation whose preceding header matches the target version.
+		try (final Stream<EngineMutation<?>> stream = this.mutationLog.getCommittedMutationStream(version)) {
+			TransactionMutation headerAtTargetVersion = null;
+			for (final Iterator<EngineMutation<?>> iterator = stream.iterator(); iterator.hasNext(); ) {
+				final EngineMutation<?> next = iterator.next();
+				if (next instanceof TransactionMutation txMutation) {
+					if (txMutation.getVersion() == version) {
+						headerAtTargetVersion = txMutation;
+					} else {
+						// We have crossed into the next transaction without finding the body for our header
+						// at `version`. The WAL is structurally malformed — header present, body absent.
+						throw WriteAheadLogCorruptedException.headerWithoutBody(version, txMutation.getVersion());
+					}
+				} else if (headerAtTargetVersion != null) {
+					return Optional.of(new UnprocessedTransactionRecord<>(version, next, header.walReference()));
+				}
+			}
+			// Iterator exhausted before we found a body for the header at `version`. Either the WAL was
+			// truncated mid-record or the body was never durably written. Either way the WAL is
+			// malformed at this version.
+			throw WriteAheadLogCorruptedException.truncatedMidRecord(version);
+		}
+	}
+
+	@Nonnull
+	@Override
 	public Stream<EngineMutation<?>> getReversedCommittedMutationStream(@Nullable Long version) {
 		if (this.mutationLog == null) {
 			// If WAL is not initialized, there are no mutations
@@ -445,7 +820,7 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 	@Override
 	public void truncateWriteAheadLog(@Nonnull LogFileRecordReference walReference) {
 		if (walReference.fileLocation() != null) {
-			final Path filePath = walReference.toFilePath(this.storageOptions.storageDirectory());
+			final Path filePath = walReference.toFilePath(this.storageSettings.storageDirectory());
 			if (filePath.toFile().length() > walReference.fileLocation().endPosition()) {
 				try (RandomAccessFile randomAccessFile = new RandomAccessFile(filePath.toFile(), "rw")) {
 					log.info(
@@ -456,7 +831,7 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 				} catch (IOException ex) {
 					throw new UnexpectedIOException(
 						"Failed to truncate an engine log file: " + filePath,
-						"Failed to truncate en engine log file!",
+						"Failed to truncate an engine log file!",
 						ex
 					);
 				}
@@ -509,7 +884,8 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 				FileType.ENGINE,
 				"engine",
 				this.bootstrapFilePath,
-				this.storageOptions
+				this.storageSettings,
+				this.storageSettings
 			)
 		) {
 			//noinspection unchecked
@@ -535,91 +911,90 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 	}
 
 	/**
-	 * Synchronizes the current engine state with the actual contents on disk by analyzing the specified storage directory.
-	 * It identifies catalogs present on disk, updates the active and inactive catalog lists in the current engine state,
-	 * adds newly discovered catalogs as inactive, and persists any changes to storage.
+	 * Computes the divergence between the persisted engine state and the catalog folders that are actually on
+	 * disk — without performing any side effects.
 	 *
-	 * @param storageOptions configuration options for persistent storage, including the storage directory
-	 * @param engineState the current engine state to be synchronized with the storage directory contents
-	 * @return a new {@link EngineState} instance with updated active and inactive catalog lists,
-	 *         or the original engine state if no changes are detected
+	 * Three categories are detected:
+	 *
+	 * - Catalogs registered as active or inactive whose folder is no longer present → `becomeMissing`.
+	 * - Catalogs that previously sat in the `missingCatalogs` bucket whose folder has reappeared → `reappeared`.
+	 * - Folders on disk that are unknown to the engine state → `autoDiscovered`.
+	 *
+	 * Each list is sorted alphabetically so the resulting WAL trail is deterministic across reboots over the same
+	 * on-disk shape. The persistence service does not rewrite the bootstrap here — `Evita` drains the divergence
+	 * after `EngineTransactionManager` is wired by emitting one engine mutation per entry, which preserves the
+	 * WAL-first invariant and makes the reconciliation observable through CDC.
+	 *
+	 * @param storageSettings configuration options for persistent storage, including the storage directory
+	 * @param engineState the current engine state to compare against the on-disk folder contents
+	 * @return divergence record; never null, possibly {@link CatalogInventoryDivergence#EMPTY}
 	 */
 	@Nonnull
-	private EngineState<LogFileRecordReference> syncEngineStateByFolderContents(
-		@Nonnull StorageOptions storageOptions,
+	private static CatalogInventoryDivergence computeCatalogInventoryDivergence(
+		@Nonnull StorageSettings storageSettings,
 		@Nonnull EngineState<LogFileRecordReference> engineState
 	) {
-		// Detect catalogs present on disk and reduce to only previously unknown ones
-		final Path[] directories = FileUtils.listDirectories(storageOptions.storageDirectory());
+		final Path[] directories = FileUtils.listDirectories(storageSettings.storageDirectory());
 		final LinkedHashSet<String> catalogsOnDisk = new LinkedHashSet<>(directories.length << 1);
 		for (final Path dir : directories) {
 			catalogsOnDisk.add(dir.getName(dir.getNameCount() - 1).toString());
 		}
 
-		// Build new active and inactive catalog lists using ArrayList for simplicity
-		final String[] oldActive = engineState.activeCatalogs();
-		final String[] oldInactive = engineState.inactiveCatalogs();
+		final ArrayList<String> becomeMissing = new ArrayList<>(16);
+		final ArrayList<String> reappeared = new ArrayList<>(16);
+		final ArrayList<String> autoDiscovered = new ArrayList<>(16);
 
-		final ArrayList<String> newActive = new ArrayList<>(oldActive.length);
-		for (final String catalog : oldActive) {
-			if (catalogsOnDisk.contains(catalog)) {
-				newActive.add(catalog);
-				// keep only unknown catalogs in the set
-				catalogsOnDisk.remove(catalog);
+		// Active / inactive catalogs whose folder vanished while the engine was down.
+		for (final String catalog : engineState.activeCatalogs()) {
+			if (catalogsOnDisk.remove(catalog)) {
+				continue;
+			}
+			log.warn("Registered active catalog `{}` is missing on disk — staging MISSING transition.", catalog);
+			becomeMissing.add(catalog);
+		}
+		for (final String catalog : engineState.inactiveCatalogs()) {
+			if (catalogsOnDisk.remove(catalog)) {
+				continue;
+			}
+			log.warn("Registered inactive catalog `{}` is missing on disk — staging MISSING transition.", catalog);
+			becomeMissing.add(catalog);
+		}
+
+		// Previously-missing catalogs whose folder reappeared — they will be demoted back to INACTIVE.
+		for (final String catalog : engineState.missingCatalogs()) {
+			if (catalogsOnDisk.remove(catalog)) {
+				log.info("Previously missing catalog `{}` has reappeared on disk — staging INACTIVE restoration.", catalog);
+				reappeared.add(catalog);
 			}
 		}
 
-		final ArrayList<String> newInactive = new ArrayList<>(oldInactive.length);
-		for (final String catalog : oldInactive) {
-			if (catalogsOnDisk.contains(catalog)) {
-				newInactive.add(catalog);
-				// keep only unknown catalogs in the set
-				catalogsOnDisk.remove(catalog);
-			}
-		}
-		// Add any previously unknown on-disk catalogs as inactive
-		if (!catalogsOnDisk.isEmpty()) {
-			for (String catalogName : catalogsOnDisk) {
-				log.info("Discovered previously unknown catalog on disk (registering as inactive): {}", catalogName);
-				newInactive.add(catalogName);
-			}
+		// Whatever folders remain on disk are unknown to the engine — auto-discovered.
+		for (final String catalogName : catalogsOnDisk) {
+			log.info("Discovered previously unknown catalog on disk — staging INACTIVE registration: {}", catalogName);
+			autoDiscovered.add(catalogName);
 		}
 
-		// Determine if anything actually changed
-		final boolean activeUnchanged = Arrays.equals(
-			oldActive, newActive.toArray(ArrayUtils.EMPTY_STRING_ARRAY)
-		);
-		final boolean inactiveUnchanged = Arrays.equals(
-			oldInactive, newInactive.toArray(ArrayUtils.EMPTY_STRING_ARRAY)
-		);
-		if (activeUnchanged && inactiveUnchanged) {
-			// No change at all - return the original engine state
-			return engineState;
+		if (becomeMissing.isEmpty() && reappeared.isEmpty() && autoDiscovered.isEmpty()) {
+			return CatalogInventoryDivergence.EMPTY;
 		}
 
-		// Create new engine state with updated catalogs
-		final EngineState<LogFileRecordReference> newEngineState = EngineState.builder(engineState)
-			.version(this.engineState.version() + 1)
-			.activeCatalogs(newActive.toArray(ArrayUtils.EMPTY_STRING_ARRAY))
-			.inactiveCatalogs(newInactive.toArray(ArrayUtils.EMPTY_STRING_ARRAY))
-			.build();
-
-		// Store the newly created engine state
-		storeEngineState(newEngineState);
-
-		return newEngineState;
+		// Sort each bucket so the WAL trail is deterministic across reboots over the same on-disk shape.
+		Collections.sort(becomeMissing);
+		Collections.sort(reappeared);
+		Collections.sort(autoDiscovered);
+		return new CatalogInventoryDivergence(becomeMissing, reappeared, autoDiscovered);
 	}
 
 	/**
 	 * Creates a new engine state with default values.
 	 *
-	 * @param storageOptions storage configuration options
+	 * @param storageSettings storage configuration options
 	 * @return newly created engine state
 	 */
 	@Nonnull
-	private EngineState<LogFileRecordReference> createNewEngineState(@Nonnull StorageOptions storageOptions) {
+	private EngineState<LogFileRecordReference> createNewEngineState(@Nonnull StorageSettings storageSettings) {
 		// Get all directories in the storage directory to identify active catalogs
-		final Path[] directories = FileUtils.listDirectories(storageOptions.storageDirectory());
+		final Path[] directories = FileUtils.listDirectories(storageSettings.storageDirectory());
 
 		// Create new engine state with initial values
 		final EngineState<LogFileRecordReference> newEngineState = new EngineState<>(

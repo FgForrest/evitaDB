@@ -25,6 +25,7 @@ package io.evitadb.externalApi.observability.metric;
 
 import io.evitadb.api.configuration.metric.LoggedMetric;
 import io.evitadb.api.configuration.metric.MetricType;
+import io.evitadb.api.observability.annotation.ExportConfigurableLabels;
 import io.evitadb.api.observability.annotation.ExportDurationMetric;
 import io.evitadb.api.observability.annotation.ExportInvocationMetric;
 import io.evitadb.api.observability.annotation.ExportMetric;
@@ -38,12 +39,16 @@ import io.evitadb.core.metric.event.CustomMetricsExecutionEvent;
 import io.evitadb.externalApi.observability.configuration.ObservabilityOptions;
 import io.evitadb.function.ChainableConsumer;
 import io.evitadb.utils.ArrayUtils;
+import io.evitadb.utils.Assert;
+import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.ReflectionLookup;
 import io.evitadb.utils.StringUtils;
+import io.evitadb.utils.VersionUtils;
 import io.prometheus.metrics.core.metrics.Counter;
 import io.prometheus.metrics.core.metrics.Gauge;
 import io.prometheus.metrics.core.metrics.Histogram;
 import io.prometheus.metrics.core.metrics.Histogram.Builder;
+import io.prometheus.metrics.core.metrics.Info;
 import io.prometheus.metrics.core.metrics.Metric;
 import io.prometheus.metrics.core.metrics.Summary;
 import io.prometheus.metrics.instrumentation.jvm.*;
@@ -60,7 +65,9 @@ import javax.annotation.Nonnull;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -74,7 +81,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.regex.Pattern;
-import java.util.stream.Stream;
 
 import static java.util.Optional.of;
 import static java.util.Optional.ofNullable;
@@ -113,7 +119,7 @@ public class MetricHandler {
 		.labelNames("api_type")
 		.help("Status of the API readiness (internal HTTP call check)")
 		.register();
-	private static final Map<String, Metric> REGISTERED_METRICS = new HashMap<>(64);
+	private static final Map<String, RegisteredMetric> REGISTERED_METRICS = new HashMap<>(64);
 	private static final Pattern EVENT = Pattern.compile("Event");
 	private static final Map<String, Runnable> DEFAULT_JVM_METRICS;
 	private static final String DEFAULT_JVM_METRICS_NAME = "AllMetrics";
@@ -132,9 +138,30 @@ public class MetricHandler {
 			"JvmRuntimeInfoMetric", () -> JvmRuntimeInfoMetric.builder().register(),
 			"ProcessMetrics", () -> ProcessMetrics.builder().register()
 		);
+		registerBuildInfo();
 	}
 
 	private final ObservabilityOptions observabilityConfig;
+
+	/**
+	 * Registers the `io_evitadb_build_info` Prometheus `info` metric and stamps it with the
+	 * current build's version, commit hash and JVM version. The metric is a constant —
+	 * its labels are resolved once at class-loading time and never mutated again, so the
+	 * `Info` instance is intentionally not retained as a field; the default Prometheus
+	 * registry owns the only live reference and exposes it via the scrape endpoint.
+	 */
+	private static void registerBuildInfo() {
+		final Info info = Info.builder()
+			.name("io_evitadb_build_info")
+			.labelNames("version", "commit", "java_version")
+			.help("evitaDB build information (version, abbreviated commit hash, JVM version)")
+			.register();
+		info.setLabelValues(
+			VersionUtils.readVersion(),
+			VersionUtils.readCommitHash(),
+			System.getProperty("java.version", VersionUtils.UNKNOWN_VALUE)
+		);
+	}
 
 	/**
 	 * Composes the name of the metric from the event class, export metric and field name.
@@ -188,8 +215,9 @@ public class MetricHandler {
 	private static MetricLabelExporter convertGetterToMetricLabelExporter(@Nonnull Method getter) {
 		final String propertyName = ReflectionLookup.getPropertyNameFromMethodName(getter.getName());
 		final ExportMetricLabel exportMetricLabel = getter.getAnnotation(ExportMetricLabel.class);
+		final String labelName = of(exportMetricLabel.value()).filter(it -> !it.isBlank()).orElse(propertyName);
 		return new MetricLabelExporter(
-			of(exportMetricLabel.value()).filter(it -> !it.isBlank()).orElse(propertyName),
+			labelName,
 			recordedEvent -> recordedEvent.getString(propertyName)
 		);
 	}
@@ -204,10 +232,51 @@ public class MetricHandler {
 	private static MetricLabelExporter convertFieldToMetricLabelExporter(@Nonnull Field field) {
 		final ExportMetricLabel exportMetricLabel = field.getAnnotation(ExportMetricLabel.class);
 		final String fieldName = field.getName();
+		final String labelName = of(exportMetricLabel.value()).filter(it -> !it.isBlank()).orElse(fieldName);
 		return new MetricLabelExporter(
-			of(exportMetricLabel.value()).filter(it -> !it.isBlank()).orElse(fieldName),
+			labelName,
 			recordedEvent -> recordedEvent.getString(fieldName)
 		);
+	}
+
+	/**
+	 * Expands a {@link ExportConfigurableLabels}-annotated label bag field into one metric label exporter per
+	 * operator-configured query label name. Each configured name maps to a Prometheus dimension named after its
+	 * {@link PrometheusLabelNames#sanitize(String) sanitized} form; the dimension's value is looked up (by the
+	 * original, unsanitized name) from the bag carried on each recorded event. evitaDB reserves no label names - the
+	 * set comes entirely from {@link ObservabilityOptions#getExportedQueryLabels()}.
+	 *
+	 * @param bagField             the {@link ExportConfigurableLabels}-annotated `String` field carrying the label bag
+	 * @param configuredLabelNames operator-configured query label names to export
+	 * @param reservedDimensions   dimension names already taken by this event's built-in {@link ExportMetricLabel}
+	 *                             dimensions; a configured label colliding with one of these is rejected here (it
+	 *                             cannot be caught at config load, which does not know the event's fixed dimensions)
+	 * @return one exporter per configured name (empty when none are configured)
+	 */
+	@Nonnull
+	private static List<MetricLabelExporter> buildConfigurableLabelExporters(
+		@Nonnull Field bagField,
+		@Nonnull Set<String> configuredLabelNames,
+		@Nonnull Set<String> reservedDimensions
+	) {
+		final String bagFieldName = bagField.getName();
+		// deterministic dimension order across restarts
+		final List<String> sortedNames = new ArrayList<>(configuredLabelNames);
+		Collections.sort(sortedNames);
+
+		final Map<String, String> dimensionByLabel = PrometheusLabelNames.assignDimensions(sortedNames, reservedDimensions);
+		final List<MetricLabelExporter> exporters = new ArrayList<>(dimensionByLabel.size());
+		for (final Entry<String, String> entry : dimensionByLabel.entrySet()) {
+			final String originalName = entry.getKey();
+			final String dimension = entry.getValue();
+			exporters.add(
+				new MetricLabelExporter(
+					dimension,
+					recordedEvent -> QueryLabelBag.extractValue(recordedEvent.getString(bagFieldName), originalName)
+				)
+			);
+		}
+		return exporters;
 	}
 
 	/**
@@ -287,10 +356,25 @@ public class MetricHandler {
 	 * @return built and registered metric
 	 */
 	@Nonnull
-	private static Metric buildAndRegisterMetric(@Nonnull LoggedMetric metric, @Nonnull Map<String, Metric> registeredMetrics) {
+	private static Metric buildAndRegisterMetric(@Nonnull LoggedMetric metric, @Nonnull Map<String, RegisteredMetric> registeredMetrics) {
 		final String name = StringUtils.toSnakeCase(metric.name());
-		if (registeredMetrics.containsKey(name)) {
-			return registeredMetrics.get(name);
+		final RegisteredMetric existing = registeredMetrics.get(name);
+		if (existing != null) {
+			// a metric's dimension set must stay stable for its lifetime. Before configurable query labels every
+			// metric's labels were fixed at compile time, so re-registration under the same name was always
+			// shape-identical. Now that query-metric dimensions depend on `exportedQueryLabels`, a re-registration
+			// with a different shape (e.g. a second observability handler booted in the same JVM with a different
+			// config) is rejected loudly here instead of silently reusing the first shape and later throwing a
+			// cryptic IllegalArgumentException from the Prometheus client when an event fires.
+			Assert.isTrue(
+				Arrays.equals(existing.labelNames(), metric.labels()),
+				() -> "Prometheus metric `" + name + "` is already registered with dimensions " +
+					Arrays.toString(existing.labelNames()) + " and cannot be re-registered with " +
+					Arrays.toString(metric.labels()) + ". A metric's dimension set must be stable; this usually means " +
+					"the observability handler was initialized more than once in the same JVM with different " +
+					"`exportedQueryLabels` configurations."
+			);
+			return existing.metric();
 		} else {
 			final Metric newMetric = switch (metric.type()) {
 				case GAUGE -> Gauge.builder()
@@ -327,7 +411,7 @@ public class MetricHandler {
 					.help(metric.helpMessage())
 					.register();
 			};
-			registeredMetrics.put(name, newMetric);
+			registeredMetrics.put(name, new RegisteredMetric(newMetric, metric.labels()));
 			return newMetric;
 		}
 	}
@@ -353,8 +437,9 @@ public class MetricHandler {
 
 		registerJvmMetrics();
 		final Set<Class<? extends CustomMetricsExecutionEvent>> allowedMetrics = getAllowedEventSet();
+		final Set<String> exportedQueryLabels = getExportedQueryLabelSet();
 
-		final MetricTask metricTask = new MetricTask(allowedMetrics);
+		final MetricTask metricTask = new MetricTask(allowedMetrics, exportedQueryLabels);
 		scheduler.submit((ServerTask<?,?>) metricTask);
 
 		try {
@@ -364,7 +449,9 @@ public class MetricHandler {
 					evita.emitStartObservabilityEvents();
 				}).get(1, TimeUnit.MINUTES);
 		} catch (Exception e) {
-			log.error("Failed to initialize metric handler in time. Metrics might not work. Start events are not emitted.");
+			// log the cause - it carries the actionable message, e.g. a configured query label colliding with a
+			// built-in metric dimension (see MetricHandler#buildConfigurableLabelExporters)
+			log.error("Failed to initialize metric handler in time. Metrics might not work. Start events are not emitted.", e);
 		}
 	}
 
@@ -419,6 +506,20 @@ public class MetricHandler {
 	}
 
 	/**
+	 * Resolves the operator-configured query label names eligible for Prometheus export (see
+	 * {@link #buildConfigurableLabelExporters(Field, Set, Set)}. Unlike {@link #getAllowedEventSet()}, an unset (or empty)
+	 * configuration means nothing is exported - see {@link ObservabilityOptions#getExportedQueryLabels()} for the
+	 * reasoning behind the inverted default.
+	 *
+	 * @return the configured query label names, or an empty set if none were configured
+	 */
+	@Nonnull
+	private Set<String> getExportedQueryLabelSet() {
+		final List<String> exportedQueryLabelsFromConfig = this.observabilityConfig.getExportedQueryLabels();
+		return exportedQueryLabelsFromConfig == null ? Set.of() : new HashSet<>(exportedQueryLabelsFromConfig);
+	}
+
+	/**
 	 * Task that listens for JFR events and transforms them into Prometheus metrics.
 	 */
 	private static class MetricTask extends ClientInfiniteCallableTask<Void, Void> {
@@ -426,7 +527,8 @@ public class MetricHandler {
 		@Getter private final CompletableFuture<Boolean> initialized = new CompletableFuture<>();
 
 		public MetricTask(
-			@Nonnull Set<Class<? extends CustomMetricsExecutionEvent>> allowedMetrics
+			@Nonnull Set<Class<? extends CustomMetricsExecutionEvent>> allowedMetrics,
+			@Nonnull Set<String> exportedQueryLabels
 		) {
 			super(
 				MetricHandler.class.getSimpleName(),
@@ -437,7 +539,7 @@ public class MetricHandler {
 					try (final RecordingStream recordingStream = new RecordingStream()) {
 						((MetricTask) theTask).recordingStream.set(recordingStream);
 						for (Class<? extends CustomMetricsExecutionEvent> eventClass : allowedMetrics) {
-							FlightRecorder.register(eventClass);
+							EvitaJfrEventRegistry.registerEventClass(eventClass);
 							recordingStream.enable(eventClass);
 
 							final Optional<Name> name = Optional.ofNullable(lookup.getClassAnnotation(eventClass, Name.class));
@@ -445,16 +547,32 @@ public class MetricHandler {
 							AtomicReference<ChainableConsumer<RecordedEvent>> lambdaRef = new AtomicReference<>();
 
 							final Map<Field, List<Annotation>> fieldsAnnotations = lookup.getFields(eventClass);
-							final List<MetricLabelExporter> labelExporters = Stream.concat(
-								lookup.findAllGettersHavingAnnotationDeeply(eventClass, ExportMetricLabel.class)
-									.stream()
-									.map(MetricHandler::convertGetterToMetricLabelExporter),
+							final List<MetricLabelExporter> labelExporters = new ArrayList<>();
+							// fixed dimensions declared at compile time via @ExportMetricLabel getters ...
+							lookup.findAllGettersHavingAnnotationDeeply(eventClass, ExportMetricLabel.class)
+								.forEach(getter -> labelExporters.add(MetricHandler.convertGetterToMetricLabelExporter(getter)));
+							// ... and @ExportMetricLabel fields
+							fieldsAnnotations.entrySet()
+								.stream()
+								.filter(it -> it.getValue().stream().anyMatch(ExportMetricLabel.class::isInstance))
+								.map(Entry::getKey)
+								.forEach(field -> labelExporters.add(MetricHandler.convertFieldToMetricLabelExporter(field)));
+							// ... plus operator-configured dimensions expanded from @ExportConfigurableLabels bag fields;
+							// skipped entirely (no parsing, no dimensions) when nothing is configured - the safe default
+							if (!exportedQueryLabels.isEmpty()) {
+								// the fixed dimensions collected so far are reserved: a configured label must not
+								// collide with a built-in dimension (e.g. entityType, prefetched) either
+								final Set<String> reservedDimensions = CollectionUtils.createHashSet(labelExporters.size());
+								for (final MetricLabelExporter fixedExporter : labelExporters) {
+									reservedDimensions.add(fixedExporter.labelName());
+								}
 								fieldsAnnotations.entrySet()
 									.stream()
-									.filter(it -> it.getValue().stream().anyMatch(ExportMetricLabel.class::isInstance))
+									.filter(it -> it.getValue().stream().anyMatch(ExportConfigurableLabels.class::isInstance))
 									.map(Entry::getKey)
-									.map(MetricHandler::convertFieldToMetricLabelExporter)
-							).toList();
+									.forEach(field -> labelExporters.addAll(
+										MetricHandler.buildConfigurableLabelExporters(field, exportedQueryLabels, reservedDimensions)));
+							}
 
 							final String[] labelNames = labelExporters
 								.stream()
@@ -603,6 +721,21 @@ public class MetricHandler {
 	private record MetricLabelExporter(
 		@Nonnull String labelName,
 		@Nonnull Function<RecordedEvent, String> labelValueAccessor
+	) {
+	}
+
+	/**
+	 * A registered Prometheus {@link Metric} together with the dimension names it was registered with. Retained so a
+	 * re-registration under the same metric name can verify the dimension set has not changed - it must be stable for
+	 * the metric's lifetime, which is no longer guaranteed by construction now that query-metric dimensions depend on
+	 * the {@code exportedQueryLabels} configuration.
+	 *
+	 * @param metric     the registered Prometheus metric
+	 * @param labelNames the dimension names the metric was registered with
+	 */
+	private record RegisteredMetric(
+		@Nonnull Metric metric,
+		@Nonnull String[] labelNames
 	) {
 	}
 

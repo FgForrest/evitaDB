@@ -49,23 +49,51 @@ import java.util.function.Consumer;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public class PriceIndexContainerFormula extends AbstractCacheableFormula implements PriceIndexProvidingFormula, Formula {
+	/**
+	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} for hash computation.
+	 */
 	private static final long CLASS_ID = 1785319770058715404L;
 
 	/**
 	 * Contains reference to the {@link PriceListAndCurrencyPriceIndex index} that was used for computation
 	 * of the {@link #getDelegate()} result
 	 */
-	@Getter private final PriceListAndCurrencyPriceIndex<?,?> priceIndex;
+	@Getter private final PriceListAndCurrencyPriceIndex<?> priceIndex;
 
-	public PriceIndexContainerFormula(@Nonnull PriceListAndCurrencyPriceIndex<?,?> priceIndex, @Nonnull Formula delegate) {
+	/**
+	 * The index the lazily evaluated price records are looked up in - always a
+	 * {@link io.evitadb.index.price.PriceListAndCurrencyPriceSuperIndex}, because only a super index owns the
+	 * entity-to-prices mapping needed to answer
+	 * {@link PriceListAndCurrencyPriceIndex#getLowestPriceRecordsForEntity(int)}.
+	 *
+	 * For a super {@link #priceIndex} this is that very index; for a reduced (ref) one it is the super index of the same
+	 * price-list / currency combination, resolved by the caller that built this formula from the GLOBAL entity index it
+	 * is already pinned to. Keeping it as a separate field is what lets a reduced index stop holding a super-index
+	 * pointer of its own - and it matches what the formula cache has always done, since restoring a flattened price
+	 * formula resolves its price indexes straight from the current GLOBAL entity index.
+	 */
+	@Getter private final PriceListAndCurrencyPriceIndex<?> lowestPriceRecordsSource;
+
+	public PriceIndexContainerFormula(
+		@Nonnull PriceListAndCurrencyPriceIndex<?> priceIndex,
+		@Nonnull PriceListAndCurrencyPriceIndex<?> lowestPriceRecordsSource,
+		@Nonnull Formula delegate
+	) {
 		super(null);
 		this.priceIndex = priceIndex;
+		this.lowestPriceRecordsSource = lowestPriceRecordsSource;
 		this.initFields(delegate);
 	}
 
-	private PriceIndexContainerFormula(@Nullable Consumer<CacheableFormula> computationCallback, @Nonnull PriceListAndCurrencyPriceIndex<?,?> priceIndex, @Nonnull Formula delegate) {
+	private PriceIndexContainerFormula(
+		@Nullable Consumer<CacheableFormula> computationCallback,
+		@Nonnull PriceListAndCurrencyPriceIndex<?> priceIndex,
+		@Nonnull PriceListAndCurrencyPriceIndex<?> lowestPriceRecordsSource,
+		@Nonnull Formula delegate
+	) {
 		super(computationCallback);
 		this.priceIndex = priceIndex;
+		this.lowestPriceRecordsSource = lowestPriceRecordsSource;
 		this.initFields(delegate);
 	}
 
@@ -74,7 +102,7 @@ public class PriceIndexContainerFormula extends AbstractCacheableFormula impleme
 	public Formula getCloneWithInnerFormulas(@Nonnull Formula... innerFormulas) {
 		Assert.isPremiseValid(innerFormulas.length == 1, "Expected exactly single delegate inner formula!");
 		return new PriceIndexContainerFormula(
-			this.priceIndex, getDelegate()
+			this.priceIndex, this.lowestPriceRecordsSource, innerFormulas[0]
 		);
 	}
 
@@ -88,7 +116,7 @@ public class PriceIndexContainerFormula extends AbstractCacheableFormula impleme
 	public CacheableFormula getCloneWithComputationCallback(@Nonnull Consumer<CacheableFormula> selfOperator, @Nonnull Formula... innerFormulas) {
 		Assert.isPremiseValid(innerFormulas.length == 1, "Expected exactly single delegate inner formula!");
 		return new PriceIndexContainerFormula(
-			selfOperator, this.priceIndex, innerFormulas[0]
+			selfOperator, this.priceIndex, this.lowestPriceRecordsSource, innerFormulas[0]
 		);
 	}
 
@@ -101,7 +129,7 @@ public class PriceIndexContainerFormula extends AbstractCacheableFormula impleme
 	@Nonnull
 	@Override
 	public FilteredPriceRecords getFilteredPriceRecords(@Nonnull QueryExecutionContext context) {
-		return new LazyEvaluatedEntityPriceRecords(this.priceIndex);
+		return new LazyEvaluatedEntityPriceRecords(this.lowestPriceRecordsSource);
 	}
 
 	@Override

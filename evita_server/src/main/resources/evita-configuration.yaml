@@ -43,6 +43,8 @@ storage:
   minimalActiveRecordShare: ${storage.minimalActiveRecordShare:0.5}
   fileSizeCompactionThresholdBytes: ${storage.fileSizeCompactionThresholdBytes:100M}
   timeTravelEnabled: ${storage.timeTravelEnabled:false}
+  minCompactionIntervalMilliseconds: ${storage.minCompactionIntervalMilliseconds:1m}
+  maxWasteActiveShare: ${storage.maxWasteActiveShare:0.1}
 
 export:
   fileSystem:
@@ -66,7 +68,8 @@ transaction:
   transactionMemoryRegionCount: ${transaction.memoryRegionCount:256}
   walFileSizeBytes: ${transaction.walFilSize:16M}
   walFileCountKept: ${transaction.walFileCountKept:8}
-  flushFrequencyInMillis: ${transaction.flushFrequencyInMillis:1000}
+  flushFrequencyInMillis: ${transaction.flushFrequencyInMillis:10000}
+  checkpointIntervalInMillis: ${transaction.checkpointIntervalInMillis:1000}
   conflictRingBufferSize: ${transaction.conflictRingBufferSize:65536}
   conflictPolicy: ${transaction.conflictPolicy:[ENTITY]}
 
@@ -169,6 +172,7 @@ api:
         endpoint: ${api.endpoints.observability.tracing.endpoint:null}
         protocol: ${api.endpoints.observability.tracing.protocol:grpc}
       allowedEvents: !include ${api.endpoints.observability.allowedEvents:null}
+      exportedQueryLabels: !include ${api.endpoints.observability.exportedQueryLabels:null}
       mTLS:
         enabled: ${api.endpoints.observability.mTLS.enabled:null}
         allowedClientCertificatePaths: ${api.endpoints.observability.mTLS.allowedClientCertificatesPaths:null}

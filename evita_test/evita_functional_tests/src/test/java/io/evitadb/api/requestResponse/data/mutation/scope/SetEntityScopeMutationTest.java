@@ -26,14 +26,19 @@ package io.evitadb.api.requestResponse.data.mutation.scope;
 import io.evitadb.api.requestResponse.data.mutation.AbstractMutationTest;
 import io.evitadb.dataType.Scope;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.QUERY;
 
 /**
  * This test verifies contract of {@link SetEntityScopeMutationTest} mutation.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
+@Tag(CONTRACT)
+@Tag(QUERY)
 class SetEntityScopeMutationTest extends AbstractMutationTest {
 
 	@Test

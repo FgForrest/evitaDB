@@ -59,7 +59,7 @@ import static io.evitadb.store.schema.serializer.EntitySchemaSerializer.readScop
  *             instead of {@link SortableAttributeCompoundSchema} and the serialization mechanism
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@Deprecated(since = "2025.6", forRemoval = true)
+@Deprecated(since = "2025.7", forRemoval = true)
 public class EntitySchemaSerializer_2025_6 extends Serializer<EntitySchema> {
 	private final HeterogeneousMapSerializer<Object, Object> heterogeneousSerializer = new HeterogeneousMapSerializer<>(LinkedHashMap::new);
 
@@ -115,6 +115,7 @@ public class EntitySchemaSerializer_2025_6 extends Serializer<EntitySchema> {
 		return EntitySchema._internalBuild(
 			version,
 			entityName, nameVariants, description, deprecationNotice,
+			null,
 			withGeneratedPrimaryKey,
 			withHierarchy,
 			hierarchyIndexedInScopes,

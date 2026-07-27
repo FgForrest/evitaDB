@@ -20,7 +20,7 @@ query(
         )
     ),
     require(
-        facetSummaryOfReference(
+        referenceSummaryOfReference(
             "categories",
             IMPACT,
             entityFetch(attributeContent("code"))

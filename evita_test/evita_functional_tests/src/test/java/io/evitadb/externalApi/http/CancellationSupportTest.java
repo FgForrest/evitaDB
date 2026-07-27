@@ -39,6 +39,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -50,6 +51,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static io.evitadb.test.TestTags.EXTERNAL_API;
+import static io.evitadb.test.TestTags.MANAGEMENT;
 
 /**
  * Tests for {@link CancellationSupport} verifying that
@@ -57,11 +60,13 @@ import static org.mockito.Mockito.when;
  * tasks in both synchronous ({@code submitWithCancellation})
  * and asynchronous ({@code submitAsyncWithCancellation}) modes.
  *
- * @author evitaDB
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName(
 	"CancellationSupport - request cancellation wiring"
 )
+@Tag(EXTERNAL_API)
+@Tag(MANAGEMENT)
 class CancellationSupportTest {
 
 	private ServiceRequestContext requestContext;

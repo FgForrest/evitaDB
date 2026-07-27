@@ -34,20 +34,25 @@ import org.junit.jupiter.api.Test;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.DATA_TYPE;
 
 /**
  * Tests for {@link ComplexDataObject} verifying construction,
  * isEmpty, estimateSize, equality, and toString behavior.
  *
- * @author evitaDB
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("ComplexDataObject functionality")
+@Tag(CONTRACT)
+@Tag(DATA_TYPE)
 class ComplexDataObjectTest {
 
 	@Nested

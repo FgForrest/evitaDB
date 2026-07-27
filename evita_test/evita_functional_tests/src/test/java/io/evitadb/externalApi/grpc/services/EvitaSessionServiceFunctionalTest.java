@@ -108,16 +108,22 @@ import static io.evitadb.api.query.QueryConstraints.require;
 import static io.evitadb.externalApi.grpc.query.QueryConverter.convertQueryParam;
 import static io.evitadb.externalApi.grpc.testUtils.GrpcAssertions.*;
 import static io.evitadb.externalApi.grpc.testUtils.TestDataProvider.*;
-import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.test.generator.DataGenerator.*;
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.GRPC;
+import static io.evitadb.test.TestTags.EXTERNAL_API;
+import static io.evitadb.test.TestTags.QUERY;
+import static io.evitadb.test.TestTags.SESSION;
 
 @SuppressWarnings({"ResultOfMethodCallIgnored", "UnusedParameters"})
 @DisplayName("EvitaSessionService gRPC functional test")
 @ExtendWith(EvitaParameterResolver.class)
-@Tag(FUNCTIONAL_TEST)
 @Slf4j
+@Tag(GRPC)
+@Tag(EXTERNAL_API)
+@Tag(QUERY)
+@Tag(SESSION)
 class EvitaSessionServiceFunctionalTest {
 	private static final String GRPC_THOUSAND_PRODUCTS = "GrpcEvitaSessionServiceFunctionalTest";
 	private static final QuadriConsumer<String, List<Object>, Map<String, Object>, String> NO_OP = (queryString, positionalArguments, namedArguments, error) -> {

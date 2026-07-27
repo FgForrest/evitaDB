@@ -75,6 +75,8 @@
   <dd>Event fired when an entity is directly fetched.</dd>
   <dt><SourceClass>evita_engine/src/main/java/io/evitadb/core/metric/event/query/FinishedEvent.java</SourceClass> Query finished</dt>
   <dd>Event that is fired when a query is finished.</dd>
+  <dt><SourceClass>evita_engine/src/main/java/io/evitadb/store/traffic/event/TrafficRecorderSkippedRecordsEvent.java</SourceClass> Traffic recorder skipped records</dt>
+  <dd>Event that reports traffic records and sessions skipped or dropped, broken down by reason.</dd>
   <dt><SourceClass>evita_engine/src/main/java/io/evitadb/store/traffic/event/TrafficRecorderStatisticsEvent.java</SourceClass> Traffic recorder statistics</dt>
   <dd>Event that regularly monitors traffic recorder statistics.</dd>
 </dl>
@@ -93,6 +95,8 @@
 #### Storage
 
 <dl>
+  <dt><SourceClass>evita_engine/src/main/java/io/evitadb/core/metric/event/storage/CatalogCheckpointEvent.java</SourceClass> Catalog checkpointed</dt>
+  <dd>Event that is fired when the catalog data files are made durable and a bootstrap record is written.</dd>
   <dt><SourceClass>evita_engine/src/main/java/io/evitadb/core/metric/event/storage/CatalogStatisticsEvent.java</SourceClass> Catalog flushed</dt>
   <dd>Event that is fired when a new catalog version is flushed.</dd>
   <dt><SourceClass>evita_engine/src/main/java/io/evitadb/core/metric/event/storage/DataFileCompactEvent.java</SourceClass> OffsetIndex compaction</dt>
@@ -126,13 +130,13 @@
   <dd>Event that is raised when a background task has timed out and has been canceled.</dd>
   <dt><SourceClass>evita_engine/src/main/java/io/evitadb/core/metric/event/system/EvitaStatisticsEvent.java</SourceClass> Evita started</dt>
   <dd>Event that is triggered when the evitaDB instance is started.</dd>
-  <dt><SourceClass>evita_engine/src/main/java/io/evitadb/core/metric/event/system/RequestForkJoinPoolStatisticsEvent.java</SourceClass> Request executor statistics</dt>
+  <dt><SourceClass>evita_engine/src/main/java/io/evitadb/core/metric/event/system/RequestThreadPoolStatisticsEvent.java</SourceClass> Request executor statistics</dt>
   <dd>Event that is fired on regular intervals to track request executor statistics.</dd>
   <dt><SourceClass>evita_engine/src/main/java/io/evitadb/core/metric/event/system/RingBufferStatisticsEvent.java</SourceClass> Ring buffer statistics</dt>
   <dd>Event that regularly monitors in-memory ring buffer statistics.</dd>
   <dt><SourceClass>evita_engine/src/main/java/io/evitadb/core/metric/event/system/ScheduledExecutorStatisticsEvent.java</SourceClass> Scheduled executor statistics</dt>
   <dd>Event that is fired on regular intervals to track scheduled executor statistics.</dd>
-  <dt><SourceClass>evita_engine/src/main/java/io/evitadb/core/metric/event/system/TransactionForkJoinPoolStatisticsEvent.java</SourceClass> Transaction executor statistics</dt>
+  <dt><SourceClass>evita_engine/src/main/java/io/evitadb/core/metric/event/system/TransactionThreadPoolStatisticsEvent.java</SourceClass> Transaction executor statistics</dt>
   <dd>Event that is fired on regular intervals to track transaction executor statistics.</dd>
 </dl>
 
@@ -153,6 +157,8 @@
   <dd>Event fired when a transaction passes the conflict resolution phase.</dd>
   <dt><SourceClass>evita_engine/src/main/java/io/evitadb/core/metric/event/transaction/TransactionAppendedToWalEvent.java</SourceClass> Transaction appended to WAL</dt>
   <dd>Event fired when a transaction passes the conflict resolution phase.</dd>
+  <dt><SourceClass>evita_engine/src/main/java/io/evitadb/core/metric/event/transaction/TransactionConflictEvent.java</SourceClass> Transaction conflict</dt>
+  <dd>Event fired when a transaction is rolled back because its changes conflicted with a concurrently committed transaction under the effective conflict-resolution policy. Broken down by the coarse policy in force, the schema layer it was resolved from, and the conflict scope.</dd>
   <dt><SourceClass>evita_engine/src/main/java/io/evitadb/core/metric/event/transaction/TransactionFinishedEvent.java</SourceClass> Transaction finished</dt>
   <dd>Event fired when a transaction is completed, either by commit or rollback, and the corresponding session is closed. This includes waiting for the transaction to reach the desired state of processing.</dd>
   <dt><SourceClass>evita_engine/src/main/java/io/evitadb/core/metric/event/transaction/TransactionIncorporatedToTrunkEvent.java</SourceClass> Transaction incorporated to trunk</dt>

@@ -1,6 +1,6 @@
 ---
 title: Behavioral require containers
-date: '29.11.2024'
+date: '11.5.2026'
 perex: |
   Special behavioural require constraint containers are used to define a require constraint scope. 
 author: 'Ing. Jan Novotný'
@@ -69,7 +69,7 @@ information is also not indexed. So if you tried to calculate facet summary or h
 the archive scope, you'd get an error from the query engine. If you are querying entities in multiple scopes, you should
 use the `inScope` container and limit these calculations to only those scopes where the indexes are prepared:
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Distinguishing requires in different scopes](/documentation/user/en/query/requirements/examples/behavioral/archived-entities-requirements.evitaql)
 
@@ -114,7 +114,7 @@ and [ordering constraints](../ordering/behavioral.md#in-scope) with the same pur
 
 <Note type="info">
 
-Some require constraints allow results from multiple facets to be combined. For example, [facet summary](facet.md#facet-summary),
+Some require constraints allow results from multiple references to be combined. For example, [reference summary](reference.md#reference-summary),
 [attribute histogram](histogram.md#attribute-histogram) and [price histogram](histogram.md#price-histogram) can be 
 computed for both live and archived entities if the appropriate indices are available.
 

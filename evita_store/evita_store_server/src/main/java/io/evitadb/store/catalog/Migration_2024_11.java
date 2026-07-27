@@ -51,7 +51,7 @@ import java.nio.file.StandardCopyOption;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  * @deprecated introduced with ##41 and could be removed later when no version prior to 2024.11 is used
  */
-@Deprecated(since = "2024.11", forRemoval = true)
+@Deprecated(since = "2025.7", forRemoval = true)
 public interface Migration_2024_11 {
 	/**
 	 * Upgrades the storage protocol from version 1 to version 2. In the version 2 the entity collection files were
@@ -62,7 +62,7 @@ public interface Migration_2024_11 {
 	 * @param postUpgradeAction             action to write current storage protocol to catalog header after the upgrade
 	 * @deprecated introduced with ##41 and could be removed later when no version prior to 2024.11 is used
 	 */
-	@Deprecated(since = "2024.1", forRemoval = true)
+	@Deprecated(since = "2025.7", forRemoval = true)
 	static void upgradeFromStorageProtocolVersion_1_to_2(
 		@Nonnull CatalogHeader<LogFileRecordReference, CollectionFileReference> catalogHeader,
 		@Nonnull Path catalogStoragePath,

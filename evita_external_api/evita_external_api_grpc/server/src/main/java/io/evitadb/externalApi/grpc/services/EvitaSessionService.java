@@ -25,7 +25,6 @@ package io.evitadb.externalApi.grpc.services;
 
 import com.google.protobuf.Empty;
 import com.google.protobuf.GeneratedMessageV3;
-import com.linecorp.armeria.common.util.TimeoutMode;
 import com.linecorp.armeria.server.ServiceRequestContext;
 import io.evitadb.api.CatalogState;
 import io.evitadb.api.CommitProgress;
@@ -95,6 +94,7 @@ import io.evitadb.externalApi.grpc.services.converter.WriteAheadLogVersionDescri
 import io.evitadb.externalApi.grpc.services.interceptors.GlobalExceptionHandlerInterceptor;
 import io.evitadb.externalApi.grpc.services.interceptors.ServerSessionInterceptor;
 import io.evitadb.externalApi.grpc.services.subscriber.ChangeCatalogCaptureSubscriber;
+import io.evitadb.externalApi.grpc.utils.GrpcTimeoutUtil;
 import io.evitadb.externalApi.grpc.utils.QueryUtil;
 import io.evitadb.externalApi.grpc.utils.QueryWithParameters;
 import io.evitadb.externalApi.http.CancellationSupport;
@@ -114,7 +114,6 @@ import lombok.extern.slf4j.Slf4j;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
-import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -125,10 +124,12 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Flow.Subscription;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.IntConsumer;
 import java.util.function.UnaryOperator;
 import java.util.stream.BaseStream;
@@ -548,7 +549,7 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 	) {
 		if (positionalQueryParamsList.isEmpty() && namedQueryParamsMap.isEmpty()) {
 			return sourceQuery;
-		} else if (positionalQueryParamsList.isEmpty()) {
+		} else if (namedQueryParamsMap.isEmpty()) {
 			final StringBuilder sb = new StringBuilder(sourceQuery);
 			sb.append("\n");
 			for (int i = 0; i < positionalQueryParamsList.size(); i++) {
@@ -622,6 +623,8 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 					GrpcCatalogSchemaResponse
 						.newBuilder()
 						.setCatalogSchema(convert(catalogSchema, request.getNameVariants()))
+						.setCatalogVersion(session.getCatalogVersion())
+						.setCatalogSchemaVersion(catalogSchema.version())
 						.build());
 				responseObserver.onCompleted();
 			},
@@ -780,9 +783,7 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 									responseObserver.onNext(response);
 									this.lastUpdate = System.currentTimeMillis();
 								}
-								serviceContext.setRequestTimeout(
-									TimeoutMode.EXTEND, Duration.ofMillis(serviceContext.requestTimeoutMillis())
-								);
+								GrpcTimeoutUtil.reArmRequestTimeoutIfEnabled(serviceContext, serviceContext.requestTimeoutMillis());
 							}
 						}
 					);
@@ -869,9 +870,138 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 	}
 
 	/**
-	 * Method used to close currently used session by calling {@link EvitaSessionContract#close()}.
+	 * Method allows to backup a catalog and stream progress updates to the client.
+	 * Streaming variant of {@link #backupCatalog(GrpcBackupCatalogRequest, StreamObserver)} that
+	 * sends periodic task status updates while the backup is running.
+	 *
+	 * @param request          backup request with parameters
+	 * @param responseObserver observer on which progress updates are streamed
+	 */
+	@Override
+	public void backupCatalogWithProgress(
+		GrpcBackupCatalogRequest request,
+		StreamObserver<GrpcBackupCatalogResponse> responseObserver
+	) {
+		final ServiceRequestContext serviceContext = ServiceRequestContext.current();
+		executeWithClientContext(
+			session -> {
+				final Task<?, FileForFetch> backupTask = session.backupCatalog(
+					request.hasPastMoment() ?
+						EvitaDataTypesConverter.toOffsetDateTime(request.getPastMoment()) : null,
+					request.hasCatalogVersion() ? request.getCatalogVersion().getValue() : null,
+					request.getIncludingWAL()
+				);
+
+				streamBackupProgress(
+					backupTask,
+					status -> GrpcBackupCatalogResponse.newBuilder()
+						.setTaskStatus(status)
+						.build(),
+					responseObserver,
+					serviceContext
+				);
+			},
+			this.evita.getRequestExecutor(),
+			responseObserver,
+			this.tracingContext
+		);
+	}
+
+	/**
+	 * Method allows to fully backup a catalog and stream progress updates to the client.
+	 * Streaming variant of {@link #fullBackupCatalog(Empty, StreamObserver)} that
+	 * sends periodic task status updates while the backup is running.
 	 *
 	 * @param request          empty request
+	 * @param responseObserver observer on which progress updates are streamed
+	 */
+	@Override
+	public void fullBackupCatalogWithProgress(
+		Empty request,
+		StreamObserver<GrpcFullBackupCatalogResponse> responseObserver
+	) {
+		final ServiceRequestContext serviceContext = ServiceRequestContext.current();
+		executeWithClientContext(
+			session -> {
+				final Task<?, FileForFetch> backupTask = session.fullBackupCatalog();
+
+				streamBackupProgress(
+					backupTask,
+					status -> GrpcFullBackupCatalogResponse.newBuilder()
+						.setTaskStatus(status)
+						.build(),
+					responseObserver,
+					serviceContext
+				);
+			},
+			this.evita.getRequestExecutor(),
+			responseObserver,
+			this.tracingContext
+		);
+	}
+
+	/**
+	 * Streams backup task progress updates to the client. Sends an initial status, then polls the
+	 * task at ~1 second intervals, sending updates when progress changes. Re-arms the server request
+	 * timeout to a fresh deadline with each sent message.
+	 *
+	 * @param backupTask       the backup task to monitor
+	 * @param responseBuilder  function to build the gRPC response from a task status
+	 * @param responseObserver observer to stream responses to
+	 * @param serviceContext   Armeria service context for timeout management
+	 * @param <T>              the gRPC response type
+	 */
+	private static <T> void streamBackupProgress(
+		@Nonnull Task<?, FileForFetch> backupTask,
+		@Nonnull Function<GrpcTaskStatus, T> responseBuilder,
+		@Nonnull StreamObserver<T> responseObserver,
+		@Nonnull ServiceRequestContext serviceContext
+	) {
+		// send initial status
+		responseObserver.onNext(
+			responseBuilder.apply(toGrpcTaskStatus(backupTask.getStatus()))
+		);
+
+		// stream progress updates until completion
+		int lastProgress = -1;
+		while (!backupTask.getFutureResult().isDone()) {
+			try {
+				backupTask.getFutureResult().get(1, TimeUnit.SECONDS);
+			} catch (TimeoutException e) {
+				// task still running - send update if progress changed
+				final int currentProgress = backupTask.getStatus().progress();
+				if (currentProgress > lastProgress) {
+					lastProgress = currentProgress;
+					responseObserver.onNext(
+						responseBuilder.apply(toGrpcTaskStatus(backupTask.getStatus()))
+					);
+				}
+				GrpcTimeoutUtil.reArmRequestTimeoutIfEnabled(serviceContext, serviceContext.requestTimeoutMillis());
+			} catch (ExecutionException e) {
+				// task failed
+				GlobalExceptionHandlerInterceptor.sendErrorToClient(
+					e.getCause() != null ? e.getCause() : e, responseObserver
+				);
+				return;
+			} catch (InterruptedException e) {
+				Thread.currentThread().interrupt();
+				GlobalExceptionHandlerInterceptor.sendErrorToClient(e, responseObserver);
+				return;
+			}
+		}
+
+		// send final status and close
+		responseObserver.onNext(
+			responseBuilder.apply(toGrpcTaskStatus(backupTask.getStatus()))
+		);
+		responseObserver.onCompleted();
+	}
+
+	/**
+	 * Method used to close currently used session by calling {@link EvitaSessionContract#close()}.
+	 *
+	 * @param request          the close request; carries the commit behaviour and the client's rollback signal
+	 *                         (when `rollback` is set the transaction is discarded instead of committed)
 	 * @param responseObserver observer on which errors might be thrown and result returned
 	 */
 	@Override
@@ -879,6 +1009,12 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 		executeWithClientContext(
 			session -> {
 				if (session != null) {
+					if (request.getRollback()) {
+						// the client asks to discard the whole transaction (an exception escaped the transaction block
+						// uncaught) — mark it rollback-only so the close below rolls back instead of committing the
+						// surviving mutations, exactly as an embedded session would on an uncaught block failure
+						session.setRollbackOnly();
+					}
 					final CommitProgress commitProgress = session.closeNowWithProgress();
 					final CommitBehavior commitBehavior = toCommitBehavior(request.getCommitBehaviour());
 					commitProgress
@@ -935,7 +1071,8 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 	 * Method used to close currently used session by calling {@link EvitaSessionContract#close()} and return a stream
 	 * that is updated with progress of the commit.
 	 *
-	 * @param request          empty request
+	 * @param request          the close request; carries the client's rollback signal (when `rollback` is set the
+	 *                         transaction is discarded instead of committed)
 	 * @param responseObserver observer on which errors might be thrown and result returned
 	 */
 	@Override
@@ -946,6 +1083,12 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 		executeWithClientContext(
 			session -> {
 				if (session != null) {
+					if (request.getRollback()) {
+						// the client asks to discard the whole transaction (an exception escaped the transaction block
+						// uncaught) — mark it rollback-only so the close below rolls back instead of committing the
+						// surviving mutations, exactly as an embedded session would on an uncaught block failure
+						session.setRollbackOnly();
+					}
 					final CommitProgress commitProgress = session.closeNowWithProgress();
 					commitProgress.onConflictResolved()
 						.whenComplete(
@@ -2146,9 +2289,7 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 						// we send mutations one by one, but we may want to send them in batches in the future
 						builder.addChangeCapture(event);
 						responseObserver.onNext(builder.build());
-						serviceContext.setRequestTimeout(
-							TimeoutMode.EXTEND, Duration.ofMillis(serviceContext.requestTimeoutMillis())
-						);
+						GrpcTimeoutUtil.reArmRequestTimeoutIfEnabled(serviceContext, serviceContext.requestTimeoutMillis());
 					}
 				);
 				responseObserver.onCompleted();
@@ -2206,35 +2347,35 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 		GrpcRegisterChangeCatalogCaptureRequest request,
 		StreamObserver<GrpcRegisterChangeCatalogCaptureResponse> responseObserver
 	) {
-		final CompletableFuture<Subscription> subscriptionFuture = new CompletableFuture<>();
-		((ServerCallStreamObserver<GrpcRegisterChangeCatalogCaptureResponse>) responseObserver).setOnCancelHandler(
-			// cancel handler runs on the event loop thread — must not block
-			() -> subscriptionFuture.whenComplete((subscription, ex) -> {
-				if (subscription != null) {
-					subscription.cancel();
-				}
-			})
-		);
-
+		final ServerCallStreamObserver<GrpcRegisterChangeCatalogCaptureResponse> serverCallObserver =
+			(ServerCallStreamObserver<GrpcRegisterChangeCatalogCaptureResponse>) responseObserver;
 		final ServiceRequestContext serviceRequestContext = ServiceRequestContext.current();
 		final SemVer clientVersion = ServerSessionInterceptor.getClientVersion().orElse(null);
+
+		// Construct the subscriber synchronously on the service-method thread so the transport
+		// lifecycle handlers can bind directly to it — gRPC's ServerCallStreamObserverImpl
+		// rejects setOnCancelHandler/setOnCloseHandler if called after the service method
+		// returns (which is what happens on the worker thread that executeWithClientContext
+		// dispatches to). The session is available synchronously here via the gRPC
+		// Context.Key set by ServerSessionInterceptor, so we can obtain the catalog name
+		// without entering the async block.
+		final EvitaInternalSessionContract session = ServerSessionInterceptor.SESSION.get();
+		final String catalogName = session.getCatalogName();
+		final ChangeCatalogCaptureSubscriber subscriber = new ChangeCatalogCaptureSubscriber(
+			this.evita.getServiceExecutor(),
+			catalogName,
+			serverCallObserver,
+			clientVersion,
+			() -> this.evita.getCatalogInstanceOrThrowException(catalogName).getVersion(),
+			serviceRequestContext
+		);
+		serverCallObserver.setOnCancelHandler(subscriber::onTransportTerminated);
+		serverCallObserver.setOnCloseHandler(subscriber::onTransportTerminated);
+
 		executeWithClientContext(
-			session -> {
-				final String catalogName = session.getCatalogName();
-				session.registerChangeCatalogCapture(
-					ChangeCaptureConverter.toChangeCatalogCaptureRequest(request)
-				).subscribe(
-					new ChangeCatalogCaptureSubscriber(
-						this.evita.getServiceExecutor(),
-						catalogName,
-						responseObserver,
-						subscriptionFuture,
-						clientVersion,
-						() -> this.evita.getCatalogInstanceOrThrowException(catalogName).getVersion(),
-						serviceRequestContext
-					)
-				);
-			},
+			s -> s.registerChangeCatalogCapture(
+				ChangeCaptureConverter.toChangeCatalogCaptureRequest(request)
+			).subscribe(subscriber),
 			this.evita.getRequestExecutor(),
 			responseObserver,
 			this.tracingContext

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2026
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -109,7 +109,7 @@ public interface GrpcGlobalAttributeSchemaOrBuilder extends
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType unique = 4 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema.unique is deprecated.
-   *     See GrpcCatalogSchema.proto;l=64
+   *     See GrpcCatalogSchema.proto;l=67
    * @return The enum numeric value on the wire for unique.
    */
   @java.lang.Deprecated int getUniqueValue();
@@ -125,7 +125,7 @@ public interface GrpcGlobalAttributeSchemaOrBuilder extends
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType unique = 4 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema.unique is deprecated.
-   *     See GrpcCatalogSchema.proto;l=64
+   *     See GrpcCatalogSchema.proto;l=67
    * @return The unique.
    */
   @java.lang.Deprecated io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType getUnique();
@@ -143,7 +143,7 @@ public interface GrpcGlobalAttributeSchemaOrBuilder extends
    *
    * <code>bool filterable = 5 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema.filterable is deprecated.
-   *     See GrpcCatalogSchema.proto;l=72
+   *     See GrpcCatalogSchema.proto;l=75
    * @return The filterable.
    */
   @java.lang.Deprecated boolean getFilterable();
@@ -158,7 +158,7 @@ public interface GrpcGlobalAttributeSchemaOrBuilder extends
    *
    * <code>bool sortable = 6 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema.sortable is deprecated.
-   *     See GrpcCatalogSchema.proto;l=77
+   *     See GrpcCatalogSchema.proto;l=80
    * @return The sortable.
    */
   @java.lang.Deprecated boolean getSortable();
@@ -274,7 +274,7 @@ public interface GrpcGlobalAttributeSchemaOrBuilder extends
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeUniquenessType uniqueGlobally = 13 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema.uniqueGlobally is deprecated.
-   *     See GrpcCatalogSchema.proto;l=106
+   *     See GrpcCatalogSchema.proto;l=109
    * @return The enum numeric value on the wire for uniqueGlobally.
    */
   @java.lang.Deprecated int getUniqueGloballyValue();
@@ -290,7 +290,7 @@ public interface GrpcGlobalAttributeSchemaOrBuilder extends
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeUniquenessType uniqueGlobally = 13 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema.uniqueGlobally is deprecated.
-   *     See GrpcCatalogSchema.proto;l=106
+   *     See GrpcCatalogSchema.proto;l=109
    * @return The uniqueGlobally.
    */
   @java.lang.Deprecated io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeUniquenessType getUniqueGlobally();
@@ -302,7 +302,7 @@ public interface GrpcGlobalAttributeSchemaOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariant = 14;</code>
    */
-  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcNameVariant>
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcNameVariant> 
       getNameVariantList();
   /**
    * <pre>
@@ -327,7 +327,7 @@ public interface GrpcGlobalAttributeSchemaOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariant = 14;</code>
    */
-  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder>
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder> 
       getNameVariantOrBuilderList();
   /**
    * <pre>
@@ -350,7 +350,7 @@ public interface GrpcGlobalAttributeSchemaOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessType uniqueInScopes = 15;</code>
    */
-  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessType>
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessType> 
       getUniqueInScopesList();
   /**
    * <pre>
@@ -387,7 +387,7 @@ public interface GrpcGlobalAttributeSchemaOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessType uniqueInScopes = 15;</code>
    */
-  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessTypeOrBuilder>
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessTypeOrBuilder> 
       getUniqueInScopesOrBuilderList();
   /**
    * <pre>
@@ -547,7 +547,7 @@ public interface GrpcGlobalAttributeSchemaOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedGlobalAttributeUniquenessType uniqueGloballyInScopes = 18;</code>
    */
-  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedGlobalAttributeUniquenessType>
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedGlobalAttributeUniquenessType> 
       getUniqueGloballyInScopesList();
   /**
    * <pre>
@@ -584,7 +584,7 @@ public interface GrpcGlobalAttributeSchemaOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedGlobalAttributeUniquenessType uniqueGloballyInScopes = 18;</code>
    */
-  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcScopedGlobalAttributeUniquenessTypeOrBuilder>
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcScopedGlobalAttributeUniquenessTypeOrBuilder> 
       getUniqueGloballyInScopesOrBuilderList();
   /**
    * <pre>
@@ -599,4 +599,25 @@ public interface GrpcGlobalAttributeSchemaOrBuilder extends
    */
   io.evitadb.externalApi.grpc.generated.GrpcScopedGlobalAttributeUniquenessTypeOrBuilder getUniqueGloballyInScopesOrBuilder(
       int index);
+
+  /**
+   * <pre>
+   * Contains the per-attribute override of the conflict resolution granularity. Defaults to inherited (follow the
+   * resolved conflict resolution).
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcConflictResolutionOverride conflictResolutionOverride = 19;</code>
+   * @return The enum numeric value on the wire for conflictResolutionOverride.
+   */
+  int getConflictResolutionOverrideValue();
+  /**
+   * <pre>
+   * Contains the per-attribute override of the conflict resolution granularity. Defaults to inherited (follow the
+   * resolved conflict resolution).
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcConflictResolutionOverride conflictResolutionOverride = 19;</code>
+   * @return The conflictResolutionOverride.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcConflictResolutionOverride getConflictResolutionOverride();
 }

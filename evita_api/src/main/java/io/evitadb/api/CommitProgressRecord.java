@@ -27,14 +27,14 @@ import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.function.Functions;
 import lombok.Getter;
 import lombok.Setter;
+import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.time.OffsetDateTime;
-import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.Executor;
-import java.util.concurrent.RejectedExecutionException;
 import java.util.function.BiConsumer;
 
 /**
@@ -55,7 +55,9 @@ import java.util.function.BiConsumer;
  * **Completion Contract**
  *
  * This implementation enforces {@link CommitProgress} guarantees:
- * 1. Stages complete sequentially (conflict resolution → WAL → visibility)
+ * 1. Stages complete sequentially (conflict resolution → WAL → visibility) — and so do any listeners a
+ * consumer registers on them: a listener on an earlier stage always finishes running before a later
+ * stage's listeners begin, even though completion itself happens asynchronously (see {@link #completionSequencer})
  * 2. Exception in any stage immediately propagates to all later stages
  * 3. All stages eventually complete (no hanging futures)
  * 4. Idempotent completion (multiple calls to `complete()` have no effect after first completion)
@@ -68,8 +70,9 @@ import java.util.function.BiConsumer;
  *
  * **Asynchronous Completion**
  *
- * The `complete(CommitBehavior, CommitVersions, Executor)` variant uses an executor to complete futures asynchronously,
- * preventing the transaction pipeline thread from blocking on client callbacks. If the executor rejects the task,
+ * The `complete(CommitBehavior, CommitVersions, Executor)` variant completes futures asynchronously via
+ * {@link #completionSequencer}, preventing the transaction pipeline thread from blocking on client callbacks
+ * while still preserving stage-order listener firing. If the executor rejects a queued task, that stage's
  * completion falls back to synchronous mode.
  *
  * **Thread-Safety**
@@ -105,6 +108,7 @@ import java.util.function.BiConsumer;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
+@Slf4j
 public class CommitProgressRecord implements CommitProgress {
 
 	/**
@@ -165,62 +169,84 @@ public class CommitProgressRecord implements CommitProgress {
 	@Getter @Setter public CommitBehavior terminationStage = CommitBehavior.WAIT_FOR_CHANGES_VISIBLE;
 
 	/**
-	 * Asynchronously completes a stage, preventing transaction thread from blocking on client callbacks.
+	 * Serial queue backing the async {@link #complete(CommitBehavior, CommitVersions, Executor)} variant.
 	 *
-	 * This method attempts to complete the future in the provided executor to offload client callback execution
-	 * from the evitaDB transaction pipeline thread. If the executor rejects the task (shutdown or queue full),
-	 * falls back to synchronous completion.
+	 * Every stage-completion action is appended here instead of being fired directly, so that a stage's
+	 * actual `complete()` call — including the synchronous firing of every listener already registered on
+	 * it — always finishes running before the next queued stage's `complete()` call begins.
 	 *
-	 * **Cancellation Handling**: If the async completion is cancelled, the future is still completed with the result
-	 * to ensure all stages eventually complete.
+	 * This exists because {@link CompletableFuture} does not guarantee listeners fire in registration
+	 * order: when multiple actions are pending on the same stage at the moment it completes, they fire in
+	 * an unspecified order (in practice, most-recently-registered-first). Without this queue, completing
+	 * a later stage while an earlier stage is still pending registers a NEW "advance to the next stage"
+	 * listener on that earlier stage — and since that listener is registered after a consumer's own
+	 * listener (e.g. one attached right after this record was created), it can end up firing first,
+	 * letting a later stage's client notification win the race and arrive before the earlier stage's
+	 * notification, even though the underlying futures themselves always complete in the correct order.
+	 * Routing every completion through this single-file queue makes listener-firing order match stage
+	 * order too, for any consumer, regardless of executor timing.
 	 *
-	 * @param thisStage      the future to complete
-	 * @param commitVersions the versions to complete with
-	 * @param executor       the executor to run completion asynchronously
+	 * **Access**: only ever read or written inside the `synchronized` {@link #enqueueCompletion} — never
+	 * a plain {@link java.util.concurrent.atomic.AtomicReference} with a `updateAndGet`/`getAndUpdate`
+	 * style compare-and-swap, because the update here has a side effect (`thenRunAsync` registers a real
+	 * listener on `previous`). A CAS-based update re-invokes its function on every lost race, and a lost
+	 * attempt's already-registered listener cannot be un-registered — it fires later against a stale
+	 * chain link regardless, reintroducing the exact out-of-order-firing bug this queue exists to prevent.
+	 * A monitor makes the append a single, un-retried critical section instead.
 	 */
-	private static void completeStage(
-		@Nonnull CompletableFuture<CommitVersions> thisStage,
+	private CompletableFuture<Void> completionSequencer = CompletableFuture.completedFuture(null);
+
+	/**
+	 * Appends `stage.complete(commitVersions)` to the serial {@link #completionSequencer}, guaranteeing it
+	 * runs only once every previously queued stage completion — and, transitively, every listener already
+	 * registered on that earlier stage — has finished. Never blocks the caller on the queued work itself:
+	 * the whole queue runs on `executor`; `synchronized` here only guards the (sub-microsecond) append of
+	 * one more link, not the eventual `stage.complete(...)` call.
+	 *
+	 * @param stage          the stage to complete once its turn in the queue arrives
+	 * @param commitVersions the versions to complete `stage` with
+	 * @param executor       the executor the queued action (and its rejection recovery) runs on
+	 */
+	private synchronized void enqueueCompletion(
+		@Nonnull CompletableFuture<CommitVersions> stage,
 		@Nonnull CommitVersions commitVersions,
 		@Nonnull Executor executor
 	) {
-		try {
-			// we prefer completing the future asynchronously in the provided executor
-			// so that transactional pipeline is not blocked by the completion
-			thisStage.completeAsync(() -> commitVersions, executor)
-				.whenComplete((result, throwable) -> {
-					// if the future is cancelled, we complete it with the result anyway
-					if (throwable instanceof CancellationException) {
-						thisStage.complete(result);
-					} else if (throwable != null) {
-						thisStage.completeExceptionally(throwable);
-					}
-				});
-
-		} catch (RejectedExecutionException ignored) {
-			// if the the executor cannot accept the task, we complete the future immediately
-			thisStage.complete(commitVersions);
-		}
+		this.completionSequencer = this.completionSequencer
+			.thenRunAsync(() -> stage.complete(commitVersions), executor)
+			.exceptionally(ex -> {
+				// the executor rejected the task (shutdown / saturated queue) — complete the stage
+				// immediately so the pipeline can still terminate, and recover here so a rejection
+				// can never poison the queue for later stages
+				stage.complete(commitVersions);
+				return null;
+			});
 	}
 
 	/**
-	 * Chains completion of this stage to the previous stage.
+	 * Invokes the termination callback defensively.
 	 *
-	 * This method synchronously completes `thisStage` when `previousStage` completes. Used for later stages
-	 * (WAL, visibility) that chain off the async completion of the first stage (conflict resolution).
+	 * The contract says the callback "must not throw", but a misbehaving user-supplied implementation
+	 * (e.g., a throwing {@link EvitaSessionTerminationCallback}) must not leave stages pending. This helper
+	 * catches every throwable and logs it, then returns normally so the subsequent {@link CompletableFuture#complete}
+	 * call can still fire.
 	 *
-	 * Since the first stage is completed asynchronously, chaining here is safe and won't block the transaction thread.
-	 *
-	 * @param previousStage the stage that must complete first
-	 * @param thisStage     the stage to complete when previous stage finishes
+	 * @param commitVersions the versions passed to the callback (null on exception paths)
+	 * @param throwable      the exception passed to the callback (null on success paths)
 	 */
-	private static void completeStage(
-		@Nonnull CompletionStage<CommitVersions> previousStage,
-		@Nonnull CompletableFuture<CommitVersions> thisStage
+	private void invokeTerminationSequence(
+		@Nullable CommitVersions commitVersions,
+		@Nullable Throwable throwable
 	) {
-		// here we can just chain completion of this stage to the previous one
-		// since the first stage is done asynchronously, we can be synchronous here because it'll be executed
-		// in the same thread as the previous stage's completion
-		previousStage.whenComplete((result, throwable) -> thisStage.complete(result));
+		try {
+			this.terminationSequence.accept(commitVersions, throwable);
+		} catch (Throwable callbackException) {
+			log.error(
+				"Termination sequence callback threw an exception; the commit progress record will " +
+					"continue to complete the stage regardless.",
+				callbackException
+			);
+		}
 	}
 
 	/**
@@ -310,19 +336,19 @@ public class CommitProgressRecord implements CommitProgress {
 	public void completeExceptionally(@Nonnull Throwable exception) {
 		if (!this.onConflictResolved.isDone()) {
 			if (this.terminationStage == CommitBehavior.WAIT_FOR_CONFLICT_RESOLUTION) {
-				this.terminationSequence.accept(null, exception);
+				invokeTerminationSequence(null, exception);
 			}
 			this.onConflictResolved.completeExceptionally(exception);
 		}
 		if (!this.onWalAppended.isDone()) {
 			if (this.terminationStage == CommitBehavior.WAIT_FOR_WAL_PERSISTENCE) {
-				this.terminationSequence.accept(null, exception);
+				invokeTerminationSequence(null, exception);
 			}
 			this.onWalAppended.completeExceptionally(exception);
 		}
 		if (!this.onChangesVisible.isDone()) {
 			if (this.terminationStage == CommitBehavior.WAIT_FOR_CHANGES_VISIBLE) {
-				this.terminationSequence.accept(null, exception);
+				invokeTerminationSequence(null, exception);
 			}
 			this.onChangesVisible.completeExceptionally(exception);
 		}
@@ -356,7 +382,7 @@ public class CommitProgressRecord implements CommitProgress {
 			case WAIT_FOR_CONFLICT_RESOLUTION -> {
 				if (!this.onConflictResolved.isDone()) {
 					if (this.terminationStage == CommitBehavior.WAIT_FOR_CONFLICT_RESOLUTION) {
-						this.terminationSequence.accept(commitVersions, null);
+						invokeTerminationSequence(commitVersions, null);
 					}
 					this.onConflictResolved.complete(commitVersions);
 				}
@@ -364,7 +390,7 @@ public class CommitProgressRecord implements CommitProgress {
 			case WAIT_FOR_WAL_PERSISTENCE -> {
 				if (!this.onWalAppended.isDone()) {
 					if (this.terminationStage == CommitBehavior.WAIT_FOR_WAL_PERSISTENCE) {
-						this.terminationSequence.accept(commitVersions, null);
+						invokeTerminationSequence(commitVersions, null);
 					}
 					this.onWalAppended.complete(commitVersions);
 				}
@@ -372,7 +398,7 @@ public class CommitProgressRecord implements CommitProgress {
 			case WAIT_FOR_CHANGES_VISIBLE -> {
 				if (!this.onChangesVisible.isDone()) {
 					if (this.terminationStage == CommitBehavior.WAIT_FOR_CHANGES_VISIBLE) {
-						this.terminationSequence.accept(commitVersions, null);
+						invokeTerminationSequence(commitVersions, null);
 					}
 					this.onChangesVisible.complete(commitVersions);
 				}
@@ -389,13 +415,13 @@ public class CommitProgressRecord implements CommitProgress {
 	 *
 	 * **Asynchronous Behavior**
 	 *
-	 * - **WAIT_FOR_CONFLICT_RESOLUTION**: Completes `onConflictResolved` async in executor
-	 * - **WAIT_FOR_WAL_PERSISTENCE**: Chains `onWalAppended` to `onConflictResolved` (synchronous chaining is safe
-	 * because the first stage is already async)
-	 * - **WAIT_FOR_CHANGES_VISIBLE**: Chains `onChangesVisible` to `onWalAppended` (synchronous chaining is safe)
+	 * Every call — regardless of which stage — appends its completion to {@link #completionSequencer}, so
+	 * stage N's `complete()` call (and every listener already registered on stage N) always finishes
+	 * running before stage N+1's `complete()` call begins, even if stage N was still pending when stage
+	 * N+1 was requested. See {@link #completionSequencer} for why this is necessary.
 	 *
-	 * **Fallback**: If the executor rejects the task, falls back to synchronous completion (see
-	 * {@link #completeStage(CompletableFuture, CommitVersions, Executor)}).
+	 * **Fallback**: If the executor rejects a queued task, that stage is completed immediately instead
+	 * (see {@link #enqueueCompletion(CompletableFuture, CommitVersions, Executor)}).
 	 *
 	 * **Use Cases**
 	 *
@@ -415,25 +441,25 @@ public class CommitProgressRecord implements CommitProgress {
 			case WAIT_FOR_CONFLICT_RESOLUTION -> {
 				if (!this.onConflictResolved.isDone()) {
 					if (this.terminationStage == CommitBehavior.WAIT_FOR_CONFLICT_RESOLUTION) {
-						this.terminationSequence.accept(commitVersions, null);
+						invokeTerminationSequence(commitVersions, null);
 					}
-					completeStage(this.onConflictResolved, commitVersions, executor);
+					enqueueCompletion(this.onConflictResolved, commitVersions, executor);
 				}
 			}
 			case WAIT_FOR_WAL_PERSISTENCE -> {
 				if (!this.onWalAppended.isDone()) {
 					if (this.terminationStage == CommitBehavior.WAIT_FOR_WAL_PERSISTENCE) {
-						this.terminationSequence.accept(commitVersions, null);
+						invokeTerminationSequence(commitVersions, null);
 					}
-					completeStage(this.onConflictResolved, this.onWalAppended);
+					enqueueCompletion(this.onWalAppended, commitVersions, executor);
 				}
 			}
 			case WAIT_FOR_CHANGES_VISIBLE -> {
 				if (!this.onChangesVisible.isDone()) {
 					if (this.terminationStage == CommitBehavior.WAIT_FOR_CHANGES_VISIBLE) {
-						this.terminationSequence.accept(commitVersions, null);
+						invokeTerminationSequence(commitVersions, null);
 					}
-					completeStage(this.onWalAppended, this.onChangesVisible);
+					enqueueCompletion(this.onChangesVisible, commitVersions, executor);
 				}
 			}
 			default -> throw new IllegalArgumentException("Unsupported commit behavior: " + commitBehavior);
@@ -462,19 +488,19 @@ public class CommitProgressRecord implements CommitProgress {
 	public void complete(@Nonnull CommitVersions commitVersions) {
 		if (!this.onConflictResolved.isDone()) {
 			if (this.terminationStage == CommitBehavior.WAIT_FOR_CONFLICT_RESOLUTION) {
-				this.terminationSequence.accept(commitVersions, null);
+				invokeTerminationSequence(commitVersions, null);
 			}
 			this.onConflictResolved.complete(commitVersions);
 		}
 		if (!this.onWalAppended.isDone()) {
 			if (this.terminationStage == CommitBehavior.WAIT_FOR_WAL_PERSISTENCE) {
-				this.terminationSequence.accept(commitVersions, null);
+				invokeTerminationSequence(commitVersions, null);
 			}
 			this.onWalAppended.complete(commitVersions);
 		}
 		if (!this.onChangesVisible.isDone()) {
 			if (this.terminationStage == CommitBehavior.WAIT_FOR_CHANGES_VISIBLE) {
-				this.terminationSequence.accept(commitVersions, null);
+				invokeTerminationSequence(commitVersions, null);
 			}
 			this.onChangesVisible.complete(commitVersions);
 		}

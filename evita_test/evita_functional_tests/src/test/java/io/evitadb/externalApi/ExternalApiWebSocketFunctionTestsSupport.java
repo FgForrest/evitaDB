@@ -83,12 +83,4 @@ public interface ExternalApiWebSocketFunctionTestsSupport {
 	default String createSubscriptionId() {
 		return String.valueOf(RND.nextInt(Integer.MAX_VALUE));
 	}
-
-	default void wait(int milliseconds) {
-		try {
-			Thread.sleep(milliseconds);
-		} catch (InterruptedException e) {
-			throw new RuntimeException(e);
-		}
-	}
 }

@@ -29,6 +29,134 @@ The <LS to="e,j,r,g">**[boolean](https://docs.oracle.com/javase/tutorial/java/nu
 a numeric value, where the *true* is 1, and *false* is 0.
 </Note>
 
+## Entity primary key greater than
+
+```evitaql-syntax
+entityPrimaryKeyGreaterThan(
+    argument:int!
+)
+```
+
+<dl>
+    <dt>argument:int!</dt>
+    <dd>
+        the primary key value that returned entities must be strictly greater than
+    </dd>
+</dl>
+
+The `entityPrimaryKeyGreaterThan` filters entities by their primary key and returns only those
+whose primary key is strictly greater than the specified value.
+
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+
+[Products with primary key greater than 50](/documentation/user/en/query/filtering/examples/comparable/entity-primary-key-greater-than.evitaql)
+</SourceCodeTabs>
+
+## Entity primary key greater than, equals
+
+```evitaql-syntax
+entityPrimaryKeyGreaterThanEquals(
+    argument:int!
+)
+```
+
+<dl>
+    <dt>argument:int!</dt>
+    <dd>
+        the primary key value that returned entities must be greater than or equal to
+    </dd>
+</dl>
+
+The `entityPrimaryKeyGreaterThanEquals` filters entities by their primary key and returns only those
+whose primary key is greater than or equal to the specified value.
+
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+
+[Products with primary key greater than or equal to 50](/documentation/user/en/query/filtering/examples/comparable/entity-primary-key-greater-than-equals.evitaql)
+</SourceCodeTabs>
+
+## Entity primary key less than
+
+```evitaql-syntax
+entityPrimaryKeyLessThan(
+    argument:int!
+)
+```
+
+<dl>
+    <dt>argument:int!</dt>
+    <dd>
+        the primary key value that returned entities must be strictly less than
+    </dd>
+</dl>
+
+The `entityPrimaryKeyLessThan` filters entities by their primary key and returns only those
+whose primary key is strictly less than the specified value.
+
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+
+[Products with primary key less than 50](/documentation/user/en/query/filtering/examples/comparable/entity-primary-key-less-than.evitaql)
+</SourceCodeTabs>
+
+## Entity primary key less than, equals
+
+```evitaql-syntax
+entityPrimaryKeyLessThanEquals(
+    argument:int!
+)
+```
+
+<dl>
+    <dt>argument:int!</dt>
+    <dd>
+        the primary key value that returned entities must be less than or equal to
+    </dd>
+</dl>
+
+The `entityPrimaryKeyLessThanEquals` filters entities by their primary key and returns only those
+whose primary key is less than or equal to the specified value.
+
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+
+[Products with primary key less than or equal to 50](/documentation/user/en/query/filtering/examples/comparable/entity-primary-key-less-than-equals.evitaql)
+</SourceCodeTabs>
+
+## Entity primary key between
+
+```evitaql-syntax
+entityPrimaryKeyBetween(
+    argument:int,
+    argument:int
+)
+```
+
+<dl>
+    <dt>argument:int</dt>
+    <dd>
+        the lower bound (inclusive) of the primary key range; may be omitted (`null` in Java / GraphQL /
+        REST) to leave the range unbounded on the lower side
+    </dd>
+    <dt>argument:int</dt>
+    <dd>
+        the upper bound (inclusive) of the primary key range; may be omitted (`null` in Java / GraphQL /
+        REST) to leave the range unbounded on the upper side
+    </dd>
+</dl>
+
+The `entityPrimaryKeyBetween` filters entities by their primary key and returns only those
+whose primary key is greater than or equal to the first argument and less than or equal to the second argument.
+At least one of the two bounds must be provided; when a bound is omitted, the range is open-ended on
+that side (equivalent to `entityPrimaryKeyGreaterThanEquals` or `entityPrimaryKeyLessThanEquals`).
+
+Note that open-ended ranges are only accessible through the Java, GraphQL, and REST APIs. The EvitaQL
+text grammar requires both bounds to be specified — if you need an unbounded range in EvitaQL text,
+use `entityPrimaryKeyGreaterThanEquals` or `entityPrimaryKeyLessThanEquals` instead.
+
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+
+[Products with primary key between 10 and 50](/documentation/user/en/query/filtering/examples/comparable/entity-primary-key-between.evitaql)
+</SourceCodeTabs>
+
 ## Attribute equals
 
 ```evitaql-syntax
@@ -53,7 +181,7 @@ attributeEquals(
 The `attributeEquals` compares filterable or unique entity [attribute](../../use/data-model.md#attributes-unique-filterable-sortable-localized)
 for strict equality with the passed value.
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Product with `code` attribute equal to `apple-iphone-13-pro-3`](/documentation/user/en/query/filtering/examples/comparable/attribute-equals.evitaql)
 </SourceCodeTabs>
@@ -112,7 +240,7 @@ attributeGreaterThan(
 The `attributeGreaterThan` compares the filterable or unique entity [attribute](../../use/data-model.md#attributes-unique-filterable-sortable-localized)
 with the value in the second argument and is satisfied only if the entity attribute is greater than the value.
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Products with `battery-life` attribute greater than 40 hours](/documentation/user/en/query/filtering/examples/comparable/attribute-greater-than.evitaql)
 </SourceCodeTabs>
@@ -172,7 +300,7 @@ The `attributeGreaterThanEquals` compares the filterable or unique entity [attri
 with the value in the second argument and is satisfied only if the entity attribute is greater than or equal to
 the value.
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Products with `battery-life` attribute greater than or equal to 40 hours](/documentation/user/en/query/filtering/examples/comparable/attribute-greater-than-equals.evitaql)
 
@@ -232,7 +360,7 @@ attributeLessThan(
 The `attributeLessThan` compares the filterable or unique entity [attribute](../../use/data-model.md#attributes-unique-filterable-sortable-localized)
 with the value in the second argument and is satisfied only if the entity attribute is less than the value.
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Products with `battery-life` attribute less than 125 mWH](/documentation/user/en/query/filtering/examples/comparable/attribute-less-than.evitaql)
 </SourceCodeTabs>
@@ -291,7 +419,7 @@ attributeLessThanEquals(
 The `attributeLessThanEquals` compares the filterable or unique entity [attribute](../../use/data-model.md#attributes-unique-filterable-sortable-localized)
 with the value in the second argument and is satisfied only if the entity attribute is less than or equal to the value.
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Products with `battery-life` attribute less than or equal to 125 mWH](/documentation/user/en/query/filtering/examples/comparable/attribute-less-than-equals.evitaql)
 </SourceCodeTabs>
@@ -357,7 +485,7 @@ The `attributeBetween` compares the filterable or unique entity [attribute](../.
 and is satisfied only if the entity attribute is less than or equal to the first argument and at the same time greater
 than or equal to the second argument of the constraint.
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Products with `battery-life` attribute less than or equal to 125 mWH](/documentation/user/en/query/filtering/examples/comparable/attribute-between.evitaql)
 </SourceCodeTabs>
@@ -415,7 +543,7 @@ attributeInSet(
 The `attributeInSet` compares filterable or unique entity [attribute](../../use/data-model.md#attributes-unique-filterable-sortable-localized)
 for strict equality with any of the passed values.
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Product found by a `code` attribute in given set](/documentation/user/en/query/filtering/examples/comparable/attribute-in-set.evitaql)
 </SourceCodeTabs>
@@ -470,7 +598,7 @@ attributeIs(
 The `attributeIs` can be used to test for the existence of an entity
 [attribute](../../use/data-model.md#attributes-unique-filterable-sortable-localized) of a given name.
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Product with `catalogNumber` attribute present](/documentation/user/en/query/filtering/examples/comparable/attribute-is-not-null.evitaql)
 </SourceCodeTabs>
@@ -506,7 +634,7 @@ Returns hundreds of products with the *catalogNumber* attribute set.
 
 When you try to list products without such attribute:
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Product with `catalog-number` attribute missing](/documentation/user/en/query/filtering/examples/comparable/attribute-is-null.evitaql)
 </SourceCodeTabs>

@@ -2,20 +2,24 @@ POST /rest/evita/Product/query
 
 {
   "require" : {
-    "facetParameterValuesSummary" : {
+    "referenceParameterValuesSummary" : {
       "statisticsDepth" : "IMPACT",
-      "requirements" : {
-        "entityFetch" : {
-          "attributeContent" : [
-            "code"
-          ]
+      "requirements" : [
+        {
+          "entityFetch" : {
+            "attributeContent" : [
+              "code"
+            ]
+          }
         },
-        "entityGroupFetch" : {
-          "attributeContent" : [
-            "code"
-          ]
+        {
+          "entityGroupFetch" : {
+            "attributeContent" : [
+              "code"
+            ]
+          }
         }
-      },
+      ],
       "filterBy" : {
         "attributeCodeContains" : "4"
       },

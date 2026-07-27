@@ -136,6 +136,8 @@ public class EntityObjectBuilder {
 		if (!entitySchema.getCurrencies().isEmpty()) {
 			entityObject.property(EntityDescriptor.PRICE_INNER_RECORD_HANDLING.to(this.propertyBuilderTransformer));
 			entityObject.property(EntityDescriptor.PRICE_FOR_SALE.to(this.propertyBuilderTransformer));
+			entityObject.property(EntityDescriptor.PRICE_FOR_SALE_MIN.to(this.propertyBuilderTransformer));
+			entityObject.property(EntityDescriptor.PRICE_FOR_SALE_MAX.to(this.propertyBuilderTransformer));
 			entityObject.property(buildEntityAccompanyingPricesProperty());
 			entityObject.property(EntityDescriptor.MULTIPLE_PRICES_FOR_SALE_AVAILABLE.to(this.propertyBuilderTransformer));
 			entityObject.property(EntityDescriptor.PRICES.to(this.propertyBuilderTransformer));

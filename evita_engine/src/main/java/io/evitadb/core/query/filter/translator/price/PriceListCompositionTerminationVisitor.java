@@ -96,6 +96,15 @@ public class PriceListCompositionTerminationVisitor implements FormulaVisitor {
 	 */
 	private final PriceRecordPredicate priceFilter;
 	/**
+	 * When `true`, every {@link LowestPriceTerminationFormula} constructed by this visitor is created
+	 * with its `collectPerInnerRecordPrices` flag enabled so its `computeInternal()` additionally drains
+	 * the per-inner-record histogram side-output. The caller must set this to `true` only for LP
+	 * construction sites outside {@link io.evitadb.api.query.filter.UserFilter} scope, otherwise the
+	 * inner-userFilter LP would collect a redundant per-inner-record set that
+	 * {@code PriceHistogramComputer} would then double-count.
+	 */
+	private final boolean collectPerInnerRecordPricesForHistogram;
+	/**
 	 * Field is initialized when visitor walks through entire input formula and produces modified result.
 	 */
 	private Formula resultFormula;
@@ -104,6 +113,14 @@ public class PriceListCompositionTerminationVisitor implements FormulaVisitor {
 	 * Preferred way of invoking the visitor, accepts input formula and produces altered one. Arguments `priceFilter`
 	 * and `queryPriceMode` are used for handling filter by price in interval logic - i.e. to filter out produced entity
 	 * ids that has not resulted price within the specified interval.
+	 *
+	 * @param collectPerInnerRecordPricesForHistogram `true` when the caller is constructing the OUTER LP for a
+	 *                                                query that also requests a {@code priceHistogram}. The flag
+	 *                                                propagates straight to the LP constructor and is mixed into
+	 *                                                the LP's hash to keep histogram and non-histogram cache
+	 *                                                entries isolated. Callers building an LP inside
+	 *                                                {@link io.evitadb.api.query.filter.UserFilter} (e.g.
+	 *                                                {@code PriceBetweenTranslator}) MUST pass {@code false}.
 	 */
 	public static Formula translate(
 		@Nonnull List<Formula> formula,
@@ -111,13 +128,14 @@ public class PriceListCompositionTerminationVisitor implements FormulaVisitor {
 		@Nullable Currency currency,
 		@Nullable OffsetDateTime validIn,
 		@Nonnull QueryPriceMode queryPriceMode,
-		@Nullable PriceRecordPredicate priceFilter
+		@Nullable PriceRecordPredicate priceFilter,
+		boolean collectPerInnerRecordPricesForHistogram
 	) {
 		final Formula[] result = new Formula[formula.size()];
 		for (int i = 0; i < formula.size(); i++) {
 			final Formula singleFormula = formula.get(i);
 			final PriceListCompositionTerminationVisitor visitor = new PriceListCompositionTerminationVisitor(
-				queryPriceMode, validIn, priceFilter
+				queryPriceMode, validIn, priceFilter, collectPerInnerRecordPricesForHistogram
 			);
 			singleFormula.accept(visitor);
 			result[i] = visitor.getResultFormula();
@@ -193,7 +211,8 @@ public class PriceListCompositionTerminationVisitor implements FormulaVisitor {
 					new PlainPriceTerminationFormulaWithPriceFilter(containerFormula, priceEvaluationContext, this.priceFilter);
 				case LOWEST_PRICE -> new LowestPriceTerminationFormula(
 					containerFormula, priceEvaluationContext, this.queryPriceMode,
-					ofNullable(this.priceFilter).orElse(PricePredicate.ALL_RECORD_FILTER)
+					ofNullable(this.priceFilter).orElse(PricePredicate.ALL_RECORD_FILTER),
+					this.collectPerInnerRecordPricesForHistogram
 				);
 				case SUM -> new SumPriceTerminationFormula(
 					containerFormula, priceEvaluationContext, this.queryPriceMode,

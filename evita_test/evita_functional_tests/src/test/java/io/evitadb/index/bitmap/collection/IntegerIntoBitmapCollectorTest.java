@@ -31,8 +31,11 @@ import org.junit.jupiter.api.Test;
 
 import java.util.stream.Collector.Characteristics;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.INDEXING;
+import static io.evitadb.test.TestTags.DATA_TYPE;
 
 /**
  * This test verifies contract of {@link IntegerIntoBitmapCollector}.
@@ -40,6 +43,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 @DisplayName("IntegerIntoBitmapCollector")
+@Tag(INDEXING)
+@Tag(DATA_TYPE)
 class IntegerIntoBitmapCollectorTest {
 
 	@Nested

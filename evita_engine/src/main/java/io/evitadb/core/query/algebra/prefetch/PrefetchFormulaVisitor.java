@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024-2025
+ *   Copyright (c) 2024-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -34,6 +34,7 @@ import io.evitadb.core.query.algebra.FormulaVisitor;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
+import io.evitadb.index.AbstractReducedEntityIndex;
 import io.evitadb.index.ReducedEntityIndex;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
@@ -41,11 +42,11 @@ import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
-import org.roaringbitmap.RoaringBitmap;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.LinkedList;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -82,7 +83,7 @@ public class PrefetchFormulaVisitor implements FormulaVisitor, FormulaPostProces
 	/**
 	 * Contains all bitmaps of entity ids found in conjunctive scope of the formula.
 	 */
-	@Nonnull private final List<Bitmap> conjunctiveEntityIds = new LinkedList<>();
+	@Nonnull private final List<Bitmap> conjunctiveEntityIds = new ArrayList<>(16);
 	/**
 	 * Contains set of entity primary keys (masked by {@link QueryPlanningContext#translateEntityReference(EntityReferenceContract...)}
 	 * that needs to be prefetched.
@@ -150,32 +151,38 @@ public class PrefetchFormulaVisitor implements FormulaVisitor, FormulaPostProces
 			final Bitmap conjunctiveEntities = getConjunctiveEntities();
 			requirements = requirements == null ? getRequirements() : requirements;
 			// does the prefetch pay off?
-			if (requirements != null && getExpectedComputationalCosts() > this.queryContext.estimatePrefetchCost(conjunctiveEntities.size(), requirements)) {
+			if (
+				requirements != null
+					&& getExpectedComputationalCosts()
+					> this.queryContext.estimatePrefetchCost(conjunctiveEntities.size(), requirements)
+			) {
 				if (entitiesToPrefetch == null) {
 					entitiesToPrefetch = conjunctiveEntities;
 				} else {
-					final RoaringBitmap roaringBitmapA = RoaringBitmapBackedBitmap.getRoaringBitmap(entitiesToPrefetch);
-					final RoaringBitmap roaringBitmapB = RoaringBitmapBackedBitmap.getRoaringBitmap(conjunctiveEntities);
+					final PersistentRoaringBitmap roaringBitmapA = RoaringBitmapBackedBitmap.getRoaringBitmap(entitiesToPrefetch);
+					final PersistentRoaringBitmap roaringBitmapB = RoaringBitmapBackedBitmap.getRoaringBitmap(conjunctiveEntities);
 					entitiesToPrefetch = new BaseBitmap(
-						RoaringBitmap.or(roaringBitmapA, roaringBitmapB)
+						PersistentRoaringBitmap.or(roaringBitmapA, roaringBitmapB)
 					);
 				}
 				if (!(this.targetIndexes.isGlobalIndex() || this.targetIndexes.isCatalogIndex())) {
 					// when narrowed indexes were used we need to filter the prefetched primary keys to the ones that are
 					// present in the index
 					Assert.isPremiseValid(
-						ReducedEntityIndex.class.isAssignableFrom(this.targetIndexes.getIndexType()),
+						AbstractReducedEntityIndex.class.isAssignableFrom(this.targetIndexes.getIndexType()),
 						"Only reduced entity indexes are supported"
 					);
+					final List<?> indexes = this.targetIndexes.getIndexes();
+					final PersistentRoaringBitmap[] indexBitmaps = new PersistentRoaringBitmap[indexes.size()];
+					for (int i = 0; i < indexes.size(); i++) {
+						indexBitmaps[i] = RoaringBitmapBackedBitmap.getRoaringBitmap(
+							((AbstractReducedEntityIndex) indexes.get(i)).getAllPrimaryKeys()
+						);
+					}
 					entitiesToPrefetch = RoaringBitmapBackedBitmap.and(
-						new RoaringBitmap[]{
+						new PersistentRoaringBitmap[]{
 							RoaringBitmapBackedBitmap.getRoaringBitmap(entitiesToPrefetch),
-							RoaringBitmap.or(
-								this.targetIndexes.getIndexes().stream()
-									.map(index -> ((ReducedEntityIndex) index).getAllPrimaryKeys())
-									.map(RoaringBitmapBackedBitmap::getRoaringBitmap)
-									.toArray(RoaringBitmap[]::new)
-							)
+							PersistentRoaringBitmap.or(indexBitmaps)
 						}
 					);
 				}
@@ -255,16 +262,18 @@ public class PrefetchFormulaVisitor implements FormulaVisitor, FormulaPostProces
 	 */
 	@Nonnull
 	private Bitmap getConjunctiveEntities() {
-		return this.estimatedBitmapCardinality <= BITMAP_SIZE_THRESHOLD ?
-			this.conjunctiveEntityIds.stream()
-				.reduce((bitmapA, bitmapB) -> {
-					final RoaringBitmap roaringBitmapA = RoaringBitmapBackedBitmap.getRoaringBitmap(bitmapA);
-					final RoaringBitmap roaringBitmapB = RoaringBitmapBackedBitmap.getRoaringBitmap(bitmapB);
-					return new BaseBitmap(
-						RoaringBitmap.and(roaringBitmapA, roaringBitmapB)
-					);
-				})
-				.orElse(EmptyBitmap.INSTANCE) : EmptyBitmap.INSTANCE;
+		if (this.estimatedBitmapCardinality > BITMAP_SIZE_THRESHOLD || this.conjunctiveEntityIds.isEmpty()) {
+			return EmptyBitmap.INSTANCE;
+		}
+		Bitmap result = this.conjunctiveEntityIds.get(0);
+		for (int i = 1; i < this.conjunctiveEntityIds.size(); i++) {
+			final PersistentRoaringBitmap roaringBitmapA = RoaringBitmapBackedBitmap.getRoaringBitmap(result);
+			final PersistentRoaringBitmap roaringBitmapB = RoaringBitmapBackedBitmap.getRoaringBitmap(
+				this.conjunctiveEntityIds.get(i)
+			);
+			result = new BaseBitmap(PersistentRoaringBitmap.and(roaringBitmapA, roaringBitmapB));
+		}
+		return result;
 	}
 
 	/**

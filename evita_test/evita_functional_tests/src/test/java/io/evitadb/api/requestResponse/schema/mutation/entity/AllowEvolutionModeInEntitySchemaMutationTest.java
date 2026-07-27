@@ -27,6 +27,8 @@ import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.mutation.conflict.CollectionConflictKey;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictGenerationContext;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolution;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
@@ -40,6 +42,7 @@ import org.mockito.Mockito;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -49,6 +52,8 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.SCHEMA;
 
 /**
  * This test verifies {@link AllowEvolutionModeInEntitySchemaMutation} class.
@@ -56,6 +61,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 @DisplayName("AllowEvolutionModeInEntitySchemaMutation")
+@Tag(CONTRACT)
+@Tag(SCHEMA)
 class AllowEvolutionModeInEntitySchemaMutationTest {
 
 	@Nested
@@ -355,10 +362,10 @@ class AllowEvolutionModeInEntitySchemaMutationTest {
 				new AllowEvolutionModeInEntitySchemaMutation(
 					EvolutionMode.ADDING_LOCALES
 				);
-			final List<ConflictKey> keys = new ConflictGenerationContext()
+			final List<ConflictKey> keys = new ConflictGenerationContext(new ConflictResolution(ConflictPolicy.NONE))
 				.withEntityType(
 					"testEntity", null,
-					ctx -> mutation.collectConflictKeys(ctx, Set.of()).toList()
+					ctx -> mutation.collectConflictKeys(ctx).toList()
 				);
 			assertEquals(1, keys.size());
 			assertInstanceOf(CollectionConflictKey.class, keys.get(0));

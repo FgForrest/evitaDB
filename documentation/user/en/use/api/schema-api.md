@@ -95,10 +95,14 @@ The model is expected to be annotated with following annotations:
     </dd>
     <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/Reference.java</SourceClass></dt>
     <dd>
-        Annotation can be placed on field / getter method / record component and marks an entity as a
+        <p>Annotation can be placed on field / getter method / record component and marks an entity as a
         [reference](../../use/schema.md#reference) to another entity. It can point to another model class (interface/class/record)
         that contains properties for `@ReferencedEntity` and `@ReferencedEntityGroup` annotations and relation
-        attributes.
+        attributes.</p>
+        <p>In addition to basic reference configuration (`indexed`, `faceted`), the annotation supports
+        [conditional facet indexing](../../use/schema.md#conditional-indexing-with-expressions) via `facetedPartially`
+        and [conditional histogram indexing](../../use/schema.md#reference-histograms) via `bucketed`
+        and `bucketedPartially`. Per-scope overrides can be specified using nested `@ScopeReferenceSettings`.</p>
     </dd>
     <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/ReflectedReference.java</SourceClass></dt>
     <dd>
@@ -120,6 +124,39 @@ The model is expected to be annotated with following annotations:
         Annotation can be placed on field / getter method / record component and marks a reference to another entity
         that represents the referenced entity group for this entity. The model class should represent a entity class
         model (see `@Entity` annotation).
+    </dd>
+    <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/Expression.java</SourceClass></dt>
+    <dd>
+        <p>Annotation representing an [EvitaEL expression](../../query/expression-language.md) value. Used within
+        other annotations — `@Reference` / `@ScopeReferenceSettings` — to define computed values or boolean conditions.</p>
+        <p>For example, `@Expression("$reference.referencedEntity.attributes['status'] == 'ACTIVE'")` defines a condition
+        for [conditional facet indexing](../../use/schema.md#conditional-indexing-with-expressions), and
+        `@Expression("$reference.referencedEntity.attributes['basicUnitValue'] ?? 0.0")` defines a value
+        for [histogram indexing](../../use/schema.md#reference-histograms). An empty string (default) means
+        no expression is defined.</p>
+    </dd>
+    <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/Histogram.java</SourceClass></dt>
+    <dd>
+        <p>Configures [histogram (bucketed) indexing](../../use/schema.md#reference-histograms) on a reference.
+        When used within `@Reference` or `@ScopeReferenceSettings`, it defines a named histogram index with an optional
+        value expression that computes the bucket value for each referenced entity.</p>
+        <p>The `nameOfTheIndex` identifies the histogram slot (a single reference can have multiple named histograms).
+        The `value` attribute accepts an `@Expression` that resolves to a numeric attribute — for example,
+        `@Histogram(nameOfTheIndex = "priceHistogram", value = @Expression("$reference.referencedEntity.attributes['price']"))`.</p>
+        <p>The `value` expression may resolve to a scalar numeric attribute **or** to a numeric `NumberRange` attribute
+        (`ByteNumberRange` … `BigDecimalNumberRange`); a range source distributes each instance across every bucket its
+        interval overlaps and must not use a `??` default (see [Reference histograms](../../use/schema.md#reference-histograms)).
+        The optional `assignedWhen` element accepts an `@Expression` acting as a per-histogram partition selector — among
+        the instances eligible via `bucketedPartially`, only those for which `assignedWhen` evaluates to `true` feed this
+        particular histogram.</p>
+    </dd>
+    <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/ScopeReferenceSettings.java</SourceClass></dt>
+    <dd>
+        <p>Used within `@Reference` or `@ReflectedReference` to define per-scope overrides for reference indexing
+        settings. Each instance configures a single scope (e.g., `LIVE` or `ARCHIVED`) and can override `indexed`,
+        `faceted`, `facetedPartially`, `bucketed`, and `bucketedPartially` independently of the defaults.</p>
+        <p>When scope settings are specified for `LIVE`, the general settings on `@Reference` are ignored
+        completely.</p>
     </dd>
 </dl>
 

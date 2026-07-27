@@ -31,16 +31,21 @@ import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.TASK;
 
 /**
  * Tests for {@link InternallyScheduledTask} annotation verifying its retention policy, target,
  * and documentation metadata.
  *
- * @author evitaDB
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("InternallyScheduledTask annotation metadata")
+@Tag(CONTRACT)
+@Tag(TASK)
 class InternallyScheduledTaskTest {
 
 	@Test

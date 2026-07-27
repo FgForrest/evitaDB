@@ -30,25 +30,19 @@ import io.evitadb.core.query.algebra.price.CacheablePriceFormula;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import net.openhft.hashing.LongHashFunction;
-import org.roaringbitmap.RoaringBitmap;
-import org.roaringbitmap.RoaringBitmapWriter;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
+import io.evitadb.roaringbitmap.RoaringBitmapWriter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Arrays;
-import java.util.Objects;
 import java.util.PrimitiveIterator.OfInt;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
-import java.util.stream.LongStream;
-import java.util.stream.Stream;
-
-import static java.util.Optional.ofNullable;
 
 /**
  * Disentangle formula accepts two bitmaps of numbers and produces bitmap of numbers, that are present in first array
@@ -81,9 +75,21 @@ import static java.util.Optional.ofNullable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public class DisentangleFormula extends AbstractCacheableFormula implements CacheablePriceFormula {
+	/**
+	 * Unique identifier of this formula used in {@link AbstractCacheableFormula#getClassId()} for hash computation.
+	 */
 	private static final long CLASS_ID = -3805332683683704679L;
+	/**
+	 * Sentinel value indicating that a bitmap iterator has been fully exhausted.
+	 */
 	private static final int END_OF_STREAM = -1;
+	/**
+	 * Primary bitmap whose elements are iterated and conditionally included in the result.
+	 */
 	private final Bitmap mainBitmap;
+	/**
+	 * Control bitmap whose elements are used to exclude matching entries from the main bitmap.
+	 */
 	private final Bitmap controlBitmap;
 
 	public DisentangleFormula(@Nonnull Formula mainBitmap, @Nonnull Formula controlBitmap) {
@@ -118,14 +124,32 @@ public class DisentangleFormula extends AbstractCacheableFormula implements Cach
 
 	@Nonnull
 	@Override
-	public long[] gatherBitmapIdsInternal() {
-		return LongStream.concat(
-				Stream.of(this.mainBitmap, this.controlBitmap)
-					.filter(TransactionalLayerProducer.class::isInstance)
-					.mapToLong(it -> ((TransactionalLayerProducer<?, ?>) it).getId()),
-				Arrays.stream(this.innerFormulas).flatMapToLong(it -> LongStream.of(it.gatherTransactionalIds()))
-			)
-			.toArray();
+	protected long[] gatherBitmapIdsInternal() {
+		int bitmapIdCount = 0;
+		if (this.mainBitmap instanceof TransactionalLayerProducer) {
+			bitmapIdCount++;
+		}
+		if (this.controlBitmap instanceof TransactionalLayerProducer) {
+			bitmapIdCount++;
+		}
+		int innerIdCount = 0;
+		for (final Formula formula : this.innerFormulas) {
+			innerIdCount += formula.gatherTransactionalIds().length;
+		}
+		final long[] result = new long[bitmapIdCount + innerIdCount];
+		int pos = 0;
+		if (this.mainBitmap instanceof TransactionalLayerProducer) {
+			result[pos++] = ((TransactionalLayerProducer<?, ?>) this.mainBitmap).getId();
+		}
+		if (this.controlBitmap instanceof TransactionalLayerProducer) {
+			result[pos++] = ((TransactionalLayerProducer<?, ?>) this.controlBitmap).getId();
+		}
+		for (final Formula innerFormula : this.innerFormulas) {
+			final long[] ids = innerFormula.gatherTransactionalIds();
+			System.arraycopy(ids, 0, result, pos, ids.length);
+			pos += ids.length;
+		}
+		return pos == result.length ? result : Arrays.copyOf(result, pos);
 	}
 
 	@Override
@@ -146,7 +170,7 @@ public class DisentangleFormula extends AbstractCacheableFormula implements Cach
 	@Override
 	protected long getEstimatedBaseCost() {
 		if (this.mainBitmap != null && this.controlBitmap != null) {
-			return Stream.of(this.mainBitmap, this.controlBitmap).mapToLong(Bitmap::size).sum();
+			return (long) this.mainBitmap.size() + (long) this.controlBitmap.size();
 		} else {
 			return super.getEstimatedBaseCost();
 		}
@@ -159,20 +183,34 @@ public class DisentangleFormula extends AbstractCacheableFormula implements Cach
 
 	@Override
 	protected long includeAdditionalHash(@Nonnull LongHashFunction hashFunction) {
-		return hashFunction.hashLongs(
-			Stream.of(this.mainBitmap, this.controlBitmap)
-				.filter(Objects::nonNull)
-				.mapToLong(it -> {
-					if (it instanceof TransactionalLayerProducer) {
-						return ((TransactionalLayerProducer<?, ?>) it).getId();
-					} else {
-						// this shouldn't happen for long arrays - these are expected to be always linked to transactional
-						// bitmaps located in indexes and represented by "transactional id"
-						return hashFunction.hashInts(it.getArray());
-					}
-				})
-				.toArray()
-		);
+		int count = 0;
+		if (this.mainBitmap != null) {
+			count++;
+		}
+		if (this.controlBitmap != null) {
+			count++;
+		}
+		final long[] hashes = new long[count];
+		int pos = 0;
+		if (this.mainBitmap != null) {
+			if (this.mainBitmap instanceof TransactionalLayerProducer) {
+				hashes[pos++] = ((TransactionalLayerProducer<?, ?>) this.mainBitmap).getId();
+			} else {
+				// this shouldn't happen for long arrays - these are expected to be always linked to transactional
+				// bitmaps located in indexes and represented by "transactional id"
+				hashes[pos++] = hashFunction.hashInts(this.mainBitmap.getArray());
+			}
+		}
+		if (this.controlBitmap != null) {
+			if (this.controlBitmap instanceof TransactionalLayerProducer) {
+				hashes[pos++] = ((TransactionalLayerProducer<?, ?>) this.controlBitmap).getId();
+			} else {
+				// this shouldn't happen for long arrays - these are expected to be always linked to transactional
+				// bitmaps located in indexes and represented by "transactional id"
+				hashes[pos++] = hashFunction.hashInts(this.controlBitmap.getArray());
+			}
+		}
+		return hashFunction.hashLongs(hashes);
 	}
 
 	@Override
@@ -188,7 +226,7 @@ public class DisentangleFormula extends AbstractCacheableFormula implements Cach
 	@Override
 	protected long getCostInternal() {
 		if (this.mainBitmap != null && this.controlBitmap != null) {
-			return Stream.of(this.mainBitmap, this.controlBitmap).mapToLong(Bitmap::size).sum();
+			return (long) this.mainBitmap.size() + (long) this.controlBitmap.size();
 		} else {
 			return super.getCostInternal();
 		}
@@ -228,7 +266,7 @@ public class DisentangleFormula extends AbstractCacheableFormula implements Cach
 	@Override
 	public String toStringVerbose() {
 		if (this.mainBitmap != null && this.controlBitmap != null) {
-			return "DISENTANGLE: " + Stream.of(this.mainBitmap, this.controlBitmap).map(Bitmap::toString).collect(Collectors.joining(", "));
+			return "DISENTANGLE: " + this.mainBitmap.toString() + ", " + this.controlBitmap.toString();
 		} else {
 			return "DISENTANGLE";
 		}
@@ -237,17 +275,31 @@ public class DisentangleFormula extends AbstractCacheableFormula implements Cach
 	@Nonnull
 	@Override
 	protected Bitmap computeInternal() {
-		final RoaringBitmapWriter<RoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
-		final OfInt controlIt = ofNullable(this.controlBitmap).map(Bitmap::iterator).orElseGet(() -> this.innerFormulas[1].compute().iterator());
+		// disentangle(X, X) = ∅ — every element in main is at the same position in control,
+		// so all entries are swallowed. Guards against direct construction with identical inputs
+		// and against FormulaCloner-induced collapse when FormulaDeduplicator unifies the two
+		// positional siblings (see analogous guard in NotFormula).
+		if ((this.mainBitmap != null && this.mainBitmap == this.controlBitmap) ||
+			(this.mainBitmap == null && this.innerFormulas[0] == this.innerFormulas[1])) {
+			return EmptyBitmap.INSTANCE;
+		}
+		final RoaringBitmapWriter<PersistentRoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
+		final OfInt controlIt = this.controlBitmap != null
+			? this.controlBitmap.iterator()
+			: this.innerFormulas[1].compute().iterator();
 		if (!controlIt.hasNext()) {
-			final OfInt mainIt = ofNullable(this.mainBitmap).map(Bitmap::iterator).orElseGet(() -> this.innerFormulas[0].compute().iterator());
+			final OfInt mainIt = this.mainBitmap != null
+				? this.mainBitmap.iterator()
+				: this.innerFormulas[0].compute().iterator();
 			while (mainIt.hasNext()) {
 				writer.add(mainIt.next());
 			}
 		} else {
-			final OfInt mainIt = ofNullable(this.mainBitmap).map(Bitmap::iterator).orElseGet(() -> this.innerFormulas[0].compute().iterator());
+			final OfInt mainIt = this.mainBitmap != null
+				? this.mainBitmap.iterator()
+				: this.innerFormulas[0].compute().iterator();
 			int number;
-			final AtomicInteger controlNumberRef = new AtomicInteger(END_OF_STREAM);
+			final int[] controlNumberRef = {END_OF_STREAM};
 			while ((number = computeNextInt(mainIt, controlIt, controlNumberRef)) != END_OF_STREAM) {
 				writer.add(number);
 			}
@@ -259,24 +311,24 @@ public class DisentangleFormula extends AbstractCacheableFormula implements Cach
 		PRIVATE METHODS
 	 */
 
-	private static int computeNextInt(OfInt mainIt, OfInt controlIt, AtomicInteger controlNumberRef) {
+	private static int computeNextInt(OfInt mainIt, OfInt controlIt, int[] controlNumberRef) {
 		if (mainIt.hasNext()) {
 			do {
 				final int nextNumberAdept = mainIt.next();
-				if (!controlIt.hasNext() && controlNumberRef.get() == END_OF_STREAM) {
+				if (!controlIt.hasNext() && controlNumberRef[0] == END_OF_STREAM) {
 					return nextNumberAdept;
 				}
-				while (controlIt.hasNext() && (controlNumberRef.get() == END_OF_STREAM || controlNumberRef.get() < nextNumberAdept)) {
-					controlNumberRef.set(controlIt.next());
+				while (controlIt.hasNext() && (controlNumberRef[0] == END_OF_STREAM || controlNumberRef[0] < nextNumberAdept)) {
+					controlNumberRef[0] = controlIt.next();
 				}
 
-				if (nextNumberAdept == controlNumberRef.get()) {
+				if (nextNumberAdept == controlNumberRef[0]) {
 					// swallow in control list and repeat
 					if (mainIt.hasNext()) {
 						if (controlIt.hasNext()) {
-							controlNumberRef.set(controlIt.next());
+							controlNumberRef[0] = controlIt.next();
 						} else {
-							controlNumberRef.set(END_OF_STREAM);
+							controlNumberRef[0] = END_OF_STREAM;
 						}
 					} else {
 						return END_OF_STREAM;

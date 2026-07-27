@@ -25,15 +25,20 @@ package io.evitadb.externalApi.utils;
 
 import io.evitadb.exception.EvitaInternalError;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static io.evitadb.test.TestTags.EXTERNAL_API;
+import static io.evitadb.test.TestTags.MANAGEMENT;
 
 /**
  * Tests for {@link UriPath}.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
+@Tag(EXTERNAL_API)
+@Tag(MANAGEMENT)
 public class UriPathTest {
 
 	@Test

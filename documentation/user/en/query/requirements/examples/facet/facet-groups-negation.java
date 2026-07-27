@@ -5,7 +5,7 @@ final EvitaResponse<SealedEntity> entities = evita.queryCatalog(
 			query(
 				collection("Product"),
 				require(
-					facetSummaryOfReference(
+					referenceSummaryOfReference(
 						"parameterValues",
 						IMPACT,
 						filterBy(

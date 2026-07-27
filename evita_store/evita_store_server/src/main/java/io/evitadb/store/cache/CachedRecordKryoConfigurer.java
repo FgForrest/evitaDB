@@ -28,15 +28,18 @@ import io.evitadb.core.cache.payload.FlattenedFormula;
 import io.evitadb.core.cache.payload.FlattenedFormulaWithFilteredOutRecords;
 import io.evitadb.core.cache.payload.FlattenedFormulaWithFilteredPrices;
 import io.evitadb.core.cache.payload.FlattenedFormulaWithFilteredPricesAndFilteredOutRecords;
+import io.evitadb.core.cache.payload.FlattenedFormulaWithFilteredPricesForHistogram;
 import io.evitadb.core.query.algebra.CacheableFormula;
 import io.evitadb.core.query.extraResult.translator.histogram.cache.FlattenedHistogramComputer;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.store.cache.serializer.FlattenedFormulaSerializer;
 import io.evitadb.store.cache.serializer.FlattenedFormulaWithFilteredOutRecordsSerializer;
 import io.evitadb.store.cache.serializer.FlattenedFormulaWithFilteredPricesAndFilteredOutRecordsSerializer;
+import io.evitadb.store.cache.serializer.FlattenedFormulaWithFilteredPricesForHistogramSerializer;
 import io.evitadb.store.cache.serializer.FlattenedFormulaWithFilteredPricesSerializer;
 import io.evitadb.store.cache.serializer.FlattenedHistogramComputerSerializer;
 import io.evitadb.store.cache.serializer.FlattenedHistogramComputerSerializer_2026_1;
+import io.evitadb.store.cache.serializer.FlattenedHistogramComputerSerializer_2026_2;
 import io.evitadb.store.entity.serializer.SerialVersionBasedSerializer;
 import lombok.RequiredArgsConstructor;
 
@@ -61,8 +64,19 @@ class CachedRecordKryoConfigurer implements Consumer<Kryo> {
 		kryo.register(
 			FlattenedHistogramComputer.class,
 			new SerialVersionBasedSerializer<>(new FlattenedHistogramComputerSerializer(), FlattenedHistogramComputer.class)
-				.addBackwardCompatibleSerializer(4049228240087093145L, new FlattenedHistogramComputerSerializer_2026_1()),
+				.addBackwardCompatibleSerializer(4049228240087093145L, new FlattenedHistogramComputerSerializer_2026_1())
+				.addBackwardCompatibleSerializer(4049228240087093146L, new FlattenedHistogramComputerSerializer_2026_2()),
 			204
+		);
+		// histogram-aware sibling payload — carries the per-inner-record records consumed by the
+		// price histogram for `LOWEST_PRICE` collections
+		kryo.register(
+			FlattenedFormulaWithFilteredPricesForHistogram.class,
+			new SerialVersionBasedSerializer<>(
+				new FlattenedFormulaWithFilteredPricesForHistogramSerializer(this.globalEntityIndexAccessor),
+				FlattenedFormulaWithFilteredPricesForHistogram.class
+			),
+			205
 		);
 	}
 

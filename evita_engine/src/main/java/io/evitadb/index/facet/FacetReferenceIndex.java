@@ -27,7 +27,9 @@ import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.core.query.algebra.facet.FacetGroupFormula;
 import io.evitadb.core.transaction.Transaction;
+import io.evitadb.core.transaction.memory.Snapshotable;
 import io.evitadb.core.transaction.memory.TransactionalContainerChanges;
+import io.evitadb.core.transaction.memory.TransactionalContainerChanges.ContainerChangesMemento;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
@@ -35,9 +37,9 @@ import io.evitadb.function.TriFunction;
 import io.evitadb.index.IndexDataStructure;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
-import io.evitadb.index.facet.FacetGroupIndex.FacetGroupIndexChanges;
 import io.evitadb.index.facet.FacetReferenceIndex.FacetEntityTypeIndexChanges;
 import io.evitadb.index.map.TransactionalMap;
+import io.evitadb.core.expression.trigger.DependencyType;
 import io.evitadb.index.reference.TransactionalReference;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
@@ -121,7 +123,12 @@ public class FacetReferenceIndex implements TransactionalLayerProducer<FacetEnti
 		this.facetToGroupIndex = new TransactionalMap<>(facetToGroup);
 	}
 
-	FacetReferenceIndex(@Nonnull String referenceName, @Nullable FacetGroupIndex noGroup, @Nonnull Map<Integer, FacetGroupIndex> groups, Map<Integer, int[]> facetToGroupIndex) {
+	FacetReferenceIndex(
+		@Nonnull String referenceName,
+		@Nullable FacetGroupIndex noGroup,
+		@Nonnull Map<Integer, FacetGroupIndex> groups,
+		@Nonnull Map<Integer, int[]> facetToGroupIndex
+	) {
 		this.referenceName = referenceName;
 		this.notGroupedFacets = new TransactionalReference<>(noGroup);
 		this.groupedFacets = new TransactionalMap<>(groups, FacetGroupIndex.class, Function.identity());
@@ -151,11 +158,14 @@ public class FacetReferenceIndex implements TransactionalLayerProducer<FacetEnti
 	 * @return true if entity id was really added
 	 */
 	public boolean addFacet(int facetPrimaryKey, @Nullable Integer groupId, int entityPrimaryKey) {
-		final FacetEntityTypeIndexChanges txLayer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		final FacetGroupIndex facetGroupIndex;
+		// tracks whether the facet -> group mapping itself changed; it must contribute to the caller's dirty decision,
+		// because that mapping lives in a diff layer of its own that only a dirty reference gets swept
+		boolean groupMappingChanged = false;
 		if (groupId == null) {
 			final FacetGroupIndex existingNonGroupedFacetsIndex = this.notGroupedFacets.get();
 			if (existingNonGroupedFacetsIndex == null) {
+				final FacetEntityTypeIndexChanges txLayer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 				facetGroupIndex = new FacetGroupIndex();
 				this.notGroupedFacets.set(facetGroupIndex);
 				ofNullable(txLayer).ifPresent(it -> it.addCreatedItem(facetGroupIndex));
@@ -163,20 +173,40 @@ public class FacetReferenceIndex implements TransactionalLayerProducer<FacetEnti
 				facetGroupIndex = existingNonGroupedFacetsIndex;
 			}
 		} else {
-			this.facetToGroupIndex.merge(
-				facetPrimaryKey,
-				new int[]{groupId},
-				(oldValues, newValues) -> ArrayUtils.insertIntIntoOrderedArray(newValues[0], oldValues)
-			);
+			// Record the facet -> group mapping only when it is not already there. `merge` would write unconditionally,
+			// and a write acquires this map's transactional diff layer even when the resulting value is identical. That
+			// layer is swept only if `FacetIndex` marks the reference dirty, which it does solely when the facet-to-entity
+			// relation below is genuinely NEW - so re-adding an already indexed relation used to leave a diff layer that
+			// nothing accounts for, and the commit then aborted with StaleTransactionMemoryException, suspending
+			// the catalog. Not writing at all is both the fix and the cheaper path
+			final int[] existingGroups = this.facetToGroupIndex.get(facetPrimaryKey);
+			if (existingGroups == null) {
+				this.facetToGroupIndex.put(facetPrimaryKey, new int[]{groupId});
+				groupMappingChanged = true;
+			} else if (!ArrayUtils.contains(existingGroups, groupId)) {
+				this.facetToGroupIndex.put(
+					facetPrimaryKey, ArrayUtils.insertIntIntoOrderedArray(groupId, existingGroups)
+				);
+				groupMappingChanged = true;
+			}
 			// fetch or create index for referenced entity id (inside correct type)
-			facetGroupIndex = this.groupedFacets.computeIfAbsent(groupId, gPK -> {
-				final FacetGroupIndex fgIx = new FacetGroupIndex(gPK);
+			final FacetGroupIndex existingGroupedIndex = this.groupedFacets.get(groupId);
+			if (existingGroupedIndex == null) {
+				final FacetEntityTypeIndexChanges txLayer = Transaction.getOrCreateTransactionalMemoryLayer(this);
+				final FacetGroupIndex fgIx = new FacetGroupIndex(groupId);
+				this.groupedFacets.put(groupId, fgIx);
 				ofNullable(txLayer).ifPresent(it -> it.addCreatedItem(fgIx));
-				return fgIx;
-			});
+				facetGroupIndex = fgIx;
+			} else {
+				facetGroupIndex = existingGroupedIndex;
+			}
 		}
 
-		return facetGroupIndex.addFacet(facetPrimaryKey, entityPrimaryKey);
+		// the group mapping must be reported as a change of its own - a transaction that only moved a facet between
+		// groups leaves the facet-to-entity relation untouched, and reporting `false` there would leave this index's
+		// diff layer unswept exactly as the unconditional write above used to
+		final boolean added = facetGroupIndex.addFacet(facetPrimaryKey, entityPrimaryKey);
+		return added || groupMappingChanged;
 	}
 
 	/**
@@ -200,16 +230,30 @@ public class FacetReferenceIndex implements TransactionalLayerProducer<FacetEnti
 		if (groupId != null) {
 			final int[] groups = this.facetToGroupIndex.get(facetPrimaryKey);
 			int[] cleanedGroups = groups;
-			for (int group : groups) {
-				final FacetGroupIndex examinedGroupIndex = this.groupedFacets.get(group);
-				// there is no facet index present any more
-				if (ofNullable(examinedGroupIndex).map(it -> it.getFacetIdIndex(facetPrimaryKey)).orElse(null) == null) {
-					cleanedGroups = ArrayUtils.removeIntFromOrderedArray(groupId, cleanedGroups);
+			if (groups != null) {
+				for (int group : groups) {
+					final FacetGroupIndex examinedGroupIndex = this.groupedFacets.get(group);
+					// there is no facet index present any more - drop THIS group from the mapping. It must be `group`
+					// and not `groupId`: the loop exists to re-check every group the facet claims to be in, so the group
+					// it finds stale is not necessarily the one this call removed from. Today the two always coincide,
+					// because the mapping is maintained as an exact mirror of the group indexes and only `groupId`'s
+					// membership can have changed by the time we get here - but that makes the old code correct only by
+					// the invariant it is itself supposed to restore, and it would silently drop a LIVE group and keep
+					// a stale one the moment the mapping ever diverged
+					if (ofNullable(examinedGroupIndex).map(it -> it.getFacetIdIndex(facetPrimaryKey)).orElse(
+						null) == null) {
+						cleanedGroups = ArrayUtils.removeIntFromOrderedArray(group, cleanedGroups);
+					}
 				}
 			}
 			if (ArrayUtils.isEmpty(cleanedGroups)) {
-				this.facetToGroupIndex.remove(facetPrimaryKey);
-			} else {
+				// only touch the map when the facet actually HAD a group mapping - removing an absent key would acquire
+				// a diff layer for a pure no-op, and a layer nothing else in this transaction accounts for is orphaned
+				// at commit (see the identical reasoning in `addFacet`)
+				if (groups != null) {
+					this.facetToGroupIndex.remove(facetPrimaryKey);
+				}
+			} else if (cleanedGroups != groups) {
 				this.facetToGroupIndex.put(facetPrimaryKey, cleanedGroups);
 			}
 		}
@@ -280,7 +324,10 @@ public class FacetReferenceIndex implements TransactionalLayerProducer<FacetEnti
 	 * of `facetId` as its faceted reference.
 	 */
 	@Nonnull
-	public List<FacetGroupFormula> getFacetReferencingEntityIdsFormula(@Nonnull TriFunction<Integer, Bitmap, Bitmap[], FacetGroupFormula> formulaFactory, @Nonnull Bitmap facetId) {
+	public List<FacetGroupFormula> getFacetReferencingEntityIdsFormula(
+		@Nonnull TriFunction<Integer, Bitmap, Bitmap[], FacetGroupFormula> formulaFactory,
+		@Nonnull Bitmap facetId
+	) {
 		final Map<FacetGroupIndex, List<Integer>> facetsByGroup = StreamSupport.stream(facetId.spliterator(), false)
 			.flatMap(fId -> ofNullable(this.facetToGroupIndex.get(fId))
 				.map(groupIds -> Arrays.stream(groupIds).mapToObj(groupId -> new GroupFacetIdDTO(this.groupedFacets.get(groupId), fId)))
@@ -319,6 +366,24 @@ public class FacetReferenceIndex implements TransactionalLayerProducer<FacetEnti
 		return ofNullable(this.facetToGroupIndex.get(facetId))
 			.map(it -> Arrays.binarySearch(it, groupId) >= 0)
 			.orElse(false);
+	}
+
+	/**
+	 * Returns the group ID for the given facet primary key, or `null` if the facet is ungrouped or not found in any
+	 * group. Used by the cross-entity re-evaluation executor ReevaluateExpressionExecutor to determine the group
+	 * assignment when resolving {@link DependencyType#REFERENCED_ENTITY_ATTRIBUTE} dependencies.
+	 *
+	 * @param facetPK the primary key of the facet (referenced entity)
+	 * @return the group ID, or `null` for ungrouped facets or if the facet is not found
+	 */
+	@Nullable
+	public Integer getGroupIdForFacet(int facetPK) {
+		final int[] groupIds = this.facetToGroupIndex.get(facetPK);
+		if (groupIds != null && groupIds.length > 0) {
+			return groupIds[0];
+		}
+		// ungrouped facets and unknown facets both resolve to null
+		return null;
 	}
 
 	/**
@@ -375,7 +440,10 @@ public class FacetReferenceIndex implements TransactionalLayerProducer<FacetEnti
 
 	@Nonnull
 	@Override
-	public FacetReferenceIndex createCopyWithMergedTransactionalMemory(@Nullable FacetEntityTypeIndexChanges layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
+	public FacetReferenceIndex createCopyWithMergedTransactionalMemory(
+		@Nullable FacetEntityTypeIndexChanges layer,
+		@Nonnull TransactionalLayerMaintainer transactionalLayer
+	) {
 		final FacetGroupIndex noGroupCopy = transactionalLayer.getStateCopyWithCommittedChanges(this.notGroupedFacets)
 			.map(transactionalLayer::getStateCopyWithCommittedChanges)
 			.orElse(null);
@@ -397,8 +465,8 @@ public class FacetReferenceIndex implements TransactionalLayerProducer<FacetEnti
 	/**
 	 * This class collects changes in {@link #groupedFacets} transactional map and its sub structure.
 	 */
-	public static class FacetEntityTypeIndexChanges {
-		private final TransactionalContainerChanges<FacetGroupIndexChanges, FacetGroupIndex, FacetGroupIndex> items = new TransactionalContainerChanges<>();
+	public static class FacetEntityTypeIndexChanges implements Snapshotable<FacetEntityTypeIndexChanges.FacetEntityTypeIndexChangesMemento> {
+		private final TransactionalContainerChanges<FacetGroupIndex, FacetGroupIndex> items = new TransactionalContainerChanges<>();
 
 		public void addCreatedItem(@Nonnull FacetGroupIndex baseIndex) {
 			this.items.addCreatedItem(baseIndex);
@@ -414,6 +482,27 @@ public class FacetReferenceIndex implements TransactionalLayerProducer<FacetEnti
 
 		public void cleanAll(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
 			this.items.cleanAll(transactionalLayer);
+		}
+
+		@Nonnull
+		@Override
+		public FacetEntityTypeIndexChangesMemento snapshot() {
+			return new FacetEntityTypeIndexChangesMemento(this.items.snapshot());
+		}
+
+		@Override
+		public void restore(@Nonnull FacetEntityTypeIndexChangesMemento memento) {
+			this.items.restore(memento.items());
+		}
+
+		/**
+		 * Memento bundling the savepoint state of every {@link TransactionalContainerChanges} this aggregate tracks.
+		 *
+		 * @param items snapshot of the facet-group-index created/removed bookkeeping
+		 */
+		public record FacetEntityTypeIndexChangesMemento(
+			@Nonnull ContainerChangesMemento<FacetGroupIndex> items
+		) {
 		}
 	}
 

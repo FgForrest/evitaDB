@@ -49,7 +49,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongConsumer;
-import java.util.function.LongFunction;
+import java.util.function.LongSupplier;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService.CATALOG_FILE_SUFFIX;
@@ -100,9 +101,17 @@ public class ObsoleteFileMaintainer implements CatalogConsumersListener, Closeab
 	 */
 	private final AtomicLong lastKnownMinimalActiveVersion = new AtomicLong(0L);
 	/**
-	 * The supplier of the catalog header for the specified catalog version.
+	 * The minimal catalog version that is still referenced by an active reader (open session) or writer. This floor is
+	 * tracked even when time travel is enabled (where it does not gate the {@link #purgeTask}) so that the WAL-rotation
+	 * purge can be clamped by it and never delete a catalog data file that an active reader still needs.
 	 */
-	private final LongFunction<DataFilesBulkInfo> dataFilesInfoFetcher;
+	private final AtomicLong activeReaderFloor = new AtomicLong(0L);
+	/**
+	 * The supplier of the catalog header and bootstrap record for the oldest catalog version that is still retained on
+	 * disk (the first record in the bootstrap file). The catalog data file referenced by this bootstrap is, by
+	 * definition, the lowest index that is kept and therefore is guaranteed not to have been purged.
+	 */
+	private final Supplier<DataFilesBulkInfo> oldestDataFilesInfoSupplier;
 	/**
 	 * Flag indicating whether the maintainer has been closed.
 	 */
@@ -113,11 +122,11 @@ public class ObsoleteFileMaintainer implements CatalogConsumersListener, Closeab
 		@Nonnull Scheduler scheduler,
 		@Nonnull Path catalogStoragePath,
 		boolean timeTravelEnabled,
-		@Nonnull LongFunction<DataFilesBulkInfo> dataFilesInfoFetcher
+		@Nonnull Supplier<DataFilesBulkInfo> oldestDataFilesInfoSupplier
 	) {
 		this.catalogStoragePath = catalogStoragePath;
 		this.timeTravelEnabled = timeTravelEnabled;
-		this.dataFilesInfoFetcher = dataFilesInfoFetcher;
+		this.oldestDataFilesInfoSupplier = oldestDataFilesInfoSupplier;
 		// purge task is not present when time travel is enabled
 		// in this situation the files are removed in the synchronous manner when the WAL history is purged
 		this.purgeTask = new DelayedAsyncTask(
@@ -160,9 +169,11 @@ public class ObsoleteFileMaintainer implements CatalogConsumersListener, Closeab
 	}
 
 	/**
-	 * Updates the catalog version that is no longer used by any active session and plans the purge task for
-	 * asynchronous file removal. This method does nothing when time travel is enabled, because the files are removed
-	 * when WAL files are removed and this logic is executed in {@link ObsoleteWalPurgeCallback} callback.
+	 * Updates the catalog version that is no longer used by any active session. On every call it records the
+	 * active-reader floor (the minimal still-active catalog version, monotonically increasing), which is later used
+	 * to clamp the WAL-rotation purge so that files still needed by an active reader are never deleted. Only the
+	 * immediate, synchronous file purge is suppressed when time travel is enabled - in that mode purging is driven
+	 * later by the {@link ObsoleteWalPurgeCallback} callback when WAL files are removed.
 	 *
 	 * @param lastKnownMinimalActiveVersionRead the minimal catalog version that is still being read from
 	 * @param lastKnownMinimalActiveVersionWritten the minimal catalog version that is still being written on top of
@@ -173,12 +184,20 @@ public class ObsoleteFileMaintainer implements CatalogConsumersListener, Closeab
 		long lastKnownMinimalActiveVersionWritten
 	) {
 		assertNotClosed();
+		final long lastKnownMinimalActiveVersion = Math.min(
+			lastKnownMinimalActiveVersionRead,
+			lastKnownMinimalActiveVersionWritten
+		);
+		// always record the active-reader floor (monotonically increasing) - even with time travel enabled it is used
+		// to clamp the WAL-rotation purge so that files still needed by an active reader are never deleted
+		if (lastKnownMinimalActiveVersion > 0L) {
+			this.activeReaderFloor.accumulateAndGet(
+				lastKnownMinimalActiveVersion,
+				Math::max
+			);
+		}
 		// immediate file purging on catalog version exchange is not used when time travel is enabled
 		if (!this.timeTravelEnabled) {
-			final long lastKnownMinimalActiveVersion = Math.min(
-				lastKnownMinimalActiveVersionRead,
-				lastKnownMinimalActiveVersionWritten
-			);
 			if (lastKnownMinimalActiveVersion > 0L && this.firstCatalogVersion.get() < lastKnownMinimalActiveVersion) {
 				this.lastKnownMinimalActiveVersion.accumulateAndGet(
 					lastKnownMinimalActiveVersion,
@@ -187,6 +206,17 @@ public class ObsoleteFileMaintainer implements CatalogConsumersListener, Closeab
 				this.purgeTask.schedule();
 			}
 		}
+	}
+
+	/**
+	 * Returns the minimal catalog version that is still referenced by an active reader or writer, or {@code 0} when no
+	 * active version has been observed yet. The WAL-rotation purge is clamped by this floor so that a catalog data file
+	 * holding records for a version with active readers is never deleted.
+	 *
+	 * @return the active-reader floor (minimal active catalog version), or {@code 0} when unknown
+	 */
+	public long getActiveReaderFloor() {
+		return this.activeReaderFloor.get();
 	}
 
 	/**
@@ -202,7 +232,8 @@ public class ObsoleteFileMaintainer implements CatalogConsumersListener, Closeab
 			return new ObsoleteWalPurgeCallback(
 				this.catalogStoragePath,
 				this::purgeMaintainedFilesOlderThan,
-				this.dataFilesInfoFetcher
+				this.oldestDataFilesInfoSupplier,
+				this::getActiveReaderFloor
 			);
 		} else {
 			return WalPurgeCallback.NO_OP;
@@ -342,15 +373,38 @@ public class ObsoleteFileMaintainer implements CatalogConsumersListener, Closeab
 		 */
 		private final LongConsumer maintainedFilePurgeCallback;
 		/**
-		 * The supplier of the catalog header for the specified catalog version or the first larger available
-		 * catalog version.
+		 * The supplier of the catalog header and bootstrap record of the oldest catalog version still retained on disk.
+		 * The catalog data file it references is the lowest kept index and is therefore guaranteed to be present, which
+		 * makes the header read resilient against concurrently purged files.
 		 */
-		private final LongFunction<DataFilesBulkInfo> dataFilesInfoFetcher;
+		private final Supplier<DataFilesBulkInfo> oldestDataFilesInfoSupplier;
+		/**
+		 * Supplier of the active-reader floor - the minimal catalog version that still has active readers. The purge is
+		 * clamped by this floor so that files needed by an active reader are never deleted.
+		 */
+		private final LongSupplier activeReaderFloorSupplier;
 		/**
 		 * The last catalog version that was observed. This variable is used to ignore calls with lower catalog version
 		 * than were already processed.
 		 */
 		private long lastObservedCatalogVersion = -1L;
+
+		/**
+		 * Clamps the requested keep-version down to the active-reader floor (when the floor is greater than {@code 0})
+		 * so the time-travel purge never deletes catalog data still needed by an active reader. This narrows the
+		 * inherited identity default, which would otherwise keep exactly the requested version.
+		 *
+		 * @param requestedFirstVersionToBeKept the first catalog version the WAL purge intends to keep
+		 * @return the requested version, lowered to the active-reader floor when a floor is set
+		 */
+		@Override
+		public long effectivePurgeVersion(long requestedFirstVersionToBeKept) {
+			final long readerFloor = this.activeReaderFloorSupplier.getAsLong();
+			// never purge beyond the minimal version that still has active readers (time-travel invariant)
+			return readerFloor > 0L ?
+				Math.min(requestedFirstVersionToBeKept, readerFloor) :
+				requestedFirstVersionToBeKept;
+		}
 
 		@Override
 		public void purgeFilesUpTo(long firstActiveCatalogVersion) {
@@ -358,8 +412,10 @@ public class ObsoleteFileMaintainer implements CatalogConsumersListener, Closeab
 				this.lastObservedCatalogVersion = firstActiveCatalogVersion;
 				// first purge all maintained files
 				this.maintainedFilePurgeCallback.accept(firstActiveCatalogVersion);
-				// then purge all obsolete files in the folders
-				ofNullable(this.dataFilesInfoFetcher.apply(firstActiveCatalogVersion))
+				// then purge all obsolete files in the folders - the threshold is derived from the oldest bootstrap
+				// record still retained on disk (whose data file is guaranteed to exist), not from an exact-version
+				// lookup that may reference an already purged file
+				ofNullable(this.oldestDataFilesInfoSupplier.get())
 					.ifPresent(
 						activeFiles -> {
 							final int firstUsedCatalogDataFileIndex = activeFiles.bootstrapRecord().catalogFileIndex();

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2025
+ *   Copyright (c) 2025-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -48,6 +48,12 @@ import java.util.function.Consumer;
  * Sets the internal state of the catalog to active or inactive based on the provided mutation.
  * This method handles the activation or deactivation of a catalog and notifies the observer about the progress
  * while executing the task. It also triggers completion or failure callbacks accordingly.
+ *
+ * Forward-replay is intentionally **not** implemented here. Activation requires a previously-loaded `Catalog`
+ * (produced by `evita.loadCatalogInternal`) and deactivation closes all sessions and terminates the catalog. Neither
+ * side effect can be recreated from the WAL mutation alone at replay time without re-running the work phase. The
+ * default `Optional.empty()` in `EngineMutationOperator` causes the transaction manager to wedge loudly — safer than
+ * silently producing an inconsistent catalog snapshot.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
@@ -104,6 +110,7 @@ public class SetCatalogStateMutationOperator implements EngineMutationOperator<V
 				0,
 				Collections.singletonList(evita.loadCatalogInternal(catalogName, readOnly)),
 				(progressingFuture, loadedCatalog) -> {
+					final CatalogContract installed = loadedCatalog.iterator().next();
 					completionEngineStateUpdater.accept(
 						new AbstractEngineStateUpdater(transactionId, mutation) {
 							@Override
@@ -111,11 +118,14 @@ public class SetCatalogStateMutationOperator implements EngineMutationOperator<V
 								return ExpandedEngineState
 									.builder(expandedEngineState)
 									.withVersion(version)
-									.withCatalog(loadedCatalog.iterator().next())
+									.withCatalog(installed)
 									.build();
 							}
 						}
 					);
+					// Emit the host event AFTER the engine state has been updated so the host
+					// event lands strictly after the underlying mutation in the system CDC stream.
+					evita.notifyCatalogStateSettled(catalogName, installed.getCatalogState());
 					return null;
 				}
 			);
@@ -144,8 +154,19 @@ public class SetCatalogStateMutationOperator implements EngineMutationOperator<V
 						}
 					);
 
-					evita.removeCatalogSessionRegistryIfPresent(catalogName);
-					theCatalog.terminate();
+					// Wrap the destructive side-effects in try-finally so the host event fires
+					// even if `theCatalog.terminate()` throws — the engine state has already
+					// transitioned to INACTIVE and HOST subscribers must observe that
+					// transition regardless of downstream cleanup failures.
+					try {
+						evita.removeCatalogSessionRegistryIfPresent(catalogName);
+						theCatalog.terminate();
+					} finally {
+						// Emit the host event AFTER the engine state and the live `Catalog`
+						// resources have been torn down so subscribers see the INACTIVE settlement
+						// strictly after the mutation in the system CDC stream.
+						evita.notifyCatalogStateSettled(catalogName, CatalogState.INACTIVE);
+					}
 					return null;
 				}
 			);

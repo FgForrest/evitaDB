@@ -23,7 +23,7 @@
 
 package io.evitadb.core.transaction.stage.mutation;
 
-import io.evitadb.api.requestResponse.data.mutation.ConsistencyCheckingLocalMutationExecutor.ImplicitMutationBehavior;
+import io.evitadb.index.mutation.ConsistencyCheckingLocalMutationExecutor.ImplicitMutationBehavior;
 import io.evitadb.api.requestResponse.data.mutation.EntityRemoveMutation;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
@@ -38,19 +38,19 @@ import java.util.Optional;
 
 /**
  * Represents a verified entity remove mutation. This is used to mark the entity remove mutation as verified
- * and thus it can be propagated to the "live view" of the evitaDB engine without undo support.
+ * and thus it can be propagated to the "live view" of the evitaDB engine.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 public class ServerEntityRemoveMutation extends EntityRemoveMutation implements ServerEntityMutation {
 	@Serial private static final long serialVersionUID = 2860854495453490511L;
 	@Getter private final EntityRemoveMutation delegate;
-	private final boolean applyUndoOnError;
+	private final boolean rollbackOnError;
 	private final boolean verifyConsistency;
 
 	public ServerEntityRemoveMutation(
 		@Nonnull EntityRemoveMutation entityRemoveMutation,
-		boolean applyUndoOnError,
+		boolean rollbackOnError,
 		boolean verifyConsistency
 	) {
 		super(
@@ -58,13 +58,13 @@ public class ServerEntityRemoveMutation extends EntityRemoveMutation implements 
 			entityRemoveMutation.getEntityPrimaryKey()
 		);
 		this.delegate = entityRemoveMutation;
-		this.applyUndoOnError = applyUndoOnError;
+		this.rollbackOnError = rollbackOnError;
 		this.verifyConsistency = verifyConsistency;
 	}
 
 	@Override
-	public boolean shouldApplyUndoOnError() {
-		return this.applyUndoOnError;
+	public boolean shouldRollbackOnError() {
+		return this.rollbackOnError;
 	}
 
 	@Override
@@ -93,9 +93,9 @@ public class ServerEntityRemoveMutation extends EntityRemoveMutation implements 
 	@Nonnull
 	public ServerEntityRemoveMutation mergeWith(@Nonnull ServerEntityRemoveMutation anotherMutation) {
 		Assert.isPremiseValid(
-			this.applyUndoOnError == anotherMutation.applyUndoOnError &&
+			this.rollbackOnError == anotherMutation.rollbackOnError &&
 			this.verifyConsistency == anotherMutation.verifyConsistency,
-			"Cannot merge two ServerEntityRemoveMutations that differ in applyUndoOnError or verifyConsistency!"
+			"Cannot merge two ServerEntityRemoveMutations that differ in rollbackOnError or verifyConsistency!"
 		);
 		Assert.isPremiseValid(
 			this.getEntityType().equals(anotherMutation.getEntityType()) &&

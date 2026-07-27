@@ -23,17 +23,31 @@
 
 package io.evitadb.externalApi.grpc.requestResponse.schema.mutation;
 
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ModifyAttributeSchemaNameMutation;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaConflictResolutionOverrideMutation;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static io.evitadb.test.TestTags.GRPC;
+import static io.evitadb.test.TestTags.EXTERNAL_API;
+import static io.evitadb.test.TestTags.QUERY;
+import static io.evitadb.test.TestTags.SCHEMA;
+import static io.evitadb.test.TestTags.ATTRIBUTE;
+import static io.evitadb.test.TestTags.TRANSACTION;
 
 /**
  * Tests for {@link DelegatingEntitySchemaMutationConverter}
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
+@Tag(GRPC)
+@Tag(EXTERNAL_API)
+@Tag(QUERY)
+@Tag(SCHEMA)
+@Tag(ATTRIBUTE)
 class DelegatingAttributeSchemaMutationConverterTest {
 
 	private static DelegatingAttributeSchemaMutationConverter converter;
@@ -46,6 +60,17 @@ class DelegatingAttributeSchemaMutationConverterTest {
 	@Test
 	void shouldConvertMutation() {
 		final ModifyAttributeSchemaNameMutation mutation = new ModifyAttributeSchemaNameMutation( "code", "key");
+		assertEquals(
+			mutation,
+			converter.convert(converter.convert(mutation))
+		);
+	}
+
+	@Tag(TRANSACTION)
+	@Test
+	void shouldConvertConflictResolutionOverrideMutation() {
+		final SetAttributeSchemaConflictResolutionOverrideMutation mutation =
+			new SetAttributeSchemaConflictResolutionOverrideMutation("code", ConflictResolutionOverride.GRANULAR);
 		assertEquals(
 			mutation,
 			converter.convert(converter.convert(mutation))

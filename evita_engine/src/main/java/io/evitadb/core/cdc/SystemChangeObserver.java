@@ -28,6 +28,7 @@ import io.evitadb.api.exception.InstanceTerminatedException;
 import io.evitadb.api.requestResponse.cdc.ChangeCapturePublisher;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureRequest;
+import io.evitadb.api.requestResponse.cdc.HostSystemEvent;
 import io.evitadb.api.requestResponse.mutation.EngineMutation;
 import io.evitadb.core.Evita;
 import io.evitadb.core.executor.DelayedAsyncTask;
@@ -92,6 +93,17 @@ public class SystemChangeObserver
 	 */
 	private final AtomicBoolean active = new AtomicBoolean(true);
 
+	/**
+	 * Creates a new system-stream observer. Wires up the underlying
+	 * {@link ChangeSystemCaptureSharedPublisher} (sized from `cdcOptions`) and schedules a
+	 * periodic cleaner that prunes finished subscribers, plus the periodic statistics emission
+	 * tied to the JFR `ChangeCatalogCaptureStatisticsEvent` channel.
+	 *
+	 * @param evita        the engine instance the observer belongs to; used for snapshot lookups
+	 * @param cdcOptions   CDC tuning options (recent-events cache limit, per-subscriber buffer size)
+	 * @param cdcExecutor  executor used by the shared publisher to dispatch captures asynchronously
+	 * @param scheduler    scheduler used to schedule the periodic subscriber cleanup task
+	 */
 	public SystemChangeObserver(
 		@Nonnull Evita evita,
 		@Nonnull ChangeDataCaptureOptions cdcOptions,
@@ -112,6 +124,7 @@ public class SystemChangeObserver
 			this::cleanSubscribers,
 			1, TimeUnit.MINUTES
 		);
+		this.cleaner.schedule();
 		FlightRecorder.addPeriodicEvent(
 			ChangeCatalogCaptureStatisticsEvent.class,
 			this::emitChangeCaptureStatistics
@@ -122,6 +135,44 @@ public class SystemChangeObserver
 	public void processMutation(@Nonnull EngineMutation<?> mutation) {
 		assertActive();
 		this.sharedPublisher.processMutation(mutation);
+	}
+
+	/**
+	 * Dispatches a host event to subscribers that opted in to the
+	 * {@link io.evitadb.api.requestResponse.cdc.SystemCaptureArea#HOST} area.
+	 *
+	 * Host events are transient and live-tail only — they are NOT recorded in the publisher's
+	 * recent-events ring buffer and therefore NOT delivered to late subscribers via the
+	 * `sinceVersion` replay path. They also do NOT advance the engine version counter; the
+	 * snapshot version they carry is provided for correlation only (see {@link HostSystemEvent}).
+	 *
+	 * Unlike {@link #processMutation}, this method is best-effort on shutdown: if the observer
+	 * has already closed (concurrent close vs. an in-flight operator's completion-phase emit) the
+	 * event is silently dropped with a debug log rather than raising
+	 * {@link InstanceTerminatedException}. The engine state has already advanced past the
+	 * underlying mutation by the time the host event is emitted, so wedging an in-flight operator
+	 * future with an exception during close offers no value to subscribers — they have already
+	 * disconnected. Engine mutations remain strict (see issue #1151).
+	 *
+	 * @param event the host event to dispatch; never `null`
+	 */
+	public void processHostEvent(@Nonnull HostSystemEvent event) {
+		if (!this.active.get()) {
+			// Best-effort delivery on shutdown — drop silently. Engine mutations remain strict.
+			log.debug("Dropping host event for closed observer: {}", event);
+			return;
+		}
+		this.sharedPublisher.processHostEvent(event);
+	}
+
+	/**
+	 * Reports whether this observer is still accepting events. Returns `false` after
+	 * {@link #close()} has been called.
+	 *
+	 * @return `true` while the observer is operational; `false` once it has been closed
+	 */
+	public boolean isActive() {
+		return this.active.get();
 	}
 
 	@Nonnull

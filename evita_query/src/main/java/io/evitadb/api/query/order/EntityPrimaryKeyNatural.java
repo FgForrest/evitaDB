@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -38,32 +38,33 @@ import java.io.Serializable;
  *
  * Example usage:
  *
- * <pre>
+ * ```evitaql
  * query(
  *    orderBy(
  *       entityPrimaryKeyNatural(DESC)
  *    )
  * )
- * </pre>
+ * ```
  *
  * The example will return the selected entities (if present) in the descending order of their primary keys. Since
  * the entities are by default ordered by their primary key in ascending order, it has no sense to use this constraint
  * with {@link OrderDirection#ASC} direction.
  *
- * <p><a href="https://evitadb.io/documentation/query/ordering/comparable#primary-key-natural">Visit detailed user documentation</a></p>
+ * [Visit detailed user documentation](https://evitadb.io/documentation/query/ordering/comparable#primary-key-natural)
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @ConstraintDefinition(
 	name = "natural",
-	shortDescription = "The constraint sorts returned entities by primary key in specific order.",
+	shortDescription = "Sorts returned entities by their primary key in natural numeric order.",
 	userDocsLink = "/documentation/query/ordering/comparable#primary-key-natural",
 	supportedIn = { ConstraintDomain.ENTITY, ConstraintDomain.REFERENCE, ConstraintDomain.INLINE_REFERENCE }
 )
 public class EntityPrimaryKeyNatural extends AbstractOrderConstraintLeaf implements EntityConstraint<OrderConstraint> {
-	@Serial private static final long serialVersionUID = -3469549716371304530L;
+	@Serial
+	private static final long serialVersionUID = -3469549716371304530L;
 
-	private EntityPrimaryKeyNatural(Serializable... arguments) {
+	private EntityPrimaryKeyNatural(@Nonnull Serializable... arguments) {
 		super(arguments);
 	}
 
@@ -73,7 +74,7 @@ public class EntityPrimaryKeyNatural extends AbstractOrderConstraintLeaf impleme
 	}
 
 	/**
-	 * Returns order direction of how the attribute values must be sorted.
+	 * Returns order direction of how the primary key values must be sorted.
 	 */
 	@Nonnull
 	public OrderDirection getOrderDirection() {

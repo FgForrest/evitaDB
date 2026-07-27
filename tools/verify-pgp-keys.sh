@@ -147,38 +147,94 @@ run_pgpverify() {
 		return 0
 	fi
 
-	# Check if the failure is actually PGP-related
-	if echo "$output" | grep -qE "Not allowed artifact|not allowed.*keyID|pgpverify"; then
+	# Check if the failure is actually PGP-related.
+	#
+	# A here-string is used deliberately instead of `echo "$output" | grep -q`.
+	# Under `set -o pipefail`, `grep -q` exits on the first match and closes the
+	# pipe, which kills `echo` with SIGPIPE (141); the pipeline then reports 141
+	# even though the pattern *did* match. With a large reactor output and an
+	# early match this misreports genuine PGP failures as unrelated Maven errors.
+	if grep -qE "Not allowed artifact|not allowed.*keyID|pgpverify" <<< "$output"; then
 		return 1
 	fi
 
 	# Non-PGP Maven failure
 	log_error "Maven failed for reasons unrelated to PGP verification:"
-	echo "$output" | grep -F '[ERROR]' | head -10
+	grep -F '[ERROR]' <<< "$output" | head -10 || true
 	exit 1
+}
+
+# Record a single parsed failure. Deduplicates by groupId — first artifact wins.
+# Args: group artifact packaging version key
+record_failure() {
+	local group="$1" artifact="$2" packaging="$3" version="$4" key="$5"
+
+	if [[ -z "${FAIL_ARTIFACT[$group]+x}" ]]; then
+		FAIL_GROUPS+=("$group")
+		FAIL_ARTIFACT[$group]="$artifact"
+		FAIL_VERSION[$group]="$version"
+		FAIL_PACKAGING[$group]="$packaging"
+		FAIL_KEY[$group]="$key"
+	fi
 }
 
 # Parse pgpverify output for failures. Populates FAIL_* arrays.
 # Deduplicates by groupId — keeps only the first artifact per group.
+#
+# Two output layouts are supported, because they differ across plugin versions:
+#
+#   1. single-line (older plugins)
+#        [ERROR] Not allowed artifact <g>:<a>:<p>:<v> and keyID: 0x<hex>
+#
+#   2. two-line (pgpverify >= 1.16.0) — the keyID lands on a following,
+#      indented line and carries no [ERROR] marker nor packaging:
+#        [ERROR] Not allowed artifact <g>:<a>:<p>:<v> and keyID:
+#              <g>:<a>:<v> = 0x<hex>
+#
+# Layout 2 is matched by correlating on the "<g>:<a>:<v>" coordinate rather than
+# on line adjacency, because a multi-module (parallel) Maven build interleaves
+# output from several modules and may split the two lines apart.
 parse_failures() {
 	local output="$PGPVERIFY_OUTPUT"
+	# "<g>:<a>:<v>" -> packaging, harvested from the "Not allowed artifact" lines
+	local -A pending_packaging=()
 
 	while IFS= read -r line; do
-		# Match: [ERROR] Not allowed artifact <g>:<a>:<p>:<v> and keyID: 0x<hex>
-		if [[ "$line" =~ \[ERROR\].*[Nn]ot\ allowed\ artifact\ ([^:]+):([^:]+):([^:]+):([^[:space:]]+).*[Kk]ey[[:space:]]*[Ii][Dd]:[[:space:]]*(0x[0-9A-Fa-f]+) ]]; then
+		# Note: the "[ERROR]" marker is deliberately not required. A parallel
+		# reactor prefixes every line with "[module] ", so anchoring on the
+		# marker's position is unreliable; "Not allowed artifact" is distinctive
+		# enough on its own.
+
+		# Layout 1 — everything on one line.
+		if [[ "$line" =~ [Nn]ot\ allowed\ artifact\ ([^:]+):([^:]+):([^:]+):([^[:space:]]+).*[Kk]ey[[:space:]]*[Ii][Dd]:[[:space:]]*(0x[0-9A-Fa-f]+) ]]; then
+			record_failure "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}" "${BASH_REMATCH[3]}" \
+				"${BASH_REMATCH[4]}" "${BASH_REMATCH[5]}"
+			continue
+		fi
+
+		# Layout 2, first line — remember the packaging for this coordinate.
+		if [[ "$line" =~ [Nn]ot\ allowed\ artifact\ ([^:]+):([^:]+):([^:]+):([^[:space:]]+) ]]; then
 			local group="${BASH_REMATCH[1]}"
 			local artifact="${BASH_REMATCH[2]}"
 			local packaging="${BASH_REMATCH[3]}"
 			local version="${BASH_REMATCH[4]}"
-			local key="${BASH_REMATCH[5]}"
+			pending_packaging["${group}:${artifact}:${version}"]="$packaging"
+			continue
+		fi
 
-			# Deduplicate by groupId
-			if [[ -z "${FAIL_ARTIFACT[$group]+x}" ]]; then
-				FAIL_GROUPS+=("$group")
-				FAIL_ARTIFACT[$group]="$artifact"
-				FAIL_VERSION[$group]="$version"
-				FAIL_PACKAGING[$group]="$packaging"
-				FAIL_KEY[$group]="$key"
+		# Layout 2, second line — "<g>:<a>:<v> = 0x<hex>", tolerating any
+		# leading "[module] " / "[INFO] " prefixes the reactor may prepend.
+		if [[ "$line" =~ ^([[:space:]]*\[[^]]*\])*[[:space:]]*([^:[:space:]]+):([^:[:space:]]+):([^:[:space:]]+)[[:space:]]*=[[:space:]]*(0x[0-9A-Fa-f]+)[[:space:]]*$ ]]; then
+			# BASH_REMATCH[1] is the optional "[module] " prefix group.
+			local group="${BASH_REMATCH[2]}"
+			local artifact="${BASH_REMATCH[3]}"
+			local version="${BASH_REMATCH[4]}"
+			local key="${BASH_REMATCH[5]}"
+			local coord="${group}:${artifact}:${version}"
+			# Only trust this line if a "Not allowed artifact" line announced the
+			# same coordinate — otherwise it is unrelated informational output.
+			if [[ -n "${pending_packaging[$coord]+x}" ]]; then
+				record_failure "$group" "$artifact" "${pending_packaging[$coord]}" "$version" "$key"
 			fi
 		fi
 	done <<< "$output"
@@ -237,6 +293,37 @@ get_signing_key() {
 
 	if [ -z "$fingerprint" ]; then
 		return 1
+	fi
+
+	# gpg only prints the *full* fingerprint when the signing key is present in
+	# the keyring; otherwise it falls back to the 64-bit key ID. Short key IDs
+	# are not collision-resistant and must never be written to the keys map, so
+	# fetch the key and re-resolve to the full 160-bit fingerprint.
+	if [ "${#fingerprint}" -lt 40 ]; then
+		local server key_data resolved=""
+		for server in "${KEYSERVERS[@]}"; do
+			key_data=$(curl -sf --max-time 30 \
+				"https://${server}/pks/lookup?op=get&options=mr&search=0x${fingerprint}" 2>/dev/null || true)
+			grep -q "BEGIN PGP PUBLIC KEY" <<< "$key_data" || continue
+
+			run_gpg --import <<< "$key_data" >/dev/null 2>&1 || true
+
+			# Resolve to the primary-key fingerprint. Note the import may have
+			# been rejected: keys.openpgp.org serves UID-stripped keys for
+			# unverified addresses and gpg skips those ("contains no user ID"),
+			# so success must be judged by the lookup, not by the download.
+			resolved=$(run_gpg --list-keys --with-colons "0x${fingerprint}" 2>/dev/null \
+				| awk -F: '/^fpr:/ { print $10; exit }' || true)
+			[ "${#resolved}" -eq 40 ] && break
+			resolved=""
+		done
+
+		if [ -n "$resolved" ]; then
+			fingerprint="$resolved"
+		else
+			# stderr: this function's stdout is the returned fingerprint.
+			log_warn "  Could not resolve full fingerprint for short key ID 0x${fingerprint}" >&2
+		fi
 	fi
 
 	normalize_fingerprint "$fingerprint"
@@ -492,11 +579,11 @@ update_keys_map() {
 	local fingerprint="$2"
 	local map_file="$3"
 
-	# Check if fingerprint already exists in the file
-	if grep -qF "$fingerprint" "$map_file"; then
-		log_info "Fingerprint $fingerprint already exists in $map_file"
-		return 0
-	fi
+	# NOTE: presence of the fingerprint anywhere in the file must NOT short-circuit
+	# this function. The same maintainer key legitimately signs several groups
+	# (e.g. the Apache Commons release manager signs commons-io, commons-codec and
+	# org.apache.commons alike), so a file-global check would silently skip the
+	# entry that actually needs the key. The check below is scoped to this entry.
 
 	# Escape the pattern for grep
 	local escaped="${entry_pattern//./\\.}"
@@ -505,7 +592,10 @@ update_keys_map() {
 
 	# Find the first line number of the entry
 	local first_line
-	first_line=$(grep -n "^${escaped}[[:space:]]" "$map_file" | head -1 | cut -d: -f1)
+	# `|| true` is required: a group with no entry yet makes grep exit 1, which
+	# under `set -euo pipefail` would abort the whole script instead of taking
+	# the "add new entry" branch below.
+	first_line=$(grep -n "^${escaped}[[:space:]]" "$map_file" | head -1 | cut -d: -f1 || true)
 
 	if [ -z "$first_line" ]; then
 		# Entry not found — add new entry at end of file
@@ -531,6 +621,12 @@ update_keys_map() {
 			break
 		fi
 	done
+
+	# Entry-scoped duplicate check: only the lines belonging to this entry.
+	if sed -n "${first_line},${last_line}p" "$map_file" | grep -qF "$fingerprint"; then
+		log_info "Fingerprint $fingerprint already listed for '$entry_pattern'"
+		return 0
+	fi
 
 	log_info "Appending key to existing entry '$entry_pattern' (line $last_line)"
 

@@ -40,6 +40,7 @@ import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.extension.DataCarrier;
 import io.evitadb.test.generator.DataGenerator;
 import io.evitadb.utils.ArrayUtils;
+import io.evitadb.utils.Functions;
 import lombok.extern.slf4j.Slf4j;
 import one.edee.oss.pmptt.model.Hierarchy;
 import org.junit.jupiter.api.DisplayName;
@@ -54,6 +55,7 @@ import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.functional.attribute.AbstractEntityByAttributeFilteringFunctionalTest.assertSortedResultIs;
 import static io.evitadb.api.query.Query.query;
@@ -67,6 +69,10 @@ import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_URL;
 import static io.evitadb.test.generator.DataGenerator.CURRENCY_EUR;
 import static java.util.Optional.ofNullable;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.ATTRIBUTE;
+import static io.evitadb.test.TestTags.REFERENCE;
+import static io.evitadb.test.TestTags.ORDER;
 
 /**
  * This test verifies whether entities can be filtered by attributes.
@@ -74,6 +80,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @Slf4j
+@Tag(CONTRACT)
+@Tag(ATTRIBUTE)
+@Tag(REFERENCE)
+@Tag(ORDER)
 public abstract class AbstractEntityByReferenceAttributeOrderingFunctionalTest {
 	private static final String HUNDRED_PRODUCTS_WITH_REFERENCES = "HundredProductsWithReferences";
 	private static final String ATTRIBUTE_BRAND_PRIORITY = "brandPriority";
@@ -300,7 +310,7 @@ public abstract class AbstractEntityByReferenceAttributeOrderingFunctionalTest {
 				assertSortedResultIs(
 					originalProductEntities,
 					resultA.getRecordData(),
-					sealedEntity -> true,
+					Functions.alwaysTrue(),
 					createBrandReferencePrimaryKeyComparator()
 				);
 				return null;
@@ -335,7 +345,7 @@ public abstract class AbstractEntityByReferenceAttributeOrderingFunctionalTest {
 				assertSortedResultIs(
 					originalProductEntities,
 					resultA.getRecordData(),
-					sealedEntity -> true,
+					Functions.alwaysTrue(),
 					createBrandReferencePrimaryKeyComparator()
 				);
 				return null;
@@ -369,7 +379,7 @@ public abstract class AbstractEntityByReferenceAttributeOrderingFunctionalTest {
 				assertSortedResultIs(
 					originalProductEntities,
 					result.getRecordData(),
-					sealedEntity -> true,
+					Functions.alwaysTrue(),
 					createBrandReferenceComparator()
 				);
 				return null;
@@ -416,7 +426,7 @@ public abstract class AbstractEntityByReferenceAttributeOrderingFunctionalTest {
 				assertSortedResultIs(
 					originalProductEntities,
 					result.getRecordData(),
-					sealedEntity -> true,
+					Functions.alwaysTrue(),
 					new PredicateWithComparatorTuple(
 						sealedEntity -> sealedEntity.getReferences(Entities.BRAND).stream().anyMatch(it -> it.getAttribute(ATTRIBUTE_BRAND_PRIORITY) != null),
 						createBrandReferenceComparator()
@@ -459,7 +469,7 @@ public abstract class AbstractEntityByReferenceAttributeOrderingFunctionalTest {
 				assertSortedResultIs(
 					originalProductEntities,
 					result.getRecordData(),
-					sealedEntity -> true,
+					Functions.alwaysTrue(),
 					(sealedEntityA, sealedEntityB) -> {
 						final ReferenceContract o1 = sealedEntityA.getReferences(Entities.STORE)
 							.stream()

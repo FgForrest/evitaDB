@@ -48,7 +48,7 @@ import static io.evitadb.utils.CollectionUtils.createHashMap;
  * @deprecated only for backward compatibility purposes
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@Deprecated(since = "2025.5", forRemoval = true)
+@Deprecated(since = "2025.7", forRemoval = true)
 @RequiredArgsConstructor
 public class SortIndexStoragePartSerializer_2025_5 extends Serializer<SortIndexStoragePart>
 	implements AttributeKeyToAttributeKeyIndexBridge {

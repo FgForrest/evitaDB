@@ -26,8 +26,12 @@ package io.evitadb.index.bitmap;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.roaringbitmap.RoaringBitmap;
-import org.roaringbitmap.RoaringBitmapWriter;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
+import io.evitadb.roaringbitmap.RoaringBitmapWriter;
+import org.junit.jupiter.api.Tag;
+
+import static io.evitadb.test.TestTags.INDEXING;
+import static io.evitadb.test.TestTags.DATA_TYPE;
 
 /**
  * Verifies methods in {@link RoaringBitmapBackedBitmap}
@@ -35,13 +39,15 @@ import org.roaringbitmap.RoaringBitmapWriter;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 @DisplayName("RoaringBitmapBackedBitmap tests")
+@Tag(INDEXING)
+@Tag(DATA_TYPE)
 class RoaringBitmapBackedBitmapTest {
 
 	@Test
 	@DisplayName("should compute AND on negative bitmaps")
 	void shouldExecuteAndOnNegativeBitmaps() {
 		final Bitmap result = RoaringBitmapBackedBitmap.and(
-			new RoaringBitmap[]{
+			new PersistentRoaringBitmap[]{
 				creatRoaringBitmap(Integer.MIN_VALUE, -1000, 0, 15, 78),
 				creatRoaringBitmap(-1000, 1, 2, 3),
 				creatRoaringBitmap(-1000, 1000, Integer.MAX_VALUE)
@@ -57,7 +63,7 @@ class RoaringBitmapBackedBitmapTest {
 	@DisplayName("should compute AND on positive bitmaps")
 	void shouldExecuteAndOnPositiveBitmaps() {
 		final Bitmap result = RoaringBitmapBackedBitmap.and(
-			new RoaringBitmap[]{
+			new PersistentRoaringBitmap[]{
 				creatRoaringBitmap(0, 1, 15, 78),
 				creatRoaringBitmap(0, 1, 2, 3),
 				creatRoaringBitmap(0, 1, 1000, Integer.MAX_VALUE)
@@ -74,7 +80,7 @@ class RoaringBitmapBackedBitmapTest {
 	void shouldExecuteAndOnPositiveBitmapsWithDifferentMinima() {
 		// bitmaps with different first() values to exercise the min/max range computation
 		final Bitmap result = RoaringBitmapBackedBitmap.and(
-			new RoaringBitmap[]{
+			new PersistentRoaringBitmap[]{
 				creatRoaringBitmap(5, 100, 200, 500),
 				creatRoaringBitmap(100, 200, 300, 500)
 			}
@@ -85,8 +91,36 @@ class RoaringBitmapBackedBitmapTest {
 		);
 	}
 
-	private static RoaringBitmap creatRoaringBitmap(int... ints) {
-		final RoaringBitmapWriter<RoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
+	@Test
+	@DisplayName("RoaringBitmap-backed bitmap types unwrap directly, without rebuilding a bitmap")
+	void shouldUnwrapRoaringBackedBitmapTypesWithoutRebuild() {
+		// getRoaringBitmap()'s fast branch is taken only for RoaringBitmapBackedBitmap instances; for those it hands
+		// back the already-materialized backing bitmap, so no fromArray() rebuild happens. This is the cheap path that
+		// OrFormula.getRoaringBitmaps() relies on when unioning its inputs.
+		Assertions.assertInstanceOf(RoaringBitmapBackedBitmap.class, new BaseBitmap(1, 2, 3));
+		Assertions.assertInstanceOf(RoaringBitmapBackedBitmap.class, new TransactionalBitmap(1, 2, 3));
+
+		final BaseBitmap baseBitmap = new BaseBitmap(1, 2, 3);
+		// the unwrap returns the instance's OWN backing bitmap (delegates to getRoaringBitmap()), not a fresh rebuild
+		Assertions.assertSame(baseBitmap.getRoaringBitmap(), RoaringBitmapBackedBitmap.getRoaringBitmap(baseBitmap));
+	}
+
+	@Test
+	@DisplayName("a non-RoaringBitmap-backed bitmap (SingleRecordBitmap) is rebuilt via fromArray on unwrap")
+	void shouldRebuildNonRoaringBackedSingleRecordBitmapViaFromArray() {
+		// SingleRecordBitmap implements only Bitmap, NOT RoaringBitmapBackedBitmap, so getRoaringBitmap() falls to the
+		// else branch and rebuilds a whole RoaringBitmap from its int[] via fromArray() - the expensive per-input
+		// conversion OrFormula.getRoaringBitmaps() pays once per single-record value it unions.
+		final SingleRecordBitmap singleRecord = new SingleRecordBitmap(42);
+		Assertions.assertFalse(singleRecord instanceof RoaringBitmapBackedBitmap);
+
+		// the rebuild is correct - only its cost differs from the fast path above
+		final PersistentRoaringBitmap rebuilt = RoaringBitmapBackedBitmap.getRoaringBitmap(singleRecord);
+		Assertions.assertArrayEquals(new int[]{42}, new BaseBitmap(rebuilt).getArray());
+	}
+
+	private static PersistentRoaringBitmap creatRoaringBitmap(int... ints) {
+		final RoaringBitmapWriter<PersistentRoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
 		writer.addMany(ints);
 		return writer.get();
 	}

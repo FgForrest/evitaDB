@@ -132,6 +132,7 @@ public class CatalogChangeObserver implements ChangeCatalogObserverContract {
 			this::cleanInactivePublishers,
 			1, TimeUnit.MINUTES
 		);
+		this.cleaner.schedule();
 	}
 
 	@Override
@@ -168,6 +169,11 @@ public class CatalogChangeObserver implements ChangeCatalogObserverContract {
 			theCatalog != null,
 			"Catalog must be attached to the observer before registering a new publisher!"
 		);
+		// capture only the catalog name (a String) for logging purposes - capturing the whole
+		// `theCatalog` instance in the lambdas below (especially the long-lived `onClose` callback
+		// stored in the shared publisher) would pin the entire catalog snapshot in memory for the
+		// whole lifetime of the publisher, leaking old catalog versions (see issue #557)
+		final String catalogName = theCatalog.getName();
 
 		// Provide isolated publisher wrapping the shared one to the outside world.
 		// This way we can reuse predicate and caching logic for all subscribers with the same criteria.
@@ -179,7 +185,7 @@ public class CatalogChangeObserver implements ChangeCatalogObserverContract {
 				cb -> {
 					log.info(
 						"Creating new shared CDC publisher for catalog '{}' and criteria: {}",
-						theCatalog.getName(), cb
+						catalogName, cb
 					);
 					return new ChangeCatalogCaptureSharedPublisher(
 						this.currentCatalog.get(),
@@ -191,7 +197,7 @@ public class CatalogChangeObserver implements ChangeCatalogObserverContract {
 						publisher -> {
 							log.info(
 								"Closing shared CDC publisher for catalog '{}' and criteria: {}",
-								theCatalog.getName(), cb
+								catalogName, cb
 							);
 							this.uniquePublishers.remove(publisher);
 						}

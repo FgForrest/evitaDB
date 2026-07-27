@@ -43,14 +43,16 @@ import org.reactivestreams.Subscription;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 
 import static io.evitadb.externalApi.graphql.io.GraphQLMimeTypes.APPLICATION_GRAPHQL_RESPONSE_JSON;
 import static io.evitadb.externalApi.http.MimeTypes.APPLICATION_JSON;
@@ -83,16 +85,17 @@ public class GraphQLTester extends JsonExternalApiTester<Request> {
 	}
 
 	/**
-	 * Connects to a websocket and provides tools to test the subprotocol
+	 * Connects to a websocket and provides tools to test the subprotocol.
 	 *
 	 * @param catalogName where the GraphQL API is located
-	 * @param writer accepts a writer to send an input data
+	 * @param writer receives a {@link WebSocketContext} that can write outbound frames and
+	 *               synchronise mid-flow on received inbound frames
 	 * @param waitForEvents specifies how many events should be received before the validator is called
 	 * @param validator accepts a list of received events and validates them
 	 */
 	public void testWebSocket(
 		@Nonnull String catalogName,
-		@Nonnull Consumer<WebSocketWriter> writer,
+		@Nonnull Consumer<WebSocketContext> writer,
 		int waitForEvents,
 		@Nonnull Consumer<List<String>> validator
 	) {
@@ -100,18 +103,19 @@ public class GraphQLTester extends JsonExternalApiTester<Request> {
 	}
 
 	/**
-	 * Connects to a websocket and provides tools to test the subprotocol
+	 * Connects to a websocket and provides tools to test the subprotocol.
 	 *
 	 * @param catalogName where the GraphQL API is located
 	 * @param urlPathSuffix specifies GraphQL API path suffix
-	 * @param writer accepts a writer to send an input data
+	 * @param writer receives a {@link WebSocketContext} that can write outbound frames and
+	 *               synchronise mid-flow on received inbound frames
 	 * @param waitForEvents specifies how many events should be received before the validator is called
 	 * @param validator accepts a list of received events and validates them
 	 */
 	public void testWebSocket(
 		@Nonnull String catalogName,
 		@Nullable String urlPathSuffix,
-		@Nonnull Consumer<WebSocketWriter> writer,
+		@Nonnull Consumer<WebSocketContext> writer,
 		int waitForEvents,
 		@Nonnull Consumer<List<String>> validator
 	) {
@@ -122,9 +126,11 @@ public class GraphQLTester extends JsonExternalApiTester<Request> {
 		final WebSocketSession session = client.connect("/" + catalogName + (urlPathSuffix != null ? urlPathSuffix : "")).join();
 		final WebSocketWriter outbound = session.outbound();
 
-		final List<String> receivedEventsHolder = new LinkedList<>();
+		// thread-safe: `onNext` appends from the Armeria event-loop thread while the test thread
+		// polls `size()`/iterates in the awaitility waits and the validator below
+		final List<String> receivedEventsHolder = new CopyOnWriteArrayList<>();
 		session.inbound().subscribe(new WebSocketSubscriber(receivedEventsHolder));
-		writer.accept(outbound);
+		writer.accept(new WebSocketContextImpl(catalogName, outbound, receivedEventsHolder));
 
 		try {
 			await().atMost(30, TimeUnit.SECONDS).until(() -> receivedEventsHolder.size() >= waitForEvents);
@@ -142,6 +148,115 @@ public class GraphQLTester extends JsonExternalApiTester<Request> {
 		validator.accept(receivedEventsHolder);
 
 		outbound.close();
+	}
+
+	/**
+	 * Test-side context exposing both the outbound {@link WebSocketWriter} and a barrier method
+	 * that blocks until at least a given number of inbound text frames has been received. Used
+	 * by subscription tests to wait for `connection_ack` (or other early control frames) before
+	 * triggering data-emitting operations, which closes the race between a server-side
+	 * `subscribe` registration and the data change firing on the same thread.
+	 */
+	public interface WebSocketContext {
+
+		/**
+		 * Outbound writer for sending frames to the server.
+		 */
+		@Nonnull
+		WebSocketWriter writer();
+
+		/**
+		 * Block until at least {@code count} text frames have been received from the server,
+		 * or fail after the standard 30-second await timeout.
+		 */
+		void awaitEvents(int count);
+
+		/**
+		 * Non-throwing, bounded variant of {@link #awaitEvents(int)}: polls until at least
+		 * {@code count} text frames have been received or {@code timeout} elapses, and reports
+		 * the outcome instead of failing. Intended for retry loops that trigger a live-tail
+		 * (backfill-less) event and need to re-fire the trigger when the server-side subscription
+		 * registration lost the race, without burning the whole 30-second budget on a single try.
+		 *
+		 * @param count   minimum number of received frames to wait for
+		 * @param timeout maximum time to wait before giving up
+		 * @return {@code true} if at least {@code count} frames were received within {@code timeout}
+		 */
+		boolean tryAwaitEvents(int count, @Nonnull Duration timeout);
+
+		/**
+		 * Predicate-driven variant of {@link #tryAwaitEvents(int, Duration)}: polls until the
+		 * supplied {@code condition} accepts the current snapshot of received frames or
+		 * {@code timeout} elapses. Use this instead of the frame-count variant whenever a mere
+		 * count is ambiguous — e.g. a subscription opted into BOTH the (WAL-backed, replayable)
+		 * `ENGINE` area and the (live-tail, non-replayable) `HOST` area, where engine envelopes
+		 * arrive regardless of whether the sought host event was live-tailed. A count-based wait
+		 * would then go true on the engine envelopes alone and mask a lost host event; a predicate
+		 * scanning for the specific host envelope does not.
+		 *
+		 * @param condition predicate evaluated against the received-frames list on each poll
+		 * @param timeout   maximum time to wait before giving up
+		 * @return {@code true} if {@code condition} accepted within {@code timeout}
+		 */
+		boolean tryAwaitEvents(@Nonnull Predicate<List<String>> condition, @Nonnull Duration timeout);
+	}
+
+	@RequiredArgsConstructor
+	private static class WebSocketContextImpl implements WebSocketContext {
+
+		/** Poll cadence for {@link #tryAwaitEvents(int, Duration)}. */
+		private static final long TRY_AWAIT_POLL_INTERVAL_MS = 25L;
+
+		@Nonnull private final String catalogName;
+		@Nonnull private final WebSocketWriter writer;
+		@Nonnull private final List<String> receivedEvents;
+
+		@Nonnull
+		@Override
+		public WebSocketWriter writer() {
+			return this.writer;
+		}
+
+		@Override
+		public void awaitEvents(int count) {
+			try {
+				await().atMost(30, TimeUnit.SECONDS).until(() -> this.receivedEvents.size() >= count);
+			} catch (RuntimeException ex) {
+				log.error(
+					"WebSocket awaitEvents failed for catalog {} - only {} of {} events received within timeout: {}",
+					this.catalogName,
+					this.receivedEvents.size(),
+					count,
+					this.receivedEvents,
+					ex
+				);
+				throw ex;
+			}
+		}
+
+		@Override
+		public boolean tryAwaitEvents(int count, @Nonnull Duration timeout) {
+			return tryAwaitEvents(events -> events.size() >= count, timeout);
+		}
+
+		@Override
+		public boolean tryAwaitEvents(@Nonnull Predicate<List<String>> condition, @Nonnull Duration timeout) {
+			// manual bounded poll (not awaitility) so a timeout is a plain `false` rather than a
+			// thrown condition — exceptions must not drive the caller's retry control flow
+			final long deadlineNanos = System.nanoTime() + timeout.toNanos();
+			while (!condition.test(this.receivedEvents)) {
+				if (System.nanoTime() >= deadlineNanos) {
+					return false;
+				}
+				try {
+					Thread.sleep(TRY_AWAIT_POLL_INTERVAL_MS);
+				} catch (InterruptedException ex) {
+					Thread.currentThread().interrupt();
+					return condition.test(this.receivedEvents);
+				}
+			}
+			return true;
+		}
 	}
 
 	@SneakyThrows

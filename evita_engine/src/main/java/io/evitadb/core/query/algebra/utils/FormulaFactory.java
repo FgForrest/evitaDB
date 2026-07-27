@@ -33,25 +33,46 @@ import io.evitadb.core.query.algebra.base.NotFormula;
 import io.evitadb.core.query.algebra.base.OrFormula;
 import io.evitadb.dataType.array.CompositeObjectArray;
 import io.evitadb.index.bitmap.BaseBitmap;
+import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
-import org.roaringbitmap.RoaringBitmap;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 
 import javax.annotation.Nonnull;
-import java.util.Arrays;
 import java.util.function.Supplier;
 
 /**
- * Formula factory class contains static helper methods for creating basic boolean containers for set of formulas
- * that automatically adapt to the count and type of passed inner constraints (i.e. long vs. integer type).
+ * Static factory for creating boolean formula containers ({@link OrFormula}, {@link AndFormula}, {@link NotFormula})
+ * that automatically simplify the result based on the number and type of inner formulas:
+ *
+ * - **zero** children → {@link EmptyFormula#INSTANCE}
+ * - **one** child → the child itself (no wrapping container)
+ * - **multiple** children → the appropriate boolean container with nested same-type containers flattened
+ *
+ * The {@link #or(Supplier, Formula...)} overload additionally handles {@link FutureNotFormula} post-processing
+ * and eagerly merges all-{@link ConstantFormula} inputs into a single {@link ConstantFormula} via PersistentRoaringBitmap OR.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public class FormulaFactory {
 
 	/**
-	 * Creates boolean OR query for passed `innerFormulas`. If the array is empty, it returns `emptyFormula`.
-	 * If array contains exactly one inner formula, only this formula is returned, otherwise OR formula container
-	 * either for integer or long type is created and returned.
+	 * Creates a disjunction (OR) over `innerFormulas` with special handling for negation and constant folding.
+	 *
+	 * Processing order:
+	 *
+	 * 1. empty array → {@link EmptyFormula#INSTANCE}
+	 * 2. single formula → returned as-is
+	 * 3. first element is {@link FutureNotFormula} → delegates to
+	 *    {@link FutureNotFormula#postProcess(Formula[], EnclosingContainerRelation, Supplier)} to compose
+	 *    the final {@link NotFormula}
+	 * 4. all elements are {@link ConstantFormula} or {@link EmptyFormula} → eagerly computes the bitmap union
+	 *    via {@link PersistentRoaringBitmap#or(PersistentRoaringBitmap...)} and returns a single {@link ConstantFormula}
+	 * 5. otherwise → wraps in {@link OrFormula}
+	 *
+	 * @param superSetFormulaSupplier supplies the superset formula used by {@link FutureNotFormula} post-processing
+	 *                                when the negation has no positive sibling to serve as superset
+	 * @param innerFormulas           formulas to combine with logical OR
+	 * @return simplified formula representing the disjunction
 	 */
 	@Nonnull
 	public static Formula or(@Nonnull Supplier<Formula> superSetFormulaSupplier, @Nonnull Formula... innerFormulas) {
@@ -67,18 +88,34 @@ public class FormulaFactory {
 			);
 		} else {
 			/* this check and transformation enables prefetching for simple cases */
-			if (Arrays.stream(innerFormulas).allMatch(it -> it instanceof ConstantFormula || it instanceof EmptyFormula)) {
-				final RoaringBitmap[] bitmaps = Arrays.stream(innerFormulas)
-					.filter(ConstantFormula.class::isInstance)
-					.map(ConstantFormula.class::cast)
-					.map(ConstantFormula::getDelegate)
-					.map(
-						it -> it instanceof RoaringBitmapBackedBitmap rbbb ?
+			boolean allConstantOrEmpty = true;
+			for (final Formula value : innerFormulas) {
+				if (!(value instanceof ConstantFormula || value instanceof EmptyFormula)) {
+					allConstantOrEmpty = false;
+					break;
+				}
+			}
+			if (allConstantOrEmpty) {
+				// count ConstantFormula instances first to pre-size the array
+				int constantCount = 0;
+				for (final Formula formula : innerFormulas) {
+					if (formula instanceof ConstantFormula) {
+						constantCount++;
+					}
+				}
+				final PersistentRoaringBitmap[] bitmaps = new PersistentRoaringBitmap[constantCount];
+				int idx = 0;
+				for (final Formula innerFormula : innerFormulas) {
+					if (innerFormula instanceof ConstantFormula constantFormula) {
+						final Bitmap delegate = constantFormula.getDelegate();
+						bitmaps[idx++] = delegate instanceof RoaringBitmapBackedBitmap rbbb ?
 							rbbb.getRoaringBitmap() :
-							RoaringBitmap.bitmapOf(it.getArray())
-					)
-					.toArray(RoaringBitmap[]::new);
-				return bitmaps.length == 0 ? EmptyFormula.INSTANCE : new ConstantFormula(new BaseBitmap(RoaringBitmap.or(bitmaps)));
+							PersistentRoaringBitmap.bitmapOf(delegate.getArray());
+					}
+				}
+				return bitmaps.length == 0
+					? EmptyFormula.INSTANCE
+					: new ConstantFormula(new BaseBitmap(PersistentRoaringBitmap.or(bitmaps)));
 			} else {
 				return new OrFormula(innerFormulas);
 			}
@@ -86,9 +123,12 @@ public class FormulaFactory {
 	}
 
 	/**
-	 * Creates boolean OR query for passed `innerFormulas`. If the array is empty, it returns `emptyFormula`.
-	 * If array contains exactly one inner formula, only this formula is returned, otherwise OR formula container
-	 * either for integer or long type is created and returned.
+	 * Creates a disjunction (OR) over `innerFormulas` with automatic flattening of nested {@link OrFormula}
+	 * containers via {@link #getMergedOrFormulas(Formula...)}. Returns {@link EmptyFormula#INSTANCE} for an empty
+	 * array and the single element for a one-element array.
+	 *
+	 * @param innerFormulas formulas to combine with logical OR
+	 * @return simplified formula representing the disjunction
 	 */
 	@Nonnull
 	public static Formula or(@Nonnull Formula... innerFormulas) {
@@ -103,9 +143,12 @@ public class FormulaFactory {
 	}
 
 	/**
-	 * Creates boolean AND query for passed `innerFormulas`. If the array is empty, it returns `emptyFormula`.
-	 * If array contains exactly one inner formula, only this formula is returned, otherwise AND formula container
-	 * either for integer or long type is created and returned.
+	 * Creates a conjunction (AND) over `innerFormulas` with automatic flattening of nested {@link AndFormula}
+	 * containers via {@link #getMergedAndFormulas(Formula...)}. Returns {@link EmptyFormula#INSTANCE} for an empty
+	 * array and the single element for a one-element array.
+	 *
+	 * @param innerFormulas formulas to combine with logical AND
+	 * @return simplified formula representing the conjunction
 	 */
 	@Nonnull
 	public static Formula and(@Nonnull Formula... innerFormulas) {
@@ -120,7 +163,11 @@ public class FormulaFactory {
 	}
 
 	/**
-	 * Creates boolean NOT query for passed formulas, either for integer or long type.
+	 * Creates a {@link NotFormula} that subtracts the `subtracted` bitmap from the `superSet` bitmap.
+	 *
+	 * @param subtracted the formula whose results are removed from the superset
+	 * @param superSet   the formula providing the base set to subtract from
+	 * @return a {@link NotFormula} representing `superSet \ subtracted`
 	 */
 	@Nonnull
 	public static Formula not(@Nonnull Formula subtracted, @Nonnull Formula superSet) {
@@ -130,17 +177,23 @@ public class FormulaFactory {
 	}
 
 	/**
-	 * Iterates over formulas and if OR formula is found it gets unwrapped and inner formulas are propagated to the same
-	 * level as other formulas. We expect that the result would be wrapped into an OR container and by this unwrapping
-	 * we would need to compute only one OR product and not two or more separate ones.
+	 * Flattens nested {@link OrFormula} containers so that a single OR product is computed instead of multiple
+	 * nested ones. Each encountered {@link OrFormula} has its children and any additional {@link OrFormula#getBitmaps()
+	 * bitmaps} (wrapped as {@link ConstantFormula}) promoted to the same level as sibling formulas.
+	 *
+	 * @param formulas the input formulas that may contain nested {@link OrFormula} instances
+	 * @return a flat array with nested OR formulas unwrapped
 	 */
 	@Nonnull
 	private static Formula[] getMergedOrFormulas(@Nonnull Formula... formulas) {
 		final CompositeObjectArray<Formula> mergedFormulas = new CompositeObjectArray<>(Formula.class);
 		for (Formula innerFormula : formulas) {
-			if (innerFormula instanceof OrFormula) {
+			if (innerFormula instanceof OrFormula orFormula) {
 				mergedFormulas.addAll(innerFormula.getInnerFormulas(), 0, innerFormula.getInnerFormulas().length);
-				Arrays.stream(((OrFormula) innerFormula).getBitmaps()).map(ConstantFormula::new).forEach(mergedFormulas::add);
+				final Bitmap[] bitmaps = orFormula.getBitmaps();
+				for (final Bitmap bitmap : bitmaps) {
+					mergedFormulas.add(new ConstantFormula(bitmap));
+				}
 			} else {
 				mergedFormulas.add(innerFormula);
 			}
@@ -149,17 +202,23 @@ public class FormulaFactory {
 	}
 
 	/**
-	 * Iterates over formulas and if AND formula is found it gets unwrapped and inner formulas are propagated to the same
-	 * level as other formulas. We expect that the result would be wrapped into an AND container and by this unwrapping
-	 * we would need to compute only one AND product and not two and more separate ones.
+	 * Flattens nested {@link AndFormula} containers so that a single AND product is computed instead of multiple
+	 * nested ones. Each encountered {@link AndFormula} has its children and any additional {@link AndFormula#getBitmaps()
+	 * bitmaps} (wrapped as {@link ConstantFormula}) promoted to the same level as sibling formulas.
+	 *
+	 * @param formulas the input formulas that may contain nested {@link AndFormula} instances
+	 * @return a flat array with nested AND formulas unwrapped
 	 */
 	@Nonnull
 	private static Formula[] getMergedAndFormulas(@Nonnull Formula... formulas) {
 		final CompositeObjectArray<Formula> mergedFormulas = new CompositeObjectArray<>(Formula.class);
 		for (Formula innerFormula : formulas) {
-			if (innerFormula instanceof AndFormula) {
+			if (innerFormula instanceof AndFormula andFormula) {
 				mergedFormulas.addAll(innerFormula.getInnerFormulas(), 0, innerFormula.getInnerFormulas().length);
-				Arrays.stream(((AndFormula) innerFormula).getBitmaps()).map(ConstantFormula::new).forEach(mergedFormulas::add);
+				final Bitmap[] bitmaps = andFormula.getBitmaps();
+				for (final Bitmap bitmap : bitmaps) {
+					mergedFormulas.add(new ConstantFormula(bitmap));
+				}
 			} else {
 				mergedFormulas.add(innerFormula);
 			}
@@ -167,6 +226,9 @@ public class FormulaFactory {
 		return mergedFormulas.toArray();
 	}
 
+	/**
+	 * Utility class — not instantiable.
+	 */
 	private FormulaFactory() {
 	}
 

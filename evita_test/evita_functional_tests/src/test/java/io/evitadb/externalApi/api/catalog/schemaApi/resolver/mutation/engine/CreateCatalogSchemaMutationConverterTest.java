@@ -23,22 +23,33 @@
 
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.engine;
 
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolution;
+import io.evitadb.api.requestResponse.mutation.conflict.GranularConflictPolicy;
 import io.evitadb.api.requestResponse.schema.mutation.engine.CreateCatalogSchemaMutation;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.ConflictResolutionDescriptor;
 import io.evitadb.externalApi.api.model.mutation.MutationDescriptor;
 import io.evitadb.externalApi.api.resolver.mutation.PassThroughMutationObjectMapper;
+import io.evitadb.externalApi.api.system.model.mutation.engine.CreateCatalogSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.system.model.mutation.engine.EngineMutationDescriptor;
 import io.evitadb.externalApi.api.system.resolver.mutation.engine.CreateCatalogSchemaMutationConverter;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.util.EnumSet;
 import java.util.Map;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.utils.MapBuilder.map;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static io.evitadb.test.TestTags.EXTERNAL_API;
+import static io.evitadb.test.TestTags.QUERY;
+import static io.evitadb.test.TestTags.SCHEMA;
+import static io.evitadb.test.TestTags.TRANSACTION;
 
 /**
  * Test class for {@link CreateCatalogSchemaMutationConverter}. This test suite verifies
@@ -48,6 +59,9 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  *
  * @author Lukáš Hornych, 2023
  */
+@Tag(EXTERNAL_API)
+@Tag(QUERY)
+@Tag(SCHEMA)
 public class CreateCatalogSchemaMutationConverterTest {
 
 	private CreateCatalogSchemaMutationConverter converter;
@@ -87,5 +101,58 @@ public class CreateCatalogSchemaMutationConverterTest {
 					.e(EngineMutationDescriptor.CATALOG_NAME.name(), "testCatalog")
 					.build()
 			);
+	}
+
+	@Tag(TRANSACTION)
+	@Test
+	void shouldResolveInputWithConflictResolution() {
+		final CreateCatalogSchemaMutation expectedMutation = new CreateCatalogSchemaMutation(
+			"testCatalog",
+			new ConflictResolution(ConflictPolicy.ENTITY, EnumSet.of(GranularConflictPolicy.PRICE))
+		);
+		final CreateCatalogSchemaMutation convertedMutation = this.converter.convertFromInput(
+			map()
+				.e(EngineMutationDescriptor.CATALOG_NAME.name(), "testCatalog")
+				.e(CreateCatalogSchemaMutationDescriptor.CONFLICT_RESOLUTION.name(), map()
+					.e(ConflictResolutionDescriptor.POLICY.name(), ConflictPolicy.ENTITY)
+					.e(ConflictResolutionDescriptor.GRANULARITY.name(), new GranularConflictPolicy[] { GranularConflictPolicy.PRICE })
+					.build())
+				.build()
+		);
+		assertEquals(expectedMutation, convertedMutation);
+	}
+
+	/**
+	 * Reproduces the 500 that occurred when a catalog created with a non-null conflict resolution was observed
+	 * through the system change-capture API: the reflective {@code convertToOutput} recursed into the
+	 * {@link ConflictResolution} record and threw. The custom converter must serialize the nested object and
+	 * round-trip it without throwing.
+	 */
+	@Tag(TRANSACTION)
+	@Test
+	void shouldRoundTripNonNullConflictResolution() {
+		final CreateCatalogSchemaMutation inputMutation = new CreateCatalogSchemaMutation(
+			"testCatalog",
+			new ConflictResolution(ConflictPolicy.ENTITY, EnumSet.of(GranularConflictPolicy.PRICE))
+		);
+		final CreateCatalogSchemaMutation roundTripped =
+			this.converter.convertFromInput(this.converter.convertToOutput(inputMutation));
+		assertEquals(
+			inputMutation.getConflictResolution(),
+			roundTripped.getConflictResolution()
+		);
+		assertEquals(inputMutation, roundTripped);
+	}
+
+	@Tag(TRANSACTION)
+	@Test
+	void shouldRoundTripCoarseConflictResolution() {
+		final CreateCatalogSchemaMutation inputMutation = new CreateCatalogSchemaMutation(
+			"testCatalog",
+			new ConflictResolution(ConflictPolicy.CATALOG)
+		);
+		final CreateCatalogSchemaMutation roundTripped =
+			this.converter.convertFromInput(this.converter.convertToOutput(inputMutation));
+		assertEquals(inputMutation, roundTripped);
 	}
 }

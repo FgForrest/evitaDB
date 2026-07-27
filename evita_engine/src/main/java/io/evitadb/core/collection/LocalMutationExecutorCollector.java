@@ -30,8 +30,8 @@ import io.evitadb.api.exception.TransactionException;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
-import io.evitadb.api.requestResponse.data.mutation.ConsistencyCheckingLocalMutationExecutor.ImplicitMutationBehavior;
-import io.evitadb.api.requestResponse.data.mutation.ConsistencyCheckingLocalMutationExecutor.ImplicitMutations;
+import io.evitadb.index.mutation.ConsistencyCheckingLocalMutationExecutor.ImplicitMutationBehavior;
+import io.evitadb.index.mutation.ConsistencyCheckingLocalMutationExecutor.ImplicitMutations;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
 import io.evitadb.api.requestResponse.data.mutation.EntityRemoveMutation;
 import io.evitadb.api.requestResponse.data.mutation.EntityUpsertMutation;
@@ -45,14 +45,19 @@ import io.evitadb.core.buffer.TransactionalDataStoreMemoryBuffer;
 import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.traffic.TrafficRecordingEngine.MutationApplicationRecord;
 import io.evitadb.core.transaction.Transaction;
-import io.evitadb.core.transaction.stage.mutation.EntityRemoveMutationWithConflictKeys;
+import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
+import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer.Savepoint;
 import io.evitadb.core.transaction.stage.mutation.ServerEntityMutation;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
-import io.evitadb.index.mutation.index.EntityIndexLocalMutationExecutor;
+import io.evitadb.index.mutation.EntityIndexMutation;
+import io.evitadb.index.mutation.IndexImplicitMutations;
+import io.evitadb.index.mutation.local.EntityIndexLocalMutationExecutor;
 import io.evitadb.index.mutation.storagePart.ContainerizedLocalMutationExecutor;
+import io.evitadb.spi.store.catalog.header.model.EntityCollectionHeader;
 import io.evitadb.spi.store.catalog.persistence.EntityCollectionPersistenceService;
 import io.evitadb.spi.store.catalog.persistence.EntityCollectionPersistenceService.EntityWithFetchCount;
+import io.evitadb.spi.store.catalog.persistence.StorageDescriptor;
 import io.evitadb.utils.Assert;
 import lombok.RequiredArgsConstructor;
 
@@ -76,6 +81,27 @@ import static io.evitadb.api.requestResponse.data.mutation.EntityRemoveMutation.
  * different levels of operations, consistency checks, and potential rollbacks
  * or commits of mutations depending on the success or failure of operations.
  *
+ * The `execute()` method processes mutations in two sequential phases:
+ *
+ * - **container implicit-mutation phase** — the existing `popImplicitMutations()`
+ *   loop on the container executor produces local and external mutations (e.g.,
+ *   reflected reference synchronization)
+ * - **index-trigger phase** — `popIndexImplicitMutations()` on the index executor
+ *   produces {@link EntityIndexMutation} envelopes routed to target collections via
+ *   {@link EntityCollection#applyIndexMutations(EntityIndexMutation, EvitaSessionContract)};
+ *   these are never written to WAL and are regenerated on replay
+ *
+ * The container implicit-mutation phase completes fully before the index-trigger
+ * phase begins, ensuring storage state is consistent when cross-entity triggers
+ * evaluate expressions. The consistency check runs between the two phases, so a
+ * consistency violation rolls back before any cross-entity index write is dispatched.
+ *
+ * Index finalization (per-locale language handling, full entity removal and
+ * the empty-index sweep) is deferred to {@link #finish()}: it runs once, over
+ * all accumulated executors, after the whole (possibly nested) mutation
+ * recursion has unwound, and before the storage promote — so a finalization
+ * failure routes to rollback rather than leaving a half-committed index.
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 @RequiredArgsConstructor
@@ -91,7 +117,7 @@ class LocalMutationExecutorCollector {
 	/**
 	 * The persistence service used to fetch full entities by their primary key.
 	 */
-	private final EntityCollectionPersistenceService persistenceService;
+	private final EntityCollectionPersistenceService<StorageDescriptor, EntityCollectionHeader> persistenceService;
 	/**
 	 * The data store reader used to fetch entity data from the I/O storage.
 	 */
@@ -117,6 +143,23 @@ class LocalMutationExecutorCollector {
 	 * The exception that occurred during the mutation execution process.
 	 */
 	private RuntimeException exception;
+	/**
+	 * The transactional-layer maintainer that owns the {@link #savepoint}. Captured when the savepoint is opened so
+	 * that the matching commit / rollback is routed to the very same maintainer. {@code null} when no savepoint is
+	 * active (warmup / WAL replay / non-atomic mutation).
+	 */
+	@Nullable private TransactionalLayerMaintainer savepointMaintainer;
+	/**
+	 * The savepoint bracketing the root entity mutation. While open, every diff layer touched by this mutation
+	 * (including reflected-reference and index-trigger cross-collection writes that go through the same maintainer)
+	 * has its pre-mutation state captured, so a failure surgically reverts only this entity's changes while the
+	 * surrounding
+	 * transaction continues. {@code null} when rollback is not atomic — i.e. there is no active transaction
+	 * (warm-up, in-place index writes) or the mutation opted out (WAL replay). In those contexts there is no
+	 * per-entity rollback: partial changes are intentionally left unreverted and a failed entity must be retried
+	 * by rebuilding (warm-up), or the whole in-memory transaction is discarded on failure (WAL replay).
+	 */
+	@Nullable private Savepoint savepoint;
 
 	/**
 	 * Method fetches the full contents of the entity by its primary key from the I/O storage (taking advantage of
@@ -165,14 +208,21 @@ class LocalMutationExecutorCollector {
 	 * Executes a given entity mutation within the context of the specified entity schema,
 	 * optionally checking consistency and generating implicit mutations.
 	 *
-	 * @param entitySchema              The schema of the entity to which the mutation applies.
-	 * @param entityMutation            The mutation to be applied to the entity.
-	 * @param checkConsistency          Indicates whether consistency checks should be performed.
-	 * @param generateImplicitMutations Flags indicating which implicit mutations should be generated.
-	 * @param changeCollector           Executor to collect and apply local mutations.
-	 * @param entityIndexUpdater        Executor to update the entity index with the mutations.
-	 * @param requestUpdatedEntity      Indicates whether to return the updated entity after mutation.
-	 * @return The updated entity with fetch count if {@code returnUpdatedEntity} is true and
+	 * @param session                   the active session for query evaluation during index mutation
+	 *                                  dispatch (index-trigger phase), may be null during WAL replay
+	 * @param entitySchema              the schema of the entity to which the mutation applies
+	 * @param entityMutation            the mutation to be applied to the entity
+	 * @param checkConsistency          indicates whether consistency checks should be performed
+	 * @param atomicRollback            when {@code true} and a transaction is active, the root entity mutation is
+	 *                                  bracketed by a savepoint so that a partial failure is surgically reverted
+	 *                                  while the transaction continues; when {@code false} (WAL replay) or when no
+	 *                                  transaction is active (warmup) no savepoint is opened
+	 * @param generateImplicitMutations flags indicating which implicit mutations should be generated
+	 * @param changeCollector           executor to collect and apply local mutations
+	 * @param entityIndexUpdater        executor to update the entity index with the mutations
+	 * @param requestUpdatedEntity      the request specifying how to fetch the updated entity,
+	 *                                  or null if no entity body is needed
+	 * @return the updated entity with fetch count if {@code requestUpdatedEntity} is non-null and
 	 * the entity was updated, or entity reference
 	 */
 	@Nonnull
@@ -181,6 +231,7 @@ class LocalMutationExecutorCollector {
 		@Nonnull EntitySchema entitySchema,
 		@Nonnull EntityMutation entityMutation,
 		boolean checkConsistency,
+		boolean atomicRollback,
 		@Nonnull EnumSet<ImplicitMutationBehavior> generateImplicitMutations,
 		@Nonnull ContainerizedLocalMutationExecutor changeCollector,
 		@Nonnull EntityIndexLocalMutationExecutor entityIndexUpdater,
@@ -190,6 +241,7 @@ class LocalMutationExecutorCollector {
 		// first register all mutation applicators and mutations to the internal state
 		this.executors.add(entityIndexUpdater);
 		this.executors.add(changeCollector);
+		final LocalMutationExecutor[] orderedExecutors = {entityIndexUpdater, changeCollector};
 
 		// add the mutation to the list of mutations, but only for root level mutations
 		// mutations on lower levels are implicit mutations which should not be written to WAL (considered), because
@@ -200,6 +252,17 @@ class LocalMutationExecutorCollector {
 			addToWAL = true;
 			// root level changes are applied immediately
 			changeCollector.setTrapChanges(false);
+			// bracket the whole (possibly nested) root mutation with a savepoint so that a partial failure
+			// reverts exactly this entity's diff-layer changes while the surrounding transaction keeps running.
+			// Only meaningful when atomic rollback is requested (not WAL replay) AND a transaction is active
+			// (warmup writes go in place to the index delegate, not to diff layers — there is nothing to snapshot).
+			if (atomicRollback) {
+				final TransactionalLayerMaintainer maintainer = Transaction.getTransactionalLayerMaintainer();
+				if (maintainer != null) {
+					this.savepointMaintainer = maintainer;
+					this.savepoint = maintainer.openSavepoint();
+				}
+			}
 			// record mutation to the traffic recorder
 			record = session == null ?
 				null :
@@ -222,19 +285,14 @@ class LocalMutationExecutorCollector {
 			this.level++;
 
 			final List<? extends LocalMutation<?, ?>> localMutations;
-			if (entityMutation instanceof EntityRemoveMutation erm) {
+			if (entityMutation instanceof EntityRemoveMutation) {
+				// fetch the full entity body so the removal can be decomposed into the local mutations
+				// that actually apply it — this is required to execute the removal, not to derive conflict
+				// keys: conflict detection works by scope containment, so a plain entity-remove mutation
+				// (emitting the coarse entity conflict key) already conflicts with any concurrent
+				// finer-grained write to the same entity
 				result = getFullEntityContents(changeCollector);
 				localMutations = computeLocalMutationsForEntityRemoval(result.entity());
-				// collect conflict keys for removal mutation
-				if (this.catalog.hasGranularConflictPolicy()) {
-					// we need to wrap the remove mutation to one which takes granular conflict keys into account
-					// and this requires to fetch full entity body to compute all conflict keys
-					entityMutation = new EntityRemoveMutationWithConflictKeys(
-						erm,
-						this.catalog.getConflictPolicy(),
-						localMutations
-					);
-				}
 			} else if (entityMutation instanceof EntityUpsertMutation) {
 				localMutations = entityMutation.getLocalMutations();
 				entityIndexUpdater.prepare(localMutations);
@@ -247,30 +305,37 @@ class LocalMutationExecutorCollector {
 				this.entityMutations.add(entityMutation);
 			}
 
-			for (LocalMutation<?, ?> localMutation : localMutations) {
-				entityIndexUpdater.applyMutation(localMutation);
-				changeCollector.applyMutation(localMutation);
+			for (final LocalMutation<?, ?> localMutation : localMutations) {
+				for (final LocalMutationExecutor executor : orderedExecutors) {
+					executor.applyMutation(localMutation);
+				}
 			}
-
-			changeCollector.finishLocalMutationExecutionPhase();
+			for (final LocalMutationExecutor executor : orderedExecutors) {
+				executor.finishLocalMutationExecutionPhase();
+			}
 
 			if (!generateImplicitMutations.isEmpty()) {
 				final ImplicitMutations implicitMutations = changeCollector.popImplicitMutations(
 					localMutations, generateImplicitMutations
 				);
 				// immediately apply all local mutations
-				for (LocalMutation<?, ?> localMutation : implicitMutations.localMutations()) {
-					entityIndexUpdater.applyMutation(localMutation);
-					changeCollector.applyMutation(localMutation);
+				for (final LocalMutation<?, ?> localMutation : implicitMutations.localMutations()) {
+					for (final LocalMutationExecutor executor : orderedExecutors) {
+						executor.applyMutation(localMutation);
+					}
 				}
+				for (final LocalMutationExecutor executor : orderedExecutors) {
+					executor.finishLocalMutationExecutionPhase();
+				}
+
 				// and for each external mutation - call external collection to apply it
-				for (EntityMutation externalEntityMutations : implicitMutations.externalMutations()) {
+				for (final EntityMutation externalEntityMutations : implicitMutations.externalMutations()) {
 					final ServerEntityMutation serverEntityMutation = (ServerEntityMutation) externalEntityMutations;
 					this.catalog.getCollectionForEntityOrThrowException(externalEntityMutations.getEntityType())
 						.applyMutations(
 							session,
 							externalEntityMutations,
-							serverEntityMutation.shouldApplyUndoOnError(),
+							serverEntityMutation.shouldRollbackOnError(),
 							serverEntityMutation.shouldVerifyConsistency(),
 							null,
 							serverEntityMutation.getImplicitMutationsBehavior(),
@@ -279,8 +344,28 @@ class LocalMutationExecutorCollector {
 						);
 				}
 			}
+
+			// Verify consistency BEFORE dispatching any cross-entity index trigger mutations (index-trigger phase).
+			// The container consistency check is independent of the index-trigger phase; running it first means a
+			// consistency violation surfaces before any cross-collection index write is dispatched, so those writes
+			// never have to be unwound. Were they already dispatched they would still be reverted — like every other
+			// diff layer touched while the savepoint is open, EntityCollection#applyIndexMutations writes go through
+			// the same maintainer and are captured by it (see rollback()); checking first simply avoids the wasted work.
 			if (checkConsistency) {
 				changeCollector.verifyConsistency();
+			}
+
+			// Index-trigger phase: cross-entity index trigger mutations — runs after the container
+			// implicit-mutation phase and the consistency check. Container mutations must finish first
+			// so that storage state is fully consistent before cross-entity triggers read it. Index
+			// mutations are never written to WAL — they are regenerated deterministically on replay.
+			// The dispatch is synchronous and bounded by the number of affected entities.
+			final IndexImplicitMutations indexImplicit = entityIndexUpdater.popIndexImplicitMutations(localMutations);
+			for (final EntityIndexMutation indexMutation : indexImplicit.indexMutations()) {
+				// route each envelope to the target collection's thin dispatcher — bypasses
+				// the full ServerEntityMutation pipeline (no storage, no WAL, no schema evolution)
+				this.catalog.getCollectionForEntityOrThrowException(indexMutation.entityType())
+					.applyIndexMutations(indexMutation, session);
 			}
 
 			// finish the record
@@ -349,10 +434,29 @@ class LocalMutationExecutorCollector {
 
 	/**
 	 * Completes the local mutation execution process by determining whether to commit or rollback changes.
-	 * If the {@code exception} field is null, it calls the {@code commit} method to finalize changes.
-	 * Otherwise, it calls the {@code rollback} method to revert changes.
+	 *
+	 * Finalization happens in two steps. First, {@link LocalMutationExecutor#applyChanges()} is invoked on every
+	 * accumulated executor (only when no exception has been recorded yet). This is the fallible step — it runs
+	 * the index finalization (per-locale language upsert / removal, full entity removal, empty-index sweep) that
+	 * used to live in the index executor's {@code commit()}. Because it runs here, before the commit / rollback
+	 * decision, a failure is recorded and routes to {@link #rollback()} instead of leaving a half-committed
+	 * index. It is performed once, over all executors, after the whole (possibly nested) mutation recursion has
+	 * unwound, so the ordering guarantee "all cross-entity index dispatch completes before any index
+	 * finalization" is preserved. Second, if still no exception is present, {@link #commit()} performs the pure
+	 * promote (storage flush + WAL registration); otherwise {@link #rollback()} reverts the partially applied
+	 * changes.
 	 */
 	private void finish() {
+		// fallible finalization step — a throw here routes to rollback rather than a half-commit
+		if (this.exception == null) {
+			try {
+				for (final LocalMutationExecutor executor : this.executors) {
+					executor.applyChanges();
+				}
+			} catch (RuntimeException ex) {
+				this.exception = ex;
+			}
+		}
 		if (this.exception == null) {
 			commit();
 		} else {
@@ -361,23 +465,44 @@ class LocalMutationExecutorCollector {
 	}
 
 	/**
-	 * Rolls back all changes in memory if any operation has failed. This method ensures each operation behaves atomically
-	 * by either applying all local mutations or none of them. It iterates over all registered executor instances and
-	 * calls their rollback methods to clean up partially applied changes in isolated indexes.
-	 * If a rollback operation itself throws a {@code RuntimeException}, the exception is suppressed and added
-	 * to the primary exception list.
+	 * Reverts the partially applied changes of a failed root entity mutation so a caller that swallows the failure
+	 * can keep writing in the same transaction.
+	 *
+	 * When a savepoint is open (the atomic, transaction-bound path) it is rolled back, structurally reverting every
+	 * diff layer touched by this root mutation in one shot — the index executor's changes plus any reflected-reference
+	 * and index-trigger cross-collection writes that went through the same maintainer. This is the single,
+	 * authoritative rollback mechanism; the legacy hand-written per-executor undo actions have been removed.
+	 *
+	 * When no savepoint is open — the non-transactional warm-up path, or WAL replay (which opts out via
+	 * {@code atomicRollback == false}) — there is nothing to revert: warm-up writes go in place to the index
+	 * delegate (no diff layer to snapshot) and replay discards the whole in-memory transaction on failure rather
+	 * than recovering per-entity. In those contexts a failed entity is intentionally left partially applied and must
+	 * be retried by rebuilding.
 	 */
 	private void rollback() {
-		// rollback all changes in memory if anything failed
-		// the exception might be caught by a caller and he could continue with the transaction ... in this case
-		// we need to clean partially applied changes in his isolated indexes so that he doesn't see them
-		// each operation must behave atomically - either all local mutations are applied or none of them - it's
-		// something like a transaction within a transaction
-		for (LocalMutationExecutor executor : this.executors) {
+		// atomic, transaction-bound path: revert this root mutation's diff-layer changes via the savepoint while the
+		// surrounding transaction keeps running. Outside it (warm-up / WAL replay) there is no per-entity rollback.
+		rollbackOpenSavepoint();
+	}
+
+	/**
+	 * Rolls back the currently open savepoint (if any) and clears the savepoint bookkeeping so it cannot dangle into
+	 * later finalization. A failure of the rollback itself is non-fatal: it is attached to {@link #exception} as a
+	 * suppressed cause rather than propagated, and the savepoint fields are cleared unconditionally in a
+	 * {@code finally} block.
+	 *
+	 * The caller must have already set {@link #exception} to a non-null value, because a rollback failure is recorded
+	 * against it.
+	 */
+	private void rollbackOpenSavepoint() {
+		if (this.savepoint != null && this.savepointMaintainer != null) {
 			try {
-				executor.rollback();
+				this.savepointMaintainer.rollbackSavepoint(this.savepoint);
 			} catch (RuntimeException rollbackEx) {
 				this.exception.addSuppressed(rollbackEx);
+			} finally {
+				this.savepoint = null;
+				this.savepointMaintainer = null;
 			}
 		}
 	}
@@ -397,18 +522,30 @@ class LocalMutationExecutorCollector {
 		// we do not address the situation where only one applicator fails on commit and the others succeed
 		// this is unlikely situation and should cause entire transaction to be rolled back
 		try {
-			for (LocalMutationExecutor executor : this.executors) {
+			for (final LocalMutationExecutor executor : this.executors) {
 				executor.commit();
 			}
 			// register the mutation to the write ahead log
 			Transaction.getTransaction()
 				.ifPresent(it -> {
-					for (EntityMutation mutation : this.entityMutations) {
+					for (final EntityMutation mutation : this.entityMutations) {
 						it.registerMutation(mutation);
 					}
 				});
+			// the root mutation succeeded — accept the savepoint: its bookkeeping is dropped and all changes
+			// made while it was open remain part of the transaction (no diff layer is modified)
+			if (this.savepoint != null && this.savepointMaintainer != null) {
+				this.savepointMaintainer.commitSavepoint(this.savepoint);
+				this.savepoint = null;
+				this.savepointMaintainer = null;
+			}
 		} catch (RuntimeException ex) {
 			this.exception = new TransactionException("Failed to commit local mutations!", ex);
+			// the commit failed - the whole transaction will be rolled back; release the still-open savepoint so it
+			// does not dangle into the transaction-level finalization (reverting its diff layers here is harmless,
+			// they are discarded with the transaction anyway)
+			rollbackOpenSavepoint();
 		}
 	}
+
 }

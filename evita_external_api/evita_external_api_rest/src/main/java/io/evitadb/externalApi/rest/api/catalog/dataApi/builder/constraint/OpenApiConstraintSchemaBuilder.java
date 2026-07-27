@@ -103,6 +103,7 @@ public abstract class OpenApiConstraintSchemaBuilder
 		final List<OpenApiProperty> children = new LinkedList<>();
 		children.addAll(buildGenericChildren(buildContext, allowedChildrenPredicate));
 		children.addAll(buildEntityChildren(buildContext, allowedChildrenPredicate));
+		children.addAll(buildGroupChildren(buildContext, allowedChildrenPredicate));
 		children.addAll(buildAttributeChildren(buildContext, allowedChildrenPredicate));
 		children.addAll(buildAssociatedDataChildren(buildContext, allowedChildrenPredicate));
 		children.addAll(buildPriceChildren(buildContext, allowedChildrenPredicate));
@@ -139,6 +140,7 @@ public abstract class OpenApiConstraintSchemaBuilder
 		return newProperty()
 			.name(constraintKey)
 			.description(constructConstraintDescription(constraintDescriptor))
+			.deprecationNotice(constraintDescriptor.deprecated())
 			.type(constraintValue)
 			.build();
 	}

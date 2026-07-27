@@ -45,16 +45,19 @@ import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.extraResult.AttributeHistogram;
-import io.evitadb.api.requestResponse.extraResult.FacetSummary;
+import io.evitadb.api.requestResponse.extraResult.ReferenceSummary;
 import io.evitadb.api.requestResponse.extraResult.Hierarchy;
 import io.evitadb.api.requestResponse.extraResult.Hierarchy.LevelInfo;
 import io.evitadb.api.requestResponse.extraResult.HistogramContract;
 import io.evitadb.api.requestResponse.extraResult.PriceHistogram;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaEditor;
+import io.evitadb.api.requestResponse.system.EngineSettings;
 import io.evitadb.api.requestResponse.system.MaterializedVersionBlock;
 import io.evitadb.api.requestResponse.system.SystemStatus;
 import io.evitadb.dataType.PaginatedList;
@@ -105,6 +108,7 @@ import java.util.function.BiFunction;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
@@ -115,6 +119,8 @@ import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_QUANTITY;
 import static io.evitadb.test.generator.DataGenerator.PRICE_LIST_REFERENCE;
 import static java.util.Optional.ofNullable;
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.DRIVER;
+import static io.evitadb.test.TestTags.MANAGEMENT;
 
 /**
  * This test verifies the read-only behavior of {@link EvitaClient}.
@@ -131,6 +137,8 @@ import static org.junit.jupiter.api.Assertions.*;
 @Slf4j
 @DisplayName("EvitaClient read-only tests - should")
 @ExtendWith(EvitaParameterResolver.class)
+@Tag(DRIVER)
+@Tag(MANAGEMENT)
 class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 	public static final String ATTRIBUTE_ORDER = "order";
 	public static final String ATTRIBUTE_CATEGORY_ORDER = "orderInCategory";
@@ -158,7 +166,8 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 	 * @param evitaServer the Evita server instance to configure
 	 * @return DataCarrier containing the configured EvitaClient and test data
 	 */
-	@DataSet(value = EVITA_CLIENT_DATA_SET, openWebApi = {GrpcProvider.CODE, SystemProvider.CODE}, destroyAfterClass = true)
+	@DataSet(value = EVITA_CLIENT_DATA_SET, openWebApi = {GrpcProvider.CODE, SystemProvider.CODE},
+		destroyAfterClass = true, useRealThreadPools = true)
 	static DataCarrier initDataSet(EvitaServer evitaServer) {
 		final DataGenerator dataGenerator = new DataGenerator.Builder()
 			.registerValueGenerator(
@@ -180,7 +189,8 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 			.getHost()[0];
 
 		// Extract server certificate path and derive client certificate path
-		final String serverCertificates = evitaServer.getExternalApiServer().getApiOptions().certificate().getFolderPath().toString();
+		final String serverCertificates = evitaServer.getExternalApiServer().getApiOptions()
+			.certificate().getFolderPath().toString();
 		final int lastDash = serverCertificates.lastIndexOf('-');
 		assertTrue(lastDash > 0, "Dash not found! Look at the evita-configuration.yml in test resources!");
 		final Path clientCertificates = Path.of(serverCertificates.substring(0, lastDash) + "-client");
@@ -218,7 +228,7 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 					// Add global unique code attribute to catalog schema
 					session.getCatalogSchema()
 						.openForWrite()
-						.withAttribute(ATTRIBUTE_CODE, String.class, thatIs -> thatIs.uniqueGlobally())
+						.withAttribute(ATTRIBUTE_CODE, String.class, GlobalAttributeSchemaEditor::uniqueGlobally)
 						.updateVia(session);
 
 					// Generate brand entities (5 entities)
@@ -543,7 +553,9 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 		assertProductBasicData(originalProduct, product);
 		assertProductAttributes(originalProduct, product, locale);
 
-		final ReferencedFileSet expectedAssociatedData = originalProduct.getAssociatedData(DataGenerator.ASSOCIATED_DATA_REFERENCED_FILES, ReferencedFileSet.class, ReflectionLookup.NO_CACHE_INSTANCE);
+		final ReferencedFileSet expectedAssociatedData = originalProduct.getAssociatedData(
+			DataGenerator.ASSOCIATED_DATA_REFERENCED_FILES, ReferencedFileSet.class, ReflectionLookup.NO_CACHE_INSTANCE
+		);
 		if (expectedAssociatedData == null) {
 			assertNull(product.getReferencedFileSet());
 			assertNull(product.getReferencedFileSetAsDifferentProperty());
@@ -695,11 +707,17 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 	 * @param product the product proxy to validate
 	 * @param locale the locale for localized attribute validation, may be null
 	 */
-	private static void assertProductAttributes(@Nonnull SealedEntity originalProduct, @Nonnull ProductInterface product, @Nullable Locale locale) {
+	private static void assertProductAttributes(
+			@Nonnull SealedEntity originalProduct, @Nonnull ProductInterface product, @Nullable Locale locale
+	) {
 		assertEquals(originalProduct.getAttribute(DataGenerator.ATTRIBUTE_CODE), product.getCode());
-		assertEquals(originalProduct.getAttribute(DataGenerator.ATTRIBUTE_NAME, locale), product.getName());
+		if (locale != null) {
+			assertEquals(originalProduct.getAttribute(DataGenerator.ATTRIBUTE_NAME, locale), product.getName());
+		}
 		assertEquals(originalProduct.getAttribute(DataGenerator.ATTRIBUTE_QUANTITY), product.getQuantity());
-		assertEquals(originalProduct.getAttribute(DataGenerator.ATTRIBUTE_QUANTITY), product.getQuantityAsDifferentProperty());
+		assertEquals(
+			originalProduct.getAttribute(DataGenerator.ATTRIBUTE_QUANTITY), product.getQuantityAsDifferentProperty()
+		);
 		assertEquals(originalProduct.getAttribute(DataGenerator.ATTRIBUTE_ALIAS), product.isAlias());
 	}
 
@@ -713,7 +731,11 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 	 * @param generatedEntities map tracking the count of generated entities by type
 	 * @param it the entity builder containing the entity data to insert
 	 */
-	private static void createEntity(@Nonnull EvitaSessionContract session, @Nonnull Map<Serializable, Integer> generatedEntities, @Nonnull EntityBuilder it) {
+	private static void createEntity(
+			@Nonnull EvitaSessionContract session,
+			@Nonnull Map<Serializable, Integer> generatedEntities,
+			@Nonnull EntityBuilder it
+	) {
 		final EntityReferenceContract insertedEntity = session.upsertEntity(it);
 		generatedEntities.compute(
 			insertedEntity.getType(),
@@ -1102,7 +1124,11 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 	@Test
 	@DisplayName("query list of custom entities")
 	@UseDataSet(EVITA_CLIENT_DATA_SET)
-	void shouldQueryListOfCustomEntities(EvitaClient evitaClient, Map<Integer, SealedEntity> products, Map<Integer, SealedEntity> originalCategories) {
+	void shouldQueryListOfCustomEntities(
+			EvitaClient evitaClient,
+			Map<Integer, SealedEntity> products,
+			Map<Integer, SealedEntity> originalCategories
+	) {
 		final Integer[] requestedIds = {1, 2, 5};
 		final List<ProductInterface> fetchedProducts = evitaClient.queryCatalog(
 			TEST_CATALOG,
@@ -1224,8 +1250,18 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 					query(
 						collection(Entities.PRODUCT),
 						filterBy(
-							priceInPriceLists(someProductWithCategory.getPrices().stream().filter(PriceContract::indexed).map(PriceContract::priceList).toArray(String[]::new)),
-							priceInCurrency(someProductWithCategory.getPrices().stream().filter(PriceContract::indexed).map(PriceContract::currency).findFirst().orElseThrow()),
+							priceInPriceLists(
+							someProductWithCategory.getPrices().stream()
+								.filter(PriceContract::indexed)
+								.map(PriceContract::priceList)
+								.toArray(String[]::new)
+						),
+							priceInCurrency(
+							someProductWithCategory.getPrices().stream()
+								.filter(PriceContract::indexed)
+								.map(PriceContract::currency)
+								.findFirst().orElseThrow()
+						),
 							entityLocaleEquals(someProductWithCategory.getAllLocales().stream().findFirst().orElseThrow())
 						),
 						require(
@@ -1237,7 +1273,7 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 								Entities.CATEGORY,
 								fromRoot("megaMenu", entityFetchAll())
 							),
-							facetSummary(FacetStatisticsDepth.IMPACT)
+							referenceSummary(FacetStatisticsDepth.IMPACT)
 						)
 					)
 				);
@@ -1269,9 +1305,9 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 		assertNotNull(categoryHierarchy);
 		assertFalse(categoryHierarchy.get("megaMenu").isEmpty());
 
-		final FacetSummary facetSummary = result.getExtraResult(FacetSummary.class);
-		assertNotNull(facetSummary);
-		assertFalse(facetSummary.getReferenceStatistics().isEmpty());
+		final ReferenceSummary referenceSummary = result.getExtraResult(ReferenceSummary.class);
+		assertNotNull(referenceSummary);
+		assertFalse(referenceSummary.getReferenceStatistics().isEmpty());
 	}
 
 	/**
@@ -1296,19 +1332,34 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 	@Test
 	@DisplayName("get list of custom entities with extra results")
 	@UseDataSet(EVITA_CLIENT_DATA_SET)
-	void shouldGetListOfCustomEntitiesWithExtraResults(EvitaClient evitaClient, Map<Integer, SealedEntity> products, Map<Integer, SealedEntity> originalCategories) {
+	void shouldGetListOfCustomEntitiesWithExtraResults(
+			EvitaClient evitaClient,
+			Map<Integer, SealedEntity> products,
+			Map<Integer, SealedEntity> originalCategories
+	) {
 		final SealedEntity someProductWithCategory = products.values()
 			.stream()
-			.filter(it -> it.getPrices().stream().filter(PriceContract::indexed).map(PriceContract::currency).findFirst().isPresent())
-			.filter(it -> it.getPrice(PRICE_LIST_REFERENCE, it.getPrices().stream().filter(PriceContract::indexed).map(PriceContract::currency).findFirst().orElseThrow()).isPresent())
+			.filter(it -> it.getPrices().stream()
+				.filter(PriceContract::indexed).map(PriceContract::currency).findFirst().isPresent())
+			.filter(it -> it.getPrice(
+				PRICE_LIST_REFERENCE,
+				it.getPrices().stream().filter(PriceContract::indexed).map(PriceContract::currency).findFirst().orElseThrow()
+			).isPresent())
 			.filter(it -> !it.getReferences(Entities.CATEGORY).isEmpty())
 			.filter(it -> it.getAttributeValue(ATTRIBUTE_QUANTITY).isPresent())
 			.filter(it -> it.getPrices().stream().anyMatch(PriceContract::indexed))
 			.findFirst()
 			.orElseThrow();
 
-		final String[] priceLists = someProductWithCategory.getPrices().stream().filter(PriceContract::indexed).map(PriceContract::priceList).distinct().toArray(String[]::new);
-		final Currency currency = someProductWithCategory.getPrices().stream().filter(PriceContract::indexed).map(PriceContract::currency).findFirst().orElseThrow();
+		final String[] priceLists = someProductWithCategory.getPrices().stream()
+			.filter(PriceContract::indexed)
+			.map(PriceContract::priceList)
+			.distinct()
+			.toArray(String[]::new);
+		final Currency currency = someProductWithCategory.getPrices().stream()
+			.filter(PriceContract::indexed)
+			.map(PriceContract::currency)
+			.findFirst().orElseThrow();
 		final Locale locale = someProductWithCategory.getAllLocales().stream().findFirst().orElseThrow();
 
 		final EvitaResponse<ProductInterface> result = evitaClient.queryCatalog(
@@ -1339,7 +1390,7 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 								Entities.CATEGORY,
 								fromRoot("megaMenu", entityFetchAll())
 							),
-							facetSummary(FacetStatisticsDepth.IMPACT)
+							referenceSummary(FacetStatisticsDepth.IMPACT)
 						)
 					),
 					ProductInterface.class
@@ -1385,9 +1436,9 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 		assertNotNull(categoryHierarchy);
 		assertFalse(categoryHierarchy.get("megaMenu").isEmpty());
 
-		final FacetSummary facetSummary = result.getExtraResult(FacetSummary.class);
-		assertNotNull(facetSummary);
-		assertFalse(facetSummary.getReferenceStatistics().isEmpty());
+		final ReferenceSummary referenceSummary = result.getExtraResult(ReferenceSummary.class);
+		assertNotNull(referenceSummary);
+		assertFalse(referenceSummary.getReferenceStatistics().isEmpty());
 	}
 
 	/**
@@ -1439,7 +1490,11 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 	@Test
 	@DisplayName("get single custom entity")
 	@UseDataSet(EVITA_CLIENT_DATA_SET)
-	void shouldGetSingleCustomEntity(EvitaClient evitaClient, Map<Integer, SealedEntity> products, Map<Integer, SealedEntity> originalCategories) {
+	void shouldGetSingleCustomEntity(
+			EvitaClient evitaClient,
+			Map<Integer, SealedEntity> products,
+			Map<Integer, SealedEntity> originalCategories
+	) {
 		final Optional<ProductInterface> product = evitaClient.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -1529,7 +1584,11 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 	@Test
 	@DisplayName("enrich single custom entity")
 	@UseDataSet(EVITA_CLIENT_DATA_SET)
-	void shouldEnrichSingleCustomEntity(EvitaClient evitaClient, Map<Integer, SealedEntity> products, Map<Integer, SealedEntity> originalCategories) {
+	void shouldEnrichSingleCustomEntity(
+			EvitaClient evitaClient,
+			Map<Integer, SealedEntity> products,
+			Map<Integer, SealedEntity> originalCategories
+	) {
 		final ProductInterface product = evitaClient.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -1636,7 +1695,11 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 	@Test
 	@DisplayName("limit single custom entity")
 	@UseDataSet(EVITA_CLIENT_DATA_SET)
-	void shouldLimitSingleCustomEntity(EvitaClient evitaClient, Map<Integer, SealedEntity> products, Map<Integer, SealedEntity> originalCategories) {
+	void shouldLimitSingleCustomEntity(
+			EvitaClient evitaClient,
+			Map<Integer, SealedEntity> products,
+			Map<Integer, SealedEntity> originalCategories
+	) {
 		final ProductInterface sealedEntity = evitaClient.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -1687,6 +1750,32 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 		assertNotNull(systemStatus);
 		assertEquals(1, systemStatus.catalogsActive());
 		assertEquals(0, systemStatus.catalogsCorrupted());
+	}
+
+	/**
+	 * Verifies that the engine-wide conflict resolution is readable through the management API.
+	 *
+	 * The client needs the engine default as the base of the conflict resolution precedence walk -
+	 * neither the catalog schema nor the entity schema has to declare its own, and the full
+	 * configuration is not a reliable source (it is refused while the engine runs in read-only
+	 * mode).
+	 *
+	 * The test server leaves the engine default in place, so the entity-level policy with no
+	 * sub-entity refinements is expected.
+	 *
+	 * @param evitaClient the EvitaClient instance injected by the test framework
+	 */
+	@Test
+	@DisplayName("retrieve engine settings")
+	@UseDataSet(EVITA_CLIENT_DATA_SET)
+	void shouldRetrieveEngineSettings(EvitaClient evitaClient) {
+		final EngineSettings engineSettings = evitaClient.management().getEngineSettings();
+		assertNotNull(engineSettings);
+		assertEquals(ConflictPolicy.ENTITY, engineSettings.conflictResolution().policy());
+		assertTrue(engineSettings.conflictResolution().granularity().isEmpty());
+		// capability flags travel over the wire alongside the conflict resolution; the test server
+		// leaves them at their configuration defaults
+		assertFalse(engineSettings.timeTravelEnabled());
 	}
 
 	/**
@@ -1756,6 +1845,46 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 				assertNotNull(firstCatalogVersionAt.introducedAt());
 			}
 		);
+	}
+
+	/**
+	 * Verifies that {@link EvitaSessionContract#getCatalogVersion()} and catalog schema version
+	 * are resolved from the server the first time they are queried on a freshly created client.
+	 *
+	 * Regression test for a bug where a brand-new {@link EvitaClient} opening only a read-only
+	 * session would report catalog version 0 because no server round-trip had yet populated the
+	 * shared {@link EvitaEntitySchemaCache}. The client must now detect the uninitialized cache
+	 * and force a round-trip before returning the cached value.
+	 */
+	@Test
+	@DisplayName("retrieve catalog and schema version on fresh read-only session")
+	@UseDataSet(EVITA_CLIENT_DATA_SET)
+	void shouldRetrieveCatalogVersionOnFreshReadOnlySession(EvitaClient evitaClient) {
+		final long expectedCatalogVersion = Arrays.stream(evitaClient.management().getCatalogStatistics())
+			.filter(it -> TEST_CATALOG.equals(it.catalogName()))
+			.map(CatalogStatistics::catalogVersion)
+			.findFirst()
+			.orElseThrow();
+		assertTrue(expectedCatalogVersion > 0, "test precondition: catalog must have advanced past version zero");
+
+		try (final EvitaClient freshClient = new EvitaClient(evitaClient.getConfiguration())) {
+			freshClient.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					final long catalogVersion = session.getCatalogVersion();
+					assertEquals(
+						expectedCatalogVersion, catalogVersion,
+						"Catalog version must be fetched from the server even on a fresh read-only session"
+					);
+					assertTrue(
+						session.getCatalogSchema().version() > 0,
+						"Catalog schema version must be fetched from the server on a fresh session"
+					);
+					// second call must be served from the cache and return the same version
+					assertEquals(catalogVersion, session.getCatalogVersion());
+				}
+			);
+		}
 	}
 
 	/**
@@ -1952,7 +2081,9 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 	void shouldReturnPaginatedReferences(EvitaClient evitaClient, Map<Integer, SealedEntity> products) {
 		final SealedEntity productWithMaxReferences = products.values()
 			.stream()
-			.max(Comparator.comparingInt(o -> o.getReferences(Entities.BRAND).size() + o.getReferences(Entities.PARAMETER).size()))
+			.max(Comparator.comparingInt(
+				o -> o.getReferences(Entities.BRAND).size() + o.getReferences(Entities.PARAMETER).size()
+			))
 			.orElseThrow();
 		final Set<Integer> originParameters = productWithMaxReferences.getReferences(Entities.PARAMETER)
 			.stream()
@@ -1993,14 +2124,20 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 
 						final Collection<ReferenceContract> foundParameters = productByPk.getReferences(Entities.PARAMETER);
 						assertTrue(!foundParameters.isEmpty() && foundParameters.size() <= 5);
-						assertEquals(foundParameters.size(), productByPk.getReferences().stream().filter(it -> it.getReferenceName().equals(Entities.PARAMETER)).count());
+						assertEquals(
+							foundParameters.size(),
+							productByPk.getReferences().stream()
+								.filter(it -> it.getReferenceName().equals(Entities.PARAMETER)).count()
+						);
 
 						for (ReferenceContract foundParameter : foundParameters) {
 							assertNotNull(foundParameter.getReferencedEntity());
 							assertNotNull(foundParameter.getGroupEntity().orElse(null));
 						}
 
-						PaginatedList<ReferenceContract> parameters = new PaginatedList<>(pageNumber, 5, totalParameterCount, new ArrayList<>(foundParameters));
+						PaginatedList<ReferenceContract> parameters = new PaginatedList<>(
+							pageNumber, 5, totalParameterCount, new ArrayList<>(foundParameters)
+						);
 						assertEquals(parameters, productByPk.getReferenceChunk(Entities.PARAMETER));
 						foundParameters
 							.stream()
@@ -2031,7 +2168,9 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 	void shouldReturnTotalCountOfReferencesOnly(EvitaClient evitaClient, Map<Integer, SealedEntity> products) {
 		final SealedEntity productWithMaxReferences = products.values()
 			.stream()
-			.max(Comparator.comparingInt(o -> o.getReferences(Entities.BRAND).size() + o.getReferences(Entities.PARAMETER).size()))
+			.max(Comparator.comparingInt(
+				o -> o.getReferences(Entities.BRAND).size() + o.getReferences(Entities.PARAMETER).size()
+			))
 			.orElseThrow();
 		final Set<Integer> originParameters = productWithMaxReferences.getReferences(Entities.PARAMETER)
 			.stream()
@@ -2076,7 +2215,9 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 	 * @param expectedType the expected entity type
 	 * @param expectedPrimaryKey the expected primary key
 	 */
-	private static void assertEntityTypeAndPrimaryKey(@Nonnull EntityReferenceContract entity, @Nonnull String expectedType, int expectedPrimaryKey) {
+	private static void assertEntityTypeAndPrimaryKey(
+			@Nonnull EntityReferenceContract entity, @Nonnull String expectedType, int expectedPrimaryKey
+	) {
 		assertEquals(expectedType, entity.getType());
 		assertEquals(expectedPrimaryKey, entity.getPrimaryKey());
 	}

@@ -29,23 +29,33 @@ import io.evitadb.api.query.parser.ParseMode;
 import io.evitadb.api.query.parser.ParserExecutor;
 import io.evitadb.api.query.parser.ParserFactory;
 import io.evitadb.api.query.parser.exception.EvitaSyntaxException;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import java.util.List;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.QueryConstraints.attributeEqualsTrue;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.QUERY;
+import static io.evitadb.test.TestTags.FILTER;
 
 /**
  * Tests for {@link EvitaQLFilterConstraintListVisitor}
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2021
  */
+@DisplayName("EvitaQL filter constraint list visitor")
+@Tag(CONTRACT)
+@Tag(QUERY)
+@Tag(FILTER)
 class EvitaQLFilterConstraintListVisitorTest {
 
     @Test
+    @DisplayName("Should parse filter constraint list")
     void shouldParseFilterConstraintList() {
         final List<FilterConstraint> constraintList1 = parseFilterConstraintListUnsafe("attributeEqualsTrue('code')");
         assertEquals(
@@ -73,11 +83,11 @@ class EvitaQLFilterConstraintListVisitorTest {
     }
 
     @Test
+    @DisplayName("Should not parse invalid filter constraint list")
     void shouldNotParseFilterConstraintList() {
         assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintList("collection('code')"));
         assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintList("attributeEqualsTrue('product'),collection('code')"));
     }
-
 
     /**
      * Using generated EvitaQL parser tries to parse string as grammar rule "filterConstraintListUnit"
@@ -86,7 +96,10 @@ class EvitaQLFilterConstraintListVisitorTest {
      * @param positionalArguments positional arguments to substitute
      * @return parsed query
      */
-    private List<FilterConstraint> parseFilterConstraintList(@Nonnull String string, @Nonnull Object... positionalArguments) {
+    private static List<FilterConstraint> parseFilterConstraintList(
+        @Nonnull String string,
+        @Nonnull Object... positionalArguments
+    ) {
         return ParserExecutor.execute(
             new ParseContext(positionalArguments),
             () -> ParserFactory.getParser(string).filterConstraintListUnit().filterConstraintList().accept(new EvitaQLFilterConstraintListVisitor())
@@ -99,7 +112,7 @@ class EvitaQLFilterConstraintListVisitorTest {
      * @param string string to parse
      * @return parsed query
      */
-    private List<FilterConstraint> parseFilterConstraintListUnsafe(@Nonnull String string) {
+    private static List<FilterConstraint> parseFilterConstraintListUnsafe(@Nonnull String string) {
         final ParseContext context = new ParseContext();
         context.setMode(ParseMode.UNSAFE);
         return ParserExecutor.execute(

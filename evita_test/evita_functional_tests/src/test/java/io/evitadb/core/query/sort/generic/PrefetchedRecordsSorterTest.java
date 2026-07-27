@@ -48,17 +48,22 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.core.query.sort.utils.SortUtilsTest.asResult;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.ORDER;
 
 /**
  * This test verifies {@link PrefetchedRecordsSorter} behaviour.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
+@Tag(ENGINE)
+@Tag(ORDER)
 class PrefetchedRecordsSorterTest {
 	private static final String ATTRIBUTE_NAME_FIRST = "first";
 	private static final String ATTRIBUTE_NAME_SECOND = "second";

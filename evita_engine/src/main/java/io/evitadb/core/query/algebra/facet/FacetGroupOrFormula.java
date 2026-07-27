@@ -24,7 +24,7 @@
 package io.evitadb.core.query.algebra.facet;
 
 import io.evitadb.api.query.filter.FacetHaving;
-import io.evitadb.api.requestResponse.extraResult.FacetSummary;
+import io.evitadb.api.requestResponse.extraResult.ReferenceSummary;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.OrFormula;
@@ -36,26 +36,24 @@ import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
 import net.openhft.hashing.LongHashFunction;
-import org.roaringbitmap.RoaringBitmap;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Arrays;
-import java.util.stream.LongStream;
-import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
-
-import static java.util.Optional.ofNullable;
 
 /**
  * This formula has almost identical implementation as {@link OrFormula} but it accepts only set of
  * {@link Formula} as a children and allows containing even single child (on the contrary to the {@link OrFormula}).
  * The formula envelopes "facet filtering" part of the formula so that it could be easily located during
- * {@link FacetSummary} computation.
+ * {@link ReferenceSummary} computation.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public class FacetGroupOrFormula extends AbstractFormula implements FacetGroupFormula {
+	/**
+	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} for hash computation.
+	 */
 	private static final long CLASS_ID = 2720865649065325701L;
 
 	/**
@@ -108,29 +106,13 @@ public class FacetGroupOrFormula extends AbstractFormula implements FacetGroupFo
 
 	@Override
 	public String toString() {
-		final StringBuilder sb = new StringBuilder("FACET " + this.referenceName + " OR (" + ofNullable(this.facetGroupId).map(Object::toString).orElse("-") + " - " + this.facetIds.toString() + "): ");
-		for (int i = 0; i < this.bitmaps.length; i++) {
-			final Bitmap bitmap = this.bitmaps[i];
-			sb.append(" ↦ ").append(bitmap.size());
-			if (i + 1 < this.facetIds.size()) {
-				sb.append(", ");
-			}
-		}
-		return sb.append(" primary keys").toString();
+		return FacetGroupFormula.toStringRepresentation("OR", this.referenceName, this.facetGroupId, this.facetIds, this.bitmaps);
 	}
 
 	@Nonnull
 	@Override
 	public String toStringVerbose() {
-		final StringBuilder sb = new StringBuilder("FACET " + this.referenceName + " OR (" + ofNullable(this.facetGroupId).map(Object::toString).orElse("-") + " - " + this.facetIds.toString() + "): ");
-		for (int i = 0; i < this.bitmaps.length; i++) {
-			final Bitmap bitmap = this.bitmaps[i];
-			sb.append(" ↦ ").append(bitmap.toString());
-			if (i + 1 < this.facetIds.size()) {
-				sb.append(", ");
-			}
-		}
-		return sb.toString();
+		return FacetGroupFormula.toStringVerboseRepresentation("OR", this.referenceName, this.facetGroupId, this.facetIds, this.bitmaps);
 	}
 
 	@Nonnull
@@ -141,47 +123,63 @@ public class FacetGroupOrFormula extends AbstractFormula implements FacetGroupFo
 		} else if (this.bitmaps.length == 1) {
 			return this.bitmaps[0];
 		} else {
-			return new BaseBitmap(
-				RoaringBitmap.or(
-					Arrays.stream(this.bitmaps)
-						.map(RoaringBitmapBackedBitmap::getRoaringBitmap)
-						.toArray(RoaringBitmap[]::new)
-				)
-			);
+			final PersistentRoaringBitmap[] roaringBitmaps = new PersistentRoaringBitmap[this.bitmaps.length];
+			for (int i = 0; i < this.bitmaps.length; i++) {
+				roaringBitmaps[i] = RoaringBitmapBackedBitmap.getRoaringBitmap(this.bitmaps[i]);
+			}
+			return new BaseBitmap(PersistentRoaringBitmap.or(roaringBitmaps));
 		}
 	}
 
 	@Override
 	protected long getEstimatedBaseCost() {
-		return ofNullable(this.bitmaps)
-			.map(it -> Arrays.stream(it).mapToLong(Bitmap::size).sum())
-			.orElseGet(super::getEstimatedBaseCost);
+		long sum = 0L;
+		for (Bitmap bitmap : this.bitmaps) {
+			sum += bitmap.size();
+		}
+		return sum;
 	}
 
 	@Override
 	public int getEstimatedCardinality() {
-		if (this.bitmaps == null) {
-			return Arrays.stream(this.innerFormulas).mapToInt(Formula::getEstimatedCardinality).sum();
-		} else {
-			return Arrays.stream(this.bitmaps).mapToInt(Bitmap::size).sum();
+		int sum = 0;
+		for (Bitmap bitmap : this.bitmaps) {
+			sum += bitmap.size();
 		}
+		return sum;
 	}
 
 	@Override
 	protected long includeAdditionalHash(@Nonnull LongHashFunction hashFunction) {
-		return hashFunction.hashLongs(
-			Stream.of(
-					LongStream.of(hashFunction.hashChars(this.referenceName)),
-					this.facetGroupId == null ? LongStream.empty() : LongStream.of(this.facetGroupId),
-					StreamSupport.stream(this.facetIds.spliterator(), false).mapToLong(it -> it),
-					Arrays.stream(this.bitmaps)
-						.filter(TransactionalBitmap.class::isInstance)
-						.mapToLong(it -> ((TransactionalBitmap) it).getId())
-						.sorted()
-				)
-				.flatMapToLong(it -> it)
-				.toArray()
-		);
+		// count transactional bitmaps for pre-sizing
+		int transactionalCount = 0;
+		for (Bitmap bitmap : this.bitmaps) {
+			if (bitmap instanceof TransactionalBitmap) {
+				transactionalCount++;
+			}
+		}
+		// 1 (referenceName hash) + groupId (0 or 1) + facetIds count + transactional bitmap count
+		final int groupIdSize = this.facetGroupId == null ? 0 : 1;
+		final long[] hashes = new long[1 + groupIdSize + this.facetIds.size() + transactionalCount];
+		int idx = 0;
+		hashes[idx++] = hashFunction.hashChars(this.referenceName);
+		if (this.facetGroupId != null) {
+			hashes[idx++] = this.facetGroupId;
+		}
+		for (int facetId : this.facetIds) {
+			hashes[idx++] = facetId;
+		}
+		// collect transactional bitmap ids into a temporary array for sorting
+		final long[] txIds = new long[transactionalCount];
+		int txIdx = 0;
+		for (Bitmap bitmap : this.bitmaps) {
+			if (bitmap instanceof TransactionalBitmap) {
+				txIds[txIdx++] = ((TransactionalBitmap) bitmap).getId();
+			}
+		}
+		Arrays.sort(txIds);
+		System.arraycopy(txIds, 0, hashes, idx, txIds.length);
+		return hashFunction.hashLongs(hashes);
 	}
 
 	@Override
@@ -191,8 +189,10 @@ public class FacetGroupOrFormula extends AbstractFormula implements FacetGroupFo
 
 	@Override
 	protected long getCostInternal() {
-		return ofNullable(this.bitmaps)
-			.map(it -> Arrays.stream(it).mapToLong(Bitmap::size).sum())
-			.orElseGet(super::getCostInternal);
+		long sum = 0L;
+		for (final Bitmap bitmap : this.bitmaps) {
+			sum += bitmap.size();
+		}
+		return sum * getOperationCost();
 	}
 }

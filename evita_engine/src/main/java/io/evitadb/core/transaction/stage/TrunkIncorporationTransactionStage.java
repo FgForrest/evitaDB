@@ -59,11 +59,15 @@ import java.util.function.BiConsumer;
 public final class TrunkIncorporationTransactionStage
 	extends AbstractTransactionStage<TrunkIncorporationTransactionTask> {
 	/**
-	 * The timeout in nanoseconds determining the maximum time the task is allowed to consume multiple transaction.
+	 * The timeout in **milliseconds** determining the maximum time the task is allowed to consume multiple transaction.
 	 * It might be exceeded if the single transaction processing takes too long, but if the single transaction is very
 	 * fast it tries to process next one until the timeout is exceeded.
+	 *
+	 * The unit has to stay milliseconds, because this value is handed to
+	 * {@link TransactionManager#processTransactions(long, long, boolean, boolean, java.util.function.LongConsumer)}
+	 * as its `timeoutMs` argument, and is ultimately compared against a `System.currentTimeMillis()` delta.
 	 */
-	private final long timeout;
+	private final long timeoutInMillis;
 
 	public TrunkIncorporationTransactionStage(
 		@Nonnull TransactionManager transactionManager,
@@ -71,7 +75,7 @@ public final class TrunkIncorporationTransactionStage
 		@Nonnull BiConsumer<TransactionTask, Throwable> onException
 	) {
 		super(transactionManager, onException);
-		this.timeout = timeoutInMillis * 1_000_000;
+		this.timeoutInMillis = timeoutInMillis;
 	}
 
 	@Override
@@ -99,7 +103,7 @@ public final class TrunkIncorporationTransactionStage
 			final TransactionIncorporatedToTrunkEvent event = new TransactionIncorporatedToTrunkEvent(this.transactionManager.getCatalogName());
 			this.transactionManager.processTransactions(
 					task.catalogVersion(),
-					this.timeout,
+					this.timeoutInMillis,
 					true,
 					true, // we want to wait for lock so that we can complete the commit progress record
 					Functions.noOpLongConsumer()
@@ -123,6 +127,17 @@ public final class TrunkIncorporationTransactionStage
 							0,
 							0
 						).commit();
+						// processTransactions returned empty: a concurrent trunk-incorporation task
+						// already drained the mutation stream while we were waiting for the lock.
+						// Complete the commit progress the same way the "already processed" branch does
+						// — wait until the live view catches up, then mark this stage done. Without this
+						// completion the record would hang with `onChangesVisible` pending forever.
+						this.transactionManager.waitUntilLiveVersionReaches(task.catalogVersion());
+						task.commitProgress().complete(
+							CommitBehavior.WAIT_FOR_CHANGES_VISIBLE,
+							commitVersions,
+							this.transactionManager.getRequestExecutor()
+						);
 					}
 				);
 		}
@@ -155,6 +170,16 @@ public final class TrunkIncorporationTransactionStage
 				commitVersions,
 				this.transactionManager.getRequestExecutor()
 			);
+			// fan out WAIT_FOR_CHANGES_VISIBLE to every record greedily incorporated in this batch:
+			// the live catalog has advanced past every version in (current task, live view], so their
+			// changes are already visible and the records can be completed immediately instead of
+			// waiting for the publisher to re-deliver each task through the "already processed" branch
+			this.transactionManager.getPendingCommitProgressRegistry()
+				.completeChangesVisibleInRange(
+					commitVersions.catalogVersion(),
+					catalog.getVersion(),
+					this.transactionManager.getRequestExecutor()
+				);
 		} catch (Throwable ex) {
 			log.error("Error while processing snapshot propagating task for catalog `" + catalogName + "`!", ex);
 			commitProgressRecord.completeExceptionally(ex);

@@ -40,8 +40,11 @@ import io.evitadb.core.executor.ImmediateScheduledThreadPoolExecutor;
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.core.management.FileManagementService;
 import io.evitadb.dataType.EvitaDataTypes;
+import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.externalApi.graphql.GraphQLProvider;
 import io.evitadb.externalApi.rest.RestProvider;
+import io.evitadb.spi.store.catalog.trafficRecorder.model.SessionLocation;
+import io.evitadb.store.traffic.event.TrafficRecorderMissReason;
 import io.evitadb.test.Entities;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.utils.FileUtils;
@@ -49,16 +52,24 @@ import io.evitadb.utils.UUIDUtil;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
 
 import javax.annotation.Nonnull;
 import java.io.IOException;
+import java.io.RandomAccessFile;
+import java.lang.reflect.Field;
 import java.nio.file.Path;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Deque;
+import java.util.EnumMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
@@ -70,6 +81,8 @@ import java.util.stream.Stream;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
+import static io.evitadb.test.TestTags.STORAGE;
+import static io.evitadb.test.TestTags.TRAFFIC_ENGINE;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
@@ -77,6 +90,8 @@ import static org.junit.jupiter.api.Assertions.*;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
+@Tag(STORAGE)
+@Tag(TRAFFIC_ENGINE)
 public class OffHeapTrafficRecorderTest implements EvitaTestSupport {
 	private final Path workDirectory = getPathInTargetDirectory(UUID.randomUUID() + "/work");
 	private OffHeapTrafficRecorder trafficRecorder;
@@ -548,6 +563,133 @@ public class OffHeapTrafficRecorderTest implements EvitaTestSupport {
 	}
 
 	@Test
+	@DisplayName("Should not read back a session whose on-disk slot was evicted and reused by another session under rotation")
+	void shouldSkipReadingSessionWhoseSlotWasReusedByAnotherSession() throws Exception {
+		final UUID sessionId = writeBunchOfData(3, 5);
+		waitUntilDataBecomeAvailable(sessionId, 10_000);
+
+		// baseline: every recorded session is readable from disk
+		final int recordCountBefore = readAllRecordCount();
+		assertTrue(recordCountBefore > 0, "Sanity: the recorded sessions must be readable before corruption");
+
+		// reach the underlying disk buffer file and the oldest session still physically present, then
+		// corrupt its lead-descriptor sequence order - exactly what a completed eviction+reuse of that
+		// physical slot by a newer session would leave behind (validity still passes, identity does not)
+		final DiskRingBuffer diskBuffer = (DiskRingBuffer) readField(this.trafficRecorder, "diskBuffer");
+		@SuppressWarnings("unchecked")
+		final Deque<SessionLocation> sessionLocations =
+			(Deque<SessionLocation>) readField(diskBuffer, "sessionLocations");
+		final SessionLocation oldestSession = sessionLocations.peekFirst();
+		assertNotNull(oldestSession, "There must be at least one session on disk to corrupt");
+		final Path diskFile = (Path) readField(diskBuffer, "diskBufferFilePath");
+		corruptOnDiskSequenceOrder(diskFile, oldestSession.location().startingPosition());
+
+		// the corrupted (reused) session must no longer be read back verbatim, while the others still are
+		final int recordCountAfter = readAllRecordCount();
+		assertTrue(
+			recordCountAfter < recordCountBefore,
+			"The reused-slot session must be dropped from the read-back (before=" + recordCountBefore +
+				", after=" + recordCountAfter + ")"
+		);
+		assertTrue(recordCountAfter > 0, "The remaining, intact sessions must still be readable");
+	}
+
+	/**
+	 * Reads every recorded traffic record currently available and returns the total count.
+	 */
+	private int readAllRecordCount() {
+		try (
+			final Stream<TrafficRecording> recordings = this.trafficRecorder.getRecordings(
+				TrafficRecordingCaptureRequest.builder()
+					.content(TrafficRecordingContent.BODY)
+					.sinceSessionSequenceId(0L)
+					.sinceRecordSessionOffset(0)
+					.build()
+			)
+		) {
+			return recordings.toList().size();
+		}
+	}
+
+	/**
+	 * Overwrites the first 8 bytes (the sequence order, big-endian) of the on-disk lead descriptor at
+	 * {@code startingPosition} with a guaranteed-different value, simulating a completed eviction+reuse of
+	 * that physical slot by a newer session.
+	 */
+	private static void corruptOnDiskSequenceOrder(@Nonnull Path diskFile, long startingPosition) throws IOException {
+		try (final RandomAccessFile raf = new RandomAccessFile(diskFile.toFile(), "rw")) {
+			raf.seek(startingPosition);
+			final long currentSequenceOrder = raf.readLong();
+			raf.seek(startingPosition);
+			// bitwise complement is guaranteed to differ from the original sequence order
+			raf.writeLong(~currentSequenceOrder);
+		}
+	}
+
+	/**
+	 * Reflectively reads a declared field (used to reach the internal disk buffer for corruption testing).
+	 */
+	private static Object readField(@Nonnull Object target, @Nonnull String fieldName) throws Exception {
+		final Field field = target.getClass().getDeclaredField(fieldName);
+		field.setAccessible(true);
+		return field.get(target);
+	}
+
+	/**
+	 * Reflectively overwrites a declared field (used to inject a failing disk buffer spy into the recorder).
+	 */
+	private static void writeField(
+		@Nonnull Object target, @Nonnull String fieldName, @Nonnull Object value) throws Exception {
+		final Field field = target.getClass().getDeclaredField(fieldName);
+		field.setAccessible(true);
+		field.set(target, value);
+	}
+
+	/**
+	 * Reflectively sums one of the recorder's per-reason counter maps ({@code missedRecordsByReason} /
+	 * {@code droppedSessionsByReason}) across all reasons - the total equals the single aggregate counter
+	 * these tests used before the miss/drop counters were split by reason.
+	 */
+	@SuppressWarnings("unchecked")
+	private static long sumReasonCounters(@Nonnull Object recorder, @Nonnull String fieldName) throws Exception {
+		final Map<?, AtomicLong> counters = (Map<?, AtomicLong>) readField(recorder, fieldName);
+		long total = 0L;
+		for (final AtomicLong counter : counters.values()) {
+			total += counter.get();
+		}
+		return total;
+	}
+
+	/**
+	 * Reflectively reads a single per-reason counter (one entry of {@code missedRecordsByReason} or
+	 * {@code droppedSessionsByReason}), so a test can assert that a drop/miss was attributed to a specific
+	 * {@link TrafficRecorderMissReason} rather than only checking the aggregate across all reasons (which
+	 * cannot detect a misclassification into the wrong bucket).
+	 */
+	@SuppressWarnings("unchecked")
+	private static long readReasonCounter(
+		@Nonnull Object recorder, @Nonnull String fieldName, @Nonnull TrafficRecorderMissReason reason) throws Exception {
+		final Map<TrafficRecorderMissReason, AtomicLong> counters =
+			(Map<TrafficRecorderMissReason, AtomicLong>) readField(recorder, fieldName);
+		return counters.get(reason).get();
+	}
+
+	/**
+	 * Reflectively snapshots every per-reason counter of the given map field into an {@link EnumMap}, so a
+	 * test can later assert the exact per-reason deltas a drain produced - in particular that the reasons it
+	 * did not touch stayed at a zero delta.
+	 */
+	@Nonnull
+	private static EnumMap<TrafficRecorderMissReason, Long> captureReasonBaseline(
+		@Nonnull Object recorder, @Nonnull String fieldName) throws Exception {
+		final EnumMap<TrafficRecorderMissReason, Long> baseline = new EnumMap<>(TrafficRecorderMissReason.class);
+		for (final TrafficRecorderMissReason reason : TrafficRecorderMissReason.values()) {
+			baseline.put(reason, readReasonCounter(recorder, fieldName, reason));
+		}
+		return baseline;
+	}
+
+	@Test
 	void shouldRecordMoreDataThanBufferSizeForcingWrapAround() {
 		final UUID sessionId = writeBunchOfData(10, 100);
 
@@ -574,7 +716,7 @@ public class OffHeapTrafficRecorderTest implements EvitaTestSupport {
 		final UUID sessionId = UUIDUtil.randomUUID();
 		String[] veryLongString = new String[1024];
 		for (int i = 0; i < 1024; i++) {
-			StringBuilder singleString = new StringBuilder();
+			StringBuilder singleString = new StringBuilder(512);
 			for (int j = 32; j < 61; j++) {
 				singleString.append(Character.valueOf((char)(32 + j % (126 - 32))));
 			}
@@ -617,6 +759,398 @@ public class OffHeapTrafficRecorderTest implements EvitaTestSupport {
 		}
 	}
 
+	@Test
+	@DisplayName("Should drop an oversized finalized session on drain and return every memory block to the free pool")
+	void shouldReturnMemoryBlocksWhenFinalizedSessionExceedsDiskBuffer() throws Exception {
+		// dedicated recorder: memory buffer far larger than the disk buffer, so a session can be built up
+		// in memory that can never fit into the disk ring buffer - appendSession then throws DATA_TOO_LARGE
+		// during the drain. Long.MAX_VALUE flush interval disables the background drain so it can be
+		// triggered (and its effect observed) deterministically.
+		final Path work = getPathInTargetDirectory(UUID.randomUUID() + "/work");
+		try (
+			OffHeapTrafficRecorder recorder = newIsolatedRecorder(2_048, 65_536L, 2_048L, work)
+		) {
+			@SuppressWarnings("unchecked") final Collection<Integer> freeBlocks = (Collection<Integer>) readField(
+				recorder, "freeBlocks");
+			final int totalBlocks = freeBlocks.size();
+			assertTrue(totalBlocks > 1, "Sanity: several memory blocks must be available");
+
+			// build one session whose serialized form spans multiple memory blocks (> disk buffer size,
+			// but comfortably < memory buffer size so it never trips the in-memory NO_SLOT_FREE path)
+			final UUID sessionId = UUIDUtil.randomUUID();
+			recorder.createSession(sessionId, 1, OffsetDateTime.now());
+			final String[] largePayload = new String[256];
+			for (int i = 0; i < largePayload.length; i++) {
+				largePayload[i] = "traffic-recording-payload-chunk-" + i;
+			}
+			recorder.recordMutation(
+				sessionId,
+				OffsetDateTime.now(),
+				new EntityUpsertMutation(
+					Entities.PRODUCT, 1, EntityExistence.MUST_NOT_EXIST,
+					new UpsertAssociatedDataMutation("payload", largePayload)
+				),
+				null
+			);
+			recorder.closeSession(sessionId, null);
+
+			// the finalized session is queued and still holding its memory blocks (no auto-drain)
+			assertTrue(freeBlocks.size() < totalBlocks, "The finalized session must still be holding memory blocks");
+			final long droppedBefore = sumReasonCounters(recorder, "droppedSessionsByReason");
+			final EnumMap<TrafficRecorderMissReason, Long> droppedBaseline = captureReasonBaseline(
+				recorder, "droppedSessionsByReason");
+			final EnumMap<TrafficRecorderMissReason, Long> missedBaseline = captureReasonBaseline(
+				recorder, "missedRecordsByReason");
+
+			// drain: the session is larger than the whole disk buffer, so it must be dropped - but every
+			// one of its memory blocks must be returned to the free pool (no leak)
+			recorder.drainFinalizedSessionsToDisk();
+
+			assertEquals(
+				totalBlocks, freeBlocks.size(),
+				"All memory blocks of the dropped oversized session must be returned to the free pool"
+			);
+			assertEquals(
+				droppedBefore + 1, sumReasonCounters(recorder, "droppedSessionsByReason"),
+				"The oversized session must be counted as dropped");
+
+			// the drop must be attributed to DISK_SHORTAGE specifically, not misclassified into another
+			// bucket: exactly one dropped session and the whole session's record count missed under
+			// DISK_SHORTAGE, with every other reason bucket left untouched
+			for (final TrafficRecorderMissReason reason : TrafficRecorderMissReason.values()) {
+				final long droppedDelta =
+					readReasonCounter(recorder, "droppedSessionsByReason", reason) - droppedBaseline.get(reason);
+				final long missedDelta =
+					readReasonCounter(recorder, "missedRecordsByReason", reason) - missedBaseline.get(reason);
+				if (reason == TrafficRecorderMissReason.DISK_SHORTAGE) {
+					assertEquals(1L, droppedDelta, "the oversized session must be counted as dropped under DISK_SHORTAGE");
+					assertTrue(
+						missedDelta > 0L,
+						"the dropped session's records must all be counted as missed under DISK_SHORTAGE");
+				} else {
+					assertEquals(0L, droppedDelta, "no session may be dropped under " + reason);
+					assertEquals(0L, missedDelta, "no record may be missed under " + reason);
+				}
+			}
+
+			// and no partial / torn session may have reached the disk buffer
+			final DiskRingBuffer diskBuffer = (DiskRingBuffer) readField(recorder, "diskBuffer");
+			@SuppressWarnings("unchecked") final Deque<SessionLocation> sessionLocations =
+				(Deque<SessionLocation>) readField(diskBuffer, "sessionLocations");
+			assertTrue(sessionLocations.isEmpty(), "No part of the oversized session may reach the disk buffer");
+		} finally {
+			FileUtils.deleteDirectory(work);
+		}
+	}
+
+	@Test
+	@DisplayName("Should drop a finalized session and return every memory block when a disk write fails mid-drain")
+	void shouldReturnMemoryBlocksWhenDiskWriteFailsMidDrain() throws Exception {
+		// dedicated recorder whose disk buffer is comfortably large enough to hold the session, so the drain
+		// gets past appendSession and into the per-block append loop - where an injected disk I/O failure
+		// (UnexpectedIOException) on the second block must not leak the session's remaining memory blocks.
+		final Path work = getPathInTargetDirectory(UUID.randomUUID() + "/work");
+		try (
+			OffHeapTrafficRecorder recorder = newIsolatedRecorder(2_048, 32_768L, 65_536L, work)
+		) {
+			@SuppressWarnings("unchecked") final Collection<Integer> freeBlocks = (Collection<Integer>) readField(
+				recorder, "freeBlocks");
+			final int totalBlocks = freeBlocks.size();
+
+			// build one session whose serialized form spans several memory blocks, so the drain calls
+			// diskBuffer.append() more than once and the injected failure lands mid-session
+			final UUID sessionId = UUIDUtil.randomUUID();
+			recorder.createSession(sessionId, 1, OffsetDateTime.now());
+			final String[] largePayload = new String[256];
+			for (int i = 0; i < largePayload.length; i++) {
+				largePayload[i] = "traffic-recording-payload-chunk-" + i;
+			}
+			recorder.recordMutation(
+				sessionId,
+				OffsetDateTime.now(),
+				new EntityUpsertMutation(
+					Entities.PRODUCT, 1, EntityExistence.MUST_NOT_EXIST,
+					new UpsertAssociatedDataMutation("payload", largePayload)
+				),
+				null
+			);
+			recorder.closeSession(sessionId, null);
+
+			// the finalized session is queued and still holding more than one memory block (no auto-drain)
+			assertTrue(
+				freeBlocks.size() < totalBlocks - 1, "Sanity: the finalized session must span more than one block");
+			final long droppedBefore = sumReasonCounters(recorder, "droppedSessionsByReason");
+
+			// swap in a disk buffer spy that fails the second per-block append with a disk I/O error, leaving
+			// the remaining blocks unwritten - the exact path the plain MemoryNotAvailableException catch missed
+			final DiskRingBuffer realDiskBuffer = (DiskRingBuffer) readField(recorder, "diskBuffer");
+			final DiskRingBuffer spyDiskBuffer = Mockito.spy(realDiskBuffer);
+			final AtomicInteger appendCalls = new AtomicInteger();
+			// snapshot of the appended-byte counter taken at the instant of the failing append, so the test
+			// can assert the failing block's bytes were never counted (only fully-written bytes count)
+			final AtomicLong bytesAppendedBeforeFailingWrite = new AtomicLong(-1L);
+			Mockito.doAnswer(invocation -> {
+				if (appendCalls.incrementAndGet() == 2) {
+					bytesAppendedBeforeFailingWrite.set(spyDiskBuffer.getBytesAppendedTotal());
+					throw new UnexpectedIOException(
+						"Injected disk write failure.", "Injected disk write failure.");
+				}
+				return invocation.callRealMethod();
+			}).when(spyDiskBuffer).append(Mockito.any());
+			writeField(recorder, "diskBuffer", spyDiskBuffer);
+			final EnumMap<TrafficRecorderMissReason, Long> droppedBaseline = captureReasonBaseline(
+				recorder, "droppedSessionsByReason");
+			final EnumMap<TrafficRecorderMissReason, Long> missedBaseline = captureReasonBaseline(
+				recorder, "missedRecordsByReason");
+
+			// drain: the second block write fails, so the session must be dropped - but every one of its
+			// memory blocks (the one already written before the failure and all not-yet-written ones) must be
+			// returned to the free pool, with no leak and no double-free
+			recorder.drainFinalizedSessionsToDisk();
+
+			assertTrue(appendCalls.get() >= 2, "The injected failure must have been reached on the second append");
+			assertEquals(
+				totalBlocks, freeBlocks.size(),
+				"Every memory block of the failed session must be returned to the free pool (no leak, no double-free)"
+			);
+			assertEquals(
+				droppedBefore + 1, sumReasonCounters(recorder, "droppedSessionsByReason"),
+				"A session that fails to persist mid-drain must be counted as dropped exactly once"
+			);
+
+			// the failing append must throw before counting its bytes: the counter observed at the instant of
+			// the failure must be unchanged after the aborted drain (the "count only fully-written bytes" contract)
+			assertTrue(
+				bytesAppendedBeforeFailingWrite.get() >= 0L,
+				"The injected failure must have been reached, snapshotting the appended-byte counter"
+			);
+			assertEquals(
+				bytesAppendedBeforeFailingWrite.get(), spyDiskBuffer.getBytesAppendedTotal(),
+				"A mid-write failure must not advance the appended-byte counter beyond the last fully-written block"
+			);
+
+			// the drop must be attributed to IO_ERROR specifically, not misclassified into another bucket:
+			// exactly one dropped session and the whole session's record count missed under IO_ERROR, with
+			// every other reason bucket left untouched
+			for (final TrafficRecorderMissReason reason : TrafficRecorderMissReason.values()) {
+				final long droppedDelta =
+					readReasonCounter(recorder, "droppedSessionsByReason", reason) - droppedBaseline.get(reason);
+				final long missedDelta =
+					readReasonCounter(recorder, "missedRecordsByReason", reason) - missedBaseline.get(reason);
+				if (reason == TrafficRecorderMissReason.IO_ERROR) {
+					assertEquals(1L, droppedDelta, "the mid-drain write failure must be counted as a drop under IO_ERROR");
+					assertTrue(
+						missedDelta > 0L,
+						"the failed session's records must all be counted as missed under IO_ERROR");
+				} else {
+					assertEquals(0L, droppedDelta, "no session may be dropped under " + reason);
+					assertEquals(0L, missedDelta, "no record may be missed under " + reason);
+				}
+			}
+		} finally {
+			FileUtils.deleteDirectory(work);
+		}
+	}
+
+	@Test
+	@DisplayName("Should return every memory block when a session is discarded because the in-memory buffer runs out")
+	void shouldReturnMemoryBlocksWhenSessionDiscardedOnMemoryShortage() throws Exception {
+		// dedicated recorder with a tiny memory buffer (2 blocks): a single large session exhausts it
+		// mid-write, so prepareStorageBlock throws NO_SLOT_FREE and the session is discarded via
+		// discardSession. This pins the (correct) behaviour that discardSession returns all acquired
+		// blocks and never lets a partial session reach disk.
+		final Path work = getPathInTargetDirectory(UUID.randomUUID() + "/work");
+		try (
+			OffHeapTrafficRecorder recorder = newIsolatedRecorder(2_048, 4_096L, 8_192L, work)
+		) {
+			@SuppressWarnings("unchecked") final Collection<Integer> freeBlocks = (Collection<Integer>) readField(
+				recorder, "freeBlocks");
+			final int totalBlocks = freeBlocks.size();
+			final AtomicLong createdSessions = (AtomicLong) readField(recorder, "createdSessions");
+
+			final UUID sessionId = UUIDUtil.randomUUID();
+			recorder.createSession(sessionId, 1, OffsetDateTime.now());
+			// a payload far larger than the 2-block (4 KiB) memory buffer forces NO_SLOT_FREE mid-write
+			final String[] hugePayload = new String[512];
+			for (int i = 0; i < hugePayload.length; i++) {
+				hugePayload[i] = "traffic-recording-payload-chunk-" + i;
+			}
+			recorder.recordMutation(
+				sessionId,
+				OffsetDateTime.now(),
+				new EntityUpsertMutation(
+					Entities.PRODUCT, 1, EntityExistence.MUST_NOT_EXIST,
+					new UpsertAssociatedDataMutation("payload", hugePayload)
+				),
+				null
+			);
+
+			// discardSession must have returned every acquired block to the free pool
+			assertEquals(
+				totalBlocks, freeBlocks.size(),
+				"All memory blocks of the discarded session must be returned to the free pool"
+			);
+			// counters: the session was created (its start record fit) and then dropped on shortage - a
+			// balanced create/drop pair, and its records are counted as missed
+			assertEquals(1L, createdSessions.get(), "The session start record fit, so the session was created");
+			assertEquals(
+				1L, sumReasonCounters(recorder, "droppedSessionsByReason"),
+				"The memory-shortage session must be counted as dropped exactly once");
+			assertTrue(
+				sumReasonCounters(recorder, "missedRecordsByReason") > 0,
+				"The discarded session's records must be counted as missed");
+
+			// nothing may have been drained to disk for a discarded (never finalized) session
+			recorder.drainFinalizedSessionsToDisk();
+			final DiskRingBuffer diskBuffer = (DiskRingBuffer) readField(recorder, "diskBuffer");
+			@SuppressWarnings("unchecked") final Deque<SessionLocation> sessionLocations =
+				(Deque<SessionLocation>) readField(diskBuffer, "sessionLocations");
+			assertTrue(sessionLocations.isEmpty(), "A discarded session must never reach the disk buffer");
+		} finally {
+			FileUtils.deleteDirectory(work);
+		}
+	}
+
+	@Test
+	@DisplayName("Should attribute a discarded session's trailing records and close to the discard reason, not SAMPLING")
+	void shouldAttributePostDiscardTrailingRecordsAndCloseToDiscardReason() throws Exception {
+		// a session discarded mid-flight under memory shortage is removed from the tracked index; any records
+		// that still arrive for it, and its eventual close, must be attributed to the real discard reason
+		// (MEMORY_SHORTAGE) instead of the benign SAMPLING reason (regression guard for the post-discard leak).
+		final Path work = getPathInTargetDirectory(UUID.randomUUID() + "/work");
+		try (
+			OffHeapTrafficRecorder recorder = newIsolatedRecorder(2_048, 4_096L, 8_192L, work)
+		) {
+			final UUID sessionId = UUIDUtil.randomUUID();
+			recorder.createSession(sessionId, 1, OffsetDateTime.now());
+
+			// force a MEMORY_SHORTAGE discard mid-session: a payload far larger than the 2-block buffer
+			final String[] hugePayload = new String[512];
+			for (int i = 0; i < hugePayload.length; i++) {
+				hugePayload[i] = "traffic-recording-payload-chunk-" + i;
+			}
+			recorder.recordMutation(
+				sessionId,
+				OffsetDateTime.now(),
+				new EntityUpsertMutation(
+					Entities.PRODUCT, 1, EntityExistence.MUST_NOT_EXIST,
+					new UpsertAssociatedDataMutation("payload", hugePayload)
+				),
+				null
+			);
+			assertEquals(
+				1L, readReasonCounter(recorder, "droppedSessionsByReason", TrafficRecorderMissReason.MEMORY_SHORTAGE),
+				"the mid-session shortage must drop the session under MEMORY_SHORTAGE");
+
+			// baseline the miss counters AFTER the discard, so only the trailing activity is measured
+			final EnumMap<TrafficRecorderMissReason, Long> missedBaseline =
+				captureReasonBaseline(recorder, "missedRecordsByReason");
+
+			// a record that still arrives for the already-discarded (removed) session
+			recorder.recordMutation(
+				sessionId,
+				OffsetDateTime.now(),
+				new EntityUpsertMutation(
+					Entities.PRODUCT, 2, EntityExistence.MUST_NOT_EXIST,
+					new UpsertAssociatedDataMutation("trailing", "value")
+				),
+				null
+			);
+			// and the eventual close of that discarded session
+			recorder.closeSession(sessionId, null);
+
+			final long memoryShortageDelta =
+				readReasonCounter(recorder, "missedRecordsByReason", TrafficRecorderMissReason.MEMORY_SHORTAGE)
+					- missedBaseline.get(TrafficRecorderMissReason.MEMORY_SHORTAGE);
+			// the SAMPLING counter is also the sole miss term in computeCurrentSamplingRate()'s denominator,
+			// so asserting it does not move for post-discard activity simultaneously proves that trailing
+			// failure records can no longer inflate the computed sampling rate / over-admit under pressure
+			final long samplingDelta =
+				readReasonCounter(recorder, "missedRecordsByReason", TrafficRecorderMissReason.SAMPLING)
+					- missedBaseline.get(TrafficRecorderMissReason.SAMPLING);
+
+			assertEquals(
+				2L, memoryShortageDelta,
+				"the trailing record and the close of a memory-discarded session must both be booked under MEMORY_SHORTAGE");
+			assertEquals(
+				0L, samplingDelta,
+				"post-discard trailing activity must not be misattributed to the benign SAMPLING reason");
+		} finally {
+			FileUtils.deleteDirectory(work);
+		}
+	}
+
+	@Test
+	@DisplayName("A sampling percentage of 0 records nothing - recording is disabled")
+	void shouldRecordNothingWhenSamplingPercentageIsZero() throws Exception {
+		// pins the intended semantics: 0% = record nothing (NOT "store everything" as an old javadoc claimed)
+		final Path work = getPathInTargetDirectory(UUID.randomUUID() + "/work");
+		try (
+			OffHeapTrafficRecorder recorder = newIsolatedRecorder(2_048, 32_768L, 65_536L, 0, work)
+		) {
+			final AtomicLong createdSessions = (AtomicLong) readField(recorder, "createdSessions");
+
+			final UUID sessionId = UUIDUtil.randomUUID();
+			recorder.createSession(sessionId, 1, OffsetDateTime.now());
+			recorder.closeSession(sessionId, null);
+
+			assertEquals(0L, createdSessions.get(), "No session may be recorded when the sampling percentage is 0.");
+			assertTrue(
+				sumReasonCounters(recorder, "missedRecordsByReason") > 0,
+				"Traffic must be counted as missed when the sampling percentage is 0.");
+
+			// and nothing may reach disk
+			recorder.drainFinalizedSessionsToDisk();
+			final DiskRingBuffer diskBuffer = (DiskRingBuffer) readField(recorder, "diskBuffer");
+			@SuppressWarnings("unchecked") final Deque<SessionLocation> sessionLocations =
+				(Deque<SessionLocation>) readField(diskBuffer, "sessionLocations");
+			assertTrue(
+				sessionLocations.isEmpty(), "Nothing may reach the disk buffer when the sampling percentage is 0.");
+		} finally {
+			FileUtils.deleteDirectory(work);
+		}
+	}
+
+	/**
+	 * Builds a fully initialized, isolated {@link OffHeapTrafficRecorder} with the given block, memory and
+	 * disk buffer sizes, a 100% sampling rate and a disabled background drain ({@code Long.MAX_VALUE} flush
+	 * interval), writing into its own {@code work} directory. Callers own the returned recorder and must
+	 * close it and delete {@code work} themselves.
+	 */
+	@Nonnull
+	private static OffHeapTrafficRecorder newIsolatedRecorder(
+		int blockSize, long memoryBytes, long diskBytes, @Nonnull Path work) {
+		return newIsolatedRecorder(blockSize, memoryBytes, diskBytes, 100, work);
+	}
+
+	/**
+	 * Same as {@link #newIsolatedRecorder(int, long, long, Path)} but with a configurable sampling percentage.
+	 */
+	@Nonnull
+	private static OffHeapTrafficRecorder newIsolatedRecorder(
+		int blockSize, long memoryBytes, long diskBytes, int samplingPercentage, @Nonnull Path work) {
+		work.toFile().mkdirs();
+		final OffHeapTrafficRecorder recorder = new OffHeapTrafficRecorder(blockSize);
+		final StorageOptions storageOptions = StorageOptions.builder()
+			.outputBufferSize(blockSize)
+			.workDirectory(work)
+			.build();
+		recorder.init(
+			TEST_CATALOG,
+			new FileManagementService(storageOptions),
+			new Scheduler(new ImmediateScheduledThreadPoolExecutor()),
+			storageOptions,
+			TrafficRecordingOptions.builder()
+				.enabled(true)
+				.trafficSamplingPercentage(samplingPercentage)
+				.trafficMemoryBufferSizeInBytes(memoryBytes)
+				.trafficDiskBufferSizeInBytes(diskBytes)
+				.build(),
+			Long.MAX_VALUE
+		);
+		return recorder;
+	}
+
 	@Disabled("This test fails to often in parallel suite. Needs to be executed manually as a standalone test.")
 	@Test
 	void shouldRecordDataInParallelAndQueryOnThem() throws InterruptedException {
@@ -657,6 +1191,7 @@ public class OffHeapTrafficRecorderTest implements EvitaTestSupport {
 		assertThrows(
 			IndexNotReady.class,
 			() -> {
+				//noinspection EmptyTryBlock
 				try (
 					final Stream<?> stream = this.trafficRecorder.getRecordings(
 						TrafficRecordingCaptureRequest.builder()
@@ -666,6 +1201,7 @@ public class OffHeapTrafficRecorderTest implements EvitaTestSupport {
 							.build()
 					)
 				) {
+					// deliberately no action, we're warming up
 				}
 			}
 		);

@@ -25,46 +25,64 @@ package io.evitadb.api.requestResponse.schema;
 
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.SchemaPostProcessorCapturingResult;
-import io.evitadb.api.configuration.EvitaConfiguration;
-import io.evitadb.api.configuration.StorageOptions;
+import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.exception.SchemaClassInvalidException;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor.CatalogSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
-import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.dto.EntityAttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
-import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
-import io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolution;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
+import io.evitadb.api.requestResponse.mutation.conflict.GranularConflictPolicy;
 import io.evitadb.api.requestResponse.schema.model.*;
 import io.evitadb.api.requestResponse.schema.model.evolution.*;
 import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.associatedData.CreateAssociatedDataSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.associatedData.SetAssociatedDataSchemaLocalizedMutation;
+import io.evitadb.api.requestResponse.schema.mutation.associatedData.SetAssociatedDataSchemaNullableMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.CreateAttributeSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.RemoveAttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaFilterableMutation;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaLocalizedMutation;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaNullableMutation;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaRepresentativeMutation;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaSortableMutation;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaUniqueMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.reference.CreateReferenceSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.reference.CreateReflectedReferenceSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceAttributeSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedBucketedPartially;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedFacetedPartially;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedHistogramIndexDefinition;
 import io.evitadb.api.requestResponse.schema.mutation.reference.SetReferenceSchemaFacetedMutation;
 import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.CreateSortableAttributeCompoundSchemaMutation;
 import io.evitadb.core.Evita;
+import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.ComplexDataObject;
 import io.evitadb.dataType.Scope;
-import io.evitadb.export.file.configuration.FileSystemExportOptions;
 import io.evitadb.test.EvitaTestSupport;
+import io.evitadb.utils.ReflectionLookup;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.IOException;
+import java.io.Serializable;
+import java.lang.reflect.Method;
 import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.Currency;
+import java.util.EnumSet;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
@@ -73,6 +91,11 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
+import static io.evitadb.test.TestTags.ATTRIBUTE;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.HISTOGRAM;
+import static io.evitadb.test.TestTags.REFERENCE;
+import static io.evitadb.test.TestTags.SCHEMA;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
@@ -81,14 +104,15 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 @DisplayName("Class schema analyzer")
+@Tag(CONTRACT)
+@Tag(SCHEMA)
 class ClassSchemaAnalyzerTest implements EvitaTestSupport {
-	public static final String DIR_CLASS_SCHEMA_ANALYZER_TEST = "classSchemaAnalyzerTest";
-	public static final String DIR_CLASS_SCHEMA_ANALYZER_TEST_EXPORT = "classSchemaAnalyzerTest_export";
 	public static final String ATTRIBUTE_DCODE = "code";
 	public static final String ATTRIBUTE_NAME = "name";
 	public static final String ATTRIBUTE_EAN = "ean";
 	public static final String ATTRIBUTE_QUANTITY = "quantity";
 
+	private TestPaths paths;
 	private Evita evita;
 
 	private static void assertAttribute(
@@ -120,12 +144,12 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 		} else {
 			assertEquals(deprecation, attributeSchema.getDeprecationNotice());
 		}
-		assertEquals(expectedType, attributeSchema.getType());
+		assertSame(expectedType, attributeSchema.getType());
 		if (global) {
-			assertTrue(attributeSchema instanceof GlobalAttributeSchema);
+			assertInstanceOf(GlobalAttributeSchema.class, attributeSchema);
 		}
 		if (globallyUnique) {
-			assertTrue(attributeSchema instanceof GlobalAttributeSchema);
+			assertInstanceOf(GlobalAttributeSchema.class, attributeSchema);
 			assertTrue(((GlobalAttributeSchema) attributeSchema).isUniqueGlobally());
 		}
 		assertEquals(
@@ -188,7 +212,7 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 		} else {
 			assertEquals(deprecation, associatedData.getDeprecationNotice());
 		}
-		assertEquals(
+		assertSame(
 			expectedType, associatedData.getType(),
 			"Associated data `" + associatedDataName + "` is expected to be `" + expectedType + "`, but is `" + associatedData.getType() + "`."
 		);
@@ -537,9 +561,9 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 		} else {
 			assertEquals(deprecation, attributeSchema.getDeprecationNotice());
 		}
-		assertEquals(expectedType, attributeSchema.getType());
+		assertSame(expectedType, attributeSchema.getType());
 		if (global) {
-			assertTrue(attributeSchema instanceof GlobalAttributeSchema);
+			assertInstanceOf(GlobalAttributeSchema.class, attributeSchema);
 		}
 		assertEquals(
 			localized, attributeSchema.isLocalized(), "Attribute `" + attributeName + "` is expected to be " + (
@@ -641,15 +665,18 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 	}
 
 	/**
-	 * Finds a specific mutation type within entity schema mutations.
+	 * Streams every mutation of the requested type found at any nesting level inside the captured
+	 * catalog mutation array. Walks top-level mutations, the entity-level children of
+	 * `ModifyEntitySchemaMutation`, and the attribute-level mutations wrapped inside
+	 * `ModifyReferenceAttributeSchemaMutation`.
 	 *
 	 * @param mutations    the array of catalog mutations to search
 	 * @param mutationType the expected mutation class
 	 * @param <T>          the mutation type
-	 * @return optional containing the found mutation, or empty if not found
+	 * @return stream of all matching mutations in iteration order
 	 */
 	@Nonnull
-	private static <T extends EntitySchemaMutation> Optional<T> findEntitySchemaMutation(
+	private static <T extends EntitySchemaMutation> Stream<T> streamEntitySchemaMutations(
 		@Nonnull LocalCatalogSchemaMutation[] mutations,
 		@Nonnull Class<T> mutationType
 	) {
@@ -666,30 +693,34 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 					.filter(ModifyReferenceAttributeSchemaMutation.class::isInstance)
 					.map(ModifyReferenceAttributeSchemaMutation.class::cast)
 					.map(ModifyReferenceAttributeSchemaMutation::getAttributeSchemaMutation)
-				)
+			)
 			.flatMap(Function.identity())
 			.filter(mutationType::isInstance)
-			.map(mutationType::cast)
-			.findFirst();
+			.map(mutationType::cast);
+	}
+
+	/**
+	 * Finds the first mutation of the requested type at any nesting level inside the captured
+	 * catalog mutation array.
+	 *
+	 * @param mutations    the array of catalog mutations to search
+	 * @param mutationType the expected mutation class
+	 * @param <T>          the mutation type
+	 * @return optional containing the first found mutation, or empty if not found
+	 */
+	@Nonnull
+	private static <T extends EntitySchemaMutation> Optional<T> findEntitySchemaMutation(
+		@Nonnull LocalCatalogSchemaMutation[] mutations,
+		@Nonnull Class<T> mutationType
+	) {
+		return streamEntitySchemaMutations(mutations, mutationType).findFirst();
 	}
 
 	@BeforeEach
 	void setUp() throws IOException {
-		cleanTestSubDirectory(DIR_CLASS_SCHEMA_ANALYZER_TEST);
-		cleanTestSubDirectory(DIR_CLASS_SCHEMA_ANALYZER_TEST_EXPORT);
+		this.paths = createTestPaths("ClassSchemaAnalyzerTest");
 		this.evita = new Evita(
-			EvitaConfiguration.builder()
-				.storage(
-					StorageOptions.builder()
-						.storageDirectory(getTestDirectory().resolve(DIR_CLASS_SCHEMA_ANALYZER_TEST))
-						.build()
-				)
-				.export(
-					FileSystemExportOptions.builder()
-						.directory(getTestDirectory().resolve(DIR_CLASS_SCHEMA_ANALYZER_TEST_EXPORT))
-						.build()
-				)
-				.build()
+			newTestEvitaConfigurationBuilder(this.paths).build()
 		);
 		this.evita.defineCatalog(TEST_CATALOG);
 	}
@@ -697,8 +728,7 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 	@AfterEach
 	void tearDown() throws IOException {
 		this.evita.close();
-		cleanTestSubDirectory(DIR_CLASS_SCHEMA_ANALYZER_TEST);
-		cleanTestSubDirectory(DIR_CLASS_SCHEMA_ANALYZER_TEST_EXPORT);
+		cleanupTestPaths(this.paths);
 	}
 
 	@DisplayName("Verify that interface methods re analyzed and set up with defaults")
@@ -1849,7 +1879,7 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 	@DisplayName("Verify that ScopeReferenceSettings work correctly with getter-based entities")
 	@Test
 	void shouldSetupNewSchemaWithScopeReferenceSettingsForGetters() {
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session.defineEntitySchemaFromModelClass(GetterBasedEntityWithScopeReferenceSettings.class);
@@ -1925,7 +1955,7 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 	@DisplayName("Verify that ScopeReferenceSettings work correctly with field-based entities")
 	@Test
 	void shouldSetupNewSchemaWithScopeReferenceSettingsForFields() {
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session.defineEntitySchemaFromModelClass(FieldBasedEntityWithScopeReferenceSettings.class);
@@ -2000,7 +2030,7 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 	@DisplayName("Verify that ScopeReferenceSettings work correctly with record-based entities")
 	@Test
 	void shouldSetupNewSchemaWithScopeReferenceSettingsForRecords() {
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session.defineEntitySchemaFromModelClass(RecordBasedEntityWithScopeReferenceSettings.class);
@@ -2075,7 +2105,7 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 	@DisplayName("Verify that ScopeReferenceSettings work correctly with reflected references")
 	@Test
 	void shouldSetupNewSchemaWithScopeReferenceSettingsForReflectedReferences() {
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session.defineEntitySchemaFromModelClass(GetterBasedEntityWithScopeReflectedReference.Brand.class);
@@ -2123,10 +2153,148 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 		);
 	}
 
+	@DisplayName("Verify that @Reference#indexedComponents is wired through ClassSchemaAnalyzer")
+	@Test
+	void shouldSetupNewSchemaWithIndexedComponents() {
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.defineEntitySchemaFromModelClass(GetterBasedEntityWithIndexedComponents.class);
+
+				final SealedEntitySchema entitySchema = session.getEntitySchema(
+					"GetterBasedEntityWithIndexedComponents").orElseThrow();
+				final Map<String, ReferenceSchemaContract> references = entitySchema.getReferences();
+				assertEquals(5, references.size());
+
+				// default annotation value `{REFERENCED_ENTITY}` resolves to the schema default
+				final ReferenceSchemaContract defaultComponents = references.get("defaultComponents");
+				assertEquals(
+					Set.of(ReferenceIndexedComponents.REFERENCED_ENTITY),
+					defaultComponents.getIndexedComponents(Scope.LIVE)
+				);
+
+				// explicit override to `{REFERENCED_GROUP_ENTITY}`
+				final ReferenceSchemaContract groupOnly = references.get("groupOnlyComponents");
+				assertEquals(
+					Set.of(ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY),
+					groupOnly.getIndexedComponents(Scope.LIVE)
+				);
+
+				// both components selected
+				final ReferenceSchemaContract bothComponents = references.get("bothComponents");
+				assertEquals(
+					Set.of(
+						ReferenceIndexedComponents.REFERENCED_ENTITY,
+						ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
+					),
+					bothComponents.getIndexedComponents(Scope.LIVE)
+				);
+
+				// per-scope components: LIVE has both, ARCHIVED has only the group entity
+				final ReferenceSchemaContract perScope = references.get("perScopeComponents");
+				assertEquals(
+					Set.of(
+						ReferenceIndexedComponents.REFERENCED_ENTITY,
+						ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
+					),
+					perScope.getIndexedComponents(Scope.LIVE)
+				);
+				assertEquals(
+					Set.of(ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY),
+					perScope.getIndexedComponents(Scope.ARCHIVED)
+				);
+
+				// `indexed = NONE` means components are silently ignored even if non-default
+				final ReferenceSchemaContract notIndexed = references.get("ignoredWhenNotIndexed");
+				assertEquals(ReferenceIndexType.NONE, notIndexed.getReferenceIndexType(Scope.LIVE));
+				assertEquals(Set.of(), notIndexed.getIndexedComponents(Scope.LIVE));
+			}
+		);
+	}
+
+	@DisplayName("Verify that @ReflectedReference#indexedComponents is wired through ClassSchemaAnalyzer")
+	@Test
+	void shouldSetupReflectedReferenceWithIndexedComponents() {
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.defineEntitySchemaFromModelClass(
+					GetterBasedEntityWithReflectedIndexedComponents.Brand.class);
+				session.defineEntitySchemaFromModelClass(
+					GetterBasedEntityWithReflectedIndexedComponents.BrandGroup.class);
+				session.defineEntitySchemaFromModelClass(
+					GetterBasedEntityWithReflectedIndexedComponents.class);
+
+				final SealedEntitySchema entitySchema = session.getEntitySchema(
+					"GetterBasedEntityWithReflectedIndexedComponents").orElseThrow();
+
+				final Map<String, ReferenceSchemaContract> references = entitySchema.getReferences();
+				assertEquals(2, references.size());
+
+				// general `indexedComponents = {REFERENCED_GROUP_ENTITY}` on a reflected reference
+				final ReferenceSchemaContract marketingBrand = references.get("marketingBrand");
+				assertInstanceOf(ReflectedReferenceSchemaContract.class, marketingBrand);
+				assertEquals(
+					Set.of(ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY),
+					marketingBrand.getIndexedComponents(Scope.LIVE)
+				);
+
+				// per-scope reflected: LIVE indexes both sides; ARCHIVED indexes only the group
+				final ReferenceSchemaContract secondaryBrand = references.get("secondaryBrand");
+				assertInstanceOf(ReflectedReferenceSchemaContract.class, secondaryBrand);
+				assertEquals(
+					Set.of(
+						ReferenceIndexedComponents.REFERENCED_ENTITY,
+						ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
+					),
+					secondaryBrand.getIndexedComponents(Scope.LIVE)
+				);
+				assertEquals(
+					Set.of(ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY),
+					secondaryBrand.getIndexedComponents(Scope.ARCHIVED)
+				);
+			}
+		);
+	}
+
+	@DisplayName("Verify that re-analysis of @Reference does not lose explicit indexedComponents")
+	@Test
+	void shouldPreserveIndexedComponentsOnReanalysis() {
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				// first analysis pass
+				session.defineEntitySchemaFromModelClass(GetterBasedEntityWithIndexedComponents.class);
+				// second pass — analyzer must be idempotent (no clobbering of explicit components)
+				session.defineEntitySchemaFromModelClass(GetterBasedEntityWithIndexedComponents.class);
+
+				final SealedEntitySchema entitySchema = session.getEntitySchema(
+					"GetterBasedEntityWithIndexedComponents").orElseThrow();
+				final Map<String, ReferenceSchemaContract> references = entitySchema.getReferences();
+
+				assertEquals(
+					Set.of(ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY),
+					references.get("groupOnlyComponents").getIndexedComponents(Scope.LIVE)
+				);
+				assertEquals(
+					Set.of(
+						ReferenceIndexedComponents.REFERENCED_ENTITY,
+						ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
+					),
+					references.get("bothComponents").getIndexedComponents(Scope.LIVE)
+				);
+				assertEquals(
+					Set.of(ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY),
+					references.get("perScopeComponents").getIndexedComponents(Scope.ARCHIVED)
+				);
+			}
+		);
+	}
+
 	@DisplayName("Debug simple ScopeAttributeSettings")
 	@Test
 	void shouldSetupSimpleScopeAttributeSettings() {
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session.defineEntitySchemaFromModelClass(SimpleEntityWithScopeAttributeSettings.class);
@@ -2146,7 +2314,7 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 	@DisplayName("Debug minimal ScopeAttributeSettings with two attributes")
 	@Test
 	void shouldSetupMinimalScopeAttributeSettings() {
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session.defineEntitySchemaFromModelClass(MinimalEntityWithScopeAttributeSettings.class);
@@ -2173,7 +2341,7 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 	@DisplayName("Verify that ScopeAttributeSettings work correctly with getter-based entities")
 	@Test
 	void shouldSetupNewSchemaWithScopeAttributeSettingsForGetters() {
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session.defineEntitySchemaFromModelClass(GetterBasedEntityWithScopeAttributeSettings.class);
@@ -2248,7 +2416,7 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 	@DisplayName("Verify that ScopeAttributeSettings work correctly with field-based entities")
 	@Test
 	void shouldSetupNewSchemaWithScopeAttributeSettingsForFields() {
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session.defineEntitySchemaFromModelClass(FieldBasedEntityWithScopeAttributeSettings.class);
@@ -2323,7 +2491,7 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 	@DisplayName("Verify that ScopeAttributeSettings work correctly with record-based entities")
 	@Test
 	void shouldSetupNewSchemaWithScopeAttributeSettingsForRecords() {
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session.defineEntitySchemaFromModelClass(RecordBasedEntityWithScopeAttributeSettings.class);
@@ -2398,7 +2566,7 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 	@DisplayName("Verify that analyzing same class twice produces no mutations on second analysis (getter-based)")
 	@Test
 	void shouldProduceNoMutationsWhenGetterBasedSchemaUnchanged() {
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				// First analysis - creates schema
@@ -2420,7 +2588,7 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 	@DisplayName("Verify that analyzing same class twice produces no mutations on second analysis (field-based)")
 	@Test
 	void shouldProduceNoMutationsWhenFieldBasedSchemaUnchanged() {
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				// First analysis - creates schema
@@ -2442,7 +2610,7 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 	@DisplayName("Verify that analyzing same class twice produces no mutations on second analysis (record-based)")
 	@Test
 	void shouldProduceNoMutationsWhenRecordBasedSchemaUnchanged() {
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				// First analysis - creates schema
@@ -2464,7 +2632,7 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 	@DisplayName("Verify that analyzing full-featured entity class twice produces no mutations on second analysis")
 	@Test
 	void shouldProduceNoMutationsWhenFullFeaturedSchemaUnchanged() {
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				// First analysis - creates schema (including referenced entities)
@@ -2488,7 +2656,7 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 	@DisplayName("Verify that analyzing entity with scope attribute settings twice produces no mutations on second analysis")
 	@Test
 	void shouldProduceNoMutationsWhenScopeAttributeSettingsSchemaUnchanged() {
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				// First analysis - creates schema
@@ -2573,6 +2741,476 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 						GetterBasedEntityEvolutionV1.ENTITY_NAME)
 					.orElseThrow();
 				assertTrue(updatedSchema.getAttribute("code").orElseThrow().isFilterable());
+			}
+		);
+	}
+
+	@DisplayName("Verify nullable=true is narrowed to non-null when annotation uses default settings")
+	@Test
+	void shouldNarrowNullableAttributeToNonNullWhenAnnotationUsesDefaultSettings() {
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				// Create initial schema with nullable=true
+				session.defineEntitySchemaFromModelClass(GetterBasedEntityNullableEvolutionV1.class);
+
+				// Verify initial state: attribute is nullable
+				final SealedEntitySchema initialSchema = session.getEntitySchema(
+						GetterBasedEntityNullableEvolutionV1.ENTITY_NAME)
+					.orElseThrow();
+				assertTrue(
+					initialSchema.getAttribute("code").orElseThrow().isNullable(),
+					"Initial `code` attribute is expected to be nullable."
+				);
+
+				// Re-analyze with V2 that uses default @Attribute (nullable=false)
+				final LocalCatalogSchemaMutation[] mutations = analyzeAndCaptureMutations(
+					session, GetterBasedEntityNullableEvolutionV2NarrowToNonNull.class
+				);
+
+				// Expected mutation: nullable flipped to false
+				final Optional<SetAttributeSchemaNullableMutation> nullableMutation =
+					findEntitySchemaMutation(mutations, SetAttributeSchemaNullableMutation.class);
+				assertTrue(
+					nullableMutation.isPresent(),
+					"Expected SetAttributeSchemaNullableMutation flipping `code` to non-null."
+				);
+				assertEquals("code", nullableMutation.get().getName());
+				assertFalse(
+					nullableMutation.get().isNullable(),
+					"Expected the nullable mutation to set nullable=false."
+				);
+
+				// Verify schema is now non-null
+				final SealedEntitySchema updatedSchema = session.getEntitySchema(
+						GetterBasedEntityNullableEvolutionV1.ENTITY_NAME)
+					.orElseThrow();
+				assertFalse(
+					updatedSchema.getAttribute("code").orElseThrow().isNullable(),
+					"`code` attribute is expected to be non-null after re-analysis with default @Attribute."
+				);
+			}
+		);
+	}
+
+	@DisplayName("Verify Attribute.localized=true is narrowed when annotation uses default settings")
+	@Test
+	void shouldNarrowAttributeLocalizedWhenAnnotationUsesDefaultSettings() {
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.defineEntitySchemaFromModelClass(GetterBasedEntityNarrowingEvolutionV1.class);
+				final SealedEntitySchema initial = session.getEntitySchema(
+					GetterBasedEntityNarrowingEvolutionV1.ENTITY_NAME).orElseThrow();
+				assertTrue(initial.getAttribute("localizedCode").orElseThrow().isLocalized());
+
+				final LocalCatalogSchemaMutation[] mutations = analyzeAndCaptureMutations(
+					session, GetterBasedEntityNarrowingEvolutionV2NarrowAll.class
+				);
+
+				final Optional<SetAttributeSchemaLocalizedMutation> mutation = streamEntitySchemaMutations(
+					mutations, SetAttributeSchemaLocalizedMutation.class)
+					.filter(m -> "localizedCode".equals(m.getName()))
+					.findFirst();
+				assertTrue(mutation.isPresent(),
+					"Expected SetAttributeSchemaLocalizedMutation(false) for `localizedCode`.");
+				assertFalse(mutation.get().isLocalized());
+
+				final SealedEntitySchema updated = session.getEntitySchema(
+					GetterBasedEntityNarrowingEvolutionV1.ENTITY_NAME).orElseThrow();
+				assertFalse(updated.getAttribute("localizedCode").orElseThrow().isLocalized());
+			}
+		);
+	}
+
+	@DisplayName("Verify Attribute.representative=true is narrowed when annotation uses default settings")
+	@Test
+	void shouldNarrowAttributeRepresentativeWhenAnnotationUsesDefaultSettings() {
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.defineEntitySchemaFromModelClass(GetterBasedEntityNarrowingEvolutionV1.class);
+				final SealedEntitySchema initial = session.getEntitySchema(
+					GetterBasedEntityNarrowingEvolutionV1.ENTITY_NAME).orElseThrow();
+				assertTrue(((EntityAttributeSchema) initial.getAttribute("representativeCode")
+					.orElseThrow()).isRepresentative());
+
+				final LocalCatalogSchemaMutation[] mutations = analyzeAndCaptureMutations(
+					session, GetterBasedEntityNarrowingEvolutionV2NarrowAll.class
+				);
+
+				final Optional<SetAttributeSchemaRepresentativeMutation> mutation = streamEntitySchemaMutations(
+					mutations, SetAttributeSchemaRepresentativeMutation.class)
+					.filter(m -> "representativeCode".equals(m.getName()))
+					.findFirst();
+				assertTrue(mutation.isPresent(),
+					"Expected SetAttributeSchemaRepresentativeMutation(false) for `representativeCode`.");
+				assertFalse(mutation.get().isRepresentative());
+
+				final SealedEntitySchema updated = session.getEntitySchema(
+					GetterBasedEntityNarrowingEvolutionV1.ENTITY_NAME).orElseThrow();
+				assertFalse(((EntityAttributeSchema) updated.getAttribute("representativeCode")
+					.orElseThrow()).isRepresentative());
+			}
+		);
+	}
+
+	@DisplayName("Verify Attribute.filterable=true is narrowed when annotation uses default settings")
+	@Test
+	void shouldNarrowAttributeFilterableWhenAnnotationUsesDefaultSettings() {
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.defineEntitySchemaFromModelClass(GetterBasedEntityNarrowingEvolutionV1.class);
+				final SealedEntitySchema initial = session.getEntitySchema(
+					GetterBasedEntityNarrowingEvolutionV1.ENTITY_NAME).orElseThrow();
+				assertTrue(initial.getAttribute("filterableCode").orElseThrow()
+					.isFilterableInScope(Scope.DEFAULT_SCOPE));
+
+				final LocalCatalogSchemaMutation[] mutations = analyzeAndCaptureMutations(
+					session, GetterBasedEntityNarrowingEvolutionV2NarrowAll.class
+				);
+
+				final Optional<SetAttributeSchemaFilterableMutation> mutation = streamEntitySchemaMutations(
+					mutations, SetAttributeSchemaFilterableMutation.class)
+					.filter(m -> "filterableCode".equals(m.getName()))
+					.findFirst();
+				assertTrue(mutation.isPresent(),
+					"Expected SetAttributeSchemaFilterableMutation clearing filterable for `filterableCode`.");
+
+				final SealedEntitySchema updated = session.getEntitySchema(
+					GetterBasedEntityNarrowingEvolutionV1.ENTITY_NAME).orElseThrow();
+				assertFalse(updated.getAttribute("filterableCode").orElseThrow()
+					.isFilterableInScope(Scope.DEFAULT_SCOPE));
+			}
+		);
+	}
+
+	@DisplayName("Verify Attribute.sortable=true is narrowed when annotation uses default settings")
+	@Test
+	void shouldNarrowAttributeSortableWhenAnnotationUsesDefaultSettings() {
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.defineEntitySchemaFromModelClass(GetterBasedEntityNarrowingEvolutionV1.class);
+				final SealedEntitySchema initial = session.getEntitySchema(
+					GetterBasedEntityNarrowingEvolutionV1.ENTITY_NAME).orElseThrow();
+				assertTrue(initial.getAttribute("sortableCode").orElseThrow()
+					.isSortableInScope(Scope.DEFAULT_SCOPE));
+
+				final LocalCatalogSchemaMutation[] mutations = analyzeAndCaptureMutations(
+					session, GetterBasedEntityNarrowingEvolutionV2NarrowAll.class
+				);
+
+				final Optional<SetAttributeSchemaSortableMutation> mutation = streamEntitySchemaMutations(
+					mutations, SetAttributeSchemaSortableMutation.class)
+					.filter(m -> "sortableCode".equals(m.getName()))
+					.findFirst();
+				assertTrue(mutation.isPresent(),
+					"Expected SetAttributeSchemaSortableMutation clearing sortable for `sortableCode`.");
+
+				final SealedEntitySchema updated = session.getEntitySchema(
+					GetterBasedEntityNarrowingEvolutionV1.ENTITY_NAME).orElseThrow();
+				assertFalse(updated.getAttribute("sortableCode").orElseThrow()
+					.isSortableInScope(Scope.DEFAULT_SCOPE));
+			}
+		);
+	}
+
+	@DisplayName("Verify Attribute.unique is narrowed to NOT_UNIQUE when annotation uses default settings")
+	@Test
+	void shouldNarrowAttributeUniqueWhenAnnotationUsesDefaultSettings() {
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.defineEntitySchemaFromModelClass(GetterBasedEntityNarrowingEvolutionV1.class);
+				final SealedEntitySchema initial = session.getEntitySchema(
+					GetterBasedEntityNarrowingEvolutionV1.ENTITY_NAME).orElseThrow();
+				assertEquals(
+					AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION,
+					initial.getAttribute("uniqueCode").orElseThrow()
+						.getUniquenessType(Scope.DEFAULT_SCOPE)
+				);
+
+				final LocalCatalogSchemaMutation[] mutations = analyzeAndCaptureMutations(
+					session, GetterBasedEntityNarrowingEvolutionV2NarrowAll.class
+				);
+
+				final Optional<SetAttributeSchemaUniqueMutation> mutation = streamEntitySchemaMutations(
+					mutations, SetAttributeSchemaUniqueMutation.class)
+					.filter(m -> "uniqueCode".equals(m.getName()))
+					.findFirst();
+				assertTrue(mutation.isPresent(),
+					"Expected SetAttributeSchemaUniqueMutation(NOT_UNIQUE) for `uniqueCode`.");
+				assertEquals(AttributeUniquenessType.NOT_UNIQUE, mutation.get().getUnique());
+
+				final SealedEntitySchema updated = session.getEntitySchema(
+					GetterBasedEntityNarrowingEvolutionV1.ENTITY_NAME).orElseThrow();
+				assertEquals(
+					AttributeUniquenessType.NOT_UNIQUE,
+					updated.getAttribute("uniqueCode").orElseThrow()
+						.getUniquenessType(Scope.DEFAULT_SCOPE)
+				);
+			}
+		);
+	}
+
+	@DisplayName("Verify Attribute.unique within-locale is narrowed to within-collection when annotation switches kind")
+	@Test
+	void shouldNarrowAttributeUniqueWithinLocaleToCollectionWhenAnnotationSwitchesKind() {
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.defineEntitySchemaFromModelClass(GetterBasedEntityUniquenessKindEvolutionV1.class);
+				final SealedEntitySchema initial = session.getEntitySchema(
+					GetterBasedEntityUniquenessKindEvolutionV1.ENTITY_NAME).orElseThrow();
+				assertEquals(
+					AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION_LOCALE,
+					initial.getAttribute("localeUniqueCode").orElseThrow()
+						.getUniquenessType(Scope.DEFAULT_SCOPE)
+				);
+
+				final LocalCatalogSchemaMutation[] mutations = analyzeAndCaptureMutations(
+					session, GetterBasedEntityUniquenessKindEvolutionV2SwitchToCollection.class
+				);
+
+				final Optional<SetAttributeSchemaUniqueMutation> mutation = streamEntitySchemaMutations(
+					mutations, SetAttributeSchemaUniqueMutation.class)
+					.filter(m -> "localeUniqueCode".equals(m.getName()))
+					.findFirst();
+				assertTrue(mutation.isPresent(),
+					"Expected SetAttributeSchemaUniqueMutation(UNIQUE_WITHIN_COLLECTION) for `localeUniqueCode`.");
+				assertEquals(AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION, mutation.get().getUnique());
+
+				final SealedEntitySchema updated = session.getEntitySchema(
+					GetterBasedEntityUniquenessKindEvolutionV1.ENTITY_NAME).orElseThrow();
+				assertEquals(
+					AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION,
+					updated.getAttribute("localeUniqueCode").orElseThrow()
+						.getUniquenessType(Scope.DEFAULT_SCOPE)
+				);
+			}
+		);
+	}
+
+	@DisplayName("Verify global Attribute.uniqueGlobally within-locale is narrowed to within-catalog when annotation switches kind")
+	@Test
+	void shouldNarrowGlobalAttributeUniqueGloballyWithinCatalogLocaleToCatalogWhenAnnotationSwitchesKind() {
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.defineEntitySchemaFromModelClass(GetterBasedEntityUniquenessKindEvolutionV1.class);
+				final SealedEntitySchema initial = session.getEntitySchema(
+					GetterBasedEntityUniquenessKindEvolutionV1.ENTITY_NAME).orElseThrow();
+				final GlobalAttributeSchema initialGlobal = (GlobalAttributeSchema) initial
+					.getAttribute("globalLocaleUniqueCode").orElseThrow();
+				assertEquals(
+					GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG_LOCALE,
+					initialGlobal.getGlobalUniquenessType(Scope.DEFAULT_SCOPE)
+				);
+
+				analyzeAndCaptureMutations(
+					session, GetterBasedEntityUniquenessKindEvolutionV2SwitchToCollection.class
+				);
+
+				final SealedEntitySchema updated = session.getEntitySchema(
+					GetterBasedEntityUniquenessKindEvolutionV1.ENTITY_NAME).orElseThrow();
+				final GlobalAttributeSchema updatedGlobal = (GlobalAttributeSchema) updated
+					.getAttribute("globalLocaleUniqueCode").orElseThrow();
+				assertEquals(
+					GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG,
+					updatedGlobal.getGlobalUniquenessType(Scope.DEFAULT_SCOPE)
+				);
+			}
+		);
+	}
+
+	@DisplayName("Verify per-scope Attribute.unique within-locale is narrowed to within-collection when annotation switches kind")
+	@Test
+	void shouldNarrowPerScopeAttributeUniqueWithinLocaleToCollectionWhenAnnotationSwitchesKind() {
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.defineEntitySchemaFromModelClass(GetterBasedEntityUniquenessKindEvolutionV1.class);
+				final SealedEntitySchema initial = session.getEntitySchema(
+					GetterBasedEntityUniquenessKindEvolutionV1.ENTITY_NAME).orElseThrow();
+				assertEquals(
+					AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION_LOCALE,
+					initial.getAttribute("scopedLocaleUniqueCode").orElseThrow()
+						.getUniquenessType(Scope.LIVE)
+				);
+
+				analyzeAndCaptureMutations(
+					session, GetterBasedEntityUniquenessKindEvolutionV2SwitchToCollection.class
+				);
+
+				final SealedEntitySchema updated = session.getEntitySchema(
+					GetterBasedEntityUniquenessKindEvolutionV1.ENTITY_NAME).orElseThrow();
+				assertEquals(
+					AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION,
+					updated.getAttribute("scopedLocaleUniqueCode").orElseThrow()
+						.getUniquenessType(Scope.LIVE)
+				);
+			}
+		);
+	}
+
+	@DisplayName("Verify re-analyzing an already-narrowed schema produces no further entity-schema mutations")
+	@Test
+	void shouldProduceNoMutationsWhenAlreadyNarrowedSchemaReanalyzed() {
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.defineEntitySchemaFromModelClass(GetterBasedEntityNarrowingEvolutionV1.class);
+
+				// First narrowing pass converges the schema to all-default flag values.
+				analyzeAndCaptureMutations(
+					session, GetterBasedEntityNarrowingEvolutionV2NarrowAll.class
+				);
+
+				// Second pass over the same narrowed model must be idempotent.
+				final LocalCatalogSchemaMutation[] secondPass = analyzeAndCaptureMutations(
+					session, GetterBasedEntityNarrowingEvolutionV2NarrowAll.class
+				);
+
+				final long entityMutationCount = streamEntitySchemaMutations(
+					secondPass, EntitySchemaMutation.class).count();
+				assertEquals(
+					0L, entityMutationCount,
+					"Re-analyzing an already-narrowed schema must not emit further entity-schema mutations."
+				);
+			}
+		);
+	}
+
+	@DisplayName("Verify per-scope Attribute.filterable/sortable are narrowed when annotation drops the scoped flags")
+	@Test
+	void shouldNarrowPerScopeAttributeFilterableAndSortableWhenAnnotationDropsScopedFlags() {
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.defineEntitySchemaFromModelClass(GetterBasedEntityScopedFlagsEvolutionV1.class);
+				final SealedEntitySchema initial = session.getEntitySchema(
+					GetterBasedEntityScopedFlagsEvolutionV1.ENTITY_NAME).orElseThrow();
+				assertTrue(initial.getAttribute("scopedFlags").orElseThrow()
+					.isFilterableInScope(Scope.LIVE));
+				assertTrue(initial.getAttribute("scopedFlags").orElseThrow()
+					.isSortableInScope(Scope.LIVE));
+
+				final LocalCatalogSchemaMutation[] mutations = analyzeAndCaptureMutations(
+					session, GetterBasedEntityScopedFlagsEvolutionV2NarrowFlags.class
+				);
+
+				final Optional<SetAttributeSchemaFilterableMutation> filterableMutation =
+					streamEntitySchemaMutations(mutations, SetAttributeSchemaFilterableMutation.class)
+						.filter(m -> "scopedFlags".equals(m.getName()))
+						.findFirst();
+				assertTrue(filterableMutation.isPresent(),
+					"Expected SetAttributeSchemaFilterableMutation clearing the scope for `scopedFlags`.");
+				final Optional<SetAttributeSchemaSortableMutation> sortableMutation =
+					streamEntitySchemaMutations(mutations, SetAttributeSchemaSortableMutation.class)
+						.filter(m -> "scopedFlags".equals(m.getName()))
+						.findFirst();
+				assertTrue(sortableMutation.isPresent(),
+					"Expected SetAttributeSchemaSortableMutation clearing the scope for `scopedFlags`.");
+
+				final SealedEntitySchema updated = session.getEntitySchema(
+					GetterBasedEntityScopedFlagsEvolutionV1.ENTITY_NAME).orElseThrow();
+				assertFalse(updated.getAttribute("scopedFlags").orElseThrow()
+					.isFilterableInScope(Scope.LIVE));
+				assertFalse(updated.getAttribute("scopedFlags").orElseThrow()
+					.isSortableInScope(Scope.LIVE));
+			}
+		);
+	}
+
+	@DisplayName("Verify Reference.faceted=true is narrowed when annotation uses default settings")
+	@Test
+	void shouldNarrowReferenceFacetedWhenAnnotationUsesDefaultSettings() {
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.defineEntitySchemaFromModelClass(GetterBasedEntityNarrowingEvolutionV1.class);
+				final SealedEntitySchema initial = session.getEntitySchema(
+					GetterBasedEntityNarrowingEvolutionV1.ENTITY_NAME).orElseThrow();
+				assertTrue(initial.getReferenceOrThrowException("facetedReference")
+					.isFacetedInScope(Scope.DEFAULT_SCOPE));
+
+				final LocalCatalogSchemaMutation[] mutations = analyzeAndCaptureMutations(
+					session, GetterBasedEntityNarrowingEvolutionV2NarrowAll.class
+				);
+
+				final Optional<SetReferenceSchemaFacetedMutation> mutation = streamEntitySchemaMutations(
+					mutations, SetReferenceSchemaFacetedMutation.class)
+					.filter(m -> "facetedReference".equals(m.getName()))
+					.findFirst();
+				assertTrue(mutation.isPresent(),
+					"Expected SetReferenceSchemaFacetedMutation clearing faceted for `facetedReference`.");
+
+				final SealedEntitySchema updated = session.getEntitySchema(
+					GetterBasedEntityNarrowingEvolutionV1.ENTITY_NAME).orElseThrow();
+				assertFalse(updated.getReferenceOrThrowException("facetedReference")
+					.isFacetedInScope(Scope.DEFAULT_SCOPE));
+			}
+		);
+	}
+
+	@DisplayName("Verify AssociatedData.nullable=true is narrowed when annotation uses default settings")
+	@Test
+	void shouldNarrowAssociatedDataNullableWhenAnnotationUsesDefaultSettings() {
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.defineEntitySchemaFromModelClass(GetterBasedEntityNarrowingEvolutionV1.class);
+				final SealedEntitySchema initial = session.getEntitySchema(
+					GetterBasedEntityNarrowingEvolutionV1.ENTITY_NAME).orElseThrow();
+				assertTrue(initial.getAssociatedData("nullableAssoc").orElseThrow().isNullable());
+
+				final LocalCatalogSchemaMutation[] mutations = analyzeAndCaptureMutations(
+					session, GetterBasedEntityNarrowingEvolutionV2NarrowAll.class
+				);
+
+				final Optional<SetAssociatedDataSchemaNullableMutation> mutation = streamEntitySchemaMutations(
+					mutations, SetAssociatedDataSchemaNullableMutation.class)
+					.filter(m -> "nullableAssoc".equals(m.getName()))
+					.findFirst();
+				assertTrue(mutation.isPresent(),
+					"Expected SetAssociatedDataSchemaNullableMutation(false) for `nullableAssoc`.");
+				assertFalse(mutation.get().isNullable());
+
+				final SealedEntitySchema updated = session.getEntitySchema(
+					GetterBasedEntityNarrowingEvolutionV1.ENTITY_NAME).orElseThrow();
+				assertFalse(updated.getAssociatedData("nullableAssoc").orElseThrow().isNullable());
+			}
+		);
+	}
+
+	@DisplayName("Verify AssociatedData.localized=true is narrowed when annotation uses default settings")
+	@Test
+	void shouldNarrowAssociatedDataLocalizedWhenAnnotationUsesDefaultSettings() {
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.defineEntitySchemaFromModelClass(GetterBasedEntityNarrowingEvolutionV1.class);
+				final SealedEntitySchema initial = session.getEntitySchema(
+					GetterBasedEntityNarrowingEvolutionV1.ENTITY_NAME).orElseThrow();
+				assertTrue(initial.getAssociatedData("localizedAssoc").orElseThrow().isLocalized());
+
+				final LocalCatalogSchemaMutation[] mutations = analyzeAndCaptureMutations(
+					session, GetterBasedEntityNarrowingEvolutionV2NarrowAll.class
+				);
+
+				final Optional<SetAssociatedDataSchemaLocalizedMutation> mutation = streamEntitySchemaMutations(
+					mutations, SetAssociatedDataSchemaLocalizedMutation.class)
+					.filter(m -> "localizedAssoc".equals(m.getName()))
+					.findFirst();
+				assertTrue(mutation.isPresent(),
+					"Expected SetAssociatedDataSchemaLocalizedMutation(false) for `localizedAssoc`.");
+				assertFalse(mutation.get().isLocalized());
+
+				final SealedEntitySchema updated = session.getEntitySchema(
+					GetterBasedEntityNarrowingEvolutionV1.ENTITY_NAME).orElseThrow();
+				assertFalse(updated.getAssociatedData("localizedAssoc").orElseThrow().isLocalized());
 			}
 		);
 	}
@@ -3274,10 +3912,7 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 				).orElseThrow();
 
 				final AttributeSchemaContract priorityAttr = schema.getAttribute("priority").orElseThrow();
-				assertEquals(
-					String.class, priorityAttr.getType(),
-					"Enum attribute should be converted to String type"
-				);
+				assertSame(String.class, priorityAttr.getType(), "Enum attribute should be converted to String type");
 			}
 		);
 	}
@@ -3311,6 +3946,166 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 					"Expected CreateAttributeSchemaMutation for brandNote attribute"
 				);
 				assertEquals("brandNote", mutation.get().getName());
+			}
+		);
+	}
+
+	@DisplayName("@Reference + @ReferenceRef on the same reference must not corrupt attribute schema")
+	@Test
+	void shouldDefineReferenceWithDescriptionWhenAlsoMappedViaReferenceRef() {
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				// V1 persists the entity with the reference but no attributes on the reference DTO
+				// so that the "update round" (V2) is the one that actually creates the attribute.
+				session.defineEntitySchemaFromModelClass(
+					GetterBasedEntityWithReferenceAndReferenceRef.MarketingBrand.class
+				);
+				session.defineEntitySchemaFromModelClass(
+					GetterBasedEntityWithReferenceAndReferenceRefV1.class
+				);
+
+				// V2 adds the `market` attribute via two getters pointing at the same reference:
+				// - mandatory `getMarketingBrand()`           with `@Reference` (carries description)
+				// - optional  `getMarketingBrandIfExists()`   with `@ReferenceRef("marketingBrand")`
+				// The first analyzer pass (`@Reference`) creates the attribute with a follow-up
+				// `ModifyAttributeSchemaDescriptionMutation`; the second pass (`@ReferenceRef`)
+				// re-scans the reference DTO and must reuse the already-created attribute schema
+				// instead of re-creating it with a conflicting `CreateAttributeSchemaMutation`.
+				final LocalCatalogSchemaMutation[] mutations =
+					analyzeAndCaptureMutations(session, GetterBasedEntityWithReferenceAndReferenceRef.class);
+
+				// Exactly one CreateAttributeSchemaMutation for `market` — guards against the
+				// duplicate-create regression that originally surfaced this bug.
+				final long createMarketCount = streamEntitySchemaMutations(mutations, CreateAttributeSchemaMutation.class)
+					.filter(it -> GetterBasedEntityWithReferenceAndReferenceRef.ATTRIBUTE_NAME.equals(it.getName()))
+					.count();
+				assertEquals(
+					1L, createMarketCount,
+					"Expected exactly one CreateAttributeSchemaMutation for `market`, found " + createMarketCount
+				);
+
+				// No RemoveAttributeSchemaMutation should be emitted — the second analyzer pass must
+				// not scrub-and-recreate the attribute the first pass already created.
+				final long removeMarketCount = streamEntitySchemaMutations(mutations, RemoveAttributeSchemaMutation.class)
+					.filter(it -> GetterBasedEntityWithReferenceAndReferenceRef.ATTRIBUTE_NAME.equals(it.getName()))
+					.count();
+				assertEquals(
+					0L, removeMarketCount,
+					"No RemoveAttributeSchemaMutation for `market` expected, found " + removeMarketCount
+				);
+
+				// V1 already created `marketingBrand`, so the V2 analyzer round must not emit any
+				// further CreateReferenceSchemaMutation for it.
+				final long createReferenceCount = streamEntitySchemaMutations(mutations, CreateReferenceSchemaMutation.class)
+					.filter(it -> GetterBasedEntityWithReferenceAndReferenceRef.REFERENCE_NAME.equals(it.getName()))
+					.count();
+				assertEquals(
+					0L, createReferenceCount,
+					"No CreateReferenceSchemaMutation for `marketingBrand` expected (V1 already created it)," +
+						" found " + createReferenceCount
+				);
+
+				final SealedEntitySchema entitySchema = session.getEntitySchema(
+					GetterBasedEntityWithReferenceAndReferenceRef.ENTITY_NAME
+				).orElseThrow();
+
+				final ReferenceSchemaContract reference = entitySchema
+					.getReference(GetterBasedEntityWithReferenceAndReferenceRef.REFERENCE_NAME)
+					.orElseThrow();
+
+				assertEquals(
+					GetterBasedEntityWithReferenceAndReferenceRef.REFERENCE_DESCRIPTION,
+					reference.getDescription(),
+					"Reference description from @Reference annotation must be preserved."
+				);
+
+				final AttributeSchemaContract attribute = reference
+					.getAttribute(GetterBasedEntityWithReferenceAndReferenceRef.ATTRIBUTE_NAME)
+					.orElseThrow();
+
+				assertEquals(
+					GetterBasedEntityWithReferenceAndReferenceRef.ATTRIBUTE_DESCRIPTION,
+					attribute.getDescription(),
+					"Attribute description from the reference DTO must be preserved."
+				);
+				assertSame(
+					String.class, attribute.getType(),
+					"Attribute type must remain String after the second analyzer pass."
+				);
+			}
+		);
+	}
+
+	@DisplayName("@ReflectedReference + @ReferenceRef on the same reference must not corrupt attribute schema")
+	@Test
+	void shouldDefineReflectedReferenceWithDescriptionWhenAlsoMappedViaReferenceRef() {
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				// Persist Brand (the source entity holding the standard `products` reference) and the
+				// V1 entity with the reflected `marketingBrand` mirror, which carries no attributes
+				// yet. The "update round" (V2) is the one that actually creates the `market` attribute
+				// on the reflected reference.
+				session.defineEntitySchemaFromModelClass(
+					GetterBasedEntityWithReflectedReferenceAndReferenceRef.Brand.class
+				);
+				session.defineEntitySchemaFromModelClass(
+					GetterBasedEntityWithReflectedReferenceAndReferenceRefV1.class
+				);
+
+				// V2 adds the `market` attribute via two getters pointing at the same reflected
+				// reference:
+				// - mandatory `getMarketingBrand()`           with `@ReflectedReference("products")`
+				// - optional  `getMarketingBrandIfExists()`   with `@ReferenceRef("marketingBrand")`
+				// The first analyzer pass (`@ReflectedReference`) calls `withReflectedReferenceToEntity`
+				// once, the second pass (`@ReferenceRef`) calls it a second time. The second call must
+				// not re-emit the inherited attribute create on top of an already-mutated base — the
+				// reflected counterpart of the original ReferenceSchemaBuilder bug.
+				final LocalCatalogSchemaMutation[] mutations =
+					analyzeAndCaptureMutations(session, GetterBasedEntityWithReflectedReferenceAndReferenceRef.class);
+
+				// Exactly one CreateAttributeSchemaMutation for `market` — guards against the
+				// duplicate-create regression on the reflected sibling builder.
+				final long createMarketCount = streamEntitySchemaMutations(mutations, CreateAttributeSchemaMutation.class)
+					.filter(it -> GetterBasedEntityWithReflectedReferenceAndReferenceRef.ATTRIBUTE_NAME.equals(it.getName()))
+					.count();
+				assertEquals(
+					1L, createMarketCount,
+					"Expected exactly one CreateAttributeSchemaMutation for `market` on the reflected reference," +
+						" found " + createMarketCount
+				);
+
+				// No RemoveAttributeSchemaMutation should be emitted on the reflected reference either.
+				final long removeMarketCount = streamEntitySchemaMutations(mutations, RemoveAttributeSchemaMutation.class)
+					.filter(it -> GetterBasedEntityWithReflectedReferenceAndReferenceRef.ATTRIBUTE_NAME.equals(it.getName()))
+					.count();
+				assertEquals(
+					0L, removeMarketCount,
+					"No RemoveAttributeSchemaMutation for `market` expected, found " + removeMarketCount
+				);
+
+				final SealedEntitySchema entitySchema = session.getEntitySchema(
+					GetterBasedEntityWithReflectedReferenceAndReferenceRef.ENTITY_NAME
+				).orElseThrow();
+
+				final ReferenceSchemaContract reference = entitySchema
+					.getReference(GetterBasedEntityWithReflectedReferenceAndReferenceRef.REFERENCE_NAME)
+					.orElseThrow();
+
+				final AttributeSchemaContract attribute = reference
+					.getAttribute(GetterBasedEntityWithReflectedReferenceAndReferenceRef.ATTRIBUTE_NAME)
+					.orElseThrow();
+
+				assertEquals(
+					GetterBasedEntityWithReflectedReferenceAndReferenceRef.ATTRIBUTE_DESCRIPTION,
+					attribute.getDescription(),
+					"Attribute description from the reflected DTO must be preserved."
+				);
+				assertSame(
+					String.class, attribute.getType(),
+					"Attribute type must remain String after the second analyzer pass."
+				);
 			}
 		);
 	}
@@ -3393,7 +4188,7 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 		// (e.g., AbstractMethodError) instead of swallowing them.
 		// getCode() has no default implementation, so unreflectSpecial
 		// throws AbstractMethodError which must not be caught.
-		final java.lang.reflect.Method getter = assertDoesNotThrow(
+		final Method getter = assertDoesNotThrow(
 			() -> GetterBasedEntity.class.getMethod("getCode")
 		);
 		assertThrows(
@@ -3409,7 +4204,7 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 	@DisplayName("extractDefaultValue returns value from default method implementation")
 	@Test
 	void shouldReturnValueFromExtractDefaultValueWhenDefaultImpl() {
-		final java.io.Serializable result = ClassSchemaAnalyzer.extractDefaultValue(
+		final Serializable result = ClassSchemaAnalyzer.extractDefaultValue(
 			GetterBasedEntity.class,
 			assertDoesNotThrow(() -> GetterBasedEntity.class.getMethod("getYears"))
 		);
@@ -3441,10 +4236,8 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 				final AttributeSchemaContract tagsAttribute = entitySchema
 					.getAttribute("tags")
 					.orElseThrow();
-				assertEquals(
-					String[].class, tagsAttribute.getType(),
-					"List<String> field should be resolved to String[]"
-				);
+				assertSame(
+					String[].class, tagsAttribute.getType(), "List<String> field should be resolved to String[]");
 			}
 		);
 	}
@@ -3475,13 +4268,807 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 				final AttributeSchemaContract tagsAttribute = entitySchema
 					.getAttribute("tags")
 					.orElseThrow();
-				assertEquals(
-					String[].class, tagsAttribute.getType(),
-					"List<String> record component should be " +
+				assertSame(
+					String[].class, tagsAttribute.getType(), "List<String> record component should be " +
 						"resolved to String[]"
 				);
 			}
 		);
+	}
+
+	@DisplayName(
+		"CreateReferenceSchemaMutation must carry facetedPartially, bucketed and bucketedPartially " +
+			"when declared via @ScopeReferenceSettings"
+	)
+	@Test
+	void shouldPreserveFacetedPartiallyAndBucketedOnCreateReferenceSchemaMutation() {
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				// mirror the user's usage: construct the analyzer directly and inspect
+				// the returned entity mutations without applying them to the catalog
+				// (applying would require pre-defined referenced entities)
+				final ClassSchemaAnalyzer analyzer = new ClassSchemaAnalyzer(
+					GetterBasedEntityWithFacetedPartiallyAndBucketed.class,
+					ReflectionLookup.NO_CACHE_INSTANCE
+				);
+				final ClassSchemaAnalyzer.AnalysisResult analysisResult = analyzer.analyze(
+					session, session.getCatalogSchema().openForWrite()
+				);
+
+				final Optional<CreateReferenceSchemaMutation> referenceMutation =
+					streamEntitySchemaMutations(analysisResult.entityMutations(), CreateReferenceSchemaMutation.class)
+						.filter(it -> GetterBasedEntityWithFacetedPartiallyAndBucketed
+							.REFERENCE_PARAMETER_VALUES.equals(it.getName()))
+						.findFirst();
+				assertTrue(
+					referenceMutation.isPresent(),
+					"Expected CreateReferenceSchemaMutation for `parameterValues`"
+				);
+
+				final CreateReferenceSchemaMutation mutation = referenceMutation.get();
+
+				// facetedPartially must survive into the final mutation for LIVE scope
+				final ScopedFacetedPartially[] facetedPartially = mutation.getFacetedPartiallyInScopes();
+				assertEquals(
+					1, facetedPartially.length,
+					"Expected exactly one facetedPartially entry for LIVE scope, but got: "
+						+ Arrays.toString(facetedPartially)
+				);
+				assertEquals(Scope.LIVE, facetedPartially[0].scope());
+				assertNotNull(
+					facetedPartially[0].expression(),
+					"facetedPartially expression must not be null"
+				);
+
+				// bucketed histogram must survive into the final mutation for LIVE scope
+				final ScopedHistogramIndexDefinition[] bucketed = mutation.getBucketedInScopes();
+				assertEquals(
+					1, bucketed.length,
+					"Expected exactly one bucketed histogram definition for LIVE scope, but got: "
+						+ Arrays.toString(bucketed)
+				);
+				assertEquals(Scope.LIVE, bucketed[0].scope());
+				assertEquals(
+					GetterBasedEntityWithFacetedPartiallyAndBucketed.INTERVAL_REFERENCE_PARAMETER_VALUES,
+					bucketed[0].nameOfTheIndex()
+				);
+				assertNotNull(
+					bucketed[0].valueExpression(),
+					"bucketed value expression must not be null"
+				);
+
+				// bucketedPartially must survive into the final mutation for LIVE scope
+				final ScopedBucketedPartially[] bucketedPartially = mutation.getBucketedPartiallyInScopes();
+				assertEquals(
+					1, bucketedPartially.length,
+					"Expected exactly one bucketedPartially entry for LIVE scope, but got: "
+						+ Arrays.toString(bucketedPartially)
+				);
+				assertEquals(Scope.LIVE, bucketedPartially[0].scope());
+				assertNotNull(
+					bucketedPartially[0].expression(),
+					"bucketedPartially expression must not be null"
+				);
+			}
+		);
+	}
+
+	@DisplayName("indexedDecimalPlaces is propagated for a BigDecimalNumberRange attribute")
+	@Tag(ATTRIBUTE)
+	@Test
+	void shouldApplyIndexedDecimalPlacesForBigDecimalNumberRangeAttribute() {
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.defineEntitySchemaFromModelClass(GetterBasedEntityWithBigDecimalNumberRangeAttribute.class);
+
+				final AttributeSchemaContract priceRangeAttr = session
+					.getEntitySchema("BigDecimalRangeEntity")
+					.orElseThrow()
+					.getAttribute("priceRange")
+					.orElseThrow();
+
+				assertSame(
+					BigDecimalNumberRange.class, priceRangeAttr.getType(),
+					"Attribute `priceRange` must be of type BigDecimalNumberRange"
+				);
+				assertEquals(
+					2, priceRangeAttr.getIndexedDecimalPlaces(),
+					"indexedDecimalPlaces must be 2 for BigDecimalNumberRange attribute; " +
+						"was dropped to 0 due to missing type check"
+				);
+			}
+		);
+	}
+
+	@DisplayName("indexedDecimalPlaces is propagated for a BigDecimal array attribute")
+	@Tag(ATTRIBUTE)
+	@Test
+	void shouldApplyIndexedDecimalPlacesForBigDecimalArrayAttribute() {
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.defineEntitySchemaFromModelClass(GetterBasedEntityWithBigDecimalNumberRangeAttribute.class);
+
+				final AttributeSchemaContract pricesAttr = session
+					.getEntitySchema("BigDecimalRangeEntity")
+					.orElseThrow()
+					.getAttribute("prices")
+					.orElseThrow();
+
+				assertSame(
+					BigDecimal[].class, pricesAttr.getType(),
+					"Attribute `prices` must be of type BigDecimal[]"
+				);
+				assertEquals(
+					3, pricesAttr.getIndexedDecimalPlaces(),
+					"indexedDecimalPlaces must be 3 for BigDecimal[] attribute; " +
+						"the array component type must be unwrapped before the type check"
+				);
+			}
+		);
+	}
+
+	@DisplayName("Reflected reference faceted tri-state is propagated into mutations")
+	@Nested
+	class ReflectedReferenceFacetedTriState {
+
+		@DisplayName("default (omitted) faceted means explicitly not faceted")
+		@Test
+		void shouldEmitNonFacetedMutationWhenReflectedReferenceHasDefaultFaceted() {
+			assertFacetedInScopes(
+				ReflectedReferenceFacetedTriStateFixtures.ReflectedReferenceDefaultFaceted.class,
+				Scope.NO_SCOPE
+			);
+		}
+
+		@DisplayName("explicit InheritableBoolean.FALSE means explicitly not faceted")
+		@Test
+		void shouldEmitNonFacetedMutationWhenReflectedReferenceHasExplicitFalseFaceted() {
+			assertFacetedInScopes(
+				ReflectedReferenceFacetedTriStateFixtures.ReflectedReferenceExplicitFalseFaceted.class,
+				Scope.NO_SCOPE
+			);
+		}
+
+		@DisplayName("explicit InheritableBoolean.TRUE means faceted in the default scope")
+		@Test
+		void shouldEmitFacetedMutationWhenReflectedReferenceHasExplicitTrueFaceted() {
+			assertFacetedInScopes(
+				ReflectedReferenceFacetedTriStateFixtures.ReflectedReferenceExplicitTrueFaceted.class,
+				Scope.DEFAULT_SCOPES
+			);
+		}
+
+		@DisplayName("explicit InheritableBoolean.INHERITED keeps faceted state inherited (null)")
+		@Test
+		void shouldKeepFacetedInheritedWhenReflectedReferenceHasExplicitInheritedFaceted() {
+			assertFacetedInScopes(
+				ReflectedReferenceFacetedTriStateFixtures.ReflectedReferenceExplicitInheritedFaceted.class,
+				null
+			);
+		}
+
+		@DisplayName("@ReferenceRef helper must not overwrite explicit-FALSE faceted on re-analysis")
+		@Test
+		void shouldPreserveExplicitFalseFacetedWhenReferenceRefTriggersReanalysis() {
+			assertFacetedInScopes(
+				ReflectedReferenceFacetedTriStateFixtures.ReflectedReferenceDefaultFacetedWithRefHelper.class,
+				Scope.NO_SCOPE
+			);
+		}
+
+		@DisplayName("@ReferenceRef helper must not strip per-scope facetedPartially on re-analysis")
+		@Test
+		void shouldPreserveFacetedPartiallyWhenReferenceRefTriggersReanalysis() {
+			ClassSchemaAnalyzerTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					final ClassSchemaAnalyzer analyzer = new ClassSchemaAnalyzer(
+						ReflectedReferenceFacetedTriStateFixtures.ReflectedReferenceWithFacetedPartiallyAndRefHelper.class,
+						ReflectionLookup.NO_CACHE_INSTANCE
+					);
+					final ClassSchemaAnalyzer.AnalysisResult analysisResult = analyzer.analyze(
+						session, session.getCatalogSchema().openForWrite()
+					);
+
+					final CreateReflectedReferenceSchemaMutation mutation =
+						streamEntitySchemaMutations(
+							analysisResult.entityMutations(),
+							CreateReflectedReferenceSchemaMutation.class
+						)
+							.filter(it -> ReflectedReferenceFacetedTriStateFixtures.REFLECTED_REFERENCE_NAME
+								.equals(it.getName()))
+							.findFirst()
+							.orElseThrow(() -> new AssertionError(
+								"Expected a CreateReflectedReferenceSchemaMutation for `"
+									+ ReflectedReferenceFacetedTriStateFixtures.REFLECTED_REFERENCE_NAME + "`"
+							));
+
+					final ScopedFacetedPartially[] partially = mutation.getFacetedPartiallyInScopes();
+					assertNotNull(
+						partially,
+						"facetedPartiallyInScopes was null — stripped by @ReferenceRef re-analysis"
+					);
+					assertEquals(
+						1, partially.length,
+						"Expected exactly one facetedPartially entry for LIVE but got: "
+							+ Arrays.toString(partially)
+					);
+					assertEquals(Scope.LIVE, partially[0].scope());
+					assertNotNull(
+						partially[0].expression(),
+						"facetedPartially expression must not be null"
+					);
+				}
+			);
+		}
+
+		/**
+		 * Runs the analyzer on `modelClass`, locates the emitted
+		 * [CreateReflectedReferenceSchemaMutation] for the fixture's reflected reference and
+		 * asserts its `facetedInScopes` payload matches `expectedFacetedInScopes` (using `null`
+		 * to denote an inherited state).
+		 */
+		private void assertFacetedInScopes(
+			@Nonnull Class<?> modelClass,
+			@Nullable Scope[] expectedFacetedInScopes
+		) {
+			ClassSchemaAnalyzerTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					final ClassSchemaAnalyzer analyzer = new ClassSchemaAnalyzer(
+						modelClass, ReflectionLookup.NO_CACHE_INSTANCE
+					);
+					final ClassSchemaAnalyzer.AnalysisResult analysisResult = analyzer.analyze(
+						session, session.getCatalogSchema().openForWrite()
+					);
+
+					final CreateReflectedReferenceSchemaMutation mutation =
+						streamEntitySchemaMutations(
+							analysisResult.entityMutations(),
+							CreateReflectedReferenceSchemaMutation.class
+						)
+							.filter(it -> ReflectedReferenceFacetedTriStateFixtures.REFLECTED_REFERENCE_NAME
+								.equals(it.getName()))
+							.findFirst()
+							.orElseThrow(() -> new AssertionError(
+								"Expected a CreateReflectedReferenceSchemaMutation for `"
+									+ ReflectedReferenceFacetedTriStateFixtures.REFLECTED_REFERENCE_NAME + "`"
+							));
+
+					final Scope[] actualFacetedInScopes = mutation.getFacetedInScopes();
+					if (expectedFacetedInScopes == null) {
+						assertNull(
+							actualFacetedInScopes,
+							"Expected facetedInScopes to be null (inherited) but was: "
+								+ Arrays.toString(actualFacetedInScopes)
+						);
+					} else {
+						assertNotNull(
+							actualFacetedInScopes,
+							"Expected facetedInScopes to be " + Arrays.toString(expectedFacetedInScopes)
+								+ " but was null (inherited)"
+						);
+						assertArrayEquals(
+							expectedFacetedInScopes, actualFacetedInScopes,
+							"Expected facetedInScopes " + Arrays.toString(expectedFacetedInScopes)
+								+ " but got " + Arrays.toString(actualFacetedInScopes)
+						);
+					}
+				}
+			);
+		}
+
+	}
+
+	/**
+	 * Tests covering the multi-histogram `bucketed = { @Histogram, … }` array path on
+	 * `@Reference` and `@ScopeReferenceSettings` annotations as processed by
+	 * `ClassSchemaAnalyzer.applyBucketedHistograms`. Verifies the analyzer emits one
+	 * `ScopedHistogramIndexDefinition` per entry, rejects duplicate names and empty
+	 * `nameOfTheIndex` values, and treats an explicit empty array as "no histograms".
+	 */
+	@DisplayName("Multi-histogram analyzer support")
+	@Tag(HISTOGRAM)
+	@Tag(REFERENCE)
+	@Nested
+	class MultiHistogramAnalyzer {
+
+		@DisplayName("multi-histogram on @Reference emits one entry per @Histogram in default scope")
+		@Test
+		void shouldEmitDistinctScopedHistogramEntriesForMultipleBucketedOnReferenceAnnotation() {
+			ClassSchemaAnalyzerTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					final CreateReferenceSchemaMutation mutation = analyzeAndGetReferenceMutation(
+						session,
+						GetterBasedEntityWithMultipleBucketed.class,
+						GetterBasedEntityWithMultipleBucketed.REFERENCE_PARAMETER_VALUES
+					);
+
+					final ScopedHistogramIndexDefinition[] bucketed = mutation.getBucketedInScopes();
+					assertEquals(
+						2, bucketed.length,
+						"Expected exactly two histogram entries in DEFAULT_SCOPE, got: "
+							+ Arrays.toString(bucketed)
+					);
+					final ScopedHistogramIndexDefinition priceEntry = findHistogramByName(
+						bucketed, GetterBasedEntityWithMultipleBucketed.HISTOGRAM_PRICE
+					);
+					final ScopedHistogramIndexDefinition quantityEntry = findHistogramByName(
+						bucketed, GetterBasedEntityWithMultipleBucketed.HISTOGRAM_QUANTITY
+					);
+					assertAll(
+						() -> assertEquals(Scope.DEFAULT_SCOPE, priceEntry.scope()),
+						() -> assertEquals(Scope.DEFAULT_SCOPE, quantityEntry.scope()),
+						() -> assertNotNull(
+							priceEntry.valueExpression(),
+							"price histogram must carry a non-null value expression"
+						),
+						() -> assertNotNull(
+							quantityEntry.valueExpression(),
+							"quantity histogram must carry a non-null value expression"
+						),
+						() -> assertNotEquals(
+							priceEntry.valueExpression().toExpressionString(),
+							quantityEntry.valueExpression().toExpressionString(),
+							"the two histogram entries must carry distinct value expressions"
+						)
+					);
+				}
+			);
+		}
+
+		@DisplayName("multi-histogram on @ScopeReferenceSettings is keyed by the declared scope")
+		@Test
+		void shouldEmitPerScopeHistogramEntriesForBucketedOnScopeReferenceSettings() {
+			ClassSchemaAnalyzerTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					final CreateReferenceSchemaMutation mutation = analyzeAndGetReferenceMutation(
+						session,
+						GetterBasedEntityWithPerScopeMultipleBucketed.class,
+						GetterBasedEntityWithPerScopeMultipleBucketed.REFERENCE_PARAMETER_VALUES
+					);
+
+					final ScopedHistogramIndexDefinition[] bucketed = mutation.getBucketedInScopes();
+					final long archivedCount = Arrays.stream(bucketed)
+						.filter(it -> it.scope() == Scope.ARCHIVED)
+						.count();
+					final long liveCount = Arrays.stream(bucketed)
+						.filter(it -> it.scope() == Scope.LIVE)
+						.count();
+					assertAll(
+						() -> assertEquals(
+							2, archivedCount,
+							"Expected exactly two histograms tagged ARCHIVED, got: "
+								+ Arrays.toString(bucketed)
+						),
+						() -> assertEquals(
+							0, liveCount,
+							"LIVE scope declared no histograms, so none must be emitted: "
+								+ Arrays.toString(bucketed)
+						),
+						() -> assertNotNull(
+							findHistogramByName(
+								bucketed, GetterBasedEntityWithPerScopeMultipleBucketed.HISTOGRAM_PRICE
+							)
+						),
+						() -> assertNotNull(
+							findHistogramByName(
+								bucketed, GetterBasedEntityWithPerScopeMultipleBucketed.HISTOGRAM_QUANTITY
+							)
+						)
+					);
+				}
+			);
+		}
+
+		@DisplayName("explicit empty bucketed array produces no histogram entries")
+		@Test
+		void shouldEmitNoBucketedWhenEmptyArrayDeclaredOnReferenceAnnotation() {
+			ClassSchemaAnalyzerTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					final CreateReferenceSchemaMutation mutation = analyzeAndGetReferenceMutation(
+						session,
+						GetterBasedEntityWithEmptyBucketedArray.class,
+						GetterBasedEntityWithEmptyBucketedArray.REFERENCE_PARAMETER_VALUES
+					);
+
+					final ScopedHistogramIndexDefinition[] bucketed = mutation.getBucketedInScopes();
+					assertEquals(
+						0, bucketed.length,
+						"Empty `bucketed = {}` array must not emit any histogram entries, got: "
+							+ Arrays.toString(bucketed)
+					);
+				}
+			);
+		}
+
+		@DisplayName("duplicate nameOfTheIndex within a single @Reference is rejected")
+		@Test
+		void shouldRejectDuplicateHistogramNameWithinSingleReferenceAnnotation() {
+			ClassSchemaAnalyzerTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					final SchemaClassInvalidException thrown = assertThrows(
+						SchemaClassInvalidException.class,
+						() -> {
+							final ClassSchemaAnalyzer analyzer = new ClassSchemaAnalyzer(
+								GetterBasedEntityWithDuplicateHistogramNames.class,
+								ReflectionLookup.NO_CACHE_INSTANCE
+							);
+							analyzer.analyze(session, session.getCatalogSchema().openForWrite());
+						}
+					);
+					final Throwable rootCause = findCauseOfType(
+						thrown, InvalidSchemaMutationException.class
+					);
+					assertNotNull(
+						rootCause,
+						"SchemaClassInvalidException must wrap an InvalidSchemaMutationException, got: "
+							+ thrown.getMessage()
+					);
+					final String message = rootCause.getMessage();
+					assertAll(
+						() -> assertTrue(
+							message.contains(GetterBasedEntityWithDuplicateHistogramNames.DUPLICATE_NAME),
+							"Message must name the duplicated histogram: " + message
+						),
+						() -> assertTrue(
+							message.contains("more than once"),
+							"Message must explain the duplication rule: " + message
+						)
+					);
+				}
+			);
+		}
+
+		@DisplayName("empty nameOfTheIndex inside non-empty bucketed array is rejected")
+		@Test
+		void shouldRejectEmptyNameOfTheIndexInsideNonEmptyBucketedArray() {
+			ClassSchemaAnalyzerTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					final SchemaClassInvalidException thrown = assertThrows(
+						SchemaClassInvalidException.class,
+						() -> {
+							final ClassSchemaAnalyzer analyzer = new ClassSchemaAnalyzer(
+								GetterBasedEntityWithEmptyHistogramName.class,
+								ReflectionLookup.NO_CACHE_INSTANCE
+							);
+							analyzer.analyze(session, session.getCatalogSchema().openForWrite());
+						}
+					);
+					final Throwable rootCause = findCauseOfType(
+						thrown, InvalidSchemaMutationException.class
+					);
+					assertNotNull(
+						rootCause,
+						"SchemaClassInvalidException must wrap an InvalidSchemaMutationException, got: "
+							+ thrown.getMessage()
+					);
+					assertTrue(
+						rootCause.getMessage().contains("empty"),
+						"Message must mention empty nameOfTheIndex: " + rootCause.getMessage()
+					);
+				}
+			);
+		}
+
+		@DisplayName("blank (whitespace-only) nameOfTheIndex inside non-empty bucketed array is rejected")
+		@Test
+		void shouldRejectBlankNameOfTheIndexInsideNonEmptyBucketedArray() {
+			ClassSchemaAnalyzerTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					final SchemaClassInvalidException thrown = assertThrows(
+						SchemaClassInvalidException.class,
+						() -> {
+							final ClassSchemaAnalyzer analyzer = new ClassSchemaAnalyzer(
+								GetterBasedEntityWithBlankHistogramName.class,
+								ReflectionLookup.NO_CACHE_INSTANCE
+							);
+							analyzer.analyze(session, session.getCatalogSchema().openForWrite());
+						}
+					);
+					final Throwable rootCause = findCauseOfType(
+						thrown, InvalidSchemaMutationException.class
+					);
+					assertNotNull(
+						rootCause,
+						"SchemaClassInvalidException must wrap an InvalidSchemaMutationException, got: "
+							+ thrown.getMessage()
+					);
+					final String message = rootCause.getMessage();
+					assertTrue(
+						message.contains("blank"),
+						"Message must mention blank nameOfTheIndex: " + message
+					);
+					assertTrue(
+						message.contains(
+							GetterBasedEntityWithBlankHistogramName.REFERENCE_PARAMETER_VALUES
+						),
+						"Message must mention the offending reference name: " + message
+					);
+				}
+			);
+		}
+
+		/**
+		 * Runs the analyzer on `modelClass` and locates the emitted
+		 * `CreateReferenceSchemaMutation` for the reference of name `referenceName`.
+		 *
+		 * @param session       the active write session used by the analyzer
+		 * @param modelClass    the entity model class to analyze
+		 * @param referenceName the reference name to extract the mutation for
+		 * @return the matching `CreateReferenceSchemaMutation`
+		 */
+		@Nonnull
+		private static CreateReferenceSchemaMutation analyzeAndGetReferenceMutation(
+			@Nonnull EvitaSessionContract session,
+			@Nonnull Class<?> modelClass,
+			@Nonnull String referenceName
+		) {
+			final ClassSchemaAnalyzer analyzer = new ClassSchemaAnalyzer(
+				modelClass, ReflectionLookup.NO_CACHE_INSTANCE
+			);
+			final ClassSchemaAnalyzer.AnalysisResult analysisResult = analyzer.analyze(
+				session, session.getCatalogSchema().openForWrite()
+			);
+			return streamEntitySchemaMutations(
+				analysisResult.entityMutations(),
+				CreateReferenceSchemaMutation.class
+			)
+				.filter(it -> referenceName.equals(it.getName()))
+				.findFirst()
+				.orElseThrow(() -> new AssertionError(
+					"Expected a CreateReferenceSchemaMutation for `" + referenceName + "`"
+				));
+		}
+
+		/**
+		 * Walks the cause chain of `top` looking for the first `Throwable` assignable to
+		 * `targetType`.
+		 *
+		 * @param top        the topmost throwable
+		 * @param targetType the throwable type to find in the chain
+		 * @return the matching cause or `null` when not found
+		 */
+		@Nullable
+		private static Throwable findCauseOfType(
+			@Nonnull Throwable top,
+			@Nonnull Class<? extends Throwable> targetType
+		) {
+			Throwable current = top;
+			while (current != null) {
+				if (targetType.isInstance(current)) {
+					return current;
+				}
+				current = current.getCause();
+			}
+			return null;
+		}
+
+		/**
+		 * Locates the `ScopedHistogramIndexDefinition` whose `nameOfTheIndex` equals `name`
+		 * inside a non-empty array, asserting it exists.
+		 *
+		 * @param entries the histogram entries to scan
+		 * @param name    the index name to match
+		 * @return the matching entry — never null
+		 */
+		@Nonnull
+		private static ScopedHistogramIndexDefinition findHistogramByName(
+			@Nonnull ScopedHistogramIndexDefinition[] entries,
+			@Nonnull String name
+		) {
+			for (final ScopedHistogramIndexDefinition entry : entries) {
+				if (name.equals(entry.nameOfTheIndex())) {
+					return entry;
+				}
+			}
+			throw new AssertionError(
+				"Expected histogram entry named `" + name + "` in: " + Arrays.toString(entries)
+			);
+		}
+
+	}
+
+	@Nested
+	@DisplayName("Conflict resolution")
+	class ConflictResolutionAnalysis {
+
+		@DisplayName("Entity-level conflict resolution is derived from the annotation")
+		@Test
+		void shouldDeriveEntityLevelConflictResolutionFromAnnotation() {
+			ClassSchemaAnalyzerTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.defineEntitySchemaFromModelClass(ConflictResolutionAnnotatedEntity.class);
+
+					final SealedEntitySchema entitySchema = session.getEntitySchema("ConflictResolutionEntity")
+						.orElseThrow();
+					final ConflictResolution resolution = entitySchema.getConflictResolution().orElseThrow();
+
+					assertEquals(ConflictPolicy.ENTITY, resolution.policy());
+					assertEquals(EnumSet.of(GranularConflictPolicy.PRICE), resolution.granularity());
+				}
+			);
+		}
+
+		@DisplayName("Per-item conflict resolution overrides are derived from the annotations")
+		@Test
+		void shouldDerivePerItemConflictResolutionOverrides() {
+			ClassSchemaAnalyzerTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.defineEntitySchemaFromModelClass(ConflictResolutionAnnotatedEntity.class);
+
+					final SealedEntitySchema entitySchema = session.getEntitySchema("ConflictResolutionEntity")
+						.orElseThrow();
+
+					// entity attribute without the annotation follows the resolved policy
+					assertEquals(
+						ConflictResolutionOverride.INHERITED,
+						entitySchema.getAttribute("inheritedCode").orElseThrow().getConflictResolutionOverride()
+					);
+					// GRANULAR opts the attribute into its own key
+					assertEquals(
+						ConflictResolutionOverride.GRANULAR,
+						entitySchema.getAttribute("granularQuantity").orElseThrow().getConflictResolutionOverride()
+					);
+					// ENTITY pins the attribute to the whole-entity key
+					assertEquals(
+						ConflictResolutionOverride.ENTITY,
+						entitySchema.getAttribute("entityPinnedName").orElseThrow().getConflictResolutionOverride()
+					);
+
+					// a global attribute honors the override identically to a locally declared attribute
+					final AttributeSchemaContract globalAttribute = entitySchema.getAttribute("globalGranularCode")
+						.orElseThrow();
+					assertInstanceOf(GlobalAttributeSchemaContract.class, globalAttribute);
+					assertEquals(
+						ConflictResolutionOverride.GRANULAR,
+						globalAttribute.getConflictResolutionOverride()
+					);
+
+					// associated data
+					assertEquals(
+						ConflictResolutionOverride.GRANULAR,
+						entitySchema.getAssociatedData("granularData").orElseThrow().getConflictResolutionOverride()
+					);
+
+					// a reference and one of its attributes carry independent overrides
+					final ReferenceSchemaContract reference = entitySchema.getReference("granularBrand").orElseThrow();
+					assertEquals(ConflictResolutionOverride.GRANULAR, reference.getConflictResolutionOverride());
+					assertEquals(
+						ConflictResolutionOverride.ENTITY,
+						reference.getAttribute("pinnedRefAttr").orElseThrow().getConflictResolutionOverride()
+					);
+				}
+			);
+		}
+
+		@DisplayName("Absent conflict annotations leave items inherited and the entity resolution unset")
+		@Test
+		void shouldLeaveConflictResolutionInheritedByDefault() {
+			ClassSchemaAnalyzerTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.defineEntitySchemaFromModelClass(ConflictResolutionDefaultEntity.class);
+
+					final SealedEntitySchema entitySchema = session.getEntitySchema("ConflictResolutionDefaultEntity")
+						.orElseThrow();
+
+					assertTrue(entitySchema.getConflictResolution().isEmpty());
+					assertEquals(
+						ConflictResolutionOverride.INHERITED,
+						entitySchema.getAttribute("plainCode").orElseThrow().getConflictResolutionOverride()
+					);
+					assertEquals(
+						ConflictResolutionOverride.INHERITED,
+						entitySchema.getAttribute("plainName").orElseThrow().getConflictResolutionOverride()
+					);
+				}
+			);
+		}
+
+		@DisplayName("Granular refinements under a coarser-than-entity policy are rejected")
+		@Test
+		void shouldRejectGranularConflictResolutionUnderCoarserPolicy() {
+			ClassSchemaAnalyzerTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					assertThrows(
+						SchemaClassInvalidException.class,
+						() -> session.defineEntitySchemaFromModelClass(ConflictResolutionIllegalEntity.class)
+					);
+				}
+			);
+		}
+
+		@DisplayName("Re-deriving from a model class whose annotation omits a conflict resolution preserves an explicit per-item override")
+		@Test
+		void shouldPreservePerItemOverrideWhenReDerivedFromDefaultAnnotation() {
+			ClassSchemaAnalyzerTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					// derive the schema from a model class that carries no conflict-resolution annotation
+					session.defineEntitySchemaFromModelClass(ConflictResolutionDefaultEntity.class);
+
+					// explicitly opt an attribute and an associated data into their own conflict key through the
+					// fluent schema builder - these route through two distinct reconciliation sites in the analyzer
+					session.getEntitySchema("ConflictResolutionDefaultEntity")
+						.orElseThrow()
+						.openForWrite()
+						.withAttribute(
+							"plainCode", String.class,
+							whichIs -> whichIs.withConflictResolutionOverride(ConflictResolutionOverride.GRANULAR))
+						.withAssociatedData(
+							"plainData", String.class,
+							whichIs -> whichIs.withConflictResolutionOverride(ConflictResolutionOverride.GRANULAR))
+						.updateVia(session);
+
+					// sanity: the explicit overrides are now in place
+					final SealedEntitySchema afterOverride = session.getEntitySchema("ConflictResolutionDefaultEntity")
+						.orElseThrow();
+					assertEquals(
+						ConflictResolutionOverride.GRANULAR,
+						afterOverride.getAttribute("plainCode").orElseThrow().getConflictResolutionOverride()
+					);
+					assertEquals(
+						ConflictResolutionOverride.GRANULAR,
+						afterOverride.getAssociatedData("plainData").orElseThrow().getConflictResolutionOverride()
+					);
+
+					// re-derive from the same annotation-free model class
+					session.defineEntitySchemaFromModelClass(ConflictResolutionDefaultEntity.class);
+
+					// the annotation attributes default to INHERITED, which carries no opinion; reconciliation must
+					// leave the explicitly-set GRANULAR overrides untouched rather than resetting them to INHERITED
+					final SealedEntitySchema afterReDerive = session.getEntitySchema("ConflictResolutionDefaultEntity")
+						.orElseThrow();
+					assertEquals(
+						ConflictResolutionOverride.GRANULAR,
+						afterReDerive.getAttribute("plainCode").orElseThrow().getConflictResolutionOverride()
+					);
+					assertEquals(
+						ConflictResolutionOverride.GRANULAR,
+						afterReDerive.getAssociatedData("plainData").orElseThrow().getConflictResolutionOverride()
+					);
+				}
+			);
+		}
+
+		@DisplayName("Reflected references never receive a conflict resolution override")
+		@Test
+		void shouldLeaveReflectedReferenceConflictResolutionInherited() {
+			ClassSchemaAnalyzerTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.defineEntitySchemaFromModelClass(FieldBasedEntityWithReflectedReferencedEntity.Brand.class);
+					session.defineEntitySchemaFromModelClass(
+						FieldBasedEntityWithReflectedReferencedEntity.BrandGroup.class);
+					session.defineEntitySchemaFromModelClass(FieldBasedEntityWithReflectedReferencedEntity.class);
+
+					final SealedEntitySchema entitySchema = session.getEntitySchema(
+						"FieldBasedEntityWithReflectedReferencedEntity").orElseThrow();
+					final ReferenceSchemaContract reflectedReference = entitySchema.getReference("marketingBrand")
+						.orElseThrow();
+
+					assertInstanceOf(ReflectedReferenceSchemaContract.class, reflectedReference);
+					assertEquals(
+						ConflictResolutionOverride.INHERITED,
+						reflectedReference.getConflictResolutionOverride()
+					);
+				}
+			);
+		}
+
 	}
 
 }

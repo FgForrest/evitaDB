@@ -119,7 +119,8 @@ public class SetAttributeSchemaLocalizedMutation
 				globalAttributeSchema.isRepresentative(),
 				(Class) globalAttributeSchema.getType(),
 				globalAttributeSchema.getDefaultValue(),
-				globalAttributeSchema.getIndexedDecimalPlaces()
+				globalAttributeSchema.getIndexedDecimalPlaces(),
+				globalAttributeSchema.getConflictResolutionOverride()
 			);
 		} else if (attributeSchema instanceof EntityAttributeSchemaContract entityAttributeSchema) {
 			//noinspection unchecked,rawtypes
@@ -136,7 +137,8 @@ public class SetAttributeSchemaLocalizedMutation
 				entityAttributeSchema.isRepresentative(),
 				(Class)entityAttributeSchema.getType(),
 				entityAttributeSchema.getDefaultValue(),
-				entityAttributeSchema.getIndexedDecimalPlaces()
+				entityAttributeSchema.getIndexedDecimalPlaces(),
+				entityAttributeSchema.getConflictResolutionOverride()
 			);
 		} else  {
 			//noinspection unchecked,rawtypes
@@ -153,7 +155,8 @@ public class SetAttributeSchemaLocalizedMutation
 				attributeSchema.isRepresentative(),
 				(Class) attributeSchema.getType(),
 				attributeSchema.getDefaultValue(),
-				attributeSchema.getIndexedDecimalPlaces()
+				attributeSchema.getIndexedDecimalPlaces(),
+				attributeSchema.getConflictResolutionOverride()
 			);
 		}
 	}

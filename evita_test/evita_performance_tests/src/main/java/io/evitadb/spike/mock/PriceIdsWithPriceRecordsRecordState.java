@@ -45,15 +45,24 @@ import java.util.Comparator;
 import java.util.Random;
 
 /**
- * No extra information provided - see (selfexplanatory) method signatures.
- * I have the best intention to write more detailed documentation but if you see this, there was not enough time or will to do so.
+ * JMH benchmark state providing a price ID bitmap, corresponding price records, a mock price
+ * index, and a pre-built {@link PriceIdContainerFormula} for price-related formula benchmarks
+ * ({@link io.evitadb.spike.FormulaCostMeasurement#priceIdContainer},
+ * {@link io.evitadb.spike.FormulaCostMeasurement#priceIdToEntityIdTranslate}).
+ *
+ * Generates {@link #PRICE_COUNT} inner-record-specific price records distributed across entities
+ * with random gaps (up to 512 between entity IDs) and random inner record grouping (up to 10
+ * prices per entity). The price index is backed by
+ * {@link MockPriceListAndCurrencyPriceSuperIndex} for O(1) price record lookups.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @State(Scope.Benchmark)
 public class PriceIdsWithPriceRecordsRecordState {
+	/** Total number of price records to generate. */
 	private static final int PRICE_COUNT = 100_000;
 	private static final Random random = new Random(42);
+	/** Monotonic price ID generator — shared across all instances within the same JVM fork. */
 	private static int PRICE_ID_SEQ;
 
 	@Getter private PriceRecordContract[] entitiesPriceRecords;
@@ -63,7 +72,8 @@ public class PriceIdsWithPriceRecordsRecordState {
 	@Getter private QueryExecutionContext queryExecutionContext = Mockito.mock(QueryExecutionContext.class);
 
 	/**
-	 * This setup is called once for each `valueCount`.
+	 * Generates price records, builds the price index, and wraps the price ID bitmap in
+	 * a {@link PriceIdContainerFormula} for benchmark consumption.
 	 */
 	@Setup(Level.Trial)
 	public void setUp() {
@@ -100,10 +110,6 @@ public class PriceIdsWithPriceRecordsRecordState {
 		}
 
 		return priceIds;
-	}
-
-	private int getRandomNumber(int entityCount) {
-		return random.nextInt(entityCount);
 	}
 
 }

@@ -25,37 +25,51 @@ package io.evitadb.api.requestResponse.schema;
 
 import io.evitadb.api.APITestConstants;
 import io.evitadb.api.exception.InvalidSchemaMutationException;
+import io.evitadb.api.query.expression.ExpressionFactory;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
+import io.evitadb.api.requestResponse.schema.builder.AbstractReferenceSchemaBuilder.ReferenceSchemaBuilderResult;
 import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.builder.ReferenceSchemaBuilder;
-import io.evitadb.api.requestResponse.schema.builder.ReferenceSchemaBuilder.ReferenceSchemaBuilderResult;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
-import io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType;
+import io.evitadb.api.requestResponse.schema.dto.HistogramIndexDefinition;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.CreateAttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.reference.CreateReferenceSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceAttributeSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedFacetedPartially;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexType;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexedComponents;
+import io.evitadb.api.requestResponse.schema.mutation.reference.SetReferenceSchemaBucketedMutation;
 import io.evitadb.api.requestResponse.schema.mutation.reference.SetReferenceSchemaFacetedMutation;
 import io.evitadb.api.requestResponse.schema.mutation.reference.SetReferenceSchemaIndexedMutation;
 import io.evitadb.dataType.Scope;
+import io.evitadb.dataType.expression.Expression;
 import io.evitadb.test.Entities;
 import io.evitadb.utils.NamingConvention;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 import static io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement.attributeElement;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.REFERENCE;
+import static io.evitadb.test.TestTags.SCHEMA;
 import static java.util.Optional.empty;
 import static java.util.Optional.of;
 import static org.junit.jupiter.api.Assertions.*;
@@ -65,9 +79,12 @@ import static org.junit.jupiter.api.Assertions.*;
  * group type operations, scope-based indexing and faceting, reference attributes,
  * sortable attribute compounds, and mutation generation.
  *
- * @author evitaDB
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("ReferenceSchemaBuilder")
+@Tag(CONTRACT)
+@Tag(SCHEMA)
+@Tag(REFERENCE)
 class ReferenceSchemaBuilderTest {
 
 	private EntitySchema productSchema;
@@ -79,6 +96,7 @@ class ReferenceSchemaBuilderTest {
 		this.catalogSchema = CatalogSchema._internalBuild(
 			APITestConstants.TEST_CATALOG,
 			NamingConvention.generate(APITestConstants.TEST_CATALOG),
+			null,
 			EnumSet.allOf(CatalogEvolutionMode.class),
 			new EntitySchemaProvider() {
 				@Nonnull
@@ -378,6 +396,273 @@ class ReferenceSchemaBuilderTest {
 	}
 
 	@Nested
+	@DisplayName("Indexed components")
+	class IndexedComponentsTests {
+
+		@Test
+		@DisplayName("should set indexed components in default scope")
+		void shouldSetIndexedComponentsInDefaultScope() {
+			final ReferenceSchemaContract ref = buildReference(
+				"brand", Entities.BRAND, Cardinality.ZERO_OR_ONE,
+				whichIs -> whichIs
+					.indexedInScope(Scope.LIVE)
+					.indexedWithComponentsInScope(
+						Scope.LIVE,
+						ReferenceIndexedComponents.REFERENCED_ENTITY,
+						ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
+					)
+			);
+
+			assertAll(
+				() -> assertTrue(ref.isIndexedInScope(Scope.LIVE)),
+				() -> assertEquals(
+					2,
+					ref.getIndexedComponents(Scope.LIVE).size()
+				),
+				() -> assertTrue(
+					ref.getIndexedComponents(Scope.LIVE).contains(
+						ReferenceIndexedComponents.REFERENCED_ENTITY
+					)
+				),
+				() -> assertTrue(
+					ref.getIndexedComponents(Scope.LIVE).contains(
+						ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
+					)
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("should set indexed components with only REFERENCED_GROUP_ENTITY")
+		void shouldSetOnlyGroupEntityComponent() {
+			final ReferenceSchemaContract ref = buildReference(
+				"brand", Entities.BRAND, Cardinality.ZERO_OR_ONE,
+				whichIs -> whichIs
+					.indexedInScope(Scope.LIVE)
+					.indexedWithComponentsInScope(
+						Scope.LIVE,
+						ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
+					)
+			);
+
+			assertAll(
+				() -> assertTrue(ref.isIndexedInScope(Scope.LIVE)),
+				() -> assertEquals(
+					1,
+					ref.getIndexedComponents(Scope.LIVE).size()
+				),
+				() -> assertTrue(
+					ref.getIndexedComponents(Scope.LIVE).contains(
+						ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
+					)
+				),
+				() -> assertFalse(
+					ref.getIndexedComponents(Scope.LIVE).contains(
+						ReferenceIndexedComponents.REFERENCED_ENTITY
+					)
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("should auto-promote to indexed when setting components on non-indexed scope")
+		void shouldAutoPromoteToIndexedWhenSettingComponents() {
+			final ReferenceSchemaContract ref = buildReference(
+				"brand", Entities.BRAND, Cardinality.ZERO_OR_ONE,
+				whichIs -> whichIs
+					.indexedWithComponentsInScope(
+						Scope.LIVE,
+						ReferenceIndexedComponents.REFERENCED_ENTITY,
+						ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
+					)
+			);
+
+			assertAll(
+				() -> assertTrue(
+					ref.isIndexedInScope(Scope.LIVE),
+					"Reference should be auto-promoted to indexed"
+				),
+				() -> assertEquals(
+					ReferenceIndexType.FOR_FILTERING,
+					ref.getReferenceIndexType(Scope.LIVE),
+					"Auto-promoted reference should use FOR_FILTERING type"
+				),
+				() -> assertEquals(
+					2,
+					ref.getIndexedComponents(Scope.LIVE).size()
+				),
+				() -> assertTrue(
+					ref.getIndexedComponents(Scope.LIVE).contains(
+						ReferenceIndexedComponents.REFERENCED_ENTITY
+					)
+				),
+				() -> assertTrue(
+					ref.getIndexedComponents(Scope.LIVE).contains(
+						ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
+					)
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("should preserve components when changing index type after")
+		void shouldPreserveComponentsWhenChangingIndexTypeAfter() {
+			final ReferenceSchemaContract ref = buildReference(
+				"brand", Entities.BRAND, Cardinality.ZERO_OR_ONE,
+				whichIs -> whichIs
+					.indexedWithComponentsInScope(
+						Scope.LIVE,
+						ReferenceIndexedComponents.REFERENCED_ENTITY,
+						ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
+					)
+					.indexedForFilteringAndPartitioningInScope(Scope.LIVE)
+			);
+
+			assertAll(
+				() -> assertEquals(
+					ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING,
+					ref.getReferenceIndexType(Scope.LIVE),
+					"Index type should be upgraded to FOR_FILTERING_AND_PARTITIONING"
+				),
+				() -> assertEquals(
+					2,
+					ref.getIndexedComponents(Scope.LIVE).size(),
+					"Components should be preserved after changing index type"
+				),
+				() -> assertTrue(
+					ref.getIndexedComponents(Scope.LIVE).contains(
+						ReferenceIndexedComponents.REFERENCED_ENTITY
+					)
+				),
+				() -> assertTrue(
+					ref.getIndexedComponents(Scope.LIVE).contains(
+						ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
+					)
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("should preserve index type when setting components after")
+		void shouldPreserveIndexTypeWhenSettingComponentsAfter() {
+			final ReferenceSchemaContract ref = buildReference(
+				"brand", Entities.BRAND, Cardinality.ZERO_OR_ONE,
+				whichIs -> whichIs
+					.indexedForFilteringAndPartitioningInScope(Scope.LIVE)
+					.indexedWithComponentsInScope(
+						Scope.LIVE,
+						ReferenceIndexedComponents.REFERENCED_ENTITY,
+						ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
+					)
+			);
+
+			assertAll(
+				() -> assertEquals(
+					ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING,
+					ref.getReferenceIndexType(Scope.LIVE),
+					"Index type should be preserved as FOR_FILTERING_AND_PARTITIONING"
+				),
+				() -> assertEquals(
+					2,
+					ref.getIndexedComponents(Scope.LIVE).size()
+				),
+				() -> assertTrue(
+					ref.getIndexedComponents(Scope.LIVE).contains(
+						ReferenceIndexedComponents.REFERENCED_ENTITY
+					)
+				),
+				() -> assertTrue(
+					ref.getIndexedComponents(Scope.LIVE).contains(
+						ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
+					)
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("should use default components when only index type is set")
+		void shouldUseDefaultComponentsWhenOnlyTypeIsSet() {
+			final ReferenceSchemaContract ref = buildReference(
+				"brand", Entities.BRAND, Cardinality.ZERO_OR_ONE,
+				whichIs -> whichIs
+					.indexedForFilteringAndPartitioningInScope(Scope.LIVE)
+			);
+
+			assertAll(
+				() -> assertEquals(
+					ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING,
+					ref.getReferenceIndexType(Scope.LIVE)
+				),
+				() -> assertEquals(
+					1,
+					ref.getIndexedComponents(Scope.LIVE).size(),
+					"Should default to single REFERENCED_ENTITY component"
+				),
+				() -> assertTrue(
+					ref.getIndexedComponents(Scope.LIVE).contains(
+						ReferenceIndexedComponents.REFERENCED_ENTITY
+					)
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("should absorb indexed with components into Create mutation")
+		void shouldProduceMutationWithComponents() {
+			final AtomicReference<ReferenceSchemaBuilder> captured = new AtomicReference<>();
+
+			createEntitySchemaBuilder()
+				.withReferenceToEntity(
+					"brand", Entities.BRAND, Cardinality.ZERO_OR_ONE,
+					builder -> {
+						builder
+							.indexedInScope(Scope.LIVE)
+							.indexedWithComponentsInScope(
+								Scope.LIVE,
+								ReferenceIndexedComponents.REFERENCED_ENTITY,
+								ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
+							);
+						captured.set((ReferenceSchemaBuilder) builder);
+					}
+				);
+
+			final ReferenceSchemaBuilder builder = captured.get();
+			assertNotNull(builder);
+			final List<LocalEntitySchemaMutation> mutations =
+				List.copyOf(builder.toMutation());
+
+			// Set mutations should be absorbed into the Create mutation
+			final boolean hasNoSeparateIndexedMutation = mutations.stream()
+				.noneMatch(SetReferenceSchemaIndexedMutation.class::isInstance);
+			final CreateReferenceSchemaMutation createMutation = mutations.stream()
+				.filter(CreateReferenceSchemaMutation.class::isInstance)
+				.map(CreateReferenceSchemaMutation.class::cast)
+				.findFirst()
+				.orElse(null);
+
+			assertAll(
+				() -> assertTrue(
+					hasNoSeparateIndexedMutation,
+					"Indexed mutation should be absorbed into Create"
+				),
+				() -> assertNotNull(createMutation, "Should have Create mutation"),
+				() -> assertTrue(
+					createMutation.isIndexed(),
+					"Create mutation should have indexed flag"
+				),
+				() -> assertNotNull(
+					createMutation.getIndexedComponentsInScopes(),
+					"Create mutation should have components"
+				),
+				() -> assertTrue(
+					createMutation.getIndexedComponentsInScopes().length > 0,
+					"Create mutation should have non-empty components"
+				)
+			);
+		}
+	}
+
+	@Nested
 	@DisplayName("Faceting operations")
 	class FacetingOperations {
 
@@ -453,6 +738,149 @@ class ReferenceSchemaBuilderTest {
 				() -> assertTrue(ref.isIndexedInScope(Scope.LIVE)),
 				() -> assertTrue(ref.isFacetedInScope(Scope.LIVE))
 			);
+		}
+
+		/**
+		 * Verifies that facetedPartiallyInScope sets a partial expression
+		 * on the built reference schema.
+		 */
+		@Test
+		@DisplayName("should set facetedPartially expression in scope")
+		void shouldSetFacetedPartiallyInScope() {
+			final Expression expression = ExpressionFactory.parse("1 > 0");
+			final ReferenceSchemaContract ref = buildReference(
+				"brand", Entities.BRAND, Cardinality.ZERO_OR_ONE,
+				whichIs -> whichIs
+					.facetedInScope(Scope.LIVE)
+					.facetedPartiallyInScope(Scope.LIVE, expression)
+			);
+
+			assertAll(
+				() -> assertTrue(ref.isFacetedInScope(Scope.LIVE)),
+				() -> assertNotNull(
+					ref.getFacetedPartiallyInScope(Scope.LIVE)
+				),
+				() -> assertEquals(
+					expression.toExpressionString(),
+					ref.getFacetedPartiallyInScope(Scope.LIVE)
+						.toExpressionString()
+				)
+			);
+		}
+
+		/**
+		 * Verifies that calling facetedPartiallyInScope for two different scopes retains
+		 * both expressions. Also verifies that facetedPartiallyInScope implicitly enables
+		 * faceting for the specified scope.
+		 */
+		@Test
+		@DisplayName("should retain facetedPartially expressions for multiple scopes")
+		void shouldRetainFacetedPartiallyForMultipleScopes() {
+			final Expression liveExpression = ExpressionFactory.parse("1 > 0");
+			final Expression archivedExpression = ExpressionFactory.parse("2 > 1");
+			final ReferenceSchemaContract ref = buildReference(
+				"brand", Entities.BRAND, Cardinality.ZERO_OR_ONE,
+				whichIs -> whichIs
+					.facetedPartiallyInScope(Scope.LIVE, liveExpression)
+					.facetedPartiallyInScope(Scope.ARCHIVED, archivedExpression)
+			);
+
+			assertAll(
+				// facetedPartiallyInScope should implicitly enable faceted for that scope
+				() -> assertTrue(
+					ref.isFacetedInScope(Scope.LIVE),
+					"facetedPartiallyInScope should implicitly enable faceted for LIVE"
+				),
+				() -> assertTrue(
+					ref.isFacetedInScope(Scope.ARCHIVED),
+					"facetedPartiallyInScope should implicitly enable faceted for ARCHIVED"
+				),
+				// both expressions should be present
+				() -> assertNotNull(
+					ref.getFacetedPartiallyInScope(Scope.LIVE),
+					"LIVE expression should not be overwritten by ARCHIVED"
+				),
+				() -> assertNotNull(
+					ref.getFacetedPartiallyInScope(Scope.ARCHIVED),
+					"ARCHIVED expression should be set"
+				),
+				() -> assertEquals(
+					liveExpression.toExpressionString(),
+					ref.getFacetedPartiallyInScope(Scope.LIVE).toExpressionString()
+				),
+				() -> assertEquals(
+					archivedExpression.toExpressionString(),
+					ref.getFacetedPartiallyInScope(Scope.ARCHIVED).toExpressionString()
+				)
+			);
+		}
+
+		/**
+		 * Verifies that nonFacetedPartially clears the partial expression
+		 * for the specified scope.
+		 */
+		@Test
+		@DisplayName("should clear facetedPartially expression via nonFacetedPartially")
+		void shouldClearFacetedPartially() {
+			final Expression expression = ExpressionFactory.parse("1 > 0");
+			final ReferenceSchemaContract ref = buildReference(
+				"brand", Entities.BRAND, Cardinality.ZERO_OR_ONE,
+				whichIs -> whichIs
+					.facetedInScope(Scope.LIVE)
+					.facetedPartiallyInScope(Scope.LIVE, expression)
+					.nonFacetedPartially(Scope.LIVE)
+			);
+
+			assertAll(
+				() -> assertTrue(ref.isFacetedInScope(Scope.LIVE)),
+				() -> assertNull(
+					ref.getFacetedPartiallyInScope(Scope.LIVE)
+				)
+			);
+		}
+
+		/**
+		 * Verifies that the builder generates a SetReferenceSchemaFacetedMutation
+		 * containing the facetedPartially expression.
+		 */
+		@Test
+		@DisplayName("should generate facetedPartially mutation")
+		void shouldGenerateFacetedPartiallyMutation() {
+			final Expression expression = ExpressionFactory.parse("1 > 0");
+			final AtomicReference<ReferenceSchemaBuilder> captured =
+				new AtomicReference<>();
+
+			createEntitySchemaBuilder()
+				.withReferenceToEntity(
+					"brand", Entities.BRAND, Cardinality.ZERO_OR_ONE,
+					builder -> {
+						builder
+							.facetedInScope(Scope.LIVE)
+							.facetedPartiallyInScope(Scope.LIVE, expression);
+						captured.set((ReferenceSchemaBuilder) builder);
+					}
+				);
+
+			final ReferenceSchemaBuilder builder = captured.get();
+			assertNotNull(builder);
+			final List<LocalEntitySchemaMutation> mutations =
+				List.copyOf(builder.toMutation());
+
+			// The facetedPartially should be absorbed into the Create
+			// mutation via combineWith
+			final CreateReferenceSchemaMutation createMutation =
+				mutations.stream()
+					.filter(CreateReferenceSchemaMutation.class::isInstance)
+					.map(CreateReferenceSchemaMutation.class::cast)
+					.findFirst()
+					.orElseThrow();
+
+			final ScopedFacetedPartially[] partiallyInScopes =
+				createMutation.getFacetedPartiallyInScopes();
+			assertNotNull(partiallyInScopes);
+			assertTrue(partiallyInScopes.length > 0);
+			assertEquals(Scope.LIVE, partiallyInScopes[0].scope());
+			assertNotNull(partiallyInScopes[0].expression());
 		}
 	}
 
@@ -739,7 +1167,7 @@ class ReferenceSchemaBuilderTest {
 		}
 
 		@Test
-		@DisplayName("should contain indexed and faceted mutations")
+		@DisplayName("should absorb indexed and faceted into single Create mutation")
 		void shouldContainIndexedAndFacetedMutations() {
 			final AtomicReference<ReferenceSchemaBuilder> captured = new AtomicReference<>();
 
@@ -759,14 +1187,35 @@ class ReferenceSchemaBuilderTest {
 			final List<LocalEntitySchemaMutation> mutations =
 				List.copyOf(builder.toMutation());
 
-			final boolean hasIndexedMutation = mutations.stream()
-				.anyMatch(SetReferenceSchemaIndexedMutation.class::isInstance);
-			final boolean hasFacetedMutation = mutations.stream()
-				.anyMatch(SetReferenceSchemaFacetedMutation.class::isInstance);
+			// Set mutations should be absorbed into the Create mutation
+			final boolean hasNoSeparateIndexedMutation = mutations.stream()
+				.noneMatch(SetReferenceSchemaIndexedMutation.class::isInstance);
+			final boolean hasNoSeparateFacetedMutation = mutations.stream()
+				.noneMatch(SetReferenceSchemaFacetedMutation.class::isInstance);
+			final CreateReferenceSchemaMutation createMutation = mutations.stream()
+				.filter(CreateReferenceSchemaMutation.class::isInstance)
+				.map(CreateReferenceSchemaMutation.class::cast)
+				.findFirst()
+				.orElse(null);
 
 			assertAll(
-				() -> assertTrue(hasIndexedMutation, "Should contain indexed mutation"),
-				() -> assertTrue(hasFacetedMutation, "Should contain faceted mutation")
+				() -> assertTrue(
+					hasNoSeparateIndexedMutation,
+					"Indexed mutation should be absorbed into Create"
+				),
+				() -> assertTrue(
+					hasNoSeparateFacetedMutation,
+					"Faceted mutation should be absorbed into Create"
+				),
+				() -> assertNotNull(createMutation, "Should have Create mutation"),
+				() -> assertTrue(
+					createMutation.isIndexed(),
+					"Create mutation should have indexed flag"
+				),
+				() -> assertTrue(
+					createMutation.isFaceted(),
+					"Create mutation should have faceted flag"
+				)
 			);
 		}
 	}
@@ -899,5 +1348,1508 @@ class ReferenceSchemaBuilderTest {
 				() -> assertFalse(ref.isReferencedEntityTypeManaged())
 			);
 		}
+	}
+
+	@Nested
+	@DisplayName("Mutation absorption")
+	class MutationAbsorption {
+
+		@Test
+		@DisplayName("should absorb indexed into Create")
+		void shouldAbsorbIndexedIntoCreate() {
+			final AtomicReference<ReferenceSchemaBuilder> captured =
+				new AtomicReference<>();
+
+			createEntitySchemaBuilder()
+				.withReferenceToEntity(
+					"brand", Entities.BRAND, Cardinality.ZERO_OR_ONE,
+					builder -> {
+						builder.indexedInScope(Scope.LIVE);
+						captured.set((ReferenceSchemaBuilder) builder);
+					}
+				);
+
+			final List<LocalEntitySchemaMutation> mutations =
+				List.copyOf(captured.get().toMutation());
+
+			assertAll(
+				() -> assertEquals(
+					1, mutations.size(),
+					"Should have single Create mutation"
+				),
+				() -> assertInstanceOf(
+					CreateReferenceSchemaMutation.class,
+					mutations.get(0)
+				),
+				() -> assertTrue(
+					((CreateReferenceSchemaMutation) mutations.get(0))
+						.isIndexed()
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("should absorb faceted into Create")
+		void shouldAbsorbFacetedIntoCreate() {
+			final AtomicReference<ReferenceSchemaBuilder> captured =
+				new AtomicReference<>();
+
+			createEntitySchemaBuilder()
+				.withReferenceToEntity(
+					"brand", Entities.BRAND, Cardinality.ZERO_OR_ONE,
+					builder -> {
+						builder.facetedInScope(Scope.LIVE);
+						captured.set((ReferenceSchemaBuilder) builder);
+					}
+				);
+
+			final List<LocalEntitySchemaMutation> mutations =
+				List.copyOf(captured.get().toMutation());
+
+			final CreateReferenceSchemaMutation create =
+				(CreateReferenceSchemaMutation) mutations.stream()
+					.filter(CreateReferenceSchemaMutation.class::isInstance)
+					.findFirst()
+					.orElseThrow();
+
+			assertAll(
+				() -> assertTrue(
+					mutations.stream().noneMatch(
+						SetReferenceSchemaFacetedMutation.class::isInstance
+					),
+					"No separate faceted mutation"
+				),
+				() -> assertTrue(
+					mutations.stream().noneMatch(
+						SetReferenceSchemaIndexedMutation.class::isInstance
+					),
+					"No separate indexed mutation"
+				),
+				() -> assertTrue(
+					create.isIndexed(),
+					"Create should be indexed (required for faceted)"
+				),
+				() -> assertTrue(
+					create.isFaceted(),
+					"Create should be faceted"
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("should absorb indexedForFiltering into Create")
+		void shouldAbsorbIndexedForFilteringIntoCreate() {
+			final AtomicReference<ReferenceSchemaBuilder> captured =
+				new AtomicReference<>();
+
+			createEntitySchemaBuilder()
+				.withReferenceToEntity(
+					"brand", Entities.BRAND, Cardinality.ZERO_OR_ONE,
+					builder -> {
+						builder.indexedForFilteringInScope(Scope.LIVE);
+						captured.set((ReferenceSchemaBuilder) builder);
+					}
+				);
+
+			final List<LocalEntitySchemaMutation> mutations =
+				List.copyOf(captured.get().toMutation());
+
+			assertAll(
+				() -> assertEquals(
+					1, mutations.size(),
+					"Should have single Create mutation"
+				),
+				() -> assertInstanceOf(
+					CreateReferenceSchemaMutation.class,
+					mutations.get(0)
+				)
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"should absorb indexed with components into Create"
+		)
+		void shouldAbsorbIndexedWithComponentsIntoCreate() {
+			final AtomicReference<ReferenceSchemaBuilder> captured =
+				new AtomicReference<>();
+
+			createEntitySchemaBuilder()
+				.withReferenceToEntity(
+					"brand", Entities.BRAND, Cardinality.ZERO_OR_ONE,
+					builder -> {
+						builder.indexedWithComponentsInScope(
+							Scope.LIVE,
+							ReferenceIndexedComponents.REFERENCED_ENTITY,
+							ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
+						);
+						captured.set((ReferenceSchemaBuilder) builder);
+					}
+				);
+
+			final List<LocalEntitySchemaMutation> mutations =
+				List.copyOf(captured.get().toMutation());
+
+			final CreateReferenceSchemaMutation create =
+				(CreateReferenceSchemaMutation) mutations.stream()
+					.filter(CreateReferenceSchemaMutation.class::isInstance)
+					.findFirst()
+					.orElseThrow();
+
+			assertAll(
+				() -> assertTrue(
+					mutations.stream().noneMatch(
+						SetReferenceSchemaIndexedMutation.class::isInstance
+					),
+					"No separate indexed mutation"
+				),
+				() -> assertTrue(create.isIndexed()),
+				() -> assertTrue(
+					create.getIndexedComponentsInScopes().length > 0,
+					"Should have components"
+				)
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"should absorb both indexed and faceted into Create"
+		)
+		void shouldAbsorbBothIndexedAndFacetedIntoCreate() {
+			final AtomicReference<ReferenceSchemaBuilder> captured =
+				new AtomicReference<>();
+
+			createEntitySchemaBuilder()
+				.withReferenceToEntity(
+					"brand", Entities.BRAND, Cardinality.ZERO_OR_ONE,
+					builder -> {
+						builder
+							.indexedInScope(Scope.LIVE)
+							.facetedInScope(Scope.LIVE);
+						captured.set((ReferenceSchemaBuilder) builder);
+					}
+				);
+
+			final List<LocalEntitySchemaMutation> mutations =
+				List.copyOf(captured.get().toMutation());
+
+			final CreateReferenceSchemaMutation create =
+				(CreateReferenceSchemaMutation) mutations.stream()
+					.filter(CreateReferenceSchemaMutation.class::isInstance)
+					.findFirst()
+					.orElseThrow();
+
+			assertAll(
+				() -> assertEquals(
+					1, mutations.size(),
+					"Should have single Create mutation"
+				),
+				() -> assertTrue(create.isIndexed()),
+				() -> assertTrue(create.isFaceted())
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"should keep indexed in Create when nonIndexed uses merge semantics"
+		)
+		void shouldKeepIndexedWhenNonIndexedUsesMergeSemantics() {
+			// nonIndexed(LIVE) creates a Set mutation with only the REMAINING scopes
+			// (i.e. empty array). Under merge semantics (matching Set+Set combining),
+			// an empty incoming array does not remove existing scopes — the Create
+			// stays indexed. This is consistent with the pre-existing Set+Set behavior.
+			final AtomicReference<ReferenceSchemaBuilder> captured =
+				new AtomicReference<>();
+
+			createEntitySchemaBuilder()
+				.withReferenceToEntity(
+					"brand", Entities.BRAND, Cardinality.ZERO_OR_ONE,
+					builder -> {
+						builder
+							.indexedInScope(Scope.LIVE)
+							.nonIndexed(Scope.LIVE);
+						captured.set((ReferenceSchemaBuilder) builder);
+					}
+				);
+
+			final List<LocalEntitySchemaMutation> mutations =
+				List.copyOf(captured.get().toMutation());
+
+			final CreateReferenceSchemaMutation create =
+				(CreateReferenceSchemaMutation) mutations.stream()
+					.filter(CreateReferenceSchemaMutation.class::isInstance)
+					.findFirst()
+					.orElseThrow();
+
+			assertAll(
+				() -> assertEquals(
+					1, mutations.size(),
+					"Should have single Create mutation"
+				),
+				// merge semantics: empty incoming preserves existing scopes
+				() -> assertTrue(
+					create.isIndexed(),
+					"Create stays indexed (merge can't subtract)"
+				)
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"should absorb faceted then nonFaceted into Create"
+		)
+		void shouldAbsorbFacetedThenNonFacetedIntoCreate() {
+			final AtomicReference<ReferenceSchemaBuilder> captured =
+				new AtomicReference<>();
+
+			createEntitySchemaBuilder()
+				.withReferenceToEntity(
+					"brand", Entities.BRAND, Cardinality.ZERO_OR_ONE,
+					builder -> {
+						builder
+							.facetedInScope(Scope.LIVE)
+							.nonFaceted(Scope.LIVE);
+						captured.set((ReferenceSchemaBuilder) builder);
+					}
+				);
+
+			final List<LocalEntitySchemaMutation> mutations =
+				List.copyOf(captured.get().toMutation());
+
+			final CreateReferenceSchemaMutation create =
+				(CreateReferenceSchemaMutation) mutations.stream()
+					.filter(CreateReferenceSchemaMutation.class::isInstance)
+					.findFirst()
+					.orElseThrow();
+
+			assertAll(
+				() -> assertTrue(
+					mutations.stream().noneMatch(
+						SetReferenceSchemaFacetedMutation.class::isInstance
+					),
+					"No separate faceted mutation"
+				),
+				() -> assertFalse(
+					create.isFaceted(),
+					"Create should be non-faceted after undoing"
+				)
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"should produce correct schema after absorption"
+		)
+		void shouldProduceCorrectSchemaAfterAbsorption() {
+			final ReferenceSchemaContract ref = buildReference(
+				"brand", Entities.BRAND, Cardinality.ZERO_OR_ONE,
+				whichIs -> whichIs
+					.indexedInScope(Scope.LIVE)
+					.facetedInScope(Scope.LIVE)
+			);
+
+			assertAll(
+				() -> assertTrue(ref.isIndexedInScope(Scope.LIVE)),
+				() -> assertFalse(ref.isIndexedInScope(Scope.ARCHIVED)),
+				() -> assertTrue(ref.isFacetedInScope(Scope.LIVE)),
+				() -> assertFalse(ref.isFacetedInScope(Scope.ARCHIVED))
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"should not absorb when modifying existing reference"
+		)
+		void shouldNotAbsorbWhenModifyingExistingReference() {
+			// Create a schema with an existing reference first
+			final EntitySchemaContract baseSchema = createEntitySchemaBuilder()
+				.withReferenceToEntity(
+					"brand", Entities.BRAND, Cardinality.ZERO_OR_ONE,
+					whichIs -> {}
+				)
+				.toInstance();
+
+			// Now modify the existing reference
+			final InternalEntitySchemaBuilder modifyBuilder =
+				new InternalEntitySchemaBuilder(
+					ReferenceSchemaBuilderTest.this.catalogSchema,
+					baseSchema
+				);
+			modifyBuilder.withReferenceToEntity(
+				"brand", Entities.BRAND, Cardinality.ZERO_OR_ONE,
+				whichIs -> whichIs.indexedInScope(Scope.LIVE)
+			);
+			final LocalEntitySchemaMutation[] mutations =
+				modifyBuilder.toMutation()
+					.orElseThrow()
+					.getSchemaMutations();
+
+			// Should have separate Set mutation (no Create to absorb into)
+			final boolean hasSetIndexedMutation =
+				Arrays.stream(mutations).anyMatch(
+					SetReferenceSchemaIndexedMutation.class::isInstance
+				);
+
+			assertTrue(
+				hasSetIndexedMutation,
+				"Should have separate Set mutation for existing reference"
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"should absorb Set into Create via withMutations entry point"
+		)
+		void shouldAbsorbViaWithMutationsEntryPoint() {
+			final CreateReferenceSchemaMutation createMutation =
+				createReferenceSchemaMutation(
+					"brand", null, null,
+					Cardinality.ZERO_OR_ONE,
+					Entities.BRAND, true,
+					null, false,
+					new ScopedReferenceIndexType[]{
+						new ScopedReferenceIndexType(
+							Scope.LIVE,
+							ReferenceIndexType.FOR_FILTERING
+						)
+					},
+					new ScopedReferenceIndexedComponents[]{
+						new ScopedReferenceIndexedComponents(
+							Scope.LIVE,
+							ReferenceIndexedComponents
+								.DEFAULT_INDEXED_COMPONENTS
+						)
+					},
+					Scope.NO_SCOPE
+				);
+
+			// SetIndexed with empty scopes — under merge semantics this
+			// doesn't remove existing scopes, it just adds nothing
+			final SetReferenceSchemaIndexedMutation setMutation =
+				new SetReferenceSchemaIndexedMutation(
+					"brand",
+					ScopedReferenceIndexType.EMPTY
+				);
+
+			// Pass both mutations through the builder's addMutations
+			final InternalEntitySchemaBuilder builder =
+				new InternalEntitySchemaBuilder(
+					ReferenceSchemaBuilderTest.this.catalogSchema,
+					ReferenceSchemaBuilderTest.this.productSchema,
+					List.of(createMutation, setMutation)
+				);
+			final LocalEntitySchemaMutation[] mutations =
+				builder.toMutation()
+					.orElseThrow()
+					.getSchemaMutations();
+
+			final CreateReferenceSchemaMutation resultCreate =
+				Arrays.stream(mutations)
+					.filter(
+						CreateReferenceSchemaMutation.class::isInstance
+					)
+					.map(CreateReferenceSchemaMutation.class::cast)
+					.findFirst()
+					.orElse(null);
+
+			assertAll(
+				() -> assertNotNull(
+					resultCreate, "Should have Create mutation"
+				),
+				// merge semantics: empty Set preserves Create's existing scopes
+				() -> assertTrue(
+					resultCreate.isIndexed(),
+					"Create stays indexed (merge can't subtract)"
+				),
+				() -> assertTrue(
+					Arrays.stream(mutations).noneMatch(
+						SetReferenceSchemaIndexedMutation
+							.class::isInstance
+					),
+					"No separate Set mutation"
+				)
+			);
+		}
+	}
+
+	@Nested
+	@DisplayName("Mutation and instance coherence")
+	class MutationAndInstanceCoherence {
+
+		/**
+		 * Verifies that indexed components survive applying
+		 * {@link io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceSchemaRelatedEntityGroupMutation}.
+		 */
+		@Test
+		@DisplayName("should preserve components when setting group type")
+		void shouldPreserveComponentsWhenSettingGroupType() {
+			final AtomicReference<ReferenceSchemaBuilder> captured = new AtomicReference<>();
+
+			createEntitySchemaBuilder()
+				.withReferenceToEntity(
+					"brand", Entities.BRAND, Cardinality.ZERO_OR_ONE,
+					builder -> {
+						builder
+							.indexedWithComponentsInScope(
+								Scope.LIVE,
+								ReferenceIndexedComponents.REFERENCED_ENTITY,
+								ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
+							)
+							.withGroupTypeRelatedToEntity(Entities.BRAND);
+						captured.set((ReferenceSchemaBuilder) builder);
+					}
+				);
+
+			final ReferenceSchemaBuilder builder = captured.get();
+			assertNotNull(builder);
+
+			final ReferenceSchemaContract fromResult = builder.toResult().schema();
+
+			assertAll(
+				() -> assertTrue(
+					builder.getIndexedComponentsInScopes()
+						.getOrDefault(Scope.LIVE, EnumSet.noneOf(ReferenceIndexedComponents.class))
+						.contains(ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY),
+					"toInstance() must keep REFERENCED_GROUP_ENTITY"
+				),
+				() -> assertTrue(
+					fromResult.getIndexedComponentsInScopes()
+						.getOrDefault(Scope.LIVE, EnumSet.noneOf(ReferenceIndexedComponents.class))
+						.contains(ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY),
+					"toResult() must keep REFERENCED_GROUP_ENTITY"
+				),
+				() -> assertEquals(
+					builder.getIndexedComponentsInScopes(),
+					fromResult.getIndexedComponentsInScopes(),
+					"toInstance() and toResult() components must match"
+				)
+			);
+		}
+
+		/**
+		 * Verifies that indexed components survive applying
+		 * {@link io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceSchemaDescriptionMutation}.
+		 */
+		@Test
+		@DisplayName("should preserve components when changing description")
+		void shouldPreserveComponentsWhenChangingDescription() {
+			final AtomicReference<ReferenceSchemaBuilder> captured = new AtomicReference<>();
+
+			createEntitySchemaBuilder()
+				.withReferenceToEntity(
+					"brand", Entities.BRAND, Cardinality.ZERO_OR_ONE,
+					builder -> {
+						builder
+							.indexedWithComponentsInScope(
+								Scope.LIVE,
+								ReferenceIndexedComponents.REFERENCED_ENTITY,
+								ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
+							)
+							.withDescription("Updated description");
+						captured.set((ReferenceSchemaBuilder) builder);
+					}
+				);
+
+			final ReferenceSchemaBuilder builder = captured.get();
+			assertNotNull(builder);
+
+			final ReferenceSchemaContract fromResult = builder.toResult().schema();
+
+			assertAll(
+				() -> assertEquals(
+					builder.getIndexedComponentsInScopes(),
+					fromResult.getIndexedComponentsInScopes(),
+					"Components must match after description change"
+				),
+				() -> assertTrue(
+					fromResult.getIndexedComponentsInScopes()
+						.getOrDefault(Scope.LIVE, EnumSet.noneOf(ReferenceIndexedComponents.class))
+						.contains(ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY),
+					"REFERENCED_GROUP_ENTITY must survive description mutation"
+				)
+			);
+		}
+
+		/**
+		 * Verifies that indexed components survive applying
+		 * {@link io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceSchemaDeprecationNoticeMutation}.
+		 */
+		@Test
+		@DisplayName("should preserve components when setting deprecation notice")
+		void shouldPreserveComponentsWhenSettingDeprecationNotice() {
+			final AtomicReference<ReferenceSchemaBuilder> captured = new AtomicReference<>();
+
+			createEntitySchemaBuilder()
+				.withReferenceToEntity(
+					"brand", Entities.BRAND, Cardinality.ZERO_OR_ONE,
+					builder -> {
+						builder
+							.indexedWithComponentsInScope(
+								Scope.LIVE,
+								ReferenceIndexedComponents.REFERENCED_ENTITY,
+								ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
+							)
+							.deprecated("Use category instead");
+						captured.set((ReferenceSchemaBuilder) builder);
+					}
+				);
+
+			final ReferenceSchemaBuilder builder = captured.get();
+			assertNotNull(builder);
+
+			final ReferenceSchemaContract fromResult = builder.toResult().schema();
+
+			assertAll(
+				() -> assertEquals(
+					builder.getIndexedComponentsInScopes(),
+					fromResult.getIndexedComponentsInScopes(),
+					"Components must match after deprecation change"
+				),
+				() -> assertTrue(
+					fromResult.getIndexedComponentsInScopes()
+						.getOrDefault(Scope.LIVE, EnumSet.noneOf(ReferenceIndexedComponents.class))
+						.contains(ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY),
+					"REFERENCED_GROUP_ENTITY must survive deprecation mutation"
+				)
+			);
+		}
+
+		/**
+		 * Verifies that indexed components survive applying
+		 * {@link io.evitadb.api.requestResponse.schema.mutation.reference.SetReferenceSchemaFacetedMutation}.
+		 */
+		@Test
+		@DisplayName("should preserve components when setting faceted")
+		void shouldPreserveComponentsWhenSettingFaceted() {
+			final AtomicReference<ReferenceSchemaBuilder> captured = new AtomicReference<>();
+
+			createEntitySchemaBuilder()
+				.withReferenceToEntity(
+					"brand", Entities.BRAND, Cardinality.ZERO_OR_ONE,
+					builder -> {
+						builder
+							.indexedWithComponentsInScope(
+								Scope.LIVE,
+								ReferenceIndexedComponents.REFERENCED_ENTITY,
+								ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
+							)
+							.facetedInScope(Scope.LIVE);
+						captured.set((ReferenceSchemaBuilder) builder);
+					}
+				);
+
+			final ReferenceSchemaBuilder builder = captured.get();
+			assertNotNull(builder);
+
+			final ReferenceSchemaContract fromResult = builder.toResult().schema();
+
+			assertAll(
+				() -> assertEquals(
+					builder.getIndexedComponentsInScopes(),
+					fromResult.getIndexedComponentsInScopes(),
+					"Components must match after faceted change"
+				),
+				() -> assertTrue(
+					fromResult.getIndexedComponentsInScopes()
+						.getOrDefault(Scope.LIVE, EnumSet.noneOf(ReferenceIndexedComponents.class))
+						.contains(ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY),
+					"REFERENCED_GROUP_ENTITY must survive faceted mutation"
+				)
+			);
+		}
+
+		/**
+		 * Verifies that indexed components survive applying
+		 * {@link io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceSchemaCardinalityMutation}
+		 * and {@link io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceSchemaRelatedEntityMutation}
+		 * by rebuilding an existing reference with different cardinality and entity type.
+		 */
+		@Test
+		@DisplayName("should preserve components when rebuilding with changed cardinality and entity type")
+		void shouldPreserveComponentsWhenRebuildingReference() {
+			// first build an entity schema with a reference that has both components
+			final EntitySchemaContract baseSchema = createEntitySchemaBuilder()
+				.withReferenceToEntity(
+					"brand", Entities.BRAND, Cardinality.ZERO_OR_ONE,
+					builder -> builder
+						.indexedWithComponentsInScope(
+							Scope.LIVE,
+							ReferenceIndexedComponents.REFERENCED_ENTITY,
+							ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
+						)
+				)
+				.toInstance();
+
+			// now rebuild the same reference with different cardinality and entity type
+			// this triggers ModifyReferenceSchemaCardinalityMutation and
+			// ModifyReferenceSchemaRelatedEntityMutation
+			final AtomicReference<ReferenceSchemaBuilder> captured = new AtomicReference<>();
+			new InternalEntitySchemaBuilder(
+				ReferenceSchemaBuilderTest.this.catalogSchema, baseSchema
+			)
+				.withReferenceToEntity(
+					"brand", Entities.CATEGORY, Cardinality.ZERO_OR_MORE,
+					builder -> captured.set((ReferenceSchemaBuilder) builder)
+				);
+
+			final ReferenceSchemaBuilder builder = captured.get();
+			assertNotNull(builder);
+
+			final ReferenceSchemaContract fromResult = builder.toResult().schema();
+
+			assertAll(
+				() -> assertEquals(
+					builder.getIndexedComponentsInScopes(),
+					fromResult.getIndexedComponentsInScopes(),
+					"Components must match after cardinality and entity type change"
+				),
+				() -> assertTrue(
+					fromResult.getIndexedComponentsInScopes()
+						.getOrDefault(Scope.LIVE, EnumSet.noneOf(ReferenceIndexedComponents.class))
+						.contains(ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY),
+					"REFERENCED_GROUP_ENTITY must survive cardinality/entity type mutation"
+				)
+			);
+		}
+
+		/**
+		 * Verifies that indexed components survive when using the convenience
+		 * {@code indexedWithComponents} method (default scope) combined with
+		 * {@code withGroupTypeRelatedToEntity} — the exact scenario reported
+		 * in the bug where the group entity component was lost.
+		 */
+		@Test
+		@DisplayName("should preserve components when using indexedWithComponents and withGroupTypeRelatedToEntity")
+		void shouldPreserveComponentsWhenUsingIndexedWithComponentsAndGroupType() {
+			final AtomicReference<ReferenceSchemaBuilder> captured = new AtomicReference<>();
+
+			createEntitySchemaBuilder()
+				.withReferenceToEntity(
+					"brand", Entities.BRAND, Cardinality.ZERO_OR_ONE,
+					builder -> {
+						builder
+							.indexedWithComponents(
+								ReferenceIndexedComponents.REFERENCED_ENTITY,
+								ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
+							)
+							.withGroupTypeRelatedToEntity(Entities.BRAND);
+						captured.set((ReferenceSchemaBuilder) builder);
+					}
+				);
+
+			final ReferenceSchemaBuilder builder = captured.get();
+			assertNotNull(builder);
+
+			final ReferenceSchemaContract fromResult = builder.toResult().schema();
+
+			assertAll(
+				() -> assertTrue(
+					builder.getIndexedComponentsInScopes()
+						.getOrDefault(Scope.LIVE, EnumSet.noneOf(ReferenceIndexedComponents.class))
+						.contains(ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY),
+					"toInstance() must keep REFERENCED_GROUP_ENTITY after indexedWithComponents + withGroupTypeRelatedToEntity"
+				),
+				() -> assertTrue(
+					fromResult.getIndexedComponentsInScopes()
+						.getOrDefault(Scope.LIVE, EnumSet.noneOf(ReferenceIndexedComponents.class))
+						.contains(ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY),
+					"toResult() must keep REFERENCED_GROUP_ENTITY after indexedWithComponents + withGroupTypeRelatedToEntity"
+				),
+				() -> assertEquals(
+					builder.getIndexedComponentsInScopes(),
+					fromResult.getIndexedComponentsInScopes(),
+					"toInstance() and toResult() components must match"
+				),
+				() -> assertNotNull(
+					fromResult.getReferencedGroupType(),
+					"Group type must be set"
+				),
+				() -> assertTrue(
+					fromResult.isReferencedGroupTypeManaged(),
+					"Group type must be managed"
+				)
+			);
+		}
+		/**
+		 * Verifies that indexed components survive when adding an attribute to a reference
+		 * that has custom indexed components configured. This exercises the bug in
+		 * {@link CreateAttributeSchemaMutation#mutate} which calls an {@code _internalBuild}
+		 * overload that omits {@code indexedComponentsInScopes}, defaulting to only
+		 * {@code REFERENCED_ENTITY}.
+		 */
+		@Test
+		@DisplayName("should preserve components when adding attribute to reference")
+		void shouldPreserveComponentsWhenAddingAttribute() {
+			final AtomicReference<ReferenceSchemaBuilder> captured = new AtomicReference<>();
+
+			createEntitySchemaBuilder()
+				.withReferenceToEntity(
+					"brand", Entities.BRAND, Cardinality.ZERO_OR_ONE,
+					builder -> {
+						builder
+							.indexedWithComponentsInScope(
+								Scope.LIVE,
+								ReferenceIndexedComponents.REFERENCED_ENTITY,
+								ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
+							)
+							.withGroupTypeRelatedToEntity(Entities.BRAND)
+							.withAttribute("priority", int.class);
+						captured.set((ReferenceSchemaBuilder) builder);
+					}
+				);
+
+			final ReferenceSchemaBuilder builder = captured.get();
+			assertNotNull(builder);
+
+			final ReferenceSchemaContract fromResult = builder.toResult().schema();
+
+			assertAll(
+				() -> assertTrue(
+					builder.getIndexedComponentsInScopes()
+						.getOrDefault(Scope.LIVE, EnumSet.noneOf(ReferenceIndexedComponents.class))
+						.contains(ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY),
+					"toInstance() must keep REFERENCED_GROUP_ENTITY after adding attribute"
+				),
+				() -> assertTrue(
+					fromResult.getIndexedComponentsInScopes()
+						.getOrDefault(Scope.LIVE, EnumSet.noneOf(ReferenceIndexedComponents.class))
+						.contains(ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY),
+					"toResult() must keep REFERENCED_GROUP_ENTITY after adding attribute"
+				),
+				() -> assertEquals(
+					builder.getIndexedComponentsInScopes(),
+					fromResult.getIndexedComponentsInScopes(),
+					"toInstance() and toResult() components must match"
+				)
+			);
+		}
+	}
+
+	@Nested
+	@DisplayName("Bucketed operations")
+	class BucketedOperations {
+
+		/**
+		 * Verifies that calling `bucketedInScope` for LIVE creates a bucketed histogram definition
+		 * for that scope only.
+		 */
+		@Test
+		@DisplayName("should make bucketed in LIVE scope")
+		void shouldMakeBucketedInLiveScope() {
+			final ReferenceSchemaContract ref = buildReference(
+				"brand", Entities.BRAND, Cardinality.ZERO_OR_ONE,
+				whichIs -> whichIs.bucketedInScope(Scope.LIVE, "idx", null)
+			);
+
+			assertAll(
+				() -> assertTrue(ref.isBucketedInScope(Scope.LIVE)),
+				() -> assertFalse(ref.isBucketedInScope(Scope.ARCHIVED)),
+				() -> {
+					final Map<Scope, Map<String, HistogramIndexDefinition>> defs =
+						ref.getAllHistogramIndexDefinitions();
+					assertEquals(1, defs.size());
+					assertEquals("idx", defs.get(Scope.LIVE).get("idx").nameOfTheIndex());
+				}
+			);
+		}
+
+		/**
+		 * Verifies that calling `bucketedInScope` for LIVE and ARCHIVED creates two bucketed
+		 * histogram definitions with the correct index names.
+		 */
+		@Test
+		@DisplayName("should make bucketed in both scopes")
+		void shouldMakeBucketedInBothScopes() {
+			final ReferenceSchemaContract ref = buildReference(
+				"brand", Entities.BRAND, Cardinality.ZERO_OR_ONE,
+				whichIs -> whichIs
+					.bucketedInScope(Scope.LIVE, "idx1", null)
+					.bucketedInScope(Scope.ARCHIVED, "idx2", null)
+			);
+
+			assertAll(
+				() -> assertTrue(ref.isBucketedInScope(Scope.LIVE)),
+				() -> assertTrue(ref.isBucketedInScope(Scope.ARCHIVED)),
+				() -> {
+					final Map<Scope, Map<String, HistogramIndexDefinition>> defs =
+						ref.getAllHistogramIndexDefinitions();
+					assertEquals(2, defs.size());
+					assertEquals("idx1", defs.get(Scope.LIVE).get("idx1").nameOfTheIndex());
+					assertEquals("idx2", defs.get(Scope.ARCHIVED).get("idx2").nameOfTheIndex());
+				}
+			);
+		}
+
+		/**
+		 * Verifies that calling `bucketedInScope` on a non-indexed reference auto-promotes
+		 * it to indexed.
+		 */
+		@Test
+		@DisplayName("should implicitly index when bucketed")
+		void shouldImplicitlyIndexWhenBucketed() {
+			final ReferenceSchemaContract ref = buildReference(
+				"brand", Entities.BRAND, Cardinality.ZERO_OR_ONE,
+				whichIs -> whichIs.bucketedInScope(Scope.LIVE, "idx", null)
+			);
+
+			assertTrue(
+				ref.isIndexedInScope(Scope.LIVE),
+				"Reference should be implicitly indexed when bucketed"
+			);
+		}
+
+		/**
+		 * Verifies that adding bucketed to an already indexed scope preserves both
+		 * the indexed and bucketed states.
+		 */
+		@Test
+		@DisplayName("should preserve indexing when adding bucketed to already indexed scope")
+		void shouldPreserveIndexingWhenAddingBucketedToAlreadyIndexedScope() {
+			final ReferenceSchemaContract ref = buildReference(
+				"brand", Entities.BRAND, Cardinality.ZERO_OR_ONE,
+				whichIs -> whichIs
+					.indexedInScope(Scope.LIVE)
+					.bucketedInScope(Scope.LIVE, "idx", null)
+			);
+
+			assertAll(
+				() -> assertTrue(ref.isIndexedInScope(Scope.LIVE)),
+				() -> assertTrue(ref.isBucketedInScope(Scope.LIVE))
+			);
+		}
+
+		/**
+		 * Verifies that `nonBucketed` removes bucketed from a specific scope while
+		 * keeping other scopes intact.
+		 */
+		@Test
+		@DisplayName("should remove bucketed from scope")
+		void shouldRemoveBucketedFromScope() {
+			final ReferenceSchemaContract ref = buildReference(
+				"brand", Entities.BRAND, Cardinality.ZERO_OR_ONE,
+				whichIs -> whichIs
+					.bucketedInScope(Scope.LIVE, "idx1", null)
+					.bucketedInScope(Scope.ARCHIVED, "idx2", null)
+					.nonBucketed(Scope.LIVE)
+			);
+
+			assertAll(
+				() -> assertFalse(ref.isBucketedInScope(Scope.LIVE)),
+				() -> assertTrue(ref.isBucketedInScope(Scope.ARCHIVED))
+			);
+		}
+
+		/**
+		 * Verifies that `nonBucketed` with all scopes removes all bucketed definitions
+		 * and empties the histogram definitions map.
+		 */
+		@Test
+		@DisplayName("should remove all bucketed scopes")
+		void shouldRemoveAllBucketedScopes() {
+			final ReferenceSchemaContract ref = buildReference(
+				"brand", Entities.BRAND, Cardinality.ZERO_OR_ONE,
+				whichIs -> whichIs
+					.bucketedInScope(Scope.LIVE, "idx1", null)
+					.bucketedInScope(Scope.ARCHIVED, "idx2", null)
+					.nonBucketed(Scope.values())
+			);
+
+			assertAll(
+				() -> assertFalse(ref.isBucketedInScope(Scope.LIVE)),
+				() -> assertFalse(ref.isBucketedInScope(Scope.ARCHIVED)),
+				() -> assertTrue(ref.getAllHistogramIndexDefinitions().isEmpty())
+			);
+		}
+
+		/**
+		 * Verifies that `bucketedPartiallyInScope` sets a partial expression for
+		 * the specified scope.
+		 */
+		@Test
+		@DisplayName("should set bucketedPartially expression in scope")
+		void shouldSetBucketedPartiallyExpressionInScope() {
+			final Expression expression = ExpressionFactory.parse("1 > 0");
+			final ReferenceSchemaContract ref = buildReference(
+				"brand", Entities.BRAND, Cardinality.ZERO_OR_ONE,
+				whichIs -> whichIs
+					.bucketedInScope(Scope.LIVE, "idx", null)
+					.bucketedPartiallyInScope(Scope.LIVE, expression)
+			);
+
+			assertAll(
+				() -> assertTrue(ref.isBucketedInScope(Scope.LIVE)),
+				() -> assertNotNull(ref.getBucketedPartiallyInScope(Scope.LIVE)),
+				() -> assertEquals(
+					expression.toExpressionString(),
+					ref.getBucketedPartiallyInScope(Scope.LIVE).toExpressionString()
+				)
+			);
+		}
+
+		/**
+		 * Verifies that calling `bucketedPartiallyInScope` after `bucketedInScope` preserves
+		 * the histogram definition when other references precede this one on the same entity
+		 * schema. This is a regression test: the `bucketedPartially` mutation was losing
+		 * the bucketed histogram definition when both were absorbed into
+		 * {@link io.evitadb.api.requestResponse.schema.mutation.reference.CreateReferenceSchemaMutation}.
+		 */
+		@Test
+		@DisplayName("should preserve histogram definition when bucketedPartially is called after bucketed")
+		void shouldPreserveHistogramDefinitionWhenBucketedPartiallyCalledAfterBucketed() {
+			final Expression valueExpr = ExpressionFactory.parse("$reference.attributes['someValue']");
+			final Expression condExpr = ExpressionFactory.parse("$reference.attributes['priority'] > 0");
+
+			// must match the exact pattern from the real schema definition:
+			// .indexedForFilteringAndPartitioning() + .withAttribute() + .bucketed() + .bucketedPartially()
+			final EntitySchemaContract schema = createEntitySchemaBuilder()
+				.withReferenceToEntity(
+					"testedRef", Entities.BRAND, Cardinality.ZERO_OR_MORE,
+					whichIs -> whichIs
+						.indexedForFilteringAndPartitioning()
+						.withAttribute("priority", Integer.class, a -> a.filterable().nullable())
+						.withAttribute("someValue", Integer.class, a -> a.filterable().nullable())
+						.bucketedInScope(Scope.LIVE, "myHistogram", valueExpr)
+						.bucketedPartiallyInScope(Scope.LIVE, condExpr)
+				)
+				.toInstance();
+
+			final ReferenceSchemaContract ref = schema.getReference("testedRef").orElseThrow();
+
+			assertAll(
+				() -> assertTrue(
+					ref.isBucketedInScope(Scope.LIVE),
+					"Reference must be bucketed in LIVE scope"
+				),
+				() -> {
+					final HistogramIndexDefinition def =
+						ref.getHistogramIndexDefinition(Scope.LIVE, "myHistogram");
+					assertNotNull(
+						def,
+						"Histogram definition 'myHistogram' must survive the bucketedPartially call"
+					);
+					assertEquals(
+						valueExpr.toExpressionString(),
+						def.valueExpression().toExpressionString(),
+						"Value expression must be preserved"
+					);
+				},
+				() -> assertEquals(
+					condExpr.toExpressionString(),
+					ref.getBucketedPartiallyInScope(Scope.LIVE).toExpressionString(),
+					"Condition expression must be set"
+				)
+			);
+		}
+
+		/**
+		 * Verifies that calling `bucketedPartiallyInScope` for two different scopes retains
+		 * both expressions independently.
+		 */
+		@Test
+		@DisplayName("should retain bucketedPartially for multiple scopes")
+		void shouldRetainBucketedPartiallyForMultipleScopes() {
+			final Expression liveExpression = ExpressionFactory.parse("1 > 0");
+			final Expression archivedExpression = ExpressionFactory.parse("2 > 1");
+			final ReferenceSchemaContract ref = buildReference(
+				"brand", Entities.BRAND, Cardinality.ZERO_OR_ONE,
+				whichIs -> whichIs
+					.bucketedInScope(Scope.LIVE, "idx1", null)
+					.bucketedInScope(Scope.ARCHIVED, "idx2", null)
+					.bucketedPartiallyInScope(Scope.LIVE, liveExpression)
+					.bucketedPartiallyInScope(Scope.ARCHIVED, archivedExpression)
+			);
+
+			assertAll(
+				() -> assertNotNull(
+					ref.getBucketedPartiallyInScope(Scope.LIVE),
+					"LIVE expression should not be overwritten by ARCHIVED"
+				),
+				() -> assertNotNull(
+					ref.getBucketedPartiallyInScope(Scope.ARCHIVED),
+					"ARCHIVED expression should be set"
+				),
+				() -> assertEquals(
+					liveExpression.toExpressionString(),
+					ref.getBucketedPartiallyInScope(Scope.LIVE).toExpressionString()
+				),
+				() -> assertEquals(
+					archivedExpression.toExpressionString(),
+					ref.getBucketedPartiallyInScope(Scope.ARCHIVED).toExpressionString()
+				)
+			);
+		}
+
+		/**
+		 * Verifies that `nonBucketedPartially` clears the partial expression while
+		 * keeping the scope bucketed.
+		 */
+		@Test
+		@DisplayName("should clear bucketedPartially via nonBucketedPartially")
+		void shouldClearBucketedPartiallyViaNonBucketedPartially() {
+			final Expression expression = ExpressionFactory.parse("1 > 0");
+			final ReferenceSchemaContract ref = buildReference(
+				"brand", Entities.BRAND, Cardinality.ZERO_OR_ONE,
+				whichIs -> whichIs
+					.bucketedInScope(Scope.LIVE, "idx", null)
+					.bucketedPartiallyInScope(Scope.LIVE, expression)
+					.nonBucketedPartially(Scope.LIVE)
+			);
+
+			assertAll(
+				() -> assertTrue(ref.isBucketedInScope(Scope.LIVE)),
+				() -> assertNull(ref.getBucketedPartiallyInScope(Scope.LIVE))
+			);
+		}
+
+		/**
+		 * Verifies that calling `nonBucketed` on a scope that has a partial expression
+		 * also removes the orphaned partial expression.
+		 */
+		@Test
+		@DisplayName("should filter orphaned partially when removing bucketed scope")
+		void shouldFilterOrphanedPartiallyWhenRemovingBucketedScope() {
+			final Expression expression = ExpressionFactory.parse("1 > 0");
+			final ReferenceSchemaContract ref = buildReference(
+				"brand", Entities.BRAND, Cardinality.ZERO_OR_ONE,
+				whichIs -> whichIs
+					.bucketedInScope(Scope.LIVE, "idx", null)
+					.bucketedPartiallyInScope(Scope.LIVE, expression)
+					.nonBucketed(Scope.LIVE)
+			);
+
+			assertAll(
+				() -> assertFalse(ref.isBucketedInScope(Scope.LIVE)),
+				() -> assertNull(ref.getBucketedPartiallyInScope(Scope.LIVE))
+			);
+		}
+
+		/**
+		 * Verifies that a value expression is stored in the bucketed histogram definition.
+		 */
+		@Test
+		@DisplayName("should store bucketed histogram definition with value expression")
+		void shouldStoreHistogramIndexDefinitionWithValueExpression() {
+			final Expression valueExpr = ExpressionFactory.parse("$price * $quantity");
+			final ReferenceSchemaContract ref = buildReference(
+				"brand", Entities.BRAND, Cardinality.ZERO_OR_ONE,
+				whichIs -> whichIs.bucketedInScope(Scope.LIVE, "idx", valueExpr)
+			);
+
+			final HistogramIndexDefinition def =
+				ref.getHistogramIndexDefinition(Scope.LIVE, "idx");
+			assertNotNull(def);
+			assertEquals(
+				valueExpr.toExpressionString(),
+				def.valueExpression().toExpressionString()
+			);
+		}
+
+		/**
+		 * Verifies that calling `bucketedPartiallyInScope` on a non-indexed
+		 * reference auto-promotes the reference to indexed. This pins the override on
+		 * {@link ReferenceSchemaBuilder}.
+		 */
+		@Test
+		@DisplayName("should auto-promote to indexed when calling bucketedPartiallyInScope on non-indexed ref")
+		void shouldAutoPromoteToIndexedWhenCallingBucketedPartiallyInScopeOnNonIndexedRef() {
+			final Expression expression = ExpressionFactory.parse("1 > 0");
+			final ReferenceSchemaContract ref = buildReference(
+				"brand", Entities.BRAND, Cardinality.ZERO_OR_ONE,
+				whichIs -> whichIs.bucketedPartiallyInScope(Scope.LIVE, expression)
+			);
+
+			assertTrue(
+				ref.isIndexedInScope(Scope.LIVE),
+				"Reference should be auto-promoted to indexed when calling bucketedPartiallyInScope"
+			);
+		}
+
+		/**
+		 * Verifies that adding two histograms to the same scope results in a single scope entry
+		 * containing both histogram definitions.
+		 */
+		@Test
+		@DisplayName("should add multiple histograms to the same scope")
+		void shouldAddMultipleHistogramsToSameScope() {
+			final Expression expr1 = ExpressionFactory.parse("$price * 1.21");
+			final Expression expr2 = ExpressionFactory.parse("$quantity + 1");
+			final ReferenceSchemaContract ref = buildReference(
+				"brand", Entities.BRAND, Cardinality.ZERO_OR_ONE,
+				whichIs -> whichIs
+					.bucketedInScope(Scope.LIVE, "price", expr1)
+					.bucketedInScope(Scope.LIVE, "quantity", expr2)
+			);
+
+			final Map<Scope, Map<String, HistogramIndexDefinition>> defs =
+				ref.getAllHistogramIndexDefinitions();
+			assertAll(
+				() -> assertEquals(
+					1, defs.size(),
+					"Should have exactly 1 scope entry"
+				),
+				() -> assertEquals(
+					2, defs.get(Scope.LIVE).size(),
+					"LIVE scope should contain 2 histograms"
+				),
+				() -> {
+					final HistogramIndexDefinition priceDef =
+						ref.getHistogramIndexDefinition(Scope.LIVE, "price");
+					assertNotNull(priceDef, "price histogram should be accessible");
+					assertEquals(
+						expr1.toExpressionString(),
+						priceDef.valueExpression().toExpressionString()
+					);
+				},
+				() -> {
+					final HistogramIndexDefinition quantityDef =
+						ref.getHistogramIndexDefinition(Scope.LIVE, "quantity");
+					assertNotNull(quantityDef, "quantity histogram should be accessible");
+					assertEquals(
+						expr2.toExpressionString(),
+						quantityDef.valueExpression().toExpressionString()
+					);
+				}
+			);
+		}
+
+		/**
+		 * Verifies that adding a histogram with the same name in the same scope overwrites
+		 * the previous definition, keeping only the latest expression.
+		 */
+		@Test
+		@DisplayName("should overwrite histogram with same name in same scope")
+		void shouldOverwriteHistogramWithSameNameInSameScope() {
+			final Expression expr1 = ExpressionFactory.parse("$price * 1.21");
+			final Expression expr2 = ExpressionFactory.parse("$price * 1.15");
+			final ReferenceSchemaContract ref = buildReference(
+				"brand", Entities.BRAND, Cardinality.ZERO_OR_ONE,
+				whichIs -> whichIs
+					.bucketedInScope(Scope.LIVE, "idx", expr1)
+					.bucketedInScope(Scope.LIVE, "idx", expr2)
+			);
+
+			final Map<Scope, Map<String, HistogramIndexDefinition>> defs =
+				ref.getAllHistogramIndexDefinitions();
+			assertAll(
+				() -> assertEquals(1, defs.get(Scope.LIVE).size()),
+				() -> assertEquals(
+					expr2.toExpressionString(),
+					ref.getHistogramIndexDefinition(Scope.LIVE, "idx")
+						.valueExpression().toExpressionString()
+				)
+			);
+		}
+
+		/**
+		 * Verifies that `nonBucketedByName` removes only the named histogram while
+		 * keeping the other histogram in the same scope intact.
+		 */
+		@Test
+		@DisplayName("should remove named histogram from scope keeping others")
+		void shouldRemoveNamedHistogramFromScope() {
+			final Expression expr1 = ExpressionFactory.parse("$price * 1.21");
+			final Expression expr2 = ExpressionFactory.parse("$quantity + 1");
+			final ReferenceSchemaContract ref = buildReference(
+				"brand", Entities.BRAND, Cardinality.ZERO_OR_ONE,
+				whichIs -> whichIs
+					.bucketedInScope(Scope.LIVE, "price", expr1)
+					.bucketedInScope(Scope.LIVE, "quantity", expr2)
+					.nonBucketedByName(Scope.LIVE, "price")
+			);
+
+			assertAll(
+				() -> assertTrue(
+					ref.isBucketedInScope(Scope.LIVE),
+					"Scope should still be bucketed because 'quantity' remains"
+				),
+				() -> assertNull(
+					ref.getHistogramIndexDefinition(Scope.LIVE, "price"),
+					"'price' histogram should have been removed"
+				),
+				() -> assertNotNull(
+					ref.getHistogramIndexDefinition(Scope.LIVE, "quantity"),
+					"'quantity' histogram should remain"
+				)
+			);
+		}
+
+		/**
+		 * Verifies that calling `nonBucketedByName` with a name that does not exist in the
+		 * bucketed histogram definitions does not cause a schema rebuild by emitting an
+		 * unnecessary mutation. When no entry matches, the method should short-circuit
+		 * and leave the mutation list completely unchanged.
+		 */
+		@Test
+		@DisplayName("should not emit mutation when removing non-existent histogram name")
+		void shouldNotEmitMutationWhenRemovingNonExistentHistogramName() {
+			final AtomicReference<ReferenceSchemaBuilder> captured = new AtomicReference<>();
+
+			createEntitySchemaBuilder()
+				.withReferenceToEntity(
+					"brand", Entities.BRAND, Cardinality.ZERO_OR_ONE,
+					builder -> {
+						builder.bucketedInScope(Scope.LIVE, "price", null);
+						captured.set((ReferenceSchemaBuilder) builder);
+					}
+				);
+
+			final ReferenceSchemaBuilder builder = captured.get();
+			// collect the exact mutations before the no-op removal
+			final List<LocalEntitySchemaMutation> mutationsBefore =
+				List.copyOf(builder.toMutation());
+
+			// attempt to remove a non-existent histogram name
+			builder.nonBucketedByName(Scope.LIVE, "nonexistent");
+
+			final List<LocalEntitySchemaMutation> mutationsAfter =
+				List.copyOf(builder.toMutation());
+
+			// the mutations should be referentially identical (same objects, same order)
+			// — if a no-op SetReferenceSchemaBucketedMutation was emitted, the Create
+			// mutation would have been replaced with a new object via combineWith()
+			assertEquals(
+				mutationsBefore.size(), mutationsAfter.size(),
+				"Mutation list size should not change"
+			);
+			for (int i = 0; i < mutationsBefore.size(); i++) {
+				assertSame(
+					mutationsBefore.get(i), mutationsAfter.get(i),
+					"Mutation at index " + i + " should be the same object instance " +
+						"(no-op removal should not cause mutation replacement)"
+				);
+			}
+		}
+
+		/**
+		 * Verifies that removing the last histogram by name clears the scope entirely,
+		 * so that `isBucketedInScope` returns false and the definitions map is empty.
+		 */
+		@Test
+		@DisplayName("should remove last histogram and clear scope entirely")
+		void shouldRemoveLastHistogramAndClearScopeEntirely() {
+			final ReferenceSchemaContract ref = buildReference(
+				"brand", Entities.BRAND, Cardinality.ZERO_OR_ONE,
+				whichIs -> whichIs
+					.bucketedInScope(Scope.LIVE, "price", null)
+					.nonBucketedByName(Scope.LIVE, "price")
+			);
+
+			assertAll(
+				() -> assertFalse(
+					ref.isBucketedInScope(Scope.LIVE),
+					"Scope should no longer be bucketed after last histogram removed"
+				),
+				() -> assertTrue(
+					ref.getAllHistogramIndexDefinitions().isEmpty(),
+					"All histogram definitions should be empty"
+				)
+			);
+		}
+
+		/**
+		 * Verifies that removing the last histogram by name also clears
+		 * the orphaned `bucketedPartially` expression for that scope.
+		 */
+		@Test
+		@DisplayName("should filter orphaned partially when last histogram removed by name")
+		void shouldFilterOrphanedPartiallyWhenLastHistogramRemovedByName() {
+			final Expression expression = ExpressionFactory.parse("1 > 0");
+			final ReferenceSchemaContract ref = buildReference(
+				"brand", Entities.BRAND, Cardinality.ZERO_OR_ONE,
+				whichIs -> whichIs
+					.bucketedInScope(Scope.LIVE, "price", null)
+					.bucketedPartiallyInScope(Scope.LIVE, expression)
+					.nonBucketedByName(Scope.LIVE, "price")
+			);
+
+			assertAll(
+				() -> assertFalse(
+					ref.isBucketedInScope(Scope.LIVE),
+					"Scope should no longer be bucketed"
+				),
+				() -> assertNull(
+					ref.getBucketedPartiallyInScope(Scope.LIVE),
+					"Orphaned bucketedPartially should be filtered out"
+				)
+			);
+		}
+
+		/**
+		 * Verifies that the 4-arg `bucketedInScope(scope, name, valueExpression,
+		 * assignedWhen)` overload threads the per-histogram partition selector all the way
+		 * through `_internalBuild()` into the final
+		 * {@link HistogramIndexDefinition#assignedWhen()} field, while preserving
+		 * the value expression independently.
+		 */
+		@Test
+		@DisplayName("should propagate assignedWhen through 4-arg bucketedInScope")
+		void shouldPropagateAssignedWhenThroughFourArgBucketedInScope() {
+			final Expression valueExpr = ExpressionFactory.parse(
+				"$reference.attributes['someValue']"
+			);
+			final Expression assignedWhenExpr = ExpressionFactory.parse(
+				"$reference.attributes['priority'] > 0"
+			);
+
+			final ReferenceSchemaContract ref = buildReference(
+				"brand", Entities.BRAND, Cardinality.ZERO_OR_ONE,
+				whichIs -> whichIs.bucketedInScope(
+					Scope.LIVE, "myHist", valueExpr, assignedWhenExpr
+				)
+			);
+
+			final HistogramIndexDefinition def =
+				ref.getHistogramIndexDefinition(Scope.LIVE, "myHist");
+			assertNotNull(
+				def, "Histogram definition `myHist` must exist after the 4-arg call"
+			);
+			assertAll(
+				() -> assertNotNull(
+					def.assignedWhen(),
+					"Per-histogram partition selector must propagate into the DTO"
+				),
+				() -> assertEquals(
+					assignedWhenExpr.toExpressionString(),
+					def.assignedWhen().toExpressionString(),
+					"Per-histogram partition selector must be the supplied expression verbatim"
+				),
+				() -> assertNotNull(
+					def.valueExpression(),
+					"Value expression must be retained alongside the per-histogram partition selector"
+				),
+				() -> assertEquals(
+					valueExpr.toExpressionString(),
+					def.valueExpression().toExpressionString(),
+					"Value expression must equal the supplied expression"
+				)
+			);
+		}
+
+		/**
+		 * Verifies that the 3-arg `bucketedInScope(scope, name, valueExpression)`
+		 * default delegate passes `null` for the per-histogram partition selector, leaving
+		 * {@link HistogramIndexDefinition#assignedWhen()} unset. Pins the
+		 * null-passing contract so a future refactor cannot silently start
+		 * synthesising a partition selector for callers that omitted it.
+		 */
+		@Test
+		@DisplayName("should default assignedWhen to null when using 3-arg bucketedInScope")
+		void shouldDefaultAssignedWhenToNullWhenUsingThreeArgBucketedInScope() {
+			final Expression valueExpr = ExpressionFactory.parse(
+				"$reference.attributes['someValue']"
+			);
+
+			final ReferenceSchemaContract ref = buildReference(
+				"brand", Entities.BRAND, Cardinality.ZERO_OR_ONE,
+				whichIs -> whichIs.bucketedInScope(Scope.LIVE, "myHist", valueExpr)
+			);
+
+			final HistogramIndexDefinition def =
+				ref.getHistogramIndexDefinition(Scope.LIVE, "myHist");
+			assertNotNull(
+				def, "Histogram definition `myHist` must exist after the 3-arg call"
+			);
+			assertNull(
+				def.assignedWhen(),
+				"3-arg overload must leave per-histogram condition unset (null)"
+			);
+		}
+
+		/**
+		 * Verifies that the zero-arg `nonBucketed()` default on
+		 * {@link ReferenceSchemaEditor} clears bucketed state across **all**
+		 * `Scope.values()`. Pins the default's fan-out contract: a reference bucketed
+		 * in both LIVE and ARCHIVED must end up non-bucketed in both scopes, the
+		 * histogram definitions map must be empty, and the emitted
+		 * {@link SetReferenceSchemaBucketedMutation} must carry a zero-length
+		 * bucketed array.
+		 */
+		@Test
+		@DisplayName("should clear all scopes when nonBucketed called without arguments")
+		void shouldClearAllScopesWhenNonBucketedCalledWithoutArguments() {
+			final AtomicReference<ReferenceSchemaBuilder> captured = new AtomicReference<>();
+
+			final EntitySchemaContract schema = createEntitySchemaBuilder()
+				.withReferenceToEntity(
+					"brand", Entities.BRAND, Cardinality.ZERO_OR_ONE,
+					builder -> {
+						builder
+							.bucketedInScope(Scope.LIVE, "idx1", null)
+							.bucketedInScope(Scope.ARCHIVED, "idx2", null)
+							.nonBucketed();
+						captured.set((ReferenceSchemaBuilder) builder);
+					}
+				)
+				.toInstance();
+
+			final ReferenceSchemaContract ref = schema.getReference("brand").orElseThrow();
+
+			// locate the last bucketed mutation emitted on the captured builder — when the
+			// reference is created in-place, the bucketed payload is absorbed into the
+			// Create mutation; the empty-bucketed array must survive that combination
+			final Collection<LocalEntitySchemaMutation> mutations = captured.get().toMutation();
+			final CreateReferenceSchemaMutation createMutation = mutations.stream()
+				.filter(CreateReferenceSchemaMutation.class::isInstance)
+				.map(CreateReferenceSchemaMutation.class::cast)
+				.findFirst()
+				.orElseThrow(() -> new AssertionError(
+					"CreateReferenceSchemaMutation should be present in builder mutations"
+				));
+
+			assertAll(
+				() -> assertFalse(
+					ref.isBucketedInScope(Scope.LIVE),
+					"LIVE must be cleared by zero-arg nonBucketed()"
+				),
+				() -> assertFalse(
+					ref.isBucketedInScope(Scope.ARCHIVED),
+					"ARCHIVED must be cleared by zero-arg nonBucketed()"
+				),
+				() -> assertTrue(
+					ref.getAllHistogramIndexDefinitions().isEmpty(),
+					"Histogram definitions map must be empty after zero-arg nonBucketed()"
+				),
+				() -> assertNotNull(
+					createMutation.getBucketedInScopes(),
+					"Bucketed array must be propagated (not null) by the absorbed mutation"
+				),
+				() -> assertEquals(
+					0, createMutation.getBucketedInScopes().length,
+					"Bucketed array must be empty after zero-arg nonBucketed() fans out " +
+						"across Scope.values()"
+				)
+			);
+		}
+	}
+
+	/**
+	 * Test-only helper producing a {@link CreateReferenceSchemaMutation} with empty
+	 * `facetedPartially`, `bucketed` and `bucketedPartially` arrays. The production
+	 * code intentionally no longer exposes an 11-arg constructor so that callers
+	 * rebuilding mutations from an existing schema cannot silently drop the per-scope
+	 * expression fields; tests that don't exercise those fields use this helper to
+	 * preserve readability.
+	 */
+	@Nonnull
+	private static CreateReferenceSchemaMutation createReferenceSchemaMutation(
+		@Nonnull String name,
+		@Nullable String description,
+		@Nullable String deprecationNotice,
+		@Nullable Cardinality cardinality,
+		@Nonnull String referencedEntityType,
+		boolean referencedEntityTypeManaged,
+		@Nullable String referencedGroupType,
+		boolean referencedGroupTypeManaged,
+		@Nullable ScopedReferenceIndexType[] indexedInScopes,
+		@Nullable ScopedReferenceIndexedComponents[] indexedComponentsInScopes,
+		@Nullable Scope[] facetedInScopes
+	) {
+		return new CreateReferenceSchemaMutation(
+			name, description, deprecationNotice, cardinality,
+			referencedEntityType, referencedEntityTypeManaged,
+			referencedGroupType, referencedGroupTypeManaged,
+			indexedInScopes, indexedComponentsInScopes, facetedInScopes,
+			null, null, null
+		);
 	}
 }

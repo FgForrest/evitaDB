@@ -32,8 +32,10 @@ import com.linecorp.armeria.client.grpc.GrpcClientBuilder;
 import com.linecorp.armeria.client.grpc.GrpcClients;
 import com.linecorp.armeria.client.retry.RetryRule;
 import com.linecorp.armeria.client.retry.RetryingClient;
+import com.linecorp.armeria.common.ClosedSessionException;
 import com.linecorp.armeria.common.HttpStatus;
 import com.linecorp.armeria.common.grpc.GrpcSerializationFormats;
+import com.linecorp.armeria.common.stream.ClosedStreamException;
 import com.linecorp.armeria.common.util.EventLoopGroups;
 import com.linecorp.armeria.common.util.TimeoutMode;
 import io.evitadb.api.CatalogState;
@@ -52,6 +54,7 @@ import io.evitadb.api.exception.TransactionException;
 import io.evitadb.api.proxy.ProxyFactory;
 import io.evitadb.api.requestResponse.cdc.ChangeCapturePublisher;
 import io.evitadb.api.requestResponse.cdc.ChangeCaptureRequest;
+import io.evitadb.api.requestResponse.cdc.ChangeCatalogCaptureRequest;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureRequest;
 import io.evitadb.api.requestResponse.data.DevelopmentConstants;
@@ -204,9 +207,11 @@ public class EvitaClient implements EvitaContract {
 	 */
 	private final Map<UUID, EvitaSessionContract> activeSessions = CollectionUtils.createConcurrentHashMap(16);
 	/**
-	 * Index of the opened and active {@link ClientChangeCapturePublisher} indexed by their unique {@link ChangeSystemCaptureRequest}.
+	 * Index of the opened and active {@link ClientChangeCapturePublisher} indexed by their unique
+	 * {@link CapturePublisherKey} — either a {@link CatalogBoundCaptureKey} (for catalog-level captures)
+	 * or a {@link SystemCaptureKey} (for system-level captures).
 	 */
-	protected final Map<ChangeCaptureRequest, ClientChangeCapturePublisher<?, ?, ?>> activePublishers = CollectionUtils.createConcurrentHashMap(
+	final Map<CapturePublisherKey, ClientChangeCapturePublisher<?, ?, ?>> activePublishers = CollectionUtils.createConcurrentHashMap(
 		16);
 	/**
 	 * Executor service used for asynchronous operations.
@@ -267,6 +272,40 @@ public class EvitaClient implements EvitaContract {
 				ex
 			);
 		}
+	}
+
+	/**
+	 * Classifies a throwable as a TRANSPORT-level failure — one where the gRPC connection did not deliver the
+	 * call's outcome, as opposed to a business error the server deliberately returned over a healthy connection.
+	 * A transport failure is any of: a {@link StatusRuntimeException} with status {@link Code#CANCELLED},
+	 * {@link Code#UNAVAILABLE} or {@link Code#DEADLINE_EXCEEDED}, or a cause chain carrying Armeria's
+	 * {@link ClosedSessionException} / {@link ClosedStreamException}. The whole cause chain is inspected because
+	 * the transport signal is frequently wrapped (e.g. a {@link StatusRuntimeException} caused by a
+	 * {@link ClosedSessionException}).
+	 *
+	 * When a session call fails this way the server-side invocation is orphaned and the outcome is indeterminate
+	 * for the client, which is why the caller must treat the session as lost rather than retrying blindly.
+	 *
+	 * @param throwable the throwable to classify (typically unwrapped from an {@link ExecutionException})
+	 * @return true if the failure happened at the transport level
+	 */
+	public static boolean isTransportFailure(@Nonnull Throwable throwable) {
+		Throwable current = throwable;
+		while (current != null) {
+			if (current instanceof final StatusRuntimeException statusRuntimeException) {
+				final Code code = statusRuntimeException.getStatus().getCode();
+				if (code == Code.CANCELLED || code == Code.UNAVAILABLE || code == Code.DEADLINE_EXCEEDED) {
+					return true;
+				}
+			}
+			// ClosedSessionException (a connection-level close) is a final subclass of ClosedStreamException,
+			// so this single check classifies both stream- and session-level Armeria closures as transport failures
+			if (current instanceof ClosedStreamException) {
+				return true;
+			}
+			current = current.getCause();
+		}
+		return false;
 	}
 
 	@Nonnull
@@ -367,8 +406,7 @@ public class EvitaClient implements EvitaContract {
 			workerGroup = EventLoopGroups
 				.builder()
 				.numThreads(Runtime.getRuntime().availableProcessors())
-				/* TOBEDONE - UNCOMMENT THIS WHEN https://github.com/line/armeria/issues/6632 is closed */
-				//.gracefulShutdown(Duration.ofMillis(0), Duration.ofMillis(0))
+				.gracefulShutdown(Duration.ofMillis(0), Duration.ofMillis(0))
 				.build();
 		} else {
 			workerGroup = EventLoopGroups
@@ -377,16 +415,33 @@ public class EvitaClient implements EvitaContract {
 				.build();
 		}
 
+		// The connection idle timeout is a dedicated knob, deliberately decoupled from the per-call timeout:
+		// a short request deadline must not tear down the pooled HTTP/2 connection between calls.
+		final int idleTimeoutMillis = configuration.connection().idleTimeoutMillis();
+		final int pingIntervalMillis = configuration.connection().pingIntervalMillis();
+		// Armeria silently disables the keep-alive ping when the (floored) ping interval is not strictly below
+		// a positive connection idle timeout (see ClientFactoryBuilder ping/idle reconciliation: the ping is
+		// dropped when idle > 0 && ping > 0 && max(ping, 1000) >= idle; 1000 ms is Armeria's minimum ping). An
+		// idle timeout of 0 means "never idle out" and keeps the ping active. Warn loudly so an operator who
+		// configured a ping expecting a watchdog is not left with a silently inert one.
+		if (idleTimeoutMillis > 0 && pingIntervalMillis > 0
+			&& Math.max(pingIntervalMillis, 1000) >= idleTimeoutMillis) {
+			log.warn(
+				"Client keep-alive ping ({} ms) is not below the connection idle timeout ({} ms); Armeria will " +
+					"disable the ping. Lower the ping interval (ClientConnectionOptions.pingIntervalMillis) or " +
+					"raise the connection idle timeout (ClientConnectionOptions.idleTimeoutMillis) to keep the " +
+					"ping active.",
+				pingIntervalMillis, idleTimeoutMillis
+			);
+		}
+		// keepAliveOnPing = true makes acknowledged keep-alive pings count as connection activity, so a healthy
+		// connection is never reaped by the idle timeout — set explicitly rather than riding Armeria's global
+		// Flags.defaultClientKeepAliveOnPing (false by default, and flippable by a system property).
 		ClientFactoryBuilder clientFactoryBuilder = ClientFactory
 			.builder()
 			.workerGroup(workerGroup, true)
-			.idleTimeoutMillis(
-				TimeUnit.MILLISECONDS.convert(
-					clientTimeouts.timeout(),
-					clientTimeouts.timeoutUnit()
-				)
-			)
-			.pingIntervalMillis(1000);
+			.idleTimeoutMillis(idleTimeoutMillis, true)
+			.pingIntervalMillis(pingIntervalMillis);
 
 		final String uriScheme;
 		final ClientTlsOptions tlsOptions = configuration.tls();
@@ -785,6 +840,9 @@ public class EvitaClient implements EvitaContract {
 				if (progress == 100) {
 					this.entitySchemaCache.remove(catalogName);
 					this.entitySchemaCache.remove(newCatalogName);
+					// server has already closed sessions bound to the old catalog name;
+					// drop our stale references so callers do not leak them
+					evictLocalSessionsForCatalog(catalogName);
 				}
 			}
 		);
@@ -800,6 +858,11 @@ public class EvitaClient implements EvitaContract {
 				if (progress == 100) {
 					this.entitySchemaCache.remove(catalogNameToBeReplaced);
 					this.entitySchemaCache.remove(catalogNameToBeReplacedWith);
+					// both names become unusable on the server — the source catalog is gone
+					// (it has been renamed onto the target), and sessions opened against the
+					// replaced catalog have been terminated by the replace operation
+					evictLocalSessionsForCatalog(catalogNameToBeReplaced);
+					evictLocalSessionsForCatalog(catalogNameToBeReplacedWith);
 				}
 			}
 		);
@@ -816,6 +879,9 @@ public class EvitaClient implements EvitaContract {
 					progress -> {
 						if (progress == 100) {
 							this.entitySchemaCache.remove(catalogName);
+							// server has already closed sessions bound to the removed catalog;
+							// drop our stale references so callers do not leak them
+							evictLocalSessionsForCatalog(catalogName);
 						}
 					}
 				)
@@ -870,8 +936,9 @@ public class EvitaClient implements EvitaContract {
 								this.catalogSchemaVersion = grpcResponse.getCatalogSchemaVersion().getValue();
 							}
 
-							// postpone timeout with each message received
-							ClientRequestContext.current().setResponseTimeout(TimeoutMode.EXTEND, streamingTimeout);
+							// restart the response deadline from now so a silent stream unblocks the caller
+							// within `streamingTimeout` of the last event, regardless of how many have arrived
+							ClientRequestContext.current().setResponseTimeout(TimeoutMode.SET_FROM_NOW, streamingTimeout);
 
 							if (progressObserver != null) {
 								progressObserver.accept(grpcResponse.getProgressInPercent());
@@ -969,8 +1036,10 @@ public class EvitaClient implements EvitaContract {
 				new SessionFlags[]{SessionFlags.READ_WRITE} :
 				ArrayUtils.insertRecordIntoArrayOnIndex(SessionFlags.READ_WRITE, flags, flags.length)
 		);
-		try (final EvitaSessionContract session = this.createSession(traits)) {
-			return updater.apply(session);
+		try (final EvitaClientSession session = this.createSession(traits)) {
+			// run the updater within the session's root transaction frame so individual mutations run nested — a
+			// single caught mutation failure doesn't discard the surrounding transaction (1:1 with embedded)
+			return session.execute(updater);
 		}
 	}
 
@@ -990,11 +1059,12 @@ public class EvitaClient implements EvitaContract {
 				new SessionFlags[]{SessionFlags.READ_WRITE} :
 				ArrayUtils.insertRecordIntoArrayOnIndex(SessionFlags.READ_WRITE, flags, flags.length)
 		);
-		final EvitaSessionContract session = this.createSession(traits);
+		final EvitaClientSession session = this.createSession(traits);
 		final CompletionStage<CommitVersions> closeFuture;
 		final T resultValue;
 		try {
-			resultValue = updater.apply(session);
+			// run the updater within the session's root transaction frame (1:1 with embedded — see updateCatalog)
+			resultValue = session.execute(updater);
 		} finally {
 			closeFuture = session.closeNow(commitBehaviour);
 		}
@@ -1024,8 +1094,9 @@ public class EvitaClient implements EvitaContract {
 				new SessionFlags[]{SessionFlags.READ_WRITE} :
 				ArrayUtils.insertRecordIntoArrayOnIndex(SessionFlags.READ_WRITE, flags, flags.length)
 		);
-		try (final EvitaSessionContract session = this.createSession(traits)) {
-			updater.accept(session);
+		try (final EvitaClientSession session = this.createSession(traits)) {
+			// run the updater within the session's root transaction frame (1:1 with embedded — see updateCatalog)
+			session.execute(updater);
 		}
 	}
 
@@ -1045,10 +1116,11 @@ public class EvitaClient implements EvitaContract {
 				new SessionFlags[]{SessionFlags.READ_WRITE} :
 				ArrayUtils.insertRecordIntoArrayOnIndex(SessionFlags.READ_WRITE, flags, flags.length)
 		);
-		final EvitaSessionContract session = this.createSession(traits);
+		final EvitaClientSession session = this.createSession(traits);
 		final CommitProgress commitProgress;
 		try {
-			updater.accept(session);
+			// run the updater within the session's root transaction frame (1:1 with embedded — see updateCatalog)
+			session.execute(updater);
 		} finally {
 			commitProgress = session.closeNowWithProgress();
 		}
@@ -1061,10 +1133,11 @@ public class EvitaClient implements EvitaContract {
 	public ChangeCapturePublisher<ChangeSystemCapture> registerSystemChangeCapture(
 		@Nonnull ChangeSystemCaptureRequest request
 	) {
+		final SystemCaptureKey key = new SystemCaptureKey(request);
 		//noinspection unchecked
 		return (ChangeCapturePublisher<ChangeSystemCapture>) this.activePublishers.compute(
-			request,
-			(theRequest, existingInstance) ->
+			key,
+			(theKey, existingInstance) ->
 				existingInstance == null || existingInstance.isClosed() ?
 					new ClientChangeSystemCaptureProcessor(
 						this.configuration.changeCaptureQueueSize(),
@@ -1073,14 +1146,13 @@ public class EvitaClient implements EvitaContract {
 						subscriber -> executeWithStreamingEvitaService(
 							evitaService -> {
 								evitaService.registerSystemChangeCapture(
-									ChangeCaptureConverter.toGrpcChangeSystemCaptureRequest(
-										(ChangeSystemCaptureRequest) theRequest),
-										subscriber
+									ChangeCaptureConverter.toGrpcChangeSystemCaptureRequest(request),
+									subscriber
 								);
 								return null;
 							}
 							),
-						publisher -> this.activePublishers.remove(theRequest, publisher)
+						publisher -> this.activePublishers.remove(key, publisher)
 					) : existingInstance
 		);
 	}
@@ -1165,6 +1237,26 @@ public class EvitaClient implements EvitaContract {
 	}
 
 	/**
+	 * Force-closes any `EvitaClientSession` bound to `catalogName` without issuing a server
+	 * round-trip. Called after a top-level catalog mutation (delete, rename, replace) initiated
+	 * through *this* client completes on the server — at that point the server has already
+	 * terminated matching sessions via `closeAllActiveSessionsAndSuspend`, so the only work
+	 * left is to evict the now-dead instances from `activeSessions` and flip their
+	 * `isActive()` flag so subsequent calls fail fast.
+	 *
+	 * Only the sessions living in this client instance can be cleaned up this way; sessions
+	 * opened by other `EvitaClient` instances (or the server itself deleting a catalog) stay
+	 * stale until their next failing RPC.
+	 */
+	private void evictLocalSessionsForCatalog(@Nonnull String catalogName) {
+		for (final EvitaSessionContract session : this.activeSessions.values()) {
+			if (catalogName.equals(session.getCatalogName()) && session instanceof EvitaClientSession clientSession) {
+				clientSession.terminateLocally();
+			}
+		}
+	}
+
+	/**
 	 * Method that is called within the {@link EvitaClientSession} to apply the wanted logic on a channel retrieved
 	 * from a channel pool.
 	 *
@@ -1232,6 +1324,38 @@ public class EvitaClient implements EvitaContract {
 				timeout.timeout(), timeout.timeoutUnit()
 			);
 		}
+	}
+
+	/**
+	 * Key type for the {@link #activePublishers} map, ensuring compile-time safety
+	 * while allowing both system-level and catalog-level capture keys.
+	 */
+	sealed interface CapturePublisherKey
+		permits SystemCaptureKey, CatalogBoundCaptureKey {
+	}
+
+	/**
+	 * Key for system-level CDC publishers in the {@link #activePublishers} map.
+	 *
+	 * @param request the original system capture request
+	 */
+	record SystemCaptureKey(
+		@Nonnull ChangeSystemCaptureRequest request
+	) implements CapturePublisherKey {
+	}
+
+	/**
+	 * Key for catalog-level CDC publishers in the {@link #activePublishers} map.
+	 * Binds a {@link ChangeCaptureRequest} to a specific catalog name, preventing
+	 * collisions when two different catalogs issue requests with identical criteria.
+	 *
+	 * @param catalogName the name of the catalog this capture is bound to
+	 * @param request     the original capture request
+	 */
+	record CatalogBoundCaptureKey(
+		@Nonnull String catalogName,
+		@Nonnull ChangeCatalogCaptureRequest request
+	) implements CapturePublisherKey {
 	}
 
 }

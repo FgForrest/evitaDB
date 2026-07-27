@@ -31,6 +31,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import java.time.OffsetDateTime;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -38,6 +39,8 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.CDC;
 
 /**
  * Tests for {@link ChangeSystemCapture} verifying factory method, the `as()` method behavior,
@@ -46,6 +49,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 @DisplayName("ChangeSystemCapture")
+@Tag(CONTRACT)
+@Tag(CDC)
 class ChangeSystemCaptureTest implements EvitaTestSupport {
 
 	private static final OffsetDateTime TIMESTAMP = OffsetDateTime.now();
@@ -58,7 +63,7 @@ class ChangeSystemCaptureTest implements EvitaTestSupport {
 		@DisplayName("should create system capture without body")
 		void shouldCreateSystemCaptureWithoutBody() {
 			final MutationPredicateContext context = createContext(1L);
-			final ChangeSystemCapture capture = ChangeSystemCapture.systemCapture(
+			final ChangeSystemCapture capture = ChangeSystemCapture.engineMutationCapture(
 				context, Operation.UPSERT, null
 			);
 

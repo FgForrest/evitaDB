@@ -27,18 +27,25 @@ import io.evitadb.exception.GenericEvitaInternalError;
 import org.junit.jupiter.api.Test;
 
 import java.util.Optional;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.QueryConstraints.attributeContentAll;
 import static io.evitadb.api.query.QueryConstraints.priceContent;
 import static io.evitadb.api.query.QueryConstraints.priceContentAll;
 import static io.evitadb.api.query.QueryConstraints.priceContentRespectingFilter;
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.REQUIRE;
+import static io.evitadb.test.TestTags.PRICE;
 
 /**
  * This tests verifies basic properties of {@link PriceContent} query.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
+@Tag(CONTRACT)
+@Tag(REQUIRE)
+@Tag(PRICE)
 class PriceContentTest {
 
 	@Test

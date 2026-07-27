@@ -31,7 +31,7 @@
 	<parent>
 		<groupId>io.evitadb</groupId>
 		<artifactId>evita_root</artifactId>
-		<version>2026.1-SNAPSHOT</version>
+		<version>2026.2.RC1-SNAPSHOT</version>
 		<relativePath>../../../pom.xml</relativePath>
 	</parent>
 	<dependencies>
@@ -155,17 +155,22 @@
 	<build>
 		<plugins>
 			<plugin>
+				<!-- Inherits version + execution + configuration from the parent pluginManagement. -->
+				<groupId>io.github.git-commit-id</groupId>
+				<artifactId>git-commit-id-maven-plugin</artifactId>
+			</plugin>
+			<plugin>
+				<!--
+					Implementation-Title / -Version / -Vendor come from the parent's
+					addDefaultImplementationEntries=true; only the build-commit entry is
+					module-specific (paired with the git-commit-id stub above).
+				-->
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-jar-plugin</artifactId>
 				<configuration>
 					<archive>
-						<manifest>
-							<addDefaultImplementationEntries>true</addDefaultImplementationEntries>
-						</manifest>
 						<manifestEntries>
-							<Implementation-Title>${project.name}</Implementation-Title>
-							<Implementation-Version>${project.parent.version}</Implementation-Version>
-							<Implementation-Vendor>${project.organization.name}</Implementation-Vendor>
+							<Implementation-Build-Commit>${git.commit.id.abbrev}</Implementation-Build-Commit>
 						</manifestEntries>
 					</archive>
 				</configuration>

@@ -28,12 +28,34 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.1 checkout sources
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1 checkout sources
       with:
         persist-credentials: false
 
+    - name: Detect RoaringBitmap module changes   # colocated vendor test suite - skip it unless
+      id: roaring-filter                          # this push actually touches that module or the
+      env:                                         # root pom.xml (build/toolchain changes)
+        GH_TOKEN: ${{ github.token }}
+        REPO: ${{ github.repository }}
+        BEFORE_SHA: ${{ github.event.before }}
+        AFTER_SHA: ${{ github.event.after }}
+      run: |
+        if [ -z "$BEFORE_SHA" ] || [ "$BEFORE_SHA" = "0000000000000000000000000000000000000000" ]; then
+          echo "No previous commit to diff against (new branch) - running RoaringBitmap tests to be safe."
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+        elif files=$(gh api "repos/$REPO/compare/$BEFORE_SHA...$AFTER_SHA" --jq '.files[].filename' 2>&1); then
+          if echo "$files" | grep -qE '^(evita_roaring_bitmap/|pom\.xml$)'; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          fi
+        else
+          echo "Could not compute diff (compare API failed) - running RoaringBitmap tests to be safe: $files"
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+        fi
+
     - name: Setup Java JDK
-      uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5.2.0  # setup JDK 17 for building
+      uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5.6.0  # setup JDK 17 for building
       with:
          distribution: 'temurin'
          java-version: '17'
@@ -44,31 +66,46 @@ jobs:
          gpg-private-key: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
          gpg-passphrase: MAVEN_GPG_PASSPHRASE
 
-    - name: Build with Maven       # run Maven with tests
+    - name: Print runner memory info   # ground truth for surefire -Xmx sizing; GitHub's documented runner
+      run: |                           # specs are per-VM totals, not necessarily what this job can safely use
+        echo "--- nproc ---"; nproc
+        echo "--- free -h ---"; free -h
+        echo "--- /proc/meminfo ---"; cat /proc/meminfo
+        echo "--- cgroup v2 memory.max ---"; cat /sys/fs/cgroup/memory.max 2>/dev/null || echo "n/a"
+        echo "--- cgroup v1 memory.limit_in_bytes ---"; cat /sys/fs/cgroup/memory/memory.limit_in_bytes 2>/dev/null || echo "n/a"
+        echo "--- ulimit -a ---"; ulimit -a
+
+    - name: Build with Maven       # run Maven with tests; `full` activates the jacoco aggregator module
+      # surefire.useUnlimitedThreads/threadCount cap test-thread fan-out to this runner's actual
+      # core count (nproc, printed by the step above) - unbounded fan-out on a 4-core runner can
+      # balloon off-heap memory (Netty/gRPC buffers per concurrently-alive embedded test instance)
+      # well past -Xmx and get the whole job OS-killed; see the surefire-plugin comment in pom.xml
       run: |
-        mvn -T 1C -B package -P unitAndFunctional jacoco:report-aggregate -V --fail-at-end -Dmaven.test.skip=false --file pom.xml
+        mvn -T 1C -B package -P unitAndFunctional,full jacoco:report-aggregate -V --fail-at-end -Dmaven.test.skip=false -Dsurefire.useUnlimitedThreads=false -Dsurefire.threadCount=4 -DroaringBitmap.skipTests=${{ steps.roaring-filter.outputs.changed == 'true' && 'false' || 'true' }} --file pom.xml
         jacoco/jacoco-summary.sh jacoco/target/site/jacoco-aggregate/jacoco.csv
 
     - name: Upload test results    # upload XML with unit test results for debugging
-      uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
       if: success() || failure()
       with:
         name: test-results
         path: 'evita*/**/target/surefire-reports/TEST-*.xml'
+        retention-days: 14
 
     - name: Publish Test Report
       uses: ./.github/actions/publish-test-report
       if: success() || failure()
 
     - name: Upload evitaDB server artifact   # upload `evita-server.jar` for `docker-canary.yml` to deploy to DockerHub
-      uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
       if: success()
       with:
         name: evita-server.jar
         path: 'evita_server/target/evita-server.jar'
+        retention-days: 14
 
     - name: Upload coverage to Codecov    # upload code coverage from Jacoco to codecov
-      uses: codecov/codecov-action@671740ac38dd9b0130fbe1cec585b89eea48d3de # v5.5.2
+      uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
 
@@ -76,9 +113,13 @@ jobs:
     - name: Update dependency graph
       uses: advanced-security/maven-dependency-submission-action@b275d12641ac2d2108b2cbb7598b154ad2f2cee8 # v5.0.0
 
-    - name: Deploy with Maven       # deploy SNAPSHOTS to Maven repository
+    - name: Deploy with Maven       # deploy SNAPSHOTS to Maven repository (`full` includes the all-in-one driver)
+      # `evita_long_running_tests` is excluded from the reactor: it depends on the `test-jar` of
+      # `evita_functional_tests`, which is not produced under `-Dmaven.test.skip=true` (test compilation
+      # is skipped), so it would fail dependency resolution and abort the whole `deployAtEnd` upload.
+      # It is a non-published leaf test module, so dropping it from the deploy reactor is safe.
       run: |
-        mvn -T 1C -B javadoc:jar source:jar deploy -DdeployAtEnd=true -Dmaven.test.skip=true --file pom.xml
+        mvn -T 1C -B -P full javadoc:jar source:jar deploy -DdeployAtEnd=true -Dmaven.test.skip=true -pl '!:evita_long_running_tests' --file pom.xml
       continue-on-error: true
       env:
         MAVEN_USERNAME: ${{ secrets.MAVEN_USERNAME }}

@@ -23,18 +23,10 @@
 
 package io.evitadb.api.requestResponse.schema.model;
 
-import io.evitadb.api.requestResponse.data.annotation.Attribute;
-import io.evitadb.api.requestResponse.data.annotation.AttributeRef;
-import io.evitadb.api.requestResponse.data.annotation.Entity;
-import io.evitadb.api.requestResponse.data.annotation.PrimaryKey;
-import io.evitadb.api.requestResponse.data.annotation.Reference;
-import io.evitadb.api.requestResponse.data.annotation.ReferencedEntity;
-import io.evitadb.api.requestResponse.data.annotation.ReferencedEntityGroup;
-import io.evitadb.api.requestResponse.data.annotation.ReflectedReference;
+import io.evitadb.api.requestResponse.data.annotation.*;
 import io.evitadb.api.requestResponse.data.annotation.ReflectedReference.InheritableBoolean;
-import io.evitadb.api.requestResponse.data.annotation.ScopeReferenceSettings;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract.AttributeInheritanceBehavior;
-import io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import io.evitadb.dataType.Scope;
 
 /**

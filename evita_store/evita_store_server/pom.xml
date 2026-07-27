@@ -31,7 +31,7 @@
 	<parent>
 		<groupId>io.evitadb</groupId>
 		<artifactId>evita_store</artifactId>
-		<version>2026.1-SNAPSHOT</version>
+		<version>2026.2.RC1-SNAPSHOT</version>
 	</parent>
 
 	<dependencies>
@@ -51,9 +51,9 @@
 			<version>${project.parent.version}</version>
 		</dependency>
 		<dependency>
-			<groupId>org.roaringbitmap</groupId>
-			<artifactId>RoaringBitmap</artifactId>
-			<version>${roaringbitmap.version}</version>
+			<groupId>${project.parent.groupId}</groupId>
+			<artifactId>evita_roaring_bitmap</artifactId>
+			<version>${project.parent.version}</version>
 		</dependency>
 		<dependency>
 			<groupId>com.esotericsoftware</groupId>

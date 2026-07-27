@@ -30,19 +30,25 @@ import org.openjdk.jmh.annotations.Level;
 import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
-import org.roaringbitmap.RoaringBitmap;
-import org.roaringbitmap.RoaringBitmapWriter;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
+import io.evitadb.roaringbitmap.RoaringBitmapWriter;
 
 import java.util.Random;
 
 /**
- * No extra information provided - see (selfexplanatory) method signatures.
- * I have the best intention to write more detailed documentation but if you see this, there was not enough time or will to do so.
+ * JMH benchmark state providing two pre-generated {@link RoaringBitmapBackedBitmap} instances
+ * for bitmap set-operation benchmarks ({@link io.evitadb.spike.FormulaCostMeasurement}).
+ *
+ * Each bitmap contains {@link #VALUE_COUNT} random integers drawn from [0, 2×VALUE_COUNT),
+ * yielding ~50% overlap between the two bitmaps on average. Both bitmaps are run-optimized
+ * for realistic PersistentRoaringBitmap performance characteristics. A fixed seed (42) ensures
+ * deterministic, reproducible datasets across runs.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @State(Scope.Benchmark)
 public class IntegerBitmapState {
+	/** Number of random values inserted into each bitmap. */
 	private static final int VALUE_COUNT = 100_000;
 	private static final Random random = new Random(42);
 
@@ -50,7 +56,7 @@ public class IntegerBitmapState {
 	@Getter private RoaringBitmapBackedBitmap bitmapB;
 
 	/**
-	 * This setup is called once for each `valueCount`.
+	 * Generates two independent bitmaps with {@link #VALUE_COUNT} random entries each.
 	 */
 	@Setup(Level.Trial)
 	public void setUp() {
@@ -59,12 +65,12 @@ public class IntegerBitmapState {
 	}
 
 	private RoaringBitmapBackedBitmap generateBitmap(int valueCount) {
-		final RoaringBitmapWriter<RoaringBitmap> set = RoaringBitmapWriter.writer().constantMemory().runCompress(false).get();
+		final RoaringBitmapWriter<PersistentRoaringBitmap> set = RoaringBitmapWriter.writer().constantMemory().runCompress(false).get();
 		for (int i = 0; i < valueCount; i++) {
 			set.add(getRandomNumber());
 		}
 
-		final RoaringBitmap roaringBitmap = set.get();
+		final PersistentRoaringBitmap roaringBitmap = set.get();
 		roaringBitmap.runOptimize();
 		return new BaseBitmap(roaringBitmap);
 	}

@@ -33,6 +33,7 @@ import io.evitadb.core.query.extraResult.translator.histogram.cache.CacheableHis
 import io.evitadb.core.query.extraResult.translator.histogram.cache.CacheableHistogramContract.CacheableBucket;
 import io.evitadb.core.query.extraResult.translator.histogram.cache.FlattenedHistogramComputer;
 
+import java.io.Serializable;
 import java.math.BigDecimal;
 
 /**
@@ -50,6 +51,14 @@ public class FlattenedHistogramComputerSerializer extends AbstractFlattenedFormu
 
 		final CacheableHistogramContract histogram = object.compute();
 		kryo.writeObject(output, histogram.getMax());
+		// raw native-typed min/max — written via writeClassAndObject so the attribute's original numeric
+		// type (Byte/Short/Integer/Long/BigDecimal) is preserved on the round-trip; null-tolerant because
+		// non-attribute histograms (e.g. price histograms) do not supply raw bounds
+		kryo.writeClassAndObject(output, histogram.getRawMin());
+		kryo.writeClassAndObject(output, histogram.getRawMax());
+		// distinct-entity count stored explicitly — for range (overlap) histograms it differs from the
+		// bucket-occurrence sum, so it must survive the round-trip rather than being recomputed
+		output.writeVarInt(histogram.getOverallCount(), true);
 		final CacheableBucket[] buckets = histogram.getBuckets();
 		output.writeVarInt(buckets.length, true);
 		for (CacheableBucket bucket : buckets) {
@@ -65,6 +74,9 @@ public class FlattenedHistogramComputerSerializer extends AbstractFlattenedFormu
 		final long transactionalIdHash = input.readLong();
 		final long[] bitmapIds = readBitmapIds(input);
 		final BigDecimal max = kryo.readObject(input, BigDecimal.class);
+		final Serializable rawMin = (Serializable) kryo.readClassAndObject(input);
+		final Serializable rawMax = (Serializable) kryo.readClassAndObject(input);
+		final int overallCount = input.readVarInt(true);
 		final int bucketCount = input.readVarInt(true);
 		final CacheableBucket[] buckets = new CacheableBucket[bucketCount];
 		for(int i = 0; i < bucketCount; i++) {
@@ -76,7 +88,7 @@ public class FlattenedHistogramComputerSerializer extends AbstractFlattenedFormu
 
 		return new FlattenedHistogramComputer(
 			originalHash, transactionalIdHash, bitmapIds,
-			new CacheableHistogram(buckets, max)
+			new CacheableHistogram(buckets, max, rawMin, rawMax, overallCount)
 		);
 	}
 

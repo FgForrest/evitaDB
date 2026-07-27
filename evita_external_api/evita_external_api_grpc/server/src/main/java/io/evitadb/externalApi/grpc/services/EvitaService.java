@@ -32,6 +32,7 @@ import io.evitadb.api.EvitaContract;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.SessionTraits;
 import io.evitadb.api.SessionTraits.SessionFlags;
+import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureCriteria;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureRequest;
 import io.evitadb.api.requestResponse.mutation.EngineMutation;
 import io.evitadb.api.requestResponse.progress.Progress;
@@ -51,6 +52,7 @@ import io.evitadb.externalApi.grpc.GrpcProvider;
 import io.evitadb.externalApi.grpc.constants.GrpcHeaders;
 import io.evitadb.externalApi.grpc.generated.*;
 import io.evitadb.externalApi.grpc.generated.GrpcGetCatalogStateResponse.Builder;
+import io.evitadb.externalApi.grpc.requestResponse.cdc.ChangeCaptureConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.DelegatingEngineMutationConverter;
 import io.evitadb.externalApi.grpc.services.interceptors.GlobalExceptionHandlerInterceptor;
 import io.evitadb.externalApi.grpc.services.interceptors.ServerSessionInterceptor;
@@ -70,7 +72,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Flow.Subscription;
 import java.util.function.IntConsumer;
 
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toCaptureContent;
@@ -104,12 +105,17 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 	 */
 	@Nullable
 	private static SessionFlags[] getSessionFlags(GrpcSessionType sessionType, boolean rollbackTransactions) {
-		final List<SessionFlags> flags = new ArrayList<>(3);
+		final List<SessionFlags> flags = new ArrayList<>(4);
 		if (rollbackTransactions) {
 			flags.add(SessionFlags.DRY_RUN);
 		}
 		if (sessionType == GrpcSessionType.READ_WRITE || sessionType == GrpcSessionType.BINARY_READ_WRITE) {
 			flags.add(SessionFlags.READ_WRITE);
+			// the transaction of a remote read-write session is driven by the client: an individual mutation that
+			// fails must not poison the whole transaction (the savepoint reverts just that entity). The client decides
+			// at close time whether to commit the surviving mutations or discard the transaction — see the `rollback`
+			// flag honored by the close handler. This makes remote sessions behave 1:1 with embedded ones.
+			flags.add(SessionFlags.TRANSACTION_CONTROLLED_EXTERNALLY);
 		}
 		if (sessionType == GrpcSessionType.BINARY_READ_ONLY || sessionType == GrpcSessionType.BINARY_READ_WRITE) {
 			flags.add(SessionFlags.BINARY);
@@ -610,40 +616,45 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 		GrpcRegisterSystemChangeCaptureRequest request,
 		StreamObserver<GrpcRegisterSystemChangeCaptureResponse> responseObserver
 	) {
-		final CompletableFuture<Subscription> subscriptionFuture = new CompletableFuture<>();
-		((ServerCallStreamObserver<GrpcRegisterSystemChangeCaptureResponse>)responseObserver).setOnCancelHandler(
-			// cancel handler runs on the event loop thread — must not block
-			() -> subscriptionFuture.whenComplete((subscription, ex) -> {
-				if (subscription != null) {
-					subscription.cancel();
-				}
-			})
-		);
-
+		final ServerCallStreamObserver<GrpcRegisterSystemChangeCaptureResponse> serverCallObserver =
+			(ServerCallStreamObserver<GrpcRegisterSystemChangeCaptureResponse>) responseObserver;
 		final ServiceRequestContext serviceRequestContext = ServiceRequestContext.current();
+
+		// Construct the subscriber synchronously on the service-method thread so the transport
+		// lifecycle handlers can bind directly to it — gRPC's ServerCallStreamObserverImpl
+		// rejects setOnCancelHandler/setOnCloseHandler if called after the service method
+		// returns (which is what happens on the worker thread that executeWithClientContext
+		// dispatches to).
+		final ChangeSystemCaptureSubscriber subscriber = new ChangeSystemCaptureSubscriber(
+			this.evita.getServiceExecutor(),
+			serverCallObserver,
+			() -> this.evita.getEngineState().version(),
+			serviceRequestContext
+		);
+		serverCallObserver.setOnCancelHandler(subscriber::onTransportTerminated);
+		serverCallObserver.setOnCloseHandler(subscriber::onTransportTerminated);
+
+		final ChangeSystemCaptureCriteria[] criteria;
+		if (request.getCriteriaCount() == 0) {
+			criteria = null;
+		} else {
+			final int count = request.getCriteriaCount();
+			criteria = new ChangeSystemCaptureCriteria[count];
+			for (int i = 0; i < count; i++) {
+				criteria[i] = ChangeCaptureConverter.toChangeSystemCaptureCriteria(
+					request.getCriteria(i)
+				);
+			}
+		}
 		executeWithClientContext(
-			() -> {
-				try {
-					this.evita.registerSystemChangeCapture(
-						new ChangeSystemCaptureRequest(
-							request.hasSinceVersion() ? request.getSinceVersion().getValue() : null,
-							request.hasSinceIndex() ? request.getSinceIndex().getValue() : null,
-							toCaptureContent(request.getContent())
-						)
-					).subscribe(
-						new ChangeSystemCaptureSubscriber(
-							this.evita.getServiceExecutor(),
-							responseObserver,
-							subscriptionFuture,
-							() -> this.evita.getEngineState().version(),
-							serviceRequestContext
-						)
-					);
-				} catch (RuntimeException e) {
-					subscriptionFuture.completeExceptionally(e);
-					throw e;
-				}
-			},
+			() -> this.evita.registerSystemChangeCapture(
+				new ChangeSystemCaptureRequest(
+					request.hasSinceVersion() ? request.getSinceVersion().getValue() : null,
+					request.hasSinceIndex() ? request.getSinceIndex().getValue() : null,
+					criteria,
+					toCaptureContent(request.getContent())
+				)
+			).subscribe(subscriber),
 			this.evita.getRequestExecutor(),
 			responseObserver,
 			this.context

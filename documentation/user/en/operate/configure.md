@@ -29,7 +29,7 @@ server:                                           # [see Server configuration](#
     threadPriority: 5
     queueSize: 100
   queryTimeoutInMilliseconds: 5s
-  transactionTimeoutInMilliseconds: 5M
+  transactionTimeoutInMilliseconds: 5m
   closeSessionsAfterSecondsOfInactivity: 60
   readOnly: false
   quiet: false
@@ -55,6 +55,8 @@ storage:                                          # [see Storage configuration](
   minimalActiveRecordShare: 0.5
   fileSizeCompactionThresholdBytes: 100MB
   timeTravelEnabled: false
+  minCompactionIntervalMilliseconds: 1m
+  maxWasteActiveShare: 0.1
 
 export:                                           # [see Export configuration](#export-configuration)
   fileSystem:
@@ -80,8 +82,9 @@ transaction:                                      # [see Transaction configurati
   walFileSizeBytes: 16MB
   walFileCountKept: 8
   waitForTransactionAcceptanceInMillis: 20s
-  flushFrequencyInMillis: 1s
-  conflictPolicy: [ENTITY]
+  flushFrequencyInMillis: 10s
+  checkpointIntervalInMillis: 1s
+  conflictPolicy: ENTITY
 
 cache:                                            # [see Cache configuration](#cache-configuration)
   enabled: false
@@ -182,6 +185,7 @@ api:                                              # [see API configuration](#api
         endpoint: null
         protocol: grpc
       allowedEvents: null
+      exportedQueryLabels: null
       mTLS:
         enabled: null
         allowedClientCertificatePaths: null
@@ -592,9 +596,23 @@ This section contains configuration options for the storage layer of the databas
         <p>**Default:** `true`</p>
         <p>It determines whether CRC32C checksums are calculated for written records in a key/value store, and also whether 
         the CRC32C checksum is checked when a record is read.</p>
+        <p>This setting also selects **how the write-ahead log survives a crash**, which makes switching it off far more
+        expensive than the checksum computation it saves. A crash can leave a record with a *hole* - bytes missing in its
+        middle while later bytes reached the device - and surviving that requires either detecting the hole or
+        guaranteeing it cannot occur:</p>
+        <ul>
+            <li>**`true`** - the WAL's cumulative CRC32C chain detects the hole and recovery truncates to the last intact
+                transaction. The log can therefore be written at **one device sync per batch of transactions**, which is
+                what allows commit throughput to scale with the number of concurrent writers.</li>
+            <li>**`false`** - nothing can tell a hole from valid data, because the file length is unchanged and the record
+                still parses, so the damage would be replayed as genuine history. The WAL is therefore opened with
+                `DSYNC`, which syncs **every individual write** and so guarantees a crash can only ever leave a clean
+                prefix. This is correct, but costs roughly one device sync per write instead of per batch.</li>
+        </ul>
         <Note type="warning">
-            It is strongly recommended that this setting be set to `true`, as it will report potentially corrupt records as 
-            early as possible.
+            It is strongly recommended that this setting be set to `true`. Besides reporting potentially corrupt records as
+            early as possible, it is what allows the write-ahead log to batch its device syncs - so turning it off costs
+            considerably more write throughput than the checksum computation itself ever did.
         </Note>
     </dd>
     <dt>compress</dt>
@@ -625,6 +643,28 @@ This section contains configuration options for the storage layer of the databas
         as there is history available in the WAL log. This allows a snapshot of the database to be taken at any point
         in the history covered by the WAL log. From the snapshot, the database can be restored to the exact point in
         time with all the data available at that time.</p>
+    </dd>
+    <dt>minCompactionIntervalMilliseconds</dt>
+    <dd>
+        <p>**Default:** `1m` (60000 ms)</p>
+        <p>Minimal wall-clock time that must elapse since a data file's last compaction before it may be compacted
+            again merely for being below `minimalActiveRecordShare`. Compacting a data file more often than this
+            makes no practical sense - the I/O cost of a full-file rewrite dwarfs any savings. A file is compacted
+            no earlier than this interval **unless** its active-record share drops below `maxWasteActiveShare`, in
+            which case it is compacted immediately regardless of the interval. A value of `0` disables the gate
+            entirely, meaning compaction happens as soon as the file is worth compacting
+            (`minimalActiveRecordShare` and `fileSizeCompactionThresholdBytes` alone decide, matching pre-2026.2
+            behavior). Only takes effect when `maxWasteActiveShare` is set below `minimalActiveRecordShare` -
+            otherwise the interval has an empty window to defer within and is effectively a no-op.</p>
+    </dd>
+    <dt>maxWasteActiveShare</dt>
+    <dd>
+        <p>**Default:** `0.1` (90% waste)</p>
+        <p>Active-record share below which compaction is forced immediately, regardless of
+            `minCompactionIntervalMilliseconds`. This is the "emergency" waste ceiling - it must be set lower than
+            `minimalActiveRecordShare` for `minCompactionIntervalMilliseconds` to have any effect. The default of
+            `0.1` keeps the 1-minute interval above meaningfully active out of the box, instead of the override
+            always subsuming it.</p>
     </dd>
 </dl>
 
@@ -774,29 +814,50 @@ This section contains configuration options for the storage layer of the databas
     </dd>
     <dt>flushFrequencyInMillis</dt>
     <dd>
-        <p>**Default:** `1s`</p>
+        <p>**Default:** `10s`</p>
         <p>The frequency of flushing the transactional data to the disk when they are sequentially processed.
             If database process the (small) transaction very quickly, it may decide to process next transaction before
             flushing changes to the disk. If the client waits for `WAIT_FOR_CHANGES_VISIBLE` he may wait entire
             `flushFrequencyInMillis` milliseconds before he gets the response.</p>
     </dd>
+    <dt>checkpointIntervalInMillis</dt>
+    <dd>
+        <p>**Default:** `1s`</p>
+        <p>How often the data files are made durable (fsync) and the bootstrap record pointing at them is written.
+            Transaction processing always writes its bytes out, but between checkpoints they only reach the operating
+            system page cache - the device flush is what this interval bounds. Set to `0` to checkpoint at the end of
+            every transaction processing round.</p>
+        <p>This is deliberately a different cadence from `flushFrequencyInMillis`: that one bounds when changes become
+            **visible**, this one bounds when they become **durable on the data files**. Durability of an acknowledged
+            commit does not depend on it - the write-ahead log is the source of truth for that, and anything written
+            after the last checkpoint is replayed from the WAL on restart. What the interval trades is WAL retention
+            and restart replay time (both bounded by the interval) for write throughput.</p>
+        <p>The gain is largest on lightly loaded systems. A checkpoint costs a fixed number of device flushes
+            regardless of how many transactions it covers, so when few transactions are in flight that cost is divided
+            among few of them: measured at roughly 57% of a processing round with two concurrent writers, and
+            negligible with sixty-four. Raising the interval mostly helps the former case; the latter is already
+            dominated by other work.</p>
+        <p>The setting has no effect when `storage.syncWrites` is `false`, since there is then no device flush to
+            defer in the first place.</p>
+    </dd>
     <dt>conflictPolicy</dt>
     <dd>
-        <p>**Default:** `[ENTITY]`</p>
-        <p>Set of conflict policies that will be used to resolve conflicts with other parallel sessions during
-            the transaction commit. The conflict policy controls the granularity at which write conflicts are detected
-            and serialized. The finer the scope, the more mutations can be processed concurrently without blocking;
-            the coarser the scope, the fewer conflicts are possible, but at the cost of lower concurrency.
-            See [Conflict Policies](#conflict-policies) section for detailed description of available policies.</p>
-        <p>You can specify multiple policies as an array. An empty array means "last writer wins" - no conflict
-            detection is performed. Examples:</p>
+        <p>**Default:** `{ policy: ENTITY }`</p>
+        <p>The engine-wide default conflict resolution used to resolve conflicts with other parallel sessions during
+            the transaction commit. It controls the granularity at which write conflicts are detected and serialized:
+            the finer the scope, the more mutations can be processed concurrently without blocking; the coarser the
+            scope, the fewer conflicts are possible, but at the cost of lower concurrency. The engine default can be
+            overridden per catalog, per entity type and per schema item (attribute / associated data / reference) — see
+            the [conflict resolution deep-dive](../deep-dive/transactions.md#1-conflict-resolution) for the full model.
+            See the [Conflict Policies](#conflict-policies) section for a description of the available policies.</p>
+        <p>The value is an object with a mandatory coarse `policy` (`NONE` / `CATALOG` / `COLLECTION` / `ENTITY`) and an
+            optional `granularity` list refining the `ENTITY` scope. A bare scalar is accepted as shorthand for a
+            coarse-only policy. Examples:</p>
         <ul>
-            <li>`[ENTITY]` - default, conflicts detected at entity level</li>
-            <li>`[ENTITY_ATTRIBUTE, REFERENCE_ATTRIBUTE]` - fine-grained conflicts for attributes only, mutations of 
-                 other data generate no conflicts (last writer wins)</li>
-            <li>`[ENTITY, ENTITY_ATTRIBUTE, REFERENCE_ATTRIBUTE]` - fine-grained conflicts for attributes only, 
-                 mutations of other data generate conflicts on entire entity level</li>
-            <li>`[]` - no conflict detection (last writer wins)</li>
+            <li>`{ policy: ENTITY }` (or simply `ENTITY`) - default, conflicts detected at entity level</li>
+            <li>`{ policy: ENTITY, granularity: [ENTITY_ATTRIBUTE, REFERENCE_ATTRIBUTE] }` - entity-level conflicts,
+                 refined so writes to different attributes of the same entity do not conflict</li>
+            <li>`{ policy: NONE }` (or simply `NONE`) - no conflict detection (last writer wins)</li>
         </ul>
     </dd>
 </dl>
@@ -1172,7 +1233,7 @@ This allows you to set common settings for all endpoints in one place.
     <dt>mTls.enabled</dt>
     <dd>
         <p>**Default:** `false`</p>
-        <p>It enables / disables [mutual authentication](tls.md#mutual-tls-for-http) for a particular API.</p>
+        <p>It enables / disables [mutual authentication](tls.md#mutual-tls) for a particular API.</p>
     </dd>
     <dt>mTls.allowedClientCertificatePaths</dt>
     <dd>
@@ -1446,6 +1507,16 @@ pro scraping Prometheus metrics, OTEL trace exporter and Java Flight Recorder ev
         <p>**Default:** `grpc`</p>
         <p>Specifies the protocol used between the application and the OTEL collector to pass the traces. Possible 
         values are `grpc` and `http`. gRPC is much more performant and is the preferred option.</p>
+    </dd>
+    <dt>exportedQueryLabels</dt>
+    <dd>
+        <p>**Default:** `null` (nothing exported)</p>
+        <p>List of [query label](../query/header/label.md) names whose value is exposed as a Prometheus dimension on
+        query metrics. The names are arbitrary and operator-chosen - evitaDB reserves none - and each is exposed under
+        its Prometheus-sanitized form. Unlike most other configuration lists in evitaDB, an unset or empty list means
+        *nothing* is exported, not everything - see the [label cardinality safety notes](../query/header/label.md#label-cardinality-and-prometheus-export)
+        for why this default is inverted. Inherently high-cardinality labels (`trace-id`, `client-id`, `ip-address`,
+        `uri`) are reserved and rejected at startup.</p>
     </dd>
     <dt>mTls.enabled</dt>
     <dd>

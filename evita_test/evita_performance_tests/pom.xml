@@ -30,7 +30,7 @@
 	<parent>
 		<groupId>io.evitadb</groupId>
 		<artifactId>evita_root</artifactId>
-		<version>2026.1-SNAPSHOT</version>
+		<version>2026.2.RC1-SNAPSHOT</version>
 		<relativePath>../../pom.xml</relativePath>
 	</parent>
 
@@ -39,6 +39,10 @@
 		<jmh.version>1.37</jmh.version>
 		<javac.target>1.17</javac.target>
 		<uberjar.name>benchmarks</uberjar.name>
+		<!-- Test module: not published to Maven Central. -->
+		<maven.install.skip>true</maven.install.skip>
+		<maven.deploy.skip>true</maven.deploy.skip>
+		<skipNexusStagingDeployMojo>true</skipNexusStagingDeployMojo>
 	</properties>
 
 	<dependencies>
@@ -53,6 +57,16 @@
 			<version>${jmh.version}</version>
 			<scope>provided</scope>
 		</dependency>
+		<!--
+			Benchmarks compare evitaDB's vendored bitmap against upstream RoaringBitmap variants
+			(FastRankRoaringBitmap, buffer.MutableRoaringBitmap) that are intentionally NOT vendored
+			into evita_roaring_bitmap, so this module keeps the original upstream dependency.
+		-->
+		<dependency>
+			<groupId>org.roaringbitmap</groupId>
+			<artifactId>RoaringBitmap</artifactId>
+			<version>${roaringbitmap.version}</version>
+		</dependency>
 		<dependency>
 			<groupId>${project.groupId}</groupId>
 			<artifactId>evita_api</artifactId>
@@ -66,6 +80,11 @@
 		<dependency>
 			<groupId>${project.groupId}</groupId>
 			<artifactId>evita_engine</artifactId>
+			<version>${project.parent.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>${project.groupId}</groupId>
+			<artifactId>evita_traffic_engine</artifactId>
 			<version>${project.parent.version}</version>
 		</dependency>
 		<dependency>
@@ -114,9 +133,24 @@
 			<version>${project.parent.version}</version>
 		</dependency>
 		<dependency>
+			<groupId>${project.groupId}</groupId>
+			<artifactId>evita_export_fs</artifactId>
+			<version>${project.parent.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>${project.groupId}</groupId>
+			<artifactId>evita_export_s3</artifactId>
+			<version>${project.parent.version}</version>
+		</dependency>
+		<dependency>
 			<groupId>org.mockito</groupId>
 			<artifactId>mockito-junit-jupiter</artifactId>
 			<version>${mockito.junit.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>org.openjdk.jol</groupId>
+			<artifactId>jol-core</artifactId>
+			<version>0.17</version>
 		</dependency>
 	</dependencies>
 
@@ -127,7 +161,17 @@
 				<artifactId>maven-compiler-plugin</artifactId>
 				<version>${maven.compiler.version}</version>
 				<configuration>
+					<!--
+						Declaring annotationProcessorPaths here REPLACES the parent's list wholesale, and any processor
+						present only on the regular classpath is then ignored - so Lombok has to be repeated alongside
+						the JMH generator. Dropping it silently removes every @Getter-generated accessor in this module.
+					-->
 					<annotationProcessorPaths>
+						<annotationProcessorPath>
+							<groupId>org.projectlombok</groupId>
+							<artifactId>lombok</artifactId>
+							<version>${lombok.version}</version>
+						</annotationProcessorPath>
 						<annotationProcessorPath>
 							<groupId>org.openjdk.jmh</groupId>
 							<artifactId>jmh-generator-annprocess</artifactId>
@@ -150,6 +194,20 @@
 							<transformers>
 								<transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
 									<mainClass>io.evitadb.performance.ArtificialTestRunner</mainClass>
+									<manifestEntries>
+										<!--
+											Byte Buddy generates classes reflectively at runtime and needs these packages
+											opened on JDK 17+; without them every benchmark that boots an Evita instance
+											dies during state setup with "Cannot define class using reflection", which JMH
+											then reports as a finished run with no score rather than as a failure.
+											Mirrors the surefire argLine in the root pom. This covers the launching process
+											only: it applies to `java -jar` (not `-cp`), and JMH starts its forked
+											benchmark JVM with `-cp`, so a benchmark that boots Evita must ALSO declare
+											the same flags in its own `@Fork(jvmArgsAppend = ...)` - see
+											CommitThroughputBenchmark for the worked example.
+										-->
+										<Add-Opens>java.base/java.lang java.base/java.lang.invoke java.base/java.math java.base/java.util</Add-Opens>
+									</manifestEntries>
 								</transformer>
 								<transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer" />
 							</transformers>

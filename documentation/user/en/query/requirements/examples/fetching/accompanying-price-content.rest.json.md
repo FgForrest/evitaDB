@@ -25,17 +25,6 @@
           "validity" : null
         },
         {
-          "priceId" : 613,
-          "priceList" : "reference",
-          "currency" : "EUR",
-          "innerRecordId" : null,
-          "indexed" : false,
-          "priceWithoutTax" : "305.24",
-          "priceWithTax" : "369.34",
-          "taxRate" : "21.0",
-          "validity" : null
-        },
-        {
           "priceId" : 8887,
           "priceList" : "b2b-basic-price",
           "currency" : "EUR",
@@ -56,9 +45,42 @@
           "priceWithTax" : "326.0",
           "taxRate" : "21.0",
           "validity" : null
+        },
+        {
+          "priceId" : 42396,
+          "priceList" : "b2b-reference-price",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "296.0",
+          "priceWithTax" : "358.16",
+          "taxRate" : "21.0",
+          "validity" : null
         }
       ],
       "priceForSale" : {
+        "priceId" : 613,
+        "priceList" : "basic",
+        "currency" : "EUR",
+        "innerRecordId" : null,
+        "indexed" : true,
+        "priceWithoutTax" : "280.99",
+        "priceWithTax" : "340.0",
+        "taxRate" : "21.0",
+        "validity" : null
+      },
+      "priceForSaleMin" : {
+        "priceId" : 613,
+        "priceList" : "basic",
+        "currency" : "EUR",
+        "innerRecordId" : null,
+        "indexed" : true,
+        "priceWithoutTax" : "280.99",
+        "priceWithTax" : "340.0",
+        "taxRate" : "21.0",
+        "validity" : null
+      },
+      "priceForSaleMax" : {
         "priceId" : 613,
         "priceList" : "basic",
         "currency" : "EUR",
@@ -82,13 +104,13 @@
           "validity" : null
         },
         "default" : {
-          "priceId" : 613,
-          "priceList" : "reference",
+          "priceId" : 42396,
+          "priceList" : "b2b-reference-price",
           "currency" : "EUR",
           "innerRecordId" : null,
-          "indexed" : false,
-          "priceWithoutTax" : "305.24",
-          "priceWithTax" : "369.34",
+          "indexed" : true,
+          "priceWithoutTax" : "296.0",
+          "priceWithTax" : "358.16",
           "taxRate" : "21.0",
           "validity" : null
         }

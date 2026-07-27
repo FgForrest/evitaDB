@@ -83,7 +83,7 @@ When this procedure is completed you should see the similar output in the consol
 |  __/\ V /| | || (_| | |_| | |_) |
  \___| \_/ |_|\__\__,_|____/|____/
 
-beta build 2025.8.0 (keep calm and report bugs 😉)
+beta build 2026.1.0 (keep calm and report bugs 😉)
 Visit us at: https://evitadb.io
 
 19:45:37.088 INFO  i.e.s.c.DefaultCatalogPersistenceService - Catalog `evita` is being loaded and  it contains:
@@ -136,13 +136,13 @@ Open your Java IDE and add the following dependency to your project:
 <dependency>
     <groupId>io.evitadb</groupId>
     <artifactId>evita_java_driver</artifactId>
-    <version>2025.8.0</version>
+    <version>2026.1.0</version>
 </dependency>
 ```
 </CodeTabsBlock>
 <CodeTabsBlock>
 ```Gradle
-implementation 'io.evitadb:evita_java_driver:2025.8.0'
+implementation 'io.evitadb:evita_java_driver:2026.1.0'
 ```
 </CodeTabsBlock>
 </CodeTabs>
@@ -157,7 +157,7 @@ instance:
 After that you can create a new session and try any of the evitaQL queries described in
 [the reference documentation](../query/basics.md):
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Query the demo server](/documentation/user/en/get-started/example/query-demo-server.java)
 

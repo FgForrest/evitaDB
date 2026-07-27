@@ -27,6 +27,7 @@ import io.evitadb.core.cache.payload.FlattenedFormula;
 import io.evitadb.core.cache.payload.FlattenedFormulaWithFilteredPrices;
 import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.AbstractCacheableFormula;
+import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.CacheableFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.price.CacheablePriceFormula;
@@ -50,8 +51,8 @@ import io.evitadb.index.price.model.priceRecord.PriceRecord;
 import io.evitadb.index.price.model.priceRecord.PriceRecordContract;
 import io.evitadb.utils.Assert;
 import net.openhft.hashing.LongHashFunction;
-import org.roaringbitmap.RoaringBitmap;
-import org.roaringbitmap.RoaringBitmapWriter;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
+import io.evitadb.roaringbitmap.RoaringBitmapWriter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -70,6 +71,9 @@ import java.util.function.Consumer;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public class PriceIdToEntityIdTranslateFormula extends AbstractCacheableFormula implements FilteredPriceRecordAccessor, CacheablePriceFormula, Formula {
+	/**
+	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} for hash computation.
+	 */
 	private static final long CLASS_ID = -8575853054010280485L;
 
 	/**
@@ -121,13 +125,11 @@ public class PriceIdToEntityIdTranslateFormula extends AbstractCacheableFormula 
 
 	@Override
 	public FlattenedFormula toSerializableFormula(long formulaHash, @Nonnull LongHashFunction hashFunction) {
+		final long[] sortedDistinctIds = sortAndDeduplicateLongArray(gatherTransactionalIds());
 		return new FlattenedFormulaWithFilteredPrices(
 			formulaHash,
 			getTransactionalIdHash(),
-			Arrays.stream(gatherTransactionalIds())
-				.distinct()
-				.sorted()
-				.toArray(),
+			sortedDistinctIds,
 			compute(),
 			getFilteredPriceRecords(this.executionContext),
 			getPriceEvaluationContext()
@@ -140,12 +142,12 @@ public class PriceIdToEntityIdTranslateFormula extends AbstractCacheableFormula 
 			getDelegate(), PriceIdContainerFormula.class, LookUp.SHALLOW
 		);
 
-		return new PriceEvaluationContext(
-			null,
-			priceIdFormulas.stream()
-				.map(it -> it.getPriceIndex().getPriceIndexKey())
-				.toArray(PriceIndexKey[]::new)
-		);
+		final PriceIndexKey[] keys = new PriceIndexKey[priceIdFormulas.size()];
+		int idx = 0;
+		for (PriceIdContainerFormula formula : priceIdFormulas) {
+			keys[idx++] = formula.getPriceIndex().getPriceIndexKey();
+		}
+		return new PriceEvaluationContext(null, keys);
 	}
 
 	@Override
@@ -194,20 +196,22 @@ public class PriceIdToEntityIdTranslateFormula extends AbstractCacheableFormula 
 				getDelegate(), PriceIdContainerFormula.class, LookUp.SHALLOW
 			);
 			// create new roaring bitmap builder
-			final RoaringBitmapWriter<RoaringBitmap> entityIdWriter = RoaringBitmapBackedBitmap.buildWriter();
+			final RoaringBitmapWriter<PersistentRoaringBitmap> entityIdWriter = RoaringBitmapBackedBitmap.buildWriter();
 			final CompositeObjectArray<PriceRecordContract> theFilteredPriceRecords = new CompositeObjectArray<>(PriceRecordContract.class, false);
 
 			// iterate through prices
 			for (PriceIdContainerFormula priceIdFormula : priceIdFormulas) {
 				// collect array of price records that were used in the input formula (only some of them will be in current input)
-				final PriceListAndCurrencyPriceIndex<?, ?> priceIndex = priceIdFormula.getPriceIndex();
-				final RoaringBitmapWriter<RoaringBitmap> notFound = RoaringBitmapBackedBitmap.buildWriter();
-				final PriceRecordContract[] foundPrices = priceIndex.getPriceRecords(
+				final PriceListAndCurrencyPriceIndex<?> priceIndex = priceIdFormula.getPriceIndex();
+				final RoaringBitmapWriter<PersistentRoaringBitmap> notFound = RoaringBitmapBackedBitmap.buildWriter();
+				priceIndex.forEachPriceRecord(
 					priceIdBitmap,
-					priceRecordContract -> entityIdWriter.add(priceRecordContract.entityPrimaryKey()),
+					priceRecordContract -> {
+						entityIdWriter.add(priceRecordContract.entityPrimaryKey());
+						theFilteredPriceRecords.add(priceRecordContract);
+					},
 					notFound::add
 				);
-				theFilteredPriceRecords.addAll(foundPrices, 0, foundPrices.length);
 
 				// otherwise, initialize new iterator from the leftovers
 				priceIdBitmap = new BaseBitmap(notFound.get());
@@ -239,7 +243,11 @@ public class PriceIdToEntityIdTranslateFormula extends AbstractCacheableFormula 
 
 	@Override
 	public int getEstimatedCardinality() {
-		return Arrays.stream(this.innerFormulas).mapToInt(Formula::getEstimatedCardinality).sum();
+		int sum = 0;
+		for (final Formula innerFormula : this.innerFormulas) {
+			sum += innerFormula.getEstimatedCardinality();
+		}
+		return sum;
 	}
 
 	@Override

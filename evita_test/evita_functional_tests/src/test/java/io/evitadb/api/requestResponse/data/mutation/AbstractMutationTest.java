@@ -34,10 +34,12 @@ import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
-import io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexType;
 import io.evitadb.dataType.Scope;
+import io.evitadb.utils.NamingConvention;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 
 import javax.annotation.Nonnull;
 import java.util.Collection;
@@ -45,18 +47,24 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.Map;
 import java.util.Optional;
+import org.junit.jupiter.api.Tag;
 
 import static java.util.Optional.ofNullable;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.QUERY;
 
 /**
  * Base mutation class that contains initalized schemas for testing.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
+@Tag(CONTRACT)
+@Tag(QUERY)
 public abstract class AbstractMutationTest {
 	protected final EntitySchema productSchema = EntitySchema._internalBuild(
 		1, "PRODUCT",
 		null, null,
+		null,
 		true,
 		false, Scope.NO_SCOPE,
 		true, new Scope[] { Scope.LIVE }, 0,
@@ -79,25 +87,35 @@ public abstract class AbstractMutationTest {
 			"category",
 			ReferenceSchema._internalBuild(
 				"category",
+				NamingConvention.generate("category"),
 				null,
 				null,
-				"category",
-				false,
 				Cardinality.ZERO_OR_MORE,
-				null, false,
-				new ScopedReferenceIndexType[] {
-					new ScopedReferenceIndexType(Scope.DEFAULT_SCOPE, ReferenceIndexType.FOR_FILTERING)
-				},
-				new Scope[] {Scope.LIVE},
+				"category",
+				NamingConvention.generate("category"),
+				false,
+				null,
+				Collections.emptyMap(),
+				false,
+				Map.of(Scope.DEFAULT_SCOPE, ReferenceIndexType.FOR_FILTERING),
+				ReferenceSchema.defaultIndexedComponents(
+					Map.of(Scope.DEFAULT_SCOPE, ReferenceIndexType.FOR_FILTERING)
+				),
+				EnumSet.of(Scope.LIVE),
+				Collections.emptyMap(),
+				Collections.emptyMap(),
+				Collections.emptyMap(),
 				Map.of(
 					"categoryPriority",
 					AttributeSchema._internalBuild(
 						"categoryPriority",
 						Long.class,
-						false
+						false,
+						ConflictResolutionOverride.INHERITED
 					)
 				),
-				Map.of()
+				Map.of(),
+				ConflictResolutionOverride.INHERITED
 			)
 		),
 		EnumSet.allOf(EvolutionMode.class),
@@ -110,6 +128,7 @@ public abstract class AbstractMutationTest {
 		CatalogSchema._internalBuild(
 			APITestConstants.TEST_CATALOG,
 			Collections.emptyMap(),
+			null,
 			EnumSet.allOf(CatalogEvolutionMode.class),
 			new EntitySchemaProvider() {
 				@Nonnull

@@ -31,14 +31,20 @@ import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.utils.NamingConvention;
 
 import java.util.EnumSet;
+import org.junit.jupiter.api.Tag;
+
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.QUERY;
 
 /**
  * Abstract builder test parent class.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
+@Tag(CONTRACT)
+@Tag(QUERY)
 public abstract class AbstractBuilderTest {
-	protected static final CatalogSchema CATALOG_SCHEMA = CatalogSchema._internalBuild(APITestConstants.TEST_CATALOG, NamingConvention.generate(APITestConstants.TEST_CATALOG), EnumSet.allOf(CatalogEvolutionMode.class), EmptyEntitySchemaAccessor.INSTANCE);
+	protected static final CatalogSchema CATALOG_SCHEMA = CatalogSchema._internalBuild(APITestConstants.TEST_CATALOG, NamingConvention.generate(APITestConstants.TEST_CATALOG), null, EnumSet.allOf(CatalogEvolutionMode.class), EmptyEntitySchemaAccessor.INSTANCE);
 	protected static final EntitySchema PRODUCT_SCHEMA = EntitySchema._internalBuild("product");
 
 }

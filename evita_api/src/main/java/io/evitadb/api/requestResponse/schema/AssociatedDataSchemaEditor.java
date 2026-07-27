@@ -23,6 +23,7 @@
 
 package io.evitadb.api.requestResponse.schema;
 
+
 import javax.annotation.Nonnull;
 import java.util.function.BooleanSupplier;
 
@@ -33,7 +34,8 @@ import java.util.function.BooleanSupplier;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public interface AssociatedDataSchemaEditor extends
-	AssociatedDataSchemaContract, NamedSchemaWithDeprecationEditor<AssociatedDataSchemaEditor> {
+	AssociatedDataSchemaContract, NamedSchemaWithDeprecationEditor<AssociatedDataSchemaEditor>,
+	ConflictResolutionOverrideAwareSchemaEditor<AssociatedDataSchemaEditor> {
 
 	/**
 	 * Localized associated data has to be ALWAYS used in connection with specific {@link java.util.Locale}. In other

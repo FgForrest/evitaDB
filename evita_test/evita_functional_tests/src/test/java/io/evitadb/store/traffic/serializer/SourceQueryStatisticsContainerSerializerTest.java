@@ -29,12 +29,20 @@ import org.junit.jupiter.api.Test;
 
 import java.time.OffsetDateTime;
 import java.util.UUID;
+import org.junit.jupiter.api.Tag;
+
+import static io.evitadb.test.TestTags.STORAGE;
+import static io.evitadb.test.TestTags.TRAFFIC_ENGINE;
+import static io.evitadb.test.TestTags.SERIALIZATION;
 
 /**
  * This test verifies the correctness of the {@link SourceQueryStatisticsContainerSerializer} class.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
+@Tag(STORAGE)
+@Tag(TRAFFIC_ENGINE)
+@Tag(SERIALIZATION)
 class SourceQueryStatisticsContainerSerializerTest extends AbstractContainerSerializerTest {
 
 	@Test

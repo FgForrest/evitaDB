@@ -35,8 +35,8 @@ import java.util.Arrays;
 import java.util.regex.Pattern;
 
 /**
- * {@link Enum} wrapper for parsing enums from EvitaQL string because during parsing such enum there is no way to know to
- * which enum the value belongs to so the actual value is wrapped and resolved to actual enum later.
+ * {@link Enum} wrapper for parsing enums from EvitaQL string because during parsing such enum there is no way
+ * to know to which enum the value belongs to so the actual value is wrapped and resolved to actual enum later.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2021
  */
@@ -47,20 +47,24 @@ public class EnumWrapper implements Serializable, Comparable<EnumWrapper> {
 	/**
 	 * Supported format of inner value.
 	 */
-	private static final Pattern VALUE_FORMAT = Pattern.compile("[A-Z]+(_[A-Z]+)*");
+	private static final Pattern VALUE_FORMAT = Pattern.compile("[A-Z][A-Z0-9]*(_[A-Z0-9]+)*");
 
 	@Getter
 	private final String value;
 
-	private EnumWrapper(String value) {
+	private EnumWrapper(@Nonnull String value) {
 		this.value = value;
 	}
 
 	/**
 	 * Converts string value into enum wrapper
 	 */
+	@Nonnull
 	public static EnumWrapper fromString(@Nonnull String value) {
-		Assert.isTrue(VALUE_FORMAT.matcher(value).matches(), "Value of enum is in unsupported format. Use only capital letters and underscores.");
+		Assert.isTrue(
+			VALUE_FORMAT.matcher(value).matches(),
+			"Value of enum is in unsupported format. Use only capital letters, digits, and underscores."
+		);
 		return new EnumWrapper(value);
 	}
 
@@ -75,7 +79,9 @@ public class EnumWrapper implements Serializable, Comparable<EnumWrapper> {
 		return Arrays.stream(targetEnum.getEnumConstants())
 			.filter(enumValue -> enumValue.name().equals(this.value))
 			.findFirst()
-			.orElseThrow(() -> new EvitaInvalidUsageException("Unknown value `" + this.value + "` for enum `" + targetEnum.getSimpleName() + "`."));
+			.orElseThrow(() -> new EvitaInvalidUsageException(
+				"Unknown value `" + this.value + "` for enum `" + targetEnum.getSimpleName() + "`."
+			));
 	}
 
 	/**
@@ -87,7 +93,7 @@ public class EnumWrapper implements Serializable, Comparable<EnumWrapper> {
 	}
 
 	@Override
-	public int compareTo(EnumWrapper o) {
+	public int compareTo(@Nonnull EnumWrapper o) {
 		return this.value.compareTo(o.getValue());
 	}
 

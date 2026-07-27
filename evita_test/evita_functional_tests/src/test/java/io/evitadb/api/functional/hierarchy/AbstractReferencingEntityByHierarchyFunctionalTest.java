@@ -56,7 +56,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
-import org.roaringbitmap.RoaringBitmap;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 
 import javax.annotation.Nonnull;
 import java.math.BigDecimal;
@@ -69,6 +69,7 @@ import java.util.function.IntPredicate;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
@@ -81,6 +82,8 @@ import static io.evitadb.utils.AssertionUtils.assertResultIs;
 import static java.util.Optional.ofNullable;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.HIERARCHY;
 
 /**
  * This test verifies whether entities that reference other - hierarchical entity can be filtered by hierarchy constraints.
@@ -88,6 +91,8 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @Slf4j
+@Tag(CONTRACT)
+@Tag(HIERARCHY)
 public abstract class AbstractReferencingEntityByHierarchyFunctionalTest extends AbstractHierarchyTest {
 	private static final String THOUSAND_PRODUCTS = "ThousandProducts";
 	private static final String ATTRIBUTE_MARKET_SHARE = "marketShare";
@@ -2958,7 +2963,7 @@ public abstract class AbstractReferencingEntityByHierarchyFunctionalTest extends
 				.forEach(it -> this.itemCardinality.merge(
 					it, new BaseBitmap(productIds),
 					(pIds, pIds2) -> new BaseBitmap(
-						RoaringBitmap.or(
+						PersistentRoaringBitmap.or(
 							RoaringBitmapBackedBitmap.getRoaringBitmap(pIds),
 							RoaringBitmapBackedBitmap.getRoaringBitmap(pIds2)
 						)

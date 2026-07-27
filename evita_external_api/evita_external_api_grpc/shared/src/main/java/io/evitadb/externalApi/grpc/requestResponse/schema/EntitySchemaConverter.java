@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,24 +24,34 @@
 package io.evitadb.externalApi.grpc.requestResponse.schema;
 
 import com.google.protobuf.StringValue;
+import io.evitadb.api.query.expression.ExpressionFactory;
 import io.evitadb.api.requestResponse.schema.*;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.api.requestResponse.schema.dto.*;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedGlobalAttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedHistogramIndexDefinition;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedBucketedPartially;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedFacetedPartially;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexType;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexedComponents;
 import io.evitadb.dataType.Scope;
+import io.evitadb.dataType.expression.Expression;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
 import io.evitadb.externalApi.grpc.generated.*;
 import io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter;
+import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.reference.SetReferenceSchemaIndexedMutationConverter;
 import io.evitadb.utils.CollectionUtils;
+import io.evitadb.utils.Functions;
 import io.evitadb.utils.NamingConvention;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.util.Arrays;
 import java.util.Collection;
@@ -66,6 +76,7 @@ import static java.util.Optional.ofNullable;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  * @author Jan Novotný, FG Forrest a.s. (c) 2023
  */
+@SuppressWarnings("deprecation")
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class EntitySchemaConverter {
 
@@ -102,8 +113,8 @@ public class EntitySchemaConverter {
 			.setIndexedPricePlaces(entitySchema.getIndexedPricePlaces())
 			.addAllLocales(entitySchema.getLocales().stream().map(EvitaDataTypesConverter::toGrpcLocale).toList())
 			.addAllCurrencies(entitySchema.getCurrencies().stream().map(EvitaDataTypesConverter::toGrpcCurrency).toList())
-			.putAllAttributes(toGrpcAttributeSchemas(entitySchema.getAttributes(), includeNameVariants, attributeName -> false))
-			.putAllSortableAttributeCompounds(toGrpcSortableAttributeCompoundSchemas(entitySchema.getSortableAttributeCompounds(), includeNameVariants, attributeName -> false))
+			.putAllAttributes(toGrpcAttributeSchemas(entitySchema.getAttributes(), includeNameVariants, Functions.alwaysFalse()))
+			.putAllSortableAttributeCompounds(toGrpcSortableAttributeCompoundSchemas(entitySchema.getSortableAttributeCompounds(), includeNameVariants, Functions.alwaysFalse()))
 			.putAllAssociatedData(toGrpcAssociatedDataSchemas(entitySchema.getAssociatedData(), includeNameVariants))
 			.putAllReferences(toGrpcReferenceSchemas(entitySchema.getReferences(), includeNameVariants))
 			.addAllEvolutionMode(entitySchema.getEvolutionMode().stream().map(EvitaEnumConverter::toGrpcEvolutionMode).toList())
@@ -115,6 +126,8 @@ public class EntitySchemaConverter {
 		if (entitySchema.getDeprecationNotice() != null) {
 			builder.setDeprecationNotice(StringValue.newBuilder().setValue(entitySchema.getDeprecationNotice()).build());
 		}
+		entitySchema.getConflictResolution()
+			.ifPresent(cr -> builder.setConflictResolution(ConflictResolutionConverter.toGrpcConflictResolution(cr)));
 
 		if (includeNameVariants) {
 			entitySchema.getNameVariants()
@@ -137,6 +150,7 @@ public class EntitySchemaConverter {
 			NamingConvention.generate(entitySchema.getName()),
 			entitySchema.hasDescription() ? entitySchema.getDescription().getValue() : null,
 			entitySchema.hasDeprecationNotice() ? entitySchema.getDeprecationNotice().getValue() : null,
+			entitySchema.hasConflictResolution() ? ConflictResolutionConverter.toConflictResolution(entitySchema.getConflictResolution()) : null,
 			entitySchema.getWithGeneratedPrimaryKey(),
 			entitySchema.getWithHierarchy(),
 			entitySchema.getHierarchyIndexedInScopesList()
@@ -299,7 +313,8 @@ public class EntitySchemaConverter {
 			.setRepresentative(attributeSchema.isRepresentative())
 			.setType(EvitaDataTypesConverter.toGrpcEvitaDataType(attributeSchema.getType()))
 			.setIndexedDecimalPlaces(attributeSchema.getIndexedDecimalPlaces())
-			.setInherited(inheritedPredicate.test(attributeSchema.getName()));
+			.setInherited(inheritedPredicate.test(attributeSchema.getName()))
+			.setConflictResolutionOverride(EvitaEnumConverter.toGrpcConflictResolutionOverride(attributeSchema.getConflictResolutionOverride()));
 
 		ofNullable(attributeSchema.getDefaultValue())
 			.ifPresent(it -> builder.setDefaultValue(EvitaDataTypesConverter.toGrpcEvitaValue(it)));
@@ -434,7 +449,8 @@ public class EntitySchemaConverter {
 			.setName(associatedDataSchema.getName())
 			.setType(EvitaDataTypesConverter.toGrpcEvitaAssociatedDataDataType(associatedDataSchema.getType()))
 			.setLocalized(associatedDataSchema.isLocalized())
-			.setNullable(associatedDataSchema.isNullable());
+			.setNullable(associatedDataSchema.isNullable())
+			.setConflictResolutionOverride(EvitaEnumConverter.toGrpcConflictResolutionOverride(associatedDataSchema.getConflictResolutionOverride()));
 
 		if (associatedDataSchema.getDescription() != null) {
 			builder.setDescription(StringValue.newBuilder().setValue(associatedDataSchema.getDescription()).build());
@@ -502,9 +518,82 @@ public class EntitySchemaConverter {
 					)
 					.toList()
 			)
+			.addAllScopedIndexedComponents(
+				referenceSchema.getIndexedComponentsInScopes()
+					.entrySet()
+					.stream()
+					.map(
+						it -> GrpcScopedReferenceIndexedComponents.newBuilder()
+							.setScope(toGrpcScope(it.getKey()))
+							.addAllIndexedComponents(
+								it.getValue().stream()
+									.map(EvitaEnumConverter::toGrpcReferenceIndexedComponents)
+									.toList()
+							)
+							.build()
+					)
+					.toList()
+			)
 			.setIndexed(referenceSchema.isIndexed())
 			.addAllFacetedInScopes(Arrays.stream(Scope.values()).filter(referenceSchema::isFacetedInScope).map(EvitaEnumConverter::toGrpcScope).toList())
-			.setFaceted(referenceSchema.isFaceted());
+			.setFaceted(referenceSchema.isFaceted())
+			.setConflictResolutionOverride(EvitaEnumConverter.toGrpcConflictResolutionOverride(referenceSchema.getConflictResolutionOverride()));
+
+		// convert facetedPartially expressions per scope
+		final Map<Scope, Expression> facetedPartiallyInScopes = referenceSchema.getFacetedPartiallyInScopes();
+		if (!facetedPartiallyInScopes.isEmpty()) {
+			for (final Entry<Scope, Expression> entry : facetedPartiallyInScopes.entrySet()) {
+				final GrpcScopedFacetedPartially.Builder fpBuilder = GrpcScopedFacetedPartially.newBuilder()
+					.setScope(EvitaEnumConverter.toGrpcScope(entry.getKey()));
+				if (entry.getValue() != null) {
+					fpBuilder.setExpression(StringValue.of(entry.getValue().toExpressionString()));
+				}
+				builder.addFacetedPartially(fpBuilder);
+			}
+		}
+
+		// convert bucketed histogram definitions per scope
+		final Map<Scope, Map<String, HistogramIndexDefinition>> bucketedInScopes =
+			referenceSchema.getAllHistogramIndexDefinitions();
+		if (!bucketedInScopes.isEmpty()) {
+			for (final Entry<Scope, Map<String, HistogramIndexDefinition>> scopeEntry : bucketedInScopes.entrySet()) {
+				for (final Entry<String, HistogramIndexDefinition> entry : scopeEntry.getValue().entrySet()) {
+					final HistogramIndexDefinition definition = entry.getValue();
+					final GrpcScopedHistogramIndexDefinition.Builder bhBuilder = GrpcScopedHistogramIndexDefinition.newBuilder()
+						.setScope(EvitaEnumConverter.toGrpcScope(scopeEntry.getKey()))
+						.setNameOfTheIndex(definition.nameOfTheIndex());
+					definition.nameVariants().forEach(
+						(namingConvention, nameVariant) ->
+							bhBuilder.addNameVariants(toGrpcNameVariant(namingConvention, nameVariant))
+					);
+					if (definition.valueExpression() != null) {
+						bhBuilder.setValueExpression(
+							StringValue.of(definition.valueExpression().toExpressionString())
+						);
+					}
+					if (definition.assignedWhen() != null) {
+						bhBuilder.setAssignedWhen(
+							StringValue.of(definition.assignedWhen().toExpressionString())
+						);
+					}
+					builder.addBucketed(bhBuilder);
+				}
+			}
+		}
+
+		// convert bucketedPartially expressions per scope
+		final Map<Scope, Expression> bucketedPartiallyInScopes =
+			referenceSchema.getBucketedPartiallyInScopes();
+		if (!bucketedPartiallyInScopes.isEmpty()) {
+			for (final Entry<Scope, Expression> entry : bucketedPartiallyInScopes.entrySet()) {
+				final GrpcScopedBucketedPartially.Builder bpBuilder = GrpcScopedBucketedPartially.newBuilder()
+					.setScope(EvitaEnumConverter.toGrpcScope(entry.getKey()));
+				if (entry.getValue() != null) {
+					bpBuilder.setExpression(StringValue.of(entry.getValue().toExpressionString()));
+				}
+				builder.addBucketedPartially(bpBuilder);
+			}
+		}
 
 		if (referenceSchema.getReferencedGroupType() != null) {
 			builder.setGroupType(StringValue.newBuilder().setValue(referenceSchema.getReferencedGroupType()).build());
@@ -522,6 +611,8 @@ public class EntitySchemaConverter {
 				.setDescriptionInherited(reflectedSchema.isDescriptionInherited())
 				.setDeprecationNoticeInherited(reflectedSchema.isDeprecatedInherited())
 				.setCardinalityInherited(reflectedSchema.isCardinalityInherited())
+				.setIndexedInherited(reflectedSchema.isIndexedInherited())
+				.setIndexedComponentsInherited(reflectedSchema.isIndexedComponentsInherited())
 				.setFacetedInherited(reflectedSchema.isFacetedInherited())
 				.setAttributeInheritanceBehavior(toGrpcAttributeInheritanceBehavior(reflectedSchema.getAttributesInheritanceBehavior()));
 			for (String attributeName : reflectedSchema.getAttributeInheritanceFilter()) {
@@ -530,7 +621,7 @@ public class EntitySchemaConverter {
 			final Set<String> declaredAttributes = reflectedSchema.getDeclaredAttributes().keySet();
 			inheritedPredicate = attributeName -> !declaredAttributes.contains(attributeName);
 		} else {
-			inheritedPredicate = attributeName -> false;
+			inheritedPredicate = Functions.alwaysFalse();
 		}
 
 		builder
@@ -572,38 +663,10 @@ public class EntitySchemaConverter {
 	 */
 	@Nonnull
 	static <T extends AttributeSchemaContract> T toAttributeSchema(@Nonnull GrpcAttributeSchema attributeSchema, @Nonnull Class<T> expectedType) {
-		final ScopedAttributeUniquenessType[] uniqueInScopes = attributeSchema.getUniqueInScopesList().isEmpty() ?
-			new ScopedAttributeUniquenessType[]{
-				new ScopedAttributeUniquenessType(Scope.DEFAULT_SCOPE, toAttributeUniquenessType(attributeSchema.getUnique()))
-			}
-			:
-			attributeSchema.getUniqueInScopesList()
-				.stream()
-				.map(it -> new ScopedAttributeUniquenessType(toScope(it.getScope()), toAttributeUniquenessType(it.getUniquenessType())))
-				.toArray(ScopedAttributeUniquenessType[]::new);
-		final ScopedGlobalAttributeUniquenessType[] uniqueGloballyInScopes = attributeSchema.getUniqueGloballyInScopesList().isEmpty() ?
-			new ScopedGlobalAttributeUniquenessType[]{
-				new ScopedGlobalAttributeUniquenessType(Scope.DEFAULT_SCOPE, toGlobalAttributeUniquenessType(attributeSchema.getUniqueGlobally()))
-			}
-			:
-			attributeSchema.getUniqueGloballyInScopesList()
-				.stream()
-				.map(it -> new ScopedGlobalAttributeUniquenessType(toScope(it.getScope()), toGlobalAttributeUniquenessType(it.getUniquenessType())))
-				.toArray(ScopedGlobalAttributeUniquenessType[]::new);
-		final Scope[] filterableInScopes = attributeSchema.getFilterableInScopesList().isEmpty() ?
-			(attributeSchema.getFilterable() ? Scope.DEFAULT_SCOPES : Scope.NO_SCOPE)
-			:
-			attributeSchema.getFilterableInScopesList()
-				.stream()
-				.map(EvitaEnumConverter::toScope)
-				.toArray(Scope[]::new);
-		final Scope[] sortableInScopes = attributeSchema.getSortableInScopesList().isEmpty() ?
-			(attributeSchema.getSortable() ? Scope.DEFAULT_SCOPES : Scope.NO_SCOPE)
-			:
-			attributeSchema.getSortableInScopesList()
-				.stream()
-				.map(EvitaEnumConverter::toScope)
-				.toArray(Scope[]::new);
+		final ScopedAttributeUniquenessType[] uniqueInScopes = toScopedAttributeUniquenessTypes(attributeSchema.getUniqueInScopesList(), attributeSchema.getUnique());
+		final ScopedGlobalAttributeUniquenessType[] uniqueGloballyInScopes = toScopedGlobalAttributeUniquenessTypes(attributeSchema.getUniqueGloballyInScopesList(), attributeSchema.getUniqueGlobally());
+		final Scope[] filterableInScopes = toBooleanScopes(attributeSchema.getFilterableInScopesList(), attributeSchema.getFilterable());
+		final Scope[] sortableInScopes = toBooleanScopes(attributeSchema.getSortableInScopesList(), attributeSchema.getSortable());
 
 		if (attributeSchema.getSchemaType() == GrpcAttributeSchemaType.GLOBAL_SCHEMA) {
 			if (expectedType.isAssignableFrom(GlobalAttributeSchema.class)) {
@@ -622,7 +685,8 @@ public class EntitySchemaConverter {
 					attributeSchema.getRepresentative(),
 					EvitaDataTypesConverter.toEvitaDataType(attributeSchema.getType()),
 					attributeSchema.hasDefaultValue() ? EvitaDataTypesConverter.toEvitaValue(attributeSchema.getDefaultValue()) : null,
-					attributeSchema.getIndexedDecimalPlaces()
+					attributeSchema.getIndexedDecimalPlaces(),
+					EvitaEnumConverter.toConflictResolutionOverride(attributeSchema.getConflictResolutionOverride())
 				);
 			} else {
 				throw new EvitaInvalidUsageException("Expected global attribute, but `" + attributeSchema.getSchemaType() + "` was provided!");
@@ -643,7 +707,8 @@ public class EntitySchemaConverter {
 					attributeSchema.getRepresentative(),
 					EvitaDataTypesConverter.toEvitaDataType(attributeSchema.getType()),
 					attributeSchema.hasDefaultValue() ? EvitaDataTypesConverter.toEvitaValue(attributeSchema.getDefaultValue()) : null,
-					attributeSchema.getIndexedDecimalPlaces()
+					attributeSchema.getIndexedDecimalPlaces(),
+					EvitaEnumConverter.toConflictResolutionOverride(attributeSchema.getConflictResolutionOverride())
 				);
 			} else {
 				throw new EvitaInvalidUsageException("Expected global attribute, but `" + attributeSchema.getSchemaType() + "` was provided!");
@@ -664,7 +729,8 @@ public class EntitySchemaConverter {
 					attributeSchema.getRepresentative(),
 					EvitaDataTypesConverter.toEvitaDataType(attributeSchema.getType()),
 					attributeSchema.hasDefaultValue() ? EvitaDataTypesConverter.toEvitaValue(attributeSchema.getDefaultValue()) : null,
-					attributeSchema.getIndexedDecimalPlaces()
+					attributeSchema.getIndexedDecimalPlaces(),
+					EvitaEnumConverter.toConflictResolutionOverride(attributeSchema.getConflictResolutionOverride())
 				);
 			} else {
 				throw new EvitaInvalidUsageException("Expected global attribute, but `" + attributeSchema.getSchemaType() + "` was provided!");
@@ -685,7 +751,8 @@ public class EntitySchemaConverter {
 			associatedDataSchema.hasDeprecationNotice() ? associatedDataSchema.getDeprecationNotice().getValue() : null,
 			javaType,
 			associatedDataSchema.getLocalized(),
-			associatedDataSchema.getNullable()
+			associatedDataSchema.getNullable(),
+			EvitaEnumConverter.toConflictResolutionOverride(associatedDataSchema.getConflictResolutionOverride())
 		);
 	}
 
@@ -696,6 +763,8 @@ public class EntitySchemaConverter {
 	private static ReferenceSchemaContract toReferenceSchema(@Nonnull GrpcReferenceSchema referenceSchema) {
 		final Optional<Cardinality> cardinality = toCardinality(referenceSchema.getCardinality());
 		final ScopedReferenceIndexType[] indexedInScopes = getIndexedInScopes(referenceSchema);
+		final ScopedReferenceIndexedComponents[] indexedComponentsInScopes =
+			getIndexedComponentsInScopes(referenceSchema);
 		final Scope[] facetedInScopes = referenceSchema.getFacetedInScopesList().isEmpty() ?
 			(referenceSchema.getFaceted() ? Scope.DEFAULT_SCOPES : Scope.NO_SCOPE)
 			:
@@ -703,6 +772,15 @@ public class EntitySchemaConverter {
 				.stream()
 				.map(EvitaEnumConverter::toScope)
 				.toArray(Scope[]::new);
+		final ScopedFacetedPartially[] facetedPartiallyInScopes = parseFacetedPartially(
+			referenceSchema.getFacetedPartiallyList()
+		);
+		final ScopedHistogramIndexDefinition[] parsedBucketedHistograms = parseBucketedHistogram(
+			referenceSchema.getBucketedList()
+		);
+		final ScopedBucketedPartially[] parsedBucketedPartially = parseBucketedPartially(
+			referenceSchema.getBucketedPartiallyList()
+		);
 
 		if (referenceSchema.hasReflectedReferenceName()) {
 			return ReflectedReferenceSchema._internalBuild(
@@ -719,7 +797,11 @@ public class EntitySchemaConverter {
 				referenceSchema.getReflectedReferenceName().getValue(),
 				cardinality.orElse(Cardinality.ZERO_OR_MORE),
 				indexedInScopes,
+				indexedComponentsInScopes,
 				facetedInScopes,
+				facetedPartiallyInScopes,
+				parsedBucketedHistograms,
+				parsedBucketedPartially,
 				referenceSchema.getAttributesMap()
 					.entrySet()
 					.stream()
@@ -740,6 +822,7 @@ public class EntitySchemaConverter {
 				referenceSchema.getDeprecationNoticeInherited(),
 				referenceSchema.getCardinalityInherited(),
 				referenceSchema.getIndexedInherited(),
+				referenceSchema.getIndexedComponentsInherited(),
 				referenceSchema.getFacetedInherited(),
 				toAttributeInheritanceBehavior(referenceSchema.getAttributeInheritanceBehavior()),
 				referenceSchema.getAttributeInheritanceFilterList().toArray(String[]::new),
@@ -758,7 +841,11 @@ public class EntitySchemaConverter {
 					Map.of(),
 					referenceSchema.getReferencedGroupTypeManaged(),
 					indexedInScopes,
+					indexedComponentsInScopes,
 					facetedInScopes,
+					facetedPartiallyInScopes,
+					parsedBucketedHistograms,
+					parsedBucketedPartially,
 					referenceSchema.getAttributesMap()
 						.entrySet()
 						.stream()
@@ -776,7 +863,8 @@ public class EntitySchemaConverter {
 								Entry::getKey,
 								it -> toSortableAttributeCompoundSchema(it.getValue())
 							)
-						)
+						),
+					ConflictResolutionOverride.INHERITED
 				)
 			);
 		} else {
@@ -797,7 +885,12 @@ public class EntitySchemaConverter {
 					: NamingConvention.generate(referenceSchema.getGroupType().getValue()),
 				referenceSchema.getReferencedGroupTypeManaged(),
 				indexedInScopes,
+				indexedComponentsInScopes,
 				facetedInScopes,
+				facetedPartiallyInScopes,
+				// for non-reflected references, bucketed is never inherited -- coalesce null to EMPTY
+				parsedBucketedHistograms != null ? parsedBucketedHistograms : ScopedHistogramIndexDefinition.EMPTY,
+				parsedBucketedPartially != null ? parsedBucketedPartially : ScopedBucketedPartially.EMPTY,
 				referenceSchema.getAttributesMap()
 					.entrySet()
 					.stream()
@@ -813,7 +906,8 @@ public class EntitySchemaConverter {
 							Entry::getKey,
 							it -> toSortableAttributeCompoundSchema(it.getValue())
 						)
-					)
+					),
+				EvitaEnumConverter.toConflictResolutionOverride(referenceSchema.getConflictResolutionOverride())
 			);
 		}
 	}
@@ -861,6 +955,25 @@ public class EntitySchemaConverter {
 	}
 
 	/**
+	 * Retrieves an array of {@link ScopedReferenceIndexedComponents} objects based on the scoped
+	 * indexed components provided within the given {@link GrpcReferenceSchema}. Returns null if
+	 * no indexed components are defined, allowing defaults to be computed by the schema builder.
+	 *
+	 * @param referenceSchema the {@link GrpcReferenceSchema} from which the scoped indexed
+	 *                        components are extracted. Must not be null.
+	 * @return an array of {@link ScopedReferenceIndexedComponents} objects derived from the
+	 *         provided reference schema, or null if no indexed components are defined.
+	 */
+	@Nullable
+	private static ScopedReferenceIndexedComponents[] getIndexedComponentsInScopes(
+		@Nonnull GrpcReferenceSchema referenceSchema
+	) {
+		return SetReferenceSchemaIndexedMutationConverter.getIndexedComponentsInScopes(
+			referenceSchema.getScopedIndexedComponentsList()
+		);
+	}
+
+	/**
 	 * Creates {@link EntitySortableAttributeCompoundSchema} from the {@link GrpcSortableAttributeCompoundSchema}.
 	 */
 	@Nonnull
@@ -898,6 +1011,97 @@ public class EntitySchemaConverter {
 				.toArray(Scope[]::new),
 			toAttributeElement(sortableAttributeCompound.getAttributeElementsList())
 		);
+	}
+
+	/**
+	 * Parses a list of {@link GrpcScopedFacetedPartially} messages into an array of
+	 * {@link ScopedFacetedPartially}. Returns null if the input list is empty, which allows
+	 * the caller to use null to signify "not set" (e.g. for inherited values).
+	 *
+	 * @param facetedPartiallyList the gRPC list of scoped faceted partially messages
+	 * @return an array of {@link ScopedFacetedPartially}, or null if the input list is empty
+	 */
+	@Nullable
+	public static ScopedFacetedPartially[] parseFacetedPartially(
+		@Nonnull List<GrpcScopedFacetedPartially> facetedPartiallyList
+	) {
+		if (facetedPartiallyList.isEmpty()) {
+			return null;
+		}
+		final ScopedFacetedPartially[] result =
+			new ScopedFacetedPartially[facetedPartiallyList.size()];
+		for (int i = 0; i < facetedPartiallyList.size(); i++) {
+			final GrpcScopedFacetedPartially grpcEntry = facetedPartiallyList.get(i);
+			result[i] = new ScopedFacetedPartially(
+				EvitaEnumConverter.toScope(grpcEntry.getScope()),
+				grpcEntry.hasExpression()
+					? ExpressionFactory.parse(grpcEntry.getExpression().getValue())
+					: null
+			);
+		}
+		return result;
+	}
+
+	/**
+	 * Parses a list of {@link GrpcScopedHistogramIndexDefinition} messages into an array of
+	 * {@link ScopedHistogramIndexDefinition}. Returns null if the input list is empty, which allows
+	 * the caller to use null to signify "not set" (e.g. for inherited values).
+	 *
+	 * @param bucketedHistogramList the gRPC list of scoped bucketed histogram messages
+	 * @return an array of {@link ScopedHistogramIndexDefinition}, or null if the input list is empty
+	 */
+	@Nullable
+	public static ScopedHistogramIndexDefinition[] parseBucketedHistogram(
+		@Nonnull List<GrpcScopedHistogramIndexDefinition> bucketedHistogramList
+	) {
+		if (bucketedHistogramList.isEmpty()) {
+			return null;
+		}
+		final ScopedHistogramIndexDefinition[] result =
+			new ScopedHistogramIndexDefinition[bucketedHistogramList.size()];
+		for (int i = 0; i < bucketedHistogramList.size(); i++) {
+			final GrpcScopedHistogramIndexDefinition grpcEntry = bucketedHistogramList.get(i);
+			result[i] = new ScopedHistogramIndexDefinition(
+				EvitaEnumConverter.toScope(grpcEntry.getScope()),
+				grpcEntry.getNameOfTheIndex(),
+				grpcEntry.hasValueExpression()
+					? ExpressionFactory.parse(grpcEntry.getValueExpression().getValue())
+					: null,
+				grpcEntry.hasAssignedWhen()
+					? ExpressionFactory.parse(grpcEntry.getAssignedWhen().getValue())
+					: null
+			);
+		}
+		return result;
+	}
+
+	/**
+	 * Parses a list of {@link GrpcScopedBucketedPartially} messages into an array of
+	 * {@link ScopedBucketedPartially}. Returns null if the input list is empty, which allows
+	 * the caller to use null to signify "not set" (e.g. for inherited values).
+	 *
+	 * @param bucketedPartiallyList the gRPC list of scoped bucketed partially messages
+	 * @return an array of {@link ScopedBucketedPartially}, or null if the input list is empty
+	 */
+	@Nullable
+	public static ScopedBucketedPartially[] parseBucketedPartially(
+		@Nonnull List<GrpcScopedBucketedPartially> bucketedPartiallyList
+	) {
+		if (bucketedPartiallyList.isEmpty()) {
+			return null;
+		}
+		final ScopedBucketedPartially[] result =
+			new ScopedBucketedPartially[bucketedPartiallyList.size()];
+		for (int i = 0; i < bucketedPartiallyList.size(); i++) {
+			final GrpcScopedBucketedPartially grpcEntry = bucketedPartiallyList.get(i);
+			result[i] = new ScopedBucketedPartially(
+				EvitaEnumConverter.toScope(grpcEntry.getScope()),
+				grpcEntry.hasExpression()
+					? ExpressionFactory.parse(grpcEntry.getExpression().getValue())
+					: null
+			);
+		}
+		return result;
 	}
 
 }

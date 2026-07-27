@@ -48,6 +48,7 @@ import io.evitadb.utils.ArrayUtils;
 
 import javax.annotation.Nonnull;
 import java.io.Serializable;
+import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
@@ -94,7 +95,7 @@ public class AttributeInSetTranslator extends AbstractAttributeTranslator
 					.map(
 						comparedValue -> filterByVisitor.applyOnFirstGlobalUniqueIndex(
 							globalAttributeSchema,
-							index -> index.getEntityReferenceByUniqueValue(comparedValue, attributeKey.locale())
+							index -> index.getEntityReferenceByUniqueValue(comparedValue, attributeKey.locale(), filterByVisitor.getEntityTypeClassifierResolver())
 								.map(it -> (Formula) new MultipleEntityFormula(
 									new long[]{index.getId()},
 									new BaseBitmap(filterByVisitor.translateEntityReference(it))
@@ -195,21 +196,32 @@ public class AttributeInSetTranslator extends AbstractAttributeTranslator
 			final AttributeKey attributeKey = createAttributeKey(filterByVisitor, attributeSchema);
 
 			final Class<? extends Serializable> plainType = attributeSchema.getPlainType();
-			final Function<Object, Serializable> normalizer = FilterIndex.getNormalizer(plainType);
+			// scaled-int normalizer for the filter value tree (NFD strings / instant-folded OffsetDateTime / scaled-int
+			// BigDecimal); the filter index re-normalizes idempotently so the already-scaled probe flows through safely
+			final Function<Object, Serializable> normalizer = FilterIndex.getNormalizer(
+				plainType, attributeSchema.getIndexedDecimalPlaces()
+			);
 
-			final List<? extends Serializable> theComparedValues = Arrays.stream(comparedValues)
+			// the exact (un-scaled) target values feed the unique path, which keeps BigDecimal exact
+			final List<? extends Serializable> targetValues = Arrays.stream(comparedValues)
 				.map(it -> EvitaDataTypes.toTargetType(it, plainType))
+				.toList();
+			final List<? extends Serializable> theComparedValues = targetValues.stream()
 				.map(normalizer)
 				.toList();
+			// uniqueness stays exact BigDecimal: probe the unique index with the exact values for BigDecimal attributes;
+			// for every other type the canonical (NFD/instant) form matches what the unique index stored
+			final List<? extends Serializable> uniqueComparedValues =
+				plainType == BigDecimal.class ? targetValues : theComparedValues;
 
 			if (attributeSchema instanceof GlobalAttributeSchema globalAttributeSchema &&
 				scopes.stream().anyMatch(globalAttributeSchema::isUniqueGloballyInScope)) {
 				return createGloballyUniqueAttributeFormula(
-					filterByVisitor, globalAttributeSchema, attributeKey, theComparedValues
+					filterByVisitor, globalAttributeSchema, attributeKey, uniqueComparedValues
 				);
 			} else if (scopes.stream().anyMatch(attributeSchema::isUniqueInScope)) {
 				return createUniqueAttributeFormula(
-					filterByVisitor, attributeSchema, attributeKey, theComparedValues
+					filterByVisitor, attributeSchema, attributeKey, uniqueComparedValues
 				);
 			} else {
 				return createFilterableAttributeFormula(

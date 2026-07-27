@@ -23,21 +23,17 @@
 
 package io.evitadb.externalApi.graphql.api.catalog.schemaApi;
 
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
+import io.evitadb.api.requestResponse.mutation.conflict.GranularConflictPolicy;
 import io.evitadb.api.requestResponse.schema.Cardinality;
-import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
-import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
-import io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType;
+import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.GlobalAttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.core.Evita;
 import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.api.catalog.model.VersionedDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.AttributeSchemaDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.CatalogSchemaDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.EntitySchemaDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.GlobalAttributeSchemaDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.NamedSchemaDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.NamedSchemaWithDeprecationDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.ReferenceSchemaDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedReferenceIndexTypeDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.*;
 import io.evitadb.externalApi.graphql.GraphQLProvider;
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.DataSet;
@@ -49,6 +45,7 @@ import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import java.util.List;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.externalApi.graphql.api.testSuite.TestDataGenerator.GRAPHQL_THOUSAND_PRODUCTS;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
@@ -56,12 +53,20 @@ import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_CODE;
 import static io.evitadb.utils.ListBuilder.list;
 import static io.evitadb.utils.MapBuilder.map;
 import static org.hamcrest.Matchers.*;
+import static io.evitadb.test.TestTags.GRAPHQL;
+import static io.evitadb.test.TestTags.EXTERNAL_API;
+import static io.evitadb.test.TestTags.QUERY;
+import static io.evitadb.test.TestTags.SCHEMA;
 
 /**
  * Tests for GraphQL updating catalog schema.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
+@Tag(GRAPHQL)
+@Tag(EXTERNAL_API)
+@Tag(QUERY)
+@Tag(SCHEMA)
 public class CatalogGraphQLUpdateCatalogSchemaQueryFunctionalTest extends CatalogGraphQLEvitaSchemaEndpointFunctionalTest {
 
 	private static final String CATALOG_SCHEMA_PATH = "data.getCatalogSchema";
@@ -168,6 +173,62 @@ public class CatalogGraphQLUpdateCatalogSchemaQueryFunctionalTest extends Catalo
 				)
 			);
 
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS_CATALOG_SCHEMA_CHANGE)
+	@DisplayName("Should change conflict resolution of catalog schema")
+	void shouldChangeConflictResolutionOfCatalogSchema(GraphQLTester tester) {
+		final int initialCatalogSchemaVersion = getCatalogSchemaVersion(tester);
+
+		// set a non-default catalog-level conflict resolution with a non-empty granularity refinement
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/schema")
+			.document(
+				"""
+				mutation {
+					updateCatalogSchema (
+						mutations: [
+							{
+								modifyCatalogSchemaConflictResolutionMutation: {
+									conflictResolution: {
+										policy: ENTITY
+										granularity: [REFERENCE_ATTRIBUTE]
+									}
+								}
+							}
+						]
+					) {
+						version
+						conflictResolution {
+							policy
+							granularity
+						}
+					}
+				}
+				"""
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(
+				UPDATE_CATALOG_SCHEMA_PATH,
+				equalTo(
+					map()
+						.e(VersionedDescriptor.VERSION.name(), initialCatalogSchemaVersion + 1)
+						.e(
+							CatalogSchemaDescriptor.CONFLICT_RESOLUTION.name(),
+							map()
+								.e(ConflictResolutionDescriptor.POLICY.name(), ConflictPolicy.ENTITY.name())
+								.e(
+									ConflictResolutionDescriptor.GRANULARITY.name(),
+									List.of(GranularConflictPolicy.REFERENCE_ATTRIBUTE.name())
+								)
+								.build()
+						)
+						.build()
+				)
+			);
 	}
 
 	@Test
@@ -525,6 +586,10 @@ public class CatalogGraphQLUpdateCatalogSchemaQueryFunctionalTest extends Catalo
 									scope
 									indexType
 								}
+								indexedComponents {
+									scope
+									indexedComponents
+								}
 								faceted
 							}
 						}
@@ -571,9 +636,20 @@ public class CatalogGraphQLUpdateCatalogSchemaQueryFunctionalTest extends Catalo
 									ReferenceSchemaDescriptor.INDEXED.name(),
 										list().i(
 											map()
-												.e(ScopedReferenceIndexTypeDescriptor.SCOPE.name(), Scope.LIVE.name())
+												.e(ScopedDataDescriptor.SCOPE.name(), Scope.LIVE.name())
 												.e(ScopedReferenceIndexTypeDescriptor.INDEX_TYPE.name(), ReferenceIndexType.FOR_FILTERING.name())
 										)
+								)
+								.e(
+									ReferenceSchemaDescriptor.INDEXED_COMPONENTS.name(),
+									list().i(
+										map()
+											.e(ScopedDataDescriptor.SCOPE.name(), Scope.LIVE.name())
+											.e(
+												ScopedReferenceIndexedComponentsDescriptor.INDEXED_COMPONENTS.name(),
+												list().i(ReferenceIndexedComponents.REFERENCED_ENTITY.name())
+											)
+									)
 								)
 								.e(ReferenceSchemaDescriptor.FACETED.name(), list().i(Scope.LIVE.name()))
 								.build())
@@ -614,7 +690,7 @@ public class CatalogGraphQLUpdateCatalogSchemaQueryFunctionalTest extends Catalo
 							name
 						}
 					}
-				}	
+				}
 				""",
 				Entities.PRODUCT,
 				NEW_COLLECTION_NAME
@@ -657,7 +733,7 @@ public class CatalogGraphQLUpdateCatalogSchemaQueryFunctionalTest extends Catalo
 							name
 						}
 					}
-				}	
+				}
 				""",
 				NEW_COLLECTION_NAME,
 				Entities.PRODUCT
@@ -679,7 +755,7 @@ public class CatalogGraphQLUpdateCatalogSchemaQueryFunctionalTest extends Catalo
 			);
 	}
 
-	private int getCatalogSchemaVersion(@Nonnull GraphQLTester tester) {
+	private static int getCatalogSchemaVersion(@Nonnull GraphQLTester tester) {
 		return tester.test(TEST_CATALOG)
 			.urlPathSuffix("/schema")
 			.document(
@@ -697,7 +773,9 @@ public class CatalogGraphQLUpdateCatalogSchemaQueryFunctionalTest extends Catalo
 			.get(CATALOG_SCHEMA_PATH + "." + VersionedDescriptor.VERSION.name());
 	}
 
-	private void removeCollection(@Nonnull GraphQLTester tester, @Nonnull String entityType, int expectedCatalogVersion) {
+	private static void removeCollection(
+		@Nonnull GraphQLTester tester, @Nonnull String entityType, int expectedCatalogVersion
+	) {
 		tester.test(TEST_CATALOG)
 			.urlPathSuffix("/schema")
 			.document(
@@ -715,7 +793,7 @@ public class CatalogGraphQLUpdateCatalogSchemaQueryFunctionalTest extends Catalo
                         version
                     }
                 }
-				""",
+                """,
 				entityType
 			)
 			.executeAndThen()

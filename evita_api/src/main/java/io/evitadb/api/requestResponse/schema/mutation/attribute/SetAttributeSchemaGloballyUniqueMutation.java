@@ -33,7 +33,7 @@ import io.evitadb.api.requestResponse.schema.annotation.SerializableCreator;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
-import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.GlobalAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableLocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
@@ -131,7 +131,8 @@ public class SetAttributeSchemaGloballyUniqueMutation
 					globalAttributeSchema.isRepresentative(),
 					(Class) globalAttributeSchema.getType(),
 					globalAttributeSchema.getDefaultValue(),
-					globalAttributeSchema.getIndexedDecimalPlaces()
+					globalAttributeSchema.getIndexedDecimalPlaces(),
+					globalAttributeSchema.getConflictResolutionOverride()
 				);
 			}
 		} else {

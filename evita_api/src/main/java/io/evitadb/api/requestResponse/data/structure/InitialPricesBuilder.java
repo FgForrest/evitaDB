@@ -30,6 +30,7 @@ import io.evitadb.api.exception.UnexpectedResultCountException;
 import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
+import io.evitadb.api.requestResponse.data.PriceRangeForSale;
 import io.evitadb.api.requestResponse.data.PricesEditor.PricesBuilder;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.data.mutation.price.PriceMutation;
@@ -160,6 +161,7 @@ public class InitialPricesBuilder implements PricesBuilder {
 		boolean indexed
 	) {
 		assertPricesAllowed(this.entitySchema, currency);
+		assertInnerRecordIdValid(innerRecordId);
 		final PriceKey priceKey = new PriceKey(priceId, priceList, currency);
 		final Price thePrice = new Price(
 			priceKey, innerRecordId, priceWithoutTax, taxRate, priceWithTax, null, indexed);
@@ -190,6 +192,7 @@ public class InitialPricesBuilder implements PricesBuilder {
 		@Nullable DateTimeRange validity, boolean indexed
 	) {
 		assertPricesAllowed(this.entitySchema, currency);
+		assertInnerRecordIdValid(innerRecordId);
 		final PriceKey priceKey = new PriceKey(priceId, priceList, currency);
 		final Price thePrice = new Price(
 			priceKey, innerRecordId, priceWithoutTax, taxRate, priceWithTax, validity, indexed);
@@ -334,6 +337,18 @@ public class InitialPricesBuilder implements PricesBuilder {
 
 	@Nonnull
 	@Override
+	public Optional<PriceRangeForSale> getPriceRangeForSale() throws ContextMissingException {
+		throw new ContextMissingException();
+	}
+
+	@Nonnull
+	@Override
+	public Optional<PriceRangeForSale> getPriceRangeForSaleIfAvailable() {
+		return empty();
+	}
+
+	@Nonnull
+	@Override
 	public List<PriceContract> getAllPricesForSale() {
 		throw new ContextMissingException();
 	}
@@ -421,6 +436,27 @@ public class InitialPricesBuilder implements PricesBuilder {
 			() -> new InvalidMutationException(
 				"Entity `" + schema.getName() + "` doesn't support currency `" + currency + "`, cannot set price in this currency! " +
 					"You need to update entity schema to allow adding this currency first."
+			)
+		);
+	}
+
+	/**
+	 * Verifies that the supplied {@code innerRecordId} is acceptable for storage. The value `0` is reserved as
+	 * the in-memory sentinel for "no inner record" (see {@link io.evitadb.api.requestResponse.data.PricesContract}
+	 * grouping logic), so accepting an explicit `0` from the caller would silently merge that price into the
+	 * `null` bucket and corrupt {@code priceForSale} / range computations under
+	 * {@link PriceInnerRecordHandling#LOWEST_PRICE} and {@link PriceInnerRecordHandling#SUM}. A `null` value
+	 * means "no inner record" and is the only legal way to express that.
+	 *
+	 * @param innerRecordId optional inner record id to validate
+	 * @throws InvalidMutationException when {@code innerRecordId} equals `0`
+	 */
+	static void assertInnerRecordIdValid(@Nullable Integer innerRecordId) {
+		Assert.isTrue(
+			innerRecordId == null || innerRecordId.intValue() != 0,
+			() -> new InvalidMutationException(
+				"Inner record id `0` is reserved as the sentinel for no-inner-record prices; " +
+					"use `null` instead to signal that the price has no inner record id."
 			)
 		);
 	}

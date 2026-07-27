@@ -34,16 +34,11 @@ import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
 import net.openhft.hashing.LongHashFunction;
-import org.roaringbitmap.RoaringBitmap;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Arrays;
-import java.util.stream.LongStream;
-import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
-
-import static java.util.Optional.ofNullable;
 
 /**
  * This formula has almost identical implementation as {@link AndFormula} but it accepts only set of
@@ -54,6 +49,9 @@ import static java.util.Optional.ofNullable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public class FacetGroupAndFormula extends AbstractFormula implements FacetGroupFormula {
+	/**
+	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} for hash computation.
+	 */
 	private static final long CLASS_ID = 7601098585679511784L;
 	/**
 	 * Contains {@link FacetHaving#getReferenceName()} of the facet that is targeted by this formula.
@@ -106,72 +104,84 @@ public class FacetGroupAndFormula extends AbstractFormula implements FacetGroupF
 
 	@Override
 	public String toString() {
-		final StringBuilder sb = new StringBuilder("FACET " + this.referenceName + " AND (" + ofNullable(this.facetGroupId).map(Object::toString).orElse("-") + " - " + this.facetIds.toString() + "): ");
-		for (int i = 0; i < this.bitmaps.length; i++) {
-			final Bitmap bitmap = this.bitmaps[i];
-			sb.append(" ↦ ").append(bitmap.size());
-			if (i + 1 < this.facetIds.size()) {
-				sb.append(", ");
-			}
-		}
-		return sb.append(" primary keys").toString();
+		return FacetGroupFormula.toStringRepresentation("AND", this.referenceName, this.facetGroupId, this.facetIds, this.bitmaps);
 	}
 
 	@Nonnull
 	@Override
 	public String toStringVerbose() {
-		final StringBuilder sb = new StringBuilder("FACET " + this.referenceName + " AND (" + ofNullable(this.facetGroupId).map(Object::toString).orElse("-") + " - " + this.facetIds.toString() + "): ");
-		for (int i = 0; i < this.bitmaps.length; i++) {
-			final Bitmap bitmap = this.bitmaps[i];
-			sb.append(" ↦ ").append(bitmap.toString());
-			if (i + 1 < this.facetIds.size()) {
-				sb.append(", ");
-			}
-		}
-		return sb.toString();
+		return FacetGroupFormula.toStringVerboseRepresentation("AND", this.referenceName, this.facetGroupId, this.facetIds, this.bitmaps);
 	}
 
 	@Nonnull
 	@Override
 	protected Bitmap computeInternal() {
-		return RoaringBitmapBackedBitmap.and(
-			Arrays.stream(this.bitmaps)
-				.map(RoaringBitmapBackedBitmap::getRoaringBitmap)
-				.toArray(RoaringBitmap[]::new)
-		);
+		final PersistentRoaringBitmap[] roaringBitmaps = new PersistentRoaringBitmap[this.bitmaps.length];
+		for (int i = 0; i < this.bitmaps.length; i++) {
+			roaringBitmaps[i] = RoaringBitmapBackedBitmap.getRoaringBitmap(this.bitmaps[i]);
+		}
+		return RoaringBitmapBackedBitmap.and(roaringBitmaps);
 	}
 
 	@Override
 	protected long getEstimatedBaseCost() {
-		return ofNullable(this.bitmaps)
-			.map(it -> Arrays.stream(it).mapToLong(Bitmap::size).sum())
-			.orElseGet(super::getEstimatedBaseCost);
+		long sum = 0L;
+		for (final Bitmap bitmap : this.bitmaps) {
+			sum += bitmap.size();
+		}
+		// multiply by operation cost: baseCost represents the full work on direct bitmap data
+		// (scanning all elements and applying the AND operation to each). Without this multiplier,
+		// the estimated cost would fall below actual cost because `getEstimatedCardinality()` returns
+		// `min` (output bound), which underestimates the total per-element work of `sum * opCost`.
+		return sum * getOperationCost();
 	}
 
 	@Override
 	public int getEstimatedCardinality() {
-		if (this.bitmaps == null) {
-			return Arrays.stream(this.innerFormulas).mapToInt(Formula::getEstimatedCardinality).min().orElse(0);
-		} else {
-			return Arrays.stream(this.bitmaps).mapToInt(Bitmap::size).min().orElse(0);
+		if (this.bitmaps.length == 0) {
+			return 0;
 		}
+		int min = Integer.MAX_VALUE;
+		for (Bitmap bitmap : this.bitmaps) {
+			final int size = bitmap.size();
+			if (size < min) {
+				min = size;
+			}
+		}
+		return min;
 	}
 
 	@Override
 	protected long includeAdditionalHash(@Nonnull LongHashFunction hashFunction) {
-		return hashFunction.hashLongs(
-			Stream.of(
-					LongStream.of(hashFunction.hashChars(this.referenceName)),
-					this.facetGroupId == null ? LongStream.empty() : LongStream.of(this.facetGroupId),
-					StreamSupport.stream(this.facetIds.spliterator(), false).mapToLong(it -> it),
-					Arrays.stream(this.bitmaps)
-						.filter(TransactionalBitmap.class::isInstance)
-						.mapToLong(it -> ((TransactionalBitmap) it).getId())
-						.sorted()
-				)
-				.flatMapToLong(it -> it)
-				.toArray()
-		);
+		// count transactional bitmaps for pre-sizing
+		int transactionalCount = 0;
+		for (Bitmap bitmap : this.bitmaps) {
+			if (bitmap instanceof TransactionalBitmap) {
+				transactionalCount++;
+			}
+		}
+		// 1 (referenceName hash) + groupId (0 or 1) + facetIds count + transactional bitmap count
+		final int groupIdSize = this.facetGroupId == null ? 0 : 1;
+		final long[] hashes = new long[1 + groupIdSize + this.facetIds.size() + transactionalCount];
+		int idx = 0;
+		hashes[idx++] = hashFunction.hashChars(this.referenceName);
+		if (this.facetGroupId != null) {
+			hashes[idx++] = this.facetGroupId;
+		}
+		for (int facetId : this.facetIds) {
+			hashes[idx++] = facetId;
+		}
+		// collect transactional bitmap ids into a temporary array for sorting
+		final long[] txIds = new long[transactionalCount];
+		int txIdx = 0;
+		for (Bitmap bitmap : this.bitmaps) {
+			if (bitmap instanceof TransactionalBitmap) {
+				txIds[txIdx++] = ((TransactionalBitmap) bitmap).getId();
+			}
+		}
+		Arrays.sort(txIds);
+		System.arraycopy(txIds, 0, hashes, idx, txIds.length);
+		return hashFunction.hashLongs(hashes);
 	}
 
 	@Override
@@ -181,8 +191,10 @@ public class FacetGroupAndFormula extends AbstractFormula implements FacetGroupF
 
 	@Override
 	protected long getCostInternal() {
-		return ofNullable(this.bitmaps)
-			.map(it -> Arrays.stream(it).mapToLong(Bitmap::size).sum())
-			.orElseGet(super::getCostInternal);
+		long sum = 0L;
+		for (final Bitmap bitmap : this.bitmaps) {
+			sum += bitmap.size();
+		}
+		return sum * getOperationCost();
 	}
 }

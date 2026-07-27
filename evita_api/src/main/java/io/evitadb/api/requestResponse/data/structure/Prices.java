@@ -34,6 +34,7 @@ import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.requestResponse.data.ContentComparator;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
+import io.evitadb.api.requestResponse.data.PriceRangeForSale;
 import io.evitadb.api.requestResponse.data.PricesContract;
 import io.evitadb.api.requestResponse.data.Versioned;
 import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
@@ -65,11 +66,11 @@ import static java.util.Optional.ofNullable;
  * Entity prices container allows defining set of prices of the entity.
  * Attributes may be indexed for fast filtering ({@link Price#indexed()}). Prices are not automatically indexed
  * in order not to waste precious memory space for data that will never be used in search queries.
- * <p>
+ *
  * Filtering in prices is executed by using constraints like {@link io.evitadb.api.query.filter.PriceBetween},
  * {@link io.evitadb.api.query.filter.PriceValidIn}, {@link PriceInPriceLists} or
  * {@link QueryPriceMode}.
- * <p>
+ *
  * Class is immutable on purpose - we want to support caching the entities in a shared cache and accessed by many threads.
  * For altering the contents use {@link InitialPricesBuilder}.
  *
@@ -97,7 +98,7 @@ public class Prices implements PricesContract, Versioned, ContentComparator<Pric
 	 * systems and highly affects performance of the entities filtering and sorting, they deserve first class support
 	 * in entity model. It is pretty common in B2B systems single product has assigned dozens of prices for the different
 	 * customers.
-	 * <p>
+	 *
 	 * Specifying prices on entity allows usage of {@link io.evitadb.api.query.filter.PriceValidIn},
 	 * {@link io.evitadb.api.query.filter.PriceBetween}, {@link QueryPriceMode}
 	 * and {@link PriceInPriceLists} filtering constraints and also {@link PriceNatural},
@@ -253,21 +254,57 @@ public class Prices implements PricesContract, Versioned, ContentComparator<Pric
 	@Nonnull
 	@Override
 	public Optional<PriceContract> getPriceForSale() throws ContextMissingException {
-		return this.getPriceForSaleContext()
-			.map(
-				it -> getPriceForSale(
-					it.currency().orElseThrow(ContextMissingException::new),
-					it.atTheMoment().orElse(null),
-					it.priceListPriority().orElseThrow(ContextMissingException::new)
-				)
-			)
+		final PriceForSaleContext context = this.getPriceForSaleContext()
 			.orElseThrow(ContextMissingException::new);
+		return getPriceForSale(
+			context.currency().orElseThrow(ContextMissingException::new),
+			context.atTheMoment().orElse(null),
+			context.priceListPriority().orElseThrow(ContextMissingException::new)
+		);
 	}
 
 	@Nonnull
 	@Override
 	public Optional<PriceContract> getPriceForSaleIfAvailable() {
-		return Optional.empty();
+		return this.getPriceForSaleContext()
+			.flatMap(context -> {
+				final Optional<Currency> currency = context.currency();
+				final Optional<String[]> priceListPriority = context.priceListPriority();
+				if (currency.isEmpty() || priceListPriority.isEmpty()) {
+					return Optional.empty();
+				}
+				return getPriceForSale(
+					currency.get(), context.atTheMoment().orElse(null), priceListPriority.get()
+				);
+			});
+	}
+
+	@Nonnull
+	@Override
+	public Optional<PriceRangeForSale> getPriceRangeForSale() throws ContextMissingException {
+		final PriceForSaleContext context = this.getPriceForSaleContext()
+			.orElseThrow(ContextMissingException::new);
+		return getPriceRangeForSale(
+			context.currency().orElseThrow(ContextMissingException::new),
+			context.atTheMoment().orElse(null),
+			context.priceListPriority().orElseThrow(ContextMissingException::new)
+		);
+	}
+
+	@Nonnull
+	@Override
+	public Optional<PriceRangeForSale> getPriceRangeForSaleIfAvailable() {
+		return this.getPriceForSaleContext()
+			.flatMap(context -> {
+				final Optional<Currency> currency = context.currency();
+				final Optional<String[]> priceListPriority = context.priceListPriority();
+				if (currency.isEmpty() || priceListPriority.isEmpty()) {
+					return Optional.empty();
+				}
+				return getPriceRangeForSale(
+					currency.get(), context.atTheMoment().orElse(null), priceListPriority.get()
+				);
+			});
 	}
 
 	@Nonnull
@@ -330,7 +367,7 @@ public class Prices implements PricesContract, Versioned, ContentComparator<Pric
 		if (this.priceIndex.size() != otherPrices.priceIndex.size()) return true;
 
 		for (Entry<PriceKey, PriceContract> entry : this.priceIndex.entrySet()) {
-			final PriceContract otherPrice = otherPrices.getPrice(entry.getKey()).orElse(null);
+			final PriceContract otherPrice = otherPrices.getPriceWithoutSchemaCheck(entry.getKey()).orElse(null);
 			if (otherPrice == null || entry.getValue().differsFrom(otherPrice)) {
 				return true;
 			}

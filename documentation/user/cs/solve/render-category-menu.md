@@ -5,6 +5,7 @@ date: '4.2.2023'
 author: Ing. Jan Novotný
 proofreading: done
 commit: cef96d8320d36c91c100c5dfc9c45020b5a7ad0d
+translated: 'true'
 ---
 Menu je běžný způsob navigace v katalogu. Často se používá k zobrazení kategorií a podkategorií. Tato kapitola poskytuje příklady, jak vykreslit menu kategorií v typických scénářích. Menu lze vykreslit společně s vypsanými položkami v rámci jednoho požadavku. Neměli byste potřebovat samostatný požadavek na vykreslení menu, pokud jej nepředvyrábíte kvůli cachování (což je dobrá praxe u velkých variant menu, jako je [mega-menu](#mega-menu)). Všechny příklady v této kapitole budou dotazovat kolekci `Product` pro získání příslušného menu kategorií, ale nebudou vypisovat samotné produkty, jak by tomu bylo v reálném scénáři.
 
@@ -18,7 +19,7 @@ Mega menu obvykle zobrazuje dvě až tři úrovně kategorií a podkategorií. �
 
 Následující příklad ukazuje, jak získat všechna data potřebná k vykreslení mega-menu v jednom dotazu:
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Dotaz na data pro dvouúrovňové mega menu](/documentation/user/en/solve/examples/render-category-menu/mega-menu.evitaql)
 
@@ -47,7 +48,7 @@ Což vytvoří následující výsledek:
 Někdy budete chtít zobrazit počet produktů v každé kategorii. 
 Toho lze dosáhnout přidáním požadavku na <LS to="e,j,c,r">[`QUERIED_ENTITY_COUNT` statistiky](../query/requirements/hierarchy.md#statistics)</LS><LS to="g">[`queriedEntityCount` statistiky](../query/requirements/hierarchy.md#statistics)</LS> do dotazu:
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Dotaz na data pro dvouúrovňové mega menu se statistikami produktů](/documentation/user/en/solve/examples/render-category-menu/mega-menu-with-product-statistics.evitaql)
 
@@ -87,7 +88,7 @@ Dalším běžným scénářem je dynamické rozbalovací menu. Je podobné mega
 
 Menu zobrazuje pouze jednu úroveň kategorií s možností otevřít každou z nich na požádání. Pro vykreslení takového menu potřebujete velmi jednoduchý dotaz, ale musí obsahovat požadavek na výpočet <LS to="e,j,c,r">[`CHILDREN_COUNT` statistiky](../query/requirements/hierarchy.md#statistics)</LS><LS to="g">[`childrenCount` statistiky](../query/requirements/hierarchy.md#statistics)</LS>:
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Dotaz na data pro dynamické rozbalovací menu](/documentation/user/en/solve/examples/render-category-menu/dynamic-collapsible-menu.evitaql)
 
@@ -115,7 +116,7 @@ Výsledek bude obsahovat počet podkategorií v každé kategorii, takže může
 
 Když uživatel rozbalí kategorii, můžete provést další dotaz pro získání podkategorií rozbalených kategorií podobným způsobem:
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Dotaz na data pro vnořené kategorie v dynamickém menu](/documentation/user/en/solve/examples/render-category-menu/dynamic-collapsible-menu-sub-category.evitaql)
 
@@ -150,7 +151,7 @@ Je poměrně běžné vypsat několik propagovaných podkategorií aktuální ka
 
 Následující dotaz vám pomůže získat takový seznam pro libovolný z vykreslených výpisů kategorií:
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Dotaz na data pro výpis podkategorií](/documentation/user/en/solve/examples/render-category-menu/sub-categories-listing.evitaql)
 
@@ -184,7 +185,7 @@ Existuje mnoho variant menu, ale zakončeme náš článek příkladem hybridní
 
 Toto menu musí být složeno ze tří vypočítaných výsledků. První, nazvaný `topLevel`, bude obsahovat kategorie kořenové úrovně, druhý, nazvaný `siblings`, bude obsahovat sourozence aktuálně vybrané kategorie a třetí, nazvaný `parents`, bude obsahovat rodiče vybrané kategorie. Kombinací těchto tří výsledků můžete snadno vykreslit hybridní menu:
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Dotaz na data pro hybridní menu](/documentation/user/en/solve/examples/render-category-menu/hybrid-menu.evitaql)
 
@@ -214,7 +215,7 @@ Výsledek budou kategorie kořenové úrovně a sourozenci aktuálně vybrané k
 
 Někdy jste si možná všimli, že určitá část regálů v nákupních centrech je za oponou – protože se připravuje nová prodejní plocha se specializovanou nabídkou. Podobně se v katalozích často připravují nové sekce, ke kterým mají přístup pouze lidé, kteří na nich pracují. V našem demo datasetu máme atribut s názvem `status`, který může mít hodnotu `ACTIVE` nebo `PRIVATE`. Hodnota `ACTIVE` znamená, že kategorie ještě není připravena pro veřejnost a proto by neměla být v menu viditelná a přístupná. Toho lze dosáhnout tak, že produkty vypíšete a menu vykreslíte pro návštěvníky pomocí následujícího dotazu:
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Dotaz na data pro menu bez soukromých kategorií](/documentation/user/en/solve/examples/render-category-menu/excluding-private-categories.evitaql)
 
@@ -222,7 +223,7 @@ Někdy jste si možná všimli, že určitá část regálů v nákupních centr
 
 Dočasné nabídky lze řešit podobně elegantně. Představme si, že chceme v kategorii *Příslušenství* předem připravit *"Vánoční elektroniku"*, která zahrnuje LED světla na stromeček, pyrotechniku apod. Pokud v entitě kategorie vytvoříme atribut typu `DateTimeRange` s názvem `validity` a nastavíme jeho hodnotu pouze na období Vánoc (jak jsme to udělali v našem demo datasetu), můžeme pak definovat následující dotaz:
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Dotaz na data pro menu bez kategorií s prošlou platností](/documentation/user/en/solve/examples/render-category-menu/excluding-expired-categories.evitaql)
 
@@ -230,7 +231,7 @@ Dočasné nabídky lze řešit podobně elegantně. Představme si, že chceme v
 
 Tedy: vypiš mi všechny produkty v kategorii `accessories`, za předpokladu, že jsou v kategorii bez definované platnosti nebo mají definovaný rozsah platnosti, který zahrnuje aktuální okamžik. Všimněte si, že ve výsledku není kategorie *"Vánoční elektronika"*, protože v tuto chvíli není platná. Pokud však dotaz trochu upravíme a posuneme čas do období Vánoc, tuto kategorii ve výsledku získáme:
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Dotaz na data pro menu v období Vánoc](/documentation/user/en/solve/examples/render-category-menu/excluding-expired-categories-at-correct-time.evitaql)
 

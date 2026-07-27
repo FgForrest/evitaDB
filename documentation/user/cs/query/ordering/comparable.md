@@ -6,6 +6,7 @@ author: Ing. Jan Novotný
 proofreading: needed
 preferredLang: evitaql
 commit: cabcf999e7be5b00e0b13e1228a76a8d9e91cb78
+translated: true
 ---
 ## Atribut natural
 
@@ -33,7 +34,7 @@ a směru řazení.
 
 Pro seřazení produktů podle počtu jejich prodejů (nejprodávanější produkty jako první) můžeme použít následující dotaz:
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Seznam produktů seřazených podle číselného atributu](/documentation/user/en/query/ordering/examples/comparable/attribute-natural-non-localized.evitaql)
 </SourceCodeTabs>
@@ -68,7 +69,7 @@ Pro seřazení produktů podle počtu jejich prodejů (nejprodávanější produ
 Pokud chcete produkty řadit podle jejich názvu, což je lokalizovaný atribut, je potřeba ve části `filterBy` dotazu
 specifikovat podmínku `entityLocaleEquals`:
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Seznam produktů seřazených podle lokalizovaného atributu](/documentation/user/en/query/ordering/examples/comparable/attribute-natural-localized.evitaql)
 </SourceCodeTabs>
@@ -108,7 +109,7 @@ atributů v klauzuli `orderBy` dotazu, evitaDB je nejprve seřadí podle prvníh
 podle druhého (ale pouze ty, u kterých první atribut chybí). Pokud mají dvě entity stejnou hodnotu prvního atributu,
 nejsou dále řazeny podle druhého atributu, ale podle primárního klíče (vzestupně).
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Seznam produktů seřazených podle více atributů](/documentation/user/en/query/ordering/examples/comparable/attribute-natural-multiple.evitaql)
 </SourceCodeTabs>
@@ -169,7 +170,7 @@ chování řazení.
 
 Pro seřazení produktů podle jejich primárního klíče sestupně můžeme použít následující dotaz:
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Seznam produktů seřazených podle primárního klíče sestupně](/documentation/user/en/query/ordering/examples/comparable/primary-key-natural.evitaql)
 </SourceCodeTabs>

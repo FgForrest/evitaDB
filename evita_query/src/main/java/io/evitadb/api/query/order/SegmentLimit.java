@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -36,16 +36,16 @@ import java.io.Serial;
 import java.io.Serializable;
 
 /**
- * The distance constraint can only be used within the {@link Segment} container and limits the number or entities
+ * The limit constraint can only be used within the {@link Segment} container and limits the number of entities
  * in particular segment.
  *
  * See the following figure - the limit constraint narrows the result set to only 3 entities:
  *
- * <pre>
+ * ```evitaql
  * orderBy(
  *    segment(
  *       orderBy(
- *          attributeNatural("orderedQuantity, DESC)
+ *          attributeNatural("orderedQuantity", DESC)
  *       ),
  *       limit(3)
  *    ),
@@ -56,15 +56,15 @@ import java.io.Serializable;
  *       )
  *    )
  * )
- * </pre>
+ * ```
  *
- * <p><a href="https://evitadb.io/documentation/query/ordering/segment#limit">Visit detailed user documentation</a></p>
+ * [Visit detailed user documentation](https://evitadb.io/documentation/query/ordering/segment#limit)
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 @ConstraintDefinition(
 	name = "limit",
-	shortDescription = "The constraint limits the number of entities in particular segment of the output.",
+	shortDescription = "Limits the number of entities in a particular segment of the output.",
 	userDocsLink = "/documentation/query/ordering/segment#limit",
 	supportedIn = ConstraintDomain.SEGMENT
 )
@@ -72,7 +72,7 @@ public class SegmentLimit extends AbstractOrderConstraintLeaf implements Generic
 	@Serial private static final long serialVersionUID = 3540225030475545553L;
 	private static final String CONSTRAINT_NAME = "limit";
 
-	private SegmentLimit(Serializable... arguments) {
+	private SegmentLimit(@Nonnull Serializable... arguments) {
 		// because this query can be used only within some other segment query, it would be
 		// unnecessary to duplicate the segment prefix
 		super(CONSTRAINT_NAME, arguments);

@@ -6,6 +6,7 @@ author: Ing. Jan Novotný
 proofreading: done
 preferredLang: evitaql
 commit: cef96d8320d36c91c100c5dfc9c45020b5a7ad0d
+translated: true
 ---
 ## Entity locale equals
 
@@ -84,7 +85,7 @@ Pro otestování dotazu specifického pro lokalitu se musíme zaměřit na kateg
 [ukázkovém datasetu](../../get-started/query-our-dataset.md). Víme, že existují produkty, které mají pouze anglickou
 (*en_US*) lokalizaci. Pro výběr produktů s anglickou lokalizací můžeme použít tento dotaz:
 
-<SourceCodeTabs requires="/evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="/evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Výpis produktů s anglickou lokalizací](/documentation/user/en/query/filtering/examples/locale/locale.evitaql)
 
@@ -129,7 +130,7 @@ můžete použít požadavek [`data-in-locale`](../requirements/fetching.md#data
 
 Ale když požádáme o produkty v české lokalitě:
 
-<SourceCodeTabs requires="/evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="/evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Výpis produktů s anglickou lokalizací](/documentation/user/en/query/filtering/examples/locale/locale_missing.evitaql)
 

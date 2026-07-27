@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -27,15 +27,21 @@ import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.core.metric.event.storage.FileType;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.exception.UnexpectedIOException;
+import io.evitadb.store.checksum.ChecksumFactory;
+import io.evitadb.store.compression.CompressionFactory;
 import io.evitadb.store.kryo.ObservableOutput;
 import io.evitadb.store.offsetIndex.OffsetIndex;
+import io.evitadb.store.offsetIndex.exception.SyncFailedException;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.FileOutputStream;
+import java.io.IOException;
+import java.nio.channels.FileChannel;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BiFunction;
@@ -66,14 +72,21 @@ public class BootstrapWriteOnlyFileHandle implements WriteOnlyHandle {
 	 */
 	private final FileType fileType;
 	/**
+	 * Controls whether OS buffer flush is forced at safe points to ensure data durability.
+	 * When true, forces file system sync operations to persist data to physical storage.
+	 * Sourced from {@link StorageOptions#syncWrites()}.
+	 */
+	private final boolean syncWrites;
+	/**
 	 * The maximum time (in seconds) that a thread may wait to acquire the lock on the file handle.
 	 * If a thread cannot acquire the lock within this time, a StorageException is thrown.
 	 */
-	private final long lockTimeoutSeconds;
+	private final int lockTimeoutSeconds;
 	/**
-	 * Reference to the {@link StorageOptions} object that contains configuration options for the storage system.
+	 * Factory for creating checksums for data integrity verification during write operations.
+	 * Sourced from {@link StorageOptions#computeCRC32C()}.
 	 */
-	private final StorageOptions storageOptions;
+	private final ChecksumFactory checksumFactory;
 	/**
 	 * The path to the target file that this handle is associated with.
 	 * This handle provides write-only access to the file at this path.
@@ -100,27 +113,42 @@ public class BootstrapWriteOnlyFileHandle implements WriteOnlyHandle {
 
 	public BootstrapWriteOnlyFileHandle(
 		@Nonnull Path targetFile,
-		@Nonnull StorageOptions storageOptions
+		int outputBufferSize,
+		boolean syncWrites,
+		int lockTimeoutSeconds,
+		@Nonnull ChecksumFactory checksumFactory
 	) {
-		this(null, null, null, storageOptions, targetFile);
+		this(
+			null, null, null,
+			outputBufferSize, syncWrites, lockTimeoutSeconds, checksumFactory,
+			targetFile
+		);
 	}
 
 	public BootstrapWriteOnlyFileHandle(
 		@Nullable String catalogName,
 		@Nullable FileType fileType,
 		@Nullable String logicalName,
-		@Nonnull StorageOptions storageOptions,
+		int outputBufferSize,
+		boolean syncWrites,
+		int lockTimeoutSeconds,
+		@Nonnull ChecksumFactory checksumFactory,
 		@Nonnull Path targetFile
 	) {
 		this.catalogName = catalogName;
 		this.fileType = fileType;
 		this.logicalName = logicalName;
-		this.storageOptions = storageOptions;
-		this.lockTimeoutSeconds = this.storageOptions.lockTimeoutSeconds();
+		this.checksumFactory = checksumFactory;
+		this.syncWrites = syncWrites;
+		this.lockTimeoutSeconds = lockTimeoutSeconds;
 		this.targetFile = targetFile;
-		Assert.isPremiseValid(!this.storageOptions.compress(), "Compression is not supported for bootstrap file!");
-		Assert.isPremiseValid(WriteOnlyFileHandle.getTargetFile(targetFile) != null, "Target file should be created or exception thrown!");
-		this.observableOutput = WriteOnlyFileHandle.createObservableOutput(targetFile, this.storageOptions);
+		Assert.isPremiseValid(
+			WriteOnlyFileHandle.getTargetFile(targetFile) != null,
+			"Target file should be created or exception thrown!"
+		);
+		this.observableOutput = WriteOnlyFileHandle.createObservableOutput(
+			targetFile, outputBufferSize, this.checksumFactory.createChecksum(), null
+		);
 	}
 
 	@Override
@@ -148,7 +176,7 @@ public class BootstrapWriteOnlyFileHandle implements WriteOnlyHandle {
 				try {
 					premise.run();
 					logic.accept(this.observableOutput);
-					doSync(this.observableOutput, this.storageOptions.syncWrites());
+					doSync(this.observableOutput, this.syncWrites);
 					return;
 				} finally {
 					this.handleLock.unlock();
@@ -168,7 +196,7 @@ public class BootstrapWriteOnlyFileHandle implements WriteOnlyHandle {
 				try {
 					premise.run();
 					final S result = logic.apply(this.observableOutput);
-					doSync(this.observableOutput, this.storageOptions.syncWrites());
+					doSync(this.observableOutput, this.syncWrites);
 					return postExecutionLogic.apply(this.observableOutput, result);
 				} finally {
 					this.handleLock.unlock();
@@ -182,6 +210,18 @@ public class BootstrapWriteOnlyFileHandle implements WriteOnlyHandle {
 	}
 
 	@Override
+	public void forceDurable() {
+		// the bootstrap record is the checkpoint POINTER - it is never itself deferred, because it may only
+		// become durable after everything it addresses already is. This implementation exists to satisfy the
+		// contract; on the deferred-checkpoint path the bootstrap handle keeps syncing inline.
+		try (final FileChannel channel = FileChannel.open(this.targetFile, StandardOpenOption.WRITE)) {
+			channel.force(true);
+		} catch (IOException e) {
+			throw new SyncFailedException(e);
+		}
+	}
+
+	@Override
 	public long getLastWrittenPosition() {
 		return this.targetFile.toFile().length();
 	}
@@ -191,7 +231,7 @@ public class BootstrapWriteOnlyFileHandle implements WriteOnlyHandle {
 	public ReadOnlyHandle toReadOnlyHandle() {
 		return new ReadOnlyFileHandle(
 			this.catalogName, this.fileType, this.logicalName,
-			this.targetFile, this.storageOptions
+			this.targetFile, this.checksumFactory, CompressionFactory.NO_COMPRESSION
 		);
 	}
 

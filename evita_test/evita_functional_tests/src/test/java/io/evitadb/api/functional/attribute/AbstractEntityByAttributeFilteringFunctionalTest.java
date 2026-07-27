@@ -40,6 +40,7 @@ import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.extraResult.AttributeHistogram;
 import io.evitadb.api.requestResponse.extraResult.HistogramContract;
 import io.evitadb.api.requestResponse.extraResult.HistogramContract.Bucket;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.OrderBehaviour;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaEditor.ReferenceSchemaBuilder;
@@ -56,6 +57,7 @@ import io.evitadb.test.extension.DataCarrier;
 import io.evitadb.test.generator.DataGenerator;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.Functions;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -74,6 +76,7 @@ import java.util.function.BiFunction;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
@@ -88,14 +91,20 @@ import static io.evitadb.utils.AssertionUtils.assertSortedResultEquals;
 import static java.util.Optional.ofNullable;
 import static java.util.stream.Collectors.summingInt;
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.ATTRIBUTE;
+import static io.evitadb.test.TestTags.FILTER;
 
 /**
  * This test verifies whether entities can be filtered by attributes.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@SuppressWarnings("JUnitMalformedDeclaration")
+@SuppressWarnings({"SuspiciousArrayCast"})
 @Slf4j
+@Tag(CONTRACT)
+@Tag(ATTRIBUTE)
+@Tag(FILTER)
 public abstract class AbstractEntityByAttributeFilteringFunctionalTest {
 	private static final String HUNDRED_PRODUCTS = "HundredProductsForAttributeTesting";
 	private static final String REFERENCE_BRAND_PRODUCTS = "products";
@@ -337,13 +346,15 @@ public abstract class AbstractEntityByAttributeFilteringFunctionalTest {
 									attributeElement(ATTRIBUTE_PRIORITY, DESC, OrderBehaviour.NULLS_LAST),
 									attributeElement(ATTRIBUTE_CREATED, ASC, OrderBehaviour.NULLS_FIRST)
 								)
-								.withAttribute(ATTRIBUTE_VISIBLE, Boolean.class, whichIs -> whichIs.filterable())
+								.withAttribute(ATTRIBUTE_VISIBLE, Boolean.class, AttributeSchemaEditor::filterable)
 								.withReferenceToEntity(
 									Entities.BRAND,
 									Entities.BRAND,
 									Cardinality.ZERO_OR_ONE,
 									whichIs -> whichIs
-										.withAttribute(ATTRIBUTE_BRAND_VISIBLE_FOR_B2C, Boolean.class, thatIs -> thatIs.filterable())
+										.withAttribute(ATTRIBUTE_BRAND_VISIBLE_FOR_B2C, Boolean.class,
+										               AttributeSchemaEditor::filterable
+										)
 										.withAttribute(ATTRIBUTE_MARKET_SHARE, BigDecimal.class, thatIs -> thatIs.filterable().sortable())
 										.withAttribute(ATTRIBUTE_FOUNDED, OffsetDateTime.class, thatIs -> thatIs.filterable().sortable())
 								)
@@ -352,7 +363,9 @@ public abstract class AbstractEntityByAttributeFilteringFunctionalTest {
 									Entities.STORE,
 									Cardinality.ZERO_OR_MORE,
 									whichIs -> whichIs
-										.withAttribute(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, Boolean.class, thatIs -> thatIs.filterable())
+										.withAttribute(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, Boolean.class,
+										               AttributeSchemaEditor::filterable
+										)
 										.withAttribute(ATTRIBUTE_CAPACITY, Long.class, thatIs -> thatIs.filterable().nullable().sortable())
 								).updateAndFetchVia(session);
 						}
@@ -1962,7 +1975,7 @@ public abstract class AbstractEntityByAttributeFilteringFunctionalTest {
 			.map(it -> (String) it.getAttribute(ATTRIBUTE_NAME, CZECH_LOCALE))
 			.filter(Objects::nonNull)
 			.findFirst()
-			.get();
+			.orElseThrow();
 
 		evita.queryCatalog(
 			TEST_CATALOG,
@@ -2090,7 +2103,7 @@ public abstract class AbstractEntityByAttributeFilteringFunctionalTest {
 			.filter(it -> rnd.nextInt(100) > 85)
 			.filter(it -> it.getAttribute(ATTRIBUTE_PRIORITY) != null && it.getAttribute(ATTRIBUTE_ALIAS) != null)
 			.findFirst()
-			.get();
+			.orElseThrow();
 
 		evita.queryCatalog(
 			TEST_CATALOG,
@@ -3940,7 +3953,7 @@ public abstract class AbstractEntityByAttributeFilteringFunctionalTest {
 			.filter(it -> it.getAttribute(ATTRIBUTE_URL, Locale.ENGLISH) != null && it.getLocales().contains(Locale.ENGLISH) && it.getLocales().contains(CZECH_LOCALE))
 			.filter(it -> rnd.nextInt(100) > 85)
 			.findFirst()
-			.get();
+			.orElseThrow();
 		final String urlAttribute = selectedEntity.getAttribute(ATTRIBUTE_URL, Locale.ENGLISH);
 
 		evita.queryCatalog(
@@ -4051,7 +4064,7 @@ public abstract class AbstractEntityByAttributeFilteringFunctionalTest {
 			.filter(it -> it.getAttribute(ATTRIBUTE_URL, Locale.ENGLISH) != null && it.getLocales().contains(Locale.ENGLISH) && it.getLocales().contains(CZECH_LOCALE))
 			.filter(it -> rnd.nextInt(100) > 85)
 			.findFirst()
-			.get();
+			.orElseThrow();
 		final String urlAttribute = selectedEntity.getAttribute(ATTRIBUTE_URL, Locale.ENGLISH);
 
 		evita.queryCatalog(
@@ -4287,6 +4300,113 @@ public abstract class AbstractEntityByAttributeFilteringFunctionalTest {
 		assertArrayAreDifferent(results[0], results[1]);
 	}
 
+	@DisplayName("Should paginate seeded random order through all pages without gaps, duplicates or reordering")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldSortEntitiesRandomlyUsingProvidedSeedAndRespectOffset(Evita evita) {
+		// independent oracle: the complete, unordered set of matching primary keys
+		final int[] naturalOrder = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						require(
+							page(1, Integer.MAX_VALUE)
+						)
+					),
+					EntityReference.class
+				);
+				return extractPrimaryKeys(result);
+			}
+		);
+		Arrays.sort(naturalOrder);
+		final int totalRecordCount = naturalOrder.length;
+
+		// the single, stable seeded permutation of the whole result set, fetched in one go
+		final int[] fullOrder = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						orderBy(
+							randomWithSeed(42)
+						),
+						require(
+							page(1, Integer.MAX_VALUE)
+						)
+					),
+					EntityReference.class
+				);
+				assertEquals(totalRecordCount, result.getTotalRecordCount());
+				return extractPrimaryKeys(result);
+			}
+		);
+
+		// page size deliberately doesn't divide totalRecordCount evenly, to also exercise the last, partial page
+		final int pageSize = 7;
+		final List<Integer> pagedOrder = new ArrayList<>(totalRecordCount);
+		for (int offset = 0; offset < totalRecordCount; offset += pageSize) {
+			final int currentOffset = offset;
+			final int[] page = evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					final EvitaResponse<EntityReference> result = session.query(
+						query(
+							collection(Entities.PRODUCT),
+							orderBy(
+								randomWithSeed(42)
+							),
+							require(
+								strip(currentOffset, pageSize)
+							)
+						),
+						EntityReference.class
+					);
+					assertEquals(totalRecordCount, result.getTotalRecordCount());
+					return extractPrimaryKeys(result);
+				}
+			);
+			final int expectedPageLength = Math.min(pageSize, totalRecordCount - currentOffset);
+			assertEquals(expectedPageLength, page.length, "Page at offset " + currentOffset + " has unexpected length.");
+			for (final int primaryKey : page) {
+				pagedOrder.add(primaryKey);
+			}
+		}
+
+		final int[] pagedOrderArray = pagedOrder.stream().mapToInt(Integer::intValue).toArray();
+		// paging through the whole result set must reconstruct the exact same stable permutation, without gaps
+		assertArrayEquals(fullOrder, pagedOrderArray, "Paging through all pages doesn't reconstruct the same stable seeded order.");
+
+		// no record may be repeated across pages
+		final Set<Integer> distinctPrimaryKeys = new HashSet<>(pagedOrder);
+		assertEquals(totalRecordCount, distinctPrimaryKeys.size(), "Some records were repeated across pages.");
+
+		// the collected pages must contain exactly the same set of records as the unordered result, just shuffled
+		final int[] collectedSorted = pagedOrderArray.clone();
+		Arrays.sort(collectedSorted);
+		assertArrayEquals(naturalOrder, collectedSorted, "Paged records don't form the same complete set as the unordered result.");
+
+		// the random order must actually differ from the natural (ascending) order
+		assertArrayAreDifferent(fullOrder, naturalOrder);
+	}
+
+	/**
+	 * Extracts the primary keys of the entity references contained in the given response into a plain int array.
+	 *
+	 * @param response the response whose record data primary keys should be extracted
+	 * @return the primary keys in the response order
+	 */
+	@Nonnull
+	private static int[] extractPrimaryKeys(@Nonnull EvitaResponse<EntityReference> response) {
+		return response
+			.getRecordData()
+			.stream()
+			.mapToInt(EntityReference::getPrimaryKeyOrThrowException)
+			.toArray();
+	}
+
 	@DisplayName("Should return entities sorted by String attribute (combined with filtering)")
 	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
@@ -4514,7 +4634,7 @@ public abstract class AbstractEntityByAttributeFilteringFunctionalTest {
 				assertSortedResultIs(
 					originalProductEntities,
 					result.getRecordData(),
-					sealedEntity -> true,
+					Functions.alwaysTrue(),
 					(sealedEntityA, sealedEntityB) -> {
 						final Long priorityA = sealedEntityA.getAttribute(ATTRIBUTE_PRIORITY);
 						final OffsetDateTime createdA = sealedEntityA.getAttribute(ATTRIBUTE_CREATED);
@@ -5205,10 +5325,9 @@ public abstract class AbstractEntityByAttributeFilteringFunctionalTest {
 					.filter(sealedEntity -> sealedEntity.getAttribute(ATTRIBUTE_ALIAS) != null).toList();
 
 				// verify our test works
-				final Predicate<SealedEntity> attributePredicate = quantityAttributePredicate;
 				assertTrue(
-					filteredProducts.size() > filteredProducts.stream().filter(attributePredicate).count(),
-					"Price between query didn't filter out any products. Test is not testing anything!"
+					filteredProducts.size() > filteredProducts.stream().filter(quantityAttributePredicate).count(),
+					"Attribute between query didn't filter out any products. Test is not testing anything!"
 				);
 
 				// the attribute `between(ATTRIBUTE_QUANTITY, 100, 900)` query must be ignored while computing its histogram
@@ -5223,7 +5342,7 @@ public abstract class AbstractEntityByAttributeFilteringFunctionalTest {
 		);
 	}
 
-	@DisplayName("Should return attribute histogram for returned products excluding constraints targeting that attribute")
+	@DisplayName("Should return two attribute histograms whose spans are unaffected by EITHER of the two sibling userFilter sliders")
 	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
 	void shouldReturnAttributeHistogramWithoutBeingAffectedByAttributeFilter(Evita evita, List<SealedEntity> originalProductEntities) {
@@ -5267,20 +5386,21 @@ public abstract class AbstractEntityByAttributeFilteringFunctionalTest {
 				final Predicate<SealedEntity> attributePredicate = priorityAttributePredicate.or(quantityAttributePredicate);
 				assertTrue(
 					filteredProducts.size() > filteredProducts.stream().filter(attributePredicate).count(),
-					"Price between query didn't filter out any products. Test is not testing anything!"
+					"Attribute between query didn't filter out any products. Test is not testing anything!"
 				);
 
-				// the attribute `between(ATTRIBUTE_QUANTITY, 100, 900)` query must be ignored while computing its histogram
+				// both sibling `attributeBetween` carriers inside `userFilter` are peeled uniformly,
+				// so neither histogram contracts under the other's slider — both span every product
+				// matching only the mandatory `attributeIsNotNull(ALIAS)` filter outside userFilter
 				assertHistogramIntegrity(
 					result,
-					filteredProducts.stream().filter(priorityAttributePredicate).collect(Collectors.toList()),
+					filteredProducts,
 					ATTRIBUTE_QUANTITY, new BigDecimal("100"), new BigDecimal("900")
 				);
 
-				// the attribute `between(ATTRIBUTE_PRIORITY, 15000, 90000)` query must be ignored while computing its histogram
 				assertHistogramIntegrity(
 					result,
-					filteredProducts.stream().filter(quantityAttributePredicate).collect(Collectors.toList()),
+					filteredProducts,
 					ATTRIBUTE_PRIORITY, new BigDecimal("15000"), new BigDecimal("90000")
 				);
 
@@ -5614,6 +5734,44 @@ public abstract class AbstractEntityByAttributeFilteringFunctionalTest {
 		);
 	}
 
+	@DisplayName("Should return no entities when an unsatisfiable nested AND contains a NOT constraint")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldReturnNoEntitiesWhenUnsatisfiableNestedAndContainsNotConstraint(Evita evita) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							and(
+								// this constraint alone matches a non-empty set of entities
+								attributeIsNotNull(ATTRIBUTE_PRIORITY),
+								and(
+									// no entity carries this priority, so the nested conjunction matches nothing
+									attributeEquals(ATTRIBUTE_PRIORITY, Long.MIN_VALUE),
+									not(
+										attributeEquals(ATTRIBUTE_ALIAS, false)
+									)
+								)
+							)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+						)
+					),
+					EntityReference.class
+				);
+				// the nested conjunction is unsatisfiable, so the entire query must match nothing - the negated
+				// branch must not disappear from the conjunction and leave its sibling matching on its own
+				assertEquals(0, result.getTotalRecordCount());
+				return null;
+			}
+		);
+	}
+
 	@DisplayName("Should return entities combining NOT constraint with attributeIsNull in OR context")
 	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
@@ -5812,10 +5970,8 @@ public abstract class AbstractEntityByAttributeFilteringFunctionalTest {
 					originalProductEntities,
 					sealedEntity -> {
 						final Boolean alias = sealedEntity.getAttribute(ATTRIBUTE_ALIAS);
-						final Long priority = (Long) sealedEntity.getAttribute(ATTRIBUTE_PRIORITY);
-						return Boolean.TRUE.equals(alias) &&
-							priority != null &&
-							(!(priority > priorityAttribute) || priority < priorityAttribute);
+						final Long priority = sealedEntity.getAttribute(ATTRIBUTE_PRIORITY);
+						return Boolean.TRUE.equals(alias) && priority != null && !(priority > priorityAttribute);
 					},
 					result.getRecordData()
 				);
@@ -5894,7 +6050,7 @@ public abstract class AbstractEntityByAttributeFilteringFunctionalTest {
 		);
 	}
 
-	private EvitaResponse<EntityReference> getByAttributeSize(EvitaSessionContract session, int size) {
+	private static EvitaResponse<EntityReference> getByAttributeSize(EvitaSessionContract session, int size) {
 		return session.query(
 			query(
 				collection(Entities.PRODUCT),
@@ -5912,14 +6068,17 @@ public abstract class AbstractEntityByAttributeFilteringFunctionalTest {
 	/**
 	 * Returns value of "random" value in the dataset.
 	 */
-	private <T extends Serializable> T getRandomAttributeValue(@Nonnull List<SealedEntity> originalProductEntities, @Nonnull String attributeName) {
+	private static <T extends Serializable> T getRandomAttributeValue(
+		@Nonnull List<SealedEntity> originalProductEntities, @Nonnull String attributeName) {
 		return getRandomAttributeValue(originalProductEntities, attributeName, 10);
 	}
 
 	/**
 	 * Returns value of "random" value in the dataset.
 	 */
-	private <T extends Serializable> T getRandomAttributeValue(@Nonnull List<SealedEntity> originalProductEntities, @Nonnull String attributeName, int order) {
+	private static <T extends Serializable> T getRandomAttributeValue(
+		@Nonnull List<SealedEntity> originalProductEntities, @Nonnull String attributeName, int order) {
+		//noinspection unchecked
 		return originalProductEntities
 			.stream()
 			.map(it -> (T) it.getAttribute(attributeName))
@@ -5932,14 +6091,16 @@ public abstract class AbstractEntityByAttributeFilteringFunctionalTest {
 	/**
 	 * Returns value of "random" value in the dataset.
 	 */
-	private AttributeValue getRandomAttributeValueObject(@Nonnull List<SealedEntity> originalProductEntities, @Nonnull String attributeName) {
+	private static AttributeValue getRandomAttributeValueObject(
+		@Nonnull List<SealedEntity> originalProductEntities, @Nonnull String attributeName) {
 		return getRandomAttributeValueObject(originalProductEntities, attributeName, 10);
 	}
 
 	/**
 	 * Returns value of "random" value in the dataset.
 	 */
-	private AttributeValue getRandomAttributeValueObject(@Nonnull List<SealedEntity> originalProductEntities, @Nonnull String attributeName, int order) {
+	private static AttributeValue getRandomAttributeValueObject(
+		@Nonnull List<SealedEntity> originalProductEntities, @Nonnull String attributeName, int order) {
 		return originalProductEntities
 			.stream()
 			.flatMap(it -> it.getAttributeValues(attributeName).stream())
@@ -5952,7 +6113,9 @@ public abstract class AbstractEntityByAttributeFilteringFunctionalTest {
 	/**
 	 * Returns value of "random" value in the dataset.
 	 */
-	private <T extends Serializable> T[] getRandomAttributeValueArray(@Nonnull List<SealedEntity> originalProductEntities, @Nonnull String attributeName) {
+	private static <T extends Serializable> T[] getRandomAttributeValueArray(
+		@Nonnull List<SealedEntity> originalProductEntities, @Nonnull String attributeName) {
+		//noinspection unchecked
 		return originalProductEntities
 			.stream()
 			.map(it -> (T[]) it.getAttributeArray(attributeName))

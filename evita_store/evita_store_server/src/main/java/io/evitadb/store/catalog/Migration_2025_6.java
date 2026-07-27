@@ -34,6 +34,7 @@ import io.evitadb.index.EntityIndexType;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
+import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.index.cardinality.AttributeCardinalityIndex;
 import io.evitadb.index.cardinality.AttributeCardinalityIndex.AttributeCardinalityKey;
 import io.evitadb.index.cardinality.ReferenceTypeCardinalityIndex;
@@ -47,11 +48,15 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeCard
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStorageKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStoragePart.AttributeIndexType;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIdsStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIndexStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIndexStoragePartDeprecated;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.FilterIndexStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.ReferenceNameKey;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.ReferenceTypeCardinalityIndexStoragePart;
+import io.evitadb.core.buffer.TrappedChanges;
+import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
+
+import java.util.Iterator;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.UniqueIndexStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.schema.EntitySchemaStoragePart;
 import io.evitadb.store.model.header.CollectionFileReference;
@@ -64,8 +69,8 @@ import io.evitadb.utils.ConsoleWriter.ConsoleColor;
 import io.evitadb.utils.ConsoleWriter.ConsoleDecoration;
 import io.evitadb.utils.NumberUtils;
 import lombok.RequiredArgsConstructor;
-import org.roaringbitmap.RoaringBitmap;
-import org.roaringbitmap.RoaringBitmapWriter;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
+import io.evitadb.roaringbitmap.RoaringBitmapWriter;
 
 import javax.annotation.Nonnull;
 import java.io.Serializable;
@@ -73,6 +78,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
@@ -98,7 +104,7 @@ import static java.util.Optional.ofNullable;
  * @deprecated introduced with #906 and could be removed later when no version prior to 2025.7 is used
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
-@Deprecated(since = "2025.6", forRemoval = true)
+@Deprecated(since = "2025.7", forRemoval = true)
 public interface Migration_2025_6 {
 
 	/**
@@ -182,7 +188,7 @@ public interface Migration_2025_6 {
 					referencedEntityIdToReducedEntityIndexPrimaryKey.computeIfAbsent(
 						referenceKey.referenceName(),
 						__ -> new java.util.HashSet<>(1024)
-					).add(NumberUtils.join(referenceKey.primaryKey(), indexPrimaryKey));
+					).add(NumberUtils.pack(referenceKey.primaryKey(), indexPrimaryKey));
 					referencedEntityToIndexIdMap.put(referenceKey.primaryKey(), indexPrimaryKey);
 				}
 			}
@@ -229,21 +235,44 @@ public interface Migration_2025_6 {
 							}
 						}
 					}
-					// store upgraded entity index storage part
+					// store the upgraded entity index manifest WITHOUT the entity-id bitmaps — the modern
+					// serializer evicts them, so they are persisted in a sibling EntityIdsStoragePart below
 					collectionStoragePartService.putStoragePart(
 						catalogVersion,
 						new EntityIndexStoragePart(
 							deprecatedIndexBody.getPrimaryKey(),
 							deprecatedIndexBody.getVersion(),
 							deprecatedIndexBody.getEntityIndexKey(),
-							deprecatedIndexBody.getEntityIds(),
-							deprecatedIndexBody.getEntityIdsByLanguage(),
 							deprecatedIndexBody.getAttributeIndexes(),
 							deprecatedIndexBody.getPriceIndexes(),
 							deprecatedIndexBody.isHierarchyIndex(),
-							deprecatedIndexBody.getFacetIndexes()
+							deprecatedIndexBody.getFacetIndexes(),
+							java.util.Collections.emptySet()
 						)
 					);
+					// persist the evicted entity-id bitmaps as the sibling part (skip empty indexes — the
+					// loader falls back to an empty bitmap when the sibling is absent). A deprecated index
+					// body is always rehydrated with its inline bitmaps by the backward-compatible
+					// serializer, so a null carrier here means a corrupt record — fail the migration loudly.
+					final Bitmap deprecatedEntityIds = Objects.requireNonNull(
+						deprecatedIndexBody.getEntityIds(),
+						"Deprecated entity index " + indexPrimaryKey + " carries no inline entity-id bitmap!"
+					);
+					final Map<Locale, TransactionalBitmap> deprecatedEntityIdsByLanguage = Objects.requireNonNull(
+						deprecatedIndexBody.getEntityIdsByLanguage(),
+						"Deprecated entity index " + indexPrimaryKey + " carries no inline per-locale entity-id map!"
+					);
+					if (!deprecatedEntityIds.isEmpty() || !deprecatedEntityIdsByLanguage.isEmpty()) {
+						collectionStoragePartService.putStoragePart(
+							catalogVersion,
+							new EntityIdsStoragePart(
+								deprecatedIndexBody.getPrimaryKey(),
+								deprecatedIndexBody.getVersion(),
+								deprecatedEntityIds,
+								deprecatedEntityIdsByLanguage
+							)
+						);
+					}
 					indexesMigrated++;
 				} else if (storagePart == null) {
 					throw new GenericEvitaInternalError("Entity index storage part for primary key " + indexPrimaryKey + " is missing!");
@@ -464,15 +493,21 @@ public interface Migration_2025_6 {
 			uniqueIndexCnt != null,
 			"Unique index with id " + indexPrimaryKey + " with key " + attributeIndexKey.attribute() + " was not found in persistent storage!"
 		);
-		final Map<Serializable, Integer> uniqueValueToRecordId = uniqueIndexCnt.getUniqueValueToRecordId();
-		final Map<Serializable, Integer> migratedUniqueValueToRecordId = CollectionUtils.createHashMap(
-			uniqueValueToRecordId.size()
+		final Serializable[] values = Objects.requireNonNull(
+			uniqueIndexCnt.getValues(),
+			"Unique index " + indexPrimaryKey + " with key " + attributeIndexKey.attribute() +
+				" carries no inline value column!"
 		);
-		final RoaringBitmapWriter<RoaringBitmap> migratedRecordIdsWriter = RoaringBitmapBackedBitmap.buildWriter();
-		for (Entry<Serializable, Integer> entry : uniqueValueToRecordId.entrySet()) {
-			final int indexId = referencedEntityToIndexIdMap.get(entry.getValue());
-			migratedUniqueValueToRecordId.put(entry.getKey(), indexId);
-			migratedRecordIdsWriter.add(indexId);
+		final int[] recordIds = Objects.requireNonNull(
+			uniqueIndexCnt.getRecordIds(),
+			"Unique index " + indexPrimaryKey + " with key " + attributeIndexKey.attribute() +
+				" carries no inline payload column!"
+		);
+		// remap each record id (referenced-entity pk) to its reduced-index pk, positionally aligned with the values; the
+		// membership bitmap is no longer persisted on the part — it is rebuilt from this payload column on load
+		final int[] migratedRecordIds = new int[recordIds.length];
+		for (int i = 0; i < recordIds.length; i++) {
+			migratedRecordIds[i] = referencedEntityToIndexIdMap.get(recordIds[i]);
 		}
 		collectionStoragePartService.putStoragePart(
 			catalogVersion,
@@ -480,8 +515,8 @@ public interface Migration_2025_6 {
 				uniqueIndexCnt.getEntityIndexPrimaryKey(),
 				uniqueIndexCnt.getAttributeIndexKey(),
 				uniqueIndexCnt.getType(),
-				migratedUniqueValueToRecordId,
-				new BaseBitmap(migratedRecordIdsWriter.get()),
+				values,
+				migratedRecordIds,
 				uniqueIndexCnt.getStoragePartPK()
 			)
 		);
@@ -511,19 +546,18 @@ public interface Migration_2025_6 {
 		final ReferenceTypeCardinalityIndex referenceTypeCardinalityIndex = new ReferenceTypeCardinalityIndex();
 		final Set<Long> keyMapping = referencedEntityIdToReducedEntityIndexPrimaryKey.get(referenceName);
 		for (Long compressedValue : keyMapping) {
-			final int[] split = NumberUtils.split(compressedValue);
+			final int[] split = NumberUtils.unpack(compressedValue);
 			final int referencedEntityPrimaryKey = split[0];
 			final int referencedEntityIndexPrimaryKey = split[1];
 			referenceTypeCardinalityIndex.addRecord(referencedEntityIndexPrimaryKey, referencedEntityPrimaryKey);
 		}
-		final ReferenceTypeCardinalityIndexStoragePart referenceTypeCardinalityIndexStoragePart =
-			referenceTypeCardinalityIndex.createStoragePart(indexPrimaryKey, referenceName);
-		// store the new reference type cardinality index
-		if (referenceTypeCardinalityIndexStoragePart != null) {
-			collectionStoragePartService.putStoragePart(
-				catalogHeader.version(),
-				referenceTypeCardinalityIndexStoragePart
-			);
+		// persist the freshly built index through the granular append path — a small index writes one inline SINGLE root,
+		// a large one writes individual leaf pages plus a PAGED root — draining every emitted part into collection storage
+		final TrappedChanges trappedChanges = new TrappedChanges();
+		referenceTypeCardinalityIndex.appendStorageParts(indexPrimaryKey, referenceName, trappedChanges);
+		final Iterator<StoragePart> changesIterator = trappedChanges.getTrappedChangesIterator();
+		while (changesIterator.hasNext()) {
+			collectionStoragePartService.putStoragePart(catalogHeader.version(), changesIterator.next());
 		}
 	}
 
@@ -539,7 +573,7 @@ public interface Migration_2025_6 {
 		@Nonnull Bitmap recordIds,
 		@Nonnull IntIntMap referencedEntityToIndexIdMap
 	) {
-		final RoaringBitmapWriter<RoaringBitmap> migratedBitmapWriter = RoaringBitmapBackedBitmap.buildWriter();
+		final RoaringBitmapWriter<PersistentRoaringBitmap> migratedBitmapWriter = RoaringBitmapBackedBitmap.buildWriter();
 		final OfInt it = recordIds.iterator();
 		while (it.hasNext()) {
 			migratedBitmapWriter.add(referencedEntityToIndexIdMap.get(it.nextInt()));

@@ -42,15 +42,20 @@ import org.junit.jupiter.params.provider.MethodSource;
 import javax.annotation.Nonnull;
 import java.util.Set;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static io.evitadb.test.TestTags.EXTERNAL_API;
+import static io.evitadb.test.TestTags.QUERY;
 
 /**
  * Tests for {@link AllowedConstraintPredicate}
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
+@Tag(EXTERNAL_API)
+@Tag(QUERY)
 class AllowedConstraintPredicateTest {
 
 	@ParameterizedTest

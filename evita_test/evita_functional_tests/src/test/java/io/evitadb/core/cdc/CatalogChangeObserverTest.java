@@ -52,12 +52,15 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import javax.annotation.Nonnull;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.ExecutionException;
 import java.util.function.BiFunction;
 
-import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
 import static org.junit.jupiter.api.Assertions.*;
-import static tool.ReflectionUtils.getNonnullFieldValue;
+import static io.evitadb.test.utils.ReflectionUtils.getFieldValue;
+import static io.evitadb.test.utils.ReflectionUtils.getNonnullFieldValue;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.CDC;
 
 /**
  * This test class verifies the functionality of the {@link CatalogChangeObserver} which is responsible for
@@ -80,9 +83,10 @@ import static tool.ReflectionUtils.getNonnullFieldValue;
  * @see ChangeCapturePublisher
  */
 @DisplayName("CatalogChangeObserver should")
-@Tag(FUNCTIONAL_TEST)
 @ExtendWith(EvitaParameterResolver.class)
 @Slf4j
+@Tag(ENGINE)
+@Tag(CDC)
 class CatalogChangeObserverTest implements EvitaTestSupport {
 	/**
 	 * Name of the dataset used for this test. This identifier is used by the test framework
@@ -705,6 +709,89 @@ class CatalogChangeObserverTest implements EvitaTestSupport {
 
 		// Verify all publishers are removed
 		assertEquals(finalSize - 1, uniquePublishers.size(), "All publishers should be removed after cleaning");
+	}
+
+	/**
+	 * Regression test for issue #1201: the periodic publisher cleanup must not crash when the
+	 * subscriber-version map drains to empty inside `clearUnusedDataInRingBuffer`.
+	 *
+	 * Reproduces the exact production state observed in the crash: an initialised ring buffer plus a
+	 * `versionSubscribersCount` whose only tracked version is strictly below the buffer's effective
+	 * start version. The cleanup loop removes that stale entry, emptying the map; the old code then
+	 * called {@link java.util.concurrent.ConcurrentSkipListMap#firstKey()} on the now-empty map and
+	 * threw {@link java.util.NoSuchElementException}. The fix re-reads `firstEntry()`, which returns
+	 * `null` on an empty map, so the loop terminates cleanly.
+	 *
+	 * @param evita       the Evita database instance with the test dataset already loaded
+	 * @param brandSchema the brand schema created during test setup
+	 */
+	@UseDataSet(value = CDC_TRANSACTIONS, destroyAfterTest = true)
+	@Test
+	@DisplayName("clean ring buffer without crashing when subscriber-version map drains to empty")
+	void shouldCleanRingBufferWhenVersionSubscribersCountDrainsToEmpty(@Nonnull Evita evita, @Nonnull SealedEntitySchema brandSchema) {
+		final Catalog catalog = (Catalog) evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
+		final CatalogChangeObserver tested = (CatalogChangeObserver) catalog.getTransactionManager().getChangeObserver();
+		tested.notifyCatalogPresentInLiveView(catalog);
+
+		final ChangeCatalogCaptureRequest request = ChangeCatalogCaptureRequest.builder()
+			.sinceVersion(catalog.getVersion() + 1)
+			.content(ChangeCaptureContent.BODY)
+			.criteria(
+				ChangeCatalogCaptureCriteria.builder()
+					.dataArea(builder -> builder.containerType(ContainerType.ENTITY).operation(Operation.UPSERT))
+					.build()
+			)
+			.build();
+
+		try (final ChangeCapturePublisher<ChangeCatalogCapture> publisher = tested.registerObserver(request)) {
+			final MockCatalogChangeSubscriber subscriber = new MockCatalogChangeSubscriber();
+			publisher.subscribe(subscriber);
+
+			// drive one transactional mutation so the ring buffer (lastCaptures) gets initialised
+			evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					this.dataGenerator.generateEntities(brandSchema, this.noEntityPicker, SEED)
+						.skip(20)
+						.limit(1)
+						.forEach(session::upsertEntity);
+				}
+			);
+
+			// locate the shared publisher backing this subscription (the only active one with an
+			// initialised ring buffer)
+			final Map<ChangeCatalogCriteriaBundle, ChangeCatalogCaptureSharedPublisher> uniquePublishers =
+				getNonnullFieldValue(tested, "uniquePublishers");
+			ChangeCatalogCaptureSharedPublisher sharedPublisher = null;
+			ChangeCaptureRingBuffer<ChangeCatalogCapture> ringBuffer = null;
+			for (final ChangeCatalogCaptureSharedPublisher candidate : uniquePublishers.values()) {
+				if (candidate.isClosed()) {
+					continue;
+				}
+				final ChangeCaptureRingBuffer<ChangeCatalogCapture> candidateBuffer = getFieldValue(candidate, "lastCaptures");
+				if (candidateBuffer != null) {
+					sharedPublisher = candidate;
+					ringBuffer = candidateBuffer;
+					break;
+				}
+			}
+			assertNotNull(sharedPublisher, "Expected an active shared publisher with an initialised ring buffer");
+
+			// craft the production state: the only tracked version sits strictly below the ring
+			// buffer's effective start version, so cleanup removes it and empties the map
+			final ConcurrentSkipListMap<Long, Integer> versionSubscribersCount =
+				getNonnullFieldValue(sharedPublisher, "versionSubscribersCount");
+			versionSubscribersCount.clear();
+			versionSubscribersCount.put(ringBuffer.getEffectiveStartCatalogVersion() - 1, 1);
+
+			// previously threw NoSuchElementException from firstKey() once the loop emptied the map
+			final ChangeCatalogCaptureSharedPublisher publisherUnderTest = sharedPublisher;
+			assertDoesNotThrow(publisherUnderTest::checkSubscribersLeft);
+			assertTrue(
+				versionSubscribersCount.isEmpty(),
+				"Stale sub-threshold version entry should have been drained"
+			);
+		}
 	}
 
 	/**

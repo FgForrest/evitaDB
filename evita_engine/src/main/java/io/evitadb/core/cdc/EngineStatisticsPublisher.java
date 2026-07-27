@@ -25,7 +25,7 @@ package io.evitadb.core.cdc;
 
 
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
-import io.evitadb.api.requestResponse.mutation.EngineMutation;
+import io.evitadb.api.requestResponse.cdc.SystemCaptureBody;
 import io.evitadb.api.requestResponse.schema.mutation.engine.CreateCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.ModifyCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.ModifyCatalogSchemaNameMutation;
@@ -73,20 +73,21 @@ public class EngineStatisticsPublisher implements Flow.Subscriber<ChangeSystemCa
 
 	@Override
 	public void onNext(ChangeSystemCapture item) {
-		final EngineMutation<?> mutation = item.body();
-		if (mutation instanceof CreateCatalogSchemaMutation ccsm) {
+		// statistics publisher only reacts to engine mutations; host events are ignored here
+		final SystemCaptureBody body = item.body();
+		if (body instanceof CreateCatalogSchemaMutation ccsm) {
 			this.emitEvitaStatistics.run();
 			this.emitCatalogStatistics.accept(ccsm.getCatalogName());
-		} else if (mutation instanceof RemoveCatalogSchemaMutation rcsm) {
+		} else if (body instanceof RemoveCatalogSchemaMutation rcsm) {
 			this.emitEvitaStatistics.run();
 			emitDeleteObservabilityEvents(rcsm.getCatalogName());
-		} else if (mutation instanceof ModifyCatalogSchemaNameMutation mcsnm) {
+		} else if (body instanceof ModifyCatalogSchemaNameMutation mcsnm) {
 			this.emitEvitaStatistics.run();
 			if (mcsnm.isOverwriteTarget() && !Objects.equals(mcsnm.getCatalogName(), mcsnm.getNewCatalogName())) {
 				emitDeleteObservabilityEvents(mcsnm.getCatalogName());
 			}
 			this.emitCatalogStatistics.accept(mcsnm.getNewCatalogName());
-		} else if (mutation instanceof ModifyCatalogSchemaMutation mcsm) {
+		} else if (body instanceof ModifyCatalogSchemaMutation mcsm) {
 			this.emitCatalogStatistics.accept(mcsm.getCatalogName());
 		}
 

@@ -6,6 +6,7 @@ author: Ing. Jan Novotný
 proofreading: done
 preferredLang: evitaql
 commit: cef96d8320d36c91c100c5dfc9c45020b5a7ad0d
+translated: 'true'
 ---
 Bez podpory segmentace by klient musel spouštět více dotazů a výsledky slučovat na straně klienta, přičemž každý další dotaz by vylučoval výsledky předchozího. To je nejen neefektivní, ale také náchylné k chybám. Díky segmentaci mohou vývojáři jednoduše definovat pravidla pro řazení různých segmentů, omezit velikost každého segmentu a nechat těžkou práci na serveru.
 
@@ -43,7 +44,7 @@ Každý segment vám umožňuje definovat další filtrovací omezení, které j
 
 Podívejme se na příklad. Řekněme, že chceme nejprve zobrazit dva nově přidané produkty, poté nejprodávanější produkt s cenou nad 500 €, poté nejprodávanější produkt s cenou pod 500 €, poté zbytek produktů, které jsou aktuálně skladem, a nakonec zbytek produktů, které musíme objednat od našich dodavatelů. Segmenty můžeme definovat následovně:
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Segmentované řazení v praxi](/documentation/user/en/query/ordering/examples/segment/segments.evitaql)
 

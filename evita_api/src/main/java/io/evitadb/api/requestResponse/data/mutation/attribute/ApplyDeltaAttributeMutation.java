@@ -31,7 +31,6 @@ import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.mutation.conflict.AttributeDeltaConflictKey;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictGenerationContext;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
-import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.dataType.NumberRange;
 import io.evitadb.utils.Assert;
@@ -43,7 +42,6 @@ import javax.annotation.Nullable;
 import java.io.Serial;
 import java.math.BigDecimal;
 import java.util.Locale;
-import java.util.Set;
 import java.util.stream.Stream;
 
 /**
@@ -189,17 +187,27 @@ public class ApplyDeltaAttributeMutation<T extends Number> extends AttributeSche
 	@Nonnull
 	@Override
 	public Stream<ConflictKey> collectConflictKeys(
-		@Nonnull ConflictGenerationContext context,
-		@Nonnull Set<ConflictPolicy> conflictPolicies
+		@Nonnull ConflictGenerationContext context
 	) {
-		return conflictPolicies.contains(ConflictPolicy.ENTITY_ATTRIBUTE) ?
+		// A range-constrained delta must always emit its conflict key, regardless of the resolved
+		// conflict policy: keeping the accumulated value inside the required range is a hard invariant,
+		// not something the user opts out of by relaxing conflict granularity. Whether the attribute was
+		// carved out of the entity's shared surface is still resolved so the key's parent chain reaches the
+		// right coarse fallback (the absolute attribute key when carved out, the shared-surface residual
+		// otherwise) even when the range guard is the sole reason the key is emitted.
+		final boolean shouldEmit = context.shouldEmitEntityAttributeKey(this.attributeKey.attributeName());
+		// an attribute that is not carved out into its own granular key belongs to the entity's shared
+		// surface, so its delta key must route through the residual rather than the absolute attribute key
+		final boolean sharedSurface = !shouldEmit;
+		return this.requiredRangeAfterApplication != null || shouldEmit ?
 			Stream.of(
 				new AttributeDeltaConflictKey(
 					context.getEntityType(),
 					context.getEntityPrimaryKey(),
 					this.attributeKey,
 					this.delta,
-                    this.requiredRangeAfterApplication
+					this.requiredRangeAfterApplication,
+					sharedSurface
 				)
 			) :
 			Stream.empty();

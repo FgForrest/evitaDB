@@ -28,7 +28,9 @@ import com.linecorp.armeria.server.HttpService;
 import graphql.GraphQL;
 import graphql.schema.GraphQLSchema;
 import io.evitadb.api.CatalogContract;
+import io.evitadb.api.exception.CatalogRequiresUpgradeException;
 import io.evitadb.api.requestResponse.cdc.ChangeCaptureContent;
+import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureCriteria;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureRequest;
 import io.evitadb.core.Evita;
 import io.evitadb.core.catalog.UnusableCatalog;
@@ -48,11 +50,11 @@ import io.evitadb.externalApi.graphql.metric.event.instance.BuiltEvent;
 import io.evitadb.externalApi.graphql.metric.event.instance.BuiltEvent.BuildType;
 import io.evitadb.externalApi.graphql.utils.GraphQLSchemaPrinter;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.ExceptionUtils;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.Arrays;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
@@ -121,28 +123,42 @@ public class GraphQLManager {
 
 		this.graphQLRouter = new GraphQLRouter(this.objectMapper, evita, headers);
 
-		// listen to any evita catalog changes
-		evita.registerSystemChangeCapture(new ChangeSystemCaptureRequest(
-			this.evita.getEngineState().startVersion() + 1, // we need all changes since the evitaDB start before the GQL API was initialized to accept changes
-			null,
-			ChangeCaptureContent.BODY
-		))
-			.subscribe(new SystemGraphQLRefreshingObserver(this));
+		// listen to any evita catalog changes — explicitly opt in to BOTH areas so the GraphQL
+		// router reacts both to engine mutations (durable, WAL-replicated) AND host
+		// events (e.g. boot-time auto-upgrade replacing an UnusableCatalog
+		// placeholder with a real Catalog). Note: `criteria == null` would default to ENGINE
+		// only; passing both criteria entries is required to receive `HostSystemEvent`s.
+		evita.registerSystemChangeCapture(
+			ChangeSystemCaptureRequest.builder()
+				.sinceVersion(this.evita.getEngineState().startVersion() + 1)
+				.content(ChangeCaptureContent.BODY)
+				.criteria(
+					ChangeSystemCaptureCriteria.builder().engineArea().build(),
+					ChangeSystemCaptureCriteria.builder().hostArea().build()
+				)
+				.build()
+		).subscribe(new SystemGraphQLRefreshingObserver(this));
 
 		// register initial endpoints
 		registerSystemApi();
 
-		// register initial catalogs when they are loaded
+		// Track initial catalog loading. Catalog registration is driven by the system CDC
+		// stream (HostSystemEvent.CatalogInstalledIntoLiveView).
 		this.fullyInitialized = CompletableFuture.allOf(
-			Arrays.stream(this.evita.getInitialLoadCatalogFutures())
-			      .map(theFuture -> theFuture.thenAccept(catalog -> registerCatalog(catalog.getName())))
-			      .toArray(CompletableFuture[]::new)
+			this.evita.getInitialLoadCatalogFutures()
 		).whenComplete(
 			(__, throwable) -> {
 				if (throwable != null) {
-					log.error("Failed to register initial catalogs for GraphQL API.", throwable);
+					// boot-time auto-upgrade completes the first-attempt future exceptionally by
+					// design; the retried load will register the catalog asynchronously
+					final Throwable cause = ExceptionUtils.unwrapCompletionWrappers(throwable);
+					if (cause instanceof CatalogRequiresUpgradeException) {
+						log.info("GraphQL API initial catalog loading complete; one or more catalogs are pending storage-protocol upgrade.");
+					} else {
+						log.error("GraphQL API initial catalog loading failed.", throwable);
+					}
 				} else {
-					log.info("GraphQL API initialized with {} registered catalogs.", this.registeredCatalogs.size());
+					log.info("GraphQL API initial catalog loading complete.");
 				}
 			}
 		);
@@ -155,6 +171,15 @@ public class GraphQLManager {
 	 */
 	public boolean isFullyInitialized() {
 		return this.fullyInitialized.isDone();
+	}
+
+	/**
+	 * Returns whether the given catalog already has GraphQL endpoints registered with this manager.
+	 * Used by the system CDC observer to decide between a first-time `registerCatalog` and a
+	 * subsequent `refreshCatalog` when handling a `CatalogInstalledIntoLiveView` host event.
+	 */
+	public boolean isCatalogRegistered(@Nonnull String catalogName) {
+		return this.registeredCatalogs.contains(catalogName);
 	}
 
 	@Nonnull

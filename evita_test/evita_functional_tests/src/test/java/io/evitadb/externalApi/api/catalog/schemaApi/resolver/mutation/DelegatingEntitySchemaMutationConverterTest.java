@@ -23,12 +23,17 @@
 
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation;
 
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaConflictResolutionOverrideMutation;
 import io.evitadb.api.requestResponse.schema.mutation.entity.AllowLocaleInEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.entity.DisallowCurrencyInEntitySchemaMutation;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.AttributeSchemaMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.SetAttributeSchemaConflictResolutionOverrideMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.entity.AllowLocaleInEntitySchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.entity.DisallowCurrencyInEntitySchemaMutationDescriptor;
+import io.evitadb.externalApi.api.model.mutation.MutationDescriptor;
 import io.evitadb.externalApi.api.resolver.mutation.PassThroughMutationObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -37,17 +42,25 @@ import java.util.Currency;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.utils.ListBuilder.array;
 import static io.evitadb.utils.ListBuilder.list;
 import static io.evitadb.utils.MapBuilder.map;
 import static org.assertj.core.api.Assertions.assertThat;
+import static io.evitadb.test.TestTags.EXTERNAL_API;
+import static io.evitadb.test.TestTags.QUERY;
+import static io.evitadb.test.TestTags.SCHEMA;
+import static io.evitadb.test.TestTags.TRANSACTION;
 
 /**
  * Tests for {@link DelegatingEntitySchemaMutationConverter}
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
+@Tag(EXTERNAL_API)
+@Tag(QUERY)
+@Tag(SCHEMA)
 class DelegatingEntitySchemaMutationConverterTest {
 
 	private DelegatingEntitySchemaMutationConverter converter;
@@ -78,6 +91,27 @@ class DelegatingEntitySchemaMutationConverterTest {
 						.e(DisallowCurrencyInEntitySchemaMutationDescriptor.MUTATION_TYPE.name(), DisallowCurrencyInEntitySchemaMutation.class.getSimpleName())
 						.e(DisallowCurrencyInEntitySchemaMutationDescriptor.CURRENCIES.name(), list()
 							.i("EUR")))
+					.build()
+			);
+	}
+
+	@Tag(TRANSACTION)
+	@Test
+	void shouldSerializeConflictResolutionOverrideMutationThroughDelegate() {
+		final List<EntitySchemaMutation> inputMutation = List.of(
+			new SetAttributeSchemaConflictResolutionOverrideMutation("code", ConflictResolutionOverride.GRANULAR)
+		);
+
+		//noinspection unchecked
+		final List<Map<String, Object>> serializedMutation = (List<Map<String, Object>>) this.converter.convertToOutput(inputMutation);
+		assertThat(serializedMutation)
+			.usingRecursiveComparison()
+			.isEqualTo(
+				list()
+					.i(map()
+						.e(MutationDescriptor.MUTATION_TYPE.name(), SetAttributeSchemaConflictResolutionOverrideMutation.class.getSimpleName())
+						.e(AttributeSchemaMutationDescriptor.NAME.name(), "code")
+						.e(SetAttributeSchemaConflictResolutionOverrideMutationDescriptor.CONFLICT_RESOLUTION_OVERRIDE.name(), ConflictResolutionOverride.GRANULAR.name()))
 					.build()
 			);
 	}

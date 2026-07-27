@@ -28,6 +28,10 @@ import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.proxy.mock.EmptyEntitySchemaAccessor;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolution;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
+import io.evitadb.api.requestResponse.mutation.conflict.GranularConflictPolicy;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -36,7 +40,16 @@ import io.evitadb.api.requestResponse.schema.EvolutionMode;
 import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
+import io.evitadb.api.requestResponse.schema.mutation.associatedData.CreateAssociatedDataSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.associatedData.SetAssociatedDataSchemaConflictResolutionOverrideMutation;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.CreateAttributeSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.CreateGlobalAttributeSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaConflictResolutionOverrideMutation;
+import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyCatalogSchemaConflictResolutionMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.entity.ModifyEntitySchemaConflictResolutionMutation;
+import io.evitadb.api.requestResponse.schema.mutation.reference.CreateReferenceSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.reference.SetReferenceSchemaConflictResolutionOverrideMutation;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.store.shared.kryo.KryoFactory;
 import io.evitadb.test.Entities;
@@ -57,17 +70,24 @@ import java.util.Currency;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
+import static io.evitadb.test.TestTags.SCHEMA;
+import static io.evitadb.test.TestTags.SERIALIZATION;
+import static io.evitadb.test.TestTags.STORAGE;
+import static io.evitadb.test.TestTags.WAL;
 
 /**
  * Test verifies behavior of {@link WalKryoConfigurer} and subsequent serialization.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
+@Tag(STORAGE)
+@Tag(WAL)
 class WalSerializationServiceTest {
 
 	@Nonnull
@@ -141,7 +161,7 @@ class WalSerializationServiceTest {
 		final Kryo walKryo = KryoFactory.createKryo(WalKryoConfigurer.INSTANCE);
 		final ModifyEntitySchemaMutation mutation = constructSomeSchema(
 			new InternalEntitySchemaBuilder(
-				CatalogSchema._internalBuild(TestConstants.TEST_CATALOG, NamingConvention.generate(TestConstants.TEST_CATALOG), EnumSet.allOf(CatalogEvolutionMode.class), EmptyEntitySchemaAccessor.INSTANCE),
+				CatalogSchema._internalBuild(TestConstants.TEST_CATALOG, NamingConvention.generate(TestConstants.TEST_CATALOG), null, EnumSet.allOf(CatalogEvolutionMode.class), EmptyEntitySchemaAccessor.INSTANCE),
 				productSchema
 			)
 		)
@@ -164,13 +184,130 @@ class WalSerializationServiceTest {
 	}
 
 	@Test
+	void shouldRoundTripConflictResolutionOverrideOnCreateSchemaMutations() {
+		final Kryo walKryo = KryoFactory.createKryo(WalKryoConfigurer.INSTANCE);
+
+		// each Create*SchemaMutation carries a NON-default override — a plain compile pass cannot catch the field
+		// being silently dropped/defaulted on the WAL replay path, only an explicit round-trip assertion can
+		final CreateAttributeSchemaMutation attributeMutation = new CreateAttributeSchemaMutation(
+			"code", null, null, null, null, null,
+			false, false, false, String.class, null, 0,
+			ConflictResolutionOverride.GRANULAR
+		);
+		final CreateGlobalAttributeSchemaMutation globalAttributeMutation = new CreateGlobalAttributeSchemaMutation(
+			"url", null, null, null, null, null, null,
+			false, false, false, String.class, null, 0,
+			ConflictResolutionOverride.GRANULAR
+		);
+		final CreateAssociatedDataSchemaMutation associatedDataMutation = new CreateAssociatedDataSchemaMutation(
+			"labels", null, null, String.class, false, false,
+			ConflictResolutionOverride.ENTITY
+		);
+		final CreateReferenceSchemaMutation referenceMutation = new CreateReferenceSchemaMutation(
+			"brand", null, null, Cardinality.ZERO_OR_ONE, "brand", true, null, false,
+			null, null, null, null, null, null,
+			ConflictResolutionOverride.ENTITY
+		);
+
+		assertEquals(
+			ConflictResolutionOverride.GRANULAR,
+			roundTrip(walKryo, attributeMutation).getConflictResolutionOverride()
+		);
+		assertEquals(
+			ConflictResolutionOverride.GRANULAR,
+			roundTrip(walKryo, globalAttributeMutation).getConflictResolutionOverride()
+		);
+		assertEquals(
+			ConflictResolutionOverride.ENTITY,
+			roundTrip(walKryo, associatedDataMutation).getConflictResolutionOverride()
+		);
+		assertEquals(
+			ConflictResolutionOverride.ENTITY,
+			roundTrip(walKryo, referenceMutation).getConflictResolutionOverride()
+		);
+	}
+
+	@Test
+	@Tag(SERIALIZATION)
+	@Tag(SCHEMA)
+	void shouldRoundTripDedicatedConflictResolutionMutations() {
+		final Kryo walKryo = KryoFactory.createKryo(WalKryoConfigurer.INSTANCE);
+
+		// the five stand-alone mutations exist solely to carry a conflict resolution setting — the WAL replay path
+		// must preserve it verbatim, so each mutation deliberately carries a NON-default value that a silent drop
+		// would turn back into the inherited default
+		final SetAttributeSchemaConflictResolutionOverrideMutation attributeMutation =
+			new SetAttributeSchemaConflictResolutionOverrideMutation("code", ConflictResolutionOverride.GRANULAR);
+		final SetAssociatedDataSchemaConflictResolutionOverrideMutation associatedDataMutation =
+			new SetAssociatedDataSchemaConflictResolutionOverrideMutation("labels", ConflictResolutionOverride.ENTITY);
+		final SetReferenceSchemaConflictResolutionOverrideMutation referenceMutation =
+			new SetReferenceSchemaConflictResolutionOverrideMutation("brand", ConflictResolutionOverride.GRANULAR);
+
+		// the Modify* mutations carry a whole ConflictResolution — a coarse ENTITY policy plus a non-empty granularity
+		// set, exercising both axes of the value object across the wire
+		final ConflictResolution catalogResolution = new ConflictResolution(
+			ConflictPolicy.ENTITY,
+			EnumSet.of(GranularConflictPolicy.ENTITY_ATTRIBUTE, GranularConflictPolicy.PRICE)
+		);
+		final ConflictResolution entityResolution = new ConflictResolution(
+			ConflictPolicy.ENTITY,
+			EnumSet.of(GranularConflictPolicy.REFERENCE)
+		);
+		final ModifyCatalogSchemaConflictResolutionMutation catalogMutation =
+			new ModifyCatalogSchemaConflictResolutionMutation(catalogResolution);
+		final ModifyEntitySchemaConflictResolutionMutation entityMutation =
+			new ModifyEntitySchemaConflictResolutionMutation(entityResolution);
+
+		assertEquals(
+			ConflictResolutionOverride.GRANULAR,
+			roundTrip(walKryo, attributeMutation).getConflictResolutionOverride()
+		);
+		assertEquals(
+			ConflictResolutionOverride.ENTITY,
+			roundTrip(walKryo, associatedDataMutation).getConflictResolutionOverride()
+		);
+		assertEquals(
+			ConflictResolutionOverride.GRANULAR,
+			roundTrip(walKryo, referenceMutation).getConflictResolutionOverride()
+		);
+		assertEquals(
+			catalogResolution,
+			roundTrip(walKryo, catalogMutation).getConflictResolution()
+		);
+		assertEquals(
+			entityResolution,
+			roundTrip(walKryo, entityMutation).getConflictResolution()
+		);
+	}
+
+	/**
+	 * Serializes the supplied mutation through the WAL kryo and reads it back, returning the deserialized instance.
+	 *
+	 * @param walKryo  the WAL-configured kryo instance
+	 * @param mutation the mutation to round-trip
+	 * @param <T>      the concrete mutation type
+	 * @return the deserialized mutation
+	 */
+	@Nonnull
+	@SuppressWarnings("unchecked")
+	private static <T> T roundTrip(@Nonnull Kryo walKryo, @Nonnull T mutation) {
+		final ByteArrayOutputStream baos = new ByteArrayOutputStream(512);
+		try (final Output output = new Output(baos)) {
+			walKryo.writeClassAndObject(output, mutation);
+		}
+		try (final Input input = new Input(new ByteArrayInputStream(baos.toByteArray()))) {
+			return (T) walKryo.readClassAndObject(input);
+		}
+	}
+
+	@Test
 	void shouldSerializeAndDeserializeDataMutations() {
 		final ByteArrayOutputStream baos = new ByteArrayOutputStream(4084);
 		final Kryo walKryo = KryoFactory.createKryo(WalKryoConfigurer.INSTANCE);
 
 		final EntitySchemaContract productSchema = constructSomeSchema(
 			new InternalEntitySchemaBuilder(
-				CatalogSchema._internalBuild(TestConstants.TEST_CATALOG, NamingConvention.generate(TestConstants.TEST_CATALOG), EnumSet.allOf(CatalogEvolutionMode.class), EmptyEntitySchemaAccessor.INSTANCE),
+				CatalogSchema._internalBuild(TestConstants.TEST_CATALOG, NamingConvention.generate(TestConstants.TEST_CATALOG), null, EnumSet.allOf(CatalogEvolutionMode.class), EmptyEntitySchemaAccessor.INSTANCE),
 				EntitySchema._internalBuild(Entities.PRODUCT)
 			)
 		)
