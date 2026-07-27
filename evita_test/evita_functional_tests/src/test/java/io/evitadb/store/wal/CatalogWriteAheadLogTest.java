@@ -50,6 +50,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mockito;
 
 import javax.annotation.Nonnull;
@@ -306,6 +308,159 @@ class CatalogWriteAheadLogTest implements EvitaTestSupport {
 			assertNotNull(
 				CatalogWriteAheadLogTest.this.tested.checkAndTruncate(CatalogWriteAheadLogTest.this.walFilePath, CatalogWriteAheadLogTest.this.catalogKryoPool, CatalogWriteAheadLogTest.this.walFileReference).logFileRecordReference(),
 				"Corrupted WAL file should be detected and return new reference"
+			);
+		}
+
+		/**
+		 * The WAL channel is not opened with `DSYNC`; durability comes from one explicit `force` per
+		 * append instead. That trades away write *ordering*: previously each `write` was synced on its
+		 * own, so a crash could only ever leave a clean prefix, whereas now the writes of the append
+		 * that was in flight may reach the device in any order and leave a **hole** — bytes missing in
+		 * the middle of the last transaction while later bytes made it.
+		 *
+		 * Such a hole is confined to the last transaction (every force covers everything written before
+		 * it), and that transaction was never acknowledged to a client, so losing it is correct. What
+		 * must not happen is recovery reporting it as corruption: `WriteAheadLogCorruptedException` here
+		 * is precisely the signature of the lost ordering guarantee and would turn a routine crash into
+		 * an unopenable catalog. Recovery has to truncate instead.
+		 *
+		 * The hole is punched without changing the file length — a shortened file is the old, already
+		 * covered torn-tail shape, whereas out-of-order writeback preserves the length.
+		 *
+		 * @param bytesBackFromEnd where the 8-byte hole starts, counted back from the end of the file
+		 */
+		@ParameterizedTest(name = "hole {0} bytes back from the end of the WAL")
+		@ValueSource(ints = {9, 12, 16, 20, 24, 30, 36, 42, 48, 54, 60})
+		@DisplayName("should truncate rather than report corruption when the last transaction has a hole")
+		void shouldTruncateWhenLastTransactionHasHole(int bytesBackFromEnd) throws IOException {
+			final long originalLength = modifyWalFile(raf -> {
+				raf.seek(raf.length() - bytesBackFromEnd);
+				raf.write(new byte[]{0, 0, 0, 0, 0, 0, 0, 0});
+				return null;
+			});
+
+			assertEquals(
+				originalLength, CatalogWriteAheadLogTest.this.walFilePath.toFile().length(),
+				"Precondition: the hole must preserve the file length, otherwise this degenerates into " +
+					"the torn-tail case already covered by shouldTruncatePartiallyWrittenWal"
+			);
+
+			assertDoesNotThrow(
+				() -> CatalogWriteAheadLogTest.this.tested.checkAndTruncate(
+					CatalogWriteAheadLogTest.this.walFilePath,
+					CatalogWriteAheadLogTest.this.catalogKryoPool,
+					CatalogWriteAheadLogTest.this.walFileReference
+				),
+				"A hole in the last (unacknowledged) transaction must be truncated, not surfaced as " +
+					"corruption — throwing here means a crash mid-append leaves an unopenable catalog"
+			);
+
+			// without this the test would pass even if recovery never looked at the file: the damaged
+			// transaction has to actually be gone, otherwise a corrupt record stays readable
+			assertTrue(
+				CatalogWriteAheadLogTest.this.walFilePath.toFile().length() < originalLength,
+				"The holed transaction must actually be truncated away — file length stayed at " +
+					originalLength + ", so the damage went undetected"
+			);
+		}
+
+		/**
+		 * Group commit widened the window the test above covers. With one force per append the unforced
+		 * region was a single transaction, so a hole could only ever land in the last one. Now a force
+		 * covers a whole *batch*, and every transaction appended since the previous force is unforced at
+		 * once — so out-of-order writeback can leave a hole several transactions back from the end while
+		 * the transactions after it landed intact.
+		 *
+		 * That is still safe, but for a reason worth stating: nothing in the unforced batch was ever
+		 * acknowledged (clients are notified only after the force that covers them), so discarding the
+		 * hole *and everything behind it* loses nothing a client was promised. What recovery must not do
+		 * is throw, and it must not keep the transactions that follow the damage — those sit behind a gap
+		 * in the cumulative checksum chain and would be read as valid history that never happened.
+		 *
+		 * @param bytesBackFromEnd where the 8-byte hole starts, counted back from the end of the file —
+		 *                         far enough back to land in a transaction that is not the last one
+		 */
+		@ParameterizedTest(name = "hole {0} bytes back from the end, several transactions deep")
+		@ValueSource(ints = {150, 250, 350, 450})
+		@DisplayName("should truncate the whole unforced batch when a hole lands before its last transaction")
+		void shouldTruncateWhenAnEarlierTransactionOfTheBatchHasHole(int bytesBackFromEnd) throws IOException {
+			final long originalLength = modifyWalFile(raf -> {
+				raf.seek(raf.length() - bytesBackFromEnd);
+				raf.write(new byte[]{0, 0, 0, 0, 0, 0, 0, 0});
+				return null;
+			});
+			final long holeOffset = originalLength - bytesBackFromEnd;
+
+			assertEquals(
+				originalLength, CatalogWriteAheadLogTest.this.walFilePath.toFile().length(),
+				"Precondition: the hole must preserve the file length, otherwise this degenerates into " +
+					"the torn-tail case already covered by shouldTruncatePartiallyWrittenWal"
+			);
+			assertTrue(
+				holeOffset > 0,
+				"Precondition: the fixture WAL must be long enough for the hole to land inside it"
+			);
+
+			assertDoesNotThrow(
+				() -> CatalogWriteAheadLogTest.this.tested.checkAndTruncate(
+					CatalogWriteAheadLogTest.this.walFilePath,
+					CatalogWriteAheadLogTest.this.catalogKryoPool,
+					CatalogWriteAheadLogTest.this.walFileReference
+				),
+				"A hole anywhere in the unforced batch must be truncated, not surfaced as corruption — " +
+					"throwing here means a crash mid-batch leaves an unopenable catalog"
+			);
+
+			final long recoveredLength = CatalogWriteAheadLogTest.this.walFilePath.toFile().length();
+			assertTrue(
+				recoveredLength <= holeOffset,
+				"Recovery must drop the damaged transaction AND every transaction appended after it — " +
+					"the file was truncated to " + recoveredLength + " but the damage starts at " +
+					holeOffset + ", so records sitting behind a gap in the checksum chain survived"
+			);
+		}
+
+		/**
+		 * Hole tolerance rests entirely on the cumulative CRC32C chain — it is the only thing that can tell
+		 * a hole apart from valid data, because a hole preserves the file length and so leaves the
+		 * transaction framing intact.
+		 *
+		 * That chain is optional. With {@link StorageOptions#computeCRC32C()} off, the storage layer swaps
+		 * in `Checksum.NO_OP`, whose `equalsTo` unconditionally returns TRUE — so the scan waves every
+		 * transaction through, and the damage surfaces only when the last transaction is deserialized,
+		 * where `handleTransactionReadException` turns it into a hard failure instead of a truncation.
+		 *
+		 * This was harmless while the WAL was opened with `DSYNC`, because every write was synced in order
+		 * and a crash could only ever leave a clean prefix — holes were not physically possible, so nothing
+		 * depended on detecting them. Dropping DSYNC made hole tolerance a correctness requirement, and
+		 * batching the force across several transactions widened the window it has to cover. The checksum
+		 * therefore stopped being an integrity nicety and became load-bearing, and it must not be possible
+		 * to switch it off.
+		 */
+		@Test
+		@DisplayName("should demand write ordering from the device when CRC32C computation is switched off")
+		void shouldRequireWriteOrderingWhenChecksumsAreDisabled() {
+			assertTrue(
+				AbstractMutationLog.requiresWriteOrdering(
+					new StorageSettings(
+						StorageOptions.builder().computeCRC32(false).build(),
+						TransactionOptions.builder().build()
+					)
+				),
+				"With no checksum chain a hole cannot be detected — verified by experiment: recovery does " +
+					"not throw and does not truncate, it accepts the damaged transaction and replays it as " +
+					"real history. The damage must therefore be made impossible instead, by syncing every " +
+					"individual write so a crash can only leave a clean prefix"
+			);
+			assertFalse(
+				AbstractMutationLog.requiresWriteOrdering(
+					new StorageSettings(
+						StorageOptions.builder().computeCRC32(true).build(),
+						TransactionOptions.builder().build()
+					)
+				),
+				"With the checksum chain present holes are detected and truncated, so the WAL may take the " +
+					"fast path of one force per batch instead of one device sync per write"
 			);
 		}
 

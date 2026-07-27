@@ -68,7 +68,8 @@ transaction:
   transactionMemoryRegionCount: ${transaction.memoryRegionCount:256}
   walFileSizeBytes: ${transaction.walFilSize:16M}
   walFileCountKept: ${transaction.walFileCountKept:8}
-  flushFrequencyInMillis: ${transaction.flushFrequencyInMillis:1000}
+  flushFrequencyInMillis: ${transaction.flushFrequencyInMillis:10000}
+  checkpointIntervalInMillis: ${transaction.checkpointIntervalInMillis:1000}
   conflictRingBufferSize: ${transaction.conflictRingBufferSize:65536}
   conflictPolicy: ${transaction.conflictPolicy:[ENTITY]}
 

@@ -699,12 +699,9 @@ public final class Catalog
 		this.schema = new TransactionalReference<>(new CatalogSchemaDecorator(catalogSchema));
 		this.catalogIndex = this.persistenceService.readCatalogIndex(this, Scope.LIVE)
 			.orElseGet(() -> new CatalogIndex(Scope.LIVE));
-		final CatalogIndex loadedArchiveCatalogIndex = this.persistenceService.readCatalogIndex(this, Scope.ARCHIVED)
+		this.persistenceService.readCatalogIndex(this, Scope.ARCHIVED)
 			.filter(it -> !it.isEmpty())
-			.orElse(null);
-		if (loadedArchiveCatalogIndex != null) {
-			this.archiveCatalogIndex.set(loadedArchiveCatalogIndex);
-		}
+			.ifPresent(this.archiveCatalogIndex::set);
 		this.cacheSupervisor = cacheSupervisor;
 		this.trafficRecordingEngine = new TrafficRecordingEngine(
 			catalogSchema.getName(),
@@ -1881,10 +1878,14 @@ public final class Catalog
 	}
 
 	/**
-	 * Returns the newest catalog version that has actually reached disk, which may lag {@link #getVersion()} while a
-	 * commit is in flight. Tells apart a failure that struck before its version was durable from one that struck after.
+	 * Returns the newest catalog version that has actually been checkpointed to disk. Tells apart a failure that
+	 * struck before its version was durable from one that struck after.
 	 *
-	 * @return the last catalog version present in persistent storage
+	 * This lags {@link #getVersion()} by an entire checkpoint interval when one is configured - not merely for the
+	 * duration of a commit in flight. Everything above it is recovered by replaying the write-ahead log, so the gap
+	 * is bounded but is measured in seconds rather than milliseconds.
+	 *
+	 * @return the last catalog version whose checkpoint completed
 	 */
 	public long getLastPersistedCatalogVersion() {
 		return this.persistenceService.getLastCatalogVersion();
@@ -1896,7 +1897,9 @@ public final class Catalog
 	 */
 	public void flush(long catalogVersion, @Nonnull TransactionMutation lastProcessedTransaction) {
 		Assert.isPremiseValid(getCatalogState() == CatalogState.ALIVE, "Catalog is not in ALIVE state!");
-		boolean changeOccurred = this.persistenceService.getLastCatalogVersion() != catalogVersion ||
+		// the last APPLIED version, not the last checkpointed one: with a checkpoint interval configured the latter
+		// lags by up to that interval, which would make every round in between look like a change
+		boolean changeOccurred = this.persistenceService.getLastAppliedCatalogVersion() != catalogVersion ||
 			getInternalSchema().version() != this.lastPersistedSchemaVersion;
 		final List<EntityCollectionHeader> entityHeaders = new ArrayList<>(this.entityCollections.size());
 		for (EntityCollection entityCollection : this.entityCollections.values()) {
@@ -1945,15 +1948,28 @@ public final class Catalog
 	 * Appends the given transaction mutation to the write-ahead log (WAL) and appends its mutation chain taken from
 	 * offHeapWithFileBackupReference. After that it discards the specified off-heap data with file backup reference.
 	 *
+	 * The append is left merely **written** rather than durable - the caller must pair it with {@link #syncWal()}
+	 * before the transaction may be acknowledged or checkpointed. That is what allows one device sync to cover
+	 * a whole batch of transactions instead of one each.
+	 *
 	 * @param transactionMutation The transaction mutation to append to the WAL.
 	 * @param walReference        The off-heap data with file backup reference to discard.
 	 * @return the number of Bytes written
 	 */
-	public long appendWalAndDiscard(
+	public long appendWalAndDiscardDeferringSync(
 		@Nonnull TransactionMutation transactionMutation,
 		@Nonnull LogRecordReference walReference
 	) {
-		return this.persistenceService.appendWalAndDiscard(getVersion(), transactionMutation, walReference);
+		return this.persistenceService.appendWalAndDiscardDeferringSync(
+			getVersion(), transactionMutation, walReference
+		);
+	}
+
+	/**
+	 * Makes everything appended to this catalog's WAL so far durable.
+	 */
+	public void syncWal() {
+		this.persistenceService.syncWal();
 	}
 
 	/**

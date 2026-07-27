@@ -291,7 +291,7 @@ public class DefaultCatalogPersistenceService
 	/**
 	 * Wall-clock time (epoch millis, {@link #CURRENT_TIME_MILLIS}) at which the catalog data file was last compacted.
 	 * Backs the {@code minCompactionIntervalMilliseconds} cadence gate for the catalog-file compaction trigger in
-	 * {@link #recordBootstrap(long, String, int, long, DataStoreMemoryBuffer)}.
+	 * {@link #prepareBootstrap(long, String, int, long, DataStoreMemoryBuffer)}.
 	 */
 	@Getter(AccessLevel.PACKAGE)
 	private long lastCatalogCompactionAtMillis = getNowEpochMillis();
@@ -315,6 +315,52 @@ public class DefaultCatalogPersistenceService
 	 * This lock synchronizes the access to the write ahead log file.
 	 */
 	private final ReentrantLock walWriteLock = new ReentrantLock();
+	/**
+	 * Serialises a trunk round's end-of-round processing against a checkpoint driven from any other thread - the
+	 * ticker, a backup or an integrity check. Both advance the catalog offset index and may write a bootstrap record,
+	 * and a record naming version `V` must not be built from an index that has already absorbed `V+1`.
+	 *
+	 * Lives here rather than on {@link CheckpointCoordinator} because the state it guards is this service's -
+	 * {@link #deferredCheckpointBootstrap}, {@link #bootstrapUsed} and the catalog offset index. The coordinator is
+	 * handed the same instance so both paths take one lock, and it exists even when there is no coordinator, which
+	 * is what lets {@link #storeHeader} lock unconditionally instead of branching.
+	 *
+	 * This is a leaf lock: {@link #bootstrapWriteLock}, {@link #cpsvLock} and the write-handle locks are all taken
+	 * beneath it, in that same order on every path, and nothing beneath it reaches back here.
+	 */
+	private final ReentrantLock checkpointLock = new ReentrantLock();
+	/**
+	 * Takes the device flush of the catalog and entity collection data files off the end of every trunk round and
+	 * performs it on an interval instead, together with the bootstrap record that points at those files.
+	 *
+	 * Null when checkpointing happens at the end of every round - either because
+	 * {@link io.evitadb.api.configuration.TransactionOptions#checkpointIntervalInMillis()} is zero, or because
+	 * {@link io.evitadb.api.configuration.StorageOptions#syncWrites()} is off and there is consequently no device
+	 * flush to defer in the first place.
+	 */
+	@Getter(AccessLevel.PACKAGE)
+	@Nullable private final CheckpointCoordinator checkpointCoordinator;
+	/**
+	 * The catalog version most recently handed to {@link #storeHeader}, whether or not it has been checkpointed yet.
+	 *
+	 * {@link #getLastCatalogVersion()} deliberately keeps reporting the last **checkpointed** version, because its
+	 * callers use it to tell a failure that struck before durability from one that struck after. This field answers
+	 * the different question of what has already been written, which is what a caller deciding whether anything
+	 * changed since the previous round needs.
+	 */
+	private volatile long lastAppliedCatalogVersion;
+	/**
+	 * The bootstrap record a deferred checkpoint still owes: already built by the round that deferred - which is what
+	 * makes it safe for another thread to publish - but not yet written to the bootstrap file.
+	 *
+	 * Written by the round while holding the coordinator's lock and read by whoever settles the debt under that same
+	 * lock. Null when nothing is owed.
+	 *
+	 * It doubles as the baseline the next round builds on: catalog-file compaction bumps the file index inside the
+	 * record, and until the record is written {@link #bootstrapUsed} still names the file index from before the
+	 * compaction.
+	 */
+	@Nullable private volatile CatalogBootstrap deferredCheckpointBootstrap;
 	/**
 	 * Scheduled executor service is used for planning maintenance tasks on the data level.
 	 */
@@ -354,8 +400,14 @@ public class DefaultCatalogPersistenceService
 	private CatalogBootstrap bootstrapUsed;
 	/**
 	 * Contains the instance of {@link CatalogWriteAheadLog} that is used for writing mutations into shared WAL.
+	 *
+	 * `volatile` because {@link #syncWal()} reads it from the thread that forces the WAL, which is not the
+	 * thread that appends. Every other assignment happens in a constructor, and the only runtime one is the
+	 * lazy initialisation inside {@link #doAppendWalAndDiscard}; the appender's publication of that value
+	 * does happen-before the syncer's read through the pending-transaction queue's lock, but relying on a
+	 * chain that long to keep a field safe is exactly how it stops being safe when somebody reorders a call.
 	 */
-	@Nullable private CatalogWriteAheadLog catalogWal;
+	@Nullable private volatile CatalogWriteAheadLog catalogWal;
 	/**
 	 * Contains the millis from the time the non-flushed block was reported.
 	 */
@@ -1105,6 +1157,7 @@ public class DefaultCatalogPersistenceService
 		this.storageSettings = new StorageSettings(storageOptions, transactionOptions);
 		this.bootstrapStorageSettings = this.storageSettings.modifyForBootstrapFile();
 		this.scheduler = scheduler;
+		this.checkpointCoordinator = createCheckpointCoordinator(catalogName, this.storageSettings, scheduler);
 		this.exportService = exportService;
 		this.offHeapMemoryManager = new CatalogOffHeapMemoryManager(
 			catalogName,
@@ -1115,7 +1168,7 @@ public class DefaultCatalogPersistenceService
 		this.catalogName = catalogName;
 		this.walFileNameProvider = index -> CatalogPersistenceService.getWalFileName(catalogName, index);
 		this.catalogStoragePath = pathForCatalog(catalogName, this.storageSettings.storageDirectory());
-		final String verifiedCatalogName = verifyDirectory(this.catalogStoragePath, true);
+		verifyDirectory(this.catalogStoragePath, true);
 		this.observableOutputKeeper = new ObservableOutputKeeper(
 			catalogName,
 			this.storageSettings.outputBufferSize(),
@@ -1160,7 +1213,8 @@ public class DefaultCatalogPersistenceService
 				this.observableOutputKeeper,
 				VERSIONED_KRYO_FACTORY,
 				nonFlushedBlock -> this.reportNonFlushedContents(catalogName, nonFlushedBlock),
-				oldestRecordTimestamp -> reportOldestHistoricalRecord(catalogName, oldestRecordTimestamp.orElse(null))
+				oldestRecordTimestamp -> reportOldestHistoricalRecord(catalogName, oldestRecordTimestamp.orElse(null)),
+				this.checkpointCoordinator
 			)
 		);
 		this.catalogPersistenceServiceVersions = new long[]{catalogVersion};
@@ -1284,6 +1338,7 @@ public class DefaultCatalogPersistenceService
 		this.storageSettings = new StorageSettings(storageOptions, transactionOptions);
 		this.bootstrapStorageSettings = this.storageSettings.modifyForBootstrapFile();
 		this.scheduler = scheduler;
+		this.checkpointCoordinator = createCheckpointCoordinator(catalogName, this.storageSettings, scheduler);
 		this.exportService = exportService;
 		this.offHeapMemoryManager = new CatalogOffHeapMemoryManager(
 			catalogName,
@@ -1343,7 +1398,8 @@ public class DefaultCatalogPersistenceService
 					this.observableOutputKeeper,
 					VERSIONED_KRYO_FACTORY,
 					nonFlushedBlock -> this.reportNonFlushedContents(catalogName, nonFlushedBlock),
-					oldestRecordTimestamp -> reportOldestHistoricalRecord(catalogName, oldestRecordTimestamp.orElse(null))
+					oldestRecordTimestamp -> reportOldestHistoricalRecord(catalogName, oldestRecordTimestamp.orElse(null)),
+					this.checkpointCoordinator
 				),
 				this.bootstrapUsed.catalogVersion(),
 				allowInlineV4ToV5Upgrade
@@ -1421,6 +1477,9 @@ public class DefaultCatalogPersistenceService
 		this.storageSettings = formerService.storageSettings;
 		this.bootstrapStorageSettings = formerService.bootstrapStorageSettings;
 		this.scheduler = formerService.scheduler;
+		// a fresh coordinator rather than the former service's: this service writes different files, and the former
+		// one still owns - and on close forces - whatever it had pending against the paths it was writing
+		this.checkpointCoordinator = createCheckpointCoordinator(catalogName, this.storageSettings, this.scheduler);
 		this.exportService = formerService.exportService;
 		this.offHeapMemoryManager = new CatalogOffHeapMemoryManager(
 			catalogName,
@@ -1474,7 +1533,8 @@ public class DefaultCatalogPersistenceService
 				this.observableOutputKeeper,
 				VERSIONED_KRYO_FACTORY,
 				nonFlushedBlock -> this.reportNonFlushedContents(catalogName, nonFlushedBlock),
-				oldestRecordTimestamp -> reportOldestHistoricalRecord(catalogName, oldestRecordTimestamp.orElse(null))
+				oldestRecordTimestamp -> reportOldestHistoricalRecord(catalogName, oldestRecordTimestamp.orElse(null)),
+				this.checkpointCoordinator
 			),
 			this.bootstrapUsed.catalogVersion(),
 			false
@@ -1531,8 +1591,9 @@ public class DefaultCatalogPersistenceService
 				.orElse(null)
 		).commit();
 		// emit WAL events if it exists
-		if (this.catalogWal != null) {
-			this.catalogWal.emitObservabilityEvents();
+		final CatalogWriteAheadLog theCatalogWal = this.catalogWal;
+		if (theCatalogWal != null) {
+			theCatalogWal.emitObservabilityEvents();
 		}
 	}
 
@@ -1574,6 +1635,14 @@ public class DefaultCatalogPersistenceService
 	@Override
 	public long getLastCatalogVersion() {
 		return this.bootstrapUsed.catalogVersion();
+	}
+
+	@Override
+	public long getLastAppliedCatalogVersion() {
+		// `bootstrapUsed` moves only at a checkpoint, so without a coordinator the two answers coincide; the field
+		// is seeded lazily by the first storeHeader, hence the fallback for a service that has not stored one yet
+		final long applied = this.lastAppliedCatalogVersion;
+		return applied == 0L ? this.bootstrapUsed.catalogVersion() : applied;
 	}
 
 	@Nonnull
@@ -1725,79 +1794,140 @@ public class DefaultCatalogPersistenceService
 		@Nonnull List<EntityCollectionFileHeader> entityHeaders,
 		@Nonnull DataStoreMemoryBuffer dataStoreMemoryBuffer
 	) {
-		// first we need to execute transition to alive state
-		if (catalogState == CatalogState.ALIVE && catalogVersion == 0L) {
-			this.bootstrapUsed = recordBootstrap(
-				catalogVersion, this.catalogName, this.bootstrapUsed.catalogFileIndex(), dataStoreMemoryBuffer);
-			catalogVersion = 1L;
-		}
-		// first store all entity collection headers if they differ
-		final CatalogOffsetIndexStoragePartPersistenceService storagePartPersistenceService =
-			getStoragePartPersistenceService(catalogVersion);
-		final CatalogHeader<LogFileRecordReference, CollectionFileReference> currentCatalogHeader = storagePartPersistenceService.getCatalogHeader(
-			catalogVersion);
-		for (EntityCollectionFileHeader entityHeader : entityHeaders) {
-			final FileLocation currentLocation = entityHeader.fileLocation();
-			final Optional<FileLocation> previousLocation = currentCatalogHeader
-				.getEntityTypeFileIndexIfExists(entityHeader.entityType())
-				.map(CollectionFileReference::fileLocation);
-			// if the location is different, store the header
-			if (!previousLocation.map(it -> it.equals(currentLocation)).orElse(false)) {
-				storagePartPersistenceService.putStoragePart(catalogVersion, entityHeader);
+		// Serialises the round's end-of-round processing against a ticker-driven or backup-driven checkpoint: both
+		// advance the catalog offset index and may write a bootstrap record, and a record naming version `V` must not
+		// be built from an index that has already absorbed `V+1`.
+		//
+		// Taken unconditionally. Without a coordinator there is no other thread that can take it, so the acquisition
+		// is uncontended and costs nothing against the round's own device flushes - and making it conditional is what
+		// previously forced this method to be split in two around the branch.
+		this.checkpointLock.lock();
+		try {
+			// a checkpoint that failed can never be retried into success - the rounds it covered are long acknowledged
+			// and more have been written behind it. Refuse rather than keep acknowledging commits that cannot be made
+			// durable.
+			if (this.checkpointCoordinator != null) {
+				final Throwable checkpointFailure = this.checkpointCoordinator.getFailure();
+				if (checkpointFailure != null) {
+					throw new UnexpectedIOException(
+						"Catalog `" + this.catalogName + "` can no longer checkpoint its data files!",
+						"Catalog can no longer checkpoint its data files.",
+						checkpointFailure
+					);
+				}
 			}
-		}
+			// first we need to execute transition to alive state
+			if (catalogState == CatalogState.ALIVE && catalogVersion == 0L) {
+				this.bootstrapUsed = recordBootstrap(
+					catalogVersion, this.catalogName, this.bootstrapUsed.catalogFileIndex(), dataStoreMemoryBuffer);
+				catalogVersion = 1L;
+			}
+			// first store all entity collection headers if they differ
+			final CatalogOffsetIndexStoragePartPersistenceService storagePartPersistenceService =
+				getStoragePartPersistenceService(catalogVersion);
+			final CatalogHeader<LogFileRecordReference, CollectionFileReference> currentCatalogHeader = storagePartPersistenceService.getCatalogHeader(
+				catalogVersion);
+			for (EntityCollectionFileHeader entityHeader : entityHeaders) {
+				final FileLocation currentLocation = entityHeader.fileLocation();
+				final Optional<FileLocation> previousLocation = currentCatalogHeader
+					.getEntityTypeFileIndexIfExists(entityHeader.entityType())
+					.map(CollectionFileReference::fileLocation);
+				// if the location is different, store the header
+				if (!previousLocation.map(it -> it.equals(currentLocation)).orElse(false)) {
+					storagePartPersistenceService.putStoragePart(catalogVersion, entityHeader);
+				}
+			}
 
-		storagePartPersistenceService.writeCatalogHeader(
-			STORAGE_PROTOCOL_VERSION,
-			catalogVersion,
-			this.catalogStoragePath,
-			ofNullable(this.catalogWal)
-				.map(cwal -> cwal.getWalFileReference(lastProcessedTransaction))
-				.orElse(null),
-			entityHeaders
-				.stream()
-				.map(
-					it -> new CollectionFileReference(
-						it.entityType(),
-						it.entityTypePrimaryKey(),
-						it.entityTypeFileIndex(),
-						it.fileLocation()
+			storagePartPersistenceService.writeCatalogHeader(
+				STORAGE_PROTOCOL_VERSION,
+				catalogVersion,
+				this.catalogStoragePath,
+				ofNullable(this.catalogWal)
+					.map(cwal -> cwal.getWalFileReference(lastProcessedTransaction))
+					.orElse(null),
+				entityHeaders
+					.stream()
+					.map(
+						it -> new CollectionFileReference(
+							it.entityType(),
+							it.entityTypePrimaryKey(),
+							it.entityTypeFileIndex(),
+							it.fileLocation()
+						)
 					)
-				)
-				.collect(
-					Collectors.toMap(
-						CollectionFileReference::entityType,
-						Function.identity()
-					)
-				),
-			catalogId,
-			this.catalogName,
-			catalogState,
-			lastEntityCollectionPrimaryKey
-		);
-		this.bootstrapUsed = recordBootstrap(
-			catalogVersion,
-			this.catalogName,
-			this.bootstrapUsed.catalogFileIndex(),
-			dataStoreMemoryBuffer
-		);
-
-		// notify WAL that the new version was successfully stored
-		if (this.catalogWal != null) {
-			this.catalogWal.walProcessedUntil(catalogVersion);
-		}
-
-		// emit event if the number of collections has changed
-		if (getNowEpochMillis() - this.lastCatalogStatisticsTimestamp > 1000) {
-			new CatalogStatisticsEvent(
+					.collect(
+						Collectors.toMap(
+							CollectionFileReference::entityType,
+							Function.identity()
+						)
+					),
+				catalogId,
 				this.catalogName,
-				entityHeaders.size(),
-				FileUtils.getDirectorySize(this.catalogStoragePath),
-				getFirstCatalogBootstrap(this.catalogName, this.bootstrapStorageSettings)
-					.map(CatalogBootstrap::timestamp)
-					.orElse(null)
-			).commit();
-			this.lastCatalogStatisticsTimestamp = getNowEpochMillis();
+				catalogState,
+				lastEntityCollectionPrimaryKey
+			);
+			this.lastAppliedCatalogVersion = catalogVersion;
+
+			// Build the bootstrap record HERE, on the round's own thread, whether or not it will be published now.
+			// This is what advances the catalog offset index to this version, and only the writer of those entries
+			// may do it - a checkpoint arriving from the ticker or a backup would otherwise promote the entries of
+			// a round already in flight. Publishing the finished record later is safe; building it later is not.
+			final CatalogBootstrap deferredBootstrap = this.deferredCheckpointBootstrap;
+			final CatalogBootstrap preparedBootstrap = prepareBootstrap(
+				catalogVersion,
+				this.catalogName,
+				// build on the newest record there is, written or not - a compaction inside a deferred round bumped
+				// the file index in that record while `bootstrapUsed` still names the file from before it. Using
+				// `bootstrapUsed` here reuses an index a previous round already took, and the compaction copy then
+				// overwrites a live catalog file - which surfaces as a Kryo buffer underflow, not a clean failure.
+				(deferredBootstrap == null ? this.bootstrapUsed : deferredBootstrap).catalogFileIndex(),
+				getNowEpochMillis(),
+				dataStoreMemoryBuffer
+			);
+
+			// everything above has written its bytes; from here on the only question is when they reach the device
+
+			// warm-up is excluded deliberately: it has no trunk rounds to amortise a checkpoint across, and go-live
+			// depends on everything written during it being addressable from disk before the first transaction runs
+			if (this.checkpointCoordinator != null && catalogState == CatalogState.ALIVE &&
+				!this.checkpointCoordinator.isCheckpointDue()) {
+				this.deferredCheckpointBootstrap = preparedBootstrap;
+				this.checkpointCoordinator.noteCheckpointDeferred();
+				return;
+			}
+
+			this.bootstrapUsed = writeCatalogBootstrap(catalogVersion, this.catalogName, preparedBootstrap);
+			this.deferredCheckpointBootstrap = null;
+
+			// notify WAL that the new version was successfully stored
+			final CatalogWriteAheadLog theCatalogWal = this.catalogWal;
+			if (theCatalogWal != null) {
+				theCatalogWal.walProcessedUntil(catalogVersion);
+			}
+
+			// only in ALIVE state: warm-up writes a bootstrap record on every flush, and reporting each of those as
+			// a checkpoint would fill the cadence gauge with the bulk-load round rate. An operator reading a median
+			// cadence of a few milliseconds during a bulk load would conclude checkpointing is healthy while looking
+			// at a phase where the number means nothing at all. Warm-up flushes still force their pending files -
+			// that happens at the fence inside `writeCatalogBootstrap`, independently of this bookkeeping.
+			if (this.checkpointCoordinator != null && catalogState == CatalogState.ALIVE) {
+				this.checkpointCoordinator.noteCheckpointCompleted();
+			}
+
+			// emit event if the number of collections has changed
+			if (getNowEpochMillis() - this.lastCatalogStatisticsTimestamp > 1000) {
+				new CatalogStatisticsEvent(
+					this.catalogName,
+					entityHeaders.size(),
+					FileUtils.getDirectorySize(this.catalogStoragePath),
+					getFirstCatalogBootstrap(this.catalogName, this.bootstrapStorageSettings)
+						.map(CatalogBootstrap::timestamp)
+						.orElse(null)
+				).commit();
+				this.lastCatalogStatisticsTimestamp = getNowEpochMillis();
+			}
+		} finally {
+			this.checkpointLock.unlock();
 		}
 	}
 
@@ -1896,7 +2026,8 @@ public class DefaultCatalogPersistenceService
 						this.storageSettings,
 						this.offHeapMemoryManager,
 						this.observableOutputKeeper,
-						this.recordTypeRegistry
+						this.recordTypeRegistry,
+						this.checkpointCoordinator
 					)
 				);
 				if (dataStoreBuffer instanceof WarmUpDataStoreMemoryBuffer warmUpDataStoreMemoryBuffer) {
@@ -2071,7 +2202,45 @@ public class DefaultCatalogPersistenceService
 	}
 
 	@Override
-	public long appendWalAndDiscard(
+	public long appendWalAndDiscardDeferringSync(
+		long catalogVersion,
+		@Nonnull TransactionMutation transactionMutation,
+		@Nonnull LogRecordReference walReference
+	) {
+		return doAppendWalAndDiscard(catalogVersion, transactionMutation, walReference);
+	}
+
+	@Override
+	public void syncWal() {
+		// deliberately NOT taken under `walWriteLock`: the force is the expensive part of a commit and
+		// holding that lock across it would re-serialize appends behind syncs, which is exactly what the
+		// deferred-sync path exists to avoid. Exclusion against rotation and channel close lives inside
+		// the WAL itself.
+		final CatalogWriteAheadLog theCatalogWal = this.catalogWal;
+		// a missing WAL must NOT be treated as "nothing to sync": the only caller is the durability
+		// handshake, which asks for a force precisely because it has transactions it is about to declare
+		// durable. Returning quietly here would acknowledge them without anything reaching the device -
+		// the one failure mode of this design that corrupts silently instead of throwing
+		Assert.isPremiseValid(
+			theCatalogWal != null,
+			"Cannot sync the WAL of catalog `" + this.catalogName + "` - it does not exist! " +
+				"A sync was requested for transactions that were supposedly appended to it."
+		);
+		theCatalogWal.syncWal();
+	}
+
+	/**
+	 * Appends the transaction to the shared WAL and discards the isolated WAL contents.
+	 *
+	 * The append is left written but not durable - see {@link #appendWalAndDiscardDeferringSync} for who owes the
+	 * matching {@link #syncWal()}.
+	 *
+	 * @param catalogVersion       the catalog version the transaction is bound to
+	 * @param transactionMutation  the leading transaction mutation
+	 * @param walReference         the reference to the isolated WAL contents
+	 * @return the length of the written WAL contents
+	 */
+	private long doAppendWalAndDiscard(
 		long catalogVersion,
 		@Nonnull TransactionMutation transactionMutation,
 		@Nonnull LogRecordReference walReference
@@ -2096,14 +2265,16 @@ public class DefaultCatalogPersistenceService
 						offHeapReference.getBuffer().isPresent() || offHeapReference.getFilePath().isPresent(),
 						"Unexpected WAL reference - neither off-heap buffer nor file reference present!"
 					);
+					final CatalogWriteAheadLog theCatalogWal = this.catalogWal;
 					Assert.isPremiseValid(
-						this.catalogWal != null,
+						theCatalogWal != null,
 						"Catalog WAL is unexpectedly not present!"
 					);
 
-					return Objects.requireNonNull(
-							this.catalogWal.append(transactionMutation, offHeapReference).fileLocation())
-						.recordLength();
+					final LogFileRecordReference reference = theCatalogWal.appendDeferringSync(
+						transactionMutation, offHeapReference
+					);
+					return Objects.requireNonNull(reference.fileLocation()).recordLength();
 				}
 			} finally {
 				this.walWriteLock.unlock();
@@ -2121,10 +2292,11 @@ public class DefaultCatalogPersistenceService
 	public Optional<TransactionMutation> getFirstNonProcessedTransactionInWal(
 		long catalogVersion
 	) {
-		if (this.catalogWal == null) {
+		final CatalogWriteAheadLog theCatalogWal = this.catalogWal;
+		if (theCatalogWal == null) {
 			return Optional.empty();
 		} else {
-			return this.catalogWal.getFirstNonProcessedTransaction(getCatalogHeader(catalogVersion).walFileReference())
+			return theCatalogWal.getFirstNonProcessedTransaction(getCatalogHeader(catalogVersion).walFileReference())
 				.map(TransactionMutationWithWalFileReference::transactionMutation);
 		}
 	}
@@ -2365,20 +2537,35 @@ public class DefaultCatalogPersistenceService
 	@Nonnull
 	@Override
 	public Stream<CatalogBoundMutation> getCommittedMutationStream(long catalogVersion) {
-		if (this.catalogWal == null) {
+		final CatalogWriteAheadLog theCatalogWal = this.catalogWal;
+		if (theCatalogWal == null) {
 			return Stream.empty();
 		} else {
-			return this.catalogWal.getCommittedMutationStream(catalogVersion);
+			return theCatalogWal.getCommittedMutationStream(catalogVersion);
 		}
 	}
 
 	@Nonnull
 	@Override
 	public Stream<CatalogBoundMutation> getReversedCommittedMutationStream(@Nullable Long catalogVersion) {
-		if (this.catalogWal == null) {
+		final CatalogWriteAheadLog theCatalogWal = this.catalogWal;
+		if (theCatalogWal == null) {
 			return Stream.empty();
 		} else {
-			return this.catalogWal.getCommittedReversedMutationStream(getLastCatalogVersion());
+			// Honour the requested starting version - the argument used to be discarded, which contradicted both this
+			// method's own contract and its engine-side counterpart
+			// (`DefaultEnginePersistenceService#getReversedCommittedMutationStream`), and made every caller asking for
+			// history from an older version walk the whole write-ahead log back from the head instead. The result was
+			// still correct because the change-capture predicate filters on the same version afterwards; only the
+			// amount of log scanned was wrong.
+			//
+			// When no version is requested the walk starts at the newest APPLIED version rather than the newest
+			// checkpointed one: with a checkpoint interval configured the latter lags by up to a whole interval, and
+			// starting there would hide every mutation committed since. The two coincide when every round
+			// checkpoints.
+			return theCatalogWal.getCommittedReversedMutationStream(
+				catalogVersion == null ? getLastAppliedCatalogVersion() : catalogVersion
+			);
 		}
 	}
 
@@ -2386,10 +2573,11 @@ public class DefaultCatalogPersistenceService
 	@Override
 	public Stream<CatalogBoundMutation> getCommittedLiveMutationStream(
 		long startCatalogVersion, long requestedCatalogVersion) {
-		if (this.catalogWal == null) {
+		final CatalogWriteAheadLog theCatalogWal = this.catalogWal;
+		if (theCatalogWal == null) {
 			return Stream.empty();
 		} else {
-			return this.catalogWal.getCommittedMutationStreamAvoidingPartiallyWrittenBuffer(
+			return theCatalogWal.getCommittedMutationStreamAvoidingPartiallyWrittenBuffer(
 				startCatalogVersion, requestedCatalogVersion
 			);
 		}
@@ -2397,19 +2585,21 @@ public class DefaultCatalogPersistenceService
 
 	@Override
 	public long getLastCatalogVersionInMutationStream() {
-		if (this.catalogWal == null) {
+		final CatalogWriteAheadLog theCatalogWal = this.catalogWal;
+		if (theCatalogWal == null) {
 			return 0L;
 		} else {
-			return this.catalogWal.getLastWrittenVersion();
+			return theCatalogWal.getLastWrittenVersion();
 		}
 	}
 
 	@Override
 	public long getFirstCatalogVersionInMutationStream() {
-		if (this.catalogWal == null) {
+		final CatalogWriteAheadLog theCatalogWal = this.catalogWal;
+		if (theCatalogWal == null) {
 			return -1L;
 		} else {
-			return this.catalogWal.getFirstVersionOfCurrentWalFile();
+			return theCatalogWal.getFirstVersionOfCurrentWalFile();
 		}
 	}
 
@@ -2541,7 +2731,8 @@ public class DefaultCatalogPersistenceService
 	@Nonnull
 	@Override
 	public List<WriteAheadLogVersionDescriptor> getCatalogVersionDescriptors(long... catalogVersion) {
-		if (catalogVersion.length == 0 || this.catalogWal == null) {
+		final CatalogWriteAheadLog theCatalogWal = this.catalogWal;
+		if (catalogVersion.length == 0 || theCatalogWal == null) {
 			return Collections.emptyList();
 		}
 		final String bootstrapFileName = getCatalogBootstrapFileName(this.catalogName);
@@ -2557,7 +2748,7 @@ public class DefaultCatalogPersistenceService
 
 			final WriteAheadLogVersionDescriptor[] result = new WriteAheadLogVersionDescriptor[catalogVersion.length];
 			for (MaterializedVersionBlock materializedVersionBlock : storedVersions) {
-				final List<WriteAheadLogVersionDescriptor> descriptors = this.catalogWal.getWriteAheadLogVersionDescriptor(
+				final List<WriteAheadLogVersionDescriptor> descriptors = theCatalogWal.getWriteAheadLogVersionDescriptor(
 					lookedUpVersions,
 					materializedVersionBlock
 				);
@@ -2649,6 +2840,12 @@ public class DefaultCatalogPersistenceService
 		@Nullable LongConsumer onStart,
 		@Nullable LongConsumer onComplete
 	) throws TemporalDataNotAvailableException {
+		// A backup is only as recent as the bootstrap record it copies, and it may be taken WITHOUT the write-ahead
+		// log - in which case that record is the sole pointer to the data and a stale one silently yields an older
+		// catalog rather than a broken one. Settle any outstanding checkpoint first. This also makes an explicitly
+		// requested `catalogVersion` that was committed moments ago resolvable, instead of reading as not yet
+		// existing.
+		checkpoint();
 		final CatalogBootstrap bootstrapRecord;
 		if (catalogVersion != null) {
 			bootstrapRecord = getCatalogBootstrapForSpecificVersion(
@@ -2674,6 +2871,8 @@ public class DefaultCatalogPersistenceService
 		@Nullable LongConsumer onStart,
 		@Nullable LongConsumer onComplete
 	) {
+		// same reasoning as createBackupTask - the task captures the last checkpointed version on construction
+		checkpoint();
 		return new FullBackupTask(
 			this.catalogName,
 			this.exportService,
@@ -2777,15 +2976,20 @@ public class DefaultCatalogPersistenceService
 
 	@Override
 	public void verifyIntegrity() {
+		// both assertions below are "the catalog is fully checkpointed" assertions, and callers follow this method
+		// with `purgeAllObsoleteFiles()` - so settle any outstanding checkpoint first. Purging write-ahead log files
+		// covering versions whose bootstrap record was never written would throw away the only record of them.
+		checkpoint();
 		Assert.isPremiseValid(
 			getCatalogHeader(this.bootstrapUsed.catalogVersion()).version() == this.bootstrapUsed.catalogVersion(),
 			"Catalog version mismatch! Expected `" + this.bootstrapUsed.catalogVersion() + "` but found `" + getCatalogHeader(
 				this.bootstrapUsed.catalogVersion()).version() + "`!"
 		);
-		if (this.catalogWal != null) {
+		final CatalogWriteAheadLog theCatalogWal = this.catalogWal;
+		if (theCatalogWal != null) {
 			Assert.isPremiseValid(
-				this.catalogWal.getLastWrittenVersion() == this.bootstrapUsed.catalogVersion(),
-				"Catalog WAL version mismatch! Expected `" + this.bootstrapUsed.catalogVersion() + "` but found `" + this.catalogWal.getLastWrittenVersion() + "`!"
+				theCatalogWal.getLastWrittenVersion() == this.bootstrapUsed.catalogVersion(),
+				"Catalog WAL version mismatch! Expected `" + this.bootstrapUsed.catalogVersion() + "` but found `" + theCatalogWal.getLastWrittenVersion() + "`!"
 			);
 		}
 	}
@@ -2833,11 +3037,31 @@ public class DefaultCatalogPersistenceService
 	public void close() {
 		if (!this.closed) {
 			this.closed = true;
+			// stop the ticker and settle the debt before anything is torn down: no service may go away still owing
+			// a device flush, or the bytes it wrote would depend on the operating system getting round to them.
+			// The bootstrap record is deliberately NOT written here - it is a checkpoint pointer, and leaving it at
+			// the last checkpoint simply means restart resumes from there and replays the rest from the WAL.
+			if (this.checkpointCoordinator != null) {
+				try {
+					this.checkpointCoordinator.forcePendingSyncs();
+				} catch (RuntimeException ex) {
+					// deliberately NOT quiet: shutdown must not be aborted by this, but a final device flush that
+					// failed means bytes this service wrote may never reach the disk, and an operator who is never
+					// told cannot know that the catalog needs its write-ahead log to come back whole
+					log.error(
+						"Final device flush of catalog `{}` failed - data written since the last checkpoint may not " +
+							"have reached the disk and will have to be replayed from the write-ahead log!",
+						this.catalogName, ex
+					);
+				}
+				IOUtils.closeQuietly(this.checkpointCoordinator::close);
+			}
 			// close WAL
-			if (this.catalogWal != null) {
+			final CatalogWriteAheadLog theCatalogWal = this.catalogWal;
+			if (theCatalogWal != null) {
 				this.walWriteLock.lock();
 				try {
-					IOUtils.closeQuietly(this.catalogWal::close);
+					IOUtils.closeQuietly(theCatalogWal::close);
 				} finally {
 					this.walWriteLock.unlock();
 				}
@@ -2987,7 +3211,8 @@ public class DefaultCatalogPersistenceService
 			this.observableOutputKeeper,
 			VERSIONED_KRYO_FACTORY,
 			nonFlushedBlock -> this.reportNonFlushedContents(this.catalogName, nonFlushedBlock),
-			oldestRecordTimestamp -> reportOldestHistoricalRecord(this.catalogName, oldestRecordTimestamp.orElse(null))
+			oldestRecordTimestamp -> reportOldestHistoricalRecord(this.catalogName, oldestRecordTimestamp.orElse(null)),
+			this.checkpointCoordinator
 		);
 	}
 
@@ -3009,7 +3234,8 @@ public class DefaultCatalogPersistenceService
 			this.storageSettings,
 			this.offHeapMemoryManager,
 			this.observableOutputKeeper,
-			this.recordTypeRegistry
+			this.recordTypeRegistry,
+			this.checkpointCoordinator
 		);
 	}
 
@@ -3021,6 +3247,73 @@ public class DefaultCatalogPersistenceService
 	@Nonnull
 	public Checksum createChecksum() {
 		return this.storageSettings.createChecksum();
+	}
+
+	/**
+	 * Creates the coordinator that defers the data file device flush to an interval, or returns null when every
+	 * round is to checkpoint on its own.
+	 *
+	 * There is nothing to defer when {@link StorageOptions#syncWrites()} is off - the writes never reach the device
+	 * on that setting anyway - so the two options stay orthogonal instead of one silently re-enabling the other.
+	 *
+	 * @param catalogName     name of the catalog, for observability
+	 * @param storageSettings settings carrying both the interval and the sync-writes switch
+	 * @param scheduler       scheduler used to arm the ticker
+	 * @return the coordinator, or null to checkpoint at the end of every round
+	 */
+	@Nullable
+	private CheckpointCoordinator createCheckpointCoordinator(
+		@Nonnull String catalogName,
+		@Nonnull StorageSettings storageSettings,
+		@Nonnull Scheduler scheduler
+	) {
+		final long checkpointInterval = storageSettings.checkpointIntervalInMillis();
+		return checkpointInterval > 0 && storageSettings.syncWrites() ?
+			new CheckpointCoordinator(
+				catalogName, checkpointInterval, scheduler, this.checkpointLock, this::performDeferredCheckpoint
+			) :
+			null;
+	}
+
+	/**
+	 * Makes everything written so far durable and writes the bootstrap record that points at it, if a checkpoint is
+	 * still owed. Does nothing when checkpointing happens at the end of every round.
+	 *
+	 * Callers are the operations that need the on-disk catalog to be **self-sufficient** rather than merely
+	 * crash-consistent - notably a backup, which may be taken without the write-ahead log, leaving the bootstrap
+	 * record as the only pointer to the data. A stale pointer there does not produce a corrupt backup; it produces a
+	 * silently **older** one, which is worse for being plausible.
+	 */
+	public void checkpoint() {
+		if (this.checkpointCoordinator != null) {
+			this.checkpointCoordinator.checkpointIfOwed();
+		}
+	}
+
+	/**
+	 * Publishes the checkpoint a previous round deferred: writes the bootstrap record that round already built and
+	 * lets the write-ahead log know it may stop retaining everything up to it.
+	 *
+	 * Deliberately does **nothing** to the catalog offset index. The round that deferred left the index at its own
+	 * version and built the matching record; all that is left here is to make the bytes durable - which happens at
+	 * the fence inside {@link #writeCatalogBootstrap} - and publish the pointer. That is what makes this callable
+	 * from the ticker or a backup thread while another round is in flight.
+	 *
+	 * Runs under the coordinator's lock, and only when a checkpoint is genuinely owed.
+	 */
+	private void performDeferredCheckpoint() {
+		final CatalogBootstrap preparedBootstrap = Objects.requireNonNull(
+			this.deferredCheckpointBootstrap,
+			"A checkpoint is owed but no bootstrap record was prepared for it!"
+		);
+		final long catalogVersion = preparedBootstrap.catalogVersion();
+		this.bootstrapUsed = writeCatalogBootstrap(catalogVersion, this.catalogName, preparedBootstrap);
+		this.deferredCheckpointBootstrap = null;
+		final CatalogWriteAheadLog theCatalogWal = this.catalogWal;
+		if (theCatalogWal != null) {
+			theCatalogWal.walProcessedUntil(catalogVersion);
+		}
+		Objects.requireNonNull(this.checkpointCoordinator).noteCheckpointCompleted();
 	}
 
 	/**
@@ -3044,7 +3337,11 @@ public class DefaultCatalogPersistenceService
 	}
 
 	/**
-	 * Records a bootstrap in the catalog.
+	 * Records a bootstrap in the catalog: builds the record and immediately writes it.
+	 *
+	 * Callers that must not publish the pointer yet - a trunk round running under a checkpoint interval - use
+	 * {@link #prepareBootstrap} and {@link #writeCatalogBootstrap} separately instead. Everything ordering-sensitive
+	 * lives in the former, so it has to run on the thread that wrote the storage parts being pointed at.
 	 *
 	 * @param catalogVersion        the version of the catalog
 	 * @param newCatalogName        the name of the new catalog
@@ -3055,6 +3352,38 @@ public class DefaultCatalogPersistenceService
 	 */
 	@Nonnull
 	CatalogBootstrap recordBootstrap(
+		long catalogVersion,
+		@Nonnull String newCatalogName,
+		int catalogFileIndex,
+		long timestamp,
+		@Nullable DataStoreMemoryBuffer dataStoreMemoryBuffer
+	) {
+		return writeCatalogBootstrap(
+			catalogVersion,
+			newCatalogName,
+			prepareBootstrap(
+				catalogVersion, newCatalogName, catalogFileIndex, timestamp, dataStoreMemoryBuffer)
+		);
+	}
+
+	/**
+	 * Builds the bootstrap record for the given version **without publishing it**: advances the catalog offset index
+	 * to that version and, when the thresholds say so, compacts the catalog data file first.
+	 *
+	 * **This must run on the thread that wrote the storage parts the record will address.** Promotion asserts that the
+	 * version being flushed is at least the newest one present in the index, so a thread doing this for version `V`
+	 * while a round is midway through writing `V+1` fails that assertion - and would otherwise have produced a record
+	 * naming `V` while addressing `V+1`. Deferring the *write* of the record is safe; deferring this is not.
+	 *
+	 * @param catalogVersion        the version of the catalog
+	 * @param newCatalogName        the name of the new catalog
+	 * @param catalogFileIndex      the index of the catalog file to build upon
+	 * @param timestamp             the timestamp of the boot record
+	 * @param dataStoreMemoryBuffer the data store memory buffer
+	 * @return the bootstrap record, not yet written to the bootstrap file
+	 */
+	@Nonnull
+	private CatalogBootstrap prepareBootstrap(
 		long catalogVersion,
 		@Nonnull String newCatalogName,
 		int catalogFileIndex,
@@ -3088,11 +3417,23 @@ public class DefaultCatalogPersistenceService
 			final int newCatalogFileIndex = catalogFileIndex + 1;
 			final String compactedFileName = getCatalogDataStoreFileName(newCatalogName, newCatalogFileIndex);
 			final OffsetIndexDescriptor compactedDescriptor;
-			try (final OutputStream fos = new BufferedOutputStream(
-				new FileOutputStream(this.catalogStoragePath.resolve(compactedFileName).toFile()),
-				COMPACTION_OUTPUT_BUFFER_SIZE
-			)) {
+			try (
+				final FileOutputStream compactedFileStream = new FileOutputStream(
+					this.catalogStoragePath.resolve(compactedFileName).toFile()
+				);
+				final OutputStream fos = new BufferedOutputStream(
+					compactedFileStream, COMPACTION_OUTPUT_BUFFER_SIZE
+				)
+			) {
 				compactedDescriptor = storagePartPersistenceService.copySnapshotTo(catalogVersion, fos, null);
+				// The bootstrap record built right below points into this file and is itself fsynced. Closing a
+				// BufferedOutputStream only pushes its buffer into the page cache, so without this the durable
+				// pointer could outlive the data it addresses: a crash here would leave recovery following a
+				// committed bootstrap record into a file that was never written.
+				fos.flush();
+				if (this.storageSettings.syncWrites()) {
+					compactedFileStream.getFD().sync();
+				}
 			} catch (IOException e) {
 				throw new UnexpectedIOException(
 					"Error occurred while compacting catalog data file: " + e.getMessage(),
@@ -3122,7 +3463,8 @@ public class DefaultCatalogPersistenceService
 					VERSIONED_KRYO_FACTORY,
 					nonFlushedBlock -> this.reportNonFlushedContents(this.catalogName, nonFlushedBlock),
 					oldestRecordTimestamp -> DefaultCatalogPersistenceService.reportOldestHistoricalRecord(
-						this.catalogName, oldestRecordTimestamp.orElse(null))
+						this.catalogName, oldestRecordTimestamp.orElse(null)),
+					this.checkpointCoordinator
 				);
 				final CatalogOffsetIndexStoragePartPersistenceService previousService = this.catalogStoragePartPersistenceService.put(
 					catalogVersion,
@@ -3179,7 +3521,7 @@ public class DefaultCatalogPersistenceService
 				flushedDescriptor.fileLocation()
 			);
 		}
-		return writeCatalogBootstrap(catalogVersion, newCatalogName, bootstrapRecord);
+		return bootstrapRecord;
 	}
 
 	/**
@@ -3249,10 +3591,11 @@ public class DefaultCatalogPersistenceService
 	 * @return the first catalog version corresponding to the provided CatalogBootstrap instance or -1 if the WAL is not available.
 	 */
 	private long resolveFirstCatalogVersionOfCatalogBootstrap(@Nonnull CatalogBootstrap catalogBootstrap) {
-		if (this.catalogWal == null) {
+		final CatalogWriteAheadLog theCatalogWal = this.catalogWal;
+		if (theCatalogWal == null) {
 			return -1L;
 		} else {
-			return this.catalogWal.getFirstVersionOf(catalogBootstrap.catalogFileIndex());
+			return theCatalogWal.getFirstVersionOf(catalogBootstrap.catalogFileIndex());
 		}
 	}
 
@@ -3387,6 +3730,13 @@ public class DefaultCatalogPersistenceService
 		final Kryo kryo = this.walKryoPool.obtain();
 		try {
 			this.bootstrapWriteLock.lockInterruptibly();
+			// THE FENCE. A bootstrap record is a pointer into the data files, and it must never become durable
+			// before the bytes it addresses have. Forcing here rather than at the call sites makes that structural:
+			// every writer of a bootstrap record - trunk round, compaction, go-live, rename, restore - is covered,
+			// including ones added later that would never think to ask.
+			if (this.checkpointCoordinator != null) {
+				this.checkpointCoordinator.forcePendingSyncs();
+			}
 			final BootstrapWriteOnlyFileHandle originalBootstrapHandle = this.bootstrapWriteHandle.get();
 			final BootstrapWriteOnlyFileHandle bootstrapHandle = getOrCreateNewBootstrapTempWriteHandle(
 				catalogVersion, newCatalogName, originalBootstrapHandle

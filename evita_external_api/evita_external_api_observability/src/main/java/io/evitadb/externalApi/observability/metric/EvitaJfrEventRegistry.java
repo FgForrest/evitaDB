@@ -36,6 +36,7 @@ import io.evitadb.core.metric.event.query.FinishedEvent;
 import io.evitadb.core.metric.event.session.ClosedEvent;
 import io.evitadb.core.metric.event.session.KilledEvent;
 import io.evitadb.core.metric.event.session.OpenedEvent;
+import io.evitadb.core.metric.event.storage.CatalogCheckpointEvent;
 import io.evitadb.core.metric.event.storage.CatalogStatisticsEvent;
 import io.evitadb.core.metric.event.storage.DataFileCompactEvent;
 import io.evitadb.core.metric.event.storage.ObservableOutputChangeEvent;
@@ -120,6 +121,7 @@ public class EvitaJfrEventRegistry {
 		ReadOnlyHandleOpenedEvent.class,
 		ReadOnlyHandleClosedEvent.class,
 		CatalogStatisticsEvent.class,
+		CatalogCheckpointEvent.class,
 		TrafficRecorderStatisticsEvent.class,
 		TrafficRecorderSkippedRecordsEvent.class,
 

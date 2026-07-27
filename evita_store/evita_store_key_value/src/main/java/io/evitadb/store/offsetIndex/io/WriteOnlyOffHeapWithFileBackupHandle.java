@@ -48,6 +48,7 @@ import java.nio.BufferOverflowException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.Optional;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
@@ -208,6 +209,22 @@ public class WriteOnlyOffHeapWithFileBackupHandle implements WriteOnlyHandle {
 			(o) -> postExecutionLogic.apply(o, logic.apply(o)),
 			true
 		);
+	}
+
+	@Override
+	public void forceDurable() {
+		// this handle backs an isolated transaction WAL, not the checkpointed catalog data files, so it is not
+		// on the deferred-checkpoint path. It is implemented anyway so the contract holds for every handle.
+		// While the content still lives off-heap there is no file to force - that is a real state of this
+		// handle (nothing has spilled yet), not an unhandled branch: the bytes are not on disk at all, so no
+		// fsync could make them durable. Once it has spilled, the backing file is forced like any other.
+		if (this.fileOutput != null) {
+			try (final FileChannel channel = FileChannel.open(this.targetFile, StandardOpenOption.WRITE)) {
+				channel.force(true);
+			} catch (IOException e) {
+				throw new SyncFailedException(e);
+			}
+		}
 	}
 
 	@Override

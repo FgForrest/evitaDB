@@ -43,6 +43,7 @@ import io.evitadb.store.offsetIndex.OffsetIndex.NonFlushedBlock;
 import io.evitadb.store.offsetIndex.OffsetIndexBuilder;
 import io.evitadb.store.offsetIndex.OffsetIndexDescriptor;
 import io.evitadb.store.offsetIndex.io.CatalogOffHeapMemoryManager;
+import io.evitadb.store.offsetIndex.io.PendingSyncRegistry;
 import io.evitadb.store.offsetIndex.io.WriteOnlyFileHandle;
 import io.evitadb.store.offsetIndex.model.OffsetIndexRecordTypeRegistry;
 import io.evitadb.store.offsetIndex.model.RecordKey;
@@ -88,7 +89,7 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 	/**
 	 * Creates a CatalogOffsetIndexStoragePartPersistenceService object with the given parameters.
 	 * The code cannot be directly in the constructor, because we need to execute
-	 * {@link #loadOffsetIndex(String, Path, StorageSettings, CatalogBootstrap, OffsetIndexRecordTypeRegistry, ObservableOutputKeeper, Function, Consumer, Consumer, Consumer)}
+	 * {@link #loadOffsetIndex(String, Path, StorageSettings, CatalogBootstrap, OffsetIndexRecordTypeRegistry, ObservableOutputKeeper, Function, Consumer, Consumer, Consumer, PendingSyncRegistry)}
 	 * and within it initialize the {@link #currentCatalogHeader} variable. This cannot be done in the consturctor
 	 * because the super constructor needs to be called first.
 	 *
@@ -100,6 +101,10 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 	 * @param offHeapMemoryManager   The off-heap memory manager.
 	 * @param observableOutputKeeper The observable output keeper.
 	 * @param kryoFactory            The factory to create Kryo instances.
+	 * @param nonFlushedBlockObserver Observer notified about the volume of data not yet promoted, or null.
+	 * @param historyKeptObserver    Observer notified about the oldest record still retained, or null.
+	 * @param pendingSyncRegistry    Registry taking over the device flush of the catalog data file, or null to have
+	 *                               each write flushed to the device inline.
 	 * @return A CatalogOffsetIndexStoragePartPersistenceService object.
 	 */
 	@Nonnull
@@ -113,14 +118,15 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 		@Nonnull ObservableOutputKeeper observableOutputKeeper,
 		@Nonnull Function<VersionedKryoKeyInputs, VersionedKryo> kryoFactory,
 		@Nullable Consumer<NonFlushedBlock> nonFlushedBlockObserver,
-		@Nullable Consumer<Optional<OffsetDateTime>> historyKeptObserver
+		@Nullable Consumer<Optional<OffsetDateTime>> historyKeptObserver,
+		@Nullable PendingSyncRegistry pendingSyncRegistry
 	) {
 		final AtomicReference<CatalogHeader<LogFileRecordReference, CollectionFileReference>> catalogHeaderRef = new AtomicReference<>();
 		final OffsetIndex offsetIndex = loadOffsetIndex(
 			catalogName, catalogFilePath, storageSettings,
 			catalogBootstrap, recordRegistry, observableOutputKeeper,
 			kryoFactory, nonFlushedBlockObserver, historyKeptObserver,
-			catalogHeaderRef::set
+			catalogHeaderRef::set, pendingSyncRegistry
 		);
 		return new CatalogOffsetIndexStoragePartPersistenceService(
 			catalogBootstrap.catalogVersion(),
@@ -136,6 +142,8 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 	 * This is a special constructor used only when catalog is renamed. It builds on previous instance of the service
 	 * and reuses all data present in memory. Except the placement on disk nothing else is actually changed.
 	 *
+	 * @param pendingSyncRegistry Registry taking over the device flush of the catalog data file, or null to have each
+	 *                            write flushed to the device inline.
 	 * @return a new instance of the service with the same data as the previous one but different file placement
 	 */
 	@Nonnull
@@ -151,7 +159,8 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 		@Nonnull Function<VersionedKryoKeyInputs, VersionedKryo> kryoFactory,
 		@Nullable Consumer<NonFlushedBlock> nonFlushedBlockObserver,
 		@Nullable Consumer<Optional<OffsetDateTime>> historyKeptObserver,
-		@Nonnull CatalogOffsetIndexStoragePartPersistenceService previous
+		@Nonnull CatalogOffsetIndexStoragePartPersistenceService previous,
+		@Nullable PendingSyncRegistry pendingSyncRegistry
 	) {
 		final CatalogHeader<LogFileRecordReference, CollectionFileReference> catalogHeader = previous.getCatalogHeader(catalogVersion);
 		final OffsetIndex previousOffsetIndex = previous.offsetIndex;
@@ -197,7 +206,8 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 				storageSettings,
 				storageSettings,
 				catalogFilePath,
-				observableOutputKeeper
+				observableOutputKeeper,
+				pendingSyncRegistry
 			),
 			nonFlushedBlockObserver,
 			historyKeptObserver,
@@ -336,6 +346,8 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 	 * @param observableOutputKeeper The observable output keeper.
 	 * @param kryoFactory            The factory to create Kryo instances.
 	 * @param catalogHeaderConsumer  The consumer to accept the catalog header.
+	 * @param pendingSyncRegistry    Registry taking over the device flush of the catalog data file, or null to have
+	 *                               the write handle issue it inline.
 	 * @return The loaded offset index.
 	 */
 	@Nonnull
@@ -349,7 +361,8 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 		@Nonnull Function<VersionedKryoKeyInputs, VersionedKryo> kryoFactory,
 		@Nullable Consumer<NonFlushedBlock> nonFlushedBlockObserver,
 		@Nullable Consumer<Optional<OffsetDateTime>> historyKeptObserver,
-		@Nonnull Consumer<CatalogHeader<LogFileRecordReference, CollectionFileReference>> catalogHeaderConsumer
+		@Nonnull Consumer<CatalogHeader<LogFileRecordReference, CollectionFileReference>> catalogHeaderConsumer,
+		@Nullable PendingSyncRegistry pendingSyncRegistry
 	) {
 		final FileLocation fileLocation = catalogBootstrap.fileLocation();
 		if (fileLocation == null) {
@@ -380,7 +393,8 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 					storageSettings,
 					storageSettings,
 					catalogFilePath,
-					observableOutputKeeper
+					observableOutputKeeper,
+					pendingSyncRegistry
 				),
 				nonFlushedBlockObserver,
 				historyKeptObserver
@@ -418,7 +432,8 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 					storageSettings,
 					storageSettings,
 					catalogFilePath,
-					observableOutputKeeper
+					observableOutputKeeper,
+					pendingSyncRegistry
 				),
 				nonFlushedBlockObserver,
 				historyKeptObserver,

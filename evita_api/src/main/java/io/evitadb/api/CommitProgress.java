@@ -173,8 +173,9 @@ public interface CommitProgress {
 	 *
 	 * **Performance Note**
 	 *
-	 * evitaDB may batch fsync operations from multiple transactions to amortize disk I/O cost. This stage may complete
-	 * faster than expected if batched with other concurrent commits.
+	 * Every transaction is made durable by its own `force` on the shared WAL file, and appends are serialized, so this
+	 * stage costs one device sync per transaction and concurrent commits queue behind one another. fsync operations are
+	 * **not** currently batched across transactions.
 	 *
 	 * **Equivalent to**
 	 *

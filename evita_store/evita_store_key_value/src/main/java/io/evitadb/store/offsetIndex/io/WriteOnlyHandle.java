@@ -76,6 +76,23 @@ public interface WriteOnlyHandle extends Closeable {
 	<S, T> T checkAndExecuteAndSync(@Nonnull String operation, @Nonnull Runnable premise, @Nonnull Function<ObservableOutput<?>, S> logic, @Nonnull BiFunction<ObservableOutput<?>, S, T> postExecutionLogic);
 
 	/**
+	 * Forces everything written through this handle so far to the physical device, out of band with the
+	 * `checkAndExecuteAndSync` methods above.
+	 *
+	 * This exists for the deferred-checkpoint write path: when the data-file fsync is taken off the trunk
+	 * round's critical path, the round writes and flushes its bytes into the page cache and a checkpoint task
+	 * makes them durable afterwards - before the bootstrap record that points at them is written.
+	 *
+	 * Implementations must NOT rely on retaining the descriptor the bytes were written through.
+	 * `ObservableOutputKeeper` owns the lifetime of the output used by `checkAndExecuteAndSync`, and it may
+	 * release it before a deferred sync ever runs. Syncing the file through a freshly opened descriptor is
+	 * equivalent - fsync flushes the *file's* dirty pages, not the descriptor's.
+	 *
+	 * Callers must treat this as the durability point: it returns only once the device has acknowledged.
+	 */
+	void forceDurable();
+
+	/**
 	 * Returns the last position that was already written to the output.
 	 *
 	 * @return last written position

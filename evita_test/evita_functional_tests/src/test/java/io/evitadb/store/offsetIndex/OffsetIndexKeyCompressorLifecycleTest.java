@@ -362,6 +362,11 @@ class OffsetIndexKeyCompressorLifecycleTest {
 		}
 
 		@Override
+		public void forceDurable() {
+			this.delegate.forceDurable();
+		}
+
+		@Override
 		public long getLastWrittenPosition() {
 			return this.delegate.getLastWrittenPosition();
 		}

@@ -321,6 +321,16 @@ duration of the probe.</dd>
 #### Storage
 
 <dl>
+  <dt><code>io_evitadb_storage_catalog_checkpoint_cadence_milliseconds</code> (GAUGE)</dt>
+  <dd><strong>Checkpoint cadence in milliseconds</strong>: The time elapsed since the previous completed checkpoint. Compare against the configured checkpoint interval - sustained higher values mean checkpointing is not keeping up with the write rate.</dd>
+  <dt><code>io_evitadb_storage_catalog_checkpoint_fence_depth_milliseconds</code> (GAUGE)</dt>
+  <dd><strong>Fence depth in milliseconds</strong>: How long the oldest change covered by this checkpoint waited to become durable. Bounds both the write-ahead log retention and the amount of replay a restart has to perform. Zero when the round checkpointed without deferring.</dd>
+  <dt><code>io_evitadb_storage_catalog_checkpoint_files_forced</code> (GAUGE)</dt>
+  <dd><strong>Number of files forced</strong>: The number of data files that were forced to the physical device by this checkpoint.</dd>
+  <dt><code>io_evitadb_storage_catalog_checkpoint_force_duration_milliseconds</code> (GAUGE)</dt>
+  <dd><strong>Device force duration in milliseconds</strong>: The time spent forcing the data files to the physical device. This is the cost the checkpoint interval exists to amortise - it is paid once per checkpoint instead of once per trunk round.</dd>
+  <dt><code>io_evitadb_storage_catalog_checkpoint_total</code> (COUNTER)</dt>
+  <dd>Catalog checkpoints.</dd>
   <dt><code>io_evitadb_storage_catalog_statistics_entity_collections</code> (GAUGE)</dt>
   <dd><strong>Entity collection count</strong>: The number of active entity collections (entity types) in the catalog.</dd>
   <dt><code>io_evitadb_storage_catalog_statistics_occupied_disk_space_bytes</code> (GAUGE)</dt>

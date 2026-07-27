@@ -31,13 +31,17 @@ import io.evitadb.store.checksum.ChecksumFactory;
 import io.evitadb.store.compression.CompressionFactory;
 import io.evitadb.store.kryo.ObservableOutput;
 import io.evitadb.store.offsetIndex.OffsetIndex;
+import io.evitadb.store.offsetIndex.exception.SyncFailedException;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.FileOutputStream;
+import java.io.IOException;
+import java.nio.channels.FileChannel;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BiFunction;
@@ -202,6 +206,18 @@ public class BootstrapWriteOnlyFileHandle implements WriteOnlyHandle {
 		} catch (InterruptedException e) {
 			Thread.currentThread().interrupt();
 			throw new GenericEvitaInternalError(operation + " due to interrupt!");
+		}
+	}
+
+	@Override
+	public void forceDurable() {
+		// the bootstrap record is the checkpoint POINTER - it is never itself deferred, because it may only
+		// become durable after everything it addresses already is. This implementation exists to satisfy the
+		// contract; on the deferred-checkpoint path the bootstrap handle keeps syncing inline.
+		try (final FileChannel channel = FileChannel.open(this.targetFile, StandardOpenOption.WRITE)) {
+			channel.force(true);
+		} catch (IOException e) {
+			throw new SyncFailedException(e);
 		}
 	}
 

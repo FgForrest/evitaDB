@@ -540,11 +540,13 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 				Mockito.mock(ExportFileService.class)
 			)
 		) {
-			cps.appendWalAndDiscard(
+			cps.appendWalAndDiscardDeferringSync(
 				2L,
 				writtenTransactionMutation,
 				walReference
 			);
+			// the append only writes; this test reads the file back, so make it durable first
+			cps.syncWal();
 		}
 
 		// READ THE WAL AGAIN
@@ -609,11 +611,12 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 				final OffHeapWithFileBackupReference walReference = OffHeapWithFileBackupReference.withFilePath(
 					tempFile.toPath(), 0, 0L, tempFile::delete
 				);
-				ioService.appendWalAndDiscard(
+				ioService.appendWalAndDiscardDeferringSync(
 					catalogVersion,
 					new TransactionMutation(UUIDUtil.randomUUID(), catalogVersion, 0, 0, OffsetDateTime.now()),
 					walReference
 				);
+				ioService.syncWal();
 			}
 
 			final PaginatedList<MaterializedVersionBlock> catalogVersions = ioService.getCatalogVersions(TimeFlow.FROM_OLDEST_TO_NEWEST, 1, 5);
@@ -736,11 +739,12 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 				final OffHeapWithFileBackupReference walReference = OffHeapWithFileBackupReference.withFilePath(
 					tempFile.toPath(), 0, 0L, tempFile::delete
 				);
-				ioService.appendWalAndDiscard(
+				ioService.appendWalAndDiscardDeferringSync(
 					catalogVersion,
 					new TransactionMutation(UUIDUtil.randomUUID(), catalogVersion, 0, 0, OffsetDateTime.now()),
 					walReference
 				);
+				ioService.syncWal();
 			}
 
 			final PaginatedList<MaterializedVersionBlock> catalogVersions = ioService.getCatalogVersions(TimeFlow.FROM_NEWEST_TO_OLDEST, 1, 5);
@@ -880,6 +884,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			TransactionOptions.DEFAULT_WAL_FILE_COUNT_KEPT,
 			TransactionOptions.DEFAULT_WAIT_FOR_TRANSACTION_ACCEPTANCE,
 			TransactionOptions.DEFAULT_FLUSH_FREQUENCY,
+			TransactionOptions.DEFAULT_CHECKPOINT_INTERVAL,
 			TransactionOptions.DEFAULT_CONFLICT_RING_BUFFER_SIZE,
 			TransactionOptions.DEFAULT_CONFLICT_RESOLUTION
 		);

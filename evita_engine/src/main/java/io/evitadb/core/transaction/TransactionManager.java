@@ -191,8 +191,23 @@ public class TransactionManager implements Closeable {
 	/**
 	 * Contains the last catalog version appended successfully to the WAL (i.e. {@link #lastAssignedCatalogVersion} that
 	 * finally arrived to WAL file).
+	 *
+	 * "Written" means the bytes were handed to the WAL, **not** that they reached the device - see
+	 * {@link #lastDurableCatalogVersion} for that. The append sequence check and every rollback /
+	 * diagnostic path want this counter, because they reason about what the WAL file already contains.
 	 */
 	private final AtomicLong lastWrittenCatalogVersion;
+	/**
+	 * Contains the last catalog version whose WAL bytes are durable on the device.
+	 *
+	 * Trails {@link #lastWrittenCatalogVersion} by however many transactions the appender managed to write
+	 * while a force was in flight. Anything that would make a transaction irreversible to the outside world
+	 * must be gated on this counter rather than on `lastWritten`: acknowledging the client, and - more
+	 * subtly - letting trunk incorporation checkpoint the version into the data files, because a bootstrap
+	 * record pointing past the durable end of the WAL would come back after a crash as a catalog whose WAL
+	 * is missing its own head.
+	 */
+	private final AtomicLong lastDurableCatalogVersion;
 	/**
 	 * Contains the ID of the last finalized transaction. This is used to skip already processed transaction.
 	 */
@@ -230,6 +245,12 @@ public class TransactionManager implements Closeable {
 	private final ReentrantLock conflictResolutionLock = new ReentrantLock(true);
 	/**
 	 * Lock used for appending to WAL.
+	 *
+	 * Do not read its fair-lock shape as evidence that appends contend: they cannot. The appending stage is
+	 * a `Flow` subscriber that requests one task at a time and `SubmissionPublisher` delivers to a
+	 * subscriber serially, so there is only ever one thread appending. What this lock still buys is the
+	 * acceptance-timeout gate in {@link #appendWalAndDiscard} - a transaction that has already spent its
+	 * budget queuing gives up here instead of joining the back of the line.
 	 */
 	private final ReentrantLock walAppendingLock = new ReentrantLock(true);
 	/**
@@ -396,6 +417,8 @@ public class TransactionManager implements Closeable {
 		this.lastCatalogSchemaVersion = new AtomicInteger(catalog.getSchema().version());
 		this.accumulatedCatalogSchemaVersionDelta = new AtomicInteger(0);
 		this.lastWrittenCatalogVersion = new AtomicLong(bootstrapAssignedVersion);
+		// whatever the WAL already contains at bootstrap is durable by definition - it survived a restart
+		this.lastDurableCatalogVersion = new AtomicLong(bootstrapAssignedVersion);
 		// this is the catalog version really used (propagated in indexes) - WAL replay will advance
 		// this to match lastWritten before any new transactions can be accepted
 		this.lastFinalizedCatalogVersion = new AtomicLong(catalog.getVersion());
@@ -719,6 +742,9 @@ public class TransactionManager implements Closeable {
 		);
 		if (theLastWrittenCatalogVersion < catalogVersion) {
 			updateLastWrittenCatalogVersion(catalogVersion);
+			// an externally advanced version (e.g. a catalog rename) is already persisted by whoever
+			// advanced it - there is no pending force to wait for, so durability tracks it immediately
+			updateLastDurableCatalogVersion(catalogVersion);
 		}
 		final long theLastFinalizedCatalogVersion = getLastFinalizedCatalogVersion();
 		Assert.isPremiseValid(
@@ -760,6 +786,47 @@ public class TransactionManager implements Closeable {
 		} finally {
 			this.conflictRingBuffer.setEffectiveLastCatalogVersion(catalogVersion);
 		}
+	}
+
+	/**
+	 * Returns the last catalog version whose WAL bytes are durable on the device.
+	 *
+	 * @return the last durable catalog version
+	 */
+	public long getLastDurableCatalogVersion() {
+		return this.lastDurableCatalogVersion.get();
+	}
+
+	/**
+	 * Publishes the fact that every catalog version up to (and including) the given one is durable.
+	 *
+	 * Monotonic by construction: the value must have been sampled before the force that covered it, and
+	 * forces are issued in append order, so a later call can never carry a lower version. It is asserted
+	 * rather than silently clamped, because a regression here would mean the durability handshake itself
+	 * is broken and the difference is not something to paper over.
+	 *
+	 * @param catalogVersion the last catalog version made durable
+	 */
+	public void updateLastDurableCatalogVersion(long catalogVersion) {
+		final long previous = this.lastDurableCatalogVersion.getAndSet(catalogVersion);
+		Assert.isPremiseValid(
+			previous <= catalogVersion,
+			"Durable catalog version must never go backwards! " +
+				"Was " + previous + ", got " + catalogVersion + "."
+		);
+		Assert.isPremiseValid(
+			catalogVersion <= getLastWrittenCatalogVersion(),
+			"Durable catalog version must never outrun the written one! " +
+				"Written " + getLastWrittenCatalogVersion() + ", got " + catalogVersion + "."
+		);
+	}
+
+	/**
+	 * Makes every WAL append issued so far durable. Callers must sample the version they intend to declare
+	 * durable **before** calling this - see {@link Catalog#syncWal()}.
+	 */
+	public void syncWal() {
+		getLivingCatalog().syncWal();
 	}
 
 	/**
@@ -1218,6 +1285,11 @@ public class TransactionManager implements Closeable {
 	/**
 	 * This method writes the contents to the WAL and discards the contents of the isolated WAL.
 	 *
+	 * The append is left **written but not durable** - the caller owns the durability handshake and must
+	 * pair it with {@link #syncWal()} plus {@link #updateLastDurableCatalogVersion(long)} before the
+	 * transaction is acknowledged or handed to trunk incorporation. That is what lets a single device sync
+	 * cover a whole batch of transactions rather than one each.
+	 *
 	 * @param transactionMutation the leading transaction mutation to write to the WAL
 	 * @param walReference        the reference to the WAL file
 	 * @return the length of the written WAL contents
@@ -1242,7 +1314,7 @@ public class TransactionManager implements Closeable {
 						"Expected version " + (theLastWrittenCatalogVersion + 1) + ", got " + transactionMutation.getVersion() + "."
 				);
 				return getLivingCatalog()
-					.appendWalAndDiscard(
+					.appendWalAndDiscardDeferringSync(
 						transactionMutation,
 						walReference
 					);
@@ -1323,9 +1395,18 @@ public class TransactionManager implements Closeable {
 					// if the transaction failed we need to replay it again
 					final long readFromVersion = Math.max(lastFinalizedVersion + 1, 2);
 					if (alive) {
-						committedMutationStream = latestCatalog.getCommittedLiveMutationStream(readFromVersion, this.lastWrittenCatalogVersion.get());
+						// bounded by the DURABLE version, not the written one: a greedy round drains as far as
+						// this bound allows and then checkpoints what it incorporated into the data files. Were
+						// the bound `lastWritten`, a round could checkpoint a version whose WAL bytes are still
+						// only in the page cache, and a crash in that window would leave a catalog claiming a
+						// version its own WAL no longer reaches
+						committedMutationStream = latestCatalog.getCommittedLiveMutationStream(
+							readFromVersion, getLastDurableCatalogVersion()
+						);
 					} else {
-						committedMutationStream = latestCatalog.getCommittedMutationStream(readFromVersion);
+						committedMutationStream = latestCatalog.getCommittedMutationStream(
+							readFromVersion
+						);
 					}
 					final Iterator<CatalogBoundMutation> mutationIterator = committedMutationStream.iterator();
 					if (!mutationIterator.hasNext()) {
@@ -1343,7 +1424,8 @@ public class TransactionManager implements Closeable {
 							"WAL mutation stream of catalog `" + getCatalogName() + "` went dry at finalized " +
 								"version " + lastFinalizedVersion + " without reaching requested version " +
 								nextCatalogVersion + " (last written version " +
-								this.lastWrittenCatalogVersion.get() + "). A committed transaction was not " +
+								this.lastWrittenCatalogVersion.get() + ", last durable version " +
+								this.lastDurableCatalogVersion.get() + "). A committed transaction was not " +
 								"readable - refusing to report it as already processed.",
 							"Write-ahead log mutation stream ended before reaching a committed transaction."
 						);
@@ -1676,7 +1758,9 @@ public class TransactionManager implements Closeable {
 	private long drainWal() {
 		try {
 			this.processTransactions(
-				this.lastWrittenCatalogVersion.get(),
+				// the drainer may only chase versions that are already durable - same reasoning as the
+				// round bound inside `processTransactions`
+				getLastDurableCatalogVersion(),
 				this.configuration.transaction().flushFrequencyInMillis(),
 				true,
 				false, // we should not wait for the lock here - if its already running it will process the transactions

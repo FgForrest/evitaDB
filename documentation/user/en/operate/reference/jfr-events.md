@@ -95,6 +95,8 @@
 #### Storage
 
 <dl>
+  <dt><SourceClass>evita_engine/src/main/java/io/evitadb/core/metric/event/storage/CatalogCheckpointEvent.java</SourceClass> Catalog checkpointed</dt>
+  <dd>Event that is fired when the catalog data files are made durable and a bootstrap record is written.</dd>
   <dt><SourceClass>evita_engine/src/main/java/io/evitadb/core/metric/event/storage/CatalogStatisticsEvent.java</SourceClass> Catalog flushed</dt>
   <dd>Event that is fired when a new catalog version is flushed.</dd>
   <dt><SourceClass>evita_engine/src/main/java/io/evitadb/core/metric/event/storage/DataFileCompactEvent.java</SourceClass> OffsetIndex compaction</dt>
