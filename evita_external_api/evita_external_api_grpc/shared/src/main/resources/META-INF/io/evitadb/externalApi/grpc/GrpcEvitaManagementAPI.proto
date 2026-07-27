@@ -68,6 +68,36 @@ message GrpcEvitaConfigurationResponse {
   string configuration = 1;
 }
 
+// Response to an evitaDB engine settings request.
+//
+// Carries the curated subset of the engine configuration that clients need in order to reason about the behaviour of
+// the server they talk to. Unlike GrpcEvitaConfigurationResponse - which renders the entire configuration file
+// including paths and credentials, and is refused while the engine runs in read-only mode - the values collected here
+// carry nothing sensitive and remain readable in read-only mode.
+//
+// The message is intentionally flat rather than mirroring the sectioning of the configuration file: only a small
+// fraction of the configuration is client-actionable, and which section a value happens to live in is an accident of
+// the server's own configuration history that the caller should not have to know.
+//
+// All values originate from the configuration file and are therefore constant for the entire lifetime of the server
+// process - a client may safely cache the response until it reconnects. Live state that changes while the server runs
+// (readiness, health problems, catalog counts) and the enabled external APIs with their URLs are deliberately absent -
+// they belong to GrpcEvitaServerStatusResponse, which must not be cached.
+message GrpcEvitaEngineSettingsResponse {
+  // The engine-wide default conflict resolution applied to a transaction commit when neither the catalog schema nor
+  // the entity schema declares its own - the base of the conflict resolution precedence walk.
+  GrpcConflictResolution conflictResolution = 1;
+  // True when the engine retains historical data, so queries and restores targeting a past point in time are
+  // available at all.
+  bool timeTravelEnabled = 2;
+  // True when clients may subscribe to change data capture streams.
+  bool changeDataCaptureEnabled = 3;
+  // True when the server records client traffic, so recordings can be started, inspected and exported.
+  bool trafficRecordingEnabled = 4;
+  // True when the engine caches computed query results; affects latency characteristics only, never query results.
+  bool queryCacheEnabled = 5;
+}
+
 // Response to a server catalog statistics request.
 message GrpcEvitaCatalogStatisticsResponse {
   // Collection of catalog statistics for all catalogs
@@ -271,6 +301,9 @@ service EvitaManagementService {
   rpc ServerStatus(google.protobuf.Empty) returns (GrpcEvitaServerStatusResponse);
   // Procedure used to obtain server configuration.
   rpc GetConfiguration(google.protobuf.Empty) returns (GrpcEvitaConfigurationResponse);
+  // Procedure used to obtain the curated subset of the engine configuration that is safe to expose to any client.
+  // Unlike GetConfiguration this procedure is available also when the engine runs in read-only mode.
+  rpc GetEngineSettings(google.protobuf.Empty) returns (GrpcEvitaEngineSettingsResponse);
   // Procedure used to obtain catalog statistics.
   rpc GetCatalogStatistics(google.protobuf.Empty) returns (GrpcEvitaCatalogStatisticsResponse);
   // Procedure used to restore a catalog from backup.

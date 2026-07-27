@@ -51,11 +51,13 @@ import io.evitadb.api.requestResponse.extraResult.Hierarchy.LevelInfo;
 import io.evitadb.api.requestResponse.extraResult.HistogramContract;
 import io.evitadb.api.requestResponse.extraResult.PriceHistogram;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaEditor;
+import io.evitadb.api.requestResponse.system.EngineSettings;
 import io.evitadb.api.requestResponse.system.MaterializedVersionBlock;
 import io.evitadb.api.requestResponse.system.SystemStatus;
 import io.evitadb.dataType.PaginatedList;
@@ -1748,6 +1750,32 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 		assertNotNull(systemStatus);
 		assertEquals(1, systemStatus.catalogsActive());
 		assertEquals(0, systemStatus.catalogsCorrupted());
+	}
+
+	/**
+	 * Verifies that the engine-wide conflict resolution is readable through the management API.
+	 *
+	 * The client needs the engine default as the base of the conflict resolution precedence walk -
+	 * neither the catalog schema nor the entity schema has to declare its own, and the full
+	 * configuration is not a reliable source (it is refused while the engine runs in read-only
+	 * mode).
+	 *
+	 * The test server leaves the engine default in place, so the entity-level policy with no
+	 * sub-entity refinements is expected.
+	 *
+	 * @param evitaClient the EvitaClient instance injected by the test framework
+	 */
+	@Test
+	@DisplayName("retrieve engine settings")
+	@UseDataSet(EVITA_CLIENT_DATA_SET)
+	void shouldRetrieveEngineSettings(EvitaClient evitaClient) {
+		final EngineSettings engineSettings = evitaClient.management().getEngineSettings();
+		assertNotNull(engineSettings);
+		assertEquals(ConflictPolicy.ENTITY, engineSettings.conflictResolution().policy());
+		assertTrue(engineSettings.conflictResolution().granularity().isEmpty());
+		// capability flags travel over the wire alongside the conflict resolution; the test server
+		// leaves them at their configuration defaults
+		assertFalse(engineSettings.timeTravelEnabled());
 	}
 
 	/**
