@@ -28,7 +28,7 @@
       "order" : 104526,
       "orderedQuantity" : "0.00000",
       "productType" : "MASTER",
-      "published" : "2026-07-13T16:51:08.977+02:00",
+      "published" : "2026-07-27T10:32:08.31+02:00",
       "rating" : "0",
       "ratingVotes" : 0,
       "saleRestriction" : "WITHOUT_RESTRICTION",
