@@ -140,6 +140,15 @@
 		<bouncyCastle.version>1.85</bouncyCastle.version>
 		<swagger.version>2.2.52</swagger.version>
 		<armeria.version>1.40.0</armeria.version>
+		<!--
+			Overrides the netty version armeria 1.40.0 itself pulls in (4.2.15.Final) to pick up
+			GHSA-558v-64gr-wgg4 / GHSA-q6cq-mhr2-jmr5 / GHSA-6jqx-86gh-f27w and the other netty-codec-*
+			advisories fixed in 4.2.16.Final, ahead of armeria's next release. Patch bump within the
+			same 4.2.x line - see the netty-codec-* overrides in dependencyManagement below for why
+			only those artifacts (not a full netty-bom import) are pinned. Drop this override (and the
+			property) once armeria itself depends on >= 4.2.16.Final.
+		-->
+		<netty.version>4.2.16.Final</netty.version>
 		<prometheus.version>1.8.0</prometheus.version>
 		<micrometer.version>1.17.0</micrometer.version>
 		<byteBuddy.version>1.17.8</byteBuddy.version>
@@ -193,6 +202,41 @@
 
 	<dependencyManagement>
 		<dependencies>
+			<!--
+				See the netty.version comment in <properties> above: overrides only the netty-codec-*
+				artifacts armeria 1.40.0 pulls in that carry an open Dependabot advisory, without a full
+				netty-bom import - importing netty-bom manages every io.netty:* artifact (incl.
+				netty-handler and netty-resolver-dns, neither of which is itself vulnerable), which was
+				observed to flip netty-handler's mediated scope from "provided" to "runtime" in
+				evita_external_api_grpc_shared and break its module-info.java (`requires io.netty.handler`
+				needs compile-time visibility). Mixing patch versions within the same netty 4.2.x line is
+				binary-compatible, so pinning just the affected artifacts is sufficient and safer.
+			-->
+			<dependency>
+				<groupId>io.netty</groupId>
+				<artifactId>netty-codec-http2</artifactId>
+				<version>${netty.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>io.netty</groupId>
+				<artifactId>netty-codec-http</artifactId>
+				<version>${netty.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>io.netty</groupId>
+				<artifactId>netty-codec-compression</artifactId>
+				<version>${netty.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>io.netty</groupId>
+				<artifactId>netty-codec-haproxy</artifactId>
+				<version>${netty.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>io.netty</groupId>
+				<artifactId>netty-codec-dns</artifactId>
+				<version>${netty.version}</version>
+			</dependency>
 			<dependency>
 				<groupId>com.esotericsoftware</groupId>
 				<artifactId>kryo</artifactId>
