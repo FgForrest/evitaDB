@@ -39,13 +39,11 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
-import java.util.Collections;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -65,17 +63,6 @@ import static java.util.Optional.ofNullable;
 public class LocalizedHistogramIndex extends HistogramIndex {
 
 	@Serial private static final long serialVersionUID = 8375291046382957143L;
-
-	/**
-	 * Thread-local deferred locale removals used to avoid {@link java.util.ConcurrentModificationException}
-	 * when {@link #removeValue} empties a locale's indexes during {@link #forEachLocale} iteration.
-	 *
-	 * - `null` — not inside {@link #forEachLocale}, removals happen immediately
-	 * - `Collections.emptySet()` — inside iteration, no removals deferred yet (zero-cost sentinel)
-	 * - real `HashSet` — inside iteration, lazily created on first deferred removal
-	 */
-	@SuppressWarnings("NonSerializableFieldInSerializableClass")
-	private final ThreadLocal<Set<Locale>> deferredLocaleRemovals = new ThreadLocal<>();
 
 	/**
 	 * Per-locale filter index storing bucketed histogram values mapped to owner entity primary keys.
@@ -188,39 +175,13 @@ public class LocalizedHistogramIndex extends HistogramIndex {
 			if (filterIdx != null) {
 				filterIdx.removeRecord(ownerPK, normalizedValue);
 				if (filterIdx.isEmpty()) {
-					if (localeRemovalDeferred(theLocale)) {
-						removeFilterIndex(theLocale);
-					}
+					removeFilterIndex(theLocale);
 				}
 			}
 		}
 		if (cardinalityIdx.isEmpty()) {
-			if (localeRemovalDeferred(theLocale)) {
-				removeCardinalityIndex(theLocale);
-			}
+			removeCardinalityIndex(theLocale);
 		}
-	}
-
-	/**
-	 * Attempts to defer locale map-entry removal when called inside {@link #forEachLocale} iteration.
-	 *
-	 * @param locale the locale whose entries should be removed
-	 * @return `true` if removal should proceed immediately, `false` if it was deferred
-	 */
-	private boolean localeRemovalDeferred(@Nonnull Locale locale) {
-		final Set<Locale> deferred = this.deferredLocaleRemovals.get();
-		if (deferred != null) {
-			if (deferred.isEmpty()) {
-				// sentinel — lazily allocate a real set on first deferred removal
-				final Set<Locale> realSet = CollectionUtils.createHashSet(4);
-				realSet.add(locale);
-				this.deferredLocaleRemovals.set(realSet);
-			} else {
-				deferred.add(locale);
-			}
-			return false;
-		}
-		return true;
 	}
 
 	/**
@@ -265,31 +226,12 @@ public class LocalizedHistogramIndex extends HistogramIndex {
 		return this.filterIndexes.isEmpty();
 	}
 
+	@Nonnull
 	@Override
-	public void forEachLocale(@Nonnull BiConsumer<String, Locale> consumer) {
-		final String name = getHistogramName();
-		// install sentinel so removeValue defers map-entry removals instead of modifying during iteration
-		this.deferredLocaleRemovals.set(Collections.emptySet());
-		try {
-			for (Locale locale : this.filterIndexes.keySet()) {
-				consumer.accept(name, locale);
-			}
-		} finally {
-			final Set<Locale> deferred = this.deferredLocaleRemovals.get();
-			this.deferredLocaleRemovals.remove();
-			if (!deferred.isEmpty()) {
-				for (Locale locale : deferred) {
-					final OwnerFilterIndex filterIdx = this.filterIndexes.get(locale);
-					if (filterIdx != null && filterIdx.isEmpty()) {
-						removeFilterIndex(locale);
-					}
-					final AttributeCardinalityIndex cardinalityIdx = this.cardinalities.get(locale);
-					if (cardinalityIdx != null && cardinalityIdx.isEmpty()) {
-						removeCardinalityIndex(locale);
-					}
-				}
-			}
-		}
+	public Locale[] getLocales() {
+		// detached copy - removeValue drops a locale's map entry as soon as it empties, so handing out the
+		// live key set would expose the caller to ConcurrentModificationException while it walks the result
+		return this.filterIndexes.keySet().toArray(new Locale[0]);
 	}
 
 	@Override

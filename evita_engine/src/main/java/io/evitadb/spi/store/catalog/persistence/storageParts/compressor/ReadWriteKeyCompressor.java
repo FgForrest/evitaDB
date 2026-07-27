@@ -29,7 +29,6 @@ import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -46,16 +45,42 @@ import static io.evitadb.utils.CollectionUtils.createHashMap;
  * This implementation of {@link KeyCompressor} is used for accessing and creating new mappings between keys and integer
  * ids that are used in persisted (serialized) form to minimize space occupied by the evitaDB records.
  *
- * The compressor manages its own thread safety via an internal {@link ReentrantReadWriteLock}: the snapshot reader
- * {@link #getAtomicSnapshot()} and writers ({@link #getId(Comparable)}) coordinate without external locking.
- * Hot-path writers that allocate many ids in close succession (e.g. Kryo serialization inside `OffsetIndex.put`)
- * should wrap the burst in {@link #executeWithWriteAccess(Supplier)} to amortize the acquisition cost — `getId(...)`
- * is reentrant on the write lock, so calls inside such a session pay only a holdCount bump rather than a full lock
- * acquire.
+ * **This class is deliberately not annotated `@ThreadSafe`, because it is not thread-safe on its own.** It is only
+ * as safe as the discipline of the class that owns it, and that discipline lives in `OffsetIndex`. Splitting the API
+ * by who guarantees what:
+ *
+ * - **Self-synchronized.** {@link #getId(Comparable)}, {@link #getAtomicSnapshot()} and
+ *   {@link #executeWithWriteAccess(Supplier)} coordinate through the internal {@link ReentrantReadWriteLock} and need
+ *   no external locking. In particular a snapshot reader never observes the backing map mid-mutation.
+ * - **Caller-guaranteed.** {@link #getKeys()}, {@link #getIdIfExists(Comparable)}, {@link #getKeyForId(int)} and
+ *   {@link #getKeyForIdIfExists(int)} touch the backing `HashMap`s with no lock at all. They are safe only while no
+ *   writer can be minting concurrently. A `HashMap.get` racing an insert that resizes may report a key that is
+ *   present as missing, which surfaces either as a spurious `There is no key for id N!` or - through
+ *   `AggregatedKeyCompressor`, which falls through to the next compressor on an empty result - as a silently wrong
+ *   id.
+ *
+ * Both halves of that bargain are currently honoured, which is why the caller-guaranteed methods can stay lock-free
+ * on what is a hot path:
+ *
+ * - every mutation originates inside an {@link #executeWithWriteAccess(Supplier)} session opened by `OffsetIndex`
+ *   (`put` and `copySnapshotTo`), so `getId(...)` bursts driven by Kryo serialization are reentrant on the write
+ *   lock and pay only a holdCount bump rather than a full acquire;
+ * - every reader reaches the lock-free methods through `ReadOnlyKeyCompressorView`, which
+ *   `OffsetIndex.getReadOnlyKeyCompressor()` hands out, and every such reader today runs either while the owning
+ *   `OffsetIndex` has no writer at all (catalog and entity-index loading, which happens once during the
+ *   load-from-disk constructors and has no lazy query-time counterpart) or on the writing thread itself, between
+ *   its own `putStoragePart` calls (the `DeferredRemovalStoragePart` resolution in the flush drains).
+ *
+ * Nothing enforces the second bullet. Handing the view to a path that can run alongside a mint - a query-time index
+ * materialization, say - reintroduces the race silently, and the switch to `ConcurrentHashMap` becomes necessary at
+ * that point. It is deliberately not made pre-emptively, because lock-free reads on unsynchronized `HashMap`s are
+ * what makes these methods cheap today.
+ *
+ * @see ReadOnlyKeyCompressorView the read-only wrapper that delegates all four caller-guaranteed methods straight
+ * through to this class
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@ThreadSafe
 public class ReadWriteKeyCompressor implements KeyCompressor {
 	@Serial private static final long serialVersionUID = -791089303429347949L;
 

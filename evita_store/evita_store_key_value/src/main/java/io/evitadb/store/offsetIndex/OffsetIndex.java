@@ -87,6 +87,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
@@ -262,16 +263,37 @@ public class OffsetIndex {
 	/**
 	 * OffsetIndex descriptor used when creating OffsetIndex instance or created on last {@link #flush(long)} operation.
 	 * Contains all information necessary to read/write data in OffsetIndex instance using {@link Kryo}.
+	 *
+	 * Reassigned only from inside the {@link #writeHandle} critical section, but read without holding anything.
+	 * `volatile` here buys visibility of the descriptor's own scalars: {@link #getVersion()} and
+	 * {@link #getFileOffsetIndexLocation()} are read from threads other than the flushing one, and an indefinitely
+	 * stale version or file location is not acceptable.
+	 *
+	 * It deliberately does **not** carry the read-Kryo binding any more. That binding used to be resolved through
+	 * this field at Kryo-creation time, which is precisely what let a freshly-expired pool build instances against
+	 * a superseded compressor; it now lives in the pool's own volatile generation, where the version and the factory
+	 * are published together.
+	 *
+	 * The compressor-facing accessors ({@link #getReadOnlyKeyCompressor()}, {@link #getCompressedKeys()},
+	 * {@link #getKeyCompressorSnapshot()}) do not rely on this guarantee either: every post-flush descriptor carries
+	 * the *same* `ReadWriteKeyCompressor` instance forward, so even a stale reference resolves to the live compressor.
+	 *
+	 * `volatile` gives visibility, not atomicity - never read-modify-write this field. Each path publishes it in
+	 * exactly one place ({@link #doFlush} and {@link #doSoftFlush()}), both inside the critical section.
 	 */
-	private OffsetIndexDescriptor fileOffsetDescriptor;
+	private volatile OffsetIndexDescriptor fileOffsetDescriptor;
 	/**
 	 * Lazily cached read-only view over the current
 	 * {@link io.evitadb.spi.store.catalog.persistence.storageParts.compressor.ReadWriteKeyCompressor} held by
 	 * {@link #fileOffsetDescriptor}. The view delegates all read-only methods directly to the live write compressor
 	 * while preventing mutation via {@link KeyCompressor#getId(Comparable)}. This field is reset to {@code null}
-	 * whenever {@link #fileOffsetDescriptor} is reassigned so that a stale view is never served.
+	 * whenever {@link #fileOffsetDescriptor} is reassigned. That reset is belt-and-braces rather than a correctness
+	 * requirement: the write compressor instance is carried forward across every post-flush rebuild, so a view built
+	 * against an earlier descriptor still delegates to the live compressor. `volatile` likewise only removes any
+	 * doubt about a benign racy cache - the wrapped delegate is final, so an instance published through the race is
+	 * always fully constructed.
 	 */
-	@Nullable private ReadOnlyKeyCompressorView readOnlyKeyCompressorView;
+	@Nullable private volatile ReadOnlyKeyCompressorView readOnlyKeyCompressorView;
 	/**
 	 * This field contains the information about last known position that has been synced to the file on disk and can
 	 * be safely read.
@@ -361,7 +383,7 @@ public class OffsetIndex {
 		this.readOnlyOpenedHandles = new CopyOnWriteArrayList<>();
 		this.readKryoPool = new FileOffsetIndexKryoPool(
 			maxOpenedReadHandlesOrDefault,
-			version -> this.fileOffsetDescriptor.getReadKryoFactory().apply(version)
+			this.fileOffsetDescriptor.getReadKryoFactory()
 		);
 		this.writeKryo = fileOffsetDescriptor.getWriteKryo();
 		this.writeHandle = writeHandle;
@@ -473,7 +495,7 @@ public class OffsetIndex {
 			this.readOnlyKeyCompressorView = null;
 			this.readKryoPool = new FileOffsetIndexKryoPool(
 				maxOpenedReadHandlesOrDefault,
-				version -> this.fileOffsetDescriptor.getReadKryoFactory().apply(version)
+				this.fileOffsetDescriptor.getReadKryoFactory()
 			);
 			this.writeKryo = this.fileOffsetDescriptor.getWriteKryo();
 			this.decompressionPool = new Pool<>(true, false, DECOMPRESSION_ARRAY_POOL_MAXIMUM_CAPACITY) {
@@ -543,7 +565,7 @@ public class OffsetIndex {
 		this.readOnlyKeyCompressorView = null;
 		this.readKryoPool = new FileOffsetIndexKryoPool(
 			maxOpenedReadHandlesOrDefault,
-			version -> this.fileOffsetDescriptor.getReadKryoFactory().apply(version)
+			this.fileOffsetDescriptor.getReadKryoFactory()
 		);
 		this.writeKryo = this.fileOffsetDescriptor.getWriteKryo();
 		this.decompressionPool = new Pool<>(true, false, DECOMPRESSION_ARRAY_POOL_MAXIMUM_CAPACITY) {
@@ -579,10 +601,14 @@ public class OffsetIndex {
 	/**
 	 * Returns the **live** index of compressed keys.
 	 *
-	 * The compressor manages its own thread safety internally, so no external coordination is needed. Callers
-	 * that retain the map past their own consumption window (i.e. iterate it later or hand it to a long-lived
-	 * data structure that may iterate after concurrent writers have advanced) must use
-	 * {@link #getKeyCompressorSnapshot()} instead, which returns the compressor's memoized immutable copy.
+	 * The compressor does **not** synchronize this access - see the class JavaDoc of
+	 * {@link io.evitadb.spi.store.catalog.persistence.storageParts.compressor.ReadWriteKeyCompressor} for which half
+	 * of its API is self-synchronized and which half is the caller's responsibility. Every mint originates inside an
+	 * `executeWithWriteAccess` session opened by this class, so a live view is coherent exactly as long as the caller
+	 * consumes it outside such a session or from within one. Callers that retain the map past their own consumption
+	 * window (i.e. iterate it later or hand it to a long-lived data structure that may iterate after concurrent
+	 * writers have advanced) must use {@link #getKeyCompressorSnapshot()} instead, which returns the compressor's
+	 * memoized immutable copy under its read lock.
 	 *
 	 * Safe live-view consumers in this codebase:
 	 *
@@ -590,7 +616,7 @@ public class OffsetIndex {
 	 * - `storeHeader` building a `CatalogHeader` whose subsequent Kryo serialization runs inside the
 	 * compressor's write session and whose serializer (including value-key sub-serializers for `AttributeKey`,
 	 * `AssociatedDataKey`, `CompressiblePriceKey`, `ReferenceNameKey`) never calls back into
-	 * {@link io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor#getId(Comparable)} mid-iteration.
+	 * {@link KeyCompressor#getId(Comparable)} mid-iteration.
 	 *
 	 * @return live id → key index of the current compressed keys
 	 */
@@ -933,7 +959,9 @@ public class OffsetIndex {
 	@Nonnull
 	public OffsetIndexDescriptor flush(long catalogVersion) {
 		assertOperative();
-		this.fileOffsetDescriptor = doFlush(catalogVersion, this.fileOffsetDescriptor, false);
+		// `doFlush` publishes the descriptor to `fileOffsetDescriptor` itself, from inside the write-handle critical
+		// section, because the read Kryo pool has to be expired against a binding that is already live
+		doFlush(catalogVersion, false);
 		// flush runs under the single-writer model: all writes (including the promotion inside doFlush) are
 		// serialized by the writeHandle ReentrantLock, so no other thread mutates the roots registry concurrently here.
 		// When there were non-flushed values, doFlush already republished the shared state (version + locations)
@@ -1092,12 +1120,12 @@ public class OffsetIndex {
 			if (!this.shutdownDownProcedureActive.compareAndExchange(false, true)) {
 				// spinning lock to close all opened handles once they occur free in pool
 				clearReadOnlyOpenedHandles();
-				// at last flush OffsetIndex and close write handle
-				this.fileOffsetDescriptor = doFlush(
+				// at last flush OffsetIndex and close write handle - doFlush publishes the resulting descriptor to
+				// `fileOffsetDescriptor` itself (see flush), so there is nothing to assign back here
+				doFlush(
 					// if there are any non-flushed values, use their version as the last version
 					this.volatileValues.getLastNonFlushedCatalogVersionIfExists()
 						.orElse(this.roots.currentVersion()),
-					this.fileOffsetDescriptor,
 					true
 				);
 				this.readOnlyKeyCompressorView = null;
@@ -1379,16 +1407,24 @@ public class OffsetIndex {
 	/**
 	 * Flushes current OffsetIndex data (and it's changes) to the disk. File is synced within this method. Frequent flushes
 	 * limit the I/O performance.
+	 *
+	 * The outcome is **published to {@link #fileOffsetDescriptor}, not returned**. It has to be: the read Kryo pool is
+	 * expired in the same breath and must be expired against a binding that is already live (see the comment at the
+	 * publication site), which is only possible from inside the critical section. {@link #doSoftFlush()} publishes
+	 * from inside its own for the same reason. When there is nothing to promote the field is left alone, because the
+	 * descriptor it already holds remains the current one.
+	 *
+	 * @param catalogVersion version stamped onto the promoted records
+	 * @param close          whether the write handle should be closed once the data is on disk
 	 */
-	@Nonnull
-	private OffsetIndexDescriptor doFlush(
+	private void doFlush(
 		long catalogVersion,
-		@Nonnull OffsetIndexDescriptor fileOffsetIndexDescriptor,
 		boolean close
 	) {
+		final OffsetIndexDescriptor currentDescriptor = this.fileOffsetDescriptor;
 		// if there are any non-flushed values, we need to flush them to the disk (of if the offset index was not yet created)
-		if (this.volatileValues.hasValuesToFlush() || fileOffsetIndexDescriptor.fileLocation() == FileLocation.EMPTY) {
-			final OffsetIndexDescriptor newFileOffsetIndexDescriptor = this.writeHandle.checkAndExecuteAndSync(
+		if (this.volatileValues.hasValuesToFlush() || currentDescriptor.fileLocation() == FileLocation.EMPTY) {
+			this.writeHandle.checkAndExecuteAndSync(
 				"Writing mem table",
 				this::assertOperative,
 				outputStream -> {
@@ -1418,30 +1454,41 @@ public class OffsetIndex {
 						catalogVersion,
 						nonFlushedValuesWithFileLocation.nonFlushedValueSets()
 					);
-					// propagate changes in KeyCompressor to the read kryo pool
-					if (fileOffsetIndexDescriptor.resetDirty()) {
-						this.readKryoPool.expireAllPreviouslyCreated();
-					}
 					// create new OffsetIndexDescriptor with updated version
 					final long fileSize = this.writeHandle.getLastWrittenPosition();
-					return new OffsetIndexDescriptor(
+					final OffsetIndexDescriptor newDescriptor = new OffsetIndexDescriptor(
 						nonFlushedValuesWithFileLocation.fileLocation(),
-						fileOffsetIndexDescriptor,
+						currentDescriptor,
 						getActiveRecordShare(this.writeHandle.getLastWrittenPosition()),
 						fileSize
 					);
+					// publish the new descriptor BEFORE expiring the read kryo pool, exactly like doSoftFlush does.
+					// Expiring first empties the pool while this field still points at the superseded descriptor, so
+					// a reader borrowing in that window builds a VersionedKryo bound to the OLD read compressor yet
+					// tagged with the FRESH pool version - which `free` then accepts back into the pool, where it
+					// survives every subsequent flush and fails every read of a record written with a newly minted
+					// compressed key.
+					// Note this closes the *permanent* form of the problem, not every last instant of it: promotion
+					// above already made the new records reachable through `roots`, so a reader that borrows an
+					// already-pooled instance between that promotion and this publication can still fail once. That
+					// residual window is transient - the instance it used is rejected by `free` and the next borrow
+					// builds a current one - whereas the poisoned-pool form was permanent. Closing it entirely would
+					// mean publishing ahead of the promotion, which is not possible while the descriptor's
+					// activeRecordShare is derived from post-promotion totals.
+					this.fileOffsetDescriptor = newDescriptor;
+					this.readOnlyKeyCompressorView = null;
+					// propagate changes in KeyCompressor to the read kryo pool
+					if (currentDescriptor.resetDirty()) {
+						this.readKryoPool.expireAllPreviouslyCreated(newDescriptor.getReadKryoFactory());
+					}
+					// the post-execution hook has to yield something - the descriptor is already published above
+					return newDescriptor;
 				}
 			);
+		}
 
-			if (close) {
-				IOUtils.closeQuietly(this.writeHandle::close);
-			}
-			return newFileOffsetIndexDescriptor;
-		} else {
-			if (close) {
-				IOUtils.closeQuietly(this.writeHandle::close);
-			}
-			return fileOffsetIndexDescriptor;
+		if (close) {
+			IOUtils.closeQuietly(this.writeHandle::close);
 		}
 	}
 
@@ -1461,18 +1508,22 @@ public class OffsetIndex {
 					// update last synced position, since in post action we are already after sync
 					this.lastSyncedPosition = this.writeHandle.getLastWrittenPosition();
 					// propagate changes in KeyCompressor to the read kryo pool
-					if (this.fileOffsetDescriptor.resetDirty()) {
-						this.fileOffsetDescriptor = new OffsetIndexDescriptor(
+					final OffsetIndexDescriptor currentDescriptor = this.fileOffsetDescriptor;
+					if (currentDescriptor.resetDirty()) {
+						final OffsetIndexDescriptor newDescriptor = new OffsetIndexDescriptor(
 							new FileLocationAndWrittenBytes(
-								this.fileOffsetDescriptor.fileLocation(),
+								currentDescriptor.fileLocation(),
 								0
 							),
-							this.fileOffsetDescriptor,
+							currentDescriptor,
 							getActiveRecordShare(this.lastSyncedPosition),
 							this.lastSyncedPosition
 						);
+						// publish first, expire second - see the identically-shaped comment in doFlush for what
+						// happens when the read Kryo pool is emptied while this field still names the old descriptor
+						this.fileOffsetDescriptor = newDescriptor;
 						this.readOnlyKeyCompressorView = null;
-						this.readKryoPool.expireAllPreviouslyCreated();
+						this.readKryoPool.expireAllPreviouslyCreated(newDescriptor.getReadKryoFactory());
 					}
 					return null;
 				}
@@ -2488,18 +2539,16 @@ public class OffsetIndex {
 	@ThreadSafe
 	public static class FileOffsetIndexKryoPool extends Pool<VersionedKryo> {
 		/**
-		 * Function allows creating new instance of {@link VersionedKryo} with current Pool version.
+		 * Current pool generation - the version counter paired with the factory of the {@link OffsetIndexDescriptor}
+		 * that version belongs to. Held in a single reference so that {@link #create()} can never combine one
+		 * generation's version with another generation's factory, and {@link #free(VersionedKryo)} always compares
+		 * against a version that actually matches the binding instances were built with.
 		 */
-		private final Function<Long, VersionedKryo> supplier;
-		/**
-		 * Version increases only by calling {@link #expireAllPreviouslyCreated()} method and allows to discard all
-		 * obsolete {@link VersionedKryo} instances when they are about to be returned back to pool.
-		 */
-		private long version = 1L;
+		private final AtomicReference<Generation> generation;
 
-		public FileOffsetIndexKryoPool(int maxInstancesKept, @Nonnull Function<Long, VersionedKryo> supplier) {
+		public FileOffsetIndexKryoPool(int maxInstancesKept, @Nonnull Function<Long, VersionedKryo> kryoFactory) {
 			super(true, false, maxInstancesKept);
-			this.supplier = supplier;
+			this.generation = new AtomicReference<>(new Generation(1L, kryoFactory));
 		}
 
 		/**
@@ -2520,9 +2569,19 @@ public class OffsetIndex {
 		 * method they are not accepted back to pool and they are going to be garbage collected. New {@link VersionedKryo}
 		 * instances will be created on their place and these new versions will possibly have new configuration of key
 		 * internal inputs ({@link VersionedKryoKeyInputs}).
+		 *
+		 * The factory of the descriptor that supersedes the expired one has to be passed in, because the version bump
+		 * and the binding it stands for must become visible together. Taking the factory as an argument also makes the
+		 * ordering mistake unrepresentable: there is no way to expire the pool without naming the generation that
+		 * replaces it.
+		 *
+		 * @param kryoFactory read-Kryo factory of the descriptor the pool serves from now on
 		 */
-		public void expireAllPreviouslyCreated() {
-			this.version++;
+		public void expireAllPreviouslyCreated(@Nonnull Function<Long, VersionedKryo> kryoFactory) {
+			// today's only callers hold the writeHandle lock, so no two expiries can interleave anyway - but the
+			// whole point of this field is to be self-consistent without leaning on an external lock, so the bump
+			// is done atomically rather than as a read-then-write. The update function is pure, hence safe to retry.
+			this.generation.updateAndGet(current -> new Generation(current.version() + 1, kryoFactory));
 			this.clear();
 		}
 
@@ -2531,7 +2590,9 @@ public class OffsetIndex {
 		 */
 		@Override
 		protected VersionedKryo create() {
-			return this.supplier.apply(this.version);
+			// read the generation exactly once - version and factory must come from the same one
+			final Generation currentGeneration = this.generation.get();
+			return currentGeneration.kryoFactory().apply(currentGeneration.version());
 		}
 
 		/**
@@ -2541,15 +2602,29 @@ public class OffsetIndex {
 		public void free(VersionedKryo object) {
 			// if object version is the same as actual version, accept it,
 			// otherwise it would be discarded and garbage collected
-			if (object.getVersion() == this.version) {
+			if (object.getVersion() == this.generation.get().version()) {
 				super.free(object);
 			}
+		}
+
+		/**
+		 * Immutable pairing of a pool version with the {@link VersionedKryo} factory of the
+		 * {@link OffsetIndexDescriptor} that version stands for.
+		 *
+		 * @param version     monotonically increasing pool version stamped onto every instance built by `kryoFactory`
+		 * @param kryoFactory factory bound to the read {@link KeyCompressor} of the descriptor this generation
+		 *                    belongs to
+		 */
+		private record Generation(
+			long version,
+			@Nonnull Function<Long, VersionedKryo> kryoFactory
+		) {
 		}
 
 	}
 
 	/**
-	 * This record is used to propagate multiple values in the {@link #doFlush(long, OffsetIndexDescriptor, boolean)}
+	 * This record is used to propagate multiple values in the {@link #doFlush(long, boolean)}
 	 * method.
 	 *
 	 * @param nonFlushedValueSets set of non-flushed value sets that have been flushed

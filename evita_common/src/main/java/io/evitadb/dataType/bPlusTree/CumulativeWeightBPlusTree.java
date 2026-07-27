@@ -113,6 +113,14 @@ public class CumulativeWeightBPlusTree<K> implements ConsistencySensitiveDataStr
 	 * Sum of the weights of all keys (equivalently the length of the weight-expanded sequence).
 	 */
 	private int totalWeight;
+	/**
+	 * Lazily created descent-cursor scratch reused by every mutating operation on this tree. Mutations are
+	 * single-writer by contract (concurrent {@link #insert}/{@link #remove}/{@link #updateWeight} would corrupt the
+	 * node blocks regardless of this field), and {@link #descend} fully re-initializes the cursor, so reuse is safe.
+	 * Allocating a fresh cursor per operation was measured as the single largest allocation site of a
+	 * write-heavy workload (two {@link #MAX_HEIGHT}-sized arrays per mutation).
+	 */
+	@Nullable private Cursor cursorScratch;
 
 	/**
 	 * Creates an empty tree with the {@link #DEFAULT_BLOCK_SIZE}.
@@ -179,7 +187,7 @@ public class CumulativeWeightBPlusTree<K> implements ConsistencySensitiveDataStr
 			this.totalWeight = weight;
 			return;
 		}
-		final Cursor cursor = new Cursor();
+		final Cursor cursor = cursorScratch();
 		final LeafNode leaf = descend(key, cursor);
 		final int pos = leafInsertionIndex(leaf, key);
 		Assert.isPremiseValid(
@@ -211,7 +219,7 @@ public class CumulativeWeightBPlusTree<K> implements ConsistencySensitiveDataStr
 	 * @throws io.evitadb.exception.GenericEvitaInternalError when the key is not present
 	 */
 	public void remove(@Nonnull K key) {
-		final Cursor cursor = new Cursor();
+		final Cursor cursor = cursorScratch();
 		final LeafNode leaf = descendToExistingKey(key, cursor);
 		final int pos = cursor.leafIndex;
 		final int weight = leaf.weights[pos];
@@ -238,7 +246,7 @@ public class CumulativeWeightBPlusTree<K> implements ConsistencySensitiveDataStr
 	 * @throws io.evitadb.exception.GenericEvitaInternalError when the key is absent or the result would be `< 1`
 	 */
 	public void updateWeight(@Nonnull K key, int delta) {
-		final Cursor cursor = new Cursor();
+		final Cursor cursor = cursorScratch();
 		final LeafNode leaf = descendToExistingKey(key, cursor);
 		final int pos = cursor.leafIndex;
 		final int newWeight = leaf.weights[pos] + delta;
@@ -357,6 +365,24 @@ public class CumulativeWeightBPlusTree<K> implements ConsistencySensitiveDataStr
 	@SuppressWarnings("unchecked")
 	private int compare(@Nullable Object a, @Nullable Object b) {
 		return this.comparator.compare((K) a, (K) b);
+	}
+
+	/**
+	 * Returns the reusable descent-cursor scratch, creating it on first use. See {@link #cursorScratch} for the
+	 * single-writer reuse contract. The cursor may retain references to at most {@link #MAX_HEIGHT} nodes of this
+	 * tree between operations; they belong to this tree (or were just detached from it), so the retention is bounded
+	 * and never pins another tree's memory.
+	 *
+	 * @return the reusable cursor scratch
+	 */
+	@Nonnull
+	private Cursor cursorScratch() {
+		Cursor cursor = this.cursorScratch;
+		if (cursor == null) {
+			cursor = new Cursor();
+			this.cursorScratch = cursor;
+		}
+		return cursor;
 	}
 
 	/**

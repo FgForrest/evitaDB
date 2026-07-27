@@ -47,20 +47,21 @@ import io.evitadb.dataType.DataChunk;
 import io.evitadb.utils.Functions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
-import org.junit.jupiter.api.Tag;
 
-import static org.junit.jupiter.api.Assertions.*;
 import static io.evitadb.test.TestTags.CONTRACT;
 import static io.evitadb.test.TestTags.QUERY;
 import static io.evitadb.test.TestTags.REFERENCE;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Tests for {@link ExistingReferencesBuilder} verifying
@@ -98,16 +99,14 @@ class ExistingReferencesBuilderTest extends AbstractBuilderTest {
 				r -> {}
 			)
 			.withReferenceToEntity(
-				BRAND, BRAND,
-				Cardinality.ZERO_OR_MORE_WITH_DUPLICATES,
+				BRAND, BRAND, Cardinality.ZERO_OR_MORE_WITH_DUPLICATES,
 				r -> r.withAttribute(
 					COUNTRY, String.class,
 					AttributeSchemaEditor::representative
 				)
 			)
 			.withReferenceToEntity(
-				CATEGORY, CATEGORY,
-				Cardinality.ZERO_OR_MORE,
+				CATEGORY, CATEGORY, Cardinality.ZERO_OR_MORE,
 				r -> r.withGroupType(GROUP)
 			)
 			.toInstance();
@@ -160,8 +159,7 @@ class ExistingReferencesBuilderTest extends AbstractBuilderTest {
 	private static References createBaseReferences(
 		@Nonnull EntitySchemaContract schema
 	) {
-		final InitialReferencesBuilder builder =
-			new InitialReferencesBuilder(schema);
+		final InitialReferencesBuilder builder = new InitialReferencesBuilder(schema);
 		builder.setReference(STORE, 1);
 		builder.setReference(STORE, 2);
 		builder.setOrUpdateReference(
@@ -205,10 +203,8 @@ class ExistingReferencesBuilderTest extends AbstractBuilderTest {
 	@Nonnull
 	private static ExistingReferencesBuilder
 	createDefaultBuilder() {
-		final EntitySchemaContract schema =
-			createSchemaWithReferences();
-		final References base =
-			createBaseReferences(schema);
+		final EntitySchemaContract schema = createSchemaWithReferences();
+		final References base = createBaseReferences(schema);
 		return createBuilder(schema, base);
 	}
 
@@ -219,8 +215,7 @@ class ExistingReferencesBuilderTest extends AbstractBuilderTest {
 		@Test
 		@DisplayName("should create builder wrapping base refs")
 		void shouldCreateBuilderWrappingBaseReferences() {
-			final ExistingReferencesBuilder builder =
-				createDefaultBuilder();
+			final ExistingReferencesBuilder builder = createDefaultBuilder();
 
 			assertNotNull(builder);
 			assertFalse(builder.getReferences().isEmpty());
@@ -231,8 +226,7 @@ class ExistingReferencesBuilderTest extends AbstractBuilderTest {
 			"should report correct reference count"
 		)
 		void shouldReportCorrectReferenceCount() {
-			final ExistingReferencesBuilder builder =
-				createDefaultBuilder();
+			final ExistingReferencesBuilder builder = createDefaultBuilder();
 
 			// store/1, store/2, brand/1 x2, category/1
 			assertEquals(
@@ -245,8 +239,7 @@ class ExistingReferencesBuilderTest extends AbstractBuilderTest {
 			"should report references available"
 		)
 		void shouldReportReferencesAvailable() {
-			final ExistingReferencesBuilder builder =
-				createDefaultBuilder();
+			final ExistingReferencesBuilder builder = createDefaultBuilder();
 
 			assertTrue(builder.referencesAvailable());
 			assertTrue(builder.referencesAvailable(STORE));
@@ -258,11 +251,9 @@ class ExistingReferencesBuilderTest extends AbstractBuilderTest {
 			"should return correct reference names"
 		)
 		void shouldReturnCorrectReferenceNames() {
-			final ExistingReferencesBuilder builder =
-				createDefaultBuilder();
+			final ExistingReferencesBuilder builder = createDefaultBuilder();
 
-			final Set<String> names =
-				builder.getReferenceNames();
+			final Set<String> names = builder.getReferenceNames();
 			assertTrue(names.contains(STORE));
 			assertTrue(names.contains(BRAND));
 			assertTrue(names.contains(CATEGORY));
@@ -277,11 +268,9 @@ class ExistingReferencesBuilderTest extends AbstractBuilderTest {
 		@Test
 		@DisplayName("should return all references")
 		void shouldReturnAllReferences() {
-			final ExistingReferencesBuilder builder =
-				createDefaultBuilder();
+			final ExistingReferencesBuilder builder = createDefaultBuilder();
 
-			final Collection<ReferenceContract> all =
-				builder.getReferences();
+			final Collection<ReferenceContract> all = builder.getReferences();
 			assertEquals(5, all.size());
 		}
 
@@ -290,11 +279,9 @@ class ExistingReferencesBuilderTest extends AbstractBuilderTest {
 			"should return 2 store references by name"
 		)
 		void shouldReturnStoreReferencesByName() {
-			final ExistingReferencesBuilder builder =
-				createDefaultBuilder();
+			final ExistingReferencesBuilder builder = createDefaultBuilder();
 
-			final Collection<ReferenceContract> stores =
-				builder.getReferences(STORE);
+			final Collection<ReferenceContract> stores = builder.getReferences(STORE);
 			assertEquals(2, stores.size());
 		}
 
@@ -303,15 +290,11 @@ class ExistingReferencesBuilderTest extends AbstractBuilderTest {
 			"should return reference by name and id"
 		)
 		void shouldReturnReferenceByNameAndId() {
-			final ExistingReferencesBuilder builder =
-				createDefaultBuilder();
+			final ExistingReferencesBuilder builder = createDefaultBuilder();
 
-			final Optional<ReferenceContract> ref =
-				builder.getReference(STORE, 1);
+			final Optional<ReferenceContract> ref = builder.getReference(STORE, 1);
 			assertTrue(ref.isPresent());
-			assertEquals(
-				1, ref.get().getReferencedPrimaryKey()
-			);
+			assertEquals(1, ref.get().getReferencedPrimaryKey());
 		}
 
 		@Test
@@ -319,21 +302,14 @@ class ExistingReferencesBuilderTest extends AbstractBuilderTest {
 			"should return reference by ReferenceKey"
 		)
 		void shouldReturnReferenceByReferenceKey() {
-			final ExistingReferencesBuilder builder =
-				createDefaultBuilder();
+			final ExistingReferencesBuilder builder = createDefaultBuilder();
 
-			final ReferenceContract storeRef =
-				builder.getReferences(STORE).iterator()
-					.next();
-			final ReferenceKey key =
-				storeRef.getReferenceKey();
+			final ReferenceContract storeRef = builder.getReferences(STORE).iterator().next();
+			final ReferenceKey key = storeRef.getReferenceKey();
 
-			final Optional<ReferenceContract> ref =
-				builder.getReference(key);
+			final Optional<ReferenceContract> ref = builder.getReference(key);
 			assertTrue(ref.isPresent());
-			assertEquals(
-				STORE, ref.get().getReferenceName()
-			);
+			assertEquals(STORE, ref.get().getReferenceName());
 		}
 
 		@Test
@@ -342,8 +318,7 @@ class ExistingReferencesBuilderTest extends AbstractBuilderTest {
 				+ "reference via getReference(name, id)"
 		)
 		void shouldThrowOnDuplicateReferenceAccess() {
-			final ExistingReferencesBuilder builder =
-				createDefaultBuilder();
+			final ExistingReferencesBuilder builder = createDefaultBuilder();
 
 			assertThrows(
 				ReferenceAllowsDuplicatesException.class,
@@ -357,13 +332,10 @@ class ExistingReferencesBuilderTest extends AbstractBuilderTest {
 				+ "getReferences(key)"
 		)
 		void shouldReturnAllDuplicateReferences() {
-			final ExistingReferencesBuilder builder =
-				createDefaultBuilder();
+			final ExistingReferencesBuilder builder = createDefaultBuilder();
 
-			final ReferenceKey key =
-				new ReferenceKey(BRAND, 1);
-			final List<ReferenceContract> refs =
-				builder.getReferences(key);
+			final ReferenceKey key = new ReferenceKey(BRAND, 1);
+			final List<ReferenceContract> refs = builder.getReferences(key);
 			assertEquals(2, refs.size());
 		}
 
@@ -372,15 +344,11 @@ class ExistingReferencesBuilderTest extends AbstractBuilderTest {
 			"should return correct reference chunk"
 		)
 		void shouldReturnReferenceChunk() {
-			final ExistingReferencesBuilder builder =
-				createDefaultBuilder();
+			final ExistingReferencesBuilder builder = createDefaultBuilder();
 
-			final DataChunk<ReferenceContract> chunk =
-				builder.getReferenceChunk(STORE);
+			final DataChunk<ReferenceContract> chunk = builder.getReferenceChunk(STORE);
 			assertNotNull(chunk);
-			assertEquals(
-				2, chunk.getTotalRecordCount()
-			);
+			assertEquals(2, chunk.getTotalRecordCount());
 		}
 
 		@Test
@@ -388,11 +356,9 @@ class ExistingReferencesBuilderTest extends AbstractBuilderTest {
 			"should return empty when ref id not found"
 		)
 		void shouldReturnEmptyForNonExistentReference() {
-			final ExistingReferencesBuilder builder =
-				createDefaultBuilder();
+			final ExistingReferencesBuilder builder = createDefaultBuilder();
 
-			final Optional<ReferenceContract> ref =
-				builder.getReference(STORE, 999);
+			final Optional<ReferenceContract> ref = builder.getReference(STORE, 999);
 			assertTrue(ref.isEmpty());
 		}
 	}
@@ -404,13 +370,11 @@ class ExistingReferencesBuilderTest extends AbstractBuilderTest {
 		@Test
 		@DisplayName("should add new store reference")
 		void shouldAddNewStoreReference() {
-			final ExistingReferencesBuilder builder =
-				createDefaultBuilder();
+			final ExistingReferencesBuilder builder = createDefaultBuilder();
 
 			builder.setReference(STORE, 3);
 
-			final Collection<ReferenceContract> stores =
-				builder.getReferences(STORE);
+			final Collection<ReferenceContract> stores = builder.getReferences(STORE);
 			assertEquals(3, stores.size());
 		}
 
@@ -419,17 +383,14 @@ class ExistingReferencesBuilderTest extends AbstractBuilderTest {
 			"should set reference with consumer"
 		)
 		void shouldSetReferenceWithConsumer() {
-			final ExistingReferencesBuilder builder =
-				createDefaultBuilder();
+			final ExistingReferencesBuilder builder = createDefaultBuilder();
 
 			builder.setReference(
 				STORE, 3,
 				ref -> ref.setAttribute("priority", 5)
 			);
 
-			assertEquals(
-				3, builder.getReferences(STORE).size()
-			);
+			assertEquals( 3, builder.getReferences(STORE).size());
 		}
 
 		@Test
@@ -438,26 +399,20 @@ class ExistingReferencesBuilderTest extends AbstractBuilderTest {
 				+ "and cardinality"
 		)
 		void shouldSetReferenceWithEntityTypeAndCardinality() {
-			final ExistingReferencesBuilder builder =
-				createDefaultBuilder();
+			final ExistingReferencesBuilder builder = createDefaultBuilder();
 
 			builder.setReference(
 				CATEGORY, CATEGORY,
 				Cardinality.ZERO_OR_MORE, 2
 			);
 
-			assertEquals(
-				2, builder.getReferences(CATEGORY).size()
-			);
+			assertEquals(2, builder.getReferences(CATEGORY).size());
 		}
 
 		@Test
-		@DisplayName(
-			"should overwrite existing store reference"
-		)
+		@DisplayName("should overwrite existing store reference")
 		void shouldOverwriteExistingStoreReference() {
-			final ExistingReferencesBuilder builder =
-				createDefaultBuilder();
+			final ExistingReferencesBuilder builder = createDefaultBuilder();
 
 			// overwrite store/1 with consumer
 			builder.setReference(
@@ -466,26 +421,18 @@ class ExistingReferencesBuilderTest extends AbstractBuilderTest {
 			);
 
 			// count should remain the same
-			assertEquals(
-				2, builder.getReferences(STORE).size()
-			);
+			assertEquals( 2, builder.getReferences(STORE).size());
 		}
 
 		@Test
-		@DisplayName(
-			"should throw for unknown reference type "
-				+ "on strict schema"
-		)
+		@DisplayName("should throw for unknown reference type on strict schema")
 		void shouldThrowForUnknownReferenceOnStrictSchema() {
-			final EntitySchemaContract schema =
-				createSchemaWithStrictCardinality();
-			final InitialReferencesBuilder init =
-				new InitialReferencesBuilder(schema);
+			final EntitySchemaContract schema = createSchemaWithStrictCardinality();
+			final InitialReferencesBuilder init = new InitialReferencesBuilder(schema);
 			init.setReference(STORE, 1);
 			final References base = init.build();
 
-			final ExistingReferencesBuilder builder =
-				createBuilder(schema, base);
+			final ExistingReferencesBuilder builder = createBuilder(schema, base);
 
 			assertThrows(
 				ReferenceNotKnownException.class,
@@ -494,10 +441,7 @@ class ExistingReferencesBuilderTest extends AbstractBuilderTest {
 		}
 
 		@Test
-		@DisplayName(
-			"should throw ReferenceAllowsDuplicates "
-				+ "for brand via setReference"
-		)
+		@DisplayName("should throw ReferenceAllowsDuplicates for brand via setReference")
 		void shouldThrowForDuplicateAllowingRef() {
 			final ExistingReferencesBuilder builder =
 				createDefaultBuilder();
@@ -514,12 +458,9 @@ class ExistingReferencesBuilderTest extends AbstractBuilderTest {
 	class UpdatingReferencesTest {
 
 		@Test
-		@DisplayName(
-			"should update existing reference attributes"
-		)
+		@DisplayName("should update existing reference attributes")
 		void shouldUpdateExistingReferenceAttributes() {
-			final ExistingReferencesBuilder builder =
-				createDefaultBuilder();
+			final ExistingReferencesBuilder builder = createDefaultBuilder();
 
 			builder.updateReference(
 				STORE, 1,
@@ -527,19 +468,14 @@ class ExistingReferencesBuilderTest extends AbstractBuilderTest {
 			);
 
 			// reference should still exist
-			final Optional<ReferenceContract> ref =
-				builder.getReference(STORE, 1);
+			final Optional<ReferenceContract> ref = builder.getReference(STORE, 1);
 			assertTrue(ref.isPresent());
 		}
 
 		@Test
-		@DisplayName(
-			"should be no-op when updating "
-				+ "non-existent reference"
-		)
+		@DisplayName("should be no-op when updating non-existent reference")
 		void shouldBeNoOpForNonExistentReference() {
-			final ExistingReferencesBuilder builder =
-				createDefaultBuilder();
+			final ExistingReferencesBuilder builder = createDefaultBuilder();
 
 			// store/999 does not exist - should be no-op
 			builder.updateReference(
@@ -548,9 +484,7 @@ class ExistingReferencesBuilderTest extends AbstractBuilderTest {
 			);
 
 			// count should remain the same
-			assertEquals(
-				2, builder.getReferences(STORE).size()
-			);
+			assertEquals(2, builder.getReferences(STORE).size());
 		}
 
 		@Test
@@ -609,6 +543,43 @@ class ExistingReferencesBuilderTest extends AbstractBuilderTest {
 			// still 2 refs, not 3
 			assertEquals(
 				2, builder.getReferences(STORE).size()
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"should reject an indistinguishable duplicate "
+				+ "when an existing one was updated first"
+		)
+		void shouldRejectIndistinguishableDuplicateAfterUpdate() {
+			final ExistingReferencesBuilder builder =
+				createDefaultBuilder();
+
+			// updating an existing base duplicate registers
+			// it into the reference bundle ...
+			builder.setOrUpdateReference(
+				BRAND, 1,
+				ref -> "CZ".equals(
+					ref.getAttribute(COUNTRY, String.class)
+				),
+				ref -> ref.setAttribute(COUNTRY, "CZ-EAST")
+			);
+			// ... and adding another one converts the whole
+			// business key into a duplicated group
+			builder.setOrUpdateReference(
+				BRAND, 1, Functions.alwaysFalse(),
+				ref -> ref.setAttribute(COUNTRY, "AT")
+			);
+
+			// the untouched DE duplicate must still occupy
+			// its representative attribute slot, otherwise an
+			// indistinguishable twin of it sneaks in
+			assertThrows(
+				InvalidMutationException.class,
+				() -> builder.setOrUpdateReference(
+					BRAND, 1, Functions.alwaysFalse(),
+					ref -> ref.setAttribute(COUNTRY, "DE")
+				)
 			);
 		}
 	}
@@ -765,131 +736,83 @@ class ExistingReferencesBuilderTest extends AbstractBuilderTest {
 	class MutationsTest {
 
 		@Test
-		@DisplayName(
-			"should apply InsertReferenceMutation"
-		)
+		@DisplayName("should apply InsertReferenceMutation")
 		void shouldApplyInsertReferenceMutation() {
-			final ExistingReferencesBuilder builder =
-				createDefaultBuilder();
+			final ExistingReferencesBuilder builder = createDefaultBuilder();
 
-			final ReferenceKey key =
-				new ReferenceKey(STORE, 3, -10);
+			final ReferenceKey key = new ReferenceKey(STORE, 3, -10);
 			final InsertReferenceMutation mutation =
-				new InsertReferenceMutation(
-					key, Cardinality.ZERO_OR_MORE, STORE
-				);
+				new InsertReferenceMutation(key, Cardinality.ZERO_OR_MORE, STORE);
 
 			builder.mutateReference(mutation);
 
-			assertEquals(
-				3, builder.getReferences(STORE).size()
-			);
+			assertEquals(3, builder.getReferences(STORE).size());
 		}
 
 		@Test
-		@DisplayName(
-			"should apply SetReferenceGroupMutation"
-		)
+		@DisplayName("should apply SetReferenceGroupMutation")
 		void shouldApplySetReferenceGroupMutation() {
-			final ExistingReferencesBuilder builder =
-				createDefaultBuilder();
+			final ExistingReferencesBuilder builder = createDefaultBuilder();
 
-			final ReferenceContract catRef =
-				builder.getReference(CATEGORY, 1)
-					.orElseThrow();
+			final ReferenceContract catRef = builder.getReference(CATEGORY, 1).orElseThrow();
 			final SetReferenceGroupMutation mutation =
-				new SetReferenceGroupMutation(
-					catRef.getReferenceKey(), GROUP, 200
-				);
+				new SetReferenceGroupMutation(catRef.getReferenceKey(), GROUP, 200);
 
 			builder.mutateReference(mutation);
 
-			final ReferenceContract updated =
-				builder.getReference(CATEGORY, 1)
-					.orElseThrow();
+			final ReferenceContract updated = builder.getReference(CATEGORY, 1).orElseThrow();
 			assertTrue(updated.getGroup().isPresent());
-			final GroupEntityReference group =
-				updated.getGroup().get();
+			final GroupEntityReference group = updated.getGroup().get();
 			assertEquals(200, group.getPrimaryKey());
 		}
 
 		@Test
-		@DisplayName(
-			"should apply RemoveReferenceGroupMutation"
-		)
+		@DisplayName("should apply RemoveReferenceGroupMutation")
 		void shouldApplyRemoveReferenceGroupMutation() {
-			final ExistingReferencesBuilder builder =
-				createDefaultBuilder();
+			final ExistingReferencesBuilder builder = createDefaultBuilder();
 
-			final ReferenceContract catRef =
-				builder.getReference(CATEGORY, 1)
-					.orElseThrow();
+			final ReferenceContract catRef = builder.getReference(CATEGORY, 1).orElseThrow();
 
 			builder.mutateReference(
-				new RemoveReferenceGroupMutation(
-					catRef.getReferenceKey()
-				)
+				new RemoveReferenceGroupMutation(catRef.getReferenceKey())
 			);
 
-			final ReferenceContract updated =
-				builder.getReference(CATEGORY, 1)
-					.orElseThrow();
+			final ReferenceContract updated = builder.getReference(CATEGORY, 1).orElseThrow();
 			assertTrue(updated.getGroup().isEmpty());
 		}
 
 		@Test
-		@DisplayName(
-			"should apply RemoveReferenceMutation"
-		)
+		@DisplayName("should apply RemoveReferenceMutation")
 		void shouldApplyRemoveReferenceMutation() {
-			final ExistingReferencesBuilder builder =
-				createDefaultBuilder();
+			final ExistingReferencesBuilder builder = createDefaultBuilder();
 
-			final ReferenceContract storeRef =
-				builder.getReference(STORE, 1)
-					.orElseThrow();
+			final ReferenceContract storeRef = builder.getReference(STORE, 1).orElseThrow();
 
 			builder.mutateReference(
-				new RemoveReferenceMutation(
-					storeRef.getReferenceKey()
-				)
+				new RemoveReferenceMutation(storeRef.getReferenceKey())
 			);
 
-			assertTrue(
-				builder.getReference(STORE, 1).isEmpty()
-			);
+			assertTrue(builder.getReference(STORE, 1).isEmpty());
 		}
 
 		@Test
-		@DisplayName(
-			"should apply ReferenceAttributeMutation"
-		)
+		@DisplayName("should apply ReferenceAttributeMutation")
 		void shouldApplyReferenceAttributeMutation() {
-			final ExistingReferencesBuilder builder =
-				createDefaultBuilder();
+			final ExistingReferencesBuilder builder = createDefaultBuilder();
 
-			final ReferenceContract brandRef =
-				builder.getReferences(BRAND)
-					.iterator().next();
-			final ReferenceKey refKey =
-				brandRef.getReferenceKey();
+			final ReferenceContract brandRef = builder.getReferences(BRAND).iterator().next();
+			final ReferenceKey refKey = brandRef.getReferenceKey();
 
 			final ReferenceAttributeMutation mutation =
 				new ReferenceAttributeMutation(
 					refKey,
-					new UpsertAttributeMutation(
-						COUNTRY, "SK"
-					)
+					new UpsertAttributeMutation(COUNTRY, "SK")
 				);
 
 			builder.mutateReference(mutation);
 
-			final ReferenceContract updated =
-				builder.getReference(refKey)
-					.orElseThrow();
-			assertEquals(
-				"SK", updated.getAttribute(COUNTRY)
-			);
+			final ReferenceContract updated = builder.getReference(refKey).orElseThrow();
+			assertEquals("SK", updated.getAttribute(COUNTRY));
 		}
 	}
 
@@ -898,91 +821,57 @@ class ExistingReferencesBuilderTest extends AbstractBuilderTest {
 	class ChangeSetAndBuildTest {
 
 		@Test
-		@DisplayName(
-			"should return empty change set "
-				+ "when no mutations"
-		)
+		@DisplayName("should return empty change set when no mutations")
 		void shouldReturnEmptyChangeSetWhenNoMutations() {
-			final ExistingReferencesBuilder builder =
-				createDefaultBuilder();
+			final ExistingReferencesBuilder builder = createDefaultBuilder();
 
-			final List<? extends ReferenceMutation<?>>
-				mutations = builder.buildChangeSet()
-				.collect(Collectors.toList());
+			final List<? extends ReferenceMutation<?>> mutations = builder.buildChangeSet().toList();
 
 			assertTrue(mutations.isEmpty());
 		}
 
 		@Test
-		@DisplayName(
-			"should report no changes via "
-				+ "isThereAnyChangeInMutations"
-		)
+		@DisplayName("should report no changes via isThereAnyChangeInMutations")
 		void shouldReportNoChanges() {
-			final ExistingReferencesBuilder builder =
-				createDefaultBuilder();
+			final ExistingReferencesBuilder builder = createDefaultBuilder();
 
-			assertFalse(
-				builder.isThereAnyChangeInMutations()
-			);
+			assertFalse(builder.isThereAnyChangeInMutations());
 		}
 
 		@Test
-		@DisplayName(
-			"should produce change set for added refs"
-		)
+		@DisplayName("should produce change set for added refs")
 		void shouldProduceChangeSetForAddedRefs() {
-			final ExistingReferencesBuilder builder =
-				createDefaultBuilder();
+			final ExistingReferencesBuilder builder = createDefaultBuilder();
 
 			builder.setReference(STORE, 3);
 
 			final List<? extends ReferenceMutation<?>>
 				mutations = builder.buildChangeSet()
-				.collect(Collectors.toList());
+				.toList();
 
 			assertFalse(mutations.isEmpty());
-			assertTrue(
-				mutations.stream().anyMatch(
-					m -> m instanceof InsertReferenceMutation
-				)
-			);
+			assertTrue(mutations.stream().anyMatch(InsertReferenceMutation.class::isInstance));
 		}
 
 		@Test
-		@DisplayName(
-			"should produce change set for removed refs"
-		)
+		@DisplayName("should produce change set for removed refs")
 		void shouldProduceChangeSetForRemovedRefs() {
-			final ExistingReferencesBuilder builder =
-				createDefaultBuilder();
+			final ExistingReferencesBuilder builder = createDefaultBuilder();
 
 			builder.removeReference(STORE, 1);
 
-			final List<? extends ReferenceMutation<?>>
-				mutations = builder.buildChangeSet()
-				.collect(Collectors.toList());
+			final List<? extends ReferenceMutation<?>> mutations = builder.buildChangeSet().toList();
 
 			assertFalse(mutations.isEmpty());
-			assertTrue(
-				mutations.stream().anyMatch(
-					m -> m instanceof RemoveReferenceMutation
-				)
-			);
+			assertTrue(mutations.stream().anyMatch(RemoveReferenceMutation.class::isInstance));
 		}
 
 		@Test
-		@DisplayName(
-			"should return same instance when "
-				+ "no changes exist"
-		)
+		@DisplayName("should return same instance when no changes exist")
 		void shouldReturnSameInstanceWhenNoChanges() {
-			final EntitySchemaContract schema =
-				createSchemaWithReferences();
-			final References base =
-				createBaseReferences(schema);
-			final ExistingReferencesBuilder builder =
-				createBuilder(schema, base);
+			final EntitySchemaContract schema = createSchemaWithReferences();
+			final References base = createBaseReferences(schema);
+			final ExistingReferencesBuilder builder = createBuilder(schema, base);
 
 			final References built = builder.build();
 
@@ -990,16 +879,11 @@ class ExistingReferencesBuilderTest extends AbstractBuilderTest {
 		}
 
 		@Test
-		@DisplayName(
-			"should return new instance when changes exist"
-		)
+		@DisplayName("should return new instance when changes exist")
 		void shouldReturnNewInstanceWhenChangesExist() {
-			final EntitySchemaContract schema =
-				createSchemaWithReferences();
-			final References base =
-				createBaseReferences(schema);
-			final ExistingReferencesBuilder builder =
-				createBuilder(schema, base);
+			final EntitySchemaContract schema = createSchemaWithReferences();
+			final References base = createBaseReferences(schema);
+			final ExistingReferencesBuilder builder = createBuilder(schema, base);
 
 			builder.setReference(STORE, 3);
 
@@ -1014,29 +898,19 @@ class ExistingReferencesBuilderTest extends AbstractBuilderTest {
 	class IdentityTest {
 
 		@Test
-		@DisplayName(
-			"should return same References instance "
-				+ "when no mutations applied"
-		)
+		@DisplayName("should return same References instance when no mutations applied")
 		void shouldReturnSameWhenNoMutations() {
-			final EntitySchemaContract schema =
-				createSchemaWithReferences();
-			final References base =
-				createBaseReferences(schema);
-			final ExistingReferencesBuilder builder =
-				createBuilder(schema, base);
+			final EntitySchemaContract schema = createSchemaWithReferences();
+			final References base = createBaseReferences(schema);
+			final ExistingReferencesBuilder builder = createBuilder(schema, base);
 
 			assertSame(base, builder.build());
 		}
 
 		@Test
-		@DisplayName(
-			"should skip no-op mutations when "
-				+ "setting identical values"
-		)
+		@DisplayName("should skip no-op mutations when setting identical values")
 		void shouldSkipNoOpMutations() {
-			final ExistingReferencesBuilder builder =
-				createDefaultBuilder();
+			final ExistingReferencesBuilder builder = createDefaultBuilder();
 
 			// overwrite store/1 with identical content
 			builder.setReference(STORE, 1);
@@ -1045,9 +919,7 @@ class ExistingReferencesBuilderTest extends AbstractBuilderTest {
 			// the builder produces InsertReferenceMutation,
 			// but the build result should still differ from
 			// base because the internal tracking records it
-			assertTrue(
-				builder.isThereAnyChangeInMutations()
-			);
+			assertTrue(builder.isThereAnyChangeInMutations());
 		}
 	}
 
@@ -1056,44 +928,30 @@ class ExistingReferencesBuilderTest extends AbstractBuilderTest {
 	class CardinalityManagementTest {
 
 		@Test
-		@DisplayName(
-			"should auto-promote cardinality when "
-				+ "evolution allowed"
-		)
+		@DisplayName("should auto-promote cardinality when evolution allowed")
 		void shouldAutoPromoteCardinality() {
-			final EntitySchemaContract schema =
-				createSchemaWithSingleRef();
-			final InitialReferencesBuilder init =
-				new InitialReferencesBuilder(schema);
+			final EntitySchemaContract schema = createSchemaWithSingleRef();
+			final InitialReferencesBuilder init = new InitialReferencesBuilder(schema);
 			init.setReference(STORE, 1);
 			final References base = init.build();
 
-			final ExistingReferencesBuilder builder =
-				createBuilder(schema, base);
+			final ExistingReferencesBuilder builder = createBuilder(schema, base);
 
 			// second reference triggers promotion
 			builder.setReference(STORE, 2);
 
-			assertEquals(
-				2, builder.getReferences(STORE).size()
-			);
+			assertEquals(2, builder.getReferences(STORE).size());
 		}
 
 		@Test
-		@DisplayName(
-			"should throw when cardinality violated "
-				+ "with strict schema"
-		)
+		@DisplayName("should throw when cardinality violated with strict schema")
 		void shouldThrowWhenCardinalityViolated() {
-			final EntitySchemaContract schema =
-				createSchemaWithStrictCardinality();
-			final InitialReferencesBuilder init =
-				new InitialReferencesBuilder(schema);
+			final EntitySchemaContract schema = createSchemaWithStrictCardinality();
+			final InitialReferencesBuilder init = new InitialReferencesBuilder(schema);
 			init.setReference(STORE, 1);
 			final References base = init.build();
 
-			final ExistingReferencesBuilder builder =
-				createBuilder(schema, base);
+			final ExistingReferencesBuilder builder = createBuilder(schema, base);
 
 			assertThrows(
 				ReferenceCardinalityViolatedException.class,
@@ -1102,20 +960,13 @@ class ExistingReferencesBuilderTest extends AbstractBuilderTest {
 		}
 
 		@Test
-		@DisplayName(
-			"should generate decreasing negative "
-				+ "internal ids"
-		)
+		@DisplayName("should generate decreasing negative internal ids")
 		void shouldGenerateDecreasingNegativeInternalIds() {
-			final ExistingReferencesBuilder builder =
-				createDefaultBuilder();
+			final ExistingReferencesBuilder builder = createDefaultBuilder();
 
-			final int first =
-				builder.getNextReferenceInternalId();
-			final int second =
-				builder.getNextReferenceInternalId();
-			final int third =
-				builder.getNextReferenceInternalId();
+			final int first = builder.getNextReferenceInternalId();
+			final int second = builder.getNextReferenceInternalId();
+			final int third = builder.getNextReferenceInternalId();
 
 			assertTrue(first < 0);
 			assertTrue(second < first);
@@ -1123,24 +974,18 @@ class ExistingReferencesBuilderTest extends AbstractBuilderTest {
 		}
 
 		@Test
-		@DisplayName(
-			"should create reference via createReference"
-		)
+		@DisplayName("should create reference via createReference")
 		void shouldCreateReferenceViaCreateReference() {
-			final ExistingReferencesBuilder builder =
-				createDefaultBuilder();
+			final ExistingReferencesBuilder builder = createDefaultBuilder();
 
-			final ReferenceKey key =
-				builder.createReference(STORE, 5);
+			final ReferenceKey key = builder.createReference(STORE, 5);
 
 			assertNotNull(key);
 			assertEquals(STORE, key.referenceName());
 			assertEquals(5, key.primaryKey());
 			assertTrue(key.internalPrimaryKey() < 0);
 
-			assertEquals(
-				3, builder.getReferences(STORE).size()
-			);
+			assertEquals(3, builder.getReferences(STORE).size());
 		}
 	}
 
@@ -1149,33 +994,24 @@ class ExistingReferencesBuilderTest extends AbstractBuilderTest {
 	class RemoveAndReAddTest {
 
 		@Test
-		@DisplayName(
-			"should allow removing and re-adding same ref"
-		)
+		@DisplayName("should allow removing and re-adding same ref")
 		void shouldRemoveAndReAddSameReference() {
 			final ExistingReferencesBuilder builder =
 				createDefaultBuilder();
 
 			builder.removeReference(STORE, 1);
-			assertTrue(
-				builder.getReference(STORE, 1).isEmpty()
-			);
+			assertTrue(builder.getReference(STORE, 1).isEmpty());
 
 			// re-add the same reference
 			builder.setReference(STORE, 1);
 
-			final Optional<ReferenceContract> ref =
-				builder.getReference(STORE, 1);
+			final Optional<ReferenceContract> ref = builder.getReference(STORE, 1);
 			assertTrue(ref.isPresent());
-			assertEquals(
-				1, ref.get().getReferencedPrimaryKey()
-			);
+			assertEquals(1, ref.get().getReferencedPrimaryKey());
 		}
 
 		@Test
-		@DisplayName(
-			"should properly merge on re-add with attrs"
-		)
+		@DisplayName("should properly merge on re-add with attrs")
 		void shouldProperlyMergeOnReAddWithAttributes() {
 			final ExistingReferencesBuilder builder =
 				createDefaultBuilder();
@@ -1193,20 +1029,14 @@ class ExistingReferencesBuilderTest extends AbstractBuilderTest {
 		}
 
 		@Test
-		@DisplayName(
-			"should produce empty change set "
-				+ "after remove and re-add of identical ref"
-		)
+		@DisplayName("should produce empty change set after remove and re-add of identical ref")
 		void shouldProduceEmptyChangeSetAfterRemoveReAdd() {
-			final ExistingReferencesBuilder builder =
-				createDefaultBuilder();
+			final ExistingReferencesBuilder builder = createDefaultBuilder();
 
 			builder.removeReference(STORE, 1);
 			builder.setReference(STORE, 1);
 
-			final List<? extends ReferenceMutation<?>>
-				mutations = builder.buildChangeSet()
-				.collect(Collectors.toList());
+			final List<? extends ReferenceMutation<?>> mutations = builder.buildChangeSet().toList();
 
 			// removing and re-adding the same reference
 			// with identical content cancels out
@@ -1232,20 +1062,15 @@ class ExistingReferencesBuilderTest extends AbstractBuilderTest {
 		 * against the same reference within one builder.
 		 */
 		@Nonnull
-		private EntitySchemaContract
-		createSchemaForResetMergeTests() {
+		private static EntitySchemaContract createSchemaForResetMergeTests() {
 			return new InternalEntitySchemaBuilder(
 				CATALOG_SCHEMA, PRODUCT_SCHEMA
 			)
 				.withReferenceToEntity(
 					STORE, STORE, Cardinality.ZERO_OR_ONE,
 					r -> r
-						.withAttribute(
-							COUNTRY_OFFICE, String.class
-						)
-						.withAttribute(
-							PRIORITY, Integer.class
-						)
+						.withAttribute(COUNTRY_OFFICE, String.class)
+						.withAttribute(PRIORITY, Integer.class)
 				)
 				.toInstance();
 		}
@@ -1257,16 +1082,12 @@ class ExistingReferencesBuilderTest extends AbstractBuilderTest {
 		 * baseline.
 		 */
 		@Nonnull
-		private References createBaseForResetMergeTests(
-			@Nonnull EntitySchemaContract schema
-		) {
+		private static References createBaseForResetMergeTests(@Nonnull EntitySchemaContract schema) {
 			final InitialReferencesBuilder builder =
 				new InitialReferencesBuilder(schema);
 			builder.setReference(
 				STORE, 1,
-				ref -> ref.setAttribute(
-					COUNTRY_OFFICE, "CZ"
-				)
+				ref -> ref.setAttribute(COUNTRY_OFFICE, "CZ")
 			);
 			return builder.build();
 		}
@@ -1285,36 +1106,16 @@ class ExistingReferencesBuilderTest extends AbstractBuilderTest {
 		 * surfaces.
 		 */
 		@Nonnull
-		private List<ReferenceMutation<?>> readRawQueue(
+		private static List<ReferenceMutation<?>> readRawQueue(
 			@Nonnull ExistingReferencesBuilder builder,
 			@Nonnull String referenceName,
 			int referencedPrimaryKey
 		) {
-			try {
-				final java.lang.reflect.Field field =
-					ExistingReferencesBuilder.class
-						.getDeclaredField("referenceMutations");
-				field.setAccessible(true);
-				@SuppressWarnings("unchecked")
-				final java.util.Map<ReferenceKey, java.util.Map<Integer, List<ReferenceMutation<?>>>>
-					all = (java.util.Map<ReferenceKey, java.util.Map<Integer, List<ReferenceMutation<?>>>>) field.get(builder);
-				if (all == null) {
-					return List.of();
-				}
-				final ReferenceKey businessKey =
-					new ReferenceKey(referenceName, referencedPrimaryKey);
-				final java.util.Map<Integer, List<ReferenceMutation<?>>>
-					byInternalId = all.get(businessKey);
-				if (byInternalId == null || byInternalId.isEmpty()) {
-					return List.of();
-				}
-				// single ZERO_OR_ONE reference - one entry
-				return byInternalId.values().iterator().next();
-			} catch (NoSuchFieldException | IllegalAccessException e) {
-				throw new AssertionError(
-					"Reflection access to referenceMutations failed", e
-				);
-			}
+			final Map<Integer, List<ReferenceMutation<?>>> byInternalId = builder
+				.getRawReferenceMutations()
+				.getOrDefault(new ReferenceKey(referenceName, referencedPrimaryKey), Map.of());
+			// single ZERO_OR_ONE reference - one entry
+			return byInternalId.isEmpty() ? List.of() : byInternalId.values().iterator().next();
 		}
 
 		@Test
@@ -1324,12 +1125,9 @@ class ExistingReferencesBuilderTest extends AbstractBuilderTest {
 				+ "removal followed by re-add to base value"
 		)
 		void shouldPreserveAttributeReAddAfterIntraSessionRemoval() {
-			final EntitySchemaContract schema =
-				createSchemaForResetMergeTests();
-			final References base =
-				createBaseForResetMergeTests(schema);
-			final ExistingReferencesBuilder builder =
-				createBuilder(schema, base);
+			final EntitySchemaContract schema = createSchemaForResetMergeTests();
+			final References base = createBaseForResetMergeTests(schema);
+			final ExistingReferencesBuilder builder = createBuilder(schema, base);
 
 			// Call 1 (RESET): configurator omits countryOffice
 			// → merge emits Remove(countryOffice). Working-layer
@@ -1488,6 +1286,228 @@ class ExistingReferencesBuilderTest extends AbstractBuilderTest {
 					+ "value must not enqueue a redundant "
 					+ "Upsert — the projection-based filter "
 					+ "must drop it."
+			);
+		}
+	}
+
+	@Nested
+	@DisplayName(
+		"Removal once the reference bundle is initialized"
+	)
+	class RemovalWithInitializedBundleTest {
+
+		@Test
+		@DisplayName("should remove base reference by (name, id) after another reference of the same name was set")
+		void shouldRemoveBaseReferenceAfterAnotherOneWasSet() {
+			final ExistingReferencesBuilder builder = createDefaultBuilder();
+
+			// this initializes the store reference bundle
+			builder.setReference(STORE, 3);
+
+			// the (name, id) key carries no internal primary
+			// key - the bundle update must resolve it from the
+			// reference found in the base entity
+			builder.removeReference(STORE, 1);
+
+			assertTrue(builder.getReference(STORE, 1).isEmpty());
+			assertEquals(
+				Set.of(2, 3),
+				builder.getReferences(STORE)
+					.stream()
+					.map(ReferenceContract::getReferencedPrimaryKey)
+					.collect(Collectors.toSet())
+			);
+		}
+
+		@Test
+		@DisplayName("should remove all duplicates by (name, id) after another reference of the same name was set")
+		void shouldRemoveAllDuplicatesAfterAnotherOneWasSet() {
+			final ExistingReferencesBuilder builder = createDefaultBuilder();
+
+			// this initializes the brand reference bundle with
+			// both brand/1 duplicates present in the base
+			builder.setOrUpdateReference(
+				BRAND, 2, Functions.alwaysFalse(),
+				ref -> ref.setAttribute(COUNTRY, "SK")
+			);
+
+			builder.removeReferences(BRAND, 1);
+
+			assertEquals(1, builder.getReferences(BRAND).size());
+			assertEquals(
+				Set.of(2),
+				builder.getReferences(BRAND)
+					.stream()
+					.map(ReferenceContract::getReferencedPrimaryKey)
+					.collect(Collectors.toSet())
+			);
+
+			// every removed duplicate must be gone from the
+			// bundle as-well - otherwise its representative
+			// attributes still occupy the (brand, 1, country)
+			// slot and re-adding them is rejected as
+			// indistinguishable
+			builder.setOrUpdateReference(
+				BRAND, 1, Functions.alwaysFalse(),
+				ref -> ref.setAttribute(COUNTRY, "CZ")
+			);
+			builder.setOrUpdateReference(
+				BRAND, 1, Functions.alwaysFalse(),
+				ref -> ref.setAttribute(COUNTRY, "DE")
+			);
+
+			assertEquals(3, builder.getReferences(BRAND).size());
+			assertEquals(
+				Set.of("CZ", "DE"),
+				builder.getReferences(BRAND)
+					.stream()
+					.filter(it -> it.getReferencedPrimaryKey() == 1)
+					.map(it -> it.getAttribute(COUNTRY, String.class))
+					.collect(Collectors.toSet())
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"should remove both the pending and the base "
+				+ "duplicates by (name, id)"
+		)
+		void shouldRemovePendingAndBaseDuplicatesTogether() {
+			final ExistingReferencesBuilder builder = createDefaultBuilder();
+
+			// a third brand/1 duplicate that lives only in this
+			// builder - it holds an internal primary key of its
+			// own, unrelated to the two base duplicates
+			builder.setOrUpdateReference(
+				BRAND, 1, Functions.alwaysFalse(),
+				ref -> ref.setAttribute(COUNTRY, "AT")
+			);
+
+			builder.removeReferences(BRAND, 1);
+
+			assertTrue(builder.getReferences(BRAND).isEmpty());
+
+			// all three - the two base ones and the pending one
+			// - must be gone from the bundle
+			builder.setOrUpdateReference(
+				BRAND, 1, Functions.alwaysFalse(),
+				ref -> ref.setAttribute(COUNTRY, "CZ")
+			);
+			builder.setOrUpdateReference(
+				BRAND, 1, Functions.alwaysFalse(),
+				ref -> ref.setAttribute(COUNTRY, "DE")
+			);
+			builder.setOrUpdateReference(
+				BRAND, 1, Functions.alwaysFalse(),
+				ref -> ref.setAttribute(COUNTRY, "AT")
+			);
+
+			assertEquals(
+				Set.of("CZ", "DE", "AT"),
+				builder.getReferences(BRAND)
+					.stream()
+					.map(it -> it.getAttribute(COUNTRY, String.class))
+					.collect(Collectors.toSet())
+			);
+		}
+
+		@Test
+		@DisplayName("should remove several pending duplicates sharing a single (name, id) at once")
+		void shouldRemoveMultiplePendingDuplicatesTogether() {
+			assertMultiplePendingDuplicatesRemoved(false);
+		}
+
+		@Test
+		@DisplayName("should remove several pending duplicates when the base one was updated first")
+		void shouldRemoveMultiplePendingDuplicatesUpdatedFirst() {
+			assertMultiplePendingDuplicatesRemoved(true);
+		}
+
+		/**
+		 * Removes both pending duplicate queues of a single business key at once and verifies the emitted
+		 * mutations and the reference bundle state.
+		 *
+		 * @param updateBaseFirst whether the base duplicate is updated before the builder only duplicate is created -
+		 *                        the two orderings initialize the reference bundle at different moments
+		 */
+		private static void assertMultiplePendingDuplicatesRemoved(boolean updateBaseFirst) {
+			final ExistingReferencesBuilder builder = createDefaultBuilder();
+
+			final Set<Integer> baseInternalIds =
+				builder.getReferences(BRAND)
+					.stream()
+					.map(it -> it.getReferenceKey().internalPrimaryKey())
+					.collect(Collectors.toSet());
+			assertEquals(2, baseInternalIds.size());
+
+			// one pending mutation updates the base CZ
+			// duplicate in place, another creates a duplicate
+			// that lives solely in this builder
+			final Runnable updateBase = () ->
+				builder.setOrUpdateReference(
+					BRAND, 1,
+					ref -> "CZ".equals(ref.getAttribute(COUNTRY, String.class)),
+					ref -> ref.setAttribute(COUNTRY, "CZ-EAST")
+				);
+			final Runnable createNew = () ->
+				builder.setOrUpdateReference(
+					BRAND, 1, Functions.alwaysFalse(),
+					ref -> ref.setAttribute(COUNTRY, "AT")
+				);
+			if (updateBaseFirst) {
+				updateBase.run();
+				createNew.run();
+			} else {
+				createNew.run();
+				updateBase.run();
+			}
+
+			// two pending mutation queues for the very same
+			// business key must not block the removal - the
+			// contract promises to remove them all
+			builder.removeReferences(BRAND, 1);
+
+			assertTrue(builder.getReferences(BRAND).isEmpty());
+
+			// only the two base duplicates deserve a remove
+			// mutation - the builder-only one never existed
+			// outside of this builder, so emitting a remove
+			// for it would fail on the server
+			final List<? extends ReferenceMutation<?>> changeSet = builder.buildChangeSet()
+				.filter(it -> BRAND.equals(it.getReferenceKey().referenceName()))
+				.toList();
+			assertEquals(
+				baseInternalIds,
+				changeSet.stream()
+					.map(it -> it.getReferenceKey().internalPrimaryKey())
+					.collect(Collectors.toSet())
+			);
+			assertEquals(baseInternalIds.size(), changeSet.size());
+			for (ReferenceMutation<?> mutation : changeSet) {
+				assertInstanceOf(RemoveReferenceMutation.class, mutation);
+			}
+
+			// all three - both base duplicates and the
+			// pending one - must be gone from the bundle
+			builder.setOrUpdateReference(
+				BRAND, 1, Functions.alwaysFalse(),
+				ref -> ref.setAttribute(COUNTRY, "CZ-EAST")
+			);
+			builder.setOrUpdateReference(
+				BRAND, 1, Functions.alwaysFalse(),
+				ref -> ref.setAttribute(COUNTRY, "DE")
+			);
+			builder.setOrUpdateReference(
+				BRAND, 1, Functions.alwaysFalse(),
+				ref -> ref.setAttribute(COUNTRY, "AT")
+			);
+
+			assertEquals(
+				Set.of("CZ-EAST", "DE", "AT"),
+				builder.getReferences(BRAND)
+					.stream()
+					.map(it -> it.getAttribute(COUNTRY, String.class))
+					.collect(Collectors.toSet())
 			);
 		}
 	}

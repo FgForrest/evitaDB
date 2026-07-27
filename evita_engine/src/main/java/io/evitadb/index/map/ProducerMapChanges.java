@@ -29,6 +29,7 @@ import io.evitadb.core.transaction.memory.TransactionalStateProducer;
 import io.evitadb.dataType.champ.ChampMap;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
 import java.io.Serial;
 import java.util.HashSet;
@@ -94,6 +95,21 @@ public class ProducerMapChanges<K, V> extends MapChanges<K, V> {
 	}
 
 	/**
+	 * Creates a producer-valued diff layer whose value type is not statically known — an abstract base whose subclasses
+	 * are the producers, such as `EntityIndex`. Used by the explicit-dirty-key merge, where the committed value of every
+	 * touched key is resolved by the caller's {@link ValueMerger} and the wrapper is therefore never consulted.
+	 *
+	 * @param mapDelegate               the sealed immutable snapshot to diff against
+	 * @param transactionalLayerWrapper function converting a value's merged state back into `V`
+	 */
+	public ProducerMapChanges(
+		@Nonnull Map<K, V> mapDelegate,
+		@Nonnull Function<Object, V> transactionalLayerWrapper
+	) {
+		super(mapDelegate, transactionalLayerWrapper);
+	}
+
+	/**
 	 * Records that the producer value held under `key` was mutated in place this transaction, so
 	 * {@link #createMergedChampMap} visits it (and sweeps its layer) at commit. Marking a key that was also created,
 	 * replaced, or removed is harmless — the union walk deduplicates and applies the higher-precedence change.
@@ -124,9 +140,39 @@ public class ProducerMapChanges<K, V> extends MapChanges<K, V> {
 	 */
 	@Nonnull
 	ChampMap<K, V> createMergedChampMap(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
+		return createMergedChampMap(transactionalLayer, this.valueMutatedKeys, null);
+	}
+
+	/**
+	 * The generalized form of {@link #createMergedChampMap(TransactionalLayerMaintainer)}: the caller supplies both the
+	 * dirty-key set the third pass walks and — optionally — a {@link ValueMerger} that decides how each touched value is
+	 * committed.
+	 *
+	 * It exists because a dirty-key set is not always accumulated by {@link #markValueMutated}. `EntityCollection` already
+	 * holds the exact set of indexes its transaction mutated (the snapshot the just-completed flush captured), so it hands
+	 * that set in directly instead of duplicating it through marks scattered across every mutation path. The `valueMerger`
+	 * is the same hook {@link MapChanges#createMergedMap(TransactionalLayerMaintainer, ValueMerger)} offers, and carries
+	 * the same contract — every touched key resolved exactly once, and a value the merger skips must own no diff layer.
+	 *
+	 * Precedence is unchanged: removed > created/modified > dirty. A dirty key covered by a higher-precedence pass is
+	 * skipped here, and a dirty key that appears in NONE of the three (created and removed again within the same
+	 * transaction, its key already dropped from the map while an earlier flush had recorded it as dirty) is skipped too —
+	 * its layer is released by {@link #releaseOrphanedCreatedThenRemovedLayers}, exactly as in the full-map merge, which
+	 * would not have visited it either.
+	 *
+	 * @param transactionalLayer the maintainer used to commit nested producer values
+	 * @param dirtyKeys          keys whose value mutated in place this transaction
+	 * @param valueMerger        resolves the committed value of a touched key, `null` for the ordinary per-value merge
+	 * @return the next committed {@link ChampMap}, structurally sharing untouched nodes with the previous snapshot
+	 */
+	@Nonnull
+	ChampMap<K, V> createMergedChampMap(
+		@Nonnull TransactionalLayerMaintainer transactionalLayer,
+		@Nonnull Set<? extends K> dirtyKeys,
+		@Nullable ValueMerger<K, V> valueMerger
+	) {
 		// start from the previous immutable snapshot and share everything; only the touched keys are path-copied below
 		ChampMap<K, V> result = (ChampMap<K, V>) getMapDelegate();
-		final Function<Object, V> wrapper = Objects.requireNonNull(getTransactionalLayerWrapper());
 
 		// 1) removals (highest precedence): release the removed producer's layer (survivor-guarded) and drop the key
 		for (final K key : getRemovedKeys()) {
@@ -137,8 +183,13 @@ public class ProducerMapChanges<K, V> extends MapChanges<K, V> {
 			if (value instanceof TransactionalStateProducer<?> transactionalLayerProducer
 				&& isInstanceNotReferencedBySurvivingKey(key, value)) {
 				// release the removed value's layer, but only when no surviving key still references the very same
-				// instance (identity-based, exactly as in createMergedMap)
-				transactionalLayerProducer.removeLayer(transactionalLayer);
+				// instance (identity-based, exactly as in createMergedMap). WHO releases it is the merger's call - the
+				// owner may have released the sub-tree eagerly already, in which case the descent here is all-miss work
+				if (valueMerger == null) {
+					transactionalLayerProducer.removeLayer(transactionalLayer);
+				} else {
+					valueMerger.releaseRemoved(key, value);
+				}
 			}
 			result = result.removed(key);
 		}
@@ -151,29 +202,24 @@ public class ProducerMapChanges<K, V> extends MapChanges<K, V> {
 			if (key instanceof TransactionalStateProducer) {
 				throw new IllegalStateException("Transactional layer producer is not expected to be used as a key!");
 			}
-			V value = entry.getValue();
-			if (value instanceof TransactionalStateProducer<?> transactionalLayerProducer) {
-				value = wrapper.apply(
-					transactionalLayer.getStateCopyWithCommittedChanges(transactionalLayerProducer)
-				);
-			}
-			result = result.updated(key, value);
+			result = result.updated(key, commitTouchedValue(transactionalLayer, valueMerger, key, entry.getValue()));
 		}
 
 		// 3) in-place value mutations not already covered by a removal or replacement above
-		for (final K key : this.valueMutatedKeys) {
+		for (final K key : dirtyKeys) {
 			if (containsRemoved(key) || containsCreatedOrModified(key)) {
 				continue;
 			}
 			final V value = getMapDelegate().get(key);
-			if (value instanceof TransactionalStateProducer<?> transactionalLayerProducer) {
-				final V committed = wrapper.apply(
-					transactionalLayer.getStateCopyWithCommittedChanges(transactionalLayerProducer)
-				);
-				// share by identity: only path-copy when the committed instance actually differs from the held one
-				if (committed != value) {
-					result = result.updated(key, committed);
-				}
+			if (value == null) {
+				// created AND removed again within this transaction - the key survives in none of the three sets and the
+				// full-map merge would not have visited it either; its layer is released by pass 4 below
+				continue;
+			}
+			final V committed = commitTouchedValue(transactionalLayer, valueMerger, key, value);
+			// share by identity: only path-copy when the committed instance actually differs from the held one
+			if (committed != value) {
+				result = result.updated(key, committed);
 			}
 		}
 
@@ -181,6 +227,40 @@ public class ProducerMapChanges<K, V> extends MapChanges<K, V> {
 		releaseOrphanedCreatedThenRemovedLayers(transactionalLayer);
 
 		return result;
+	}
+
+	/**
+	 * Resolves the committed value of a key this transaction touched — through the caller's `valueMerger` when there is
+	 * one, otherwise by committing the value's own transactional layer and wrapping the result back into `V`.
+	 *
+	 * @param transactionalLayer the maintainer resolving committed state
+	 * @param valueMerger        the caller's merger, or `null` for the ordinary per-value merge
+	 * @param key                the touched key
+	 * @param value              the value mapped to it in this transaction
+	 * @return the value to store in the committed map, never `null` ({@link ChampMap} forbids null values)
+	 */
+	@Nonnull
+	private V commitTouchedValue(
+		@Nonnull TransactionalLayerMaintainer transactionalLayer,
+		@Nullable ValueMerger<K, V> valueMerger,
+		@Nonnull K key,
+		@Nonnull V value
+	) {
+		if (valueMerger != null) {
+			final V merged = valueMerger.mergeSurviving(key, value);
+			if (merged == null) {
+				throw new IllegalStateException(
+					"Value merger returned NULL for surviving key `" + key + "` - persistent maps forbid null values!"
+				);
+			}
+			return merged;
+		} else if (value instanceof TransactionalStateProducer<?> transactionalLayerProducer) {
+			return Objects.requireNonNull(getTransactionalLayerWrapper()).apply(
+				transactionalLayer.getStateCopyWithCommittedChanges(transactionalLayerProducer)
+			);
+		} else {
+			return value;
+		}
 	}
 
 }

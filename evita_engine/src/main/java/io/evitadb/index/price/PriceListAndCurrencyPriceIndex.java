@@ -150,9 +150,17 @@ public interface PriceListAndCurrencyPriceIndex<COPY> extends IndexDataStructure
 	/**
 	 * Returns formula that computes all indexed records in this index. Depending on the type of the index it returns
 	 * either entity ids or inner record ids.
+	 *
+	 * @param superPriceIndex the price index of the GLOBAL entity index of this index's collection and scope. The
+	 *                        returned formula resolves the lowest price records of an entity through it, because only
+	 *                        a super index owns the entity-to-prices mapping - a reduced (ref) index merely narrows
+	 *                        which entities are in scope. Supplying it here, rather than letting the index hold
+	 *                        a pointer to it, is what keeps a reduced index free of any catalog-version pin: the caller
+	 *                        is already pinned to a catalog version and hands over that version's GLOBAL.
 	 */
 	@Nonnull
-	Formula createPriceIndexFormulaWithAllRecords() throws PriceListAndCurrencyPriceIndexTerminated;
+	Formula createPriceIndexFormulaWithAllRecords(@Nonnull PriceSuperIndex superPriceIndex)
+		throws PriceListAndCurrencyPriceIndexTerminated;
 
 	/**
 	 * Returns true if index is empty.

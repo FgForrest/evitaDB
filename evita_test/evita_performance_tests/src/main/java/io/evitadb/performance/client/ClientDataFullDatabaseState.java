@@ -113,7 +113,11 @@ public abstract class ClientDataFullDatabaseState extends ClientDataState {
 								processCreatedEntityReference(new EntityReference(it.getType(), it.getPrimaryKeyOrThrowException()));
 								processEntity(it);
 								entityCount.incrementAndGet();
-								priceCount.addAndGet(it.getPrices().size());
+								// asking a price-less entity type for its prices throws instead of returning empty, and
+								// this loop walks every entity type in the catalog - not only the price-bearing ones
+								if (entitySchema.isWithPrice()) {
+									priceCount.addAndGet(it.getPrices().size());
+								}
 								attributeCount.addAndGet(it.getAttributeValues().size());
 								associatedDataCount.addAndGet(it.getAssociatedDataValues().size());
 								referenceCount.addAndGet(it.getReferences().size());

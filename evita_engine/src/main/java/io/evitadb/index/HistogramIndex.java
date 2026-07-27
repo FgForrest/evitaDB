@@ -51,7 +51,6 @@ import java.io.Serial;
 import java.io.Serializable;
 import java.util.Locale;
 import java.util.Set;
-import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -179,18 +178,21 @@ public abstract class HistogramIndex
 	public abstract FilterIndex getFilterIndex(@Nullable Locale locale);
 
 	/**
+	 * Returns the locales that currently hold data in this index, as keys accepted by
+	 * {@link #getFilterIndex(Locale)}. A non-localized histogram reports a single `null` element while it
+	 * holds data and nothing once empty; a localized one reports each populated locale.
+	 *
+	 * The returned array is detached from the index, so the caller may mutate the index while walking it.
+	 *
+	 * @return locales holding data, possibly a single `null` for non-localized histograms
+	 */
+	@Nonnull
+	public abstract Locale[] getLocales();
+
+	/**
 	 * Returns `true` if this histogram index contains no data.
 	 */
 	public abstract boolean isEmpty();
-
-	/**
-	 * Invokes the given consumer for each locale that has data in this index. For non-localized
-	 * histograms, the consumer is called once with `null` locale. For localized histograms, it is
-	 * called once per locale.
-	 *
-	 * @param consumer accepts (histogramName, locale) pairs
-	 */
-	public abstract void forEachLocale(@Nonnull BiConsumer<String, Locale> consumer);
 
 	/**
 	 * Populates the given set with storage keys for all filter and cardinality indexes.

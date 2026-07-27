@@ -60,8 +60,8 @@ public class LocalizedStringComparator implements Comparator<String>, Serializab
 	/**
 	 * Shared per-locale collation-key cache; null when the comparator was created with a custom
 	 * {@link Collator} or when the cache is disabled by configuration (see
-	 * {@link CollationKeyCache#forLocale(Locale)}). Resolved from a static registry and therefore
-	 * deliberately not serialized.
+	 * {@link CollationKeyCache#forLocale(Locale)}). Resolved from a static registry rather than owned
+	 * by this instance.
 	 */
 	@Nullable private final CollationKeyCache cache;
 

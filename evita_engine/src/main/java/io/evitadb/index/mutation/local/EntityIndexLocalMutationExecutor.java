@@ -86,6 +86,7 @@ import io.evitadb.index.mutation.local.dataAccess.EntityStoragePartExistingDataF
 import io.evitadb.index.mutation.local.dataAccess.ExistingAttributeValueSupplier;
 import io.evitadb.index.mutation.local.dataAccess.ExistingDataSupplierFactory;
 import io.evitadb.index.mutation.local.dataAccess.ReferenceSupplier;
+import io.evitadb.index.price.PriceSuperIndex;
 import io.evitadb.index.mutation.storagePart.ContainerizedLocalMutationExecutor;
 import io.evitadb.spi.store.catalog.persistence.accessor.WritableEntityStorageContainerAccessor;
 import io.evitadb.spi.store.catalog.persistence.accessor.WritableEntityStorageContainerAccessor.LocaleScope;
@@ -1061,6 +1062,23 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	}
 
 	/**
+	 * Returns the price index of this collection's GLOBAL entity index of the given scope - the index that owns the
+	 * memory-expensive price records every reduced index of that scope merely references.
+	 *
+	 * Every price write is routed through it: a reduced index no longer keeps a pointer to the super index backing it,
+	 * so the caller - which is by construction pinned to a single catalog version - supplies the super index for the
+	 * version it is mutating. The scope is taken from the index being mutated rather than from {@link #getScope()},
+	 * because a scope change moves prices between two scopes' indexes within one mutation.
+	 *
+	 * @param scope the scope whose GLOBAL entity index owns the super price indexes
+	 * @return the price index of the GLOBAL entity index of the given scope
+	 */
+	@Nonnull
+	public PriceSuperIndex getGlobalPriceIndex(@Nonnull Scope scope) {
+		return ((GlobalEntityIndex) getOrCreateIndex(new EntityIndexKey(EntityIndexType.GLOBAL, scope))).getPriceIndex();
+	}
+
+	/**
 	 * Returns the existing index for the given key without creating it and without registering it for
 	 * modification tracking. Returns `null` if the index does not exist. Used for read-only lookups
 	 * (e.g., existence checks before calling {@link #getOrCreateIndex(EntityIndexKey)}).
@@ -1104,10 +1122,19 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 
 	/**
 	 * Method returns existing index by primary key and adds it to the changed set of indexes that needs persisting.
+	 *
+	 * The resolution MUST go through the registering accessor, not the plain read: every caller of this method mutates
+	 * the index it gets back (it is the by-primary-key half of {@code getAllReducedIndexes}, which feeds the reduced
+	 * indexes an entity upsert then writes into). An index that is mutated without being registered is invisible to the
+	 * flush, so its changed storage parts are never persisted — and it is invisible to the dirty-key snapshot the
+	 * commit-time merge prunes on, so the merge carries it across the catalog version by reference and orphans the
+	 * transactional layers its mutation created, which surfaces as a `StaleTransactionMemoryException` that suspends
+	 * the catalog. {@link #accessedIndexes} does not cover this: that set drives the empty-index cleanup, not
+	 * persistence.
 	 */
 	@Nonnull
 	Optional<EntityIndex> getIndexByPrimaryKey(int indexPrimaryKey) {
-		final EntityIndex index = this.entityIndexCreatingAccessor.getIndexByPrimaryKey(indexPrimaryKey);
+		final EntityIndex index = this.entityIndexCreatingAccessor.getOrCreateIndexByPrimaryKey(indexPrimaryKey);
 		this.accessedIndexes.add(index.getIndexKey());
 		return of(index);
 	}

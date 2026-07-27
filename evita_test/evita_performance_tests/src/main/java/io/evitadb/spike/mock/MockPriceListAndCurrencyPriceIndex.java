@@ -29,6 +29,7 @@ import io.evitadb.core.query.algebra.price.priceIndex.PriceIdContainerFormula;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.price.PriceListAndCurrencyPriceIndex;
+import io.evitadb.index.price.PriceSuperIndex;
 import io.evitadb.index.price.model.PriceIndexKey;
 import io.evitadb.index.price.model.priceRecord.PriceRecord;
 import io.evitadb.index.price.model.priceRecord.PriceRecordContract;
@@ -165,7 +166,7 @@ public class MockPriceListAndCurrencyPriceIndex implements PriceListAndCurrencyP
 
 	@Nonnull
 	@Override
-	public Formula createPriceIndexFormulaWithAllRecords() {
+	public Formula createPriceIndexFormulaWithAllRecords(@Nonnull PriceSuperIndex superPriceIndex) {
 		throw new UnsupportedOperationException();
 	}
 

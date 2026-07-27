@@ -329,12 +329,14 @@ class LongRunningSavepointContainerChangesTest implements TimeBoundedTestSupport
 
 	/**
 	 * Invokes the container's real {@code addCreatedItem} / {@code addRemovedItem} (reflectively, to bypass the
-	 * per-container generic producer type — erased to {@link TransactionalLayerProducer}).
+	 * per-container generic producer type). The parameter type MUST be the erasure of that type variable's bound —
+	 * {@link TransactionalStateProducer}, not the narrower {@link TransactionalLayerProducer} a caller usually holds —
+	 * otherwise {@link Class#getMethod} finds nothing and every test here dies in setup.
 	 */
 	private static void register(@Nonnull TransactionalContainerChanges<?, ?> container, boolean created, @Nonnull RecordingProducer item) {
 		try {
 			final Method method = TransactionalContainerChanges.class.getMethod(
-				created ? "addCreatedItem" : "addRemovedItem", TransactionalLayerProducer.class
+				created ? "addCreatedItem" : "addRemovedItem", TransactionalStateProducer.class
 			);
 			method.invoke(container, item);
 		} catch (ReflectiveOperationException e) {

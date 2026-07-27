@@ -107,7 +107,9 @@ public class PriceInCurrencyTranslator extends AbstractPriceRelatedConstraintTra
 								return innerRecordHandling.equals(priceIndexKey.getRecordHandling()) &&
 									currency.equals(priceIndexKey.getCurrency());
 							})
-							.map(PriceListAndCurrencyPriceIndex::createPriceIndexFormulaWithAllRecords)
+							// resolved inside the map on purpose: an index with no matching combination must not force
+							// a GLOBAL lookup it has no use for
+							.map(it -> it.createPriceIndexFormulaWithAllRecords(filterByVisitor.getSuperPriceIndex(entityIndex)))
 							.toArray(Formula[]::new)
 					)
 				)

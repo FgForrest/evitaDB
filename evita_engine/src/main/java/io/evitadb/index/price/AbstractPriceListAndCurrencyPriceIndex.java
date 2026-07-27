@@ -383,10 +383,25 @@ public abstract class AbstractPriceListAndCurrencyPriceIndex<SELF extends Abstra
 
 	@Nonnull
 	@Override
-	public Formula createPriceIndexFormulaWithAllRecords() {
+	public Formula createPriceIndexFormulaWithAllRecords(@Nonnull PriceSuperIndex superPriceIndex) {
 		assertNotTerminated();
-		return new PriceIndexContainerFormula(this, this.getIndexedPriceEntityIdsFormula());
+		return new PriceIndexContainerFormula(
+			this, resolveLowestPriceRecordsSource(superPriceIndex), this.getIndexedPriceEntityIdsFormula()
+		);
 	}
+
+	/**
+	 * Resolves the index that answers {@link #getLowestPriceRecordsForEntity(int)} for this combination - always a
+	 * {@link PriceListAndCurrencyPriceSuperIndex}, since the entity-to-prices mapping the lowest-price computation needs
+	 * lives only there.
+	 *
+	 * @param superPriceIndex the price index of the GLOBAL entity index of this index's collection and scope
+	 * @return the super index of this price-list / currency combination
+	 */
+	@Nonnull
+	protected abstract PriceListAndCurrencyPriceSuperIndex resolveLowestPriceRecordsSource(
+		@Nonnull PriceSuperIndex superPriceIndex
+	);
 
 	@Override
 	public boolean isEmpty() {

@@ -727,7 +727,8 @@ class EntityIndexRoundTripTest {
 				null, 10, 1,
 				new PriceKey(1, "basic", Currency.getInstance("EUR")),
 				PriceInnerRecordHandling.NONE, null, null,
-				1000, 1210
+				1000, 1210,
+				index.getPriceIndex()
 			);
 
 			// hierarchy

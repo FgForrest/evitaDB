@@ -391,7 +391,7 @@ class LongRunningHistogramIndexTest implements TimeBoundedTestSupport {
 	@Nonnull
 	static HistogramSnapshot snapshot(@Nonnull HistogramIndex index) {
 		final Map<String, Map<Serializable, List<Integer>>> perLocale = new HashMap<>();
-		index.forEachLocale((name, locale) -> {
+		for (final Locale locale : index.getLocales()) {
 			final FilterIndex filterIndex = index.getFilterIndex(locale);
 			if (filterIndex != null) {
 				final Map<Serializable, List<Integer>> content = new HashMap<>();
@@ -400,7 +400,7 @@ class LongRunningHistogramIndexTest implements TimeBoundedTestSupport {
 				}
 				perLocale.put(locale == null ? "" : locale.toLanguageTag(), content);
 			}
-		});
+		}
 		return new HistogramSnapshot(perLocale);
 	}
 

@@ -141,7 +141,14 @@ public class EvitaServer {
 	 */
 	private static final String DEFAULT_EVITA_CONFIGURATION = "/evita-configuration.yaml";
 	/**
-	 * Logger.
+	 * Logger. Deliberately **not** a `static final` field and deliberately not Lombok's `@Slf4j`: creating it binds
+	 * Logback to whatever configuration is in effect at that moment, and {@link #initLog()} has to get the chance to
+	 * point `logback.configurationFile` at the right file first. Initialising it at class-init time would silently
+	 * ignore that argument.
+	 *
+	 * Always read it through {@link #getLog()}, never directly - {@link #initLog()} runs on the {@link #main(String[])}
+	 * path only, so on every embedded path (a host application or a test constructing {@link EvitaServer} itself) the
+	 * field is still `null` and a direct read would throw.
 	 */
 	private static Logger log;
 	/**
@@ -661,7 +668,7 @@ public class EvitaServer {
 			ConsoleWriter.write("*".repeat(100) + "\n", ConsoleColor.BRIGHT_RED, ConsoleDecoration.BOLD);
 			ConsoleWriter.write("!!! Failed to start external APIs due to: " + ExceptionUtils.getRootCause(e).getMessage() + "\n", ConsoleColor.BRIGHT_RED, ConsoleDecoration.BOLD);
 			ConsoleWriter.write("*".repeat(100) + "\n", ConsoleColor.BRIGHT_RED, ConsoleDecoration.BOLD);
-			log.error("Failed to start external APIs.", e);
+			getLog().error("Failed to start external APIs.", e);
 		}
 
 		// now schedule catalog loading
@@ -698,7 +705,7 @@ public class EvitaServer {
 			);
 			return yamlMapper.writeValueAsString(this.evitaServerConfiguration);
 		} catch (JsonProcessingException e) {
-			log.error("Failed to serialize configuration.", e);
+			getLog().error("Failed to serialize configuration.", e);
 			return "Failed to serialize configuration.";
 		}
 	}

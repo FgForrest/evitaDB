@@ -50,13 +50,11 @@ import io.evitadb.index.component.loader.IndexReloadPlan;
 import io.evitadb.index.component.loader.PriceRefIndexLoader;
 import io.evitadb.index.facet.FacetIndex;
 import io.evitadb.index.hierarchy.HierarchyIndex;
-import io.evitadb.index.map.TransactionalMap;
 import io.evitadb.index.price.PriceIndexReadContract;
 import io.evitadb.index.price.PriceRefIndex;
-import io.evitadb.index.price.model.PriceIndexKey;
+import io.evitadb.index.price.PriceSuperIndex;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.PriceListAndCurrencyRefIndexStoragePart;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStorageKey;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
 import lombok.experimental.Delegate;
@@ -212,12 +210,13 @@ public abstract class AbstractReducedEntityIndex extends EntityIndex
 		@Nullable Integer innerRecordId,
 		@Nullable DateTimeRange validity,
 		int priceWithoutTax,
-		int priceWithTax
+		int priceWithTax,
+		@Nonnull PriceSuperIndex superPriceIndex
 	) {
 		assertPartitioningIndex(referenceSchema);
 		return this.priceIndex.addPrice(
 			referenceSchema, entityPrimaryKey, internalPriceId, priceKey, innerRecordHandling, innerRecordId,
-			validity, priceWithoutTax, priceWithTax
+			validity, priceWithoutTax, priceWithTax, superPriceIndex
 		);
 	}
 
@@ -231,12 +230,13 @@ public abstract class AbstractReducedEntityIndex extends EntityIndex
 		@Nullable Integer innerRecordId,
 		@Nullable DateTimeRange validity,
 		int priceWithoutTax,
-		int priceWithTax
+		int priceWithTax,
+		@Nonnull PriceSuperIndex superPriceIndex
 	) {
 		assertPartitioningIndex(referenceSchema);
 		this.priceIndex.priceRemove(
 			referenceSchema, entityPrimaryKey, internalPriceId, priceKey, innerRecordHandling, innerRecordId,
-			validity, priceWithoutTax, priceWithTax
+			validity, priceWithoutTax, priceWithTax, superPriceIndex
 		);
 	}
 

@@ -539,7 +539,7 @@ public class MetricHandler {
 					try (final RecordingStream recordingStream = new RecordingStream()) {
 						((MetricTask) theTask).recordingStream.set(recordingStream);
 						for (Class<? extends CustomMetricsExecutionEvent> eventClass : allowedMetrics) {
-							FlightRecorder.register(eventClass);
+							EvitaJfrEventRegistry.registerEventClass(eventClass);
 							recordingStream.enable(eventClass);
 
 							final Optional<Name> name = Optional.ofNullable(lookup.getClassAnnotation(eventClass, Name.class));

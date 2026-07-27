@@ -23,13 +23,12 @@
 
 package io.evitadb.index.price;
 
-import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.query.algebra.price.priceIndex.PriceIdContainerFormula;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.Scope;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.EntityIndexKey;
-import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.bPlusTree.TransactionalElementBPlusTree;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
@@ -40,7 +39,6 @@ import io.evitadb.index.price.model.priceRecord.PriceRecordContract;
 import io.evitadb.index.range.RangeIndex;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.PriceListAndCurrencyRefIndexStoragePart;
-import io.evitadb.utils.Assert;
 import io.evitadb.utils.StringUtils;
 
 import javax.annotation.Nonnull;
@@ -55,7 +53,9 @@ import java.util.Objects;
  * minimize the working set by separating price indexes by this combination.
  *
  * RefIndex attempts to store minimal data set in order to save memory on heap. For memory expensive objects such as
- * {@link PriceRecord} and {@link EntityPrices} it looks up via {@link #superIndex} where the records are located.
+ * {@link PriceRecord} and {@link EntityPrices} it relies on the {@link PriceListAndCurrencyPriceSuperIndex} of the same
+ * combination, which the caller supplies per operation - this index keeps no pointer to it, so it carries no
+ * catalog-version pin and can be forwarded across catalog versions by reference.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
@@ -68,11 +68,6 @@ public class PriceListAndCurrencyPriceRefIndex
 	 * price index is part of.
 	 */
 	private final Scope scope;
-	/**
-	 * Reference to the main {@link PriceListAndCurrencyPriceSuperIndex} that keeps memory expensive objects, which
-	 * is wired in by the owning entity collection through {@link #wireSuperIndex(PriceListAndCurrencyPriceSuperIndex)}.
-	 */
-	private PriceListAndCurrencyPriceSuperIndex superIndex;
 
 	public PriceListAndCurrencyPriceRefIndex(
 		@Nonnull Scope scope,
@@ -97,7 +92,7 @@ public class PriceListAndCurrencyPriceRefIndex
 	 * {@link #priceRecords} tree BY REFERENCE. The ref tree holds the very same shared {@link PriceRecord} instances as
 	 * the super index (created once in the add-price path), so a commit carries it forward instead of rebuilding it from
 	 * the super index — only a disk-load attach reconstructs it (see
-	 * {@link #wireSuperIndex(PriceListAndCurrencyPriceSuperIndex)}).
+	 * {@link #restorePriceRecordsFrom(PriceListAndCurrencyPriceSuperIndex)}).
 	 */
 	private PriceListAndCurrencyPriceRefIndex(
 		@Nonnull Scope scope,
@@ -112,25 +107,22 @@ public class PriceListAndCurrencyPriceRefIndex
 	}
 
 	/**
-	 * Wires the memory-expensive {@link PriceListAndCurrencyPriceSuperIndex} that backs this reduced ref index. The
-	 * owning entity collection resolves the super index from its own {@link GlobalEntityIndex} (same scope, same
-	 * collection) and passes it here — no {@link Catalog} back-reference is retained, so this ref index can be carried
-	 * across catalog versions by reference once its super instance is likewise carried.
+	 * Reconstructs the price-record tree of a ref index that has just been **deserialized from disk**, by pointing it at
+	 * the {@link PriceRecord} instances the passed super index already holds on the heap.
+	 *
+	 * The ref index persists only its price ids and validity, never the memory-expensive records, so a disk-load attach
+	 * leaves the tree `null` and it has to be rebuilt - the same step that collapses Kryo's per-index duplicate records
+	 * back onto the single shared instances.
+	 *
+	 * The `null` guard is load-bearing, not defensive: on every other path the tree arrives already populated with those
+	 * same shared instances (see {@link #createCopyWithMergedTransactionalMemory}), and rebuilding it there would in fact
+	 * throw, because the finalized commit-merge forbids opening a fresh transactional layer for the insert loop.
 	 *
 	 * @param superIndex the super price index of the owning collection's GLOBAL entity index for this price-list /
 	 *                   currency combination
 	 */
-	public void wireSuperIndex(@Nonnull PriceListAndCurrencyPriceSuperIndex superIndex) {
+	public void restorePriceRecordsFrom(@Nonnull PriceListAndCurrencyPriceSuperIndex superIndex) {
 		assertNotTerminated();
-		Assert.isPremiseValid(this.superIndex == null, "Super index was already wired to this index!");
-		this.superIndex = superIndex;
-		// the price-record tree is rebuilt from the super index ONLY on a disk-load attach, where deserialization left it
-		// null (the ref index persists just its price ids + validity, never the memory-expensive PriceRecord objects, so
-		// the tree must be reconstructed by pointing at the super index's existing heap instances — the dedup that collapses
-		// Kryo's per-index duplicate records back onto the single shared instances). A transactional commit carries the tree
-		// forward already populated with those same shared instances (createCopyWithMergedTransactionalMemory), so it needs
-		// no rebuild here — and rebuilding would in fact throw, since the finalized commit-merge forbids creating a fresh
-		// transactional layer for the insert loop.
 		if (this.priceRecords == null) {
 			final PriceRecordContract[] priceRecords = superIndex.getPriceRecords(this.indexedPriceIds);
 			this.priceRecords = newPriceRecordTree(priceRecords);
@@ -145,16 +137,30 @@ public class PriceListAndCurrencyPriceRefIndex
 	}
 
 	/**
+	 * Resolves the index answering {@link #getLowestPriceRecordsForEntity(int)} for this combination: the super index of
+	 * the very same price-list / currency combination, taken from the GLOBAL price index the caller supplies.
+	 */
+	@Nonnull
+	@Override
+	protected PriceListAndCurrencyPriceSuperIndex resolveLowestPriceRecordsSource(@Nonnull PriceSuperIndex superPriceIndex) {
+		return superPriceIndex.getPriceIndexOrThrow(this.priceIndexKey);
+	}
+
+	/**
 	 * Indexes inner record id or entity primary key into the price index with passed values.
+	 *
+	 * @param superIndex the super index of this price-list / currency combination, holding the shared
+	 *                   {@link PriceRecord} instances this index only references
 	 */
 	@Nonnull
 	public PriceRecordContract addPrice(
 		@Nonnull Integer internalPriceId,
-		@Nullable DateTimeRange validity
+		@Nullable DateTimeRange validity,
+		@Nonnull PriceListAndCurrencyPriceSuperIndex superIndex
 	) {
 		assertNotTerminated();
 		final int ipId = Objects.requireNonNull(internalPriceId);
-		final PriceRecordContract priceRecord = this.superIndex.getPriceRecord(ipId);
+		final PriceRecordContract priceRecord = superIndex.getPriceRecord(ipId);
 
 		// index the presence of the record
 		this.indexedPriceEntityIds.add(priceRecord.entityPrimaryKey());
@@ -171,16 +177,20 @@ public class PriceListAndCurrencyPriceRefIndex
 
 	/**
 	 * Removes inner record id or entity primary key of passed values from the price index.
+	 *
+	 * @param superIndex the super index of this price-list / currency combination, holding the shared
+	 *                   {@link PriceRecord} and {@link EntityPrices} instances this index only references
 	 */
 	@Nonnull
 	public PriceRecordContract removePrice(
 		@Nonnull Integer internalPriceId,
-		@Nullable DateTimeRange validity
+		@Nullable DateTimeRange validity,
+		@Nonnull PriceListAndCurrencyPriceSuperIndex superIndex
 	) {
 		assertNotTerminated();
 		final int ipId = Objects.requireNonNull(internalPriceId);
-		final PriceRecordContract priceRecord = this.superIndex.getPriceRecord(ipId);
-		final EntityPrices entityPrices = this.superIndex.getEntityPrices(priceRecord.entityPrimaryKey());
+		final PriceRecordContract priceRecord = superIndex.getPriceRecord(ipId);
+		final EntityPrices entityPrices = superIndex.getEntityPrices(priceRecord.entityPrimaryKey());
 
 		// remove price from the translation tree (keyed by internal price id)
 		this.priceRecords.delete(priceRecord.internalPriceId());
@@ -231,18 +241,32 @@ public class PriceListAndCurrencyPriceRefIndex
 		);
 	}
 
+	/**
+	 * Neither of the two entity-keyed lookups can be answered by a reduced index: both need the entity-to-prices
+	 * mapping, which only a {@link PriceListAndCurrencyPriceSuperIndex} owns. They used to be forwarded to a super
+	 * index this index held a pointer to; that pointer is gone, and the caller now resolves the super index itself
+	 * (see {@link #resolveLowestPriceRecordsSource(PriceSuperIndex)}, which is what
+	 * {@link #createPriceIndexFormulaWithAllRecords(PriceSuperIndex)} routes the lookup through).
+	 *
+	 * Reaching this method therefore means a caller obtained the lowest-price lookup from the reduced index rather
+	 * than from the super index that backs it - a programming error, not a state to work around.
+	 */
 	@Nullable
 	@Override
 	public int[] getInternalPriceIdsForEntity(int entityId) {
-		assertNotTerminated();
-		return this.superIndex.getInternalPriceIdsForEntity(entityId);
+		throw new GenericEvitaInternalError(
+			"Reduced price index `" + this.priceIndexKey + "` cannot resolve prices of an entity - the entity-to-prices " +
+				"mapping lives in the super price index, which the caller must resolve and query directly!"
+		);
 	}
 
 	@Override
 	@Nullable
 	public PriceRecordContract[] getLowestPriceRecordsForEntity(int entityId) {
-		assertNotTerminated();
-		return this.superIndex.getLowestPriceRecordsForEntity(entityId);
+		throw new GenericEvitaInternalError(
+			"Reduced price index `" + this.priceIndexKey + "` cannot resolve the lowest prices of an entity - the " +
+				"entity-to-prices mapping lives in the super price index, which the caller must resolve and query directly!"
+		);
 	}
 
 	@Nullable

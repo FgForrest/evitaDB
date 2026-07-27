@@ -159,6 +159,9 @@ public class FacetReferenceIndex implements TransactionalLayerProducer<FacetEnti
 	 */
 	public boolean addFacet(int facetPrimaryKey, @Nullable Integer groupId, int entityPrimaryKey) {
 		final FacetGroupIndex facetGroupIndex;
+		// tracks whether the facet -> group mapping itself changed; it must contribute to the caller's dirty decision,
+		// because that mapping lives in a diff layer of its own that only a dirty reference gets swept
+		boolean groupMappingChanged = false;
 		if (groupId == null) {
 			final FacetGroupIndex existingNonGroupedFacetsIndex = this.notGroupedFacets.get();
 			if (existingNonGroupedFacetsIndex == null) {
@@ -170,11 +173,22 @@ public class FacetReferenceIndex implements TransactionalLayerProducer<FacetEnti
 				facetGroupIndex = existingNonGroupedFacetsIndex;
 			}
 		} else {
-			this.facetToGroupIndex.merge(
-				facetPrimaryKey,
-				new int[]{groupId},
-				(oldValues, newValues) -> ArrayUtils.insertIntIntoOrderedArray(newValues[0], oldValues)
-			);
+			// Record the facet -> group mapping only when it is not already there. `merge` would write unconditionally,
+			// and a write acquires this map's transactional diff layer even when the resulting value is identical. That
+			// layer is swept only if `FacetIndex` marks the reference dirty, which it does solely when the facet-to-entity
+			// relation below is genuinely NEW - so re-adding an already indexed relation used to leave a diff layer that
+			// nothing accounts for, and the commit then aborted with StaleTransactionMemoryException, suspending
+			// the catalog. Not writing at all is both the fix and the cheaper path
+			final int[] existingGroups = this.facetToGroupIndex.get(facetPrimaryKey);
+			if (existingGroups == null) {
+				this.facetToGroupIndex.put(facetPrimaryKey, new int[]{groupId});
+				groupMappingChanged = true;
+			} else if (!ArrayUtils.contains(existingGroups, groupId)) {
+				this.facetToGroupIndex.put(
+					facetPrimaryKey, ArrayUtils.insertIntIntoOrderedArray(groupId, existingGroups)
+				);
+				groupMappingChanged = true;
+			}
 			// fetch or create index for referenced entity id (inside correct type)
 			final FacetGroupIndex existingGroupedIndex = this.groupedFacets.get(groupId);
 			if (existingGroupedIndex == null) {
@@ -188,7 +202,11 @@ public class FacetReferenceIndex implements TransactionalLayerProducer<FacetEnti
 			}
 		}
 
-		return facetGroupIndex.addFacet(facetPrimaryKey, entityPrimaryKey);
+		// the group mapping must be reported as a change of its own - a transaction that only moved a facet between
+		// groups leaves the facet-to-entity relation untouched, and reporting `false` there would leave this index's
+		// diff layer unswept exactly as the unconditional write above used to
+		final boolean added = facetGroupIndex.addFacet(facetPrimaryKey, entityPrimaryKey);
+		return added || groupMappingChanged;
 	}
 
 	/**
@@ -215,16 +233,27 @@ public class FacetReferenceIndex implements TransactionalLayerProducer<FacetEnti
 			if (groups != null) {
 				for (int group : groups) {
 					final FacetGroupIndex examinedGroupIndex = this.groupedFacets.get(group);
-					// there is no facet index present any more
+					// there is no facet index present any more - drop THIS group from the mapping. It must be `group`
+					// and not `groupId`: the loop exists to re-check every group the facet claims to be in, so the group
+					// it finds stale is not necessarily the one this call removed from. Today the two always coincide,
+					// because the mapping is maintained as an exact mirror of the group indexes and only `groupId`'s
+					// membership can have changed by the time we get here - but that makes the old code correct only by
+					// the invariant it is itself supposed to restore, and it would silently drop a LIVE group and keep
+					// a stale one the moment the mapping ever diverged
 					if (ofNullable(examinedGroupIndex).map(it -> it.getFacetIdIndex(facetPrimaryKey)).orElse(
 						null) == null) {
-						cleanedGroups = ArrayUtils.removeIntFromOrderedArray(groupId, cleanedGroups);
+						cleanedGroups = ArrayUtils.removeIntFromOrderedArray(group, cleanedGroups);
 					}
 				}
 			}
 			if (ArrayUtils.isEmpty(cleanedGroups)) {
-				this.facetToGroupIndex.remove(facetPrimaryKey);
-			} else {
+				// only touch the map when the facet actually HAD a group mapping - removing an absent key would acquire
+				// a diff layer for a pure no-op, and a layer nothing else in this transaction accounts for is orphaned
+				// at commit (see the identical reasoning in `addFacet`)
+				if (groups != null) {
+					this.facetToGroupIndex.remove(facetPrimaryKey);
+				}
+			} else if (cleanedGroups != groups) {
 				this.facetToGroupIndex.put(facetPrimaryKey, cleanedGroups);
 			}
 		}

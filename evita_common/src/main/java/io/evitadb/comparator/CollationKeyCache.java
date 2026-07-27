@@ -31,6 +31,7 @@ import java.text.CollationKey;
 import java.text.Collator;
 import java.util.Locale;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicReferenceArray;
 
 /**
  * Bounded, process-wide cache of {@link CollationKey} byte forms, shared by all
@@ -56,9 +57,10 @@ import java.util.concurrent.ConcurrentHashMap;
  * - **immutable entries, benign races** - {@link CachedKey} is a record (all fields final), so a
  *   racy read of a concurrently published entry is safe under the JMM final-field guarantee; the
  *   worst outcome of a lost concurrent write is a redundant recomputation;
- * - **per-thread collators** - `RuleBasedCollator.getCollationKey` is `synchronized`, therefore
- *   each thread computes keys on its own {@link Collator} instance, keeping cache misses
- *   monitor-free under concurrent indexing;
+ * - **striped collator pool** - `RuleBasedCollator.getCollationKey` is `synchronized`, therefore
+ *   each miss borrows a pool stripe's {@link Collator} exclusively (atomic exchange, falling back
+ *   to a fresh clone when the stripe is empty), keeping cache misses monitor-free under concurrent
+ *   indexing without paying a per-miss `ThreadLocal` lookup;
  * - **memory bound** - `slots` entries per locale, created lazily only for locales that actually
  *   collate. The default slot count is derived from the maximum heap size (see {@link #defaultSize()}),
  *   because a value large enough to cover a real e-commerce corpus would be disproportionate for a
@@ -106,6 +108,12 @@ final class CollationKeyCache implements Serializable {
 	 * Number of slots per locale resolved once at class load; zero disables caching.
 	 */
 	private static final int SIZE = resolveSize();
+	/**
+	 * Number of stripes in the per-cache collator pool; a power of two so stripe selection can mask
+	 * the thread id. Sixteen stripes make same-stripe contention between concurrently indexing
+	 * threads unlikely, and a collision merely costs one fresh `Collator.getInstance` clone.
+	 */
+	private static final int COLLATOR_STRIPES = 16;
 
 	/**
 	 * Cached entries; elements are written with plain stores (see the class javadoc on benign
@@ -117,10 +125,22 @@ final class CollationKeyCache implements Serializable {
 	 */
 	private final int mask;
 	/**
-	 * Per-thread collator of this cache's locale used to compute keys on cache misses.
+	 * Locale whose default collator order this cache serves; needed to create collators on demand
+	 * when a pool stripe is empty.
+	 */
+	@Nonnull private final Locale locale;
+	/**
+	 * Striped pool of collators used to compute keys on cache misses. `RuleBasedCollator` is not
+	 * thread-safe, so each computation borrows a stripe's collator exclusively (atomic exchange) and
+	 * returns it afterwards; a thread hitting an empty stripe simply creates a fresh collator.
+	 *
+	 * A striped pool is used instead of a `ThreadLocal` deliberately: profiling showed the
+	 * per-miss `ThreadLocal.get()` costing more than the collation-key computation itself
+	 * (`ThreadLocalMap` probing on the hot indexing threads), while an uncontended atomic exchange
+	 * is a few nanoseconds with a hard upper bound.
 	 */
 	@SuppressWarnings("TransientFieldNotInitialized")
-	@Nonnull private final transient ThreadLocal<Collator> collator;
+	@Nonnull private final transient AtomicReferenceArray<Collator> collators;
 
 	/**
 	 * Returns the shared cache for `locale`, or null when caching is disabled by configuration.
@@ -190,8 +210,8 @@ final class CollationKeyCache implements Serializable {
 	private CollationKeyCache(@Nonnull Locale locale) {
 		this.slots = new CachedKey[SIZE];
 		this.mask = SIZE - 1;
-		// Collator.getInstance returns a fresh clone per call, so each thread gets its own instance
-		this.collator = ThreadLocal.withInitial(() -> Collator.getInstance(locale));
+		this.locale = locale;
+		this.collators = new AtomicReferenceArray<>(COLLATOR_STRIPES);
 	}
 
 	/**
@@ -225,7 +245,16 @@ final class CollationKeyCache implements Serializable {
 		if (secondaryEntry != null && (secondaryEntry.value == value || secondaryEntry.value.equals(value))) {
 			return secondaryEntry.key;
 		}
-		final byte[] key = this.collator.get().getCollationKey(value).toByteArray();
+		// borrow a collator from the stripe keyed by the current thread (exclusive via exchange);
+		// an empty stripe - first use or a concurrent borrower - just creates a fresh instance
+		final int stripe = (int) Thread.currentThread().getId() & (COLLATOR_STRIPES - 1);
+		Collator collator = this.collators.getAndSet(stripe, null);
+		if (collator == null) {
+			// Collator.getInstance returns a fresh clone per call, safe to use exclusively
+			collator = Collator.getInstance(this.locale);
+		}
+		final byte[] key = collator.getCollationKey(value).toByteArray();
+		this.collators.set(stripe, collator);
 		// prefer filling an empty way; when both ways are occupied displace the primary slot - the
 		// secondary way then shields the displaced value's competitor from ping-pong eviction
 		if (primaryEntry == null || secondaryEntry != null) {

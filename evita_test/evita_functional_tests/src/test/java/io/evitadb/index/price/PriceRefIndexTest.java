@@ -127,7 +127,8 @@ class PriceRefIndexTest implements TimeBoundedTestSupport {
 			null, entityPK, internalPriceId,
 			new PriceKey(priceId, priceList, currency),
 			handling, null, null,
-			priceWithoutTax, priceWithTax
+			priceWithoutTax, priceWithTax,
+			this.priceSuperIndex
 		);
 		return internalPriceId;
 	}
@@ -137,7 +138,7 @@ class PriceRefIndexTest implements TimeBoundedTestSupport {
 	 * collection resolves super price indexes from its own GLOBAL entity index.
 	 */
 	private void attachRefIndex() {
-		this.priceRefIndex.wireSuperIndexes(this.priceSuperIndex::getPriceIndex);
+		this.priceRefIndex.restorePriceRecords(this.priceSuperIndex);
 	}
 
 	/**
@@ -158,7 +159,8 @@ class PriceRefIndexTest implements TimeBoundedTestSupport {
 			null, entityPK, internalPriceId,
 			new PriceKey(priceId, priceList, currency),
 			PriceInnerRecordHandling.NONE,
-			null, null, 10000, 12100
+			null, null, 10000, 12100,
+			this.priceSuperIndex
 		);
 		return internalPriceId;
 	}
@@ -192,8 +194,7 @@ class PriceRefIndexTest implements TimeBoundedTestSupport {
 			childMap.put(KEY_BASIC_CZK, childRefIndex);
 			PriceRefIndexTest.this.priceRefIndex = new PriceRefIndex(SCOPE, childMap);
 
-			// now wire -- should propagate to the existing child via
-			// `values().forEach(it -> it.wireSuperIndex(...))`
+			// now attach -- the existing child must end up with its record tree restored from the super index
 			attachRefIndex();
 
 			// after attach, the child should be linked to the super index and have the price
@@ -202,21 +203,6 @@ class PriceRefIndexTest implements TimeBoundedTestSupport {
 			assertNotNull(attached);
 			assertFalse(attached.isEmpty());
 			assertEquals(1, attached.getPriceRecords().length);
-		}
-
-		@Test
-		@DisplayName("should throw when super index resolver already wired")
-		void shouldThrowWhenAlreadyAttached() {
-			attachRefIndex();
-
-			final GenericEvitaInternalError exception = assertThrows(
-				GenericEvitaInternalError.class,
-				() -> PriceRefIndexTest.this.priceRefIndex.wireSuperIndexes(
-					PriceRefIndexTest.this.priceSuperIndex::getPriceIndex
-				)
-			);
-
-			assertTrue(exception.getMessage().contains("already wired"));
 		}
 
 		@Test
@@ -236,7 +222,8 @@ class PriceRefIndexTest implements TimeBoundedTestSupport {
 				null, 1, internalPriceId,
 				new PriceKey(10, PRICE_LIST_BASIC, CURRENCY_CZK),
 				PriceInnerRecordHandling.NONE,
-				null, null, 10000, 12100
+				null, null, 10000, 12100,
+				PriceRefIndexTest.this.priceSuperIndex
 			);
 
 			final PriceListAndCurrencyPriceRefIndex childIndex =
@@ -271,7 +258,8 @@ class PriceRefIndexTest implements TimeBoundedTestSupport {
 				null, 1, internalPriceId,
 				new PriceKey(10, PRICE_LIST_BASIC, CURRENCY_CZK),
 				PriceInnerRecordHandling.NONE,
-				null, null, 10000, 12100
+				null, null, 10000, 12100,
+				PriceRefIndexTest.this.priceSuperIndex
 			);
 
 			final PriceListAndCurrencyPriceRefIndex childIndex =
@@ -295,7 +283,8 @@ class PriceRefIndexTest implements TimeBoundedTestSupport {
 				null, 1, internalPriceId,
 				new PriceKey(10, PRICE_LIST_BASIC, CURRENCY_CZK),
 				PriceInnerRecordHandling.NONE,
-				null, null, 10000, 12100
+				null, null, 10000, 12100,
+				PriceRefIndexTest.this.priceSuperIndex
 			);
 
 			assertNotNull(PriceRefIndexTest.this.priceRefIndex.getPriceIndex(KEY_BASIC_CZK));
@@ -313,7 +302,8 @@ class PriceRefIndexTest implements TimeBoundedTestSupport {
 				null, 1, ipId1,
 				new PriceKey(10, PRICE_LIST_BASIC, CURRENCY_CZK),
 				PriceInnerRecordHandling.NONE,
-				null, null, 10000, 12100
+				null, null, 10000, 12100,
+				PriceRefIndexTest.this.priceSuperIndex
 			);
 
 			final PriceListAndCurrencyPriceRefIndex childBefore =
@@ -328,7 +318,8 @@ class PriceRefIndexTest implements TimeBoundedTestSupport {
 				null, 2, ipId2,
 				new PriceKey(20, PRICE_LIST_BASIC, CURRENCY_CZK),
 				PriceInnerRecordHandling.NONE,
-				null, null, 5000, 6050
+				null, null, 5000, 6050,
+				PriceRefIndexTest.this.priceSuperIndex
 			);
 
 			final PriceListAndCurrencyPriceRefIndex childAfter =
@@ -366,7 +357,8 @@ class PriceRefIndexTest implements TimeBoundedTestSupport {
 				null, 1, ipId1,
 				new PriceKey(10, PRICE_LIST_BASIC, CURRENCY_CZK),
 				PriceInnerRecordHandling.NONE,
-				null, null, 10000, 12100
+				null, null, 10000, 12100,
+				PriceRefIndexTest.this.priceSuperIndex
 			);
 
 			// child should still exist with the second price
@@ -386,7 +378,8 @@ class PriceRefIndexTest implements TimeBoundedTestSupport {
 				null, 1, ipId1,
 				new PriceKey(10, PRICE_LIST_BASIC, CURRENCY_CZK),
 				PriceInnerRecordHandling.NONE,
-				null, null, 10000, 12100
+				null, null, 10000, 12100,
+				PriceRefIndexTest.this.priceSuperIndex
 			);
 
 			// child should be removed
@@ -404,7 +397,8 @@ class PriceRefIndexTest implements TimeBoundedTestSupport {
 				null, 1, ipId1,
 				new PriceKey(10, PRICE_LIST_BASIC, CURRENCY_CZK),
 				PriceInnerRecordHandling.NONE,
-				null, null, 10000, 12100
+				null, null, 10000, 12100,
+				PriceRefIndexTest.this.priceSuperIndex
 			);
 
 			// the super index child is now terminated -- when we try to remove from ref,
@@ -414,11 +408,82 @@ class PriceRefIndexTest implements TimeBoundedTestSupport {
 				null, 1, ipId1,
 				new PriceKey(10, PRICE_LIST_BASIC, CURRENCY_CZK),
 				PriceInnerRecordHandling.NONE,
-				null, null, 10000, 12100
+				null, null, 10000, 12100,
+				PriceRefIndexTest.this.priceSuperIndex
 			);
 
 			// the child should be gone
 			assertNull(PriceRefIndexTest.this.priceRefIndex.getPriceIndex(KEY_BASIC_CZK));
+		}
+
+		@Test
+		@DisplayName("should drop child when the super index replaced the combination underneath it")
+		void shouldDropChildWhenSuperIndexReplacedTheCombination() {
+			final int ipId1 = addPriceToBothIndexes(1, 10, PRICE_LIST_BASIC, CURRENCY_CZK);
+
+			// empty the combination in the super index - that terminates it and drops it from the combination map
+			PriceRefIndexTest.this.priceSuperIndex.priceRemove(
+				null, 1, ipId1,
+				new PriceKey(10, PRICE_LIST_BASIC, CURRENCY_CZK),
+				PriceInnerRecordHandling.NONE,
+				null, null, 10000, 12100,
+				PriceRefIndexTest.this.priceSuperIndex
+			);
+			// ... and let a following add recreate it as a *different* instance, which is what an upsert that moves
+			// a price between combinations does once the global index has run ahead of the reduced ones
+			addPriceToSuperIndex(
+				1, 11, PRICE_LIST_BASIC, CURRENCY_CZK, PriceInnerRecordHandling.NONE, 10000, 12100
+			);
+
+			// the combination is alive again, but nothing the ref index still references survives in it, so the ref
+			// index cannot outlive its records and is dropped
+			PriceRefIndexTest.this.priceRefIndex.priceRemove(
+				null, 1, ipId1,
+				new PriceKey(10, PRICE_LIST_BASIC, CURRENCY_CZK),
+				PriceInnerRecordHandling.NONE,
+				null, null, 10000, 12100,
+				PriceRefIndexTest.this.priceSuperIndex
+			);
+
+			assertNull(PriceRefIndexTest.this.priceRefIndex.getPriceIndex(KEY_BASIC_CZK));
+		}
+
+		@Test
+		@DisplayName("should refuse to drop a child that still references live prices")
+		void shouldRefuseToDropChildStillReferencingLivePrices() {
+			final int ipId1 = addPriceToBothIndexes(1, 10, PRICE_LIST_BASIC, CURRENCY_CZK);
+			final int ipId2 = addPriceToBothIndexes(2, 20, PRICE_LIST_BASIC, CURRENCY_CZK);
+
+			// take entity 1's price out of the super index only. The combination stays alive - entity 2's price is
+			// still in it - so `ipId1` is now dangling in the ref index for a reason no legitimate ordering produces
+			PriceRefIndexTest.this.priceSuperIndex.priceRemove(
+				null, 1, ipId1,
+				new PriceKey(10, PRICE_LIST_BASIC, CURRENCY_CZK),
+				PriceInnerRecordHandling.NONE,
+				null, null, 10000, 12100,
+				PriceRefIndexTest.this.priceSuperIndex
+			);
+
+			// dropping the whole combination here would silently unindex entity 2's still-live price, so the
+			// inconsistency has to surface instead of being absorbed
+			assertThrows(
+				GenericEvitaInternalError.class,
+				() -> PriceRefIndexTest.this.priceRefIndex.priceRemove(
+					null, 1, ipId1,
+					new PriceKey(10, PRICE_LIST_BASIC, CURRENCY_CZK),
+					PriceInnerRecordHandling.NONE,
+					null, null, 10000, 12100,
+					PriceRefIndexTest.this.priceSuperIndex
+				)
+			);
+
+			// and entity 2's price must still be indexed
+			final PriceListAndCurrencyPriceRefIndex childIndex =
+				PriceRefIndexTest.this.priceRefIndex.getPriceIndex(KEY_BASIC_CZK);
+			assertNotNull(childIndex);
+			assertNotNull(
+				PriceRefIndexTest.this.priceSuperIndex.getPriceIndex(KEY_BASIC_CZK).getPriceRecordIfPresent(ipId2)
+			);
 		}
 	}
 
@@ -447,7 +512,8 @@ class PriceRefIndexTest implements TimeBoundedTestSupport {
 						null, 1, ipId1,
 						new PriceKey(10, PRICE_LIST_BASIC, CURRENCY_CZK),
 						PriceInnerRecordHandling.NONE,
-						null, null, 10000, 12100
+						null, null, 10000, 12100,
+						PriceRefIndexTest.this.priceSuperIndex
 					);
 				},
 				(original, committed) -> {
@@ -475,7 +541,8 @@ class PriceRefIndexTest implements TimeBoundedTestSupport {
 						null, 1, ipId1,
 						new PriceKey(10, PRICE_LIST_BASIC, CURRENCY_CZK),
 						PriceInnerRecordHandling.NONE,
-						null, null, 10000, 12100
+						null, null, 10000, 12100,
+						PriceRefIndexTest.this.priceSuperIndex
 					);
 				},
 				(original, committed) -> {
@@ -503,7 +570,8 @@ class PriceRefIndexTest implements TimeBoundedTestSupport {
 						null, 1, ipId1,
 						new PriceKey(10, PRICE_LIST_BASIC, CURRENCY_CZK),
 						PriceInnerRecordHandling.NONE,
-						null, null, 10000, 12100
+						null, null, 10000, 12100,
+						PriceRefIndexTest.this.priceSuperIndex
 					);
 				},
 				(original, committed) -> {
@@ -533,14 +601,16 @@ class PriceRefIndexTest implements TimeBoundedTestSupport {
 						null, 1, ipId1,
 						new PriceKey(10, PRICE_LIST_BASIC, CURRENCY_CZK),
 						PriceInnerRecordHandling.NONE,
-						null, null, 10000, 12100
+						null, null, 10000, 12100,
+						PriceRefIndexTest.this.priceSuperIndex
 					);
 					// remove in same transaction
 					original.priceRemove(
 						null, 1, ipId1,
 						new PriceKey(10, PRICE_LIST_BASIC, CURRENCY_CZK),
 						PriceInnerRecordHandling.NONE,
-						null, null, 10000, 12100
+						null, null, 10000, 12100,
+						PriceRefIndexTest.this.priceSuperIndex
 					);
 				},
 				(original, committed) -> {
@@ -575,7 +645,8 @@ class PriceRefIndexTest implements TimeBoundedTestSupport {
 						null, 1, ipId1,
 						new PriceKey(10, PRICE_LIST_BASIC, CURRENCY_CZK),
 						PriceInnerRecordHandling.NONE,
-						null, null, 10000, 12100
+						null, null, 10000, 12100,
+						PriceRefIndexTest.this.priceSuperIndex
 					);
 				},
 				(original, committed) -> {
@@ -600,7 +671,8 @@ class PriceRefIndexTest implements TimeBoundedTestSupport {
 						null, 1, ipId1,
 						new PriceKey(10, PRICE_LIST_BASIC, CURRENCY_CZK),
 						PriceInnerRecordHandling.NONE,
-						null, null, 10000, 12100
+						null, null, 10000, 12100,
+						PriceRefIndexTest.this.priceSuperIndex
 					);
 				},
 				(original, committed) -> {
@@ -667,7 +739,8 @@ class PriceRefIndexTest implements TimeBoundedTestSupport {
 				null, 2, ipId2,
 				new PriceKey(20, PRICE_LIST_BASIC, CURRENCY_EUR),
 				PriceInnerRecordHandling.NONE,
-				null, null, 5000, 6050
+				null, null, 5000, 6050,
+				PriceRefIndexTest.this.priceSuperIndex
 			);
 
 			final long czkCount = PriceRefIndexTest.this.priceRefIndex
@@ -771,7 +844,8 @@ class PriceRefIndexTest implements TimeBoundedTestSupport {
 						null, 1, ipId1,
 						new PriceKey(10, PRICE_LIST_BASIC, CURRENCY_CZK),
 						PriceInnerRecordHandling.NONE,
-						null, null, 10000, 12100
+						null, null, 10000, 12100,
+						PriceRefIndexTest.this.priceSuperIndex
 					);
 				},
 				(original, committed) -> {
@@ -806,7 +880,8 @@ class PriceRefIndexTest implements TimeBoundedTestSupport {
 				null, 1, internalPriceId,
 				new PriceKey(10, PRICE_LIST_BASIC, CURRENCY_CZK),
 				PriceInnerRecordHandling.NONE,
-				null, validity, 10000, 12100
+				null, validity, 10000, 12100,
+				PriceRefIndexTest.this.priceSuperIndex
 			);
 
 			// add to ref index
@@ -814,7 +889,8 @@ class PriceRefIndexTest implements TimeBoundedTestSupport {
 				null, 1, internalPriceId,
 				new PriceKey(10, PRICE_LIST_BASIC, CURRENCY_CZK),
 				PriceInnerRecordHandling.NONE,
-				null, validity, 10000, 12100
+				null, validity, 10000, 12100,
+				PriceRefIndexTest.this.priceSuperIndex
 			);
 
 			final PriceListAndCurrencyPriceRefIndex childIndex =

@@ -23,13 +23,18 @@
 
 package io.evitadb.index.map;
 
+import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.core.exception.StaleTransactionMemoryException;
 import io.evitadb.core.transaction.Transaction;
+import io.evitadb.core.transaction.TransactionHandler;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
+import io.evitadb.core.transaction.memory.TransactionalStateProducer;
 import io.evitadb.dataType.champ.ChampMap;
 import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.index.map.MapChanges.ValueMerger;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
@@ -39,6 +44,10 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.UUID;
+import java.util.function.Consumer;
 import java.util.function.Function;
 
 import static io.evitadb.test.TestTags.DATA_TYPE;
@@ -562,6 +571,238 @@ class PersistentTransactionalProducerMapTest {
 					assertEquals(1, committed.size());
 				}
 			);
+		}
+	}
+
+	/**
+	 * The second commit mode: the owner supplies the dirty-key set itself instead of accumulating it through
+	 * {@link PersistentTransactionalProducerMap#markValueMutated}, and resolves each touched value through a
+	 * {@link ValueMerger}. This is how `EntityCollection` commits its entity-index map — it already holds the exact set of
+	 * indexes its transaction mutated (the snapshot the flush captured), so it hands that in rather than duplicating it
+	 * through marks scattered across every mutation path.
+	 *
+	 * The tests drive the commit exactly as `EntityCollection#pruneMergeIndexes` does — resolve the layer, call the
+	 * four-argument entry point, dispose of the layer by hand, then let the maintainer verify the sweep — because the
+	 * ordinary {@link TransactionalStateProducer} contract method is deliberately refused in this mode.
+	 */
+	@Nested
+	@DisplayName("Explicit dirty-key merge")
+	class ExplicitDirtyKeyMergeTest {
+
+		@Test
+		@DisplayName("dirty keys are committed and untouched ones shared, with no layer of this map at all")
+		void shouldCommitDirtyKeysWithoutAnyLayer() {
+			final Map<String, CountingProducer> seed = seed(new String[]{"a", "b", "c"}, new int[]{1, 2, 3});
+			final CountingProducer pb = seed.get("b");
+			final CountingProducer pc = seed.get("c");
+			final PersistentTransactionalProducerMap<String, CountingProducer> map = explicitMapOf(seed);
+
+			// only a value mutates - no put/remove - so this map never gets a diff layer, which is exactly the case the
+			// inherited contract method would mistake for "nothing changed"
+			final ChampMap<String, CountingProducer> committed = commitWithDirtyKeys(
+				map, m -> m.get("a").set(99), Set.of("a")
+			);
+
+			assertEquals(99, committed.get("a").committedValue());
+			assertSame(pb, committed.get("b"));
+			assertSame(pc, committed.get("c"));
+		}
+
+		@Test
+		@DisplayName("a removal takes precedence over the same key being dirty")
+		void shouldPreferRemovalOverDirtyKey() {
+			final Map<String, CountingProducer> seed = seed(new String[]{"a", "b"}, new int[]{1, 2});
+			final PersistentTransactionalProducerMap<String, CountingProducer> map = explicitMapOf(seed);
+
+			// "a" mutates, is then removed, and is STILL announced as dirty (an earlier flush recorded it). The removal
+			// pass must win and the dirty pass must not resurrect it - nor sweep its layer a second time
+			final ChampMap<String, CountingProducer> committed = commitWithDirtyKeys(
+				map,
+				m -> {
+					m.get("a").set(99);
+					m.remove("a");
+				},
+				Set.of("a")
+			);
+
+			assertFalse(committed.containsKey("a"));
+			assertEquals(2, committed.get("b").committedValue());
+			assertEquals(1, committed.size());
+		}
+
+		@Test
+		@DisplayName("a replacement takes precedence over the same key being dirty")
+		void shouldPreferReplacementOverDirtyKey() {
+			final Map<String, CountingProducer> seed = seed(new String[]{"a", "b"}, new int[]{1, 2});
+			final PersistentTransactionalProducerMap<String, CountingProducer> map = explicitMapOf(seed);
+			final CountingProducer replacement = new CountingProducer(42);
+
+			// the key-level put must be the value that survives, resolved exactly once - if the dirty pass also visited it
+			// the replacement's layer would be committed twice and the second call would discard an already discarded layer
+			final ChampMap<String, CountingProducer> committed = commitWithDirtyKeys(
+				map, m -> m.put("a", replacement), Set.of("a")
+			);
+
+			assertSame(replacement, committed.get("a"));
+			assertEquals(42, committed.get("a").committedValue());
+		}
+
+		@Test
+		@DisplayName("a key created and removed again within the transaction is skipped even while announced dirty")
+		void shouldSkipCreatedThenRemovedDirtyKey() {
+			final Map<String, CountingProducer> seed = seed(new String[]{"a"}, new int[]{1});
+			final PersistentTransactionalProducerMap<String, CountingProducer> map = explicitMapOf(seed);
+
+			// "n" lives in none of the three sets after being created and removed again, yet an earlier flush announced it
+			// as dirty. Its layer is released by the created-then-removed sweep; the dirty pass must not trip over it
+			final ChampMap<String, CountingProducer> committed = commitWithDirtyKeys(
+				map,
+				m -> {
+					m.put("n", new CountingProducer(7));
+					m.get("n").set(70);
+					m.remove("n");
+				},
+				Set.of("n")
+			);
+
+			assertFalse(committed.containsKey("n"));
+			assertEquals(1, committed.get("a").committedValue());
+			assertEquals(1, committed.size());
+		}
+
+		@Test
+		@DisplayName("a dirty key whose value merges back to itself is shared, not path-copied")
+		void shouldShareDirtyKeyThatDidNotActuallyChange() {
+			final Map<String, CountingProducer> seed = seed(new String[]{"a", "b"}, new int[]{1, 2});
+			final CountingProducer pa = seed.get("a");
+			final PersistentTransactionalProducerMap<String, CountingProducer> map = explicitMapOf(seed);
+
+			// announced dirty but never actually mutated → the merger hands back the same instance and the identity
+			// short-circuit must leave the trie node in place
+			final ChampMap<String, CountingProducer> committed = commitWithDirtyKeys(map, m -> { }, Set.of("a"));
+
+			assertSame(pa, committed.get("a"));
+			assertEquals(1, committed.get("a").committedValue());
+		}
+
+		@Test
+		@DisplayName("the ordinary TransactionalLayerProducer contract is refused outright")
+		void shouldRefuseTheOrdinaryContractMethod() {
+			final Map<String, CountingProducer> seed = seed(new String[]{"a"}, new int[]{1});
+			final PersistentTransactionalProducerMap<String, CountingProducer> map = explicitMapOf(seed);
+
+			// routing this map through the contract method would return `sealed()` for the (common) null-layer case and
+			// silently drop every in-place mutation of the transaction - it must fail loudly instead
+			assertThrows(
+				GenericEvitaInternalError.class,
+				() -> map.createCopyWithMergedTransactionalMemory(null, null)
+			);
+		}
+	}
+
+	/**
+	 * Builds a producer map in the explicit-dirty-key mode, configured exactly as `EntityCollection.indexes` is (the
+	 * wrapper form, because the concrete producer type is not statically known — the wrapper is a cast).
+	 */
+	@Nonnull
+	private static PersistentTransactionalProducerMap<String, CountingProducer> explicitMapOf(
+		@Nonnull Map<String, CountingProducer> seed
+	) {
+		return PersistentTransactionalProducerMap.withExplicitDirtyKeyMerge(
+			seed, CountingProducer.class::cast
+		);
+	}
+
+	/**
+	 * Runs `doInTransaction` against `map` and commits it through the explicit-dirty-key entry point, reproducing
+	 * `EntityCollection#pruneMergeIndexes` step for step: resolve this map's layer, merge with the supplied dirty keys,
+	 * dispose of the layer by hand (the entry point does not go through the maintainer), then verify the sweep left no
+	 * orphaned layer behind.
+	 *
+	 * @param map             the map under test
+	 * @param doInTransaction the mutations to apply inside the transaction
+	 * @param dirtyKeys       the keys the owner declares as mutated in place
+	 * @return the committed snapshot
+	 */
+	@Nonnull
+	private static ChampMap<String, CountingProducer> commitWithDirtyKeys(
+		@Nonnull PersistentTransactionalProducerMap<String, CountingProducer> map,
+		@Nonnull Consumer<PersistentTransactionalProducerMap<String, CountingProducer>> doInTransaction,
+		@Nonnull Set<String> dirtyKeys
+	) {
+		final ExplicitDirtyKeyCommitHandler handler = new ExplicitDirtyKeyCommitHandler(map, dirtyKeys);
+		Transaction.executeInTransactionIfProvided(
+			new Transaction(UUID.randomUUID(), handler, false),
+			() -> {
+				final Transaction transaction = Transaction.getTransaction().orElseThrow();
+				try {
+					doInTransaction.accept(map);
+				} catch (Throwable ex) {
+					transaction.setRollbackOnly();
+					throw ex;
+				} finally {
+					transaction.close();
+				}
+			}
+		);
+		return Objects.requireNonNull(handler.getCommitted());
+	}
+
+	/**
+	 * Commits the map under test through {@link PersistentTransactionalProducerMap#createCopyWithMergedTransactionalMemory(MapChanges, TransactionalLayerMaintainer, Set, ValueMerger)},
+	 * mirroring what `EntityCollection` does at commit time. The merger resolves a touched value by committing its own
+	 * layer, and releases nothing on removal — the map's removal pass has already decided the release is safe, and the
+	 * real owner releases index sub-trees eagerly for the same reason.
+	 */
+	private static class ExplicitDirtyKeyCommitHandler implements TransactionHandler {
+		private final PersistentTransactionalProducerMap<String, CountingProducer> map;
+		private final Set<String> dirtyKeys;
+		@Nullable private ChampMap<String, CountingProducer> committed;
+
+		ExplicitDirtyKeyCommitHandler(
+			@Nonnull PersistentTransactionalProducerMap<String, CountingProducer> map,
+			@Nonnull Set<String> dirtyKeys
+		) {
+			this.map = map;
+			this.dirtyKeys = dirtyKeys;
+		}
+
+		@Nullable
+		ChampMap<String, CountingProducer> getCommitted() {
+			return this.committed;
+		}
+
+		@Override
+		public void registerMutation(@Nonnull Mutation mutation) {
+			// do nothing
+		}
+
+		@Override
+		public void commit(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
+			final MapChanges<String, CountingProducer> layer =
+				transactionalLayer.getTransactionalMemoryLayerIfExists(this.map);
+			this.committed = this.map.createCopyWithMergedTransactionalMemory(
+				layer, transactionalLayer, this.dirtyKeys,
+				new ValueMerger<>() {
+					@Nonnull
+					@Override
+					public CountingProducer mergeSurviving(@Nonnull String key, @Nullable CountingProducer value) {
+						return transactionalLayer.getStateCopyWithCommittedChanges(Objects.requireNonNull(value));
+					}
+
+					@Override
+					public void releaseRemoved(@Nonnull String key, @Nonnull CountingProducer value) {
+						value.removeLayer(transactionalLayer);
+					}
+				}
+			);
+			transactionalLayer.removeTransactionalMemoryLayerIfExists(this.map);
+			transactionalLayer.verifyLayerWasFullySwept();
+		}
+
+		@Override
+		public void rollback(@Nonnull TransactionalLayerMaintainer transactionalLayer, @Nullable Throwable cause) {
+			// do nothing
 		}
 	}
 

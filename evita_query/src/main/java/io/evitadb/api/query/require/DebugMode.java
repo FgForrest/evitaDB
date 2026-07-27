@@ -45,6 +45,9 @@ import io.evitadb.dataType.SupportedEnum;
  *   pre-sort B+tree even when the materialized pre-sort arrays would be preferred. Exercises the tree-direct path.
  * - `PREFER_PRESORT_ARRAYS` — the mirror of `PREFER_TREE_SORT`: forces the materialized pre-sort array merge-walk
  *   even when the selection is sparse enough that the tree-direct path would be preferred.
+ * - `PREFER_INDEX_SCAN` — the mirror of `PREFER_PREFETCHING`: suppresses the optional, cost-based prefetch so the
+ *   query is answered by resolving the indexes, exercising the index path that a cheap prefetch would otherwise
+ *   bypass entirely.
  */
 @SupportedEnum
 public enum DebugMode {
@@ -80,6 +83,27 @@ public enum DebugMode {
 	 * cold index if necessary) even when the selection is sparse enough that the cost-based selector would prefer the
 	 * tree-direct path. Used to exercise the array path deterministically regardless of selectivity.
 	 */
-	PREFER_PRESORT_ARRAYS
+	PREFER_PRESORT_ARRAYS,
+	/**
+	 * This option denies the optional prefetch, forcing the query to be answered by resolving the indexes. It is
+	 * the counterpart of {@link #PREFER_PREFETCHING} and exists because a cheap prefetch silently substitutes for the
+	 * index path: on a small dataset the planner satisfies the whole query from prefetched entity bodies, so an
+	 * assertion aimed at index resolution never reaches the code it is meant to pin. Turning this option on makes such
+	 * assertions honest regardless of dataset size.
+	 *
+	 * Two things this option deliberately does NOT do:
+	 *
+	 * - It cannot suppress the prefetch a query *requires*. When the filter addresses entities by reference (an
+	 *   `MultipleEntityFormula` contributing direct entity references), prefetching is the only way to answer it and
+	 *   happens regardless of this option.
+	 * - It does not preserve the formula cache. The option resolves to the same planning policy as
+	 *   {@link #VERIFY_POSSIBLE_CACHING_TREES}, which bypasses the cache, so the index path is exercised end to end
+	 *   rather than answered from a memoized formula result.
+	 *
+	 * When combined with {@link #PREFER_PREFETCHING} this option wins: the planning policy denies prefetch both when
+	 * the planner asks whether prefetch is possible at all and when it prices the prefetch, and neither decision
+	 * consults the user preference.
+	 */
+	PREFER_INDEX_SCAN
 
 }

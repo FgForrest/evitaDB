@@ -50,6 +50,8 @@ import java.util.EnumSet;
  *   cost-based sort selector; used to exercise the tree-direct path in integration tests.
  * - {@link DebugMode#PREFER_PRESORT_ARRAYS} — forces sorted-page resolution onto the pre-sorted array merge-walk;
  *   the mirror of `PREFER_TREE_SORT`.
+ * - {@link DebugMode#PREFER_INDEX_SCAN} — suppresses the optional prefetch so the query is answered from the indexes;
+ *   the mirror of `PREFER_PREFETCHING`.
  *
  * This class has no `@ConstraintDefinition` annotation because it is excluded from schema-driven API generation.
  *

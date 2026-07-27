@@ -1181,10 +1181,10 @@ public class OffHeapTrafficRecorder
 	 */
 	@NotMonitored
 	public static class MemoryNotAvailableException extends EvitaInternalError {
-		public static final MemoryNotAvailableException NO_SLOT_FREE = new MemoryNotAvailableException(
-			"No free slot in memory buffer!");
-		public static final MemoryNotAvailableException DATA_TOO_LARGE = new MemoryNotAvailableException(
-			"Session data is too large to fit into the traffic disk buffer!");
+		public static final MemoryNotAvailableException NO_SLOT_FREE =
+			new MemoryNotAvailableException("No free slot in memory buffer!");
+		public static final MemoryNotAvailableException DATA_TOO_LARGE =
+			new MemoryNotAvailableException("Session data is too large to fit into the traffic disk buffer!");
 
 		@Serial private static final long serialVersionUID = 567086221625997669L;
 

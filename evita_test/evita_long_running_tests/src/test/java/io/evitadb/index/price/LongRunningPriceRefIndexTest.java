@@ -120,7 +120,7 @@ class LongRunningPriceRefIndexTest implements TimeBoundedTestSupport {
 				try {
 					assertStateAfterCommit(
 						priceRefIndex,
-						original -> applyPlannedOps(original, keys, batch.addOps(), batch.removeOps()),
+						original -> applyPlannedOps(original, superIndex, keys, batch.addOps(), batch.removeOps()),
 						(original, committed) -> {
 							for (final PriceIndexKey key : keys) {
 								final Set<Integer> expectedPrices =
@@ -207,7 +207,7 @@ class LongRunningPriceRefIndexTest implements TimeBoundedTestSupport {
 				try {
 					assertStateAfterRollback(
 						priceRefIndex,
-						original -> applyPlannedOps(original, keys, batch.addOps(), batch.removeOps()),
+						original -> applyPlannedOps(original, superIndex, keys, batch.addOps(), batch.removeOps()),
 						(original, committed) -> {
 							assertNull(
 								committed,
@@ -247,7 +247,7 @@ class LongRunningPriceRefIndexTest implements TimeBoundedTestSupport {
 					null, ipId, ipId,
 					new PriceKey(ipId, entry.getKey().getPriceList(), entry.getKey().getCurrency()),
 					entry.getKey().getRecordHandling(),
-					null, null, 10000, 12100
+					null, null, 10000, 12100, superIndex
 				);
 			}
 		}
@@ -265,7 +265,7 @@ class LongRunningPriceRefIndexTest implements TimeBoundedTestSupport {
 		@Nonnull Map<PriceIndexKey, Set<Integer>> currentState
 	) {
 		final PriceRefIndex priceRefIndex = new PriceRefIndex(SCOPE);
-		priceRefIndex.wireSuperIndexes(superIndex::getPriceIndex);
+		priceRefIndex.restorePriceRecords(superIndex);
 
 		// populate the ref index from state
 		for (final Map.Entry<PriceIndexKey, Set<Integer>> entry : currentState.entrySet()) {
@@ -274,7 +274,7 @@ class LongRunningPriceRefIndexTest implements TimeBoundedTestSupport {
 					null, ipId, ipId,
 					new PriceKey(ipId, entry.getKey().getPriceList(), entry.getKey().getCurrency()),
 					entry.getKey().getRecordHandling(),
-					null, null, 10000, 12100
+					null, null, 10000, 12100, superIndex
 				);
 			}
 		}
@@ -351,17 +351,19 @@ class LongRunningPriceRefIndexTest implements TimeBoundedTestSupport {
 				null, op[0], op[0],
 				new PriceKey(op[0], key.getPriceList(), key.getCurrency()),
 				key.getRecordHandling(),
-				null, null, 10000, 12100
+				null, null, 10000, 12100, superIndex
 			);
 		}
 	}
 
 	/**
 	 * Applies the planned additions then removals to the ref index — the transaction body shared by the commit and
-	 * rollback proofs.
+	 * rollback proofs. The `superIndex` is the GLOBAL price index backing `index`; the ref index resolves each
+	 * combination's super index out of it and verifies the wiring identity on every mutation.
 	 */
 	private static void applyPlannedOps(
 		@Nonnull PriceRefIndex index,
+		@Nonnull PriceSuperIndex superIndex,
 		@Nonnull PriceIndexKey[] keys,
 		@Nonnull List<int[]> addOps,
 		@Nonnull List<int[]> removeOps
@@ -372,7 +374,7 @@ class LongRunningPriceRefIndexTest implements TimeBoundedTestSupport {
 				null, op[0], op[0],
 				new PriceKey(op[0], key.getPriceList(), key.getCurrency()),
 				key.getRecordHandling(),
-				null, null, 10000, 12100
+				null, null, 10000, 12100, superIndex
 			);
 		}
 		for (final int[] op : removeOps) {
@@ -381,7 +383,7 @@ class LongRunningPriceRefIndexTest implements TimeBoundedTestSupport {
 				null, op[0], op[0],
 				new PriceKey(op[0], key.getPriceList(), key.getCurrency()),
 				key.getRecordHandling(),
-				null, null, 10000, 12100
+				null, null, 10000, 12100, superIndex
 			);
 		}
 	}

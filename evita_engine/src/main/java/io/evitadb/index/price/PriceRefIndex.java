@@ -34,8 +34,8 @@ import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.Scope;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.EntityIndexKey;
-import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.map.TransactionalMap;
 import io.evitadb.index.price.PriceListAndCurrencyPriceIndex.PriceListAndCurrencyPriceIndexTerminated;
 import io.evitadb.index.price.PriceRefIndex.PriceIndexChanges;
@@ -43,7 +43,6 @@ import io.evitadb.index.price.model.PriceIndexKey;
 import io.evitadb.index.price.model.entityPrices.EntityPrices;
 import io.evitadb.index.price.model.priceRecord.PriceRecord;
 import io.evitadb.index.price.model.priceRecord.PriceRecordContract;
-import io.evitadb.utils.Assert;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
@@ -85,17 +84,6 @@ public class PriceRefIndex extends AbstractPriceIndex<PriceListAndCurrencyPriceR
 	 * and currency combination.
 	 */
 	@Getter protected final TransactionalMap<PriceIndexKey, PriceListAndCurrencyPriceRefIndex> priceIndexes;
-	/**
-	 * Resolver that maps a {@link PriceIndexKey} to the memory-expensive
-	 * {@link PriceListAndCurrencyPriceSuperIndex} that backs each reduced ref index. The owning entity collection wires
-	 * it in through {@link #wireSuperIndexes(Function)}, and in production always supplies a {@link SuperIndexResolver}
-	 * that closes over the collection's own {@link GlobalEntityIndex} — no {@link io.evitadb.core.catalog.Catalog} nor
-	 * owning-collection back-reference is retained. It is used to wire newly created per-price-list ref indexes to the
-	 * shared price record instances. The field is typed as a bare {@link Function} only so unit tests can wire a stub
-	 * resolver directly; the concrete {@link SuperIndexResolver} keeps its captured GLOBAL inspectable for the
-	 * carry-by-reference identity check.
-	 */
-	private Function<PriceIndexKey, PriceListAndCurrencyPriceSuperIndex> superIndexResolver;
 
 	public PriceRefIndex(@Nonnull Scope scope) {
 		this.scope = scope;
@@ -111,46 +99,20 @@ public class PriceRefIndex extends AbstractPriceIndex<PriceListAndCurrencyPriceR
 	}
 
 	/**
-	 * Wires the resolver that this index uses to obtain the {@link PriceListAndCurrencyPriceSuperIndex} for each
-	 * price-list / currency combination, and immediately wires every already-present combination index to its super
-	 * index. Called by the owning entity collection, which resolves super indexes from its own
-	 * {@link GlobalEntityIndex} (same scope, same collection) instead of routing through the catalog.
+	 * Reconstructs the price-record trees of every combination index that was **deserialized from disk**, pointing them
+	 * at the shared {@link io.evitadb.index.price.model.priceRecord.PriceRecord} instances held by the matching super
+	 * index of the passed GLOBAL price index.
 	 *
-	 * @param superIndexResolver maps a {@link PriceIndexKey} to the super price index backing that combination
+	 * This is the only remaining reason a reduced price index has to be told about the GLOBAL at attach time, and it is
+	 * about load correctness, not about version wiring: a ref index persists just its price ids and validity, so a disk
+	 * load leaves its record tree empty and unusable until it is repointed at the heap instances. Every other attach
+	 * path arrives with the trees already populated and is a no-op here.
+	 *
+	 * @param superPriceIndex the price index of the owning collection's GLOBAL entity index of this index's scope
 	 */
-	public void wireSuperIndexes(@Nonnull Function<PriceIndexKey, PriceListAndCurrencyPriceSuperIndex> superIndexResolver) {
-		Assert.isPremiseValid(this.superIndexResolver == null, "Super index resolver was already wired to this index!");
-		this.superIndexResolver = superIndexResolver;
-		// wire every existing combination index to its super index
-		this.priceIndexes.values().forEach(it -> it.wireSuperIndex(superIndexResolver.apply(it.getPriceIndexKey())));
-	}
-
-	/**
-	 * Wires this index's price ref chain to the super price indexes held by the given {@link GlobalEntityIndex}, or —
-	 * when the chain was already wired and this index was carried across a catalog version **by reference** — verifies
-	 * that the captured GLOBAL is still this version's GLOBAL instead of re-wiring (the single-assign guard in
-	 * {@link #wireSuperIndexes(Function)} forbids a second wire).
-	 *
-	 * A carried reduced index keeps the {@link SuperIndexResolver} it was originally wired with; because the
-	 * clean-collection copy carries the GLOBAL entity index by reference in the very same step, that captured GLOBAL
-	 * must be identity-equal to the one resolved for the new version. A mismatch means a stale super-index pointer
-	 * survived a version bump — surface it here, at attach time, rather than letting a query read a retired version's
-	 * super price index.
-	 *
-	 * @param globalIndex the GLOBAL entity index of this reduced index's scope, owning the backing super price indexes
-	 */
-	public void wireOrVerifySuperIndexes(@Nonnull GlobalEntityIndex globalIndex) {
-		if (this.superIndexResolver == null) {
-			// fresh (re-shelled on disk load, lazily created, or merged) index: wire its price ref chain for the first time
-			wireSuperIndexes(new SuperIndexResolver(globalIndex));
-		} else {
-			// carried-by-reference index: prove its existing wiring still points at the current version's GLOBAL entity
-			// index rather than silently skipping — GLOBAL identity is a strict superset of per-combo super identity
-			// (any dirty combo yields a new combo instance, hence a changed combo map, hence a new GLOBAL)
-			Assert.isPremiseValid(
-				this.superIndexResolver instanceof SuperIndexResolver sir && sir.globalIndex() == globalIndex,
-				"Carried price ref index is wired to a stale GLOBAL entity index (expected the current version's GLOBAL)!"
-			);
+	public void restorePriceRecords(@Nonnull PriceSuperIndex superPriceIndex) {
+		for (final PriceListAndCurrencyPriceRefIndex refIndex : this.priceIndexes.values()) {
+			refIndex.restorePriceRecordsFrom(superPriceIndex.getPriceIndexOrThrow(refIndex.getPriceIndexKey()));
 		}
 	}
 
@@ -186,9 +148,15 @@ public class PriceRefIndex extends AbstractPriceIndex<PriceListAndCurrencyPriceR
 	 */
 
 	@Nonnull
-	protected PriceListAndCurrencyPriceRefIndex createNewPriceListAndCurrencyIndex(@Nonnull PriceIndexKey lookupKey) {
+	protected PriceListAndCurrencyPriceRefIndex createNewPriceListAndCurrencyIndex(
+		@Nonnull PriceIndexKey lookupKey,
+		@Nonnull PriceSuperIndex superPriceIndex
+	) {
+		// a freshly created combination index starts with an empty (but present) record tree, so there is nothing to
+		// restore from the super index - it is resolved per operation instead. The lookup is still performed, because
+		// a reduced combination must never come into existence without the super index that backs it.
+		superPriceIndex.getPriceIndexOrThrow(lookupKey);
 		final PriceListAndCurrencyPriceRefIndex newPriceListIndex = new PriceListAndCurrencyPriceRefIndex(this.scope, lookupKey);
-		newPriceListIndex.wireSuperIndex(this.superIndexResolver.apply(lookupKey));
 		ofNullable(Transaction.getOrCreateTransactionalMemoryLayer(this))
 			.ifPresent(it -> it.addCreatedItem(newPriceListIndex));
 		return newPriceListIndex;
@@ -211,9 +179,12 @@ public class PriceRefIndex extends AbstractPriceIndex<PriceListAndCurrencyPriceR
 		@Nullable Integer innerRecordId,
 		@Nullable DateTimeRange validity,
 		int priceWithoutTax,
-		int priceWithTax
+		int priceWithTax,
+		@Nonnull PriceSuperIndex superPriceIndex
 	) {
-		final PriceRecordContract priceRecord = priceListIndex.addPrice(internalPriceId, validity);
+		final PriceRecordContract priceRecord = priceListIndex.addPrice(
+			internalPriceId, validity, superPriceIndex.getPriceIndexOrThrow(priceListIndex.getPriceIndexKey())
+		);
 		return priceRecord.internalPriceId();
 	}
 
@@ -226,13 +197,79 @@ public class PriceRefIndex extends AbstractPriceIndex<PriceListAndCurrencyPriceR
 		@Nullable Integer innerRecordId,
 		@Nullable DateTimeRange validity,
 		int priceWithoutTax,
-		int priceWithTax
+		int priceWithTax,
+		@Nonnull PriceSuperIndex superPriceIndex
 	) {
+		final PriceIndexKey lookupKey = priceListIndex.getPriceIndexKey();
+		// Removing the last price of a combination drops its super index from the combo map AND terminates it - and if
+		// the same transaction then adds a price back (which is exactly what a price UPDATE does: remove former, add
+		// new), the combination is recreated as a DIFFERENT super index instance. All three shapes are observable here
+		// depending on where in that sequence this removal lands, and all three mean the same thing: the shared records
+		// this reduced index only references are gone, so it cannot outlive them. It is dropped, and the add that
+		// follows recreates it against the current super index.
+		//   - gone from the map      -> the nullable combination lookup below
+		//   - mapped but terminated  -> the catch below
+		//   - already replaced       -> the record lookup below comes back empty
+		// The first two shapes positively identify themselves - a combination that is gone or terminated backs nothing
+		// at all. The third does not: it looks identical to a bookkeeping defect that left one dangling id behind in
+		// an otherwise-live index, and it cannot be recognised by comparing super-index instances any more, because
+		// the reduced index no longer keeps a pointer to compare against. It is therefore the only one that has to
+		// prove itself before the index is discarded - see assertNothingLiveWouldBeLost.
+		final PriceListAndCurrencyPriceSuperIndex superIndex = superPriceIndex.getPriceIndex(lookupKey);
+		if (superIndex == null) {
+			removeExistingIndex(lookupKey, priceListIndex);
+			return;
+		}
 		try {
-			priceListIndex.removePrice(internalPriceId, validity);
+			if (superIndex.getPriceRecordIfPresent(internalPriceId) == null) {
+				assertNothingLiveWouldBeLost(superIndex, priceListIndex, internalPriceId);
+				removeExistingIndex(lookupKey, priceListIndex);
+				return;
+			}
+			priceListIndex.removePrice(internalPriceId, validity, superIndex);
 		} catch (PriceListAndCurrencyPriceIndexTerminated ex) {
 			// when super index was removed the referencing index must be removed as well
-			removeExistingIndex(priceListIndex.getPriceIndexKey(), priceListIndex);
+			removeExistingIndex(lookupKey, priceListIndex);
+		}
+	}
+
+	/**
+	 * Verifies that discarding `priceListIndex` cannot lose a price that is still live in the GLOBAL index.
+	 *
+	 * This guards the one ambiguous shape in {@link #removePrice}: the combination is present and healthy in the GLOBAL
+	 * index, yet the record being removed is not in it. The benign explanation is that the GLOBAL - which runs ahead of
+	 * the reduced indexes on an indexed upsert - already moved this entity's prices out of the combination, leaving
+	 * every record this reduced index references behind; discarding it is then the only correct outcome. The other
+	 * explanation is a bookkeeping defect that left a single dangling id in an otherwise-live index, and discarding it
+	 * there would silently unindex every other price it holds.
+	 *
+	 * The two are told apart by the records themselves rather than by index identity: under the benign explanation
+	 * nothing this index references survives in the combination, so a single surviving record proves the drop is
+	 * unwarranted. Only reachable from the ambiguous shape, which the price-tagged functional suite exercises once
+	 * across a thousand tests, so the linear probe costs nothing in practice.
+	 *
+	 * @param superIndex     the live GLOBAL combination index the reduced index is checked against
+	 * @param priceListIndex the reduced combination index that is about to be discarded
+	 * @param internalPriceId the internal id of the price whose removal triggered the check
+	 */
+	private static void assertNothingLiveWouldBeLost(
+		@Nonnull PriceListAndCurrencyPriceSuperIndex superIndex,
+		@Nonnull PriceListAndCurrencyPriceRefIndex priceListIndex,
+		int internalPriceId
+	) {
+		if (priceListIndex.isTerminated()) {
+			// a terminated index holds nothing anyone can still reach
+			return;
+		}
+		for (final int indexedPriceId : priceListIndex.getIndexedPriceIds()) {
+			if (indexedPriceId != internalPriceId && superIndex.getPriceRecordIfPresent(indexedPriceId) != null) {
+				throw new GenericEvitaInternalError(
+					"Reduced price index " + priceListIndex.getPriceIndexKey() + " would be discarded because " +
+						"internal price id " + internalPriceId + " is missing from the GLOBAL index, but internal " +
+						"price id " + indexedPriceId + " it also indexes is still live there - dropping it now would " +
+						"silently unindex a price that still exists!"
+				);
+			}
 		}
 	}
 

@@ -95,7 +95,7 @@ class PriceSuperIndexTest implements TimeBoundedTestSupport {
 
 			assertArrayEquals(new int[]{1, 2}, priceAndCurrencyIndex.getIndexedPriceEntityIds().getArray());
 			assertArrayEquals(new int[]{1, 2}, priceAndCurrencyIndex.getIndexedRecordIdsValidInFormula(OffsetDateTime.now()).compute().getArray());
-			assertArrayEquals(new int[]{1, 2}, priceAndCurrencyIndex.createPriceIndexFormulaWithAllRecords().compute().getArray());
+			assertArrayEquals(new int[]{1, 2}, priceAndCurrencyIndex.createPriceIndexFormulaWithAllRecords(PriceSuperIndexTest.this.priceIndex).compute().getArray());
 		}
 
 		@Test
@@ -104,8 +104,8 @@ class PriceSuperIndexTest implements TimeBoundedTestSupport {
 			final DateTimeRange validity1 = DateTimeRange.between(OffsetDateTime.now().minusMinutes(10), OffsetDateTime.now().plusMinutes(10));
 			final DateTimeRange validity2 = DateTimeRange.between(OffsetDateTime.now().plusHours(1).minusMinutes(10), OffsetDateTime.now().plusHours(1).plusMinutes(10));
 
-			PriceSuperIndexTest.this.priceIndex.addPrice(null, 1, 1, new PriceKey(10, PRICE_LIST, CURRENCY_CZK), PriceInnerRecordHandling.NONE, null, validity1, 1000, 1210);
-			PriceSuperIndexTest.this.priceIndex.addPrice(null, 2, 2, new PriceKey(11, PRICE_LIST, CURRENCY_CZK), PriceInnerRecordHandling.NONE, null, validity2, 999, 2000);
+			PriceSuperIndexTest.this.priceIndex.addPrice(null, 1, 1, new PriceKey(10, PRICE_LIST, CURRENCY_CZK), PriceInnerRecordHandling.NONE, null, validity1, 1000, 1210, PriceSuperIndexTest.this.priceIndex);
+			PriceSuperIndexTest.this.priceIndex.addPrice(null, 2, 2, new PriceKey(11, PRICE_LIST, CURRENCY_CZK), PriceInnerRecordHandling.NONE, null, validity2, 999, 2000, PriceSuperIndexTest.this.priceIndex);
 			final PriceListAndCurrencyPriceSuperIndex priceAndCurrencyIndex = PriceSuperIndexTest.this.priceIndex.getPriceIndex(PRICE_LIST, CURRENCY_CZK, PriceInnerRecordHandling.NONE);
 			assertNotNull(priceAndCurrencyIndex);
 			assertFalse(priceAndCurrencyIndex.isEmpty());
@@ -135,7 +135,7 @@ class PriceSuperIndexTest implements TimeBoundedTestSupport {
 
 			assertArrayEquals(new int[]{1}, priceAndCurrencyIndex.getIndexedPriceEntityIds().getArray());
 			assertArrayEquals(new int[]{1, 2}, priceAndCurrencyIndex.getIndexedRecordIdsValidInFormula(OffsetDateTime.now()).compute().getArray());
-			assertArrayEquals(new int[]{1}, priceAndCurrencyIndex.createPriceIndexFormulaWithAllRecords().compute().getArray());
+			assertArrayEquals(new int[]{1}, priceAndCurrencyIndex.createPriceIndexFormulaWithAllRecords(PriceSuperIndexTest.this.priceIndex).compute().getArray());
 		}
 
 		@Test
@@ -159,7 +159,7 @@ class PriceSuperIndexTest implements TimeBoundedTestSupport {
 
 			assertArrayEquals(new int[]{1}, priceAndCurrencyIndex.getIndexedPriceEntityIds().getArray());
 			assertArrayEquals(new int[]{1, 2}, priceAndCurrencyIndex.getIndexedRecordIdsValidInFormula(OffsetDateTime.now()).compute().getArray());
-			assertArrayEquals(new int[]{1}, priceAndCurrencyIndex.createPriceIndexFormulaWithAllRecords().compute().getArray());
+			assertArrayEquals(new int[]{1}, priceAndCurrencyIndex.createPriceIndexFormulaWithAllRecords(PriceSuperIndexTest.this.priceIndex).compute().getArray());
 		}
 	}
 
@@ -172,7 +172,7 @@ class PriceSuperIndexTest implements TimeBoundedTestSupport {
 		void shouldRemoveStandardPrice() {
 			addStandardPrices();
 
-			PriceSuperIndexTest.this.priceIndex.priceRemove(null, 1, 1, new PriceKey(10, PRICE_LIST, CURRENCY_CZK), PriceInnerRecordHandling.NONE, 1, null, 1000, 1210);
+			PriceSuperIndexTest.this.priceIndex.priceRemove(null, 1, 1, new PriceKey(10, PRICE_LIST, CURRENCY_CZK), PriceInnerRecordHandling.NONE, 1, null, 1000, 1210, PriceSuperIndexTest.this.priceIndex);
 
 			final PriceListAndCurrencyPriceSuperIndex priceAndCurrencyIndex = PriceSuperIndexTest.this.priceIndex.getPriceIndex(PRICE_LIST, CURRENCY_CZK, PriceInnerRecordHandling.NONE);
 			assertNotNull(priceAndCurrencyIndex);
@@ -188,9 +188,9 @@ class PriceSuperIndexTest implements TimeBoundedTestSupport {
 
 			assertArrayEquals(new int[]{2}, priceAndCurrencyIndex.getIndexedPriceEntityIds().getArray());
 			assertArrayEquals(new int[]{2}, priceAndCurrencyIndex.getIndexedRecordIdsValidInFormula(OffsetDateTime.now()).compute().getArray());
-			assertArrayEquals(new int[]{2}, priceAndCurrencyIndex.createPriceIndexFormulaWithAllRecords().compute().getArray());
+			assertArrayEquals(new int[]{2}, priceAndCurrencyIndex.createPriceIndexFormulaWithAllRecords(PriceSuperIndexTest.this.priceIndex).compute().getArray());
 
-			PriceSuperIndexTest.this.priceIndex.priceRemove(null, 2, 2, new PriceKey(11, PRICE_LIST, CURRENCY_CZK), PriceInnerRecordHandling.NONE, 2, null, 999, 2000);
+			PriceSuperIndexTest.this.priceIndex.priceRemove(null, 2, 2, new PriceKey(11, PRICE_LIST, CURRENCY_CZK), PriceInnerRecordHandling.NONE, 2, null, 999, 2000, PriceSuperIndexTest.this.priceIndex);
 			assertNull(PriceSuperIndexTest.this.priceIndex.getPriceIndex(PRICE_LIST, CURRENCY_CZK, PriceInnerRecordHandling.NONE));
 		}
 
@@ -199,7 +199,7 @@ class PriceSuperIndexTest implements TimeBoundedTestSupport {
 		void shouldRemoveFirstOccurrencePrice() {
 			addLowestPricePrices();
 
-			PriceSuperIndexTest.this.priceIndex.priceRemove(null, 1, 1, new PriceKey(10, PRICE_LIST, CURRENCY_CZK), PriceInnerRecordHandling.LOWEST_PRICE, 1, null, 1000, 1210);
+			PriceSuperIndexTest.this.priceIndex.priceRemove(null, 1, 1, new PriceKey(10, PRICE_LIST, CURRENCY_CZK), PriceInnerRecordHandling.LOWEST_PRICE, 1, null, 1000, 1210, PriceSuperIndexTest.this.priceIndex);
 
 			final PriceListAndCurrencyPriceSuperIndex priceAndCurrencyIndex = PriceSuperIndexTest.this.priceIndex.getPriceIndex(PRICE_LIST, CURRENCY_CZK, PriceInnerRecordHandling.LOWEST_PRICE);
 			assertNotNull(priceAndCurrencyIndex);
@@ -215,9 +215,9 @@ class PriceSuperIndexTest implements TimeBoundedTestSupport {
 
 			assertArrayEquals(new int[]{1}, priceAndCurrencyIndex.getIndexedPriceEntityIds().getArray());
 			assertArrayEquals(new int[]{2}, priceAndCurrencyIndex.getIndexedRecordIdsValidInFormula(OffsetDateTime.now()).compute().getArray());
-			assertArrayEquals(new int[]{1}, priceAndCurrencyIndex.createPriceIndexFormulaWithAllRecords().compute().getArray());
+			assertArrayEquals(new int[]{1}, priceAndCurrencyIndex.createPriceIndexFormulaWithAllRecords(PriceSuperIndexTest.this.priceIndex).compute().getArray());
 
-			PriceSuperIndexTest.this.priceIndex.priceRemove(null, 1, 2, new PriceKey(11, PRICE_LIST, CURRENCY_CZK), PriceInnerRecordHandling.LOWEST_PRICE, 2, null, 999, 2000);
+			PriceSuperIndexTest.this.priceIndex.priceRemove(null, 1, 2, new PriceKey(11, PRICE_LIST, CURRENCY_CZK), PriceInnerRecordHandling.LOWEST_PRICE, 2, null, 999, 2000, PriceSuperIndexTest.this.priceIndex);
 			assertNull(PriceSuperIndexTest.this.priceIndex.getPriceIndex(PRICE_LIST, CURRENCY_CZK, PriceInnerRecordHandling.LOWEST_PRICE));
 		}
 
@@ -226,7 +226,7 @@ class PriceSuperIndexTest implements TimeBoundedTestSupport {
 		void shouldRemoveSumPrice() {
 			addSumPrices();
 
-			PriceSuperIndexTest.this.priceIndex.priceRemove(null, 1, 1, new PriceKey(10, PRICE_LIST, CURRENCY_CZK), PriceInnerRecordHandling.SUM, 1, null, 1000, 1210);
+			PriceSuperIndexTest.this.priceIndex.priceRemove(null, 1, 1, new PriceKey(10, PRICE_LIST, CURRENCY_CZK), PriceInnerRecordHandling.SUM, 1, null, 1000, 1210, PriceSuperIndexTest.this.priceIndex);
 
 			final PriceListAndCurrencyPriceSuperIndex priceAndCurrencyIndex = PriceSuperIndexTest.this.priceIndex.getPriceIndex(PRICE_LIST, CURRENCY_CZK, PriceInnerRecordHandling.SUM);
 			assertNotNull(priceAndCurrencyIndex);
@@ -242,9 +242,9 @@ class PriceSuperIndexTest implements TimeBoundedTestSupport {
 
 			assertArrayEquals(new int[]{1}, priceAndCurrencyIndex.getIndexedPriceEntityIds().getArray());
 			assertArrayEquals(new int[]{2}, priceAndCurrencyIndex.getIndexedRecordIdsValidInFormula(OffsetDateTime.now()).compute().getArray());
-			assertArrayEquals(new int[]{1}, priceAndCurrencyIndex.createPriceIndexFormulaWithAllRecords().compute().getArray());
+			assertArrayEquals(new int[]{1}, priceAndCurrencyIndex.createPriceIndexFormulaWithAllRecords(PriceSuperIndexTest.this.priceIndex).compute().getArray());
 
-			PriceSuperIndexTest.this.priceIndex.priceRemove(null, 1, 2, new PriceKey(11, PRICE_LIST, CURRENCY_CZK), PriceInnerRecordHandling.SUM, 2, null, 999, 2000);
+			PriceSuperIndexTest.this.priceIndex.priceRemove(null, 1, 2, new PriceKey(11, PRICE_LIST, CURRENCY_CZK), PriceInnerRecordHandling.SUM, 2, null, 999, 2000, PriceSuperIndexTest.this.priceIndex);
 			assertNull(PriceSuperIndexTest.this.priceIndex.getPriceIndex(PRICE_LIST, CURRENCY_CZK, PriceInnerRecordHandling.SUM));
 		}
 	}
@@ -259,8 +259,8 @@ class PriceSuperIndexTest implements TimeBoundedTestSupport {
 			final DateTimeRange validity1 = DateTimeRange.between(now.minusHours(1), now.plusHours(1));
 			final DateTimeRange validity2 = DateTimeRange.between(now.minusMinutes(30), now.plusMinutes(30));
 
-			PriceSuperIndexTest.this.priceIndex.addPrice(null, 1, 1, new PriceKey(10, PRICE_LIST, CURRENCY_CZK), PriceInnerRecordHandling.NONE, null, validity1, 1000, 1210);
-			PriceSuperIndexTest.this.priceIndex.addPrice(null, 2, 2, new PriceKey(11, PRICE_LIST, CURRENCY_CZK), PriceInnerRecordHandling.NONE, null, validity2, 999, 2000);
+			PriceSuperIndexTest.this.priceIndex.addPrice(null, 1, 1, new PriceKey(10, PRICE_LIST, CURRENCY_CZK), PriceInnerRecordHandling.NONE, null, validity1, 1000, 1210, PriceSuperIndexTest.this.priceIndex);
+			PriceSuperIndexTest.this.priceIndex.addPrice(null, 2, 2, new PriceKey(11, PRICE_LIST, CURRENCY_CZK), PriceInnerRecordHandling.NONE, null, validity2, 999, 2000, PriceSuperIndexTest.this.priceIndex);
 			final PriceListAndCurrencyPriceSuperIndex priceAndCurrencyIndex = PriceSuperIndexTest.this.priceIndex.getPriceIndex(PRICE_LIST, CURRENCY_CZK, PriceInnerRecordHandling.NONE);
 			assertNotNull(priceAndCurrencyIndex);
 
@@ -279,8 +279,8 @@ class PriceSuperIndexTest implements TimeBoundedTestSupport {
 			final DateTimeRange validity1 = DateTimeRange.between(now.minusHours(1), now.plusHours(1));
 			final DateTimeRange validity2 = DateTimeRange.between(now.minusMinutes(30), now.plusMinutes(30));
 
-			PriceSuperIndexTest.this.priceIndex.addPrice(null, 1, 1, new PriceKey(10, PRICE_LIST, CURRENCY_CZK), PriceInnerRecordHandling.NONE, null, validity1, 1000, 1210);
-			PriceSuperIndexTest.this.priceIndex.addPrice(null, 2, 2, new PriceKey(11, PRICE_LIST, CURRENCY_CZK), PriceInnerRecordHandling.NONE, null, validity2, 999, 2000);
+			PriceSuperIndexTest.this.priceIndex.addPrice(null, 1, 1, new PriceKey(10, PRICE_LIST, CURRENCY_CZK), PriceInnerRecordHandling.NONE, null, validity1, 1000, 1210, PriceSuperIndexTest.this.priceIndex);
+			PriceSuperIndexTest.this.priceIndex.addPrice(null, 2, 2, new PriceKey(11, PRICE_LIST, CURRENCY_CZK), PriceInnerRecordHandling.NONE, null, validity2, 999, 2000, PriceSuperIndexTest.this.priceIndex);
 			final PriceListAndCurrencyPriceSuperIndex priceAndCurrencyIndex = PriceSuperIndexTest.this.priceIndex.getPriceIndex(PRICE_LIST, CURRENCY_CZK, PriceInnerRecordHandling.NONE);
 			assertNotNull(priceAndCurrencyIndex);
 
@@ -365,7 +365,8 @@ class PriceSuperIndexTest implements TimeBoundedTestSupport {
 						null, 1, 1,
 						new PriceKey(10, PRICE_LIST, CURRENCY_CZK),
 						PriceInnerRecordHandling.NONE,
-						null, null, 1000, 1210
+						null, null, 1000, 1210,
+						original
 					);
 				},
 				(original, committed) -> {
@@ -389,14 +390,16 @@ class PriceSuperIndexTest implements TimeBoundedTestSupport {
 						null, 1, 1,
 						new PriceKey(10, PRICE_LIST, CURRENCY_CZK),
 						PriceInnerRecordHandling.NONE,
-						null, null, 1000, 1210
+						null, null, 1000, 1210,
+						original
 					);
 					// remove it in the same transaction
 					original.priceRemove(
 						null, 1, 1,
 						new PriceKey(10, PRICE_LIST, CURRENCY_CZK),
 						PriceInnerRecordHandling.NONE,
-						null, null, 1000, 1210
+						null, null, 1000, 1210,
+						original
 					);
 				},
 				(original, committed) -> {
@@ -423,7 +426,8 @@ class PriceSuperIndexTest implements TimeBoundedTestSupport {
 						null, 1, 1,
 						new PriceKey(10, PRICE_LIST, CURRENCY_CZK),
 						PriceInnerRecordHandling.NONE,
-						20, null, 1000, 1210
+						20, null, 1000, 1210,
+						original
 					);
 				},
 				(original, committed) -> {
@@ -449,7 +453,8 @@ class PriceSuperIndexTest implements TimeBoundedTestSupport {
 				null, 1, 1,
 				new PriceKey(10, PRICE_LIST, CURRENCY_CZK),
 				PriceInnerRecordHandling.NONE,
-				null, null, 1000, 1210
+				null, null, 1000, 1210,
+				tested
 			);
 
 			assertStateAfterCommit(
@@ -459,7 +464,8 @@ class PriceSuperIndexTest implements TimeBoundedTestSupport {
 						null, 1, 1,
 						new PriceKey(10, PRICE_LIST, CURRENCY_CZK),
 						PriceInnerRecordHandling.NONE,
-						null, null, 1000, 1210
+						null, null, 1000, 1210,
+						original
 					);
 				},
 				(original, committed) -> {
@@ -484,7 +490,8 @@ class PriceSuperIndexTest implements TimeBoundedTestSupport {
 						null, 1, 1,
 						new PriceKey(10, PRICE_LIST, CURRENCY_CZK),
 						PriceInnerRecordHandling.NONE,
-						null, null, 1000, 1210
+						null, null, 1000, 1210,
+						original
 					);
 				},
 				(original, committed) -> {
@@ -508,13 +515,15 @@ class PriceSuperIndexTest implements TimeBoundedTestSupport {
 						null, 1, 1,
 						new PriceKey(10, PRICE_LIST, CURRENCY_CZK),
 						PriceInnerRecordHandling.NONE,
-						20, null, 1000, 1210
+						20, null, 1000, 1210,
+						original
 					);
 					original.addPrice(
 						null, 2, 2,
 						new PriceKey(11, PRICE_LIST, CURRENCY_CZK),
 						PriceInnerRecordHandling.NONE,
-						21, null, 500, 605
+						21, null, 500, 605,
+						original
 					);
 				},
 				(original, committed) -> {
@@ -540,7 +549,8 @@ class PriceSuperIndexTest implements TimeBoundedTestSupport {
 				null, 1, 1,
 				new PriceKey(10, PRICE_LIST, CURRENCY_CZK),
 				PriceInnerRecordHandling.NONE,
-				null, null, 1000, 1210
+				null, null, 1000, 1210,
+				tested
 			);
 
 			assertStateAfterCommit(
@@ -574,7 +584,8 @@ class PriceSuperIndexTest implements TimeBoundedTestSupport {
 						null, 1, 1,
 						new PriceKey(10, PRICE_LIST, CURRENCY_CZK),
 						PriceInnerRecordHandling.NONE,
-						null, null, 1000, 1210
+						null, null, 1000, 1210,
+						original
 					);
 				},
 				(original, committed) -> {
@@ -594,7 +605,8 @@ class PriceSuperIndexTest implements TimeBoundedTestSupport {
 				null, 1, 1,
 				new PriceKey(10, PRICE_LIST, CURRENCY_CZK),
 				PriceInnerRecordHandling.NONE,
-				20, null, 1000, 1210
+				20, null, 1000, 1210,
+				tested
 			);
 
 			assertStateAfterRollback(
@@ -604,7 +616,8 @@ class PriceSuperIndexTest implements TimeBoundedTestSupport {
 						null, 1, 1,
 						new PriceKey(10, PRICE_LIST, CURRENCY_CZK),
 						PriceInnerRecordHandling.NONE,
-						20, null, 1000, 1210
+						20, null, 1000, 1210,
+						original
 					);
 				},
 				(original, committed) -> {
@@ -632,7 +645,8 @@ class PriceSuperIndexTest implements TimeBoundedTestSupport {
 				null, 1, 1,
 				new PriceKey(10, PRICE_LIST, CURRENCY_CZK),
 				PriceInnerRecordHandling.NONE,
-				null, null, 1000, 1210
+				null, null, 1000, 1210,
+				tested
 			);
 
 			final PriceListAndCurrencyPriceSuperIndex subIndex =
@@ -683,13 +697,15 @@ class PriceSuperIndexTest implements TimeBoundedTestSupport {
 				null, 1, 1,
 				new PriceKey(10, PRICE_LIST, CURRENCY_CZK),
 				PriceInnerRecordHandling.NONE,
-				null, null, 1000, 1210
+				null, null, 1000, 1210,
+				tested
 			);
 			tested.addPrice(
 				null, 2, 2,
 				new PriceKey(11, "vip", CURRENCY_CZK),
 				PriceInnerRecordHandling.NONE,
-				null, null, 500, 605
+				null, null, 500, 605,
+				tested
 			);
 
 			final Collection<? extends PriceListAndCurrencyPriceIndex> indexes =
@@ -706,13 +722,15 @@ class PriceSuperIndexTest implements TimeBoundedTestSupport {
 				null, 1, 1,
 				new PriceKey(10, PRICE_LIST, CURRENCY_CZK),
 				PriceInnerRecordHandling.NONE,
-				null, null, 1000, 1210
+				null, null, 1000, 1210,
+				tested
 			);
 			tested.addPrice(
 				null, 2, 2,
 				new PriceKey(11, PRICE_LIST, eurCurrency),
 				PriceInnerRecordHandling.NONE,
-				null, null, 500, 605
+				null, null, 500, 605,
+				tested
 			);
 
 			final long czkCount = tested.getPriceIndexesStream(
@@ -734,13 +752,15 @@ class PriceSuperIndexTest implements TimeBoundedTestSupport {
 				null, 1, 1,
 				new PriceKey(10, PRICE_LIST, CURRENCY_CZK),
 				PriceInnerRecordHandling.NONE,
-				null, null, 1000, 1210
+				null, null, 1000, 1210,
+				tested
 			);
 			tested.addPrice(
 				null, 2, 2,
 				new PriceKey(11, "vip", CURRENCY_CZK),
 				PriceInnerRecordHandling.NONE,
-				null, null, 500, 605
+				null, null, 500, 605,
+				tested
 			);
 
 			final long basicCount = tested.getPriceIndexesStream(
@@ -764,7 +784,8 @@ class PriceSuperIndexTest implements TimeBoundedTestSupport {
 				null, 1, 1,
 				new PriceKey(10, PRICE_LIST, CURRENCY_CZK),
 				PriceInnerRecordHandling.NONE,
-				null, null, 1000, 1210
+				null, null, 1000, 1210,
+				tested
 			);
 			assertFalse(tested.isPriceIndexEmpty());
 		}
@@ -777,7 +798,8 @@ class PriceSuperIndexTest implements TimeBoundedTestSupport {
 				null, 1, 1,
 				new PriceKey(10, PRICE_LIST, CURRENCY_CZK),
 				PriceInnerRecordHandling.NONE,
-				null, null, 1000, 1210
+				null, null, 1000, 1210,
+				tested
 			);
 
 			final PriceListAndCurrencyPriceSuperIndex subIndex =
@@ -802,19 +824,22 @@ class PriceSuperIndexTest implements TimeBoundedTestSupport {
 				null, 1, 1,
 				new PriceKey(10, PRICE_LIST, CURRENCY_CZK),
 				PriceInnerRecordHandling.NONE,
-				null, null, 1000, 1210
+				null, null, 1000, 1210,
+				tested
 			);
 			tested.addPrice(
 				null, 2, 2,
 				new PriceKey(11, PRICE_LIST, eurCurrency),
 				PriceInnerRecordHandling.NONE,
-				null, null, 500, 605
+				null, null, 500, 605,
+				tested
 			);
 			tested.addPrice(
 				null, 3, 3,
 				new PriceKey(12, PRICE_LIST, usdCurrency),
 				PriceInnerRecordHandling.NONE,
-				null, null, 200, 242
+				null, null, 200, 242,
+				tested
 			);
 
 			assertNotNull(tested.getPriceIndex(PRICE_LIST, CURRENCY_CZK, PriceInnerRecordHandling.NONE));
@@ -832,19 +857,22 @@ class PriceSuperIndexTest implements TimeBoundedTestSupport {
 				null, 1, 1,
 				new PriceKey(10, PRICE_LIST, CURRENCY_CZK),
 				PriceInnerRecordHandling.NONE,
-				null, null, 1000, 1210
+				null, null, 1000, 1210,
+				tested
 			);
 			tested.addPrice(
 				null, 2, 2,
 				new PriceKey(11, PRICE_LIST, CURRENCY_CZK),
 				PriceInnerRecordHandling.LOWEST_PRICE,
-				20, null, 500, 605
+				20, null, 500, 605,
+				tested
 			);
 			tested.addPrice(
 				null, 3, 3,
 				new PriceKey(12, PRICE_LIST, CURRENCY_CZK),
 				PriceInnerRecordHandling.SUM,
-				30, null, 200, 242
+				30, null, 200, 242,
+				tested
 			);
 
 			assertNotNull(tested.getPriceIndex(PRICE_LIST, CURRENCY_CZK, PriceInnerRecordHandling.NONE));
@@ -864,7 +892,8 @@ class PriceSuperIndexTest implements TimeBoundedTestSupport {
 					null, 1, 1,
 					new PriceKey(10, "nonexistent", CURRENCY_CZK),
 					PriceInnerRecordHandling.NONE,
-					null, null, 1000, 1210
+					null, null, 1000, 1210,
+					tested
 				)
 			);
 		}
@@ -887,7 +916,8 @@ class PriceSuperIndexTest implements TimeBoundedTestSupport {
 				null, 1, 1,
 				new PriceKey(10, PRICE_LIST, CURRENCY_CZK),
 				PriceInnerRecordHandling.NONE,
-				null, null, 1000, 1210
+				null, null, 1000, 1210,
+				tested
 			);
 
 			final PriceIndexKey key = new PriceIndexKey(
@@ -907,7 +937,8 @@ class PriceSuperIndexTest implements TimeBoundedTestSupport {
 				null, 1, 1,
 				new PriceKey(10, PRICE_LIST, CURRENCY_CZK),
 				PriceInnerRecordHandling.NONE,
-				null, null, 1000, 1210
+				null, null, 1000, 1210,
+				tested
 			);
 
 			final PriceListAndCurrencyPriceSuperIndex subIndex =
@@ -919,7 +950,8 @@ class PriceSuperIndexTest implements TimeBoundedTestSupport {
 				null, 1, 1,
 				new PriceKey(10, PRICE_LIST, CURRENCY_CZK),
 				PriceInnerRecordHandling.NONE,
-				null, null, 1000, 1210
+				null, null, 1000, 1210,
+				tested
 			);
 
 			// sub-index is removed from map
@@ -940,8 +972,8 @@ class PriceSuperIndexTest implements TimeBoundedTestSupport {
 	 * Used as setup by both add and remove tests.
 	 */
 	private void addStandardPrices() {
-		this.priceIndex.addPrice(null, 1, 1, new PriceKey(10, PRICE_LIST, CURRENCY_CZK), PriceInnerRecordHandling.NONE, 20, null, 1000, 1210);
-		this.priceIndex.addPrice(null, 2, 2, new PriceKey(11, PRICE_LIST, CURRENCY_CZK), PriceInnerRecordHandling.NONE, 21, null, 999, 2000);
+		this.priceIndex.addPrice(null, 1, 1, new PriceKey(10, PRICE_LIST, CURRENCY_CZK), PriceInnerRecordHandling.NONE, 20, null, 1000, 1210, this.priceIndex);
+		this.priceIndex.addPrice(null, 2, 2, new PriceKey(11, PRICE_LIST, CURRENCY_CZK), PriceInnerRecordHandling.NONE, 21, null, 999, 2000, this.priceIndex);
 	}
 
 	/**
@@ -949,8 +981,8 @@ class PriceSuperIndexTest implements TimeBoundedTestSupport {
 	 * Used as setup by both add and remove tests.
 	 */
 	private void addLowestPricePrices() {
-		this.priceIndex.addPrice(null, 1, 1, new PriceKey(10, PRICE_LIST, CURRENCY_CZK), PriceInnerRecordHandling.LOWEST_PRICE, 20, null, 1000, 1210);
-		this.priceIndex.addPrice(null, 1, 2, new PriceKey(11, PRICE_LIST, CURRENCY_CZK), PriceInnerRecordHandling.LOWEST_PRICE, 21, null, 999, 2000);
+		this.priceIndex.addPrice(null, 1, 1, new PriceKey(10, PRICE_LIST, CURRENCY_CZK), PriceInnerRecordHandling.LOWEST_PRICE, 20, null, 1000, 1210, this.priceIndex);
+		this.priceIndex.addPrice(null, 1, 2, new PriceKey(11, PRICE_LIST, CURRENCY_CZK), PriceInnerRecordHandling.LOWEST_PRICE, 21, null, 999, 2000, this.priceIndex);
 	}
 
 	/**
@@ -958,8 +990,8 @@ class PriceSuperIndexTest implements TimeBoundedTestSupport {
 	 * Used as setup by both add and remove tests.
 	 */
 	private void addSumPrices() {
-		this.priceIndex.addPrice(null, 1, 1, new PriceKey(10, PRICE_LIST, CURRENCY_CZK), PriceInnerRecordHandling.SUM, 1, null, 1000, 1210);
-		this.priceIndex.addPrice(null, 1, 2, new PriceKey(11, PRICE_LIST, CURRENCY_CZK), PriceInnerRecordHandling.SUM, 2, null, 999, 2000);
+		this.priceIndex.addPrice(null, 1, 1, new PriceKey(10, PRICE_LIST, CURRENCY_CZK), PriceInnerRecordHandling.SUM, 1, null, 1000, 1210, this.priceIndex);
+		this.priceIndex.addPrice(null, 1, 2, new PriceKey(11, PRICE_LIST, CURRENCY_CZK), PriceInnerRecordHandling.SUM, 2, null, 999, 2000, this.priceIndex);
 	}
 
 	private void addPrice(

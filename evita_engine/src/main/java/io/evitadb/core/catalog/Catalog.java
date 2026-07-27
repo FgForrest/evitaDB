@@ -1587,6 +1587,7 @@ public final class Catalog
 
 	@Override
 	public DataStoreChanges createLayer() {
+		// no dirty-index-key capture: the catalog-level index map is merged whole, never pruned
 		return new DataStoreChanges(
 			Transaction.createTransactionalPersistenceService(
 				this.persistenceService.getStoragePartPersistenceService(getVersion())

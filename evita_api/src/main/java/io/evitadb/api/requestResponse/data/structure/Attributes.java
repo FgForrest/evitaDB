@@ -133,12 +133,7 @@ public abstract class Attributes<S extends AttributeSchemaContract> implements A
 				)
 			);
 		this.attributeTypes = attributeTypes;
-		final LinkedHashSet<Locale> theAttributeLocales = attributeValues.stream()
-			.filter(Droppable::exists)
-			.map(it -> it.key().locale())
-			.filter(Objects::nonNull)
-			.collect(Collectors.toCollection(LinkedHashSet::new));
-		this.attributeLocales = Collections.unmodifiableSet(theAttributeLocales);
+		this.attributeLocales = collectAttributeLocales(attributeValues);
 	}
 
 	/**
@@ -153,12 +148,36 @@ public abstract class Attributes<S extends AttributeSchemaContract> implements A
 		this.entitySchema = entitySchema;
 		this.attributeValues = attributeValues;
 		this.attributeTypes = attributeTypes;
-		final LinkedHashSet<Locale> theAttributeLocales = attributeValues.values().stream()
-			.filter(Droppable::exists)
-			.map(it -> it.key().locale())
-			.filter(Objects::nonNull)
-			.collect(Collectors.toCollection(LinkedHashSet::new));
-		this.attributeLocales = Collections.unmodifiableSet(theAttributeLocales);
+		this.attributeLocales = collectAttributeLocales(attributeValues.values());
+	}
+
+	/**
+	 * Collects the locales of all existing localized attribute values, preserving encounter order.
+	 *
+	 * Written as a loop that allocates the set lazily rather than as a stream pipeline: this runs once per
+	 * constructed attribute container, and on the reference-deserialization path that is once per reference of
+	 * every entity read. The overwhelmingly common case is a container with NO localized attribute at all, which
+	 * this way costs no set, no unmodifiable wrapper and no pipeline objects — the stream form allocated four
+	 * pipeline stages plus a `LinkedHashSet` just to discover there was nothing to collect.
+	 *
+	 * @param attributeValues the attribute values to scan
+	 * @return the locales carrying at least one existing localized attribute, empty when there are none
+	 */
+	@Nonnull
+	private static Set<Locale> collectAttributeLocales(@Nonnull Collection<AttributeValue> attributeValues) {
+		LinkedHashSet<Locale> locales = null;
+		for (final AttributeValue attributeValue : attributeValues) {
+			if (attributeValue.exists()) {
+				final Locale locale = attributeValue.key().locale();
+				if (locale != null) {
+					if (locales == null) {
+						locales = CollectionUtils.createLinkedHashSet(4);
+					}
+					locales.add(locale);
+				}
+			}
+		}
+		return locales == null ? Collections.emptySet() : Collections.unmodifiableSet(locales);
 	}
 
 	@Override

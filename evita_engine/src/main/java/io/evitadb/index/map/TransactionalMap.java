@@ -31,6 +31,7 @@ import io.evitadb.core.transaction.memory.TransactionalStateProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.CollectionUtils;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
@@ -197,6 +198,45 @@ public class TransactionalMap<K, V> implements Map<K, V>,
 			}
 		} else {
 			return this.mapDelegate;
+		}
+	}
+
+	/**
+	 * Produces a new map snapshot that includes all committed changes, letting the caller decide how each value is
+	 * committed (see {@link MapChanges.ValueMerger}). This is what makes a **pruned** commit possible: a map whose
+	 * values are expensive to rebuild can carry the ones this transaction never touched across the version boundary by
+	 * reference and merge only the rest, while the key delta of the diff layer (and the layer bookkeeping of removed
+	 * values) is still applied by the ordinary code path.
+	 *
+	 * Unlike the {@link TransactionalLayerProducer} contract method this one is **not** routed through
+	 * {@link TransactionalLayerMaintainer#getStateCopyWithCommittedChanges(TransactionalStateProducer)}, so the caller
+	 * must dispose of this map's own diff layer itself — with
+	 * {@link TransactionalLayerMaintainer#removeTransactionalMemoryLayerIfExists(TransactionalLayerCreator)}, never
+	 * with {@link #removeLayer(TransactionalLayerMaintainer)}, which would descend into every value and undo the very
+	 * walk the prune avoids. A forgotten disposal is reported by
+	 * {@link TransactionalLayerMaintainer#verifyLayerWasFullySwept()} rather than silently dropping changes.
+	 *
+	 * @param layer              this map's diff layer, or `null` when the key set did not change this transaction
+	 * @param transactionalLayer the maintainer resolving committed state
+	 * @param valueMerger        resolves the committed value of every surviving key
+	 * @return the committed map
+	 */
+	@Nonnull
+	public Map<K, V> createCopyWithMergedTransactionalMemory(
+		@Nullable MapChanges<K, V> layer,
+		@Nonnull TransactionalLayerMaintainer transactionalLayer,
+		@Nonnull MapChanges.ValueMerger<K, V> valueMerger
+	) {
+		if (layer != null) {
+			return layer.createMergedMap(transactionalLayer, valueMerger);
+		} else {
+			// no key changed this transaction - the delegate map is the key set, only the values need resolving
+			final Map<K, V> copy = CollectionUtils.createHashMap(this.mapDelegate.size());
+			for (final Entry<K, V> entry : this.mapDelegate.entrySet()) {
+				final K key = entry.getKey();
+				copy.put(key, valueMerger.mergeSurviving(key, entry.getValue()));
+			}
+			return copy;
 		}
 	}
 

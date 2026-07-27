@@ -144,10 +144,15 @@ public class PersistentTransactionalMap<K, V> implements Map<K, V>,
 	 * and memoizing the result. Used wherever a stable, shareable snapshot is required — the diff-layer
 	 * delegate and the committed copy.
 	 *
+	 * It is public because an owner that forwards this map's contents to a NEXT version unchanged (a version bump
+	 * that carries every value by reference) should hand this snapshot to the next map instead of rebuilding a plain
+	 * copy: the constructor then adopts it in `O(1)` and the next transactional touch does not have to seal it again.
+	 * Only call it when this map has no diff layer, otherwise the snapshot omits the uncommitted key delta.
+	 *
 	 * @return the sealed snapshot
 	 */
 	@Nonnull
-	protected ChampMap<K, V> sealed() {
+	public ChampMap<K, V> sealed() {
 		final Map<K, V> current = this.state;
 		if (current instanceof ChampMap) {
 			return (ChampMap<K, V>) current;

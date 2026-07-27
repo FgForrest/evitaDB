@@ -39,6 +39,7 @@ import io.evitadb.index.price.model.PriceIndexKey;
 import io.evitadb.index.price.model.priceRecord.PriceRecord;
 import io.evitadb.index.price.model.priceRecord.PriceRecordContract;
 import io.evitadb.index.price.model.priceRecord.PriceRecordInnerRecordSpecific;
+import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -118,11 +119,35 @@ public class PriceSuperIndex
 
 	@Nonnull
 	@Override
-	protected PriceListAndCurrencyPriceSuperIndex createNewPriceListAndCurrencyIndex(@Nonnull PriceIndexKey lookupKey) {
+	protected PriceListAndCurrencyPriceSuperIndex createNewPriceListAndCurrencyIndex(
+		@Nonnull PriceIndexKey lookupKey,
+		@Nonnull PriceSuperIndex superPriceIndex
+	) {
+		assertIsThisIndex(superPriceIndex);
 		final PriceListAndCurrencyPriceSuperIndex newPriceListIndex = new PriceListAndCurrencyPriceSuperIndex(lookupKey);
 		ofNullable(Transaction.getOrCreateTransactionalMemoryLayer(this))
 			.ifPresent(it -> it.addCreatedItem(newPriceListIndex));
 		return newPriceListIndex;
+	}
+
+	/**
+	 * Verifies that the super price index the caller threaded down the write path is this very index.
+	 *
+	 * A super index owns the memory-expensive price records outright and so has no use for the parameter - but the check
+	 * is free and it is the only place where the caller's claim ("this is the price index of the GLOBAL entity index that
+	 * backs the index you are mutating") can be falsified cheaply. A mutation executor resolves the GLOBAL once and
+	 * threads the same instance into both the GLOBAL's own price index and every reduced index it touches, so a caller
+	 * that picked up the wrong catalog version's GLOBAL - the failure the removed super-index pointer used to be able to
+	 * introduce silently - trips here on the very first price it writes.
+	 *
+	 * @param superPriceIndex the super price index handed over by the caller
+	 */
+	private void assertIsThisIndex(@Nonnull PriceSuperIndex superPriceIndex) {
+		Assert.isPremiseValid(
+			superPriceIndex == this,
+			"Price write routed to a super index with a foreign GLOBAL price index handed in - " +
+				"the caller resolved a different (or stale) GLOBAL entity index than the one it is mutating!"
+		);
 	}
 
 	@Override
@@ -137,8 +162,10 @@ public class PriceSuperIndex
 		@Nullable ReferenceSchemaContract referenceSchema,
 		@Nonnull PriceListAndCurrencyPriceSuperIndex priceListIndex, int entityPrimaryKey,
 		int internalPriceId, int priceId, @Nullable Integer innerRecordId,
-		@Nullable DateTimeRange validity, int priceWithoutTax, int priceWithTax
+		@Nullable DateTimeRange validity, int priceWithoutTax, int priceWithTax,
+		@Nonnull PriceSuperIndex superPriceIndex
 	) {
+		assertIsThisIndex(superPriceIndex);
 		final PriceRecordContract priceRecord = innerRecordId == null ?
 			new PriceRecord(internalPriceId, priceId, entityPrimaryKey, priceWithTax, priceWithoutTax) :
 			new PriceRecordInnerRecordSpecific(
@@ -153,8 +180,10 @@ public class PriceSuperIndex
 		@Nullable ReferenceSchemaContract referenceSchema,
 		@Nonnull PriceListAndCurrencyPriceSuperIndex priceListIndex, int entityPrimaryKey,
 		int internalPriceId, int priceId, @Nullable Integer innerRecordId,
-		@Nullable DateTimeRange validity, int priceWithoutTax, int priceWithTax
+		@Nullable DateTimeRange validity, int priceWithoutTax, int priceWithTax,
+		@Nonnull PriceSuperIndex superPriceIndex
 	) {
+		assertIsThisIndex(superPriceIndex);
 		priceListIndex.removePrice(entityPrimaryKey, internalPriceId, validity);
 	}
 
@@ -176,6 +205,30 @@ public class PriceSuperIndex
 	@Override
 	public Collection<PriceListAndCurrencyPriceSuperIndex> getPriceListAndCurrencyIndexes() {
 		return this.priceIndexes.values();
+	}
+
+	/**
+	 * Resolves the super index of a single price-list / currency combination, which a reduced
+	 * {@link PriceListAndCurrencyPriceRefIndex} of the same combination needs in order to reach the memory-expensive
+	 * {@link PriceRecord} and {@link io.evitadb.index.price.model.entityPrices.EntityPrices} instances it shares rather
+	 * than owns.
+	 *
+	 * Unlike {@link #getPriceIndex(PriceIndexKey)} the combination is required to exist: a price is always added to the
+	 * super index before the reduced index that references it, so an absent combination is a programming error rather
+	 * than an expected miss. The read inside consults the transactional combo map, so a combination created earlier in
+	 * the same transaction is visible.
+	 *
+	 * @param priceIndexKey the price-list / currency combination to resolve
+	 * @return the super price index backing the combination (never `null`)
+	 */
+	@Nonnull
+	public PriceListAndCurrencyPriceSuperIndex getPriceIndexOrThrow(@Nonnull PriceIndexKey priceIndexKey) {
+		final PriceListAndCurrencyPriceSuperIndex superIndex = this.priceIndexes.get(priceIndexKey);
+		Assert.isPremiseValid(
+			superIndex != null,
+			() -> "Super price index for `" + priceIndexKey + "` must exist in the GLOBAL entity index!"
+		);
+		return superIndex;
 	}
 
 	/**
