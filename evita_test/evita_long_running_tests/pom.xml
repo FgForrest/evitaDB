@@ -192,7 +192,7 @@
 		<dependency>
 			<groupId>net.javacrumbs.json-unit</groupId>
 			<artifactId>json-unit</artifactId>
-			<version>5.1.1</version>
+			<version>6.0.1</version>
 		</dependency>
 		<dependency>
 			<groupId>net.javacrumbs.json-unit</groupId>
