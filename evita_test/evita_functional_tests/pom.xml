@@ -154,7 +154,7 @@
 		<dependency>
 			<groupId>software.amazon.awssdk</groupId>
 			<artifactId>s3</artifactId>
-			<version>2.47.5</version>
+			<version>2.49.3</version>
 			<scope>test</scope>
 			<!--
 				The test uses only the synchronous S3Client, served by the
