@@ -34,6 +34,7 @@ import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.Scope;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.map.TransactionalMap;
 import io.evitadb.index.price.PriceListAndCurrencyPriceIndex.PriceListAndCurrencyPriceIndexTerminated;
@@ -209,8 +210,11 @@ public class PriceRefIndex extends AbstractPriceIndex<PriceListAndCurrencyPriceR
 		//   - gone from the map      -> the nullable combination lookup below
 		//   - mapped but terminated  -> the catch below
 		//   - already replaced       -> the record lookup below comes back empty
-		// Note the last shape CANNOT be recognised by comparing super-index instances any more, which is the point of
-		// the change: the reduced index no longer keeps a pointer to compare against.
+		// The first two shapes positively identify themselves - a combination that is gone or terminated backs nothing
+		// at all. The third does not: it looks identical to a bookkeeping defect that left one dangling id behind in
+		// an otherwise-live index, and it cannot be recognised by comparing super-index instances any more, because
+		// the reduced index no longer keeps a pointer to compare against. It is therefore the only one that has to
+		// prove itself before the index is discarded - see assertNothingLiveWouldBeLost.
 		final PriceListAndCurrencyPriceSuperIndex superIndex = superPriceIndex.getPriceIndex(lookupKey);
 		if (superIndex == null) {
 			removeExistingIndex(lookupKey, priceListIndex);
@@ -218,6 +222,7 @@ public class PriceRefIndex extends AbstractPriceIndex<PriceListAndCurrencyPriceR
 		}
 		try {
 			if (superIndex.getPriceRecordIfPresent(internalPriceId) == null) {
+				assertNothingLiveWouldBeLost(superIndex, priceListIndex, internalPriceId);
 				removeExistingIndex(lookupKey, priceListIndex);
 				return;
 			}
@@ -225,6 +230,46 @@ public class PriceRefIndex extends AbstractPriceIndex<PriceListAndCurrencyPriceR
 		} catch (PriceListAndCurrencyPriceIndexTerminated ex) {
 			// when super index was removed the referencing index must be removed as well
 			removeExistingIndex(lookupKey, priceListIndex);
+		}
+	}
+
+	/**
+	 * Verifies that discarding `priceListIndex` cannot lose a price that is still live in the GLOBAL index.
+	 *
+	 * This guards the one ambiguous shape in {@link #removePrice}: the combination is present and healthy in the GLOBAL
+	 * index, yet the record being removed is not in it. The benign explanation is that the GLOBAL - which runs ahead of
+	 * the reduced indexes on an indexed upsert - already moved this entity's prices out of the combination, leaving
+	 * every record this reduced index references behind; discarding it is then the only correct outcome. The other
+	 * explanation is a bookkeeping defect that left a single dangling id in an otherwise-live index, and discarding it
+	 * there would silently unindex every other price it holds.
+	 *
+	 * The two are told apart by the records themselves rather than by index identity: under the benign explanation
+	 * nothing this index references survives in the combination, so a single surviving record proves the drop is
+	 * unwarranted. Only reachable from the ambiguous shape, which the price-tagged functional suite exercises once
+	 * across a thousand tests, so the linear probe costs nothing in practice.
+	 *
+	 * @param superIndex     the live GLOBAL combination index the reduced index is checked against
+	 * @param priceListIndex the reduced combination index that is about to be discarded
+	 * @param internalPriceId the internal id of the price whose removal triggered the check
+	 */
+	private static void assertNothingLiveWouldBeLost(
+		@Nonnull PriceListAndCurrencyPriceSuperIndex superIndex,
+		@Nonnull PriceListAndCurrencyPriceRefIndex priceListIndex,
+		int internalPriceId
+	) {
+		if (priceListIndex.isTerminated()) {
+			// a terminated index holds nothing anyone can still reach
+			return;
+		}
+		for (final int indexedPriceId : priceListIndex.getIndexedPriceIds()) {
+			if (indexedPriceId != internalPriceId && superIndex.getPriceRecordIfPresent(indexedPriceId) != null) {
+				throw new GenericEvitaInternalError(
+					"Reduced price index " + priceListIndex.getPriceIndexKey() + " would be discarded because " +
+						"internal price id " + internalPriceId + " is missing from the GLOBAL index, but internal " +
+						"price id " + indexedPriceId + " it also indexes is still live there - dropping it now would " +
+						"silently unindex a price that still exists!"
+				);
+			}
 		}
 	}
 

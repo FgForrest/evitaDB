@@ -415,6 +415,76 @@ class PriceRefIndexTest implements TimeBoundedTestSupport {
 			// the child should be gone
 			assertNull(PriceRefIndexTest.this.priceRefIndex.getPriceIndex(KEY_BASIC_CZK));
 		}
+
+		@Test
+		@DisplayName("should drop child when the super index replaced the combination underneath it")
+		void shouldDropChildWhenSuperIndexReplacedTheCombination() {
+			final int ipId1 = addPriceToBothIndexes(1, 10, PRICE_LIST_BASIC, CURRENCY_CZK);
+
+			// empty the combination in the super index - that terminates it and drops it from the combination map
+			PriceRefIndexTest.this.priceSuperIndex.priceRemove(
+				null, 1, ipId1,
+				new PriceKey(10, PRICE_LIST_BASIC, CURRENCY_CZK),
+				PriceInnerRecordHandling.NONE,
+				null, null, 10000, 12100,
+				PriceRefIndexTest.this.priceSuperIndex
+			);
+			// ... and let a following add recreate it as a *different* instance, which is what an upsert that moves
+			// a price between combinations does once the global index has run ahead of the reduced ones
+			addPriceToSuperIndex(
+				1, 11, PRICE_LIST_BASIC, CURRENCY_CZK, PriceInnerRecordHandling.NONE, 10000, 12100
+			);
+
+			// the combination is alive again, but nothing the ref index still references survives in it, so the ref
+			// index cannot outlive its records and is dropped
+			PriceRefIndexTest.this.priceRefIndex.priceRemove(
+				null, 1, ipId1,
+				new PriceKey(10, PRICE_LIST_BASIC, CURRENCY_CZK),
+				PriceInnerRecordHandling.NONE,
+				null, null, 10000, 12100,
+				PriceRefIndexTest.this.priceSuperIndex
+			);
+
+			assertNull(PriceRefIndexTest.this.priceRefIndex.getPriceIndex(KEY_BASIC_CZK));
+		}
+
+		@Test
+		@DisplayName("should refuse to drop a child that still references live prices")
+		void shouldRefuseToDropChildStillReferencingLivePrices() {
+			final int ipId1 = addPriceToBothIndexes(1, 10, PRICE_LIST_BASIC, CURRENCY_CZK);
+			final int ipId2 = addPriceToBothIndexes(2, 20, PRICE_LIST_BASIC, CURRENCY_CZK);
+
+			// take entity 1's price out of the super index only. The combination stays alive - entity 2's price is
+			// still in it - so `ipId1` is now dangling in the ref index for a reason no legitimate ordering produces
+			PriceRefIndexTest.this.priceSuperIndex.priceRemove(
+				null, 1, ipId1,
+				new PriceKey(10, PRICE_LIST_BASIC, CURRENCY_CZK),
+				PriceInnerRecordHandling.NONE,
+				null, null, 10000, 12100,
+				PriceRefIndexTest.this.priceSuperIndex
+			);
+
+			// dropping the whole combination here would silently unindex entity 2's still-live price, so the
+			// inconsistency has to surface instead of being absorbed
+			assertThrows(
+				GenericEvitaInternalError.class,
+				() -> PriceRefIndexTest.this.priceRefIndex.priceRemove(
+					null, 1, ipId1,
+					new PriceKey(10, PRICE_LIST_BASIC, CURRENCY_CZK),
+					PriceInnerRecordHandling.NONE,
+					null, null, 10000, 12100,
+					PriceRefIndexTest.this.priceSuperIndex
+				)
+			);
+
+			// and entity 2's price must still be indexed
+			final PriceListAndCurrencyPriceRefIndex childIndex =
+				PriceRefIndexTest.this.priceRefIndex.getPriceIndex(KEY_BASIC_CZK);
+			assertNotNull(childIndex);
+			assertNotNull(
+				PriceRefIndexTest.this.priceSuperIndex.getPriceIndex(KEY_BASIC_CZK).getPriceRecordIfPresent(ipId2)
+			);
+		}
 	}
 
 	/**
