@@ -811,7 +811,7 @@
 			<plugin>
 				<groupId>one.edee.oss</groupId>
 				<artifactId>comenius-maven-plugin</artifactId>
-				<version>1.0.0</version>
+				<version>1.0.1</version>
 				<configuration>
 					<llmProvider>openai</llmProvider>
 					<llmUrl>https://api.openai.com/v1</llmUrl>
