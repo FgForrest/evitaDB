@@ -51,6 +51,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -68,11 +69,17 @@ import static io.evitadb.documentation.java.JavaExecutable.toJavaSnippets;
  */
 public class JavaTestContext implements TestContext {
 	/**
-	 * Process-wide lock serializing every {@link JShell#eval(String)} invocation across all
-	 * {@link JavaTestContext} instances. JShell instances are documented as not thread-safe, and
-	 * even separate instances share non-thread-safe javac internals (notably
-	 * `JavacFileManager.pathsAndContainers` and the `JavacTaskPool`), so concurrent evaluation from
-	 * parallel documentation tests triggers `ConcurrentModificationException` deep in javac.
+	 * Process-wide lock serializing every interaction with the shared {@link JShell} instance.
+	 *
+	 * A single {@link JavaTestContext} - and therefore a single {@link JShell} - is shared by all
+	 * language containers of one profile: the Java, GraphQL and REST containers run in parallel and
+	 * all reach the very same instance (the non-Java ones through {@link JavaWrappingExecutable}).
+	 * JShell is documented as not thread-safe and the javac internals it owns are not either - most
+	 * notably the plain, unsynchronized `JavacFileManager.pathsAndContainers` cache, which throws
+	 * `ConcurrentModificationException` when two threads drive a compiler task at once. That includes
+	 * mere source parsing through {@link jdk.jshell.SourceCodeAnalysis}, which runs a real javac task
+	 * behind the scenes - not just {@link JShell#eval(String)}.
+	 *
 	 * Fair ordering prevents starvation when many language containers queue behind each other.
 	 */
 	private static final Lock JSHELL_EVAL_LOCK = new ReentrantLock(true);
@@ -124,6 +131,27 @@ public class JavaTestContext implements TestContext {
 				}
 			}
 			jShell.drop(tearDownSnippet);
+		}
+	}
+
+	/**
+	 * Executes the passed supplier while holding {@link #JSHELL_EVAL_LOCK} and returns its result.
+	 *
+	 * It exists for callers outside this class that touch the shared {@link JShell} without evaluating
+	 * snippets - namely source parsing through {@link jdk.jshell.SourceCodeAnalysis}, which drives
+	 * a real javac task and therefore must not overlap with evaluation running on another thread.
+	 * The lock is reentrant, so nesting the call inside an already locked region is safe.
+	 *
+	 * @param supplier logic to be executed exclusively
+	 * @return value produced by the supplier
+	 */
+	@Nonnull
+	static <T> T supplyLocked(@Nonnull Supplier<T> supplier) {
+		JSHELL_EVAL_LOCK.lock();
+		try {
+			return supplier.get();
+		} finally {
+			JSHELL_EVAL_LOCK.unlock();
 		}
 	}
 

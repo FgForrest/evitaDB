@@ -81,18 +81,26 @@ public class JavaExecutable implements Executable, EvitaTestSupport {
 
 	/**
 	 * Method parses the `sourceCode` to separate {@link Snippet} that are executable by the JShell.
+	 *
+	 * Although nothing is evaluated here, {@link SourceCodeAnalysis#analyzeCompletion(String)} drives
+	 * a real javac parse task on the file manager owned by the passed {@link JShell} instance. That
+	 * instance is shared by all language containers of a single profile, which run in parallel, so the
+	 * whole parsing must be serialized with their evaluation - otherwise the unsynchronized javac
+	 * caches throw `ConcurrentModificationException`. See `JavaTestContext#JSHELL_EVAL_LOCK`.
 	 */
 	@Nonnull
 	static List<String> toJavaSnippets(@Nonnull JShell jShell, @Nonnull String sourceCode) {
-		final SourceCodeAnalysis sca = jShell.sourceCodeAnalysis();
-		final List<String> snippets = new LinkedList<>();
-		String str = sourceCode;
-		do {
-			CompletionInfo info = sca.analyzeCompletion(str);
-			snippets.add(info.source());
-			str = info.remaining();
-		} while (!str.isEmpty());
-		return snippets;
+		return JavaTestContext.supplyLocked(() -> {
+			final SourceCodeAnalysis sca = jShell.sourceCodeAnalysis();
+			final List<String> snippets = new LinkedList<>();
+			String str = sourceCode;
+			do {
+				final CompletionInfo info = sca.analyzeCompletion(str);
+				snippets.add(info.source());
+				str = info.remaining();
+			} while (!str.isEmpty());
+			return snippets;
+		});
 	}
 
 	/**
