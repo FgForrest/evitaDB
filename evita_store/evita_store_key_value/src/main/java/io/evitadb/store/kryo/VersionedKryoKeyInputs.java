@@ -34,7 +34,8 @@ import javax.annotation.Nonnull;
  * @param keyCompressor Key compressor holds index ids to keys used in serialized objects.
  *                      See {@link KeyCompressor} documentation for more informations.
  * @param version       Version holds information used in {@link VersionedKryo} instance and this version
- *                      server to allow discarding obsolete Kryo instances in {@link FileOffsetIndexKryoPool#expireAllPreviouslyCreated()}
+ *                      server to allow discarding obsolete Kryo instances in
+ *                      {@link FileOffsetIndexKryoPool#expireAllPreviouslyCreated(java.util.function.Function)}
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public record VersionedKryoKeyInputs(@Nonnull KeyCompressor keyCompressor, long version) {
