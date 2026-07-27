@@ -14,10 +14,14 @@ it had merged (PR #1317). Treat status language in these files as a historical s
 
 ## Layout
 
-- **`MEASUREMENT_RECIPE.md`** — how to reproduce any of this: build invariants, fixture
-  reconstruction, what each instrument (JMH `-prof gc`, async-profiler `alloc`/`cpu`) can and
-  cannot answer, collapsed-profile reading rules, four ways a run silently lies, JMH pitfalls
-  specific to this harness, and the server-side diagnostic launch configuration.
+- **How to reproduce any of this** — build invariants, fixture reconstruction, what each
+  instrument (JMH `-prof gc`, async-profiler `alloc`/`cpu`) can and cannot answer, collapsed-profile
+  reading rules, four ways a run silently lies, JMH pitfalls specific to this harness, and the
+  server-side diagnostic launch configuration — moved out of this spec into the
+  **`wal-replay-profiling`** Claude Code skill (`.claude/skills/wal-replay-profiling/`), so the
+  methodology is discoverable and reusable the next time this kind of measurement is needed, not
+  just readable here after the fact. The skill bundles the three driver scripts
+  (`run-wal-replay.sh`, `run-wal-replay-ab.sh`, `profile-wal-replay-ap.sh`).
 - **`SPIKE_BENCHMARKS.md`** — what each spike in `evita_test/evita_performance_tests/.../spike/`
   that came out of this line measures, and what it concluded.
 - **`design/transactional-layer-key-refactoring.md`** — a proposal to split the transactional-memory
@@ -63,12 +67,19 @@ same issue, overlapping cast of index classes (`SortIndex`, `FrontCodedStringCol
 
 The senesi dataset (catalog snapshot + WAL slice) that every measurement in this spec was taken
 against has been **deleted** — it was a large production export, ephemeral by design. Re-measuring
-anything here requires a fresh export from the live deployment; see `MEASUREMENT_RECIPE.md` §2.
+anything here requires a fresh export from the live deployment; see the `wal-replay-profiling`
+skill's "Reproducing the fixture" section for the property names and directory layout it expects.
 
-Raw profiler output (collapsed stacks, JMH JSON, run logs) for the final round is archived outside
-Git at `backups/profiles/` (gzipped, ~14 MB) rather than committed — the same convention the sibling
-spec uses for its own ~200 MB of raw data. Everything before the final round was analyzed inline in
-its working document and the raw files were not retained.
+**The measurement harness itself was generalized and committed**, not deleted with the dataset: the
+original `SenesiWalReplayBenchmark`/`SenesiWalReplayState` (hardcoded to one catalog name) became
+`WalReplayBenchmark`/`WalReplayState` (`io.evitadb.performance.walreplay`), parameterized by an
+`evita.replay.catalogName` system property, so the same harness applies to whatever export is under
+investigation next.
+
+Raw profiler output (collapsed stacks, JMH JSON, run logs) from every round, including the final
+one, was **not carried over** once the dataset it measured was gone — the conclusions are captured
+in `reports/`, and byte-for-byte samples of a now-nonexistent dataset have no future comparison
+value. This mirrors the sibling spec's own convention for its ~200 MB of raw data.
 
 ## Known open follow-ups (not yet resolved as of this consolidation)
 

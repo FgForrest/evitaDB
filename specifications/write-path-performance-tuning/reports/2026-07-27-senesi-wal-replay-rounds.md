@@ -7,10 +7,11 @@ through the real session/commit API — exactly the path a production write node
 **Staleness note.** Status language carried over from the source documents is a historical snapshot.
 All work described here has since merged (PR #1317). Check `git log` for what actually shipped.
 
-**The dataset is gone.** The senesi snapshot and WAL were deleted once tuning finished; re-measuring
-requires a fresh export from the live deployment. Raw profiles are not in Git — see
-`backups/profiles/` for the last round's gzipped collapsed profiles and census scripts, and
-`../MEASUREMENT_RECIPE.md` for how to run any of this again.
+**The dataset is gone.** The senesi snapshot and WAL, and the raw profiles measured against them,
+were deleted once tuning finished and the conclusions below were captured — byte-for-byte samples of
+a dataset that no longer exists have no future comparison value. Re-measuring against a fresh export
+uses the same harness, since generalized and committed: see the `wal-replay-profiling` Claude Code
+skill (`.claude/skills/wal-replay-profiling/`) for how to run it again.
 
 ---
 

@@ -4,8 +4,9 @@ Per the project convention: a spike worth keeping in
 `evita_test/evita_performance_tests/.../io/evitadb/spike/` is committed to Git alongside a summary
 of what it measured and concluded, rather than left as an unexplained standalone class. This file
 covers the spikes that came out of the two #760 performance-tuning lines. Method details (build
-flags, how to run, the four silent-failure traps) live in `MEASUREMENT_RECIPE.md`; this file is the
-per-spike "what it's for and what it found".
+flags, how to run, the four silent-failure traps) live in the `wal-replay-profiling` Claude Code
+skill (`.claude/skills/wal-replay-profiling/`); this file is the per-spike "what it's for and what
+it found".
 
 Several spikes reproduce a package-private production class or method in isolation specifically so
 they can be JMH-benchmarked without pulling in the whole `EvitaSession`/`Catalog`/`Transaction`

@@ -3,8 +3,9 @@
 Consolidated from four working documents (2026-07-19 → 07-20). These are correctness fixes discovered
 *while* pursuing write-path performance — both bugs sat in the same transactional-memory seam the
 tuning work was already touching, and both are recorded here because that seam keeps recurring across
-the whole tuning line (see also the by-PK view drift and orphaned-facet-layer fixes referenced from
-`../MEASUREMENT_RECIPE.md`-adjacent memory).
+the whole tuning line (see also the by-PK view drift and orphaned-facet-layer fixes tracked in this
+project's own Claude memory). Reproduction method for the harness that surfaced them lives in the
+`wal-replay-profiling` Claude Code skill (`.claude/skills/wal-replay-profiling/`).
 
 **Staleness note.** Status language is a historical snapshot; both fixes have merged.
 
