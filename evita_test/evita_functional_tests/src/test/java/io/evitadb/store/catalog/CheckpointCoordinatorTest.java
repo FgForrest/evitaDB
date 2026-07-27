@@ -153,17 +153,22 @@ class CheckpointCoordinatorTest {
 
 	@Test
 	@DisplayName("should not run the ticker checkpoint when a round already checkpointed")
-	void shouldNotRunTickerCheckpointWhenRoundAlreadyCheckpointed() throws InterruptedException {
+	void shouldNotRunTickerCheckpointWhenRoundAlreadyCheckpointed() {
 		final AtomicInteger checkpointCount = new AtomicInteger();
+		// the interval is irrelevant here - noteCheckpointCompleted() clears the debt unconditionally and
+		// checkpointIfOwed() only reads it, so a value far outside the assertion's own execution time keeps
+		// the real scheduled ticker from ever firing inside the test window at all
 		this.coordinator = new CheckpointCoordinator(
-			CATALOG_NAME, 100, this.scheduler, new ReentrantLock(), checkpointCount::incrementAndGet
+			CATALOG_NAME, 5_000, this.scheduler, new ReentrantLock(), checkpointCount::incrementAndGet
 		);
 
 		this.coordinator.noteCheckpointDeferred();
 		// a subsequent round found the interval elapsed and checkpointed inline, which disarms the ticker
 		this.coordinator.noteCheckpointCompleted();
 
-		Thread.sleep(500);
+		// exercise exactly what the ticker body does when it fires (see runTickerCheckpoint) - deterministic,
+		// unlike waiting on the scheduler thread to actually fire the ticker within some assumed margin
+		this.coordinator.checkpointIfOwed();
 		assertEquals(
 			0, checkpointCount.get(),
 			"The ticker checkpointed even though a round had already settled the debt."
