@@ -23,6 +23,7 @@
 
 package io.evitadb.performance.walreplay;
 
+import io.evitadb.performance.setup.BenchmarkForkArgs;
 import io.evitadb.performance.walreplay.state.WalReplayState;
 import lombok.extern.slf4j.Slf4j;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -64,7 +65,15 @@ import java.util.concurrent.TimeUnit;
 @Slf4j
 @BenchmarkMode(Mode.SingleShotTime)
 @OutputTimeUnit(TimeUnit.SECONDS)
-@Fork(1)
+@Fork(
+	value = 1,
+	jvmArgsAppend = {
+		BenchmarkForkArgs.ADD_OPENS, BenchmarkForkArgs.OPEN_LANG,
+		BenchmarkForkArgs.ADD_OPENS, BenchmarkForkArgs.OPEN_LANG_INVOKE,
+		BenchmarkForkArgs.ADD_OPENS, BenchmarkForkArgs.OPEN_MATH,
+		BenchmarkForkArgs.ADD_OPENS, BenchmarkForkArgs.OPEN_UTIL
+	}
+)
 @Warmup(iterations = 0)
 @Measurement(iterations = 1)
 public class WalReplayBenchmark {

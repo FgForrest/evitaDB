@@ -50,7 +50,9 @@ public interface EvitaCatalogReusableSetup extends EvitaCatalogSetup, EvitaTestS
 			EvitaConfiguration.builder()
 				.storage(
 					StorageOptions.builder()
-						.storageDirectory(getTestDirectory())
+						// must resolve through the same helper the empty-instance path uses, otherwise this cannot
+						// find the catalog that path built - see EvitaCatalogSetup#benchmarkStorageDirectory
+						.storageDirectory(benchmarkStorageDirectory(catalogName))
 						.build()
 				)
 				.cache(
@@ -111,7 +113,8 @@ public interface EvitaCatalogReusableSetup extends EvitaCatalogSetup, EvitaTestS
 
 	@Override
 	default boolean isCatalogAvailable(@Nonnull String catalogName) {
-		final File targetDirectory = getTestDirectory().resolve(catalogName).toFile();
+		// the catalog lives inside the benchmark-owned storage root, one level deeper than it used to
+		final File targetDirectory = benchmarkStorageDirectory(catalogName).resolve(catalogName).toFile();
 		return targetDirectory.exists() && FileUtils.sizeOfDirectory(targetDirectory) > 0;
 	}
 

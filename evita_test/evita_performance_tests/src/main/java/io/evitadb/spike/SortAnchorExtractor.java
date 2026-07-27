@@ -163,7 +163,9 @@ public class SortAnchorExtractor {
 				observableOutputKeeper,
 				KRYO_FACTORY,
 				nonFlushed -> { },
-				oldest -> { }
+				oldest -> { },
+				// read-only spike: nothing is written, so there is no deferred sync to coordinate
+				null
 			);
 
 		try {
@@ -209,7 +211,9 @@ public class SortAnchorExtractor {
 					storageSettings,
 					offHeapMemoryManager,
 					observableOutputKeeper,
-					recordTypeRegistry
+					recordTypeRegistry,
+					// read-only spike: nothing is written, so there is no deferred sync to coordinate
+					null
 				);
 			try {
 				run(collectionService);

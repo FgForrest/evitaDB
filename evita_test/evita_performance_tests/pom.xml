@@ -194,6 +194,20 @@
 							<transformers>
 								<transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
 									<mainClass>io.evitadb.performance.ArtificialTestRunner</mainClass>
+									<manifestEntries>
+										<!--
+											Byte Buddy generates classes reflectively at runtime and needs these packages
+											opened on JDK 17+; without them every benchmark that boots an Evita instance
+											dies during state setup with "Cannot define class using reflection", which JMH
+											then reports as a finished run with no score rather than as a failure.
+											Mirrors the surefire argLine in the root pom. This covers the launching process
+											only: it applies to `java -jar` (not `-cp`), and JMH starts its forked
+											benchmark JVM with `-cp`, so a benchmark that boots Evita must ALSO declare
+											the same flags in its own `@Fork(jvmArgsAppend = ...)` - see
+											CommitThroughputBenchmark for the worked example.
+										-->
+										<Add-Opens>java.base/java.lang java.base/java.lang.invoke java.base/java.math java.base/java.util</Add-Opens>
+									</manifestEntries>
 								</transformer>
 								<transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer" />
 							</transformers>
