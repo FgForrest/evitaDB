@@ -1,0 +1,533 @@
+# seed=1 batchSize=500 numBatches=1
+0	152047	chgRefAttr(groups:427170/assignmentValidity=[[2009-11-07T00:00:00Z,2013-11-07T00:00:00Z]]);chgAttr(palleteQuantity=81228.29129);chgAttr(availability=fz3-32829);chgRefAttr(parameterValues:497021/variant=true);	ok
+0	426837	rmRef(parameterValues:496351);	ok
+0	1372127	chgAttr(unit:sk=fz5-9700);chgAttr(catalogNumber=fz6-46332);chgRefAttr(groups:756533/assignmentValidity=[[2000-11-19T00:00:00Z,2016-11-19T00:00:00Z]]);chgAttr(availability=fz8-53844);	ok
+0	1318937	rmRef(bonusVisibilities:1227326);rmRef(bonusVisibilities:1227328);rmRef(bonusVisibilities:1227323);	ok
+0	1302932	rmRef(parameterValues:1316613);	ok
+0	1319812	INVALID_dropMandatory(groups:1399657);chgAttr(url:sk=fz9-2193);chgAttr(catalogNumber=fz10-41277);	ok
+0	841186	chgRefAttr(stocks:1227327/quantityOnStock=52850.90941);chgRefAttr(categories:427337/orderInCategory=1147137);chgAttr(minOrderQuantity=20270.97127);rmRef(bonusVisibilities:1227325);	ok
+0	673108	rmRef(bonusVisibilities:1227320);chgAttr(cezarCode=fz14-57870);chgRefAttr(parameterValues:476108/variant=true);chgRefAttr(parameterValues:1374685/variant=true);	ok
+0	786930	rmRef(groups:753780);	ok
+0	1339979	chgAttr(urlInactive:cs=[fz17-65896]);chgRefAttr(groups:1397519/assignmentValidity=[[2007-05-14T00:00:00Z,2016-05-14T00:00:00Z]]);rmRef(tags:1366);chgAttr(status=fz19-88468);	ok
+0	62665	chgAttr(name:sk=fz20-11819);chgAttr(relatedFiles=[fz21-46804]);chgRefAttr(categories:157068/categoryPriority=118246);	ok
+0	473725	chgRefAttr(groups:753854/assignmentValidity=[[2003-01-23T00:00:00Z,2005-01-23T00:00:00Z]]);	ok
+0	1199481	chgRefAttr(categories:142798/categoryPriority=1049774);	ok
+0	19113	chgRefAttr(parameterValues:443203/variant=true);	ok
+0	1399128	chgAttr(changed=2006-09-01T01:04Z);chgAttr(availability=fz27-65458);rmRef(stockVisibilities:1227322);chgAttr(isAlias=true);	ok
+0	46891	chgAttr(stockItemPrimaryKey=1497696);	ok
+0	355777	chgAttr(name:sk=fz30-70185);	ok
+0	472539	chgAttr(urlInactive:cs=[fz31-48491]);chgAttr(order=570016);	ok
+0	478656	rmRef(stockVisibilities:1227322);INVALID_dropMandatory(groups:753740);	ok
+0	1240954	chgAttr(minOrderQuantity=93447.13486);	ok
+0	1390888	chgAttr(url:cs=fz34-8780);chgAttr(soldOrdering=32819.62438);chgAttr(catalogNumber=fz36-87350);	ok
+0	767169	chgAttr(url:sk=fz37-66016);chgAttr(visibilityB2C=fz38-5901);rmRef(tags:1367);	ok
+0	785405	chgRefAttr(parameterValues:756506/variant=true);chgRefAttr(parameterValues:666477/variant=true);	ok
+0	1198566	chgRefAttr(parameterValues:532532/variant=true);chgRefAttr(groups:753790/assignmentValidity=[[2003-10-26T00:00:00Z,2010-10-26T00:00:00Z]]);chgRefAttr(parameterValues:753791/variant=true);rmRef(stockVisibilities:1227327);	ok
+0	1244845	chgRefAttr(groups:1370675/assignmentValidity=[[2000-08-03T00:00:00Z,2006-08-03T00:00:00Z]]);chgAttr(saleRestriction=fz45-76081);	ok
+0	531957	chgAttr(senesiOrdering=fz46-65860);	ok
+0	1318168	rmRef(bonusVisibilities:1227325);chgAttr(visibilityB2C=fz47-50244);chgAttr(visibilityB2C=fz48-4285);	ok
+0	1305629	chgAttr(availability=fz49-83684);chgRefAttr(parameterValues:511943/variant=true);chgAttr(visibilityB2C=fz51-65227);rmRef(parameterValues:753853);	ok
+0	664100	chgRefAttr(parameterValues:821025/variant=true);INVALID_dropMandatory(groups:753770);chgAttr(statusB2C=fz53-848);	ok
+0	1372110	rmRef(bonusVisibilities:1227320);chgAttr(palleteQuantity=9905.13142);chgRefAttr(groups:756533/assignmentValidity=[[2000-07-07T00:00:00Z,2020-07-07T00:00:00Z]]);chgAttr(productType=fz56-80787);	ok
+0	1345472	chgAttr(cezarCode=fz57-22219);INVALID_dropMandatory(groups:1346727);chgAttr(minOrderQuantity=92228.60884);chgAttr(url:sk=fz59-56310);	ok
+0	1348480	rmRef(stockVisibilities:1227320);rmRef(parameterValues:1242379);INVALID_dropMandatory(groups:1242378);chgAttr(palleteQuantity=3150.71863);	ok
+0	1300486	rmRef(groups:753912);rmRef(bonusVisibilities:1227327);chgAttr(statusB2C=fz61-77540);chgAttr(name:sk=fz62-75887);	ok
+0	1346300	chgRefAttr(groups:753770/assignmentValidity=[[2009-02-15T00:00:00Z,2015-02-15T00:00:00Z]]);chgAttr(saleRestriction=fz64-85177);chgAttr(changed=2019-01-13T03:12Z);INVALID_dropMandatory(groups:754676);	ok
+0	719985	chgAttr(name:cs=fz66-30074);chgAttr(descriptionShort:cs=fz67-65324);	ok
+0	1272972	chgAttr(url:sk=fz68-50058);	ok
+0	1328428	rmRef(bonusVisibilities:1227327);chgRefAttr(parameterValues:513643/variant=true);chgAttr(urlInactive:sk=[fz70-60371]);	ok
+0	1351072	rmRef(stockVisibilities:1227321);chgAttr(visibilityB2C=fz71-13980);	ok
+0	1352017	rmRef(parameterValues:511333);chgAttr(onTheWay=fz72-39151);	ok
+0	1267473	chgRefAttr(categories:1203195/categoryPriority=889320);	ok
+0	58763	chgAttr(isAlias=true);chgRefAttr(groups:753770/assignmentValidity=[[2005-11-28T00:00:00Z,2018-11-28T00:00:00Z]]);	ok
+0	1318845	INVALID_dropMandatory(groups:756731);rmRef(stockVisibilities:1227325);INVALID_dropMandatory(groups:1399657);	ok
+0	782871	INVALID_dropMandatory(groups:753726);chgAttr(availability=fz76-21089);chgAttr(codeShort=fz77-4341);rmRef(tags:22);	ok
+0	57276	chgAttr(stockItemPrimaryKey=1022160);rmRef(stockVisibilities:1227325);rmRef(stockVisibilities:1227324);	ok
+0	783644	INVALID_dropMandatory(groups:753726);	ok
+0	1399372	INVALID_dropMandatory(groups:753782);rmRef(stockVisibilities:1227324);rmRef(parameterValues:753771);	ok
+0	1339747	INVALID_dropMandatory(groups:754312);chgRefAttr(parameterValues:503663/variant=true);rmRef(groups:1397515);chgAttr(descriptionShort:cs=fz80-46365);	ok
+0	1201209	rmRef(bonusVisibilities:1227322);	ok
+0	1348460	chgAttr(stockItemPrimaryKey=1361930);chgAttr(onTheWay=fz82-93643);chgAttr(productType=fz83-29869);rmRef(stockVisibilities:1227323);	ok
+0	55499	chgRefAttr(parameterValues:495119/variant=true);	ok
+0	1319251	chgRefAttr(parameterValues:1399658/variant=true);INVALID_dropMandatory(groups:753912);chgRefAttr(parameterValues:511181/variant=true);	ok
+0	843540	chgAttr(codeShort=fz87-23380);chgAttr(url:cs=fz88-33521);chgAttr(sold=19870.59473);rmRef(stocks:1227327);	ok
+0	1351228	rmRef(parameterValues:753913);rmRef(parameterValues:511244);	ok
+0	1394297	rmRef(stocks:1227327);rmRef(stockVisibilities:1227328);	ok
+0	822518	chgAttr(url:cs=fz90-56175);	ok
+0	1353609	chgAttr(palleteQuantity=55351.58299);	ok
+0	508846	INVALID_dropMandatory(categories:1197919);	FAIL EvitaInvalidUsageException | 73a20adb22d95068d7daa5f6e2d96230:af7e03290249dcf135c6dd7ad7cd6bc9:92: 
+Entity `Product` reference `categories` requires these attributes to 
+0	1392941	rmRef(bonusVisibilities:1227321);chgAttr(catalogNumber=fz92-94431);chgRefAttr(stocks:1227327/quantityOnStock=54456.37114);	ok
+0	1208663	rmRef(tags:79);	ok
+0	668032	chgAttr(productType=fz94-85129);INVALID_dropMandatory(categories:1311501);INVALID_dropMandatory(groups:668363);	FAIL EvitaInvalidUsageException | 73a20adb22d95068d7daa5f6e2d96230:af7e03290249dcf135c6dd7ad7cd6bc9:92: 
+Entity `Product` reference `categories` requires these attributes to 
+0	773323	chgAttr(unit:sk=fz95-73590);chgAttr(changed=2009-11-08T15:23Z);rmRef(bonusVisibilities:1227327);	ok
+0	762887	chgAttr(published=2003-02-08T19:37Z);	ok
+0	9078	chgAttr(ean=fz98-77771);	ok
+0	1256874	INVALID_dropMandatory(categories:428142);INVALID_dropMandatory(groups:754444);INVALID_dropMandatory(groups:754312);	FAIL EvitaInvalidUsageException | 73a20adb22d95068d7daa5f6e2d96230:af7e03290249dcf135c6dd7ad7cd6bc9:92: 
+Entity `Product` reference `categories` requires these attributes to 
+0	1320563	chgRefAttr(groups:753770/assignmentValidity=[[2008-02-01T00:00:00Z,2009-02-01T00:00:00Z]]);chgRefAttr(parameterValues:753771/variant=true);	ok
+0	763714	chgRefAttr(parameterValues:477573/variant=true);	ok
+0	1331955	chgAttr(order=1833001);chgAttr(cezarCode=fz103-1848);chgAttr(stepOrderQuantity=30846.68948);	ok
+0	1353809	INVALID_dropMandatory(categories:427660);	FAIL EvitaInvalidUsageException | 73a20adb22d95068d7daa5f6e2d96230:af7e03290249dcf135c6dd7ad7cd6bc9:92: 
+Entity `Product` reference `categories` requires these attributes to 
+0	1304208	chgRefAttr(groups:753770/assignmentValidity=[[2000-01-01T00:00:00Z,2008-01-01T00:00:00Z]]);chgAttr(statusB2C=fz106-48405);chgAttr(status=fz107-7479);chgAttr(name:sk=fz108-28518);	ok
+0	1303932	chgAttr(url:cs=fz109-39891);rmRef(stockVisibilities:1227327);chgAttr(name:cs=fz110-27920);chgAttr(soldOrdering=64277.48252);	ok
+0	1202021	chgRefAttr(parameterValues:498295/variant=true);	ok
+0	1218990	INVALID_dropMandatory(categories:142824);INVALID_dropMandatory(categories:142824);	ok
+0	1310612	rmRef(stockVisibilities:1227323);chgRefAttr(groups:1310204/assignmentValidity=[[2001-09-27T00:00:00Z,2011-09-27T00:00:00Z]]);	ok
+0	1207998	chgAttr(cezarCode=fz114-68204);rmRef(bonusVisibilities:1227322);	ok
+0	1208078	chgAttr(soldOrdering=85734.86056);rmRef(tags:22);	ok
+0	792230	chgRefAttr(parameterValues:498295/variant=true);chgAttr(description:cs=fz117-8023);	ok
+0	1217502	chgRefAttr(parameterValues:781905/variant=true);	ok
+0	1309186	rmRef(stockVisibilities:1227323);	ok
+0	789259	chgAttr(unit:sk=fz119-11518);chgAttr(url:cs=fz120-65062);chgAttr(brandCode=fz121-43446);chgRefAttr(parameterValues:477545/variant=true);	ok
+0	1303228	chgRefAttr(groups:754820/assignmentValidity=[[2003-03-26T00:00:00Z,2010-03-26T00:00:00Z]]);INVALID_dropMandatory(groups:754822);rmRef(bonusVisibilities:1227328);chgAttr(unit:sk=fz124-19341);	ok
+0	58956	INVALID_dropMandatory(groups:1006586);	ok
+0	765956	chgAttr(maxOrderQuantity=46270.94868);chgAttr(unit:cs=fz126-8344);	ok
+0	1252751	chgAttr(cezarCode=fz127-70786);rmRef(bonusVisibilities:1227323);INVALID_dropMandatory(groups:753824);chgAttr(urlInactive:cs=[fz128-31191]);	ok
+0	459808	chgAttr(urlInactive:sk=[fz129-84505]);chgAttr(sold=60389.32556);chgAttr(unit:cs=fz131-75934);	ok
+0	1305246	chgAttr(availability=fz132-47628);chgAttr(productType=fz133-46831);chgAttr(name:sk=fz134-22854);	ok
+0	1211167	rmRef(parameterValues:1211841);chgAttr(saleRestriction=fz135-61005);	ok
+0	1199383	chgAttr(order=1510550);	ok
+0	1312633	chgAttr(url:sk=fz137-31160);	ok
+0	547445	chgRefAttr(parameterValues:498295/variant=true);chgRefAttr(stocks:1227324/quantityOnStock=88368.81586);	ok
+0	1199510	chgAttr(soldOrdering=71549.43541);	ok
+0	459491	INVALID_dropMandatory(categories:1229834);chgRefAttr(categories:1229834/categoryPriority=1346901);chgRefAttr(groups:772327/assignmentValidity=[[2008-08-06T00:00:00Z,2028-08-06T00:00:00Z]]);chgRefAttr(parameterValues:790489/variant=true);	ok
+0	1397404	chgAttr(productType=fz144-69426);chgRefAttr(parameterValues:755217/variant=true);rmRef(stockVisibilities:1227321);	ok
+0	1301517	chgRefAttr(groups:753770/assignmentValidity=[[2001-08-22T00:00:00Z,2007-08-22T00:00:00Z]]);	ok
+0	774599	chgAttr(url:sk=fz147-32326);chgRefAttr(parameterValues:754133/variant=true);INVALID_dropMandatory(categories:142824);	FAIL EvitaInvalidUsageException | 73a20adb22d95068d7daa5f6e2d96230:af7e03290249dcf135c6dd7ad7cd6bc9:92: 
+Entity `Product` reference `categories` requires these attributes to 
+0	1391526	chgRefAttr(groups:753912/assignmentValidity=[[2000-02-10T00:00:00Z,2006-02-10T00:00:00Z]]);chgAttr(url:sk=fz150-51883);	ok
+0	1332805	rmRef(parameterValues:495252);rmRef(groups:753752);chgRefAttr(parameterValues:459431/variant=true);chgAttr(productType=fz152-35972);	ok
+0	1340209	rmRef(parameterValues:503663);chgAttr(productType=fz153-82376);rmRef(categories:142816);chgRefAttr(groups:1341663/assignmentValidity=[[2000-07-24T00:00:00Z,2011-07-24T00:00:00Z]]);	FAIL GenericEvitaInternalError | 62663481f4e06623dca9964d207b9599:af7e03290249dcf135c6dd7ad7cd6bc9:84: Key is already present in the tree!
+0	585810	INVALID_dropMandatory(groups:753770);	ok
+0	483991	chgAttr(saleRestriction=fz155-83080);rmRef(tags:22);chgRefAttr(parameterValues:754863/variant=true);	ok
+0	24442	rmRef(stockVisibilities:1227325);chgAttr(unit:cs=fz157-75765);chgRefAttr(parameterValues:511313/variant=true);	ok
+0	783665	chgRefAttr(groups:753726/assignmentValidity=[[2009-11-23T00:00:00Z,2011-11-23T00:00:00Z]]);	ok
+0	723971	rmRef(bonusVisibilities:1227327);chgAttr(changed=2019-01-27T06:55Z);	ok
+0	30704	rmRef(categories:142802);chgAttr(producerCode=fz161-78284);INVALID_dropMandatory(groups:754332);	ok
+0	1333303	chgAttr(status=fz162-65680);chgAttr(minOrderQuantity=92982.84326);chgRefAttr(parameterValues:459431/variant=true);chgRefAttr(parameterValues:495799/variant=true);	ok
+0	789313	chgRefAttr(groups:754878/assignmentValidity=[[2002-05-11T00:00:00Z,2021-05-11T00:00:00Z]]);chgRefAttr(groups:754878/assignmentValidity=[[2003-10-06T00:00:00Z,2009-10-06T00:00:00Z]]);rmRef(groups:754880);chgAttr(name:sk=fz168-41601);	ok
+0	1202331	chgRefAttr(parameterValues:477307/variant=true);	ok
+0	1320922	chgAttr(codeShort=fz170-76799);INVALID_dropMandatory(groups:753770);	ok
+0	1210073	rmRef(tags:22);INVALID_dropMandatory(groups:753782);	ok
+0	585525	INVALID_dropMandatory(groups:753766);chgRefAttr(groups:753770/assignmentValidity=[[2003-10-07T00:00:00Z,2023-10-07T00:00:00Z]]);	ok
+0	1339730	chgAttr(descriptionShort:cs=fz172-44052);rmRef(groups:1397519);chgAttr(unit:cs=fz173-67874);chgRefAttr(parameterValues:459431/variant=true);	ok
+0	47260	rmRef(parameterValues:754201);INVALID_dropMandatory(groups:754200);chgAttr(availability=fz175-47167);INVALID_dropMandatory(groups:753770);	ok
+0	1300045	chgAttr(brandCode=fz176-65796);INVALID_dropMandatory(groups:755822);chgRefAttr(parameterValues:495853/variant=true);rmRef(stockVisibilities:1227323);	ok
+0	1397228	chgAttr(changed=2003-10-19T05:21Z);rmRef(parameterValues:1329161);chgAttr(unit:sk=fz179-88698);	ok
+0	1256888	chgAttr(productType=fz180-70955);chgAttr(name:cs=fz181-87153);chgRefAttr(categories:428142/categoryPriority=356019);	ok
+0	550788	chgAttr(descriptionShort:sk=fz183-20036);INVALID_dropMandatory(groups:675212);	ok
+0	34172	rmRef(parameterValues:511376);chgAttr(stockItemPrimaryKey=641397);	ok
+0	62755	chgRefAttr(parameterValues:754299/variant=true);chgAttr(orderedQuantity=28377.40628);rmRef(parameterValues:754299);	ok
+0	37345	INVALID_dropMandatory(categories:427258);chgRefAttr(stocks:1227327/quantityOnStock=65926.25220);chgAttr(cezarCode=fz188-15274);	FAIL EvitaInvalidUsageException | 73a20adb22d95068d7daa5f6e2d96230:af7e03290249dcf135c6dd7ad7cd6bc9:92: 
+Entity `Product` reference `categories` requires these attributes to 
+0	841694	INVALID_dropMandatory(categories:427337);chgRefAttr(groups:753770/assignmentValidity=[[2008-01-02T00:00:00Z,2011-01-02T00:00:00Z]]);chgAttr(order=1555989);	FAIL EvitaInvalidUsageException | 73a20adb22d95068d7daa5f6e2d96230:af7e03290249dcf135c6dd7ad7cd6bc9:92: 
+Entity `Product` reference `categories` requires these attributes to 
+0	1211163	rmRef(parameterValues:496822);chgRefAttr(stocks:1227323/quantityOnStock=15558.39572);	ok
+0	1390920	INVALID_dropMandatory(groups:753912);chgRefAttr(groups:1373026/assignmentValidity=[[2007-06-11T00:00:00Z,2008-06-11T00:00:00Z]]);chgRefAttr(groups:1373026/assignmentValidity=[[2009-11-08T00:00:00Z,2021-11-08T00:00:00Z]]);	ok
+0	672213	chgRefAttr(groups:753770/assignmentValidity=[[2007-07-22T00:00:00Z,2009-07-22T00:00:00Z]]);	ok
+0	31895	chgAttr(soldOrdering=39185.86606);chgAttr(productType=fz196-68865);chgAttr(minOrderQuantity=64717.95921);chgAttr(urlInactive:sk=[fz198-48818]);	ok
+0	1209593	chgAttr(palleteQuantity=46644.74231);INVALID_dropMandatory(groups:753770);chgAttr(maxOrderQuantity=23628.43508);	ok
+0	1320922	chgAttr(codeShort=fz201-76799);INVALID_dropMandatory(groups:753852);	ok
+0	1228051	chgAttr(stockItemPrimaryKey=78245);rmRef(tags:1452);chgRefAttr(parameterValues:495777/variant=true);chgAttr(url:cs=fz204-84759);	ok
+0	12253	chgAttr(palleteQuantity=73016.29279);	ok
+0	18291	chgAttr(published=2002-07-21T11:20Z);	ok
+0	844801	chgAttr(availability=fz207-69346);chgAttr(name:cs=fz208-59824);INVALID_dropMandatory(groups:753780);	ok
+0	670464	rmRef(categories:142792);chgAttr(senesiOrdering=fz209-47014);chgAttr(onTheWay=fz210-17742);chgRefAttr(parameterValues:498295/variant=true);	ok
+0	425807	chgAttr(maxOrderQuantity=27562.50385);	ok
+0	1228888	chgRefAttr(parameterValues:753771/variant=true);chgAttr(producerCode=fz214-33380);rmRef(stocks:1227327);rmRef(tags:23);	ok
+0	1354801	INVALID_dropMandatory(groups:790122);chgRefAttr(parameterValues:756516/variant=true);	ok
+0	59131	chgRefAttr(parameterValues:497180/variant=true);	ok
+0	1228955	INVALID_dropMandatory(categories:142799);chgRefAttr(categories:142799/categoryPriority=780899);chgAttr(unit:cs=fz218-74925);rmRef(bonusVisibilities:1227324);	ok
+0	1391112	rmRef(bonusVisibilities:1227327);chgAttr(senesiOrdering=fz219-38653);	ok
+0	1230419	chgAttr(urlInactive:sk=[fz220-80933]);chgAttr(productType=fz221-90936);chgAttr(isAlias=true);	ok
+0	764798	chgAttr(url:cs=fz223-71912);	ok
+0	1394600	chgRefAttr(parameterValues:1396252/variant=true);chgAttr(orderedQuantity=98868.56815);	ok
+0	14529	chgAttr(stepOrderQuantity=68051.53544);	ok
+0	472855	chgAttr(minOrderQuantity=21203.99466);chgAttr(producerCode=fz228-6093);	ok
+0	778629	rmRef(bonusVisibilities:1227322);	ok
+0	719083	chgAttr(url:sk=fz229-21028);	ok
+0	1394830	chgRefAttr(groups:1396251/assignmentValidity=[[2002-04-14T00:00:00Z,2014-04-14T00:00:00Z]]);chgRefAttr(groups:1396251/assignmentValidity=[[2009-11-12T00:00:00Z,2023-11-12T00:00:00Z]]);	ok
+0	1207891	chgAttr(url:sk=fz232-28355);chgAttr(onTheWay=fz233-80880);	ok
+0	758927	INVALID_dropMandatory(groups:668363);chgAttr(isAlias=true);	ok
+0	1394361	rmRef(groups:753912);INVALID_dropMandatory(groups:1396251);	ok
+0	1322643	chgRefAttr(parameterValues:496738/variant=true);chgAttr(minOrderQuantity=65228.67816);	ok
+0	673548	chgAttr(sold=59603.80334);rmRef(parameterValues:754361);INVALID_dropMandatory(groups:754360);chgRefAttr(categories:425783/assignmentValidity=[[2004-12-12T00:00:00Z,2007-12-12T00:00:00Z]]);	ok
+0	674362	chgAttr(orderedQuantity=69633.67927);chgAttr(name:cs=fz240-5371);chgAttr(ean=fz241-51279);	ok
+0	1300067	chgAttr(name:sk=fz242-58953);chgAttr(changed=2004-08-05T02:00Z);chgAttr(onTheWay=fz244-29104);rmRef(bonusVisibilities:1227322);	ok
+0	586162	chgRefAttr(groups:680132/assignmentValidity=[[2001-03-07T00:00:00Z,2016-03-07T00:00:00Z]]);chgAttr(isAlias=true);	ok
+0	1332310	chgRefAttr(stocks:1227327/quantityOnStock=65023.26184);chgAttr(status=fz248-23352);chgRefAttr(parameterValues:496726/variant=true);chgRefAttr(parameterValues:847920/variant=true);	ok
+0	1199437	chgRefAttr(groups:753790/assignmentValidity=[[2005-12-17T00:00:00Z,2017-12-17T00:00:00Z]]);	ok
+0	842787	rmRef(groups:753770);chgAttr(url:cs=fz252-33973);chgAttr(palleteQuantity=65294.89635);INVALID_dropMandatory(categories:142812);	FAIL EvitaInvalidUsageException | 73a20adb22d95068d7daa5f6e2d96230:af7e03290249dcf135c6dd7ad7cd6bc9:92: 
+Entity `Product` reference `categories` requires these attributes to 
+0	59199	INVALID_dropMandatory(groups:756150);	ok
+0	1390917	chgRefAttr(groups:753912/assignmentValidity=[[2003-06-08T00:00:00Z,2005-06-08T00:00:00Z]]);INVALID_dropMandatory(groups:753912);chgAttr(unit:cs=fz255-63710);	ok
+0	1363119	chgRefAttr(groups:753790/assignmentValidity=[[2006-12-20T00:00:00Z,2009-12-20T00:00:00Z]]);chgAttr(unit:sk=fz257-92436);rmRef(stocks:1227327);	ok
+0	1240729	chgRefAttr(groups:753770/assignmentValidity=[[2008-09-01T00:00:00Z,2022-09-01T00:00:00Z]]);	ok
+0	1392088	chgRefAttr(stocks:1227327/quantityOnStock=84229.22416);chgAttr(name:sk=fz260-92704);chgAttr(saleRestriction=fz261-36488);rmRef(bonusVisibilities:1227328);	ok
+0	720734	chgRefAttr(groups:1311249/assignmentValidity=[[2003-04-19T00:00:00Z,2013-04-19T00:00:00Z]]);rmRef(stocks:1227327);	ok
+0	1391597	INVALID_dropMandatory(groups:1311263);chgAttr(statusB2C=fz263-42160);chgRefAttr(parameterValues:753853/variant=true);chgRefAttr(groups:753852/assignmentValidity=[[2006-12-17T00:00:00Z,2009-12-17T00:00:00Z]]);	ok
+0	1347520	chgRefAttr(groups:753824/assignmentValidity=[[2003-11-12T00:00:00Z,2012-11-12T00:00:00Z]]);	ok
+0	1267110	INVALID_dropMandatory(groups:753770);	ok
+0	1301917	rmRef(bonusVisibilities:1227323);	ok
+0	1339387	INVALID_dropMandatory(groups:1342340);chgRefAttr(groups:753770/assignmentValidity=[[2006-02-22T00:00:00Z,2022-02-22T00:00:00Z]]);INVALID_dropMandatory(groups:753782);chgRefAttr(parameterValues:753783/variant=true);	ok
+0	828671	chgRefAttr(groups:753912/assignmentValidity=[[2007-12-13T00:00:00Z,2016-12-13T00:00:00Z]]);	ok
+0	1332567	rmRef(bonusVisibilities:1227327);chgAttr(isAlias=true);chgRefAttr(stocks:1227327/quantityOnStock=66407.78816);chgAttr(name:cs=fz272-35213);	ok
+0	1300974	chgAttr(url:sk=fz273-82017);INVALID_dropMandatory(groups:756541);chgAttr(statusB2C=fz274-26747);chgAttr(codeShort=fz275-57375);	ok
+0	1211986	chgRefAttr(parameterValues:1197770/variant=true);INVALID_dropMandatory(groups:1197769);INVALID_dropMandatory(groups:753790);	ok
+0	1253123	chgRefAttr(parameterValues:753771/variant=true);chgRefAttr(parameterValues:753771/variant=true);chgRefAttr(parameterValues:758015/variant=true);	ok
+0	1309910	INVALID_dropMandatory(groups:1373024);INVALID_dropMandatory(groups:754312);	ok
+0	1354857	chgRefAttr(parameterValues:756516/variant=true);rmRef(tags:22);	ok
+0	725035	chgAttr(minOrderQuantity=4827.14281);rmRef(brand:232085);	ok
+0	1240620	INVALID_dropMandatory(groups:753854);	ok
+0	37933	INVALID_dropMandatory(groups:1242476);chgRefAttr(parameterValues:1242477/variant=true);chgRefAttr(parameterValues:497325/variant=true);INVALID_dropMandatory(groups:1242476);	ok
+0	1331921	chgAttr(isAlias=true);chgAttr(unit:cs=fz285-16995);chgAttr(name:sk=fz286-72422);	ok
+0	1372069	INVALID_dropMandatory(groups:847762);rmRef(stockVisibilities:1227322);chgAttr(onTheWay=fz287-7157);chgAttr(senesiOrdering=fz288-97670);	ok
+0	1303270	rmRef(stockVisibilities:1227328);chgRefAttr(parameterValues:754231/variant=true);chgAttr(url:sk=fz290-96192);chgRefAttr(groups:754822/assignmentValidity=[[2000-12-18T00:00:00Z,2010-12-18T00:00:00Z]]);	ok
+0	777743	chgRefAttr(stocks:1227327/quantityOnStock=78513.80847);	ok
+0	771020	INVALID_dropMandatory(groups:753756);chgAttr(code=fz293-91006);rmRef(groups:1389094);	ok
+0	1352433	chgRefAttr(parameterValues:511518/variant=true);chgRefAttr(parameterValues:756427/variant=true);	ok
+0	842692	chgAttr(order=1534862);chgRefAttr(parameterValues:511536/variant=true);INVALID_dropMandatory(groups:753732);	ok
+0	1339000	chgAttr(published=2007-01-27T02:50Z);	ok
+0	1243690	chgRefAttr(groups:753770/assignmentValidity=[[2009-07-13T00:00:00Z,2019-07-13T00:00:00Z]]);	ok
+0	842511	rmRef(tags:43);chgAttr(isAlias=true);chgAttr(ean=fz301-24539);	ok
+0	824642	INVALID_dropMandatory(groups:753912);	ok
+0	666850	chgRefAttr(parameterValues:498295/variant=true);rmRef(parameterValues:1206825);chgAttr(name:cs=fz303-53826);chgAttr(relatedFiles=[fz304-39035]);	ok
+0	789827	chgAttr(cezarCode=fz305-26435);	ok
+0	778242	chgRefAttr(stocks:1227325/quantityOnStock=26680.96109);INVALID_dropMandatory(groups:769325);INVALID_dropMandatory(groups:753780);chgAttr(url:sk=fz307-77269);	ok
+0	763803	chgAttr(codeShort=fz308-12234);	ok
+0	1209099	rmRef(stockVisibilities:1227327);	ok
+0	1310345	rmRef(categories:426093);rmRef(parameterValues:487008);	ok
+0	1353347	chgAttr(availability=fz309-19667);	ok
+0	779097	chgAttr(saleRestriction=fz310-36555);chgRefAttr(groups:756426/assignmentValidity=[[2004-07-17T00:00:00Z,2022-07-17T00:00:00Z]]);INVALID_dropMandatory(groups:780522);chgAttr(published=2021-11-18T23:23Z);	ok
+0	718843	chgAttr(availability=fz313-80279);	ok
+0	470217	chgAttr(description:sk=fz314-46471);	ok
+0	29638	chgAttr(status=fz315-84982);chgRefAttr(stocks:1227327/quantityOnStock=85388.86264);chgAttr(producerCode=fz317-56751);	ok
+0	1205928	chgAttr(codeShort=fz318-9599);	ok
+0	725995	chgAttr(minOrderQuantity=85282.95589);INVALID_dropMandatory(groups:753750);chgRefAttr(parameterValues:753751/variant=true);	ok
+0	473196	chgRefAttr(parameterValues:496726/variant=true);	ok
+0	770745	chgRefAttr(parameterValues:511520/variant=true);chgAttr(visibilityB2C=fz323-67086);chgRefAttr(parameterValues:754313/variant=true);	ok
+0	1331110	INVALID_dropMandatory(groups:1389342);chgAttr(codeShort=fz325-98897);chgAttr(status=fz326-56691);chgAttr(saleRestriction=fz327-38213);	ok
+0	1346493	chgAttr(stepOrderQuantity=648.57462);rmRef(stockVisibilities:1227321);chgRefAttr(groups:753726/assignmentValidity=[[2002-11-08T00:00:00Z,2009-11-08T00:00:00Z]]);rmRef(tags:22);	ok
+0	845633	rmRef(tags:81);chgAttr(soldOrdering=58628.97095);rmRef(bonusVisibilities:1227328);	ok
+0	1256742	chgRefAttr(parameterValues:776945/variant=true);rmRef(parameterValues:754313);INVALID_dropMandatory(groups:753788);	ok
+0	789632	chgRefAttr(parameterValues:754879/variant=true);	ok
+0	1338317	INVALID_dropMandatory(groups:753770);chgAttr(onTheWay=fz333-25195);rmRef(parameterValues:1342345);rmRef(bonusVisibilities:1227328);	ok
+0	40507	chgAttr(sold=63681.90748);rmRef(groups:143886);INVALID_dropMandatory(groups:754122);chgAttr(url:cs=fz335-8073);	ok
+0	1239545	rmRef(bonusVisibilities:1227322);chgAttr(url:sk=fz336-4356);rmRef(parameterValues:511196);chgRefAttr(parameterValues:511196/variant=true);	ok
+0	1353645	rmRef(bonusVisibilities:1227320);	ok
+0	19024	INVALID_dropMandatory(categories:427258);	FAIL EvitaInvalidUsageException | 73a20adb22d95068d7daa5f6e2d96230:af7e03290249dcf135c6dd7ad7cd6bc9:92: 
+Entity `Product` reference `categories` requires these attributes to 
+0	776143	rmRef(bonusVisibilities:1227324);chgAttr(stockItemPrimaryKey=239680);chgAttr(published=2023-04-09T03:11Z);chgRefAttr(categories:142791/assignmentValidity=[[2008-09-27T00:00:00Z,2026-09-27T00:00:00Z]]);	FAIL GenericEvitaInternalError | 62663481f4e06623dca9964d207b9599:af7e03290249dcf135c6dd7ad7cd6bc9:84: Key is already present in the tree!
+0	1302046	chgAttr(productType=fz341-10105);	ok
+0	470397	chgRefAttr(parameterValues:477302/variant=true);	ok
+0	1392880	rmRef(stockVisibilities:1227327);chgAttr(catalogNumber=fz343-10194);chgAttr(orderedQuantity=1197.67036);	ok
+0	1374792	rmRef(stockVisibilities:1227323);chgAttr(statusB2C=fz345-2983);chgAttr(producerCode=fz346-46093);rmRef(bonusVisibilities:1227328);	ok
+0	842377	chgAttr(url:sk=fz347-9588);chgAttr(orderedQuantity=85965.74459);chgAttr(productType=fz349-13571);	ok
+0	1210165	chgAttr(masterCode=fz350-93761);chgAttr(maxOrderQuantity=37584.98015);	ok
+0	1395808	chgAttr(order=255218);rmRef(bonusVisibilities:1227328);chgAttr(soldOrdering=46702.45627);	ok
+0	782885	rmRef(parameterValues:511301);INVALID_dropMandatory(categories:1201660);chgRefAttr(parameterValues:497307/variant=true);chgAttr(orderedQuantity=68078.10111);	FAIL EvitaInvalidUsageException | 73a20adb22d95068d7daa5f6e2d96230:af7e03290249dcf135c6dd7ad7cd6bc9:92: 
+Entity `Product` reference `categories` requires these attributes to 
+0	1318652	chgAttr(order=1682880);rmRef(stockVisibilities:1227322);INVALID_dropMandatory(groups:756731);	ok
+0	1206008	chgAttr(availability=fz357-27129);	ok
+0	1343511	chgAttr(saleRestriction=fz358-9505);INVALID_dropMandatory(groups:754360);	ok
+0	56600	chgRefAttr(parameterValues:495856/variant=true);rmRef(parameterValues:1206822);chgAttr(productType=fz360-67192);	ok
+0	1198393	INVALID_dropMandatory(groups:753790);chgAttr(name:cs=fz361-11952);chgRefAttr(parameterValues:1389315/variant=true);INVALID_dropMandatory(groups:1389314);	ok
+0	1278511	chgRefAttr(categories:1342291/categoryPriority=769903);chgAttr(brandCode=fz364-76110);	ok
+0	478899	chgAttr(url:cs=fz365-94272);chgRefAttr(groups:753780/assignmentValidity=[[2008-10-24T00:00:00Z,2009-10-24T00:00:00Z]]);	ok
+0	1206428	chgRefAttr(groups:753726/assignmentValidity=[[2005-03-02T00:00:00Z,2024-03-02T00:00:00Z]]);	ok
+0	475161	chgAttr(orderedQuantity=34989.78967);chgAttr(codeShort=fz369-22273);	ok
+0	1320674	chgAttr(cezarCode=fz370-5124);chgRefAttr(parameterValues:1320673/variant=true);	ok
+0	478553	chgAttr(name:cs=fz372-13829);chgRefAttr(groups:753780/assignmentValidity=[[2005-04-15T00:00:00Z,2017-04-15T00:00:00Z]]);	ok
+0	1205675	chgRefAttr(groups:726281/assignmentValidity=[[2004-04-21T00:00:00Z,2009-04-21T00:00:00Z]]);	ok
+0	1338243	chgAttr(senesiOrdering=fz375-27446);rmRef(parameterValues:511415);chgAttr(stepOrderQuantity=75978.15042);rmRef(parameterValues:753771);	ok
+0	1321648	chgAttr(urlInactive:sk=[fz377-39196]);	ok
+0	668500	INVALID_dropMandatory(groups:753790);INVALID_dropMandatory(groups:753770);chgAttr(code=fz378-51428);	ok
+0	356178	chgRefAttr(categories:142817/categoryPriority=1387652);chgRefAttr(stocks:1227327/quantityOnStock=40935.59449);chgRefAttr(groups:1397521/assignmentValidity=[[2007-10-01T00:00:00Z,2026-10-01T00:00:00Z]]);rmRef(groups:427061);	ok
+0	1354875	INVALID_dropMandatory(categories:426022);chgAttr(palleteQuantity=97564.16270);	FAIL EvitaInvalidUsageException | 73a20adb22d95068d7daa5f6e2d96230:af7e03290249dcf135c6dd7ad7cd6bc9:92: 
+Entity `Product` reference `categories` requires these attributes to 
+0	791794	INVALID_dropMandatory(categories:142825);INVALID_dropMandatory(groups:753770);	FAIL EvitaInvalidUsageException | 73a20adb22d95068d7daa5f6e2d96230:af7e03290249dcf135c6dd7ad7cd6bc9:92: 
+Entity `Product` reference `categories` requires these attributes to 
+0	779255	chgAttr(url:cs=fz383-89784);chgRefAttr(categories:157068/categoryPriority=21392);chgAttr(availability=fz385-43139);chgAttr(catalogNumber=fz386-44821);	ok
+0	778918	INVALID_dropMandatory(groups:756426);rmRef(parameterValues:511290);INVALID_dropMandatory(categories:157068);chgAttr(visibilityB2C=fz387-49515);	FAIL EvitaInvalidUsageException | 73a20adb22d95068d7daa5f6e2d96230:af7e03290249dcf135c6dd7ad7cd6bc9:92: 
+Entity `Product` reference `categories` requires these attributes to 
+0	1394771	chgRefAttr(parameterValues:511426/variant=true);chgAttr(orderedQuantity=26785.38146);	ok
+0	1390518	chgAttr(changed=2011-06-14T06:04Z);chgAttr(codeShort=fz391-8358);chgRefAttr(parameterValues:754133/variant=true);	ok
+0	1253834	chgAttr(maxOrderQuantity=50726.81770);rmRef(stockVisibilities:1227323);chgRefAttr(parameterValues:753771/variant=true);	ok
+0	1396205	chgAttr(unit:cs=fz395-58269);chgAttr(statusB2C=fz396-79566);chgAttr(onTheWay=fz397-2036);	ok
+0	673725	chgRefAttr(parameterValues:754361/variant=true);chgRefAttr(parameterValues:754361/variant=true);chgAttr(status=fz400-71478);chgRefAttr(stocks:1227327/quantityOnStock=34751.87132);	ok
+0	545253	chgRefAttr(stocks:1227325/quantityOnStock=40006.82833);	ok
+0	46857	chgRefAttr(parameterValues:758011/variant=true);	ok
+0	26917	rmRef(groups:753770);chgRefAttr(categories:143153/assignmentValidity=[[2007-12-20T00:00:00Z,2017-12-20T00:00:00Z]]);	ok
+0	1344398	chgRefAttr(groups:755186/assignmentValidity=[[2008-12-14T00:00:00Z,2015-12-14T00:00:00Z]]);INVALID_dropMandatory(groups:753864);	ok
+0	536137	chgAttr(isAlias=true);chgAttr(name:sk=fz407-33088);rmRef(bonusVisibilities:1227326);rmRef(groups:753770);	ok
+0	1317470	chgRefAttr(groups:753912/assignmentValidity=[[2003-01-17T00:00:00Z,2013-01-17T00:00:00Z]]);chgAttr(published=2024-06-26T13:27Z);	ok
+0	1199328	chgAttr(changed=2005-01-26T16:36Z);	ok
+0	44675	rmRef(tags:22);chgAttr(producerCode=fz411-85079);chgRefAttr(parameterValues:495777/variant=true);chgAttr(minOrderQuantity=95664.95221);	ok
+0	1257104	rmRef(bonusVisibilities:1227325);chgRefAttr(parameterValues:1257073/variant=true);rmRef(stockVisibilities:1227326);	ok
+0	670445	rmRef(stockVisibilities:1227321);chgRefAttr(parameterValues:477027/variant=true);chgAttr(name:cs=fz416-58136);chgRefAttr(parameterValues:497069/variant=true);	ok
+0	1267543	chgAttr(codeShort=fz418-9520);	ok
+0	1208277	chgAttr(changed=2005-11-28T23:47Z);rmRef(stockVisibilities:1227321);	ok
+0	502519	chgRefAttr(groups:753780/assignmentValidity=[[2001-09-04T00:00:00Z,2019-09-04T00:00:00Z]]);rmRef(bonusVisibilities:1227321);INVALID_dropMandatory(groups:753780);	ok
+0	47383	chgRefAttr(parameterValues:1206822/variant=true);rmRef(bonusVisibilities:1227327);chgAttr(minOrderQuantity=8722.15245);rmRef(parameterValues:497671);	ok
+0	821635	INVALID_dropMandatory(groups:776904);chgAttr(soldOrdering=52541.93758);chgAttr(order=995262);chgAttr(published=2002-07-20T01:00Z);	ok
+0	45731	chgAttr(visibilityB2C=fz426-28262);chgRefAttr(groups:754312/assignmentValidity=[[2000-06-16T00:00:00Z,2007-06-16T00:00:00Z]]);INVALID_dropMandatory(groups:755192);chgRefAttr(parameterValues:512180/variant=true);	ok
+0	47600	INVALID_dropMandatory(groups:754360);chgAttr(status=fz429-35326);chgAttr(senesiOrdering=fz430-5804);chgRefAttr(parameterValues:753789/variant=true);	ok
+0	1300051	chgAttr(ean=fz432-71750);chgRefAttr(parameterValues:753863/variant=true);chgRefAttr(stocks:1227327/quantityOnStock=60493.16710);INVALID_dropMandatory(groups:753862);	ok
+0	489432	chgRefAttr(categories:1341471/orderInCategory=354989);rmRef(parameterValues:753771);chgAttr(visibilityB2C=fz436-93737);chgAttr(maxOrderQuantity=41067.54021);	ok
+0	769392	INVALID_dropMandatory(groups:754312);chgAttr(brandCode=fz438-41586);chgAttr(orderedQuantity=19654.77867);chgAttr(soldOrdering=90123.73932);	ok
+0	1202983	chgRefAttr(categories:823533/categoryPriority=1326519);	ok
+0	1300026	rmRef(parameterValues:755823);rmRef(stockVisibilities:1227322);chgAttr(urlInactive:sk=[fz442-14135]);chgAttr(catalogNumber=fz443-14757);	ok
+0	1318510	INVALID_dropMandatory(groups:753912);chgRefAttr(groups:753912/assignmentValidity=[[2000-02-23T00:00:00Z,2011-02-23T00:00:00Z]]);chgAttr(availability=fz445-39431);	ok
+0	1198870	chgRefAttr(stocks:1227327/quantityOnStock=40823.40610);chgAttr(orderedQuantity=32222.49466);chgAttr(producerCode=fz448-89748);rmRef(parameterValues:753791);	ok
+0	1296307	chgRefAttr(parameterValues:1362228/variant=true);INVALID_dropMandatory(groups:755544);chgRefAttr(parameterValues:512424/variant=true);	ok
+0	1327840	chgAttr(urlInactive:sk=[fz451-66222]);chgRefAttr(groups:1333794/assignmentValidity=[[2005-07-10T00:00:00Z,2013-07-10T00:00:00Z]]);INVALID_dropMandatory(groups:755894);rmRef(stockVisibilities:1227322);	ok
+0	761938	chgAttr(name:cs=fz453-73816);chgAttr(descriptionShort:cs=fz454-52902);	ok
+0	1340661	chgAttr(onTheWay=fz455-60509);chgAttr(cezarCode=fz456-37719);	ok
+0	765352	chgAttr(visibilityB2C=fz457-6469);chgAttr(productType=fz458-42878);	ok
+0	55983	chgAttr(url:cs=fz459-36961);	ok
+0	1318397	chgAttr(cezarCode=fz460-93331);chgRefAttr(parameterValues:1399658/variant=true);chgAttr(unit:sk=fz462-22561);	ok
+0	720106	chgRefAttr(stocks:1227327/quantityOnStock=56939.26875);chgAttr(visibilityB2C=fz464-77025);	ok
+0	1231158	chgRefAttr(categories:426092/assignmentValidity=[[2001-06-05T00:00:00Z,2015-06-05T00:00:00Z]]);chgRefAttr(stocks:1227327/quantityOnStock=62656.22053);chgAttr(codeShort=fz467-96045);	ok
+0	786905	INVALID_dropMandatory(groups:753780);chgRefAttr(groups:753780/assignmentValidity=[[2002-04-07T00:00:00Z,2021-04-07T00:00:00Z]]);	ok
+0	664729	chgAttr(productType=fz469-54979);rmRef(groups:753720);chgRefAttr(parameterValues:790113/variant=true);	ok
+0	1328965	rmRef(groups:1329160);rmRef(stockVisibilities:1227323);chgAttr(catalogNumber=fz471-47472);	ok
+0	1298533	chgAttr(unit:sk=fz472-24538);INVALID_dropMandatory(groups:753912);chgRefAttr(parameterValues:583453/variant=true);	ok
+0	1333033	chgAttr(name:cs=fz474-68820);chgAttr(url:cs=fz475-50358);rmRef(bonusVisibilities:1227324);chgRefAttr(parameterValues:495854/variant=true);	ok
+0	23164	chgAttr(producerCode=fz477-22085);rmRef(parameterValues:497523);	ok
+0	1212180	chgRefAttr(parameterValues:497100/variant=true);chgAttr(sold=97316.93950);chgAttr(order=1958007);	ok
+0	719289	INVALID_dropMandatory(categories:142825);	FAIL EvitaInvalidUsageException | 73a20adb22d95068d7daa5f6e2d96230:af7e03290249dcf135c6dd7ad7cd6bc9:92: 
+Entity `Product` reference `categories` requires these attributes to 
+0	1204912	rmRef(stockVisibilities:1227327);INVALID_dropMandatory(groups:823260);	ok
+0	674800	chgAttr(productType=fz481-31852);	ok
+0	1393555	INVALID_dropMandatory(groups:753822);INVALID_dropMandatory(groups:753912);chgAttr(name:cs=fz482-64025);	ok
+0	53715	chgAttr(url:cs=fz483-40148);	ok
+0	780418	chgRefAttr(groups:753780/assignmentValidity=[[2001-03-26T00:00:00Z,2018-03-26T00:00:00Z]]);chgAttr(onTheWay=fz485-16014);chgRefAttr(parameterValues:756429/variant=true);	ok
+0	849461	chgAttr(catalogNumber=fz487-19988);chgAttr(unit:sk=fz488-19951);INVALID_dropMandatory(groups:1242476);INVALID_dropMandatory(groups:753770);	ok
+0	1353527	chgRefAttr(stocks:1227327/quantityOnStock=29786.48979);	ok
+0	23376	chgAttr(url:sk=fz490-8400);INVALID_dropMandatory(groups:753780);	ok
+0	59243	rmRef(categories:427258);	ok
+0	1372872	INVALID_dropMandatory(groups:753862);chgAttr(published=2010-11-03T10:45Z);INVALID_dropMandatory(groups:753862);	ok
+0	1205448	chgRefAttr(parameterValues:443852/variant=true);	ok
+0	1304103	chgAttr(unit:sk=fz493-62066);chgRefAttr(parameterValues:495197/variant=true);chgAttr(minOrderQuantity=3963.70943);rmRef(stocks:1227327);	ok
+0	1319716	INVALID_dropMandatory(groups:1399657);chgRefAttr(stocks:1227327/quantityOnStock=68758.92929);chgAttr(stockItemPrimaryKey=1368245);	ok
+0	841208	chgRefAttr(parameterValues:753781/variant=true);chgAttr(senesiOrdering=fz499-9287);INVALID_dropMandatory(groups:1277160);	ok
+0	1206249	INVALID_dropMandatory(groups:753770);	ok
+0	717606	chgAttr(urlInactive:sk=[fz500-67850]);rmRef(bonusVisibilities:1227321);chgAttr(urlInactive:cs=[fz501-61867]);chgRefAttr(parameterValues:477965/variant=true);	ok
+0	1351611	chgAttr(url:sk=fz503-99822);INVALID_dropMandatory(groups:753824);	ok
+0	33886	chgRefAttr(stocks:1227327/quantityOnStock=76409.18158);chgRefAttr(groups:753770/assignmentValidity=[[2004-11-24T00:00:00Z,2023-11-24T00:00:00Z]]);	ok
+0	1390513	chgAttr(name:sk=fz506-89933);INVALID_dropMandatory(groups:754132);chgRefAttr(groups:754132/assignmentValidity=[[2004-12-13T00:00:00Z,2005-12-13T00:00:00Z]]);	ok
+0	1240221	chgAttr(onTheWay=fz508-99348);	ok
+0	1319846	rmRef(bonusVisibilities:1227325);chgRefAttr(parameterValues:1399658/variant=true);chgAttr(cezarCode=fz510-58943);	ok
+0	1320585	chgAttr(statusB2C=fz511-5402);chgAttr(url:cs=fz512-21411);	ok
+0	1198242	rmRef(stockVisibilities:1227325);rmRef(parameterValues:495777);rmRef(stockVisibilities:1227320);chgAttr(descriptionShort:cs=fz513-23239);	ok
+0	1394746	INVALID_dropMandatory(groups:1396251);chgRefAttr(groups:753912/assignmentValidity=[[2005-04-27T00:00:00Z,2015-04-27T00:00:00Z]]);	ok
+0	766444	rmRef(tags:1494);INVALID_dropMandatory(groups:754312);	ok
+0	35441	chgRefAttr(parameterValues:495801/variant=true);rmRef(stockVisibilities:1227326);	ok
+0	1257278	chgAttr(cezarCode=fz516-50510);chgRefAttr(parameterValues:753789/variant=true);chgAttr(ean=fz518-39442);	ok
+0	473526	chgAttr(visibilityB2C=fz519-19188);	ok
+0	1347904	chgAttr(isAlias=true);chgAttr(published=2011-06-27T15:15Z);chgAttr(orderedQuantity=41900.66174);chgAttr(senesiOrdering=fz523-32156);	ok
+0	782962	chgRefAttr(categories:1197919/assignmentValidity=[[2008-01-17T00:00:00Z,2021-01-17T00:00:00Z]]);chgAttr(stepOrderQuantity=95707.13930);chgAttr(senesiOrdering=fz526-19080);chgAttr(maxOrderQuantity=77990.55921);	ok
+0	1352672	chgRefAttr(parameterValues:756429/variant=true);INVALID_dropMandatory(groups:753780);	ok
+0	1306245	chgAttr(stepOrderQuantity=98033.85227);rmRef(parameterValues:755541);chgAttr(status=fz530-41635);INVALID_dropMandatory(groups:753774);	ok
+0	764889	rmRef(stockVisibilities:1227326);	ok
+0	356035	chgAttr(sold=44117.99877);chgAttr(availability=fz532-41974);chgAttr(name:sk=fz533-9600);chgRefAttr(parameterValues:755055/variant=true);	ok
+0	844793	rmRef(parameterValues:753781);chgRefAttr(categories:427364/orderInCategory=860341);rmRef(bonusVisibilities:1227328);	ok
+0	10303	rmRef(parameterValues:498061);chgAttr(unit:sk=fz536-21769);chgAttr(orderedQuantity=15163.40274);chgAttr(senesiOrdering=fz538-12670);	ok
+0	789675	chgAttr(changed=2007-05-03T01:56Z);	ok
+0	1199557	chgRefAttr(groups:753770/assignmentValidity=[[2008-07-21T00:00:00Z,2016-07-21T00:00:00Z]]);	ok
+0	1317987	chgAttr(producerCode=fz541-31970);rmRef(stockVisibilities:1227320);rmRef(bonusVisibilities:1227328);	ok
+0	473145	chgRefAttr(parameterValues:495807/variant=true);	ok
+0	1317480	chgAttr(senesiOrdering=fz543-81050);chgRefAttr(parameterValues:511181/variant=true);	ok
+0	1259549	chgAttr(unit:cs=fz545-92568);chgAttr(productType=fz546-79161);chgAttr(stockItemPrimaryKey=703378);	ok
+0	53641	chgRefAttr(stocks:1227325/quantityOnStock=66265.39930);	ok
+0	24201	INVALID_dropMandatory(groups:753740);chgRefAttr(parameterValues:511201/variant=true);chgAttr(ean=fz550-91891);	ok
+0	774132	chgRefAttr(groups:753904/assignmentValidity=[[2005-10-07T00:00:00Z,2019-10-07T00:00:00Z]]);rmRef(parameterValues:511181);rmRef(groups:753904);	ok
+0	478663	chgRefAttr(groups:754236/assignmentValidity=[[2001-05-11T00:00:00Z,2006-05-11T00:00:00Z]]);rmRef(parameterValues:753781);	ok
+0	1259396	chgAttr(urlInactive:cs=[fz553-90032]);chgAttr(status=fz554-51936);chgAttr(maxOrderQuantity=91174.76501);chgRefAttr(stocks:1227327/quantityOnStock=56181.12110);	ok
+0	1302637	rmRef(stockVisibilities:1227321);	ok
+0	849791	chgAttr(url:cs=fz557-39254);	ok
+0	470275	rmRef(groups:754878);	ok
+0	1391500	chgAttr(producerCode=fz558-49611);chgAttr(url:sk=fz559-20738);	ok
+0	1392767	chgRefAttr(parameterValues:511865/variant=true);chgRefAttr(parameterValues:754313/variant=true);chgAttr(status=fz562-9281);	ok
+0	1303669	chgAttr(unit:cs=fz563-45009);INVALID_dropMandatory(groups:754822);INVALID_dropMandatory(groups:754822);INVALID_dropMandatory(groups:754822);	ok
+0	1312439	rmRef(bonusVisibilities:1227322);	ok
+0	34736	chgAttr(url:cs=fz564-57154);chgRefAttr(parameterValues:495197/variant=true);	ok
+0	1207186	chgAttr(unit:sk=fz566-83531);	ok
+0	1259940	chgRefAttr(parameterValues:753771/variant=true);rmRef(stockVisibilities:1227324);chgRefAttr(parameterValues:1260148/variant=true);rmRef(stockVisibilities:1227320);	ok
+0	820672	chgAttr(sold=62734.13966);chgAttr(name:cs=fz570-12875);chgRefAttr(parameterValues:823267/variant=true);chgAttr(minOrderQuantity=38375.25174);	ok
+0	46209	chgAttr(productType=fz573-16074);	ok
+0	36922	chgRefAttr(stocks:1227327/quantityOnStock=67821.38546);chgAttr(stockItemPrimaryKey=122593);rmRef(bonusVisibilities:1227326);	ok
+0	1202053	chgAttr(saleRestriction=fz576-45113);	ok
+0	47093	chgAttr(descriptionShort:cs=fz577-36792);chgRefAttr(parameterValues:511520/variant=true);chgRefAttr(parameterValues:495803/variant=true);chgAttr(producerCode=fz580-56450);	ok
+0	767355	chgAttr(brandCode=fz581-67752);INVALID_dropMandatory(categories:1311501);chgAttr(productType=fz582-77266);	FAIL EvitaInvalidUsageException | 73a20adb22d95068d7daa5f6e2d96230:af7e03290249dcf135c6dd7ad7cd6bc9:92: 
+Entity `Product` reference `categories` requires these attributes to 
+0	1240345	chgAttr(statusB2C=fz583-39806);	ok
+0	43249	chgRefAttr(groups:755176/assignmentValidity=[[2008-06-09T00:00:00Z,2013-06-09T00:00:00Z]]);rmRef(bonusVisibilities:1227326);chgAttr(senesiOrdering=fz585-66194);	ok
+0	1210203	chgRefAttr(stocks:1227327/quantityOnStock=22742.29930);rmRef(tags:1355);	ok
+0	1334011	chgAttr(description:cs=fz587-60057);INVALID_dropMandatory(categories:142817);rmRef(groups:753770);INVALID_dropMandatory(groups:845295);	FAIL EvitaInvalidUsageException | 73a20adb22d95068d7daa5f6e2d96230:af7e03290249dcf135c6dd7ad7cd6bc9:92: 
+Entity `Product` reference `categories` requires these attributes to 
+0	670632	rmRef(stockVisibilities:1227323);chgRefAttr(groups:755098/assignmentValidity=[[2007-03-16T00:00:00Z,2021-03-16T00:00:00Z]]);chgRefAttr(groups:753770/assignmentValidity=[[2004-06-09T00:00:00Z,2013-06-09T00:00:00Z]]);INVALID_dropMandatory(groups:755098);	ok
+0	1274415	rmRef(stockVisibilities:1227323);	ok
+0	1346705	chgAttr(cezarCode=fz590-46556);	ok
+0	489566	INVALID_dropMandatory(categories:1321819);chgRefAttr(parameterValues:488503/variant=true);chgRefAttr(parameterValues:498067/variant=true);	FAIL EvitaInvalidUsageException | 73a20adb22d95068d7daa5f6e2d96230:af7e03290249dcf135c6dd7ad7cd6bc9:92: 
+Entity `Product` reference `categories` requires these attributes to 
+0	828719	chgAttr(onTheWay=fz593-22680);	ok
+0	1284665	chgAttr(productType=fz594-30339);	ok
+0	1226316	chgRefAttr(categories:427258/categoryPriority=401888);rmRef(stockVisibilities:1227320);chgRefAttr(parameterValues:753855/variant=true);	ok
+0	1229577	rmRef(stockVisibilities:1227326);chgRefAttr(parameterValues:754313/variant=true);chgAttr(status=fz598-15419);chgRefAttr(groups:754312/assignmentValidity=[[2003-12-26T00:00:00Z,2020-12-26T00:00:00Z]]);	ok
+0	499848	chgAttr(onTheWay=fz600-62825);chgAttr(soldOrdering=30113.61396);rmRef(tags:1398);chgAttr(maxOrderQuantity=42282.67024);	ok
+0	1340403	INVALID_dropMandatory(categories:142816);	FAIL EvitaInvalidUsageException | 73a20adb22d95068d7daa5f6e2d96230:af7e03290249dcf135c6dd7ad7cd6bc9:92: 
+Entity `Product` reference `categories` requires these attributes to 
+0	1319745	chgRefAttr(parameterValues:511181/variant=true);chgAttr(onTheWay=fz604-35570);chgAttr(order=152526);	ok
+0	34581	INVALID_dropMandatory(categories:425784);rmRef(stockVisibilities:1227320);	FAIL EvitaInvalidUsageException | 73a20adb22d95068d7daa5f6e2d96230:af7e03290249dcf135c6dd7ad7cd6bc9:92: 
+Entity `Product` reference `categories` requires these attributes to 
+0	1257711	chgAttr(order=992841);chgAttr(unit:sk=fz607-32806);chgRefAttr(parameterValues:586146/variant=true);	ok
+0	33341	chgAttr(order=50767);chgAttr(changed=2003-12-13T11:24Z);rmRef(stockVisibilities:1227325);chgAttr(urlInactive:cs=[fz611-58708]);	ok
+0	783793	rmRef(parameterValues:502595);	ok
+0	500970	chgAttr(productType=fz612-77148);chgAttr(palleteQuantity=32937.13312);INVALID_dropMandatory(groups:756428);	ok
+0	1304466	chgAttr(codeShort=fz614-81054);rmRef(stockVisibilities:1227324);INVALID_dropMandatory(groups:753852);rmRef(stockVisibilities:1227328);	ok
+0	53085	chgAttr(code=fz615-79676);	ok
+0	31286	chgAttr(isAlias=true);chgRefAttr(groups:753770/assignmentValidity=[[2006-09-04T00:00:00Z,2026-09-04T00:00:00Z]]);chgRefAttr(groups:754342/assignmentValidity=[[2006-06-22T00:00:00Z,2025-06-22T00:00:00Z]]);	ok
+0	770120	chgRefAttr(parameterValues:511461/variant=true);rmRef(stockVisibilities:1227327);chgRefAttr(groups:753912/assignmentValidity=[[2009-03-03T00:00:00Z,2024-03-03T00:00:00Z]]);	ok
+0	1395892	chgAttr(unit:cs=fz621-71860);INVALID_dropMandatory(groups:753912);chgAttr(minOrderQuantity=20027.91979);	ok
+0	59435	chgAttr(cezarCode=fz623-34967);	ok
+0	675059	chgAttr(name:cs=fz624-21401);	ok
+0	1257340	rmRef(bonusVisibilities:1227323);chgRefAttr(categories:142791/assignmentValidity=[[2002-05-26T00:00:00Z,2009-05-26T00:00:00Z]]);chgAttr(senesiOrdering=fz626-42310);	ok
+0	1332907	rmRef(tags:1367);chgAttr(changed=2024-06-03T23:10Z);INVALID_dropMandatory(categories:1311332);chgRefAttr(categories:142816/orderInCategory=997255);	FAIL EvitaInvalidUsageException | 73a20adb22d95068d7daa5f6e2d96230:af7e03290249dcf135c6dd7ad7cd6bc9:92: 
+Entity `Product` reference `categories` requires these attributes to 
+0	29991	chgRefAttr(stocks:1227321/quantityOnStock=5347.13872);chgRefAttr(stocks:1227325/quantityOnStock=41677.17057);rmRef(tags:1354);chgRefAttr(groups:753778/assignmentValidity=[[2009-04-10T00:00:00Z,2029-04-10T00:00:00Z]]);	ok
+0	789983	chgAttr(status=fz632-66893);chgAttr(ean=fz633-6648);	ok
+0	672990	chgAttr(onTheWay=fz634-48541);chgAttr(url:cs=fz635-46390);chgAttr(status=fz636-69921);chgAttr(minOrderQuantity=56305.37214);	ok
+0	1305715	rmRef(stockVisibilities:1227323);	ok
+0	1208709	chgRefAttr(parameterValues:753771/variant=true);rmRef(bonusVisibilities:1227324);	ok
+0	41040	rmRef(parameterValues:497592);rmRef(stockVisibilities:1227327);chgAttr(ean=fz639-23194);rmRef(parameterValues:496380);	ok
+0	1396282	INVALID_dropMandatory(groups:1396625);rmRef(parameterValues:1329161);chgAttr(minOrderQuantity=34531.77253);	ok
+0	1330667	INVALID_dropMandatory(groups:1277224);chgAttr(catalogNumber=fz641-322);rmRef(parameterValues:511331);	ok
+0	1346600	chgRefAttr(parameterValues:511324/variant=true);	ok
+0	1303429	rmRef(groups:754230);chgAttr(urlInactive:sk=[fz643-76479]);chgAttr(statusB2C=fz644-49371);rmRef(groups:756805);	ok
+0	673060	chgRefAttr(parameterValues:501738/variant=true);chgRefAttr(parameterValues:1374685/variant=true);chgAttr(senesiOrdering=fz647-43931);INVALID_dropMandatory(groups:759626);	ok
+0	536259	chgRefAttr(parameterValues:753907/variant=true);rmRef(stockVisibilities:1227321);chgAttr(visibilityB2C=fz649-5475);rmRef(stockVisibilities:1227328);	ok
+0	1391269	INVALID_dropMandatory(groups:1237877);INVALID_dropMandatory(groups:1237877);	ok
+0	472575	chgAttr(sold=40286.42439);	ok
+0	1208294	rmRef(bonusVisibilities:1227328);chgAttr(url:cs=fz651-59108);	ok
+0	774107	rmRef(stockVisibilities:1227328);INVALID_dropMandatory(groups:753770);rmRef(bonusVisibilities:1227325);	ok
+0	1320709	rmRef(categories:427375);chgRefAttr(parameterValues:496386/variant=true);	ok
+0	767953	chgAttr(unit:sk=fz653-60103);INVALID_dropMandatory(groups:753852);chgAttr(url:cs=fz654-79564);	ok
+0	59046	chgAttr(status=fz655-59868);	ok
+0	478770	rmRef(categories:157068);chgRefAttr(parameterValues:498295/variant=true);	ok
+0	47622	chgAttr(catalogNumber=fz657-89254);chgAttr(ean=fz658-78456);chgAttr(orderedQuantity=57721.30579);INVALID_dropMandatory(groups:753788);	ok
+0	1394616	chgRefAttr(stocks:1227327/quantityOnStock=58266.55884);rmRef(stockVisibilities:1227325);	ok
+0	426848	INVALID_dropMandatory(groups:753912);	ok
+0	7764	chgAttr(sold=48516.68733);	ok
+0	1339988	chgRefAttr(groups:1341169/assignmentValidity=[[2009-05-23T00:00:00Z,2024-05-23T00:00:00Z]]);chgRefAttr(parameterValues:459431/variant=true);chgRefAttr(groups:1341169/assignmentValidity=[[2004-03-10T00:00:00Z,2022-03-10T00:00:00Z]]);chgAttr(name:cs=fz665-56755);	ok
+0	1362430	chgAttr(maxOrderQuantity=91380.95549);chgAttr(isAlias=true);	ok
+0	778113	chgAttr(soldOrdering=56295.58986);	ok
+0	1393855	INVALID_dropMandatory(groups:753912);chgAttr(url:cs=fz669-1942);	ok
+0	717008	chgAttr(stockItemPrimaryKey=582383);	ok
+0	1199604	rmRef(stockVisibilities:1227321);	ok
+0	481596	chgRefAttr(parameterValues:511473/variant=true);chgRefAttr(parameterValues:495382/variant=true);	ok
+0	844182	chgRefAttr(groups:1277160/assignmentValidity=[[2003-11-28T00:00:00Z,2010-11-28T00:00:00Z]]);rmRef(bonusVisibilities:1227323);chgRefAttr(stocks:1227324/quantityOnStock=80732.81237);chgRefAttr(stocks:1227321/quantityOnStock=44270.73693);	ok
+0	1394948	chgRefAttr(groups:1396241/assignmentValidity=[[2001-02-27T00:00:00Z,2011-02-27T00:00:00Z]]);chgAttr(availability=fz677-48124);	ok
+0	1254188	INVALID_dropMandatory(groups:753770);INVALID_dropMandatory(groups:753852);chgRefAttr(parameterValues:753771/variant=true);	ok
+0	677882	chgAttr(isAlias=true);	ok
+0	1309192	chgRefAttr(groups:756523/assignmentValidity=[[2008-04-01T00:00:00Z,2027-04-01T00:00:00Z]]);	ok
+0	1301744	INVALID_dropMandatory(groups:753726);	ok
+0	849478	INVALID_dropMandatory(categories:427374);rmRef(stockVisibilities:1227324);chgAttr(name:sk=fz681-10898);INVALID_dropMandatory(groups:753854);	FAIL EvitaInvalidUsageException | 73a20adb22d95068d7daa5f6e2d96230:af7e03290249dcf135c6dd7ad7cd6bc9:92: 
+Entity `Product` reference `categories` requires these attributes to 
+0	1231267	chgAttr(isAlias=true);chgRefAttr(groups:754862/assignmentValidity=[[2005-02-09T00:00:00Z,2013-02-09T00:00:00Z]]);chgRefAttr(categories:426093/orderInCategory=920360);	ok
+0	849822	rmRef(stockVisibilities:1227327);	ok
+0	770102	chgAttr(published=2001-03-18T21:10Z);INVALID_dropMandatory(groups:753912);chgAttr(unit:sk=fz686-29943);	ok
+0	849836	chgRefAttr(groups:753770/assignmentValidity=[[2000-10-10T00:00:00Z,2002-10-10T00:00:00Z]]);INVALID_dropMandatory(categories:427258);chgAttr(onTheWay=fz688-89156);chgAttr(order=883422);	FAIL EvitaInvalidUsageException | 73a20adb22d95068d7daa5f6e2d96230:af7e03290249dcf135c6dd7ad7cd6bc9:92: 
+Entity `Product` reference `categories` requires these attributes to 
+0	1390631	chgAttr(orderedQuantity=10610.79093);chgAttr(soldOrdering=72614.99394);	ok
+0	781037	rmRef(bonusVisibilities:1227325);chgAttr(unit:cs=fz692-41683);chgAttr(cezarCode=fz693-3694);	ok
+0	1317435	chgRefAttr(parameterValues:756732/variant=true);chgAttr(unit:sk=fz695-95387);	ok
+0	717439	chgAttr(changed=2008-08-13T10:30Z);INVALID_dropMandatory(groups:755894);INVALID_dropMandatory(categories:1238932);rmRef(groups:755900);	FAIL EvitaInvalidUsageException | 73a20adb22d95068d7daa5f6e2d96230:af7e03290249dcf135c6dd7ad7cd6bc9:92: 
+Entity `Product` reference `categories` requires these attributes to 
+0	1310084	chgAttr(order=1368694);rmRef(stockVisibilities:1227324);	ok
+0	848229	chgAttr(visibilityB2C=fz698-50405);chgAttr(url:cs=fz699-29684);INVALID_dropMandatory(groups:756585);chgAttr(producerCode=fz700-94633);	ok
+0	1209727	chgAttr(stepOrderQuantity=57331.63248);rmRef(stockVisibilities:1227326);chgAttr(url:sk=fz702-69517);	ok
+0	1316890	chgRefAttr(groups:753912/assignmentValidity=[[2004-07-28T00:00:00Z,2007-07-28T00:00:00Z]]);INVALID_dropMandatory(groups:1399657);	ok
+0	585109	chgRefAttr(stocks:1227325/quantityOnStock=67739.91478);chgRefAttr(parameterValues:753767/variant=true);	ok
+0	1251014	chgAttr(statusB2C=fz706-57842);chgAttr(minOrderQuantity=28989.31878);chgRefAttr(stocks:1227327/quantityOnStock=98143.39657);	ok
+0	479591	chgRefAttr(categories:427375/assignmentValidity=[[2006-01-22T00:00:00Z,2020-01-22T00:00:00Z]]);chgRefAttr(parameterValues:497294/variant=true);	ok
+0	1330916	INVALID_dropMandatory(groups:753770);INVALID_dropMandatory(groups:753770);INVALID_dropMandatory(groups:1389342);INVALID_dropMandatory(groups:753770);	ok
+0	1300975	chgRefAttr(parameterValues:511302/variant=true);INVALID_dropMandatory(groups:790086);chgRefAttr(groups:790086/assignmentValidity=[[2008-09-18T00:00:00Z,2014-09-18T00:00:00Z]]);chgAttr(palleteQuantity=48266.41099);	ok
+0	843050	rmRef(stockVisibilities:1227328);chgRefAttr(parameterValues:753733/variant=true);rmRef(parameterValues:753733);chgRefAttr(parameterValues:823267/variant=true);	ok
+0	843415	chgRefAttr(categories:142806/categoryPriority=553177);chgAttr(code=fz717-31031);chgAttr(minOrderQuantity=90046.96193);INVALID_dropMandatory(groups:1260832);	ok
+0	1302752	INVALID_dropMandatory(groups:1304049);	ok
+0	776578	chgRefAttr(parameterValues:495850/variant=true);chgAttr(saleRestriction=fz720-73923);INVALID_dropMandatory(groups:755560);chgAttr(stepOrderQuantity=8997.89707);	ok
+0	770819	chgAttr(palleteQuantity=40605.60816);chgAttr(soldOrdering=57460.59735);chgAttr(name:cs=fz724-98198);	ok
+0	18375	chgAttr(palleteQuantity=45754.54119);	ok
+0	724741	rmRef(parameterValues:753855);INVALID_dropMandatory(categories:1197899);	FAIL EvitaInvalidUsageException | 73a20adb22d95068d7daa5f6e2d96230:af7e03290249dcf135c6dd7ad7cd6bc9:92: 
+Entity `Product` reference `categories` requires these attributes to 
+0	1198307	rmRef(parameterValues:1206822);chgRefAttr(parameterValues:848840/variant=true);rmRef(bonusVisibilities:1227323);rmRef(bonusVisibilities:1227323);	ok
+0	1392417	chgRefAttr(groups:753766/assignmentValidity=[[2006-12-15T00:00:00Z,2013-12-15T00:00:00Z]]);INVALID_dropMandatory(groups:756166);rmRef(bonusVisibilities:1227322);	ok
+0	1282846	chgAttr(description:cs=fz728-38356);	ok
+0	1343480	INVALID_dropMandatory(bundles:1363862);chgRefAttr(groups:754360/assignmentValidity=[[2006-05-17T00:00:00Z,2014-05-17T00:00:00Z]]);	FAIL EvitaInvalidUsageException | 73a20adb22d95068d7daa5f6e2d96230:af7e03290249dcf135c6dd7ad7cd6bc9:92: 
+Entity `Product` reference `bundles` requires these attributes to be 
+0	1307776	chgRefAttr(groups:754312/assignmentValidity=[[2008-09-10T00:00:00Z,2019-09-10T00:00:00Z]]);	ok
+0	50539	chgAttr(codeShort=fz731-4281);	ok
+0	769741	INVALID_dropMandatory(categories:157068);chgRefAttr(groups:753772/assignmentValidity=[[2007-05-06T00:00:00Z,2027-05-06T00:00:00Z]]);chgAttr(codeShort=fz733-87737);chgRefAttr(groups:753912/assignmentValidity=[[2004-09-12T00:00:00Z,2008-09-12T00:00:00Z]]);	FAIL EvitaInvalidUsageException | 73a20adb22d95068d7daa5f6e2d96230:af7e03290249dcf135c6dd7ad7cd6bc9:92: 
+Entity `Product` reference `categories` requires these attributes to 
+0	479159	chgAttr(changed=2012-06-24T21:16Z);chgAttr(onTheWay=fz736-3010);	ok
+0	1209823	chgAttr(catalogNumber=fz737-17762);chgAttr(palleteQuantity=97210.34714);chgAttr(description:sk=fz739-9137);	ok
+0	1318695	chgAttr(minOrderQuantity=51942.32607);rmRef(stockVisibilities:1227321);chgRefAttr(groups:1399657/assignmentValidity=[[2007-12-05T00:00:00Z,2027-12-05T00:00:00Z]]);	ok
+0	780776	rmRef(parameterValues:497008);rmRef(parameterValues:498295);rmRef(parameterValues:754313);	ok
+0	778745	chgAttr(published=2021-09-13T06:16Z);chgAttr(maxOrderQuantity=5339.59004);rmRef(groups:780522);chgAttr(onTheWay=fz744-81454);	ok
+0	675073	INVALID_dropMandatory(groups:790092);	ok
+0	775761	chgAttr(published=2015-11-08T14:42Z);INVALID_dropMandatory(groups:776940);chgAttr(catalogNumber=fz746-94244);rmRef(stockVisibilities:1227322);	FAIL GenericEvitaInternalError | 62663481f4e06623dca9964d207b9599:af7e03290249dcf135c6dd7ad7cd6bc9:84: Key is already present in the tree!
+0	718679	chgAttr(codeShort=fz747-83751);	ok
+0	723395	rmRef(categories:767557);	ok
+0	1393556	chgRefAttr(parameterValues:753823/variant=true);rmRef(bonusVisibilities:1227322);rmRef(groups:1396249);	ok
+0	822699	INVALID_dropMandatory(categories:766637);	FAIL EvitaInvalidUsageException | 73a20adb22d95068d7daa5f6e2d96230:af7e03290249dcf135c6dd7ad7cd6bc9:92: 
+Entity `Product` reference `categories` requires these attributes to 
+0	1258091	chgRefAttr(parameterValues:756427/variant=true);chgAttr(status=fz750-39904);INVALID_dropMandatory(categories:1352004);	FAIL EvitaInvalidUsageException | 73a20adb22d95068d7daa5f6e2d96230:af7e03290249dcf135c6dd7ad7cd6bc9:92: 
+Entity `Product` reference `categories` requires these attributes to 
+0	723637	chgAttr(senesiOrdering=fz751-98963);	ok
+0	474816	chgRefAttr(categories:824815/assignmentValidity=[[2008-10-18T00:00:00Z,2026-10-18T00:00:00Z]]);chgRefAttr(groups:753770/assignmentValidity=[[2007-04-17T00:00:00Z,2017-04-17T00:00:00Z]]);	ok
+0	824117	chgRefAttr(groups:753740/assignmentValidity=[[2005-11-20T00:00:00Z,2009-11-20T00:00:00Z]]);chgRefAttr(groups:753740/assignmentValidity=[[2003-12-24T00:00:00Z,2012-12-24T00:00:00Z]]);chgAttr(cezarCode=fz756-14200);chgAttr(orderedQuantity=14923.78968);	ok
+0	1256825	chgRefAttr(groups:776944/assignmentValidity=[[2003-04-17T00:00:00Z,2005-04-17T00:00:00Z]]);chgAttr(name:cs=fz759-97825);chgRefAttr(groups:754312/assignmentValidity=[[2008-06-14T00:00:00Z,2024-06-14T00:00:00Z]]);	ok
+0	1303896	chgAttr(palleteQuantity=80124.60749);rmRef(parameterValues:754823);chgAttr(sold=75568.60689);chgRefAttr(parameterValues:511424/variant=true);	ok
+0	759001	INVALID_dropMandatory(categories:1321255);INVALID_dropMandatory(groups:756414);	FAIL EvitaInvalidUsageException | 73a20adb22d95068d7daa5f6e2d96230:af7e03290249dcf135c6dd7ad7cd6bc9:92: 
+Entity `Product` reference `categories` requires these attributes to 
+0	459487	INVALID_dropMandatory(categories:142813);chgRefAttr(parameterValues:498295/variant=true);chgAttr(productType=fz765-80915);chgRefAttr(parameterValues:477447/variant=true);	FAIL EvitaInvalidUsageException | 73a20adb22d95068d7daa5f6e2d96230:af7e03290249dcf135c6dd7ad7cd6bc9:92: 
+Entity `Product` reference `categories` requires these attributes to 
+0	1231830	chgAttr(code=fz767-24484);chgAttr(name:sk=fz768-31512);chgRefAttr(categories:426093/orderInCategory=1060885);	ok
+0	1203783	INVALID_dropMandatory(groups:753732);INVALID_dropMandatory(groups:753780);	ok
+0	1328421	rmRef(bonusVisibilities:1227320);rmRef(stocks:1227327);INVALID_dropMandatory(groups:1302263);	ok
+0	1237330	rmRef(bonusVisibilities:1227326);	ok
+0	1205617	chgAttr(changed=2019-02-15T21:54Z);	ok
+0	1305428	rmRef(parameterValues:753853);rmRef(stockVisibilities:1227322);chgAttr(availability=fz771-22313);	ok
+0	824400	chgRefAttr(groups:790104/assignmentValidity=[[2006-01-22T00:00:00Z,2009-01-22T00:00:00Z]]);	ok
+0	1210671	chgRefAttr(categories:427258/assignmentValidity=[[2006-06-04T00:00:00Z,2019-06-04T00:00:00Z]]);rmRef(parameterValues:511196);	ok
+0	472589	chgAttr(published=2007-07-07T00:33Z);	ok
+0	1197755	INVALID_dropMandatory(categories:143160);rmRef(stockVisibilities:1227322);INVALID_dropMandatory(groups:1316544);rmRef(categories:143160);	ok
+0	1346390	rmRef(stockVisibilities:1227328);INVALID_dropMandatory(groups:753770);chgRefAttr(parameterValues:753771/variant=true);rmRef(stockVisibilities:1227321);	ok
+0	56662	INVALID_dropMandatory(categories:426976);chgRefAttr(parameterValues:1210793/variant=true);rmRef(groups:755374);	FAIL EvitaInvalidUsageException | 73a20adb22d95068d7daa5f6e2d96230:af7e03290249dcf135c6dd7ad7cd6bc9:92: 
+Entity `Product` reference `categories` requires these attributes to 
+0	717448	INVALID_dropMandatory(groups:755900);chgRefAttr(groups:753780/assignmentValidity=[[2006-02-11T00:00:00Z,2013-02-11T00:00:00Z]]);chgRefAttr(parameterValues:755895/variant=true);chgRefAttr(groups:755894/assignmentValidity=[[2008-01-21T00:00:00Z,2017-01-21T00:00:00Z]]);	ok
+0	679412	INVALID_dropMandatory(groups:754876);chgRefAttr(stocks:1227324/quantityOnStock=16079.57168);	ok
+0	1256288	rmRef(bonusVisibilities:1227323);chgAttr(senesiOrdering=fz781-2703);	ok
+0	1203641	chgAttr(soldOrdering=34893.46725);chgRefAttr(parameterValues:754879/variant=true);	ok
+0	1392364	chgAttr(status=fz784-25332);INVALID_dropMandatory(groups:1396236);chgAttr(name:cs=fz785-7909);	ok
+0	1392542	chgRefAttr(parameterValues:790105/variant=true);chgRefAttr(parameterValues:790105/variant=true);chgAttr(availability=fz788-9708);chgRefAttr(stocks:1227327/quantityOnStock=40569.63936);	ok
+0	9107	chgRefAttr(groups:501839/assignmentValidity=[[2002-09-11T00:00:00Z,2020-09-11T00:00:00Z]]);	ok
+0	669155	chgRefAttr(parameterValues:1306155/variant=true);chgRefAttr(parameterValues:755099/variant=true);chgAttr(order=597612);chgRefAttr(categories:142783/orderInCategory=1636991);	ok
+0	1347436	chgRefAttr(stocks:1227327/quantityOnStock=22532.68252);	ok
+0	441438	chgAttr(senesiOrdering=fz796-81754);chgRefAttr(parameterValues:446950/variant=true);	ok
+0	1317166	chgAttr(orderedQuantity=96098.56289);chgAttr(published=2011-09-24T20:52Z);	ok
+0	663879	INVALID_dropMandatory(categories:143160);chgRefAttr(parameterValues:817960/variant=true);chgAttr(code=fz801-69671);INVALID_dropMandatory(categories:1229832);	FAIL EvitaInvalidUsageException | 73a20adb22d95068d7daa5f6e2d96230:af7e03290249dcf135c6dd7ad7cd6bc9:92: 
+Entity `Product` reference `categories` requires these attributes to 
+0	1389992	chgAttr(producerCode=fz802-99969);INVALID_dropMandatory(groups:754360);chgRefAttr(parameterValues:754361/variant=true);	ok
+0	1362545	chgAttr(code=fz804-79750);chgAttr(catalogNumber=fz805-39928);	ok
+0	762252	chgAttr(relatedFiles=[fz806-89528]);rmRef(categories:428142);	ok
+0	1208617	INVALID_dropMandatory(groups:753740);	ok
+0	779133	chgAttr(producerCode=fz807-79970);chgAttr(cezarCode=fz808-89857);rmRef(parameterValues:756427);chgAttr(cezarCode=fz809-36195);	ok
+0	844010	rmRef(bonusVisibilities:1227322);chgRefAttr(parameterValues:498295/variant=true);chgAttr(sold=59792.45191);rmRef(stockVisibilities:1227320);	ok
+0	1302016	rmRef(bonusVisibilities:1227326);	ok
+0	1390535	rmRef(stockVisibilities:1227327);INVALID_dropMandatory(groups:753770);chgAttr(code=fz812-85635);	ok
+0	1399218	chgRefAttr(parameterValues:753771/variant=true);rmRef(parameterValues:511281);rmRef(bonusVisibilities:1227321);chgRefAttr(stocks:1227327/quantityOnStock=47692.68853);	ok
