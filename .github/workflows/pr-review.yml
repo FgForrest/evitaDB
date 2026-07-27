@@ -94,6 +94,14 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      - name: Pre-fetch the base ref            # the reviewer needs to diff against the base branch, and a
+        env:                                    # review agent that has to fetch it itself spends turns on
+          BASE_REF: ${{ github.event.pull_request.base.ref }}   # network calls - which then get denied by the
+        run: |                                  # tool allow-list, leaving it with no way to see the diff at all
+          git fetch --no-tags origin "+refs/heads/${BASE_REF}:refs/remotes/origin/${BASE_REF}"
+          # fail loudly here rather than let the reviewer discover a missing ref mid-review
+          git rev-parse --verify "refs/remotes/origin/${BASE_REF}"
+
       - uses: anthropics/claude-code-action@be7b93b1907a4abad570368f3c74b6fe3807510b # v1.0.183
         with:
           claude_code_oauth_token: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -117,6 +125,30 @@ jobs:
             the changes. Use inline comments for file-specific feedback and a
             single summary comment on the PR for overall assessment.
 
+            The base branch is ALREADY fetched as
+            `origin/${{ github.event.pull_request.base.ref }}`, so diff against
+            it directly - you never need to fetch anything yourself.
+
+            Run ONE command per Bash call. Compound commands - anything joined
+            by `;`, `&&` or `|`, or using a redirect - fall outside the tool
+            allow-list and are rejected as a whole, even when every individual
+            part would have been permitted on its own.
+
+            CRITICAL - you must produce and post the review yourself, within
+            this session. The session ends the moment you stop responding, and
+            anything still running in the background is killed with it. If you
+            delegate any part of the review to subagents, you MUST wait for
+            every one of them and synthesize their findings before you finish.
+            Never end your turn with work outstanding: a closing message like
+            "the agents are running, I'll post the review once they complete"
+            produces a green job and no review at all, which is worse than no
+            review because it looks like one happened. When in doubt, review
+            inline yourself rather than delegating.
+
+            Your final action must be the summary comment posted via
+            `gh pr comment`. If you found nothing worth raising, say so
+            explicitly in that comment - silence is not a valid review outcome.
+
             IMPORTANT — this PR may have been reviewed before (PRs are re-reviewed
             on every push). Before posting any findings, fetch and read the full
             review history via `gh api repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/reviews`,
@@ -128,4 +160,4 @@ jobs:
             the full procedure.
 
           claude_args: |
-            --allowedTools "Read,Glob,Grep,mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh api:*)"
+            --allowedTools "Read,Glob,Grep,mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh api:*),Bash(git fetch:*),Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(git branch:*),Bash(git rev-parse:*),Bash(git merge-base:*)"

@@ -31,10 +31,19 @@ This agent runs in two contexts with different tool availability:
 **GitHub Actions** (via `claude-code-action`):
 
 - Tools: `Read`, `Glob`, `Grep`, `Bash(gh pr comment:*)`, `Bash(gh pr diff:*)`, `Bash(gh pr view:*)`,
-  `Bash(gh api:*)`, `mcp__github_inline_comment__create_inline_comment`
+  `Bash(gh api:*)`, `mcp__github_inline_comment__create_inline_comment`, plus read-only git:
+  `Bash(git fetch:*)`, `Bash(git diff:*)`, `Bash(git log:*)`, `Bash(git show:*)`, `Bash(git branch:*)`,
+  `Bash(git rev-parse:*)`, `Bash(git merge-base:*)`
+- **One command per Bash call.** Compound commands — joined by `;`, `&&` or `|`, or using a redirect — are
+  rejected as a whole, even when every individual part is allowed. This is the single most common way a run
+  loses turns.
+- The base branch is pre-fetched by the workflow as `origin/<base>`, so it is always available to diff against
 - PR number is provided in the prompt
 - Post file-specific feedback via the MCP inline comment tool
 - Post overall summary via `gh pr comment`
+- **Finish the review in this session.** The session ends when you stop responding, and background work dies
+  with it. If you delegate to subagents, wait for all of them and synthesize before finishing — ending with
+  "the agents are still running" yields a green job and no review, which reads as a review that happened.
 
 **Local CLI** (via `Task` tool):
 
