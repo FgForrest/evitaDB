@@ -28,6 +28,7 @@ import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.exception.SessionNotFoundException;
 import io.evitadb.core.Evita;
 import io.evitadb.core.session.EvitaInternalSessionContract;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.externalApi.grpc.constants.GrpcHeaders;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.UUIDUtil;
@@ -36,6 +37,7 @@ import io.grpc.Context;
 import io.grpc.Contexts;
 import io.grpc.Metadata;
 import io.grpc.Metadata.Key;
+import io.grpc.MethodDescriptor;
 import io.grpc.ServerCall;
 import io.grpc.ServerCallHandler;
 import io.grpc.ServerInterceptor;
@@ -56,65 +58,49 @@ import static io.evitadb.externalApi.grpc.constants.GrpcHeaders.SESSION_ID_HEADE
  * the call. If no session is specified by its type and sessionId on a non-opened endpoint, then an unauthenticated
  * status will be returned to the client.
  *
+ * The check is **default-deny**: a method requires a session unless it was exempted in the static
+ * initializer below. Whether a method belongs there is not a judgement call - it follows from the
+ * helper the service implementation uses:
+ *
+ * - `EvitaService.executeWithClientContext(Runnable, …)` operates directly on the {@link Evita}
+ *   instance and never reads {@link #SESSION}, so those methods **must** be exempted or they are
+ *   unreachable without a session
+ * - `EvitaSessionService.executeWithClientContext(Consumer, …)` hands {@link #SESSION} to the
+ *   lambda, so those methods **must not** be exempted - they would receive a `null` session
+ *
+ * Prefer the `<service>/*` wildcard for a service whose methods all fall in the first group;
+ * a per-method list means every future method of that service starts out broken with
+ * a {@link Status#UNAUTHENTICATED} that misleadingly reports a terminated session.
+ *
  * @author Tomáš Pozler, 2022
  */
 @RequiredArgsConstructor
 public class ServerSessionInterceptor implements ServerInterceptor {
-	private static final Set<String> ENDPOINTS_NOT_REQUIRING_SESSION = CollectionUtils.createHashSet(32);
+	/**
+	 * Fully qualified gRPC method names (`<service>/<method>`) that may be called without an
+	 * active session.
+	 */
+	private static final Set<String> ENDPOINTS_NOT_REQUIRING_SESSION = CollectionUtils.createHashSet(8);
+	/**
+	 * gRPC service names whose **every** method may be called without an active session -
+	 * registered through the `<service>/*` wildcard form.
+	 */
+	private static final Set<String> SERVICES_NOT_REQUIRING_SESSION = CollectionUtils.createHashSet(4);
 	public static final String METADATA_CAUSE = "cause";
 
 	static {
-		ENDPOINTS_NOT_REQUIRING_SESSION.add("io.evitadb.externalApi.grpc.generated.EvitaService/IsReady");
-		ENDPOINTS_NOT_REQUIRING_SESSION.add("io.evitadb.externalApi.grpc.generated.EvitaService/CreateReadOnlySession");
-		ENDPOINTS_NOT_REQUIRING_SESSION.add("io.evitadb.externalApi.grpc.generated.EvitaService/CreateReadWriteSession");
-		ENDPOINTS_NOT_REQUIRING_SESSION.add("io.evitadb.externalApi.grpc.generated.EvitaService/CreateBinaryReadOnlySession");
-		ENDPOINTS_NOT_REQUIRING_SESSION.add("io.evitadb.externalApi.grpc.generated.EvitaService/CreateBinaryReadWriteSession");
-		ENDPOINTS_NOT_REQUIRING_SESSION.add("io.evitadb.externalApi.grpc.generated.EvitaService/TerminateSession");
-		ENDPOINTS_NOT_REQUIRING_SESSION.add("io.evitadb.externalApi.grpc.generated.EvitaService/GetCatalogNames");
-		ENDPOINTS_NOT_REQUIRING_SESSION.add("io.evitadb.externalApi.grpc.generated.EvitaService/GetCatalogState");
-		ENDPOINTS_NOT_REQUIRING_SESSION.add("io.evitadb.externalApi.grpc.generated.EvitaService/DefineCatalog");
-		ENDPOINTS_NOT_REQUIRING_SESSION.add("io.evitadb.externalApi.grpc.generated.EvitaService/RenameCatalog");
-		ENDPOINTS_NOT_REQUIRING_SESSION.add("io.evitadb.externalApi.grpc.generated.EvitaService/ReplaceCatalog");
-		ENDPOINTS_NOT_REQUIRING_SESSION.add("io.evitadb.externalApi.grpc.generated.EvitaService/ApplyMutation");
-		ENDPOINTS_NOT_REQUIRING_SESSION.add("io.evitadb.externalApi.grpc.generated.EvitaService/ApplyMutationWithProgress");
-		ENDPOINTS_NOT_REQUIRING_SESSION.add("io.evitadb.externalApi.grpc.generated.EvitaService/MakeCatalogAlive");
-		ENDPOINTS_NOT_REQUIRING_SESSION.add("io.evitadb.externalApi.grpc.generated.EvitaService/MakeCatalogAliveWithProgress");
-		ENDPOINTS_NOT_REQUIRING_SESSION.add("io.evitadb.externalApi.grpc.generated.EvitaService/MakeCatalogMutable");
-		ENDPOINTS_NOT_REQUIRING_SESSION.add("io.evitadb.externalApi.grpc.generated.EvitaService/MakeCatalogMutableWithProgress");
-		ENDPOINTS_NOT_REQUIRING_SESSION.add("io.evitadb.externalApi.grpc.generated.EvitaService/MakeCatalogImmutable");
-		ENDPOINTS_NOT_REQUIRING_SESSION.add("io.evitadb.externalApi.grpc.generated.EvitaService/MakeCatalogImmutableWithProgress");
-		ENDPOINTS_NOT_REQUIRING_SESSION.add("io.evitadb.externalApi.grpc.generated.EvitaService/DuplicateCatalog");
-		ENDPOINTS_NOT_REQUIRING_SESSION.add("io.evitadb.externalApi.grpc.generated.EvitaService/DuplicateCatalogWithProgress");
-		ENDPOINTS_NOT_REQUIRING_SESSION.add("io.evitadb.externalApi.grpc.generated.EvitaService/ActivateCatalog");
-		ENDPOINTS_NOT_REQUIRING_SESSION.add("io.evitadb.externalApi.grpc.generated.EvitaService/ActivateCatalogWithProgress");
-		ENDPOINTS_NOT_REQUIRING_SESSION.add("io.evitadb.externalApi.grpc.generated.EvitaService/DeactivateCatalog");
-		ENDPOINTS_NOT_REQUIRING_SESSION.add("io.evitadb.externalApi.grpc.generated.EvitaService/DeactivateCatalogWithProgress");
-		ENDPOINTS_NOT_REQUIRING_SESSION.add("io.evitadb.externalApi.grpc.generated.EvitaService/DeleteCatalogIfExists");
-		ENDPOINTS_NOT_REQUIRING_SESSION.add("io.evitadb.externalApi.grpc.generated.EvitaService/RegisterSystemChangeCapture");
-		ENDPOINTS_NOT_REQUIRING_SESSION.add("io.evitadb.externalApi.grpc.generated.EvitaService/UnregisterSystemChangeCapture");
+		// whole services that never touch a session - each of their methods operates directly on
+		// the Evita instance through the `Runnable` flavour of
+		// `EvitaService.executeWithClientContext`, which never reads `SESSION`
+		registerEndpointNotRequiringSession("io.evitadb.externalApi.grpc.generated.EvitaService/*");
+		registerEndpointNotRequiringSession("io.evitadb.externalApi.grpc.generated.EvitaManagementService/*");
 
-		ENDPOINTS_NOT_REQUIRING_SESSION.add("io.evitadb.externalApi.grpc.generated.EvitaManagementService/ServerStatus");
-		ENDPOINTS_NOT_REQUIRING_SESSION.add("io.evitadb.externalApi.grpc.generated.EvitaManagementService/RestoreCatalog");
-		ENDPOINTS_NOT_REQUIRING_SESSION.add("io.evitadb.externalApi.grpc.generated.EvitaManagementService/RestoreCatalogUnary");
-		ENDPOINTS_NOT_REQUIRING_SESSION.add("io.evitadb.externalApi.grpc.generated.EvitaManagementService/RestoreCatalogFromServerFile");
-		ENDPOINTS_NOT_REQUIRING_SESSION.add("io.evitadb.externalApi.grpc.generated.EvitaManagementService/ListTaskStatuses");
-		ENDPOINTS_NOT_REQUIRING_SESSION.add("io.evitadb.externalApi.grpc.generated.EvitaManagementService/GetTaskStatus");
-		ENDPOINTS_NOT_REQUIRING_SESSION.add("io.evitadb.externalApi.grpc.generated.EvitaManagementService/GetTaskStatuses");
-		ENDPOINTS_NOT_REQUIRING_SESSION.add("io.evitadb.externalApi.grpc.generated.EvitaManagementService/CancelTask");
-		ENDPOINTS_NOT_REQUIRING_SESSION.add("io.evitadb.externalApi.grpc.generated.EvitaManagementService/ListFilesToFetch");
-		ENDPOINTS_NOT_REQUIRING_SESSION.add("io.evitadb.externalApi.grpc.generated.EvitaManagementService/GetFileToFetch");
-		ENDPOINTS_NOT_REQUIRING_SESSION.add("io.evitadb.externalApi.grpc.generated.EvitaManagementService/FetchFile");
-		ENDPOINTS_NOT_REQUIRING_SESSION.add("io.evitadb.externalApi.grpc.generated.EvitaManagementService/DeleteFile");
-		ENDPOINTS_NOT_REQUIRING_SESSION.add("io.evitadb.externalApi.grpc.generated.EvitaManagementService/GetCatalogStatistics");
-		ENDPOINTS_NOT_REQUIRING_SESSION.add("io.evitadb.externalApi.grpc.generated.EvitaManagementService/GetConfiguration");
-		ENDPOINTS_NOT_REQUIRING_SESSION.add("io.evitadb.externalApi.grpc.generated.EvitaManagementService/ListReservedKeywords");
-
-		// might be already closed, same behaviour as server session
-		ENDPOINTS_NOT_REQUIRING_SESSION.add("io.evitadb.externalApi.grpc.generated.EvitaSessionService/Close");
-		ENDPOINTS_NOT_REQUIRING_SESSION.add("io.evitadb.externalApi.grpc.generated.EvitaSessionService/CloseWithProgress");
-		// might be already closed, same behaviour as server session
-		ENDPOINTS_NOT_REQUIRING_SESSION.add("io.evitadb.externalApi.grpc.generated.EvitaSessionService/GoLiveAndClose");
-		ENDPOINTS_NOT_REQUIRING_SESSION.add("io.evitadb.externalApi.grpc.generated.EvitaSessionService/GoLiveAndCloseWithProgress");
+		// individual session endpoints - the session might be already closed, same behaviour as
+		// server session
+		registerEndpointNotRequiringSession("io.evitadb.externalApi.grpc.generated.EvitaSessionService/Close");
+		registerEndpointNotRequiringSession("io.evitadb.externalApi.grpc.generated.EvitaSessionService/CloseWithProgress");
+		registerEndpointNotRequiringSession("io.evitadb.externalApi.grpc.generated.EvitaSessionService/GoLiveAndClose");
+		registerEndpointNotRequiringSession("io.evitadb.externalApi.grpc.generated.EvitaSessionService/GoLiveAndCloseWithProgress");
 	}
 
 	/**
@@ -223,16 +209,50 @@ public class ServerSessionInterceptor implements ServerInterceptor {
 	/**
 	 * Checks if the endpoint corresponding to the provided gRPC server call requires a session.
 	 *
-	 * This method determines whether a particular endpoint associated with the given server call
-	 * requires a session by checking if the endpoint is listed in a predefined set of endpoints
-	 * that do not require a session. If the endpoint is not found in this set, it is considered
-	 * to require a session.
+	 * An endpoint does not require a session when its whole service was exempted by the
+	 * `<service>/*` wildcard, or when the endpoint itself was registered by its fully qualified
+	 * name. Anything else requires a session - the default is deliberately restrictive, so a newly
+	 * added session-scoped method is safe from the moment it exists.
 	 *
 	 * @param serverCall the gRPC server call being checked; must not be null
 	 * @return true if the endpoint requires a session; false otherwise
 	 */
 	private static <ReqT, RespT> boolean isEndpointRequiresSession(@Nonnull ServerCall<ReqT, RespT> serverCall) {
-		return !ENDPOINTS_NOT_REQUIRING_SESSION.contains(serverCall.getMethodDescriptor().getFullMethodName());
+		final MethodDescriptor<ReqT, RespT> methodDescriptor = serverCall.getMethodDescriptor();
+		final String serviceName = methodDescriptor.getServiceName();
+		if (serviceName != null && SERVICES_NOT_REQUIRING_SESSION.contains(serviceName)) {
+			return false;
+		}
+		return !ENDPOINTS_NOT_REQUIRING_SESSION.contains(methodDescriptor.getFullMethodName());
+	}
+
+	/**
+	 * Registers an endpoint - or an entire service - as callable without an active session.
+	 *
+	 * Two forms are accepted:
+	 *
+	 * - `<service>/<method>` - exempts the single named method
+	 * - `<service>/*` - exempts **every** method of the service; use it for services whose methods
+	 *   never read {@link #SESSION} (i.e. those built on the `Runnable` flavour of
+	 *   `EvitaService.executeWithClientContext`), so that methods added later are covered
+	 *   automatically instead of failing with {@link Status#UNAUTHENTICATED} until someone
+	 *   remembers to extend this list
+	 *
+	 * @param pattern the endpoint or service pattern to exempt, must not be null
+	 * @throws GenericEvitaInternalError when the pattern uses an unsupported wildcard form
+	 */
+	private static void registerEndpointNotRequiringSession(@Nonnull String pattern) {
+		final int wildcardPosition = pattern.indexOf('*');
+		if (wildcardPosition < 0) {
+			ENDPOINTS_NOT_REQUIRING_SESSION.add(pattern);
+		} else if (wildcardPosition == pattern.length() - 1 && pattern.endsWith("/*")) {
+			SERVICES_NOT_REQUIRING_SESSION.add(pattern.substring(0, pattern.length() - 2));
+		} else {
+			throw new GenericEvitaInternalError(
+				"Unsupported wildcard in the session exemption pattern `" + pattern + "` - only the trailing `/*` " +
+					"form exempting an entire service is supported."
+			);
+		}
 	}
 
 }
