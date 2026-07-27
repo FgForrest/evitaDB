@@ -24,8 +24,10 @@
 package io.evitadb.performance.externalApi.graphql.artificial;
 
 import io.evitadb.performance.externalApi.graphql.artificial.state.*;
+import io.evitadb.performance.setup.BenchmarkForkArgs;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
+import org.openjdk.jmh.annotations.Fork;
 import org.openjdk.jmh.annotations.Measurement;
 import org.openjdk.jmh.annotations.Mode;
 import org.openjdk.jmh.annotations.OutputTimeUnit;
@@ -43,6 +45,14 @@ import java.util.concurrent.TimeUnit;
 @Measurement(time = 1, timeUnit = TimeUnit.MINUTES)
 @Threads(Threads.MAX)
 @OutputTimeUnit(TimeUnit.MILLISECONDS)
+@Fork(
+	jvmArgsAppend = {
+		BenchmarkForkArgs.ADD_OPENS, BenchmarkForkArgs.OPEN_LANG,
+		BenchmarkForkArgs.ADD_OPENS, BenchmarkForkArgs.OPEN_LANG_INVOKE,
+		BenchmarkForkArgs.ADD_OPENS, BenchmarkForkArgs.OPEN_MATH,
+		BenchmarkForkArgs.ADD_OPENS, BenchmarkForkArgs.OPEN_UTIL
+	}
+)
 public class GraphQLArtificialEntitiesLatencyBenchmark extends GraphQLArtificialEntitiesBenchmark {
 
 	@Override

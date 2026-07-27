@@ -96,6 +96,7 @@ import io.evitadb.store.offsetIndex.OffsetIndex;
 import io.evitadb.store.offsetIndex.OffsetIndex.NonFlushedBlock;
 import io.evitadb.store.offsetIndex.OffsetIndexDescriptor;
 import io.evitadb.store.offsetIndex.io.CatalogOffHeapMemoryManager;
+import io.evitadb.store.offsetIndex.io.PendingSyncRegistry;
 import io.evitadb.store.offsetIndex.io.WriteOnlyFileHandle;
 import io.evitadb.store.offsetIndex.model.OffsetIndexRecordTypeRegistry;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
@@ -158,6 +159,14 @@ public class DefaultEntityCollectionPersistenceService
 	 * into far fewer, larger writes.
 	 */
 	private static final int COMPACTION_OUTPUT_BUFFER_SIZE = 65_536;
+	/**
+	 * Mirrors {@link io.evitadb.api.configuration.StorageOptions#syncWrites()}.
+	 *
+	 * Retained because the compaction path writes its output file through a raw stream rather than through a
+	 * {@link io.evitadb.store.offsetIndex.io.WriteOnlyHandle}, so it has to honour the setting itself instead of
+	 * inheriting it from the handle.
+	 */
+	private final boolean syncWrites;
 	/**
 	 * Factory function that configures new instance of the versioned kryo factory.
 	 */
@@ -480,6 +489,20 @@ public class DefaultEntityCollectionPersistenceService
 		return Collections.emptyList();
 	}
 
+	/**
+	 * Creates the persistence service backing a single entity collection's data file.
+	 *
+	 * @param catalogVersion                the catalog version the collection is being opened at
+	 * @param catalogName                   name of the owning catalog
+	 * @param catalogStoragePath            directory the collection file lives in
+	 * @param entityTypeHeader              header describing the collection file and its location
+	 * @param storageSettings               storage settings, including whether writes are flushed to the device
+	 * @param offHeapMemoryManager          manager handing out off-heap buffers for isolated writes
+	 * @param observableOutputKeeper        keeper owning the lifetime of the write output
+	 * @param offsetIndexRecordTypeRegistry registry mapping storage part types to their record ids
+	 * @param pendingSyncRegistry           registry taking over the device flush of this collection's data file, or
+	 *                                      null to have each write flushed to the device inline
+	 */
 	public DefaultEntityCollectionPersistenceService(
 		long catalogVersion,
 		@Nonnull String catalogName,
@@ -488,7 +511,8 @@ public class DefaultEntityCollectionPersistenceService
 		@Nonnull StorageSettings storageSettings,
 		@Nonnull CatalogOffHeapMemoryManager offHeapMemoryManager,
 		@Nonnull ObservableOutputKeeper observableOutputKeeper,
-		@Nonnull OffsetIndexRecordTypeRegistry offsetIndexRecordTypeRegistry
+		@Nonnull OffsetIndexRecordTypeRegistry offsetIndexRecordTypeRegistry,
+		@Nullable PendingSyncRegistry pendingSyncRegistry
 	) {
 		this.entityCollectionFileReference = new CollectionFileReference(
 			entityTypeHeader.entityType(),
@@ -497,6 +521,7 @@ public class DefaultEntityCollectionPersistenceService
 			entityTypeHeader.fileLocation()
 		);
 		this.entityCollectionFile = this.entityCollectionFileReference.toFilePath(catalogStoragePath);
+		this.syncWrites = storageSettings.syncWrites();
 		this.entityCollectionHeader = entityTypeHeader;
 		this.offsetIndexRecordTypeRegistry = offsetIndexRecordTypeRegistry;
 		this.observableOutputKeeper = observableOutputKeeper;
@@ -510,7 +535,8 @@ public class DefaultEntityCollectionPersistenceService
 			storageSettings,
 			storageSettings,
 			this.entityCollectionFile,
-			observableOutputKeeper
+			observableOutputKeeper,
+			pendingSyncRegistry
 		);
 		try {
 			this.storagePartPersistenceService = new OffsetIndexStoragePartPersistenceService(
@@ -972,10 +998,18 @@ public class DefaultEntityCollectionPersistenceService
 		final Path catalogStoragePath = this.entityCollectionFile.getParent();
 		final Path newFilePath = newReference.toFilePath(catalogStoragePath);
 		final OffsetIndexDescriptor offsetIndexDescriptor;
-		try (final OutputStream fos = new BufferedOutputStream(
-			new FileOutputStream(newFilePath.toFile()), COMPACTION_OUTPUT_BUFFER_SIZE
-		)) {
+		try (
+			final FileOutputStream compactedFileStream = new FileOutputStream(newFilePath.toFile());
+			final OutputStream fos = new BufferedOutputStream(compactedFileStream, COMPACTION_OUTPUT_BUFFER_SIZE)
+		) {
 			offsetIndexDescriptor = this.storagePartPersistenceService.copySnapshotTo(catalogVersion, fos, null);
+			// The collection header produced below points into this file and reaches the disk behind a fsynced
+			// bootstrap record. Closing a BufferedOutputStream only pushes its buffer into the page cache, so
+			// without this a crash could leave a durable pointer addressing data that was never written.
+			fos.flush();
+			if (this.syncWrites) {
+				compactedFileStream.getFD().sync();
+			}
 		} catch (IOException e) {
 			throw new UnexpectedIOException(
 				"Error occurred while compacting entity " + this.entityCollectionFile + " data file: " + e.getMessage(),

@@ -89,6 +89,8 @@ public class FullBackupTask extends ClientCallableTask<BackupSettings, FileForFe
 		this.catalogPersistenceService = new AtomicReference<>(catalogPersistenceService);
 		this.exportFileService = new AtomicReference<>(exportService);
 		this.onComplete = new AtomicReference<>(onComplete);
+		// note the version read here is only as recent as the last checkpoint - the factory that builds this task
+		// settles any outstanding one first, see DefaultCatalogPersistenceService#createFullBackupTask
 		this.lastCatalogVersion = catalogPersistenceService.getLastCatalogVersion();
 		if (onStart != null) {
 			onStart.accept(this.lastCatalogVersion);

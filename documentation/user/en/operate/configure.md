@@ -82,7 +82,8 @@ transaction:                                      # [see Transaction configurati
   walFileSizeBytes: 16MB
   walFileCountKept: 8
   waitForTransactionAcceptanceInMillis: 20s
-  flushFrequencyInMillis: 1s
+  flushFrequencyInMillis: 10s
+  checkpointIntervalInMillis: 1s
   conflictPolicy: ENTITY
 
 cache:                                            # [see Cache configuration](#cache-configuration)
@@ -595,9 +596,23 @@ This section contains configuration options for the storage layer of the databas
         <p>**Default:** `true`</p>
         <p>It determines whether CRC32C checksums are calculated for written records in a key/value store, and also whether 
         the CRC32C checksum is checked when a record is read.</p>
+        <p>This setting also selects **how the write-ahead log survives a crash**, which makes switching it off far more
+        expensive than the checksum computation it saves. A crash can leave a record with a *hole* - bytes missing in its
+        middle while later bytes reached the device - and surviving that requires either detecting the hole or
+        guaranteeing it cannot occur:</p>
+        <ul>
+            <li>**`true`** - the WAL's cumulative CRC32C chain detects the hole and recovery truncates to the last intact
+                transaction. The log can therefore be written at **one device sync per batch of transactions**, which is
+                what allows commit throughput to scale with the number of concurrent writers.</li>
+            <li>**`false`** - nothing can tell a hole from valid data, because the file length is unchanged and the record
+                still parses, so the damage would be replayed as genuine history. The WAL is therefore opened with
+                `DSYNC`, which syncs **every individual write** and so guarantees a crash can only ever leave a clean
+                prefix. This is correct, but costs roughly one device sync per write instead of per batch.</li>
+        </ul>
         <Note type="warning">
-            It is strongly recommended that this setting be set to `true`, as it will report potentially corrupt records as 
-            early as possible.
+            It is strongly recommended that this setting be set to `true`. Besides reporting potentially corrupt records as
+            early as possible, it is what allows the write-ahead log to batch its device syncs - so turning it off costs
+            considerably more write throughput than the checksum computation itself ever did.
         </Note>
     </dd>
     <dt>compress</dt>
@@ -799,11 +814,31 @@ This section contains configuration options for the storage layer of the databas
     </dd>
     <dt>flushFrequencyInMillis</dt>
     <dd>
-        <p>**Default:** `1s`</p>
+        <p>**Default:** `10s`</p>
         <p>The frequency of flushing the transactional data to the disk when they are sequentially processed.
             If database process the (small) transaction very quickly, it may decide to process next transaction before
             flushing changes to the disk. If the client waits for `WAIT_FOR_CHANGES_VISIBLE` he may wait entire
             `flushFrequencyInMillis` milliseconds before he gets the response.</p>
+    </dd>
+    <dt>checkpointIntervalInMillis</dt>
+    <dd>
+        <p>**Default:** `1s`</p>
+        <p>How often the data files are made durable (fsync) and the bootstrap record pointing at them is written.
+            Transaction processing always writes its bytes out, but between checkpoints they only reach the operating
+            system page cache - the device flush is what this interval bounds. Set to `0` to checkpoint at the end of
+            every transaction processing round.</p>
+        <p>This is deliberately a different cadence from `flushFrequencyInMillis`: that one bounds when changes become
+            **visible**, this one bounds when they become **durable on the data files**. Durability of an acknowledged
+            commit does not depend on it - the write-ahead log is the source of truth for that, and anything written
+            after the last checkpoint is replayed from the WAL on restart. What the interval trades is WAL retention
+            and restart replay time (both bounded by the interval) for write throughput.</p>
+        <p>The gain is largest on lightly loaded systems. A checkpoint costs a fixed number of device flushes
+            regardless of how many transactions it covers, so when few transactions are in flight that cost is divided
+            among few of them: measured at roughly 57% of a processing round with two concurrent writers, and
+            negligible with sixty-four. Raising the interval mostly helps the former case; the latter is already
+            dominated by other work.</p>
+        <p>The setting has no effect when `storage.syncWrites` is `false`, since there is then no device flush to
+            defer in the first place.</p>
     </dd>
     <dt>conflictPolicy</dt>
     <dd>

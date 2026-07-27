@@ -32,7 +32,7 @@ import org.junit.jupiter.api.Test;
 
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.EnumSet;
+
 import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -398,6 +398,7 @@ class TransactionOptionsTest {
 					TransactionOptions
 						.DEFAULT_WAIT_FOR_TRANSACTION_ACCEPTANCE,
 					TransactionOptions.DEFAULT_FLUSH_FREQUENCY,
+					TransactionOptions.DEFAULT_CHECKPOINT_INTERVAL,
 					TransactionOptions
 						.DEFAULT_CONFLICT_RING_BUFFER_SIZE,
 					TransactionOptions.DEFAULT_CONFLICT_RESOLUTION

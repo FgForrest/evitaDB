@@ -33,13 +33,22 @@ import io.evitadb.spi.store.catalog.shared.model.LogRecordReference;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -47,6 +56,8 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.TRANSACTION;
@@ -224,6 +235,139 @@ class ConflictResolutionAndWalAppendingTransactionStageTest {
 		} catch (Throwable ex) {
 			stage.handleException(task, ex);
 		}
+	}
+
+	/**
+	 * The point of the deferred WAL sync: transactions appended while a force is in flight must be carried
+	 * by **one** subsequent force rather than paying for one each.
+	 *
+	 * The test pins both halves of that contract. It holds the first force open, feeds two more
+	 * transactions through the stage while it is blocked — which only returns if the appender genuinely
+	 * does not wait for the device — and then asserts that three transactions cost two forces, with the
+	 * second one covering both stragglers at once.
+	 *
+	 * It also pins the durability ordering: while the first force is in flight, no transaction may be
+	 * reported as WAL-persisted, because nothing has reached the device yet.
+	 */
+	@Test
+	@DisplayName("should carry every transaction appended during a force with one single subsequent force")
+	void shouldCoverTransactionsAppendedDuringAForceWithASingleForce() throws Exception {
+		final AtomicLong lastAssigned = new AtomicLong(0L);
+		final AtomicLong lastWritten = new AtomicLong(0L);
+		final TransactionManager tm = buildTransactionManagerMock(lastAssigned, lastWritten);
+
+		// the sync task needs a thread of its own - running it inline would make the appender the forcing
+		// thread again and there would be nothing to overlap
+		final ExecutorService syncExecutor = Executors.newSingleThreadExecutor();
+		try {
+			final CountDownLatch firstForceEntered = new CountDownLatch(1);
+			final CountDownLatch releaseFirstForce = new CountDownLatch(1);
+			final AtomicInteger forceCount = new AtomicInteger();
+			final List<Long> publishedDurableVersions = Collections.synchronizedList(new ArrayList<>());
+
+			doNothing().when(tm).identifyConflicts(anyLong(), anyLong(), any(), any());
+			doAnswer(inv -> 0L).when(tm).appendWalAndDiscard(any(), any(), any());
+			doAnswer(inv -> {
+				publishedDurableVersions.add(inv.getArgument(0));
+				return null;
+			}).when(tm).updateLastDurableCatalogVersion(anyLong());
+			doAnswer(inv -> {
+				if (forceCount.incrementAndGet() == 1) {
+					firstForceEntered.countDown();
+					assertTrue(
+						releaseFirstForce.await(10, TimeUnit.SECONDS),
+						"The test never released the first force!"
+					);
+				}
+				return null;
+			}).when(tm).syncWal();
+
+			final ConflictResolutionAndWalAppendingTransactionStage stage =
+				new ConflictResolutionAndWalAppendingTransactionStage(
+					syncExecutor,
+					100,
+					tm,
+					(task, ex) -> {}
+				);
+
+			final ConflictResolutionAndWalAppendingTransactionTask t1 = newTask();
+			feed(stage, t1);
+			assertTrue(
+				firstForceEntered.await(10, TimeUnit.SECONDS),
+				"The first transaction must trigger a force straight away - batching may never add latency " +
+					"to an otherwise idle commit path"
+			);
+
+			// these two only get through while the device is busy if the appender really does not wait for it
+			final ConflictResolutionAndWalAppendingTransactionTask t2 = newTask();
+			feed(stage, t2);
+			final ConflictResolutionAndWalAppendingTransactionTask t3 = newTask();
+			feed(stage, t3);
+
+			assertFalse(
+				t1.commitProgress().onWalAppended().toCompletableFuture().isDone(),
+				"No transaction may be reported as WAL-persisted before the force covering it completed"
+			);
+
+			releaseFirstForce.countDown();
+
+			t1.commitProgress().onWalAppended().toCompletableFuture().get(10, TimeUnit.SECONDS);
+			t2.commitProgress().onWalAppended().toCompletableFuture().get(10, TimeUnit.SECONDS);
+			t3.commitProgress().onWalAppended().toCompletableFuture().get(10, TimeUnit.SECONDS);
+
+			assertEquals(
+				2, forceCount.get(),
+				"Three transactions must cost two forces: one for the transaction that started the batch " +
+					"and one covering everything that arrived while it was in flight"
+			);
+			assertEquals(
+				List.of(1L, 3L), publishedDurableVersions,
+				"The first force may only publish the version sampled before it started; the second must " +
+					"publish both stragglers at once"
+			);
+		} finally {
+			syncExecutor.shutdownNow();
+		}
+	}
+
+	/**
+	 * A force that fails means the device stopped accepting the log. Every transaction waiting on that
+	 * force must be failed rather than silently acknowledged, and the stage must stop accepting new work -
+	 * continuing would hand out commit acknowledgements that could never be honoured.
+	 */
+	@Test
+	@DisplayName("should fail pending transactions and stop accepting more when the WAL cannot be forced")
+	void shouldFailPendingTransactionsWhenForceFails() {
+		final AtomicLong lastAssigned = new AtomicLong(0L);
+		final AtomicLong lastWritten = new AtomicLong(0L);
+		final TransactionManager tm = buildTransactionManagerMock(lastAssigned, lastWritten);
+
+		doNothing().when(tm).identifyConflicts(anyLong(), anyLong(), any(), any());
+		doAnswer(inv -> 0L).when(tm).appendWalAndDiscard(any(), any(), any());
+		doThrow(new RuntimeException("simulated device failure")).when(tm).syncWal();
+
+		final ConflictResolutionAndWalAppendingTransactionStage stage =
+			new ConflictResolutionAndWalAppendingTransactionStage(
+				Runnable::run,
+				100,
+				tm,
+				(task, ex) -> {}
+			);
+
+		final ConflictResolutionAndWalAppendingTransactionTask t1 = newTask();
+		feed(stage, t1);
+		assertTrue(
+			t1.commitProgress().onWalAppended().toCompletableFuture().isCompletedExceptionally(),
+			"A transaction whose force failed must be failed, never acknowledged"
+		);
+
+		final ConflictResolutionAndWalAppendingTransactionTask t2 = newTask();
+		feed(stage, t2);
+		assertTrue(
+			t2.commitProgress().onWalAppended().toCompletableFuture().isCompletedExceptionally(),
+			"Once the WAL cannot be made durable the stage must refuse further transactions"
+		);
+		verify(tm, times(1)).appendWalAndDiscard(any(), any(), any());
 	}
 
 	/**

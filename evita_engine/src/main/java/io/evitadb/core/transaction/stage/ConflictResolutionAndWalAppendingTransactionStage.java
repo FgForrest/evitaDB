@@ -27,6 +27,7 @@ import io.evitadb.api.CommitProgress.CommitVersions;
 import io.evitadb.api.CommitProgressRecord;
 import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.api.exception.ConflictingCatalogMutationException;
+import io.evitadb.api.exception.TransactionException;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
 import io.evitadb.api.requestResponse.mutation.infrastructure.TransactionMutation;
 import io.evitadb.core.catalog.Catalog;
@@ -46,12 +47,15 @@ import lombok.extern.slf4j.Slf4j;
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.NotThreadSafe;
 import java.time.OffsetDateTime;
+import java.util.ArrayDeque;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Flow;
 import java.util.concurrent.Flow.Subscriber;
 import java.util.concurrent.SubmissionPublisher;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BiConsumer;
 
 /**
@@ -61,6 +65,15 @@ import java.util.function.BiConsumer;
  *
  * It processes {@link ConflictResolutionAndWalAppendingTransactionTask} objects and produces {@link TrunkIncorporationTransactionTask}
  * objects.
+ *
+ * Tasks are still delivered to this stage strictly one at a time, but the stage no longer waits for the
+ * WAL to reach the device before taking the next one. An append leaves the transaction merely written and
+ * parks it on an internal queue; a separate sync task forces the WAL and only then notifies the client and
+ * hands the transaction to trunk incorporation. Everything appended while a force is in flight is carried
+ * by that force's successor, so one device sync serves a whole batch instead of one transaction - which is
+ * what lifts sustained commit throughput off the per-transaction fsync ceiling. The trade is the usual one
+ * for group commit: under load a transaction can wait for the tail of an in-flight force plus the next one,
+ * so WAL-persistence latency at the high percentiles rises while throughput does.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
@@ -74,6 +87,44 @@ public final class ConflictResolutionAndWalAppendingTransactionStage
 	 * Publisher that emits {@link TrunkIncorporationTransactionTask} objects to be processed by the next stage.
 	 */
 	private final SubmissionPublisher<TrunkIncorporationTransactionTask> publisher;
+	/**
+	 * Executor the WAL syncing task is dispatched to. It is the same pool the publisher hands tasks to the
+	 * next stage on - the sync task occupies a thread only while a force is actually in flight and
+	 * re-dispatches itself instead of parking, so it costs no permanently blocked thread.
+	 */
+	private final Executor executor;
+	/**
+	 * Transactions whose bytes are in the WAL but which no force has covered yet, in append order.
+	 *
+	 * This queue *is* the group commit: the appending thread pushes onto it and returns immediately, so
+	 * everything that accumulates while a force is in flight gets carried to the device by the next single
+	 * force instead of paying for one each.
+	 */
+	private final ArrayDeque<PendingDurability> pendingDurability = new ArrayDeque<>(64);
+	/**
+	 * Guards {@link #pendingDurability}, which is touched by the appending thread and the syncing task - the
+	 * appender keeps adding at the tail while the syncer drains the head, which is precisely what lets one device
+	 * force cover a whole batch.
+	 *
+	 * It is not enough to make the deque itself thread-safe: {@link #releaseDurableTransactions} peeks the head and
+	 * then removes it, and those two steps must be **atomic** against each other. Swapping in a concurrent
+	 * collection would keep each individual operation safe while silently relying on an invariant enforced
+	 * elsewhere - that {@link #syncInFlight} admits only one syncer at a time.
+	 */
+	private final ReentrantLock pendingDurabilityLock = new ReentrantLock();
+	/**
+	 * TRUE while a sync task is dispatched or running, so appends do not pile up redundant sync tasks.
+	 */
+	private final AtomicBoolean syncInFlight = new AtomicBoolean();
+	/**
+	 * Set to the failure that broke the WAL durability handshake, which permanently fail-stops this stage.
+	 *
+	 * A force that fails means the device is not accepting the log any more; every transaction appended
+	 * after that point could never be made durable, so accepting more of them would hand out commit
+	 * acknowledgements that can never be honoured. Deliberately one-way - recovering the WAL is a restart
+	 * concern, not something a commit path should attempt.
+	 */
+	private volatile Throwable walDurabilityFailure;
 
 	public ConflictResolutionAndWalAppendingTransactionStage(
 		@Nonnull Executor executor,
@@ -82,6 +133,7 @@ public final class ConflictResolutionAndWalAppendingTransactionStage
 		@Nonnull BiConsumer<TransactionTask, Throwable> onException
 	) {
 		super(transactionManager, onException);
+		this.executor = executor;
 		this.publisher = new SubmissionPublisher<>(executor, maxBufferCapacity);
 	}
 
@@ -105,6 +157,16 @@ public final class ConflictResolutionAndWalAppendingTransactionStage
 			task.commitProgress() != null,
 			"Future is unexpectedly null in the first stage!"
 		);
+
+		// refuse up front once the WAL has stopped being able to accept durable writes - see the field
+		final Throwable durabilityFailure = this.walDurabilityFailure;
+		if (durabilityFailure != null) {
+			throw new TransactionException(
+				"Write-ahead log of catalog `" + task.catalogName() + "` can no longer be made durable - " +
+					"refusing to accept further transactions.",
+				durabilityFailure
+			);
+		}
 
 		final long expectedCatalogVersion = this.transactionManager.getLastAssignedCatalogVersion() + 1L;
 		// track how many catalog versions / schema deltas must be rolled back if something throws below
@@ -130,28 +192,15 @@ public final class ConflictResolutionAndWalAppendingTransactionStage
 			// and the version cannot be reclaimed without corrupting the mutation stream
 			droppedCatalogVersions = 0;
 			droppedCatalogSchemaVersionDelta = 0;
-			// notify client at this moment that the transaction is safely written to the WAL
-			// the push to next stage might fail, but the WAL is already written
-			task.commitProgress()
-				.complete(
-					CommitBehavior.WAIT_FOR_WAL_PERSISTENCE,
-					commitVersions,
-					this.transactionManager.getRequestExecutor()
-				);
+			// the bytes are in the WAL, so the reserved version is spoken for and the append-ordering
+			// check for the next transaction must already see it
 			this.transactionManager.updateLastWrittenCatalogVersion(commitVersions.catalogVersion());
-			// emit the event
-			walAppendEvent.finish(task.mutationCount() + 1, writtenLength).commit();
-			// and continue with trunk incorporation
-			push(
-				task,
-				new TrunkIncorporationTransactionTask(
-					task.catalogName(),
-					commitVersions.catalogVersion(),
-					commitVersions.catalogSchemaVersion(),
-					task.transactionId(),
-					task.commitProgress()
-				),
-				this.publisher
+			// the client is deliberately NOT notified here, nor is the task pushed onward:
+			// WAIT_FOR_WAL_PERSISTENCE promises the change survives a crash and nothing has reached the
+			// device yet. Both happen once a force covers this transaction, which also keeps trunk
+			// incorporation from ever checkpointing a version the WAL does not durably hold
+			enqueueForDurability(
+				new PendingDurability(task, commitVersions, walAppendEvent, writtenLength)
 			);
 		} catch (RuntimeException ex) {
 			// count only genuine conflict-induced rollbacks - not WAL mismatches or other runtime failures -
@@ -169,6 +218,214 @@ public final class ConflictResolutionAndWalAppendingTransactionStage
 			);
 			// rethrow the exception to be handled by the exception handler
 			throw ex;
+		}
+	}
+
+	/**
+	 * Records a written-but-not-yet-durable transaction and makes sure a sync task is on its way.
+	 *
+	 * @param pending the transaction awaiting a force
+	 */
+	private void enqueueForDurability(@Nonnull PendingDurability pending) {
+		this.pendingDurabilityLock.lock();
+		try {
+			this.pendingDurability.addLast(pending);
+		} finally {
+			this.pendingDurabilityLock.unlock();
+		}
+		scheduleSync();
+	}
+
+	/**
+	 * Dispatches the sync task unless one is already dispatched or running - in which case that one will
+	 * pick up whatever was just enqueued, because it re-reads the queue after every force.
+	 */
+	private void scheduleSync() {
+		if (this.syncInFlight.compareAndSet(false, true)) {
+			try {
+				this.executor.execute(this::syncPendingTransactions);
+			} catch (RuntimeException ex) {
+				// the task never started, so nothing else will ever clear the flag
+				this.syncInFlight.set(false);
+				failPendingDurability(ex);
+			}
+		}
+	}
+
+	/**
+	 * Forces the WAL and releases everything the force covered, repeating while transactions keep arriving.
+	 *
+	 * Each pass samples the queue's tail **before** forcing and credits only up to that version;
+	 * transactions appended while the force is in flight are covered by the next pass. Sampling after the
+	 * force would acknowledge transactions the device was never asked about.
+	 */
+	private void syncPendingTransactions() {
+		try {
+			while (true) {
+				final long durableUpTo;
+				this.pendingDurabilityLock.lock();
+				try {
+					final PendingDurability last = this.pendingDurability.peekLast();
+					if (last == null) {
+						break;
+					}
+					durableUpTo = last.commitVersions().catalogVersion();
+				} finally {
+					this.pendingDurabilityLock.unlock();
+				}
+				if (!forceAndRelease(durableUpTo)) {
+					// the WAL is gone - `failPendingDurability` has already emptied the queue
+					return;
+				}
+			}
+		} finally {
+			this.syncInFlight.set(false);
+			// Hand the work on if anything is still queued. Two distinct cases reach this, and both need it:
+			//
+			// 1. An append landed between the last queue read and the flag clearing above. That appender saw the
+			//    flag still set and skipped scheduling, so nobody else will.
+			// 2. Something escaped the loop. The flag has just been cleared, but the queue was NOT emptied - unlike
+			//    the fail-stop exit, where `failPendingDurability` empties it first. Leaving it here would strand
+			//    written-but-unforced transactions until some later append happened to re-arm the syncer, and if no
+			//    further write ever arrives their clients wait on durability forever.
+			//
+			// Deliberately inside the `finally` for case 2: a statement after the try block would be skipped by the
+			// very exception that makes the re-dispatch necessary. Re-dispatching cannot spin - each pass of
+			// `releaseDurableTransactions` removes its entry before doing anything that can throw, so progress is
+			// made even when the failure repeats.
+			if (hasPendingDurability()) {
+				scheduleSync();
+			}
+		}
+	}
+
+	/**
+	 * Forces the WAL, publishes the new durable version and releases every transaction it covered.
+	 *
+	 * @param durableUpTo the catalog version sampled before the force
+	 * @return FALSE when the force failed and this stage has fail-stopped
+	 */
+	private boolean forceAndRelease(long durableUpTo) {
+		try {
+			this.transactionManager.syncWal();
+			// published before the tasks are pushed onward, so trunk incorporation's round bound already
+			// includes everything it is about to be handed
+			this.transactionManager.updateLastDurableCatalogVersion(durableUpTo);
+		} catch (RuntimeException ex) {
+			failPendingDurability(ex);
+			return false;
+		}
+		releaseDurableTransactions(durableUpTo);
+		return true;
+	}
+
+	/**
+	 * Notifies clients and hands to trunk incorporation every transaction now known to be durable, in
+	 * append order.
+	 *
+	 * A failure while releasing one transaction must not strand the rest, so each is released under its own
+	 * guard - the WAL itself is fine at this point, the transaction is durable, and the only thing that can
+	 * throw here is downstream bookkeeping.
+	 *
+	 * @param durableUpTo the highest catalog version the completed force covered
+	 */
+	private void releaseDurableTransactions(long durableUpTo) {
+		while (true) {
+			final PendingDurability pending;
+			this.pendingDurabilityLock.lock();
+			try {
+				final PendingDurability head = this.pendingDurability.peekFirst();
+				if (head == null || head.commitVersions().catalogVersion() > durableUpTo) {
+					break;
+				}
+				pending = this.pendingDurability.removeFirst();
+			} finally {
+				this.pendingDurabilityLock.unlock();
+			}
+			try {
+				// notify the client - at this point the transaction genuinely survives a crash
+				pending.task().commitProgress()
+					.complete(
+						CommitBehavior.WAIT_FOR_WAL_PERSISTENCE,
+						pending.commitVersions(),
+						this.transactionManager.getRequestExecutor()
+					);
+				// the event now spans the append *and* the wait for the force that covered it, which is
+				// what "appended to WAL" costs a transaction from the commit path's point of view
+				pending.walAppendEvent()
+					.finish(pending.task().mutationCount() + 1, pending.writtenLength())
+					.commit();
+				// and continue with trunk incorporation
+				push(
+					pending.task(),
+					new TrunkIncorporationTransactionTask(
+						pending.task().catalogName(),
+						pending.commitVersions().catalogVersion(),
+						pending.commitVersions().catalogSchemaVersion(),
+						pending.task().transactionId(),
+						pending.task().commitProgress()
+					),
+					this.publisher
+				);
+			} catch (RuntimeException ex) {
+				handleException(pending.task(), ex);
+			}
+		}
+	}
+
+	/**
+	 * Fail-stops the stage after the WAL could not be made durable and fails every transaction that was
+	 * waiting on that force.
+	 *
+	 * No attempt is made to roll the catalog versions back. Their bytes are in the WAL file already, the
+	 * device has stopped accepting writes, and recovery truncates the unreadable tail on restart - trying
+	 * to unwind counters in that state would add a second, less predictable failure on top of the first.
+	 *
+	 * @param cause the failure that broke the durability handshake
+	 */
+	private void failPendingDurability(@Nonnull Throwable cause) {
+		if (this.walDurabilityFailure == null) {
+			this.walDurabilityFailure = cause;
+		}
+		while (true) {
+			final PendingDurability pending;
+			this.pendingDurabilityLock.lock();
+			try {
+				pending = this.pendingDurability.pollFirst();
+			} finally {
+				this.pendingDurabilityLock.unlock();
+			}
+			if (pending == null) {
+				break;
+			}
+			log.error(
+				"Transaction {} (catalogVersion={}) on catalog `{}` was written to the WAL but could not be " +
+					"made durable - failing it. No further transaction will be accepted by this catalog.",
+				pending.task().transactionId(),
+				pending.commitVersions().catalogVersion(),
+				pending.task().catalogName(),
+				cause
+			);
+			try {
+				pending.task().commitProgress().completeExceptionally(cause);
+			} catch (RuntimeException ex) {
+				log.error(
+					"Failed to notify transaction {} on catalog `{}` about the WAL durability failure.",
+					pending.task().transactionId(), pending.task().catalogName(), ex
+				);
+			}
+		}
+	}
+
+	/**
+	 * @return TRUE when at least one transaction is still awaiting a force
+	 */
+	private boolean hasPendingDurability() {
+		this.pendingDurabilityLock.lock();
+		try {
+			return !this.pendingDurability.isEmpty();
+		} finally {
+			this.pendingDurabilityLock.unlock();
 		}
 	}
 
@@ -436,6 +693,23 @@ public final class ConflictResolutionAndWalAppendingTransactionStage
 			);
 			throw ex;
 		}
+	}
+
+	/**
+	 * A transaction whose bytes are in the WAL but which no force has covered yet.
+	 *
+	 * @param task            the originating task - the client is notified and the trunk task built from it
+	 *                        once the transaction turns durable
+	 * @param commitVersions  the versions assigned to the transaction
+	 * @param walAppendEvent  the metric event opened before the append, finished when the force lands
+	 * @param writtenLength   number of bytes the append wrote
+	 */
+	private record PendingDurability(
+		@Nonnull ConflictResolutionAndWalAppendingTransactionTask task,
+		@Nonnull CommitVersions commitVersions,
+		@Nonnull TransactionAppendedToWalEvent walAppendEvent,
+		long writtenLength
+	) {
 	}
 
 	/**

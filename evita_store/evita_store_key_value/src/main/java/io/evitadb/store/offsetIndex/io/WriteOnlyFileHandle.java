@@ -37,6 +37,7 @@ import io.evitadb.store.offsetIndex.exception.InvalidStoragePathException;
 import io.evitadb.store.offsetIndex.exception.SyncFailedException;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
+import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -44,7 +45,10 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.nio.channels.FileChannel;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BiFunction;
@@ -62,6 +66,7 @@ import static io.evitadb.utils.Assert.isPremiseValid;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
+@Slf4j
 public class WriteOnlyFileHandle implements WriteOnlyHandle {
 	/**
 	 * Logical name of the file that backs the {@link OffsetIndex} - used for observability.
@@ -92,6 +97,16 @@ public class WriteOnlyFileHandle implements WriteOnlyHandle {
 	 * Sourced from {@link StorageOptions#syncWrites()}.
 	 */
 	private final boolean syncWrites;
+	/**
+	 * When set, the device flush at the end of each write is handed to this registry instead of being issued inline,
+	 * and the file is made durable later by whoever owns the registry (see {@link PendingSyncRegistry}). The buffer
+	 * flush is unaffected either way.
+	 *
+	 * Null restores the historical behaviour: sync inline whenever {@link #syncWrites} is set. Only the catalog and
+	 * entity collection data files - the ones a trunk round writes and a checkpoint later forces - are given
+	 * a registry; the bootstrap file, the engine files and the write-ahead log keep syncing inline.
+	 */
+	@Nullable private final PendingSyncRegistry pendingSyncRegistry;
 	/**
 	 * Factory for creating checksums for data integrity verification during write operations.
 	 * Sourced from {@link StorageOptions#computeCRC32C()}.
@@ -238,6 +253,49 @@ public class WriteOnlyFileHandle implements WriteOnlyHandle {
 		}
 	}
 
+	/**
+	 * Flushes the write buffer and then either forces the bytes to the device or notes the file as owing a force.
+	 *
+	 * Only the **device** flush is ever deferred. `os.flush()` runs on both paths, so offsets are assigned, the Kryo
+	 * buffer is released and the freshly written records are readable through the page cache exactly as before -
+	 * everything downstream of this call sees the same state either way. What changes is solely when the operating
+	 * system is told to put those pages on the platter.
+	 *
+	 * @param os the output whose buffer is to be flushed
+	 */
+	private void doSyncOrDefer(@Nonnull ObservableOutput<FileOutputStream> os) {
+		if (this.pendingSyncRegistry == null) {
+			doSync(os, this.syncWrites);
+		} else {
+			doSync(os, false);
+			this.pendingSyncRegistry.noteSyncPending(this);
+		}
+	}
+
+	@Override
+	public void forceDurable() {
+		// deliberately opened fresh rather than reusing the output's descriptor: ObservableOutputKeeper owns
+		// that one and may have released it since the write. fsync is a property of the file, not of the
+		// descriptor, so a new channel flushes exactly the same dirty pages. The extra open/close is a couple
+		// of microseconds against a device flush measured at ~5 ms on this class of storage.
+		try (final FileChannel channel = FileChannel.open(this.targetFile, StandardOpenOption.WRITE)) {
+			// force(true) - metadata included. On an appended file the length IS metadata, and a stale length
+			// silently truncates the very records the bootstrap record is about to point at.
+			channel.force(true);
+		} catch (NoSuchFileException e) {
+			// a REAL state, not an unhandled branch: compaction rewrites a data file under a new index and deletes
+			// the old one, so a handle noted as owing a force may name a file that no longer exists by the time the
+			// checkpoint runs. There is nothing left to make durable - no record written from here on can point into
+			// a deleted file, and compaction fsyncs the replacement itself before the bootstrap record naming it is
+			// written. Forcing a file that is gone is not possible and not needed.
+			if (log.isDebugEnabled()) {
+				log.debug("Skipping deferred sync of `{}` - the file no longer exists.", this.targetFile);
+			}
+		} catch (IOException e) {
+			throw new SyncFailedException(e);
+		}
+	}
+
 	public WriteOnlyFileHandle(
 		@Nonnull Path targetFile,
 		int outputBufferSize,
@@ -281,6 +339,38 @@ public class WriteOnlyFileHandle implements WriteOnlyHandle {
 		@Nonnull Path targetFile,
 		@Nonnull ObservableOutputKeeper observableOutputKeeper
 	) {
+		this(
+			catalogName, fileType, logicalName, outputBufferSize, syncWrites,
+			checksumFactory, compressionFactory, targetFile, observableOutputKeeper, null
+		);
+	}
+
+	/**
+	 * Creates a handle whose device flush is deferred to a checkpoint instead of being issued at the end of every
+	 * write.
+	 *
+	 * @param pendingSyncRegistry registry notified after each write instead of issuing `fsync`; null keeps the
+	 *                            historical inline-sync behaviour
+	 */
+	public WriteOnlyFileHandle(
+		@Nullable String catalogName,
+		@Nullable FileType fileType,
+		@Nullable String logicalName,
+		int outputBufferSize,
+		boolean syncWrites,
+		@Nonnull ChecksumFactory checksumFactory,
+		@Nonnull CompressionFactory compressionFactory,
+		@Nonnull Path targetFile,
+		@Nonnull ObservableOutputKeeper observableOutputKeeper,
+		@Nullable PendingSyncRegistry pendingSyncRegistry
+	) {
+		// deferring a sync that would never have been issued would make the checkpoint force files for an operator
+		// who explicitly turned durability off - the two settings are orthogonal and the caller resolves them
+		isPremiseValid(
+			pendingSyncRegistry == null || syncWrites,
+			"Deferred sync must not be configured on a handle that does not sync at all!"
+		);
+		this.pendingSyncRegistry = pendingSyncRegistry;
 		this.catalogName = catalogName;
 		this.fileType = fileType;
 		this.logicalName = logicalName;
@@ -327,7 +417,7 @@ public class WriteOnlyFileHandle implements WriteOnlyHandle {
 						this::createObservableOutput,
 						observableOutput -> {
 							logic.accept(observableOutput);
-							doSync(observableOutput, this.syncWrites);
+							doSyncOrDefer(observableOutput);
 						}
 					);
 					return;
@@ -353,7 +443,7 @@ public class WriteOnlyFileHandle implements WriteOnlyHandle {
 						this::createObservableOutput,
 						observableOutput -> {
 							final S result = logic.apply(observableOutput);
-							doSync(observableOutput, this.syncWrites);
+							doSyncOrDefer(observableOutput);
 							return postExecutionLogic.apply(observableOutput, result);
 						}
 					);

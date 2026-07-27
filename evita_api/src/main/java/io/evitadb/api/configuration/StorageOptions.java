@@ -68,6 +68,20 @@ import static java.util.Optional.ofNullable;
  *                                           the original size will be saved in compressed form. The default is false.
  * @param computeCRC32C                      Determines whether CRC32C checksums will be computed for written
  *                                           records and also whether the CRC32C checksum will be checked on record read.
+ *                                           **This setting also selects how the write-ahead log survives a crash, which
+ *                                           makes it considerably more expensive to switch off than the checksum
+ *                                           computation it saves.** A crash can leave a record with a *hole* - bytes
+ *                                           missing in its middle while later bytes reached the device - and surviving
+ *                                           that needs either the ability to detect it or a guarantee it cannot happen.
+ *                                           With checksums on, the WAL's cumulative CRC32C chain detects a hole and
+ *                                           recovery truncates to the last intact transaction, so the log can be written
+ *                                           at one device sync per batch of transactions. With checksums off there is
+ *                                           nothing that can tell a hole from valid data - the file length is unchanged,
+ *                                           so the record still parses - and the damage would be replayed as real
+ *                                           history; the WAL is therefore opened with `DSYNC` instead, which syncs every
+ *                                           individual write so a crash can only ever leave a clean prefix. That trades
+ *                                           one device sync per batch for one per write, which costs far more write
+ *                                           throughput than the checksums do CPU.
  * @param minimalActiveRecordShare           Minimal share of active records in the file. If the share is lower, the file will
  *                                           be compacted.
  * @param fileSizeCompactionThresholdBytes   Minimal file size threshold for compaction. If the file size is lower,

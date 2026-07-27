@@ -82,7 +82,8 @@ import java.util.stream.Stream;
  * - Reading and writing the {@link io.evitadb.spi.store.catalog.header.model.CatalogHeader} (the root metadata record)
  * - Managing the catalog-level offset-index file (via {@link #getStoragePartPersistenceService(long)})
  * - Creating and providing access to per-collection {@link EntityCollectionPersistenceService} instances
- * - Appending to and reading from the Write-Ahead-Log (WAL) via {@link #appendWalAndDiscard} and the mutation streams
+ * - Appending to and reading from the Write-Ahead-Log (WAL) via {@link #appendWalAndDiscardDeferringSync} and the
+ *   mutation streams
  * - Creating backups, restoring from backups, and duplicating catalogs
  * - Reporting catalog version history and point-in-time queries
  *
@@ -253,11 +254,29 @@ public non-sealed interface CatalogPersistenceService<S extends LogRecordReferen
 	<W extends StorageDescriptor> CatalogStoragePartPersistenceService<S, T, W> getStoragePartPersistenceService(long catalogVersion);
 
 	/**
-	 * Returns the last catalog version that was written to the persistent storage.
+	 * Returns the last catalog version that was **checkpointed** to the persistent storage.
 	 *
-	 * @return the last catalog version that was written to the persistent storage
+	 * With a checkpoint interval configured this may lag {@link #getLastAppliedCatalogVersion()} - which answers the
+	 * different question of what has been *written* - by up to that interval. That is the intended meaning: the
+	 * answer this method gives is used to tell a failure that struck before durability from one that struck after,
+	 * and a version that has not been checkpointed genuinely is not on disk - a restart resumes below it and replays
+	 * the rest from the write-ahead log.
+	 *
+	 * @return the last catalog version whose checkpoint completed
 	 */
 	long getLastCatalogVersion();
+
+	/**
+	 * Returns the last catalog version whose header was written, whether or not it has been checkpointed.
+	 *
+	 * Answers "has anything been stored since?", which is a different question from
+	 * {@link #getLastCatalogVersion()}'s "what is safely on the device?". Callers deciding whether a round has
+	 * anything to write want this one, otherwise every round between two checkpoints looks like a change.
+	 *
+	 * @return the last catalog version handed to
+	 *         {@link #storeHeader(UUID, CatalogState, long, int, TransactionMutation, List, DataStoreMemoryBuffer)}
+	 */
+	long getLastAppliedCatalogVersion();
 
 	/**
 	 * Returns {@link CatalogHeader} that is used for this service. The header is initialized in the instance constructor
@@ -397,16 +416,32 @@ public non-sealed interface CatalogPersistenceService<S extends LogRecordReferen
 	 * Appends the given transaction mutation to the write-ahead log (WAL) and appends its mutation chain taken from
 	 * offHeapWithFileBackupReference. After that it discards the specified off-heap data with file backup reference.
 	 *
+	 * The transaction is **not** durable when this method returns - only written. The caller takes over the
+	 * obligation to call {@link #syncWal()} and must not report the transaction as persisted to anyone
+	 * (nor let it be checkpointed into the data files) until that force has completed.
+	 *
+	 * This is what allows one device sync to cover a whole batch of transactions instead of one each:
+	 * the appending thread keeps writing while an earlier force is still in flight.
+	 *
 	 * @param catalogVersion      current version of the catalog
 	 * @param transactionMutation The transaction mutation to append to the WAL.
 	 * @param walReference        The off-heap data with file backup reference to discard.
 	 * @return the number of Bytes written
 	 */
-	long appendWalAndDiscard(
+	long appendWalAndDiscardDeferringSync(
 		long catalogVersion,
 		@Nonnull TransactionMutation transactionMutation,
 		@Nonnull LogRecordReference walReference
 	);
+
+	/**
+	 * Makes everything appended to the WAL so far durable.
+	 *
+	 * Callers that intend to declare a particular catalog version durable must sample that version
+	 * **before** calling this method - appends landing while the force is in flight may or may not be
+	 * covered by it. A WAL that has never been written is a no-op.
+	 */
+	void syncWal();
 
 	/**
 	 * Retrieves the first non-processed transaction in the WAL.

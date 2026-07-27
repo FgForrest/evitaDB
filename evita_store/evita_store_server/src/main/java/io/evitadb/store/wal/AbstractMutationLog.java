@@ -93,6 +93,7 @@ import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.IntFunction;
 import java.util.function.LongSupplier;
 import java.util.stream.Stream;
@@ -192,6 +193,22 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 	 * Contains information about the last catalog version that was successfully stored (and its WAL contents processed).
 	 */
 	protected final AtomicLong processedVersion;
+	/**
+	 * Serializes {@link #syncWal()} against {@link #rotateWalFile()}.
+	 *
+	 * Appends themselves are **not** guarded by this lock - that is the entire point of
+	 * {@link #appendDeferringSync(TransactionMutation, OffHeapWithFileBackupReference)}, which lets the
+	 * appending thread write the next transaction while a force is still in flight. `FileChannel` permits
+	 * a concurrent `write` and `force`; the only thing that must not overlap is a force with the rotation
+	 * that closes the very channel being forced, which would surface as a `ClosedChannelException` on a
+	 * transaction the caller is about to acknowledge as durable.
+	 *
+	 * Holding this lock across the whole rotation also makes rotation's own force of the outgoing channel
+	 * atomic with the swap: once a syncing thread observes the incoming channel, everything written to
+	 * the outgoing one has already been forced, so a snapshot taken before the force stays covered no
+	 * matter which side of the rotation the force landed on.
+	 */
+	private final ReentrantLock walSyncLock = new ReentrantLock();
 	/**
 	 * Contains reference to the asynchronous task executor that removes the obsolete WAL files.
 	 */
@@ -611,7 +628,8 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 	 *
 	 * @param walFilePath        The path to the WAL file
 	 * @param ex                 The exception that occurred
-	 * @param corruptionFactory  factory yielding the flavor-specific WAL corruption exception
+	 * @param walKind            which write-ahead log the failure belongs to - it selects the flavor of the
+	 *                           corruption exception raised when a generic exception has to be wrapped
 	 * @throws EvitaInternalError Always throws — either rethrows an existing WAL-corruption exception
 	 *                            (catalog or engine flavor) or wraps a generic exception in one.
 	 */
@@ -636,6 +654,99 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 				ex
 			);
 		}
+	}
+
+	/**
+	 * Makes everything written to the given WAL channel durable on the storage device.
+	 *
+	 * The WAL channels are deliberately **not** opened with `StandardOpenOption.DSYNC`: that option
+	 * syncs every single `write` call separately, and a single transaction append issues three of them
+	 * (head, content, trailing cumulative checksum), so the transaction paid three device syncs where
+	 * one suffices. Measured on a LUKS+xfs volume, dropping DSYNC in favour of one explicit force per
+	 * append cuts the durability cost of an append to a third.
+	 *
+	 * The durability *point* is unchanged - every caller forces before it reports success - but the
+	 * write *ordering* guarantee is: with DSYNC a crash always left a clean prefix, whereas now the
+	 * writes since the last force may reach the device in any order. That is safe here only because
+	 * each force covers everything written before it **on that channel**, so an incompletely written
+	 * region can exist solely in the append that was in flight when the process died - i.e. at the
+	 * tail, which recovery already truncates. Any new writer on these channels must preserve that
+	 * property: force before anything may observe the write as committed, and never leave a completed
+	 * record unforced.
+	 *
+	 * Note the qualifier: a force orders nothing on a *different* channel. Rotation therefore cannot
+	 * lean on the next append's force to cover what it wrote - it spans two files - which is why it
+	 * forces the outgoing file's tail before closing it and the incoming file's checksum seed straight
+	 * after writing it, rather than leaving either to be swept up later.
+	 *
+	 * `force(true)` (metadata included) is used rather than `force(false)`, because these channels are
+	 * opened in APPEND mode where the file length itself is metadata - a durable record behind a stale
+	 * length is unreadable. It was measured to cost no more than `force(false)` on xfs.
+	 *
+	 * @param walFileChannel the WAL file channel to make durable
+	 * @throws IOException if the underlying force operation fails
+	 */
+	private static void forceDurable(@Nonnull FileChannel walFileChannel) throws IOException {
+		walFileChannel.force(true);
+	}
+
+	/**
+	 * Opens a WAL channel, choosing between the two ways a crash can be survived.
+	 *
+	 * Surviving a crash needs **either** write ordering **or** hole detection, and the two are traded
+	 * against each other here:
+	 *
+	 * - **Hole detection (fast, the default).** Without `DSYNC` the writes between two forces may reach
+	 *   the device in any order, so a crash can leave a *hole* — bytes missing in the middle of a
+	 *   transaction while later bytes landed. The file length is unchanged, so the framing still parses
+	 *   and nothing about the record looks wrong; the only thing that can tell a hole from valid data is
+	 *   the cumulative CRC32C chain, which recovery verifies per transaction and reacts to by truncating.
+	 * - **Write ordering (slow, the fallback).** With `computeCRC32C` switched off that chain degrades to
+	 *   {@link io.evitadb.store.checksum.Checksum#NO_OP}, whose comparison always answers "matches" — so a
+	 *   hole is waved straight through recovery and replayed as if it were real history. There is then no
+	 *   way to detect the damage, so the damage must be made impossible instead: `DSYNC` syncs every
+	 *   individual write, which restores the guarantee that a crash can only ever leave a clean prefix.
+	 *
+	 * This costs a device sync per write rather than per transaction, which is precisely the cost the
+	 * explicit-force design exists to avoid - so it applies only to the non-default configuration that
+	 * cannot pay for correctness any other way.
+	 *
+	 * Historically this coupling did not exist because `DSYNC` was unconditional, which silently made the
+	 * checksum optional. Removing it turned hole tolerance into a correctness requirement, and the two
+	 * settings became linked whether or not anyone said so.
+	 *
+	 * @param walFilePath path of the WAL file to open
+	 * @return the opened channel
+	 * @throws IOException if the file cannot be opened
+	 */
+	@Nonnull
+	private FileChannel openWalChannel(@Nonnull Path walFilePath) throws IOException {
+		return requiresWriteOrdering(this.storageSettings) ?
+			FileChannel.open(
+				walFilePath,
+				StandardOpenOption.WRITE, StandardOpenOption.APPEND, StandardOpenOption.DSYNC
+			) :
+			FileChannel.open(
+				walFilePath,
+				StandardOpenOption.WRITE, StandardOpenOption.APPEND
+			);
+	}
+
+	/**
+	 * Decides which of the two crash-survival strategies described on {@link #openWalChannel(Path)} this
+	 * WAL has to use: TRUE demands write ordering from the device, FALSE relies on detecting the damage
+	 * afterwards.
+	 *
+	 * Deliberately a named predicate rather than an inline condition, because it is the one place where
+	 * the two settings are tied together and the tie is not otherwise visible - `computeCRC32C` reads like
+	 * an integrity/performance trade-off, and nothing about its name suggests that switching it off also
+	 * changes how the WAL must be written.
+	 *
+	 * @param storageSettings settings the WAL is operating under
+	 * @return TRUE when the WAL must be opened with `DSYNC` because holes could not otherwise be detected
+	 */
+	static boolean requiresWriteOrdering(@Nonnull StorageSettings storageSettings) {
+		return !storageSettings.computeCRC32C();
 	}
 
 	/**
@@ -674,6 +785,10 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 			written == AbstractMutationLog.WAL_TAIL_LENGTH,
 			"Failed to write tail to WAL file!"
 		);
+		// the tail is authoritative for readers - `MutationSupplier` derives end-of-file arithmetic from
+		// it - so it must never survive a crash that the data it describes did not. This channel belongs
+		// to a `RandomAccessFile` opened "rw" and so was never covered by DSYNC either.
+		forceDurable(walFileChannel);
 	}
 
 	/**
@@ -763,10 +878,7 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 			// create the WAL file if it does not exist
 			final boolean created = createWalFile(walFilePath, true, this.walKind);
 
-			final FileChannel walFileChannel = FileChannel.open(
-				walFilePath,
-				StandardOpenOption.WRITE, StandardOpenOption.APPEND, StandardOpenOption.DSYNC
-			);
+			final FileChannel walFileChannel = openWalChannel(walFilePath);
 
 			final ObservableOutput<ByteArrayOutputStream> theOutput = new ObservableOutput<>(
 				this.transactionMutationOutputStream,
@@ -787,6 +899,10 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 					walFileChannel.write(this.contentLengthBuffer) == CUMULATIVE_CRC32_SIZE,
 					"Failed to write initial cumulative checksum to WAL file!"
 				);
+				// every transaction appended later chains its checksum onto this seed, so it has to be on
+				// the device before any of them - the first append's force would cover it, but this file
+				// is created once and the sync is not worth economising on
+				forceDurable(walFileChannel);
 			}
 
 			this.currentWalFile.set(
@@ -952,17 +1068,90 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 	}
 
 	/**
+	 * Appends a transaction mutation to the Write-Ahead Log (WAL) file and makes it durable before
+	 * returning, so the caller may report the transaction as persisted the moment this method returns.
+	 *
+	 * @param transactionMutation The transaction mutation to append.
+	 * @param walReference        The reference to the WAL file.
+	 * @return the reference to the appended record
+	 */
+	@Nonnull
+	public LogFileRecordReference append(
+		@Nonnull TransactionMutation transactionMutation,
+		@Nonnull OffHeapWithFileBackupReference walReference
+	) {
+		return doAppend(transactionMutation, walReference, true);
+	}
+
+	/**
+	 * Appends a transaction mutation to the WAL **without** making it durable - the bytes reach the page
+	 * cache, and the caller takes over the obligation to call {@link #syncWal()} before it reports the
+	 * transaction as persisted to anyone.
+	 *
+	 * This exists so a single-threaded appender can keep writing while a force for earlier transactions
+	 * is still in flight: one later force then covers every append that accumulated meanwhile, which is
+	 * what turns a per-transaction device sync into a per-batch one. It is a strictly more dangerous API
+	 * than {@link #append(TransactionMutation, OffHeapWithFileBackupReference)} and is meant only for
+	 * callers that own an explicit durability handshake - anything else must use the plain variant.
+	 *
+	 * @param transactionMutation The transaction mutation to append.
+	 * @param walReference        The reference to the WAL file.
+	 * @return the reference to the appended record
+	 */
+	@Nonnull
+	public LogFileRecordReference appendDeferringSync(
+		@Nonnull TransactionMutation transactionMutation,
+		@Nonnull OffHeapWithFileBackupReference walReference
+	) {
+		return doAppend(transactionMutation, walReference, false);
+	}
+
+	/**
+	 * Makes everything appended to this WAL so far durable.
+	 *
+	 * The caller must sample whatever it intends to declare durable **before** invoking this method -
+	 * appends that land while the force is in flight may or may not be covered by it, and crediting them
+	 * afterwards would acknowledge a transaction the device has not necessarily seen.
+	 *
+	 * @throws UnexpectedIOException if the force fails - the WAL must then be treated as non-durable
+	 */
+	public void syncWal() {
+		// when the channel demands write ordering it is opened with DSYNC, so every write was already
+		// synced on return and there is nothing left to force. Skipping it is not a micro-optimization:
+		// measured on a LUKS+xfs volume, a force with no dirty pages still costs 0.49 ms - roughly a tenth
+		// of a real one - because the filesystem issues a device cache flush regardless of dirty state.
+		// Paying that per batch on the path that is already the slower of the two would be pure waste
+		if (requiresWriteOrdering(this.storageSettings)) {
+			return;
+		}
+		this.walSyncLock.lock();
+		try {
+			forceDurable(this.currentWalFile.get().getWalFileChannel());
+		} catch (IOException e) {
+			throw new UnexpectedIOException(
+				"Failed to sync WAL `" + this.currentWalFile.get() + "`!",
+				"Failed to sync WAL!",
+				e
+			);
+		} finally {
+			this.walSyncLock.unlock();
+		}
+	}
+
+	/**
 	 * Appends a transaction mutation to the Write-Ahead Log (WAL) file.
 	 *
 	 * @param transactionMutation The transaction mutation to append.
 	 * @param walReference        The reference to the WAL file.
-	 * @return the number of Bytes written
+	 * @param syncOnCompletion    whether the append must be durable by the time this method returns
+	 * @return the reference to the appended record
 	 */
 	@Nonnull
 	@SuppressWarnings("StringConcatenationMissingWhitespace")
-	public LogFileRecordReference append(
+	private LogFileRecordReference doAppend(
 		@Nonnull TransactionMutation transactionMutation,
-		@Nonnull OffHeapWithFileBackupReference walReference
+		@Nonnull OffHeapWithFileBackupReference walReference,
+		boolean syncOnCompletion
 	) {
 		Assert.isTrue(
 			transactionMutation.getWalSizeInBytes() <= this.maxWalFileSizeBytes,
@@ -1089,6 +1278,15 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 				8 == walFileChannel.write(this.contentLengthBuffer),
 				"Failed to write cumulative checksum to WAL file!"
 			);
+
+			// The transaction is complete on the channel. Unless the caller has taken over the durability
+			// handshake (see `appendDeferringSync`), make it durable before returning, because the caller
+			// completes `WAIT_FOR_WAL_PERSISTENCE` off the back of this method and that stage promises the
+			// client the change survives a crash. This single force replaces the three separate device
+			// syncs that DSYNC used to perform for the writes above.
+			if (syncOnCompletion) {
+				forceDurable(walFileChannel);
+			}
 
 			final int writtenLength = writtenHead + writtenContent + AbstractMutationLog.CUMULATIVE_CRC32_SIZE;
 			theCurrentWalFile.updateLastWrittenVersion(
@@ -1303,7 +1501,15 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 	@Override
 	public void close() throws IOException {
 		IOUtils.closeQuietly(
-			() -> this.currentWalFile.get().close(),
+			// closing the channel is exclusive with `syncWal` for the same reason rotation is
+			() -> {
+				this.walSyncLock.lock();
+				try {
+					this.currentWalFile.get().close();
+				} finally {
+					this.walSyncLock.unlock();
+				}
+			},
 			this.transactionMutationOutputStream::close,
 			this.cutWalCacheTask::close,
 			this.removeWalFileTask::close
@@ -1799,13 +2005,30 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 	}
 
 	/**
-	 * Rotates the Write-Ahead Log (WAL) file.
-	 * Increments the WAL file index and performs the necessary operations to close the current WAL file,
-	 * create a new one, and delete any excess WAL files beyond the configured limit.
+	 * Rotates the Write-Ahead Log (WAL) file under {@link #walSyncLock}, because rotation forces and then
+	 * closes the very channel a concurrent {@link #syncWal()} may be forcing.
 	 *
 	 * @throws WriteAheadLogCorruptedException if an error occurs during the rotation process.
 	 */
 	private void rotateWalFile() {
+		this.walSyncLock.lock();
+		try {
+			rotateWalFileInternal();
+		} finally {
+			this.walSyncLock.unlock();
+		}
+	}
+
+	/**
+	 * Rotates the Write-Ahead Log (WAL) file.
+	 * Increments the WAL file index and performs the necessary operations to close the current WAL file,
+	 * create a new one, and delete any excess WAL files beyond the configured limit.
+	 *
+	 * Must be called only from {@link #rotateWalFile()}, which holds {@link #walSyncLock} around it.
+	 *
+	 * @throws WriteAheadLogCorruptedException if an error occurs during the rotation process.
+	 */
+	private void rotateWalFileInternal() {
 		final WalRotationEvent event = createWalRotationEvent();
 
 		final CurrentMutationLogFile theCurrentWalFile = this.currentWalFile.get();
@@ -1831,6 +2054,9 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 
 			// write tail to the file
 			finalCumulativeChecksum = writeWalTail(firstCvInFile, lastCvInFile, theCurrentWalFile.getWalFileChannel());
+			// the tail must reach the device before the channel is dropped: `close()` does not sync, and
+			// a tail marker outliving the transactions it describes would be read as authoritative
+			forceDurable(theCurrentWalFile.getWalFileChannel());
 			theCurrentWalFile.close();
 		} catch (IOException e) {
 			throw new WriteAheadLogCorruptedException(this.walKind,
@@ -1847,10 +2073,7 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 
 			// create the WAL file if it does not exist
 			AbstractMutationLog.createWalFile(walFilePath, false, this.walKind);
-			final FileChannel walFileChannel = FileChannel.open(
-				walFilePath,
-				StandardOpenOption.WRITE, StandardOpenOption.APPEND, StandardOpenOption.DSYNC
-			);
+			final FileChannel walFileChannel = openWalChannel(walFilePath);
 
 			final ObservableOutput<ByteArrayOutputStream> theOutput = new ObservableOutput<>(
 				this.transactionMutationOutputStream,
@@ -1872,6 +2095,8 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 				8 == walFileChannel.write(this.contentLengthBuffer),
 				"Failed to write cumulative checksum to WAL file!"
 			);
+			// seeds the checksum chain of the freshly rotated file - same reasoning as at construction
+			forceDurable(walFileChannel);
 
 			this.currentWalFile.set(
 				new CurrentMutationLogFile(

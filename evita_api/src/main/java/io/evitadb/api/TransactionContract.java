@@ -236,8 +236,8 @@ public interface TransactionContract extends AutoCloseable {
 		 * **Performance**
 		 *
 		 * Slower than {@link #WAIT_FOR_CONFLICT_RESOLUTION} due to fsync overhead, but faster than
-		 * {@link #WAIT_FOR_CHANGES_VISIBLE}. evitaDB may batch fsync operations from multiple transactions to amortize
-		 * cost, so latency may vary depending on concurrent commit activity.
+		 * {@link #WAIT_FOR_CHANGES_VISIBLE}. Each transaction pays its own device sync and WAL appends are serialized,
+		 * so latency grows with concurrent commit activity; fsync operations are **not** batched across transactions.
 		 *
 		 * **Use Cases**
 		 *

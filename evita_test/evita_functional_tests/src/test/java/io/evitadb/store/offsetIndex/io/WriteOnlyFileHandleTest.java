@@ -40,6 +40,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
@@ -55,11 +56,10 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import org.junit.jupiter.api.Tag;
 
-import static org.junit.jupiter.api.Assertions.*;
-import static io.evitadb.test.TestTags.STORAGE;
 import static io.evitadb.test.TestTags.MANAGEMENT;
+import static io.evitadb.test.TestTags.STORAGE;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Unit tests for {@link WriteOnlyFileHandle} verifying write operations, concurrency handling,
@@ -917,6 +917,148 @@ class WriteOnlyFileHandleTest implements EvitaTestSupport {
 					});
 				}
 			}
+		}
+	}
+
+	@Nested
+	@DisplayName("Deferred device flush")
+	class DeferredSyncTest {
+
+		/**
+		 * Creates a handle that defers its device flush to the supplied registry.
+		 *
+		 * @param filePath the target file path
+		 * @param registry the registry notified instead of an inline `fsync`
+		 * @return a new WriteOnlyFileHandle instance
+		 */
+		@Nonnull
+		private WriteOnlyFileHandle createDeferringHandle(
+			@Nonnull Path filePath,
+			@Nonnull PendingSyncRegistry registry
+		) {
+			return new WriteOnlyFileHandle(
+				null, null, null,
+				StorageOptions.DEFAULT_OUTPUT_BUFFER_SIZE,
+				true,
+				Crc32CChecksumFactory.INSTANCE,
+				CompressionFactory.NO_COMPRESSION,
+				filePath,
+				WriteOnlyFileHandleTest.this.outputKeeper,
+				registry
+			);
+		}
+
+		@Test
+		@DisplayName("should register with the registry instead of syncing, on the consuming overload")
+		void shouldRegisterInsteadOfSyncingOnConsumingOverload() {
+			final Path filePath = WriteOnlyFileHandleTest.this.targetDirectory
+				.resolve(UUIDUtil.randomUUID() + ".tmp");
+			final List<WriteOnlyHandle> registered = new ArrayList<>(1);
+
+			try (final WriteOnlyFileHandle handle = createDeferringHandle(filePath, registered::add)) {
+				handle.checkAndExecuteAndSync(
+					"deferred write",
+					() -> {},
+					output -> output.writeString("deferred")
+				);
+			}
+
+			assertEquals(
+				1, registered.size(),
+				"A handle configured with a registry must register itself rather than flush to the device."
+			);
+		}
+
+		@Test
+		@DisplayName("should register with the registry instead of syncing, on the post-processing overload")
+		void shouldRegisterInsteadOfSyncingOnPostProcessingOverload() {
+			final Path filePath = WriteOnlyFileHandleTest.this.targetDirectory
+				.resolve(UUIDUtil.randomUUID() + ".tmp");
+			final List<WriteOnlyHandle> registered = new ArrayList<>(1);
+
+			// both overloads route through `doSyncOrDefer`; asserting only one of them lets a refactor fix
+			// the covered path and silently leave the other syncing inline
+			try (final WriteOnlyFileHandle handle = createDeferringHandle(filePath, registered::add)) {
+				final String result = handle.checkAndExecuteAndSync(
+					"deferred write",
+					() -> {},
+					output -> {
+						output.writeString("deferred");
+						return "written";
+					},
+					(output, written) -> written
+				);
+				assertEquals("written", result);
+			}
+
+			assertEquals(
+				1, registered.size(),
+				"The post-processing overload must defer its device flush just like the consuming one."
+			);
+		}
+
+		@Test
+		@DisplayName("should tolerate a pending file that a compaction already deleted")
+		void shouldTolerateForceOfDeletedFile() throws IOException {
+			final Path filePath = WriteOnlyFileHandleTest.this.targetDirectory
+				.resolve(UUIDUtil.randomUUID() + ".tmp");
+			final List<WriteOnlyHandle> registered = new ArrayList<>(1);
+
+			try (final WriteOnlyFileHandle handle = createDeferringHandle(filePath, registered::add)) {
+				handle.checkAndExecuteAndSync(
+					"deferred write",
+					() -> {},
+					output -> output.writeString("deferred")
+				);
+				assertEquals(
+					1, registered.size(),
+					"The write must leave the handle owing a device flush, or the force below is not the " +
+						"one a checkpoint would actually issue."
+				);
+
+				// a file may be compacted away between the write that registered it and the checkpoint that
+				// forces it - there is then nothing left to make durable, and the successor file carries the
+				// data. This is a real state rather than an unhandled branch, so it must not throw.
+				Files.delete(filePath);
+				// forced through the registered reference rather than the local one: a checkpoint holds only
+				// what the registry handed it, so that is the reference whose behaviour is under test
+				final WriteOnlyHandle pending = registered.get(0);
+				assertDoesNotThrow(
+					pending::forceDurable,
+					"Forcing a file a compaction already removed must not fail the checkpoint."
+				);
+			}
+		}
+
+		@Test
+		@DisplayName("should refuse a deferred sync on a handle that never syncs")
+		void shouldRefuseDeferredSyncWhenSyncWritesDisabled() {
+			final Path filePath = WriteOnlyFileHandleTest.this.targetDirectory
+				.resolve(UUIDUtil.randomUUID() + ".tmp");
+
+			// deferring a flush that would never have been issued would make a checkpoint force files for an
+			// operator who deliberately turned durability off. The registry is rejected for merely being
+			// present, so it can never be handed anything - a no-op is the honest stand-in
+			assertThrows(
+				GenericEvitaInternalError.class,
+				() -> {
+					//noinspection EmptyTryBlock
+					try (
+						final WriteOnlyFileHandle __ = new WriteOnlyFileHandle(
+							null, null, null,
+							StorageOptions.DEFAULT_OUTPUT_BUFFER_SIZE,
+							false,
+							Crc32CChecksumFactory.INSTANCE,
+							CompressionFactory.NO_COMPRESSION,
+							filePath,
+							WriteOnlyFileHandleTest.this.outputKeeper,
+							pending -> {}
+						)
+					) {
+						// do nothing - should throw
+					}
+				}
+			);
 		}
 	}
 }
