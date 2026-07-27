@@ -815,7 +815,7 @@
 				<configuration>
 					<llmProvider>openai</llmProvider>
 					<llmUrl>https://api.openai.com/v1</llmUrl>
-					<llmToken>${OPENAI_API_KEY}</llmToken>
+					<llmToken>${env.OPENAI_API_KEY}</llmToken>
 					<llmModel>gpt-4.1</llmModel>
 					<customFrontMatter>
 						<translated>true</translated>
