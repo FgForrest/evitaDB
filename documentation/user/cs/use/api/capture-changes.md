@@ -1,12 +1,12 @@
 ---
 title: Zachytávání změn dat
-perex: Zachytávání změn dat (CDC) je návrhový vzor používaný ke sledování a zaznamenávání změn provedených ve schématu a datech v databázi. evitaDB podporuje CDC prostřednictvím všech svých API, což vývojářům umožňuje velmi snadno monitorovat a reagovat na změny dat téměř v reálném čase v jejich preferovaném programovacím jazyce. Tento dokument vysvětluje, jak implementovat CDC pomocí našeho API.
+perex: Zachytávání změn dat (CDC) je návrhový vzor používaný ke sledování a zachycování změn provedených ve schématu a datech v databázi. evitaDB podporuje CDC prostřednictvím všech svých API, což umožňuje vývojářům velmi snadno monitorovat a reagovat na změny dat téměř v reálném čase v jejich preferovaném programovacím jazyce. Tento dokument vysvětluje, jak implementovat CDC pomocí našeho API.
 date: '21.10.2025'
 author: Ing. Jan Novotný
 proofreading: done
 preferredLang: java
-commit: d5041ba065f96f215dbdd0cf6ffb0cf5c9f3a88b
-translated: true
+translated: 'true'
+commit: '77da5b36c170430534ee4d9a4a2903da4de68555'
 ---
 Databáze udržuje takzvaný [Write-Ahead Log (WAL)](https://en.wikipedia.org/wiki/Write-ahead_logging), který zaznamenává všechny změny provedené v databázi. Tento log slouží k zajištění integrity a trvanlivosti dat, ale může být také využit k implementaci funkce zachytávání změn dat (CDC). Jakmile je katalog přepnut do fáze `ACTIVE` (transakční), klienti mohou začít konzumovat informace o změnách provedených jak ve schématu, tak v datech katalogu.
 
@@ -124,17 +124,16 @@ zahrnuli CDC typy do OpenAPI specifikace, aby alespoň existoval solidní zákla
 
 <LS to="j">
 
-Stream zachytávání na úrovni engine přijímá <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/ChangeSystemCaptureRequest.java</SourceClass>
-pro vytvoření [Java Flow Publisher](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/concurrent/Flow.Publisher.html). Jeden nebo více klientů se pak může přihlásit k tomuto publisheru a přijímat
-<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/ChangeSystemCapture.java</SourceClass>
-instance reprezentující změny provedené v engine.
+Stream zachytávání na úrovni engine přijímá <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/ChangeSystemCaptureRequest.java</SourceClass> 
+pro vytvoření [Java Flow Publisher](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/concurrent/Flow.Publisher.html). Jeden nebo více klientů se pak může přihlásit k tomuto publisheru a přijímat 
+instance <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/ChangeSystemCapture.java</SourceClass> reprezentující změny provedené v engine.
 
 </LS>
 <LS to="r">
 
 Stream zachytávání na úrovni engine přijímá <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/ChangeSystemCaptureRequest.java</SourceClass>
-pro vytvoření CDC streamu. Klienti pak přijímají <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/ChangeSystemCapture.java</SourceClass>
-instance reprezentující změny provedené v engine.
+pro vytvoření CDC streamu. Klienti pak přijímají instance <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/ChangeSystemCapture.java</SourceClass>
+reprezentující změny provedené v engine.
 
 </LS>
 
@@ -143,23 +142,32 @@ Požadavek umožňuje zadat následující parametry:
 <dl>
   <dt>long `sinceVersion` (volitelné)</dt>
   <dd>
-    Verze katalogu (včetně), od které chcete začít přijímat změny. Pokud není zadáno, stream změn začne od další verze katalogu (tj. změny provedené v katalogu v budoucnu).
+    Verze engine (včetně), od které chcete začít přijímat změny. Pokud není zadáno, stream změn začne od následující verze engine (tj. změny provedené v engine v budoucnu). Verze engine je monotónně rostoucí čítač svázaný s instancí evitaDB a zvyšuje se s každou mutací engine; liší se od verzí jednotlivých katalogů, které poskytuje stream zachytávání změn katalogu.
   </dd>
   <dt>int `sinceIndex` (volitelné)</dt>
   <dd>
     Index mutace v rámci stejné transakce, od kterého chcete začít přijímat změny. Pokud není zadáno, stream změn začne od první mutace zadané verze. Index vám umožňuje přesně určit výchozí bod v případě, že jste již některé mutace dané verze zpracovali.
   </dd>
+  <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/ChangeSystemCaptureCriteria.java</SourceClass>[] `criteria` (volitelné)</dt>
+  <dd>
+    Pole kritérií, která určují, o které oblasti systémového streamu máte zájem. Pokud je zadáno více kritérií, stačí splnění kteréhokoli z nich (logika OR). Každé kritérium aktuálně vybírá jednu <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/SystemCaptureArea.java</SourceClass>:
+    <ul>
+        <li>`ENGINE` — trvalé, WAL-replikované mutace engine (obsahuje těla <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/mutation/EngineMutation.java</SourceClass>).</li>
+        <li>`HOST` — host-lokální, nereplikovatelné události hostitele o živém pohledu na katalogy na tomto hostiteli (obsahuje těla <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/HostSystemEvent.java</SourceClass>). Viz [Události systémového hostitele](#události-hostitelského-systému) níže.</li>
+    </ul>
+    **Odlišnost výchozích kritérií oproti streamu katalogu.** Pokud není tato vlastnost zadána (nebo je `null`), je odběr považován pouze za `ENGINE` — události `HOST` **nikdy** nejsou doručeny bez explicitního kritéria, které je povolí. Stream katalogu ve výchozím nastavení zahrnuje všechny oblasti; systémový stream ve výchozím nastavení pouze engine, protože `HOST` nese sémantiku, do které starší klienti neoptovali (host-lokální, pouze live-tail, bez historického přehrávání).
+  </dd>
   <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/ChangeCaptureContent.java</SourceClass> `content`</dt>
   <dd>
-    Výčtový typ, který určuje, zda klient chce detailní informace o každé mutaci, nebo pouze informace na vyšší úrovni o tom, že došlo k určitému typu mutace. Výčtový typ má následující hodnoty:
+    Výčtový typ určující, zda klient požaduje detailní informace o každé mutaci, nebo pouze základní informaci, že došlo k určitému typu mutace. Výčtový typ má následující hodnoty:
     <ul>
         <li>`HEADER` - odesílá se pouze hlavička události</li>
-        <li>`BODY` - odesílá se celé tělo mutace, která událost vyvolala</li>
+        <li>`BODY` - odesílá se celý obsah mutace, která událost vyvolala</li>
     </ul>
   </dd>
 </dl>
 
-Události zachytávání engine jsou reprezentovány instancemi <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/ChangeSystemCapture.java</SourceClass>, které obsahují následující informace:
+Události zachytávání na úrovni engine jsou reprezentovány instancemi <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/ChangeSystemCapture.java</SourceClass>, které obsahují následující informace:
 
 <LS to="j">
 
@@ -174,16 +182,16 @@ Události zachytávání engine jsou reprezentovány instancemi <SourceClass>evi
   </dd>
   <dt>`operation`</dt>
   <dd>
-    Klasifikace mutace definovaná výčtem:
+    Klasifikace mutace definovaná výčtovým typem:
     <ul>
         <li>`UPSERT` - Vytvoření nebo aktualizace. Pokud již existovala data s touto identitou, byla aktualizována. Pokud ne, byla vytvořena.</li>
-        <li>`REMOVE` - Odebrání – tj. předtím existovala data s touto identitou a byla odstraněna.</li>
+        <li>`REMOVE` - Odstranění — tzn. dříve existovala data s touto identitou a byla odstraněna.</li>
         <li>`TRANSACTION` - Omezující operace signalizující začátek transakce.</li>
     </ul>
   </dd>
-  <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/mutation/EngineMutation.java</SourceClass> `body` (volitelné)</dt>
+  <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/SystemCaptureBody.java</SourceClass> `body` (volitelné)</dt>
   <dd>
-    Volitelné tělo operace, pokud je požadováno zvoleným <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/ChangeCaptureContent.java</SourceClass>.
+    Volitelné tělo události, pokud je požadováno nastavením <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/ChangeCaptureContent.java</SourceClass>. Tělo je polymorfní — pro oblast `ENGINE` obsahuje <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/mutation/EngineMutation.java</SourceClass>; pro oblast `HOST` obsahuje <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/HostSystemEvent.java</SourceClass> (viz [Události systémového hostitele](#události-hostitelského-systému) níže).
   </dd>
 </dl>
 
@@ -201,16 +209,16 @@ Události zachytávání engine jsou reprezentovány instancemi <SourceClass>evi
   </dd>
   <dt>`operation`</dt>
   <dd>
-    Klasifikace mutace definovaná výčtem:
+    Klasifikace mutace definovaná výčtovým typem:
     <ul>
         <li>`UPSERT` - Vytvoření nebo aktualizace. Pokud již existovala data s touto identitou, byla aktualizována. Pokud ne, byla vytvořena.</li>
-        <li>`REMOVE` - Odebrání – tj. předtím existovala data s touto identitou a byla odstraněna.</li>
+        <li>`REMOVE` - Odstranění — tzn. dříve existovala data s touto identitou a byla odstraněna.</li>
         <li>`TRANSACTION` - Omezující operace signalizující začátek transakce.</li>
     </ul>
   </dd>
-  <dt>`EngineMutationUnion` `body` (volitelné)</dt>
+  <dt>`SystemCaptureBodyUnion` `body` (volitelné)</dt>
   <dd>
-    Volitelné tělo operace, pokud je požadováno zvoleným <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/ChangeCaptureContent.java</SourceClass>.
+    Volitelné tělo události, pokud je požadováno nastavením <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/ChangeCaptureContent.java</SourceClass>. Tělo je union — pro oblast `ENGINE` obsahuje hodnotu `EngineMutationUnion`; pro oblast `HOST` obsahuje hodnotu `HostSystemEventUnion` (viz [Události systémového hostitele](#události-hostitelského-systému) níže).
   </dd>
 </dl>
 
@@ -239,18 +247,17 @@ Subscriber začne přijímat události změn, jakmile k nim v engine dojde. Meto
 </LS>
 <LS to="r">
 
-Stream zachytávání na úrovni engine je dostupný v system API přes endpoint `/rest/system/change-captures`.
+Stream zachytávání na úrovni engine je dostupný v system API prostřednictvím endpointu `/rest/system/change-captures`.
 
 Nastavení je velmi jednoduché:
-1. otevřete WebSocket spojení odesláním `GET` požadavku s požadavkem na upgrade spojení,
-2. odešlete zprávu `connection_init` v rámci WebSocket spojení
-3. odešlete zprávu `subscribe` v rámci WebSocket spojení s `ChangeSystemCaptureRequest` definujícím
-   filtrační strategii (jak je specifikováno ve
-   [specifikaci WebSocket](/documentation/user/en/use/connectors/rest-over-websocket-protocol.md)).
+1. otevřete WebSocket spojení odesláním požadavku `GET` s požadavkem na upgrade spojení,
+2. v rámci WebSocket spojení odešlete zprávu `connection_init`
+3. v rámci WebSocket spojení odešlete zprávu `subscribe` s objektem `ChangeSystemCaptureRequest` definujícím
+   strategii filtrování (dle [specifikace WebSocket](/documentation/user/en/use/connectors/rest-over-websocket-protocol.md)).
 
 CDC stream nyní bude klientovi zasílat objekty `ChangeSystemCapture` zabalené do zpráv `next`.
 
-Příklad nastavení zachytávání změn na úrovni engine v REST over WebSocket API:
+Příklad nastavení zachytávání změn na úrovni engine v REST přes WebSocket API:
 
 <SourceAlternativeTabs variants="rest">
 
@@ -261,27 +268,34 @@ Příklad nastavení zachytávání změn na úrovni engine v REST over WebSocke
 Subscriber začne přijímat události změn, jakmile k nim v engine dojde. Metoda `Complete` subscriberu se nikdy nevolá, protože stream změn je nekonečný.
 
 </LS>
-</LS>
 <LS to="g">
 
-Stream zachytávání na úrovni engine umožňuje klientům odebírat `ChangeSystemCapture` (nebo `GenericChangeSystemCapture`,
-dle zvoleného typu odběru)
-instance reprezentující změny provedené v engine.
+Stream zachytávání na úrovni engine umožňuje klientům přihlásit se k odběru instancí `ChangeSystemCapture` (nebo `GenericChangeSystemCapture`,
+v závislosti na zvoleném typu odběru), které reprezentují změny provedené v engine.
 
 Požadavek umožňuje zadat následující parametry:
 
 <dl>
   <dt>long `sinceVersion` (volitelné)</dt>
   <dd>
-    Verze katalogu (včetně), od které chcete začít přijímat změny. Pokud není zadáno, stream změn začne od další verze katalogu (tj. změny provedené v katalogu v budoucnu).
+    Verze engine (včetně), od které chcete začít přijímat změny. Pokud není zadáno, stream změn začne od následující verze engine (tj. změny provedené v engine v budoucnu). Verze engine je monotónně rostoucí čítač svázaný s instancí evitaDB a zvyšuje se s každou mutací engine; liší se od verzí jednotlivých katalogů, které poskytuje stream zachytávání změn katalogu.
   </dd>
   <dt>int `sinceIndex` (volitelné)</dt>
   <dd>
     Index mutace v rámci stejné transakce, od kterého chcete začít přijímat změny. Pokud není zadáno, stream změn začne od první mutace zadané verze. Index vám umožňuje přesně určit výchozí bod v případě, že jste již některé mutace dané verze zpracovali.
   </dd>
+  <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/ChangeSystemCaptureCriteria.java</SourceClass>[] `criteria` (volitelné)</dt>
+  <dd>
+    Pole kritérií, která určují, o které oblasti systémového streamu máte zájem. Pokud je zadáno více kritérií, stačí splnění kteréhokoli z nich (logika OR). Každé kritérium aktuálně vybírá jednu <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/SystemCaptureArea.java</SourceClass>:
+    <ul>
+        <li>`ENGINE` — trvalé, WAL-replikované mutace engine.</li>
+        <li>`HOST` — host-lokální, nereplikovatelné události o živém pohledu na katalogy na tomto hostiteli (viz [Události systémového hostitele](#události-hostitelského-systému) níže).</li>
+    </ul>
+    **Odlišnost výchozích kritérií oproti streamu katalogu.** Pokud není tato vlastnost zadána, je odběr považován pouze za `ENGINE` — události `HOST` **nikdy** nejsou doručeny bez explicitního kritéria, které je povolí. Stream katalogu ve výchozím nastavení zahrnuje všechny oblasti; systémový stream ve výchozím nastavení pouze engine, protože `HOST` nese sémantiku, do které starší klienti neoptovali (host-lokální, pouze live-tail, bez historického přehrávání).
+  </dd>
 </dl>
 
-Události zachytávání engine jsou reprezentovány objektem `ChangeSystemCapture` (nebo `GenericChangeSystemCapture`, dle zvoleného typu odběru), který obsahuje následující informace:
+Události zachytávání na úrovni engine jsou reprezentovány objektem `ChangeSystemCapture` (nebo `GenericChangeSystemCapture`, dle zvoleného typu odběru), který obsahuje následující informace:
 
 <dl>
   <dt>long `version`</dt>
@@ -294,18 +308,20 @@ Události zachytávání engine jsou reprezentovány objektem `ChangeSystemCaptu
   </dd>
   <dt>`operation`</dt>
   <dd>
-    Klasifikace mutace definovaná výčtem:
+    Klasifikace mutace definovaná výčtovým typem:
     <ul>
         <li>`UPSERT` - Vytvoření nebo aktualizace. Pokud již existovala data s touto identitou, byla aktualizována. Pokud ne, byla vytvořena.</li>
-        <li>`REMOVE` - Odebrání – tj. předtím existovala data s touto identitou a byla odstraněna.</li>
+        <li>`REMOVE` - Odstranění — tzn. dříve existovala data s touto identitou a byla odstraněna.</li>
         <li>`TRANSACTION` - Omezující operace signalizující začátek transakce.</li>
     </ul>
   </dd>
-  <dt>`EngineMutationUnion` `body`</dt>
+  <dt>`SystemCaptureBodyUnion` `body`</dt>
   <dd>
-    Tělo operace.
+    Tělo události. Tělo je union — pro oblast `ENGINE` obsahuje hodnotu `EngineMutationUnion`; pro oblast `HOST` obsahuje hodnotu `HostSystemEventUnion` (viz [Události systémového hostitele](#události-hostitelského-systému) níže).
   </dd>
 </dl>
+
+</LS>
 
 ### Jak nastavit nové zachytávání změn na úrovni engine
 
@@ -333,6 +349,32 @@ Subscriber začne přijímat události změn, jakmile k nim v engine dojde. Meto
 V současné době nelze více engine mutací zabalit do jedné transakce. Každá operace na engine je reprezentována samostatnou transakční mutací. Můžete tedy očekávat, že stream mutací engine bude vždy obsahovat transakční mutaci následovanou jednou top-level engine mutací.
 
 </Note>
+
+### Události hostitelského systému
+
+Kromě trvalých mutací engine může systémový CDC stream doručovat také **události hostitelského systému** — lokální, nereplikovatelné notifikace o aktuálním stavu katalogů na hostiteli, který je vygeneroval. Tyto události slouží k zachycení přechodů, které samotná mutace engine nedokáže popsat, zejména okamžiku, kdy se katalog automaticky upgradovaný při startu skutečně stane na tomto hostiteli použitelným (tedy mezi trvalou mutací upgradu ve WAL a instalací reference katalogu do in-memory live view).
+
+Události hostitelského systému jsou reprezentovány třídou <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/HostSystemEvent.java</SourceClass> a tvoří uzavřenou rodinu se dvěma variantami:
+
+<dl>
+  <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/HostSystemEvent.java</SourceClass>`.CatalogInstalledIntoLiveView`</dt>
+  <dd>
+    Vysílá se pokaždé, když je katalog (znovu)instalován do live view na hostiteli. Nese název katalogu a pozorovaný <SourceClass>evita_api/src/main/java/io/evitadb/api/CatalogState.java</SourceClass>, do kterého katalog přešel. Aktivní stavy (`ALIVE`, `WARMING_UP`) znamenají, že je katalog dotazovatelný; neaktivní ustálené stavy (`INACTIVE`, `OUT_OF_DATE`, `CORRUPTED`, `MISSING`) znamenají, že není dostupný přes externí API.
+  </dd>
+  <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/HostSystemEvent.java</SourceClass>`.CatalogRemovedFromLiveView`</dt>
+  <dd>
+    Vysílá se, když je katalog odstraněn z live view na hostiteli (mazání, označení jako chybějící apod.). Nese název katalogu. Subscriber by měl zahodit jakýkoli cacheovaný endpoint nebo schéma pro daný katalog.
+  </dd>
+</dl>
+
+#### Sémantika doručování
+
+Události hostitelského systému mají záměrně užší garance doručení než mutace engine:
+
+- **Pouze aktuální proud.** Události hostitele nejsou persistovány a **nejsou** přehrávány pro opožděné odběratele pomocí `sinceVersion`. Předplatné, které se otevře s minulou hodnotou `sinceVersion`, obdrží historické mutace engine od této verze dále, ale pouze události hostitele, které jsou vysílány od okamžiku připojení předplatného.
+- **Lokální pro hostitele a nereplikovatelné.** Každý hostitel generuje své vlastní události hostitelského systému pro svůj vlastní live view; nejsou součástí WAL a nešíří se mezi replikami.
+- **Volitelné.** Jak je popsáno výše v parametru `criteria`, události hostitelského systému jsou doručovány pouze tehdy, pokud předplatné explicitně zahrnuje oblast `HOST` ve svých kritériích. Výchozí nastavení (vynechaná kritéria) je pouze `ENGINE`.
+- **Pouze pro korelaci — ne jako kurzor verze.** Každý záznam zachycující událost hostitelského systému uvádí verzi engine pozorovanou v okamžiku vyslání pro korelaci s okolním tokem mutací engine, ale vyslání události hostitelského systému neposouvá čítač verzí engine.
 
 ## Zachytávání změn na úrovni katalogu
 

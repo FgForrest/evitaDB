@@ -1,12 +1,12 @@
 ---
 title: Cena
 date: '9.6.2025'
-perex: Tato kapitola se zabývá zpracováním cen s daní i bez daně pro B2C a B2B scénáře a také nastavením priorit výchozích ceníků pro zajištění konzistentních cen ve vašich dotazech.
+perex: Tato kapitola se zabývá prací s cenami s daní i bez daně pro B2C a B2B scénáře a také nastavením priorit výchozích ceníků pro zajištění konzistentních cen ve vašich dotazech.
 author: Ing. Jan Novotný
 proofreading: done
 preferredLang: evitaql
-commit: cabcf999e7be5b00e0b13e1228a76a8d9e91cb78
 translated: 'true'
+commit: '77da5b36c170430534ee4d9a4a2903da4de68555'
 ---
 ## Typ ceny
 
@@ -24,19 +24,19 @@ priceType(
     </dd>
 </dl>
 
-Ve scénářích B2C jsou ceny obvykle zobrazovány včetně daně, aby spotřebitelé ihned viděli celkovou cenu nákupu,
-v souladu s maloobchodními standardy a předpisy. Pro segment B2B je naopak klíčové zobrazovat ceny bez daně, protože to
-odpovídá jejich finančním procesům a umožňuje jim spravovat odpočet DPH samostatně.
+Ve scénářích B2C jsou ceny obvykle zobrazovány včetně daně, aby zákazníci ihned viděli celkovou cenu nákupu,
+což odpovídá maloobchodním standardům a předpisům. Pro segment B2B je naopak klíčové zobrazovat ceny bez daně,
+protože to odpovídá jejich finančním procesům a umožňuje jim samostatně řešit odpočet DPH.
 
-Proto je potřeba mít pod kontrolou, s jakým typem ceny v dotazech pracujeme, protože různá nastavení povedou k různým
+Proto je potřeba mít pod kontrolou, s jakým typem ceny v dotazech pracujeme, protože různé nastavení povede k odlišným
 výsledkům. Požadavek [`priceType`](price.md#typ-ceny) nám toto umožňuje.
 
 Požadavek <LS to="j,e,r,g"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/PriceType.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Queries/Requires/PriceType.cs</SourceClass></LS>
-určuje, který typ ceny se použije při výpočtu prodejní ceny a při filtrování nebo řazení podle ceny. Pokud není tento
-požadavek zadán, **výchozí je cena s daní**.
+určuje, jaký typ ceny bude použit při výpočtu prodejní ceny a při filtrování nebo řazení podle ní. Pokud tento
+požadavek není specifikován, **výchozí je cena s daní**.
 
 Abychom ukázali vliv tohoto požadavku, předpokládejme, že uživatel chce najít všechny produkty s prodejní cenou
-mezi `€100` a `€105`. Následující dotaz toto provede:
+mezi `€100` a `€105`. Následující dotaz to provede:
 
 <SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
@@ -72,8 +72,7 @@ Výsledek obsahuje některé produkty, které můžete vidět v následující t
 
 </Note>
 
-Pokud je však uživatel právnickou osobou a může si odečíst DPH z ceny, pravděpodobně bude chtít najít všechny produkty
-v tomto rozmezí s cenou bez daně. K tomu je potřeba upravit dotaz a přidat požadavek `priceType`:
+Pokud je však uživatel právnická osoba a může si od ceny odečíst DPH, pravděpodobně bude chtít najít všechny produkty v tomto rozmezí s cenou bez daně. K tomu je potřeba upravit dotaz a přidat požadavek `priceType`:
 
 <SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 

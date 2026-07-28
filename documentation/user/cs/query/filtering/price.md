@@ -1,20 +1,20 @@
 ---
 title: Filtrování podle ceny
 date: '11.5.2026'
-perex: 'V oblasti e-commerce uživatelé očekávají, že uvidí ceny přizpůsobené jejich kontextu: místní měnu pro snadné porozumění, přesné prodejní ceny ze správného ceníku a aktuální nabídky, které mohou platit pouze v určitých obdobích. Splnění těchto očekávání pomocí sofistikovaného filtrování v databázi nejen zlepšuje uživatelský zážitek, ale také zjednodušuje nákupní proces, což zvyšuje spokojenost i prodeje.'
+perex: 'V oblasti e-commerce uživatelé očekávají, že uvidí ceny přizpůsobené jejich kontextu: místní měnu pro snadné porozumění, přesné prodejní ceny ze správného ceníku a aktuální nabídky, které mohou být platné pouze v určitých obdobích. Splnění těchto očekávání pomocí sofistikovaného filtrování v databázi nejen zlepšuje uživatelský zážitek, ale také zjednodušuje nákupní proces, což zvyšuje spokojenost i prodeje.'
 author: Ing. Jan Novotný
 proofreading: done
 preferredLang: evitaql
-commit: cabcf999e7be5b00e0b13e1228a76a8d9e91cb78
 translated: 'true'
+commit: '77da5b36c170430534ee4d9a4a2903da4de68555'
 ---
 Tato kapitola obsahuje popis constraintů evitaDB, které vám pomáhají kontrolovat výběr prodejní ceny a filtrovat produkty podle ceny.
 
 ## Rychlý průvodce filtrováním podle ceny
 
-### Typické použití cenových constraintů
+### Typické použití cenových omezení
 
-Ve většině scénářů bude váš dotaz na entity s cenami vypadat takto:
+Ve většině případů bude váš dotaz na entity s cenami vypadat takto:
 
 <SourceCodeTabs requires="/evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
@@ -22,17 +22,22 @@ Ve většině scénářů bude váš dotaz na entity s cenami vypadat takto:
 
 </SourceCodeTabs>
 
-Pro správnou identifikaci vhodné prodejní ceny musíte zadat všechny tři constrainty v logickém součtu (disjunkci):
+Pro správné určení vhodné prodejní ceny musíte zadat všechny tři omezení v logickém součtu (disjunkci):
 
 1. [`priceInCurrency`](#cena-v-měně) – měna ceny pro prodej
 2. [`priceValidIn`](#cena-platná-v) – datum a čas, kdy musí být cena pro prodej platná
-3. [`priceInPriceLists`](#cena-v-cenících) – sada ceníků, na které má zákazník nárok, seřazená od nejpreferovanějšího po nejméně preferovaný.
+3. [`priceInPriceLists`](#cena-v-cenících) – sada ceníků, na které má zákazník nárok, seřazená
+   od nejpreferovanějšího po nejméně preferovaný.
 
 <Note type="warning">
 
-Ve filtrační části dotazu je povoleno pouze jediné použití každého z těchto tří constraintů. V současné době není možné přepínat kontext mezi různými částmi filtru a vytvářet dotazy jako *najdi produkt, jehož cena je buď v měně "CZK" nebo "EUR" v tomto nebo onom čase* pomocí těchto constraintů.
+V části filtru dotazu je povoleno pouze jediné použití kteréhokoliv z těchto tří omezení. V současné době
+není možné přepínat kontext mezi různými částmi filtru a vytvářet dotazy jako *najdi produkt, jehož cena
+je buď v měně "CZK" nebo "EUR" v tomto či onom čase* pomocí tohoto omezení.
 
-Ačkoliv je technicky možné implementovat podporu těchto úloh v evitaDB, jedná se o okrajové případy a bylo potřeba řešit důležitější scénáře. Vícenásobné kombinace těchto constraintů by fakticky znemožnily nalezení správné prodejní ceny a umožnily by pouze vracet odpovídající entity bez prodejní ceny.
+Ačkoliv je technicky možné implementovat podporu těchto úloh v evitaDB, jedná se o okrajové případy a bylo
+nutné řešit důležitější scénáře. Vícenásobné kombinace těchto omezení ve skutečnosti znemožní nalezení
+správné prodejní ceny a umožní pouze vracet odpovídající entity bez prodejní ceny.
 
 </Note>
 
@@ -102,7 +107,7 @@ priceInCurrency(
 <dl>
     <dt>argument:string!</dt>
     <dd>
-        Povinné určení měny, které musí všechny ceny cílené dotazem odpovídat.
+        Povinné určení měny, ve které musí být všechny ceny cílené dotazem.
 
         Kód měny musí být [třímístný kód dle ISO 4217](https://en.wikipedia.org/wiki/ISO_4217).
     </dd>
@@ -110,21 +115,21 @@ priceInCurrency(
 
 <LS to="j">
 
-Pokud pracujete s evitaDB v Javě, můžete použít [`Currency`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Currency.html)
-místo [String](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html) ISO kódu.
+Pokud pracujete s evitaDB v Javě, můžete místo [String](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html) ISO kódu použít [`Currency`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Currency.html).
 Toto je přirozený způsob práce s lokalizovanými daty na této platformě.
 
 </LS>
 <LS to="c">
 
 Pokud pracujete s evitaDB v C#, můžete použít vlastní třídu <SourceClass>EvitaDB.Client/DataTypes/Currency.cs</SourceClass>,
-která byla vytvořena pro kompatibilitu s Java API evitaDB. Jedná se o jednoduchý wrapper kolem [string](https://docs.microsoft.com/en-us/dotnet/api/system.string) ISO kódu,
-který může být předán v surové podobě bez nutnosti vytvářet instanci třídy.
+která byla vytvořena pro kompatibilitu s evitaDB Java API. Jedná se o jednoduchý wrapper kolem [string](https://docs.microsoft.com/en-us/dotnet/api/system.string) ISO kódu,
+který lze předat i v surové podobě bez nutnosti vytvářet instanci třídy.
 
 </LS>
 
 Constraint <LS to="e,j,r,g"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/filter/PriceInCurrency.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Queries/Filter/PriceInCurrency.cs</SourceClass></LS>
-lze použít k omezení výsledné množiny na entity, které mají cenu ve zvolené měně. Kromě [standardního použití](#typické-použití-cenových-constraintů) můžete vytvořit dotaz pouze s tímto constraintem:
+lze použít k omezení výsledné množiny pouze na entity, které mají cenu v dané měně. Kromě [standardního použití](#typické-použití-cenových-omezení)
+můžete vytvořit i dotaz pouze s tímto constraintem:
 
 <SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
@@ -171,20 +176,24 @@ priceInPriceLists(
 <dl>
     <dt>argument:string+</dt>
     <dd>
-        Povinné určení jednoho nebo více názvů ceníků v pořadí priority od nejpreferovanějšího po nejméně preferovaný.
+        Povinné zadání jednoho nebo více názvů ceníků v pořadí od nejpreferovanějšího po nejméně preferovaný.
     </dd>
 </dl>
 
-Constraint <LS to="j,e,r,g"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/filter/PriceInPriceLists.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Queries/Filter/PriceInPriceLists.cs</SourceClass></LS>
-definuje povolenou sadu ceníků, které musí entita mít, aby byla zahrnuta do výsledné množiny. Pořadí ceníků v argumentu je důležité pro finální výpočet prodejní ceny – viz [dokumentace k algoritmu výpočtu prodejní ceny](/documentation/user/en/deep-dive/price-for-sale-calculation.md).
-Názvy ceníků jsou reprezentovány prostým <LS to="j,e,r,g">[String](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html)</LS><LS to="c">[string](https://docs.microsoft.com/en-us/dotnet/api/system.string)</LS>
-a rozlišují velká a malá písmena. Ceníky nemusí být v databázi uloženy jako entita a pokud jsou, aktuálně nejsou asociovány s kódem ceníku definovaným v cenách jiných entit. Cenová struktura je zatím jednoduchá a plochá (ale to se může v budoucnu změnit).
+Omezení <LS to="j,e,r,g"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/filter/PriceInPriceLists.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Queries/Filter/PriceInPriceLists.cs</SourceClass></LS>
+definuje povolenou množinu ceníků, které musí entita obsahovat, aby byla zahrnuta do výsledné množiny. Pořadí
+ceníků v argumentu je důležité pro výpočet finální prodejní ceny – viz
+[dokumentace k algoritmu výpočtu prodejní ceny](/documentation/user/en/deep-dive/price-for-sale-calculation.md).
+Názvy ceníků jsou reprezentovány běžným <LS to="j,e,r,g">[String](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html)</LS><LS to="c">[string](https://docs.microsoft.com/en-us/dotnet/api/system.string)</LS>
+a rozlišují velikost písmen. Ceníky nemusí být v databázi uložené jako entita, a pokud jsou, aktuálně nejsou
+spojeny s kódem ceníku definovaným v cenách jiných entit. Cenová struktura je nyní jednoduchá
+a plochá (to se však může v budoucnu změnit).
 
-Kromě [standardního použití](#typické-použití-cenových-constraintů) můžete vytvořit dotaz pouze s tímto constraintem:
+Kromě [standardního použití](#typické-použití-cenových-omezení) můžete také vytvořit dotaz pouze s tímto omezením:
 
 <SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
-[Výpis produktů s jakýmkoliv VIP ceníkem](/documentation/user/en/query/filtering/examples/price/price-in-price-lists.evitaql)
+[Výpis produktů s jakoukoliv cenou v některém z VIP ceníků](/documentation/user/en/query/filtering/examples/price/price-in-price-lists.evitaql)
 
 </SourceCodeTabs>
 
@@ -227,15 +236,18 @@ priceValidIn(
 <dl>
     <dt>argument:offsetDateTime!</dt>
     <dd>
-        Povinný argument data a času (s offsetem) ve formátu `yyyy-MM-ddTHH:mm:ssXXX`, například
+        Povinný argument představující datum a čas (s časovým posunem) ve formátu `yyyy-MM-ddTHH:mm:ssXXX`, například
         `2007-12-03T10:15:30+01:00`. <LS to="j,e,r,g">V jazyce Java můžete přímo použít [OffsetDateTime](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/time/OffsetDateTime.html)</LS><LS to="c">V jazyce C# můžete přímo použít [DateTimeOffset](https://learn.microsoft.com/en-us/dotnet/api/system.datetimeoffset)</LS>
     </dd>
 </dl>
 
-Constraint <LS to="j,e,r,g"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/filter/PriceValidIn.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Queries/Filter/PriceValidIn.cs</SourceClass></LS> vylučuje všechny
-entity, které nemají platnou cenu pro prodej v zadaném datu a čase. Pokud cena nemá určenou platnost, projde všemi kontrolami platnosti.
+<LS to="j,e,r,g"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/filter/PriceValidIn.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Queries/Filter/PriceValidIn.cs</SourceClass></LS> vyloučí všechny entity,
+které nemají platnou cenu pro prodej v zadaném datu a čase. Pokud cena nemá určenou vlastnost platnosti,
+projde všemi kontrolami platnosti.
 
-Pro demonstraci efektu constraintů platnosti vytvořme dotaz, který vypíše produkty v kategorii *Vánoční elektronika* a zkusí přistupovat k cenám v jejich *Vánočním ceníku*, s fallbackem na *Základní ceník*, přičemž jako referenční bod pro kontrolu platnosti ceny použije datum a čas jarních svátků:
+Abychom ukázali efekt platnostních omezení, vytvoříme dotaz, který vypíše produkty v kategorii *Vánoční elektronika*
+a pokusí se získat ceny z jejich *Vánočního ceníku*, s případným přepnutím na *Základní ceník*, přičemž jako referenční
+bod pro kontrolu platnosti ceny použije datum a čas z jarního období svátků:
 
 <SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
@@ -243,7 +255,7 @@ Pro demonstraci efektu constraintů platnosti vytvořme dotaz, který vypíše p
 
 </SourceCodeTabs>
 
-Nyní dotaz aktualizujme na datum a čas v prosinci:
+Nyní dotaz upravíme tak, aby použil datum a čas v prosinci:
 
 <SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
@@ -251,7 +263,7 @@ Nyní dotaz aktualizujme na datum a čas v prosinci:
 
 </SourceCodeTabs>
 
-Jak vidíte, získáte poněkud odlišnou prodejní cenu, protože nyní byly uplatněny vánoční ceny:
+Jak můžete vidět, získáte poněkud odlišnou prodejní cenu, protože vánoční ceny jsou nyní aplikovány:
 
 <LS to="e,j,c">
 
@@ -319,19 +331,19 @@ priceBetween(
 <dl>
     <dt>argument:bigDecimal!</dt>
     <dd>
-        Povinný argument dolní hranice cenového rozsahu. Cenové rozmezí je inkluzivní, takže cena musí být větší nebo rovna dolní hranici. V jazyce Java můžete přímo použít [BigDecimal](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/math/BigDecimal.html), v textovém formátu musíte použít řetězcovou reprezentaci čísla.
+        Povinný argument určující dolní hranici cenového rozmezí. Cenové rozmezí je včetně hranic, takže cena musí být větší nebo rovna dolní hranici. V jazyce Java můžete přímo použít [BigDecimal](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/math/BigDecimal.html) v textovém formátu, je třeba použít řetězcovou reprezentaci čísla.
     </dd>
     <dt>argument:bigDecimal!</dt>
     <dd>
-        Povinný argument horní hranice cenového rozsahu. Cenové rozmezí je inkluzivní, takže cena musí být menší nebo rovna horní hranici. V jazyce Java můžete přímo použít [BigDecimal](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/math/BigDecimal.html), v textovém formátu musíte použít řetězcovou reprezentaci čísla.
+        Povinný argument určující horní hranici cenového rozmezí. Cenové rozmezí je včetně hranic, takže cena musí být menší nebo rovna horní hranici. V jazyce Java můžete přímo použít [BigDecimal](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/math/BigDecimal.html) v textovém formátu, je třeba použít řetězcovou reprezentaci čísla.
     </dd>
 </dl>
 
 Constraint <SourceClass>evita_query/src/main/java/io/evitadb/api/query/filter/PriceBetween.java</SourceClass>
 omezuje výslednou množinu na položky, které mají prodejní cenu v zadaném cenovém rozmezí. Tento constraint je
-typicky nastaven uživatelským rozhraním, aby uživatel mohl filtrovat produkty podle ceny, a měl by být vnořen do
-kontejneru constraintu [`userFilter`](behavioral.md#uživatelský-filtr), aby mohl být správně zpracován výpočty
-[souhrnu referencí](../requirements/reference.md) nebo [histogramu](../requirements/histogram.md).
+typicky nastaven uživatelským rozhraním, aby uživatel mohl filtrovat produkty podle ceny, a měl by být vnořen
+do kontejneru constraintu [`userFilter`](behavioral.md#uživatelský-filtr), aby mohl být správně zpracován
+výpočty [referenčního souhrnu](../requirements/reference.md) nebo [histogramu](../requirements/histogram.md).
 
 </LS>
 
@@ -340,45 +352,45 @@ kontejneru constraintu [`userFilter`](behavioral.md#uživatelský-filtr), aby mo
 <dl>
     <dt>argument:decimal!</dt>
     <dd>
-        Povinný argument dolní hranice cenového rozsahu. Cenové rozmezí je inkluzivní, takže cena musí být větší nebo rovna dolní hranici. V jazyce C# můžete přímo použít [decimal](https://learn.microsoft.com/en-us/dotnet/api/system.decimal), v textovém formátu musíte použít řetězcovou reprezentaci čísla.
+        Povinný argument určující dolní hranici cenového rozmezí. Cenové rozmezí je včetně hranic, takže cena musí být větší nebo rovna dolní hranici. V jazyce C# můžete přímo použít [decimal](https://learn.microsoft.com/en-us/dotnet/api/system.decimal) v textovém formátu, je třeba použít řetězcovou reprezentaci čísla.
     </dd>
     <dt>argument:decimal!</dt>
     <dd>
-        Povinný argument horní hranice cenového rozsahu. Cenové rozmezí je inkluzivní, takže cena musí být menší nebo rovna horní hranici. V jazyce C# můžete přímo použít [decimal](https://learn.microsoft.com/en-us/dotnet/api/system.decimal), v textovém formátu musíte použít řetězcovou reprezentaci čísla.
+        Povinný argument určující horní hranici cenového rozmezí. Cenové rozmezí je včetně hranic, takže cena musí být menší nebo rovna horní hranici. V jazyce C# můžete přímo použít [decimal](https://learn.microsoft.com/en-us/dotnet/api/system.decimal) v textovém formátu, je třeba použít řetězcovou reprezentaci čísla.
     </dd>
 </dl>
 
 Constraint <SourceClass>EvitaDB.Client/Queries/Filter/PriceBetween.cs</SourceClass>
 omezuje výslednou množinu na položky, které mají prodejní cenu v zadaném cenovém rozmezí. Tento constraint je
-typicky nastaven uživatelským rozhraním, aby uživatel mohl filtrovat produkty podle ceny, a měl by být vnořen do
-kontejneru constraintu [`userFilter`](behavioral.md#uživatelský-filtr), aby mohl být správně zpracován výpočty
-[souhrnu referencí](../requirements/reference.md) nebo [histogramu](../requirements/histogram.md).
+typicky nastaven uživatelským rozhraním, aby uživatel mohl filtrovat produkty podle ceny, a měl by být vnořen
+do kontejneru constraintu [`userFilter`](behavioral.md#uživatelský-filtr), aby mohl být správně zpracován
+výpočty [referenčního souhrnu](../requirements/reference.md) nebo [histogramu](../requirements/histogram.md).
 
 </LS>
 
-Pro demonstraci constraintu cenového rozmezí vytvořme dotaz, který vypíše produkty v kategorii *Čtečky knih* a
-vyfiltruje pouze ty, které mají cenu mezi `€150` a `€170.5`:
+Pro demonstraci constraintu cenového rozmezí vytvoříme dotaz, který vypíše produkty v kategorii *E-čtečky* a
+vyfiltruje pouze ty, jejichž cena je mezi `€150` a `€170.5`:
 
 <SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
-[Výpis čteček knih s cenou mezi `€150` a `€170.5`](/documentation/user/en/query/filtering/examples/price/price-between.evitaql)
+[Výpis e-čteček s cenou mezi `€150` a `€170.5`](/documentation/user/en/query/filtering/examples/price/price-between.evitaql)
 
 </SourceCodeTabs>
 
-Rozsah je poměrně úzký, takže výsledná množina obsahuje pouze jeden produkt:
+Rozmezí je poměrně úzké, takže výsledná množina obsahuje pouze jeden produkt:
 
 <LS to="e,j,c">
 
-<MDInclude>[Porovnání prosincových cen s květnovými](/documentation/user/en/query/filtering/examples/price/price-between.evitaql.md)</MDInclude>
+<MDInclude>[Porovnejte prosincové ceny s květnovými](/documentation/user/en/query/filtering/examples/price/price-between.evitaql.md)</MDInclude>
 
 </LS>
 <LS to="g">
 
-<MDInclude sourceVariable="data.queryProduct.recordPage">[Porovnání prosincových cen s květnovými](/documentation/user/en/query/filtering/examples/price/price-between.graphql.json.md)</MDInclude>
+<MDInclude sourceVariable="data.queryProduct.recordPage">[Porovnejte prosincové ceny s květnovými](/documentation/user/en/query/filtering/examples/price/price-between.graphql.json.md)</MDInclude>
 
 </LS>
 <LS to="r">
 
-<MDInclude sourceVariable="recordPage">[Porovnání prosincových cen s květnovými](/documentation/user/en/query/filtering/examples/price/price-between.rest.json.md)</MDInclude>
+<MDInclude sourceVariable="recordPage">[Porovnejte prosincové ceny s květnovými](/documentation/user/en/query/filtering/examples/price/price-between.rest.json.md)</MDInclude>
 
 </LS>

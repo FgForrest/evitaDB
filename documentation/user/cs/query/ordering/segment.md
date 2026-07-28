@@ -1,12 +1,12 @@
 ---
 title: Segmentace
-perex: Segmentace umožňuje řadit různé části výsledků vyhledávání odlišným způsobem. Některé e-shopy preferují v základním zobrazení zobrazovat nejprve nové produkty, zatímco jiné mohou využívat top doporučení pro uživatele na základě jejich preferencí (nejlevnější, nejkvalitnější, zlatý střed apod.). Právě zde přichází ke slovu segmentace.
+perex: Segmentace umožňuje řadit různé části výsledků vyhledávání odlišným způsobem. Některé e-shopy preferují v základním zobrazení zobrazovat nejprve nové produkty, zatímco jiné mohou upřednostnit top nabídky pro uživatele na základě jejich preferencí (nejlevnější, nejkvalitnější, zlatý střed apod.). Právě zde přichází segmentace na řadu.
 date: '15.10.2024'
 author: Ing. Jan Novotný
 proofreading: done
 preferredLang: evitaql
-commit: cef96d8320d36c91c100c5dfc9c45020b5a7ad0d
 translated: 'true'
+commit: '77da5b36c170430534ee4d9a4a2903da4de68555'
 ---
 Bez podpory segmentace by klient musel spouštět více dotazů a výsledky slučovat na straně klienta, přičemž každý další dotaz by vylučoval výsledky předchozího. To je nejen neefektivní, ale také náchylné k chybám. Díky segmentaci mohou vývojáři jednoduše definovat pravidla pro řazení různých segmentů, omezit velikost každého segmentu a nechat těžkou práci na serveru.
 
@@ -36,13 +36,13 @@ Entity uvedené v předchozích segmentech jsou vyloučeny z následujících se
 
 </NoteTitle>
 
-Pokud řadíte podle dat, která nemusí být přítomna u všech entit, například atribut, entity, které tento atribut pro řazení nemají, jsou ze segmentu automaticky vyloučeny. Jedná se o implicitní filtrování pro každý ze segmentů, které není nutné explicitně uvádět v omezení [`segment`](#segment).
+Pokud řadíte podle dat, která nemusí být přítomna u všech entit, například podle atributu, entity, které tento atribut pro řazení nemají, jsou ze segmentu automaticky vyloučeny. Jedná se o implicitní filtrování pro každý ze segmentů, které není nutné explicitně uvádět v omezení [`segment`](#segment).
 
 </Note>
 
-Každý segment vám umožňuje definovat další filtrovací omezení, které je aplikováno na výsledek dotazu, aby vybral pouze podmnožinu entit, které mohou být zahrnuty do daného segmentu.
+Každý segment vám umožňuje definovat další filtrační omezení, které se aplikuje na výsledek dotazu a vybere pouze podmnožinu entit, které mohou být do daného segmentu zařazeny.
 
-Podívejme se na příklad. Řekněme, že chceme nejprve zobrazit dva nově přidané produkty, poté nejprodávanější produkt s cenou nad 500 €, poté nejprodávanější produkt s cenou pod 500 €, poté zbytek produktů, které jsou aktuálně skladem, a nakonec zbytek produktů, které musíme objednat od našich dodavatelů. Segmenty můžeme definovat následovně:
+Podívejme se na příklad. Řekněme, že chceme zobrazit nejprve dva nově přidané produkty, poté nejprodávanější produkt s cenou nad 500 €, poté nejprodávanější produkt s cenou pod 500 €, poté zbytek produktů, které jsou aktuálně skladem, a nakonec zbytek produktů, které musíme objednat od našich dodavatelů. Segmenty můžeme definovat následovně:
 
 <SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 

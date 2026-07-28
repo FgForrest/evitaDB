@@ -1,10 +1,11 @@
 ---
 title: Java
-perex: Java API je nativní rozhraní pro komunikaci s evitaDB. Umožňuje spouštět evitaDB jako embedded databázi nebo se připojit k vzdálenému databázovému serveru. Je navrženo tak, aby sdílelo společná rozhraní pro oba scénáře, což vám umožňuje přepínat mezi embedded a vzdáleným režimem bez nutnosti měnit váš kód. To je obzvláště užitečné během vývoje nebo jednotkového testování, kdy můžete používat embedded databázi a v produkci přejít na vzdálenou databázi.
+perex: Java API je nativní rozhraní pro komunikaci s evitaDB. Umožňuje spouštět evitaDB jako embedded databázi nebo se připojit k vzdálenému databázovému serveru. Je navrženo tak, aby sdílelo společná rozhraní pro oba scénáře, což vám umožňuje přepínat mezi embedded a vzdálenou databází bez nutnosti měnit váš kód. To je obzvláště užitečné během vývoje nebo jednotkového testování, kdy můžete používat embedded databázi a v produkci přejít na vzdálenou databázi.
 date: '26.10.2023'
 author: Ing. Jan Novotný
 preferredLang: java
-commit: cbb24856cca1d8c0ee870ee47ea05cc39d4e5798
+translated: 'true'
+commit: '2b62582358ccee0544dee717d1568fc4f4c7af61'
 ---
 <LS to="e,c,g,r">
 Tato kapitola popisuje Java driver pro evitaDB a nedává smysl pro jiné jazyky. Pokud vás zajímají detaily implementace Java driveru, změňte prosím preferovaný jazyk v pravém horním rohu.
@@ -15,7 +16,7 @@ Připojení k vzdálené instanci databáze je popsáno v kapitole [Připojení 
 Totéž platí pro [query API](../api/query-data.md?lang=java) a [write API](../api/write-data.md?lang=java).
 Žádné z těchto témat zde tedy nebudou pokryta.
 
-## Java remote klient
+## Java remote client
 
 Pro použití Java remote klienta stačí přidat následující závislost do vašeho projektu:
 
@@ -37,16 +38,16 @@ implementation 'io.evitadb:evita_java_driver:2026.1.0'
 </CodeTabs>
 
 Java remote klient je postaven na [gRPC API](grpc.md). <SourceClass>evita_external_api/evita_external_api_grpc/client/src/main/java/io/evitadb/driver/EvitaClient.java</SourceClass>
-je thread-safe a očekává se, že v aplikaci bude použita pouze jediná instance. Klient interně spravuje
-pool gRPC spojení pro zpracování paralelní komunikace se serverem.
+je thread-safe a v aplikaci se očekává použití pouze jedné instance. Klient interně spravuje
+pool gRPC spojení pro paralelní komunikaci se serverem.
 
 <Note type="info">
-Instance klienta je vytvořena bez ohledu na to, zda je server dostupný. Pro ověření, že je server dosažitelný, je třeba na něm zavolat nějakou metodu. Obvyklým scénářem je [otevření nové session](../../get-started/create-first-database.md?lang=java#otevřete-relaci-ke-katalogu-a-vložte-svou-první-entitu) do existujícího <Term location="/documentation/user/en/index.md">katalogu</Term>.
+Instance klienta je vytvořena bez ohledu na to, zda je server dostupný. Pro ověření, že je možné se k serveru připojit, je potřeba zavolat nějakou jeho metodu. Obvyklým scénářem je [otevření nové session](../../get-started/create-first-database.md?lang=java#otevřete-relaci-ke-katalogu-a-vložte-svou-první-entitu) k existujícímu <Term location="/documentation/user/en/index.md">katalogu</Term>.
 </Note>
 
 <Note type="warning">
 <SourceClass>evita_external_api/evita_external_api_grpc/client/src/main/java/io/evitadb/driver/EvitaClient.java</SourceClass>
-udržuje pool otevřených zdrojů a měl by být ukončen metodou `close()`, když jej přestanete používat.
+udržuje pool otevřených prostředků a měl by být ukončen metodou `close()`, když jej přestanete používat.
 </Note>
 
 ### Konfigurace
@@ -90,9 +91,9 @@ Kompletní konfigurace je dostupná v
 <SourceClass>evita_external_api/evita_external_api_grpc/client/src/main/java/io/evitadb/driver/config/EvitaClientConfiguration.java</SourceClass>.
 Následující sekce popisují všechny dostupné možnosti uspořádané podle skupin konfigurace.
 
-#### Možnosti spojení
+#### Možnosti připojení
 
-Nastavení spojení se konfiguruje přes
+Nastavení připojení se konfiguruje prostřednictvím
 <SourceClass>evita_external_api/evita_external_api_grpc/client/src/main/java/io/evitadb/driver/config/ClientConnectionOptions.java</SourceClass>:
 
 <dl>
@@ -100,14 +101,14 @@ Nastavení spojení se konfiguruje přes
     <dd>
         <p>**Výchozí: `gRPC client at hostname`**</p>
         <p>
-          Tato vlastnost umožňuje rozlišit požadavky tohoto konkrétního klienta od požadavků ostatních klientů.
-          Tato informace může být využita v logování nebo při [troubleshootingu](../api/troubleshoot.md).
+          Tato vlastnost umožňuje odlišit požadavky tohoto konkrétního klienta od požadavků ostatních klientů.
+          Tato informace může být využita v logování nebo při [řešení problémů](../api/troubleshoot.md).
         </p>
     </dd>
     <dt>host</dt>
     <dd>
         <p>**Výchozí: `localhost`**</p>
-        <p>Identifikace serveru, na kterém běží evitaDB. Může to být název hostitele nebo IP adresa.</p>
+        <p>Identifikace serveru, na kterém běží evitaDB. Může se jednat o název hostitele nebo IP adresu.</p>
     </dd>
     <dt>port</dt>
     <dd>
@@ -117,32 +118,35 @@ Nastavení spojení se konfiguruje přes
     <dt>systemApiPort</dt>
     <dd>
         <p>**Výchozí: `5555`**</p>
-        <p>Identifikace portu serveru, na kterém běží system API evitaDB. System API slouží k automatickému nastavení klientského certifikátu pro mTLS nebo ke stažení self-signed certifikátu serveru.
-        Viz [Konfigurace a principy TLS](../../operate/tls.md). System API není vyžadováno, pokud server používá důvěryhodný certifikát a mTLS je vypnuté, nebo pokud je privátní/veřejný klíč serveru/klienta distribuován „ručně“ s klientem.</p>
+        <p>Identifikace portu serveru, na kterém běží system API evitaDB. System API slouží k
+        automatickému nastavení klientského certifikátu pro mTLS nebo ke stažení self-signed certifikátu serveru.
+        Viz [Konfigurace a principy TLS](../../operate/tls.md). System API není potřeba, pokud server používá
+        důvěryhodný certifikát a mTLS je vypnuté, nebo pokud je privátní/veřejný klíč serveru/klienta distribuován
+        „ručně“ spolu s klientem.</p>
     </dd>
     <dt>pingIntervalMillis</dt>
     <dd>
         <p>**Výchozí: `30000` (30 s)**</p>
-        <p>Interval HTTP/2 keep-alive PING v milisekundách. Pokud na spojení po tuto dobu neproběhne žádný provoz,
-        klient odešle PING; pokud ho protistrana ve stejném intervalu nepotvrdí, je spojení uzavřeno. Interval je
-        tedy *rozpočet na zaseknutí* — musí s rezervou překročit nejdelší tolerovatelnou pauzu způsobenou GC či
-        vytížením CPU, nikoli být frekvencí sondování, jinak může být pomalé, ale živé volání předčasně zabito.
-        Hodnota `0` PING klienta zcela vypne (spojení je pak uklizeno pouze na základě `idleTimeoutMillis`); jakákoli
-        jiná hodnota musí být alespoň `1000` ms. PING musí zůstat striktně pod hodnotou `idleTimeoutMillis`, jinak
-        ho podkladový HTTP klient tiše vypne — výchozí dvojice (`30000` PING, `300000` idle) tuto podmínku splňuje
-        a klient zaloguje varování, pokud ji vlastní dvojice poruší.</p>
+        <p>Interval keep-alive PINGu HTTP/2 v milisekundách. Pokud na spojení není po tuto dobu žádný provoz,
+        klient odešle PING; pokud protistrana neodpoví v tomtéž intervalu, spojení se uzavře.
+        Interval tedy představuje *rozpočet na prodlevu* — musí být dostatečně vyšší než nejhorší tolerovatelná
+        pauza způsobená GC nebo nedostatkem CPU, neslouží jako frekvence sondování, jinak může být pomalý,
+        ale stále živý požadavek ukončen během přenosu. Nastavte `0` pro úplné vypnutí PINGu klienta (pak je spojení
+        ukončeno pouze pomocí `idleTimeoutMillis`); jakákoli jiná hodnota musí být alespoň `1000` ms. PING musí být
+        vždy nižší než `idleTimeoutMillis`, jinak jej podkladový HTTP klient tiše vypne — výchozí dvojice
+        (`30000` ping, `300000` idle) toto splňuje a klient zaloguje varování, pokud vlastní nastavení tuto podmínku nesplní.</p>
     </dd>
     <dt>idleTimeoutMillis</dt>
     <dd>
         <p>**Výchozí: `300000` (300 s)**</p>
-        <p>Jak dlouho může spojení ze sdíleného poolu zůstat bez aplikačního provozu, než je uzavřeno. Tato hodnota
-        je záměrně **oddělena od časového limitu jednotlivého volání (`timeout`)**: krátký časový limit požadavku
-        nesmí vynutit zbourání a znovunavázání fyzického spojení mezi voláními. Výchozích 300 s leží s rezervou nad
-        30s PINGem, takže keep-alive hlídač zůstává aktivní a zdravá spojení jsou udržována „teplá“ — potvrzené PINGy
-        se počítají jako provoz, takže živé spojení nikdy nevyprší nečinností, zatímco mrtvá protistrana je odhalena
-        do jednoho intervalu PINGu. Hodnota `0` časový limit nečinnosti zcela vypne (spojení pak žije, dokud ho
-        neuzavře protistrana, selhání PINGu nebo pool spojení). Udržujte tuto hodnotu striktně nad
-        `pingIntervalMillis`.</p>
+        <p>Jak dlouho může být spojení v poolu nečinné bez aplikačního provozu, než bude uzavřeno. Toto je záměrně
+        **odděleno od per-request `timeout`** (viz [Možnosti timeoutu](#možnosti-timeoutu)): krátká lhůta požadavku
+        nesmí způsobit fyzické ukončení a opětovné navázání spojení mezi požadavky. Výchozí hodnota
+        300 s je dostatečně nad 30 s pingem, takže keep-alive watchdog zůstává aktivní a zdravá spojení
+        jsou udržována „teplá“ — potvrzené pingy se počítají jako aktivita, takže živé spojení nikdy nevyprší, zatímco
+        mrtvá protistrana je detekována během jednoho ping intervalu. Nastavte `0` pro úplné vypnutí idle timeoutu
+        (spojení pak žije, dokud jej neuzavře protistrana, chyba pingu nebo pool spojení). Hodnota musí být vždy vyšší
+        než `pingIntervalMillis`.</p>
     </dd>
 </dl>
 

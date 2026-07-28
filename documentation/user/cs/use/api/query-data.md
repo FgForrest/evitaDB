@@ -5,10 +5,10 @@ date: '17.1.2023'
 author: Ing. Jan Novotný
 proofreading: done
 preferredLang: java
-commit: cef96d8320d36c91c100c5dfc9c45020b5a7ad0d
 translated: 'true'
+commit: '77da5b36c170430534ee4d9a4a2903da4de68555'
 ---
-[Dotaz v evitaDB](../../query/basics.md) je reprezentován jako strom vnořených "omezení" rozdělených do čtyř <LS to="g">_logických_</LS> částí:
+[Dotaz v evitaDB](../../query/basics.md) je reprezentován jako strom vnořených „omezení“ rozdělených do čtyř <LS to="g">_logických_</LS> částí:
 
 <dl>
     <dt>`collection`</dt>
@@ -24,62 +24,65 @@ translated: 'true'
 
 <LS to="e,j,c">
 
-Vstupní bod *evitaQL* (evitaDB Query Language) je reprezentován třídou
-<LS to="e,j"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/Query.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Queries/Query.cs</SourceClass></LS> a vypadá podobně jako
-[Lispovský jazyk](https://en.wikipedia.org/wiki/Lisp_(programming_language)). Vždy začíná názvem omezení, následovaným sadou argumentů v závorkách. V těchto argumentech můžete použít i další funkce.
+Vstupním bodem *evitaQL* (evitaDB Query Language) je třída
+<LS to="e,j"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/Query.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Queries/Query.cs</SourceClass></LS>, která připomíná
+[Lispovský jazyk](https://cs.wikipedia.org/wiki/Lisp_(programovac%C3%AD_jazyk)). Dotaz vždy začíná názvem omezení, za kterým následuje sada argumentů v závorkách. V těchto argumentech lze použít i další funkce.
 Příklad takového dotazu může vypadat následovně:
 
 </LS>
 <LS to="g,r">
 
 *evitaQL* (evitaDB Query Language) je reprezentován jako JSON objekt vnořených omezení. Každá vnořená vlastnost
-vždy začíná názvem omezení, následovaným sadou argumentů jako hodnotou vlastnosti. V těchto argumentech můžete použít i další omezení.
-Příklad takového dotazu může vypadat následovně:
+vždy začíná názvem omezení, za kterým následuje sada argumentů jako hodnota vlastnosti. V těchto argumentech lze použít i další omezení. Příklad takového dotazu může vypadat následovně:
 
 </LS>
 
 <SourceCodeTabs setup="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
-[Příklad evitaQL](/documentation/user/en/use/api/example/evita-query-example.java)
+[Příklad EvitaQL](/documentation/user/en/use/api/example/evita-query-example.java)
 
 </SourceCodeTabs>
 
-> *Dotaz vrátí první stránku 20 produktů v kategorii "lokální potraviny" a jejích podkategoriích, které mají*
-> *českou lokalizaci a platnou cenu v jednom z ceníků "VIP", "věrný zákazník" nebo "běžné ceny" v měně CZK. Dále filtruje*
-> *pouze produkty s prodejní cenou mezi 600 a 1 600 Kč včetně DPH a s parametry "bez lepku" a "původní receptura".*
->
-> *Pro všechny odpovídající produkty bude také vypočten tzv. cenový histogram s maximálně 30 sloupci, aby mohl být zobrazen na vyhrazeném místě. Navíc bude vypočten souhrn parametrických filtrů (facets) s analýzou dopadu, jak by výsledek vypadal, pokud by uživatel vybral i jiné parametry než ty dvě zvolené.*
+> *Dotaz vrátí první stránku 20 produktů v kategorii „lokální potraviny“ a jejích podkategoriích, které mají*
+> *českou lokalizaci a platnou cenu v některém z ceníků „VIP“, „věrný zákazník“ nebo „běžné ceny“*
+> *v měně CZK. Dále filtruje pouze produkty s prodejní cenou mezi 600 a 1 600 Kč včetně DPH a s parametry*
+> *„bez lepku“ a „původní receptura“.*
+
+> *Pro všechny odpovídající produkty bude také vypočítán tzv. cenový histogram s maximálně 30 sloupci,*
+> *aby mohl být zobrazen v dedikovaném prostoru. Navíc bude vypočten souhrn parametrických filtrů (facets)*
+> *s analýzou dopadu, jak by výsledek vypadal, pokud by uživatel zvolil jiné parametry kromě dvou již vybraných.*
 
 <LS to="e">
 
 evitaQL je reprezentován jako jednoduchý
 [String](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html), který je parsován do
 abstraktního syntaktického stromu složeného z omezení
-(<SourceClass>evita_query/src/main/java/io/evitadb/api/query/Constraint.java</SourceClass>), zapouzdřených v objektu
+(<SourceClass>evita_query/src/main/java/io/evitadb/api/query/Constraint.java</SourceClass>) zapouzdřených v objektu
 <SourceClass>evita_query/src/main/java/io/evitadb/api/query/Query.java</SourceClass>.
 </LS>
 
 Navrhli jsme řetězcovou reprezentaci *evitaQL* tak, aby vypadala podobně jako dotaz definovaný přímo v jazyce *Java*.
-Snažíme se také zachovat "look & feel" původního evitaQL v různých jazycích / API jako REST, GraphQL nebo C#,
-přičemž respektujeme konvence a možnosti příslušného jazyka.
+Snažíme se také zachovat „look & feel“ původního evitaQL v různých jazycích / API jako REST, GraphQL nebo C#,
+při respektování konvencí a možností daného jazyka.
 
 evitaQL se používá v gRPC protokolu a volitelně jej lze použít i v embedded Java prostředí. Lze jej také použít
 v [evitaDB konzoli](/documentation/blog/en/09-our-new-web-client-evitalab.md). GraphQL a REST Web API používají podobný formát, ale přizpůsobený
-konvencím daného protokolu (abychom mohli využít Open API / GQL schéma).
+konvencím protokolu (abychom mohli využít Open API / GQL schéma).
 
 <LS to="j">
 
-## Definice dotazů v Java kódu
+## Definování dotazů v Java kódu
 
 Pro vytvoření dotazu použijte statické metody `query` ve třídě
-<SourceClass>evita_query/src/main/java/io/evitadb/api/query/Query.java</SourceClass> a poté
+<SourceClass>evita_query/src/main/java/io/evitadb/api/query/Query.java</SourceClass> k vytvoření dotazu a poté
 skládejte vnitřní omezení pomocí statických metod ve třídě
 <SourceClass>evita_query/src/main/java/io/evitadb/api/query/QueryConstraints.java</SourceClass>.
 
 Pokud tuto třídu importujete staticky, definice dotazu v Javě vypadá podobně jako řetězcová forma dotazu.
-Díky typové inferenci vám IDE pomůže s automatickým doplňováním omezení, která dávají v daném kontextu smysl.
+Díky typové inferenci vám IDE pomůže s automatickým doplňováním omezení, která dávají v daném
+kontextu smysl.
 
-Toto je příklad, jak je dotaz složen a jak se volá evitaDB. Příklad staticky importuje dvě třídy:
+Toto je příklad, jak je dotaz složen a jak je volána evitaDB. Příklad staticky importuje dvě třídy:
 <SourceClass>evita_query/src/main/java/io/evitadb/api/query/Query.java</SourceClass> a
 <SourceClass>evita_query/src/main/java/io/evitadb/api/query/QueryConstraints.java</SourceClass>.
 
@@ -91,15 +94,15 @@ Toto je příklad, jak je dotaz složen a jak se volá evitaDB. Příklad static
 
 ### Automatické čištění dotazů
 
-Dotaz může obsahovat i "nečisté" části – tedy null omezení a zbytečné části:
+Dotaz může také obsahovat „znečištěné“ části – tedy nulové podmínky a zbytečné části:
 
 <SourceCodeTabs setup="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
 
-[Příklad nečistého Java dotazu](/documentation/user/en/use/api/example/java-dirty-query-example.java)
+[Příklad znečištěného Java dotazu](/documentation/user/en/use/api/example/java-dirty-query-example.java)
 
 </SourceCodeTabs>
 
-Dotaz je před zpracováním v engine evitaDB automaticky vyčištěn a zbytečná omezení jsou odstraněna.
+Dotaz je před zpracováním enginem evitaDB automaticky vyčištěn a zbytečná omezení jsou odstraněna.
 
 ### Parsování dotazů
 
@@ -130,7 +133,7 @@ ve třídě <SourceClass>evita_query/src/main/java/io/evitadb/api/query/QueryUti
 Dotaz lze "hezky vypsat" pomocí metody `prettyPrint` na třídě
 <SourceClass>evita_query/src/main/java/io/evitadb/api/query/Query.java</SourceClass>.
 
-## Získávání dat
+## Načítání dat
 
 Ve výchozím nastavení jsou ve výsledku dotazu vráceny pouze primární klíče entit. V tomto nejjednodušším případě je každá entita
 reprezentována rozhraním
@@ -138,59 +141,56 @@ reprezentována rozhraním
 
 <SourceCodeTabs setup="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
 
-[Příklad výchozího dotazu](/documentation/user/en/use/api/example/default-query-example.java)
+[Ukázka výchozího dotazu](/documentation/user/en/use/api/example/default-query-example.java)
 
 </SourceCodeTabs>
 
-Klientská aplikace může požadovat vrácení těla entit, ale to je třeba explicitně požadovat pomocí
-specifického require omezení (nebo jejich kombinace):
+Klientská aplikace může požadovat vrácení celých těl entit, ale toto je nutné explicitně vyžádat pomocí
+specifické require constraint (nebo jejich kombinace):
 
-- [entity fetch](../../query/requirements/fetching.md#načtení-entity)
-- [attribute fetch](../../query/requirements/fetching.md#obsah-atributů)
-- [associated data fetch](../../query/requirements/fetching.md#obsah-souvisejících-dat)
-- [price fetch](../../query/requirements/fetching.md#obsah-cen)
-- [reference fetch](../../query/requirements/fetching.md#referenční-obsah)
+- [načtení entity](../../query/requirements/fetching.md#entity-fetch)
+- [načtení atributů](../../query/requirements/fetching.md#attribute-content)
+- [načtení přidružených dat](../../query/requirements/fetching.md#associated-data-content)
+- [načtení cen](../../query/requirements/fetching.md#price-content)
+- [načtení referencí](../../query/requirements/fetching.md#reference-content)
 
-Pokud je použito takové require omezení, data budou načtena *nenasytně* při prvním požadavku. Odpovědní objekt
+Pokud je taková require constraint použita, data budou *nenasytně* načtena již během počátečního požadavku. Odpovědní objekt
 pak bude obsahovat entity ve formě
 <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/SealedEntity.java</SourceClass>.
 
 <SourceCodeTabs setup="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
 
-[Příklad načítání dat](/documentation/user/en/use/api/example/fetching-example.java)
+[Ukázka načítání](/documentation/user/en/use/api/example/fetching-example.java)
 
 </SourceCodeTabs>
 
-Ačkoliv existují jednodušší varianty dotazování entit, typická metoda je `query`, která vrací komplexní objekt
+Ačkoliv existují jednodušší varianty dotazování na entity, typická metoda je `query`, která vrací komplexní objekt
 <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/EvitaResponse.java</SourceClass> obsahující:
 
 - **<SourceClass>evita_common/src/main/java/io/evitadb/dataType/DataChunk.java</SourceClass>** s výslednými entitami ve
   formě <SourceClass>evita_common/src/main/java/io/evitadb/dataType/PaginatedList.java</SourceClass> nebo
   <SourceClass>evita_common/src/main/java/io/evitadb/dataType/StripList.java</SourceClass>
-- [Map](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Map.html) s extra výsledky indexovanými jejich třídou (`<T extends EvitaResponseExtraResult> Map<Class<T>, T>`)
+- [Mapu](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Map.html) dodatečných výsledků indexovaných podle jejich
+  třídy (`<T extends EvitaResponseExtraResult> Map<Class<T>, T>`)
 
-Další příklad dokumentuje načítání druhé stránky produktů v kategorii s vypočtenými statistikami facet:
+Následující příklad dokumentuje načtení druhé stránky produktů v kategorii s vypočítanými statistikami faset:
 
 <SourceCodeTabs setup="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
 
-[Příklad načítání dat](/documentation/user/en/use/api/example/query-example.java)
+[Ukázka načítání](/documentation/user/en/use/api/example/query-example.java)
 
 </SourceCodeTabs>
 
-Existují zkratky pro volání dotazu s očekávanou formou entity, takže není nutné deklarovat očekávanou formu entity ve druhém argumentu metody `query`:
+Existují zkratky pro volání dotazu s očekávanou formou entity, takže není nutné deklarovat očekávanou formu entity
+ve druhém argumentu metody `query`:
 
-- `queryEntityReference` vrací <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/structure/EntityReference.java</SourceClass>
-- `querySealedEntity` vrací <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/SealedEntity.java</SourceClass>
+- `queryEntityReference` vracející <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/structure/EntityReference.java</SourceClass>
+- `querySealedEntity` vracející <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/SealedEntity.java</SourceClass>
+### Líné načítání (obohacení)
 
-### Líné načítání (obohacování)
+Atributy, přidružená data, ceny a reference lze načítat samostatně pomocí primárního klíče entity. Počáteční entita načtená pomocí [entity fetch](../../query/requirements/fetching.md) s omezenou sadou požadavků může být později obohacena o chybějící data.
 
-Atributy, asociovaná data, ceny a reference lze načítat samostatně pomocí primárního klíče entity.
-Počáteční entita načtená pomocí [entity fetch](../../query/requirements/fetching.md) s omezenou sadou požadavků
-může být později obohacena o chybějící data.
-
-Pro obohacení, tj. líné načtení chybějících dat do existující entity, musíte předat existující entitu metodě `enrichEntity`
-a specifikovat sadu dodatečných require omezení, která mají být splněna. Díky vlastnostem neměnnosti vynuceným návrhem databáze
-vrací obohacení entity nový objekt entity.
+Pro obohacení, neboli líné načtení chybějících dat do existující entity, je třeba předat existující entitu metodě `enrichEntity` a specifikovat sadu dodatečných require constraint, které mají být splněny. Vzhledem k vlastnostem neměnnosti vynuceným návrhem databáze vrací obohacení entity nový instanci entity.
 
 <SourceCodeTabs setup="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
 
@@ -198,17 +198,13 @@ vrací obohacení entity nový objekt entity.
 
 </SourceCodeTabs>
 
-Líné načítání nemusí být nutné pro frontend navržený pomocí MVC architektury, kde jsou všechny požadavky na stránku známy před vykreslením.
-Jiné architektury však mohou načítat "tenčí" formy entit a později zjistit, že potřebují více dat. Tento přístup sice není optimální z hlediska výkonu,
-ale může vývojářům usnadnit práci a je mnohem efektivnější pouze obohatit existující entitu (vyhledáním podle primárního klíče a načtením pouze chybějících dat),
-než znovu načítat celou entitu.
+Líné načítání nemusí být nutné pro frontend navržený pomocí architektury MVC, kde jsou všechny požadavky na stránku známy před vykreslením. Různé architektury však mohou načítat „tenčí“ formy entit a později zjistit, že potřebují více dat. Tento přístup sice není z hlediska výkonu optimální, ale může vývojářům usnadnit práci, a je mnohem efektivnější pouze obohatit existující entitu (pomocí vyhledání podle primárního klíče a načtení pouze chybějících dat), než znovu načítat celou entitu.
 
 <Note type="warning">
 Líné načítání je aktuálně plně implementováno pouze pro embedded evitaDB. Pokud používáte evitaDB vzdáleně přes
 <SourceClass>evita_external_api/evita_external_api_grpc/client/src/main/java/io/evitadb/driver/EvitaClient.java</SourceClass>,
 můžete stále použít metodu `enrichEntity` na rozhraní
-<SourceClass>evita_api/src/main/java/io/evitadb/api/EvitaSessionContract.java</SourceClass>, ale entita bude znovu načtena celá.
-Tento scénář plánujeme v budoucnu optimalizovat.
+<SourceClass>evita_api/src/main/java/io/evitadb/api/EvitaSessionContract.java</SourceClass>, ale entita bude znovu načtena celá. Toto chování plánujeme v budoucnu optimalizovat.
 </Note>
 
 ## Vlastní kontrakty
@@ -482,35 +478,35 @@ Místo jednoho síťového požadavku tak musíte provést dva. Přínos lokáln
 
 <LS to="c">
 
-## Definice dotazů v C# kódu
+## Definování dotazů v C# kódu
 
 Pro vytvoření dotazu a skládání vnitřních omezení použijte statické metody ve třídě
 <SourceClass>EvitaDB.Client/Queries/IQueryConstraints.cs</SourceClass>.
 
-Pokud tuto třídu importujete staticky, definice dotazu v C# vypadá podobně jako řetězcová forma dotazu.
+Pokud je tato třída importována staticky, definice dotazu v C# vypadá podobně jako řetězcová forma dotazu.
 Díky typové inferenci vám IDE pomůže s automatickým doplňováním omezení, která dávají v daném kontextu smysl.
 
-Toto je příklad, jak je dotaz složen a jak se volá evitaDB.
-Příklad staticky importuje výše zmíněné rozhraní
+Toto je příklad, jak je dotaz sestaven a jak je volána evitaDB.
+Příklad staticky importuje dříve zmíněné rozhraní
 <SourceClass>EvitaDB.Client/Queries/IQueryConstraints.cs</SourceClass>.
 
 <SourceCodeTabs setup="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
 
-[Příklad C# dotazu](/documentation/user/en/use/api/example/csharp-query-example.cs)
+[Příklad dotazu v C#](/documentation/user/en/use/api/example/csharp-query-example.cs)
 
 </SourceCodeTabs>
 
-### Automatické čištění dotazů
+### Automatické čištění dotazu
 
-Dotaz může obsahovat i "nečisté" části – tedy null omezení a zbytečné části:
+Dotaz může také obsahovat „znečištěné“ části – tedy nulové omezení a zbytečné části:
 
 <SourceCodeTabs setup="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
 
-[Příklad nečistého C# dotazu](/documentation/user/en/use/api/example/csharp-dirty-query-example.cs)
+[Příklad znečištěného dotazu v C#](/documentation/user/en/use/api/example/csharp-dirty-query-example.cs)
 
 </SourceCodeTabs>
 
-Dotaz je před zpracováním v engine evitaDB automaticky vyčištěn a zbytečná omezení jsou odstraněna.
+Dotaz je automaticky vyčištěn a zbytečná omezení jsou odstraněna před tím, než je zpracován enginem evitaDB.
 
 ### Práce s dotazem
 
@@ -521,7 +517,7 @@ ve třídě <SourceClass>EvitaDB.Client/Utils/QueryUtils.cs</SourceClass>.
 Dotaz lze "hezky vypsat" pomocí metody `PrettyPrint` na třídě
 <SourceClass>EvitaDB.Client/Queries/Query.cs</SourceClass>.
 
-### Získávání dat
+### Načítání dat
 
 Ve výchozím nastavení jsou ve výsledku dotazu vráceny pouze primární klíče entit. V tomto nejjednodušším případě je každá entita
 reprezentována rozhraním
@@ -533,55 +529,56 @@ reprezentována rozhraním
 
 </SourceCodeTabs>
 
-Klientská aplikace může požadovat vrácení těla entit, ale to je třeba explicitně požadovat pomocí
-specifického require omezení (nebo jejich kombinace):
+Klientská aplikace může místo toho požadovat vrácení těl entit, ale toto je třeba explicitně vyžádat pomocí
+specifické require podmínky (nebo jejich kombinace):
 
-- [entity fetch](../../query/requirements/fetching.md#načtení-entity)
-- [attribute fetch](../../query/requirements/fetching.md#obsah-atributů)
-- [associated data fetch](../../query/requirements/fetching.md#obsah-souvisejících-dat)
-- [price fetch](../../query/requirements/fetching.md#obsah-cen)
-- [reference fetch](../../query/requirements/fetching.md#referenční-obsah)
+- [načtení entity](../../query/requirements/fetching.md#entity-fetch)
+- [načtení atributů](../../query/requirements/fetching.md#attribute-content)
+- [načtení asociovaných dat](../../query/requirements/fetching.md#associated-data-content)
+- [načtení cen](../../query/requirements/fetching.md#price-content)
+- [načtení referencí](../../query/requirements/fetching.md#reference-content)
 
-Pokud je použito takové `require` omezení, data budou načtena *nenasytně* při prvním požadavku. Odpovědní objekt
+Pokud je taková `require` podmínka použita, data budou načtena *nenasytně* již během počátečního požadavku. Objekt odpovědi
 pak bude obsahovat entity ve formě
 <SourceClass>EvitaDB.Client/Models/Data/ISealedEntity.cs</SourceClass>.
 
 <SourceCodeTabs setup="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
 
-[Příklad načítání dat](/documentation/user/en/use/api/example/fetching-example.cs)
+[Příklad načítání](/documentation/user/en/use/api/example/fetching-example.cs)
 
 </SourceCodeTabs>
 
-Ačkoliv existují jednodušší varianty dotazování entit, typická metoda je `Query`, která vrací komplexní objekt
+Ačkoliv existují jednodušší varianty pro dotazování entit, typickou metodou je `Query`, která vrací komplexní objekt
 <SourceClass>EvitaDB.Client/Models/EvitaResponse.cs</SourceClass> obsahující:
 
 - **<SourceClass>EvitaDB.Client/DataTypes/IDataChunk.cs</SourceClass>** s výslednými entitami ve
   formě <SourceClass>EvitaDB.Client/DataTypes/PaginatedList.cs</SourceClass> nebo
   <SourceClass>EvitaDB.Client/DataTypes/StripList.cs</SourceClass>
-- [Dictionary](https://learn.microsoft.com/cs-cz/dotnet/api/system.collections.idictionary) s extra výsledky indexovanými jejich typem (`IDictionary<Type,IEvitaResponseExtraResult>`)
+- [Dictionary](https://learn.microsoft.com/cs-cz/dotnet/api/system.collections.idictionary) s doplňkovými výsledky indexovanými podle jejich
+  typu (`IDictionary<Type,IEvitaResponseExtraResult>`)
 
-Další příklad dokumentuje načítání druhé stránky produktů v kategorii s vypočtenými statistikami facet:
+Následující příklad dokumentuje načtení druhé stránky produktů v kategorii s vypočtenými statistikami faset:
 
 <SourceCodeTabs setup="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
 
-[Příklad načítání dat](/documentation/user/en/use/api/example/query-example.cs)
+[Příklad načítání](/documentation/user/en/use/api/example/query-example.cs)
 
 </SourceCodeTabs>
 
-Existují zkratky pro volání dotazu s očekávanou formou entity, takže není nutné deklarovat očekávanou formu entity ve druhém argumentu metody `Query`:
+Existují zkratky pro volání dotazu s očekávanou formou entity, takže není nutné deklarovat očekávanou
+formu entity ve druhém argumentu metody `Query`:
 
-- `QueryEntityReference` vrací <SourceClass>EvitaDB.Client/Models/Data/Structure/EntityReference.cs</SourceClass>
-- `QuerySealedEntity` vrací <SourceClass>EvitaDB.Client/Models/Data/ISealedEntity.cs</SourceClass>
-
-#### Líné načítání (obohacování)
+- `QueryEntityReference` vracející <SourceClass>EvitaDB.Client/Models/Data/Structure/EntityReference.cs</SourceClass>
+- `QuerySealedEntity` vracející <SourceClass>EvitaDB.Client/Models/Data/ISealedEntity.cs</SourceClass>
+#### Líné načítání (obohacení)
 
 Atributy, asociovaná data, ceny a reference lze načítat samostatně pomocí primárního klíče entity.
 Počáteční entita načtená pomocí [entity fetch](../../query/requirements/fetching.md) s omezenou sadou požadavků
 může být později obohacena o chybějící data.
 
 Pro obohacení, tj. líné načtení chybějících dat do existující entity, musíte předat existující entitu metodě `EnrichEntity`
-a specifikovat sadu dodatečných require omezení, která mají být splněna. Díky vlastnostem neměnnosti vynuceným návrhem databáze
-vrací obohacení entity nový objekt entity.
+a specifikovat sadu dodatečných require omezení, která mají být splněna. Vzhledem k neměnnosti objektů
+vynucené návrhem databáze vrací obohacení entity nový instanci entity.
 
 <SourceCodeTabs setup="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
 
@@ -589,16 +586,17 @@ vrací obohacení entity nový objekt entity.
 
 </SourceCodeTabs>
 
-Líné načítání nemusí být nutné pro frontend navržený pomocí MVC architektury, kde jsou všechny požadavky na stránku známy před vykreslením.
-Jiné architektury však mohou načítat "tenčí" formy entit a později zjistit, že potřebují více dat. Tento přístup sice není optimální z hlediska výkonu,
-ale může vývojářům usnadnit práci a je mnohem efektivnější pouze obohatit existující entitu (vyhledáním podle primárního klíče a načtením pouze chybějících dat),
-než znovu načítat celou entitu.
+Líné načítání nemusí být nutné pro frontend navržený pomocí architektury MVC, kde jsou všechny požadavky na stránku
+známé před jejím vykreslením. Různé architektury však mohou načítat "tenčí" formy entit a později zjistit,
+že potřebují více dat. Ačkoliv tento přístup není z hlediska výkonu optimální, může vývojářům usnadnit práci a je
+mnohem efektivnější pouze obohatit existující entitu (pomocí vyhledání podle primárního klíče a načtení pouze chybějících dat),
+než načítat celou entitu znovu.
 
 <Note type="warning">
 Líné načítání je aktuálně plně implementováno pouze pro embedded evitaDB. Pokud používáte evitaDB vzdáleně přes
 <SourceClass>EvitaDB.Client/EvitaClient.cs</SourceClass>, můžete stále použít metodu `EnrichEntity` na instanci
-<SourceClass>EvitaDB.Client/EvitaClientSession.cs</SourceClass>, ale entita bude znovu načtena celá.
-Tento scénář plánujeme v budoucnu optimalizovat.
+<SourceClass>EvitaDB.Client/EvitaClientSession.cs</SourceClass>, ale entita bude vždy načtena celá znovu.
+Tento scénář však plánujeme v budoucnu optimalizovat.
 </Note>
 
 ### Poznámky k cachování

@@ -1,12 +1,12 @@
 ---
-title: Spusťte evitaDB
-perex: Pokud jste v evitaDB noví, vyzkoušejte tyto jednoduché kroky, abyste si zprovoznili vlastní server.
+title: Spuštění evitaDB
+perex: Pokud jste v evitaDB noví, vyzkoušejte tyto jednoduché kroky pro zprovoznění vlastního serveru.
 date: '1.3.2023'
 author: Ing. Jan Novotný
 proofreading: done
 preferredLang: java
-commit: '726d58606ce657f9de645077ee4cd695b39f73e0'
-translated: true
+translated: 'true'
+commit: '77da5b36c170430534ee4d9a4a2903da4de68555'
 ---
 evitaDB je [Java aplikace](https://openjdk.org/), kterou můžete spustit jako
 [vestavěnou databázi](../use/connectors/java.md) v jakékoli Java aplikaci nebo jako
@@ -56,7 +56,7 @@ podívejte se na samostatné kapitoly popisující [jak spustit evitaDB v Docker
 
 ### Zabalte evitaDB do své aplikace
 
-Pro integraci evitaDB do vašeho projektu použijte následující kroky:
+Pro integraci evitaDB do vašeho projektu postupujte podle následujících kroků:
 
 <CodeTabs>
 <CodeTabsBlock>
@@ -161,10 +161,10 @@ implementation 'io.evitadb:evita_external_api_rest:2026.1.0'
 </CodeTabsBlock>
 </CodeTabs>
 
-### Spusťte HTTP server pro webová API
+### Spuštění HTTP serveru webového API
 
 Webová API evitaDB jsou spravována samostatnou třídou <SourceClass>evita_external_api/evita_external_api_core/src/main/java/io/evitadb/externalApi/http/ExternalApiServer.java</SourceClass>.
-Musíte tuto třídu vytvořit, nakonfigurovat a předat jí referenci na instanci
+Je nutné tuto třídu instancovat a nakonfigurovat a předat jí referenci na instanci
 <SourceClass>evita_engine/src/main/java/io/evitadb/core/Evita.java</SourceClass>:
 
 <SourceCodeTabs requires="/documentation/user/en/get-started/example/server-startup.java" local>
@@ -172,39 +172,35 @@ Musíte tuto třídu vytvořit, nakonfigurovat a předat jí referenci na instan
 </SourceCodeTabs>
 
 <Note type="warning">
-Pokud propojujete `ExternalApiServer` s `Evitou` ručně, jako v ukázce výše, vytvářejte engine
-pomocí `new Evita(config, false)` místo jednoargumentového konstruktoru. Příznak `false` odloží
-načítání katalogů až do volání `ExternalApiServer.start()`, kdy už jsou všichni poskytovatelé API
-přihlášeni k odběru system CDC streamu. Bez tohoto opatření mohou rychle se načítající katalogy
-skončit dříve, než se odběratelé přihlásí, a jejich GraphQL/REST endpointy se neregistrují
-(události HOST CDC mají live-tail-only sémantiku). Uživatelé `EvitaServer` se o toto nemusí
-starat — ten má správné pořadí inicializace zařízeno interně.
+Pokud propojujete `ExternalApiServer` s `Evita` ručně tímto způsobem, vytvořte engine pomocí
+`new Evita(config, false)` místo konstruktoru s jedním argumentem. Tento boolean příznak odloží
+načítání katalogu až do zavolání `ExternalApiServer.start()`, kdy už jsou všichni poskytovatelé API
+přihlášeni k systémovému CDC streamu. Bez tohoto kroku se mohou katalogy načíst příliš rychle,
+ještě než se stihnou připojit odběratelé, a jejich GraphQL/REST endpointy tak nebudou zaregistrovány
+(hostované CDC události jsou pouze live-tail). Uživatelé `EvitaServer` se tímto nemusí zabývat —
+je to již interně správně zapojené.
 </Note>
 
 <Note type="warning">
-Nezapomeňte uzavřít API při ukončení vaší aplikace zavoláním metody `close` na
-instanci <SourceClass>evita_external_api/evita_external_api_core/src/main/java/io/evitadb/externalApi/http/ExternalApiServer.java</SourceClass>.
-Jednou z možností je naslouchat ukončení procesu Java:
+Nezapomeňte API při ukončení aplikace uzavřít zavoláním metody `close` na instanci
+<SourceClass>evita_external_api/evita_external_api_core/src/main/java/io/evitadb/externalApi/http/ExternalApiServer.java</SourceClass>.
+Jednou z možností je naslouchat na ukončení procesu Java:
 
 <SourceCodeTabs requires="/documentation/user/en/get-started/example/api-startup.java" local>
-[Příklad vypnutí webového API v Javě](/documentation/user/en/get-started/example/server-teardown.java)
+[Příklad ukončení webového API v Javě](/documentation/user/en/get-started/example/server-teardown.java)
 </SourceCodeTabs>
 
 </Note>
 
-Při spuštění webového serveru API byste měli v konzoli vidět následující informace:
+Po spuštění webového API serveru byste měli vidět v konzoli následující informace:
 
 ```plain
-Root CA Certificate fingerprint:        CERTIFICATE AUTHORITY FINGERPRINT
-API `gRPC` listening on                 https://your-domain:5555/
-API `graphQL` listening on              https://your-domain:5555/gql/
-API `rest` listening on                 https://your-domain:5555/rest/
-API `system` listening on               http://your-domain:5555/system/
+Otisk certifikátu kořenové CA:          CERTIFICATE AUTHORITY FINGERPRINT
+API `gRPC` naslouchá na                 https://your-domain:5555/
+API `graphQL` naslouchá na              https://your-domain:5555/gql/
+API `rest` naslouchá na                 https://your-domain:5555/rest/
+API `system` naslouchá na               http://your-domain:5555/system/
 ```
-
-</LS>
-<LS to="e,g,r,c">
-
 ### Instalace Dockeru
 
 Než začneme, je potřeba nainstalovat Docker. Návod pro vaši platformu najdete v
@@ -222,12 +218,12 @@ docker run --name evitadb -i --rm --net=host \
        index.docker.io/evitadb/evitadb:latest
 
 # Windows / MacOS: je zde otevřený issue https://github.com/docker/roadmap/issues/238
-# a je potřeba ručně otevřít porty a předat IP adresu hostitele do kontejneru
+# a musíte ručně otevřít porty a předat IP adresu hostitele do kontejneru
 docker run --name evitadb -i --rm -p 5555:5555 \      
        index.docker.io/evitadb/evitadb:latest
 ```
 
-Po spuštění evitaDB serveru byste měli v konzoli vidět následující informace:
+Po spuštění serveru evitaDB byste měli v konzoli vidět následující informace:
 
 ```plain
             _ _        ____  ____
@@ -264,7 +260,7 @@ Supply the certificate for production manually and set `useGeneratedCertificate`
 API `lab` listening on                  https://localhost:5555/lab/
 ```
 
-Více informací o spuštění evitaDB Serveru v Dockeru najdete v [samostatné kapitole](../operate/run.md).
+Více informací o spuštění evitaDB Serveru v Dockeru naleznete v [samostatné kapitole](../operate/run.md).
 
 </LS>
 

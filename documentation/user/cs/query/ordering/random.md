@@ -1,12 +1,12 @@
 ---
 title: Náhodné řazení
 date: '25.6.2023'
-perex: Náhodné řazení je užitečné v situacích, kdy chcete uživateli pokaždé zobrazit jedinečný seznam entit při každém jeho přístupu.
+perex: Náhodné řazení je užitečné v situacích, kdy chcete uživateli pokaždé zobrazit jedinečný seznam entit při jeho přístupu.
 author: Ing. Jan Novotný
 proofreading: needed
 preferredLang: evitaql
-commit: cef96d8320d36c91c100c5dfc9c45020b5a7ad0d
-translated: true
+translated: 'true'
+commit: '77da5b36c170430534ee4d9a4a2903da4de68555'
 ---
 ## Náhodné
 
@@ -14,11 +14,11 @@ translated: true
 random()
 ```
 
-Tato podmínka způsobí, že pořadí entit ve výsledku je náhodné a nepřijímá žádné argumenty.
+Tato podmínka způsobí, že pořadí entit ve výsledku bude náhodné a nepřijímá žádné argumenty.
 
 <SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
-[Entity seřazené náhodně](/documentation/user/en/query/ordering/examples/random/random.evitaql)
+[Entities sorted randomly](/documentation/user/en/query/ordering/examples/random/random.evitaql)
 
 </SourceCodeTabs>
 
@@ -51,7 +51,7 @@ Ukázkový dotaz vždy vrací jinou stránku produktů.
 
 </Note>
 
-## Náhodné s vstupním seedem
+## Náhodné s použitím seedu
 
 ```evitaql-syntax
 randomWithSeed(
@@ -62,18 +62,18 @@ randomWithSeed(
 <dl>
     <dt>argument:long!</dt>
     <dd>
-        definuje seed pro generátor náhodných čísel; použití stejného seedu vždy vytvoří stejné pořadí 
+        definuje seed pro generátor náhodných čísel, což zajišťuje, že stejný seed vždy vytvoří stejný pořádek 
         entit ve výsledku 
     </dd>
 </dl>
 
 Tato podmínka způsobí, že pořadí entit ve výsledku je pseudo-náhodné na základě zadaného seedu. Seed je číslo, které určuje pořadí entit. Stejný seed vždy vytvoří stejné pořadí entit.
 
-Tato varianta náhodného řazení je užitečná, když potřebujete, aby byl výstup náhodný, ale vždy stejným způsobem (například pro testovací účely nebo pro konzistentní výstup pro daného uživatele).
+Tato varianta náhodného řazení je užitečná, když potřebujete, aby byl výstup náhodný, ale vždy stejným způsobem (například pro testovací účely nebo pro konzistentní výstup pro konkrétního uživatele).
 
 <SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
-[Entity seřazené pseudo-náhodně](/documentation/user/en/query/ordering/examples/random/pseudo-random.evitaql)
+[Entita seřazené pseudo-náhodně](/documentation/user/en/query/ordering/examples/random/pseudo-random.evitaql)
 
 </SourceCodeTabs>
 

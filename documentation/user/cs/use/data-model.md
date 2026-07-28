@@ -1,12 +1,12 @@
 ---
 title: Datový model
-perex: Tento článek popisuje strukturu databázové entity (alternativu k záznamu v relační databázi nebo dokumentu v některých NoSQL databázích). Porozumění struktuře entity je zásadní pro práci s evitaDB.
+perex: Tento článek popisuje strukturu databázové entity (alternativa k záznamu v relační databázi nebo dokumentu v některých NoSQL databázích). Porozumění struktuře entity je klíčové pro práci s evitaDB.
 date: '11.5.2026'
 author: Ing. Jan Novotný
 proofreading: done
 preferredLang: java
-commit: ad421e827459646612395d321e5ebb1ad5b6bbe2
 translated: 'true'
+commit: '77da5b36c170430534ee4d9a4a2903da4de68555'
 ---
 <UsedTerms>
     <h4>Použité pojmy v tomto dokumentu</h4>
@@ -335,14 +335,14 @@ Hodnota přidružených dat může obsahovat lokalizované hodnoty. To znamená,
 
 ### Reference
 
-Reference, jak název napovídá, odkazují na jiné entity (stejného nebo jiného typu entity). Reference umožňují filtrování entit podle atributů definovaných na referenčním vztahu nebo podle atributů referencovaných entit. Reference umožňují výpočet [statistik](../query/requirements/reference.md), pokud je pro tento typ referencované entity povolen index facet. Reference je primárně reprezentována <LS to="e,j,r,g">[int](https://docs.oracle.com/javase/tutorial/java/nutsandbolts/datatypes.html)</LS><LS to="c">[int](https://learn.microsoft.com/en-us/dotnet/api/system.int32)</LS> kladným číslem (max. 2<sup>63</sup>-1) a <LS to="e,j,r,g">[String](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html)</LS><LS to="c">[string](https://learn.microsoft.com/en-us/dotnet/api/system.string)</LS> typem entity a může reprezentovat <Term>facet</Term>, který je součástí jedné nebo více <Term name="facet group">skupin facet</Term>, také identifikovaných pomocí <LS to="e,j,r,g">[int](https://docs.oracle.com/javase/tutorial/java/nutsandbolts/datatypes.html)</LS><LS to="c">[int](https://learn.microsoft.com/en-us/dotnet/api/system.int32)</LS>. Identifikátor reference v entitě je jedinečný a patří do jedné skupiny. U více entit může reference na stejnou referencovanou entitu být součástí různých skupin.
+Reference, jak už název napovídá, odkazují na jiné entity (stejného nebo odlišného typu entity). Reference umožňují filtrování entit podle atributů definovaných na referenční relaci nebo podle atributů referencovaných entit. Reference také umožňují výpočet [statistik](../query/requirements/reference.md), pokud je pro tento typ referencované entity povolen index faset. Reference je primárně reprezentována kladným číslem typu <LS to="e,j,r,g">[int](https://docs.oracle.com/javase/tutorial/java/nutsandbolts/datatypes.html)</LS><LS to="c">[int](https://learn.microsoft.com/en-us/dotnet/api/system.int32)</LS> (max. 2<sup>63</sup>-1) a typem entity typu <LS to="e,j,r,g">[String](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html)</LS><LS to="c">[string](https://learn.microsoft.com/en-us/dotnet/api/system.string)</LS> a může představovat <Term>fasetu</Term>, která je součástí jedné nebo více <Term name="facet group">skupin faset</Term>, také identifikovaných pomocí <LS to="e,j,r,g">[int](https://docs.oracle.com/javase/tutorial/java/nutsandbolts/datatypes.html)</LS><LS to="c">[int](https://learn.microsoft.com/en-us/dotnet/api/system.int32)</LS>. Identifikátor reference v entitě je unikátní a náleží do jedné skupiny. U více entit může reference na stejnou referencovanou entitu být součástí různých skupin.
 
-Typ referencované entity může odkazovat na jinou entitu spravovanou evitaDB, nebo může odkazovat na jakoukoli externí entitu, která má jedinečný <LS to="e,j,r,g">[int](https://docs.oracle.com/javase/tutorial/java/nutsandbolts/datatypes.html)</LS>
-<LS to="c">[int](https://learn.microsoft.com/en-us/dotnet/api/system.int32)</LS> klíč jako svůj identifikátor. Očekáváme, že evitaDB bude spravovat data pouze částečně a že bude koexistovat s dalšími systémy za běhu – například systémy pro správu obsahu, skladovými systémy, ERP atd.
+Typ referencované entity může odkazovat na jinou entitu spravovanou evitaDB, nebo může odkazovat na jakoukoli externí entitu, která má jako svůj identifikátor unikátní klíč typu <LS to="e,j,r,g">[int](https://docs.oracle.com/javase/tutorial/java/nutsandbolts/datatypes.html)</LS>
+<LS to="c">[int](https://learn.microsoft.com/en-us/dotnet/api/system.int32)</LS>. Předpokládáme, že evitaDB bude spravovat data pouze částečně a bude koexistovat s dalšími systémy za běhu – například s redakčními systémy, skladovými systémy, ERP a podobně.
 
-Reference jsou jednosměrné, což znamená, že pokud reference směřuje z entity A na entitu B, neznamená to, že entita B automaticky odkazuje zpět na entitu A. Je možné nastavit obousměrnou referenci vytvořením tzv. „reflektované reference“ na druhém typu entity a identifikovat původní referenci, která má být reflektována.
+Reference jsou jednosměrné, což znamená, že pokud reference směřuje z entity A na entitu B, neznamená to, že entita B automaticky referencuje entitu A. Je možné nastavit obousměrnou referenci vytvořením tzv. „reflektované reference“ na druhém typu entity a identifikací původní reference, která má být reflektována.
 
-Reference mohou nést další párová data vztahující se k tomuto vztahu entit (například počet položek na vztahu ke skladu). Data na referencích podléhají stejným pravidlům jako [atributy entity](#atributy-unikátní-filtrovatelné-řaditelné-lokalizované).
+Reference mohou nést dodatečná data ve formě klíč-hodnota vztahující se k tomuto vztahu mezi entitami (například počet položek přítomných ve vztahu ke skladu). Data na referencích podléhají stejným pravidlům jako [atributy entity](#atributy-unikátní-filtrovatelné-řaditelné-lokalizované).
 
 <LS to="j,c">
 
@@ -352,7 +352,7 @@ Reference je reprezentována rozhraním:
 <LS to="j"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/ReferenceContract.java</SourceClass></LS>
 <LS to="c"><SourceClass>EvitaDB.Client/Models/Data/IReference.cs</SourceClass></LS>.
 
-Schéma reference je popsáno:
+Schéma reference je popsáno rozhraním:
 <LS to="j"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/ReferenceSchemaContract.java</SourceClass></LS>
 <LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/IReferenceSchema.cs</SourceClass></LS>.
 
@@ -364,7 +364,7 @@ Reflektovaná reference je reprezentována rozhraním:
 
 </LS>
 
-Více detailů o referencích je popsáno v [kapitole o definici schématu](schema.md#reference).
+Více detailů o referencích je popsáno v [kapitole definice schématu](schema.md#reference).
 
 <Note type="info">
 

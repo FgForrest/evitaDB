@@ -1,12 +1,12 @@
 ---
 title: Dotazovací jazyk
-perex: Dotazovací jazyk je jádrem každého databázového systému. evitaDB zvolila funkcionální podobu jazyka namísto SQL-podobného jazyka, což je více v souladu s jejím vnitřním fungováním a především to umožňuje mnohem větší otevřenost vůči transformacím.
+perex: Dotazovací jazyk je jádrem každého databázového stroje. evitaDB zvolila funkcionální formu jazyka namísto jazyka podobného SQL, což je více v souladu s jejím vnitřním fungováním a především to umožňuje mnohem větší otevřenost pro transformace.
 date: '11.5.2026'
 author: Ing. Jan Novotný
 proofreading: done
 preferredLang: evitaql
-commit: cef96d8320d36c91c100c5dfc9c45020b5a7ad0d
 translated: 'true'
+commit: '77da5b36c170430534ee4d9a4a2903da4de68555'
 ---
 Jazyk dotazů evitaDB se skládá z vnořené sady funkcí, které představují jednotlivá „omezení“.
 Každé omezení (funkce) má svůj název a sadu argumentů uzavřených v závorkách `constraintName(arguments)`,
@@ -46,66 +46,99 @@ Dotaz má tyto čtyři _logické_ části:
 
 ## Gramatika
 
+<LS to="e,j,c">
 Gramatika dotazu je následující:
+</LS>
+<LS to="g,r">
+Gramatika plného dotazu je následující:
+</LS>
 
-Gramatika celého dotazu je následující:
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
-[Ukázka gramatiky dotazu](/documentation/user/en/query/examples/grammar.evitaql)
+[Příklad gramatiky dotazu](/documentation/user/en/query/examples/grammar.evitaql)
 
-Nebo složitější příklad:
+</SourceCodeTabs>
 
-[Ukázka gramatiky složitějšího dotazu](/documentation/user/en/query/examples/complexGrammar.evitaql)
+Nebo složitější varianta:
 
-Kde část _header_ (dotazovaná kolekce) je součástí samotného názvu GraphQL dotazu a části _filter_, _order_ a _require_
-jsou definovány pomocí argumentů GraphQL dotazu.
-Navíc má GraphQL jedinečnou reprezentaci části _require_. I když můžete definovat _require_
-omezení jako argument GraphQL, jedná se pouze o obecná omezení, která definují pravidla pro výpočty.
-Hlavní část require, která definuje úplnost vracených entit (a další výsledky), je definována pomocí výstupních polí
-GraphQL dotazu. Tímto způsobem, na rozdíl od ostatních API, konkrétně definujete výstupní formu výsledku dotazu
-z toho, co vám doménové schéma evitaDB umožňuje získat.
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
-Další jednodušší varianty gramatiky GraphQL dotazu jsou podrobněji popsány [zde](../use/api/query-data.md#definice-dotazů-v-graphql-api),
-ale základní logika je vždy stejná.
+[Příklad gramatiky složitějšího dotazu](/documentation/user/en/query/examples/complexGrammar.evitaql)
 
-Kde část _header_ (dotazovaná kolekce) je součástí cesty URL a části _filter_, _order_ a _require_ jsou definovány
+</SourceCodeTabs>
+
+<LS to="g">
+
+Část _header_ (dotazovaná kolekce) je součástí samotného názvu GraphQL dotazu a části _filter_, _order_ a _require_
+jsou definovány pomocí argumentů tohoto GraphQL dotazu.
+Navíc má GraphQL specifické zpracování části _require_. Přestože můžete definovat _require_
+omezení jako argument GraphQL dotazu, jedná se pouze o obecná omezení, která určují pravidla pro výpočty.
+Hlavní část require, která určuje úplnost vracených entit (a doplňkových výsledků), je definována pomocí výstupních polí
+GraphQL dotazu. Tímto způsobem, na rozdíl od ostatních API, přesně určujete výstupní podobu výsledku dotazu podle toho,
+co vám doménové schéma evitaDB umožňuje získat.
+
+Další jednodušší varianty gramatiky GraphQL dotazu jsou popsány [zde](../use/api/query-data.md#definice-dotazů-v-graphql-api)
+podrobněji, ale základní logika je vždy stejná.
+
+</LS>
+<LS to="r">
+Část _header_ (dotazovaná kolekce) je součástí cesty URL a části _filter_, _order_ a _require_ jsou definovány
 jako vlastnosti vstupního JSON objektu.
 
-Další jednodušší varianty gramatiky REST dotazu jsou podrobněji popsány [zde](../use/api/query-data.md#definice-dotazů-v-rest-api),
-ale základní logika je vždy stejná.
+Další jednodušší varianty gramatiky REST dotazu jsou popsány [zde](../use/api/query-data.md#definice-dotazů-v-rest-api)
+podrobněji, ale základní logika je vždy stejná.
+
+</LS>
+
+<LS to="e,j,c">
 
 Každá část dotazu je volitelná. Pouze část `collection` je obvykle povinná, ale existuje výjimka z tohoto pravidla.
-Pokud část `filterBy` obsahuje omezení, které cílí na globálně unikátní atribut, lze část `collection` také vynechat,
-protože evitaDB může implicitně určit kolekci tohoto globálně unikátního atributu automaticky.
-V dotazu však může být nejvýše jedna část každé z `collection`, `filterBy`, `orderBy` a `require`.
+Pokud část `filterBy` obsahuje omezení, které cílí na globálně unikátní atribut, lze část `collection`
+také vynechat, protože evitaDB dokáže implicitně určit kolekci tohoto globálně unikátního atributu automaticky.
+V dotazu však může být maximálně jedna část každé z `collection`, `filterBy`, `orderBy` a `require`.
 Pořadí částí lze libovolně měnit (na pořadí nezáleží). Například následující dotaz je stále platný a představuje
 nejjednodušší možný dotaz:
 
+</LS>
+<LS to="g,r">
+
 Téměř každá část dotazu je volitelná. Pouze `collection` je obvykle povinná, ale existuje výjimka z tohoto pravidla.
 Vždy musíte použít konkrétní <LS to="g">GraphQL dotaz</LS><LS to="r">REST endpoint</LS>,
-kde je název kolekce již definován, avšak můžete použít
-obecný <LS to="g">GraphQL dotaz</LS><LS to="r">REST endpoint</LS>
-(i když je velmi omezený kvůli povaze generovaného schématu)
+kde je název kolekce již definován, nicméně můžete
+použít obecný <LS to="g">GraphQL dotaz</LS><LS to="r">REST endpoint</LS>
+(i když je kvůli povaze generovaného schématu velmi omezený)
 a použít omezení, které cílí na globálně unikátní atribut. V tomto případě lze část `collection`
-vynechat, protože evitaDB může implicitně určit kolekci tohoto globálně unikátního atributu automaticky.
-<LS to="g">Ostatní části definované pomocí argumentů jsou volitelné, ale kvůli povaze GraphQL musíte definovat alespoň jedno výstupní pole.</LS>
+vynechat, protože evitaDB dokáže implicitně určit kolekci tohoto globálně unikátního atributu automaticky.
+<LS to="g">Ostatní části definované pomocí argumentů jsou volitelné, ale kvůli povaze GraphQL musíte definovat alespoň
+jedno výstupní pole.</LS>
 <LS to="r">Ostatní části definované jako vlastnosti vstupního JSON objektu jsou volitelné.</LS>
-V dotazu však může být nejvýše jedna část každé z _header_, _filter_, _order_ a _require_.
+V dotazu však může být maximálně jedna část každé z _header_, _filter_, _order_ a _require_.
 
-Další specifikum v gramatice <LS to="g">GraphQL</LS><LS to="r">REST</LS>
-dotazu je, že názvy omezení obvykle obsahují klasifikátory cílových dat (např. název atributu).
-To je důležitý rozdíl oproti ostatním API, a je to proto, že tímto způsobem může
+Další specifikum v gramatice dotazu <LS to="g">GraphQL</LS><LS to="r">REST</LS>
+je, že názvy omezení obvykle obsahují klasifikátory cílových dat (např. název atributu).
+To je důležitý rozdíl oproti ostatním API a je to proto, že tímto způsobem může být
 <LS to="g">GraphQL</LS><LS to="r">REST</LS>
-schéma pro hodnotu vlastnosti omezení být specifické pro konkrétní omezení a cílová data a IDE může nabídnout
-správné doplňování a validaci argumentů omezení.
+schéma pro hodnotu vlastnosti omezení specifické pro dané omezení a cílová data a IDE může nabídnout
+správné automatické doplňování a validaci argumentů omezení.
 
 Například následující dotaz je stále platný a představuje nejjednodušší možný dotaz:
 
-[Ukázka nejjednoduššího dotazu](/documentation/user/en/query/examples/simplestQuery.evitaql)
+</LS>
+
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+
+[Příklad nejjednoduššího dotazu](/documentation/user/en/query/examples/simplestQuery.evitaql)
+
+</SourceCodeTabs>
 
 ... nebo i tento (i když je doporučeno zachovat pořadí pro lepší čitelnost:
 `head`, `filterBy`, `orderBy`, `require`):
 
-[Ukázka náhodného pořadí částí dotazu](/documentation/user/en/query/examples/randomOrderQuery.evitaql)
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+
+[Příklad dotazu s náhodným pořadím částí](/documentation/user/en/query/examples/randomOrderQuery.evitaql)
+
+</SourceCodeTabs>
 
 <Note type="info">
 
@@ -386,7 +419,7 @@ Rozsahová omezení jsou podobná [Porovnávacím](#porovnávací-omezení), ale
 umožňují operace specifické pro tento typ:
 
 - [attribute in range](filtering/range.md#atribut-v-rozsahu)
-- [attribute in range now](filtering/range.md#atribut-v-rozsahu-nyní)
+- [attribute in range now](filtering/range.md#atribut-v-aktuálním-rozsahu)
 
 ### Cenová omezení
 
@@ -426,7 +459,7 @@ klauzule „order by“ v SQL. V současné době jsou k dispozici tato omezení
 
 - [entity primary key in filter](ordering/constant.md#přesné-pořadí-primárních-klíčů-entit-použité-ve-filtru)
 - [entity primary key exact](ordering/constant.md#přesné-pořadí-primárních-klíčů-entit)
-- [entity primary key natural](ordering/comparable.md#primární-klíč-natural)
+- [entity primary key natural](ordering/comparable.md#přirozené-řazení-podle-primárního-klíče)
 - [attribute set in filter](ordering/constant.md#přesné-pořadí-hodnot-atributu-entity-použité-ve-filtru)
 - [attribute set exact](ordering/constant.md#přesné-pořadí-hodnot-atributu-entity)
 - [attribute natural](ordering/comparable.md#atribut-natural)
@@ -434,7 +467,7 @@ klauzule „order by“ v SQL. V současné době jsou k dispozici tato omezení
 - [price discount](ordering/price.md#sleva-z-ceny)
 - [reference property](ordering/reference.md#vlastnost-reference)
 - [entity property](ordering/reference.md#vlastnost-entity)
-- [entity group property](ordering/reference.md#vlastnost-skupiny-entity)
+- [entity group property](ordering/reference.md#vlastnost-skupiny-entit)
 - [random](ordering/random.md#náhodné)
 - [in scope](ordering/behavioral.md#v-rozsahu)
 
@@ -503,19 +536,19 @@ které organizuje entity do srozumitelnější stromové kategorizace:
 
 ### Reference
 
-Požadavky na souhrn referencí spouštějí výpočet další datové struktury, která vypisuje všechny fasetované
-reference na entitě, uspořádané do skupin s vypočteným počtem všech entit, které odpovídají každé možnosti.
-Alternativně může souhrn obsahovat predikci toho, kolik entit zůstane, pokud bude daná možnost přidána
-do filtru, plus volitelné číselné histogramy na úrovni skupiny pro filtry řízené posuvníky:
+Požadavky na souhrn referencí spouštějí výpočet další datové struktury, která uvádí všechny facetované
+reference na entitě, uspořádané do skupin s vypočítaným počtem všech entit, které odpovídají každé možnosti.
+Alternativně může souhrn obsahovat predikci, kolik entit zůstane, když bude daná možnost
+přidána do filtru, plus volitelné číselné histogramy pro jednotlivé skupiny pro filtry ovládané posuvníkem:
 
-- [souhrn referencí](requirements/reference.md#souhrn-referencí)
+- [souhrn referencí](requirements/reference.md#referenční-souhrn)
 <LS to="e,j,r,c">
-- [souhrn vybrané reference](requirements/reference.md#souhrn-vybrané-reference)
+- [souhrn referencí reference](requirements/reference.md#souhrn-referenčního-souhrnu)
 </LS>
-- [statistiky histogramu](requirements/reference.md#statistiky-histogramu)
-- [konjunkce skupin faset](requirements/reference.md#konjunkce-skupin-faset)
-- [disjunkce skupin faset](requirements/reference.md#disjunkce-skupin-faset)
-- [negace skupin faset](requirements/reference.md#negace-skupin-faset)
+- [statistiky histogramu](requirements/reference.md#histogramové-statistiky)
+- [konjunkce skupin facet](requirements/reference.md#konjunkce-skupin-facet)
+- [disjunkce skupin facet](requirements/reference.md#disjunkce-skupin-facet)
+- [negace skupin facet](requirements/reference.md#negace-skupin-facet)
 
 ### Histogram
 

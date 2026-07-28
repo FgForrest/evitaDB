@@ -1,12 +1,12 @@
 ---
 title: Kolekce
 date: '12.12.2024'
-perex: V hlavičce dotazu lze použít pouze několik omezení. Kolekce určuje cílovou entitní kolekci pro dotaz.
+perex: Pouze několik omezení lze použít v hlavičce dotazu. Kolekce určuje cílovou entitní kolekci pro dotaz.
 author: Ing. Jan Novotný
 proofreading: done
 preferredLang: evitaql
-commit: cef96d8320d36c91c100c5dfc9c45020b5a7ad0d
-translated: true
+translated: 'true'
+commit: '77da5b36c170430534ee4d9a4a2903da4de68555'
 ---
 ## Kolekce
 

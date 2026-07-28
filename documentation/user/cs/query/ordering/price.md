@@ -5,10 +5,10 @@ perex: Řazení podle prodejní ceny je jedním ze základních požadavků pro 
 author: Ing. Jan Novotný
 proofreading: done
 preferredLang: evitaql
-commit: cef96d8320d36c91c100c5dfc9c45020b5a7ad0d
-translated: true
+translated: 'true'
+commit: '77da5b36c170430534ee4d9a4a2903da4de68555'
 ---
-## Přirozená cena
+## Price natural
 
 ```evitaql-syntax
 priceNatural(
@@ -26,10 +26,10 @@ priceNatural(
 Omezení <LS to="e,j,r,g"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/order/PriceNatural.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Queries/Order/PriceNatural.cs</SourceClass></LS>
 umožňuje řadit výstupní entity podle jejich [prodejní ceny](../../deep-dive/price-for-sale-calculation.md)
 v jejich přirozeném číselném pořadí. Vyžaduje pouze směr řazení a cenová omezení v sekci `filterBy`
-dotazu. Cenová varianta (s nebo bez daně) je určena požadavkem [`priceType`](../requirements/price.md#typ-ceny)
-dotazu (ve výchozím nastavení se používá cena s daní).
+dotazu. Varianta ceny (s nebo bez daně) je určena požadavkem [`priceType`](../requirements/price.md#typ-ceny)
+v dotazu (ve výchozím nastavení se používá cena s daní).
 
-Pro seřazení produktů podle jejich prodejní ceny (aktuálně se zohledňuje pouze cenový seznam `basic` a měna `EUR`) můžeme použít
+Pro seřazení produktů podle jejich prodejní ceny (aktuálně je zohledněn pouze ceník `basic` a měna `EUR`) můžeme použít
 následující dotaz:
 
 <SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
@@ -139,18 +139,19 @@ součet nebyl konzistentní s prodejní cenou.
 
 </NoteTitle>
 
-Ano, ceny musí být v databázi indexovány, aby bylo možné produkty řadit podle výše slevy. Neindexované ceny jsou
-přístupné pouze při načtení těla entity z disku, což by bylo velmi neefektivní pro řazení velkých datových sad.
-Proto i „neindexované“ ceny musí být indexovány a uchovávány v paměťových indexech, aby bylo možné efektivně vypočítat výši slevy.
+Ano, ceny musí být v databázi indexovány, aby bylo možné řadit produkty podle výše slevy. Neindexované ceny jsou 
+dostupné pouze při načtení těla entity z disku, což by bylo pro řazení velkých datových sad velmi neefektivní. 
+Proto i „neindexované“ ceny musí být indexovány a uchovávány v paměťových indexech, aby bylo možné efektivně 
+vypočítat výši slevy.
 
 </Note>
 
-Pro seřazení produktů podle výše jejich slevy (tj. pro porovnání, jakou slevu získáte s `b2b-basic-price` oproti
-cenovému seznamu `basic` a měně `EUR`) můžeme použít následující dotaz:
+Pro řazení produktů podle výše jejich slevy (tj. pro porovnání, jakou slevu získáte s `b2b-basic-price` oproti 
+cenovému seznamu `basic` a měně `EUR`), můžeme použít následující dotaz:
 
 <SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
-[Seznam produktů s nejvyšší slevou na začátku](/documentation/user/en/query/ordering/examples/price/price-discount.evitaql)
+[List products with largest discount first](/documentation/user/en/query/ordering/examples/price/price-discount.evitaql)
 </SourceCodeTabs>
 
 <Note type="info">

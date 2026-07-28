@@ -1,11 +1,11 @@
 ---
 title: Spuštění
-perex: Pokud chcete provozovat evitaDB jako samostatnou službu na svém serveru, můžete použít Docker. Tato kapitola popisuje, jak spustit evitaDB v Dockeru a jak ji nakonfigurovat.
+perex: Pokud chcete provozovat evitaDB jako samostatnou službu na svém serveru, můžete použít Docker. Tato kapitola popisuje, jak spustit evitaDB v Dockeru a jak jej nakonfigurovat.
 date: '17.1.2023'
 author: Ing. Jan Novotný
 proofreading: done
-commit: cef96d8320d36c91c100c5dfc9c45020b5a7ad0d
 translated: 'true'
+commit: '77da5b36c170430534ee4d9a4a2903da4de68555'
 ---
 Docker image je založen na RedHat JDK / Linux (viz <SourceClass>docker/Dockerfile</SourceClass>) základním
 image (rodina Fedora) a je publikován na [Docker Hub](https://hub.docker.com/repository/docker/evitadb/evitadb/general).

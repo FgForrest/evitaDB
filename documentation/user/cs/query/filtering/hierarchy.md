@@ -1,12 +1,12 @@
 ---
 title: Filtrování podle hierarchie
-perex: Filtrování podle hierarchie vám umožňuje dotazovat se na stromové struktury nebo položky, které odkazují na uzel v této struktuře. V e-commerce projektech je hierarchická struktura reprezentována stromem kategorií a položky, které na ni odkazují, jsou obvykle produkty nebo nějaký druh „inventáře“. Tato funkce úzce souvisí s procházením menu a výpisem položek relevantních pro aktuálně zobrazenou kategorii.
+perex: Filtrování podle hierarchie vám umožňuje dotazovat se na stromové struktury nebo položky, které odkazují na uzel v této struktuře. V e-commerce projektech je hierarchická struktura reprezentována stromem kategorií a položky, které na něj odkazují, jsou obvykle produkty nebo nějaký druh „inventáře“. Tato funkce úzce souvisí s procházením menu a výpisem položek relevantních pro aktuálně zobrazenou kategorii.
 date: '5.5.2023'
 author: Ing. Jan Novotný
 proofreading: done
 preferredLang: evitaql
-commit: cef96d8320d36c91c100c5dfc9c45020b5a7ad0d
 translated: 'true'
+commit: '77da5b36c170430534ee4d9a4a2903da4de68555'
 ---
 Hierarchické filtrování lze použít pouze na entity [označené jako hierarchické](../../use/data-model.md#hierarchické-umístění)
 nebo na entity, které [odkazují](../../use/data-model.md#reference) na tyto hierarchické entity. Hierarchické filtrování
@@ -50,13 +50,13 @@ hierarchyWithin(
 <dl>
     <dt>filterConstraint:any!</dt>
     <dd>
-        jedno povinné omezení filtru, které identifikuje **jeden nebo více** uzlů hierarchie, které fungují jako kořeny hierarchie;
-        více omezení musí být uzavřeno v kontejnerech [AND](../logical.md#and) / [OR](../logical.md#or)
+        jeden povinný filtrační parametr, který identifikuje **jeden nebo více** uzlů hierarchie, jež fungují jako kořeny hierarchie;
+        více parametrů musí být uzavřeno v kontejnerech [AND](../logical.md#and) / [OR](../logical.md#or)
     </dd>
     <dt>filterConstraint:(directRelation|having|excluding|excludingRoot)*</dt>
     <dd>
-        volitelná omezení umožňují zúžit rozsah hierarchie;
-        žádné nebo všechna omezení mohou být přítomna:
+        volitelné parametry umožňují dále zúžit rozsah hierarchie;
+        nemusí být uveden žádný, nebo naopak všechny:
         <ul>
             <li>[directRelation](#direct-relation)</li>
             <li>[having](#having)</li>
@@ -66,17 +66,17 @@ hierarchyWithin(
     </dd>
 </dl>
 
-Nejpřímější použití je filtrování samotných hierarchických entit.
+Nejpřímějším použitím je filtrování samotných hierarchických entit.
 
-Chcete-li vypsat všechny vnořené kategorie kategorie *Příslušenství*, spusťte tento dotaz:
+Pro výpis všech vnořených kategorií kategorie *Příslušenství* použijte tento dotaz:
 
 <SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
-[Transitivní výpis kategorií](/documentation/user/en/query/filtering/examples/hierarchy/hierarchy-within-self-simple.evitaql)
+[Transitive category listing](/documentation/user/en/query/filtering/examples/hierarchy/hierarchy-within-self-simple.evitaql)
 
 </SourceCodeTabs>
 
-... a v odpovědi byste měli dostat o něco více než jednu stránku kategorií.
+... a v odpovědi byste měli získat o něco více než jednu stránku kategorií.
 
 <Note type="info">
 
@@ -115,11 +115,11 @@ a předat primární klíč kategorie.
 
 <NoteTitle toggles="true">
 
-##### Může omezení filtru rodičovského uzlu odpovídat více uzlům?
+##### Může omezení filtru nadřazeného uzlu odpovídat více uzlům?
 
 </NoteTitle>
 
-Ano, může. I když je to zjevně jeden z okrajových případů, je to možné. Tento dotaz:
+Ano, může. I když se jedná spíše o okrajový případ, je to možné. Tento dotaz:
 
 <SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
@@ -127,27 +127,27 @@ Ano, může. I když je to zjevně jeden z okrajových případů, je to možné
 
 </SourceCodeTabs>
 
-... vrátí všechny podkategorie *Bezdrátová sluchátka* a *Drátová sluchátka* a jejich podkategorie:
+... vrátí všechny podkategorie *Bezdrátových sluchátek* a *Drátových sluchátek* a jejich podkategorie:
 
 <LS to="e,j,c">
 
-<MDInclude>[Příklad s více kořeny](/documentation/user/en/query/filtering/examples/hierarchy/hierarchy-within-self-multi.evitaql.md)</MDInclude>
+<MDInclude>[Příklad hierarchie s více kořeny](/documentation/user/en/query/filtering/examples/hierarchy/hierarchy-within-self-multi.evitaql.md)</MDInclude>
 
 </LS>
 
 <LS to="g">
 
-<MDInclude>[Příklad s více kořeny](/documentation/user/en/query/filtering/examples/hierarchy/hierarchy-within-self-multi.graphql.json.md)</MDInclude>
+<MDInclude>[Příklad hierarchie s více kořeny](/documentation/user/en/query/filtering/examples/hierarchy/hierarchy-within-self-multi.graphql.json.md)</MDInclude>
 
 </LS>
 
 <LS to="r">
 
-<MDInclude>[Příklad s více kořeny](/documentation/user/en/query/filtering/examples/hierarchy/hierarchy-within-self-multi.rest.json.md)</MDInclude>
+<MDInclude>[Příklad hierarchie s více kořeny](/documentation/user/en/query/filtering/examples/hierarchy/hierarchy-within-self-multi.rest.json.md)</MDInclude>
 
 </LS>
 
-![Výpis kategorií Příslušenství](../../../en/query/filtering/assets/accessories-category-listing-multi.png "Accessories category listing")
+![Výpis kategorií příslušenství](assets/accessories-category-listing-multi.png "Výpis kategorií příslušenství")
 
 </Note>
 
@@ -164,20 +164,20 @@ hierarchyWithin(
 <dl>
     <dt>argument:string!</dt>
     <dd>
-        povinný název dotazované [referenční schématu entity](../../use/schema.md#reference), které představuje
+        povinný název dotazované entity [referenčního schématu](../../use/schema.md#reference), který představuje
         vztah k hierarchickému typu entity; vaše entita může cílit na různé hierarchické entity v různých typech referencí,
-        nebo může cílit na stejnou hierarchickou entitu prostřednictvím více sémanticky odlišných referencí, a proto se používá
-        název reference místo typu cílové entity.
+        nebo může cílit na stejnou hierarchickou entitu prostřednictvím více sémanticky odlišných referencí,
+        a proto se používá název reference místo typu cílové entity.
     </dd>
     <dt>filterConstraint:any!</dt>
     <dd>
-        jedno povinné omezení filtru, které identifikuje **jeden nebo více** uzlů hierarchie, které fungují jako kořeny hierarchie;
-        více omezení musí být uzavřeno v kontejnerech [AND](../logical.md#and) / [OR](../logical.md#or)
+        jedna povinná filtrační podmínka, která identifikuje **jeden nebo více** uzlů hierarchie, jež fungují jako kořeny hierarchie;
+        více podmínek musí být uzavřeno v kontejnerech [AND](../logical.md#and) / [OR](../logical.md#or)
     </dd>
     <dt>filterConstraint:(directRelation|having|excluding|excludingRoot)*</dt>
     <dd>
-        volitelná omezení umožňují zúžit rozsah hierarchie;
-        žádné nebo všechna omezení mohou být přítomna:
+        volitelné podmínky umožňují zúžit rozsah hierarchie;
+        žádná nebo všechny podmínky mohou být přítomny:
         <ul>
             <li>[directRelation](#direct-relation)</li>
             <li>[having](#having)</li>
@@ -188,8 +188,8 @@ hierarchyWithin(
 </dl>
 
 Omezení `hierarchyWithin` lze použít také pro entity, které přímo odkazují na hierarchický typ entity.
-Nejčastějším případem z e-commerce světa je produkt, který je přiřazen k jedné nebo více kategoriím. Chcete-li vypsat všechny
-produkty v kategorii *Příslušenství* v našem [demo datasetu](../../get-started/query-our-dataset.md), použijeme následující dotaz:
+Nejběžnějším případem z e-commerce světa je produkt, který je přiřazen do jedné nebo více kategorií. Pro výpis všech
+produktů v kategorii *Příslušenství* v našem [ukázkovém datasetu](../../get-started/query-our-dataset.md) zadáme následující dotaz:
 
 <SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
@@ -197,10 +197,10 @@ produkty v kategorii *Příslušenství* v našem [demo datasetu](../../get-star
 
 </SourceCodeTabs>
 
-Produkty přiřazené do dvou nebo více podkategorií kategorie *Příslušenství* se v odpovědi objeví pouze jednou (na rozdíl
+Produkty přiřazené do dvou nebo více podkategorií kategorie *Příslušenství* se ve výsledku objeví pouze jednou (na rozdíl
 od toho, co byste mohli očekávat, pokud máte zkušenosti s SQL).
 
-Dotaz vrací první stránku z celkem 26 stránek položek.
+Dotaz vrátí první stránku z celkových 26 stránek položek.
 
 <Note type="info">
 
@@ -259,8 +259,8 @@ hierarchyWithinRoot(
 <dl>
     <dt>filterConstraint:(directRelation|having|excluding)*</dt>
     <dd>
-        volitelná omezení umožňují zúžit rozsah hierarchie;
-        žádné nebo všechna omezení mohou být přítomna:
+        volitelné omezení vám umožní zúžit rozsah hierarchie;
+        může být přítomno žádné nebo všechna omezení:
         <ul>
             <li>[directRelation](#direct-relation)</li>
             <li>[having](#having)</li>
@@ -269,9 +269,9 @@ hierarchyWithinRoot(
     </dd>
 </dl>
 
-Omezení `hierarchyWithinRoot`, které cílí na kolekci `Category` samotnou, vrací všechny kategorie kromě těch,
-které by ukazovaly na neexistující rodičovské uzly. Takové uzly hierarchie se nazývají [sirotci](../../use/schema.md#sirotčí-uzly-v-hierarchii)
-a nevyhovují žádnému hierarchickému dotazu.
+`hierarchyWithinRoot`, které cílí na samotnou kolekci `Category`, vrací všechny kategorie kromě těch,
+které by odkazovaly na neexistující nadřazené uzly. Takové uzly hierarchie se nazývají [sirotci](../../use/schema.md#orphan-hierarchy-nodes)
+a nevyhovují žádnému dotazu na hierarchii.
 
 <SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
@@ -279,7 +279,7 @@ a nevyhovují žádnému hierarchickému dotazu.
 
 </SourceCodeTabs>
 
-Dotaz vrací první stránku z celkem 2 stránek položek.
+Dotaz vrací první stránku z celkových 2 stránek položek.
 
 <Note type="info">
 
@@ -321,15 +321,15 @@ hierarchyWithinRoot(
 <dl>
     <dt>argument:string!</dt>
     <dd>
-        povinný název dotazované [referenční schématu entity](../../use/schema.md#reference), které představuje
-        vztah k hierarchickému typu entity; vaše entita může cílit na různé hierarchické entity v různých typech referencí,
-        nebo může cílit na stejnou hierarchickou entitu prostřednictvím více sémanticky odlišných referencí, a proto se používá
-        název reference místo typu cílové entity.
+        povinný název dotazované entity [referenčního schématu](../../use/schema.md#reference), který představuje
+        vztah k hierarchickému typu entity; vaše entita může odkazovat na různé hierarchické entity v různých typech referencí,
+        nebo může odkazovat na stejnou hierarchickou entitu prostřednictvím více sémanticky odlišných referencí,
+        a právě proto se používá název reference místo typu cílové entity.
     </dd>
     <dt>filterConstraint:(having|excluding)*</dt>
     <dd>
-        volitelná omezení umožňují zúžit rozsah hierarchie;
-        žádné nebo všechna omezení mohou být přítomna:
+        volitelné restrikce umožňují zúžit rozsah hierarchie;
+        žádná nebo všechny restrikce mohou být přítomny:
         <ul>
             <li>[directRelation](#direct-relation)</li>
             <li>[having](#having)</li>
@@ -338,9 +338,9 @@ hierarchyWithinRoot(
     </dd>
 </dl>
 
-Omezení `hierarchyWithinRoot` lze použít také pro entity, které přímo odkazují na hierarchický typ entity.
-Nejčastějším případem z e-commerce světa je produkt, který je přiřazen k jedné nebo více kategoriím. Chcete-li vypsat všechny
-produkty přiřazené do jakékoli kategorie v našem [demo datasetu](../../get-started/query-our-dataset.md), použijeme následující dotaz:
+Omezení `hierarchyWithinRoot` lze také použít pro entity, které přímo odkazují na hierarchický typ entity.
+Nejčastějším příkladem z e-commerce světa je produkt, který je přiřazen k jedné nebo více kategoriím. Pro vypsání všech
+produktů přiřazených ke kterékoliv kategorii v našem [ukázkovém datasetu](../../get-started/query-our-dataset.md) zadáme následující dotaz:
 
 <SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
@@ -348,11 +348,10 @@ produkty přiřazené do jakékoli kategorie v našem [demo datasetu](../../get-
 
 </SourceCodeTabs>
 
-Produkty přiřazené pouze k jedné [sirotčí kategorii](../../use/schema.md#sirotčí-uzly-v-hierarchii) budou v
-výsledku chybět. Produkty přiřazené ke dvěma nebo více kategoriím se v odpovědi objeví pouze jednou (na rozdíl od toho,
-co byste mohli očekávat, pokud máte zkušenosti s SQL).
+Produkty přiřazené pouze k jedné [osamocené kategorii](../../use/schema.md#orphan-hierarchy-nodes) budou ve výsledku chybět.
+Produkty přiřazené ke dvěma nebo více kategoriím se ve výsledku objeví pouze jednou (na rozdíl od toho, co byste mohli očekávat, pokud máte zkušenost s SQL).
 
-Dotaz vrací první stránku z celkem 212 stránek položek:
+Dotaz vrací první stránku z celkových 212 stránek položek:
 
 <Note type="info">
 
@@ -397,13 +396,13 @@ directRelation()
 
 ### Self
 
-Pokud hierarchické omezení cílí na hierarchickou entitu, `directRelation` způsobí, že budou vráceny pouze děti
-přímého rodičovského uzlu. V případě omezení `hierarchyWithinRoot` je rodičem neviditelný "virtuální"
-nejvyšší kořen – takže jsou vráceny pouze nejvyšší kategorie.
+Pokud hierarchické omezení cílí na hierarchickou entitu, `directRelation` způsobí, že budou vráceny pouze děti přímého
+rodičovského uzlu. V případě omezení `hierarchyWithinRoot` je rodičem neviditelný „virtuální“
+nejvyšší kořen – takže jsou vráceny pouze kategorie nejvyšší úrovně.
 
 <SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
-[Výpis nejvyšších kategorií](/documentation/user/en/query/filtering/examples/hierarchy/hierarchy-within-self-top-categories.evitaql)
+[Výpis kategorií nejvyšší úrovně](/documentation/user/en/query/filtering/examples/hierarchy/hierarchy-within-self-top-categories.evitaql)
 
 </SourceCodeTabs>
 
@@ -412,40 +411,6 @@ nejvyšší kořen – takže jsou vráceny pouze nejvyšší kategorie.
 <NoteTitle toggles="true">
 
 ##### Výpis všech kořenových kategorií hierarchie
-
-</NoteTitle>
-
-<LS to="e,j,c">
-
-<MDInclude>[Výpis nejvyšších kategorií](/documentation/user/en/query/filtering/examples/hierarchy/hierarchy-within-self-top-categories.evitaql.md)</MDInclude>
-
-</LS>
-
-<LS to="g">
-
-<MDInclude>[Výpis nejvyšších kategorií](/documentation/user/en/query/filtering/examples/hierarchy/hierarchy-within-self-top-categories.graphql.json.md)</MDInclude>
-
-</LS>
-
-<LS to="r">
-
-<MDInclude>[Výpis nejvyšších kategorií](/documentation/user/en/query/filtering/examples/hierarchy/hierarchy-within-self-top-categories.rest.json.md)</MDInclude>
-
-</LS>
-
-</Note>
-
-V případě `hierarchyWithin` bude výsledek obsahovat přímé děti filtrované kategorie (nebo kategorií).
-
-<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
-
-[Výpis podkategorií Příslušenství](/documentation/user/en/query/filtering/examples/hierarchy/hierarchy-within-self-direct-categories.evitaql)
-
-</SourceCodeTabs>
-
-<Note type="info">
-
-<NoteTitle toggles="true">
 
 ##### Výpis všech přímých podkategorií kategorie *Příslušenství*
 </NoteTitle>
@@ -472,11 +437,11 @@ V případě `hierarchyWithin` bude výsledek obsahovat přímé děti filtrovan
 
 ### Referencovaná entita
 
-Pokud hierarchické omezení cílí na nehierarchickou entitu, která odkazuje na hierarchickou (typickým příkladem je
-produkt přiřazený ke kategorii), lze jej použít pouze v nadřazeném omezení `hierarchyWithin`.
+Pokud hierarchická podmínka cílí na nehierarchickou entitu, která odkazuje na hierarchickou (typickým příkladem je
+produkt přiřazený ke kategorii), může být použita pouze v nadřazené podmínce `hierarchyWithin`.
 
-V případě `hierarchyWithinRoot` omezení `directRelation` nedává smysl, protože žádná entita nemůže být přiřazena
-k "virtuálnímu" nejvyššímu rodičovskému kořeni.
+V případě `hierarchyWithinRoot` nedává podmínka `directRelation` smysl, protože žádná entita nemůže být přiřazena
+k „virtuálnímu“ kořenovému rodiči.
 
 Můžeme tedy vypsat pouze produkty, které jsou přímo přiřazeny ke konkrétní kategorii – pokud se pokusíme vypsat produkty,
 které mají přiřazenou kategorii *Příslušenství*:
@@ -487,8 +452,8 @@ které mají přiřazenou kategorii *Příslušenství*:
 
 </SourceCodeTabs>
 
-... dostaneme prázdný výsledek. Neexistují žádné produkty přímo přiřazené ke kategorii *Příslušenství*, všechny odkazují na
-některou z jejích podkategorií. Zkusme podkategorii *Chytré hodinky*:
+... získáme prázdný výsledek. Neexistují žádné produkty přímo přiřazené ke kategorii *Příslušenství*, všechny odkazují na
+některou z jejích podkategorií. Zkusme tedy podkategorii *Chytré hodinky*:
 
 <SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
@@ -496,7 +461,7 @@ některou z jejích podkategorií. Zkusme podkategorii *Chytré hodinky*:
 
 </SourceCodeTabs>
 
-... a získáme seznam všech produktů přímo přiřazených ke kategorii *Chytré hodinky*.
+... a získáme seznam všech produktů, které jsou přímo přiřazené ke kategorii *Chytré hodinky*.
 
 <Note type="info">
 
@@ -538,11 +503,10 @@ přímo spojené s tímto rodičovským uzlem jsou z výsledku vyloučeny.
 excludingRoot()
 ```
 
-### Self
+### Samotný uzel
 
 Pokud hierarchické omezení cílí na hierarchickou entitu, `excludingRoot` vynechá požadovaný rodičovský uzel z výsledku.
-V případě omezení `hierarchyWithinRoot` je rodičem neviditelný "virtuální" nejvyšší kořen, a toto omezení
-nedává smysl.
+V případě omezení `hierarchyWithinRoot` je rodičem neviditelný "virtuální" vrcholový kořen a toto omezení zde nedává smysl.
 
 <SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
@@ -582,15 +546,11 @@ Jak vidíme, požadovaná rodičovská kategorie *Příslušenství* je z výsle
 
 ### Referencovaná entita
 
-Pokud hierarchické omezení cílí na nehierarchickou entitu, která odkazuje na hierarchickou (typickým příkladem je
-produkt přiřazený ke kategorii), lze omezení `excludingRoot` použít pouze v nadřazeném omezení `hierarchyWithin`.
+Pokud hierarchická podmínka cílí na nehierarchickou entitu, která odkazuje na hierarchickou (typickým příkladem je produkt přiřazený ke kategorii), lze podmínku `excludingRoot` použít pouze v rámci nadřazené podmínky `hierarchyWithin`.
 
-V případě `hierarchyWithinRoot` omezení `excludingRoot` nedává smysl, protože žádná entita nemůže být přiřazena
-k "virtuálnímu" nejvyššímu rodičovskému kořeni.
+V případě `hierarchyWithinRoot` nemá podmínka `excludingRoot` smysl, protože žádná entita nemůže být přiřazena k „virtuálnímu“ nejvyššímu rodiči.
 
-Protože jsme zjistili, že kategorie *Příslušenství* nemá přímo přiřazené produkty, přítomnost omezení `excludingRoot`
-by výsledek dotazu neovlivnila. Proto zvolíme kategorii *Klávesnice* pro náš příklad. Když vypíšeme všechny produkty
-v kategorii *Klávesnice* pomocí omezení `hierarchyWithin`, získáme **20 položek**. Když použijeme omezení `excludingRoot`:
+Protože jsme zjistili, že kategorie *Příslušenství* nemá přímo přiřazené žádné produkty, přítomnost podmínky `excludingRoot` by neměla na výsledek dotazu žádný vliv. Proto jsme pro náš příklad zvolili kategorii *Klávesnice*. Pokud vypíšeme všechny produkty v kategorii *Klávesnice* pomocí podmínky `hierarchyWithin`, získáme **20 položek**. Pokud použijeme podmínku `excludingRoot`:
 
 <SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
@@ -598,8 +558,7 @@ v kategorii *Klávesnice* pomocí omezení `hierarchyWithin`, získáme **20 pol
 
 </SourceCodeTabs>
 
-... dostaneme pouze **4 položky**, což znamená, že 16 bylo přiřazeno přímo ke kategorii *Klávesnice* a pouze 4 z nich byly
-přiřazeny ke kategorii *Exotické klávesnice*:
+... získáme pouze **4 položky**, což znamená, že 16 produktů bylo přiřazeno přímo ke kategorii *Klávesnice* a pouze 4 z nich byly přiřazeny ke kategorii *Exotické klávesnice*:
 
 <Note type="info">
 
@@ -670,13 +629,11 @@ having(
 
 ### Self
 
-Když hierarchické omezení cílí na hierarchickou entitu, děti, které nesplňují vnitřní omezení (a jejich děti,
-ať už je splňují nebo ne), jsou z výsledku vyloučeny.
+Když hierarchické omezení cílí na hierarchickou entitu, děti, které nesplňují vnitřní omezení (a jejich děti, bez ohledu na to, zda je splňují či nikoliv), jsou z výsledku vyloučeny.
 
-Pro demonstrační účely vypíšeme všechny kategorie v rámci kategorie *Příslušenství*, ale pouze ty, které jsou platné
-k 1. říjnu 2023 v 01:00.
+Pro demonstrační účely si vypíšeme všechny kategorie v rámci kategorie *Příslušenství*, ale pouze ty, které jsou platné k 1. říjnu 2023 v 01:00 ráno.
 
-![Výpis kategorií Příslušenství s omezením platnosti](../../../en/query/filtering/assets/accessories-category-listing-validity.png "Accessories category listing with validity constraint")
+![Výpis kategorií Příslušenství s omezením platnosti](assets/accessories-category-listing-validity.png "Výpis kategorií Příslušenství s omezením platnosti")
 
 <SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
@@ -684,8 +641,7 @@ k 1. říjnu 2023 v 01:00.
 
 </SourceCodeTabs>
 
-Protože kategorie *Vánoční elektronika* má platnost nastavenu pouze mezi 1. prosincem a 24. prosincem,
-bude z výsledku vynechána. Pokud by měla podkategorie, byly by také vynechány (i kdyby neměly žádná omezení platnosti).
+Protože kategorie *Vánoční elektronika* má platnost nastavenu pouze mezi 1. prosincem a 24. prosincem, bude z výsledku vynechána. Pokud by měla podkategorie, byly by také vynechány (i kdyby na nich žádné omezení platnosti nebylo).
 
 <Note type="info">
 
@@ -716,13 +672,9 @@ bude z výsledku vynechána. Pokud by měla podkategorie, byly by také vynechá
 
 ### Referencovaná entita
 
-Pokud hierarchické omezení cílí na nehierarchickou entitu, která odkazuje na hierarchickou (typickým příkladem je
-produkt přiřazený ke kategorii), je omezení `having` vyhodnocováno vůči hierarchické entitě (kategorii), ale
-ovlivňuje dotazované nehierarchické entity (produkty). Vyloučí všechny produkty odkazující na kategorie, které
-nesplňují vnitřní omezení `having`.
+Pokud hierarchická podmínka cílí na nehierarchickou entitu, která odkazuje na hierarchickou (typickým příkladem je produkt přiřazený ke kategorii), podmínka `having` je vyhodnocována vůči hierarchické entitě (kategorii), ale ovlivňuje dotazované nehierarchické entity (produkty). Vyloučí tedy všechny produkty, které odkazují na kategorie nesplňující vnitřní podmínky `having`.
 
-Opět použijme náš příklad s *Vánoční elektronikou*, která je platná pouze mezi 1. a 24. prosincem. Chcete-li vypsat všechny
-produkty dostupné 1. října 2023 v 01:00, spusťte následující dotaz:
+Opět použijme náš příklad s *Vánoční elektronikou*, která je platná pouze mezi 1. a 24. prosincem. Pro výpis všech produktů dostupných v 01:00 ráno dne 1. října 2023 použijte následující dotaz:
 
 <SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
@@ -730,8 +682,8 @@ produkty dostupné 1. října 2023 v 01:00, spusťte následující dotaz:
 
 </SourceCodeTabs>
 
-Můžete vidět, že vánoční produkty jako *Retlux Blue christmas lightning*, *Retlux Warm white christmas lightning* nebo
-*Emos Candlestick* nejsou ve výpisu přítomné.
+Můžete si všimnout, že vánoční produkty jako *Retlux Blue christmas lightning*, *Retlux Warm white christmas lightning* nebo
+*Emos Candlestick* se ve výpisu nenacházejí.
 
 <Note type="info">
 
@@ -761,7 +713,7 @@ Můžete vidět, že vánoční produkty jako *Retlux Blue christmas lightning*,
 
 </Note>
 
-Když změníte datum a čas v rozsahu omezení pro atribut *validity* na 2. prosince:
+Pokud změníte datum a čas v rozsahovém omezení atributu *validity* na 2. prosince:
 
 <SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
@@ -842,18 +794,15 @@ anyHaving(
 
 ### Self
 
-Představte si, že chcete strom kategorií a chcete ověřit, zda určité kategorie, buď přímo nebo nepřímo prostřednictvím
-jejich podkategorií, obsahují alespoň jeden platný produkt. Toho lze dosáhnout pomocí omezení `anyHaving` ve vašem dotazu.
+Představte si, že chcete získat strom kategorií a ověřit, zda některé kategorie, buď přímo nebo nepřímo prostřednictvím svých podkategorií, obsahují alespoň jeden platný produkt. Toho lze dosáhnout pomocí omezení `anyHaving` ve vašem dotazu.
 
-Když hierarchické omezení cílí na hierarchickou entitu, děti, které nemají žádné dítě splňující vnitřní omezení,
-jsou z výsledku vyloučeny.
+Pokud hierarchické omezení cílí na hierarchickou entitu, děti, které nemají žádného potomka splňujícího vnitřní omezení, jsou z výsledku vyloučeny.
 
-Například napišme dotaz pro následující situaci. V našem stromě hierarchie máme dvě kategorie označené tagem *HP*:
+Například napišme dotaz pro následující situaci. V našem stromu hierarchie máme dvě kategorie označené tagem *HP*:
 
-![Kategorie označené HP s produkty](../../../en/query/filtering/assets/categories-with-products-and-HP-tag.png "Categories tagged by HP with products")
+![Kategorie označené HP s produkty](assets/categories-with-products-and-HP-tag.png "Kategorie označené HP s produkty")
 
-Chceme vypsat všechny kategorie obsahující označenou kategorii s alespoň jedním aktivním produktem přiřazeným k ní. Zvažujeme pouze
-cesty stromu složené z aktivních kategorií. Dotaz bude vypadat takto:
+Chceme vypsat všechny kategorie, které obsahují označenou kategorii s alespoň jedním aktivním produktem přiřazeným k této kategorii. Bereme v úvahu pouze cesty ve stromu složené z aktivních kategorií. Dotaz bude vypadat takto:
 
 <SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
@@ -861,8 +810,7 @@ cesty stromu složené z aktivních kategorií. Dotaz bude vypadat takto:
 
 </SourceCodeTabs>
 
-Naštěstí obě kategorie označené tagem *HP* mají přiřazen alespoň jeden aktivní produkt, stejně jako všechny jejich
-rodičovské kategorie. Proto dotaz vrací pět kategorií, jak bylo očekáváno.
+Naštěstí obě kategorie označené tagem *HP* mají přiřazen alespoň jeden aktivní produkt, stejně jako všechny jejich rodičovské kategorie. Dotaz tedy vrátí pět kategorií, jak se očekává.
 
 <Note type="info">
 
@@ -893,10 +841,10 @@ rodičovské kategorie. Proto dotaz vrací pět kategorií, jak bylo očekáván
 
 ### Referencovaná entita
 
-Pokud hierarchické omezení cílí na nehierarchickou entitu, která odkazuje na hierarchickou (typickým příkladem je
-produkt přiřazený ke kategorii), je omezení `anyHaving` vyhodnocováno vůči hierarchické entitě (kategorii), ale
-ovlivňuje dotazované nehierarchické entity (produkty). Vyloučí všechny produkty odkazující na kategorie, které
-nesplňují vnitřní omezení `anyHaving`.
+Pokud hierarchická podmínka cílí na nehierarchickou entitu, která odkazuje na hierarchickou entitu (typickým příkladem je
+produkt přiřazený ke kategorii), podmínka `anyHaving` se vyhodnocuje vůči hierarchické entitě (kategorie), ale
+ovlivňuje dotazované nehierarchické entity (produkty). Vyloučí všechny produkty, které odkazují na kategorie, jež
+nesplňují vnitřní podmínky `anyHaving`.
 
 Opět použijme náš příklad kategorií označených tagem *HP*. Spusťte následující dotaz:
 
@@ -907,8 +855,8 @@ Opět použijme náš příklad kategorií označených tagem *HP*. Spusťte ná
 </SourceCodeTabs>
 
 V tomto případě bude výsledkem seznam všech aktivních produktů s typem produktu *BASIC* nebo *MASTER* v kategoriích
-označených tagem *HP*, stejně jako všechny produkty v jejich rodičovských kategoriích. Jak vidíte, produktů je poměrně hodně,
-protože je vrácen i produkt z celé kategorie *Laptop* (která je rodičem kategorie *Macbooks*).
+označených tagem *HP*, stejně jako všech produktů v jejich rodičovských kategoriích. Jak můžete vidět, produktů je poměrně hodně,
+protože je vrácen také produkt z celé kategorie *Laptop* (která je rodičem kategorie *Macbooks*).
 
 <Note type="info">
 
@@ -977,13 +925,11 @@ excluding(
 
 ### Self
 
-Když hierarchické omezení cílí na hierarchickou entitu, děti, které splňují vnitřní omezení (a jejich děti,
-ať už je splňují nebo ne), jsou z výsledku vyloučeny.
+Když hierarchické omezení cílí na hierarchickou entitu, děti, které splňují vnitřní omezení (a jejich děti, bez ohledu na to, zda je splňují či nikoliv), jsou z výsledku vyloučeny.
 
-Pro demonstrační účely vypíšeme všechny kategorie v rámci kategorie *Příslušenství*, ale vyloučíme přesně
-podkategorii *Bezdrátová sluchátka*.
+Pro demonstrační účely si ukažme výpis všech kategorií v rámci kategorie *Příslušenství*, ale přesně s vyloučením podkategorie *Bezdrátová sluchátka*.
 
-![Výpis kategorií Příslušenství bez podkategorie *Bezdrátová sluchátka*](../../../en/query/filtering/assets/accessories-category-listing-excluding.png "Accessories category listing excluding *Wireless headphones* subcategory")
+![Výpis kategorií Příslušenství bez podkategorie *Bezdrátová sluchátka*](assets/accessories-category-listing-excluding.png "Výpis kategorií Příslušenství bez podkategorie *Bezdrátová sluchátka*")
 
 <SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
@@ -991,7 +937,7 @@ podkategorii *Bezdrátová sluchátka*.
 
 </SourceCodeTabs>
 
-Kategorie *Bezdrátová sluchátka* a všechny její podkategorie nebudou ve výsledcích zobrazeny.
+Kategorie *Bezdrátová sluchátka* a všechny její podkategorie se ve výsledném seznamu nezobrazí.
 
 <Note type="info">
 
@@ -1022,23 +968,23 @@ Kategorie *Bezdrátová sluchátka* a všechny její podkategorie nebudou ve vý
 
 ### Referencovaná entita
 
-Pokud hierarchické omezení cílí na nehierarchickou entitu, která odkazuje na hierarchickou (typickým příkladem je
-produkt přiřazený ke kategorii), je omezení `excluding` vyhodnocováno vůči hierarchické entitě (kategorii),
-ale ovlivňuje dotazované nehierarchické entity (produkty). Vyloučí všechny produkty odkazující na kategorie, které
-splňují vnitřní omezení `excluding`.
+Pokud hierarchické omezení cílí na nehierarchickou entitu, která odkazuje na hierarchickou entitu (typickým příkladem je
+produkt přiřazený ke kategorii), omezení `excluding` se vyhodnocuje vůči hierarchické entitě (kategorii),
+ale ovlivňuje dotazované nehierarchické entity (produkty). Vyloučí všechny produkty, které odkazují na kategorie,
+které splňují vnitřní omezení `excluding`.
 
-Vraťme se k našemu příkladu dotazu, který vylučuje podstrom kategorie *Bezdrátová sluchátka*. Chcete-li vypsat všechny
-produkty dostupné v kategorii *Příslušenství* kromě těch, které se vztahují ke kategorii *Bezdrátová sluchátka* nebo jejím podkategoriím,
-spusťte následující dotaz:
+Vraťme se k našemu příkladu dotazu, který vylučuje podstrom kategorie *Bezdrátová sluchátka*. Pokud chcete vypsat všechny produkty
+dostupné v kategorii *Příslušenství* kromě těch, které souvisejí s kategorií *Bezdrátová sluchátka* nebo jejími podkategoriemi,
+použijte následující dotaz:
 
 <SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
-[Výpis kategorií bez rodiče](/documentation/user/en/query/filtering/examples/hierarchy/hierarchy-within-reference-except.evitaql)
+[Výpis kategorií bez nadřazené](/documentation/user/en/query/filtering/examples/hierarchy/hierarchy-within-reference-except.evitaql)
 
 </SourceCodeTabs>
 
-Můžete vidět, že produkty bezdrátových sluchátek jako *Huawei FreeBuds 4*, *Jabra Elite 3* nebo *Adidas FWD-02 Sport* nejsou
-ve výpisu přítomné.
+Vidíte, že produkty bezdrátových sluchátek jako *Huawei FreeBuds 4*, *Jabra Elite 3* nebo *Adidas FWD-02 Sport* se ve výpisu
+nevyskytují.
 
 <Note type="info">
 

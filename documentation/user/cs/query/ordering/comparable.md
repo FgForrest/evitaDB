@@ -1,12 +1,12 @@
 ---
 title: Porovnatelné řazení
-perex: Přirozené řazení u porovnatelných datových typů je nejběžnějším typem řazení. Umožňuje třídit entity podle jejich atributů v přirozeném pořadí (číselném, abecedním, časovém atd.).
+perex: Přirozené řazení u porovnatelných datových typů je nejběžnějším typem řazení. Umožňuje třídit entity podle jejich atributů v jejich přirozeném pořadí (číselném, abecedním, časovém atd.).
 date: '25.6.2023'
 author: Ing. Jan Novotný
 proofreading: needed
 preferredLang: evitaql
-commit: cabcf999e7be5b00e0b13e1228a76a8d9e91cb78
-translated: true
+translated: 'true'
+commit: '77da5b36c170430534ee4d9a4a2903da4de68555'
 ---
 ## Atribut natural
 
@@ -29,7 +29,7 @@ attributeNatural(
 </dl>
 
 Tato podmínka umožňuje řadit výstupní entity podle jejich atributů v jejich přirozeném pořadí (číselném, abecedním,
-časovém). Vyžaduje zadání jednoho [atributu](../../use/data-model.md#atributy-unikátní-filtrovatelné-řaditelné-lokalizované)
+časovém). Vyžaduje specifikaci jednoho [atributu](../../use/data-model.md#atributy-unikátní-filtrovatelné-řaditelné-lokalizované)
 a směru řazení.
 
 Pro seřazení produktů podle počtu jejich prodejů (nejprodávanější produkty jako první) můžeme použít následující dotaz:
@@ -66,8 +66,8 @@ Pro seřazení produktů podle počtu jejich prodejů (nejprodávanější produ
 
 </Note>
 
-Pokud chcete produkty řadit podle jejich názvu, což je lokalizovaný atribut, je potřeba ve části `filterBy` dotazu
-specifikovat podmínku `entityLocaleEquals`:
+Pokud chcete řadit produkty podle jejich názvu, který je lokalizovaným atributem, je třeba ve filtru dotazu specifikovat
+omezení `entityLocaleEquals`:
 
 <SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
@@ -75,7 +75,7 @@ specifikovat podmínku `entityLocaleEquals`:
 </SourceCodeTabs>
 
 Správný <LS to="e,j,r,g">[collator](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/text/Collator.html)</LS><LS to="c">collator na straně databáze</LS> je použit
-pro řazení lokalizovaného textového atributu tak, aby pořadí odpovídalo národním zvyklostem daného jazyka.
+pro řazení lokalizovaného řetězce atributu tak, aby pořadí odpovídalo národním zvyklostem daného jazyka.
 
 <Note type="info">
 
@@ -106,8 +106,8 @@ pro řazení lokalizovaného textového atributu tak, aby pořadí odpovídalo n
 
 Mechanismus řazení v evitaDB se poněkud liší od toho, na co můžete být zvyklí. Pokud řadíte entity podle dvou
 atributů v klauzuli `orderBy` dotazu, evitaDB je nejprve seřadí podle prvního atributu (pokud je přítomen) a poté
-podle druhého (ale pouze ty, u kterých první atribut chybí). Pokud mají dvě entity stejnou hodnotu prvního atributu,
-nejsou dále řazeny podle druhého atributu, ale podle primárního klíče (vzestupně).
+podle druhého (ale pouze ty, u kterých první atribut chybí). Pokud mají dvě entity stejnou hodnotu prvního
+atributu, nejsou dále řazeny podle druhého atributu, ale podle primárního klíče (vzestupně).
 
 <SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
@@ -148,7 +148,7 @@ výchozího názvu atributu. Tento compound atribut pokrývá více atributů a 
 této kombinace atributů, přičemž respektuje předdefinované pořadí a chování hodnot NULL.
 V dotazu pak můžete použít název compound atributu místo výchozího názvu atributu a dosáhnout očekávaných výsledků.
 
-## Primární klíč natural
+## Přirozené řazení podle primárního klíče
 
 ```evitaql-syntax
 primaryKeyNatural(
@@ -163,9 +163,9 @@ primaryKeyNatural(
     </dd>
 </dl>
 
-Pokud v dotazu není specifikována žádná podmínka řazení, entity jsou řazeny podle jejich primárního klíče vzestupně.
-Pokud je chcete řadit sestupně, můžete použít podmínku `primaryKeyNatural` s argumentem `DESC`.
-Ačkoli tato podmínka přijímá také argument `ASC`, nemá smysl jej používat, protože toto je výchozí
+Pokud v dotazu není uvedeno žádné omezení řazení, entity jsou seřazeny podle svého primárního klíče vzestupně.
+Pokud je chcete řadit sestupně, můžete použít omezení `primaryKeyNatural` s argumentem `DESC`.
+Ačkoliv omezení přijímá také argument `ASC`, nemá smysl jej používat, protože toto je výchozí
 chování řazení.
 
 Pro seřazení produktů podle jejich primárního klíče sestupně můžeme použít následující dotaz:

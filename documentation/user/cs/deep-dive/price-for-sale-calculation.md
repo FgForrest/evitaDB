@@ -1,11 +1,11 @@
 ---
 title: Algoritmus výpočtu prodejní ceny
 date: '7.11.2023'
-perex: Tato kapitola podrobně popisuje algoritmus výpočtu prodejní ceny, přičemž zkoumá, jak zohledňuje faktory jako výběr měny, uplatnitelné slevy a volbu ceníku na základě uživatelského kontextu. Projdeme si logiku pomocí ukázek kódu a reálných scénářů, abychom poskytli jasné pochopení toho, jak algoritmus funguje pro přesný výpočet prodejních cen v dynamickém prostředí e-commerce.
+perex: Tato kapitola podrobně popisuje algoritmus výpočtu prodejní ceny, včetně toho, jak zohledňuje faktory jako výběr měny, uplatnění slev a výběr ceníku na základě uživatelského kontextu. Projdeme si logiku pomocí ukázek kódu a reálných scénářů, abychom jasně vysvětlili, jak algoritmus funguje a umožňuje přesný výpočet prodejních cen v dynamickém prostředí e-commerce.
 author: Ing. Jan Novotný
 proofreading: needed
-commit: '3ba6b0125c098b31c0b47f60be780ef4f90fd5f1'
 translated: 'true'
+commit: '77da5b36c170430534ee4d9a4a2903da4de68555'
 ---
 <UsedTerms>
     <h4>Použité pojmy v tomto dokumentu</h4>
@@ -13,41 +13,45 @@ translated: 'true'
         <dt>ERP</dt>
         <dd>
             Enterprise Resource Planning (ERP) je typ softwarového systému, který pomáhá organizacím automatizovat a řídit
-            klíčové obchodní procesy pro optimální výkon. ERP software koordinuje tok dat mezi obchodními procesy organizace,
-            poskytuje jednotný zdroj pravdy a zjednodušuje provoz napříč celým podnikem. Je schopen propojit finanční,
-            dodavatelský řetězec, provoz, obchodování, reportování, výrobu a personální činnosti společnosti na jedné platformě.
+            klíčové obchodní procesy pro optimální výkon. ERP software koordinuje tok dat mezi
+            obchodními procesy organizace, poskytuje jediný zdroj pravdy a zefektivňuje provoz napříč
+            celým podnikem. Je schopen propojit finanční, dodavatelský řetězec, provoz, obchodování, reporting,
+            výrobu a personální činnosti společnosti na jedné platformě.
 
             [Více informací zde](https://en.wikipedia.org/wiki/Enterprise_resource_planning)
         </dd>
         <dt>produkt</dt>
-		<dd>Produkt je entita, která představuje položku prodávanou v e-shopu. Produkty tvoří samotné jádro každé e-commerce aplikace.</dd>
+		<dd>Produkt je entita, která představuje položku prodávanou v e-shopu. Produkty tvoří samotné jádro každé e-commerce
+			aplikace.</dd>
 		<dt>produkt s variantami</dt>
-		<dd>Produkt s variantami je „virtuální produkt“, který nelze zakoupit přímo. Zákazník si místo toho musí vybrat jednu z jeho variant.
-			Produkty s variantami se velmi často vyskytují v e-shopech s módou, kde oblečení existuje v různých velikostech a barvách.
-			Jeden produkt může mít desítky kombinací velikostí a barev. Pokud by každá kombinace představovala standardní
-			produkt, výpis produktů v kategorii a na dalších místech by se stal nepoužitelným.
-			V této situaci jsou produkty s variantami velmi užitečné. Tento „virtuální produkt“ může být uveden místo variant
-			a výběr varianty probíhá při vkládání zboží do košíku. Příklad:
+		<dd>Produkt s variantami je „virtuální produkt“, který nelze koupit přímo. Zákazník si místo toho musí vybrat jednu z jeho variant.
+			Produkty s variantami jsou velmi často k vidění v e-shopech s módou, kde oblečení existuje v různých velikostech
+			a barvách. Jeden produkt může mít desítky kombinací velikostí a barev. Pokud by každá kombinace představovala standardní
+			produkt, výpis produktů v kategorii i na jiných místech by byl nepoužitelný.
+			V této situaci se produkty s variantami velmi hodí. Tento „virtuální produkt“ může být uveden místo jednotlivých variant
+			a výběr varianty se provádí při vkládání zboží do košíku. Uveďme příklad:
 			Máme tričko s obrázkem jednorožce. Tričko se vyrábí v různých velikostech a barvách – konkrétně:<br/><br/>
 			&ndash; velikost: S, M, L, XL, XXL<br/>
 			&ndash; barva: modrá, růžová, fialová<br/><br/>
-			To představuje 15 možných kombinací (variant). Protože chceme mít v nabídce pouze jedno tričko s jednorožcem,
+			To představuje 15 možných kombinací (variant). Protože chceme mít v nabídce jen jedno tričko s jednorožcem,
 			vytvoříme produkt s variantami a všechny kombinace variant zahrneme do tohoto virtuálního produktu.</dd>
 		<dt>sada produktů</dt>
-		<dd>Sada produktů je produkt, který se skládá z několika dílčích produktů, ale je zakoupen jako celek. Skutečným příkladem takové
-			sady produktů je zásuvka – skládá se z těla, dvířek a úchytek. Zákazník si může dokonce vybrat, jaký typ dvířek
-			nebo úchytek chce v sadě – ale vždy bude nějaká výchozí volba.<br/>
+		<dd>Sada produktů je produkt, který se skládá z několika podproduktů, ale kupuje se jako celek. Skutečným příkladem takové
+			sady produktů je zásuvka – skládá se z těla, dvířek a úchytek. Zákazník si dokonce může vybrat, jaký typ dvířek
+			nebo úchytek chce v sadě – ale vždy existují nějaké výchozí.<br/>
 			Při zobrazování a filtrování podle sady produktů ve výpisech na e-shopu potřebujeme mít přiřazenou nějakou cenu,
-			ale nemusí být přiřazena přesná cena a vlastník e-shopu očekává, že cena bude vypočítána jako agregace cen dílčích produktů.
-			Toto chování je podporováno nastavením správného
+			ale může se stát, že sada nemá přesně určenou cenu a majitel e-shopu očekává, že cena bude vypočtena
+			agregací cen podproduktů. Toto chování je podporováno nastavením správného
 			[PriceInnerEntityReferenceHandling](classes/price_inner_entity_reference_handling).</dd>
     </dl>
-
 </UsedTerms>
 
-Hlavním zdrojem informací o cenách je obvykle firemní systém <Term>ERP</Term>. Existuje široká škála takových systémů <Term>ERP</Term>, často specifických pro zemi, ve které e-commerce podnikání působí. Tyto systémy mají své vlastní způsoby modelování a výpočtu cen a B2B cenové strategie bývají někdy velmi „kreativní“.
+Hlavním zdrojem informací o cenách je obvykle firemní systém <Term>ERP</Term>. Existuje široká škála
+takových systémů <Term>ERP</Term>, které jsou často specifické pro zemi, ve které e-commerce podnik působí. Tyto systémy
+mají své vlastní způsoby modelování a výpočtu cen a B2B cenové strategie bývají někdy velmi „kreativní“.
 
-Logika výpočtu cen v evitaDB je navržena velmi jednoduše, aby podporovala běžné cenové mechanismy a umožnila přizpůsobení i neobvyklým případům.
+Logika výpočtu cen v evitaDB je navržena velmi jednoduše tak, aby podporovala běžné cenové mechanismy a
+umožňovala přizpůsobení i méně obvyklým případům.
 
 Struktura jednotlivé ceny je definována rozhraním
 <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/PriceContract.java</SourceClass>.
@@ -59,27 +63,36 @@ Struktura jednotlivé ceny je definována rozhraním
 - které patří do některých definovaných sad nebo ceníků, ke kterým má koncový uživatel
   přístup ([`priceInPriceLists`](../query/filtering/price.md#cena-v-cenících))
 
-Zpracování takového dotazu vede k seznamu cen, kde je k jednomu produktu přiřazeno více cen. Ceny patřící ke stejnému produktu budou seřazeny podle pořadí ceníků ve
-([`priceInPriceLists`](../query/filtering/price.md#cena-v-cenících)) omezení použitých v dotazu. Seřazený seznam ceníků je procházen a pro každý produkt je vybrána pouze první cena, ostatní jsou přeskočeny, dokud není nalezena cena pro další produkt. To znamená, že v daném okamžiku může být právě jedna cena platná pro kombinaci ceníku a měny. Pokud by toto omezení nebylo vynuceno, engine by nebyl schopen vybrat vhodnou prodejní cenu produktu.
+Zpracování takového dotazu vrátí seznam cen, kde je k jednomu produktu přiřazeno více cen. Ceny
+patřící ke stejnému produktu budou seřazeny podle pořadí ceníků uvedených v
+omezení ([`priceInPriceLists`](../query/filtering/price.md#cena-v-cenících)), které bylo použito v dotazu. Seřazený
+seznam ceníků je procházen a pro každý produkt je vybrána pouze první cena, ostatní jsou přeskočeny, dokud není nalezena cena
+pro další produkt. To znamená, že v daném okamžiku může být pro kombinaci ceníku a měny platná právě jedna cena. Pokud by toto omezení nebylo vynuceno, engine by nebyl schopen vybrat vhodnou prodejní cenu produktu.
 
 <Note type="warning">
 
-Aby se předešlo nejednoznačnosti cen, konstruktory evitaDB vynucují, aby entity měly pouze jednu platnou cenu pro každý různý ceník. Přesto může dojít k nejednoznačnosti, pokud má entita dvě ceny s nepřekrývajícími se platnostmi a v dotazu evitaDB
-[dotaz](../query/basics.md) chybí omezení [`priceValidIn`](../query/filtering/price.md#cena-platná-v), které
-určuje přesný čas pro správné vyhodnocení ceny. V takových situacích bude vybrána „nedefinovaná“ cena.
-Proto byste měli vždy specifikovat správné datum a čas pro určení správné ceny pro prodej (pokud si nejste jisti, že v databázi nejsou časově závislé ceny).
+Aby se předešlo nejednoznačnosti cen, evitaDB buildry vynucují, aby entity měly pouze jednu platnou cenu pro každý odlišný ceník.
+K nejednoznačnosti však může dojít i tehdy, pokud má entita dvě ceny s nepřekrývajícími se obdobími platnosti a v evitaDB
+[dotazu](../query/basics.md) chybí omezení [`priceValidIn`](../query/filtering/price.md#cena-platná-v), které
+definuje přesný čas pro správné vyhodnocení ceny. V takové situaci bude vybrána „nedefinovaná“ cena.
+Proto byste měli vždy zadat správné datum a čas pro správné určení ceny při prodeji (pokud si nejste jisti, že v databázi nejsou časově závislé ceny).
 
 </Note>
 
-Je třeba pečlivě promyslet, jak v evitaDB modelovat ceníky a priority. Jedním z intuitivnějších přístupů je převést ceníky z <Term>ERP</Term> (v poměru 1:1) do evitaDB. To většinou funguje – ale systémy <Term>ERP</Term> často používají ceny, které se počítají dynamicky podle určitých pravidel. To v evitaDB není možné a všechny ceny musí být „předpočítané“ ve statické podobě. Je to nutné pro rychlé vyhledávání cen. Můžete vytvořit tzv. „virtuální ceníky“, které napodobují pravidla <Term>ERP</Term> a uchovávají v nich všechny vypočítané ceny.
+Je potřeba pečlivě promyslet, jak modelovat ceníky a priority v evitaDB. Jedním z intuitivnějších
+přístupů je převést ceníky z <Term>ERP</Term> (v poměru 1:1) do evitaDB. To obvykle funguje – ale
+systémy <Term>ERP</Term> často používají ceny, které se počítají dynamicky podle nějakých definovaných pravidel. To v evitaDB
+není možné a všechny ceny musí být „předpočítané“ ve statické podobě. To je nutné, aby bylo možné ceny rychle vyhledávat. Můžete vytvořit tzv. „virtuální ceníky“, které napodobují pravidla <Term>ERP</Term> a uchovávají v nich všechny vypočtené ceny.
 
 <Note type="warning">
 
-Musíte také dávat pozor na explozivní růst kombinací (někdy označovaný jako
-[kartézský součin](https://en.wikipedia.org/wiki/Cartesian_product)). Některá obchodní pravidla mohou vést k tak velkému množství možných kombinací cen, že je nelze předpočítat a uložit do paměti. Podívejme se na příklad:
+Musíte si také dát pozor na explozi kombinací (někdy nazývanou
+[Kartézský součin](https://en.wikipedia.org/wiki/Cartesian_product)). Některá obchodní pravidla mohou vést k tak velkému
+počtu možných cenových kombinací, že je nemožné je všechny předpočítat a uložit do paměti. Podívejme se na příklad:
 
 *Společnost XYZ má 1 milion zákazníků, 1 milion produktů a každý zákazník může mít unikátní slevu na produkty.
-Naivní přístup by znamenal spočítat 1 miliardu cen (tj. všechny možné kombinace). Chytřejší přístup je podívat se na rozložení slev. Můžeme zjistit, že existuje jen několik typů slev: 1 %, 2,5 %, 5 %, 10 %. Ceníky tedy nemodelujeme podle uživatele, ale podle hodnoty slevy – a potřebujeme tedy 4 miliony předpočítaných cen*.
+Naivní přístup k tomuto problému je vypočítat 1 miliardu cen (tedy všechny možné kombinace). Chytřejší přístup je
+podívat se na rozložení slev. Můžeme zjistit, že existuje jen několik typů slev: 1 %, 2,5 %, 5 %, 10 %. Nemodelujeme tedy ceníky podle uživatele, ale podle hodnoty slevy – takže potřebujeme 4 miliony předpočítaných cen*.
 
 </Note>
 

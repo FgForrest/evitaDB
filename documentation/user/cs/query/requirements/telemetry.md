@@ -5,8 +5,8 @@ perex: Když provozujete komplexní databázový systém, často potřebujete v�
 author: Bc. Lukáš Hornych
 proofreading: done
 preferredLang: evitaql
-commit: cabcf999e7be5b00e0b13e1228a76a8d9e91cb78
-translated: true
+translated: 'true'
+commit: '77da5b36c170430534ee4d9a4a2903da4de68555'
 ---
 ## Telemetrie dotazu
 
@@ -20,24 +20,24 @@ queryTelemetry()
 
 Požadavek <LS to="j,e,r"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/QueryTelemetry.java</SourceClass></LS>
 <LS to="c"><SourceClass>EvitaDB.Client/Queries/Requires/QueryTelemetry.cs</SourceClass></LS>
-<LS to="g">`queryTelemetry` pole s dodatečným výsledkem</LS>
-vyžaduje vypočítanou telemetrii dotazu pro aktuální dotaz. Telemetrie obsahuje podrobné informace o době zpracování dotazu a jejím rozložení na jednotlivé operace.
+<LS to="g">extra výsledek pole `queryTelemetry`</LS>
+vyžaduje vypočítanou telemetrii dotazu pro aktuální dotaz. Telemetrie obsahuje podrobné informace o čase zpracování dotazu a jeho rozkladu na jednotlivé operace.
 
-Objekt telemetrie dotazu představuje jednu provedenou operaci, která může obsahovat vnořené další operace, a skládá se z následujících dat:
+Objekt telemetrie dotazu reprezentuje jednu provedenou operaci, která může obsahovat vnořené další operace, a skládá se z následujících dat:
 
 <dl>
 	<dt>operation</dt>
 	<dd>
-		Fáze provádění dotazu.
+		Fáze vykonávání dotazu.
 		Možné hodnoty lze nalézt ve třídě <LS to="j,e,r,g"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/extraResult/QueryTelemetry.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Models/ExtraResults/QueryTelemetry.cs</SourceClass></LS>.
 	</dd>
 	<dt>start</dt>
 	<dd>
-		Datum a čas zahájení tohoto kroku v nanosekundách.
+		Datum a čas začátku tohoto kroku v nanosekundách.
 	</dd>
 	<dt>steps</dt>
 	<dd>
-		Vnitřní kroky tohoto kroku telemetrie (dekompozice operace). Stejná struktura jako nadřazený objekt telemetrie.
+		Vnitřní kroky tohoto kroku telemetrie (rozklad operace). Stejná struktura jako nadřazený objekt telemetrie.
 	</dd>
 	<dt>arguments</dt>
 	<dd>
@@ -50,10 +50,10 @@ Objekt telemetrie dotazu představuje jednu provedenou operaci, která může ob
 </dl>
 
 <LS to="g">
-Ve výchozím nastavení jsou číselné hodnoty objektu telemetrie vraceny v surové podobě. Toto chování můžete změnit v GraphQL pomocí argumentu `format` na poli `queryTelemetry`. Tímto způsobem budou vráceny hodnoty v čitelném formátu.
+Ve výchozím nastavení jsou číselné hodnoty objektu telemetrie vraceny v surové podobě. Toto chování lze v GraphQL změnit pomocí argumentu `format` na poli `queryTelemetry`. Tímto způsobem jsou vraceny hodnoty ve formátu čitelném pro člověka.
 </LS>
 
-Pro ukázku informací, které telemetrie dotazu poskytuje, použijeme následující dotaz, který filtruje a řadí entity:
+Pro demonstraci informací, které telemetrie dotazu poskytuje, použijeme následující dotaz, který filtruje a řadí entity:
 
 <SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 

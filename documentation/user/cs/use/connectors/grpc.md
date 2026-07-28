@@ -4,8 +4,8 @@ perex: gRPC API byla navržena tak, aby poskytovala velmi výkonný a jednotný 
 date: '26.7.2023'
 author: Ing. Tomáš Pozler
 preferredLang: java
-commit: '339a72a997423f553b529a6219130bed4f47582e'
-translated: true
+translated: 'true'
+commit: '77da5b36c170430534ee4d9a4a2903da4de68555'
 ---
 <LS to="e,g,r">
 Tato kapitola popisuje gRPC protokol pro evitaDB a týká se pouze ovladačů pro Javu nebo C#. Pokud vás zajímají

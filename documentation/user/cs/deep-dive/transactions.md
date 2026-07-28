@@ -3,12 +3,20 @@ title: Transakce
 perex: Transakce jsou základní součástí databázového systému. Zajišťují, že databáze zůstává v konzistentním stavu i v případě selhání nebo souběžného přístupu více uživatelů. V tomto článku se budeme zabývat pojmem transakce, jejich vlastnostmi a tím, jak jsou implementovány v evitaDB.
 date: '16.5.2025'
 author: Jan Novotný
-commit: c16b18f3b2b3adb0dbb4706690390fde6e39a39a
 translated: 'true'
+commit: '06fcc4ec8b25e03267dabdb0a0ada99c3e20b05a'
 ---
 Čtenáři, kteří jsou obeznámeni s úrovněmi izolace databází, si možná vzpomenou, že evitaDB podporuje pouze [snapshot isolation](https://en.wikipedia.org/wiki/Snapshot_isolation), takže mohou přeskočit tuto úvodní kapitolu, která popisuje kontext vztahující se k této úrovni izolace.
 
 Klíčovým konceptem transakce je, že data zapsaná transakcí jsou viditelná pouze v rámci této transakce a nikoliv v ostatních současně probíhajících čtecích sezeních/transakcích. Jakmile je transakce potvrzena (commit), její změny se stanou viditelnými pro všechny čtenáře, kteří otevřou novou transakci poté. V terminologii řízení souběžnosti s více verzemi (multi-version concurrency control) se tomu říká 'snapshot isolation': každý klient se chová, jako by měl plnou kopii databáze v okamžiku, kdy transakce začíná. Pokud klient transakci neotevře explicitně, je otevřena implicitně pro každý dotaz nebo aktualizační příkaz a automaticky uzavřena po jeho dokončení. Tato úroveň izolace zabraňuje konfliktům při zápisu — pokud se dvě paralelní transakce pokusí aktualizovat stejný záznam, jedna z nich bude vrácena zpět (rollback). Nezabraňuje však konfliktům při čtení a zápisu, známým také jako write skew. Například pokud existují dvě transakce A a B, transakce A přečte záznam X, přičte 1 k přečtené hodnotě a uloží výsledek do záznamu Y, a transakce B přečte záznam Y, odečte 1 od hodnoty a uloží výsledek do záznamu X, obě transakce budou úspěšně potvrzeny bez konfliktu. Nedoporučujeme používat evitaDB pro bankovní systémy, ale pro většinu ostatních případů použití je tato úroveň izolace dostačující.
+
+## Atomicita jednotlivých mutací entit
+
+Snapshot isolation popisuje, jak je celá transakce izolována od ostatních. V rámci jedné transakce evitaDB navíc zaručuje, že **každý zápis entity je atomický sám o sobě**. Volání `upsertEntity` nebo `deleteEntity` spolu se všemi změnami indexů, které z toho vyplývají (atributy, reference, facety, ceny, umístění v hierarchii, odražené reference), se buď provede celé, nebo vůbec.
+
+Pokud selže mutace jedné entity v průběhu provádění — typicky proto, že poruší unikátní omezení nebo jiná pravidla konzistence poté, co už některé její indexové záznamy byly zapsány — engine přesně tyto dílčí změny dané entity vrátí zpět a zbytek transakce zůstane nedotčen. Selhávající volání vyvolá výjimku, kterou může klient zachytit a poté pokračovat v dalších zápisech ve stejné transakci před jejím potvrzením. Entity zapsané před chybou zůstávají platné a žádný napůl zapsaný indexový záznam (například osiřelá faceta nebo fiktivní cena) nezůstane v databázi.
+
+Interně je toto realizováno pomocí savepointu nad [transakčními diff vrstvami](#izolace-změn-v-paměťových-indexech): před provedením mutace entity na nejvyšší úrovni engine zaznamená ovlivněné vrstvy a v případě selhání je obnoví do stavu před mutací. Jedná se o jemnější mechanismus než transakčně široká [atomicita popsaná níže](#atomické-transakce) a funguje pouze po dobu aktivní transakce. Je proto dostupný výhradně ve fázi ALIVE; fáze WARM-UP (hromadné indexování) nemá možnost rollbacku jednotlivých zápisů, jak je vysvětleno v [Hromadné vs. inkrementální indexování](bulk-vs-incremental-indexing.md#atomicita-jednotlivých-zápisů).
 
 ## Životní cyklus transakce
 
@@ -27,46 +35,200 @@ V následujících sekcích popíšeme každý z těchto kroků podrobněji.
 
 ### 1. Řešení konfliktů
 
-Prvním krokem je, aby procesor transakcí zkontroloval, že změny provedené paralelními transakcemi nejsou vzájemně vylučující. Každá transakce zná verzi databáze (`catalogVersion`), se kterou začala. Při potvrzení transakce je jí přiřazena nová `catalogVersion`, ve které budou změny této transakce začleněny. Verze katalogu je monotonicky rostoucí číslo, které se zvyšuje o jedna pro každou transakci.
+Prvním krokem je, že procesor transakcí ověří, zda změny provedené paralelními transakcemi nejsou vzájemně vylučující. Každá transakce zná verzi databáze (`catalogVersion`), se kterou byla zahájena — svou *snímekovou verzi* (snapshot version). Při potvrzení transakce je jí přiřazena nová `catalogVersion` — její *verze potvrzení* (commit version) — do které budou začleněny změny provedené touto transakcí. Verze katalogu je monotonicky rostoucí číslo, které se zvyšuje o jedničku s každou transakcí.
 
-Řešitel konfliktů musí prozkoumat všechny změny provedené mezi počáteční a koncovou verzí katalogu transakce. Všechny mutace v transakci vytvářejí tzv. klíč konfliktu, který je porovnáván s klíči konfliktů generovanými dříve potvrzenými transakcemi. Pokud dojde ke konfliktu, je vyvolána výjimka a transakce je vrácena zpět.
-
-K dispozici jsou následující politiky řešení konfliktů:
-
-1. Zamítnout změny stejné části entity.
-    * Jednotlivý atribut entity
-    * Jednotlivá asociovaná data
-    * Jednotlivá cena
-    * Jednotlivý odkaz
-    * Umístění v hierarchii
-2. Zamítnout změny stejné entity (výchozí strategie).
-3. Zamítnout změny ve stejném katalogu.
-4. Povolit konfliktní změny (poslední zápis vyhrává). Tato politika nikdy nevyvolá výjimku konfliktu.
-
-Výchozí politika konfliktů je nastavena pro celý databázový engine v jeho konfiguraci. Strategie je řešena pro každou mutaci od nejkonkrétnější po nejméně konkrétní úroveň. Například pro mutaci atributu je pořadí řešení následující:
-
-1. Politika konfliktů na úrovni atributu entity
-2. Politika konfliktů na úrovni typu entity
-3. Politika konfliktů na úrovni katalogu
-4. Poslední zápis vyhrává.
-
-První použitelná politika nalezená v tomto pořadí je použita k vyřešení konfliktu.
-
-Mutace schématu neumožňují přizpůsobitelné politiky konfliktů a vždy používají stejnou strategii klíče konfliktu: mutace schématu entity zamítají změny ve stejné kolekci entit a mutace schématu katalogu zamítají změny ve stejném katalogu.
+Tyto dvě verze přesně určují, které dvojice transakcí mohou být v konfliktu. Dvě transakce jsou **následníky** tehdy, když snímková verze pozdější transakce je větší nebo rovna verzi potvrzení dřívější transakce — pozdější transakce už viděla změny té dřívější, takže mezi nimi nemůže nastat konflikt. Jsou **současné** tehdy, když verze potvrzení dřívější transakce je větší než snímková verze pozdější transakce — změny dřívější transakce nebyly pro snímek té pozdější viditelné. Řešič konfliktů tedy zkoumá každou změnu potvrzenou po snímkové verzi potvrzované transakce až po nejnovější verzi zapsanou do write-ahead logu — včetně transakcí, které jsou už trvalé, ale ještě nejsou viditelné v aktuálním pohledu. Všechny mutace v transakci generují tzv. klíč konfliktu, který je porovnáván s klíči konfliktu zaregistrovanými transakcemi potvrzenými v tomto okně (každý zaregistrován pod svou verzí potvrzení). Pokud dojde ke konfliktu, je vyvolána výjimka a příchozí transakce je vrácena zpět — vždy vítězí transakce, která byla potvrzena jako první.
 
 <Note type="info">
 
-Existují také speciální typy bezpečných mutací, které mohou pomoci minimalizovat konflikty. Jedním příkladem je mutace atributu typu "delta", kterou lze bezpečně aplikovat paralelně.
+Nedávno potvrzené klíče konfliktu jsou uchovávány v paměťovém kruhovém bufferu s konfigurovatelnou velikostí. Pokud je transakce potvrzována ze snímku tak starého, že buffer jej už nepokrývá (například při velmi dlouho běžící relaci za silného zápisového provozu), řešič konfliktů přejde na přehrávání klíčů konfliktu chybějícího okna přímo z write-ahead logu, takže kontrola souběžnosti není nikdy tiše přeskočena.
+
+</Note>
+
+#### Úrovně řešení konfliktů
+
+Politika řešení konfliktů má dvě části: povinný **hrubý rozsah** (úroveň, na které jsou dva zápisy považovány za kolidující) a volitelnou sadu **jemných upřesnění**, která zužují rozsah `ENTITY` na jednotlivé části entity.
+
+Hrubý rozsah je jedna vzájemně se vylučující hodnota:
+
+| Hrubý rozsah | Ke konfliktu mezi dvěma transakcemi dochází, když obě zasahují… |
+|---|---|
+| `NONE` | nikdy — konfliktní změny jsou povoleny (vítězí poslední zapisující) |
+| `CATALOG` | stejný katalog (jakákoli změna jakékoli entity je konfliktní) |
+| `COLLECTION` | stejnou kolekci entit |
+| `ENTITY` | stejnou entitu (výchozí) |
+
+Pokud je hrubý rozsah `ENTITY`, lze jej upřesnit tak, že ke kolizi dojde pouze při zápisu do *stejné části* entity. Každé jemné upřesnění připouští specifickou anomálii write-skew výměnou za méně rollbacků:
+
+| Jemné upřesnění | Konflikty zúženy na stejnou… |
+|---|---|
+| `ENTITY_ATTRIBUTE` | atribut entity |
+| `ASSOCIATED_DATA` | asociovaná data entity |
+| `PRICE` | cenu entity |
+| `HIERARCHY` | umístění entity v hierarchii |
+| `REFERENCE` | referenci entity |
+| `REFERENCE_ATTRIBUTE` | atribut reference entity |
+
+Jemná upřesnění mají smysl pouze v rámci rozsahu `ENTITY` — zámek na úrovni `CATALOG` nebo `COLLECTION` už zahrnuje všechny jemnější úrovně.
+
+#### Kde je politika deklarována a jak se vyhodnocuje
+
+Při každém zápisu si evitaDB postupně klade dvě otázky:
+
+1. **Která `ConflictResolution` platí pro tento typ entity?** — vyhodnocuje se jednou pro každý typ entity.
+2. **Na základě této politiky, jaký klíč konfliktu *toto konkrétní pole* vydává?** — rozhoduje se pro každý zapisovaný prvek.
+
+Oddělení těchto dvou kroků je klíčem k pochopení modelu. První krok vybírá *politiku*; druhý krok převádí politiku na skutečné *klíče*, které se porovnávají kvůli kolizím.
+
+##### Krok 1 — určení politiky (nejkonkrétnější vítězí, bez výjimek)
+
+Politika pochází vždy ze **schématu**, nikdy ze session — takže dvě souběžné transakce, které pracují se stejným typem entity, vždy dospějí ke *stejné* politice, což je přesně to, co umožňuje, aby se generátory klíčů při zápisu i při přepočtu shodly. evitaDB hledá na třech místech, od nejkonkrétnějšího po nejméně konkrétní, a vezme **první**, které deklaruje `ConflictResolution`:
+
+1. **Schéma entity** — volitelný `ConflictResolution` na kolekci entit.
+2. **Schéma katalogu** — volitelný `ConflictResolution` na katalogu.
+3. **Výchozí nastavení enginu** — nastavení `conflictPolicy` v [konfiguraci transakce](#konfigurace-řešení-konfliktů) (ve výchozím stavu `ENTITY`).
+
+Jedná se o **přepsání celé entity**: první deklarovaný `ConflictResolution` vítězí *zcela* — jak svým hrubým rozsahem, tak i svou jemně definovanou sadou — bez slučování polí s úrovněmi pod ním. `ConflictResolution` je hrubý rozsah (`NONE` / `CATALOG` / `COLLECTION` / `ENTITY`) a pouze v případě `ENTITY` také sada jemných upřesnění, jako je `ENTITY_ATTRIBUTE`.
+
+<Note type="question">
+
+<NoteTitle toggles="true">
+
+##### Co v praxi znamenají hrubé rozsahy?
+</NoteTitle>
+
+Hrubý rozsah určuje, *jak širokou síť* při hledání konkurenční transakce jeden zápis vrhá. Od nejširšího po nejužší:
+
+- **`CATALOG`** — jakékoli dvě transakce, které mění *cokoli* v katalogu, jsou v konfliktu, i když se dotýkají zcela nesouvisejících entit v různých kolekcích. Pokud transakce A přidá `Brand` a transakce B, spuštěná ze stejné verze katalogu, upraví cenu `Product`, jedna z nich bude vrácena zpět. To fakticky serializuje všechny zápisy do katalogu: na jednu verzi katalogu přežije nejvýše jeden zápis. Používejte pouze tehdy, když zápis musí vidět plně konzistentní, zmrazený snímek *celého* katalogu (hromadné importy, globální přecenění) — vyměňuje propustnost za nejsilnější záruku.
+
+- **`COLLECTION`** — síť je vymezena kolem jedné kolekce entit. Dvě transakce jsou v konfliktu pouze tehdy, když obě mění entitu *stejného typu* — dva zápisy `Product` se střetnou (i když jde o různé produkty, např. produkt č. 42 a produkt č. 99), ale zápis `Product` a souběžný zápis `Category` mohou proběhnout současně. Sáhněte po tomto rozsahu, pokud potřebujete chránit **invariant napříč typem, který zámek na úrovni entity nevidí, protože konkurenční zápisy se týkají *různých* entit** — tzv. write-skew anomálie. Klasický příklad: *"nejvýše jeden `Product` může být označen jako hrdina výlohy."* Dvě transakce, které každá nastaví příznak hrdiny na *jiném* produktu, zasáhnou různé entity, takže při `ENTITY` oba zápisy projdou a skončíte se dvěma hrdiny; `COLLECTION` způsobí, že se dva zápisy `Product` střetnou, takže jeden bude vrácen zpět. Cena je v hrubosti — serializuje *každý* zápis do kolekce, včetně produktů v nesouvisejících kategoriích — proto jej používejte pouze tehdy, když invariant skutečně nemá jednoho vlastníka. Pokud ho má — například *"právě jeden výchozí produkt na kategorii"* patří **kategorii** — modelujte příznak na této vlastnické entitě (např. `defaultProductId` na `Category`), aby konkurenční zápisy zasáhly *stejnou* entitu a zůstaly v levnějším rozsahu `ENTITY`. evitaDB nemá žádný rozsah "skupina entit sdílejících hodnotu atributu" mezi `ENTITY` a `COLLECTION`.
+
+- **`ENTITY`** (výchozí) — síť je vymezena kolem jedné entity. Dvě transakce jsou v konfliktu pouze tehdy, když mění *stejnou* entitu (stejný typ **a** stejný primární klíč); souběžné úpravy dvou různých produktů se nikdy nestřetnou. Toto je zlatá střední cesta pro většinu zátěží a je to jediný rozsah, který lze dále zúžit jemnými upřesněními (viz [Krok 2](#krok-2--převedení-politiky-na-klíče-pro-každý-zapisovaný-atribut)).
+
+- **`NONE`** — žádná síť: souběžné zápisy se nikdy nestřetnou a tichým vítězem je poslední potvrzený zápis (viz varování k last-writer-wins níže).
+
+Každý hrubší rozsah *obsahuje* jemnější: konflikt na úrovni `CATALOG` zahrnuje jakýkoli konflikt na úrovni `COLLECTION`, `ENTITY` nebo jemnější kolizi v jeho rámci a konflikt na úrovni `COLLECTION` zahrnuje jakýkoli konflikt na úrovni entity v dané kolekci. Toto zahrnutí je to, co [další sekce](#obsahování--hrubá-politika-vždy-přebije-jemnější) formalizuje.
+
+</Note>
+
+##### Krok 2 — převedení politiky na klíče (pro každý zapisovaný atribut)
+
+Jakmile je známa politika entity, každý zapisovaný atribut určuje, jaký konfliktový klíč přispívá:
+
+- U hrubé politiky `NONE`, `CATALOG` nebo `COLLECTION` jednotlivá pole nemají žádné slovo — dominuje hrubý rozsah (žádné klíče u `NONE`; jeden katalogový/kolekční klíč jinak). **Přepisování na úrovni položky je zde ignorováno.**
+- U hrubé politiky `ENTITY` každé pole buď vydá svůj vlastní jemnozrnný klíč, nebo spadne zpět na klíč celé entity, podle toho:
+  - jaké má pole **přepisování `ConflictResolutionOverride`** (`INHERITED` / `GRANULAR` / `ENTITY`) deklarované ve schématu atributu / asociovaných dat / reference, a pokud pole dědí,
+  - jaká je **jemnozrnná množina** politiky entity (např. obsahuje `ENTITY_ATTRIBUTE`?).
+
+  `GRANULAR` zajistí, že pole má svůj vlastní klíč; `ENTITY` ho připne ke klíči celé entity; `INHERITED` (výchozí) následuje jemnozrnnou množinu. Protože přepisování na úrovni položky má efekt pouze u hrubé politiky `ENTITY`, přepisování `GRANULAR` na poli entity s politikou `NONE` nedělá **nic** — pro opětovné zapnutí detekce je třeba zvýšit *hrubou* politiku, ne pole.
+
+<Note type="question">
+
+<NoteTitle toggles="true">
+
+##### Jak mohu zajistit, aby úpravy *stejného* atributu vedly ke konfliktu, ale úpravy *různých* atributů mohly koexistovat?
+</NoteTitle>
+
+Představte si, že dva editoři uloží `Product` ve stejný okamžik: jeden změní `quantity`, druhý změní `name`. Chcete, aby dva souběžné zápisy **toho samého** atributu vedly ke konfliktu (aby se nikdy tiše neztratila aktualizace zásob), ale úpravy **různých** atributů aby mohly koexistovat. Přepínačem, který toto umožňuje, je zpřesnění `ENTITY_ATTRIBUTE`, deklarované ve schématu entity:
+
+```java
+session.defineEntitySchema("Product")
+	.withConflictResolution(
+		new ConflictResolution(
+			ConflictPolicy.ENTITY,
+			EnumSet.of(GranularConflictPolicy.ENTITY_ATTRIBUTE)
+		)
+	)
+	.withAttribute("quantity", Integer.class)
+	.withAttribute("name", String.class)
+	.updateVia(session);
+```
+
+Nyní každý zápis atributu nese klíč vztažený *k tomuto atributu* (`quantity of Product #42`) místo ke celé entitě, a dvě transakce se střetnou pouze tehdy, když se jejich klíče shodují:
+
+| Transakce A zapisuje | Transakce B zapisuje | Konflikt? | Proč |
+|---|---|---|---|
+| `quantity` u #42 | `quantity` u #42 | **ano** | identický klíč — `quantity of Product #42` |
+| `quantity` u #42 | `name` u #42 | ne | různé klíče — nezávislé části téže entity |
+| `name` u #42 | `name` u #42 | **ano** | identický klíč — `name of Product #42` |
+| `quantity` u #42 | `quantity` u #99 | ne | jiná entita |
+
+Jedna jemnost, kterou stojí za to zdůraznit: toto činí *různé* atributy nezávislými, ale **ne** vylučuje detekci konfliktu u jednotlivého atributu — dva zapisující do stejného `name` se stále střetnou (řádek 3). Záměrně zde není žádné "poslední zápis vítězí" na úrovni atributu; nejjemnější výjimka, kterou evitaDB nabízí, je *"střet pouze na stejném atributu"*, a ta platí symetricky pro každý atribut. Pokud chcete detekci pro pole zcela vypnout, musíte snížit *hrubou* politiku na `NONE` (viz varování níže), což ji vypne pro celou entitu, nikoli jen pro jedno pole.
+
+Pokud odeberete zpřesnění `ENTITY_ATTRIBUTE` (pouze `new ConflictResolution(ConflictPolicy.ENTITY)`), každý zápis atributu spadne zpět na klíč celé entity — v takovém případě by i řádek 2 vedl ke konfliktu, protože jednotkou sporu je celá entita.
+
+</Note>
+
+<Note type="question">
+
+<NoteTitle toggles="true">
+
+##### Jak mohu uvolnit obsahový spor pouze na jednom poli, zatímco zbytek entity zůstane serializovaný?
+</NoteTitle>
+
+Výše uvedené schéma přepíná *každý* atribut `Product` na detekci na úrovni atributu. Pokud však chcete, aby entita zůstala serializovaná jako celek, ale uvolnit obsahový spor pouze na jednom často upravovaném poli — například u `description`, kterou mnoho editorů upravuje nezávisle — deklarujte zpřesnění pro konkrétní položku pomocí `ConflictResolutionOverride` místo pro celou entitu:
+
+```java
+session.defineEntitySchema("Product")
+	// celá entita zůstává na úrovni sporu celé entity…
+	.withConflictResolution(new ConflictResolution(ConflictPolicy.ENTITY))
+	.withAttribute(
+		"description", String.class,
+		// …kromě tohoto jednoho pole, které má svůj vlastní klíč na úrovni atributu
+		whichIs -> whichIs.withConflictResolutionOverride(ConflictResolutionOverride.GRANULAR)
+	)
+	.withAttribute("quantity", Integer.class) // DĚDĚNO → spor na úrovni celé entity
+	.updateVia(session);
+```
+
+Zde `quantity` (a každý další `DĚDĚNÝ` atribut) stále koliduje s *jakýmkoli* souběžným zápisem do stejného produktu, zatímco dvě úpravy `description` se střetnou pouze mezi sebou. Zrcadlový případ — tedy připnutí jednoho konzistenčně kritického pole na úroveň celé entity, zatímco zbytek entity běží na granularitě atributů — využívá `ConflictResolutionOverride.ENTITY` na tomto jednom poli.
+
+</Note>
+
+##### Mutace schématu
+
+Mutace schématu neumožňují přizpůsobitelné politiky řešení konfliktů a vždy používají stejnou strategii klíče konfliktu: mutace schématu entity zamítají změny ve stejné kolekci entit a mutace schématu katalogu zamítají změny ve stejném katalogu.
+
+#### Obsahování — hrubá politika vždy přebije jemnější
+
+Detekce konfliktů je založena na **obsahování, nikoli pouze na rovnosti**. Hrubý klíč konfliktu je v konfliktu se všemi jemnějšími klíči, které obsahuje, a to **v obou** časových směrech (bez ohledu na to, která transakce byla potvrzena jako první). Hierarchie klíčů stoupá následovně: `reference-attribute → reference → entity`, `attribute / associated-data / price / hierarchy → entity` a `entity → collection`; klíč `CATALOG` obsahuje vše v katalogu.
+
+To způsobuje, že následující dvojice jsou v konfliktu, i když obě strany pracují na různé úrovni podrobnosti:
+
+- **smazání entity** vs. granulární aktualizace atributu této entity,
+- **změna rozsahu** (přesun entity mezi rozsahy) vs. granulární aktualizace,
+- **odstranění reference** vs. aktualizace atributu této reference,
+- dva souběžné **vytvoření** stejného primárního klíče přiřazeného klientem s disjunktními sadami atributů (vytvoření vždy vydává klíč na úrovni entity),
+- smazání entity vs. komutativní **delta** zápis.
+
+<Note type="info">
+
+Existují také speciální typy bezpečných mutací, které mohou pomoci minimalizovat konflikty. Nejužitečnější je **"delta" mutace atributu** (přičtení/odečtení hodnoty): dvě delta mutace stejného atributu jsou *komutativní*, takže spolu nikdy nekolidují. Delta mutace používejte přednostně vždy, když několik transakcí zvyšuje nebo snižuje stejnou často měněnou hodnotu (počty zásob, čítače), a k absolutním zápisům přistupujte jen tehdy, když skutečně potřebujete přepsat hodnotu. Delta, která nese kontrolu rozsahu po aplikaci (například „výsledek musí zůstat ≥ 0“), je stále v konfliktu s jakýmkoli *absolutním* přepisem stejného atributu, protože přepis by zneplatnil kontrolu rozsahu.
 
 </Note>
 
 <Note type="warning">
 
-Granulární řešení konfliktů je ve vývoji (viz [issue #503](https://github.com/FGForrest/evitaDB/issues/503)).
-
-Naším cílem je, aby obecná politika konfliktů byla přepsatelná na úrovni katalogu, schématu, typu entity nebo podsystému schématu (např. atribut, asociovaná data atd.). Věříme, že tento přístup poskytuje potřebnou univerzálnost a jemné řízení.
+**`NONE` (last-writer-wins) vypíná detekci konfliktů.** Při použití `NONE` nejsou generovány žádné klíče konfliktů (jedinou výjimkou je delta s omezením rozsahu, u které je třeba provést kontrolu po aplikaci), takže konflikty zápis-zápis jsou tiše řešeny transakcí, která je potvrzena jako poslední. Stejné upozornění platí, v užším smyslu, pro každé granulární zpřesnění: pokud některý atribut vyjmete z detekce na úrovni entity, mohou dvě transakce současně měnit *různé* části téže entity a obě uspějí, což může narušit mezisoučtové invarianty (klasická anomálie write-skew). Nejjemnější granularitu volte pouze pro části, u nichž můžete zaručit nezávislost.
 
 </Note>
+
+#### Diagnostika konfliktu
+
+Když konflikt způsobí vrácení transakce, vyvolaná výjimka `ConflictingCatalogMutationException` hlásí kolidující **klíč konfliktu**, **verzi katalogu**, při které byla konfliktní změna potvrzena, **efektivní politiku**, která byla v danou chvíli platná, a **vrstvu schématu**, ze které byla vyhodnocena (schéma entity / schéma katalogu / výchozí nastavení enginu). Díky tomu lze na první pohled zjistit, zda k rollbacku došlo kvůli příliš širokému výchozímu nastavení, nebo kvůli záměrně hrubému nastavení ve schématu.
+
+#### Konfigurace řešení konfliktů
+
+Výchozí nastavení pro celý engine se nachází pod `transaction.conflictPolicy` v [konfiguraci serveru](../operate/configure.md). Přijímá objekt s hrubou volbou `policy` a volitelným seznamem `granularity`:
+
+```yaml
+transaction:
+  conflictPolicy:
+    policy: ENTITY
+    granularity: [ ENTITY_ATTRIBUTE, PRICE ]
+```
+
+Je možné použít i jednoduchou hodnotu jako zkratku pro politiku pouze s hrubou úrovní (`conflictPolicy: ENTITY`).
 
 ### 2. Zápis do write-ahead logu
 

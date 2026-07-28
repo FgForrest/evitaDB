@@ -1,12 +1,12 @@
 ---
 title: Řazení referencí / podle atributu reference
-perex: Můžete třídit entity podle atributů na referencích a také můžete třídit načtené referencované entity podle jejich atributů nebo podle atributů referencí, které na ně odkazují. Přestože se jedná o zásadně odlišné scénáře, oba jsou popsány v této sekci.
+perex: Entity můžete řadit podle atributů na referencích a také můžete řadit načtené referencované entity podle jejich atributů nebo podle atributů referencí, které na ně odkazují. Přestože se jedná o zásadně odlišné scénáře, oba jsou popsány v této sekci.
 date: '25.6.2023'
 author: Ing. Jan Novotný
 proofreading: needed
 preferredLang: evitaql
-commit: cabcf999e7be5b00e0b13e1228a76a8d9e91cb78
 translated: 'true'
+commit: '77da5b36c170430534ee4d9a4a2903da4de68555'
 ---
 ## Vlastnost reference
 
@@ -42,16 +42,16 @@ referenceProperty(
 
 </NoteTitle>
 
-V klauzuli `orderBy` v rámci požadavku [`referenceContent`](../requirements/fetching.md#referenční-obsah)
-je omezení `referenceProperty` implicitní a nesmí být opakováno. Všechna omezení řazení atributů
-v `referenceContent` automaticky odkazují na atributy reference, pokud zde není použit kontejner [`entityProperty`](#vlastnost-entity).
+V klauzuli `orderBy` v rámci požadavku [`referenceContent`](../requirements/fetching.md#reference-content)
+je omezení `referenceProperty` implicitní a nesmí být opakováno. Všechna atributová řadicí omezení
+v `referenceContent` se automaticky vztahují na atributy reference, pokud zde není použit kontejner [`entityProperty`](#entity-property).
 
 </Note>
 
-Řazení podle atributu reference není tak běžné jako řazení podle atributů entity, ale umožňuje řadit entity,
-které jsou v určité kategorii nebo mají určitou skupinu, specificky podle priority/pořadí pro daný vztah.
+Řazení podle atributu reference není tak běžné jako řazení podle atributů entity, ale umožňuje seřadit entity,
+které jsou v určité kategorii nebo mají určitou skupinu, právě podle priority/pořadí pro daný vztah.
 
-Chcete-li seřadit produkty související se skupinou "sale" podle atributu `orderInGroup` nastaveného na referenci, je třeba použít
+Chcete-li seřadit produkty přiřazené ke skupině "sale" podle atributu `orderInGroup` nastaveného na referenci, je třeba použít
 následující dotaz:
 
 <SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
@@ -151,16 +151,17 @@ pickFirstByEntityProperty(
 <dl>
     <dt>constraint:orderingConstraint+</dt>
     <dd>
-        jedno nebo více [řadicích omezení](natural.md), která určují pořadí referencí, ze kterých se vybírá první
-        z referencí na stejnou entitu, která bude použita pro řazení pomocí `referenceProperty`
+        jedno nebo více [řadicích omezení](./natural.md), která určují pořadí referencí, ze kterých se vybere první
+        z výčtu referencí na stejnou entitu, která bude použita pro řazení pomocí `referenceProperty`
     </dd>
 </dl>
 
-Řadicí omezení `pickFirstByEntityProperty` lze použít pouze v rámci řadicího omezení [`referenceProperty`](#vlastnost-reference).
-Má smysl pouze v případě, že kardinalita reference je 1:N (i když to není aktivně kontrolováno dotazovacím enginem).
-Toto omezení vám umožňuje určit pořadí referencí, ze kterých se vybírá první z referencí na stejnou entitu, která bude použita pro řazení pomocí `referenceProperty`.
+Řadicím omezení `pickFirstByEntityProperty` lze použít pouze v rámci řadicích omezení [`referenceProperty`](#reference-property).
+Má smysl pouze v případě, kdy má reference kardinalitu 1:N (i když to není aktivně kontrolováno dotazovacím
+enginem). Toto omezení vám umožní určit pořadí referencí a vybrat z nich tu první z výčtu referencí na stejnou entitu,
+která bude použita pro řazení pomocí `referenceProperty`.
 
-Rozšiřme si předchozí příklad o produkty, které odkazují jak na skupinu "sale", tak na "new":
+Rozšiřme si předchozí příklad tak, aby zahrnoval produkty, které odkazují jak na skupinu "sale", tak na skupinu "new":
 
 <SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
@@ -194,7 +195,7 @@ Rozšiřme si předchozí příklad o produkty, které odkazují jak na skupinu 
 
 </Note>
 
-Výsledek bude obsahovat nejprve produkty ze skupiny "new", která má nejnižší primární klíč. Poté budou následovat produkty ze skupiny "sale". Pořadí produktů v rámci každé skupiny bude určeno atributem `orderInGroup`. Takto se běžně postupuje u referencí, které cílí na nehirarchické entity.
+Výsledek bude obsahovat nejprve produkty ze skupiny "new", která má nejnižší primární klíč. Poté budou následovat produkty ze skupiny "sale". Pořadí produktů v rámci každé skupiny bude určeno atributem `orderInGroup`. Toto je obvyklý způsob řazení referencí, které odkazují na nehierarchické entity.
 
 Pokud chceme změnit pořadí skupin, můžeme použít řadicí omezení `pickFirstByEntityProperty` a explicitně určit pořadí skupin. Například pokud chceme nejprve vypsat produkty ve skupině "sale", můžeme použít následující dotaz:
 
@@ -232,7 +233,7 @@ Pokud je produkt v obou skupinách, prioritu má skupina "sale" a ta je použita
 
 </Note>
 
-## Procházej podle vlastnosti entity
+## Procházení podle vlastnosti entity
 
 ```evitaql-syntax
 traverseByEntityProperty(
@@ -244,24 +245,24 @@ traverseByEntityProperty(
 <dl>
     <dt>argument:enum(DEPTH_FIRST|BREADTH_FIRST)?</dt>
     <dd>
-        volitelný argument, který určuje režim procházení referencí, výchozí hodnota je `DEPTH_FIRST`
+        volitelný argument, který určuje režim procházení referencí; výchozí hodnota je `DEPTH_FIRST`
     </dd>
     <dt>constraint:orderingConstraint+</dt>
     <dd>
-        jedno nebo více [řadicích omezení](natural.md), která mění pořadí procházení referencí
-        řazené entity před aplikací řadicího omezení `referenceProperty`
+        jedna nebo více [řadicích podmínek](./natural.md), které mění pořadí procházení referencí
+        u řazené entity před tím, než je aplikována řadicí podmínka `referenceProperty`
     </dd>
 </dl>
 
-Řadicí omezení `traverseByEntityProperty` lze použít pouze s řadicím omezením [`referenceProperty`](#vlastnost-reference).
-To znamená, že entity by měly být nejprve seřazeny podle vlastnosti referencované entity. Pokud je entita
-hierarchická, můžete určit, zda má být hierarchie procházená
-[do hloubky (depth-first)](https://en.wikipedia.org/wiki/Depth-first_search) nebo [do šířky (breadth-first)](https://en.wikipedia.org/wiki/Breadth-first_search).
+Řadicí podmínka `traverseByEntityProperty` může být použita pouze s řadicím omezením [`referenceProperty`](#reference-property).
+To znamená, že entity by měly být nejprve seřazeny podle vlastnosti referencované entity. Pokud je entita hierarchická,
+můžete určit, zda má být hierarchie procházená v [hloubkovém](https://en.wikipedia.org/wiki/Depth-first_search)
+nebo [šířkovém](https://en.wikipedia.org/wiki/Breadth-first_search) pořadí.
 
-Jakmile jsou referencované entity seřazeny, pořadí referencovaných entit se aplikuje na reference na tyto entity.
+Jakmile jsou referencované entity seřazeny, jejich pořadí je aplikováno na reference na tyto entity.
 Pokud existuje více referencí, pro řazení je použita pouze ta první, kterou lze vyhodnotit.
 
-Toto chování je nejlépe ilustrováno následujícím příkladem. Vypišme produkty v kategorii 'Accessories' v pořadí
+Toto chování je nejlépe ilustrováno následujícím příkladem. Uveďme produkty v kategorii 'Accessories' v pořadí
 dle atributu `orderInCategory` na referenci kategorie:
 
 <SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
@@ -274,49 +275,45 @@ dle atributu `orderInCategory` na referenci kategorie:
 
 <NoteTitle toggles="true">
 
-##### Výpis produktů v kategorii "Accessories" seřazených podle řetězce předchůdců
+##### Vypsat produkty v kategorii "Accessories" podle řetězce předchůdců
 
 </NoteTitle>
 
 <LS to="e,j,c">
 
-<MDInclude>[Výpis produktů v kategorii "Accessories" seřazených podle řetězce předchůdců](/documentation/user/en/query/ordering/examples/reference/reference-attribute-natural-hierarchy.evitaql.md)</MDInclude>
+<MDInclude>[Vypsat produkty v kategorii "Accessories" podle řetězce předchůdců](/documentation/user/en/query/ordering/examples/reference/reference-attribute-natural-hierarchy.evitaql.md)</MDInclude>
 
 </LS>
 
 <LS to="g">
 
-<MDInclude>[Výpis produktů v kategorii "Accessories" seřazených podle řetězce předchůdců](/documentation/user/en/query/ordering/examples/reference/reference-attribute-natural-hierarchy.graphql.json.md)</MDInclude>
+<MDInclude>[Vypsat produkty v kategorii "Accessories" podle řetězce předchůdců](/documentation/user/en/query/ordering/examples/reference/reference-attribute-natural-hierarchy.graphql.json.md)</MDInclude>
 
 </LS>
 
 <LS to="r">
 
-<MDInclude>[Výpis produktů v kategorii "Accessories" seřazených podle řetězce předchůdců](/documentation/user/en/query/ordering/examples/reference/reference-attribute-natural-hierarchy.rest.json.md)</MDInclude>
+<MDInclude>[Vypsat produkty v kategorii "Accessories" podle řetězce předchůdců](/documentation/user/en/query/ordering/examples/reference/reference-attribute-natural-hierarchy.rest.json.md)</MDInclude>
 
 </LS>
 
-Výsledek bude nejprve obsahovat produkty v kategorii *Accessories*, seřazené podle `orderInCategory` od nejvyššího po nejnižší,
-poté produkty v kategorii *Christmas electronics* (což je první potomek kategorie *Accessories* s nejnižším primárním klíčem),
-poté produkty v kategorii *Smart wearable* (která nemá přímo přiřazené produkty),
-poté produkty v kategorii *Bands* (první potomek kategorie *Smart wearable*) a tak dále.
+Výsledek bude nejprve obsahovat produkty v kategorii *Accessories*, seřazené podle `orderInCategory` od nejvyššího po nejnižší, 
+poté produkty v kategorii *Christmas electronics* (která je prvním potomkem kategorie *Accessories* s nejnižším primárním klíčem), 
+následně produkty v kategorii *Smart wearable* (která nemá přímo přiřazené produkty), poté produkty v kategorii *Bands* (která je prvním potomkem kategorie *Smart wearable*), a tak dále.
 Pořadí odpovídá pořadí kategorií na následujícím obrázku:
 
-![dynamic-tree.png](../../../en/query/requirements/assets/dynamic-tree.png)
+![dynamic-tree.png](../requirements/assets/dynamic-tree.png)
 
-Pokud produkt spadá do kategorií **Christmas electronics** i **Smart wearable**, bude uveden pouze jednou.
-Je to proto, že v tomto dotazu je pro procházení hierarchie použit primární klíč kategorie.
+Pokud produkt spadá jak do kategorie **Christmas electronics**, tak do kategorie **Smart wearable**, bude uveden pouze jednou. 
+Je to proto, že v tomto dotazu je k procházení hierarchie použit primární klíč kategorie.
 
 </Note>
 
-Zde je další příklad: chceme vypsat produkty v kategorii *Accessories* v určitém pořadí. Toto pořadí je založeno
-na atributu `orderInCategory` na referenci ke kategorii. Ale hierarchii chceme procházet
-[šířkově (breadth first)](https://en.wikipedia.org/wiki/Breadth-first_search), přičemž každá úroveň hierarchie má být seřazena
-nejprve podle atributu `order` kategorie:
+Zde je další příklad: chceme vypsat produkty v kategorii *Accessories* v určitém pořadí. Toto pořadí je založeno na atributu `orderInCategory` na referenci ke kategorii. Chceme však procházet hierarchii [šířkovým způsobem](https://en.wikipedia.org/wiki/Breadth-first_search), kde by každá úroveň hierarchie měla být nejprve seřazena podle atributu `order` kategorie:
 
 <SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
-[Výpis produktů šířkově podle pořadí v kategorii v pořadí kategorií](/documentation/user/en/query/ordering/examples/reference/reference-traverse-by.evitaql)
+[Vypsat produkty v šířkovém pořadí podle pořadí v kategorii v pořadí kategorií](/documentation/user/en/query/ordering/examples/reference/reference-traverse-by.evitaql)
 
 </SourceCodeTabs>
 
@@ -349,7 +346,7 @@ Jak vidíte, pořadí entit i referencí v rámci hierarchie si můžete uspoř�
 
 </Note>
 
-## Vlastnost entity
+## Entity property
 
 ```evitaql-syntax
 entityProperty(
@@ -360,15 +357,15 @@ entityProperty(
 <dl>
     <dt>constraint:orderingConstraint+</dt>
     <dd>
-        jedno nebo více [řadicích omezení](natural.md), která určují řazení podle atributů referencované entity
+        jeden nebo více [řadicích omezení](./natural.md), která určují řazení podle atributů referencované entity
     </dd>
 </dl>
 
-Řadicí omezení `entityProperty` lze použít pouze v rámci požadavku [`referenceContent`](../requirements/fetching.md#referenční-obsah).
-Umožňuje změnit kontext řazení reference z atributů samotné reference na atributy entity, na kterou reference ukazuje.
+Řadicí omezení `entityProperty` lze použít pouze v rámci požadavku [`referenceContent`](../requirements/fetching.md#reference-content).
+Umožňuje změnit kontext řazení referencí z atributů samotné reference na atributy entity, na kterou reference odkazuje.
 
 Jinými slovy, pokud má entita `Product` více referencí na entity `ParameterValue`, můžete tyto
-reference řadit například podle atributu `order` nebo `name` entity `ParameterValue`. Podívejme se na příklad:
+reference seřadit například podle atributu `order` nebo `name` entity `ParameterValue`. Podívejme se na příklad:
 
 <SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
@@ -402,7 +399,7 @@ reference řadit například podle atributu `order` nebo `name` entity `Paramete
 
 </Note>
 
-## Vlastnost skupiny entity
+## Vlastnost skupiny entit
 
 ```evitaql-syntax
 entityGroupProperty(
@@ -413,15 +410,13 @@ entityGroupProperty(
 <dl>
     <dt>constraint:orderingConstraint+</dt>
     <dd>
-        jedno nebo více [řadicích omezení](natural.md), která určují řazení podle atributů skupiny referencované entity
+        jeden nebo více [řadicích omezení](./natural.md), která určují řazení podle atributů odkazované skupiny entit
     </dd>
 </dl>
 
-Řadicí omezení `entityGroupProperty` lze použít pouze v rámci požadavku [`referenceContent`](../requirements/fetching.md#referenční-obsah).
-Umožňuje změnit kontext řazení reference z atributů samotné reference na atributy skupinové entity, v rámci které je reference agregována.
+Řadicí omezení `entityGroupProperty` lze použít pouze v rámci požadavku [`referenceContent`](../requirements/fetching.md#reference-content). Umožňuje změnit kontext řazení referencí z atributů samotné reference na atributy skupiny entit, ve které je reference agregována.
 
-Jinými slovy, pokud má entita `Product` více referencí na entity `ParameterValue`, které jsou seskupeny podle jejich
-přiřazení k entitě `Parameter`, můžete tyto reference řadit primárně podle atributu `name` seskupující entity a sekundárně podle atributu `name` referencované entity. Podívejme se na příklad:
+Jinými slovy, pokud má entita `Product` více referencí na entity `ParameterValue`, které jsou seskupeny podle jejich přiřazení k entitě `Parameter`, můžete tyto reference seřadit primárně podle atributu `name` seskupující entity a sekundárně podle atributu `name` odkazované entity. Podívejme se na příklad:
 
 <SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 

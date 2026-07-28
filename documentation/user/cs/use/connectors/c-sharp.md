@@ -1,11 +1,11 @@
 ---
 title: 'C#'
-perex: 'Hlavním cílem C# driveru pro evitaDB bylo vytvořit co nejpodobnější API tomu v Javě, a to kvůli konzistenci a usnadnění přechodu vývojářů mezi jazyky. Existují však drobné rozdíly mezi těmito dvěma jazyky, takže C# API není stoprocentně totožné s tím v Javě. Mnohé z těchto rozdílů jsou převážně sémantické a týkají se jazykových konvencí.'
+perex: 'Hlavním cílem C# driveru pro evitaDB bylo vytvořit co nejpodobnější API tomu v Javě, a to kvůli konzistenci a usnadnění přechodu vývojářů mezi jazyky. Nicméně mezi těmito dvěma jazyky existují drobné rozdíly, takže C# API není stoprocentně totožné s tím v Javě. Mnohé z uvedených rozdílů jsou převážně v sémantice a jazykových konvencích.'
 date: '10.11.2023'
 author: Ing. Tomáš Pozler
 preferredLang: cs
-commit: '326bb602a2e94395b5ee6e1cb294421d3b671143'
-translated: true
+translated: 'true'
+commit: '77da5b36c170430534ee4d9a4a2903da4de68555'
 ---
 <LS to="e,j,g,r">
 Tato kapitola popisuje C# driver pro evitaDB a nedává smysl pro jiné jazyky. Pokud vás zajímají detaily implementace v C#, změňte si prosím preferovaný jazyk v pravém horním rohu.
@@ -50,12 +50,12 @@ která odpovídá nejnovějšímu evitaDB [docker image](https://hub.docker.com/
 
 ## Poznámky
 <SourceClass>EvitaDB.Client/EvitaClient.cs</SourceClass>
-je thread-safe a v aplikaci se očekává použití pouze jedné instance.
+je bezpečný pro použití z více vláken a v aplikaci se očekává použití pouze jediné instance.
 
 <Note type="info">
-Instance klienta je vytvořena bez ohledu na to, zda je server dostupný. Pro ověření, že je možné se serverem komunikovat,
-je potřeba na něm zavolat nějakou metodu. Typickým scénářem je otevření nové session
-do existujícího <Term location="/documentation/user/en/index.md">katalogu</Term>.
+Instance klienta je vytvořena bez ohledu na to, zda je server dostupný. Pro ověření, že je server dosažitelný,
+je potřeba na instanci klienta zavolat nějakou metodu. Typickým scénářem je otevření nové session
+pro existující <Term location="/documentation/user/en/index.md">katalog</Term>.
 </Note>
 
 <Note type="warning">

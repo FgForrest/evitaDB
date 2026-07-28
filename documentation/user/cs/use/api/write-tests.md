@@ -1,40 +1,39 @@
 ---
-title: Pište testy
-perex: Testy píše každý – i vy. Máme pravdu, že ano?! Psát testy by měla být radost, a proto se snažíme vám poskytnout podporu, abyste mohli s evitaDB snadno a rychle psát testy. Vaše integrační testy by neměly trvat minuty, ale sekundy.
+title: Psaní testů
+perex: Testy píše každý – i vy. Máme pravdu, že ano?! Psaní testů by mělo být potěšením, a proto se snažíme vám poskytnout podporu pro rychlé a snadné psaní testů s evitaDB. Vaše integrační testy by neměly trvat minuty, ale sekundy.
 date: '17.1.2023'
 author: Ing. Jan Novotný
 proofreading: done
 preferredLang: java
-commit: cef96d8320d36c91c100c5dfc9c45020b5a7ad0d
 translated: 'true'
+commit: '77da5b36c170430534ee4d9a4a2903da4de68555'
 ---
 <LS to="e">
 Výběr jazyka evitaQL pro tento článek nedává smysl.
 </LS>
 
 <LS to="c">
-Bohužel zatím nemáme podporu napsanou pro klienta v C#. Chcete
+Bohužel zatím nemáme podporu napsanou pro C# klienta. Chcete
 [přispět](https://github.com/FgForrest/evitaDB)?
 </LS>
 
 <LS to="j,g,r">
 
 <UsedTerms>
-    <h4>Pojmy použité v tomto dokumentu</h4>
+    <h4>Použité pojmy v tomto dokumentu</h4>
 	<dl>
 		<dt>autowiring</dt>
 		<dd>
         Autowiring je proces vložení instance beanu do zadaného argumentu metody. Tento
         mechanismus je známý jako [dependency injection pattern](https://en.wikipedia.org/wiki/Dependency_injection)
-        a umožňuje *frameworku* vyřešit správnou instanci pro argument daného jména a typu a
-        automaticky ji poskytnout aplikačnímu kódu. Tento proces umožňuje oddělit aplikační logiku
+        a umožňuje *frameworku* nalézt správnou instanci pro argument daného jména a typu a
+        automaticky ji předat aplikačnímu kódu. Tento proces umožňuje oddělení aplikační logiky
         od integrační logiky a výrazně ji zjednodušuje.
         </dd>
 	</dl>
 </UsedTerms>
 
-Abyste mohli využít naši podporu pro testování aplikací s evitaDB, musíte nejprve importovat artefakt `evita_test_support`
-do svého projektu:
+Abyste mohli využít naši podporu pro testování aplikací s evitaDB, musíte nejprve do svého projektu importovat artefakt `evita_test_support`:
 
 <CodeTabs>
 <CodeTabsBlock>
@@ -54,7 +53,7 @@ implementation 'io.evitadb:evita_test_support:2026.1.0'
 </CodeTabsBlock>
 </CodeTabs>
 
-Naše testovací podpora vyžaduje a je napsána pro testovací framework [JUnit 5](https://junit.org/junit5/docs/current/user-guide/).
+Naše podpora pro testování vyžaduje a je napsána pro testovací framework [JUnit 5](https://junit.org/junit5/docs/current/user-guide/).
 
 ## JUnit testovací třída
 

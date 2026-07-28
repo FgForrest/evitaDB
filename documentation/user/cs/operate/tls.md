@@ -1,11 +1,11 @@
 ---
 title: Nastavení TLS
-perex: Všechny API evitaDB podporují zabezpečenou vrstvu (HTTPS). gRPC je zcela založeno na protokolu HTTP/2, který je binární a vyžaduje šifrování. Z tohoto důvodu všechny externí API evitaDB standardně fungují na zabezpečeném protokolu, aby byla zajištěna jednotná bezpečnost.
+perex: Všechny API evitaDB podporují zabezpečenou vrstvu (HTTPS). gRPC je zcela založeno na protokolu HTTP/2, který je binární a vyžaduje šifrování. Z tohoto důvodu všechny externí API evitaDB ve výchozím nastavení fungují na zabezpečeném protokolu, aby byla zajištěna jednotná úroveň zabezpečení.
 date: '1.3.2023'
 author: Bc. Tomáš Pozler
 proofreading: done
-commit: cef96d8320d36c91c100c5dfc9c45020b5a7ad0d
 translated: 'true'
+commit: '77da5b36c170430534ee4d9a4a2903da4de68555'
 ---
 <UsedTerms>
     <h4>Použité pojmy</h4>

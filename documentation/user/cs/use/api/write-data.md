@@ -1,12 +1,12 @@
 ---
 title: Zápis dat
-perex: Tento článek obsahuje hlavní principy pro zadávání dat v evitaDB, popis datového API týkajícího se vkládání a mazání entit a související doporučení.
+perex: Tento článek obsahuje hlavní principy pro zápis dat v evitaDB, popis datového API týkajícího se vkládání a mazání entit a související doporučení.
 date: '31.10.2023'
 author: Ing. Jan Novotný
 proofreading: done
 preferredLang: java
-commit: c839053aa29ef6f30accd2c04a1ecb2cf588bbf0
 translated: 'true'
+commit: '77da5b36c170430534ee4d9a4a2903da4de68555'
 ---
 <LS to="e">
 
@@ -27,51 +27,29 @@ Tato úvaha nás vedla k návrhu dvou různých typů [vkládání entitních da
 
 ### Hromadné indexování
 
-Hromadné indexování se používá pro rychlé indexování velkého množství zdrojových dat. Používá se pro počáteční vytvoření katalogu z externích (primárních) úložišť dat. Nepotřebuje podporovat transakce a umožňuje otevření pouze jedné relace (jednoho vlákna) ze strany klienta. Katalog je v takzvaném stavu <LS to="j,g,r">`WARMUP`</LS><LS to="c">`Warmup`</LS> (<LS to="j,g,r"><SourceClass>evita_api/src/main/java/io/evitadb/api/CatalogState.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Session/CatalogState.cs</SourceClass></LS>). Klient může data zapisovat i dotazovat se na již zapsaná data, ale žádný jiný klient nemůže otevřít další relaci, protože by pro ně nemohla být zaručena konzistence dat. Cílem je zde indexovat stovky až tisíce entit za sekundu.
+Hromadné indexování se používá k rychlému indexování velkého množství zdrojových dat. Využívá se při počátečním vytváření katalogu z externích (primárních) datových úložišť. Nepodporuje transakce a umožňuje otevření pouze jedné relace (jednoho vlákna) ze strany klienta. Katalog je v takzvaném stavu <LS to="j,g,r">`WARMUP`</LS><LS to="c">`Warmup`</LS> (<LS to="j,g,r"><SourceClass>evita_api/src/main/java/io/evitadb/api/CatalogState.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Session/CatalogState.cs</SourceClass></LS>). Klient může data zapisovat i dotazovat se na již zapsaná data, ale žádný jiný klient nemůže otevřít další relaci, protože by pro něj nemohla být zaručena konzistence dat. Cílem je zde indexovat stovky až tisíce entit za sekundu.
 
-Pokud databáze během tohoto počátečního hromadného indexování spadne, je třeba považovat stav a konzistenci dat za poškozené a celý katalog by měl být odstraněn a znovu vybudován od začátku. Protože neexistuje žádný jiný klient než ten, který data zapisuje, můžeme si to dovolit.
+Pokud databáze během tohoto počátečního hromadného indexování havaruje, je nutné považovat stav a konzistenci dat za poškozené a celý katalog by měl být odstraněn a znovu vytvořen od začátku. Protože kromě zapisujícího klienta neexistuje žádný další klient, můžeme si toto dovolit.
 
-</LS>
-
-<LS to="j,c">
-
-Každý nově vytvořený katalog začíná ve stavu <LS to="j">`WARMUP`</LS><LS to="c">`Warmup`</LS> a musí být ručně přepnut do *transakčního* režimu provedením:
-
-<SourceCodeTabs setup="/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java" langSpecificTabOnly local>
-
-[Ukončení režimu warm-up](/documentation/user/en/use/api/example/finalization-of-warmup-mode.java)
-
-</SourceCodeTabs>
-
-Metoda <LS to="j">`goLiveAndClose`</LS><LS to="c">`GoLiveAndClose`</LS> nastaví katalog do stavu <LS to="j">`ALIVE`</LS><LS to="c">`Alive`</LS> (transakčního) a uzavře aktuální relaci. Od tohoto okamžiku mohou k tomuto konkrétnímu katalogu paralelně otevírat relace pro čtení i zápis více klientů.
-
-</LS>
-<LS to="g,r">
-
-Každý nově vytvořený katalog začíná ve stavu `WARMUP` a musí být ručně přepnut do *transakčního* režimu pomocí
-<LS to="g">[system API](/documentation/user/en/use/connectors/graphql.md#graphql-api-instances)</LS>
-<LS to="r">[system API](/documentation/user/en/use/connectors/rest.md#rest-api-instances)</LS>
-provedením:
-
-<SourceCodeTabs setup="/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java" langSpecificTabOnly local>
-
-[Ukončení režimu warm-up](/documentation/user/en/use/api/example/finalization-of-warmup-mode.graphql)
-
-</SourceCodeTabs>
-
-<LS to="g">Mutace `switchCatalogToAliveState`</LS><LS to="r">Endpoint `/catalogs/{catalog-name}` s metodou `PATCH`</LS>
-nastaví katalog do stavu `ALIVE` (transakčního). Od tohoto okamžiku mohou k tomuto konkrétnímu katalogu paralelně posílat dotazy nebo mutace více klientů.
-
-</LS>
-
-<LS to="j,g,r,c">
+Totéž platí pro *jednotlivý* neúspěšný zápis: hromadné indexování **nepodporuje zpětné vrácení na úrovni jednotlivých entit**, takže pokud `upsertEntity` / `deleteEntity` selže v průběhu operace, může zanechat indexové záznamy dané entity pouze částečně zapsané. Obnova je odpovědností klienta — buď kompenzovat částečný zápis, nebo (doporučeno) katalog znovu vytvořit. Podrobnosti a rozdíly oproti transakční fázi (`ALIVE`) najdete v části [Atomicita jednotlivých zápisů](../../deep-dive/bulk-vs-incremental-indexing.md#atomicita-jednotlivých-zápisů).
 
 ### Inkrementální indexování
 
-Režim inkrementálního indexování se používá k udržování aktuálnosti indexu vůči primárnímu úložišti dat během jeho životnosti. Očekáváme, že v primárním úložišti dat bude implementován nějaký proces [zachycení změn dat](https://en.wikipedia.org/wiki/Change_data_capture). Jedním z nejzajímavějších vývojů v této oblasti je [projekt Debezium](https://debezium.io/), který umožňuje poměrně snadné streamování změn z primárních úložišť do sekundárních indexů.
+Režim inkrementálního indexování se používá k udržení aktuálnosti indexu vůči primárnímu datovému úložišti během jeho životnosti.
+Předpokládáme, že v primárním datovém úložišti je zabudován nějaký proces [zachycení změn dat](https://en.wikipedia.org/wiki/Change_data_capture).
+Jedním z nejzajímavějších nedávných vývojů v této oblasti je
+[projekt Debezium](https://debezium.io/), který umožňuje poměrně snadno streamovat změny z primárních datových úložišť do sekundárních
+indexů.
 
-V okamžiku, kdy je katalog ve stavu <LS to="j">`ALIVE`</LS><LS to="c">`Alive`</LS>, může k němu přistupovat více klientů pro čtení i zápis dat. Každá aktualizace katalogu je zabalena do *transakce*, která splňuje [úroveň izolace snapshot](https://en.wikipedia.org/wiki/Snapshot_isolation). Více informací o zpracování transakcí najdete v [samostatné kapitole](../../deep-dive/transactions.md).
+Když je katalog ve stavu <LS to="j">`ALIVE`</LS>
+<LS to="c">`Alive`</LS>, může k němu přistupovat více klientů, kteří data čtou i zapisují. Každá
+aktualizace katalogu je zabalena do *transakce*, která splňuje
+[úroveň izolace snapshotu](https://en.wikipedia.org/wiki/Snapshot_isolation). Více informací o zpracování transakcí najdete v [samostatné kapitole](../../deep-dive/transactions.md).
 
+V této fázi je každý zápis entity navíc **atomický sám o sobě**: pokud se jednotlivý `upsertEntity` / `deleteEntity`
+nezdaří v průběhu operace (například kvůli porušení unikátního omezení), jsou pouze částečné změny této entity vráceny zpět
+a zbytek transakce zůstává platný, takže klient může zachytit chybu a pokračovat v zápisu před potvrzením. Viz
+[Atomicita jednotlivých mutací entit](../../deep-dive/transactions.md#atomicita-jednotlivých-mutací-entit).
 ## Charakteristiky modelu
 
 Náš model má několik vlastností, které byste měli mít na paměti a využít je ve svůj prospěch:
@@ -146,7 +124,7 @@ Informace o verzi jsou dostupné na úrovni entity.
 
 Informace o verzi slouží dvěma účelům:
 
-1. **rychlé hashování & kontrola rovnosti:** pouze informace o primaryKey + verzi stačí k určení, zda jsou dvě instance stejné, a můžeme to s dostatečnou jistotou říci i v situaci, kdy byla z perzistentního úložiště načtena pouze [část entity](query-data.md#líné-načítání-obohacování)
+1. **rychlé hashování & kontrola rovnosti:** pouze informace o primaryKey + verzi stačí k určení, zda jsou dvě instance stejné, a můžeme to s dostatečnou jistotou říci i v situaci, kdy byla z perzistentního úložiště načtena pouze [část entity](query-data.md#líné-načítání-obohacení)
 2. **optimistické zamykání:** pokud dojde ke konkurenční aktualizaci téže entity, můžeme konflikt automaticky vyřešit, pokud se změny vzájemně nepřekrývají.
 
 </LS>
