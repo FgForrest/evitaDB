@@ -44,7 +44,6 @@ import java.io.Serial;
 import java.io.Serializable;
 import java.util.Arrays;
 import java.util.List;
-import java.util.OptionalLong;
 import java.util.PrimitiveIterator.OfInt;
 
 /**
@@ -395,20 +394,24 @@ public class TransactionalUnorderedIntArray
 	 * ({@link Integer#MIN_VALUE} adds it to the head).
 	 */
 	public void add(int previousRecordId, int recordId) {
+		// order-keys minted by the position tree are always non-negative (the first container is 0 and every mint is
+		// additive), so Long.MIN_VALUE is a collision-proof "absent" sentinel that lets us skip the OptionalLong
+		// allocation `search(int)` would incur - the same trick `indexOf` relies on. The guard stays (it protects
+		// against index corruption), it is just no longer a second full descent plus a boxed result.
 		Assert.isTrue(
-			this.valueIndex.search(recordId).isEmpty(),
-			"Record with id " + recordId + " is already part of the array!"
+			this.valueIndex.searchOrDefault(recordId, Long.MIN_VALUE) == Long.MIN_VALUE,
+			() -> "Record with id " + recordId + " is already part of the array!"
 		);
 		if (previousRecordId == Integer.MIN_VALUE) {
 			this.positionTree.insertAtPosition(0, recordId, this);
 		} else {
-			final OptionalLong previousOrderKey = this.valueIndex.search(previousRecordId);
+			final long previousOrderKey = this.valueIndex.searchOrDefault(previousRecordId, Long.MIN_VALUE);
 			Assert.isTrue(
-				previousOrderKey.isPresent(),
-				"Record with id " + previousRecordId + " is not present in the array,"
+				previousOrderKey != Long.MIN_VALUE,
+				() -> "Record with id " + previousRecordId + " is not present in the array,"
 					+ " cannot add record " + recordId + " after it!"
 			);
-			this.positionTree.insertAfter(previousOrderKey.getAsLong(), previousRecordId, recordId, this);
+			this.positionTree.insertAfter(previousOrderKey, previousRecordId, recordId, this);
 		}
 	}
 
@@ -417,8 +420,8 @@ public class TransactionalUnorderedIntArray
 	 */
 	public void addOnIndex(int index, int recordId) {
 		Assert.isTrue(
-			this.valueIndex.search(recordId).isEmpty(),
-			"Record with id " + recordId + " is already part of the array!"
+			this.valueIndex.searchOrDefault(recordId, Long.MIN_VALUE) == Long.MIN_VALUE,
+			() -> "Record with id " + recordId + " is already part of the array!"
 		);
 		this.positionTree.insertAtPosition(index, recordId, this);
 	}
@@ -442,8 +445,8 @@ public class TransactionalUnorderedIntArray
 	public void appendAll(int... recordIds) {
 		for (final int recordId : recordIds) {
 			Assert.isTrue(
-				this.valueIndex.search(recordId).isEmpty(),
-				"Record with id " + recordId + " is already part of the array!"
+				this.valueIndex.searchOrDefault(recordId, Long.MIN_VALUE) == Long.MIN_VALUE,
+				() -> "Record with id " + recordId + " is already part of the array!"
 			);
 			this.positionTree.insertAtPosition(this.positionTree.size(), recordId, this);
 		}
