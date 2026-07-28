@@ -4,7 +4,7 @@ perex: |
   Every well-built e-shop filter panel runs on a delicate choreography. The shopper drags a slider, ticks a checkbox, and the panel must redraw without ever feeling broken — collapsing sliders, facets that read zero, price ranges that shrink to a sliver are the trust-killers. The unspoken UX rules behind those panels translate to a surprisingly precise set of database semantics. In evitaDB they take the shape of `userFilter` and three carrier families. This post walks through that choreography from the shopper's screen to the query.
 date: '14.05.2026'
 author: 'Ing. Jan Novotný'
-motive: assets/images/25-faceted-filter-choreography.png
+motive: assets/images/26-faceted-filter-choreography.png
 proofreading: 'done'
 draft: true
 ---
