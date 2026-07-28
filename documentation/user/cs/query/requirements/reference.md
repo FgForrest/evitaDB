@@ -99,7 +99,7 @@ referenceSummary(
     </dd>
     <dt>requireConstraint:histogramStatistics*</dt>
     <dd>
-        nula nebo více potomků [`histogramStatistics`](#histogram-statistics), jeden pro **pojmenovaný bucketovaný index** deklarovaný ve schématu reference (`bucketed` na referenci). Každý potomek vytváří histogram na úrovni skupiny, klíčovaný primárním klíčem entity skupiny, a je zdrojem dat pro posuvníkové widgety řízené pomocí [`histogramHaving`](../filtering/references.md#histogram-having). Povolené pouze tehdy, když cílená reference je nakonfigurována s `bucketed` indexy; jinak odmítnuto při konstrukci.
+        nula nebo více potomků [`histogramStatistics`](#histogram-statistics), jeden pro **pojmenovaný bucketovaný index** deklarovaný ve schématu reference (`bucketed` na referenci). Každý potomek vytváří histogram na úrovni skupiny, klíčovaný primárním klíčem entity skupiny, a je zdrojem dat pro posuvníkové widgety řízené pomocí [`histogramHaving`](../filtering/references.md#histogramhaving). Povolené pouze tehdy, když cílená reference je nakonfigurována s `bucketed` indexy; jinak odmítnuto při konstrukci.
     </dd>
 </dl>
 
@@ -505,11 +505,11 @@ může být použito pouze jako potomek [`referenceSummary`](#reference-summary)
 
 - celokatalogový rozsah `[min, max]` základní hodnoty (vnější úchyty posuvníku)
 - seznam bucketů s `threshold` (dolní hranice, včetně), `occurrences` a `relativeFrequency`
-- příznak `requested` pro každý bucket, který označuje, zda se překrývá s aktivním rozsahem [`histogramHaving`](../filtering/references.md#histogram-having)
+- příznak `requested` pro každý bucket, který označuje, zda se překrývá s aktivním rozsahem [`histogramHaving`](../filtering/references.md#histogramhaving)
 
 <Note type="info">
 
-Pokud `valueExpression` odkazuje na **číselný rozsah** atributu (`ByteNumberRange`, `ShortNumberRange`, `IntegerNumberRange`, `LongNumberRange`, `BigDecimalNumberRange`) místo skaláru, histogram je počítán přes intervaly: každá přispívající instance reference je započítána do **každého bucketu, který její interval `[from, to]` překrývá** (uzavřený interval). Pro zdroje rozsahů tedy `overallCount` i výskyty v bucketech počítají *přiřazení*, nikoliv různé instance referencí — jedna instance přesahující N bucketů přidá 1 do každého z těchto N bucketů — a `[min, max]` je určeno z krajních hodnot rozsahů. Viz [Histogramy typované rozsahem](../../use/schema.md#reference-histograms) pro detaily na úrovni schématu.
+Pokud `valueExpression` odkazuje na **číselný rozsah** atributu (`ByteNumberRange`, `ShortNumberRange`, `IntegerNumberRange`, `LongNumberRange`, `BigDecimalNumberRange`) místo skaláru, histogram je počítán přes intervaly: každá přispívající instance reference je započítána do **každého bucketu, který její interval `[from, to]` překrývá** (uzavřený interval). Pro zdroje rozsahů tedy `overallCount` i výskyty v bucketech počítají *přiřazení*, nikoliv různé instance referencí — jedna instance přesahující N bucketů přidá 1 do každého z těchto N bucketů — a `[min, max]` je určeno z krajních hodnot rozsahů. Viz [Histogramy typované rozsahem](../../use/schema.md#referenční-histogramy) pro detaily na úrovni schématu.
 
 Pokud cílený histogram deklaruje selektor `assignedWhen`, přispívají do něj pouze instance odpovídající tomuto selektoru (a referenční bráně `bucketedPartially`), takže dva histogramy na stejné referenci mohou prezentovat různé řezy stejné základní hodnoty.
 

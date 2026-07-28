@@ -5,8 +5,8 @@ date: '11.5.2026'
 author: Ing. Jan Novotný
 proofreading: done
 preferredLang: java
-commit: '03a2d7249423d88d8524dc83327f4c44da0a6dc5'
 translated: 'true'
+commit: '77da5b36c170430534ee4d9a4a2903da4de68555'
 ---
 evitaDB interně udržuje schéma pro každou [entitní kolekci](data-model.md#kolekce) / [katalog](data-model.md#katalog), ačkoliv podporuje [uvolněný přístup](#evoluce), kdy je schéma automaticky vytvářeno na základě dat vložených do databáze.
 
@@ -434,10 +434,10 @@ Reference mohou mít nula nebo více atributů, které platí pouze pro konkrét
 
 <NoteTitle toggles="false">
 
-##### Seznam mutací týkajících se reference
+##### Seznam mutací souvisejících s referencí
 </NoteTitle>
 
-V rámci `ModifyEntitySchemaMutation` můžete použít mutaci:
+V rámci `ModifyEntitySchemaMutation` můžete použít mutace:
 
 - **<LS to="j,e,r,g"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/reference/CreateReferenceSchemaMutation.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/References/CreateReferenceSchemaMutation.cs</SourceClass></LS>**
 - **<LS to="j,e,r,g"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/reference/CreateReflectedReferenceSchemaMutation.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/References/CreateReflectedReferenceSchemaMutation.cs</SourceClass></LS>**
@@ -452,13 +452,14 @@ V rámci `ModifyEntitySchemaMutation` můžete použít mutaci:
 - **<LS to="j,e,r,g"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/reference/ModifyReflectedReferenceAttributeInheritanceSchemaMutation.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/References/ModifyReflectedReferenceAttributeInheritanceSchemaMutation.cs</SourceClass></LS>**
 - **<LS to="j,e,r,g"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/reference/SetReferenceSchemaIndexedMutation.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/References/SetReferenceSchemaIndexedMutation.cs</SourceClass></LS>**
 - **<LS to="j,e,r,g"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/reference/SetReferenceSchemaFacetedMutation.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/References/SetReferenceSchemaFacetedMutation.cs</SourceClass></LS>**
+- **<LS to="j,e,r,g"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/reference/SetReferenceSchemaBucketedMutation.java</SourceClass></LS><LS to="c"><SourceClass>(zatím není podporováno v C# driveru)</SourceClass></LS>**
 - **<LS to="j,e,r,g"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/reference/ModifyReferenceAttributeSchemaMutation.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/References/ModifyReferenceAttributeSchemaMutation.cs</SourceClass></LS>**
 - **<LS to="j,e,r,g"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/reference/ModifyReflectedReferenceAttributeInheritanceSchemaMutation.java</SourceClass></LS><LS to="c"><SourceClass>(zatím není podporováno v C# driveru – viz [issue 8](https://github.com/FgForrest/evitaDB-C-Sharp-client/issues/8))</SourceClass></LS>**
 
 `ModifyReferenceAttributeSchemaMutation` očekává vnořené [mutace atributů](#atributy).
 
 <LS to="j,c">
-Schéma reference je popsáno:
+Schéma reference je popsáno pomocí:
 <LS to="j"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/ReferenceSchemaContract.java</SourceClass></LS>
 <LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/IReferenceSchema.cs</SourceClass></LS> a
 <LS to="j"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/ReflectedReferenceSchemaContract.java</SourceClass></LS>
@@ -499,20 +500,130 @@ Pokud reference obsahuje atribut, který není definován na druhé straně, a r
 
 #### Indexování referencí
 
-Pro každou z referencí definovaných ve schématu entity musíte zvolit úroveň indexování. K dispozici jsou tři úrovně <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/dto/ReferenceIndexType.java</SourceClass>:
+Pro každou referenci definovanou ve schématu entity je třeba zvolit úroveň indexování. K dispozici jsou tři úrovně <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/dto/ReferenceIndexType.java</SourceClass>:
 
 <dl>
     <dt>NONE</dt>
-    <dd>Reference nemá žádný dostupný index. To znamená, že reference nemůže být použita v žádném dotazovacím filtru nebo řazení. Použijte tento typ, pokud nepotřebujete filtrovat ani řadit podle existence reference nebo jakéhokoliv z jejích atributů a chcete minimalizovat spotřebu paměti a disku.</dd>
+    <dd>Reference nemá žádný dostupný index. To znamená, že referenci nelze použít v žádném filtrování nebo řazení dotazů. Tento typ použijte, pokud nepotřebujete filtrovat ani řadit podle existence reference nebo jakéhokoliv atributu reference a chcete minimalizovat využití paměti a disku.</dd>
     <dt>FOR_FILTERING</dt>
-    <dd>Reference má pouze základní index, který je nezbytný pro interpretaci filtračních podmínek [`referencedEntityHaving`](../query/filtering/references.md) a řazení [`referenceProperty`](../query/ordering/reference.md). Toto je minimální úroveň indexování, která umožňuje filtrovat podle existence reference a atributů reference. Použijte tento typ, pokud potřebujete základní možnosti filtrování reference, ale chcete minimalizovat spotřebu paměti a disku. Je vhodný pro reference, které nejsou často používány ve složitých dotazech nebo když je optimalizace úložiště důležitější než výkon dotazů. Toto je doporučený výchozí typ indexování referencí a je dostačující pro většinu případů použití.</dd>
+    <dd>Reference má pouze základní index, který je nezbytný pro vyhodnocení podmínek filtru [`referencedEntityHaving`](../query/filtering/references.md) a interpretaci řazení pomocí [`referenceProperty`](../query/ordering/reference.md). Toto je minimální úroveň indexování, která umožňuje filtrování podle existence reference a jejích atributů. Tento typ použijte, pokud potřebujete základní možnosti filtrování referencí, ale chcete minimalizovat využití paměti a disku. Je vhodný pro reference, které nejsou často používány ve složitých dotazech, nebo když je optimalizace úložiště důležitější než výkon dotazů. Toto je doporučený výchozí typ indexování pro reference a je dostačující pro většinu případů použití.</dd>
     <dt>FOR_FILTERING_AND_PARTITIONING</dt>
-    <dd>Reference má základní index potřebný pro filtrační podmínky [`referencedEntityHaving`](../query/filtering/references.md) a řazení [`referenceProperty`](../query/ordering/reference.md), a také partitioning indexy pro hlavní typ entity (tj. typ entity, který obsahuje schéma reference), což může výrazně urychlit provádění dotazu, pokud je reference součástí filtru dotazu. Toto pokročilé indexování vytváří další datové struktury umožňující efektivnější provádění dotazů rozdělením dat podle referenčních vztahů. To může výrazně zlepšit výkon složitých dotazů zahrnujících filtrování referencí, zejména při práci s velkými datovými sadami. Použijte tento typ, pokud je filtrování referencí často používáno v dotazech a výkon dotazů je kritický. Uvědomte si, že tato možnost vyžaduje více paměti a místa na disku ve srovnání s úrovní `FOR_FILTERING`.</dd>
+    <dd>Reference má základní index potřebný pro vyhodnocení podmínek filtru [`referencedEntityHaving`](../query/filtering/references.md) a interpretaci řazení pomocí [`referenceProperty`](../query/ordering/reference.md), a navíc i partitioning indexy pro hlavní typ entity (tj. typ entity, který obsahuje schéma reference), což může výrazně urychlit vykonání dotazu, pokud je reference součástí filtrování dotazu. Toto pokročilé indexování vytváří další datové struktury, které umožňují efektivnější vykonávání dotazů rozdělením dat na základě referenčních vztahů. To může významně zlepšit výkon u složitých dotazů, které zahrnují filtrování podle referencí, zejména při práci s velkými datovými sadami. Tento typ použijte, pokud je filtrování podle referencí často používáno v dotazech a výkon dotazů je kritický. Uvědomte si, že tato možnost vyžaduje více paměti a diskového prostoru ve srovnání s úrovní `FOR_FILTERING`.</dd>
 </dl>
 
-Partitioning indexy jsou reprezentovány <SourceClass>evita_engine/src/main/java/io/evitadb/index/ReducedEntityIndex.java</SourceClass> a takový index je vytvořen pro každou referenci použitou v jakékoliv entitě ve schématu a bude obsahovat podmnožinu indexů atributů, cen a dalších, zredukovanou pouze na entity s danou referencí. Uveďme příklad – máme typ entity `Product`, který má referenci `categories` na typ entity `Category`, která je indexována jako `FOR_FILTERING_AND_PARTITIONING`. Představme si, že potřebujeme najít všechny produkty zařazené do konkrétní kategorie, které zároveň splňují dalších deset podmínek (jsou publikované, aktuálně platné, mají dostupnou cenu v uživatelském cenovém seznamu a v EUR atd.). Takový dotaz můžeme vyhodnotit nad jedním velkým indexem, kde jsou tyto informace dostupné pro všechny známé produkty v databázi, nebo (pokud použijeme partitioning) můžeme použít mnohem menší index, ve kterém najdeme všechny potřebné informace pouze pro produkty, které mají platný odkaz na kategorii, pro kterou dotaz vyhodnocujeme. Logicky bude odpověď na dotaz výrazně rychlejší, protože množství prohledávaných dat je výrazně menší. Nevýhodou tohoto přístupu je, že vyžaduje poměrně velké množství paměti.
+Partitioning indexy jsou reprezentovány třídou <SourceClass>evita_engine/src/main/java/io/evitadb/index/ReducedEntityIndex.java</SourceClass> a takový index je vytvořen pro každou referenci použitou v jakékoliv entitě ve schématu a bude obsahovat podmnožinu atributových, cenových a dalších indexů redukovaných pouze na entity s danou referencí. Ukažme si to na příkladu – řekněme, že máme typ entity `Product`, který má referenci `categories` na typ entity `Category`, která je indexována jako `FOR_FILTERING_AND_PARTITIONING`. Představme si, že potřebujeme najít všechny produkty zařazené do konkrétní kategorie, které zároveň splňují dalších deset podmínek (jsou publikované, aktuálně platné, mají dostupnou cenu v uživatelském ceníku a v EUR atd.). Takový dotaz můžeme vyhodnotit nad jedním velkým indexem, kde jsou tyto informace dostupné pro všechny známé produkty v databázi, nebo (pokud použijeme partitioning) můžeme využít mnohem menší index, ve kterém najdeme všechny potřebné informace pouze pro produkty, které mají platnou vazbu na kategorii, pro kterou dotaz vyhodnocujeme. Logicky bude odpověď na dotaz výrazně rychlejší, protože množství prohledávaných dat je výrazně menší. Nevýhodou tohoto přístupu je, že vyžaduje relativně velké množství paměťového prostoru.
 
-Pokud je reference označena jako *faceted*, je pro typ entity vytvořen speciální <SourceClass>evita_engine/src/main/java/io/evitadb/index/facet/FacetReferenceIndex.java</SourceClass>. Tento index obsahuje optimalizované datové struktury pro výpočet [souhrnu referencí](../query/requirements/reference.md). Všechny instance referencí daného typu jsou pak vloženy do *facet reference indexu* (není možné vyloučit referenci z indexování ve facet reference indexu). Reference mohou (ale nemusí) být organizovány do facet skupin, které odkazují na *spravovaný* nebo *nespravovaný* typ entity.
+##### Referenční facety
+
+Pokud je reference označena jako *faceted* (faktová), je pro daný typ entity vytvořen speciální <SourceClass>evita_engine/src/main/java/io/evitadb/index/facet/FacetReferenceIndex.java</SourceClass>. Tento index obsahuje optimalizované datové struktury pro výpočet [souhrnu referencí](../query/requirements/reference.md#referenční-souhrn) — tedy počtů a statistik, které umožňují filtrování pomocí zaškrtávacích políček v e-commerce rozhraních (například „Značka: Nike (42), Adidas (31), Puma (18)“).
+
+Když je reference označena jako faktová, všechny její instance jsou vloženy do indexu referenčních facet. Reference mohou (ale nemusí) být organizovány do skupin facet, které odkazují na *řízený* nebo *neřízený* typ entity. Facetový index je vytvářen při **indexaci** — tedy při vytváření nebo aktualizaci entit — takže výpočet [souhrnu referencí](../query/requirements/reference.md#referenční-souhrn) při dotazování čte přímo předem připravený index a běží na plnou rychlost.
+
+Ve výchozím nastavení se **každá** instance faktové reference účastní facetového indexu. Možnost [podmíněného indexování](#podmíněné-indexování-pomocí-výrazů) popsaná níže vám umožní toto chování zúžit pomocí výrazu.
+
+##### Referenční histogramy
+
+evitaDB umí vypočítat [histogramy](../query/requirements/histogram.md) pro libovolný číselný filtrovatelný atribut entity pomocí požadavku `attributeHistogram`. Tento přístup však vyžaduje, aby klient explicitně pojmenoval každý atribut, pro který chce histogramy získat. Pokud se sada relevantních atributů dynamicky mění — například když různé skupiny parametrů produktů potřebují různou prezentaci filtrů (některé jako zaškrtávací políčka, jiné jako posuvníky s rozsahem) — musí si klient udržovat vlastní logiku mapování, aby rozhodl, pro které atributy má histogramy požadovat. To vytváří složitou middleware a cache logiku na straně klienta.
+
+**Indexování histogramů po intervalech** na referencích tento problém řeší tím, že histogramy povyšuje na plnohodnotnou součást schématu reference. Když je reference označena jako *bucketed* (s intervaly), evitaDB vytváří a udržuje index histogramu vedle indexu facet. Tyto histogramy na úrovni referencí jsou pak **automaticky zahrnuty do [souhrnu referencí](../query/requirements/reference.md#referenční-souhrn)** — stejně jako facetové informace. Klient jednoduše požádá o souhrn a v jedné odpovědi obdrží jak počty pro zaškrtávací políčka, tak intervalové histogramy, aniž by musel jmenovat jednotlivé atributy.
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### Facetové zaškrtávací políčka a intervalové posuvníky na jedné referenci
+
+</NoteTitle>
+
+Představte si entitu Product s referencí `parameterValues` na ParameterValue, seskupenou podle Parameter. Každá skupina parametrů má atribut `inputWidgetType`, který určuje, jak má být uživateli prezentována:
+
+- Parametry s `inputWidgetType == 'CHECKBOX'` → reference je **facetová** (uživatelé vybírají pomocí zaškrtávacích políček)
+- Parametry s `inputWidgetType == 'INTERVAL'` → reference je **bucketovaná** pro histogram (uživatelé posouvají rozsahovou lištu)
+
+Oba způsoby fungují současně v rámci jedné definice reference. [Podmíněné výrazy](#podmíněné-indexování-pomocí-výrazů) (`facetedPartially` a `bucketedPartially`) nasměrují každou skupinu k odpovídajícímu typu indexu při indexaci.
+
+</Note>
+
+Při definici histogramu zadáváte **výraz pro hodnotu** — [EvitaEL výraz](../query/expression-language.md), který určuje, jakou hodnotu atributu uložit jako hodnotu bucketu histogramu pro každou instanci reference. Například `$reference.referencedEntity.attributes['basicUnitValue']` získá atribut `basicUnitValue` z referencované entity. Každá reference může definovat více **pojmenovaných histogramových indexů** v každém rozsahu — název histogramu identifikuje slot indexu a různé rozsahy mohou pro stejný název používat různé výrazy pro hodnotu.
+
+Výraz pro hodnotu může vést buď na **skalární číselný** atribut (`Byte`, `Short`, `Integer`, `Long`, `BigDecimal`), nebo na **číselný rozsah** atribut (`ByteNumberRange`, `ShortNumberRange`, `IntegerNumberRange`, `LongNumberRange`, `BigDecimalNumberRange`). Jakýkoli jiný typ — včetně `DateTimeRange` a neskalárních číselných typů — je při definici schématu odmítnut. Stejně jako facetová data jsou i všechna data histogramu vytvářena **při indexaci** — výraz pro hodnotu je vyhodnocen při vytváření nebo aktualizaci entit a dotazovací engine čte přímo předpřipravený index bez jakéhokoli dalšího vyhodnocování výrazů.
+
+###### Histogramy s hodnotami typu rozsah
+
+Pokud výraz pro hodnotu odkazuje na atribut typu `NumberRange`, instance reference nepřispívá jediným bodem — přispívá celým intervalem `[from, to]`. evitaDB indexuje krajní body rozsahu a při dotazování se každá instance reference započítá do **každého histogramového bucketu, se kterým se její interval překrývá**, přičemž se používá uzavřená intervalová sémantika (rozsah je započítán jak na své dolní, tak horní hranici). Jediná instance reference, jejíž rozsah zasahuje do více bucketů, tedy zvýší počet výskytů *každého* z těchto bucketů. Minimum a maximum histogramu (`min` / `max`) jsou určeny nejnižší hodnotou `from` a nejvyšší hodnotou `to` ze všech přispívajících rozsahů; neomezené rozsahy (bez hranice `from` nebo `to`) se započítávají od / po příslušný konec intervalu. Skalární i rozsahové histogramy mohou na jedné referenci koexistovat pod různými názvy histogramů.
+
+<Note type="info">
+
+Protože jeden prvek může spadat do více bucketů najednou, `overallCount` rozsahového histogramu (a součet výskytů v bucketech) počítá **přiřazení (instance × překrytý bucket)**, nikoli počet unikátních instancí reference — obvykle je tedy vyšší než počet přispívajících instancí. Je to záměrné: například rozsah dostupnosti nebo platnosti by měl "vyplnit" každou pozici posuvníku, kterou pokrývá.
+
+Na rozdíl od skalárních zdrojů nesmí rozsahový zdroj deklarovat výchozí hodnotu `?? value`. Chybějící rozsah jednoduše nepřispívá ničím, místo aby se zredukoval na bodovou hodnotu, proto je zadání výchozí hodnoty při definici schématu odmítnuto.
+
+</Note>
+
+Histogramová data jsou udržována ve stejných zredukovaných indexech entit, které obsahují facetová data — `ReducedGroupEntityIndex` pro seskupené reference a `ReferencedTypeEntityIndex` pro neseskupené reference. Díky tomu je výpočet histogramu při dotazování stejně rychlý jako výpočet facetového souhrnu: data jsou již předem rozdělená a připravená.
+
+##### Podmíněné indexování pomocí výrazů
+
+Jak [indexování facet](#referenční-facety), tak [referenční histogramy](#referenční-histogramy) podporují podmíněnou účast prostřednictvím výrazů `facetedPartially` a `bucketedPartially`. Výraz `facetedPartially` určuje, které instance reference budou zahrnuty do facetového indexu; výraz `bucketedPartially` určuje, které instance se budou účastnit histogramového indexu. Pokud reference obsahuje jak facety, tak histogramy, mohou podmíněné výrazy rozdělit instance reference do různých typů indexů — například směrovat zaškrtávací parametry do facetového indexu a intervalové parametry do histogramového indexu, a to vše v rámci jedné definice reference.
+
+Oba výrazy používají stejný jazyk [EvitaEL expression](../query/expression-language.md) a jsou **vyhodnocovány při indexaci** — tedy při vytváření nebo aktualizaci entit. Výsledek výrazu určuje, zda bude konkrétní instance reference přidána do příslušného indexu nebo z něj odebrána. Výrazy nehrají žádnou roli při dotazování; v tomto okamžiku již indexy obsahují pouze ty instance reference, které prošly svými podmínkami, a výpočet souhrnů probíhá maximální rychlostí.
+
+**Přiřazení ke konkrétnímu histogramu (`assignedWhen`).** `bucketedPartially` je *brána na úrovni reference* — rozhoduje, které instance reference jsou vůbec způsobilé pro indexování do histogramu. Pojmenovaný histogram může navíc deklarovat selektor `assignedWhen`, který se aplikuje **navíc k této bráně**: mezi již způsobilými instancemi rozhoduje, které z nich přispívají *do tohoto konkrétního* histogramu. Oba výrazy jsou kombinovány logickým AND (`bucketedPartially && assignedWhen`). Protože každý pojmenovaný histogram má svůj vlastní `assignedWhen`, může na jedné referenci existovat několik histogramů, které vybírají překrývající se nebo disjunktní množiny instancí — instance přispívá do *každého* histogramu, jehož `assignedWhen` vyhodnotí na `true`, a také do každého histogramu, který `assignedWhen` vůbec nedefinuje. Stejně jako ostatní podmíněné výrazy je `assignedWhen` vyhodnocován při indexaci a používá stejné datové cesty `$entity` / `$reference` popsané níže.
+
+**Dostupné datové cesty ve výrazu:**
+
+Výraz má k dispozici dvě kontextové proměnné — `$entity` (vlastnická entita) a `$reference` (konkrétní reference, která se vyhodnocuje). Pomocí těchto proměnných lze přistupovat k datům vlastnické entity, samotné reference a — až o jeden skok — k referencované entitě, skupinové entitě nebo rodičovské entitě. Níže jsou cesty seřazeny od nejčastěji používaných po méně časté:
+
+- `$reference.referencedEntity.attributes['x']` — atributy referencované entity (například ověření atributu `status` referencované kategorie)
+- `$reference.groupEntity?.attributes['x']` — atributy skupinové entity (použijte `?.` pro bezpečnou navigaci, protože skupina může chybět)
+- `$reference.attributes['x']` — atributy na úrovni reference (atributy na samotném odkazu)
+- `$entity.attributes['x']` — atributy vlastnické entity
+- `$entity.parentEntity.attributes['x']` — atributy hierarchického rodiče vlastnické entity (rodič je stejný typ entity — toto je cesta mezi entitami)
+- `$entity.parentEntity != null` — ověření, zda má vlastnická entita vůbec rodiče
+- `$entity.parent` — primární klíč rodiče vlastnické entity (integer)
+- `$reference.referencedPrimaryKey` — primární klíč referencované entity (integer)
+
+Můžete také přistupovat k referencím a jejich atributům na referencované, skupinové nebo rodičovské entitě. Například výraz `$reference.referencedEntity.references['tag'].any(($.attributes['weight'] ?? 0) > 5)` ověří, zda některá reference `tag` na referencované entitě má atribut `weight` větší než 5.
+
+<Note type="info">
+
+Výrazy mohou sahat maximálně **o jednu entitu dál** od vlastnické entity. Můžete přejít k referencované, skupinové nebo rodičovské entitě a číst její vlastnosti — včetně jejích vlastních referencí a jejich atributů — ale nemůžete pokračovat dále k další entitě. Toto omezení udržuje závislostní graf mezi entitami předvídatelný a zajišťuje, že změny lze efektivně sledovat a znovu vyhodnocovat.
+
+</Note>
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+###### Automatické přeindexování při změnách dat
+</NoteTitle>
+
+evitaDB analyzuje každý výraz již při definici schématu, aby zjistila, na kterých datech závisí. Od tohoto okamžiku, kdykoli dojde ke změně relevantního atributu nebo reference — dokonce i na *jiné* entitě (například na referencované entitě nebo skupinové entitě) — evitaDB automaticky znovu vyhodnotí výraz pro všechny dotčené instance referencí a odpovídajícím způsobem aktualizuje facetový nebo histogramový index. Toto probíhá transparentně během zápisové operace, takže indexy jsou vždy v souladu s aktuálními daty a není potřeba žádné ruční přeindexování.
+
+</Note>
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+###### Nepřeložitelné výrazy
+</NoteTitle>
+
+Ne všechny výrazy jsou podporovány. Každý výraz musí být při definici schématu přeložitelný na evitaDB `FilterBy` constraint. Výrazy s dynamickými cestami atributů (kde název atributu není řetězcový literál) nebo s nepodporovanými operátory jsou ihned odmítnuty s jasnou chybovou zprávou.
+
+</Note>
+
+<Note type="warning">
+
+###### Reflektované reference a podmíněné indexování
+
+[Reflektované reference](#směrovost-reference) **nemohou** dědit výrazy pro podmíněné indexování ze zdrojové reference. Výrazy `facetedPartially` a `bucketedPartially` (stejně jako výrazy pro hodnoty histogramu) obsahují směrově specifické cesty — zejména `$reference.referencedEntity` — které se vyhodnocují na různé typy entit v závislosti na tom, ze které strany reference jsou použity. Pokud by se takový výraz zdědil doslova na reflektované straně, vedlo by to k vyhledávání atributů na nesprávném typu entity.
+
+Pokud zdrojová reference definuje `facetedPartially`, musí reflektovaná reference explicitně definovat své vlastní faceted nastavení (pomocí `facetedInScope` s vlastním výrazem `facetedPartially` napsaným pro reflektovaný směr, nebo jednoduše `faceted` bez částečného výrazu). Pokus o použití `withFacetedInherited()`, když má zdrojová reference `facetedPartially`, vede k vyhození výjimky `InvalidSchemaMutationException`. Stejná výjimka je vyhozena i v případě, že je do zdrojové reference přidán `facetedPartially`, zatímco reflektovaná reference již dědí její faceted nastavení.
+
+Definice histogramů (`bucketedInScope`, `bucketedPartiallyInScope`, včetně hodnot každého histogramu a výrazů `assignedWhen`) nejsou reflektovanými referencemi nikdy děděny. Pokud reflektovaná reference potřebuje indexování histogramu, musí si svou konfiguraci definovat explicitně.
+
+</Note>
 
 #### Kardinalita reference
 

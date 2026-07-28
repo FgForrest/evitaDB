@@ -29,13 +29,13 @@ Datová struktura histogramu je optimalizována pro vykreslování na frontendu.
       2. Hodnoty jsou pak normalizovány tak, aby součet všech bucketů byl 100
       3. Prázdné buckety mají vždy relativeFrequency = 0
   - **`requested`**:
-    - obsahuje `true`, pokud dotaz neobsahoval žádné omezení [attributeBetween](../../../en/query/filtering/comparable.md#attribute-between) nebo [priceBetween](../../../en/query/filtering/price.md#price-between)
-    - obsahuje `true`, pokud dotaz obsahoval omezení [attributeBetween](../../../en/query/filtering/comparable.md#attribute-between) nebo [priceBetween](../../../en/query/filtering/price.md#price-between) pro konkrétní atribut/cenu a threshold bucketu leží v rozsahu (včetně) tohoto omezení
+    - obsahuje `true`, pokud dotaz neobsahoval žádné omezení [attributeBetween](../filtering/comparable.md#atribut-mezi) nebo [priceBetween](../filtering/price.md#cena-v-rozmezí)
+    - obsahuje `true`, pokud dotaz obsahoval omezení [attributeBetween](../filtering/comparable.md#atribut-mezi) nebo [priceBetween](../filtering/price.md#cena-v-rozmezí) pro konkrétní atribut/cenu a threshold bucketu leží v rozsahu (včetně) tohoto omezení
     - obsahuje `false` v ostatních případech
 
 <Note type="info">
 
-Identita `overallCount = součet výskytů v bucketech` vždy platí. U histogramů vytvořených nad **zdrojem typu rozsah** (pouze referenční histogramy — viz [referenční histogramy](../../../en/use/schema.md#reference-histograms)), může jeden prvek spadat do více bucketů najednou, takže `overallCount` může překročit počet unikátních přispívajících prvků. U každého histogramu nad skalárním zdrojem jsou tyto dvě hodnoty stejné.
+Identita `overallCount = součet výskytů v bucketech` vždy platí. U histogramů vytvořených nad **zdrojem typu rozsah** (pouze referenční histogramy — viz [referenční histogramy](../../use/schema.md#referenční-histogramy)), může jeden prvek spadat do více bucketů najednou, takže `overallCount` může překročit počet unikátních přispívajících prvků. U každého histogramu nad skalárním zdrojem jsou tyto dvě hodnoty stejné.
 
 `relativeFrequency` zůstává platnou vizualizací 0–100 v obou případech — je to poměr `occurrences` ku `overallCount` (standardní buckety stále dávají součet 100, equalizované buckety jsou stále normalizovány na 100) a u zdroje typu rozsah čitatel i jmenovatel počítají stejná překrytí. Jediný rozdíl je v interpretaci: výška bucketu u zdroje typu rozsah odráží podíl **(prvek × překrytý bucket)**, nikoliv podíl unikátních prvků, takže pozice pokryté více překrývajícími se rozsahy se zobrazí úměrně vyšší.
 
@@ -70,7 +70,7 @@ attributeHistogram(
     </dd>
     <dt>argument:string+</dt>
     <dd>
-        jeden nebo více názvů [atributů entity](../../../en/use/schema.md#attributes), jejichž hodnoty budou použity pro generování histogramů
+        jeden nebo více názvů [atributů entity](../../use/schema.md#atributy), jejichž hodnoty budou použity pro generování histogramů
     </dd>
 </dl>
 
@@ -78,12 +78,12 @@ attributeHistogram(
 
 <LS to="e,j"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/extraResult/AttributeHistogram.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Models/ExtraResults/AttributeHistogram.cs</SourceClass></LS>
 <LS to="g,r">histogram atributu</LS>
-lze vypočítat z libovolného [filtrovatelného atributu](../../../en/use/data-model.md#attributes-unique-filterable-sortable-localized), jehož typ je číselný. Histogram je počítán pouze z atributů prvků, které odpovídají aktuální povinné části filtru. Výběry rozsahů na atributech umístěné uvnitř
-[`userFilter`](../../../en/query/filtering/behavioral.md#user-filter) — jak
-[`attributeBetween`](../../../en/query/filtering/comparable.md#attribute-between), tak
-[`histogramHaving`](../../../en/query/filtering/references.md#histogram-having) — jsou **vyloučeny** ze základny histogramu atributu, aby se jezdec nesmršťoval pod vlastní rukojetí při jeho posouvání. Výběry facetů
-([`facetHaving`](../../../en/query/filtering/references.md#facet-having)) a cenový rozsah
-([`priceBetween`](../../../en/query/filtering/price.md#price-between)) zůstávají aplikovány, takže histogram odráží rozsah hodnot atributů, které jsou skutečně dosažitelné v rámci aktuálního výběru facetů a cen. Důvod a konkrétní příklad jsou popsány v části [Uvolnění základny](#uvolnění-základny--slidery-se-nesmršťují-pod-vlastní-rukojetí) níže.
+lze vypočítat z libovolného [filtrovatelného atributu](../../use/data-model.md#atributy-unikátní-filtrovatelné-řaditelné-lokalizované), jehož typ je číselný. Histogram je počítán pouze z atributů prvků, které odpovídají aktuální povinné části filtru. Výběry rozsahů na atributech umístěné uvnitř
+[`userFilter`](../filtering/behavioral.md#uživatelský-filtr) — jak
+[`attributeBetween`](../filtering/comparable.md#atribut-mezi), tak
+[`histogramHaving`](../filtering/references.md#histogram-having) — jsou **vyloučeny** ze základny histogramu atributu, aby se jezdec nesmršťoval pod vlastní rukojetí při jeho posouvání. Výběry facetů
+([`facetHaving`](../filtering/references.md#facet-having)) a cenový rozsah
+([`priceBetween`](../filtering/price.md#cena-v-rozmezí)) zůstávají aplikovány, takže histogram odráží rozsah hodnot atributů, které jsou skutečně dosažitelné v rámci aktuálního výběru facetů a cen. Důvod a konkrétní příklad jsou popsány v části [Uvolnění základny](#uvolnění-základny--slidery-se-nesmršťují-pod-vlastní-rukojetí) níže.
 
 Pro ukázku použití histogramu použijeme následující příklad:
 
@@ -258,14 +258,14 @@ priceHistogram(
 
 <LS to="e,j"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/extraResult/PriceHistogram.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Models/ExtraResults/PriceHistogram.cs</SourceClass></LS>
 <LS to="g,r">cenový histogram</LS>
-je počítán z [prodejní ceny](../../../en/query/filtering/price.md). Pouze
-[`priceBetween`](../../../en/query/filtering/price.md#price-between) umístěný uvnitř
-[`userFilter`](../../../en/query/filtering/behavioral.md#user-filter) je **vyloučen** ze základny cenového histogramu, aby se cenový jezdec nesmršťoval pod vlastní rukojetí při jeho posouvání. Výběry rozsahů atributů
-([`attributeBetween`](../../../en/query/filtering/comparable.md#attribute-between),
-[`histogramHaving`](../../../en/query/filtering/references.md#histogram-having)) a výběry facetů
-([`facetHaving`](../../../en/query/filtering/references.md#facet-having)) zůstávají aplikovány, takže cenový histogram odráží ceny, které jsou skutečně dosažitelné v rámci aktuálního výběru rozsahu atributů a facetů uživatele.
+je počítán z [prodejní ceny](../filtering/price.md). Pouze
+[`priceBetween`](../filtering/price.md#cena-v-rozmezí) umístěný uvnitř
+[`userFilter`](../filtering/behavioral.md#uživatelský-filtr) je **vyloučen** ze základny cenového histogramu, aby se cenový jezdec nesmršťoval pod vlastní rukojetí při jeho posouvání. Výběry rozsahů atributů
+([`attributeBetween`](../filtering/comparable.md#atribut-mezi),
+[`histogramHaving`](../filtering/references.md#histogram-having)) a výběry facetů
+([`facetHaving`](../filtering/references.md#facet-having)) zůstávají aplikovány, takže cenový histogram odráží ceny, které jsou skutečně dosažitelné v rámci aktuálního výběru rozsahu atributů a facetů uživatele.
 
-Požadavek [`priceType`](../../../en/query/requirements/price.md#price-type) určuje zdrojovou cenovou vlastnost pro výpočet histogramu. Pokud není zadán, histogram vizualizuje cenu s daní.
+Požadavek [`priceType`](price.md#typ-ceny) určuje zdrojovou cenovou vlastnost pro výpočet histogramu. Pokud není zadán, histogram vizualizuje cenu s daní.
 
 ### Granularita cenového histogramu a zpracování vnitřních záznamů {#price-histogram-granularity}
 
@@ -417,12 +417,12 @@ Každý histogram odpovídá na otázku "co by bylo dosažitelné, kdybych pusti
 
 ### Jak evitaDB aplikuje uvolnění
 
-evitaDB klasifikuje každé dítě [`userFilter`](../../../en/query/filtering/behavioral.md#user-filter) do jedné ze tří vzájemně se vylučujících *filtračních ploch*:
+evitaDB klasifikuje každé dítě [`userFilter`](../filtering/behavioral.md#uživatelský-filtr) do jedné ze tří vzájemně se vylučujících *filtračních ploch*:
 
-1. **Slidery rozsahu atributů** — [`attributeBetween`](../../../en/query/filtering/comparable.md#attribute-between) a
-   [`histogramHaving`](../../../en/query/filtering/references.md#histogram-having). Ty ovládají histogramy atributů, jak na běžných atributech entit, tak na referenčních úrovních.
-2. **Výběry facetů** — [`facetHaving`](../../../en/query/filtering/references.md#facet-having). Ty ovládají souhrn facetů a jeho výpočty dopadu.
-3. **Cenový rozsah** — [`priceBetween`](../../../en/query/filtering/price.md#price-between). Ten ovládá cenový histogram.
+1. **Slidery rozsahu atributů** — [`attributeBetween`](../filtering/comparable.md#atribut-mezi) a
+   [`histogramHaving`](../filtering/references.md#histogram-having). Ty ovládají histogramy atributů, jak na běžných atributech entit, tak na referenčních úrovních.
+2. **Výběry facetů** — [`facetHaving`](../filtering/references.md#facet-having). Ty ovládají souhrn facetů a jeho výpočty dopadu.
+3. **Cenový rozsah** — [`priceBetween`](../filtering/price.md#cena-v-rozmezí). Ten ovládá cenový histogram.
 
 Když se počítá extra-výsledek (histogram atributu, souhrn facetů s dopadem, cenový histogram), evitaDB odstraní **pouze tu plochu, ke které výsledek patří** a ostatní dvě ponechá aplikované. Hlavní stránka entity vrácená dotazem je stále zúžena **všemi třemi** plochami — uvolnění se týká výhradně rozsahů `[min, max]` a rozložení bucketů v extra-výsledcích.
 
@@ -455,9 +455,9 @@ Vyberte dítě `userFilter`, které odpovídá tomu, kde slider žije — každ�
 
 | Slider je na … | Doporučené dítě `userFilter` |
 |----------------|------------------------------|
-| běžný atribut entity (`Product.width`, `Product.height`, …) | [`attributeBetween`](../../../en/query/filtering/comparable.md#attribute-between) |
-| referenční úrovni histogramu (např. `parameterValues.height` na `Product`) | [`histogramHaving`](../../../en/query/filtering/references.md#histogram-having) — preferovaný nosič pro referenční histogramy; také rozlišuje mezi více histogramy na stejné referenci |
-| prodejní ceně | [`priceBetween`](../../../en/query/filtering/price.md#price-between) |
-| výběru facetu | [`facetHaving`](../../../en/query/filtering/references.md#facet-having) |
+| běžný atribut entity (`Product.width`, `Product.height`, …) | [`attributeBetween`](../filtering/comparable.md#atribut-mezi) |
+| referenční úrovni histogramu (např. `parameterValues.height` na `Product`) | [`histogramHaving`](../filtering/references.md#histogram-having) — preferovaný nosič pro referenční histogramy; také rozlišuje mezi více histogramy na stejné referenci |
+| prodejní ceně | [`priceBetween`](../filtering/price.md#cena-v-rozmezí) |
+| výběru facetu | [`facetHaving`](../filtering/references.md#facet-having) |
 
-Běžný [`referenceHaving`](../../../en/query/filtering/references.md#reference-having) **není** akceptován uvnitř `userFilter` — nemá sliderovou sémantiku a neúčastní se uvolnění základny. Pro nosiče sliderů na referencích použijte [`histogramHaving`](../../../en/query/filtering/references.md#histogram-having).
+Běžný [`referenceHaving`](../filtering/references.md#reference-having) **není** akceptován uvnitř `userFilter` — nemá sliderovou sémantiku a neúčastní se uvolnění základny. Pro nosiče sliderů na referencích použijte [`histogramHaving`](../filtering/references.md#histogram-having).

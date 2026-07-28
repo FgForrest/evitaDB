@@ -49,17 +49,17 @@ Očekává se, že model bude anotován následujícími anotacemi:
     <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/PrimaryKey.java</SourceClass></dt>
     <dd>
         Anotace může být umístěna na [int](https://docs.oracle.com/javase/tutorial/java/nutsandbolts/datatypes.html)
-        pole / getter metodu / komponentu recordu a označuje [primární klíč](../../use/schema.md#primary-key-generation) entity.
+        pole / getter metodu / komponentu recordu a označuje [primární klíč](../schema.md#generování-primárního-klíče) entity.
     </dd>
     <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/Attribute.java</SourceClass></dt>
     <dd>
-        Anotace může být umístěna na pole / getter metodu / komponentu recordu a označuje [atribut](../../use/schema.md#attribute) entity.
+        Anotace může být umístěna na pole / getter metodu / komponentu recordu a označuje [atribut](../schema.md#atributy) entity.
         Výchozí hodnoty v případě rozhraní lze poskytnout pomocí výchozí implementace metody (viz příklad
         níže).
     </dd>
     <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/SortableAttributeCompound.java</SourceClass></dt>
     <dd>
-        Anotace může být umístěna na třídu / record a označuje [sloučený atribut pro řazení](../../use/schema.md#sortable-attribute-compounds) entity,
+        Anotace může být umístěna na třídu / record a označuje [sloučený atribut pro řazení](../schema.md#složené-atributy-pro-řazení) entity,
         který agreguje více atributů třídy do jednoho složeného atributu pro řazení, který nelze přímo přistupovat, ale lze jej použít v dotazu
         pro řazení.
     </dd>
@@ -70,7 +70,7 @@ Očekává se, že model bude anotován následujícími anotacemi:
     <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/AssociatedData.java</SourceClass></dt>
     <dd>
         Anotace může být umístěna na pole / getter metodu / komponentu recordu a označuje
-        [asociovaná data](../../use/schema.md#associated-data) entity.
+        [asociovaná data](../schema.md#přidružená-data) entity.
     </dd>
     <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/ParentEntity.java</SourceClass></dt>
     <dd>
@@ -83,30 +83,30 @@ Očekává se, že model bude anotován následujícími anotacemi:
         Anotace může být umístěna na pole / getter metodu / komponentu recordu kolekce / pole typu
         <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/PriceContract.java</SourceClass>,
         které poskytuje přístup ke všem cenám entity. Použití této anotace v modelové třídě entity povolí
-        [ceny](../../use/schema.md#prices) ve schématu entity.
+        [ceny](../schema.md#ceny) ve schématu entity.
     </dd>
     <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/PriceForSale.java</SourceClass></dt>
     <dd>
         Anotace může být umístěna na pole / getter metodu / komponentu recordu typu
         <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/PriceContract.java</SourceClass>,
         které poskytuje přístup k prodejní ceně entity. Použití této anotace v modelové třídě entity povolí
-        [ceny](../../use/schema.md#prices) ve schématu entity.
+        [ceny](../schema.md#ceny) ve schématu entity.
     </dd>
     <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/Reference.java</SourceClass></dt>
     <dd>
         <p>Anotace může být umístěna na pole / getter metodu / komponentu recordu a označuje entitu jako
-        [referenci](../../use/schema.md#reference) na jinou entitu. Může odkazovat na jinou modelovou třídu (interface/třída/record),
+        [referenci](../schema.md#reference) na jinou entitu. Může odkazovat na jinou modelovou třídu (interface/třída/record),
         která obsahuje vlastnosti pro anotace `@ReferencedEntity` a `@ReferencedEntityGroup` a relační
         atributy.</p>
         <p>Kromě základní konfigurace reference (`indexed`, `faceted`) anotace podporuje
-        [podmíněné indexování facet](../../use/schema.md#conditional-indexing-with-expressions) pomocí `facetedPartially`
-        a [podmíněné histogramové indexování](../../use/schema.md#reference-histograms) pomocí `bucketed`
+        [podmíněné indexování facet](../schema.md#podmíněné-indexování-pomocí-výrazů) pomocí `facetedPartially`
+        a [podmíněné histogramové indexování](../schema.md#referenční-histogramy) pomocí `bucketed`
         a `bucketedPartially`. Přepsání pro konkrétní scope lze specifikovat pomocí vnořené anotace `@ScopeReferenceSettings`.</p>
     </dd>
     <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/ReflectedReference.java</SourceClass></dt>
     <dd>
         <p>Anotace může být umístěna na pole / getter metodu / komponentu recordu a označuje entitu jako 
-        [reflektovanou referenci](../../use/schema.md#reference) na jinou entitu. Může odkazovat na jinou modelovou třídu (interface/třída/record),
+        [reflektovanou referenci](../schema.md#reference) na jinou entitu. Může odkazovat na jinou modelovou třídu (interface/třída/record),
         která obsahuje vlastnosti pro anotace `@ReferencedEntity` a `@ReferencedEntityGroup` a relační
         atributy.</p>
         <p>Původní reference nemusí být ve schématu ještě definována, ale musí být definována před potvrzením transakce
@@ -129,14 +129,14 @@ Očekává se, že model bude anotován následujícími anotacemi:
         <p>Anotace reprezentující hodnotu [EvitaEL výrazu](../../query/expression-language.md). Používá se v rámci
         jiných anotací — `@Reference` / `@ScopeReferenceSettings` — k definici vypočítaných hodnot nebo boolean podmínek.</p>
         <p>Například `@Expression("$reference.referencedEntity.attributes['status'] == 'ACTIVE'")` definuje podmínku
-        pro [podmíněné indexování facet](../../use/schema.md#conditional-indexing-with-expressions), a
+        pro [podmíněné indexování facet](../schema.md#podmíněné-indexování-pomocí-výrazů), a
         `@Expression("$reference.referencedEntity.attributes['basicUnitValue'] ?? 0.0")` definuje hodnotu
-        pro [histogramové indexování](../../use/schema.md#reference-histograms). Prázdný řetězec (výchozí) znamená,
+        pro [histogramové indexování](../schema.md#referenční-histogramy). Prázdný řetězec (výchozí) znamená,
         že není definován žádný výraz.</p>
     </dd>
     <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/Histogram.java</SourceClass></dt>
     <dd>
-        <p>Konfiguruje [histogramové (bucketované) indexování](../../use/schema.md#reference-histograms) na referenci.
+        <p>Konfiguruje [histogramové (bucketované) indexování](../schema.md#referenční-histogramy) na referenci.
         Pokud je použito v rámci `@Reference` nebo `@ScopeReferenceSettings`, definuje pojmenovaný histogramový index s volitelným
         výrazem hodnoty, který vypočítává hodnotu bucketu pro každou referencovanou entitu.</p>
         <p>Atribut `nameOfTheIndex` identifikuje slot histogramu (jedna reference může mít více pojmenovaných histogramů).
@@ -144,7 +144,7 @@ Očekává se, že model bude anotován následujícími anotacemi:
         `@Histogram(nameOfTheIndex = "priceHistogram", value = @Expression("$reference.referencedEntity.attributes['price']"))`.</p>
         <p>Výraz `value` může být vyhodnocen na skalární číselný atribut **nebo** na číselný atribut typu `NumberRange`
         (`ByteNumberRange` … `BigDecimalNumberRange`); zdroj rozsahu rozdělí každou instanci do všech bucketů, které jeho
-        interval překrývá, a nesmí používat výchozí hodnotu `??` (viz [Reference histograms](../../use/schema.md#reference-histograms)).
+        interval překrývá, a nesmí používat výchozí hodnotu `??` (viz [Reference histograms](../schema.md#referenční-histogramy)).
         Volitelný prvek `assignedWhen` přijímá `@Expression`, který funguje jako selektor partice pro daný histogram — mezi
         instancemi způsobilými přes `bucketedPartially` pouze ty, pro které `assignedWhen` vyhodnotí na `true`, vstupují do tohoto
         konkrétního histogramu.</p>
@@ -169,10 +169,10 @@ si ukažme ukázku návrhu rozhraní produktové entity.
 
 <Note type="info">
 
-Smlouvu můžete použít také pro definici schématu v [query API](./query-data.md) jako očekávaný typ výsledku
+Smlouvu můžete použít také pro definici schématu v [query API](query-data.md) jako očekávaný typ výsledku
 a evitaDB automaticky vygeneruje vhodnou proxy třídu, která mapuje generickou podkladovou datovou strukturu
 na smlouvu podle vaší představy. Více informací k tomuto tématu najdete
-v kapitole [Java Connector](../connectors/java.md#custom-contracts).
+v kapitole [Java Connector](../connectors/java.md#vlastní-kontrakty).
 
 </Note>
 

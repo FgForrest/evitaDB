@@ -147,7 +147,7 @@ Ano, může. I když se jedná spíše o okrajový případ, je to možné. Tent
 
 </LS>
 
-![Výpis kategorií příslušenství](assets/accessories-category-listing-multi.png "Výpis kategorií příslušenství")
+![Výpis kategorií příslušenství](../../../en/query/filtering/assets/accessories-category-listing-multi.png "Výpis kategorií příslušenství")
 
 </Note>
 
@@ -270,7 +270,7 @@ hierarchyWithinRoot(
 </dl>
 
 `hierarchyWithinRoot`, které cílí na samotnou kolekci `Category`, vrací všechny kategorie kromě těch,
-které by odkazovaly na neexistující nadřazené uzly. Takové uzly hierarchie se nazývají [sirotci](../../use/schema.md#orphan-hierarchy-nodes)
+které by odkazovaly na neexistující nadřazené uzly. Takové uzly hierarchie se nazývají [sirotci](../../use/schema.md#sirotčí-uzly-v-hierarchii)
 a nevyhovují žádnému dotazu na hierarchii.
 
 <SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
@@ -348,7 +348,7 @@ produktů přiřazených ke kterékoliv kategorii v našem [ukázkovém datasetu
 
 </SourceCodeTabs>
 
-Produkty přiřazené pouze k jedné [osamocené kategorii](../../use/schema.md#orphan-hierarchy-nodes) budou ve výsledku chybět.
+Produkty přiřazené pouze k jedné [osamocené kategorii](../../use/schema.md#sirotčí-uzly-v-hierarchii) budou ve výsledku chybět.
 Produkty přiřazené ke dvěma nebo více kategoriím se ve výsledku objeví pouze jednou (na rozdíl od toho, co byste mohli očekávat, pokud máte zkušenost s SQL).
 
 Dotaz vrací první stránku z celkových 212 stránek položek:
@@ -633,7 +633,7 @@ Když hierarchické omezení cílí na hierarchickou entitu, děti, které nespl
 
 Pro demonstrační účely si vypíšeme všechny kategorie v rámci kategorie *Příslušenství*, ale pouze ty, které jsou platné k 1. říjnu 2023 v 01:00 ráno.
 
-![Výpis kategorií Příslušenství s omezením platnosti](assets/accessories-category-listing-validity.png "Výpis kategorií Příslušenství s omezením platnosti")
+![Výpis kategorií Příslušenství s omezením platnosti](../../../en/query/filtering/assets/accessories-category-listing-validity.png "Výpis kategorií Příslušenství s omezením platnosti")
 
 <SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
@@ -800,7 +800,7 @@ Pokud hierarchické omezení cílí na hierarchickou entitu, děti, které nemaj
 
 Například napišme dotaz pro následující situaci. V našem stromu hierarchie máme dvě kategorie označené tagem *HP*:
 
-![Kategorie označené HP s produkty](assets/categories-with-products-and-HP-tag.png "Kategorie označené HP s produkty")
+![Kategorie označené HP s produkty](../../../en/query/filtering/assets/categories-with-products-and-HP-tag.png "Kategorie označené HP s produkty")
 
 Chceme vypsat všechny kategorie, které obsahují označenou kategorii s alespoň jedním aktivním produktem přiřazeným k této kategorii. Bereme v úvahu pouze cesty ve stromu složené z aktivních kategorií. Dotaz bude vypadat takto:
 
@@ -929,7 +929,7 @@ Když hierarchické omezení cílí na hierarchickou entitu, děti, které splň
 
 Pro demonstrační účely si ukažme výpis všech kategorií v rámci kategorie *Příslušenství*, ale přesně s vyloučením podkategorie *Bezdrátová sluchátka*.
 
-![Výpis kategorií Příslušenství bez podkategorie *Bezdrátová sluchátka*](assets/accessories-category-listing-excluding.png "Výpis kategorií Příslušenství bez podkategorie *Bezdrátová sluchátka*")
+![Výpis kategorií Příslušenství bez podkategorie *Bezdrátová sluchátka*](../../../en/query/filtering/assets/accessories-category-listing-excluding.png "Výpis kategorií Příslušenství bez podkategorie *Bezdrátová sluchátka*")
 
 <SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 

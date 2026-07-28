@@ -17,7 +17,7 @@ entityPrimaryKeyInFilter()
 ```
 
 Toto omezení umožňuje, aby byly výstupní entity seřazeny podle hodnot primárních klíčů přesně v tom pořadí, v jakém byly použity při filtrování.
-Omezení vyžaduje přítomnost právě jednoho omezení [`entityPrimaryKeyInSet`](../filtering/constant.md#entity-primary-key-in-set)
+Omezení vyžaduje přítomnost právě jednoho omezení [`entityPrimaryKeyInSet`](../filtering/constant.md#primární-klíč-entity-v-množině)
 v části filtru dotazu. Používá zadané pole primárních klíčů entit k seřazení výsledku,
 který dotaz vrátí.
 
@@ -123,11 +123,11 @@ attributeSetInFilter(
 <dl>
     <dt>argument:string!</dt>
     <dd>
-        povinný název [atributu](../../use/schema.md#attributes), který určuje pořadí výsledků dotazu
+        povinný název [atributu](../../use/schema.md#atributy), který určuje pořadí výsledků dotazu
     </dd>
 </dl>
 
-Tato podmínka umožňuje seřadit výstupní entity podle hodnot zadaného atributu v přesném pořadí, v jakém byly filtrovány. Podmínka vyžaduje přítomnost právě jedné [`attribute-in-set`](../filtering/comparable.md#attribute-in-set) ve filtrační části dotazu, která odkazuje na atribut se stejným názvem, jaký je použit v prvním argumentu této podmínky. Pro řazení výsledků vrácených dotazem je použito zadané pole hodnot atributu.
+Tato podmínka umožňuje seřadit výstupní entity podle hodnot zadaného atributu v přesném pořadí, v jakém byly filtrovány. Podmínka vyžaduje přítomnost právě jedné [`attribute-in-set`](../filtering/comparable.md#atribut-v-množině) ve filtrační části dotazu, která odkazuje na atribut se stejným názvem, jaký je použit v prvním argumentu této podmínky. Pro řazení výsledků vrácených dotazem je použito zadané pole hodnot atributu.
 
 <SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
@@ -175,11 +175,11 @@ attributeSetExact(
 <dl>
     <dt>argument:string!</dt>
     <dd>
-        povinný název [atributu](../../use/schema.md#attributes), který určuje pořadí výsledků dotazu
+        povinný název [atributu](../../use/schema.md#atributy), který určuje pořadí výsledků dotazu
     </dd>
     <dt>argument:comparable+</dt>
     <dd>
-        povinná množina hodnot atributu, jejichž datový typ odpovídá [datovému typu atributu](../../use/schema.md#attributes),
+        povinná množina hodnot atributu, jejichž datový typ odpovídá [datovému typu atributu](../../use/schema.md#atributy),
         která definuje pořadí výsledků dotazu
     </dd>
 </dl>
