@@ -236,23 +236,13 @@ public class SortIndexChanges
 			// are sorted in natural integer order, so the search is the same one `computeInsertPositionOfIntInOrderedArray`
 			// performs — it just reads each probe through the position tree (O(depth), no allocation) rather than out of
 			// a copy of the WHOLE sort index, which this method used to build on every single sort-attribute insert.
-			int low = blockStart;
-			int high = blockEnd - 1;
-			// absolute index the record would be inserted at; stays at the block end when every id in the block is smaller
-			int insertionIndex = blockEnd;
-			while (low <= high) {
-				final int middle = (low + high) >>> 1;
-				final int middleRecordId = this.sortIndex.sortedRecords.get(middle);
-				if (middleRecordId < recordId) {
-					low = middle + 1;
-				} else {
-					insertionIndex = middle;
-					if (middleRecordId == recordId) {
-						break;
-					}
-					high = middle - 1;
-				}
-			}
+			// The search is delegated to the array rather than looped here so that all of its probes share one resolved
+			// leaf; a binary search converges, so most probes after the first land in the leaf the first descent already
+			// reached and cost an array read instead of a whole descent (issue #1332).
+			// absolute index the record would be inserted at; the block end when every id in the block is smaller
+			final int insertionIndex = this.sortIndex.sortedRecords.findInsertionPositionInRange(
+				blockStart, blockEnd, recordId
+			);
 			// the target record id sits immediately before the insertion point
 			final int recordPosition = insertionIndex - 1;
 			// a negative position means the record should be placed as the very first record of the sort index

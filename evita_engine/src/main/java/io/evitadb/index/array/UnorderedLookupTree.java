@@ -591,6 +591,92 @@ public class UnorderedLookupTree implements
 	}
 
 	/**
+	 * Binary-searches the ascending record ids occupying logical positions `[fromPosition, toPosition)` and returns
+	 * the position at which `recordId` belongs — the first position holding a record id greater than or equal to
+	 * `recordId`, or `toPosition` when every id in the range is smaller.
+	 *
+	 * The whole search runs **inside the tree** rather than as a caller-side loop over {@link #getRecordAt(int)} for
+	 * one reason: consecutive probes of a binary search converge, so after the first descent the following probes
+	 * usually land in the leaf that descent already resolved. Keeping the search here lets that leaf be retained
+	 * across probes in plain locals — a probe inside the retained window costs one array read instead of a fresh
+	 * root-to-leaf order-statistic descent. `SortIndexChanges.computePreviousRecord` issues about 13 such probes per
+	 * sort-attribute insert at 10M records with 1000 distinct values, across 40 low-cardinality attributes per
+	 * entity, which is what makes those descents 19.4 % of busy-thread wall in the profile behind issue #1332.
+	 *
+	 * The retained window is safe **because it cannot outlive this method**: the search is a pure read and nothing
+	 * mutates the tree between two probes, so a leaf resolved for one probe is still the leaf covering its position
+	 * for the next. Do not hoist the window into a field or into the caller — that assumption stops holding the
+	 * moment the window survives across a mutation.
+	 *
+	 * @param fromPosition first logical position of the searched range, inclusive
+	 * @param toPosition   last logical position of the searched range, exclusive
+	 * @param recordId     the record id whose insertion position is sought
+	 * @return the insertion position within `[fromPosition, toPosition]`
+	 * @throws GenericEvitaInternalError when the range does not lie within the tree
+	 */
+	public int findInsertionPositionInRange(int fromPosition, int toPosition, int recordId) {
+		// resolved once for the whole search, exactly as getRecordAt does it for a single probe (INV-2)
+		final Transaction transaction = Transaction.getCurrentTransactionIfAvailable();
+		final Node<?> theRoot = getRoot(transaction);
+		if (fromPosition < 0 || toPosition > size(transaction) || fromPosition > toPosition
+			|| (theRoot == null && fromPosition != toPosition)) {
+			throw new GenericEvitaInternalError(
+				"Range [" + fromPosition + ", " + toPosition + ") is not within the array!",
+				"Unknown position in the array!"
+			);
+		}
+		// the retained leaf window: the leaf resolved by the most recent descent and the logical positions it covers
+		LeafNode windowLeaf = null;
+		int windowBase = 0;
+		int windowCount = 0;
+		int low = fromPosition;
+		int high = toPosition - 1;
+		// stays at the range end when every id in the range is smaller than the sought one
+		int insertionPosition = toPosition;
+		while (low <= high) {
+			final int middle = (low + high) >>> 1;
+			final int middleRecordId;
+			if (windowLeaf != null && middle >= windowBase && middle < windowBase + windowCount) {
+				middleRecordId = windowLeaf.getRecordIds()[middle - windowBase];
+			} else {
+				// window miss - descend from the root and retain the leaf this probe lands in. The descent is
+				// inlined rather than delegated because it cannot report both the leaf and its base position
+				// without allocating; the sibling readers in this class inline it for the same reason.
+				Node<?> node = theRoot;
+				int remaining = middle;
+				while (node instanceof final InternalNode internal) {
+					final int childCount = internal.getChildCount();
+					final int[] counts = internal.getCounts();
+					final Node<?>[] children = internal.getChildren();
+					int childIndex = 0;
+					while (childIndex < childCount - 1 && remaining >= counts[childIndex]) {
+						remaining -= counts[childIndex];
+						childIndex++;
+					}
+					node = children[childIndex];
+				}
+				final LeafNode leaf = (LeafNode) node;
+				windowLeaf = leaf;
+				// `remaining` is the probe's offset inside the leaf, so the leaf starts `remaining` positions back
+				windowBase = middle - remaining;
+				// the LOGICAL record count - the physical array is leaf-capacity wide regardless of occupancy
+				windowCount = leaf.getCount();
+				middleRecordId = leaf.getRecordIds()[remaining];
+			}
+			if (middleRecordId < recordId) {
+				low = middle + 1;
+			} else {
+				insertionPosition = middle;
+				if (middleRecordId == recordId) {
+					break;
+				}
+				high = middle - 1;
+			}
+		}
+		return insertionPosition;
+	}
+
+	/**
 	 * Returns the last record id in the logical array.
 	 *
 	 * @throws ArrayIndexOutOfBoundsException when the tree is empty

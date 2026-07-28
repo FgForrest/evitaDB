@@ -336,6 +336,25 @@ public class TransactionalUnorderedIntArray
 	}
 
 	/**
+	 * Binary-searches the ascending record ids on indexes `[fromIndex, toIndex)` and returns the index at which
+	 * `recordId` belongs — the first index holding a greater or equal record id, or `toIndex` when every id in the
+	 * range is smaller.
+	 *
+	 * Prefer this over a caller-side binary search built from {@link #get(int)}: the whole search shares a single
+	 * resolved leaf, so probes that converge into one leaf cost an array read rather than a fresh tree descent. See
+	 * {@link UnorderedLookupTree#findInsertionPositionInRange(int, int, int)} for why the search has to live inside
+	 * the tree to get that.
+	 *
+	 * @param fromIndex first index of the searched range, inclusive
+	 * @param toIndex   last index of the searched range, exclusive
+	 * @param recordId  the record id whose insertion index is sought
+	 * @return the insertion index within `[fromIndex, toIndex]`
+	 */
+	public int findInsertionPositionInRange(int fromIndex, int toIndex, int recordId) {
+		return this.positionTree.findInsertionPositionInRange(fromIndex, toIndex, recordId);
+	}
+
+	/**
 	 * Method returns last record in the array.
 	 *
 	 * @return record id

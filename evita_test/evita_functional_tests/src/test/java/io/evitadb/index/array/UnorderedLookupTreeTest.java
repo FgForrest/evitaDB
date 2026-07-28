@@ -36,6 +36,7 @@ import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Random;
@@ -1386,6 +1387,187 @@ class UnorderedLookupTreeTest {
 			final UnorderedLookupTree.PositionCursor cursor = tested.tree.reversePositionCursor();
 			assertThrows(GenericEvitaInternalError.class, () -> cursor.recordAt(3));
 			assertThrows(GenericEvitaInternalError.class, () -> cursor.recordAt(-1));
+		}
+	}
+
+	@Nested
+	@DisplayName("Ranged insertion search (leaf window retained across probes)")
+	class RangedInsertionSearchTest {
+
+		/**
+		 * Builds the logical shape a {@link io.evitadb.index.attribute.SortIndex} produces: a sequence of value
+		 * blocks that are ascending **inside** a block and unordered across blocks. Records are inserted one by one
+		 * (rather than bulk-loaded) so the tree carries real split history and partially-filled leaves.
+		 *
+		 * @param tested        the tree to fill
+		 * @param blockCount    number of value blocks to lay out
+		 * @param maxBlockWidth largest number of records a single block may hold
+		 * @param seed          random seed for reproducibility
+		 * @return the logical record id sequence, mirroring the tree's array
+		 */
+		@Nonnull
+		private List<Integer> fillWithValueBlocks(
+			@Nonnull TreeWithIndex tested, int blockCount, int maxBlockWidth, long seed
+		) {
+			final Random random = new Random(seed);
+			// each block draws its ids from a private 1000-wide id space, so ids never collide across blocks;
+			// the spaces are handed out in shuffled order, so the array is NOT globally ascending
+			final List<Integer> spaces = new ArrayList<>(blockCount);
+			for (int i = 0; i < blockCount; i++) {
+				spaces.add(i);
+			}
+			Collections.shuffle(spaces, random);
+			final List<Integer> logical = new ArrayList<>();
+			for (int block = 0; block < blockCount; block++) {
+				final int width = 1 + random.nextInt(maxBlockWidth);
+				final int base = spaces.get(block) * 1000;
+				// ascending ids with gaps, so ids ABSENT from the block exist between present ones
+				int id = base + 1 + random.nextInt(5);
+				for (int i = 0; i < width; i++) {
+					tested.addAtPosition(logical.size(), id);
+					logical.add(id);
+					id += 1 + random.nextInt(5);
+				}
+			}
+			return logical;
+		}
+
+		/**
+		 * Returns the boundaries `[from, to)` of every maximal ascending run of the logical array — exactly the
+		 * ranges the ranged search is contracted to accept. Recomputing them keeps the assertions valid after
+		 * removals have reshaped the blocks.
+		 *
+		 * @param logical the logical record id sequence
+		 * @return the ascending runs, in logical order
+		 */
+		@Nonnull
+		private List<int[]> ascendingRuns(@Nonnull List<Integer> logical) {
+			final List<int[]> runs = new ArrayList<>();
+			int start = 0;
+			for (int i = 1; i <= logical.size(); i++) {
+				if (i == logical.size() || logical.get(i) < logical.get(i - 1)) {
+					runs.add(new int[]{start, i});
+					start = i;
+				}
+			}
+			return runs;
+		}
+
+		/**
+		 * The naive oracle: the first position in `[from, to)` holding a record id greater than or equal to
+		 * `recordId`, resolved through {@link UnorderedLookupTree#getRecordAt(int)} one position at a time.
+		 *
+		 * @param tested   the tree under test
+		 * @param from     first position of the range, inclusive
+		 * @param to       last position of the range, exclusive
+		 * @param recordId the record id whose insertion position is sought
+		 * @return the expected insertion position
+		 */
+		private int oracle(@Nonnull TreeWithIndex tested, int from, int to, int recordId) {
+			for (int position = from; position < to; position++) {
+				if (tested.tree.getRecordAt(position) >= recordId) {
+					return position;
+				}
+			}
+			return to;
+		}
+
+		/**
+		 * Asserts the ranged search matches the oracle for every present id of every ascending run, for the gaps
+		 * between them, and for ids falling before and after the whole run.
+		 *
+		 * @param tested  the tree under test
+		 * @param logical the logical record id sequence mirroring the tree
+		 */
+		private void assertMatchesOracleOnEveryRun(@Nonnull TreeWithIndex tested, @Nonnull List<Integer> logical) {
+			for (final int[] run : ascendingRuns(logical)) {
+				final int from = run[0];
+				final int to = run[1];
+				for (int position = from; position < to; position++) {
+					final int presentId = logical.get(position);
+					// a present id, and the absent id immediately below it (the gap left by the generator)
+					for (final int probe : new int[]{presentId, presentId - 1}) {
+						assertEquals(
+							oracle(tested, from, to, probe),
+							tested.tree.findInsertionPositionInRange(from, to, probe),
+							"mismatch for id " + probe + " in run [" + from + ", " + to + ")"
+						);
+					}
+				}
+				// below every id in the run, and above every id in the run
+				assertEquals(from, tested.tree.findInsertionPositionInRange(from, to, logical.get(from) - 100));
+				assertEquals(to, tested.tree.findInsertionPositionInRange(from, to, logical.get(to - 1) + 100));
+			}
+		}
+
+		@Test
+		@DisplayName("matches a naive oracle when a searched range spans many leaves")
+		void shouldMatchOracleWhenRangeSpansManyLeaves() {
+			// block size 3 splits leaves every 3 records, so a 40-wide block spans well over a dozen leaves and
+			// most probes MISS the retained window - this is the fall-through-and-refresh path
+			final TreeWithIndex tested = new TreeWithIndex(3, UnorderedLookupTree.DEFAULT_ORDER_KEY_GAP);
+			final List<Integer> logical = fillWithValueBlocks(tested, 30, 40, 20260728L);
+			assertMatchesOracleOnEveryRun(tested, logical);
+			assertEquals(ConsistencyState.CONSISTENT, tested.tree.getConsistencyReport().state());
+		}
+
+		@Test
+		@DisplayName("matches a naive oracle when a searched range fits inside a single leaf")
+		void shouldMatchOracleWhenRangeFitsSingleLeaf() {
+			// production fan-out: leaves hold up to 64 records, so a block narrower than that resolves every probe
+			// after the first from the retained window - this is the window-HIT path
+			final TreeWithIndex tested = new TreeWithIndex();
+			final List<Integer> logical = fillWithValueBlocks(tested, 40, 30, 987654321L);
+			assertMatchesOracleOnEveryRun(tested, logical);
+			assertEquals(ConsistencyState.CONSISTENT, tested.tree.getConsistencyReport().state());
+		}
+
+		@Test
+		@DisplayName("matches a naive oracle after interleaved removals have reshaped the leaves")
+		void shouldMatchOracleAfterRemovals() {
+			final TreeWithIndex tested = new TreeWithIndex(3, UnorderedLookupTree.DEFAULT_ORDER_KEY_GAP);
+			final List<Integer> logical = fillWithValueBlocks(tested, 30, 40, 4242L);
+			final Random random = new Random(4242L);
+			// removals drive steals and merges, leaving leaves at varying occupancy and shifting every base position
+			for (int i = 0; i < 200 && logical.size() > 1; i++) {
+				final int position = random.nextInt(logical.size());
+				tested.remove(logical.remove(position));
+			}
+			assertMatchesOracleOnEveryRun(tested, logical);
+			assertEquals(ConsistencyState.CONSISTENT, tested.tree.getConsistencyReport().state());
+		}
+
+		@Test
+		@DisplayName("returns the range start for an empty range and handles a single-element range")
+		void shouldHandleDegenerateRanges() {
+			final TreeWithIndex tested = new TreeWithIndex(3, UnorderedLookupTree.DEFAULT_ORDER_KEY_GAP);
+			tested.bulkLoad(new int[]{10, 20, 30, 40, 50});
+			// empty range - nothing to compare against, the insertion position is the range itself
+			assertEquals(2, tested.tree.findInsertionPositionInRange(2, 2, 25));
+			// single element
+			assertEquals(2, tested.tree.findInsertionPositionInRange(2, 3, 25));
+			assertEquals(2, tested.tree.findInsertionPositionInRange(2, 3, 30));
+			assertEquals(3, tested.tree.findInsertionPositionInRange(2, 3, 35));
+			// the whole array
+			assertEquals(0, tested.tree.findInsertionPositionInRange(0, 5, 5));
+			assertEquals(5, tested.tree.findInsertionPositionInRange(0, 5, 55));
+			assertEquals(3, tested.tree.findInsertionPositionInRange(0, 5, 40));
+		}
+
+		@Test
+		@DisplayName("rejects a range that does not lie within the array")
+		void shouldRejectRangeOutsideArray() {
+			final TreeWithIndex tested = new TreeWithIndex();
+			tested.bulkLoad(new int[]{10, 20, 30});
+			assertThrows(
+				GenericEvitaInternalError.class, () -> tested.tree.findInsertionPositionInRange(-1, 2, 15)
+			);
+			assertThrows(
+				GenericEvitaInternalError.class, () -> tested.tree.findInsertionPositionInRange(0, 4, 15)
+			);
+			assertThrows(
+				GenericEvitaInternalError.class, () -> tested.tree.findInsertionPositionInRange(2, 1, 15)
+			);
 		}
 	}
 
