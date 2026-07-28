@@ -52,12 +52,17 @@ jobs:
         mvn -T 1C -B -P full -Dmaven.test.skip=true install -pl '!:evita_long_running_tests' --file pom.xml
 
     - name: PGP Keys Check
+      # `evita_long_running_tests` is excluded for the same reason as in Compilation Check:
+      # this is a bare goal invocation, so it never runs `package` for `evita_functional_tests`,
+      # and that module's test-jar (consumed by `evita_long_running_tests`) is never produced or
+      # installed (`maven.install.skip=true`), so dependency resolution would fail otherwise.
       run: |
-        mvn org.simplify4u.plugins:pgpverify-maven-plugin:check
+        mvn org.simplify4u.plugins:pgpverify-maven-plugin:check -pl '!:evita_long_running_tests'
 
     - name: Duplicate Classes Check
+      # See PGP Keys Check above for why `evita_long_running_tests` is excluded.
       run: |
-        mvn duplicate-finder:check
+        mvn duplicate-finder:check -pl '!:evita_long_running_tests'
 
     - name: Resolve new release version
       id: release_version
