@@ -1,7 +1,7 @@
 ---
 name: release-pr
 description: Prepare or update a release PR from dev to master with auto-generated release notes
-allowed-tools: Read, Edit, Grep, WebFetch, AskUserQuestion, Bash(git *), Bash(grep *), Bash(./tools/verify-pgp-keys.sh *), Bash(./tools/list-issues.sh *), Bash(./tools/list-commits.sh *), Bash(gh pr list --repo FgForrest/evitaDB *), Bash(gh pr create --repo FgForrest/evitaDB *), Bash(gh pr edit *), Bash(gh api --method POST /repos/FgForrest/evitaDB/pulls/*)
+allowed-tools: Read, Edit, Grep, WebFetch, AskUserQuestion, Agent, Bash(git *), Bash(grep *), Bash(mvn *), Bash(./tools/verify-pgp-keys.sh *), Bash(./tools/list-issues.sh *), Bash(./tools/list-commits.sh *), Bash(gh pr list --repo FgForrest/evitaDB *), Bash(gh pr create --repo FgForrest/evitaDB *), Bash(gh pr edit *), Bash(gh api --method POST /repos/FgForrest/evitaDB/pulls/*)
 ---
 
 # Release PR
@@ -20,7 +20,11 @@ Creates or updates a GitHub pull request from `dev` (main branch) to `master` (r
 
 Execute the following steps **in order**. Stop and report to the user if any step fails.
 
-### Preliminary Phase: PGP Dependency Signature Verification
+### Preliminary Phase: Pre-Release Verification
+
+Verify dependency signatures, dependency freshness, and (optionally) backward compatibility before proceeding with the release.
+
+#### PGP dependency signature verification
 
 Verify that all dependency signatures are valid before proceeding with the release. This catches PGP key rotations that would break the CI/CD `PGP Keys Check` step.
 
@@ -75,7 +79,36 @@ After applying fixes, re-run the check:
 ./tools/verify-pgp-keys.sh --check
 ```
 
-If it passes, proceed to Step 1. If it still fails, repeat from P2 for the remaining failures.
+If it passes, proceed to P5. If it still fails, repeat from P2 for the remaining failures.
+
+#### P5: Check for dependency updates (informational)
+
+Run:
+
+```shell
+mvn versions:display-dependency-updates
+```
+
+This check is purely informational and must **never** block the release. If the command fails, hangs, or exits non-zero, note that it could not complete and move on to P6 regardless — do not stop the workflow or ask the user to fix anything here. If it succeeds, briefly summarize any dependencies with available updates for the user's awareness; upgrading them is out of scope for this skill.
+
+#### P6: Backward-compatibility checks (optional, ask first)
+
+Both checks below are slow (a long-running test / a static-analysis audit) — ask before running either. Skipping is a valid choice; note whatever was skipped in the final report (Step 7).
+
+1. **Data backward compatibility.** **Ask the user via AskUserQuestion before doing anything else here** — whether to run `EvitaBackwardCompatibilityTest` now.
+   - If yes, run:
+     ```shell
+     mvn -pl evita_test/evita_long_running_tests test -P longRunning -Dtest=EvitaBackwardCompatibilityTest
+     ```
+     If it fails, **stop** and report the failure to the user — a backward-compatibility regression should not ship silently in a release PR. Let the user decide how to proceed.
+   - If no, record it as skipped and continue.
+
+2. **Kryo serialization backward compatibility.** **Ask the user via AskUserQuestion before launching anything** — whether to run the `kryo-bwc-audit` skill now, as a separate sub-agent so it doesn't clutter this session's context. Do not launch the sub-agent speculatively or by default; the question must be asked and answered first.
+   - If yes, launch it with the Agent tool (e.g. `general-purpose`), instructing the agent to invoke the `kryo-bwc-audit` skill against the current branch and return its findings table and verdict summary.
+   - Relay the agent's summary to the user. If it reports any blocking (`***`) findings, flag them clearly and let the user decide how to proceed — do not silently continue to PR creation.
+   - If no, record it as skipped and continue.
+
+Proceed to Step 1.
 
 Note: Any PGP key update commits from the Preliminary Phase will be part of the working tree when Step 2 checks for a clean state. The user must push those commits before proceeding.
 
@@ -163,7 +196,7 @@ Then **aggregate** the two outputs into a single release notes body following th
 
 ### Step 7: Report result
 
-Print the PR URL and a summary of what was done (created vs updated).
+Print the PR URL and a summary of what was done (created vs updated), plus the status of the P5/P6 checks (dependency updates found, whether `EvitaBackwardCompatibilityTest` and `kryo-bwc-audit` were run or skipped, and their outcomes).
 
 ## Important Notes
 
