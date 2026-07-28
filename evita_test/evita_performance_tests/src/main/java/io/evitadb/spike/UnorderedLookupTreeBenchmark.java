@@ -121,6 +121,30 @@ public class UnorderedLookupTreeBenchmark {
 		return size;
 	}
 
+	/**
+	 * P — the READ cost the sort-attribute insert path actually pays. `SortIndexChanges.computePreviousRecord`
+	 * binary-searches a value's record block through positional reads, and every probe is a fresh root-to-leaf
+	 * order-statistic descent — `UnorderedLookupTree.getRecordAt`, the 19.4 % self-time frame of the WARM_UP profile
+	 * behind issue #1332, which no benchmark in this suite reached before (`buildChain` / `churnChain` are both
+	 * write-only).
+	 *
+	 * The probe sequence is pre-generated in `@Setup`, never inside the measured method, so the measurement contains
+	 * the tree descents and nothing else. Parameterising on `blockWidth` is what lets a descent-COUNT fix (a
+	 * re-seekable cursor) be told apart from a per-level COST fix (prefix-sum child counts): the former moves only
+	 * wide blocks, the latter moves every width including 1.
+	 */
+	@Benchmark
+	public int positionalRead(@Nonnull PositionalReadState state, @Nonnull Blackhole bh) {
+		final UnorderedLookupTree tree = state.index.positionTree;
+		final int[] probes = state.probes;
+		int sum = 0;
+		for (int i = 0; i < probes.length; i++) {
+			sum += tree.getRecordAt(probes[i]);
+		}
+		bh.consume(sum);
+		return sum;
+	}
+
 	/* =========================================================================================== */
 
 	/**
@@ -160,6 +184,86 @@ public class UnorderedLookupTreeBenchmark {
 			}
 			this.index = theIndex;
 			this.random = new Random(42);
+		}
+	}
+
+	/**
+	 * Pre-built chain plus a pre-generated probe sequence for {@link UnorderedLookupTreeBenchmark#positionalRead}.
+	 *
+	 * The probe sequence replays exactly the positions a binary search over a block of {@link #blockWidth} records
+	 * issues — the access pattern `SortIndexChanges.computePreviousRecord` produces on every sort-attribute insert.
+	 * Each simulated insert picks a random block and a random target offset inside it, then records the midpoints the
+	 * search visits. Short searches are padded so every simulated insert contributes the same probe count, keeping
+	 * `ns/op` directly comparable across `blockWidth` values.
+	 */
+	@State(Scope.Benchmark)
+	public static class PositionalReadState {
+		/**
+		 * Number of simulated sort-attribute inserts whose probe sequences are concatenated into {@link #probes}.
+		 */
+		private static final int SIMULATED_INSERTS = 10_000;
+
+		/** Length of the pre-built chain the probes read from. */
+		@Param({"1000000", "10000000"})
+		public int recordCount;
+		/** Width of the simulated value block the binary search runs over. */
+		@Param({"1", "10", "100", "1000", "10000"})
+		public int blockWidth;
+
+		CompositeIndex index;
+		/** Flattened probe positions: `ceil(log2(blockWidth))` consecutive probes per simulated insert. */
+		int[] probes;
+
+		@Setup(Level.Trial)
+		public void setUp() {
+			final CompositeIndex theIndex = new CompositeIndex();
+			theIndex.addHead(1);
+			for (int recordId = 2; recordId <= this.recordCount; recordId++) {
+				theIndex.addAfter(recordId - 1, recordId);
+			}
+			this.index = theIndex;
+			this.probes = generateProbes(this.recordCount, this.blockWidth);
+		}
+
+		/**
+		 * Generates the concatenated probe sequences of {@link #SIMULATED_INSERTS} binary searches, each over a block
+		 * of `blockWidth` consecutive positions starting at a pseudo-random offset.
+		 *
+		 * @param recordCount total number of positions available in the tree
+		 * @param blockWidth  width of the simulated value block
+		 * @return the flattened probe positions, `SIMULATED_INSERTS * ceil(log2(blockWidth))` of them
+		 */
+		@Nonnull
+		private static int[] generateProbes(int recordCount, int blockWidth) {
+			final Random random = new Random(42);
+			// ceil(log2(blockWidth)) - the number of probes a binary search over `blockWidth` slots issues
+			final int probesPerSearch = Math.max(1, 32 - Integer.numberOfLeadingZeros(blockWidth));
+			final int[] result = new int[SIMULATED_INSERTS * probesPerSearch];
+			int cursor = 0;
+			for (int i = 0; i < SIMULATED_INSERTS; i++) {
+				final int blockStart = blockWidth >= recordCount ? 0 : random.nextInt(recordCount - blockWidth);
+				// the position the inserted record id would occupy inside the block - the search target
+				final int target = blockStart + random.nextInt(blockWidth);
+				int low = blockStart;
+				int high = blockStart + blockWidth - 1;
+				int emitted = 0;
+				while (low <= high && emitted < probesPerSearch) {
+					final int middle = (low + high) >>> 1;
+					result[cursor++] = middle;
+					emitted++;
+					if (middle < target) {
+						low = middle + 1;
+					} else {
+						high = middle - 1;
+					}
+				}
+				// pad a short search so every simulated insert contributes the same probe count
+				while (emitted < probesPerSearch) {
+					result[cursor++] = target;
+					emitted++;
+				}
+			}
+			return result;
 		}
 	}
 

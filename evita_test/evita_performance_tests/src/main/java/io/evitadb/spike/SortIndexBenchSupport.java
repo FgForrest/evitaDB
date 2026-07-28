@@ -140,8 +140,9 @@ final class SortIndexBenchSupport {
 	 */
 
 	/**
-	 * Returns the value blocks for the named scenario: `anchor` (real ean distribution) or `synth_<n>` (synthetic shape
-	 * replica at N distinct values, e.g. `synth_10k`, `synth_100k`, `synth_1m`).
+	 * Returns the value blocks for the named scenario: `anchor` (real ean distribution), `synth_<n>` (synthetic shape
+	 * replica at N distinct values, e.g. `synth_10k`, `synth_100k`, `synth_1m`), or
+	 * `uniform_<distinctValues>_<recordCount>` (evenly-sized blocks, e.g. `uniform_1k_1m`, `uniform_1k_10m`).
 	 */
 	@Nonnull
 	static List<ValueBlock> blocksFor(@Nonnull String scenario) {
@@ -151,6 +152,15 @@ final class SortIndexBenchSupport {
 			}
 			if (scenario.startsWith("synth_")) {
 				return synthetic(parseScenarioCount(scenario.substring("synth_".length())));
+			}
+			if (scenario.startsWith("uniform_")) {
+				final String[] parts = scenario.substring("uniform_".length()).split("_");
+				if (parts.length != 2) {
+					throw new IllegalArgumentException(
+						"Uniform scenario must be `uniform_<distinctValues>_<recordCount>`, got: " + scenario
+					);
+				}
+				return uniform(parseScenarioCount(parts[0]), parseScenarioCount(parts[1]));
 			}
 			throw new IllegalArgumentException("Unknown scenario: " + scenario);
 		} catch (Exception ex) {
@@ -194,6 +204,37 @@ final class SortIndexBenchSupport {
 		// the remaining N-1 values are singletons
 		for (int v = 1; v < distinctValues; v++) {
 			blocks.add(new ValueBlock(String.format("%013d", v), new int[]{nextRecordId++}));
+		}
+		return blocks;
+	}
+
+	/**
+	 * Generates a UNIFORM distribution: `distinctValues` values, each owning a block of `recordCount / distinctValues`
+	 * records (the leading blocks absorb the division remainder, so widths stay within one of each other).
+	 *
+	 * This is the low-cardinality e-commerce attribute shape — rating 1-5, stock level, discount band, brand id,
+	 * priority, availability flag — which {@link #synthetic(int)} deliberately does NOT produce. `synthetic` emits one
+	 * `0.3 * N` bucket plus `N - 1` singletons, so ~99.999 % of its inserts land in a width-1 block, take the
+	 * single-probe `else` branch of `SortIndexChanges.computePreviousRecord`, and never enter the block binary search
+	 * at all — the branch that dominates the WARM_UP profile behind issue #1332.
+	 *
+	 * @param distinctValues the number of distinct values
+	 * @param recordCount    the total number of records spread evenly across them
+	 * @return the uniform blocks in ascending value order
+	 */
+	@Nonnull
+	static List<ValueBlock> uniform(int distinctValues, int recordCount) {
+		final int baseWidth = recordCount / distinctValues;
+		final int remainder = recordCount % distinctValues;
+		final List<ValueBlock> blocks = new ArrayList<>(distinctValues);
+		int nextRecordId = 1;
+		for (int v = 0; v < distinctValues; v++) {
+			final int width = baseWidth + (v < remainder ? 1 : 0);
+			final int[] recordIds = new int[width];
+			for (int i = 0; i < width; i++) {
+				recordIds[i] = nextRecordId++;
+			}
+			blocks.add(new ValueBlock(String.format("%013d", v), recordIds));
 		}
 		return blocks;
 	}
@@ -298,8 +339,18 @@ final class SortIndexBenchSupport {
 	}
 
 	/**
-	 * Picks a deterministic existing value whose cardinality is exactly one (a singleton block) — the churn target grown
-	 * to cardinality two. Scans from the middle ordinal forward, then falls back to any singleton.
+	 * Picks a deterministic existing value to use as the churn target — the value grown by one record to produce an
+	 * incremental-commit emission. Prefers a singleton block (cardinality one, grown to two), scanning from the middle
+	 * ordinal forward and then from the start, which is what the `anchor` and `synth_*` distributions always provide.
+	 *
+	 * A `uniform_*` distribution has NO singleton block by construction — every value owns exactly
+	 * `recordCount / distinctValues` records — so this falls back to the NARROWEST block available. Growing a block of
+	 * width `w` to `w + 1` is the same single-record incremental churn; only the starting width differs. Throwing here
+	 * instead (the previous behaviour) made every uniform scenario fail in the trial `@Setup` that `churnSerialize`
+	 * shares, taking `insertRecord` down with it even though `insertRecord` never touches the churn fixture.
+	 *
+	 * @param blocks the scenario's value blocks, never empty
+	 * @return the value to grow for the churn measurement
 	 */
 	@Nonnull
 	static Serializable singletonValue(@Nonnull List<ValueBlock> blocks) {
@@ -314,7 +365,17 @@ final class SortIndexBenchSupport {
 				return block.value();
 			}
 		}
-		throw new IllegalStateException("No singleton value present to grow for churn measurement!");
+		// no singleton (a uniform distribution) - grow the narrowest block instead
+		ValueBlock narrowest = null;
+		for (final ValueBlock block : blocks) {
+			if (narrowest == null || block.recordIds().length < narrowest.recordIds().length) {
+				narrowest = block;
+			}
+		}
+		if (narrowest == null) {
+			throw new IllegalStateException("No value present to grow for churn measurement — empty distribution!");
+		}
+		return narrowest.value();
 	}
 
 	/**
