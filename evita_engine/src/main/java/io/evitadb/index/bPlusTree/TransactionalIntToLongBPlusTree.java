@@ -41,6 +41,7 @@ import java.io.Serializable;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
+import java.util.Objects;
 import java.util.OptionalLong;
 import java.util.PrimitiveIterator.OfInt;
 import java.util.PrimitiveIterator.OfLong;
@@ -179,15 +180,23 @@ public class TransactionalIntToLongBPlusTree extends AbstractIntKeyedBPlusTree i
 	 * @param value the value associated with the key
 	 */
 	public void insert(int key, long value) {
-		final Cursor cursor = createCursor(key);
-		final BPlusLeafTreeNode leaf = cursor.leafNode();
+		// The cursor path exists ONLY to cascade a split upward, but it was allocated on EVERY insert - an
+		// ArrayList, its backing array, a one-element root sibling array, a CursorLevel per level and the Cursor
+		// itself (2.25 GB / 60 s of bulk ingest across this family). `findLeafNode` reaches the same leaf by the
+		// identical `searchIndex` descent without capturing anything, so the path is now captured only when this
+		// insert can actually overflow the leaf - roughly one insert in `valueBlockSize`.
+		final BPlusLeafTreeNode leaf = (BPlusLeafTreeNode) findLeafNode(key);
+		// Capture BEFORE mutating: the split machinery replaces this leaf in its parent, so the path has to reflect
+		// the pre-mutation tree. A leaf reaches `isFull()` (peek == valueBlockSize - 1) only from
+		// peek >= valueBlockSize - 2, so this guard is exact rather than merely conservative.
+		final Cursor cursor = leaf.getPeek() >= this.valueBlockSize - 2 ? createCursor(key) : null;
 		if (leaf.insert(key, value)) {
 			this.size.set(size() + 1);
 		}
 
 		// Split the leaf node if it exceeds the block size
 		if (leaf.isFull()) {
-			splitLeafNode(leaf, cursor);
+			splitLeafNode(leaf, Objects.requireNonNull(cursor));
 		}
 	}
 
@@ -201,8 +210,9 @@ public class TransactionalIntToLongBPlusTree extends AbstractIntKeyedBPlusTree i
 	 * @param updater a function to compute a new value, must not be null
 	 */
 	public void upsert(int key, @Nonnull LongUnaryOperator updater) {
-		final Cursor cursor = createCursor(key);
-		final BPlusLeafTreeNode leaf = cursor.leafNode();
+		// see `insert` - the cursor path is captured lazily and pre-mutation. The update branch below replaces a
+		// value in place and can never overflow the leaf, so it needs no path at all.
+		final BPlusLeafTreeNode leaf = (BPlusLeafTreeNode) findLeafNode(key);
 
 		final int existingIndex = leaf.getValueIndex(key);
 		if (existingIndex >= 0) {
@@ -212,6 +222,7 @@ public class TransactionalIntToLongBPlusTree extends AbstractIntKeyedBPlusTree i
 			final long previousValue = values[existingIndex];
 			values[existingIndex] = updater.applyAsLong(previousValue);
 		} else {
+			final Cursor cursor = leaf.getPeek() >= this.valueBlockSize - 2 ? createCursor(key) : null;
 			// insert the new value
 			if (leaf.insert(key, updater.applyAsLong(0L))) {
 				this.size.set(size() + 1);
@@ -219,7 +230,7 @@ public class TransactionalIntToLongBPlusTree extends AbstractIntKeyedBPlusTree i
 
 			// Split the leaf node if it exceeds the block size
 			if (leaf.isFull()) {
-				splitLeafNode(leaf, cursor);
+				splitLeafNode(leaf, Objects.requireNonNull(cursor));
 			}
 		}
 	}
