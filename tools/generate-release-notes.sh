@@ -160,15 +160,22 @@ commits_output=$("$SCRIPT_DIR/list-commits.sh" "$BASE_BARE" "$VERSION_BARE")
 # Helper: extract a section from a script's output. Sections are introduced by
 # `### <emoji> <name>` and terminated by the next `### ` line or EOF. Trims
 # trailing blank lines.
+#
+# Note: this must not `exit` awk early once the section ends — with `set -e`
+# + `pipefail`, an awk that closes stdin while `printf` upstream is still
+# writing a large `$input` triggers a SIGPIPE/EPIPE ("printf: write error:
+# Broken pipe") that aborts the whole script. Instead we clear the capturing
+# flag and let awk drain the rest of stdin to a normal EOF.
 _extract_section() {
   local input="$1"
   local heading_pattern="$2"
   printf "%s\n" "$input" \
     | awk -v pat="$heading_pattern" '
-        BEGIN { capturing = 0 }
+        BEGIN { capturing = 0; stopped = 0 }
         /^### / {
-          if (capturing) { exit }
-          if (index($0, pat) > 0) { capturing = 1; next }
+          if (capturing) { capturing = 0; stopped = 1; next }
+          if (!stopped && index($0, pat) > 0) { capturing = 1 }
+          next
         }
         capturing { print }
       ' \
