@@ -468,7 +468,7 @@ jobs:
         EOF
         )
         claude -p "$PROMPT" \
-          --model claude-sonnet-4-6 \
+          --model claude-sonnet-5 \
           --max-turns 30 \
           --allowedTools "Read,Write,Bash(./tools/generate-release-notes.sh:*),Bash(./tools/list-issues.sh:*),Bash(./tools/list-commits.sh:*),Bash(git tag:*),Bash(git log:*),Bash(git describe:*),Bash(git rev-parse:*),Bash(git show:*),Bash(gh issue view:*),Bash(gh api:*)"
 
