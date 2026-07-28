@@ -183,7 +183,9 @@ public class UnorderedLookupTreeBenchmark {
 					high = middle - 1;
 				}
 			}
-			sum += insertionIndex;
+			// the trailing predecessor read the sort index needs - its own descent, on top of the search
+			final int predecessorPosition = insertionIndex - 1;
+			sum += predecessorPosition < 0 ? Integer.MIN_VALUE : tree.getRecordAt(predecessorPosition);
 		}
 		bh.consume(sum);
 		return sum;
@@ -191,8 +193,9 @@ public class UnorderedLookupTreeBenchmark {
 
 	/**
 	 * P2b — the OPTIMISED half of the block-search pair: the identical search issued through
-	 * {@link UnorderedLookupTree#findInsertionPositionInRange(int, int, int)}, which retains the leaf resolved by one
-	 * probe and serves any following probe landing inside it without descending again.
+	 * {@link UnorderedLookupTree#findPredecessorInRange(int, int, int)}, which retains the leaf resolved by one probe
+	 * and serves any following read landing inside it - the trailing predecessor read included - without descending
+	 * again.
 	 *
 	 * Returns the same sum as {@link #blockSearchPerProbeDescent(BlockSearchState, Blackhole)} by construction — the
 	 * equivalence itself is asserted by the functional oracle tests, not here.
@@ -206,7 +209,7 @@ public class UnorderedLookupTreeBenchmark {
 		int sum = 0;
 		for (int i = 0; i < blockStarts.length; i++) {
 			final int blockStart = blockStarts[i];
-			sum += tree.findInsertionPositionInRange(blockStart, blockStart + blockWidth, targets[i]);
+			sum += tree.findPredecessorInRange(blockStart, blockStart + blockWidth, targets[i]);
 		}
 		bh.consume(sum);
 		return sum;

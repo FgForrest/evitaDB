@@ -591,9 +591,13 @@ public class UnorderedLookupTree implements
 	}
 
 	/**
-	 * Binary-searches the ascending record ids occupying logical positions `[fromPosition, toPosition)` and returns
-	 * the position at which `recordId` belongs — the first position holding a record id greater than or equal to
-	 * `recordId`, or `toPosition` when every id in the range is smaller.
+	 * Binary-searches the ascending record ids occupying logical positions `[fromPosition, toPosition)` for the place
+	 * `recordId` belongs, and returns the record id **immediately preceding** that place —
+	 * {@link Integer#MIN_VALUE} when it belongs at the very start of the array. That is exactly the
+	 * `previousRecordId` contract of {@link TransactionalUnorderedIntArray#add(int, int)}.
+	 *
+	 * An empty range (`fromPosition == toPosition`) is legal and skips the search: the answer is then simply the
+	 * record sitting at `fromPosition - 1`, which is what an insert of a brand-new value block needs.
 	 *
 	 * The whole search runs **inside the tree** rather than as a caller-side loop over {@link #getRecordAt(int)} for
 	 * one reason: consecutive probes of a binary search converge, so after the first descent the following probes
@@ -603,6 +607,10 @@ public class UnorderedLookupTree implements
 	 * sort-attribute insert at 10M records with 1000 distinct values, across 40 low-cardinality attributes per
 	 * entity, which is what makes those descents 19.4 % of busy-thread wall in the profile behind issue #1332.
 	 *
+	 * Returning the predecessor — rather than the insertion position for the caller to read separately — is what lets
+	 * the **final** read share that same window. It is the read most likely to hit it: the predecessor sits one
+	 * position below where the search converged, so it is almost always inside the leaf the last probe resolved.
+	 *
 	 * The retained window is safe **because it cannot outlive this method**: the search is a pure read and nothing
 	 * mutates the tree between two probes, so a leaf resolved for one probe is still the leaf covering its position
 	 * for the next. Do not hoist the window into a field or into the caller — that assumption stops holding the
@@ -610,11 +618,11 @@ public class UnorderedLookupTree implements
 	 *
 	 * @param fromPosition first logical position of the searched range, inclusive
 	 * @param toPosition   last logical position of the searched range, exclusive
-	 * @param recordId     the record id whose insertion position is sought
-	 * @return the insertion position within `[fromPosition, toPosition]`
+	 * @param recordId     the record id whose predecessor is sought
+	 * @return the preceding record id, or {@link Integer#MIN_VALUE} when `recordId` belongs at position zero
 	 * @throws GenericEvitaInternalError when the range does not lie within the tree
 	 */
-	public int findInsertionPositionInRange(int fromPosition, int toPosition, int recordId) {
+	public int findPredecessorInRange(int fromPosition, int toPosition, int recordId) {
 		// resolved once for the whole search, exactly as getRecordAt does it for a single probe (INV-2)
 		final Transaction transaction = Transaction.getCurrentTransactionIfAvailable();
 		final Node<?> theRoot = getRoot(transaction);
@@ -673,7 +681,21 @@ public class UnorderedLookupTree implements
 				high = middle - 1;
 			}
 		}
-		return insertionPosition;
+		// the predecessor sits immediately before the insertion point; a negative position means `recordId` belongs
+		// at the very front of the array and therefore has no predecessor
+		final int predecessorPosition = insertionPosition - 1;
+		if (predecessorPosition < 0) {
+			return Integer.MIN_VALUE;
+		}
+		if (windowLeaf != null && predecessorPosition >= windowBase
+			&& predecessorPosition < windowBase + windowCount) {
+			return windowLeaf.getRecordIds()[predecessorPosition - windowBase];
+		}
+		// Window miss - the predecessor lies outside the leaf the search ended in. It can even sit BELOW the searched
+		// range, at `fromPosition - 1`, which is the last record of the preceding value block. Delegating to the
+		// ordinary single-position read costs one redundant transaction resolution, which is negligible next to the
+		// descent it performs, and keeps the descent written once.
+		return getRecordAt(predecessorPosition);
 	}
 
 	/**

@@ -229,31 +229,21 @@ public class SortIndexChanges
 		final CumulativeWeightBPlusTree<Serializable> valueTree = getValueTree();
 		// block start = cumulative weight (rank) of all strictly-smaller values
 		final int blockStart = valueTree.rankOf(value);
-		if (valueTree.containsKey(value)) {
-			// the value already owns a record block; its size equals the value's cardinality (its weight)
-			final int blockEnd = blockStart + valueTree.weightOf(value);
-			// Binary-search the block through positional reads instead of materializing it. Within the block record ids
-			// are sorted in natural integer order, so the search is the same one `computeInsertPositionOfIntInOrderedArray`
-			// performs — it just reads each probe through the position tree (O(depth), no allocation) rather than out of
-			// a copy of the WHOLE sort index, which this method used to build on every single sort-attribute insert.
-			// The search is delegated to the array rather than looped here so that all of its probes share one resolved
-			// leaf; a binary search converges, so most probes after the first land in the leaf the first descent already
-			// reached and cost an array read instead of a whole descent (issue #1332).
-			// absolute index the record would be inserted at; the block end when every id in the block is smaller
-			final int insertionIndex = this.sortIndex.sortedRecords.findInsertionPositionInRange(
-				blockStart, blockEnd, recordId
-			);
-			// the target record id sits immediately before the insertion point
-			final int recordPosition = insertionIndex - 1;
-			// a negative position means the record should be placed as the very first record of the sort index
-			return recordPosition >= 0 ? this.sortIndex.sortedRecords.get(recordPosition) : Integer.MIN_VALUE;
-		} else {
-			// the value is absent and starts a fresh block at `blockStart`; the predecessor is the record immediately
-			// before that offset, or none when the value sorts before every present value
-			return blockStart == 0
-				? Integer.MIN_VALUE
-				: this.sortIndex.sortedRecords.get(blockStart - 1);
-		}
+		// A value that already owns a record block spans its cardinality (its weight); a value seen for the first time
+		// starts a fresh, EMPTY block at the same offset. Both cases are the same query — "what precedes the place this
+		// record id belongs within `[blockStart, blockEnd)`" — and the empty range simply skips the search and answers
+		// with the last record of the preceding block.
+		final int blockEnd = valueTree.containsKey(value)
+			? blockStart + valueTree.weightOf(value)
+			: blockStart;
+		// Binary-search the block through positional reads instead of materializing it. Within the block record ids are
+		// sorted in natural integer order, so the search is the same one `computeInsertPositionOfIntInOrderedArray`
+		// performs — it just reads each probe through the position tree (O(depth), no allocation) rather than out of a
+		// copy of the WHOLE sort index, which this method used to build on every single sort-attribute insert.
+		// The search is delegated to the array rather than looped here so that its probes AND its final predecessor
+		// read all share one resolved leaf; a binary search converges, so most reads after the first land in the leaf
+		// the first descent already reached and cost an array read instead of a whole descent (issue #1332).
+		return this.sortIndex.sortedRecords.findPredecessorInRange(blockStart, blockEnd, recordId);
 	}
 
 	/**

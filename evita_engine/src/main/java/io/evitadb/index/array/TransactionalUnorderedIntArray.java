@@ -336,22 +336,23 @@ public class TransactionalUnorderedIntArray
 	}
 
 	/**
-	 * Binary-searches the ascending record ids on indexes `[fromIndex, toIndex)` and returns the index at which
-	 * `recordId` belongs — the first index holding a greater or equal record id, or `toIndex` when every id in the
-	 * range is smaller.
+	 * Binary-searches the ascending record ids on indexes `[fromIndex, toIndex)` for the place `recordId` belongs and
+	 * returns the record id immediately preceding it, or {@link Integer#MIN_VALUE} when it belongs at index zero —
+	 * i.e. the `previousRecordId` argument {@link #add(int, int)} expects. An empty range is legal and yields the
+	 * record at `fromIndex - 1`.
 	 *
-	 * Prefer this over a caller-side binary search built from {@link #get(int)}: the whole search shares a single
-	 * resolved leaf, so probes that converge into one leaf cost an array read rather than a fresh tree descent. See
-	 * {@link UnorderedLookupTree#findInsertionPositionInRange(int, int, int)} for why the search has to live inside
-	 * the tree to get that.
+	 * Prefer this over a caller-side binary search built from {@link #get(int)}: the search and its final predecessor
+	 * read all share a single resolved leaf, so every probe converging into that leaf costs an array read rather than
+	 * a fresh tree descent. See {@link UnorderedLookupTree#findPredecessorInRange(int, int, int)} for why this has to
+	 * live inside the tree to get that.
 	 *
 	 * @param fromIndex first index of the searched range, inclusive
 	 * @param toIndex   last index of the searched range, exclusive
-	 * @param recordId  the record id whose insertion index is sought
-	 * @return the insertion index within `[fromIndex, toIndex]`
+	 * @param recordId  the record id whose predecessor is sought
+	 * @return the preceding record id, or {@link Integer#MIN_VALUE} when `recordId` belongs at index zero
 	 */
-	public int findInsertionPositionInRange(int fromIndex, int toIndex, int recordId) {
-		return this.positionTree.findInsertionPositionInRange(fromIndex, toIndex, recordId);
+	public int findPredecessorInRange(int fromIndex, int toIndex, int recordId) {
+		return this.positionTree.findPredecessorInRange(fromIndex, toIndex, recordId);
 	}
 
 	/**

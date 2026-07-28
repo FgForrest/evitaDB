@@ -1391,8 +1391,8 @@ class UnorderedLookupTreeTest {
 	}
 
 	@Nested
-	@DisplayName("Ranged insertion search (leaf window retained across probes)")
-	class RangedInsertionSearchTest {
+	@DisplayName("Ranged predecessor search (leaf window retained across probes)")
+	class RangedPredecessorSearchTest {
 
 		/**
 		 * Builds the logical shape a {@link io.evitadb.index.attribute.SortIndex} produces: a sequence of value
@@ -1454,27 +1454,30 @@ class UnorderedLookupTreeTest {
 		}
 
 		/**
-		 * The naive oracle: the first position in `[from, to)` holding a record id greater than or equal to
-		 * `recordId`, resolved through {@link UnorderedLookupTree#getRecordAt(int)} one position at a time.
+		 * The naive oracle: finds the first position in `[from, to)` holding a record id greater than or equal to
+		 * `recordId` — resolved through {@link UnorderedLookupTree#getRecordAt(int)} one position at a time — and
+		 * returns the record id one position below it, or {@link Integer#MIN_VALUE} when that is position zero.
 		 *
 		 * @param tested   the tree under test
 		 * @param from     first position of the range, inclusive
 		 * @param to       last position of the range, exclusive
-		 * @param recordId the record id whose insertion position is sought
-		 * @return the expected insertion position
+		 * @param recordId the record id whose predecessor is sought
+		 * @return the expected preceding record id
 		 */
 		private int oracle(@Nonnull TreeWithIndex tested, int from, int to, int recordId) {
+			int insertionPosition = to;
 			for (int position = from; position < to; position++) {
 				if (tested.tree.getRecordAt(position) >= recordId) {
-					return position;
+					insertionPosition = position;
+					break;
 				}
 			}
-			return to;
+			return insertionPosition == 0 ? Integer.MIN_VALUE : tested.tree.getRecordAt(insertionPosition - 1);
 		}
 
 		/**
-		 * Asserts the ranged search matches the oracle for every present id of every ascending run, for the gaps
-		 * between them, and for ids falling before and after the whole run.
+		 * Asserts the ranged predecessor search matches the oracle for every present id of every ascending run, for
+		 * the gaps between them, and for ids falling before and after the whole run.
 		 *
 		 * @param tested  the tree under test
 		 * @param logical the logical record id sequence mirroring the tree
@@ -1489,14 +1492,27 @@ class UnorderedLookupTreeTest {
 					for (final int probe : new int[]{presentId, presentId - 1}) {
 						assertEquals(
 							oracle(tested, from, to, probe),
-							tested.tree.findInsertionPositionInRange(from, to, probe),
+							tested.tree.findPredecessorInRange(from, to, probe),
 							"mismatch for id " + probe + " in run [" + from + ", " + to + ")"
 						);
 					}
 				}
-				// below every id in the run, and above every id in the run
-				assertEquals(from, tested.tree.findInsertionPositionInRange(from, to, logical.get(from) - 100));
-				assertEquals(to, tested.tree.findInsertionPositionInRange(from, to, logical.get(to - 1) + 100));
+				// below every id in the run (predecessor falls BELOW the range, or off the array entirely), and above
+				// every id in the run (predecessor is the run's own last record)
+				final int belowAll = logical.get(from) - 100;
+				assertEquals(
+					oracle(tested, from, to, belowAll), tested.tree.findPredecessorInRange(from, to, belowAll)
+				);
+				final int aboveAll = logical.get(to - 1) + 100;
+				assertEquals(
+					aboveAll > 0 ? logical.get(to - 1) : Integer.MIN_VALUE,
+					tested.tree.findPredecessorInRange(from, to, aboveAll)
+				);
+				// the empty range at the run's start - the shape a brand-new value block produces
+				assertEquals(
+					from == 0 ? Integer.MIN_VALUE : logical.get(from - 1),
+					tested.tree.findPredecessorInRange(from, from, belowAll)
+				);
 			}
 		}
 
@@ -1538,20 +1554,23 @@ class UnorderedLookupTreeTest {
 		}
 
 		@Test
-		@DisplayName("returns the range start for an empty range and handles a single-element range")
+		@DisplayName("resolves the predecessor for empty, single-element and whole-array ranges")
 		void shouldHandleDegenerateRanges() {
 			final TreeWithIndex tested = new TreeWithIndex(3, UnorderedLookupTree.DEFAULT_ORDER_KEY_GAP);
 			tested.bulkLoad(new int[]{10, 20, 30, 40, 50});
-			// empty range - nothing to compare against, the insertion position is the range itself
-			assertEquals(2, tested.tree.findInsertionPositionInRange(2, 2, 25));
-			// single element
-			assertEquals(2, tested.tree.findInsertionPositionInRange(2, 3, 25));
-			assertEquals(2, tested.tree.findInsertionPositionInRange(2, 3, 30));
-			assertEquals(3, tested.tree.findInsertionPositionInRange(2, 3, 35));
+			// empty range - no search runs, the answer is simply the record below the range
+			assertEquals(20, tested.tree.findPredecessorInRange(2, 2, 25));
+			// empty range at the very front - no predecessor exists
+			assertEquals(Integer.MIN_VALUE, tested.tree.findPredecessorInRange(0, 0, 5));
+			// single element; every answer here falls BELOW the searched range
+			assertEquals(20, tested.tree.findPredecessorInRange(2, 3, 25));
+			assertEquals(20, tested.tree.findPredecessorInRange(2, 3, 30));
+			// ... except this one, where the single element itself precedes the insertion point
+			assertEquals(30, tested.tree.findPredecessorInRange(2, 3, 35));
 			// the whole array
-			assertEquals(0, tested.tree.findInsertionPositionInRange(0, 5, 5));
-			assertEquals(5, tested.tree.findInsertionPositionInRange(0, 5, 55));
-			assertEquals(3, tested.tree.findInsertionPositionInRange(0, 5, 40));
+			assertEquals(Integer.MIN_VALUE, tested.tree.findPredecessorInRange(0, 5, 5));
+			assertEquals(50, tested.tree.findPredecessorInRange(0, 5, 55));
+			assertEquals(30, tested.tree.findPredecessorInRange(0, 5, 40));
 		}
 
 		@Test
@@ -1560,13 +1579,13 @@ class UnorderedLookupTreeTest {
 			final TreeWithIndex tested = new TreeWithIndex();
 			tested.bulkLoad(new int[]{10, 20, 30});
 			assertThrows(
-				GenericEvitaInternalError.class, () -> tested.tree.findInsertionPositionInRange(-1, 2, 15)
+				GenericEvitaInternalError.class, () -> tested.tree.findPredecessorInRange(-1, 2, 15)
 			);
 			assertThrows(
-				GenericEvitaInternalError.class, () -> tested.tree.findInsertionPositionInRange(0, 4, 15)
+				GenericEvitaInternalError.class, () -> tested.tree.findPredecessorInRange(0, 4, 15)
 			);
 			assertThrows(
-				GenericEvitaInternalError.class, () -> tested.tree.findInsertionPositionInRange(2, 1, 15)
+				GenericEvitaInternalError.class, () -> tested.tree.findPredecessorInRange(2, 1, 15)
 			);
 		}
 	}
