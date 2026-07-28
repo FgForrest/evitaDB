@@ -145,6 +145,73 @@ public class UnorderedLookupTreeBenchmark {
 		return sum;
 	}
 
+	/**
+	 * P2a — the BASELINE half of the block-search pair: the block binary search driven the way
+	 * `SortIndexChanges.computePreviousRecord` used to drive it, as a caller-side loop where every probe is an
+	 * independent {@link UnorderedLookupTree#getRecordAt(int)} root-to-leaf descent.
+	 *
+	 * Paired with {@link #blockSearchWindowed(BlockSearchState, Blackhole)}, which performs the identical search
+	 * through the windowed entry point. The two run as siblings in ONE JVM on purpose: an A/A run of
+	 * {@link #positionalRead(PositionalReadState, Blackhole)} measured 0.4–16.4 % of drift between two runs of the
+	 * same jar, which is the same order as the effect being looked for. Sibling benchmarks share the fork, the JIT
+	 * state and the machine state, so their difference is paired rather than compared across runs.
+	 */
+	@Benchmark
+	public int blockSearchPerProbeDescent(@Nonnull BlockSearchState state, @Nonnull Blackhole bh) {
+		final UnorderedLookupTree tree = state.index.positionTree;
+		final int[] blockStarts = state.blockStarts;
+		final int[] targets = state.targets;
+		final int blockWidth = state.blockWidth;
+		int sum = 0;
+		for (int i = 0; i < blockStarts.length; i++) {
+			final int blockStart = blockStarts[i];
+			final int blockEnd = blockStart + blockWidth;
+			final int recordId = targets[i];
+			int low = blockStart;
+			int high = blockEnd - 1;
+			int insertionIndex = blockEnd;
+			while (low <= high) {
+				final int middle = (low + high) >>> 1;
+				final int middleRecordId = tree.getRecordAt(middle);
+				if (middleRecordId < recordId) {
+					low = middle + 1;
+				} else {
+					insertionIndex = middle;
+					if (middleRecordId == recordId) {
+						break;
+					}
+					high = middle - 1;
+				}
+			}
+			sum += insertionIndex;
+		}
+		bh.consume(sum);
+		return sum;
+	}
+
+	/**
+	 * P2b — the OPTIMISED half of the block-search pair: the identical search issued through
+	 * {@link UnorderedLookupTree#findInsertionPositionInRange(int, int, int)}, which retains the leaf resolved by one
+	 * probe and serves any following probe landing inside it without descending again.
+	 *
+	 * Returns the same sum as {@link #blockSearchPerProbeDescent(BlockSearchState, Blackhole)} by construction — the
+	 * equivalence itself is asserted by the functional oracle tests, not here.
+	 */
+	@Benchmark
+	public int blockSearchWindowed(@Nonnull BlockSearchState state, @Nonnull Blackhole bh) {
+		final UnorderedLookupTree tree = state.index.positionTree;
+		final int[] blockStarts = state.blockStarts;
+		final int[] targets = state.targets;
+		final int blockWidth = state.blockWidth;
+		int sum = 0;
+		for (int i = 0; i < blockStarts.length; i++) {
+			final int blockStart = blockStarts[i];
+			sum += tree.findInsertionPositionInRange(blockStart, blockStart + blockWidth, targets[i]);
+		}
+		bh.consume(sum);
+		return sum;
+	}
+
 	/* =========================================================================================== */
 
 	/**
@@ -264,6 +331,54 @@ public class UnorderedLookupTreeBenchmark {
 				}
 			}
 			return result;
+		}
+	}
+
+	/**
+	 * Pre-built chain plus the `(blockStart, targetRecordId)` pairs of {@link #SIMULATED_INSERTS} simulated
+	 * sort-attribute inserts, shared by the two block-search benchmarks so both search exactly the same blocks for
+	 * exactly the same record ids.
+	 *
+	 * The chain is `1 → 2 → … → recordCount`, so the record id at logical position `p` is `p + 1`. That makes EVERY
+	 * range ascending — the precondition the ranged search is contracted on — and makes a target record id inside a
+	 * block trivially derivable from a position.
+	 */
+	@State(Scope.Benchmark)
+	public static class BlockSearchState {
+		/** Number of simulated sort-attribute inserts performed per measured invocation. */
+		private static final int SIMULATED_INSERTS = 10_000;
+
+		/** Length of the pre-built chain the searches run over. */
+		@Param({"1000000"})
+		public int recordCount;
+		/** Width of the simulated value block the binary search runs over. */
+		@Param({"1", "10", "100", "1000", "10000"})
+		public int blockWidth;
+
+		CompositeIndex index;
+		/** First logical position of each simulated insert's value block. */
+		int[] blockStarts;
+		/** The record id each simulated insert searches its block for. */
+		int[] targets;
+
+		@Setup(Level.Trial)
+		public void setUp() {
+			final CompositeIndex theIndex = new CompositeIndex();
+			theIndex.addHead(1);
+			for (int recordId = 2; recordId <= this.recordCount; recordId++) {
+				theIndex.addAfter(recordId - 1, recordId);
+			}
+			this.index = theIndex;
+			final Random random = new Random(42);
+			this.blockStarts = new int[SIMULATED_INSERTS];
+			this.targets = new int[SIMULATED_INSERTS];
+			for (int i = 0; i < SIMULATED_INSERTS; i++) {
+				final int blockStart = this.blockWidth >= this.recordCount
+					? 0 : random.nextInt(this.recordCount - this.blockWidth);
+				this.blockStarts[i] = blockStart;
+				// the record id living at position `p` is `p + 1`, so this targets a random slot inside the block
+				this.targets[i] = blockStart + random.nextInt(this.blockWidth) + 1;
+			}
 		}
 	}
 
