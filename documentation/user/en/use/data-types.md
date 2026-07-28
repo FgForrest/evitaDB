@@ -269,12 +269,14 @@ on the client side and be explicit about the offset from the first day.
 
 <LS to="j,e,g,r">
 <NoteTitle toggles="true">
+
 ##### Why do we internally use OffsetDateTime for time information?
 </NoteTitle>
 </LS>
 
 <LS to="c">
 <NoteTitle toggles="true">
+
 ##### Why do we internally use DateTimeOffset for time information?
 </NoteTitle>
 </LS>
