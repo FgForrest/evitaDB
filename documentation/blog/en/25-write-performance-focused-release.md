@@ -1,28 +1,102 @@
 ---
-title: Release 2026.2 addresses evitaDB write performance 
+title: Release 2026.2 brings faster writes and a path to millions of records
 perex: |
-  
-date: '27.07.2026'
+  evitaDB 2026.2 brings fundamental changes to the write side of the database. New granular, persistent data structures dramatically cut the amount of data that has to be copied, relieve the pressure on the garbage collector and — together with storing only the parts of an index that actually changed — make datasets in the millions of records comfortable to work with. Beyond higher write throughput, the release widens the control you have over transaction conflicts, fixes the atomicity of entity-level operations and adds histograms over reference attributes and over range values, aimed at advanced filtering in e-commerce applications.
+date: '28.07.2026'
 author: 'Ing. Jan Novotný'
 motive: assets/images/25-write-performance-focused-release.png
-proofreading: 'todo'
-draft: true
+proofreading: 'needed'
 ---
 
-# Performance optimizations
+Beyond widening what histograms can do, the freshly released `2026.2` aims squarely at the write side of evitaDB. Read latency and throughput have always been our priority, because that is where the overwhelming majority of e-commerce traffic happens; writes have always come second. The data structures of the early versions were built for that goal and were sized for catalogs in the low hundreds of thousands of products — a bar that was more than enough for the installations of the day. The volumes evitaDB manages on commercial deployments have since moved that bar, so we turned the same spotlight on the write path that we once turned on the read path. Our internal tests show stable performance on datasets in the millions of records, and we are looking forward to hard numbers from production deployments.
+
+This time the work reaches deep into the foundations of the database. Before we declare evitaDB ready for general availability, we want exactly those foundations properly settled — and surgery of this kind is far harder to perform on a finished database than it is now.
+
+# Performance improvements
+
+So let's have a look at what this release improves.
 
 ## Granular data structures
 
-## Granular transaction conflict resolution
+A number of our data structures were plain arrays or bitmaps with no internal subdivision. They kept growing as data was written and, although evitaDB segments indexed data heavily for the sake of read speed, hot spots appeared where the code had to work with very large arrays and bitmaps. Software transactional memory requires immutable data structures, so every modification duplicated such an array — even if only temporarily — and that had an adverse effect on the behavior of the Java garbage collector.
+
+The key change in this release was the move to structures that can absorb writes practically without limit and without saturating the system. Sorted arrays gave way to balanced B+ trees, which store data as smaller arrays reached through a chain of parent nodes. The trees come in a number of specialized variants using primitive types or "compressed" storage. String attributes, for example, are stored in the leaves the way a phone book is — each value remembers only how it differs from the one before it (a trick Lucene has long used in its term dictionaries). On real-world data, where unique strings tend to be URLs or EAN codes sharing twenty or more characters of prefix, this works out to roughly half the footprint on disk and a quarter of it in memory. On top of that, lookups over ordinary text compare raw bytes and materialize a `String` only where language collation is needed or a character outside the Unicode Basic Multilingual Plane shows up. Numbers, dates and timestamps go into primitive arrays instead of arrays of boxed objects — every such type has a defined, order-preserving conversion to a primitive value, so binary search runs directly over primitives and the hot path allocates not a single extra `Integer` or `OffsetDateTime`.
+
+The rework also put an end to indexes that existed twice for no good reason. Earlier versions kept the indexes used for sorting entities by attribute separately from the ones used for lookups — each with its own copy of the values and its own data structure. Now, when an attribute is both filterable and sortable, the two roles share a single structure of values and the sort index keeps only what is genuinely its own: the order of the records. Unique indexes got the same treatment. They used to be one large hash map, serialized in full on every change; today they are a B+ tree with the prefix compression described above, so editing a single record rewrites one page instead of hundreds of kilobytes.
+
+None of this is free, of course. A lookup in a unique index used to run in constant time and is now closer to O(log n) — but it is a logarithm with a very high base, so even a collection of a million records fits into three or four hops. That is a precisely bounded cost, and what we bought with it is an unbounded ceiling on writes. We kept the read-side regression in mind throughout and compensated for it with new optimizations in a number of other places.
+
+Another important piece was adopting the [CHAMP](https://michael.steindorfer.name/publications/oopsla15.pdf) data structure in place of ordinary hash maps wherever we needed a map to behave as a persistent data structure but did not need the ability to roll changes back — cases where our B+ trees, which do carry that support, would have been overkill. Java does offer some persistent collections, but we needed a variant tailored to our access pattern: a single writer, many versions valid at the same time and cheap bulk construction of a new version. So we drew inspiration from the original paper and from the implementation in Scala's standard library and, with the help of agents, implemented a similar structure directly in the evitaDB core.
+
+## Granular persistence to disk
+
+The move to tree structures had one more consequence, and for writes it may matter even more than the in-memory structures themselves. Until now an index was a single indivisible block as far as storage was concerned — changing one attribute of one entity meant the entire index was serialized and written out again when the transaction was committed. On a high-cardinality collection that amounted to hundreds of kilobytes of writes for one trivial change.
+
+Attribute, filter, sort, price and reference indexes are now stored page by page, and a transaction writes only those pages that actually changed. Besides the sheer volume of writes, this is a considerable relief for the periodic compaction of the data files, which until now had to clean up many times more garbage after every transaction. We also trimmed compaction's own allocation overhead — on large files it could trigger a garbage collector pause of up to two seconds, which concurrently running queries experienced as a timeout. How evitaDB stores data on disk is described in [the chapter on the storage model](https://evitadb.io/documentation/deep-dive/storage-model).
+
+While we were down in the guts of the storage layer, we tightened its durability as well. The write-ahead log now carries a rolling CRC32 checksum over all preceding records, so corruption is detected down to the individual byte (existing files convert themselves to the new format). And the state of the database engine can no longer move forward before the corresponding record is safely in the log.
+
+## Our own version of RoaringBitmap
+
+The [RoaringBitmap](https://github.com/RoaringBitmap/RoaringBitmap/) library was a similar story to CHAMP. In its original implementation the structure does not meet the requirements of a persistent data structure, and our usage meant cloning it on every write. As the amount of stored data grew, that again translated into a very unfavorable effect on writes and pressure on the GC. Yet turning the structure into a persistent one is perfectly feasible — a write only needs to swap one of the many containers the structure manages internally (plus, of course, the pointer to that container in the header block). The original library had already taken partial steps in that direction, but they did not go far enough.
+
+So we built a prototype and [opened a discussion about it upstream](https://github.com/RoaringBitmap/RoaringBitmap/issues/826). The change reaches deep into the core of the library, though, and cannot be carried through without the authoring team — which, most likely for sheer lack of time, has not weighed in yet. We therefore did the same thing we had done with CHAMP: with the help of agents we took the ideas and the basic implementation and adapted them to our requirements. evitaDB's production code runs on our own version today; the original library remains only in our benchmarks, as a point of comparison.
+
+Before agents, this approach would have been impossible and maintaining such a fork over the long run unbearable. That arithmetic changed completely with the arrival of artificial intelligence — and this is not just theory: we keep our version in sync with upstream, including the fix for [reverse iterators](https://github.com/RoaringBitmap/RoaringBitmap/pull/837), during whose adoption we incidentally discovered and fixed two more inherited bugs upstream.
+
+## Granular control over conflict resolution
+
+evitaDB uses snapshot isolation for all transactions — which, put simply, means readers see all the data in the database exactly as it looked at the moment the session was opened (even if that session lasts tens of minutes). Within that session clients see only this consistent starting state and their own changes on top of it; they never see the work of other clients running in parallel, even if those clients have finished it and successfully committed it to the server. When a client tries to commit its own changes, the server checks whether someone else got there first and touched the same "conflict area" at the same time. The heart of the matter lies in how that conflict area is defined, because its width determines how often such conflicts occur. Until now the area was defined identically for all catalogs and entity types across the entire evitaDB instance, and by default it forbade concurrent changes to one and the same entity (two clients could not, for example, modify anything within the same product at once).
+
+That definition is now considerably more flexible and works on two levels. The first is a *coarse* scope carried by the schema — the nearest declared one applies (entity schema → catalog schema → the database engine's default setting) and it always applies as a whole. Besides the classic entity scope, the conflict area can be widened to an entire collection or an entire catalog, or narrowed down to individual attributes, associated data, prices, position in the hierarchy or references.
+
+The second level is a *per-item override*: an attribute, an associated data entry or a reference can request its own conflict key in its schema, or share the conflict key of the whole entity. That makes it possible to keep the product serialized as a whole and release only those items that independent processes fight over — typically feed exports or derived data written into the product by a completely different job than the main indexing one. The details, along with recommendations on when to reach for which level, can be found in [the chapter on transactions](https://evitadb.io/documentation/deep-dive/transactions#conflict-resolution-levels).
 
 # New features
 
-## Histogram on reference attributes
+On the functional side, this release focused mainly on extending what histograms can do, so that they match the needs of the e-commerce sector better.
 
-## Optimized histograms
+## Histograms over reference attributes
 
-## Range histograms
+The basic limitation of histograms was that they could be used on entity attributes only. In practice they often serve as an alternative to faceted filters in cases where the number of distinct values makes an enumeration (a set of checkboxes) impractical and an interval filter (a slider) is the better visualization. At the same time, the client often does not know in advance which histogram to ask for on a given page, because the very existence of the histogram is tied to the kind of records the primary filter returns. In the "Refrigerators" category, interval filters for width / height / depth make perfect sense, whereas in the "Bakery" category they most certainly do not exist. From the client application's point of view it is therefore far more practical to phrase the query like this:
 
-## Entity operation atomicity
+> Find me all products in the "Refrigerators" category (and its subcategories). Out of all their parameters that carry the flag (that belong to a group carrying the flag) marking them as intended for filtering, prepare:
+>
+> a) a faceted filter, if the parameters (their groups) are marked with the "enumerated type" flag
+> b) a histogram, if the parameters (their groups) are marked with the "interval type" flag
 
-# Fixes
+Phrased this way, it becomes very easy for the client to render genuinely complex filtering options that let users draw their own boundaries around the results they see. Since these computations have to be very fast, the database must keep a number of figures precomputed — and that requires baking a specification this complex into the database schema itself. We used the [evitaEL expression language](https://evitadb.io/documentation/query/expression-language) for the job; it has been part of evitaDB since 2024 and until now mostly served the `spacing` rules that leave gaps on individual pages of a result. In a reference schema it now describes where the histogram's value is taken from (for example `$reference.referencedEntity.attributes['basicUnitValue']`), and the database derives from that on its own which structures need to be updated when entity data changes. A single reference can carry several histograms at once, each under its own name. The whole mechanism is described in [the schema documentation](https://evitadb.io/documentation/use/schema#reference-histograms).
+
+## Histograms over range values
+
+We extended the reference histogram mechanism just described in one more direction. evitaDB allows numeric attributes to be stored not only as a single concrete value, but also as a from–to range. A typical example is a product whose dimension can be adjusted within a certain interval to suit the customer's requirements — a worktop that can be cut down to a length between 120 and 180 cm, say. One or both bounds of the range can also be left open, so you can express "100 and up" or "at most 50".
+
+The value expression of a histogram on a reference can therefore now point not only at a plain number, but also at such a range attribute. A product is counted into every histogram value that falls inside its interval, both endpoints included. So a product supporting lengths of 120–180 cm will show up in the results for 120, 150 and 180 cm alike. The client application can thus show the user how many products satisfy a particular requested value, not merely how many products share the same lower or upper bound.
+
+The computation reuses the range indexes evitaDB already maintains for filtering. The database walks the sorted boundaries of the individual intervals and keeps track of which records are active at any given point. That removes the need to test every product against every histogram value separately, and the whole computation can be done in a single pass over the indexed data.
+
+## An aside: histograms with equalized buckets
+
+A conventional histogram splits the entire value range into buckets of equal width. With e-commerce data that often leads to impractical results, because values are rarely distributed evenly. If product prices range from €5 to €5,000 but most products cost less than €250, nearly all of them end up in the first bucket and the rest of the histogram stays practically empty. The user then has to aim the slider very precisely within the densely populated area, while a large part of its travel affects only a handful of extreme values.
+
+evitaDB can therefore produce a histogram whose buckets are not equally wide, but hold roughly the same number of records — narrower buckets in the densely populated part of the range, wider ones in the sparse part. From that a client application can build a non-linear scale offering finer control exactly where most of the results are. We actually released this capability into the world back in version `2026.1`; we mention it here because the current version made it available for the range histograms described above as well. The details, including how it combines with dropping empty buckets, can be found in [the histogram documentation](https://evitadb.io/documentation/query/requirements/histogram#attribute-histogram-equalization).
+
+## Small things that come in handy
+
+Besides histograms, a few smaller things you have been asking for made it in as well. The new [`groupHaving`](https://evitadb.io/documentation/query/filtering/references#group-having) filtering constraint lets you select entities by whether the *group* of their reference satisfies a given condition — previously there was no way to express that at all. Primary keys can now be filtered not only by equality, but also by inequalities and by range. `stopAt(distance(0))` makes it possible to stop the hierarchy traversal right at the starting node, which comes in handy for breadcrumb navigation with statistics for the entire subtree. And `PricesContract` can return both the lowest and the highest price across the variants of a single master product in a single call, so a price range in a listing is computed without additional queries.
+
+# Bug fixes
+
+With the arrival of artificial intelligence we managed to expand our test suite with further tests — since the previous version, released at the very beginning of 2026, we have practically doubled the number of unit and integration tests (version `2026.1` had *12142* of them, the current `2026.2` already has *22555*). That effort also eliminated a whole series of small bugs related to edge cases, which makes the current version markedly more stable than its predecessor.
+
+## Atomicity of entity operations
+
+Atomicity means that an operation is either carried out in full, or not at all. That naturally holds for the transaction as a whole, but it is practically useful to treat its constituent parts the same way — in our case, an operation over a single entity. Such an operation consists of several so-called local mutations: change an attribute, change a price, add a reference. When X out of Y of those mutations go through and the next one hits, say, a uniqueness constraint, the database should undo the effects of the preceding ones and only then throw an exception. The client catches it, reacts to it and carries on within the original transaction — it does not have to throw away all the work it has done so far. In previous versions this cleanup could not be entirely relied upon, so discarding the whole transaction was the safer choice. That pushed developers towards smaller transactions and therefore towards more frequent commits, and commits are expensive from the database's point of view — which brings us right back around to low performance on the write side.
+
+This shortcoming has been removed in the current version — and with it a hidden trap that made the cost of such a partial rollback grow quadratically with the number of entities already processed within the same transaction. The size of batch transactions can therefore be increased substantially, which in turn raises the throughput of writing data into the database.
+
+## gRPC call timeouts
+
+Let us close the article with the last open item from the previous version — timeouts at the level of the HTTP/2 protocol that manifested themselves in the gRPC interface. We use the embedded Armeria web server for it; it is extremely well optimized and built on reactive principles, and adapting to it meant subordinating everything to asynchronous processing, which took a while to fine-tune. The final stumbling block was the type of pool used for task processing in combination with the ping interval setting. The HTTP/2 protocol itself knows no deadline for answering a ping — treating an unacknowledged ping as a dead connection is a gRPC convention. And Armeria implements that convention in its own way: it has no separate ping period and ping acknowledgement deadline, both are one and the same value. Whoever pings more often therefore shortens the deadline for the answer at the same time — and the connection then drops even at a moment when a request in progress is being transferred over it. Combined with a busy pool, this occasionally surfaced as a CANCELLED status at the gRPC level. We tracked the cause down and fixed it.
+
+And one final warning for those about to upgrade: `2026.2` also brings several incompatible changes. Histograms are declared on a reference as an array (`@Reference(bucketed = {@Histogram(...)})`), the GraphQL `attributeHistograms` field has been replaced by statistics placed directly on reference summaries, the REST `referenceSummary` expects `requirements` as an array, and the price histogram for entities in `LOWEST_PRICE` mode now takes the prices of the individual variants into account, so it returns a different distribution than before. The quietest of them is the last one: removing an annotation flag on a model class in the Java client now actually takes effect on a schema update, instead of the original value being kept. The complete list, including explanations, can be found in the [release notes](https://github.com/FgForrest/evitaDB/releases/tag/v2026.2.0).
