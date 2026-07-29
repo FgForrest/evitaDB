@@ -564,7 +564,8 @@ public class UnorderedLookupTree implements
 		// and each would otherwise start with its own `CURRENT_TRANSACTION` ThreadLocal read - two per positional
 		// probe, at ~13 probes per sort-attribute insert across 40 low-cardinality attributes per entity. ThreadLocal
 		// machinery is 5.25 % of busy-thread wall on that path (issue #1332). The dispatch itself stays HERE, in the
-		// public read method, as INV-2 of the STM rules requires - only its duplication is removed.
+		// public read method, as INV-2 of the STM rules requires (see
+		// `documentation/developer/stm/rules-and-invariants.md`) - only its duplication is removed.
 		final Transaction transaction = Transaction.getCurrentTransactionIfAvailable();
 		final Node<?> theRoot = getRoot(transaction);
 		if (position < 0 || position >= size(transaction) || theRoot == null) {
@@ -596,8 +597,21 @@ public class UnorderedLookupTree implements
 	 * {@link Integer#MIN_VALUE} when it belongs at the very start of the array. That is exactly the
 	 * `previousRecordId` contract of {@link TransactionalUnorderedIntArray#add(int, int)}.
 	 *
+	 * **Caller obligation:** the record ids occupying `[fromPosition, toPosition)` must be in ascending id order.
+	 * This array is *unordered* as a whole — only a single value's sort block is ordered — so that ordering is a
+	 * property of the range the caller picks, not of the structure. A binary search cannot detect a violation, so
+	 * passing a non-ascending range yields an undefined answer rather than an error.
+	 *
+	 * **The answer is not confined to the range.** When every id in `[fromPosition, toPosition)` is greater than
+	 * `recordId`, the search converges at `fromPosition` and the predecessor returned is the record at
+	 * `fromPosition - 1` — the last record of the *preceding* block. That is deliberate: the caller is inserting into
+	 * a globally ordered array and needs the true predecessor, not a block-local one.
+	 *
 	 * An empty range (`fromPosition == toPosition`) is legal and skips the search: the answer is then simply the
-	 * record sitting at `fromPosition - 1`, which is what an insert of a brand-new value block needs.
+	 * record sitting at `fromPosition - 1`, which is what an insert of a brand-new value block needs. On a
+	 * completely empty tree that degenerates to `findPredecessorInRange(0, 0, id)` returning
+	 * {@link Integer#MIN_VALUE} — the first insert of the first value, and the most-executed shape at the start of a
+	 * bulk load.
 	 *
 	 * The whole search runs **inside the tree** rather than as a caller-side loop over {@link #getRecordAt(int)} for
 	 * one reason: consecutive probes of a binary search converge, so after the first descent the following probes

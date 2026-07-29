@@ -72,12 +72,12 @@ import java.util.Random;
  *    silent failure because the benchmark would still run and report a score. Building the values here with an explicit
  *    `random.nextInt(distinctValues)` keeps the cardinality at {@link #distinctValues} exactly.
  * 2. *`DataGenerator.pickRandomFromSet` infinite-loops at this reference count.* Its per-entity reference selection does
- *    not terminate once a schema carries enough reference types (see `docs/plans/1332-datagenerator-bug.md`); thirty
- *    faceted references trip it. That is a latent bug in shared test infrastructure, not something #1332 should touch,
- *    so this benchmark sidesteps it by never entering that code path.
- * 3. *Determinism across the A/B pair.* B3 is measured cross-jar (this branch's engine against the base engine in a
- *    sibling worktree), so the two runs must ingest byte-for-byte identical batches. A fresh `Random(SEED)` walked in
- *    primary-key order gives exactly that; Javafaker's per-locale faker caches do not.
+ *    not terminate once a schema carries enough reference types; thirty faceted references trip it. That is a latent
+ *    bug in shared test infrastructure, not something #1332 should touch, so this benchmark sidesteps it by never
+ *    entering that code path.
+ * 3. *Determinism across the A/B pair.* This benchmark is measured cross-jar (this branch's engine against the base
+ *    engine in a sibling worktree), so the two runs must ingest byte-for-byte identical batches. A fresh
+ *    `Random(SEED)` walked in primary-key order gives exactly that; Javafaker's per-locale faker caches do not.
  * 4. *Setup cost.* Direct construction is far cheaper than Javafaker per entity, which is what makes a large
  *    `entityCount` affordable and keeps generation from dwarfing the ingest it is meant to feed.
  *
@@ -88,9 +88,20 @@ import java.util.Random;
  *
  * **Read `gc.alloc.rate.norm`, not wall time.** At the iteration counts this benchmark can afford, wall clock is far
  * too noisy to carry a signal (this issue saw ±258 % on `ns/op` against ±0.75 % on allocation in the same run), and
- * B3 is inherently a cross-jar comparison that cannot be paired inside one JVM. The honest, measurable question it
- * answers is therefore *how much of a full ingest's allocation the allocation-side findings (F3/F4/F6/F7) remove* - run
- * it with `-prof gc` and compare the normalised allocation rate against the base worktree.
+ * this benchmark is inherently a cross-jar comparison that cannot be paired inside one JVM. The honest, measurable
+ * question it answers is therefore *how much of a full ingest's allocation the branch's allocation-side changes
+ * remove* - the dropped `InsertionPosition` record in the int-keyed internal-node search, the lazily captured B+ tree
+ * cursor path, the allocation-free unordered-array guards - so run it with `-prof gc` and compare the normalised
+ * allocation rate against the base worktree.
+ *
+ * **The reported bytes/op is `fixture + ingest`, so compare the ABSOLUTE difference.** `setUp()` is annotated
+ * `@Setup(Level.Invocation)` and boots a full Evita instance, defines the schema and materialises the whole batch;
+ * JMH's `GCProfiler` snapshots its counters in `beforeIteration` / `afterIteration`, bracketing the entire iteration
+ * including per-invocation fixtures, so the fixture's allocation is counted inside the reported figure. The fixture
+ * is identical on both sides of the A/B pair and therefore cancels in the **absolute** GB/op difference - that number
+ * is trustworthy. The **percentage** is not: its denominator is diluted by fixture allocation, so it understates the
+ * change and must never be read as a fraction of the ingest's own allocation. Quantifying the fixture would take a
+ * control `@Benchmark` with an empty body taking this same state; no such control exists today.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -130,7 +141,7 @@ public class SortAttributeIngestBenchmarkState extends ArtificialBenchmarkState
 	/**
 	 * Distinct values each low-cardinality attribute draws from. Block width is `entityCount / distinctValues`, so
 	 * the two defaults give 20-wide blocks (inside one leaf) and 1000-wide blocks (spanning many leaves) - the two
-	 * regimes issue #1332's findings behave differently in.
+	 * regimes the sort-block search behaves differently in.
 	 */
 	@Param({"1000", "20"})
 	public int distinctValues;
@@ -170,7 +181,6 @@ public class SortAttributeIngestBenchmarkState extends ArtificialBenchmarkState
 	 */
 	@Setup(Level.Invocation)
 	public void setUp() {
-		this.generatedEntities.clear();
 		final String catalogName = getCatalogName();
 		this.evita = createEmptyEvitaInstance(catalogName);
 		this.evita.updateCatalog(

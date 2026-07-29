@@ -329,6 +329,11 @@ public final class Transaction implements TransactionContract {
 	 * Unlike {@link #getTransaction()} this does not wrap the result in an {@link Optional}, which allocates on the
 	 * transaction-present branch.
 	 *
+	 * **Retention contract:** the returned reference is valid only for the current operation on the current thread.
+	 * The value is thread-confined, so passing it down a call chain on the same thread is exactly the intended use -
+	 * but do not store it in a field, hang it off a long-lived object, or hand it to another thread. Doing so would
+	 * let one thread read another's uncommitted diff layer.
+	 *
 	 * @return the transaction bound to the current thread, or `null` when the thread is outside a transaction
 	 */
 	@Nullable

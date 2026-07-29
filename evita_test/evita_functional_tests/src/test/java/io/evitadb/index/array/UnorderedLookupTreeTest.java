@@ -1501,17 +1501,20 @@ class UnorderedLookupTreeTest {
 				// every id in the run (predecessor is the run's own last record)
 				final int belowAll = logical.get(from) - 100;
 				assertEquals(
-					oracle(tested, from, to, belowAll), tested.tree.findPredecessorInRange(from, to, belowAll)
+					oracle(tested, from, to, belowAll), tested.tree.findPredecessorInRange(from, to, belowAll),
+					"mismatch for id " + belowAll + " below run [" + from + ", " + to + ")"
 				);
 				final int aboveAll = logical.get(to - 1) + 100;
 				assertEquals(
-					aboveAll > 0 ? logical.get(to - 1) : Integer.MIN_VALUE,
-					tested.tree.findPredecessorInRange(from, to, aboveAll)
+					logical.get(to - 1),
+					tested.tree.findPredecessorInRange(from, to, aboveAll),
+					"mismatch for id " + aboveAll + " above run [" + from + ", " + to + ")"
 				);
 				// the empty range at the run's start - the shape a brand-new value block produces
 				assertEquals(
 					from == 0 ? Integer.MIN_VALUE : logical.get(from - 1),
-					tested.tree.findPredecessorInRange(from, from, belowAll)
+					tested.tree.findPredecessorInRange(from, from, belowAll),
+					"mismatch for id " + belowAll + " in empty run [" + from + ", " + from + ")"
 				);
 			}
 		}
@@ -1571,6 +1574,22 @@ class UnorderedLookupTreeTest {
 			assertEquals(Integer.MIN_VALUE, tested.tree.findPredecessorInRange(0, 5, 5));
 			assertEquals(50, tested.tree.findPredecessorInRange(0, 5, 55));
 			assertEquals(30, tested.tree.findPredecessorInRange(0, 5, 40));
+		}
+
+		/**
+		 * Covers the un-populated tree, which every value block starts from on the first insert of a bulk load - the
+		 * only shape where the search runs with no root at all.
+		 */
+		@Test
+		@DisplayName("resolves an empty range on an empty tree and rejects a non-empty one")
+		void shouldHandleRangesOnEmptyTree() {
+			final TreeWithIndex tested = new TreeWithIndex();
+			// nothing is indexed yet, so there is no record preceding the (empty) range
+			assertEquals(Integer.MIN_VALUE, tested.tree.findPredecessorInRange(0, 0, 42));
+			// ... and no position exists, so any non-empty range lies outside the array
+			assertThrows(
+				GenericEvitaInternalError.class, () -> tested.tree.findPredecessorInRange(0, 1, 42)
+			);
 		}
 
 		@Test

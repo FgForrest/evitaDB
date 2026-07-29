@@ -45,23 +45,31 @@ import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Microbenchmark of the **write** behaviour of the two-tree backing introduced under issue #760 — the count-augmented
- * position tree {@link UnorderedLookupTree} paired with the no-boxing `int → long` value index
- * {@link TransactionalIntToLongBPlusTree}, exactly the pair that sits behind `TransactionalUnorderedIntArray`.
+ * Microbenchmark of the **write** and positional-**read** behaviour of the two-tree backing introduced under issue
+ * #760 — the count-augmented position tree {@link UnorderedLookupTree} paired with the no-boxing `int → long` value
+ * index {@link TransactionalIntToLongBPlusTree}, exactly the pair that sits behind `TransactionalUnorderedIntArray`.
  *
  * The single property this benchmark guards is **asymptotic write cost**: the array delegate the two-tree backing
  * replaces renumbers an `O(N)` suffix on every positional insert / move, so building and churning a long chain costs
- * `O(N²)`. The tree touches only the `O(log N)` cursor path, so both phases must scale **linearly**. This is a write
- * hot-path benchmark; read addressing and the correctness of the structure are covered by the functional oracle suite
- * and the generational long-running soak, not here.
+ * `O(N²)`. The tree touches only the `O(log N)` cursor path, so both write phases must scale **linearly**. Beyond that
+ * the class also sizes the positional-READ cost the sort-attribute insert path pays; what it does not cover is the
+ * structural **correctness** of the tree, which stays with the functional oracle suite and the generational
+ * long-running soak.
  *
- * Two phases are measured, each in {@link Mode#SingleShotTime} (the natural unit is "time to apply the whole batch"):
+ * Five benchmarks are measured - two write phases and three read phases - each in {@link Mode#SingleShotTime} (the
+ * natural unit is "time to run the whole batch"):
  *
  * 1. {@code buildChain} — builds a single chain `1 → 2 → … → N` via `recordCount` individual `insertAfter` writes,
  *    starting from an empty backing each invocation. Measures the per-write cost as the chain grows.
  * 2. {@code churnChain} — over a pre-built chain, repeatedly moves a random record to sit after another random record
  *    (a predecessor update = remove + re-insert), `churnOperations` times. Measures steady-state move cost at a fixed
  *    chain length.
+ * 3. {@code positionalRead} — replays the pre-generated probe positions a block binary search issues, every one of
+ *    them an independent root-to-leaf order-statistic descent. Measures the raw per-probe read cost.
+ * 4. {@code blockSearchPerProbeDescent} — the baseline half of the block-search pair: the whole search driven as a
+ *    caller-side loop of independent descents, plus the trailing predecessor read.
+ * 5. {@code blockSearchWindowed} — the optimised half of that pair: the identical search issued through the ranged
+ *    entry point that retains the leaf one probe already resolved.
  *
  * The chain length ({@code recordCount}) and the churn batch size ({@code churnOperations}) are {@link Param}s so the
  * linear (or non-linear) trend can be read directly by comparing successive sizes; doubling `recordCount` should at
@@ -122,7 +130,7 @@ public class UnorderedLookupTreeBenchmark {
 	}
 
 	/**
-	 * P — the READ cost the sort-attribute insert path actually pays. `SortIndexChanges.computePreviousRecord`
+	 * The READ cost the sort-attribute insert path actually pays. `SortIndexChanges.computePreviousRecord`
 	 * binary-searches a value's record block through positional reads, and every probe is a fresh root-to-leaf
 	 * order-statistic descent — `UnorderedLookupTree.getRecordAt`, the 19.4 % self-time frame of the WARM_UP profile
 	 * behind issue #1332, which no benchmark in this suite reached before (`buildChain` / `churnChain` are both
@@ -146,15 +154,17 @@ public class UnorderedLookupTreeBenchmark {
 	}
 
 	/**
-	 * P2a — the BASELINE half of the block-search pair: the block binary search driven the way
+	 * The BASELINE half of the block-search pair: the block binary search driven the way
 	 * `SortIndexChanges.computePreviousRecord` used to drive it, as a caller-side loop where every probe is an
 	 * independent {@link UnorderedLookupTree#getRecordAt(int)} root-to-leaf descent.
 	 *
 	 * Paired with {@link #blockSearchWindowed(BlockSearchState, Blackhole)}, which performs the identical search
-	 * through the windowed entry point. The two run as siblings in ONE JVM on purpose: an A/A run of
+	 * through the windowed entry point. The two are measured inside ONE JMH invocation on purpose: an A/A run of
 	 * {@link #positionalRead(PositionalReadState, Blackhole)} measured 0.4–16.4 % of drift between two runs of the
-	 * same jar, which is the same order as the effect being looked for. Sibling benchmarks share the fork, the JIT
-	 * state and the machine state, so their difference is paired rather than compared across runs.
+	 * same jar, which is the same order as the effect being looked for. JMH forks per benchmark method (and per
+	 * parameter combination), so the two do NOT share a fork or a JIT state - what the pairing buys is that they run
+	 * back-to-back from the same jar, on the same machine, in the same thermal and load state. That removes the
+	 * cross-RUN drift the A/A measured; it does not remove per-fork variance.
 	 */
 	@Benchmark
 	public int blockSearchPerProbeDescent(@Nonnull BlockSearchState state, @Nonnull Blackhole bh) {
@@ -192,7 +202,7 @@ public class UnorderedLookupTreeBenchmark {
 	}
 
 	/**
-	 * P2b — the OPTIMISED half of the block-search pair: the identical search issued through
+	 * The OPTIMISED half of the block-search pair: the identical search issued through
 	 * {@link UnorderedLookupTree#findPredecessorInRange(int, int, int)}, which retains the leaf resolved by one probe
 	 * and serves any following read landing inside it - the trailing predecessor read included - without descending
 	 * again.

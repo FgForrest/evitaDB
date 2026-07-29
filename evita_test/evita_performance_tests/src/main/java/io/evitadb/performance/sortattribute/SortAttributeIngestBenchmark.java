@@ -40,25 +40,31 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 /**
- * B3 of issue #1332 — the end-to-end WARM_UP bulk ingest the profile was taken from.
+ * End-to-end WARM_UP bulk ingest of the sort-attribute shape the issue #1332 profile was taken from.
  *
  * The existing benchmarks reach the sort-attribute insert path only in isolation: `SortIndexTimingBenchmark` drives a
  * bare `SortIndex` and `UnorderedLookupTreeBenchmark` a bare position tree. Both answer "did this data structure get
  * cheaper"; neither answers "did an ingest get cheaper", because neither carries the rest of the write pipeline -
  * entity building, price indexing, facet indexing, storage - that the sort index competes with for wall time. This
- * benchmark exists to size the win against that whole, and its schema is the one that produced the profile:
+ * benchmark exists to size the win against that whole. The attribute shape is the one that produced the profile -
  * 40 sortable `Integer` attributes over 1000 distinct values, 5 near-unique sortable `OffsetDateTime` attributes as
- * the narrow-block control, 30 faceted references. See {@link SortAttributeIngestBenchmarkState} for the shape and,
- * importantly, for why the batch is built directly rather than through `DataGenerator`.
+ * the narrow-block control, 30 faceted references - with the block widths scaled down to what a single invocation can
+ * afford: at `entityCount = 20 000` the two `distinctValues` settings give blocks 20 and 1000 records wide, against
+ * the profiled ~10 000. See
+ * {@link SortAttributeIngestBenchmarkState} for the shape and, importantly, for why the batch is built directly
+ * rather than through `DataGenerator`.
  *
  * **What this benchmark can and cannot measure.** Its honest deliverable is *allocation*: how much of a full ingest's
- * allocation the allocation-side findings (F3/F4/F6/F7) remove, measured cross-jar against the base engine. It is
- * {@link Mode#SingleShotTime} so entities per second is `entityCount / score`, but at the iteration counts it can
- * afford the wall-clock number is far too noisy to trust (this issue saw ±258 % on `ns/op` against ±0.75 % on
- * allocation in the same run), so **read `gc.alloc.rate.norm`, not the score**, and run with `-prof gc`. Note that the
- * CPU-only findings are invisible here: F1 changes no allocation, and F5 removes a single duplicate ThreadLocal read
- * that no end-to-end wall-clock measurement can separate from noise - F5 is kept as strictly-fewer-operations, not on
- * a measured end-to-end delta.
+ * allocation the branch's allocation-side changes remove - the dropped `InsertionPosition` record in the int-keyed
+ * internal-node search, the lazily captured B+ tree cursor path, the allocation-free unordered-array guards -
+ * measured cross-jar against the base engine. It is {@link Mode#SingleShotTime} so entities per second is
+ * `entityCount / score`, but at the iteration counts it can afford the wall-clock number is far too noisy to trust
+ * (this issue saw ±258 % on `ns/op` against ±0.75 % on allocation in the same run), so **read `gc.alloc.rate.norm`,
+ * not the score**, and run with `-prof gc` - reading that figure the way {@link SortAttributeIngestBenchmarkState}
+ * prescribes, because the per-invocation fixture's allocation is counted inside it. Note that the CPU-only changes
+ * are invisible here: the retained-leaf block search alters no allocation, and resolving the thread's transaction
+ * once per positional read removes a single duplicate `ThreadLocal` read that no end-to-end wall-clock measurement
+ * can separate from noise - it is kept on strictly-fewer-operations grounds, not on a measured end-to-end delta.
  *
  * Heap is sized explicitly in the fork arguments on purpose. The profiled process ran without `-Xmx`, so JVM
  * ergonomics handed it 23.4 GiB and it sat at 92 % old-gen occupancy with the young generation squeezed to 320 MB;

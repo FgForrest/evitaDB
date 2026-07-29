@@ -56,15 +56,22 @@ import java.util.concurrent.TimeUnit;
 /**
  * JMH timing benchmark for the OWNER-mode {@link OwnerSortIndex} granular persistence story on branch #760. It mirrors
  * the structure of {@link SortIndexChurnReport} (shared via {@link SortIndexBenchSupport}) so a `dev`-branch mirror can
- * be lined up cell-for-cell. Three operations are timed per scenario:
+ * be lined up cell-for-cell. Four operations are timed per scenario:
  *
  * - `loadDeserialize` (P5, the new load cost): deserialize the root + every leaf page from the pre-serialized bytes and
  *   rebuild a live {@link OwnerSortIndex} via {@link OwnerSortIndex#fromPersistedPages} (+ `reconstructSortedRecords`).
  * - `readOrderBy` (P3): obtain the ascending sorted record ids from the live index.
  * - `churnSerialize` (P1, serialization time): serialize the captured incremental-commit parts to bytes.
+ * - `insertRecord`: add fresh records into an already-populated index - the sort-attribute INSERT path. It carries no
+ *   P-number because the P numbering belongs to an earlier report that has no slot for it, and it is the one
+ *   measurement here that runs `Mode.SingleShotTime` in milliseconds instead of `Mode.AverageTime` in microseconds.
+ *   Its `gc.alloc.rate.norm` is fixture-dominated and must not be read as insert allocation - see its own JavaDoc.
  *
- * Scenarios are the real `anchor` ean distribution and the `synth_100k` shape replica. Run with `-prof gc` to capture
- * the normalized allocation rate alongside the average time.
+ * Scenarios are the real `anchor` ean distribution, the `synth_100k` shape replica, and the `uniform_1k_100k` /
+ * `uniform_1k_1m` pair. The uniform pair exists because `anchor` and `synth_*` are singleton-dominated: nearly every
+ * insert into them lands in a width-1 block, takes the single-probe `else` branch and never enters the block binary
+ * search at all (see `SortIndexBenchSupport.uniform`), whereas the uniform shapes give evenly-sized wide blocks that
+ * do exercise it. Run with `-prof gc` to capture the normalized allocation rate alongside the average time.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -77,7 +84,9 @@ import java.util.concurrent.TimeUnit;
 public class SortIndexTimingBenchmark {
 
 	/**
-	 * The measured scenarios (a real anchor + a synthetic 100k shape replica).
+	 * The measured scenarios: the real `anchor` ean distribution, the `synth_100k` shape replica, and the
+	 * `uniform_1k_100k` / `uniform_1k_1m` pair whose evenly-sized wide blocks are the only ones that actually enter
+	 * the block binary search.
 	 */
 	@Param({"anchor", "synth_100k", "uniform_1k_100k", "uniform_1k_1m"})
 	private String scenario;
@@ -151,7 +160,7 @@ public class SortIndexTimingBenchmark {
 	}
 
 	/**
-	 * P — the INSERT cost: add fresh records into an already-populated sort index. This is
+	 * The INSERT cost: add fresh records into an already-populated sort index. This is
 	 * `SortIndex.addRecordInternal`, 57.5 % of busy-thread wall and 18.9 % of allocation during bulk ingest
 	 * (issue #1332), and no benchmark in this suite measured it before — the three benchmarks above measure
 	 * deserialize / read / serialize, and the inserts that build their fixtures happen in `@Setup`.
@@ -161,7 +170,13 @@ public class SortIndexTimingBenchmark {
 	 * single-probe `else` branch. Keep both in the param set — they are the guard that a fix tuned for wide blocks
 	 * does not regress the narrow-block case that dominates real `ean`-style attributes.
 	 *
-	 * Run with `-prof gc`: findings 3, 4, 6 and 7 of #1332 are allocation-only and invisible on `ns/op` alone.
+	 * The trustworthy output here is `ns/op`: {@link Mode#SingleShotTime} times the benchmark method only, so the
+	 * per-invocation rebuild stays out of the wall clock. The `gc.alloc.rate.norm` figure is NOT trustworthy -
+	 * `InsertState.setUp` is `@Setup(Level.Invocation)` and rebuilds the whole owner before every measured batch
+	 * (100 000 records for `uniform_1k_100k`, ~130 000 for `synth_100k`, 1 000 000 for `uniform_1k_1m`) against a
+	 * measured `BATCH_SIZE` of 10 000, and JMH's `GCProfiler` snapshots its counters in `beforeIteration` /
+	 * `afterIteration`, bracketing the whole iteration including per-invocation fixtures. The reported allocation is
+	 * therefore 10:1 to 100:1 fixture and must not be read as the insert path's allocation.
 	 */
 	@Benchmark
 	@BenchmarkMode(Mode.SingleShotTime)
