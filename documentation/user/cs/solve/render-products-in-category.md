@@ -23,7 +23,7 @@ Obvykle se skládá z následujících typických bloků:
     - [strom kategorií](render-category-menu.md#hybridní-menu)
     - [výpis podkategorií](render-category-menu.md#výpis-podkategorií)
 4. možnosti filtrování a řazení:
-    - [cenový filtr](#cenový-filtr)
+    - [cenový filtr](#filtrování-podle-ceny)
     - [filtrování podle facety](#filtrování-podle-facety)
     - [vyhledávací pole](external-fulltext.md)
     - [možnosti řazení](#možnosti-řazení)
@@ -61,7 +61,7 @@ To vrátí požadovaná data:
 
 </LS>
 
-## Breadcrumb
+## Drobečková navigace
 
 Breadcrumb není typické menu kategorií, ale často se používá v e-commerce aplikacích. Pomáhá uživateli navigovat zpět do nadřazených kategorií. Lze jej získat ze dvou zdrojů:
 

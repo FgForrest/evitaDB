@@ -12,7 +12,7 @@ commit: '77da5b36c170430534ee4d9a4a2903da4de68555'
 V souvislosti s omezeními popsanými v této kapitole by vás mohly zajímat obecná pravidla pro práci s datovými typy a poli, která jsou popsána v [základech dotazovacího jazyka](../basics.md#obecná-pravidla-dotazů).
 </Note>
 
-## attributeContains
+## Atribut obsahuje
 
 ```evitaql-syntax
 attributeContains(

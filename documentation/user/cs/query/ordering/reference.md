@@ -26,7 +26,7 @@ referenceProperty(
     <dt>constraint:(traverseByEntityProperty|pickFirstByEntityProperty)?</dt>
     <dd>
         volitelný omezení, které určuje způsob řazení entit, viz dokumentace omezení [`pickFirstByEntityProperty`](#vyber-první-podle-vlastnosti-entity)
-        a [`traverseByEntityProperty`](#procházej-podle-vlastnosti-entity) pro více detailů
+        a [`traverseByEntityProperty`](#procházení-podle-vlastnosti-entity) pro více detailů
     </dd>
     <dt>constraint:orderingConstraint+</dt>
     <dd>
@@ -42,9 +42,9 @@ referenceProperty(
 
 </NoteTitle>
 
-V klauzuli `orderBy` v rámci požadavku [`referenceContent`](../requirements/fetching.md#reference-content)
+V klauzuli `orderBy` v rámci požadavku [`referenceContent`](../requirements/fetching.md#referenční-obsah)
 je omezení `referenceProperty` implicitní a nesmí být opakováno. Všechna atributová řadicí omezení
-v `referenceContent` se automaticky vztahují na atributy reference, pokud zde není použit kontejner [`entityProperty`](#entity-property).
+v `referenceContent` se automaticky vztahují na atributy reference, pokud zde není použit kontejner [`entityProperty`](#vlastnost-entity).
 
 </Note>
 
@@ -121,7 +121,7 @@ pickFirstByEntityProperty(
 Pokud je referencovaná entita **hierarchická** a vracená entita odkazuje na více entit, pro řazení bude použita ta reference,
 která obsahuje vlastnost řazení a je nejblíže kořenovému uzlu filtrované hierarchie.
 
-Zní to složitě, ale ve skutečnosti je to poměrně jednoduché. Představte si, že vypisujete produkty z kategorie a zároveň je řadíte podle vlastnosti `orderInCategory` na referenci kategorie. Nejprve dostanete produkty přímo související s kategorií, v pořadí podle `orderInCategory`. Pak produkty z první podkategorie a tak dále, přičemž je zachováno pořadí stromu kategorií. To je stejné, jako kdybyste použili omezení [`traverseByEntityProperty`](#procházej-podle-vlastnosti-entity)
+Zní to složitě, ale ve skutečnosti je to poměrně jednoduché. Představte si, že vypisujete produkty z kategorie a zároveň je řadíte podle vlastnosti `orderInCategory` na referenci kategorie. Nejprve dostanete produkty přímo související s kategorií, v pořadí podle `orderInCategory`. Pak produkty z první podkategorie a tak dále, přičemž je zachováno pořadí stromu kategorií. To je stejné, jako kdybyste použili omezení [`traverseByEntityProperty`](#procházení-podle-vlastnosti-entity)
 ve vašem kontejneru `referenceProperty`:
 
 ```evitaql
@@ -136,7 +136,7 @@ traverseByEntityProperty(
 Chování můžete ovlivnit pomocí omezení `pickFirstByEntityProperty` nebo `traverseByEntityProperty` ve vašem
 kontejneru `referenceProperty`. Omezení `traverseByEntityProperty` lze použít i pro nehirarchické entity a pro 1:1
 reference. Změní pořadí tak, že entity jsou nejprve řazeny podle vlastnosti entity, na kterou odkazují, a poté podle vlastnosti reference samotné. Pro více informací si projděte příklady a detailní dokumentaci
-omezení [`traverseByEntityProperty`](#procházej-podle-vlastnosti-entity).
+omezení [`traverseByEntityProperty`](#procházení-podle-vlastnosti-entity).
 
 </Note>
 
@@ -151,12 +151,12 @@ pickFirstByEntityProperty(
 <dl>
     <dt>constraint:orderingConstraint+</dt>
     <dd>
-        jedno nebo více [řadicích omezení](./natural.md), která určují pořadí referencí, ze kterých se vybere první
+        jedno nebo více [řadicích omezení](natural.md), která určují pořadí referencí, ze kterých se vybere první
         z výčtu referencí na stejnou entitu, která bude použita pro řazení pomocí `referenceProperty`
     </dd>
 </dl>
 
-Řadicím omezení `pickFirstByEntityProperty` lze použít pouze v rámci řadicích omezení [`referenceProperty`](#reference-property).
+Řadicím omezení `pickFirstByEntityProperty` lze použít pouze v rámci řadicích omezení [`referenceProperty`](#vlastnost-reference).
 Má smysl pouze v případě, kdy má reference kardinalitu 1:N (i když to není aktivně kontrolováno dotazovacím
 enginem). Toto omezení vám umožní určit pořadí referencí a vybrat z nich tu první z výčtu referencí na stejnou entitu,
 která bude použita pro řazení pomocí `referenceProperty`.
@@ -249,12 +249,12 @@ traverseByEntityProperty(
     </dd>
     <dt>constraint:orderingConstraint+</dt>
     <dd>
-        jedna nebo více [řadicích podmínek](./natural.md), které mění pořadí procházení referencí
+        jedna nebo více [řadicích podmínek](natural.md), které mění pořadí procházení referencí
         u řazené entity před tím, než je aplikována řadicí podmínka `referenceProperty`
     </dd>
 </dl>
 
-Řadicí podmínka `traverseByEntityProperty` může být použita pouze s řadicím omezením [`referenceProperty`](#reference-property).
+Řadicí podmínka `traverseByEntityProperty` může být použita pouze s řadicím omezením [`referenceProperty`](#vlastnost-reference).
 To znamená, že entity by měly být nejprve seřazeny podle vlastnosti referencované entity. Pokud je entita hierarchická,
 můžete určit, zda má být hierarchie procházená v [hloubkovém](https://en.wikipedia.org/wiki/Depth-first_search)
 nebo [šířkovém](https://en.wikipedia.org/wiki/Breadth-first_search) pořadí.
@@ -302,7 +302,7 @@ poté produkty v kategorii *Christmas electronics* (která je prvním potomkem k
 následně produkty v kategorii *Smart wearable* (která nemá přímo přiřazené produkty), poté produkty v kategorii *Bands* (která je prvním potomkem kategorie *Smart wearable*), a tak dále.
 Pořadí odpovídá pořadí kategorií na následujícím obrázku:
 
-![dynamic-tree.png](../requirements/assets/dynamic-tree.png)
+![dynamic-tree.png](../../../en/query/requirements/assets/dynamic-tree.png)
 
 Pokud produkt spadá jak do kategorie **Christmas electronics**, tak do kategorie **Smart wearable**, bude uveden pouze jednou. 
 Je to proto, že v tomto dotazu je k procházení hierarchie použit primární klíč kategorie.
@@ -346,7 +346,7 @@ Jak vidíte, pořadí entit i referencí v rámci hierarchie si můžete uspoř�
 
 </Note>
 
-## Entity property
+## Vlastnost entity
 
 ```evitaql-syntax
 entityProperty(
@@ -357,11 +357,11 @@ entityProperty(
 <dl>
     <dt>constraint:orderingConstraint+</dt>
     <dd>
-        jeden nebo více [řadicích omezení](./natural.md), která určují řazení podle atributů referencované entity
+        jeden nebo více [řadicích omezení](natural.md), která určují řazení podle atributů referencované entity
     </dd>
 </dl>
 
-Řadicí omezení `entityProperty` lze použít pouze v rámci požadavku [`referenceContent`](../requirements/fetching.md#reference-content).
+Řadicí omezení `entityProperty` lze použít pouze v rámci požadavku [`referenceContent`](../requirements/fetching.md#referenční-obsah).
 Umožňuje změnit kontext řazení referencí z atributů samotné reference na atributy entity, na kterou reference odkazuje.
 
 Jinými slovy, pokud má entita `Product` více referencí na entity `ParameterValue`, můžete tyto
@@ -410,11 +410,11 @@ entityGroupProperty(
 <dl>
     <dt>constraint:orderingConstraint+</dt>
     <dd>
-        jeden nebo více [řadicích omezení](./natural.md), která určují řazení podle atributů odkazované skupiny entit
+        jeden nebo více [řadicích omezení](natural.md), která určují řazení podle atributů odkazované skupiny entit
     </dd>
 </dl>
 
-Řadicí omezení `entityGroupProperty` lze použít pouze v rámci požadavku [`referenceContent`](../requirements/fetching.md#reference-content). Umožňuje změnit kontext řazení referencí z atributů samotné reference na atributy skupiny entit, ve které je reference agregována.
+Řadicí omezení `entityGroupProperty` lze použít pouze v rámci požadavku [`referenceContent`](../requirements/fetching.md#referenční-obsah). Umožňuje změnit kontext řazení referencí z atributů samotné reference na atributy skupiny entit, ve které je reference agregována.
 
 Jinými slovy, pokud má entita `Product` více referencí na entity `ParameterValue`, které jsou seskupeny podle jejich přiřazení k entitě `Parameter`, můžete tyto reference seřadit primárně podle atributu `name` seskupující entity a sekundárně podle atributu `name` odkazované entity. Podívejme se na příklad:
 

@@ -560,7 +560,7 @@ v [Logback](https://logback.qos.ch/index.html) lze použít vzory `%X{traceId}` 
 </encoder>
 ```
 
-## Traffic recording
+## Záznam provozu
 
 Kromě výše zmíněných nástrojů pro observabilitu nabízí evitaDB také možnost zaznamenávat veškerý příchozí provoz
 na server. Tato funkce je užitečná pro ladění a vývoj, protože umožňuje přehrát zaznamenaný provoz a analyzovat

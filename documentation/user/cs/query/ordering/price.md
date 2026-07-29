@@ -8,7 +8,7 @@ preferredLang: evitaql
 translated: 'true'
 commit: '77da5b36c170430534ee4d9a4a2903da4de68555'
 ---
-## Price natural
+## Přirozená cena
 
 ```evitaql-syntax
 priceNatural(

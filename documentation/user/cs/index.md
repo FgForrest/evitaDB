@@ -119,7 +119,7 @@ Nicméně evitaDB je v současnosti ve verzi beta a stále probíhá intenzivní
    5. [Skrýt části menu kategorií](solve/render-category-menu.md#skrývání-částí-stromu-kategorií)
 3. [Filtrování produktů v kategorii](solve/render-products-in-category.md)
    1. [S fasetovým vyhledáváním](solve/render-products-in-category.md#filtrování-podle-facety)
-   2. [S cenovým filtrem](solve/render-products-in-category.md#cenový-filtr)
+   2. [S cenovým filtrem](solve/render-products-in-category.md#filtrování-podle-ceny)
 4. [Vykreslení referencované značky](solve/render-products-in-brand.md)
    1. [S výpisem produktů](solve/render-products-in-brand.md#výpis-produktů)
    2. [S výpisem zapojených kategorií](solve/render-products-in-brand.md#výpis-kategorií)

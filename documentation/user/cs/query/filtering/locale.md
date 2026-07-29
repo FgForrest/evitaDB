@@ -123,9 +123,9 @@ Všimnete si, že výstup obsahuje dva sloupce: *code* a *name*. *code* není lo
 *name* ano. Názvy uvedené v odpovědi odpovídají anglické lokalizaci, která je součástí filtrační podmínky.
 
 Pokud ve filtru použijete `entityLocaleEquals`, všechna vrácená lokalizovaná data (jak
-[atributy](../../use/data-model.md#localized-attributes), tak [asociovaná data](../../use/data-model.md#localized-associated-data))
+[atributy](../../use/data-model.md#lokalizované-atributy), tak [asociovaná data](../../use/data-model.md#lokalizovaná-přidružená-data))
 budou respektovat filtrovanou lokalizaci. Pokud potřebujete data pro jiné lokalizace, než je ta použitá ve filtrační podmínce,
-můžete využít požadavek [`data-in-locale`](../requirements/fetching.md#data-in-locales).
+můžete využít požadavek [`data-in-locale`](../requirements/fetching.md#data-v-lokalizacích).
 
 </Note>
 

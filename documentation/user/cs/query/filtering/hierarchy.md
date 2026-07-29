@@ -106,7 +106,7 @@ Pro výpis všech vnořených kategorií kategorie *Příslušenství* použijte
 </Note>
 
 První argument určuje, že filtr cílí na atributy entity `Category`. V tomto příkladu jsme použili
-[attributeEquals](comparable.md#atribut-rovná-se) pro unikátní atribut `code`, ale kategorii můžete vybrat
+[attributeEquals](comparable.md#atribut-rovný) pro unikátní atribut `code`, ale kategorii můžete vybrat
 pomocí lokalizovaného atributu `url` (ale pak musíte také zadat omezení [entityLocaleEquals](locale.md#entity-locale-equals)
 pro určení správného jazyka), nebo pomocí [entityPrimaryKeyInSet](constant.md#primární-klíč-entity-v-množině)
 a předat primární klíč kategorie.

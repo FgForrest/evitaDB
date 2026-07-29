@@ -310,7 +310,7 @@ Pokud omezení cílí na atribut, který je typu pole, omezení automaticky odpo
 
 Například mějme pole atributu <LS to="e,j,r,g">[String](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html)</LS><LS to="c">[string](https://learn.microsoft.com/en-us/dotnet/api/system.string)</LS>
 s názvem `oneDayDeliveryCountries` s následujícími hodnotami: `GB`, `FR`, `CZ`. Filtrační omezení
-[`attributeEquals`](filtering/comparable.md#atribut-rovná-se) zapsané takto: <LS to="e,j,c">`attributeEquals("oneDayDeliveryCountries", "GB")`</LS>
+[`attributeEquals`](filtering/comparable.md#atribut-rovný) zapsané takto: <LS to="e,j,c">`attributeEquals("oneDayDeliveryCountries", "GB")`</LS>
 <LS to="g">`attributeOneDayDeliveryCountriesEquals: "GB"`</LS>
 <LS to="r">`"attributeOneDayDeliveryCountriesEquals": "GB"`</LS>
 bude odpovídat entitě, protože *GB* je jednou z hodnot pole.
@@ -393,7 +393,7 @@ k výběru správných hodnot pro porovnání v dalších filtračních omezení
 Porovnávací omezení porovnávají konstanty předané jako argumenty s konkrétním atributem entity a poté filtrují
 výsledný výstup tak, aby obsahoval pouze hodnoty, které omezení splňují.
 
-- [attribute equals](filtering/comparable.md#atribut-rovná-se)
+- [attribute equals](filtering/comparable.md#atribut-rovný)
 - [attribute greater than](filtering/comparable.md#atribut-větší-než)
 - [attribute greater than, equals](filtering/comparable.md#atribut-větší-nebo-roven)
 - [attribute less than](filtering/comparable.md#atribut-menší-než)

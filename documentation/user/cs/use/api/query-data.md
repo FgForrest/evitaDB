@@ -148,11 +148,11 @@ reprezentována rozhraním
 Klientská aplikace může požadovat vrácení celých těl entit, ale toto je nutné explicitně vyžádat pomocí
 specifické require constraint (nebo jejich kombinace):
 
-- [načtení entity](../../query/requirements/fetching.md#entity-fetch)
-- [načtení atributů](../../query/requirements/fetching.md#attribute-content)
-- [načtení přidružených dat](../../query/requirements/fetching.md#associated-data-content)
-- [načtení cen](../../query/requirements/fetching.md#price-content)
-- [načtení referencí](../../query/requirements/fetching.md#reference-content)
+- [načtení entity](../../query/requirements/fetching.md#načtení-entity)
+- [načtení atributů](../../query/requirements/fetching.md#obsah-atributů)
+- [načtení přidružených dat](../../query/requirements/fetching.md#obsah-souvisejících-dat)
+- [načtení cen](../../query/requirements/fetching.md#obsah-cen)
+- [načtení referencí](../../query/requirements/fetching.md#referenční-obsah)
 
 Pokud je taková require constraint použita, data budou *nenasytně* načtena již během počátečního požadavku. Odpovědní objekt
 pak bude obsahovat entity ve formě
@@ -532,11 +532,11 @@ reprezentována rozhraním
 Klientská aplikace může místo toho požadovat vrácení těl entit, ale toto je třeba explicitně vyžádat pomocí
 specifické require podmínky (nebo jejich kombinace):
 
-- [načtení entity](../../query/requirements/fetching.md#entity-fetch)
-- [načtení atributů](../../query/requirements/fetching.md#attribute-content)
-- [načtení asociovaných dat](../../query/requirements/fetching.md#associated-data-content)
-- [načtení cen](../../query/requirements/fetching.md#price-content)
-- [načtení referencí](../../query/requirements/fetching.md#reference-content)
+- [načtení entity](../../query/requirements/fetching.md#načtení-entity)
+- [načtení atributů](../../query/requirements/fetching.md#obsah-atributů)
+- [načtení asociovaných dat](../../query/requirements/fetching.md#obsah-souvisejících-dat)
+- [načtení cen](../../query/requirements/fetching.md#obsah-cen)
+- [načtení referencí](../../query/requirements/fetching.md#referenční-obsah)
 
 Pokud je taková `require` podmínka použita, data budou načtena *nenasytně* již během počátečního požadavku. Objekt odpovědi
 pak bude obsahovat entity ve formě

@@ -1,11 +1,11 @@
 ---
 title: Načítání
 perex: Omezení požadavků na načítání pomáhají řídit množství dat vracených v odpovědi na dotaz. Tato technika se používá ke snížení objemu dat přenášených po síti a ke snížení zátěže serveru. Načítání je podobné spojování a výběru sloupců v SQL, ale je inspirováno načítáním dat v protokolu GraphQL, kdy se postupně sledují vztahy v datech.
-date: '23.7.2023'
+date: '5.5.2026'
 author: Ing. Jan Novotný
 proofreading: done
 preferredLang: evitaql
-commit: af4674ef54ec8fefb74b62622c04e5a275889f79
+commit: 77da5b36c170430534ee4d9a4a2903da4de68555
 translated: 'true'
 ---
 <LS to="e,j,c,r">
@@ -1140,6 +1140,91 @@ příznak označující, že je k dispozici více cen k prodeji.
 
 </Note>
 
+</LS>
+<LS to="g,r">
+
+### Rozpětí ceny k prodeji
+
+Při vykreslování výpisů kategorií nebo karet hlavních produktů chce typický e-shop zobrazit kanonickou prodejní cenu
+společně s rozpětím "od / do" napříč variantami (např. _"iPad 10 — od €479 do €528"_), aniž by musel stránkovat
+`allPricesForSale` a skládat rozpětí na straně klienta. Dvě sourozenecká pole, `priceForSaleMin` a `priceForSaleMax`,
+vracejí přesně tuto dvojici mezí — obě jsou počítány ze stejných filtrů měny / platnosti / ceníků, které produkují
+`priceForSale`, takže všechny tři hodnoty jsou přímo porovnatelné.
+
+Sémantika závisí na strategii [vnitřního zpracování záznamů](../filtering/price.md#výběr-prodejní-ceny-v-kostce)
+dané entity:
+
+- **`NONE`** — `priceForSaleMin == priceForSaleMax == priceForSale` (jediný kandidát na prodejní cenu).
+- **`LOWEST_PRICE`** — `priceForSaleMin == priceForSale` (nejlevnější prodejní cena v rámci vnitřních záznamů),
+  `priceForSaleMax` je nejdražší prodejní cena v rámci vnitřních záznamů.
+- **`SUM`** — `priceForSaleMin` a `priceForSaleMax` jsou nejlevnější a nejdražší složka z vnitřních záznamů;
+  `priceForSale` je kumulovaná (sečtená) cena všech složek.
+
+Meze využívají stejný interní výpočet jako `priceForSale`, takže dotaz na všechna tři sourozenecká pole u téže entity
+stojí stejně jako dotaz na samotné `priceForSale`.
+
+</LS>
+<LS to="g">
+
+Obě pole přijímají stejné argumenty (`priceLists`, `currency`, `validIn`, `validNow`, `locale`) jako `priceForSale`;
+pokud jsou vynechány, použijí se cenová omezení z okolního dotazu.
+
+<SourceCodeTabs langSpecificTabOnly>
+
+[Získání entity s cenou k prodeji a rozpětím jejích variant](/documentation/user/en/query/requirements/examples/fetching/priceForSaleRangeField.graphql)
+
+</SourceCodeTabs>
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### Výsledek entity načtené s rozpětím ceny k prodeji
+
+</NoteTitle>
+
+Dotaz vrací kanonickou prodejní cenu společně s nejnižší a nejvyšší cenou varianty:
+
+<MDInclude sourceVariable="data.queryProduct.recordPage">[Výsledek entity načtené s rozpětím ceny k prodeji](/documentation/user/en/query/requirements/examples/fetching/priceForSaleRangeField.graphql.json.md)</MDInclude>
+
+Meze odrážejí nejlevnější a nejdražší cenu jednotlivých variant, zatímco `priceForSale` je vypočtená prodejní cena
+samotné hlavní entity.
+
+</Note>
+
+</LS>
+<LS to="r">
+
+Obě pole jsou vracena společně s `priceForSale`, kdykoli je v načtení entity přítomen požadavek `priceContent`
+(např. `priceContentRespectingFilter`); meze odrážejí cenová omezení v okolní klauzuli `filterBy`.
+
+<SourceCodeTabs langSpecificTabOnly>
+
+[Získání entity s cenou k prodeji a rozpětím jejích variant](/documentation/user/en/query/requirements/examples/fetching/priceForSaleRangeField.rest)
+
+</SourceCodeTabs>
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### Výsledek entity načtené s rozpětím ceny k prodeji
+
+</NoteTitle>
+
+Odpověď nese kanonickou prodejní cenu společně s nejnižší a nejvyšší cenou varianty jako sourozence pole
+`priceForSale`:
+
+<MDInclude sourceVariable="recordPage">[Výsledek entity načtené s rozpětím ceny k prodeji](/documentation/user/en/query/requirements/examples/fetching/priceForSaleRangeField.rest.json.md)</MDInclude>
+
+Meze odrážejí nejlevnější a nejdražší cenu jednotlivých variant, zatímco `priceForSale` je vypočtená prodejní cena
+samotné hlavní entity.
+
+</Note>
+
+</LS>
+<LS to="g">
+
 ### Doprovodné ceny
 
 Někdy můžete potřebovat nejen konkrétní [cenu k prodeji](#ceny-k-prodeji), ale také její doprovodné ceny, např.
@@ -1177,11 +1262,10 @@ Ukažme si tento princip na složitějším příkladu:
 </NoteTitle>
 
 Pro náš příklad jsme vybrali produkt s vnitřním zpracováním záznamů `LOWEST_PRICE` pro výpočet ceny k prodeji.
-Zároveň jsme požadovali tři doprovodné ceny.
+Zároveň jsme požadovali dvě doprovodné ceny.
 
 1. první nemá název ani zadané cenové seznamy, bude vypočítána jako `default` doprovodná cena podle pořadí cenových seznamů definovaného v požadavku `defaultAccompanyingPriceLists`;
-2. druhá má název `custom` a nemá zadané cenové seznamy, bude vypočítána jako `custom` doprovodná cena podle pořadí cenových seznamů definovaného v požadavku `defaultAccompanyingPriceLists`;
-3. třetí má název `special` a používá cenové seznamy `employee-basic-price` a `b2b-basic-price` pro výpočet ceny;
+2. druhá má název `special` a používá cenové seznamy `employee-basic-price` a `b2b-basic-price` pro výpočet ceny;
 
 Výsledky dotazu, který tyto ceny vypočítává, jsou uvedeny níže:
 
@@ -2097,21 +2181,10 @@ Tento princip si ukážeme na složitějším příkladu:
 </NoteTitle>
 
 Pro náš příklad jsme vybrali produkt s použitím strategie zpracování vnitřních záznamů `LOWEST_PRICE` pro výpočet prodejní ceny.
-Zároveň jsme požadovali více doprovodných cen.
-
-<LS to="e,j,c">
-
-1. první nemá název ani zadané ceníky, bude vypočítána jako `default` doprovodná cena s použitím pořadí ceníků definovaného v požadavku `defaultAccompanyingPriceLists`;
-2. druhá má název `custom` a nemá zadané ceníky, bude vypočítána jako `custom` doprovodná cena s použitím pořadí ceníků definovaného v požadavku `defaultAccompanyingPriceLists`;
-3. třetí má název `special` a pro výpočet ceny používá ceníky `employee-basic-price` a `b2b-basic-price`;
-
-</LS>
-<LS to="r">
+Zároveň jsme požadovali dvě doprovodné ceny.
 
 1. první nemá název ani zadané ceníky, bude vypočítána jako `default` doprovodná cena s použitím pořadí ceníků definovaného v požadavku `defaultAccompanyingPriceLists`;
 2. druhá má název `special` a pro výpočet ceny používá ceníky `employee-basic-price` a `b2b-basic-price`;
-
-</LS>
 
 Výsledky dotazu, který tyto ceny vypočítává, jsou uvedeny níže:
 
