@@ -317,6 +317,32 @@ public final class Transaction implements TransactionContract {
 	}
 
 	/**
+	 * Allocation-free variant of {@link #getTransaction()} for hot read paths: returns the thread's current
+	 * transaction, or `null` when none is bound.
+	 *
+	 * Every `getTransactionalMemoryLayerIfExists`-style helper on this class starts by reading the same
+	 * {@link #CURRENT_TRANSACTION} ThreadLocal, so a method that resolves several transactional fields pays that
+	 * lookup once per field. Callers that touch more than one transactional member in a single operation should
+	 * resolve the transaction ONCE through this accessor and pass it down - `ThreadLocal` machinery is 5.25 % of
+	 * busy-thread wall time on the sort-attribute insert path (issue #1332).
+	 *
+	 * Unlike {@link #getTransaction()} this does not wrap the result in an {@link Optional}, which allocates on the
+	 * transaction-present branch.
+	 *
+	 * **Retention contract:** the returned reference is valid only for the current operation on the current thread.
+	 * The value is thread-confined, so passing it down a call chain on the same thread is exactly the intended use -
+	 * but do not store it in a field, hang it off a long-lived object, or hand it to another thread. Doing so would
+	 * let one thread read another's uncommitted diff layer.
+	 *
+	 * @return the transaction bound to the current thread, or `null` when the thread is outside a transaction
+	 */
+	@Nullable
+	public static Transaction getCurrentTransactionIfAvailable() {
+		// safe for the same reason as getTransaction() - the value is thread-confined
+		return CURRENT_TRANSACTION.get();
+	}
+
+	/**
 	 * Creates a transactional persistence service based on the given storage part persistence service.
 	 * If a transaction is active, it creates a transactional service using the current transaction identifier.
 	 * Registers the transactional service with the transaction's finalizer for cleanup.

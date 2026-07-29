@@ -107,6 +107,39 @@ public class TransactionalReference<T>
 		}
 	}
 
+	/**
+	 * Same as {@link #get()}, but reads through an ALREADY-RESOLVED transaction instead of resolving the thread's
+	 * transaction itself.
+	 *
+	 * {@link #get()} begins with a `ThreadLocal` read of the current transaction. An operation that touches several
+	 * transactional references pays that read once per reference even though the answer is identical for all of them;
+	 * this overload lets the caller resolve it once (via
+	 * {@link Transaction#getCurrentTransactionIfAvailable()}) and thread it down. Behaviour is otherwise identical -
+	 * `null` transaction means read the committed value, exactly as an absent layer does.
+	 *
+	 * **Caller obligation — pass only the calling thread's own transaction.** Unlike {@link #get()}, which resolves
+	 * the current thread's transaction and therefore cannot be misused, this overload reads through whatever
+	 * transaction it is handed. Handing it another thread's transaction reads that thread's *uncommitted* diff layer.
+	 * Resolve it within the same operation, use it for the duration of that operation, and then drop it: never cache
+	 * it in a field, store it on the object, or pass it across threads.
+	 *
+	 * Because the transactional-memory dispatch is hoisted out of this method, the read-dispatch obligation described
+	 * by INV-2 in `documentation/developer/stm/rules-and-invariants.md` moves to the caller.
+	 *
+	 * @param transaction the caller-resolved current transaction, or `null` when outside a transaction
+	 * @return the value visible to the given transaction
+	 */
+	@Nullable
+	public T get(@Nullable Transaction transaction) {
+		final ReferenceChanges<T> layer = transaction == null ?
+			null : transaction.getTransactionalMemory().getTransactionalMemoryLayerIfExists(this);
+		if (layer == null) {
+			return this.value.get();
+		} else {
+			return layer.get();
+		}
+	}
+
 	@Nonnull
 	@Override
 	public ReferenceChanges<T> createLayer() {

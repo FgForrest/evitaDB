@@ -48,21 +48,30 @@ import org.openjdk.jmh.infra.Blackhole;
 
 import javax.annotation.Nonnull;
 import java.io.ByteArrayOutputStream;
+import java.io.Serializable;
 import java.util.List;
+import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
 /**
  * JMH timing benchmark for the OWNER-mode {@link OwnerSortIndex} granular persistence story on branch #760. It mirrors
  * the structure of {@link SortIndexChurnReport} (shared via {@link SortIndexBenchSupport}) so a `dev`-branch mirror can
- * be lined up cell-for-cell. Three operations are timed per scenario:
+ * be lined up cell-for-cell. Four operations are timed per scenario:
  *
  * - `loadDeserialize` (P5, the new load cost): deserialize the root + every leaf page from the pre-serialized bytes and
  *   rebuild a live {@link OwnerSortIndex} via {@link OwnerSortIndex#fromPersistedPages} (+ `reconstructSortedRecords`).
  * - `readOrderBy` (P3): obtain the ascending sorted record ids from the live index.
  * - `churnSerialize` (P1, serialization time): serialize the captured incremental-commit parts to bytes.
+ * - `insertRecord`: add fresh records into an already-populated index - the sort-attribute INSERT path. It carries no
+ *   P-number because the P numbering belongs to an earlier report that has no slot for it, and it is the one
+ *   measurement here that runs `Mode.SingleShotTime` in milliseconds instead of `Mode.AverageTime` in microseconds.
+ *   Its `gc.alloc.rate.norm` is fixture-dominated and must not be read as insert allocation - see its own JavaDoc.
  *
- * Scenarios are the real `anchor` ean distribution and the `synth_100k` shape replica. Run with `-prof gc` to capture
- * the normalized allocation rate alongside the average time.
+ * Scenarios are the real `anchor` ean distribution, the `synth_100k` shape replica, and the `uniform_1k_100k` /
+ * `uniform_1k_1m` pair. The uniform pair exists because `anchor` and `synth_*` are singleton-dominated: nearly every
+ * insert into them lands in a width-1 block, takes the single-probe `else` branch and never enters the block binary
+ * search at all (see `SortIndexBenchSupport.uniform`), whereas the uniform shapes give evenly-sized wide blocks that
+ * do exercise it. Run with `-prof gc` to capture the normalized allocation rate alongside the average time.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -75,9 +84,11 @@ import java.util.concurrent.TimeUnit;
 public class SortIndexTimingBenchmark {
 
 	/**
-	 * The measured scenarios (a real anchor + a synthetic 100k shape replica).
+	 * The measured scenarios: the real `anchor` ean distribution, the `synth_100k` shape replica, and the
+	 * `uniform_1k_100k` / `uniform_1k_1m` pair whose evenly-sized wide blocks are the only ones that actually enter
+	 * the block binary search.
 	 */
-	@Param({"anchor", "synth_100k"})
+	@Param({"anchor", "synth_100k", "uniform_1k_100k", "uniform_1k_1m"})
 	private String scenario;
 
 	/**
@@ -146,6 +157,94 @@ public class SortIndexTimingBenchmark {
 			}
 		}
 		bh.consume(total);
+	}
+
+	/**
+	 * The INSERT cost: add fresh records into an already-populated sort index. This is
+	 * `SortIndex.addRecordInternal`, 57.5 % of busy-thread wall and 18.9 % of allocation during bulk ingest
+	 * (issue #1332), and no benchmark in this suite measured it before — the three benchmarks above measure
+	 * deserialize / read / serialize, and the inserts that build their fixtures happen in `@Setup`.
+	 *
+	 * Under a `uniform_*` scenario the inserted records land mid-block and drive the block binary search in
+	 * `SortIndexChanges.computePreviousRecord`; under `anchor` / `synth_*` they land in a width-1 block and take the
+	 * single-probe `else` branch. Keep both in the param set — they are the guard that a fix tuned for wide blocks
+	 * does not regress the narrow-block case that dominates real `ean`-style attributes.
+	 *
+	 * The trustworthy output here is `ns/op`: {@link Mode#SingleShotTime} times the benchmark method only, so the
+	 * per-invocation rebuild stays out of the wall clock. The `gc.alloc.rate.norm` figure is NOT trustworthy -
+	 * `InsertState.setUp` is `@Setup(Level.Invocation)` and rebuilds the whole owner before every measured batch
+	 * (100 000 records for `uniform_1k_100k`, ~130 000 for `synth_100k`, 1 000 000 for `uniform_1k_1m`) against a
+	 * measured `BATCH_SIZE` of 10 000, and JMH's `GCProfiler` snapshots its counters in `beforeIteration` /
+	 * `afterIteration`, bracketing the whole iteration including per-invocation fixtures. The reported allocation is
+	 * therefore 10:1 to 100:1 fixture and must not be read as the insert path's allocation.
+	 */
+	@Benchmark
+	@BenchmarkMode(Mode.SingleShotTime)
+	@OutputTimeUnit(TimeUnit.MILLISECONDS)
+	public void insertRecord(@Nonnull InsertState state, @Nonnull Blackhole bh) {
+		bh.consume(state.insertBatch());
+	}
+
+	/**
+	 * Per-INVOCATION insert state for {@link #insertRecord}: inserts mutate the index, so the trial-scoped
+	 * {@link #liveOwner} cannot be reused and the owner is rebuilt from scratch before every measured batch.
+	 *
+	 * Two design choices deserve their reasons recorded, because the obvious alternatives silently measure the wrong
+	 * thing:
+	 *
+	 * 1. **The batch spreads across ALL distinct values, not one block.** Hammering a single value would grow that
+	 *    one block by the whole batch, so late inserts in a batch would search a far wider block than early ones and
+	 *    the benchmark would drift into measuring block growth. Spreading `batchSize` inserts over `distinctValues`
+	 *    blocks grows each by `batchSize / distinctValues`, which is noise. It is also exactly what the profiled
+	 *    workload does — 40 sortable attributes filled from `numberBetween(0, 1000)`.
+	 * 2. **`SingleShotTime` + `Level.Invocation`, not `AverageTime` + `Level.Iteration`.** Under `AverageTime` JMH
+	 *    packs as many invocations as fit the time window, so a mutating benchmark accumulates hundreds of thousands
+	 *    of inserts within one iteration and the block widths run away from the scenario's definition. One shot per
+	 *    iteration keeps every measurement anchored to the scenario's actual shape; the rebuild is paid in `@Setup`
+	 *    and is not measured.
+	 */
+	@State(Scope.Thread)
+	public static class InsertState {
+		/**
+		 * Records inserted per measured batch - large enough to sit well above the timer's resolution, small enough
+		 * that spread across the distinct values it barely widens any block.
+		 */
+		private static final int BATCH_SIZE = 10_000;
+
+		private OwnerSortIndex owner;
+		/** The value each batch slot inserts under, pre-picked so no RNG cost lands inside the measured loop. */
+		private Serializable[] batchValues;
+		private int nextRecordId;
+
+		@Setup(Level.Invocation)
+		public void setUp(@Nonnull SortIndexTimingBenchmark benchmark) {
+			final List<ValueBlock> blocks = SortIndexBenchSupport.blocksFor(benchmark.scenario);
+			this.owner = SortIndexBenchSupport.buildOwner(blocks);
+			this.nextRecordId = SortIndexBenchSupport.maxRecordId(blocks) + 1;
+			// pre-pick the values OUTSIDE the measured region; a fixed seed keeps every fork comparable
+			final Random random = new Random(42);
+			this.batchValues = new Serializable[BATCH_SIZE];
+			for (int i = 0; i < BATCH_SIZE; i++) {
+				this.batchValues[i] = blocks.get(random.nextInt(blocks.size())).value();
+			}
+		}
+
+		/**
+		 * Inserts {@link #BATCH_SIZE} fresh records spread across the scenario's distinct values and returns the
+		 * resulting index size, so the whole batch is observable to the blackhole.
+		 *
+		 * @return the sort index size after the batch
+		 */
+		int insertBatch() {
+			final OwnerSortIndex theOwner = this.owner;
+			final Serializable[] values = this.batchValues;
+			int recordId = this.nextRecordId;
+			for (int i = 0; i < values.length; i++) {
+				theOwner.addRecord(values[i], recordId++);
+			}
+			this.nextRecordId = recordId;
+			return theOwner.size();
+		}
 	}
 
 	private <T extends StoragePart> int writeBytes(

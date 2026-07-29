@@ -45,23 +45,31 @@ import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Microbenchmark of the **write** behaviour of the two-tree backing introduced under issue #760 — the count-augmented
- * position tree {@link UnorderedLookupTree} paired with the no-boxing `int → long` value index
- * {@link TransactionalIntToLongBPlusTree}, exactly the pair that sits behind `TransactionalUnorderedIntArray`.
+ * Microbenchmark of the **write** and positional-**read** behaviour of the two-tree backing introduced under issue
+ * #760 — the count-augmented position tree {@link UnorderedLookupTree} paired with the no-boxing `int → long` value
+ * index {@link TransactionalIntToLongBPlusTree}, exactly the pair that sits behind `TransactionalUnorderedIntArray`.
  *
  * The single property this benchmark guards is **asymptotic write cost**: the array delegate the two-tree backing
  * replaces renumbers an `O(N)` suffix on every positional insert / move, so building and churning a long chain costs
- * `O(N²)`. The tree touches only the `O(log N)` cursor path, so both phases must scale **linearly**. This is a write
- * hot-path benchmark; read addressing and the correctness of the structure are covered by the functional oracle suite
- * and the generational long-running soak, not here.
+ * `O(N²)`. The tree touches only the `O(log N)` cursor path, so both write phases must scale **linearly**. Beyond that
+ * the class also sizes the positional-READ cost the sort-attribute insert path pays; what it does not cover is the
+ * structural **correctness** of the tree, which stays with the functional oracle suite and the generational
+ * long-running soak.
  *
- * Two phases are measured, each in {@link Mode#SingleShotTime} (the natural unit is "time to apply the whole batch"):
+ * Five benchmarks are measured - two write phases and three read phases - each in {@link Mode#SingleShotTime} (the
+ * natural unit is "time to run the whole batch"):
  *
  * 1. {@code buildChain} — builds a single chain `1 → 2 → … → N` via `recordCount` individual `insertAfter` writes,
  *    starting from an empty backing each invocation. Measures the per-write cost as the chain grows.
  * 2. {@code churnChain} — over a pre-built chain, repeatedly moves a random record to sit after another random record
  *    (a predecessor update = remove + re-insert), `churnOperations` times. Measures steady-state move cost at a fixed
  *    chain length.
+ * 3. {@code positionalRead} — replays the pre-generated probe positions a block binary search issues, every one of
+ *    them an independent root-to-leaf order-statistic descent. Measures the raw per-probe read cost.
+ * 4. {@code blockSearchPerProbeDescent} — the baseline half of the block-search pair: the whole search driven as a
+ *    caller-side loop of independent descents, plus the trailing predecessor read.
+ * 5. {@code blockSearchWindowed} — the optimised half of that pair: the identical search issued through the ranged
+ *    entry point that retains the leaf one probe already resolved.
  *
  * The chain length ({@code recordCount}) and the churn batch size ({@code churnOperations}) are {@link Param}s so the
  * linear (or non-linear) trend can be read directly by comparing successive sizes; doubling `recordCount` should at
@@ -121,6 +129,102 @@ public class UnorderedLookupTreeBenchmark {
 		return size;
 	}
 
+	/**
+	 * The READ cost the sort-attribute insert path actually pays. `SortIndexChanges.computePreviousRecord`
+	 * binary-searches a value's record block through positional reads, and every probe is a fresh root-to-leaf
+	 * order-statistic descent — `UnorderedLookupTree.getRecordAt`, the 19.4 % self-time frame of the WARM_UP profile
+	 * behind issue #1332, which no benchmark in this suite reached before (`buildChain` / `churnChain` are both
+	 * write-only).
+	 *
+	 * The probe sequence is pre-generated in `@Setup`, never inside the measured method, so the measurement contains
+	 * the tree descents and nothing else. Parameterising on `blockWidth` is what lets a descent-COUNT fix (a
+	 * re-seekable cursor) be told apart from a per-level COST fix (prefix-sum child counts): the former moves only
+	 * wide blocks, the latter moves every width including 1.
+	 */
+	@Benchmark
+	public int positionalRead(@Nonnull PositionalReadState state, @Nonnull Blackhole bh) {
+		final UnorderedLookupTree tree = state.index.positionTree;
+		final int[] probes = state.probes;
+		int sum = 0;
+		for (int i = 0; i < probes.length; i++) {
+			sum += tree.getRecordAt(probes[i]);
+		}
+		bh.consume(sum);
+		return sum;
+	}
+
+	/**
+	 * The BASELINE half of the block-search pair: the block binary search driven the way
+	 * `SortIndexChanges.computePreviousRecord` used to drive it, as a caller-side loop where every probe is an
+	 * independent {@link UnorderedLookupTree#getRecordAt(int)} root-to-leaf descent.
+	 *
+	 * Paired with {@link #blockSearchWindowed(BlockSearchState, Blackhole)}, which performs the identical search
+	 * through the windowed entry point. The two are measured inside ONE JMH invocation on purpose: an A/A run of
+	 * {@link #positionalRead(PositionalReadState, Blackhole)} measured 0.4–16.4 % of drift between two runs of the
+	 * same jar, which is the same order as the effect being looked for. JMH forks per benchmark method (and per
+	 * parameter combination), so the two do NOT share a fork or a JIT state - what the pairing buys is that they run
+	 * back-to-back from the same jar, on the same machine, in the same thermal and load state. That removes the
+	 * cross-RUN drift the A/A measured; it does not remove per-fork variance.
+	 */
+	@Benchmark
+	public int blockSearchPerProbeDescent(@Nonnull BlockSearchState state, @Nonnull Blackhole bh) {
+		final UnorderedLookupTree tree = state.index.positionTree;
+		final int[] blockStarts = state.blockStarts;
+		final int[] targets = state.targets;
+		final int blockWidth = state.blockWidth;
+		int sum = 0;
+		for (int i = 0; i < blockStarts.length; i++) {
+			final int blockStart = blockStarts[i];
+			final int blockEnd = blockStart + blockWidth;
+			final int recordId = targets[i];
+			int low = blockStart;
+			int high = blockEnd - 1;
+			int insertionIndex = blockEnd;
+			while (low <= high) {
+				final int middle = (low + high) >>> 1;
+				final int middleRecordId = tree.getRecordAt(middle);
+				if (middleRecordId < recordId) {
+					low = middle + 1;
+				} else {
+					insertionIndex = middle;
+					if (middleRecordId == recordId) {
+						break;
+					}
+					high = middle - 1;
+				}
+			}
+			// the trailing predecessor read the sort index needs - its own descent, on top of the search
+			final int predecessorPosition = insertionIndex - 1;
+			sum += predecessorPosition < 0 ? Integer.MIN_VALUE : tree.getRecordAt(predecessorPosition);
+		}
+		bh.consume(sum);
+		return sum;
+	}
+
+	/**
+	 * The OPTIMISED half of the block-search pair: the identical search issued through
+	 * {@link UnorderedLookupTree#findPredecessorInRange(int, int, int)}, which retains the leaf resolved by one probe
+	 * and serves any following read landing inside it - the trailing predecessor read included - without descending
+	 * again.
+	 *
+	 * Returns the same sum as {@link #blockSearchPerProbeDescent(BlockSearchState, Blackhole)} by construction — the
+	 * equivalence itself is asserted by the functional oracle tests, not here.
+	 */
+	@Benchmark
+	public int blockSearchWindowed(@Nonnull BlockSearchState state, @Nonnull Blackhole bh) {
+		final UnorderedLookupTree tree = state.index.positionTree;
+		final int[] blockStarts = state.blockStarts;
+		final int[] targets = state.targets;
+		final int blockWidth = state.blockWidth;
+		int sum = 0;
+		for (int i = 0; i < blockStarts.length; i++) {
+			final int blockStart = blockStarts[i];
+			sum += tree.findPredecessorInRange(blockStart, blockStart + blockWidth, targets[i]);
+		}
+		bh.consume(sum);
+		return sum;
+	}
+
 	/* =========================================================================================== */
 
 	/**
@@ -160,6 +264,134 @@ public class UnorderedLookupTreeBenchmark {
 			}
 			this.index = theIndex;
 			this.random = new Random(42);
+		}
+	}
+
+	/**
+	 * Pre-built chain plus a pre-generated probe sequence for {@link UnorderedLookupTreeBenchmark#positionalRead}.
+	 *
+	 * The probe sequence replays exactly the positions a binary search over a block of {@link #blockWidth} records
+	 * issues — the access pattern `SortIndexChanges.computePreviousRecord` produces on every sort-attribute insert.
+	 * Each simulated insert picks a random block and a random target offset inside it, then records the midpoints the
+	 * search visits. Short searches are padded so every simulated insert contributes the same probe count, keeping
+	 * `ns/op` directly comparable across `blockWidth` values.
+	 */
+	@State(Scope.Benchmark)
+	public static class PositionalReadState {
+		/**
+		 * Number of simulated sort-attribute inserts whose probe sequences are concatenated into {@link #probes}.
+		 */
+		private static final int SIMULATED_INSERTS = 10_000;
+
+		/** Length of the pre-built chain the probes read from. */
+		@Param({"1000000", "10000000"})
+		public int recordCount;
+		/** Width of the simulated value block the binary search runs over. */
+		@Param({"1", "10", "100", "1000", "10000"})
+		public int blockWidth;
+
+		CompositeIndex index;
+		/** Flattened probe positions: `ceil(log2(blockWidth))` consecutive probes per simulated insert. */
+		int[] probes;
+
+		@Setup(Level.Trial)
+		public void setUp() {
+			final CompositeIndex theIndex = new CompositeIndex();
+			theIndex.addHead(1);
+			for (int recordId = 2; recordId <= this.recordCount; recordId++) {
+				theIndex.addAfter(recordId - 1, recordId);
+			}
+			this.index = theIndex;
+			this.probes = generateProbes(this.recordCount, this.blockWidth);
+		}
+
+		/**
+		 * Generates the concatenated probe sequences of {@link #SIMULATED_INSERTS} binary searches, each over a block
+		 * of `blockWidth` consecutive positions starting at a pseudo-random offset.
+		 *
+		 * @param recordCount total number of positions available in the tree
+		 * @param blockWidth  width of the simulated value block
+		 * @return the flattened probe positions, `SIMULATED_INSERTS * ceil(log2(blockWidth))` of them
+		 */
+		@Nonnull
+		private static int[] generateProbes(int recordCount, int blockWidth) {
+			final Random random = new Random(42);
+			// ceil(log2(blockWidth)) - the number of probes a binary search over `blockWidth` slots issues
+			final int probesPerSearch = Math.max(1, 32 - Integer.numberOfLeadingZeros(blockWidth));
+			final int[] result = new int[SIMULATED_INSERTS * probesPerSearch];
+			int cursor = 0;
+			for (int i = 0; i < SIMULATED_INSERTS; i++) {
+				final int blockStart = blockWidth >= recordCount ? 0 : random.nextInt(recordCount - blockWidth);
+				// the position the inserted record id would occupy inside the block - the search target
+				final int target = blockStart + random.nextInt(blockWidth);
+				int low = blockStart;
+				int high = blockStart + blockWidth - 1;
+				int emitted = 0;
+				while (low <= high && emitted < probesPerSearch) {
+					final int middle = (low + high) >>> 1;
+					result[cursor++] = middle;
+					emitted++;
+					if (middle < target) {
+						low = middle + 1;
+					} else {
+						high = middle - 1;
+					}
+				}
+				// pad a short search so every simulated insert contributes the same probe count
+				while (emitted < probesPerSearch) {
+					result[cursor++] = target;
+					emitted++;
+				}
+			}
+			return result;
+		}
+	}
+
+	/**
+	 * Pre-built chain plus the `(blockStart, targetRecordId)` pairs of {@link #SIMULATED_INSERTS} simulated
+	 * sort-attribute inserts, shared by the two block-search benchmarks so both search exactly the same blocks for
+	 * exactly the same record ids.
+	 *
+	 * The chain is `1 → 2 → … → recordCount`, so the record id at logical position `p` is `p + 1`. That makes EVERY
+	 * range ascending — the precondition the ranged search is contracted on — and makes a target record id inside a
+	 * block trivially derivable from a position.
+	 */
+	@State(Scope.Benchmark)
+	public static class BlockSearchState {
+		/** Number of simulated sort-attribute inserts performed per measured invocation. */
+		private static final int SIMULATED_INSERTS = 10_000;
+
+		/** Length of the pre-built chain the searches run over. */
+		@Param({"1000000"})
+		public int recordCount;
+		/** Width of the simulated value block the binary search runs over. */
+		@Param({"1", "10", "100", "1000", "10000"})
+		public int blockWidth;
+
+		CompositeIndex index;
+		/** First logical position of each simulated insert's value block. */
+		int[] blockStarts;
+		/** The record id each simulated insert searches its block for. */
+		int[] targets;
+
+		@Setup(Level.Trial)
+		public void setUp() {
+			final CompositeIndex theIndex = new CompositeIndex();
+			theIndex.addHead(1);
+			for (int recordId = 2; recordId <= this.recordCount; recordId++) {
+				theIndex.addAfter(recordId - 1, recordId);
+			}
+			this.index = theIndex;
+			final Random random = new Random(42);
+			this.blockStarts = new int[SIMULATED_INSERTS];
+			this.targets = new int[SIMULATED_INSERTS];
+			for (int i = 0; i < SIMULATED_INSERTS; i++) {
+				final int blockStart = this.blockWidth >= this.recordCount
+					? 0 : random.nextInt(this.recordCount - this.blockWidth);
+				this.blockStarts[i] = blockStart;
+				// the record id living at position `p` is `p + 1`, so this targets a random slot inside the block
+				this.targets[i] = blockStart + random.nextInt(this.blockWidth) + 1;
+			}
 		}
 	}
 

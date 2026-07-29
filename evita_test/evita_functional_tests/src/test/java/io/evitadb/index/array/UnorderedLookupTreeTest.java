@@ -36,6 +36,7 @@ import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Random;
@@ -1386,6 +1387,225 @@ class UnorderedLookupTreeTest {
 			final UnorderedLookupTree.PositionCursor cursor = tested.tree.reversePositionCursor();
 			assertThrows(GenericEvitaInternalError.class, () -> cursor.recordAt(3));
 			assertThrows(GenericEvitaInternalError.class, () -> cursor.recordAt(-1));
+		}
+	}
+
+	@Nested
+	@DisplayName("Ranged predecessor search (leaf window retained across probes)")
+	class RangedPredecessorSearchTest {
+
+		/**
+		 * Builds the logical shape a {@link io.evitadb.index.attribute.SortIndex} produces: a sequence of value
+		 * blocks that are ascending **inside** a block and unordered across blocks. Records are inserted one by one
+		 * (rather than bulk-loaded) so the tree carries real split history and partially-filled leaves.
+		 *
+		 * @param tested        the tree to fill
+		 * @param blockCount    number of value blocks to lay out
+		 * @param maxBlockWidth largest number of records a single block may hold
+		 * @param seed          random seed for reproducibility
+		 * @return the logical record id sequence, mirroring the tree's array
+		 */
+		@Nonnull
+		private List<Integer> fillWithValueBlocks(
+			@Nonnull TreeWithIndex tested, int blockCount, int maxBlockWidth, long seed
+		) {
+			final Random random = new Random(seed);
+			// each block draws its ids from a private 1000-wide id space, so ids never collide across blocks;
+			// the spaces are handed out in shuffled order, so the array is NOT globally ascending
+			final List<Integer> spaces = new ArrayList<>(blockCount);
+			for (int i = 0; i < blockCount; i++) {
+				spaces.add(i);
+			}
+			Collections.shuffle(spaces, random);
+			final List<Integer> logical = new ArrayList<>();
+			for (int block = 0; block < blockCount; block++) {
+				final int width = 1 + random.nextInt(maxBlockWidth);
+				final int base = spaces.get(block) * 1000;
+				// ascending ids with gaps, so ids ABSENT from the block exist between present ones
+				int id = base + 1 + random.nextInt(5);
+				for (int i = 0; i < width; i++) {
+					tested.addAtPosition(logical.size(), id);
+					logical.add(id);
+					id += 1 + random.nextInt(5);
+				}
+			}
+			return logical;
+		}
+
+		/**
+		 * Returns the boundaries `[from, to)` of every maximal ascending run of the logical array — exactly the
+		 * ranges the ranged search is contracted to accept. Recomputing them keeps the assertions valid after
+		 * removals have reshaped the blocks.
+		 *
+		 * @param logical the logical record id sequence
+		 * @return the ascending runs, in logical order
+		 */
+		@Nonnull
+		private List<int[]> ascendingRuns(@Nonnull List<Integer> logical) {
+			final List<int[]> runs = new ArrayList<>();
+			int start = 0;
+			for (int i = 1; i <= logical.size(); i++) {
+				if (i == logical.size() || logical.get(i) < logical.get(i - 1)) {
+					runs.add(new int[]{start, i});
+					start = i;
+				}
+			}
+			return runs;
+		}
+
+		/**
+		 * The naive oracle: finds the first position in `[from, to)` holding a record id greater than or equal to
+		 * `recordId` — resolved through {@link UnorderedLookupTree#getRecordAt(int)} one position at a time — and
+		 * returns the record id one position below it, or {@link Integer#MIN_VALUE} when that is position zero.
+		 *
+		 * @param tested   the tree under test
+		 * @param from     first position of the range, inclusive
+		 * @param to       last position of the range, exclusive
+		 * @param recordId the record id whose predecessor is sought
+		 * @return the expected preceding record id
+		 */
+		private int oracle(@Nonnull TreeWithIndex tested, int from, int to, int recordId) {
+			int insertionPosition = to;
+			for (int position = from; position < to; position++) {
+				if (tested.tree.getRecordAt(position) >= recordId) {
+					insertionPosition = position;
+					break;
+				}
+			}
+			return insertionPosition == 0 ? Integer.MIN_VALUE : tested.tree.getRecordAt(insertionPosition - 1);
+		}
+
+		/**
+		 * Asserts the ranged predecessor search matches the oracle for every present id of every ascending run, for
+		 * the gaps between them, and for ids falling before and after the whole run.
+		 *
+		 * @param tested  the tree under test
+		 * @param logical the logical record id sequence mirroring the tree
+		 */
+		private void assertMatchesOracleOnEveryRun(@Nonnull TreeWithIndex tested, @Nonnull List<Integer> logical) {
+			for (final int[] run : ascendingRuns(logical)) {
+				final int from = run[0];
+				final int to = run[1];
+				for (int position = from; position < to; position++) {
+					final int presentId = logical.get(position);
+					// a present id, and the absent id immediately below it (the gap left by the generator)
+					for (final int probe : new int[]{presentId, presentId - 1}) {
+						assertEquals(
+							oracle(tested, from, to, probe),
+							tested.tree.findPredecessorInRange(from, to, probe),
+							"mismatch for id " + probe + " in run [" + from + ", " + to + ")"
+						);
+					}
+				}
+				// below every id in the run (predecessor falls BELOW the range, or off the array entirely), and above
+				// every id in the run (predecessor is the run's own last record)
+				final int belowAll = logical.get(from) - 100;
+				assertEquals(
+					oracle(tested, from, to, belowAll), tested.tree.findPredecessorInRange(from, to, belowAll),
+					"mismatch for id " + belowAll + " below run [" + from + ", " + to + ")"
+				);
+				final int aboveAll = logical.get(to - 1) + 100;
+				assertEquals(
+					logical.get(to - 1),
+					tested.tree.findPredecessorInRange(from, to, aboveAll),
+					"mismatch for id " + aboveAll + " above run [" + from + ", " + to + ")"
+				);
+				// the empty range at the run's start - the shape a brand-new value block produces
+				assertEquals(
+					from == 0 ? Integer.MIN_VALUE : logical.get(from - 1),
+					tested.tree.findPredecessorInRange(from, from, belowAll),
+					"mismatch for id " + belowAll + " in empty run [" + from + ", " + from + ")"
+				);
+			}
+		}
+
+		@Test
+		@DisplayName("matches a naive oracle when a searched range spans many leaves")
+		void shouldMatchOracleWhenRangeSpansManyLeaves() {
+			// block size 3 splits leaves every 3 records, so a 40-wide block spans well over a dozen leaves and
+			// most probes MISS the retained window - this is the fall-through-and-refresh path
+			final TreeWithIndex tested = new TreeWithIndex(3, UnorderedLookupTree.DEFAULT_ORDER_KEY_GAP);
+			final List<Integer> logical = fillWithValueBlocks(tested, 30, 40, 20260728L);
+			assertMatchesOracleOnEveryRun(tested, logical);
+			assertEquals(ConsistencyState.CONSISTENT, tested.tree.getConsistencyReport().state());
+		}
+
+		@Test
+		@DisplayName("matches a naive oracle when a searched range fits inside a single leaf")
+		void shouldMatchOracleWhenRangeFitsSingleLeaf() {
+			// production fan-out: leaves hold up to 64 records, so a block narrower than that resolves every probe
+			// after the first from the retained window - this is the window-HIT path
+			final TreeWithIndex tested = new TreeWithIndex();
+			final List<Integer> logical = fillWithValueBlocks(tested, 40, 30, 987654321L);
+			assertMatchesOracleOnEveryRun(tested, logical);
+			assertEquals(ConsistencyState.CONSISTENT, tested.tree.getConsistencyReport().state());
+		}
+
+		@Test
+		@DisplayName("matches a naive oracle after interleaved removals have reshaped the leaves")
+		void shouldMatchOracleAfterRemovals() {
+			final TreeWithIndex tested = new TreeWithIndex(3, UnorderedLookupTree.DEFAULT_ORDER_KEY_GAP);
+			final List<Integer> logical = fillWithValueBlocks(tested, 30, 40, 4242L);
+			final Random random = new Random(4242L);
+			// removals drive steals and merges, leaving leaves at varying occupancy and shifting every base position
+			for (int i = 0; i < 200 && logical.size() > 1; i++) {
+				final int position = random.nextInt(logical.size());
+				tested.remove(logical.remove(position));
+			}
+			assertMatchesOracleOnEveryRun(tested, logical);
+			assertEquals(ConsistencyState.CONSISTENT, tested.tree.getConsistencyReport().state());
+		}
+
+		@Test
+		@DisplayName("resolves the predecessor for empty, single-element and whole-array ranges")
+		void shouldHandleDegenerateRanges() {
+			final TreeWithIndex tested = new TreeWithIndex(3, UnorderedLookupTree.DEFAULT_ORDER_KEY_GAP);
+			tested.bulkLoad(new int[]{10, 20, 30, 40, 50});
+			// empty range - no search runs, the answer is simply the record below the range
+			assertEquals(20, tested.tree.findPredecessorInRange(2, 2, 25));
+			// empty range at the very front - no predecessor exists
+			assertEquals(Integer.MIN_VALUE, tested.tree.findPredecessorInRange(0, 0, 5));
+			// single element; every answer here falls BELOW the searched range
+			assertEquals(20, tested.tree.findPredecessorInRange(2, 3, 25));
+			assertEquals(20, tested.tree.findPredecessorInRange(2, 3, 30));
+			// ... except this one, where the single element itself precedes the insertion point
+			assertEquals(30, tested.tree.findPredecessorInRange(2, 3, 35));
+			// the whole array
+			assertEquals(Integer.MIN_VALUE, tested.tree.findPredecessorInRange(0, 5, 5));
+			assertEquals(50, tested.tree.findPredecessorInRange(0, 5, 55));
+			assertEquals(30, tested.tree.findPredecessorInRange(0, 5, 40));
+		}
+
+		/**
+		 * Covers the un-populated tree, which every value block starts from on the first insert of a bulk load - the
+		 * only shape where the search runs with no root at all.
+		 */
+		@Test
+		@DisplayName("resolves an empty range on an empty tree and rejects a non-empty one")
+		void shouldHandleRangesOnEmptyTree() {
+			final TreeWithIndex tested = new TreeWithIndex();
+			// nothing is indexed yet, so there is no record preceding the (empty) range
+			assertEquals(Integer.MIN_VALUE, tested.tree.findPredecessorInRange(0, 0, 42));
+			// ... and no position exists, so any non-empty range lies outside the array
+			assertThrows(
+				GenericEvitaInternalError.class, () -> tested.tree.findPredecessorInRange(0, 1, 42)
+			);
+		}
+
+		@Test
+		@DisplayName("rejects a range that does not lie within the array")
+		void shouldRejectRangeOutsideArray() {
+			final TreeWithIndex tested = new TreeWithIndex();
+			tested.bulkLoad(new int[]{10, 20, 30});
+			assertThrows(
+				GenericEvitaInternalError.class, () -> tested.tree.findPredecessorInRange(-1, 2, 15)
+			);
+			assertThrows(
+				GenericEvitaInternalError.class, () -> tested.tree.findPredecessorInRange(0, 4, 15)
+			);
+			assertThrows(
+				GenericEvitaInternalError.class, () -> tested.tree.findPredecessorInRange(2, 1, 15)
+			);
 		}
 	}
 

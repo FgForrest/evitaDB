@@ -179,14 +179,33 @@ public class TransactionalIntToLongBPlusTree extends AbstractIntKeyedBPlusTree i
 	 * @param value the value associated with the key
 	 */
 	public void insert(int key, long value) {
-		final Cursor cursor = createCursor(key);
-		final BPlusLeafTreeNode leaf = cursor.leafNode();
+		// The cursor path exists ONLY to cascade a split upward, but it was allocated on EVERY insert - an
+		// ArrayList, its backing array, a one-element root sibling array, a CursorLevel per level and the Cursor
+		// itself (2.25 GB / 60 s of bulk ingest across this family). `findLeafNode` reaches the same leaf by the
+		// identical `searchIndex` descent without capturing anything, so the path is now captured only when this
+		// insert can actually overflow the leaf - roughly one insert in `valueBlockSize`.
+		final BPlusLeafTreeNode leaf = (BPlusLeafTreeNode) findLeafNode(key);
+		// Capture BEFORE mutating: the split machinery replaces this leaf in its parent, so the path has to reflect
+		// the pre-mutation tree. `isNearlyFull` reads `peek` and the capacity from the same resolved state that
+		// `isFull` does, so it can never fail to fire for an insert that will split. It is not exact in the other
+		// direction: a same-key overwrite one slot from full leaves `peek` unchanged, so the cursor is captured and
+		// discarded. That waste is bounded and rare. (In `upsert` the guard sits inside the key-absent branch, so
+		// the overwrite case cannot reach it and the guard IS exact there.)
+		final Cursor cursor = leaf.isNearlyFull() ? createCursor(key) : null;
 		if (leaf.insert(key, value)) {
 			this.size.set(size() + 1);
 		}
 
 		// Split the leaf node if it exceeds the block size
 		if (leaf.isFull()) {
+			if (cursor == null) {
+				throw new GenericEvitaInternalError(
+					"Leaf is full but no cursor path was captured - `isNearlyFull` failed to predict `isFull` " +
+						"(peek: " + leaf.getPeek() + ", capacity: " + leaf.getKeys().length +
+						", tree block size: " + this.valueBlockSize + ")!",
+					"Leaf is full but no cursor path was captured!"
+				);
+			}
 			splitLeafNode(leaf, cursor);
 		}
 	}
@@ -201,8 +220,9 @@ public class TransactionalIntToLongBPlusTree extends AbstractIntKeyedBPlusTree i
 	 * @param updater a function to compute a new value, must not be null
 	 */
 	public void upsert(int key, @Nonnull LongUnaryOperator updater) {
-		final Cursor cursor = createCursor(key);
-		final BPlusLeafTreeNode leaf = cursor.leafNode();
+		// see `insert` - the cursor path is captured lazily and pre-mutation. The update branch below replaces a
+		// value in place and can never overflow the leaf, so it needs no path at all.
+		final BPlusLeafTreeNode leaf = (BPlusLeafTreeNode) findLeafNode(key);
 
 		final int existingIndex = leaf.getValueIndex(key);
 		if (existingIndex >= 0) {
@@ -212,6 +232,7 @@ public class TransactionalIntToLongBPlusTree extends AbstractIntKeyedBPlusTree i
 			final long previousValue = values[existingIndex];
 			values[existingIndex] = updater.applyAsLong(previousValue);
 		} else {
+			final Cursor cursor = leaf.isNearlyFull() ? createCursor(key) : null;
 			// insert the new value
 			if (leaf.insert(key, updater.applyAsLong(0L))) {
 				this.size.set(size() + 1);
@@ -219,6 +240,14 @@ public class TransactionalIntToLongBPlusTree extends AbstractIntKeyedBPlusTree i
 
 			// Split the leaf node if it exceeds the block size
 			if (leaf.isFull()) {
+				if (cursor == null) {
+					throw new GenericEvitaInternalError(
+						"Leaf is full but no cursor path was captured - `isNearlyFull` failed to predict `isFull` " +
+							"(peek: " + leaf.getPeek() + ", capacity: " + leaf.getKeys().length +
+							", tree block size: " + this.valueBlockSize + ")!",
+						"Leaf is full but no cursor path was captured!"
+					);
+				}
 				splitLeafNode(leaf, cursor);
 			}
 		}
@@ -777,6 +806,24 @@ public class TransactionalIntToLongBPlusTree extends AbstractIntKeyedBPlusTree i
 		public boolean isFull() {
 			final BPlusLeafTreeNode current = currentState();
 			return current.peek == current.values.length - 1;
+		}
+
+		/**
+		 * Whether a single insert of a **new** key could make this leaf {@link #isFull()}, i.e. whether the caller
+		 * must capture a cursor path before mutating so a split has one.
+		 *
+		 * Deliberately mirrors {@link #isFull()} - it reads `peek` and the capacity from the **same** resolved state,
+		 * so the two can never disagree. Comparing against the tree's configured `valueBlockSize` instead would work
+		 * only while every leaf array happens to be allocated at exactly that size, and nothing enforces that
+		 * coupling; a shorter array would reach `isFull()` without ever tripping the guard.
+		 *
+		 * Resolves the transactional layer exactly once, so it costs no more than the `getPeek()` call it replaces.
+		 *
+		 * @return true when one more key could fill this leaf
+		 */
+		public boolean isNearlyFull() {
+			final BPlusLeafTreeNode current = currentState();
+			return current.peek >= current.values.length - 2;
 		}
 
 		@Override

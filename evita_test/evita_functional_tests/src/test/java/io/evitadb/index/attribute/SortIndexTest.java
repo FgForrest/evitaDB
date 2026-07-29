@@ -59,11 +59,14 @@ import org.junit.jupiter.api.Test;
 import javax.annotation.Nonnull;
 import java.io.Serializable;
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Currency;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Random;
 import java.util.function.UnaryOperator;
 
 import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
@@ -1583,6 +1586,143 @@ class SortIndexTest {
 
 			// a further quiescent read again reuses the freshly rebuilt array - the reuse contract survives the churn
 			assertSame(afterRemove, sortIndex.getAscendingOrderRecordsSupplier().getSortedRecordIds());
+		}
+	}
+
+	@Nested
+	@DisplayName("Low-cardinality ordering against a materialise-and-sort oracle")
+	class LowCardinalityOrderingTest {
+
+		/**
+		 * Sorts the recorded `(value, recordId)` pairs the way the sort index is contracted to order them — by value
+		 * first, then by record id — and returns just the record ids.
+		 *
+		 * @param pairs the `(value, recordId)` pairs in insertion order
+		 * @return the record ids in the expected sort order
+		 */
+		@Nonnull
+		private int[] expectedOrder(@Nonnull List<int[]> pairs) {
+			final List<int[]> sorted = new ArrayList<>(pairs);
+			sorted.sort((a, b) -> a[0] != b[0] ? Integer.compare(a[0], b[0]) : Integer.compare(a[1], b[1]));
+			final int[] result = new int[sorted.size()];
+			for (int i = 0; i < result.length; i++) {
+				result[i] = sorted.get(i)[1];
+			}
+			return result;
+		}
+
+		/**
+		 * Inserts `recordCount` records spread over `distinctValues` distinct values, so every insert after the first
+		 * few lands inside an existing record block and drives the block binary search. Removals are interleaved when
+		 * requested, which leaves the blocks at uneven widths.
+		 *
+		 * @param distinctValues number of distinct attribute values (drives the block width)
+		 * @param recordCount    number of records to insert
+		 * @param withRemovals   whether to interleave removals of already-inserted records
+		 * @param seed           random seed for reproducibility
+		 */
+		private void assertOrderMatchesOracle(
+			int distinctValues, int recordCount, boolean withRemovals, long seed
+		) {
+			final Random random = new Random(seed);
+			final SortIndex sortIndex = new OwnerSortIndex(
+				Integer.class, new AttributeIndexKey(null, "a", null)
+			);
+			final List<int[]> pairs = new ArrayList<>(recordCount);
+			for (int recordId = 1; recordId <= recordCount; recordId++) {
+				final int value = random.nextInt(distinctValues);
+				sortIndex.addRecord(value, recordId);
+				pairs.add(new int[]{value, recordId});
+				// remove an earlier record every now and then, so the blocks stop growing monotonically
+				if (withRemovals && pairs.size() > 1 && random.nextInt(4) == 0) {
+					final int[] victim = pairs.remove(random.nextInt(pairs.size() - 1));
+					sortIndex.removeRecord(victim[0], victim[1]);
+				}
+			}
+			assertArrayEquals(expectedOrder(pairs), sortIndex.getSortedRecords());
+			// the query-path view has to agree with the maintained order as well
+			assertArrayEquals(
+				expectedOrder(pairs), sortIndex.getAscendingOrderRecordsSupplier().getSortedRecordIds()
+			);
+		}
+
+		@Test
+		@DisplayName("should order records identically when value blocks are narrower than a leaf")
+		void shouldOrderIdenticallyWhenBlocksFitSingleLeaf() {
+			// 1000 distinct values over 50 000 records => ~50-wide blocks, narrower than the 64-record leaf
+			assertOrderMatchesOracle(1000, 50_000, false, 42L);
+		}
+
+		@Test
+		@DisplayName("should order records identically when value blocks span many leaves")
+		void shouldOrderIdenticallyWhenBlocksSpanManyLeaves() {
+			// 50 distinct values over 50 000 records => ~1000-wide blocks, spanning some sixteen leaves each, so the
+			// block binary search repeatedly leaves the leaf its previous probe resolved
+			assertOrderMatchesOracle(50, 50_000, false, 4242L);
+		}
+
+		@Test
+		@DisplayName("should order records identically when inserts are interleaved with removals")
+		void shouldOrderIdenticallyWithInterleavedRemovals() {
+			assertOrderMatchesOracle(200, 30_000, true, 987654321L);
+		}
+
+		@Test
+		@DisplayName("should order records identically after every single mutation of a churned index")
+		void shouldOrderIdenticallyAfterEveryMutation() {
+			// Asserting only the END state lets a wrong predecessor be masked: the misplaced record can be shifted
+			// back into its correct slot by a later insert, or land somewhere the final comparison cannot tell apart.
+			// Re-asserting after EVERY mutation pins the divergence to the operation that caused it. Removals matter
+			// as much as inserts here - they leave leaves at low occupancy, which is when a leaf window that trusts
+			// the physical array length instead of the logical record count over-claims by tens of positions.
+			final Random random = new Random(31337L);
+			final SortIndex sortIndex = new OwnerSortIndex(
+				Integer.class, new AttributeIndexKey(null, "a", null)
+			);
+			final List<int[]> pairs = new ArrayList<>();
+			for (int recordId = 1; recordId <= 2_000; recordId++) {
+				// only 6 distinct values, so blocks run several hundred records wide and span many leaves
+				final int value = random.nextInt(6);
+				sortIndex.addRecord(value, recordId);
+				pairs.add(new int[]{value, recordId});
+				assertArrayEquals(
+					expectedOrder(pairs), sortIndex.getSortedRecords(),
+					"order diverged when adding record " + recordId
+				);
+				if (pairs.size() > 1 && random.nextInt(3) == 0) {
+					final int[] victim = pairs.remove(random.nextInt(pairs.size() - 1));
+					sortIndex.removeRecord(victim[0], victim[1]);
+					assertArrayEquals(
+						expectedOrder(pairs), sortIndex.getSortedRecords(),
+						"order diverged when removing record " + victim[1]
+					);
+				}
+			}
+		}
+
+		@Test
+		@DisplayName("should order records identically when the inserts run inside a transaction")
+		void shouldOrderIdenticallyUnderTransaction() {
+			final SortIndex sortIndex = new OwnerSortIndex(
+				Integer.class, new AttributeIndexKey(null, "a", null)
+			);
+			final Random random = new Random(20260728L);
+			final List<int[]> pairs = new ArrayList<>();
+			// ~500-wide blocks so the search spans leaves on the transactional path too
+			for (int recordId = 1; recordId <= 10_000; recordId++) {
+				pairs.add(new int[]{random.nextInt(20), recordId});
+			}
+			final int[] expected = expectedOrder(pairs);
+
+			assertStateAfterCommit(
+				sortIndex,
+				original -> {
+					for (final int[] pair : pairs) {
+						original.addRecord(pair[0], pair[1]);
+					}
+				},
+				(original, committed) -> assertArrayEquals(expected, committed.getSortedRecords())
+			);
 		}
 	}
 

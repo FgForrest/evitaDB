@@ -1141,6 +1141,92 @@ class TransactionalUnorderedIntArrayTest {
 			);
 		}
 
+		/**
+		 * Verifies the duplicate-record guard of `add` rejects a record id the array already holds - both a record
+		 * inserted inside the very same transaction (visible only through the transactional layer of the value index)
+		 * and one coming from the committed state.
+		 */
+		@Test
+		@DisplayName("throws when adding record that is already part of the array")
+		void shouldFailToAddRecordAlreadyPresent() {
+			final TransactionalUnorderedIntArray array = new TransactionalUnorderedIntArray(new int[]{1, 2});
+
+			assertStateAfterCommit(
+				array,
+				original -> {
+					// from here on record 3 lives in the transactional layer only
+					array.add(1, 3);
+					final IllegalArgumentException layerHit = assertThrows(
+						IllegalArgumentException.class, () -> array.add(2, 3)
+					);
+					assertEquals("Record with id 3 is already part of the array!", layerHit.getMessage());
+					// ... while record 1 was there before the transaction started
+					assertThrows(IllegalArgumentException.class, () -> array.add(1, 1));
+				},
+				(original, committed) -> {
+					assertTransactionalArrayIs(new int[]{1, 2}, original);
+					assertArrayEquals(new int[]{1, 3, 2}, committed.getArray());
+				}
+			);
+		}
+
+		/**
+		 * Verifies the duplicate-record guard of `addOnIndex` rejects a record id the array already holds, whether it
+		 * was added inside the running transaction or committed before it.
+		 */
+		@Test
+		@DisplayName("throws when adding record on index that is already part of the array")
+		void shouldFailToAddRecordAlreadyPresentOnIndex() {
+			final TransactionalUnorderedIntArray array = new TransactionalUnorderedIntArray(new int[]{1, 2});
+
+			assertStateAfterCommit(
+				array,
+				original -> {
+					// from here on record 3 lives in the transactional layer only
+					array.addOnIndex(0, 3);
+					final IllegalArgumentException layerHit = assertThrows(
+						IllegalArgumentException.class, () -> array.addOnIndex(2, 3)
+					);
+					assertEquals("Record with id 3 is already part of the array!", layerHit.getMessage());
+					// ... while record 1 was there before the transaction started
+					assertThrows(IllegalArgumentException.class, () -> array.addOnIndex(1, 1));
+				},
+				(original, committed) -> {
+					assertTransactionalArrayIs(new int[]{1, 2}, original);
+					assertArrayEquals(new int[]{3, 1, 2}, committed.getArray());
+				}
+			);
+		}
+
+		/**
+		 * Verifies the duplicate-record guard of `appendAll` rejects a record id the array already holds and leaves the
+		 * array untouched when it fires - again for both the committed state and the transactional layer.
+		 */
+		@Test
+		@DisplayName("throws when appending record that is already part of the array")
+		void shouldFailToAppendRecordAlreadyPresent() {
+			final TransactionalUnorderedIntArray array = new TransactionalUnorderedIntArray(new int[]{1, 2});
+
+			assertStateAfterCommit(
+				array,
+				original -> {
+					// the guard fires before anything is appended, so the array keeps its shape
+					assertThrows(IllegalArgumentException.class, () -> array.appendAll(1));
+					assertTransactionalArrayIs(new int[]{1, 2}, array);
+					// from here on record 3 lives in the transactional layer only
+					array.appendAll(3);
+					final IllegalArgumentException layerHit = assertThrows(
+						IllegalArgumentException.class, () -> array.appendAll(3)
+					);
+					assertEquals("Record with id 3 is already part of the array!", layerHit.getMessage());
+				},
+				(original, committed) -> {
+					assertTransactionalArrayIs(new int[]{1, 2}, original);
+					assertArrayEquals(new int[]{1, 2, 3}, committed.getArray());
+				}
+			);
+		}
+
 	}
 
 	/**

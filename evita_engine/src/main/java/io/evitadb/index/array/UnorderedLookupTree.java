@@ -299,6 +299,18 @@ public class UnorderedLookupTree implements
 	}
 
 	/**
+	 * Same as {@link #size()}, but reads through an already-resolved transaction so a caller touching several
+	 * transactional members pays the `CURRENT_TRANSACTION` ThreadLocal read once rather than once per member.
+	 *
+	 * @param transaction the caller-resolved current transaction, or `null` when outside a transaction
+	 * @return the number of record ids visible to the given transaction
+	 */
+	int size(@Nullable Transaction transaction) {
+		final Integer theSize = this.size.get(transaction);
+		return theSize == null ? 0 : theSize;
+	}
+
+	/**
 	 * Returns true when the tree holds no records.
 	 */
 	public boolean isEmpty() {
@@ -548,8 +560,15 @@ public class UnorderedLookupTree implements
 	 * @throws GenericEvitaInternalError when the position is out of bounds
 	 */
 	public int getRecordAt(int position) {
-		final Node<?> theRoot = getRoot();
-		if (position < 0 || position >= size() || theRoot == null) {
+		// Resolve the thread's transaction ONCE. `getRoot()` and `size()` read two different TransactionalReferences,
+		// and each would otherwise start with its own `CURRENT_TRANSACTION` ThreadLocal read - two per positional
+		// probe, at ~13 probes per sort-attribute insert across 40 low-cardinality attributes per entity. ThreadLocal
+		// machinery is 5.25 % of busy-thread wall on that path (issue #1332). The dispatch itself stays HERE, in the
+		// public read method, as INV-2 of the STM rules requires (see
+		// `documentation/developer/stm/rules-and-invariants.md`) - only its duplication is removed.
+		final Transaction transaction = Transaction.getCurrentTransactionIfAvailable();
+		final Node<?> theRoot = getRoot(transaction);
+		if (position < 0 || position >= size(transaction) || theRoot == null) {
 			throw new GenericEvitaInternalError(
 				"Position " + position + " not found!",
 				"Unknown position in the array!"
@@ -570,6 +589,127 @@ public class UnorderedLookupTree implements
 		}
 		final LeafNode leaf = (LeafNode) node;
 		return leaf.getRecordIds()[remaining];
+	}
+
+	/**
+	 * Binary-searches the ascending record ids occupying logical positions `[fromPosition, toPosition)` for the place
+	 * `recordId` belongs, and returns the record id **immediately preceding** that place —
+	 * {@link Integer#MIN_VALUE} when it belongs at the very start of the array. That is exactly the
+	 * `previousRecordId` contract of {@link TransactionalUnorderedIntArray#add(int, int)}.
+	 *
+	 * **Caller obligation:** the record ids occupying `[fromPosition, toPosition)` must be in ascending id order.
+	 * This array is *unordered* as a whole — only a single value's sort block is ordered — so that ordering is a
+	 * property of the range the caller picks, not of the structure. A binary search cannot detect a violation, so
+	 * passing a non-ascending range yields an undefined answer rather than an error.
+	 *
+	 * **The answer is not confined to the range.** When every id in `[fromPosition, toPosition)` is greater than
+	 * `recordId`, the search converges at `fromPosition` and the predecessor returned is the record at
+	 * `fromPosition - 1` — the last record of the *preceding* block. That is deliberate: the caller is inserting into
+	 * a globally ordered array and needs the true predecessor, not a block-local one.
+	 *
+	 * An empty range (`fromPosition == toPosition`) is legal and skips the search: the answer is then simply the
+	 * record sitting at `fromPosition - 1`, which is what an insert of a brand-new value block needs. On a
+	 * completely empty tree that degenerates to `findPredecessorInRange(0, 0, id)` returning
+	 * {@link Integer#MIN_VALUE} — the first insert of the first value, and the most-executed shape at the start of a
+	 * bulk load.
+	 *
+	 * The whole search runs **inside the tree** rather than as a caller-side loop over {@link #getRecordAt(int)} for
+	 * one reason: consecutive probes of a binary search converge, so after the first descent the following probes
+	 * usually land in the leaf that descent already resolved. Keeping the search here lets that leaf be retained
+	 * across probes in plain locals — a probe inside the retained window costs one array read instead of a fresh
+	 * root-to-leaf order-statistic descent. `SortIndexChanges.computePreviousRecord` issues about 13 such probes per
+	 * sort-attribute insert at 10M records with 1000 distinct values, across 40 low-cardinality attributes per
+	 * entity, which is what makes those descents 19.4 % of busy-thread wall in the profile behind issue #1332.
+	 *
+	 * Returning the predecessor — rather than the insertion position for the caller to read separately — is what lets
+	 * the **final** read share that same window. It is the read most likely to hit it: the predecessor sits one
+	 * position below where the search converged, so it is almost always inside the leaf the last probe resolved.
+	 *
+	 * The retained window is safe **because it cannot outlive this method**: the search is a pure read and nothing
+	 * mutates the tree between two probes, so a leaf resolved for one probe is still the leaf covering its position
+	 * for the next. Do not hoist the window into a field or into the caller — that assumption stops holding the
+	 * moment the window survives across a mutation.
+	 *
+	 * @param fromPosition first logical position of the searched range, inclusive
+	 * @param toPosition   last logical position of the searched range, exclusive
+	 * @param recordId     the record id whose predecessor is sought
+	 * @return the preceding record id, or {@link Integer#MIN_VALUE} when `recordId` belongs at position zero
+	 * @throws GenericEvitaInternalError when the range does not lie within the tree
+	 */
+	public int findPredecessorInRange(int fromPosition, int toPosition, int recordId) {
+		// resolved once for the whole search, exactly as getRecordAt does it for a single probe (INV-2)
+		final Transaction transaction = Transaction.getCurrentTransactionIfAvailable();
+		final Node<?> theRoot = getRoot(transaction);
+		if (fromPosition < 0 || toPosition > size(transaction) || fromPosition > toPosition
+			|| (theRoot == null && fromPosition != toPosition)) {
+			throw new GenericEvitaInternalError(
+				"Range [" + fromPosition + ", " + toPosition + ") is not within the array!",
+				"Unknown position in the array!"
+			);
+		}
+		// the retained leaf window: the leaf resolved by the most recent descent and the logical positions it covers
+		LeafNode windowLeaf = null;
+		int windowBase = 0;
+		int windowCount = 0;
+		int low = fromPosition;
+		int high = toPosition - 1;
+		// stays at the range end when every id in the range is smaller than the sought one
+		int insertionPosition = toPosition;
+		while (low <= high) {
+			final int middle = (low + high) >>> 1;
+			final int middleRecordId;
+			if (windowLeaf != null && middle >= windowBase && middle < windowBase + windowCount) {
+				middleRecordId = windowLeaf.getRecordIds()[middle - windowBase];
+			} else {
+				// window miss - descend from the root and retain the leaf this probe lands in. The descent is
+				// inlined rather than delegated because it cannot report both the leaf and its base position
+				// without allocating; the sibling readers in this class inline it for the same reason.
+				Node<?> node = theRoot;
+				int remaining = middle;
+				while (node instanceof final InternalNode internal) {
+					final int childCount = internal.getChildCount();
+					final int[] counts = internal.getCounts();
+					final Node<?>[] children = internal.getChildren();
+					int childIndex = 0;
+					while (childIndex < childCount - 1 && remaining >= counts[childIndex]) {
+						remaining -= counts[childIndex];
+						childIndex++;
+					}
+					node = children[childIndex];
+				}
+				final LeafNode leaf = (LeafNode) node;
+				windowLeaf = leaf;
+				// `remaining` is the probe's offset inside the leaf, so the leaf starts `remaining` positions back
+				windowBase = middle - remaining;
+				// the LOGICAL record count - the physical array is leaf-capacity wide regardless of occupancy
+				windowCount = leaf.getCount();
+				middleRecordId = leaf.getRecordIds()[remaining];
+			}
+			if (middleRecordId < recordId) {
+				low = middle + 1;
+			} else {
+				insertionPosition = middle;
+				if (middleRecordId == recordId) {
+					break;
+				}
+				high = middle - 1;
+			}
+		}
+		// the predecessor sits immediately before the insertion point; a negative position means `recordId` belongs
+		// at the very front of the array and therefore has no predecessor
+		final int predecessorPosition = insertionPosition - 1;
+		if (predecessorPosition < 0) {
+			return Integer.MIN_VALUE;
+		}
+		if (windowLeaf != null && predecessorPosition >= windowBase
+			&& predecessorPosition < windowBase + windowCount) {
+			return windowLeaf.getRecordIds()[predecessorPosition - windowBase];
+		}
+		// Window miss - the predecessor lies outside the leaf the search ended in. It can even sit BELOW the searched
+		// range, at `fromPosition - 1`, which is the last record of the preceding value block. Delegating to the
+		// ordinary single-position read costs one redundant transaction resolution, which is negligible next to the
+		// descent it performs, and keeps the descent written once.
+		return getRecordAt(predecessorPosition);
 	}
 
 	/**
@@ -1231,6 +1371,18 @@ public class UnorderedLookupTree implements
 	@Nullable
 	private Node<?> getRoot() {
 		return this.root.get();
+	}
+
+	/**
+	 * Same as {@link #getRoot()}, but reads through an already-resolved transaction - see
+	 * {@link #size(Transaction)} for why the two are paired.
+	 *
+	 * @param transaction the caller-resolved current transaction, or `null` when outside a transaction
+	 * @return the root node visible to the given transaction, or `null` for an empty tree
+	 */
+	@Nullable
+	private Node<?> getRoot(@Nullable Transaction transaction) {
+		return this.root.get(transaction);
 	}
 
 	/**
