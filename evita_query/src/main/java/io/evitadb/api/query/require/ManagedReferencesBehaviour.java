@@ -35,10 +35,29 @@ import io.evitadb.dataType.SupportedEnum;
  *
  * - `ANY` — all references are returned regardless of whether the target entity currently exists in the database.
  *   This is the default behaviour and is appropriate during data ingestion or when the caller explicitly wants to
- *   enumerate both resolved and unresolved references.
+ *   enumerate both resolved and unresolved references. Note that specifying a `filterBy` in
+ *   `referenceContent` implies the existence check even in this mode — a target that is not
+ *   present cannot be matched by it.
  * - `EXISTING` — only references whose target entity is present in the database at query time are returned; dangling
  *   references are silently suppressed as if they did not exist. This is the correct choice for most read-side
  *   queries where incomplete data should not leak to the API consumer.
+ *
+ * Under `EXISTING` mere presence is not enough — the target entity must also pass the checks
+ * that apply to it. Both of the following sources are honoured:
+ *
+ * 1. the `filterBy` specified directly in the `referenceContent` requirement, and
+ * 2. the required locale, which is taken from an `entityLocaleEquals` inside that `filterBy`
+ *    when one is present, and is inherited from the enveloping query otherwise.
+ *
+ * A target entity that does not pass these checks is assumed to be non-existing for the sake of
+ * this mode and its reference is suppressed exactly like a dangling one. In particular, an entity
+ * that exists but holds no data in the required locale is never returned as a reference without
+ * a body — it is omitted entirely. The suppression applies regardless of whether the referenced
+ * body was requested, so reference visibility never depends on whether the caller asked for
+ * a body. The exemption from the locale check is driven by the schema, not by the individual
+ * entity: targets whose schema declares no localized data at all are never suppressed by it,
+ * whereas within a localized schema even a target holding no localized data whatsoever is
+ * suppressed, because it cannot be fetched in the required locale either.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
@@ -50,7 +69,11 @@ public enum ManagedReferencesBehaviour {
 	 */
 	ANY,
 	/**
-	 * The reference to managed entity will be returned only if the target entity exists in the database.
+	 * The reference to managed entity will be returned only if the target entity exists in the
+	 * database and passes the checks that apply to it - the `filterBy` specified in
+	 * `referenceContent` and the required locale, which is inherited from the enveloping query
+	 * unless the `filterBy` states its own. A target that does not pass them is assumed to be
+	 * non-existing - see the class-level documentation for the exact rules.
 	 */
 	EXISTING
 
