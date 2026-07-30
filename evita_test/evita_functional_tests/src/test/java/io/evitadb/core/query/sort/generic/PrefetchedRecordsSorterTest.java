@@ -25,7 +25,12 @@ package io.evitadb.core.query.sort.generic;
 
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.data.EntityContract;
+import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.Cardinality;
+import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
+import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.SharedBufferPool;
@@ -33,6 +38,7 @@ import io.evitadb.core.query.response.ServerEntityDecorator;
 import io.evitadb.core.query.sort.EntityComparator;
 import io.evitadb.core.query.sort.NestedContextSorter;
 import io.evitadb.core.query.sort.Sorter.SortingContext;
+import io.evitadb.core.query.sort.attribute.comparator.AbstractReferenceCompoundAttributeComparator;
 import io.evitadb.core.query.sort.attribute.comparator.AttributeComparator;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
@@ -44,6 +50,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -167,6 +174,64 @@ class PrefetchedRecordsSorterTest {
 						makeBitmap(7, 8, 9),
 						0, 3, 0, 0
 					),
+					theArray,
+					null
+				)
+			)
+		);
+	}
+
+	@Test
+	void shouldNotLeakNonSortedEntitiesAcrossRepeatedSortAndSliceCallsOnSameComparatorInstance() {
+		// AbstractReferenceCompoundAttributeComparator never overrode EntityComparator#prepareFor(int),
+		// so its nonSortedEntities/memoizedValues survived across separate sortAndSlice calls that reuse
+		// the same comparator instance (as happens when the query planner re-executes a plan for debug
+		// verification). A later call with a smaller/empty candidate set would then see more "not found"
+		// entities than candidates, driving entitiesCount negative and crashing entities.subList(0, ...).
+		final SortableAttributeCompoundSchemaContract compoundSchema = mock(SortableAttributeCompoundSchemaContract.class);
+		when(compoundSchema.getAttributeElements()).thenReturn(List.of());
+		final ReferenceSchema referenceSchema = ReferenceSchema._internalBuild(
+			"category", "category", false, Cardinality.ZERO_OR_ONE, null, false, null, null
+		);
+		final AbstractReferenceCompoundAttributeComparator comparator = new AbstractReferenceCompoundAttributeComparator(
+			compoundSchema, referenceSchema, null, attributeName -> mock(AttributeSchemaContract.class), OrderDirection.ASC
+		) {
+			// every entity is missing the reference we sort by, so every compare() call adds it to nonSortedEntities
+			@Nonnull
+			@Override
+			protected Optional<ReferenceContract> pickReference(@Nonnull EntityContract entity) {
+				return Optional.empty();
+			}
+
+			@Override
+			public int compare(EntityContract o1, EntityContract o2) {
+				getAndMemoizeValue(o1);
+				getAndMemoizeValue(o2);
+				return 0;
+			}
+		};
+		final PrefetchedRecordsSorter sorter = new PrefetchedRecordsSorter(comparator);
+		final QueryExecutionContext executionContext = this.entitySorter.context().createExecutionContext();
+
+		// first call populates the comparator's nonSortedEntities with entities 1 and 2
+		assertArrayEquals(
+			new int[0],
+			asResult(
+				theArray -> sorter.sortAndSlice(
+					new SortingContext(executionContext, makeBitmap(1, 2), 0, 100, 0, 0),
+					theArray,
+					null
+				)
+			)
+		);
+
+		// second call has an empty candidate set - must not crash even though the comparator instance
+		// still carried stale non-sorted-entity state from the previous call before the fix
+		assertArrayEquals(
+			new int[0],
+			asResult(
+				theArray -> sorter.sortAndSlice(
+					new SortingContext(executionContext, makeBitmap(), 0, 100, 0, 0),
 					theArray,
 					null
 				)
