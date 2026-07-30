@@ -82,6 +82,7 @@ import io.evitadb.api.requestResponse.system.MaterializedVersionBlock;
 import io.evitadb.api.requestResponse.system.TimeFlow;
 import io.evitadb.api.requestResponse.system.WriteAheadLogVersionDescriptor;
 import io.evitadb.api.task.ServerTask;
+import io.evitadb.comparator.CollationKeyCache;
 import io.evitadb.core.Evita;
 import io.evitadb.core.buffer.DataStoreChanges;
 import io.evitadb.core.buffer.DataStoreMemoryBuffer;
@@ -1229,7 +1230,17 @@ public final class Catalog
 			);
 
 			this.transactionManager.advanceVersion(newCatalog.getVersion());
-			log.info("Catalog `{}` is now alive!", newCatalog.getName());
+			// marks a sweep boundary at the end of bulk indexing, so the next periodic sweep reclaims what the
+			// import stopped using. Gated because a lone sweep releases almost nothing - see CollationKeyCache#sweepAll
+			if (this.evitaConfiguration.server().dropCollationKeysAfterSecondsOfInactivity() > 0) {
+				final int releasedCollationKeys = CollationKeyCache.sweepAll();
+				log.info(
+					"Catalog `{}` is now alive! (released {} collation keys unused since the previous sweep)",
+					newCatalog.getName(), releasedCollationKeys
+				);
+			} else {
+				log.info("Catalog `{}` is now alive!", newCatalog.getName());
+			}
 			return newCatalog;
 
 		} finally {

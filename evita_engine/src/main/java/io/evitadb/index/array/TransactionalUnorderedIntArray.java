@@ -31,6 +31,7 @@ import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.dataType.iterator.ConstantIntIterator;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.index.bPlusTree.TransactionalIntToLongBPlusTree;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
@@ -74,6 +75,14 @@ public class TransactionalUnorderedIntArray
 	implements TransactionalLayerProducer<Void, TransactionalUnorderedIntArray>,
 	OrderKeyConsumer,
 	Serializable {
+	/**
+	 * Rejection message shared by every insert path. The reserved primary key marks the head-insert position in
+	 * {@link #add(int, int)}, so a record carrying it could not be distinguished from "insert at the beginning".
+	 */
+	private static final String RESERVED_PRIMARY_KEY_ERROR =
+		"Primary key `" + EvitaDataTypes.RESERVED_PRIMARY_KEY + "` is reserved by evitaDB and cannot be stored in " +
+			"the array - it marks the head-insert position!";
+
 	@Serial private static final long serialVersionUID = 4753581686040233219L;
 	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 	/**
@@ -242,9 +251,20 @@ public class TransactionalUnorderedIntArray
 	/**
 	 * Order-key consumer hook used by the position tree to keep the value index coherent (INV-COUPLE): records each
 	 * `recordId → orderKey` assignment (insert overwrites an existing mapping).
+	 *
+	 * This is the single choke point every record passes through on its way into the position tree - the incremental
+	 * inserts alike the bulk builds (`bulkLoad`, `bulkLoadWithHeads`, `assembleFromLeafPages`) report each record here
+	 * exactly once - so the reserved-primary-key rejection lives here rather than in a separate pre-scan of the input:
+	 * it costs no extra pass over the data and leaves no bulk entry point unguarded. The `previousRecordId` argument of
+	 * {@link #add(int, int)} is NOT routed here (it is resolved to an order key and never becomes a record), so the
+	 * sentinel value legitimately used there cannot trip this guard.
 	 */
 	@Override
 	public void accept(int recordId, long orderKey) {
+		Assert.isPremiseValid(
+			recordId != EvitaDataTypes.RESERVED_PRIMARY_KEY,
+			RESERVED_PRIMARY_KEY_ERROR
+		);
 		this.valueIndex.insert(recordId, orderKey);
 	}
 
@@ -336,26 +356,6 @@ public class TransactionalUnorderedIntArray
 	}
 
 	/**
-	 * Binary-searches the ascending record ids on indexes `[fromIndex, toIndex)` for the place `recordId` belongs and
-	 * returns the record id immediately preceding it, or {@link Integer#MIN_VALUE} when it belongs at index zero —
-	 * i.e. the `previousRecordId` argument {@link #add(int, int)} expects. An empty range is legal and yields the
-	 * record at `fromIndex - 1`.
-	 *
-	 * Prefer this over a caller-side binary search built from {@link #get(int)}: the search and its final predecessor
-	 * read all share a single resolved leaf, so every probe converging into that leaf costs an array read rather than
-	 * a fresh tree descent. See {@link UnorderedLookupTree#findPredecessorInRange(int, int, int)} for why this has to
-	 * live inside the tree to get that.
-	 *
-	 * @param fromIndex first index of the searched range, inclusive
-	 * @param toIndex   last index of the searched range, exclusive
-	 * @param recordId  the record id whose predecessor is sought
-	 * @return the preceding record id, or {@link Integer#MIN_VALUE} when `recordId` belongs at index zero
-	 */
-	public int findPredecessorInRange(int fromIndex, int toIndex, int recordId) {
-		return this.positionTree.findPredecessorInRange(fromIndex, toIndex, recordId);
-	}
-
-	/**
 	 * Method returns last record in the array.
 	 *
 	 * @return record id
@@ -411,9 +411,16 @@ public class TransactionalUnorderedIntArray
 
 	/**
 	 * Method adds new record to the array, just after the record specified as `previousRecordId`
-	 * ({@link Integer#MIN_VALUE} adds it to the head).
+	 * ({@link EvitaDataTypes#RESERVED_PRIMARY_KEY} adds it to the head).
+	 *
+	 * Both arguments are entity primary keys, so "no predecessor" is expressed with the primary key evitaDB
+	 * reserves and never assigns, rather than with an in-range value that a real record could legitimately carry.
 	 */
 	public void add(int previousRecordId, int recordId) {
+		Assert.isPremiseValid(
+			recordId != EvitaDataTypes.RESERVED_PRIMARY_KEY,
+			RESERVED_PRIMARY_KEY_ERROR
+		);
 		// order-keys minted by the position tree are always non-negative (the first container is 0 and every mint is
 		// additive), so Long.MIN_VALUE is a collision-proof "absent" sentinel that lets us skip the OptionalLong
 		// allocation `search(int)` would incur - the same trick `indexOf` relies on. The guard stays (it protects
@@ -422,7 +429,7 @@ public class TransactionalUnorderedIntArray
 			this.valueIndex.searchOrDefault(recordId, Long.MIN_VALUE) == Long.MIN_VALUE,
 			() -> "Record with id " + recordId + " is already part of the array!"
 		);
-		if (previousRecordId == Integer.MIN_VALUE) {
+		if (previousRecordId == EvitaDataTypes.RESERVED_PRIMARY_KEY) {
 			this.positionTree.insertAtPosition(0, recordId, this);
 		} else {
 			final long previousOrderKey = this.valueIndex.searchOrDefault(previousRecordId, Long.MIN_VALUE);
@@ -439,6 +446,10 @@ public class TransactionalUnorderedIntArray
 	 * Method adds new record to the array on specified index.
 	 */
 	public void addOnIndex(int index, int recordId) {
+		Assert.isPremiseValid(
+			recordId != EvitaDataTypes.RESERVED_PRIMARY_KEY,
+			RESERVED_PRIMARY_KEY_ERROR
+		);
 		Assert.isTrue(
 			this.valueIndex.searchOrDefault(recordId, Long.MIN_VALUE) == Long.MIN_VALUE,
 			() -> "Record with id " + recordId + " is already part of the array!"
@@ -447,7 +458,9 @@ public class TransactionalUnorderedIntArray
 	}
 
 	/**
-	 * Method adds multiple record ids to the array (each just after the previous one).
+	 * Method adds multiple record ids to the array (each just after the previous one). Delegates to
+	 * {@link #add(int, int)}, so {@link EvitaDataTypes#RESERVED_PRIMARY_KEY} as `previousRecordId` adds the batch to
+	 * the head, and no record id in the batch may be the reserved primary key.
 	 */
 	public void addAll(int previousRecordId, int... recordIds) {
 		int currentPreviousRecordId = previousRecordId;
@@ -464,6 +477,10 @@ public class TransactionalUnorderedIntArray
 	 */
 	public void appendAll(int... recordIds) {
 		for (final int recordId : recordIds) {
+			Assert.isPremiseValid(
+				recordId != EvitaDataTypes.RESERVED_PRIMARY_KEY,
+				RESERVED_PRIMARY_KEY_ERROR
+			);
 			Assert.isTrue(
 				this.valueIndex.searchOrDefault(recordId, Long.MIN_VALUE) == Long.MIN_VALUE,
 				() -> "Record with id " + recordId + " is already part of the array!"

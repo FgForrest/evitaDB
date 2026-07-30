@@ -32,8 +32,10 @@ import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalStateProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
+import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.index.bitmap.SingleRecordBitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.index.reference.TransactionalReference;
@@ -948,6 +950,41 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			return EmptyBitmap.INSTANCE;
 		}
 		return createCursor(value).leafNode().getRecords(value);
+	}
+
+	/**
+	 * Computes the record id that precedes the would-be position of `recordId` under `value` in the global sort order
+	 * this tree defines: buckets ascend by value, records within a bucket ascend by id. Answered bucket-locally in a
+	 * single descent — the anchor is the greatest lower id in `value`'s own bucket, otherwise the last record of the
+	 * closest preceding bucket (crossing to the preceding leaf when necessary), otherwise
+	 * {@link EvitaDataTypes#RESERVED_PRIMARY_KEY} meaning the record belongs first — a value evitaDB never assigns
+	 * to an entity, so it cannot be mistaken for a genuine anchor. The answer is insensitive to whether `recordId` is already present in the
+	 * bucket, so callers may issue it before or after the record's own insertion.
+	 *
+	 * @param value    the value the inserted record is associated with
+	 * @param recordId the record id being inserted
+	 * @return the record id to insert after, or {@link EvitaDataTypes#RESERVED_PRIMARY_KEY} when the record belongs
+	 * first
+	 */
+	public int computePreviousRecord(@Nonnull K value, int recordId) {
+		Assert.isPremiseValid(!this.longPayload, "Int record-set API is not available on a long-payload tree!");
+		final Cursor<K> cursor = createCursor(value);
+		final int inLeafAnchor = cursor.leafNode().previousRecord(value, recordId);
+		if (inLeafAnchor != EvitaDataTypes.RESERVED_PRIMARY_KEY) {
+			return inLeafAnchor;
+		}
+		// the predecessor lives in the preceding leaf: climb to the first ancestor with a previous sibling — its
+		// previous-node cursor rebuilds the path below as the rightmost descent, i.e. exactly the preceding leaf
+		CursorWithLevel<K> levelCursor = cursor.toCursorWithLevel();
+		while (levelCursor != null) {
+			final CursorWithLevel<K> previousNodeCursor = levelCursor.getCursorForPreviousNode();
+			if (previousNodeCursor != null) {
+				return new Cursor<>(previousNodeCursor.path()).leafNode().lastRecord();
+			}
+			levelCursor = levelCursor.toParentLevel();
+		}
+		// no preceding bucket anywhere - the record belongs to the very first position
+		return EvitaDataTypes.RESERVED_PRIMARY_KEY;
 	}
 
 	/**
@@ -4180,6 +4217,121 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				return theOverflow[index].size();
 			}
 			return 1;
+		}
+
+		/**
+		 * Returns the greatest record id positioned before `recordId` within this leaf under the global sort order
+		 * (buckets ascend by value, records within a bucket ascend by id): first the greatest lower id in `value`'s own
+		 * bucket, then the last record of the closest preceding bucket. Returns
+		 * {@link EvitaDataTypes#RESERVED_PRIMARY_KEY} when no such record exists in THIS leaf — the caller continues
+		 * in the preceding leaf. evitaDB never assigns that primary key to an entity, so the sentinel cannot collide
+		 * with a real record id.
+		 *
+		 * @param value    the value whose insertion point anchors the search
+		 * @param recordId the record id being inserted
+		 * @return the anchoring predecessor record id, or {@link EvitaDataTypes#RESERVED_PRIMARY_KEY} when this leaf
+		 * holds none
+		 */
+		public int previousRecord(@Nonnull M value, int recordId) {
+			final ValueColumn<M> theKeys;
+			final RecordColumn theRecords;
+			final TransactionalBitmap[] theOverflow;
+			final int thePeek;
+
+			final BPlusLeafTreeNode<M> layer = this.transactionalLayer
+				? Transaction.getTransactionalMemoryLayerIfExists(this)
+				: null;
+			if (layer == null) {
+				theKeys = this.keys;
+				theRecords = this.records;
+				theOverflow = this.overflow;
+				thePeek = this.peek;
+			} else {
+				theKeys = layer.keys;
+				theRecords = layer.records;
+				theOverflow = layer.overflow;
+				thePeek = layer.peek;
+			}
+
+			final InsertionPosition insertionPosition =
+				theKeys.findKeyPosition(value, 0, thePeek + 1, this.comparator);
+			final int index = insertionPosition.position();
+			if (insertionPosition.alreadyPresent() && recordId != Integer.MIN_VALUE) {
+				// records sharing a value ascend by (signed) id - the anchor is the greatest id strictly below the
+				// inserted one; nothing can sort below Integer.MIN_VALUE, so the guard above keeps `recordId - 1`
+				// from wrapping around
+				final TransactionalBitmap bitmap = theOverflow == null ? null : theOverflow[index];
+				if (bitmap == null) {
+					final int single = theRecords.intAt(index);
+					if (single < recordId) {
+						return single;
+					}
+				} else {
+					final long previous = bitmap.signedPreviousValue(recordId - 1);
+					if (previous != RoaringBitmapBackedBitmap.NO_PREVIOUS_VALUE) {
+						return (int) previous;
+					}
+				}
+			}
+			// no in-bucket predecessor - the anchor is the last record of the closest preceding bucket in this leaf
+			final int previousIndex = index - 1;
+			if (previousIndex >= 0) {
+				return lastRecordOfBucket(previousIndex, theRecords, theOverflow);
+			}
+			return EvitaDataTypes.RESERVED_PRIMARY_KEY;
+		}
+
+		/**
+		 * Returns the last (greatest) record id of the last bucket in this leaf. The leaf must not be empty.
+		 *
+		 * @return the last record id stored in this leaf
+		 */
+		public int lastRecord() {
+			final RecordColumn theRecords;
+			final TransactionalBitmap[] theOverflow;
+			final int thePeek;
+
+			final BPlusLeafTreeNode<M> layer = this.transactionalLayer
+				? Transaction.getTransactionalMemoryLayerIfExists(this)
+				: null;
+			if (layer == null) {
+				theRecords = this.records;
+				theOverflow = this.overflow;
+				thePeek = this.peek;
+			} else {
+				theRecords = layer.records;
+				theOverflow = layer.overflow;
+				thePeek = layer.peek;
+			}
+			Assert.isPremiseValid(thePeek >= 0, "Cannot read the last record of an empty leaf!");
+			return lastRecordOfBucket(thePeek, theRecords, theOverflow);
+		}
+
+		/**
+		 * Returns the greatest record id of the bucket at `index` in signed order: the bitmap's signed maximum for an
+		 * overflow bucket, the single payload otherwise. The bitmap case is answered from the transactional diff layer
+		 * (never through a merged bitmap), so it costs the same whether or not a transaction is open.
+		 *
+		 * @param index    the bucket index within the leaf
+		 * @param records  the resolved record column
+		 * @param overflow the resolved overflow bitmaps (may be null)
+		 * @return the greatest record id of the bucket
+		 */
+		private static int lastRecordOfBucket(
+			int index,
+			@Nonnull RecordColumn records,
+			@Nullable TransactionalBitmap[] overflow
+		) {
+			final TransactionalBitmap bitmap = overflow == null ? null : overflow[index];
+			if (bitmap == null) {
+				return records.intAt(index);
+			}
+			final long last = bitmap.signedPreviousValue(Integer.MAX_VALUE);
+			Assert.isPremiseValid(
+				last != RoaringBitmapBackedBitmap.NO_PREVIOUS_VALUE,
+				"An overflow bucket must never be empty!"
+			);
+			return (int) last;
 		}
 
 		/**

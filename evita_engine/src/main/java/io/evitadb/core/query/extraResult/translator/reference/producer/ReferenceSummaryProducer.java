@@ -25,6 +25,7 @@ package io.evitadb.core.query.extraResult.translator.reference.producer;
 
 import com.carrotsearch.hppc.IntHashSet;
 import io.evitadb.api.query.filter.FacetHaving;
+import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.query.require.EntityFetchRequire;
@@ -1459,12 +1460,12 @@ public class ReferenceSummaryProducer implements ExtraResultProducer {
 		@Nonnull Map<Integer, RequestedBucketRange> requestedRangesByGroupPk
 	) {
 		/**
-		 * Sentinel group PK used as the map key for a `histogramHaving` that omits its `groupSelector`. evitaDB
-		 * reserves the value `0` as the non-grouped sentinel across the entire reference histogram subsystem —
-		 * client-supplied group entity PKs of `0` collide with this slot and are rejected by
-		 * `ReferenceHistogramAccumulator` with a hard throw.
+		 * Sentinel group PK used as the map key for a `histogramHaving` that omits its `groupSelector`. Derived from
+		 * {@link EvitaDataTypes#RESERVED_PRIMARY_KEY} — the primary key evitaDB never assigns to a real entity —
+		 * which is what makes it usable as a sentinel here. Client-supplied group entity PKs carrying the reserved
+		 * value collide with this slot and are rejected by `ReferenceHistogramAccumulator` with a hard throw.
 		 */
-		public static final int NON_GROUPED_SENTINEL = 0;
+		public static final int NON_GROUPED_SENTINEL = EvitaDataTypes.RESERVED_PRIMARY_KEY;
 	}
 
 	/**

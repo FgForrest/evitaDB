@@ -40,6 +40,7 @@ import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.dataType.ComparableCurrency;
 import io.evitadb.dataType.ComparableLocale;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.index.AbstractReducedEntityIndex;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.IndexDataStructure;
@@ -138,7 +139,7 @@ public abstract sealed class SortIndex
 	final UnaryOperator<Serializable> normalizer;
 	/**
 	 * Comparator is used to execute insertion sort on the sorted records values. This is the index's OWN comparator;
-	 * view mode overrides {@link #effectiveComparator()} to adopt the shared tree's comparator.
+	 * view mode adopts the shared tree's comparator and normalizer.
 	 */
 	final Comparator<?> comparator;
 	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
@@ -825,7 +826,7 @@ public abstract sealed class SortIndex
 	 */
 	@Override
 	public SortIndexChanges createLayer() {
-		return new SortIndexChanges(this, effectiveComparator());
+		return new SortIndexChanges(this);
 	}
 
 	/**
@@ -945,19 +946,6 @@ public abstract sealed class SortIndex
 	 */
 	@Nonnull
 	protected abstract UnaryOperator<Serializable> effectiveNormalizer();
-
-	/**
-	 * Returns the comparator governing this index's VALUE SPACE: the comparator of the value-side {@link InvertedIndex}
-	 * ({@link #valueTreeOrNull()}) — which orders its normalized keys (e.g. Instant, NFD String) — or this index's own
-	 * {@link #comparator} when the tree is transiently absent. Every comparison of values that originate from / are looked
-	 * up in the value tree must use this comparator, never the raw own comparator.
-	 */
-	@Nonnull
-	@SuppressWarnings("rawtypes")
-	protected Comparator effectiveComparator() {
-		final InvertedIndex tree = valueTreeOrNull();
-		return tree != null ? tree.getComparator() : this.comparator;
-	}
 
 	/**
 	 * Returns `true` when the (already-normalized) value is currently present in this index — i.e. the value-side
@@ -1127,13 +1115,21 @@ public abstract sealed class SortIndex
 	 * the original "value-side first, then help structure" ordering.
 	 */
 	private void addRecordInternal(@Nonnull Serializable normalizedValue, int recordId) {
+		Assert.isPremiseValid(
+			recordId != EvitaDataTypes.RESERVED_PRIMARY_KEY,
+			"Primary key `" + EvitaDataTypes.RESERVED_PRIMARY_KEY + "` is reserved by evitaDB and must never enter " +
+				"an index - it is the sort index's no-predecessor sentinel, so storing it would make the anchor of " +
+				"the first record ambiguous!"
+		);
 		final SortIndexChanges sortIndexChanges = getOrCreateSortIndexChanges();
 
-		// prepare internal datastructures
-		sortIndexChanges.prepare();
-
-		// add record id on the computed position
-		final int previousRecordId = sortIndexChanges.computePreviousRecord(normalizedValue, recordId);
+		// add record id on the computed position - the anchor is answered bucket-locally by the value tree in one
+		// descent (no rank computation, no derived structure); a transiently absent shared tree holds no values, so
+		// the record belongs first
+		final InvertedIndex valueTree = valueTreeOrNull();
+		final int previousRecordId = valueTree == null
+			? EvitaDataTypes.RESERVED_PRIMARY_KEY
+			: valueTree.computePreviousRecord(normalizedValue, recordId);
 		this.sortedRecords.add(previousRecordId, recordId);
 
 		// determine whether the value already existed BEFORE this record. In view mode the shared tree is read in
@@ -1143,14 +1139,12 @@ public abstract sealed class SortIndex
 		if (valueAlreadyPresent) {
 			// value is already present - owner mode adds the record to its owned tree bucket (view mode shares the tree)
 			onValueCardinalityIncreased(normalizedValue, recordId);
-			// update help data structure
-			sortIndexChanges.valueCardinalityIncreased(normalizedValue);
 		} else {
 			// the value's first record - owner mode creates the owned tree bucket (view mode shares the tree)
 			onFirstRecordForValue(normalizedValue, recordId);
-			// update help data structure
-			sortIndexChanges.valueAdded(normalizedValue);
 		}
+		// drop the memoized supplier arrays - the sorted record order changed
+		sortIndexChanges.sortOrderChanged();
 
 		// a non-transactional (warm-up / bulk) add mutates sortedRecords in place; drop the committed-snapshot cache
 		invalidateCommittedSnapshotCacheIfNonTransactional();
@@ -1169,9 +1163,6 @@ public abstract sealed class SortIndex
 		int recordId,
 		@Nonnull SortIndexChanges sortIndexChanges
 	) {
-		// prepare internal datastructures
-		sortIndexChanges.prepare();
-
 		// remove record id from the array
 		this.sortedRecords.remove(recordId);
 		// pre-removal cardinality of the value (always >= 1). In view mode the shared tree is read in its
@@ -1182,13 +1173,13 @@ public abstract sealed class SortIndex
 			throw new GenericEvitaInternalError("Unexpected cardinality: " + cardinality);
 		} else if (cardinality > 1) {
 			// more than one record shares the value - owner mode drops the record from its owned tree bucket
-			sortIndexChanges.valueCardinalityDecreased(normalizedValue);
 			onValueCardinalityDecreased(normalizedValue, recordId);
 		} else {
 			// last record for the value - owner mode drains and drops the owned tree bucket entirely
 			onLastRecordForValueRemoved(normalizedValue, recordId);
-			sortIndexChanges.valueRemoved(normalizedValue);
 		}
+		// drop the memoized supplier arrays - the sorted record order changed
+		sortIndexChanges.sortOrderChanged();
 
 		// a non-transactional (warm-up / bulk) remove mutates sortedRecords in place; drop the committed-snapshot cache
 		invalidateCommittedSnapshotCacheIfNonTransactional();
@@ -1200,21 +1191,13 @@ public abstract sealed class SortIndex
 	 */
 	@Nonnull
 	private <T extends Serializable> BaseBitmap getRecordsEqualToInternal(@Nonnull T normalizedValue) {
-		// block start = cumulative weight (rank) of all strictly-smaller values, answered in O(log V) by the value tree
-		// (the value space is shared in view mode and the tree carries the effective-comparator ordering)
-		final int recordIdIndex = getOrCreateSortIndexChanges().computeBlockStart(normalizedValue);
-
-		// cardinality is stored inline in the tree and is always >= 1
-		final int cardinality = getValueCardinality(normalizedValue);
-		if (cardinality > 1) {
-			return new BaseBitmap(
-				this.sortedRecords.getSubArray(recordIdIndex, recordIdIndex + cardinality)
-			);
-		} else {
-			return new BaseBitmap(
-				this.sortedRecords.get(recordIdIndex)
-			);
-		}
+		// the records equal to the value are exactly the value's bucket in the value tree, in identical (ascending id)
+		// order - served bucket-locally without any rank computation; the array is copied to preserve the historical
+		// detached-result contract
+		final InvertedIndex valueTree = valueTreeOrNull();
+		return valueTree == null
+			? new BaseBitmap()
+			: new BaseBitmap(valueTree.getRecordsEqualTo(normalizedValue).getArray());
 	}
 
 	/**
@@ -1227,7 +1210,7 @@ public abstract sealed class SortIndex
 		if (layer == null) {
 			return ofNullable(this.sortIndexChanges).orElseGet(() -> {
 				// value-space comparator (shared tree's in view mode)
-				this.sortIndexChanges = new SortIndexChanges(this, effectiveComparator());
+				this.sortIndexChanges = new SortIndexChanges(this);
 				return this.sortIndexChanges;
 			});
 		} else {

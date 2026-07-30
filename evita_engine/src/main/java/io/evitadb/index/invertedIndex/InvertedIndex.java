@@ -660,6 +660,20 @@ public class InvertedIndex implements
 	}
 
 	/**
+	 * Computes the record id after which `recordId` (associated with the given already-normalized value) belongs in
+	 * the global sort order of this index — buckets ascend by value, records within a bucket ascend by id — or
+	 * {@link Integer#MIN_VALUE} when it belongs to the very first position. Answered bucket-locally in a single tree
+	 * descent, without any rank computation.
+	 *
+	 * @param normalizedValue the value already normalized by the caller (via the shared normalizer)
+	 * @param recordId        the record id being inserted
+	 * @return the record id to insert after, or {@link Integer#MIN_VALUE} when the record belongs first
+	 */
+	public int computePreviousRecord(@Nonnull Serializable normalizedValue, int recordId) {
+		return this.buckets.computePreviousRecord((Comparable) normalizedValue, recordId);
+	}
+
+	/**
 	 * Returns the normalizer this inverted index applies to incoming values before they become bucket keys. Exposed so
 	 * co-owning role-views (the unique check and the both-flagged sort view) can assert they read/write the shared tree
 	 * through the very same normalizer instance — a normalizer asymmetry would cause silent lookup misses.

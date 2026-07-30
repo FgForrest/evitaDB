@@ -23,6 +23,7 @@
 
 package io.evitadb.index.bPlusTree;
 
+import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.index.bitmap.Bitmap;
 
 import javax.annotation.Nonnull;
@@ -75,5 +76,22 @@ public interface IntRecordBucketTree<K extends Comparable<K>> extends BucketBPlu
 	 */
 	@Nonnull
 	Bitmap getRecordsEqualTo(@Nullable K value);
+
+	/**
+	 * Computes the record id that precedes the would-be position of `recordId` under `value` in the global sort order
+	 * this tree defines (buckets ascend by value, records within a bucket ascend by id), or
+	 * {@link EvitaDataTypes#RESERVED_PRIMARY_KEY} when the record belongs to the very first position. The answer is
+	 * insensitive to whether `recordId` is already present in the bucket.
+	 *
+	 * The no-predecessor answer uses the reserved primary key rather than an in-range value such as
+	 * {@link Integer#MIN_VALUE}, because evitaDB never assigns that key to an entity — so it cannot collide with a
+	 * genuine record id, whereas every other `int` can.
+	 *
+	 * @param value    the value the inserted record is associated with
+	 * @param recordId the record id being inserted
+	 * @return the record id to insert after, or {@link EvitaDataTypes#RESERVED_PRIMARY_KEY} when the record belongs
+	 * first
+	 */
+	int computePreviousRecord(@Nonnull K value, int recordId);
 
 }

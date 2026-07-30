@@ -482,4 +482,57 @@ class LocalizedStringComparatorTest {
 		}
 	}
 
+
+	@Nested
+	@DisplayName("collation-key cache decay")
+	class CacheDecay {
+
+		@Test
+		@DisplayName("sweeping the shared caches never changes an ordering")
+		void shouldPreserveOrderAcrossSweeps() {
+			final Locale locale = new Locale("cs");
+			final LocalizedStringComparator comparator = new LocalizedStringComparator(locale);
+			final Collator collator = Collator.getInstance(locale);
+			final String[] values = {
+				"cukr", "čokoláda", "čaj", "auto", "žirafa", "slínek", "step",
+				"štěpán", "rana", "řada", "zebra", "želva", "hrad", "chalupa", "cyklista"
+			};
+			// warm the cache, then sweep repeatedly - the second sweep actually drops what the first only cleared,
+			// so a dropped entry must be recomputed transparently and still yield the collator's exact order
+			for (final String a : values) {
+				for (final String b : values) {
+					comparator.compare(a, b);
+				}
+			}
+			for (int round = 0; round < 3; round++) {
+				CollationKeyCache.sweepAll();
+				for (final String a : values) {
+					for (final String b : values) {
+						assertEquals(
+							Integer.signum(collator.compare(a, b)),
+							Integer.signum(comparator.compare(a, b)),
+							() -> "order changed after sweep for '" + a + "' vs '" + b + "'"
+						);
+					}
+				}
+			}
+		}
+
+		@Test
+		@DisplayName("sweep is idempotent and safe when nothing was cached")
+		void shouldTolerateRepeatedAndEmptySweeps() {
+			assertDoesNotThrow(CollationKeyCache::sweepAll);
+			assertDoesNotThrow(CollationKeyCache::sweepAll);
+			// assert against the collator rather than a hardcoded direction - the point is that a swept entry is
+			// recomputed to the SAME answer, not what that answer happens to be (in Czech `č` sorts after `c`)
+			final Locale locale = new Locale("cs");
+			final LocalizedStringComparator comparator = new LocalizedStringComparator(locale);
+			final Collator collator = Collator.getInstance(locale);
+			final int expected = Integer.signum(collator.compare("čaj", "cukr"));
+			assertEquals(expected, Integer.signum(comparator.compare("čaj", "cukr")));
+			CollationKeyCache.sweepAll();
+			assertEquals(expected, Integer.signum(comparator.compare("čaj", "cukr")));
+		}
+	}
+
 }

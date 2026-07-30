@@ -23,11 +23,11 @@
 
 package io.evitadb.index.bitmap;
 
-import io.evitadb.utils.ArrayUtils;
 import io.evitadb.roaringbitmap.ImmutableBitmapDataProvider;
 import io.evitadb.roaringbitmap.PeekableIntIterator;
 import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 import io.evitadb.roaringbitmap.RoaringBitmapWriter;
+import io.evitadb.utils.ArrayUtils;
 
 import javax.annotation.Nonnull;
 import java.util.ArrayList;
@@ -51,18 +51,23 @@ public interface RoaringBitmapBackedBitmap extends Bitmap {
 	 * {@link #fromArray(int...)} for the full reasoning.
 	 */
 	int WRITER_DISPATCH_DENSITY = 4096;
+	/**
+	 * Marker returned by {@link #signedPreviousValue} when the bitmap holds no value at or below the requested bound.
+	 * Distinct from every `int`, so a real {@link Integer#MIN_VALUE} record id remains representable.
+	 */
+	long NO_PREVIOUS_VALUE = Long.MIN_VALUE;
 
 	/**
 	 * Creates {@link PersistentRoaringBitmap} from the array of integers, adaptively picking the
 	 * cheaper of two construction strategies:
 	 *
 	 * - the **incremental** path ({@link PersistentRoaringBitmap#add(int...)} into a fresh bitmap),
-	 *   which appends each id into per-container {@code ArrayContainer}s — cheapest for small or
-	 *   sparse inputs; and
+	 * which appends each id into per-container {@code ArrayContainer}s — cheapest for small or
+	 * sparse inputs; and
 	 * - the **constant-memory writer** ({@link #buildWriter()}), which fills a reused 65 536-bit word
-	 *   buffer and materializes each container once — cheapest for large, densely-packed inputs, where
-	 *   the incremental path otherwise pays repeated {@code ArrayContainer} reallocation plus the
-	 *   array→bitmap conversion.
+	 * buffer and materializes each container once — cheapest for large, densely-packed inputs, where
+	 * the incremental path otherwise pays repeated {@code ArrayContainer} reallocation plus the
+	 * array→bitmap conversion.
 	 *
 	 * The two cross over at {@link #WRITER_DISPATCH_DENSITY} ids **per container**: below it a
 	 * container stays a cheap {@code ArrayContainer} (incremental wins); at/above it the container
@@ -108,35 +113,6 @@ public interface RoaringBitmapBackedBitmap extends Bitmap {
 			result.add(array);
 			return result;
 		}
-	}
-
-	/**
-	 * O(1) density probe used by {@link #fromArray(int...)} to choose between the incremental and
-	 * writer build paths. Returns whether the ids pack densely enough — a mean of at least {@link
-	 * #WRITER_DISPATCH_DENSITY} ids per 65 536-wide container — for the constant-memory writer to
-	 * overtake incremental appends.
-	 *
-	 * The span of occupied containers is derived from the id extremes without scanning: index
-	 * record-id sets are handed out sorted ascending, so `recordIds[0]` and `recordIds[length - 1]`
-	 * are the min and max and their high 16 bits bound the container range. Should a caller ever pass
-	 * unsorted ids, the ends may not be the extremes; the method then returns `false` (taking the
-	 * always-correct incremental path) whenever they are not ascending, so a bogus span can never
-	 * route a scattered array to the writer. This keeps the probe honest without an O(n) sortedness
-	 * scan.
-	 *
-	 * @param recordIds the record ids, expected sorted ascending; non-empty (the length check in the
-	 *                  caller guarantees it)
-	 * @return `true` when the ids are dense enough for the writer path to win
-	 */
-	private static boolean isDense(@Nonnull int[] recordIds) {
-		final int firstContainer = recordIds[0] >>> 16;
-		final int lastContainer = recordIds[recordIds.length - 1] >>> 16;
-		// ends not ascending: input isn't sorted, extremes-from-ends assumption is void, take safe path
-		if (lastContainer < firstContainer) {
-			return false;
-		}
-		final int containerSpan = lastContainer - firstContainer + 1;
-		return recordIds.length >= (long) containerSpan * WRITER_DISPATCH_DENSITY;
 	}
 
 	/**
@@ -195,6 +171,46 @@ public interface RoaringBitmapBackedBitmap extends Bitmap {
 	@Nonnull
 	static int[] toSignedArray(@Nonnull PersistentRoaringBitmap roaringBitmap) {
 		return roaringBitmap.toSignedArray();
+	}
+
+	/**
+	 * Returns the greatest record id at or below `fromValue` in **signed** order, or {@link #NO_PREVIOUS_VALUE} when
+	 * the bitmap holds none. {@link PersistentRoaringBitmap#previousValue} answers in unsigned order, which places
+	 * negative ids ABOVE every positive one; the sort index orders record ids signed (as does
+	 * {@link #toSignedArray}), so the two halves must be probed explicitly. The result is returned as a `long` so the
+	 * "nothing found" marker cannot collide with a real record id.
+	 *
+	 * @param roaringBitmap the bitmap to search
+	 * @param fromValue     inclusive upper bound in signed order
+	 * @return the greatest signed value at or below `fromValue`, or {@link #NO_PREVIOUS_VALUE}
+	 */
+	static long signedPreviousValue(@Nonnull PersistentRoaringBitmap roaringBitmap, int fromValue) {
+		if (roaringBitmap.isEmpty()) {
+			return NO_PREVIOUS_VALUE;
+		}
+		// unsigned probe of the half `fromValue` itself lives in: for a negative bound this is the negative half, for
+		// a non-negative bound the non-negative half (every negative id is unsigned-greater, so it cannot be returned)
+		final long sameHalf = roaringBitmap.previousValue(fromValue);
+		if (sameHalf != -1L) {
+			final int candidate = (int) sameHalf;
+			if ((candidate < 0) == (fromValue < 0)) {
+				return candidate;
+			}
+		}
+		if (fromValue < 0) {
+			// nothing negative at or below the bound - every remaining value is signed-greater
+			return NO_PREVIOUS_VALUE;
+		}
+		// no non-negative value at or below the bound - fall back to the greatest negative one, which is the
+		// unsigned maximum of the whole bitmap
+		final long negativeHalf = roaringBitmap.previousValue(-1);
+		if (negativeHalf != -1L) {
+			final int candidate = (int) negativeHalf;
+			if (candidate < 0) {
+				return candidate;
+			}
+		}
+		return NO_PREVIOUS_VALUE;
 	}
 
 	/**
@@ -261,6 +277,35 @@ public interface RoaringBitmapBackedBitmap extends Bitmap {
 			}
 			return new BaseBitmap(intermediateResult);
 		}
+	}
+
+	/**
+	 * O(1) density probe used by {@link #fromArray(int...)} to choose between the incremental and
+	 * writer build paths. Returns whether the ids pack densely enough — a mean of at least {@link
+	 * #WRITER_DISPATCH_DENSITY} ids per 65 536-wide container — for the constant-memory writer to
+	 * overtake incremental appends.
+	 *
+	 * The span of occupied containers is derived from the id extremes without scanning: index
+	 * record-id sets are handed out sorted ascending, so `recordIds[0]` and `recordIds[length - 1]`
+	 * are the min and max and their high 16 bits bound the container range. Should a caller ever pass
+	 * unsorted ids, the ends may not be the extremes; the method then returns `false` (taking the
+	 * always-correct incremental path) whenever they are not ascending, so a bogus span can never
+	 * route a scattered array to the writer. This keeps the probe honest without an O(n) sortedness
+	 * scan.
+	 *
+	 * @param recordIds the record ids, expected sorted ascending; non-empty (the length check in the
+	 *                  caller guarantees it)
+	 * @return `true` when the ids are dense enough for the writer path to win
+	 */
+	private static boolean isDense(@Nonnull int[] recordIds) {
+		final int firstContainer = recordIds[0] >>> 16;
+		final int lastContainer = recordIds[recordIds.length - 1] >>> 16;
+		// ends not ascending: input isn't sorted, extremes-from-ends assumption is void, take safe path
+		if (lastContainer < firstContainer) {
+			return false;
+		}
+		final int containerSpan = lastContainer - firstContainer + 1;
+		return recordIds.length >= (long) containerSpan * WRITER_DISPATCH_DENSITY;
 	}
 
 	/**

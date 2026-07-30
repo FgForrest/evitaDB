@@ -224,7 +224,8 @@ class LongRunningSortIndexTest implements TimeBoundedTestSupport {
 					final String newValue = Character.toString(65 + rnd.nextInt(28));
 					int newRecId;
 					do {
-						newRecId = rnd.nextInt(initialCount * 2);
+						// primary keys start at 1 - zero is reserved by evitaDB and rejected by the index
+						newRecId = 1 + rnd.nextInt(initialCount * 2);
 					} while (currentRecordSet.contains(newRecId));
 					setToCompare.add(new ValueRecord(newValue, newRecId));
 					currentRecordSet.add(newRecId);

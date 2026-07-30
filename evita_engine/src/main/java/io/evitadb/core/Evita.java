@@ -68,6 +68,7 @@ import io.evitadb.api.requestResponse.schema.mutation.engine.SetCatalogStateMuta
 import io.evitadb.api.requestResponse.schema.mutation.engine.UpgradeCatalogFormatMutation;
 import io.evitadb.api.requestResponse.mutation.infrastructure.TransactionMutation;
 import io.evitadb.core.cache.CacheSupervisor;
+import io.evitadb.core.cache.CollationKeyCacheSweeper;
 import io.evitadb.core.cache.HeapMemoryCacheSupervisor;
 import io.evitadb.core.cache.NoCacheSupervisor;
 import io.evitadb.core.catalog.Catalog;
@@ -190,6 +191,12 @@ public final class Evita implements EvitaContract {
 	 */
 	@SuppressWarnings({"FieldCanBeLocal", "unused"})
 	private final SessionKiller sessionKiller;
+	/**
+	 * Task that periodically releases collation keys that are no longer being compared, so that the memory a bulk
+	 * import or a large transaction needed is not retained for the rest of the process lifetime. Null when retention is
+	 * unbounded, i.e. {@link ServerOptions#dropCollationKeysAfterSecondsOfInactivity()} is zero.
+	 */
+	@Nullable private final CollationKeyCacheSweeper collationKeyCacheSweeper;
 	/**
 	 * Field contains the global - shared configuration for the entire Evita instance.
 	 */
@@ -444,6 +451,10 @@ public final class Evita implements EvitaContract {
 			.orElse(null);
 		this.cacheSupervisor = configuration.cache().enabled() ?
 			new HeapMemoryCacheSupervisor(configuration.cache(), this.serviceExecutor) : NoCacheSupervisor.INSTANCE;
+		this.collationKeyCacheSweeper = of(configuration.server().dropCollationKeysAfterSecondsOfInactivity())
+			.filter(it -> it > 0)
+			.map(it -> new CollationKeyCacheSweeper(it, this.serviceExecutor))
+			.orElse(null);
 		this.reflectionLookup = new ReflectionLookup(configuration.cache().reflection());
 		this.tracingContext = TracingContextProvider.getContext();
 
@@ -1899,6 +1910,11 @@ public final class Evita implements EvitaContract {
 				CompletableFuture.runAsync(() -> {
 					if (this.sessionKiller != null) {
 						this.sessionKiller.close();
+					}
+				}),
+				CompletableFuture.runAsync(() -> {
+					if (this.collationKeyCacheSweeper != null) {
+						this.collationKeyCacheSweeper.close();
 					}
 				})
 			).join();
