@@ -2383,7 +2383,7 @@ public final class Catalog
 			this,
 			null,
 			session, evitaRequest,
-			evitaRequest.isQueryTelemetryRequested() ? new QueryTelemetry(QueryPhase.OVERALL) : null,
+			evitaRequest.isQueryTelemetryRequested() ? QueryTelemetry.root(QueryPhase.OVERALL) : null,
 			Collections.emptyMap(),
 			Collections.emptyMap(),
 			this.cacheSupervisor

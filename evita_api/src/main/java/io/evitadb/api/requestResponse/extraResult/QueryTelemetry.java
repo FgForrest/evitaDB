@@ -31,8 +31,10 @@ import lombok.EqualsAndHashCode;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
 import java.io.Serial;
+import java.time.OffsetDateTime;
 import java.util.LinkedList;
 import java.util.List;
 
@@ -51,11 +53,16 @@ public class QueryTelemetry implements EvitaResponseExtraResult {
 	 */
 	@Getter private final QueryPhase operation;
 	/**
-	 * Start of this step as read from {@link System#nanoTime()} in nanoseconds.
+	 * Start of this step in nanoseconds. It is never a wall-clock timestamp and must not be rendered as a date.
 	 *
-	 * This is a monotonic counter with no defined epoch - it is NOT a wall-clock timestamp and must not be
-	 * rendered as a date. It is only meaningful relative to another `start` from the same tree, typically as an
-	 * offset from the root step.
+	 * The exact meaning depends on how the telemetry was obtained:
+	 *
+	 * - **embedded** - the raw {@link System#nanoTime()} reading, i.e. a monotonic counter with no defined epoch.
+	 *   It is only meaningful relative to another `nanoTime` reading taken in the same JVM - either another `start`
+	 *   from this tree, or one the caller took itself.
+	 * - **through a remote client** (gRPC / REST / GraphQL) - the number of nanoseconds elapsed since the root step
+	 *   of this tree began, so the root always reports `0`. The raw reading is taken on the server and carries no
+	 *   epoch, which would make it meaningless to a remote client, so the external APIs normalize it.
 	 */
 	@Getter private final long start;
 	/**
@@ -70,27 +77,62 @@ public class QueryTelemetry implements EvitaResponseExtraResult {
 	 * Duration in nanoseconds.
 	 */
 	@Getter private long spentTime;
+	/**
+	 * Wall-clock instant at which the **root** step of this tree began.
+	 *
+	 * Unlike {@link #start}, this one *is* a real timestamp and can be rendered as a date - it is what anchors the
+	 * whole tree in time, so a telemetry profile can be correlated with logs, traces or another query. It is captured
+	 * once per query and only for the root step; every other node reports `null` and its own wall-clock position is
+	 * derived as `startedAt` plus that node's `start` offset.
+	 */
+	@Nullable @Getter private final OffsetDateTime startedAt;
+
+	/**
+	 * Creates the **root** of a telemetry tree, stamping it with the wall-clock instant at which the query began.
+	 * Use this exactly once per query - inner steps are added through {@link #addStep(QueryPhase, String...)}.
+	 */
+	@Nonnull
+	public static QueryTelemetry root(@Nonnull QueryPhase operation, @Nonnull String... arguments) {
+		return new QueryTelemetry(operation, OffsetDateTime.now(), arguments);
+	}
 
 	/**
 	 * This constructor should be used when the query telemetry is built up from scratch.
 	 */
 	public QueryTelemetry(@Nonnull QueryPhase operation, @Nonnull String... arguments) {
-		this.operation = operation;
-		this.arguments = arguments;
-		this.start = System.nanoTime();
+		this(operation, (OffsetDateTime) null, arguments);
 	}
 
 	/**
 	 * This constructor should be used for query telemetry deserialization.
 	 */
 	public QueryTelemetry(@Nonnull QueryPhase operation, long start, long spentTime, @Nonnull String[] arguments, @Nonnull QueryTelemetry[] steps) {
+		this(operation, start, spentTime, null, arguments, steps);
+	}
+
+	/**
+	 * This constructor should be used for query telemetry deserialization of a tree whose root carries the wall-clock
+	 * instant the query started at.
+	 */
+	public QueryTelemetry(@Nonnull QueryPhase operation, long start, long spentTime, @Nullable OffsetDateTime startedAt, @Nonnull String[] arguments, @Nonnull QueryTelemetry[] steps) {
 		this.operation = operation;
 		this.start = start;
 		this.spentTime = spentTime;
+		this.startedAt = startedAt;
 		this.arguments = arguments;
 		for (final QueryTelemetry step : steps) {
 			addStep(step);
 		}
+	}
+
+	/**
+	 * Internal constructor allowing the root step to be stamped with the wall-clock instant of the query start.
+	 */
+	private QueryTelemetry(@Nonnull QueryPhase operation, @Nullable OffsetDateTime startedAt, @Nonnull String... arguments) {
+		this.operation = operation;
+		this.arguments = arguments;
+		this.startedAt = startedAt;
+		this.start = System.nanoTime();
 	}
 
 	/**

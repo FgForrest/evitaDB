@@ -478,7 +478,7 @@ public class QueryExecutionContext implements Closeable {
 	@Nonnull
 	public Optional<QueryTelemetry> getTelemetryRoot() {
 		if (isDryRun()) {
-			return of(new QueryTelemetry(QueryPhase.OVERALL));
+			return of(QueryTelemetry.root(QueryPhase.OVERALL));
 		} else {
 			return this.queryContext.getEvitaRequest().isQueryTelemetryRequested() ?
 				of(this.queryContext.getTelemetryRoot()) : empty();

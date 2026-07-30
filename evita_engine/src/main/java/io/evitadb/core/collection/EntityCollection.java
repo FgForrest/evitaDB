@@ -1572,7 +1572,7 @@ public final class EntityCollection implements
 			this.catalog,
 			this,
 			session, evitaRequest,
-			evitaRequest.isQueryTelemetryRequested() ? new QueryTelemetry(QueryPhase.OVERALL) : null,
+			evitaRequest.isQueryTelemetryRequested() ? QueryTelemetry.root(QueryPhase.OVERALL) : null,
 			this.indexes,
 			this.indexesByPrimaryKey,
 			this.cacheSupervisor

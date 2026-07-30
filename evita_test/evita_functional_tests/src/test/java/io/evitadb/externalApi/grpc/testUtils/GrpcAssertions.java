@@ -802,13 +802,23 @@ public class GrpcAssertions {
 	}
 
 	public static void assertQueryTelemetry(@Nonnull QueryTelemetry expectedQueryTelemetry, @Nonnull GrpcQueryTelemetry actualQueryTelemetry) {
+		assertQueryTelemetry(expectedQueryTelemetry, actualQueryTelemetry, expectedQueryTelemetry.getStart());
+	}
+
+	/**
+	 * Recursively compares a single node of the expected telemetry tree with its gRPC counterpart.
+	 *
+	 * @param rootStart raw `nanoTime` reading of the root step of the expected tree - the gRPC form reports starts
+	 *                  as offsets from it rather than as raw readings
+	 */
+	private static void assertQueryTelemetry(@Nonnull QueryTelemetry expectedQueryTelemetry, @Nonnull GrpcQueryTelemetry actualQueryTelemetry, long rootStart) {
 		assertEquals(expectedQueryTelemetry.getOperation(), QueryPhase.valueOf(actualQueryTelemetry.getOperation().name()));
-		assertEquals(expectedQueryTelemetry.getStart(), actualQueryTelemetry.getStart());
+		assertEquals(expectedQueryTelemetry.getStart() - rootStart, actualQueryTelemetry.getStart());
 		assertEquals(expectedQueryTelemetry.getSpentTime(), actualQueryTelemetry.getSpentTime());
 		assertArrayEquals(Arrays.stream(expectedQueryTelemetry.getArguments()).map(Object::toString).toArray(), actualQueryTelemetry.getArgumentsList().toArray());
 		assertEquals(expectedQueryTelemetry.getSteps().size(), actualQueryTelemetry.getStepsCount());
 		for (QueryTelemetry queryTelemetry : expectedQueryTelemetry.getSteps()) {
-			assertQueryTelemetry(queryTelemetry, actualQueryTelemetry.getStepsList().get(expectedQueryTelemetry.getSteps().indexOf(queryTelemetry)));
+			assertQueryTelemetry(queryTelemetry, actualQueryTelemetry.getStepsList().get(expectedQueryTelemetry.getSteps().indexOf(queryTelemetry)), rootStart);
 		}
 	}
 }

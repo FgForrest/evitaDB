@@ -70,6 +70,7 @@ private static final long serialVersionUID = 0L;
             io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry.class, io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry.Builder.class);
   }
 
+  private int bitField0_;
   public static final int OPERATION_FIELD_NUMBER = 1;
   private int operation_ = 0;
   /**
@@ -100,7 +101,8 @@ private static final long serialVersionUID = 0L;
   private long start_ = 0L;
   /**
    * <pre>
-   * Date and time of the start of this step in nanoseconds.
+   * Number of nanoseconds elapsed since the root step of this telemetry tree began - the root step itself
+   * therefore always reports 0. This is not a wall-clock timestamp and must not be rendered as a date.
    * </pre>
    *
    * <code>int64 start = 2;</code>
@@ -240,6 +242,47 @@ private static final long serialVersionUID = 0L;
     return spentTime_;
   }
 
+  public static final int STARTEDAT_FIELD_NUMBER = 6;
+  private io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime startedAt_;
+  /**
+   * <pre>
+   * Wall-clock instant at which the query began. Set only on the root step - it anchors the whole tree in time,
+   * so the wall-clock position of any other node is startedAt plus that node's start offset.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime startedAt = 6;</code>
+   * @return Whether the startedAt field is set.
+   */
+  @java.lang.Override
+  public boolean hasStartedAt() {
+    return ((bitField0_ & 0x00000001) != 0);
+  }
+  /**
+   * <pre>
+   * Wall-clock instant at which the query began. Set only on the root step - it anchors the whole tree in time,
+   * so the wall-clock position of any other node is startedAt plus that node's start offset.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime startedAt = 6;</code>
+   * @return The startedAt.
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime getStartedAt() {
+    return startedAt_ == null ? io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.getDefaultInstance() : startedAt_;
+  }
+  /**
+   * <pre>
+   * Wall-clock instant at which the query began. Set only on the root step - it anchors the whole tree in time,
+   * so the wall-clock position of any other node is startedAt plus that node's start offset.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime startedAt = 6;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder getStartedAtOrBuilder() {
+    return startedAt_ == null ? io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.getDefaultInstance() : startedAt_;
+  }
+
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
@@ -268,6 +311,9 @@ private static final long serialVersionUID = 0L;
     }
     if (spentTime_ != 0L) {
       output.writeInt64(5, spentTime_);
+    }
+    if (((bitField0_ & 0x00000001) != 0)) {
+      output.writeMessage(6, getStartedAt());
     }
     getUnknownFields().writeTo(output);
   }
@@ -302,6 +348,10 @@ private static final long serialVersionUID = 0L;
       size += com.google.protobuf.CodedOutputStream
         .computeInt64Size(5, spentTime_);
     }
+    if (((bitField0_ & 0x00000001) != 0)) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(6, getStartedAt());
+    }
     size += getUnknownFields().getSerializedSize();
     memoizedSize = size;
     return size;
@@ -326,6 +376,11 @@ private static final long serialVersionUID = 0L;
         .equals(other.getArgumentsList())) return false;
     if (getSpentTime()
         != other.getSpentTime()) return false;
+    if (hasStartedAt() != other.hasStartedAt()) return false;
+    if (hasStartedAt()) {
+      if (!getStartedAt()
+          .equals(other.getStartedAt())) return false;
+    }
     if (!getUnknownFields().equals(other.getUnknownFields())) return false;
     return true;
   }
@@ -353,6 +408,10 @@ private static final long serialVersionUID = 0L;
     hash = (37 * hash) + SPENTTIME_FIELD_NUMBER;
     hash = (53 * hash) + com.google.protobuf.Internal.hashLong(
         getSpentTime());
+    if (hasStartedAt()) {
+      hash = (37 * hash) + STARTEDAT_FIELD_NUMBER;
+      hash = (53 * hash) + getStartedAt().hashCode();
+    }
     hash = (29 * hash) + getUnknownFields().hashCode();
     memoizedHashCode = hash;
     return hash;
@@ -476,13 +535,20 @@ private static final long serialVersionUID = 0L;
 
     // Construct using io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry.newBuilder()
     private Builder() {
-
+      maybeForceBuilderInitialization();
     }
 
     private Builder(
         com.google.protobuf.GeneratedMessageV3.BuilderParent parent) {
       super(parent);
-
+      maybeForceBuilderInitialization();
+    }
+    private void maybeForceBuilderInitialization() {
+      if (com.google.protobuf.GeneratedMessageV3
+              .alwaysUseFieldBuilders) {
+        getStepsFieldBuilder();
+        getStartedAtFieldBuilder();
+      }
     }
     @java.lang.Override
     public Builder clear() {
@@ -500,6 +566,11 @@ private static final long serialVersionUID = 0L;
       arguments_ =
           com.google.protobuf.LazyStringArrayList.emptyList();
       spentTime_ = 0L;
+      startedAt_ = null;
+      if (startedAtBuilder_ != null) {
+        startedAtBuilder_.dispose();
+        startedAtBuilder_ = null;
+      }
       return this;
     }
 
@@ -559,6 +630,14 @@ private static final long serialVersionUID = 0L;
       if (((from_bitField0_ & 0x00000010) != 0)) {
         result.spentTime_ = spentTime_;
       }
+      int to_bitField0_ = 0;
+      if (((from_bitField0_ & 0x00000020) != 0)) {
+        result.startedAt_ = startedAtBuilder_ == null
+            ? startedAt_
+            : startedAtBuilder_.build();
+        to_bitField0_ |= 0x00000001;
+      }
+      result.bitField0_ |= to_bitField0_;
     }
 
     @java.lang.Override
@@ -650,6 +729,9 @@ private static final long serialVersionUID = 0L;
       if (other.getSpentTime() != 0L) {
         setSpentTime(other.getSpentTime());
       }
+      if (other.hasStartedAt()) {
+        mergeStartedAt(other.getStartedAt());
+      }
       this.mergeUnknownFields(other.getUnknownFields());
       onChanged();
       return this;
@@ -710,6 +792,13 @@ private static final long serialVersionUID = 0L;
               bitField0_ |= 0x00000010;
               break;
             } // case 40
+            case 50: {
+              input.readMessage(
+                  getStartedAtFieldBuilder().getBuilder(),
+                  extensionRegistry);
+              bitField0_ |= 0x00000020;
+              break;
+            } // case 50
             default: {
               if (!super.parseUnknownField(input, extensionRegistry, tag)) {
                 done = true; // was an endgroup tag
@@ -803,7 +892,8 @@ private static final long serialVersionUID = 0L;
     private long start_ ;
     /**
      * <pre>
-     * Date and time of the start of this step in nanoseconds.
+     * Number of nanoseconds elapsed since the root step of this telemetry tree began - the root step itself
+     * therefore always reports 0. This is not a wall-clock timestamp and must not be rendered as a date.
      * </pre>
      *
      * <code>int64 start = 2;</code>
@@ -815,7 +905,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Date and time of the start of this step in nanoseconds.
+     * Number of nanoseconds elapsed since the root step of this telemetry tree began - the root step itself
+     * therefore always reports 0. This is not a wall-clock timestamp and must not be rendered as a date.
      * </pre>
      *
      * <code>int64 start = 2;</code>
@@ -831,7 +922,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Date and time of the start of this step in nanoseconds.
+     * Number of nanoseconds elapsed since the root step of this telemetry tree began - the root step itself
+     * therefore always reports 0. This is not a wall-clock timestamp and must not be rendered as a date.
      * </pre>
      *
      * <code>int64 start = 2;</code>
@@ -1345,6 +1437,172 @@ private static final long serialVersionUID = 0L;
       spentTime_ = 0L;
       onChanged();
       return this;
+    }
+
+    private io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime startedAt_;
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder> startedAtBuilder_;
+    /**
+     * <pre>
+     * Wall-clock instant at which the query began. Set only on the root step - it anchors the whole tree in time,
+     * so the wall-clock position of any other node is startedAt plus that node's start offset.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime startedAt = 6;</code>
+     * @return Whether the startedAt field is set.
+     */
+    public boolean hasStartedAt() {
+      return ((bitField0_ & 0x00000020) != 0);
+    }
+    /**
+     * <pre>
+     * Wall-clock instant at which the query began. Set only on the root step - it anchors the whole tree in time,
+     * so the wall-clock position of any other node is startedAt plus that node's start offset.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime startedAt = 6;</code>
+     * @return The startedAt.
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime getStartedAt() {
+      if (startedAtBuilder_ == null) {
+        return startedAt_ == null ? io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.getDefaultInstance() : startedAt_;
+      } else {
+        return startedAtBuilder_.getMessage();
+      }
+    }
+    /**
+     * <pre>
+     * Wall-clock instant at which the query began. Set only on the root step - it anchors the whole tree in time,
+     * so the wall-clock position of any other node is startedAt plus that node's start offset.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime startedAt = 6;</code>
+     */
+    public Builder setStartedAt(io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime value) {
+      if (startedAtBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        startedAt_ = value;
+      } else {
+        startedAtBuilder_.setMessage(value);
+      }
+      bitField0_ |= 0x00000020;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Wall-clock instant at which the query began. Set only on the root step - it anchors the whole tree in time,
+     * so the wall-clock position of any other node is startedAt plus that node's start offset.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime startedAt = 6;</code>
+     */
+    public Builder setStartedAt(
+        io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder builderForValue) {
+      if (startedAtBuilder_ == null) {
+        startedAt_ = builderForValue.build();
+      } else {
+        startedAtBuilder_.setMessage(builderForValue.build());
+      }
+      bitField0_ |= 0x00000020;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Wall-clock instant at which the query began. Set only on the root step - it anchors the whole tree in time,
+     * so the wall-clock position of any other node is startedAt plus that node's start offset.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime startedAt = 6;</code>
+     */
+    public Builder mergeStartedAt(io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime value) {
+      if (startedAtBuilder_ == null) {
+        if (((bitField0_ & 0x00000020) != 0) &&
+          startedAt_ != null &&
+          startedAt_ != io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.getDefaultInstance()) {
+          getStartedAtBuilder().mergeFrom(value);
+        } else {
+          startedAt_ = value;
+        }
+      } else {
+        startedAtBuilder_.mergeFrom(value);
+      }
+      if (startedAt_ != null) {
+        bitField0_ |= 0x00000020;
+        onChanged();
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Wall-clock instant at which the query began. Set only on the root step - it anchors the whole tree in time,
+     * so the wall-clock position of any other node is startedAt plus that node's start offset.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime startedAt = 6;</code>
+     */
+    public Builder clearStartedAt() {
+      bitField0_ = (bitField0_ & ~0x00000020);
+      startedAt_ = null;
+      if (startedAtBuilder_ != null) {
+        startedAtBuilder_.dispose();
+        startedAtBuilder_ = null;
+      }
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Wall-clock instant at which the query began. Set only on the root step - it anchors the whole tree in time,
+     * so the wall-clock position of any other node is startedAt plus that node's start offset.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime startedAt = 6;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder getStartedAtBuilder() {
+      bitField0_ |= 0x00000020;
+      onChanged();
+      return getStartedAtFieldBuilder().getBuilder();
+    }
+    /**
+     * <pre>
+     * Wall-clock instant at which the query began. Set only on the root step - it anchors the whole tree in time,
+     * so the wall-clock position of any other node is startedAt plus that node's start offset.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime startedAt = 6;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder getStartedAtOrBuilder() {
+      if (startedAtBuilder_ != null) {
+        return startedAtBuilder_.getMessageOrBuilder();
+      } else {
+        return startedAt_ == null ?
+            io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.getDefaultInstance() : startedAt_;
+      }
+    }
+    /**
+     * <pre>
+     * Wall-clock instant at which the query began. Set only on the root step - it anchors the whole tree in time,
+     * so the wall-clock position of any other node is startedAt plus that node's start offset.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime startedAt = 6;</code>
+     */
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder> 
+        getStartedAtFieldBuilder() {
+      if (startedAtBuilder_ == null) {
+        startedAtBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder>(
+                getStartedAt(),
+                getParentForChildren(),
+                isClean());
+        startedAt_ = null;
+      }
+      return startedAtBuilder_;
     }
     @java.lang.Override
     public final Builder setUnknownFields(

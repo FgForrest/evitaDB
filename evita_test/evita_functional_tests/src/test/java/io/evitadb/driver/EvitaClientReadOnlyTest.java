@@ -1283,7 +1283,12 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 		assertNotNull(result);
 		assertTrue(result.getTotalRecordCount() > 0);
 
-		assertNotNull(result.getExtraResult(QueryTelemetry.class));
+		final QueryTelemetry telemetry = result.getExtraResult(QueryTelemetry.class);
+		assertNotNull(telemetry);
+		// the server normalizes `start` to an offset from the root step before it goes on the wire, so the tree
+		// rebuilt on the client side must report zero at its root, anchored by the wall-clock stamp
+		assertEquals(0L, telemetry.getStart());
+		assertNotNull(telemetry.getStartedAt());
 
 		final PriceHistogram priceHistogram = result.getExtraResult(PriceHistogram.class);
 		assertNotNull(priceHistogram);
@@ -1414,7 +1419,12 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 		assertNotNull(result);
 		assertTrue(result.getTotalRecordCount() > 0);
 
-		assertNotNull(result.getExtraResult(QueryTelemetry.class));
+		final QueryTelemetry telemetry = result.getExtraResult(QueryTelemetry.class);
+		assertNotNull(telemetry);
+		// the server normalizes `start` to an offset from the root step before it goes on the wire, so the tree
+		// rebuilt on the client side must report zero at its root, anchored by the wall-clock stamp
+		assertEquals(0L, telemetry.getStart());
+		assertNotNull(telemetry.getStartedAt());
 
 		final PriceHistogram priceHistogram = result.getExtraResult(PriceHistogram.class);
 		assertNotNull(priceHistogram);
