@@ -52,9 +52,9 @@ public interface QueryTelemetryDescriptor {
 	PropertyDescriptor START = PropertyDescriptor.builder()
 		.name("start")
 		.description("""
-            Number of nanoseconds elapsed since the root step of this telemetry tree began - the root
-            step itself therefore always reports `0`. This is not a wall-clock timestamp and must not
-            be rendered as a date.
+			Number of nanoseconds elapsed since the root step of this telemetry tree began - the root
+			step itself therefore always reports `0`. This is not a wall-clock timestamp and must not
+			be rendered as a date.
 			""")
 		.type(nonNull(Long.class))
 		.build();
@@ -82,9 +82,9 @@ public interface QueryTelemetryDescriptor {
 	PropertyDescriptor STARTED_AT = PropertyDescriptor.builder()
 		.name("startedAt")
 		.description("""
-            Wall-clock instant at which the query began, in the ISO-8601 offset date-time format. Set only on
-            the root step - it anchors the whole tree in time, so the wall-clock position of any other node is
-            `startedAt` plus that node's `start` offset.
+			Wall-clock instant at which the query began, in the ISO-8601 offset date-time format. Set only on
+			the root step - it anchors the whole tree in time, so the wall-clock position of any other node is
+			`startedAt` plus that node's `start` offset.
 			""")
 		.type(nullable(String.class))
 		.build();
