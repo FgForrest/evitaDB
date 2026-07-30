@@ -52,7 +52,8 @@ public interface GrpcQueryTelemetryOrBuilder extends
 
   /**
    * <pre>
-   * Date and time of the start of this step in nanoseconds.
+   * Number of nanoseconds elapsed since the root step of this telemetry tree began - the root step itself
+   * therefore always reports 0. This is not a wall-clock timestamp and must not be rendered as a date.
    * </pre>
    *
    * <code>int64 start = 2;</code>
@@ -154,4 +155,34 @@ public interface GrpcQueryTelemetryOrBuilder extends
    * @return The spentTime.
    */
   long getSpentTime();
+
+  /**
+   * <pre>
+   * Wall-clock instant at which the query began. Set only on the root step - it anchors the whole tree in time,
+   * so the wall-clock position of any other node is startedAt plus that node's start offset.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime startedAt = 6;</code>
+   * @return Whether the startedAt field is set.
+   */
+  boolean hasStartedAt();
+  /**
+   * <pre>
+   * Wall-clock instant at which the query began. Set only on the root step - it anchors the whole tree in time,
+   * so the wall-clock position of any other node is startedAt plus that node's start offset.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime startedAt = 6;</code>
+   * @return The startedAt.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime getStartedAt();
+  /**
+   * <pre>
+   * Wall-clock instant at which the query began. Set only on the root step - it anchors the whole tree in time,
+   * so the wall-clock position of any other node is startedAt plus that node's start offset.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime startedAt = 6;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder getStartedAtOrBuilder();
 }

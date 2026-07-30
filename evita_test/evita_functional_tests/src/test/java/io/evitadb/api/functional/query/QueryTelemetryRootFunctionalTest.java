@@ -41,6 +41,7 @@ import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.time.OffsetDateTime;
 
 import static io.evitadb.api.query.QueryConstraints.attributeStartsWith;
 import static io.evitadb.api.query.QueryConstraints.collection;
@@ -51,7 +52,9 @@ import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.QUERY;
 import static io.evitadb.test.TestTags.REQUIRE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -116,6 +119,31 @@ class QueryTelemetryRootFunctionalTest implements EvitaTestSupport {
 			telemetry.getSpentTime() > 0,
 			"The root step must report a duration - the client reads it as the total query time!"
 		);
+	}
+
+	@Test
+	@DisplayName("the root node is stamped with the wall-clock instant the query began")
+	void shouldStampRootTelemetryWithWallClockStart() {
+		final OffsetDateTime before = OffsetDateTime.now();
+		final QueryTelemetry telemetry = queryTelemetryOf();
+		final OffsetDateTime after = OffsetDateTime.now();
+
+		final OffsetDateTime startedAt = telemetry.getStartedAt();
+		assertNotNull(
+			startedAt,
+			"The root step must carry the wall-clock instant of the query start - it is what anchors the whole " +
+				"telemetry tree in time!"
+		);
+		assertFalse(
+			startedAt.isBefore(before) || startedAt.isAfter(after),
+			"The wall-clock stamp must be taken while the query runs, but " + startedAt + " lies outside <" +
+				before + ", " + after + ">!"
+		);
+
+		// only the root anchors the tree - inner steps derive their position from `startedAt` plus their own offset
+		for (final QueryTelemetry step : telemetry.getSteps()) {
+			assertNull(step.getStartedAt(), "Only the root step may carry the wall-clock stamp!");
+		}
 	}
 
 	@Test
