@@ -134,6 +134,8 @@ class ServerOptionsTest {
 					.DEFAULT_TRANSACTION_TIMEOUT_IN_MILLISECONDS,
 				ServerOptions
 					.DEFAULT_CLOSE_SESSIONS_AFTER_SECONDS_OF_INACTIVITY,
+				ServerOptions
+					.DEFAULT_DROP_COLLATION_KEYS_AFTER_SECONDS_OF_INACTIVITY,
 				null, null,
 				false, false
 			);
@@ -157,6 +159,8 @@ class ServerOptionsTest {
 					.DEFAULT_TRANSACTION_TIMEOUT_IN_MILLISECONDS,
 				ServerOptions
 					.DEFAULT_CLOSE_SESSIONS_AFTER_SECONDS_OF_INACTIVITY,
+				ServerOptions
+					.DEFAULT_DROP_COLLATION_KEYS_AFTER_SECONDS_OF_INACTIVITY,
 				null, null,
 				false, false
 			);
@@ -298,6 +302,66 @@ class ServerOptionsTest {
 
 			assertTrue(
 				options.trafficRecording().enabled()
+			);
+		}
+	}
+
+	@Nested
+	@DisplayName("Collation key retention")
+	class CollationKeyRetentionTest {
+
+		@Test
+		@DisplayName(
+			"should retain collation keys indefinitely by default"
+		)
+		void shouldRetainCollationKeysIndefinitelyByDefault() {
+			final ServerOptions options =
+				ServerOptions.builder().build();
+
+			// asserted as a literal as well as against the constant, so that bounding retention by
+			// default cannot happen silently - it changes the memory/latency trade-off of every
+			// deployment that does not set the option. Releasing keys costs a bulk import nothing but
+			// slows the first write transaction after a quiet spell, which re-collates the sort index.
+			assertEquals(
+				ServerOptions
+					.DEFAULT_DROP_COLLATION_KEYS_AFTER_SECONDS_OF_INACTIVITY,
+				options.dropCollationKeysAfterSecondsOfInactivity()
+			);
+			assertEquals(
+				0, options.dropCollationKeysAfterSecondsOfInactivity()
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"should set collation key inactivity timeout via builder"
+		)
+		void shouldSetCollationKeyInactivityTimeoutViaBuilder() {
+			final ServerOptions options =
+				ServerOptions.builder()
+					.dropCollationKeysAfterSecondsOfInactivity(300)
+					.build();
+
+			assertEquals(
+				300,
+				options.dropCollationKeysAfterSecondsOfInactivity()
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"should copy collation key timeout through builder copy"
+		)
+		void shouldCopyCollationKeyTimeoutThroughBuilderCopy() {
+			final ServerOptions source =
+				ServerOptions.builder()
+					.dropCollationKeysAfterSecondsOfInactivity(120)
+					.build();
+
+			assertEquals(
+				120,
+				ServerOptions.builder(source).build()
+					.dropCollationKeysAfterSecondsOfInactivity()
 			);
 		}
 	}

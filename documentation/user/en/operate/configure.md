@@ -31,6 +31,7 @@ server:                                           # [see Server configuration](#
   queryTimeoutInMilliseconds: 5s
   transactionTimeoutInMilliseconds: 5m
   closeSessionsAfterSecondsOfInactivity: 60
+  dropCollationKeysAfterSecondsOfInactivity: 0
   readOnly: false
   quiet: false
   trafficRecording:
@@ -431,6 +432,41 @@ This section contains general settings for the evitaDB server. It allows configu
         <p>It specifies the maximum acceptable period of 
         <SourceClass>evita_api/src/main/java/io/evitadb/api/EvitaSessionContract.java</SourceClass> inactivity before 
         it is forcibly closed by the server side.</p>
+    </dd>
+    <dt>dropCollationKeysAfterSecondsOfInactivity</dt>
+    <dd>
+        <p>**Default:** `0`, which retains the keys for the lifetime of the process</p>
+        <p>It specifies how long a cached collation key may go uncompared before the server releases it. Sorting or
+        indexing a localized attribute means consulting the JVM collator for the locale's rules, which is roughly two
+        orders of magnitude more expensive than comparing two pre-computed collation keys, so evitaDB caches those keys
+        per locale. A workload that compares nearly every distinct value in the corpus - a bulk import, or a large
+        transaction over a sortable localized attribute - fills that cache and is much faster for it, at the cost of
+        memory proportional to the number of distinct values. Steady-state query serving compares a far smaller hot
+        subset and has no reason to keep paying for the import's footprint; this timeout bounds how long the unused
+        remainder is kept.</p>
+
+        <Note type="info">
+
+        <NoteTitle toggles="true">
+
+        ##### When is it worth setting?
+        </NoteTitle>
+
+        Releasing the keys costs a bulk import nothing - a 972 000-article localized import measured the same duration
+        with the release enabled and disabled. What it does cost is the **first write transaction after a quiet
+        spell**, which has to recompute the keys that were released; on a catalog with 640 000 distinct values that
+        transaction grew from 7.4 s to 12.9 s, while the release returned roughly 146 MB.
+
+        That penalty is proportional to the number of distinct sortable values, so the trade-off differs sharply by
+        deployment. A catalog with a few thousand distinct values reclaims memory for a penalty measured in
+        milliseconds and should set a timeout of a few minutes; a catalog with hundreds of thousands should leave the
+        keys in place until it has memory pressure worth 146 MB of relief.
+        </Note>
+
+        <p>Note that the *size* of the cache - the ceiling this timeout works below - is a per-locale slot count
+        configured by the `evita.collationKeyCache.size` system property rather than by this file, because it has to be
+        known when the cache class is loaded, long before this configuration is read; `0` there disables the caches
+        altogether. Its default is derived from the maximum heap size, so it usually needs no attention.</p>
     </dd>
     <dt>readOnly</dt>
     <dd>
