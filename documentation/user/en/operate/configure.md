@@ -31,7 +31,7 @@ server:                                           # [see Server configuration](#
   queryTimeoutInMilliseconds: 5s
   transactionTimeoutInMilliseconds: 5m
   closeSessionsAfterSecondsOfInactivity: 60
-  dropCollationKeysAfterSecondsOfInactivity: 0
+  dropCollationKeysAfterSecondsOfInactivity: 300
   readOnly: false
   quiet: false
   trafficRecording:
@@ -435,7 +435,7 @@ This section contains general settings for the evitaDB server. It allows configu
     </dd>
     <dt>dropCollationKeysAfterSecondsOfInactivity</dt>
     <dd>
-        <p>**Default:** `0`, which retains the keys for the lifetime of the process</p>
+        <p>**Default:** `300` (5 minutes); `0` retains the keys for the lifetime of the process</p>
         <p>It specifies how long a cached collation key may go uncompared before the server releases it. Sorting or
         indexing a localized attribute means consulting the JVM collator for the locale's rules, which is roughly two
         orders of magnitude more expensive than comparing two pre-computed collation keys, so evitaDB caches those keys
@@ -453,14 +453,16 @@ This section contains general settings for the evitaDB server. It allows configu
         </NoteTitle>
 
         Releasing the keys costs a bulk import nothing - a 972 000-article localized import measured the same duration
-        with the release enabled and disabled. What it does cost is the **first write transaction after a quiet
-        spell**, which has to recompute the keys that were released; on a catalog with 640 000 distinct values that
-        transaction grew from 7.4 s to 12.9 s, while the release returned roughly 146 MB.
+        with the release enabled and disabled, while the release returns roughly 146 MB per locale.
 
-        That penalty is proportional to the number of distinct sortable values, so the trade-off differs sharply by
-        deployment. A catalog with a few thousand distinct values reclaims memory for a penalty measured in
-        milliseconds and should set a timeout of a few minutes; a catalog with hundreds of thousands should leave the
-        keys in place until it has memory pressure worth 146 MB of relief.
+        The one place it used to cost was the **first write transaction after a quiet spell**, which had to recompute
+        the keys that were released: on a catalog with 640 000 distinct values that transaction grew from 7.4 s to
+        12.9 s. Retention was originally unbounded for that reason. That cost came from the transaction rebuilding the
+        whole distinct-value structure of its sort index, which no longer happens - an insert now anchors on its own
+        value bucket and touches only a handful of values - so bounding the retention became the better default.
+
+        Deployments that sort on very few distinct values, or that would rather hold the keys for the lifetime of the
+        process, can still set `0` to restore unbounded retention.
         </Note>
 
         <p>Note that the *size* of the cache - the ceiling this timeout works below - is a per-locale slot count

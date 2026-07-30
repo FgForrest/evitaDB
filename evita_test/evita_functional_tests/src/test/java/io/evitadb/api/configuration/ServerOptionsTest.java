@@ -318,17 +318,18 @@ class ServerOptionsTest {
 			final ServerOptions options =
 				ServerOptions.builder().build();
 
-			// asserted as a literal as well as against the constant, so that bounding retention by
+			// asserted as a literal as well as against the constant, so that changing the retention
 			// default cannot happen silently - it changes the memory/latency trade-off of every
-			// deployment that does not set the option. Releasing keys costs a bulk import nothing but
-			// slows the first write transaction after a quiet spell, which re-collates the sort index.
+			// deployment that does not set the option. Releasing keys costs a bulk import nothing; it
+			// used to slow the first write transaction after a quiet spell, but that transaction no
+			// longer rebuilds the sort index's distinct-value structure, so retention is now bounded.
 			assertEquals(
 				ServerOptions
 					.DEFAULT_DROP_COLLATION_KEYS_AFTER_SECONDS_OF_INACTIVITY,
 				options.dropCollationKeysAfterSecondsOfInactivity()
 			);
 			assertEquals(
-				0, options.dropCollationKeysAfterSecondsOfInactivity()
+				300, options.dropCollationKeysAfterSecondsOfInactivity()
 			);
 		}
 

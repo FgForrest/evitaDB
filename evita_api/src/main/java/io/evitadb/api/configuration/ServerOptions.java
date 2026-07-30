@@ -48,8 +48,9 @@ import javax.annotation.Nullable;
  * @param closeSessionsAfterSecondsOfInactivity Sets the timeout in seconds after which the session is automatically
  *                                              closed if no activity is observed on it.
  * @param dropCollationKeysAfterSecondsOfInactivity Sets the timeout in seconds after which a cached collation key is
- *                                              released if nothing has compared it in the meantime; `0` (the default)
- *                                              keeps every key for the lifetime of the process. Sorting a localized
+ *                                              released if nothing has compared it in the meantime; the default is
+ *                                              5 minutes, and `0` keeps every key for the lifetime of the process.
+ *                                              Sorting a localized
  *                                              attribute means consulting the JVM collator, which is about two orders
  *                                              of magnitude more expensive than comparing two pre-computed collation
  *                                              keys, so evitaDB caches those keys per locale. A workload that compares
@@ -86,21 +87,23 @@ public record ServerOptions(
 	/** Default idle-session auto-close threshold: 20 minutes (`60 * 20` seconds). */
 	public static final int DEFAULT_CLOSE_SESSIONS_AFTER_SECONDS_OF_INACTIVITY = 60 * 20;
 	/**
-	 * Collation-key retention is unbounded by default, on measured grounds rather than caution.
+	 * Default collation-key retention: 5 minutes (`60 * 5` seconds) of inactivity before a key is released.
 	 *
-	 * Releasing the keys is cheap where it was expected to be expensive and expensive where it was expected to be free.
-	 * A bulk import pays **nothing** for it - a 972k-article localized import measured the same 379 s with the sweep
-	 * enabled and disabled. What it does cost is the first write transaction after a quiet spell, because a transaction
-	 * in the ALIVE state currently rebuilds its sort index's whole distinct-value structure and therefore re-collates
-	 * every value that was just released: measured at 640k distinct values, that first transaction grows from 7.4 s to
-	 * 12.9 s, while the release returns roughly 146 MB.
+	 * Releasing the keys is cheap where it was expected to be expensive: a bulk import pays **nothing** for it - a
+	 * 972k-article localized import measured the same 379 s with the sweep enabled and disabled - while the release
+	 * returns roughly 146 MB per locale.
 	 *
-	 * That penalty is a symptom of the rebuild rather than of the release - once a write touches only the values it
-	 * actually changes, a cold collation cache stops mattering and a timeout of a few minutes becomes the sensible
-	 * default. Until then, trading 146 MB for 5.5 s on a write path is the wrong way round for a large catalog.
-	 * A deployment with few distinct sortable values has no such rebuild to worsen and should set a timeout explicitly.
+	 * The one place it used to cost was the first write transaction after a quiet spell, because a transaction in the
+	 * ALIVE state rebuilt its sort index's whole distinct-value structure and therefore re-collated every value that
+	 * had just been released: at 640k distinct values that first transaction grew from 7.4 s to 12.9 s. Retention was
+	 * originally unbounded for exactly that reason. That rebuild is gone - an insert now anchors on its own value
+	 * bucket and touches only `O(depth)` values - so a cold collation cache no longer has a rebuild to worsen, and
+	 * bounding the retention became the better trade.
+	 *
+	 * A deployment that sorts on very few distinct values, or one that wants the keys held for the process lifetime,
+	 * can still set `0` explicitly to restore unbounded retention.
 	 */
-	public static final int DEFAULT_DROP_COLLATION_KEYS_AFTER_SECONDS_OF_INACTIVITY = 0;
+	public static final int DEFAULT_DROP_COLLATION_KEYS_AFTER_SECONDS_OF_INACTIVITY = 60 * 5;
 	public static final boolean DEFAULT_READ_ONLY = false;
 	public static final boolean DEFAULT_QUIET = false;
 
