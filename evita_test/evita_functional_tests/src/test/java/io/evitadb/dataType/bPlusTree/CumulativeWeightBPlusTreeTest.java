@@ -94,6 +94,7 @@ class CumulativeWeightBPlusTreeTest {
 			assertTrue(tree.containsKey(key), () -> "expected key " + key + " present");
 			assertEquals(entry.getValue().intValue(), tree.weightOf(key), () -> "weight mismatch at " + key);
 			assertEquals(prefix, tree.rankOf(key), () -> "rank mismatch at present key " + key);
+			assertRankAndWeightAgrees(tree, key);
 			prefix += entry.getValue();
 		}
 		final int lo = oracle.isEmpty() ? -5 : oracle.firstKey() - 5;
@@ -108,7 +109,34 @@ class CumulativeWeightBPlusTreeTest {
 			final int expectedRank = oracle.headMap(probe, false).values().stream().mapToInt(Integer::intValue).sum();
 			final int p = probe;
 			assertEquals(expectedRank, tree.rankOf(p), () -> "rank mismatch at probe " + p);
+			assertRankAndWeightAgrees(tree, p);
 		}
+	}
+
+	/**
+	 * Asserts that the single-descent {@link CumulativeWeightBPlusTree#rankAndWeightOf(Object)} reports exactly what the
+	 * three separate queries it replaces report — the rank of {@link CumulativeWeightBPlusTree#rankOf(Object)}, and a
+	 * weight that equals {@link CumulativeWeightBPlusTree#weightOf(Object)} and is non-zero precisely when
+	 * {@link CumulativeWeightBPlusTree#containsKey(Object)} holds. Because those three are themselves checked against the
+	 * oracle by the caller, agreement here transitively pins the fused path to the oracle as well.
+	 */
+	private static void assertRankAndWeightAgrees(
+		@Nonnull CumulativeWeightBPlusTree<Integer> tree,
+		int key
+	) {
+		final long packed = tree.rankAndWeightOf(key);
+		assertEquals(
+			tree.rankOf(key), CumulativeWeightBPlusTree.rankFrom(packed),
+			() -> "fused rank mismatch at " + key
+		);
+		assertEquals(
+			tree.weightOf(key), CumulativeWeightBPlusTree.weightFrom(packed),
+			() -> "fused weight mismatch at " + key
+		);
+		assertEquals(
+			tree.containsKey(key), CumulativeWeightBPlusTree.weightFrom(packed) > 0,
+			() -> "fused presence mismatch at " + key
+		);
 	}
 
 	@Nested
@@ -315,6 +343,128 @@ class CumulativeWeightBPlusTreeTest {
 			}
 			// under the reverse comparator the largest integer has rank 0
 			assertEquals(0, tree.rankOf(Integer.MAX_VALUE));
+		}
+	}
+
+	@Nested
+	@DisplayName("fused rank + weight query")
+	class FusedRankAndWeight {
+
+		@Test
+		@DisplayName("reports rank 0 and weight 0 on an empty tree")
+		void shouldReportEmptyOnEmptyTree() {
+			final CumulativeWeightBPlusTree<Integer> tree = new CumulativeWeightBPlusTree<>(Comparator.naturalOrder());
+			final long packed = tree.rankAndWeightOf(42);
+			assertEquals(0, CumulativeWeightBPlusTree.rankFrom(packed));
+			assertEquals(0, CumulativeWeightBPlusTree.weightFrom(packed));
+		}
+
+		@Test
+		@DisplayName("packs a rank far above the 16-bit range without corrupting the weight")
+		void shouldPackLargeRanks() {
+			final CumulativeWeightBPlusTree<Integer> tree = new CumulativeWeightBPlusTree<>(Comparator.naturalOrder());
+			// weights large enough that the accumulated rank occupies well over 16 bits, so a botched shift or a
+			// sign-extended low half would be caught rather than hidden by small numbers
+			for (int i = 0; i < 200; i++) {
+				tree.insert(i, 1_000_003);
+			}
+			for (int i = 0; i < 200; i++) {
+				final long packed = tree.rankAndWeightOf(i);
+				assertEquals(i * 1_000_003, CumulativeWeightBPlusTree.rankFrom(packed), "rank at " + i);
+				assertEquals(1_000_003, CumulativeWeightBPlusTree.weightFrom(packed), "weight at " + i);
+			}
+			// an absent key above the whole range keeps the full total as its rank and reports no weight
+			final long absent = tree.rankAndWeightOf(500);
+			assertEquals(200 * 1_000_003, CumulativeWeightBPlusTree.rankFrom(absent));
+			assertEquals(0, CumulativeWeightBPlusTree.weightFrom(absent));
+		}
+
+		@Test
+		@DisplayName("routes correctly through wide internal nodes at the default block size")
+		void shouldRouteThroughWideInternalNodes() {
+			// the default block size puts up to 63 separators in one internal node - the case the routing binary search
+			// exists for, and the one a block-size-3 test cannot exercise. 20k keys give a multi-level tree.
+			final CumulativeWeightBPlusTree<Integer> tree = new CumulativeWeightBPlusTree<>(Comparator.naturalOrder());
+			final TreeMap<Integer, Integer> oracle = new TreeMap<>();
+			final Random random = new Random(4242);
+			while (oracle.size() < 20_000) {
+				final int key = random.nextInt(1_000_000);
+				if (!oracle.containsKey(key)) {
+					final int weight = 1 + random.nextInt(5);
+					tree.insert(key, weight);
+					oracle.put(key, weight);
+				}
+			}
+			final ConsistencyReport report = tree.getConsistencyReport();
+			assertEquals(ConsistencyState.CONSISTENT, report.state(), report.report());
+
+			// walk every present key in order, checking the fused query against a linearly summed oracle prefix
+			int prefix = 0;
+			for (final Map.Entry<Integer, Integer> entry : oracle.entrySet()) {
+				final long packed = tree.rankAndWeightOf(entry.getKey());
+				assertEquals(prefix, CumulativeWeightBPlusTree.rankFrom(packed), () -> "rank at " + entry.getKey());
+				assertEquals(
+					entry.getValue().intValue(), CumulativeWeightBPlusTree.weightFrom(packed),
+					() -> "weight at " + entry.getKey()
+				);
+				prefix += entry.getValue();
+			}
+			assertEquals(prefix, tree.totalWeight());
+
+			// and a spread of absent keys, whose rank must equal the insertion-point prefix
+			for (int i = 0; i < 2_000; i++) {
+				final int probe = random.nextInt(1_000_000);
+				if (oracle.containsKey(probe)) {
+					continue;
+				}
+				final int expectedRank = oracle.headMap(probe, false).values().stream()
+					.mapToInt(Integer::intValue).sum();
+				final long packed = tree.rankAndWeightOf(probe);
+				assertEquals(expectedRank, CumulativeWeightBPlusTree.rankFrom(packed), () -> "rank at absent " + probe);
+				assertEquals(0, CumulativeWeightBPlusTree.weightFrom(packed), () -> "weight at absent " + probe);
+			}
+		}
+
+		@Test
+		@DisplayName("stays correct through wide-node removals that leave separators stale")
+		void shouldStayCorrectAfterWideNodeRemovals() {
+			// removals never rewrite separators (the no-merge policy), so routing must survive separators that are
+			// merely loose lower bounds - at the default block size, where the binary search does the routing
+			final CumulativeWeightBPlusTree<Integer> tree = new CumulativeWeightBPlusTree<>(Comparator.naturalOrder());
+			final TreeMap<Integer, Integer> oracle = new TreeMap<>();
+			for (int i = 0; i < 5_000; i++) {
+				tree.insert(i * 10, 3);
+				oracle.put(i * 10, 3);
+			}
+			final List<Integer> keys = new ArrayList<>(oracle.keySet());
+			java.util.Collections.shuffle(keys, new Random(13));
+			for (int i = 0; i < 3_000; i++) {
+				final Integer key = keys.get(i);
+				tree.remove(key);
+				oracle.remove(key);
+			}
+			// re-insert into the loosened gaps so keys land below the stale separators guarding their leaves
+			for (int i = 0; i < 3_000; i += 2) {
+				final int key = keys.get(i) + 1;
+				if (!oracle.containsKey(key)) {
+					tree.insert(key, 2);
+					oracle.put(key, 2);
+				}
+			}
+			final ConsistencyReport report = tree.getConsistencyReport();
+			assertEquals(ConsistencyState.CONSISTENT, report.state(), report.report());
+
+			int prefix = 0;
+			for (final Map.Entry<Integer, Integer> entry : oracle.entrySet()) {
+				final long packed = tree.rankAndWeightOf(entry.getKey());
+				assertEquals(prefix, CumulativeWeightBPlusTree.rankFrom(packed), () -> "rank at " + entry.getKey());
+				assertEquals(
+					entry.getValue().intValue(), CumulativeWeightBPlusTree.weightFrom(packed),
+					() -> "weight at " + entry.getKey()
+				);
+				assertEquals(prefix, tree.rankOf(entry.getKey()), () -> "rankOf disagrees at " + entry.getKey());
+				prefix += entry.getValue();
+			}
 		}
 	}
 }

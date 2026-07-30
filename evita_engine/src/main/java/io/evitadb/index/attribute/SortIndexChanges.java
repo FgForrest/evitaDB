@@ -72,9 +72,12 @@ public class SortIndexChanges
 	 * It is a {@link CumulativeWeightBPlusTree} keyed by value (using {@link #valueComparator}) whose per-key weight is
 	 * the value's cardinality: {@link CumulativeWeightBPlusTree#rankOf} yields a block start offset in `O(log V)`, and
 	 * inserting / removing a value or adjusting a cardinality is `O(log V)` — replacing the former flat prefix-sum array
-	 * that re-stamped every following offset on each mutation. The cardinalities are sourced mode-agnostically from the
-	 * owning {@link SortIndex} (owner mode: its `sortedValues` tree; view mode: the shared inverted index) when the tree
-	 * is first built — see {@link #getValueTree()}. Transient: it is a rebuildable cache, never persisted.
+	 * that re-stamped every following offset on each mutation. The write path asks for a value's whole block through
+	 * {@link CumulativeWeightBPlusTree#rankAndWeightOf} instead, which answers the offset and the length in ONE descent —
+	 * on a localized attribute every comparison the descent avoids is a potential collation. The cardinalities are
+	 * sourced mode-agnostically from the owning {@link SortIndex} (owner mode: its `sortedValues` tree; view mode: the
+	 * shared inverted index) when the tree is first built — see {@link #getValueTree()}. Transient: it is a rebuildable
+	 * cache, never persisted.
 	 */
 	@Nullable private transient CumulativeWeightBPlusTree<Serializable> valueLocationTree;
 
@@ -227,15 +230,16 @@ public class SortIndexChanges
 	 */
 	public int computePreviousRecord(@Nonnull Serializable value, int recordId) {
 		final CumulativeWeightBPlusTree<Serializable> valueTree = getValueTree();
-		// block start = cumulative weight (rank) of all strictly-smaller values
-		final int blockStart = valueTree.rankOf(value);
 		// A value that already owns a record block spans its cardinality (its weight); a value seen for the first time
 		// starts a fresh, EMPTY block at the same offset. Both cases are the same query — "what precedes the place this
 		// record id belongs within `[blockStart, blockEnd)`" — and the empty range simply skips the search and answers
-		// with the last record of the preceding block.
-		final int blockEnd = valueTree.containsKey(value)
-			? blockStart + valueTree.weightOf(value)
-			: blockStart;
+		// with the last record of the preceding block. A single descent yields both the block start (the cumulative
+		// weight of all strictly-smaller values) and its length, with weight zero encoding a first-time value — the
+		// former rankOf + containsKey + weightOf triple descended the tree three times for the identical value, and
+		// every one of those comparisons may cost a full collation on a localized attribute.
+		final long rankAndWeight = valueTree.rankAndWeightOf(value);
+		final int blockStart = CumulativeWeightBPlusTree.rankFrom(rankAndWeight);
+		final int blockEnd = blockStart + CumulativeWeightBPlusTree.weightFrom(rankAndWeight);
 		// Binary-search the block through positional reads instead of materializing it. Within the block record ids are
 		// sorted in natural integer order, so the search is the same one `computeInsertPositionOfIntInOrderedArray`
 		// performs — it just reads each probe through the position tree (O(depth), no allocation) rather than out of a
