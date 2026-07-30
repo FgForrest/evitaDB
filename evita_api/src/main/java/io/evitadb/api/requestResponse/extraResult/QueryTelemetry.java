@@ -51,7 +51,11 @@ public class QueryTelemetry implements EvitaResponseExtraResult {
 	 */
 	@Getter private final QueryPhase operation;
 	/**
-	 * Date and time of the start of this step in nanoseconds.
+	 * Start of this step as read from {@link System#nanoTime()} in nanoseconds.
+	 *
+	 * This is a monotonic counter with no defined epoch - it is NOT a wall-clock timestamp and must not be
+	 * rendered as a date. It is only meaningful relative to another `start` from the same tree, typically as an
+	 * offset from the root step.
 	 */
 	@Getter private final long start;
 	/**

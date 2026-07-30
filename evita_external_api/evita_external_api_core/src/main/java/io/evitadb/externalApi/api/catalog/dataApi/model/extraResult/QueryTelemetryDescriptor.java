@@ -51,7 +51,9 @@ public interface QueryTelemetryDescriptor {
 	PropertyDescriptor START = PropertyDescriptor.builder()
 		.name("start")
 		.description("""
-            Date and time of the start of this step in nanoseconds.
+            Start of this step in nanoseconds, read from a monotonic counter with no defined epoch.
+            This is not a wall-clock timestamp - it is only meaningful relative to another `start`
+            from the same telemetry tree, typically as an offset from the root step.
 			""")
 		.type(nonNull(Long.class))
 		.build();

@@ -609,11 +609,16 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 
 	/**
 	 * Returns {@link QueryTelemetry} root or throws an exception if no telemetry is initialized.
+	 *
+	 * The root is the *bottom* of the stack - the node seeded when this context was created. `push()` on
+	 * an {@link ArrayDeque} is `addFirst()`, so the head of the deque is the innermost still-open step
+	 * (that is what {@link #getCurrentStep()} returns); reading the head here would hand out whichever step
+	 * happens to be open at the time of the call rather than the root of the tree.
 	 */
 	@Nonnull
 	public QueryTelemetry getTelemetryRoot() {
 		Assert.isPremiseValid(!this.telemetryStack.isEmpty(), "The telemetry is not initialized!");
-		return this.telemetryStack.getFirst();
+		return this.telemetryStack.getLast();
 	}
 
 	/**
