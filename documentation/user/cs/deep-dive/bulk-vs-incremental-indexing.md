@@ -1,20 +1,27 @@
 ---
 title: Hromadné vs. inkrementální indexování
-perex: 'evitaDB je navržena jako rychlá, transakční, pro čtení optimalizovaná databáze, která odlehčuje práci primárnímu datovému úložišti, jímž bývá obvykle nějaký typ relační databáze. Očekává se proto, že bude fungovat ve dvou odlišných fázích: počáteční indexování velkého datasetu a následná údržba indexu po celou dobu jeho životnosti. Tyto dvě fáze mají odlišné požadavky a proto jsou řešeny zvláštním způsobem.'
+perex: 'evitaDB je navržena jako rychlá, transakční, na čtení optimalizovaná databáze, která odlehčuje práci primárnímu datovému úložišti, jímž je obvykle nějaká relační databáze. Očekává se proto, že bude fungovat ve dvou odlišných fázích: počáteční indexace velkého datového souboru a následná údržba indexu po celou dobu jeho životnosti. Tyto dvě fáze mají odlišné požadavky a proto jsou řešeny speciálním způsobem.'
 date: '24.8.2028'
 author: Ing. Jan Novotný
 translated: 'true'
-commit: '77da5b36c170430534ee4d9a4a2903da4de68555'
+commit: ec37506daa7287fef0cbacc6da8ef02dd5f262f4
 ---
 ## Hromadné indexování (FÁZE WARM-UP)
 
-Hromadné indexování slouží k rychlému indexování velkého objemu zdrojových dat z externího datového úložiště. V této počáteční fázi životního cyklu katalogu není potřeba podpora transakcí ani souběžnosti. Jediným cílem je zaindexovat co nejvíce dat v co nejkratším čase. Tato fáze má následující charakteristiky:
+Hromadné indexování slouží k rychlému indexování velkých objemů zdrojových dat z externího datového úložiště. V této počáteční fázi životního cyklu katalogu není potřeba podpora transakcí ani souběžnost. Jediným cílem je zaindexovat co nejvíce dat v co nejkratším čase. Tato fáze má následující charakteristiky:
 
 1. V jeden okamžik může být otevřen pouze jeden klient (jedna relace).
-2. Není možné provést rollback – pokud dojde k jakékoli chybě (i uprostřed zápisu jedné entity), klient musí obnovu řešit sám (viz [Atomicita jednotlivých zápisů](#atomicita-jednotlivých-zápisů)).
-3. Všechny změny v indexech jsou uchovávány v paměti a zapsány až při uzavření relace; v případě pádu databáze jsou všechny změny ztraceny.
+2. Není možné provést rollback – pokud dojde k jakékoli chybě (i v průběhu zápisu jedné entity), klient musí obnovu řešit sám (viz [Atomicita jednotlivých zápisů](#atomicita-jednotlivých-zápisů)).
+3. Všechny změny indexů jsou uchovávány v paměti a zapsány až při uzavření relace; v případě pádu databáze jsou všechny změny ztraceny.
 
-Po dokončení počátečního indexování se očekává, že klient ukončí fázi warm-up uzavřením relace a provedením mutace `MakeCatalogAlive`, která přepne katalog do fáze ALIVE (viz následující kapitola). <LS to="j"><SourceClass>evita_api/src/main/java/io/evitadb/api/EvitaContract.java</SourceClass> poskytuje pro tento účel metodu `goLiveAndClose`. Přechod lze také vyvolat metodou `makeCatalogAlive` ve <SourceClass>evita_api/src/main/java/io/evitadb/api/EvitaContract.java</SourceClass>.</LS>
+<Note type="info">
+
+Množství dat, které zapíšete mezi uzavřeními relace, je vědomý kompromis. Uzavření relace je jediný okamžik, kdy se změny indexů zapíší na disk, takže časté uzavírání funguje jako kontrolní body — dosud provedená práce je trvalá a v případě pádu přijdete maximálně o blok, který je právě zpracováván. Za to však platíte propustností: každé uzavření musí shromáždit a uložit změněné části každého indexu, kterého se blok dotkl, a čím více dat katalog již obsahuje, tím je to náročnější — tuto cenu platíte opakovaně a roste s postupujícím importem. Zapsání celé sady dat v rámci jedné relace se téměř všem těmto nákladům vyhne a poskytne nejrychlejší možný import, ale znamená to, že celý výsledek je „ve vzduchu“: nic není trvalé až do konce, paměť zabraná čekajícími změnami indexů roste po celou dobu a jakékoli selhání — včetně jediného napůl provedeného zápisu, pro který tato fáze nenabízí rollback — vás vrací na začátek (viz [Atomicita jednotlivých zápisů](#atomicita-jednotlivých-zápisů)). Pro importy, které lze v případě potřeby snadno zopakovat, preferujte jeden velký blok; pro delší importy, kde by ztráta veškeré práce bolela, používejte pravidelné uzavírání relace.
+
+</Note>
+
+Po dokončení počátečního indexování by měl klient ukončit fázi warm-up uzavřením relace a provedením mutace `MakeCatalogAlive`, která přepne katalog do fáze ALIVE (viz následující kapitola). <LS to="j"><SourceClass>evita_api/src/main/java/io/evitadb/api/EvitaContract.java</SourceClass> poskytuje pro tento účel metodu `goLiveAndClose`. Tuto změnu můžete provést také pomocí metody `makeCatalogAlive` ve <SourceClass>evita_api/src/main/java/io/evitadb/api/EvitaContract.java</SourceClass>.</LS>
+
 ## Inkrementální indexování (FÁZE ALIVE)
 
 Inkrementální indexování je fáze, ve které průběžně synchronizujeme změny z primárního datového úložiště do evitaDB. Může být otevřeno více klientů (relací) současně, některé pouze čtou, jiné zapisují. Každá čtecí-zapisovací relace definuje hranici transakce a změny lze atomicky potvrdit nebo vrátit zpět (podrobnosti o ACID najdete v [kapitole o transakcích](transactions.md)). Výkon zápisu je v této fázi výrazně nižší než při hromadném indexování, protože je nutné udržovat transakční integritu, souběžnost a trvanlivost změn. Výkon čtení tím není ovlivněn a zůstává velmi vysoký.
