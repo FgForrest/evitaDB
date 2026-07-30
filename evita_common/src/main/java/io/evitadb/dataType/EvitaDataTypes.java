@@ -124,6 +124,20 @@ import static io.evitadb.utils.MemoryMeasuringConstants.*;
  */
 public class EvitaDataTypes {
 	/**
+	 * Primary key value evitaDB **reserves** and never assigns to a real entity: valid entity primary keys are
+	 * always positive. Because no entity can ever carry it, this value is available as an unambiguous "no entity
+	 * here" sentinel — for a missing group, an absent predecessor, or any other slot that must distinguish "no
+	 * primary key" from a real one without widening the type or allocating a box.
+	 *
+	 * The reservation is enforced where entities enter the engine: an upsert carrying this primary key is rejected,
+	 * so no index can ever come to hold it. Code relying on the sentinel must therefore reference THIS constant
+	 * rather than a literal `0`, so the reservation and its users stay connected.
+	 *
+	 * Note this is distinct from {@link ChainableType#HEAD_PK}, which is `-1` and marks the head of a predecessor
+	 * chain — a statement about position within a chain, not about the absence of an entity.
+	 */
+	public static final int RESERVED_PRIMARY_KEY = 0;
+	/**
 	 * Unmodifiable set of all data types directly supported by evitaDB. This includes primitive
 	 * types and their wrappers, date/time types, ranges, locales, currencies, UUIDs, and
 	 * evitaDB-specific types like `Predecessor` and `Expression`. Float and Double are NOT

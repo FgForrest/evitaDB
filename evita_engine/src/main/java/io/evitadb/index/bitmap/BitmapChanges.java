@@ -80,6 +80,43 @@ public class BitmapChanges implements Snapshotable<BitmapChanges.BitmapChangesMe
 	}
 
 	/**
+	 * Returns the greatest record id at or below `fromValue` in signed order, or
+	 * {@link RoaringBitmapBackedBitmap#NO_PREVIOUS_VALUE} when none exists — answered from the diff layer rather than
+	 * from {@link #getMergedBitmap()}. This distinction is load-bearing on the write path: the memoized merge is
+	 * nullified by EVERY modification, so answering through it would re-merge the whole bucket once per write, making
+	 * the cost proportional to the bucket size exactly on the low-cardinality attributes where buckets are largest.
+	 *
+	 * Each probe takes the better of the baseline and the insertions, then steps below any id the transaction has
+	 * removed. The loop therefore runs at most once per removed id, i.e. it is bounded by the size of the diff layer
+	 * and never by the size of the bucket.
+	 *
+	 * @param fromValue inclusive upper bound in signed order
+	 * @return the greatest signed value at or below `fromValue`, or {@link RoaringBitmapBackedBitmap#NO_PREVIOUS_VALUE}
+	 */
+	long signedPreviousValue(int fromValue) {
+		int bound = fromValue;
+		while (true) {
+			final long fromOriginal = RoaringBitmapBackedBitmap.signedPreviousValue(this.originalBitmap, bound);
+			final long fromInsertions = RoaringBitmapBackedBitmap.signedPreviousValue(this.insertions, bound);
+			// both are either NO_PREVIOUS_VALUE (Long.MIN_VALUE) or a sign-extended record id, so the signed maximum
+			// picks the closer candidate and propagates "nothing found" unchanged
+			final long candidate = Math.max(fromOriginal, fromInsertions);
+			if (candidate == RoaringBitmapBackedBitmap.NO_PREVIOUS_VALUE) {
+				return RoaringBitmapBackedBitmap.NO_PREVIOUS_VALUE;
+			}
+			final int candidateId = (int) candidate;
+			if (!this.removals.contains(candidateId)) {
+				return candidateId;
+			}
+			if (candidateId == Integer.MIN_VALUE) {
+				// the candidate was removed and nothing can sort below it
+				return RoaringBitmapBackedBitmap.NO_PREVIOUS_VALUE;
+			}
+			bound = candidateId - 1;
+		}
+	}
+
+	/**
 	 * Returns true if passed recordId is part of the modified delegate bitmap. I.e. whether it was newly inserted or
 	 * contained in the original bitmap and not removed so far.
 	 */

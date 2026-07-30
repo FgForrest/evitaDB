@@ -404,8 +404,8 @@ class LongRunningChainIndexTest implements TimeBoundedTestSupport {
 		// collect the pks to next generation - leave out some of existing and add some new
 		final int[] targetState = IntStream.concat(
 			Arrays.stream(originalState).filter(it -> random.nextInt(10) != 0),
-			// add a few new primary keys
-			IntStream.generate(() -> random.nextInt(initialCount * 3)).limit((long)(initialCount * 0.3))
+			// add a few new primary keys - they start at 1, zero is reserved by evitaDB and rejected by the index
+			IntStream.generate(() -> 1 + random.nextInt(initialCount * 3)).limit((long)(initialCount * 0.3))
 		)
 			.distinct()
 			.limit((long)(initialCount * 1.2))
